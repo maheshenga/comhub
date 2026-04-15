@@ -41,12 +41,12 @@ jobs:
 
       - name: Test pnpm install in Docker
         run: |
-          docker run --rm -v "${{ github.workspace }}:/src" node:24-slim bash -c '
-            set -e
-            apt update && apt install -qy git python3 make g++
+          docker run --rm -v "${{ github.workspace }}:/src" node:22-slim bash -c '
+            set +e
+            apt update && apt install -qy git python3 make g++ 2>&1 | tail -5
             corepack disable 2>/dev/null || true
             export COREPACK_ENABLE_STRICT=0
-            npm i -g pnpm@10.33.0
+            npm i -g pnpm@10.33.0 2>&1 | tail -3
             mkdir /app && cd /app
             cp /src/package.json /src/pnpm-workspace.yaml /src/.npmrc .
             cp -r /src/packages .
@@ -55,8 +55,17 @@ jobs:
             cp /src/apps/desktop/src/main/package.json apps/desktop/src/main/
             mkdir -p e2e
             cp /src/e2e/package.json e2e/
+            echo "Node: $(node -v)"
+            echo "pnpm: $(pnpm -v)"
             echo "=== Starting pnpm install ==="
-            pnpm i --no-frozen-lockfile 2>&1
+            pnpm i --no-frozen-lockfile 2>&1 | tee /tmp/pnpm.log
+            RESULT=$?
+            if [ $RESULT -ne 0 ]; then
+              echo "=== PNPM INSTALL FAILED (exit $RESULT) ==="
+              echo "=== Last 50 lines ==="
+              tail -50 /tmp/pnpm.log
+              exit 1
+            fi
             echo "=== pnpm install succeeded ==="
           '
 
