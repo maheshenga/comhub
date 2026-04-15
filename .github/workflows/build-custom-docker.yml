@@ -40,20 +40,32 @@ jobs:
         env:
           DOCKER_BUILDKIT: '0'
         run: |
+          set +e
           TAGS="$( echo '${{ steps.meta.outputs.tags }}' | tr '\n' ' ' )"
           TAG_ARGS=""
           for tag in $TAGS; do
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
           echo "Building with tags: $TAG_ARGS"
-          docker build $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile .
+          docker build $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile . 2>&1 | tee /tmp/docker-build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "::group::Docker build failed - full log"
+            cat /tmp/docker-build.log
+            echo "::endgroup::"
+            echo "=== LAST 80 LINES ==="
+            tail -80 /tmp/docker-build.log
+            echo "::error::Docker build failed with exit code $BUILD_EXIT. See log above."
+            exit $BUILD_EXIT
+          fi
 
-      - name: Verify built images
-        run: |
-          echo "=== Docker images ==="
-          docker images | head -20
-          echo "=== Tags from metadata ==="
-          echo '${{ steps.meta.outputs.tags }}'
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-build-log
+          path: /tmp/docker-build.log
+          retention-days: 3
 
       - name: Push Docker image
         run: |
