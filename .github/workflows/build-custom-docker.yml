@@ -39,8 +39,31 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest
 
+      - name: Test pnpm install in Docker
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" node:24-slim bash -c '
+            set -e
+            apt update && apt install -qy git python3 make g++
+            corepack disable 2>/dev/null || true
+            export COREPACK_ENABLE_STRICT=0
+            npm i -g pnpm@10.33.0
+            mkdir /app && cd /app
+            cp /src/package.json /src/pnpm-workspace.yaml /src/.npmrc .
+            cp -r /src/packages .
+            cp -r /src/patches .
+            mkdir -p apps/desktop/src/main
+            cp /src/apps/desktop/src/main/package.json apps/desktop/src/main/
+            mkdir -p e2e
+            cp /src/e2e/package.json e2e/
+            echo "=== Starting pnpm install ==="
+            pnpm i --no-frozen-lockfile 2>&1
+            echo "=== pnpm install succeeded ==="
+          '
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
+        env:
+          BUILDKIT_PROGRESS: plain
         with:
           context: .
           file: ./Dockerfile
