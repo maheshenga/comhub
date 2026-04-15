@@ -27,8 +27,7 @@ docker-compose*
 .DS_Store
 Thumbs.db
 
-# Test & docs
-e2e
+# Test & docs (keep e2e/ and apps/desktop/ - needed by pnpm workspace)
 __mocks__
 *.test.*
 *.spec.*
@@ -39,9 +38,6 @@ README.md
 README.zh-CN.md
 AGENTS.md
 CLAUDE.md
-
-# Desktop app
-apps/desktop
 
 # Temp
 *.log
