@@ -65,6 +65,9 @@ RUN echo 'registry=https://registry.npmjs.org/' >> /app/.npmrc && \
     echo 'fetch-retry-maxtimeout=120000' >> /app/.npmrc && \
     sed -i '/resolution-mode=highest/d' /app/.npmrc
 
+# Fix @react-pdf/renderer: ^4.3.2 doesn't exist on npm (latest is 4.3.0)
+RUN sed -i 's/"@react-pdf\/renderer": "\^4\.3\.2"/"@react-pdf\/renderer": "^4.3.0"/' /app/package.json
+
 # Install workspace dependencies
 RUN pnpm i --no-frozen-lockfile
 
