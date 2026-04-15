@@ -58,17 +58,15 @@ COPY e2e/package.json ./e2e/package.json
 # Install pnpm directly (skip corepack for reliability)
 RUN npm i -g pnpm@10.33.0
 
-# Install workspace dependencies (verbose on failure for CI debugging)
-RUN pnpm i --no-frozen-lockfile 2>&1 || \
-    { echo "=== PNPM INSTALL FAILED ==="; \
-      echo "Node: $(node -v)"; \
-      echo "pnpm: $(pnpm -v)"; \
-      echo "corepack: $(corepack --version 2>&1 || echo disabled)"; \
-      ls -la /app/; \
-      ls /app/packages/ 2>/dev/null; \
-      cat /app/.npmrc; \
-      pnpm i --no-frozen-lockfile --reporter=append-only 2>&1 | tail -200; \
-      exit 1; }
+# Fix npm registry resolution for Docker build environment
+RUN echo 'registry=https://registry.npmjs.org/' >> /app/.npmrc && \
+    echo 'fetch-retries=5' >> /app/.npmrc && \
+    echo 'fetch-retry-mintimeout=20000' >> /app/.npmrc && \
+    echo 'fetch-retry-maxtimeout=120000' >> /app/.npmrc && \
+    sed -i '/resolution-mode=highest/d' /app/.npmrc
+
+# Install workspace dependencies
+RUN pnpm i --no-frozen-lockfile
 
 # Install standalone pg + drizzle-orm for runtime migration
 RUN mkdir -p /deps && \
