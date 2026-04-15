@@ -39,48 +39,19 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest
 
-      - name: Test pnpm install in Docker
+      - name: Build Docker image
         run: |
-          docker run --rm -v "${{ github.workspace }}:/src" node:22-slim bash -c '
-            set +e
-            apt update && apt install -qy git python3 make g++ 2>&1 | tail -5
-            corepack disable 2>/dev/null || true
-            export COREPACK_ENABLE_STRICT=0
-            npm i -g pnpm@10.33.0 2>&1 | tail -3
-            mkdir /app && cd /app
-            cp /src/package.json /src/pnpm-workspace.yaml /src/.npmrc .
-            cp -r /src/packages .
-            cp -r /src/patches .
-            mkdir -p apps/desktop/src/main
-            cp /src/apps/desktop/src/main/package.json apps/desktop/src/main/
-            mkdir -p e2e
-            cp /src/e2e/package.json e2e/
-            echo "Node: $(node -v)"
-            echo "pnpm: $(pnpm -v)"
-            echo "=== Starting pnpm install ==="
-            pnpm i --no-frozen-lockfile 2>&1 | tee /tmp/pnpm.log
-            RESULT=$?
-            if [ $RESULT -ne 0 ]; then
-              echo "=== PNPM INSTALL FAILED (exit $RESULT) ==="
-              echo "=== Last 50 lines ==="
-              tail -50 /tmp/pnpm.log
-              exit 1
-            fi
-            echo "=== pnpm install succeeded ==="
-          '
+          TAGS="$( echo '${{ steps.meta.outputs.tags }}' | tr '\n' ' ' )"
+          TAG_ARGS=""
+          for tag in $TAGS; do
+            TAG_ARGS="$TAG_ARGS -t $tag"
+          done
+          docker build $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile . 2>&1
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        env:
-          BUILDKIT_PROGRESS: plain
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            SHA=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          no-cache: true
+      - name: Push Docker image
+        run: |
+          TAGS="$( echo '${{ steps.meta.outputs.tags }}' | tr '\n' ' ' )"
+          for tag in $TAGS; do
+            echo "Pushing $tag"
+            docker push "$tag"
+          done
