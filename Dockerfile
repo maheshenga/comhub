@@ -23,6 +23,15 @@ RUN apt update && \
 ## Builder image
 FROM base AS builder
 
+# Install build tools for native modules
+RUN apt update && \
+    apt install -qy git python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+# Disable corepack to prevent conflicts with global pnpm
+RUN corepack disable 2>/dev/null || true
+ENV COREPACK_ENABLE_STRICT=0
+
 # Build-time env vars needed by Next.js
 ENV APP_URL="http://app.com" \
     DATABASE_DRIVER="node" \
@@ -50,7 +59,7 @@ COPY e2e/package.json ./e2e/package.json
 RUN npm i -g pnpm@10.33.0
 
 # Install workspace dependencies
-RUN pnpm i
+RUN pnpm i --no-frozen-lockfile
 
 # Install standalone pg + drizzle-orm for runtime migration
 RUN mkdir -p /deps && \
