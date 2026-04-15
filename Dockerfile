@@ -46,11 +46,8 @@ COPY apps/desktop/src/main/package.json ./apps/desktop/src/main/package.json
 # e2e is a workspace member - pnpm needs its manifest
 COPY e2e/package.json ./e2e/package.json
 
-# Install corepack + pnpm
-RUN export COREPACK_NPM_REGISTRY=$(npm config get registry | sed 's/\/$//') && \
-    npm i -g corepack@latest && \
-    corepack enable && \
-    corepack use $(sed -n 's/.*"packageManager": "\(.*\)".*/\1/p' package.json)
+# Install pnpm directly (skip corepack for reliability)
+RUN npm i -g pnpm@10.33.0
 
 # Install workspace dependencies
 RUN pnpm i
