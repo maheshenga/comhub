@@ -113,4 +113,4 @@ ENV NODE_ENV="production" \
 
 EXPOSE 3210/tcp
 
-CMD ["/bin/node", "/app/docker.cjs"]
+CMD ["sh", "-c", "node /app/docker.cjs && node /app/server.js"]
