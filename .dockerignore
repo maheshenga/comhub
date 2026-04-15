@@ -9,7 +9,6 @@ dist
 
 # Dev/IDE files
 .git
-.github
 .vscode
 .idea
 .cursor
@@ -19,20 +18,14 @@ dist
 .claude
 .omc
 
-# Docker
-Dockerfile*
+# Docker files themselves
 docker-compose*
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Test & docs (keep e2e/ and apps/desktop/ - needed by pnpm workspace)
-__mocks__
-*.test.*
-*.spec.*
-coverage
-docs
+# Docs (not needed for build)
 changelog
 README.md
 README.zh-CN.md

@@ -1,78 +1,110 @@
-# ============================================
-# Stage 1: Base image with Node.js + pnpm
-# ============================================
-FROM node:22-slim AS base
+## Set global build ENV
+ARG NODEJS_VERSION="24"
 
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
+## Base image for all building stages
+FROM node:${NODEJS_VERSION}-slim AS base
 
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+ENV DEBIAN_FRONTEND="noninteractive"
 
-# Install system dependencies for native modules
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt update && \
+    apt install ca-certificates proxychains-ng -qy && \
+    mkdir -p /distroless/bin /distroless/etc /distroless/etc/ssl/certs /distroless/lib && \
+    cp /usr/lib/$(arch)-linux-gnu/libproxychains.so.4 /distroless/lib/libproxychains.so.4 && \
+    cp /usr/lib/$(arch)-linux-gnu/libdl.so.2 /distroless/lib/libdl.so.2 && \
+    cp /usr/bin/proxychains4 /distroless/bin/proxychains && \
+    cp /etc/proxychains4.conf /distroless/etc/proxychains4.conf && \
+    cp /usr/lib/$(arch)-linux-gnu/libstdc++.so.6 /distroless/lib/libstdc++.so.6 && \
+    cp /usr/lib/$(arch)-linux-gnu/libgcc_s.so.1 /distroless/lib/libgcc_s.so.1 && \
+    cp /usr/lib/$(arch)-linux-gnu/librt.so.1 /distroless/lib/librt.so.1 && \
+    cp /usr/local/bin/node /distroless/bin/node && \
+    cp /etc/ssl/certs/ca-certificates.crt /distroless/etc/ssl/certs/ca-certificates.crt && \
+    rm -rf /tmp/* /var/lib/apt/lists/* /var/tmp/*
 
-# ============================================
-# Stage 2: Install dependencies + build
-# ============================================
+## Builder image
 FROM base AS builder
 
-WORKDIR /app
+# Build-time env vars needed by Next.js
+ENV APP_URL="http://app.com" \
+    DATABASE_DRIVER="node" \
+    DATABASE_URL="postgres://postgres:password@localhost:5432/postgres" \
+    KEY_VAULTS_SECRET="use-for-build" \
+    AUTH_SECRET="use-for-build"
 
-# Copy full source (no lockfile available, so no selective copy optimization)
-COPY . .
-
-# Install dependencies
-RUN pnpm install --no-frozen-lockfile
-
-# Set build environment
-ENV DOCKER=true
 ENV NODE_OPTIONS="--max-old-space-size=8192"
+
 ARG SHA
 ENV NEXT_PUBLIC_BUILD_SHA=${SHA}
 
-# Build: SPA + Mobile + copy + Next.js + sitemap
-RUN pnpm run build:spa
-RUN pnpm run build:spa:mobile || true
-RUN pnpm run build:spa:copy
-RUN pnpm exec next build
-RUN pnpm run build-sitemap || true
-
-# ============================================
-# Stage 3: Production runner (standalone)
-# ============================================
-FROM node:22-slim AS runner
-
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV HOSTNAME=0.0.0.0
-ENV PORT=3210
+# Copy workspace manifests first for better layer caching
+COPY package.json pnpm-workspace.yaml ./
+COPY .npmrc ./
+COPY packages ./packages
+COPY patches ./patches
+COPY apps/desktop/src/main/package.json ./apps/desktop/src/main/package.json
 
-# Install minimal runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install dependencies
+RUN export COREPACK_NPM_REGISTRY=$(npm config get registry | sed 's/\/$//') && \
+    npm i -g corepack@latest && \
+    corepack enable && \
+    corepack use $(sed -n 's/.*"packageManager": "\(.*\)".*/\1/p' package.json) && \
+    pnpm i && \
+    mkdir -p /deps && \
+    cd /deps && \
+    pnpm init && \
+    pnpm add pg drizzle-orm
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 lobehub
+# Copy full source
+COPY . .
+
+# Prebuild checks
+RUN pnpm exec tsx scripts/dockerPrebuild.mts
+RUN rm -rf src/app/desktop "src/app/(backend)/trpc/desktop"
+
+# Build
+RUN npm run build:docker
+
+## Application image
+FROM busybox:latest AS app
+
+COPY --from=base /distroless/ /
 
 # Copy standalone build output
-COPY --from=builder --chown=lobehub:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=lobehub:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=lobehub:nodejs /app/public ./public
+COPY --from=builder /app/.next/standalone /app/
+COPY --from=builder /app/.next/static /app/.next/static
+# Copy SPA assets
+COPY --from=builder /app/public/_spa /app/public/_spa
+# Copy database migrations
+COPY --from=builder /app/packages/database/migrations /app/migrations
+COPY --from=builder /app/scripts/migrateServerDB/docker.cjs /app/docker.cjs
+COPY --from=builder /app/scripts/migrateServerDB/errorHint.js /app/errorHint.js
+# Copy pg + drizzle-orm deps
+COPY --from=builder /deps/node_modules/.pnpm /app/node_modules/.pnpm
+COPY --from=builder /deps/node_modules/pg /app/node_modules/pg
+COPY --from=builder /deps/node_modules/pg-cloudflare /app/node_modules/pg-cloudflare
+COPY --from=builder /deps/node_modules/pg-connection-string /app/node_modules/pg-connection-string
+COPY --from=builder /deps/node_modules/pg-int8 /app/node_modules/pg-int8
+COPY --from=builder /deps/node_modules/pg-numeric /app/node_modules/pg-numeric
+COPY --from=builder /deps/node_modules/pg-pool /app/node_modules/pg-pool
+COPY --from=builder /deps/node_modules/pg-protocol /app/node_modules/pg-protocol
+COPY --from=builder /deps/node_modules/pg-types /app/node_modules/pg-types
+COPY --from=builder /deps/node_modules/pgpass /app/node_modules/pgpass
+COPY --from=builder /deps/node_modules/postgres-array /app/node_modules/postgres-array
+COPY --from=builder /deps/node_modules/postgres-bytea /app/node_modules/postgres-bytea
+COPY --from=builder /deps/node_modules/postgres-date /app/node_modules/postgres-date
+COPY --from=builder /deps/node_modules/postgres-interval /app/node_modules/postgres-interval
+COPY --from=builder /deps/node_modules/postgres-range /app/node_modules/postgres-range
+COPY --from=builder /deps/node_modules/drizzle-orm /app/node_modules/drizzle-orm
+COPY --from=builder /deps/node_modules/split2 /app/node_modules/split2
+COPY --from=builder /deps/node_modules/obuf /app/node_modules/obuf
 
-# Copy database migrations (needed at runtime for auto-migration)
-COPY --from=builder --chown=lobehub:nodejs /app/packages/database/migrations ./packages/database/migrations
+ENV NODE_ENV="production" \
+    HOSTNAME="0.0.0.0" \
+    PORT="3210" \
+    NODE_EXTRA_CA_CERTS="/etc/ssl/certs/ca-certificates.crt" \
+    LD_PRELOAD="/lib/libproxychains.so.4"
 
-USER lobehub
+EXPOSE 3210/tcp
 
-EXPOSE 3210
-
-CMD ["node", "server.js"]
+CMD ["/bin/node", "/app/docker.cjs"]
