@@ -47,13 +47,17 @@ jobs:
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
           echo "Building with tags: $TAG_ARGS"
-          docker build $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile . 2>&1 | tee /tmp/docker-build.log
+          docker build --network=host $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile . 2>&1 | tee /tmp/docker-build.log
           BUILD_EXIT=${PIPESTATUS[0]}
           if [ $BUILD_EXIT -ne 0 ]; then
-            echo "=== BUILD FAILED ==="
-            # Write last 40 lines into annotation so we can read via API
-            ERROR_LOG=$(tail -40 /tmp/docker-build.log | tr '\n' '|' | head -c 3000)
-            echo "::error::BUILD_LOG: $ERROR_LOG"
+            echo "=== BUILD FAILED (exit $BUILD_EXIT) ==="
+            echo '## Docker Build Failed' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -80 /tmp/docker-build.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            # Short annotation for API
+            LAST5=$(tail -5 /tmp/docker-build.log | tr '\n' ' | ')
+            echo "::error::$LAST5"
             exit $BUILD_EXIT
           fi
 
