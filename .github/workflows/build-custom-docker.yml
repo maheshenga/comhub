@@ -45,20 +45,22 @@ jobs:
           for tag in $TAGS; do
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
-          docker build $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile . 2>&1 | tee /tmp/docker-build.log
+          echo "Building with tags: $TAG_ARGS"
+          docker build $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile .
 
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-build-log
-          path: /tmp/docker-build.log
-          retention-days: 3
+      - name: Verify built images
+        run: |
+          echo "=== Docker images ==="
+          docker images | head -20
+          echo "=== Tags from metadata ==="
+          echo '${{ steps.meta.outputs.tags }}'
 
       - name: Push Docker image
         run: |
-          TAGS="$( echo '${{ steps.meta.outputs.tags }}' | tr '\n' ' ' )"
-          for tag in $TAGS; do
-            echo "Pushing $tag"
-            docker push "$tag"
+          echo '${{ steps.meta.outputs.tags }}' | while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              echo "Pushing: $tag"
+              docker push "$tag" 2>&1 || { echo "FAILED to push $tag"; exit 1; }
+              echo "Successfully pushed: $tag"
+            fi
           done
