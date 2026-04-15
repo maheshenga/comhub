@@ -67,15 +67,7 @@ RUN echo 'registry=https://registry.npmjs.org/' >> /app/.npmrc && \
 
 # Fix: @react-pdf/image@3.1.0 depends on @react-pdf/svg which doesn't exist on npm
 # Use .pnpmfile.cjs hook to strip the broken dependency before resolution
-RUN cat > /app/.pnpmfile.cjs << 'HOOK'
-function readPackage(pkg) {
-  if (pkg.dependencies && pkg.dependencies['@react-pdf/svg']) {
-    delete pkg.dependencies['@react-pdf/svg'];
-  }
-  return pkg;
-}
-module.exports = { hooks: { readPackage } };
-HOOK
+RUN printf 'function readPackage(pkg) {\n  if (pkg.dependencies && pkg.dependencies["@react-pdf/svg"]) {\n    delete pkg.dependencies["@react-pdf/svg"];\n  }\n  return pkg;\n}\nmodule.exports = { hooks: { readPackage } };\n' > /app/.pnpmfile.cjs
 
 # Install workspace dependencies
 RUN pnpm i --no-frozen-lockfile
