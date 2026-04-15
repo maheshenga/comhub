@@ -45,7 +45,15 @@ jobs:
           for tag in $TAGS; do
             TAG_ARGS="$TAG_ARGS -t $tag"
           done
-          docker build $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile . 2>&1
+          docker build $TAG_ARGS --build-arg SHA=${{ github.sha }} -f ./Dockerfile . 2>&1 | tee /tmp/docker-build.log
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-build-log
+          path: /tmp/docker-build.log
+          retention-days: 3
 
       - name: Push Docker image
         run: |
