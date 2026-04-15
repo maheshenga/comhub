@@ -56,7 +56,7 @@ jobs:
             tail -80 /tmp/docker-build.log >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             # Short annotation for API
-            LAST5=$(tail -5 /tmp/docker-build.log | tr '\n' ' | ')
+            LAST5=$(tail -30 /tmp/docker-build.log | tr '\n' ' | ')
             echo "::error::$LAST5"
             exit $BUILD_EXIT
           fi
