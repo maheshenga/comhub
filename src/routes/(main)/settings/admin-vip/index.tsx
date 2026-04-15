@@ -539,6 +539,119 @@ const AuditTab = memo(() => {
   );
 });
 
+// ============ Gateway Config Tab ============
+const GatewayConfigTab = memo(() => {
+  const { t } = useTranslation('setting');
+  const { message } = App.useApp();
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [envHints, setEnvHints] = useState<Record<string, boolean>>({});
+
+  const CONFIG_KEYS = [
+    'platform_newapi_base_url',
+    'platform_newapi_api_key',
+    'platform_newapi_model_pricing',
+    'cron_secret',
+  ] as const;
+
+  const fetchConfig = useCallback(async () => {
+    setLoading(true);
+    try {
+      const rows = await lambdaClient.siteConfig.getAll.query();
+      const values: Record<string, string> = {};
+      const hints: Record<string, boolean> = {};
+      for (const row of rows) {
+        if ((CONFIG_KEYS as readonly string[]).includes(row.key)) {
+          values[row.key] = row.value ?? '';
+        }
+      }
+      // Mark fields that have no DB value (will fall back to env var)
+      for (const key of CONFIG_KEYS) {
+        if (!values[key]) hints[key] = true;
+      }
+      setEnvHints(hints);
+      form.setFieldsValue(values);
+    } catch {
+      message.error(t('adminVip.loadError'));
+    } finally {
+      setLoading(false);
+    }
+  }, [form, message, t]);
+
+  useEffect(() => { fetchConfig(); }, [fetchConfig]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const values = await form.validateFields();
+      const entries = CONFIG_KEYS.map((key) => ({
+        key,
+        value: values[key]?.trim() || null,
+      }));
+      await lambdaClient.siteConfig.bulkSet.mutate({ entries });
+      message.success(t('adminVip.gateway.saveSuccess'));
+      // Update env hints after save
+      const hints: Record<string, boolean> = {};
+      for (const key of CONFIG_KEYS) {
+        if (!values[key]?.trim()) hints[key] = true;
+      }
+      setEnvHints(hints);
+    } catch {
+      message.error(t('adminVip.gateway.saveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Spin spinning={loading}>
+      <Typography.Paragraph type="secondary" style={{ marginBottom: 24 }}>
+        {t('adminVip.gateway.description')}
+      </Typography.Paragraph>
+      <Form form={form} layout="vertical" style={{ maxWidth: 600 }}>
+        <Form.Item
+          extra={envHints['platform_newapi_base_url'] ? t('adminVip.gateway.envFallback') : undefined}
+          label={t('adminVip.gateway.baseUrl')}
+          name="platform_newapi_base_url"
+        >
+          <Input placeholder={t('adminVip.gateway.baseUrlPlaceholder')} />
+        </Form.Item>
+        <Form.Item
+          extra={envHints['platform_newapi_api_key'] ? t('adminVip.gateway.envFallback') : undefined}
+          label={t('adminVip.gateway.apiKey')}
+          name="platform_newapi_api_key"
+        >
+          <AntdInput.Password placeholder={t('adminVip.gateway.apiKeyPlaceholder')} />
+        </Form.Item>
+        <Form.Item
+          extra={t('adminVip.gateway.modelPricingHelp')}
+          label={t('adminVip.gateway.modelPricing')}
+          name="platform_newapi_model_pricing"
+        >
+          <AntdInput.TextArea
+            autoSize={{ maxRows: 8, minRows: 3 }}
+            placeholder={t('adminVip.gateway.modelPricingPlaceholder')}
+          />
+        </Form.Item>
+        <Divider />
+        <Form.Item
+          extra={t('adminVip.gateway.cronSecretHelp')}
+          label={t('adminVip.gateway.cronSecret')}
+          name="cron_secret"
+        >
+          <AntdInput.Password placeholder="Bearer token" />
+        </Form.Item>
+        <Form.Item>
+          <Button loading={saving} onClick={handleSave} type={'primary'}>
+            {t('adminVip.gateway.save')}
+          </Button>
+        </Form.Item>
+      </Form>
+    </Spin>
+  );
+});
+
 // ============ Main Component ============
 const AdminVipSettings = memo(() => {
   const { t } = useTranslation('setting');
@@ -551,6 +664,7 @@ const AdminVipSettings = memo(() => {
     { children: <BulkTab />, key: 'bulk', label: t('adminVip.bulk.title') },
     { children: <ExportTab />, key: 'export', label: t('adminVip.export.title') },
     { children: <AuditTab />, key: 'audit', label: t('adminVip.audit.title') },
+    { children: <GatewayConfigTab />, key: 'gateway', label: t('adminVip.gateway.title') },
   ];
 
   return (

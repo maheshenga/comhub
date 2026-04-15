@@ -7,9 +7,11 @@ import { UserCreditsModel } from '@/database/models/userCredits';
 import type { LobeChatDatabase } from '@/database/type';
 import { getAppConfig } from '@/envs/app';
 
+import { getGatewayConfigFromDB } from './platformProvider';
+
 /**
  * Per-model pricing configuration.
- * Loaded from PLATFORM_NEWAPI_MODEL_PRICING env var.
+ * Loaded from site_config DB (platform_newapi_model_pricing) or env var fallback.
  * Format: { "gpt-4o": { "input": 2.5, "output": 10 }, ... }
  * Rates are credits per million tokens.
  */
@@ -19,14 +21,20 @@ interface ModelPricingEntry {
 }
 
 let _modelPricingCache: Record<string, ModelPricingEntry> | null = null;
+let _modelPricingCacheTs = 0;
+const MODEL_PRICING_CACHE_TTL = 60_000; // 60 seconds
 
-const getModelPricing = (): Record<string, ModelPricingEntry> => {
-  if (_modelPricingCache !== null) return _modelPricingCache;
+const getModelPricing = (dbModelPricing?: string | null): Record<string, ModelPricingEntry> => {
+  const now = Date.now();
+  if (_modelPricingCache !== null && now - _modelPricingCacheTs < MODEL_PRICING_CACHE_TTL) {
+    return _modelPricingCache;
+  }
 
-  const config = getAppConfig();
-  const raw = config.PLATFORM_NEWAPI_MODEL_PRICING;
+  // Try DB value first, then env var
+  const raw = dbModelPricing || getAppConfig().PLATFORM_NEWAPI_MODEL_PRICING;
   if (!raw) {
     _modelPricingCache = {};
+    _modelPricingCacheTs = now;
     return _modelPricingCache;
   }
 
@@ -36,6 +44,7 @@ const getModelPricing = (): Record<string, ModelPricingEntry> => {
     console.error('[VipCreditHooks] Failed to parse PLATFORM_NEWAPI_MODEL_PRICING');
     _modelPricingCache = {};
   }
+  _modelPricingCacheTs = now;
   return _modelPricingCache;
 };
 
@@ -53,8 +62,8 @@ const LOW_BALANCE_THRESHOLD = 500;
  * Calculate credit cost from token usage using per-model pricing.
  * Falls back to default rates when no model-specific pricing is configured.
  */
-const calculateCreditCost = (model: string, inputTokens: number, outputTokens: number): number => {
-  const pricing = getModelPricing();
+const calculateCreditCost = (model: string, inputTokens: number, outputTokens: number, dbPricing?: string | null): number => {
+  const pricing = getModelPricing(dbPricing);
   const modelPricing = pricing[model];
 
   const inputRate = modelPricing?.input ?? DEFAULT_INPUT_RATE;
@@ -82,9 +91,16 @@ export const createVipCreditHooks = (
 ): ModelRuntimeHooks => {
   // Track reserved amount per-request via closure
   let reservedCredits = 0;
+  // Preloaded model pricing from DB (populated in beforeChat)
+  let dbModelPricing: string | null = null;
 
   return {
     beforeChat: async () => {
+      // Preload model pricing from DB for use in onChatFinal
+      try {
+        const gwConfig = await getGatewayConfigFromDB(db);
+        dbModelPricing = gwConfig.modelPricing;
+      } catch { /* non-critical */ }
       const creditsModel = new UserCreditsModel(db);
 
       // Atomically pre-deduct reserve credits
@@ -125,7 +141,7 @@ export const createVipCreditHooks = (
 
       const actualCost = (inputTokens === 0 && outputTokens === 0)
         ? 0
-        : calculateCreditCost(model, inputTokens, outputTokens);
+        : calculateCreditCost(model, inputTokens, outputTokens, dbModelPricing);
 
       const creditsModel = new UserCreditsModel(db);
       const txModel = new CreditTransactionModel(db);

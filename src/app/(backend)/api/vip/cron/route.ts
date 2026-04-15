@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { CreditTransactionModel } from '@/database/models/creditTransaction';
 import { NotificationModel } from '@/database/models/notification';
+import { SiteConfigModel } from '@/database/models/siteConfig';
 import { UserCreditsModel } from '@/database/models/userCredits';
 import { UserSubscriptionModel } from '@/database/models/userSubscription';
 
@@ -12,16 +13,24 @@ import { UserSubscriptionModel } from '@/database/models/userSubscription';
  * 2. Grant monthly credits to active VIP users
  * 3. Send expiration reminder notifications (3-day and 1-day warnings)
  *
- * Auth: Bearer ${CRON_SECRET}
+ * Auth: Bearer ${CRON_SECRET} (from site_config DB or env var)
  * Method: GET
  */
 export async function GET(request: NextRequest) {
+  const db = await getServerDB();
+
+  // Read CRON_SECRET from DB first, then fall back to env var
+  let cronSecret = process.env.CRON_SECRET;
+  try {
+    const siteConfigModel = new SiteConfigModel(db);
+    const dbSecret = await siteConfigModel.getValue('cron_secret');
+    if (dbSecret) cronSecret = dbSecret;
+  } catch { /* table might not exist yet */ }
+
   const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return new Response('Unauthorized', { status: 401 });
   }
-
-  const db = await getServerDB();
   const subscriptionModel = new UserSubscriptionModel(db);
   const creditsModel = new UserCreditsModel(db);
   const txModel = new CreditTransactionModel(db);

@@ -118,8 +118,18 @@ async function processConnectQueue(remainingMs: number): Promise<number> {
 }
 
 export async function GET(request: NextRequest) {
+  // Read CRON_SECRET from DB first, then fall back to env var
+  let cronSecret = process.env.CRON_SECRET;
+  try {
+    const { getServerDB: getDB } = await import('@/database/core/db-adaptor');
+    const { SiteConfigModel } = await import('@/database/models/siteConfig');
+    const db = await getDB();
+    const dbSecret = await new SiteConfigModel(db).getValue('cron_secret');
+    if (dbSecret) cronSecret = dbSecret;
+  } catch { /* table might not exist yet */ }
+
   const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return new Response('Unauthorized', { status: 401 });
   }
 

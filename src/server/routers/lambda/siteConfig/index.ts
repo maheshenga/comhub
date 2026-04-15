@@ -4,6 +4,7 @@ import { SiteConfigModel } from '@/database/models/siteConfig';
 import { adminProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 import { invalidateSiteConfigCache } from '@/server/globalConfig/getSiteConfig';
+import { invalidateGatewayConfigCache } from '@/server/modules/ModelRuntime/platformProvider';
 
 export const siteConfigRouter = router({
   /**
@@ -38,6 +39,7 @@ export const siteConfigRouter = router({
       const model = new SiteConfigModel(ctx.serverDB);
       const result = model.set(input.key, input.value, ctx.userId ?? undefined);
       invalidateSiteConfigCache();
+      invalidateGatewayConfigCache();
       return result;
     }),
 
@@ -60,6 +62,7 @@ export const siteConfigRouter = router({
       const model = new SiteConfigModel(ctx.serverDB);
       await model.bulkSet(input.entries, ctx.userId ?? undefined);
       invalidateSiteConfigCache();
+      invalidateGatewayConfigCache();
       return { success: true };
     }),
 });
