@@ -102,25 +102,8 @@ COPY --from=builder /app/public/_spa /app/public/_spa
 COPY --from=builder /app/packages/database/migrations /app/migrations
 COPY --from=builder /app/scripts/migrateServerDB/docker.cjs /app/docker.cjs
 COPY --from=builder /app/scripts/migrateServerDB/errorHint.js /app/errorHint.js
-# Copy pg + drizzle-orm deps
-COPY --from=builder /deps/node_modules/.pnpm /app/node_modules/.pnpm
-COPY --from=builder /deps/node_modules/pg /app/node_modules/pg
-COPY --from=builder /deps/node_modules/pg-cloudflare /app/node_modules/pg-cloudflare
-COPY --from=builder /deps/node_modules/pg-connection-string /app/node_modules/pg-connection-string
-COPY --from=builder /deps/node_modules/pg-int8 /app/node_modules/pg-int8
-COPY --from=builder /deps/node_modules/pg-numeric /app/node_modules/pg-numeric
-COPY --from=builder /deps/node_modules/pg-pool /app/node_modules/pg-pool
-COPY --from=builder /deps/node_modules/pg-protocol /app/node_modules/pg-protocol
-COPY --from=builder /deps/node_modules/pg-types /app/node_modules/pg-types
-COPY --from=builder /deps/node_modules/pgpass /app/node_modules/pgpass
-COPY --from=builder /deps/node_modules/postgres-array /app/node_modules/postgres-array
-COPY --from=builder /deps/node_modules/postgres-bytea /app/node_modules/postgres-bytea
-COPY --from=builder /deps/node_modules/postgres-date /app/node_modules/postgres-date
-COPY --from=builder /deps/node_modules/postgres-interval /app/node_modules/postgres-interval
-COPY --from=builder /deps/node_modules/postgres-range /app/node_modules/postgres-range
-COPY --from=builder /deps/node_modules/drizzle-orm /app/node_modules/drizzle-orm
-COPY --from=builder /deps/node_modules/split2 /app/node_modules/split2
-COPY --from=builder /deps/node_modules/obuf /app/node_modules/obuf
+# Copy pg + drizzle-orm deps (copy all at once to avoid missing transitive deps)
+COPY --from=builder /deps/node_modules /app/node_modules
 
 ENV NODE_ENV="production" \
     HOSTNAME="0.0.0.0" \
