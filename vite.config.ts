@@ -21,6 +21,7 @@ Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
 const isDev = process.env.NODE_ENV !== 'production';
 const platform = isMobile ? 'mobile' : 'web';
 const disableViteMinify = process.env.DOCKER_BUILD_DISABLE_VITE_MINIFY === '1';
+const workboxMaximumFileSizeToCacheInBytes = disableViteMinify ? 20 * 1024 * 1024 : 10 * 1024 * 1024;
 
 export default defineConfig({
   base: isDev ? '/' : process.env.VITE_CDN_BASE || '/_spa/',
@@ -70,7 +71,9 @@ export default defineConfig({
       registerType: 'prompt',
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2}'],
-        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+        // Docker builds can intentionally skip minification to reduce build pressure,
+        // which makes the largest desktop bundle exceed Workbox's default size guard.
+        maximumFileSizeToCacheInBytes: workboxMaximumFileSizeToCacheInBytes,
         runtimeCaching: [
           {
             handler: 'StaleWhileRevalidate',
