@@ -5,6 +5,7 @@ import AuthProvider from '@/layout/AuthProvider';
 import NextThemeProvider from '@/layout/GlobalProvider/NextThemeProvider';
 import StyleRegistry from '@/layout/GlobalProvider/StyleRegistry';
 import { getServerAuthConfig } from '@/server/globalConfig/getServerAuthConfig';
+import { ServerConfigStoreProvider } from '@/store/serverConfig/Provider';
 import { RouteVariants } from '@/utils/server/routeVariants';
 
 import AuthLocale from './AuthLocale';
@@ -25,13 +26,19 @@ const AuthGlobalProvider = async ({ children, variants }: AuthGlobalProviderProp
       <AuthLocale defaultLang={locale}>
         <NextThemeProvider>
           <AuthThemeLite globalCDN={appEnv.CDN_USE_GLOBAL}>
-            <AuthServerConfigProvider
+            <ServerConfigStoreProvider
               isMobile={isMobile}
               segmentVariants={variants}
               serverConfig={serverConfig}
             >
-              <AuthProvider>{children}</AuthProvider>
-            </AuthServerConfigProvider>
+              <AuthServerConfigProvider
+                isMobile={isMobile}
+                segmentVariants={variants}
+                serverConfig={serverConfig}
+              >
+                <AuthProvider>{children}</AuthProvider>
+              </AuthServerConfigProvider>
+            </ServerConfigStoreProvider>
           </AuthThemeLite>
         </NextThemeProvider>
       </AuthLocale>

@@ -20,10 +20,12 @@ Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
 
 const isDev = process.env.NODE_ENV !== 'production';
 const platform = isMobile ? 'mobile' : 'web';
+const disableViteMinify = process.env.DOCKER_BUILD_DISABLE_VITE_MINIFY === '1';
 
 export default defineConfig({
   base: isDev ? '/' : process.env.VITE_CDN_BASE || '/_spa/',
   build: {
+    minify: disableViteMinify ? false : 'esbuild',
     outDir: isMobile ? 'dist/mobile' : 'dist/desktop',
     reportCompressedSize: false,
     rollupOptions: {

@@ -1,0 +1,46 @@
+diff --git a/install.js b/install.js
+index 1d39b15..d3fbd50 100644
+--- a/install.js
++++ b/install.js
+@@ -98,13 +98,14 @@ function downloadFile(url, destinationPath, progressCallback = noop) {
+     reject = y;
+   });
+-
++  const requestTimeout = Number(process.env.FFMPEG_DOWNLOAD_TIMEOUT || 20 * 60 * 1000);
+   request('GET', url, {
+     agent,
+     followRedirects: true,
+     maxRedirects: 3,
+     gzip: true,
+     cache,
+-    timeout: 30 * 1000, // 30s
++    timeout: requestTimeout,
+     retry: true,
+   }, (err, response) => {
+     if (err || response.statusCode !== 200) {
+@@ -174,15 +175,20 @@ const baseUrl = `${downloadsUrl}/${release}`
+ const downloadUrl = `${baseUrl}/${executableBaseName}-${platform}-${arch}.gz`
+ const readmeUrl = `${baseUrl}/${platform}-${arch}.README`
+ const licenseUrl = `${baseUrl}/${platform}-${arch}.LICENSE`
+-
++const skipOptionalDownloads = process.env.FFMPEG_SKIP_OPTIONAL_DOWNLOADS === '1'
+ downloadFile(downloadUrl, binaryPath, onProgress)
+ .then(() => {
+   fs.chmodSync(binaryPath, 0o755) // make executable
++  if (skipOptionalDownloads) process.exit(0)
+ })
+ .catch(exitOnError)
+-
+-.then(() => downloadFile(readmeUrl, `${binaryPath}.README`))
++.then(() => {
++  if (skipOptionalDownloads) return
++  return downloadFile(readmeUrl, `${binaryPath}.README`)
++})
+ .catch(exitOnErrorOrWarnWith(`Failed to download the ${executableBaseName} README.`))
+-
+-.then(() => downloadFile(licenseUrl, `${binaryPath}.LICENSE`))
++.then(() => {
++  if (skipOptionalDownloads) return
++  return downloadFile(licenseUrl, `${binaryPath}.LICENSE`)
++})
+ .catch(exitOnErrorOrWarnWith(`Failed to download the ${executableBaseName} LICENSE.`))

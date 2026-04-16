@@ -44,6 +44,8 @@ ENV NODE_OPTIONS="--max-old-space-size=8192"
 ARG SHA
 ENV NEXT_PUBLIC_BUILD_SHA=${SHA}
 
+ARG DOCKER_BUILD_MAX_OLD_SPACE_SIZE="4096"
+
 WORKDIR /app
 
 # Copy workspace manifests first for better layer caching
@@ -54,6 +56,8 @@ COPY patches ./patches
 COPY apps/desktop/src/main/package.json ./apps/desktop/src/main/package.json
 # e2e is a workspace member - pnpm needs its manifest
 COPY e2e/package.json ./e2e/package.json
+# Optional preseeded ffmpeg binary for constrained Docker builders.
+COPY .docker-ffmpeg/ /tmp/preseeded-ffmpeg/
 
 # Install pnpm directly (skip corepack for reliability)
 RUN npm i -g pnpm@10.33.0
@@ -70,7 +74,13 @@ RUN echo 'registry=https://registry.npmjs.org/' >> /app/.npmrc && \
 RUN printf 'function readPackage(pkg) {\n  if (pkg.dependencies && pkg.dependencies["@react-pdf/svg"]) {\n    delete pkg.dependencies["@react-pdf/svg"];\n  }\n  return pkg;\n}\nmodule.exports = { hooks: { readPackage } };\n' > /app/.pnpmfile.cjs
 
 # Install workspace dependencies
-RUN pnpm i --no-frozen-lockfile
+RUN mkdir -p /app/vendor && \
+    if [ -f /tmp/preseeded-ffmpeg/ffmpeg ]; then \
+      install -Dm755 /tmp/preseeded-ffmpeg/ffmpeg /app/vendor/ffmpeg && \
+      FFMPEG_BIN=/app/vendor/ffmpeg FFMPEG_SKIP_OPTIONAL_DOWNLOADS="1" pnpm i --no-frozen-lockfile; \
+    else \
+      FFMPEG_SKIP_OPTIONAL_DOWNLOADS="1" pnpm i --no-frozen-lockfile; \
+    fi
 
 # Install standalone pg + drizzle-orm for runtime migration
 RUN mkdir -p /deps && \
@@ -85,8 +95,14 @@ COPY . .
 RUN pnpm exec tsx scripts/dockerPrebuild.mts
 RUN rm -rf src/app/desktop "src/app/(backend)/trpc/desktop"
 
-# Build
-RUN npm run build:docker
+# Build with a lower Node heap cap so constrained servers can finish the image build.
+RUN rm -rf public/_spa && \
+    DOCKER_BUILD_DISABLE_VITE_MINIFY="1" NODE_OPTIONS="--max-old-space-size=${DOCKER_BUILD_MAX_OLD_SPACE_SIZE}" pnpm exec vite build && \
+    DOCKER_BUILD_DISABLE_VITE_MINIFY="1" MOBILE=true NODE_OPTIONS="--max-old-space-size=${DOCKER_BUILD_MAX_OLD_SPACE_SIZE}" pnpm exec vite build && \
+    pnpm exec tsx scripts/copySpaBuild.mts && \
+    pnpm exec tsx scripts/generateSpaTemplates.mts && \
+    NODE_OPTIONS="--max-old-space-size=${DOCKER_BUILD_MAX_OLD_SPACE_SIZE}" DOCKER=true pnpm exec next build && \
+    pnpm exec tsx ./scripts/buildSitemapIndex/index.ts
 
 ## Application image
 FROM busybox:latest AS app
@@ -98,6 +114,8 @@ COPY --from=builder /app/.next/standalone /app/
 COPY --from=builder /app/.next/static /app/.next/static
 # Copy SPA assets
 COPY --from=builder /app/public/_spa /app/public/_spa
+# Copy optional ffmpeg binary for runtime video processing
+COPY --from=builder /app/vendor /app/vendor
 # Copy database migrations
 COPY --from=builder /app/packages/database/migrations /app/migrations
 COPY --from=builder /app/scripts/migrateServerDB/docker.cjs /app/docker.cjs
@@ -113,4 +131,4 @@ ENV NODE_ENV="production" \
 
 EXPOSE 3210/tcp
 
-CMD ["sh", "-c", "node /app/docker.cjs && node /app/server.js"]
+CMD ["sh", "-c", "if [ -f /app/vendor/ffmpeg ]; then export FFMPEG_BIN=/app/vendor/ffmpeg; fi; node /app/docker.cjs && node /app/server.js"]
