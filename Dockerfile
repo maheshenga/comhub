@@ -44,7 +44,7 @@ ENV NODE_OPTIONS="--max-old-space-size=8192"
 ARG SHA
 ENV NEXT_PUBLIC_BUILD_SHA=${SHA}
 
-ARG DOCKER_BUILD_MAX_OLD_SPACE_SIZE="4096"
+ARG DOCKER_BUILD_MAX_OLD_SPACE_SIZE="8192"
 
 WORKDIR /app
 
@@ -95,7 +95,7 @@ COPY . .
 RUN pnpm exec tsx scripts/dockerPrebuild.mts
 RUN rm -rf src/app/desktop "src/app/(backend)/trpc/desktop"
 
-# Build with a lower Node heap cap so constrained servers can finish the image build.
+# Use a CI-safe default heap cap; smaller builders can still override this build arg.
 RUN rm -rf public/_spa && \
     DOCKER_BUILD_DISABLE_VITE_MINIFY="1" NODE_OPTIONS="--max-old-space-size=${DOCKER_BUILD_MAX_OLD_SPACE_SIZE}" pnpm exec vite build && \
     DOCKER_BUILD_DISABLE_VITE_MINIFY="1" MOBILE=true NODE_OPTIONS="--max-old-space-size=${DOCKER_BUILD_MAX_OLD_SPACE_SIZE}" pnpm exec vite build && \
