@@ -164,6 +164,50 @@ cd /www/compose/comhub/scripts
 
 回滚只切流量，不重新构建镜像，因此速度很快。
 
+## 日常运维
+
+查看当前部署状态：
+
+```sh
+cd /www/compose/comhub/scripts
+./status.sh
+```
+
+这个脚本会输出：
+
+- 当前活动槽位
+- `blue / green` 对应的镜像、端口和健康状态
+- 当前运行中的 `comhub-*` 容器
+- Nginx 当前 upstream
+- 最近发版/切换历史
+
+清理旧应用镜像：
+
+```sh
+cd /www/compose/comhub/scripts
+./cleanup-images.sh
+```
+
+默认行为：
+
+- 永远保留 `blue.env / green.env` 当前引用的镜像
+- 如果存在 `<repo>:latest`，也会保留
+- 每个应用镜像仓库额外保留 1 个最近镜像
+- 其余旧镜像会删除
+
+常用参数：
+
+```sh
+KEEP_LATEST=2 ./cleanup-images.sh
+DRY_RUN=1 ./cleanup-images.sh
+PRUNE_DANGLING=1 ./cleanup-images.sh
+```
+
+建议：
+
+- 发版稳定一段时间后，再执行一次 `./cleanup-images.sh`
+- 正式环境先用 `DRY_RUN=1` 看一遍要删哪些镜像
+
 ## 宝塔接入方式
 
 宝塔里只做 3 件事：
