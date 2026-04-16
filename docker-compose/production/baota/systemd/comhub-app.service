@@ -1,0 +1,15 @@
+[Unit]
+Description=ComHub application services
+Requires=docker.service comhub-state.service
+After=docker.service comhub-state.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/www/compose/comhub/scripts
+ExecStart=/bin/sh ./ensure-running.sh
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

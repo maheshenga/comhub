@@ -1,0 +1,138 @@
+name: ComHub Production Deploy
+
+concurrency:
+  group: comhub-production-deploy
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional extra image tag, for example 20260416-1
+        required: false
+        type: string
+      sync_bundle:
+        description: Sync baota deployment bundle before deploy
+        required: true
+        default: true
+        type: boolean
+      deploy:
+        description: Deploy the pushed image to production
+        required: true
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/comhub
+  DEPLOY_BASE_DIR: /www/compose/comhub
+  DEPLOY_SCRIPT_DIR: /www/compose/comhub/scripts
+  DEPLOY_BUNDLE_DIR: docker-compose/production/baota
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.image-ref.outputs.image_ref }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get short SHA
+        id: sha
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.sha.outputs.short_sha }}
+            type=raw,value=${{ inputs.image_tag }},enable=${{ inputs.image_tag != '' }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SHA=${{ steps.sha.outputs.short_sha }}
+
+      - name: Choose deployment image
+        id: image-ref
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "image_ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.sha.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    if: ${{ inputs.deploy }}
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+
+      - name: Add production host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.PROD_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync deployment bundle to production host
+        if: ${{ inputs.sync_bundle }}
+        run: |
+          tar -C "${{ env.DEPLOY_BUNDLE_DIR }}" -cf - . \
+            | ssh "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
+              "mkdir -p '${{ env.DEPLOY_BASE_DIR }}' && tar -C '${{ env.DEPLOY_BASE_DIR }}' -xf -"
+
+      - name: Prepare deployment scripts on production host
+        run: |
+          ssh "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" "
+            test -f '${{ env.DEPLOY_BASE_DIR }}/app/.env' &&
+            test -f '${{ env.DEPLOY_BASE_DIR }}/state/.env' &&
+            cd '${{ env.DEPLOY_SCRIPT_DIR }}' &&
+            chmod +x ./*.sh &&
+            ./install.sh
+          "
+
+      - name: Optional GHCR login on production host
+        env:
+          PROD_REGISTRY_USER: ${{ secrets.PROD_REGISTRY_USER }}
+          PROD_REGISTRY_TOKEN: ${{ secrets.PROD_REGISTRY_TOKEN }}
+        run: |
+          if [ -n "$PROD_REGISTRY_USER" ] && [ -n "$PROD_REGISTRY_TOKEN" ]; then
+            printf '%s' "$PROD_REGISTRY_TOKEN" \
+              | ssh "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
+                  "docker login '${{ env.REGISTRY }}' -u '$PROD_REGISTRY_USER' --password-stdin"
+          else
+            echo "Skip remote registry login because PROD_REGISTRY_USER / PROD_REGISTRY_TOKEN is not set."
+          fi
+
+      - name: Deploy image on production host
+        run: |
+          ssh "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
+            "cd '${{ env.DEPLOY_SCRIPT_DIR }}' && ./deploy.sh '${{ needs.build-and-push.outputs.image_ref }}'"

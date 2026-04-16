@@ -1,0 +1,28 @@
+server {
+    listen 80;
+    server_name s3.vip.hezelove.cn;
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name s3.vip.hezelove.cn;
+
+    ssl_certificate     /www/server/panel/vhost/cert/s3.vip.hezelove.cn/fullchain.pem;
+    ssl_certificate_key /www/server/panel/vhost/cert/s3.vip.hezelove.cn/privkey.pem;
+
+    client_max_body_size 100m;
+
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_pass http://127.0.0.1:39000;
+    }
+}
