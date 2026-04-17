@@ -4,7 +4,7 @@ import { OG_URL } from '@lobechat/const';
 import { getServerFeatureFlagsValue } from '@/config/featureFlags';
 import { OFFICIAL_URL } from '@/const/url';
 import { isCustomORG, isDesktop } from '@/const/version';
-import { getRuntimeBrandConfig } from '@/server/globalConfig/getBrandConfig';
+import { getRuntimeBrandConfig, type RuntimeBrandConfig } from '@/server/globalConfig/getBrandConfig';
 import { analyticsEnv } from '@/envs/analytics';
 import { appEnv } from '@/envs/app';
 import { fileEnv } from '@/envs/file';
@@ -39,6 +39,14 @@ export function generateStaticParams() {
 
 const isDev = process.env.NODE_ENV === 'development';
 const VITE_DEV_ORIGIN = 'http://localhost:9876';
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 
 async function rewriteViteAssetUrls(html: string): Promise<string> {
   const { parseHTML } = await import('linkedom');
@@ -165,27 +173,87 @@ function buildClientEnv(): SPAClientEnv {
   };
 }
 
-async function buildSeoMeta(locale: string): Promise<string> {
+const hasCustomSiteIdentity = (brandConfig: RuntimeBrandConfig) =>
+  brandConfig.isCustomBranding || brandConfig.siteTitle !== brandConfig.brandName;
+
+async function applyLoadingScreenBranding(
+  html: string,
+  brandConfig: RuntimeBrandConfig,
+): Promise<string> {
+  if (!hasCustomSiteIdentity(brandConfig) || !html.includes('id="loading-brand"')) return html;
+
+  const { parseHTML } = await import('linkedom');
+  const { document } = parseHTML(html);
+  const loadingBrand = document.querySelector('#loading-brand');
+
+  if (!loadingBrand) return html;
+
+  const spinner = document.createElement('div');
+  spinner.setAttribute('data-loading-spinner', 'true');
+
+  const label = document.createElement('span');
+  label.setAttribute('data-loading-label', 'true');
+  label.textContent = brandConfig.siteTitle;
+
+  loadingBrand.textContent = '';
+  loadingBrand.setAttribute('data-custom-branding', 'true');
+  loadingBrand.appendChild(spinner);
+  loadingBrand.appendChild(label);
+
+  const style = document.createElement('style');
+  style.textContent = `
+@keyframes loading-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+#loading-brand[data-custom-branding='true'] {
+  gap: 10px;
+}
+#loading-brand [data-loading-spinner='true'] {
+  width: 28px;
+  height: 28px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: loading-spin 0.8s linear infinite;
+}
+#loading-brand [data-loading-label='true'] {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+`;
+  document.head?.appendChild(style);
+
+  return document.toString();
+}
+
+async function buildSeoMeta(locale: string, brandConfig: RuntimeBrandConfig): Promise<string> {
   const { t } = await translation('metadata', locale);
-  const brandConfig = await getRuntimeBrandConfig();
-  const title = t('chat.title', { appName: brandConfig.brandName });
+  const title = brandConfig.siteTitle;
   const description = t('chat.description', { appName: brandConfig.brandName });
   const officialUrl = brandConfig.officialUrl || OFFICIAL_URL;
+  const escapedTitle = escapeHtml(title);
+  const escapedDescription = escapeHtml(description);
+  const escapedOfficialUrl = escapeHtml(officialUrl);
+  const escapedSiteName = escapeHtml(brandConfig.brandName);
+  const escapedLocale = escapeHtml(locale);
+  const escapedOgUrl = escapeHtml(OG_URL);
 
   return [
-    `<title>${title}</title>`,
-    `<meta name="description" content="${description}" />`,
-    `<meta property="og:title" content="${title}" />`,
-    `<meta property="og:description" content="${description}" />`,
+    `<title>${escapedTitle}</title>`,
+    `<meta name="description" content="${escapedDescription}" />`,
+    `<meta property="og:title" content="${escapedTitle}" />`,
+    `<meta property="og:description" content="${escapedDescription}" />`,
     `<meta property="og:type" content="website" />`,
-    `<meta property="og:url" content="${officialUrl}" />`,
-    `<meta property="og:image" content="${OG_URL}" />`,
-    `<meta property="og:site_name" content="${brandConfig.brandName}" />`,
-    `<meta property="og:locale" content="${locale}" />`,
+    `<meta property="og:url" content="${escapedOfficialUrl}" />`,
+    `<meta property="og:image" content="${escapedOgUrl}" />`,
+    `<meta property="og:site_name" content="${escapedSiteName}" />`,
+    `<meta property="og:locale" content="${escapedLocale}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
-    `<meta name="twitter:title" content="${title}" />`,
-    `<meta name="twitter:description" content="${description}" />`,
-    `<meta name="twitter:image" content="${OG_URL}" />`,
+    `<meta name="twitter:title" content="${escapedTitle}" />`,
+    `<meta name="twitter:description" content="${escapedDescription}" />`,
+    `<meta name="twitter:image" content="${escapedOgUrl}" />`,
     `<meta name="twitter:site" content="${isCustomORG ? `@${ORG_NAME}` : '@lobehub'}" />`,
   ].join('\n    ');
 }
@@ -198,6 +266,7 @@ export async function GET(
   const { locale, isMobile } = RouteVariants.deserializeVariants(variants);
 
   const serverConfig = await getServerGlobalConfig();
+  const brandConfig = await getRuntimeBrandConfig();
   const featureFlags = getServerFeatureFlagsValue();
   const analyticsConfig = buildAnalyticsConfig();
   const clientEnv = buildClientEnv();
@@ -211,13 +280,14 @@ export async function GET(
   };
 
   let html = await getTemplate(isMobile);
+  html = await applyLoadingScreenBranding(html, brandConfig);
 
   html = html.replace(
     /window\.__SERVER_CONFIG__\s*=\s*undefined;\s*\/\*\s*SERVER_CONFIG\s*\*\//,
     `window.__SERVER_CONFIG__ = ${serializeForHtml(spaConfig)};`,
   );
 
-  const seoMeta = await buildSeoMeta(locale);
+  const seoMeta = await buildSeoMeta(locale, brandConfig);
   html = html.replace('<!--SEO_META-->', seoMeta);
   html = html.replace('<!--ANALYTICS_SCRIPTS-->', '');
 

@@ -22,7 +22,7 @@ export const generateMetadata = async (props: DynamicLayoutProps) => {
     },
     appleWebApp: {
       statusBarStyle: 'black-translucent',
-      title: brandConfig.brandName,
+      title: brandConfig.siteTitle,
     },
     description: t('chat.description', { appName: brandConfig.brandName }),
     icons: brandConfig.isCustomBranding
@@ -38,7 +38,7 @@ export const generateMetadata = async (props: DynamicLayoutProps) => {
       description: t('chat.description', { appName: brandConfig.brandName }),
       images: [
         {
-          alt: t('chat.title', { appName: brandConfig.brandName }),
+          alt: brandConfig.siteTitle,
           height: 640,
           url: OG_URL,
           width: 1200,
@@ -46,20 +46,20 @@ export const generateMetadata = async (props: DynamicLayoutProps) => {
       ],
       locale: DEFAULT_LANG,
       siteName: brandConfig.brandName,
-      title: brandConfig.brandName,
+      title: brandConfig.siteTitle,
       type: 'website',
       url: brandConfig.officialUrl || OFFICIAL_URL,
     },
     title: {
-      default: t('chat.title', { appName: brandConfig.brandName }),
-      template: `%s · ${brandConfig.brandName}`,
+      default: brandConfig.siteTitle,
+      template: `%s · ${brandConfig.siteTitle}`,
     },
     twitter: {
       card: 'summary_large_image',
       description: t('chat.description', { appName: brandConfig.brandName }),
       images: [OG_URL],
       site: isCustomORG ? `@${ORG_NAME}` : '@lobehub',
-      title: t('chat.title', { appName: brandConfig.brandName }),
+      title: brandConfig.siteTitle,
     },
   };
 };

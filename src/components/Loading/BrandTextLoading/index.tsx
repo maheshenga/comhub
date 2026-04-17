@@ -13,9 +13,10 @@ interface BrandTextLoadingProps {
 }
 
 const BrandTextLoading = ({ debugId }: BrandTextLoadingProps) => {
-  const isCustomBranding = useServerConfigStore(siteConfigSelectors.isCustomBranding);
+  const hasCustomSiteIdentity = useServerConfigStore(siteConfigSelectors.hasCustomSiteIdentity);
+  const serverConfigInit = useServerConfigStore((s) => s.serverConfigInit);
 
-  if (isCustomBranding)
+  if (!serverConfigInit || hasCustomSiteIdentity)
     return (
       <div className={styles.container}>
         <CircleLoading />

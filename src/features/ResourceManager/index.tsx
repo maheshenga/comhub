@@ -61,7 +61,7 @@ const ResourceManager = memo(() => {
   const theme = useTheme();
   const [, setSearchParams] = useSearchParams();
   const currentFolderId = useCurrentFolderId();
-  const brandName = useServerConfigStore(siteConfigSelectors.brandName);
+  const siteTitle = useServerConfigStore(siteConfigSelectors.siteTitle);
   const [mode, currentViewItemId, libraryId, setMode, setCurrentViewItemId] =
     useResourceManagerStore((s) => [
       s.mode,
@@ -111,7 +111,7 @@ const ResourceManager = memo(() => {
       return prev;
     });
     // Reset document title to default
-    document.title = brandName;
+    document.title = siteTitle;
   };
 
   // Optimistic update handlers for page title and emoji
