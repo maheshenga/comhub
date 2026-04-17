@@ -21,7 +21,67 @@ Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
 const isDev = process.env.NODE_ENV !== 'production';
 const platform = isMobile ? 'mobile' : 'web';
 const disableViteMinify = process.env.DOCKER_BUILD_DISABLE_VITE_MINIFY === '1';
-const workboxMaximumFileSizeToCacheInBytes = disableViteMinify ? 20 * 1024 * 1024 : 10 * 1024 * 1024;
+const workboxMaximumFileSizeToCacheInBytes = disableViteMinify
+  ? 20 * 1024 * 1024
+  : 10 * 1024 * 1024;
+const appOnlyAliasSegments = [
+  'business',
+  'components',
+  'config',
+  'envs',
+  'features',
+  'hooks',
+  'layout',
+  'libs',
+  'locales',
+  'server',
+  'services',
+  'store',
+  'styles',
+];
+const localWorkspacePackageAliases = [
+  {
+    find: /^@lobechat\/const$/,
+    replacement: resolve(__dirname, 'packages/const/src/index.ts'),
+  },
+  {
+    find: /^@lobechat\/const\/currency$/,
+    replacement: resolve(__dirname, 'packages/const/src/currency.ts'),
+  },
+];
+const tsconfigFallbackAliasSegments = [
+  ['const', ['packages/const/src', 'src/const']],
+  ['database', ['packages/database/src', 'src/database']],
+  ['types', ['packages/types/src', 'src/types']],
+  ['utils', ['packages/utils/src', 'src/utils']],
+] as const;
+
+const viteTsconfigFallbackAlias = (): PluginOption => ({
+  name: 'lobe-vite-tsconfig-fallback-alias',
+  enforce: 'pre',
+  async resolveId(source, importer, options) {
+    for (const [segment, targets] of tsconfigFallbackAliasSegments) {
+      const prefix = `@/${segment}`;
+
+      if (!source.startsWith(prefix) || (source.length > prefix.length && source[prefix.length] !== '/')) {
+        continue;
+      }
+
+      const suffix = source.slice(prefix.length);
+
+      for (const target of targets) {
+        const resolved = await this.resolve(resolve(__dirname, `${target}${suffix}`), importer, {
+          ...options,
+          skipSelf: true,
+        });
+
+        if (resolved) return resolved;
+      }
+    }
+
+    return null;
+  },
+});
 
 export default defineConfig({
   base: isDev ? '/' : process.env.VITE_CDN_BASE || '/_spa/',
@@ -36,7 +96,17 @@ export default defineConfig({
   },
   define: sharedRendererDefine({ isMobile, isElectron: false }),
   optimizeDeps: sharedOptimizeDeps,
+  resolve: {
+    alias: [
+      ...localWorkspacePackageAliases,
+      ...appOnlyAliasSegments.map((segment) => ({
+        find: new RegExp(`^@/${segment}(?=/|$)`),
+        replacement: resolve(__dirname, `src/${segment}`),
+      })),
+    ],
+  },
   plugins: [
+    viteTsconfigFallbackAlias(),
     vercelSkewProtection(),
     viteEnvRestartKeys(['APP_URL']),
     ...sharedRendererPlugins({ platform }),

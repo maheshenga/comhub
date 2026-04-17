@@ -46,25 +46,44 @@
 
 ```sh
 cd /www/compose/comhub
-cp state/.env.example state/.env
-cp app/.env.example app/.env
+cd scripts
+chmod +x ./*.sh
+./init-env.sh
+```
+
+默认会按当前方案生成：
+
+- `APP_URL=https://chat.vip.hezelove.cn`
+- `S3_ENDPOINT=https://s3.vip.hezelove.cn`
+- 自动生成 `KEY_VAULTS_SECRET`
+- 自动生成 `AUTH_SECRET`
+- 自动生成 `POSTGRES_PASSWORD`
+- 自动生成 `RUSTFS_SECRET_KEY`
+
+如果你需要改域名或保留自己的密钥，可以这样：
+
+```sh
+cd /www/compose/comhub/scripts
+APP_PUBLIC_URL=https://your-chat-domain.example.com \
+S3_PUBLIC_URL=https://your-s3-domain.example.com \
+FORCE=1 \
+./init-env.sh
 ```
 
 3. 如果服务器是宝塔 + Docker + 阿里云/Alibaba Linux 这一类组合，先准备宿主机 bridge sysctl：
 
 ```sh
 cd /www/compose/comhub/scripts
-chmod +x ./*.sh
 ./prepare-host.sh
 ```
 
-4. 修改 `state/.env` 与 `app/.env`
+4. 复核 `state/.env` 与 `app/.env`
 5. 初始化运行时目录：
 
 ```sh
 cd /www/compose/comhub/scripts
-chmod +x ./*.sh
 ./install.sh
+./preflight.sh
 ```
 
 安装脚本会创建：
@@ -87,6 +106,31 @@ cd /www/compose/comhub/scripts
 ```
 
 首次发版默认会起 `blue` 槽位，并把 Nginx 上游切到 `127.0.0.1:3210`。
+
+如果你希望把“初始化配置 -> 预检 -> 启动状态层 -> 首次发版”串成一次执行，可以直接：
+
+```sh
+cd /www/compose/comhub/scripts
+./first-release.sh ghcr.io/<your-org>/comhub:<tag>
+```
+
+它的默认行为是：
+
+- 若 `app/.env` 与 `state/.env` 都不存在，则自动执行 `./init-env.sh`
+- 若两者已经存在，则直接复用
+- 若只存在其中一个，会直接报错，避免覆盖错配
+
+可选参数：
+
+```sh
+RUN_PREPARE_HOST=1 ./first-release.sh ghcr.io/<your-org>/comhub:<tag>
+AUTO_INIT_ENV=0 ./first-release.sh ghcr.io/<your-org>/comhub:<tag>
+```
+
+说明：
+
+- `RUN_PREPARE_HOST=1` 会先执行 `./prepare-host.sh`，通常只在 root 下首次安装时使用
+- `AUTO_INIT_ENV=0` 会禁止自动生成 `.env`，适合你已经准备好配置文件的场景
 
 ## 宿主机网络前置项
 
@@ -180,6 +224,21 @@ cd /www/compose/comhub/scripts
 - 当前运行中的 `comhub-*` 容器
 - Nginx 当前 upstream
 - 最近发版/切换历史
+
+上线前建议先执行一次：
+
+```sh
+cd /www/compose/comhub/scripts
+./preflight.sh
+```
+
+它会检查：
+
+- `app/.env` 与 `state/.env` 是否存在
+- 必填变量是否齐全
+- 数据库和 RustFS 关键变量是否一致
+- Compose 文件能否正常解析
+- Docker daemon、Nginx、运行目录是否就绪
 
 清理旧应用镜像：
 

@@ -1,3 +1,5 @@
+import { DEFAULT_INBOX_TITLE } from '@/const/branding';
+
 export default {
   'about': 'About',
   'advanceSettings': 'Advanced Settings',
@@ -119,7 +121,7 @@ export default {
   'cmdk.askAIHeadingEmpty': 'Choose an AI feature',
   'cmdk.askAgentHeading': 'Ask Agent',
   'cmdk.askAgentPlaceholder': 'Ask {{agent}} something...',
-  'cmdk.askLobeAI': 'Ask Lobe AI',
+  'cmdk.askLobeAI': `Ask ${DEFAULT_INBOX_TITLE}`,
   'cmdk.community': 'Community',
   'cmdk.communitySupport': 'Community Support',
   'cmdk.contactUs': 'Contact Us',

@@ -1,5 +1,6 @@
 import { ORG_NAME } from '@lobechat/business-const';
 import { OG_URL } from '@lobechat/const';
+import { DEFAULT_BRAND_ASSET_VERSION } from '@/const/branding';
 
 import { DEFAULT_LANG } from '@/const/locale';
 import { OFFICIAL_URL } from '@/const/url';
@@ -28,9 +29,13 @@ export const generateMetadata = async (props: DynamicLayoutProps) => {
     icons: brandConfig.isCustomBranding
       ? brandConfig.brandLogoUrl
       : {
-          apple: '/apple-touch-icon.png?v=1',
-          icon: isDev ? '/favicon-dev.ico' : '/favicon.ico?v=1',
-          shortcut: isDev ? '/favicon-32x32-dev.ico' : '/favicon-32x32.ico?v=1',
+          apple: `/apple-touch-icon.png?v=${DEFAULT_BRAND_ASSET_VERSION}`,
+          icon: isDev
+            ? `/favicon-dev.png?v=${DEFAULT_BRAND_ASSET_VERSION}`
+            : `/favicon.png?v=${DEFAULT_BRAND_ASSET_VERSION}`,
+          shortcut: isDev
+            ? `/favicon-32x32-dev.png?v=${DEFAULT_BRAND_ASSET_VERSION}`
+            : `/favicon-32x32.png?v=${DEFAULT_BRAND_ASSET_VERSION}`,
         },
     manifest: '/manifest.json',
     metadataBase: new URL(brandConfig.officialUrl || OFFICIAL_URL),

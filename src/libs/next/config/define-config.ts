@@ -295,6 +295,16 @@ export function defineConfig(config: CustomNextConfig) {
         source: '/manifest.json',
       },
       {
+        destination: '/favicon.png',
+        permanent: true,
+        source: '/favicon.ico',
+      },
+      {
+        destination: '/favicon-32x32.png',
+        permanent: true,
+        source: '/favicon-32x32.ico',
+      },
+      {
         destination: '/community/agent',
         permanent: true,
         source: '/community/assistants',

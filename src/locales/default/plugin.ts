@@ -1,3 +1,5 @@
+import { DEFAULT_INBOX_TITLE } from '@/const/branding';
+
 export default {
   'arguments.moreParams': '{{count}} params in total',
   'arguments.title': 'Arguments',
@@ -577,7 +579,7 @@ export default {
   'skillDetail.trustWarning':
     "Only use connectors from developers you trust. LobeHub does not control which tools developers make available and cannot verify that they will work as intended or that they won't change.",
   'skillInstallBanner.dismiss': 'Dismiss',
-  'skillInstallBanner.title': 'Add skills to Lobe AI',
+  'skillInstallBanner.title': `Add skills to ${DEFAULT_INBOX_TITLE}`,
   'store.actions.cancel': 'Cancel',
   'store.actions.configure': 'Configure',
   'store.actions.confirmUninstall': 'Uninstalling will clear Skill config. Continue?',

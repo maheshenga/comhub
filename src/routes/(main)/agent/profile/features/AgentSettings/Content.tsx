@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_INBOX_TITLE } from '@/const/branding';
 import { Avatar, Block, Flexbox, Icon, Text } from '@lobehub/ui';
 import { type ItemType } from 'antd/es/menu/interface';
 import { useTheme } from 'antd-style';
@@ -79,7 +80,9 @@ const Content = memo(() => {
     [t, isInbox],
   );
 
-  const displayTitle = isInbox ? 'Lobe AI' : meta.title || t('defaultSession', { ns: 'common' });
+  const displayTitle = isInbox
+    ? DEFAULT_INBOX_TITLE
+    : meta.title || t('defaultSession', { ns: 'common' });
 
   return (
     <Flexbox
