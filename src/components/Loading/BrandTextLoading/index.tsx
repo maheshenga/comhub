@@ -1,6 +1,7 @@
 'use client';
 
-import { BrandLoading, LobeHubText } from '@lobehub/ui/brand';
+import { BrandLoading } from '@lobehub/ui/brand';
+import { Authelia } from '@lobehub/ui/icons';
 
 import { useServerConfigStore } from '@/store/serverConfig';
 import { siteConfigSelectors } from '@/store/serverConfig/selectors';
@@ -28,7 +29,7 @@ const BrandTextLoading = ({ debugId }: BrandTextLoadingProps) => {
   return (
     <div className={styles.container}>
       <div aria-label="Loading" className={styles.brand} role="status">
-        <BrandLoading size={40} text={LobeHubText} />
+        <BrandLoading size={40} text={Authelia.Color} />
       </div>
       {showDebug && (
         <div className={styles.debug}>
