@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_INBOX_TITLE } from '@/const/branding';
 import { Flexbox, Text } from '@lobehub/ui';
 import { memo } from 'react';
 
@@ -12,7 +13,7 @@ const HeaderInfo = memo(() => {
   const isInbox = useAgentStore(builtinAgentSelectors.isInboxAgent);
   const title = useAgentStore(agentSelectors.currentAgentTitle);
 
-  const displayTitle = isInbox ? 'Lobe AI' : title;
+  const displayTitle = isInbox ? DEFAULT_INBOX_TITLE : title;
 
   return (
     <Flexbox

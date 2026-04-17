@@ -4,15 +4,25 @@ import { type ServerConfigStore } from './store';
 
 export const featureFlagsSelectors = (s: ServerConfigStore) => s.featureFlags;
 
+const getBrandLogoUrl = (s: ServerConfigStore) =>
+  s.serverConfig.siteConfig?.brand_logo_url || BRANDING_LOGO_URL;
+
+const getBrandName = (s: ServerConfigStore) => s.serverConfig.siteConfig?.brand_name || BRANDING_NAME;
+
+const getSiteTitle = (s: ServerConfigStore) => s.serverConfig.siteConfig?.site_title || getBrandName(s);
+
+const isCustomBranding = (s: ServerConfigStore) =>
+  getBrandName(s) !== BRANDING_NAME || getBrandLogoUrl(s) !== BRANDING_LOGO_URL;
+
 export const siteConfigSelectors = {
-  brandLogoUrl: (s: ServerConfigStore) =>
-    s.serverConfig.siteConfig?.brand_logo_url || BRANDING_LOGO_URL,
-  brandName: (s: ServerConfigStore) => s.serverConfig.siteConfig?.brand_name || BRANDING_NAME,
-  isCustomBranding: (s: ServerConfigStore) =>
-    (s.serverConfig.siteConfig?.brand_name || BRANDING_NAME) !== 'LobeHub',
+  brandLogoUrl: getBrandLogoUrl,
+  brandName: getBrandName,
+  hasCustomSiteIdentity: (s: ServerConfigStore) =>
+    isCustomBranding(s) || getSiteTitle(s) !== getBrandName(s),
+  isCustomBranding,
   officialUrl: (s: ServerConfigStore) => s.serverConfig.siteConfig?.official_url || '',
   siteDescription: (s: ServerConfigStore) => s.serverConfig.siteConfig?.site_description || '',
-  siteTitle: (s: ServerConfigStore) => s.serverConfig.siteConfig?.site_title || BRANDING_NAME,
+  siteTitle: getSiteTitle,
 };
 
 export const serverConfigSelectors = {

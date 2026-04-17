@@ -1,5 +1,6 @@
 import { ORG_NAME } from '@lobechat/business-const';
 import { OG_URL } from '@lobechat/const';
+import { DEFAULT_BRAND_ASSET_VERSION } from '@/const/branding';
 
 import { DEFAULT_LANG } from '@/const/locale';
 import { OFFICIAL_URL } from '@/const/url';
@@ -22,15 +23,19 @@ export const generateMetadata = async (props: DynamicLayoutProps) => {
     },
     appleWebApp: {
       statusBarStyle: 'black-translucent',
-      title: brandConfig.brandName,
+      title: brandConfig.siteTitle,
     },
     description: t('chat.description', { appName: brandConfig.brandName }),
     icons: brandConfig.isCustomBranding
       ? brandConfig.brandLogoUrl
       : {
-          apple: '/apple-touch-icon.png?v=1',
-          icon: isDev ? '/favicon-dev.ico' : '/favicon.ico?v=1',
-          shortcut: isDev ? '/favicon-32x32-dev.ico' : '/favicon-32x32.ico?v=1',
+          apple: `/apple-touch-icon.png?v=${DEFAULT_BRAND_ASSET_VERSION}`,
+          icon: isDev
+            ? `/favicon-dev.png?v=${DEFAULT_BRAND_ASSET_VERSION}`
+            : `/favicon.png?v=${DEFAULT_BRAND_ASSET_VERSION}`,
+          shortcut: isDev
+            ? `/favicon-32x32-dev.png?v=${DEFAULT_BRAND_ASSET_VERSION}`
+            : `/favicon-32x32.png?v=${DEFAULT_BRAND_ASSET_VERSION}`,
         },
     manifest: '/manifest.json',
     metadataBase: new URL(brandConfig.officialUrl || OFFICIAL_URL),
@@ -38,7 +43,7 @@ export const generateMetadata = async (props: DynamicLayoutProps) => {
       description: t('chat.description', { appName: brandConfig.brandName }),
       images: [
         {
-          alt: t('chat.title', { appName: brandConfig.brandName }),
+          alt: brandConfig.siteTitle,
           height: 640,
           url: OG_URL,
           width: 1200,
@@ -46,20 +51,20 @@ export const generateMetadata = async (props: DynamicLayoutProps) => {
       ],
       locale: DEFAULT_LANG,
       siteName: brandConfig.brandName,
-      title: brandConfig.brandName,
+      title: brandConfig.siteTitle,
       type: 'website',
       url: brandConfig.officialUrl || OFFICIAL_URL,
     },
     title: {
-      default: t('chat.title', { appName: brandConfig.brandName }),
-      template: `%s · ${brandConfig.brandName}`,
+      default: brandConfig.siteTitle,
+      template: `%s · ${brandConfig.siteTitle}`,
     },
     twitter: {
       card: 'summary_large_image',
       description: t('chat.description', { appName: brandConfig.brandName }),
       images: [OG_URL],
       site: isCustomORG ? `@${ORG_NAME}` : '@lobehub',
-      title: t('chat.title', { appName: brandConfig.brandName }),
+      title: brandConfig.siteTitle,
     },
   };
 };

@@ -6,16 +6,16 @@ import { siteConfigSelectors, useServerConfigStore } from '@/store/serverConfig'
 
 const PageTitle = memo<{ title: string }>(({ title }) => {
   const setCurrentPageTitle = useElectronStore((s) => s.setCurrentPageTitle);
-  const brandName = useServerConfigStore(siteConfigSelectors.brandName);
+  const siteTitle = useServerConfigStore(siteConfigSelectors.siteTitle);
 
   useEffect(() => {
-    document.title = title ? `${title} · ${brandName}` : brandName;
+    document.title = title ? `${title} · ${siteTitle}` : siteTitle;
 
     // Sync title to electron store for navigation history
     if (isDesktop) {
       setCurrentPageTitle(title);
     }
-  }, [title, setCurrentPageTitle, brandName]);
+  }, [title, setCurrentPageTitle, siteTitle]);
 
   return null;
 });

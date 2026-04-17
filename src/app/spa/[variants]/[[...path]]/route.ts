@@ -1,10 +1,14 @@
 import { ORG_NAME } from '@lobechat/business-const';
 import { OG_URL } from '@lobechat/const';
+import { DEFAULT_BRAND_ICON_SVG, DEFAULT_BRAND_TITLE } from '@/const/branding';
 
 import { getServerFeatureFlagsValue } from '@/config/featureFlags';
 import { OFFICIAL_URL } from '@/const/url';
 import { isCustomORG, isDesktop } from '@/const/version';
-import { getRuntimeBrandConfig } from '@/server/globalConfig/getBrandConfig';
+import {
+  getRuntimeBrandConfig,
+  type RuntimeBrandConfig,
+} from '@/server/globalConfig/getBrandConfig';
 import { analyticsEnv } from '@/envs/analytics';
 import { appEnv } from '@/envs/app';
 import { fileEnv } from '@/envs/file';
@@ -39,6 +43,15 @@ export function generateStaticParams() {
 
 const isDev = process.env.NODE_ENV === 'development';
 const VITE_DEV_ORIGIN = 'http://localhost:9876';
+const DEFAULT_LOADING_ICON_MARKUP = `<img alt="" data-loading-icon="true" src="data:image/svg+xml;charset=UTF-8,${encodeURIComponent(DEFAULT_BRAND_ICON_SVG)}" />`;
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 
 async function rewriteViteAssetUrls(html: string): Promise<string> {
   const { parseHTML } = await import('linkedom');
@@ -165,29 +178,108 @@ function buildClientEnv(): SPAClientEnv {
   };
 }
 
-async function buildSeoMeta(locale: string): Promise<string> {
+const hasCustomSiteIdentity = (brandConfig: RuntimeBrandConfig) =>
+  brandConfig.isCustomBranding || brandConfig.siteTitle !== brandConfig.brandName;
+
+async function applyLoadingScreenBranding(
+  html: string,
+  brandConfig: RuntimeBrandConfig,
+): Promise<string> {
+  if (!html.includes('id="loading-brand"')) return html;
+
+  const { parseHTML } = await import('linkedom');
+  const { document } = parseHTML(html);
+  const loadingBrand = document.querySelector('#loading-brand');
+
+  if (!loadingBrand) return html;
+
+  const useCustomIdentity = hasCustomSiteIdentity(brandConfig);
+  const brandTitle = brandConfig.siteTitle || DEFAULT_BRAND_TITLE;
+
+  loadingBrand.innerHTML = useCustomIdentity
+    ? `<span data-loading-spinner="true"></span><span data-loading-label="true"></span>`
+    : `${DEFAULT_LOADING_ICON_MARKUP}<span data-loading-label="true"></span>`;
+  loadingBrand.setAttribute('data-branding-mode', useCustomIdentity ? 'custom' : 'default');
+
+  const label = loadingBrand.querySelector('[data-loading-label="true"]');
+  if (label) label.textContent = brandTitle;
+
+  if (document.head?.querySelector('[data-brand-loading-style="true"]')) {
+    return document.toString();
+  }
+
+  const style = document.createElement('style');
+  style.setAttribute('data-brand-loading-style', 'true');
+  style.textContent = `
+@keyframes loading-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes loading-breathe {
+  0%, 100% { opacity: 0.92; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-1px); }
+}
+#loading-brand[data-branding-mode] {
+  gap: 10px;
+}
+#loading-brand [data-loading-icon='true'] {
+  animation: loading-breathe 1.6s ease-in-out infinite;
+  flex: none;
+  height: 40px;
+  width: 40px;
+}
+#loading-brand[data-branding-mode='custom'] [data-loading-spinner='true'] {
+  width: 28px;
+  height: 28px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: loading-spin 0.8s linear infinite;
+}
+#loading-brand [data-loading-label='true'] {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+`;
+  document.head?.appendChild(style);
+
+  return document.toString();
+}
+
+async function buildSeoMeta(
+  locale: string,
+  brandConfig: RuntimeBrandConfig,
+): Promise<{ metaTags: string; titleTag: string }> {
   const { t } = await translation('metadata', locale);
-  const brandConfig = await getRuntimeBrandConfig();
-  const title = t('chat.title', { appName: brandConfig.brandName });
+  const title = brandConfig.siteTitle;
   const description = t('chat.description', { appName: brandConfig.brandName });
   const officialUrl = brandConfig.officialUrl || OFFICIAL_URL;
+  const escapedTitle = escapeHtml(title);
+  const escapedDescription = escapeHtml(description);
+  const escapedOfficialUrl = escapeHtml(officialUrl);
+  const escapedSiteName = escapeHtml(brandConfig.brandName);
+  const escapedLocale = escapeHtml(locale);
+  const escapedOgUrl = escapeHtml(OG_URL);
 
-  return [
-    `<title>${title}</title>`,
-    `<meta name="description" content="${description}" />`,
-    `<meta property="og:title" content="${title}" />`,
-    `<meta property="og:description" content="${description}" />`,
-    `<meta property="og:type" content="website" />`,
-    `<meta property="og:url" content="${officialUrl}" />`,
-    `<meta property="og:image" content="${OG_URL}" />`,
-    `<meta property="og:site_name" content="${brandConfig.brandName}" />`,
-    `<meta property="og:locale" content="${locale}" />`,
-    `<meta name="twitter:card" content="summary_large_image" />`,
-    `<meta name="twitter:title" content="${title}" />`,
-    `<meta name="twitter:description" content="${description}" />`,
-    `<meta name="twitter:image" content="${OG_URL}" />`,
-    `<meta name="twitter:site" content="${isCustomORG ? `@${ORG_NAME}` : '@lobehub'}" />`,
-  ].join('\n    ');
+  return {
+    metaTags: [
+      `<meta name="description" content="${escapedDescription}" />`,
+      `<meta property="og:title" content="${escapedTitle}" />`,
+      `<meta property="og:description" content="${escapedDescription}" />`,
+      `<meta property="og:type" content="website" />`,
+      `<meta property="og:url" content="${escapedOfficialUrl}" />`,
+      `<meta property="og:image" content="${escapedOgUrl}" />`,
+      `<meta property="og:site_name" content="${escapedSiteName}" />`,
+      `<meta property="og:locale" content="${escapedLocale}" />`,
+      `<meta name="twitter:card" content="summary_large_image" />`,
+      `<meta name="twitter:title" content="${escapedTitle}" />`,
+      `<meta name="twitter:description" content="${escapedDescription}" />`,
+      `<meta name="twitter:image" content="${escapedOgUrl}" />`,
+      `<meta name="twitter:site" content="${isCustomORG ? `@${ORG_NAME}` : '@lobehub'}" />`,
+    ].join('\n    '),
+    titleTag: `<title>${escapedTitle}</title>`,
+  };
 }
 
 export async function GET(
@@ -198,6 +290,7 @@ export async function GET(
   const { locale, isMobile } = RouteVariants.deserializeVariants(variants);
 
   const serverConfig = await getServerGlobalConfig();
+  const brandConfig = await getRuntimeBrandConfig();
   const featureFlags = getServerFeatureFlagsValue();
   const analyticsConfig = buildAnalyticsConfig();
   const clientEnv = buildClientEnv();
@@ -211,15 +304,26 @@ export async function GET(
   };
 
   let html = await getTemplate(isMobile);
+  html = await applyLoadingScreenBranding(html, brandConfig);
 
   html = html.replace(
-    /window\.__SERVER_CONFIG__\s*=\s*undefined;\s*\/\*\s*SERVER_CONFIG\s*\*\//,
+    /window\.__SERVER_CONFIG__\s*=\s*undefined;\s*(?:\/\*\s*SERVER_CONFIG\s*\*\/)?/,
     `window.__SERVER_CONFIG__ = ${serializeForHtml(spaConfig)};`,
   );
 
-  const seoMeta = await buildSeoMeta(locale);
-  html = html.replace('<!--SEO_META-->', seoMeta);
-  html = html.replace('<!--ANALYTICS_SCRIPTS-->', '');
+  const { metaTags, titleTag } = await buildSeoMeta(locale, brandConfig);
+
+  html = /<title>.*?<\/title>/s.test(html)
+    ? html.replace(/<title>.*?<\/title>/s, titleTag)
+    : html.replace('<head>', `<head>\n    ${titleTag}`);
+
+  html = html.includes('<!--SEO_META-->')
+    ? html.replace('<!--SEO_META-->', metaTags)
+    : html.replace(titleTag, `${titleTag}\n    ${metaTags}`);
+
+  html = html.includes('<!--ANALYTICS_SCRIPTS-->')
+    ? html.replace('<!--ANALYTICS_SCRIPTS-->', '')
+    : html;
 
   return new Response(html, {
     headers: {

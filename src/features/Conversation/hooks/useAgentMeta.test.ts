@@ -1,21 +1,63 @@
+import { DEFAULT_INBOX_TITLE } from '@/const/branding';
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAgentStore } from '@/store/agent';
 
-import type * as ConversationStoreModule from '../store';
 import { useConversationStore } from '../store';
 import { useAgentMeta, useIsBuiltinAgent } from './useAgentMeta';
 
-vi.mock('zustand/traditional');
-
-// Mock the ConversationStore
-vi.mock('../store', async (importOriginal) => {
-  const actual = await importOriginal<typeof ConversationStoreModule>();
-  return {
-    ...actual,
-    useConversationStore: vi.fn(),
+const { mockUseAgentStore, resetMockAgentStore } = vi.hoisted(() => {
+  const state = {
+    agentMap: {},
+    builtinAgentIdMap: {},
+  } as {
+    agentMap: Record<string, any>;
+    builtinAgentIdMap: Record<string, string>;
   };
+
+  const useAgentStoreMock = Object.assign(
+    vi.fn((selector?: (state: typeof state) => unknown) => (selector ? selector(state) : state)),
+    {
+      getState: () => state,
+      reset: () => {
+        state.agentMap = {};
+        state.builtinAgentIdMap = {};
+      },
+      setState: (partial: Partial<typeof state>) => {
+        Object.assign(state, partial);
+      },
+    },
+  );
+
+  return {
+    mockUseAgentStore: useAgentStoreMock,
+    resetMockAgentStore: () => useAgentStoreMock.reset(),
+  };
+});
+
+const { mockUseConversationStore } = vi.hoisted(() => ({
+  mockUseConversationStore: vi.fn(),
+}));
+
+vi.mock('@/store/agent', () => ({
+  useAgentStore: mockUseAgentStore,
+}));
+
+vi.mock('../store', () => {
+  const contextSelectors = {
+    agentId: (state: { context: { agentId?: string } }) => state.context.agentId,
+  };
+
+  return {
+    contextSelectors,
+    useConversationStore: mockUseConversationStore,
+  };
+});
+
+beforeEach(() => {
+  resetMockAgentStore();
+  vi.clearAllMocks();
 });
 
 describe('useAgentMeta', () => {
@@ -87,7 +129,7 @@ describe('useAgentMeta', () => {
     expect(result.current.description).toBe('Inbox description');
   });
 
-  it('should fallback to Lobe AI title for builtin agent without custom title', () => {
+  it('should fallback to the default inbox title for builtin agent without custom title', () => {
     const mockInboxAgentId = 'inbox-agent-id';
     const mockMeta = {
       avatar: '/icons/icon-lobe.png',
@@ -113,7 +155,7 @@ describe('useAgentMeta', () => {
     const { result } = renderHook(() => useAgentMeta());
 
     expect(result.current.avatar).toBe('/icons/icon-lobe.png');
-    expect(result.current.title).toBe('Lobe AI');
+    expect(result.current.title).toBe(DEFAULT_INBOX_TITLE);
   });
 
   it('should preserve custom title for page agent (builtin)', () => {

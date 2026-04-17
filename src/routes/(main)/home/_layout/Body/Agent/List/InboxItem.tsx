@@ -1,6 +1,6 @@
 'use client';
 
-import { DEFAULT_INBOX_AVATAR, SESSION_CHAT_URL } from '@lobechat/const';
+import { DEFAULT_INBOX_AVATAR, DEFAULT_INBOX_TITLE, SESSION_CHAT_URL } from '@lobechat/const';
 import { Avatar } from '@lobehub/ui';
 import { type CSSProperties } from 'react';
 import { memo } from 'react';
@@ -25,11 +25,11 @@ const InboxItem = memo<InboxItemProps>(({ className, style }) => {
 
   const isLoading = useChatStore(operationSelectors.isAgentRuntimeRunning);
   const prefetchAgent = usePrefetchAgent();
-  const inboxAgentTitle = inboxMeta.title || 'Lobe AI';
+  const inboxAgentTitle = inboxMeta.title || DEFAULT_INBOX_TITLE;
   const inboxAgentAvatar = inboxMeta.avatar || DEFAULT_INBOX_AVATAR;
   const inboxUrl = SESSION_CHAT_URL(inboxAgentId, false);
 
-  // Prefetch agent layout chunk and data eagerly since Lobe AI is almost always clicked
+  // Prefetch agent layout chunk and data eagerly since the inbox agent is almost always clicked.
   prefetchRoute(inboxUrl);
   prefetchAgent(inboxAgentId!);
 

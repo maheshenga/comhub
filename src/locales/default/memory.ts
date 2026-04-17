@@ -1,3 +1,5 @@
+import { DEFAULT_INBOX_TITLE } from '@/const/branding';
+
 export default {
   'activity.actions.delete': 'Delete',
   'activity.actions.edit': 'Edit',
@@ -11,8 +13,7 @@ export default {
   'activity.notes': 'Notes',
   'analysis.action.button': 'Request memory analysis',
   'analysis.modal.cancel': 'Cancel',
-  'analysis.modal.helper':
-    "By default Lobe AI will analyze all unprocessed chats. It's optional to select a date range to analyze.",
+  'analysis.modal.helper': `By default ${DEFAULT_INBOX_TITLE} will analyze all unprocessed chats. It's optional to select a date range to analyze.`,
   'analysis.modal.rangePlaceholder': 'No range selected; all conversations will be analyzed.',
   'analysis.modal.rangeSelected': 'Analyzing chats from {{start}} to {{end}}',
   'analysis.modal.submit': 'Request memory analysis',

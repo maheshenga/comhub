@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_INBOX_TITLE } from '@/const/branding';
 import { Avatar, Flexbox, Markdown, Text } from '@lobehub/ui';
 import isEqual from 'fast-deep-equal';
 import React, { memo, useMemo } from 'react';
@@ -34,7 +35,7 @@ const InboxWelcome = memo(() => {
     return agentSystemRoleMsg;
   }, [openingMessage, agentSystemRoleMsg, meta.description]);
 
-  const inboxTitle = meta.title || 'Lobe AI';
+  const inboxTitle = meta.title || DEFAULT_INBOX_TITLE;
   const displayTitle = isInbox ? inboxTitle : meta.title || t('defaultSession', { ns: 'common' });
 
   return (

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_FEATURE_FLAGS, mapFeatureFlagsEnvToState } from '@/config/featureFlags';
 
-import { featureFlagsSelectors, serverConfigSelectors } from './selectors';
+import { featureFlagsSelectors, serverConfigSelectors, siteConfigSelectors } from './selectors';
 import { initServerConfigStore } from './store';
 
 describe('featureFlagsSelectors', () => {
@@ -53,5 +53,49 @@ describe('serverConfigSelectors', () => {
 
       expect(result).toBe(false);
     });
+  });
+});
+
+describe('siteConfigSelectors', () => {
+  it('should fall back to brand name when site title is empty', () => {
+    const store = initServerConfigStore({
+      serverConfig: {
+        aiProvider: {},
+        siteConfig: {
+          brand_name: 'ComHub',
+        },
+        telemetry: {},
+      },
+    });
+
+    expect(siteConfigSelectors.siteTitle(store.getState())).toBe('ComHub');
+  });
+
+  it('should treat a custom logo url as custom branding', () => {
+    const store = initServerConfigStore({
+      serverConfig: {
+        aiProvider: {},
+        siteConfig: {
+          brand_logo_url: 'https://example.com/logo.png',
+        },
+        telemetry: {},
+      },
+    });
+
+    expect(siteConfigSelectors.isCustomBranding(store.getState())).toBe(true);
+  });
+
+  it('should detect a custom site title even when brand name is unchanged', () => {
+    const store = initServerConfigStore({
+      serverConfig: {
+        aiProvider: {},
+        siteConfig: {
+          site_title: 'ComHub Workspace',
+        },
+        telemetry: {},
+      },
+    });
+
+    expect(siteConfigSelectors.hasCustomSiteIdentity(store.getState())).toBe(true);
   });
 });

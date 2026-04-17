@@ -20,11 +20,13 @@ export interface RuntimeBrandConfig {
  */
 export const getRuntimeBrandConfig = async (): Promise<RuntimeBrandConfig> => {
   const siteConfig = await getPublicSiteConfig();
+  const brandLogoUrl = siteConfig.brand_logo_url || BRANDING_LOGO_URL;
   const brandName = siteConfig.brand_name || BRANDING_NAME;
+
   return {
-    brandLogoUrl: siteConfig.brand_logo_url || BRANDING_LOGO_URL,
+    brandLogoUrl,
     brandName,
-    isCustomBranding: brandName !== 'LobeHub',
+    isCustomBranding: brandName !== BRANDING_NAME || brandLogoUrl !== BRANDING_LOGO_URL,
     officialUrl: siteConfig.official_url || '',
     siteDescription: siteConfig.site_description || '',
     siteTitle: siteConfig.site_title || brandName,
