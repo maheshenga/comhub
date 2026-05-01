@@ -1,3 +1,4 @@
+import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import { useMemo } from 'react';
 
 import { type EnabledProviderWithModels } from '@/types/aiProvider';
@@ -20,12 +21,12 @@ export const useBuildListItems = (
       return text.toLowerCase().includes(keyword);
     };
 
-    // lobehub first, then others
+    // Branding provider first, then others
     const sortedProviders = [...enabledList].sort((a, b) => {
-      const aIsLobehub = a.id === 'lobehub';
-      const bIsLobehub = b.id === 'lobehub';
-      if (aIsLobehub && !bIsLobehub) return -1;
-      if (!aIsLobehub && bIsLobehub) return 1;
+      const aIsBranding = a.id === BRANDING_PROVIDER;
+      const bIsBranding = b.id === BRANDING_PROVIDER;
+      if (aIsBranding && !bIsBranding) return -1;
+      if (!aIsBranding && bIsBranding) return 1;
       return 0;
     });
 
@@ -58,14 +59,14 @@ export const useBuildListItems = (
         }
       }
 
-      // lobehub first
+      // Branding provider first
       const modelArray = Array.from(modelMap.values());
       for (const model of modelArray) {
         model.providers.sort((a, b) => {
-          const aIsLobehub = a.id === 'lobehub';
-          const bIsLobehub = b.id === 'lobehub';
-          if (aIsLobehub && !bIsLobehub) return -1;
-          if (!aIsLobehub && bIsLobehub) return 1;
+          const aIsBranding = a.id === BRANDING_PROVIDER;
+          const bIsBranding = b.id === BRANDING_PROVIDER;
+          if (aIsBranding && !bIsBranding) return -1;
+          if (!aIsBranding && bIsBranding) return 1;
           return 0;
         });
       }

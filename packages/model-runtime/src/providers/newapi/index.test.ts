@@ -710,6 +710,9 @@ describe('NewAPI Runtime - 100% Branch Coverage', () => {
   });
 
   describe('Routers Function - Direct Testing', () => {
+    const getRouterOptions = (router: any) =>
+      Array.isArray(router.options) ? router.options : [router.options];
+
     it('should generate routers with correct apiTypes', () => {
       const options = { apiKey: 'test', baseURL: 'https://api.newapi.com/v1' };
       const routers = params.routers(options);
@@ -726,44 +729,62 @@ describe('NewAPI Runtime - 100% Branch Coverage', () => {
       const routers = params.routers(options);
 
       // Anthropic router should use base URL without /v1
-      expect(routers[0].options.baseURL).toBe('https://custom.com');
+      expect(getRouterOptions(routers[0])[0].baseURL).toBe('https://custom.com');
       // Google router should use base URL without /v1
-      expect(routers[1].options.baseURL).toBe('https://custom.com');
+      expect(getRouterOptions(routers[1])[0].baseURL).toBe('https://custom.com');
     });
 
     it('should handle baseURL with v1beta', () => {
       const options = { apiKey: 'test', baseURL: 'https://custom.com/v1beta/' };
       const routers = params.routers(options);
 
-      expect(routers[0].options.baseURL).toBe('https://custom.com');
+      expect(getRouterOptions(routers[0])[0].baseURL).toBe('https://custom.com');
     });
 
     it('should handle baseURL without version path', () => {
       const options = { apiKey: 'test', baseURL: 'https://custom.com' };
       const routers = params.routers(options);
 
-      expect(routers[0].options.baseURL).toBe('https://custom.com');
+      expect(getRouterOptions(routers[0])[0].baseURL).toBe('https://custom.com');
     });
 
     it('should configure xai router with /v1 path', () => {
       const options = { apiKey: 'test', baseURL: 'https://custom.com/v1' };
       const routers = params.routers(options);
 
-      expect(routers[2].options.baseURL).toBe('https://custom.com/v1');
+      expect(getRouterOptions(routers[2])[0].baseURL).toBe('https://custom.com/v1');
     });
 
     it('should configure openai router with /v1 path', () => {
       const options = { apiKey: 'test', baseURL: 'https://custom.com/v1' };
       const routers = params.routers(options);
 
-      expect(routers[3].options.baseURL).toBe('https://custom.com/v1');
+      expect(getRouterOptions(routers[3])[0].baseURL).toBe('https://custom.com/v1');
     });
 
     it('should configure openai router with useResponseModels', () => {
       const options = { apiKey: 'test', baseURL: 'https://custom.com/v1' };
       const routers = params.routers(options);
 
-      expect((routers[3].options as any).chatCompletion?.useResponseModels).toBeDefined();
+      expect(getRouterOptions(routers[3])[0].chatCompletion?.useResponseModels).toBeDefined();
+    });
+
+    it('should enable round-robin strategy for multiple gateway addresses', () => {
+      const options = {
+        apiKey: 'test',
+        baseURL: 'https://node-1.example.com/v1\nhttps://node-2.example.com/v1',
+      };
+      const routers = params.routers(options);
+
+      expect(params.optionSelectionStrategy).toBe('roundRobin');
+      expect(getRouterOptions(routers[0]).map((option: any) => option.baseURL)).toEqual([
+        'https://node-1.example.com',
+        'https://node-2.example.com',
+      ]);
+      expect(getRouterOptions(routers[3]).map((option: any) => option.baseURL)).toEqual([
+        'https://node-1.example.com/v1',
+        'https://node-2.example.com/v1',
+      ]);
     });
 
     it('should filter anthropic models for anthropic router', () => {
@@ -810,8 +831,8 @@ describe('NewAPI Runtime - 100% Branch Coverage', () => {
       const routers = params.routers(options);
 
       expect(routers).toHaveLength(4);
-      expect(routers[0].options.baseURL).toBe('');
-      expect(routers[3].options.baseURL).toBe('v1'); // urlJoin('', '/v1') returns 'v1'
+      expect(getRouterOptions(routers[0])[0].baseURL).toBe('');
+      expect(getRouterOptions(routers[3])[0].baseURL).toBe('v1'); // urlJoin('', '/v1') returns 'v1'
     });
   });
 

@@ -31,6 +31,42 @@ export interface NewAPIPricing {
  */
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
 
+const normalizeBaseUrls = (value?: string) =>
+  Array.from(
+    new Set(
+      (value || '')
+        .split(/[\r\n,;；，]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => item.replace(/\/+$/, '').replace(/\/v\d+[a-z]*\/?$/, '')),
+    ),
+  );
+
+const buildRouterOptions = (
+  options: Record<string, any>,
+  mapBaseURL: (baseURL: string) => string,
+) => {
+  const baseURLs = normalizeBaseUrls(options.baseURL);
+
+  if (baseURLs.length === 0) {
+    const fallbackBaseURL = options.baseURL?.replace(/\/v\d+[a-z]*\/?$/, '') || '';
+
+    return [
+      {
+        ...options,
+        baseURL: mapBaseURL(fallbackBaseURL),
+      },
+    ];
+  }
+
+  return baseURLs.map((baseURL, index) => ({
+    ...options,
+    baseURL: mapBaseURL(baseURL),
+    id: `channel-${index + 1}`,
+    remark: baseURL,
+  }));
+};
+
 /**
  * Parse a pricing API HTTP response into a `NewAPIPricing[] | null`.
  * Shared between browser and server branches to avoid duplicated logic.
@@ -194,49 +230,40 @@ export const params = {
 
     return processMultiProviderModelList([...enrichedModelList, ...additionalModels], 'newapi');
   },
+  optionSelectionStrategy: 'roundRobin',
   routers: (options) => {
-    const userBaseURL = options.baseURL?.replace(/\/v\d+[a-z]*\/?$/, '') || '';
-
     return [
       {
         apiType: 'anthropic',
         models: LOBE_DEFAULT_MODEL_LIST.map((m) => m.id).filter(
           (id) => detectModelProvider(id) === 'anthropic',
         ),
-        options: {
-          ...options,
-          baseURL: userBaseURL,
-        },
+        options: buildRouterOptions(options, (baseURL) => baseURL),
       },
       {
         apiType: 'google',
         models: LOBE_DEFAULT_MODEL_LIST.map((m) => m.id).filter(
           (id) => detectModelProvider(id) === 'google',
         ),
-        options: {
-          ...options,
-          baseURL: userBaseURL,
-        },
+        options: buildRouterOptions(options, (baseURL) => baseURL),
       },
       {
         apiType: 'xai',
         models: LOBE_DEFAULT_MODEL_LIST.map((m) => m.id).filter(
           (id) => detectModelProvider(id) === 'xai',
         ),
-        options: {
-          ...options,
-          baseURL: urlJoin(userBaseURL, '/v1'),
-        },
+        options: buildRouterOptions(options, (baseURL) => urlJoin(baseURL, '/v1')),
       },
       {
         apiType: 'openai',
-        options: {
-          ...options,
-          baseURL: urlJoin(userBaseURL, '/v1'),
-          chatCompletion: {
-            useResponseModels: [...Array.from(responsesAPIModels), /gpt-\d(?!\d)/, /^o\d/],
-          },
-        },
+        options: buildRouterOptions(options, (baseURL) => urlJoin(baseURL, '/v1')).map(
+          (option) => ({
+            ...option,
+            chatCompletion: {
+              useResponseModels: [...Array.from(responsesAPIModels), /gpt-\d(?!\d)/, /^o\d/],
+            },
+          }),
+        ),
       },
     ];
   },

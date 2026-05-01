@@ -404,6 +404,82 @@ describe('createRouterRuntime', () => {
       expect(mockChatAlwaysFail).toHaveBeenCalledTimes(2);
     });
 
+    it('should rotate starting option across requests when roundRobin is enabled', async () => {
+      const constructorApiKeys: string[] = [];
+
+      class RoundRobinRuntime implements LobeRuntimeAI {
+        private readonly apiKey: string;
+
+        constructor(options: any) {
+          this.apiKey = options.apiKey;
+          constructorApiKeys.push(options.apiKey);
+        }
+
+        chat = vi.fn().mockImplementation(async () => this.apiKey);
+      }
+
+      const Runtime = createRouterRuntime({
+        id: 'test-runtime',
+        optionSelectionStrategy: 'roundRobin',
+        routers: [
+          {
+            apiType: 'openai',
+            options: [{ apiKey: 'key-1' }, { apiKey: 'key-2' }, { apiKey: 'key-3' }],
+            runtime: RoundRobinRuntime as any,
+            models: ['gpt-4'],
+          },
+        ],
+      });
+
+      const payload = { model: 'gpt-4', messages: [], temperature: 0.7 };
+
+      await expect(new Runtime().chat(payload)).resolves.toBe('key-1');
+      await expect(new Runtime().chat(payload)).resolves.toBe('key-2');
+      await expect(new Runtime().chat(payload)).resolves.toBe('key-3');
+      await expect(new Runtime().chat(payload)).resolves.toBe('key-1');
+
+      expect(constructorApiKeys).toEqual(['key-1', 'key-2', 'key-3', 'key-1']);
+    });
+
+    it('should fallback from the rotated option when roundRobin is enabled', async () => {
+      const constructorApiKeys: string[] = [];
+
+      class RoundRobinFallbackRuntime implements LobeRuntimeAI {
+        private readonly apiKey: string;
+
+        constructor(options: any) {
+          this.apiKey = options.apiKey;
+          constructorApiKeys.push(options.apiKey);
+        }
+
+        chat = vi.fn().mockImplementation(async () => {
+          if (this.apiKey === 'key-2') throw new Error('key-2 unavailable');
+
+          return this.apiKey;
+        });
+      }
+
+      const Runtime = createRouterRuntime({
+        id: 'test-runtime',
+        optionSelectionStrategy: 'roundRobin',
+        routers: [
+          {
+            apiType: 'openai',
+            options: [{ apiKey: 'key-1' }, { apiKey: 'key-2' }, { apiKey: 'key-3' }],
+            runtime: RoundRobinFallbackRuntime as any,
+            models: ['gpt-4'],
+          },
+        ],
+      });
+
+      const payload = { model: 'gpt-4', messages: [], temperature: 0.7 };
+
+      await expect(new Runtime().chat(payload)).resolves.toBe('key-1');
+      await expect(new Runtime().chat(payload)).resolves.toBe('key-3');
+
+      expect(constructorApiKeys).toEqual(['key-1', 'key-2', 'key-3']);
+    });
+
     it('should throw error when options array is empty', async () => {
       const Runtime = createRouterRuntime({
         id: 'test-runtime',

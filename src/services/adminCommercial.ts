@@ -1,0 +1,213 @@
+import { lambdaClient } from '@/libs/trpc/client';
+
+class AdminCommercialService {
+  // Users
+  listUsers = async (params: { cursor?: number; limit?: number; query?: string }) => {
+    return lambdaClient.admin.users.list.query(params);
+  };
+
+  getUserDetail = async (userId: string) => {
+    return lambdaClient.admin.users.detail.query({ userId });
+  };
+
+  getUserFullDetail = async (userId: string) => {
+    return lambdaClient.admin.users.fullDetail.query({ userId });
+  };
+
+  banUser = async (params: { banReason?: string; userId: string }) => {
+    return lambdaClient.admin.users.ban.mutate(params);
+  };
+
+  unbanUser = async (userId: string) => {
+    return lambdaClient.admin.users.unban.mutate({ userId });
+  };
+
+  setUserRole = async (params: { role: 'admin' | 'user' | null; userId: string }) => {
+    return lambdaClient.admin.users.setRole.mutate(params);
+  };
+
+  // Credits
+  getUserBalance = async (userId: string) => {
+    return lambdaClient.admin.credits.getBalance.query({ userId });
+  };
+
+  getUserLedger = async (params: { cursor?: number; limit?: number; userId: string }) => {
+    return lambdaClient.admin.credits.ledger.query(params);
+  };
+
+  adjustCredits = async (params: { amount: number; reason: string; userId: string }) => {
+    return lambdaClient.admin.credits.adjust.mutate(params);
+  };
+
+  // Subscriptions
+  listSubscriptions = async (params: { cursor?: number; limit?: number; plan?: string }) => {
+    return lambdaClient.admin.subscriptions.list.query(params);
+  };
+
+  getUserSubscription = async (userId: string) => {
+    return lambdaClient.admin.subscriptions.getUserSubscription.query({ userId });
+  };
+
+  forceChangePlan = async (params: {
+    cycle: 'monthly' | 'yearly';
+    plan: string;
+    reason: string;
+    userId: string;
+  }) => {
+    return lambdaClient.admin.subscriptions.forceChange.mutate(params);
+  };
+
+  // Settings
+  getAllSettings = async () => {
+    return lambdaClient.admin.settings.getAll.query();
+  };
+
+  setAppSetting = async (params: { key: string; value: unknown }) => {
+    return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
+  };
+
+  // Plan catalog
+  listPlans = async () => lambdaClient.admin.plans.list.query();
+  upsertPlan = async (params: {
+    currency?: string;
+    displayName: string;
+    features?: string[];
+    isActive?: boolean;
+    monthlyCredits: number;
+    monthlyPrice: number;
+    plan: string;
+    sortOrder?: number;
+    yearlyPrice: number;
+  }) => lambdaClient.admin.plans.upsert.mutate(params);
+  deletePlan = async (plan: string) => lambdaClient.admin.plans.delete.mutate({ plan });
+  setPlanActive = async (params: { isActive: boolean; plan: string }) =>
+    lambdaClient.admin.plans.setActive.mutate(params);
+
+  // Top-up packages
+  listPackages = async () => lambdaClient.admin.topupPackages.list.query();
+  upsertPackage = async (params: {
+    amount: number;
+    credits: number;
+    currency?: string;
+    displayName: string;
+    id: string;
+    isActive?: boolean;
+    recommended?: boolean;
+    sortOrder?: number;
+    validityMonths?: number;
+  }) => lambdaClient.admin.topupPackages.upsert.mutate(params);
+  deletePackage = async (id: string) =>
+    lambdaClient.admin.topupPackages.delete.mutate({ id });
+  setPackageActive = async (params: { id: string; isActive: boolean }) =>
+    lambdaClient.admin.topupPackages.setActive.mutate(params);
+
+  // Stats
+  getStatsOverview = async () => {
+    return lambdaClient.admin.stats.overview.query();
+  };
+
+  getStatsDauTrend = async () => lambdaClient.admin.stats.dauTrend.query();
+  getStatsSubscriptionsByPlan = async () =>
+    lambdaClient.admin.stats.subscriptionsByPlan.query();
+  getStatsRevenueByMonth = async () => lambdaClient.admin.stats.revenueByMonth.query();
+  getStatsRedemptionOverview = async () =>
+    lambdaClient.admin.stats.redemptionOverview.query();
+
+  // Audit log
+  listAudit = async (params: {
+    action?: string;
+    actorUserId?: string;
+    cursor?: number;
+    limit?: number;
+    targetUserId?: string;
+  }) => lambdaClient.admin.audit.list.query(params);
+
+  exportAudit = async (params: {
+    action?: string;
+    actorUserId?: string;
+    limit?: number;
+    targetUserId?: string;
+  }) => lambdaClient.admin.audit.exportAll.query(params);
+
+  // Subscription Change Requests
+  listChangeRequests = async (params: {
+    cursor?: number;
+    limit?: number;
+    status?: 'pending' | 'completed' | 'canceled' | 'rejected';
+    userId?: string;
+  }) => lambdaClient.admin.subscriptions.listChangeRequests.query(params);
+
+  approveChangeRequest = async (requestId: string) =>
+    lambdaClient.admin.subscriptions.approveChangeRequest.mutate({ requestId });
+
+  rejectChangeRequest = async (params: { reason?: string; requestId: string }) =>
+    lambdaClient.admin.subscriptions.rejectChangeRequest.mutate(params);
+
+  bulkApproveChangeRequests = async (requestIds: string[]) =>
+    lambdaClient.admin.subscriptions.bulkApproveChangeRequests.mutate({ requestIds });
+
+  bulkRejectChangeRequests = async (params: { reason?: string; requestIds: string[] }) =>
+    lambdaClient.admin.subscriptions.bulkRejectChangeRequests.mutate(params);
+
+  // Credit accounts
+  listCreditAccounts = async (params: {
+    cursor?: number;
+    limit?: number;
+    negativeOnly?: boolean;
+    order?: 'asc' | 'desc';
+    sort?: 'balance' | 'totalCredited' | 'totalDebited' | 'updatedAt';
+  }) => lambdaClient.admin.credits.listAccounts.query(params);
+
+  // Users export
+  exportUsers = async (params: { limit?: number; query?: string }) =>
+    lambdaClient.admin.users.exportAll.query(params);
+
+  // Maintenance
+  runMaintenance = async (params?: {
+    auditRetentionDays?: number;
+    pendingOrderExpiryDays?: number;
+    skipAudit?: boolean;
+    skipOrders?: boolean;
+  }) => lambdaClient.admin.settings.runMaintenance.mutate(params ?? {});
+
+  // Redemption codes
+  generateRedemptionCodes = async (params: {
+    batchId?: string;
+    codeLength?: number;
+    count?: number;
+    creditsAmount?: number;
+    expiresAt?: string;
+    note?: string;
+    planCycle?: 'monthly' | 'yearly';
+    planDurationMonths?: number;
+    planKey?: string;
+    rewardType: 'plan' | 'credits' | 'topup_package';
+    topupPackageId?: string;
+  }) => lambdaClient.admin.redemption.generate.mutate(params as any);
+
+  listRedemptionCodes = async (params: {
+    batchId?: string;
+    codeQuery?: string;
+    cursor?: number;
+    limit?: number;
+    rewardType?: 'plan' | 'credits' | 'topup_package';
+    status?: 'active' | 'redeemed' | 'disabled' | 'expired';
+  }) => lambdaClient.admin.redemption.list.query(params);
+
+  disableRedemptionCode = async (id: string) =>
+    lambdaClient.admin.redemption.disable.mutate({ id });
+
+  enableRedemptionCode = async (id: string) =>
+    lambdaClient.admin.redemption.enable.mutate({ id });
+
+  expireOverdueRedemptionCodes = async () =>
+    lambdaClient.admin.redemption.expireOverdue.mutate();
+
+  bulkDisableRedemptionCodes = async (ids: string[]) =>
+    lambdaClient.admin.redemption.bulkDisable.mutate({ ids });
+
+  bulkDeleteRedemptionCodes = async (ids: string[]) =>
+    lambdaClient.admin.redemption.bulkDelete.mutate({ ids });
+}
+
+export const adminCommercialService = new AdminCommercialService();

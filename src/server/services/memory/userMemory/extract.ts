@@ -1,3 +1,4 @@
+import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import {
   DEFAULT_USER_MEMORY_EMBEDDING_DIMENSIONS,
   DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM,
@@ -456,7 +457,7 @@ export const resolveRuntimeAgentConfig = (
   );
 
   for (const provider of providerOrder) {
-    if (provider === 'lobehub') {
+    if (provider === BRANDING_PROVIDER) {
       debugRuntimeInit(agent, {
         provider,
         source: 'user-vault' as const,

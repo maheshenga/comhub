@@ -1586,6 +1586,29 @@ describe('ChatService', () => {
       );
     });
 
+    it('should include billing metadata headers when message and operation ids are provided', async () => {
+      const params: Partial<ChatStreamPayload> = {
+        model: 'test-model',
+        messages: [],
+      };
+
+      await chatService.getChatCompletion(params, {
+        messageId: 'assistant-message-1',
+        operationId: 'operation-1',
+      });
+
+      expect(mockFetchSSE).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'x-assistant-message-id': 'assistant-message-1',
+            'x-message-id': 'assistant-message-1',
+            'x-operation-id': 'operation-1',
+          }),
+        }),
+      );
+    });
+
     it('should make a POST request with chatCompletion apiMode in non-openai provider payload', async () => {
       const params: Partial<ChatStreamPayload> = {
         model: 'deepseek-reasoner',

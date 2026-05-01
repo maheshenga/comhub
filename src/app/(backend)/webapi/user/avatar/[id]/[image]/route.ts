@@ -1,3 +1,4 @@
+import { auth } from '@/auth';
 import { serverDB } from '@/database/server';
 import { UserService } from '@/server/services/user';
 
@@ -27,6 +28,14 @@ function getContentType(filename: string): string {
 }
 
 export const GET = async (req: Request, segmentData: { params: Params }) => {
+  // SECURITY: P1 fix 2026-04-27 - require auth to prevent anonymous enumeration
+  // Any authenticated user may view any user's avatar (needed for chat partner avatars in
+  // conversation lists), but unauthenticated requests are rejected.
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session?.user?.id) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
   try {
     const params = await segmentData.params;
     const type = getContentType(params.image);

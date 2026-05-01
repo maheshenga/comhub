@@ -3,6 +3,7 @@ import { type PropsWithChildren } from 'react';
 
 import BusinessAuthProvider from '@/business/client/BusinessAuthProvider';
 import ClientOnly from '@/components/client/ClientOnly';
+import { BrandProvider } from '@/features/Brand';
 import { type DynamicLayoutProps } from '@/types/next';
 
 import AuthContainer from './_layout';
@@ -16,7 +17,9 @@ const AuthLayout = async ({ children, params }: PropsWithChildren<DynamicLayoutP
       <ClientOnly>
         <NuqsAdapter>
           <BusinessAuthProvider>
-            <AuthContainer>{children}</AuthContainer>
+            <BrandProvider>
+              <AuthContainer>{children}</AuthContainer>
+            </BrandProvider>
           </BusinessAuthProvider>
         </NuqsAdapter>
       </ClientOnly>

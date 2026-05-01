@@ -21,16 +21,26 @@ const manifest = async (): Promise<MetadataRoute.Manifest> => {
     };
   }
 
-  const [{ BRANDING_LOGO_URL, BRANDING_NAME }, { kebabCase }, { manifestModule }] =
-    await Promise.all([
-      import('@lobechat/business-const'),
-      import('es-toolkit/compat'),
-      import('@/server/manifest'),
-    ]);
+  const [
+    { BRANDING_LOGO_URL, BRANDING_NAME },
+    { kebabCase },
+    { manifestModule },
+    { getServerBrand },
+  ] = await Promise.all([
+    import('@lobechat/business-const'),
+    import('es-toolkit/compat'),
+    import('@/server/manifest'),
+    import('@/server/services/brand'),
+  ]);
+
+  const runtimeBrand = await getServerBrand();
+  const effectiveName = runtimeBrand.name?.trim() || BRANDING_NAME;
+  const effectiveLogo = runtimeBrand.logoUrl || BRANDING_LOGO_URL;
 
   // @ts-expect-error - manifestModule.generate returns extended manifest with custom properties
   return manifestModule.generate({
-    description: `${BRANDING_NAME} is a work-and-lifestyle space to find, build, and collaborate with agent teams that grow with you.`,
+    color: runtimeBrand.primaryColor || undefined,
+    description: `${effectiveName} is a work-and-lifestyle space to find, build, and collaborate with agent teams that grow with you.`,
     icons: [
       {
         purpose: 'any',
@@ -53,9 +63,9 @@ const manifest = async (): Promise<MetadataRoute.Manifest> => {
         url: '/icons/icon-512x512.maskable.png',
       },
     ],
-    id: kebabCase(BRANDING_NAME),
-    name: BRANDING_NAME,
-    screenshots: BRANDING_LOGO_URL
+    id: kebabCase(effectiveName),
+    name: effectiveName,
+    screenshots: effectiveLogo
       ? []
       : [
           {

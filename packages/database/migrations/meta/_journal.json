@@ -700,6 +700,55 @@
       "when": 1776674965365,
       "tag": "0099_topic_status_tasks_automation_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1777221262178,
+      "tag": "0100_add_commercial_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1777225193096,
+      "tag": "0101_add_referral_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1777226305331,
+      "tag": "0102_add_auto_top_up_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1777228642246,
+      "tag": "0103_add_subscription_change_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1777315200000,
+      "tag": "0104_add_plan_catalog_and_app_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1777401600000,
+      "tag": "0105_add_admin_audit_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1777488000000,
+      "tag": "0106_add_redemption_codes",
+      "breakpoints": true
     }
   ],
   "version": "6"

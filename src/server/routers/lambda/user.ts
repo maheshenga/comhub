@@ -107,8 +107,8 @@ export const userRouter = router({
         ctx.userModel.getUserState(KeyVaultsGateKeeper.getUserKeyVaults),
         ctx.messageModel.countUpTo(5),
         ctx.sessionModel.hasMoreThanN(1),
-        getReferralStatus(ctx.userId),
-        getSubscriptionPlan(ctx.userId),
+        getReferralStatus(ctx.serverDB, ctx.userId),
+        getSubscriptionPlan(ctx.serverDB, ctx.userId),
       ]);
 
     const hasMoreThan4Messages = messageCount > 4;

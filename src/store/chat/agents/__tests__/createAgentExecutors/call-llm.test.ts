@@ -161,6 +161,8 @@ describe('call_llm executor', () => {
       // Then
       expect(chatService.createAssistantMessageStream).toHaveBeenCalledWith(
         expect.objectContaining({
+          messageId: expect.any(String),
+          operationId: context.operationId,
           params: expect.objectContaining({
             model: 'gpt-4',
             provider: 'openai',

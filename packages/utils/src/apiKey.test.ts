@@ -6,12 +6,13 @@ describe('apiKey', () => {
   describe('generateApiKey', () => {
     it('should generate API key with correct format', () => {
       const apiKey = generateApiKey();
-      expect(apiKey).toMatch(/^sk-lh-[\da-z]{16}$/);
+      // sk-lh- prefix + 43 base64url chars (32 bytes)
+      expect(apiKey).toMatch(/^sk-lh-[\w-]{43}$/);
     });
 
     it('should generate API key with correct length', () => {
       const apiKey = generateApiKey();
-      expect(apiKey).toHaveLength(22); // 'sk-lh-' (6) + 16 characters
+      expect(apiKey).toHaveLength(49); // 'sk-lh-' (6) + 43 base64url characters
     });
 
     it('should generate unique API keys', () => {
@@ -23,15 +24,21 @@ describe('apiKey', () => {
       expect(keys.size).toBe(100);
     });
 
-    it('should start with lb- prefix', () => {
+    it('should start with sk-lh- prefix', () => {
       const apiKey = generateApiKey();
       expect(apiKey.startsWith('sk-lh-')).toBe(true);
     });
 
-    it('should only contain lowercase alphanumeric characters after prefix', () => {
+    it('should only contain base64url characters after prefix', () => {
       const apiKey = generateApiKey();
       const randomPart = apiKey.slice(6); // Remove 'sk-lh-' prefix
-      expect(randomPart).toMatch(/^[\da-z]+$/);
+      expect(randomPart).toMatch(/^[\w-]+$/);
+    });
+
+    it('should have at least 40 characters of random part', () => {
+      const apiKey = generateApiKey();
+      const randomPart = apiKey.slice(6);
+      expect(randomPart.length).toBeGreaterThanOrEqual(40);
     });
   });
 
@@ -67,52 +74,39 @@ describe('apiKey', () => {
 
   describe('validateApiKeyFormat', () => {
     it('should validate correct API key format', () => {
-      const validKey = 'sk-lh-1234567890abcdef';
+      // A valid 43-char base64url string
+      const validKey = 'sk-lh-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
       expect(validateApiKeyFormat(validKey)).toBe(true);
     });
 
-    it('should accept keys with only numbers', () => {
-      const validKey = 'sk-lh-1234567890123456';
-      expect(validateApiKeyFormat(validKey)).toBe(true);
-    });
-
-    it('should accept keys with only lowercase letters', () => {
-      const validKey = 'sk-lh-abcdefabcdefabcd';
-      expect(validateApiKeyFormat(validKey)).toBe(true);
-    });
-
-    it('should accept keys with mixed alphanumeric characters', () => {
-      const validKey = 'sk-lh-abc123def456789a';
+    it('should validate keys with alphanumeric, hyphen, underscore characters', () => {
+      // 43 chars of base64url content
+      const validKey = 'sk-lh-abcdefABCDEF0123456789-_abcdefABCDEF0123456';
       expect(validateApiKeyFormat(validKey)).toBe(true);
     });
 
     it('should reject keys without sk-lh- prefix', () => {
-      const invalidKey = '1234567890abcdef';
+      const invalidKey = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
       expect(validateApiKeyFormat(invalidKey)).toBe(false);
     });
 
     it('should reject keys with wrong prefix', () => {
-      const invalidKey = 'lb-1234567890abcdef';
+      const invalidKey = 'lb-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
       expect(validateApiKeyFormat(invalidKey)).toBe(false);
     });
 
     it('should reject keys that are too short', () => {
-      const invalidKey = 'sk-lh-123456789abcde';
+      const invalidKey = 'sk-lh-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
       expect(validateApiKeyFormat(invalidKey)).toBe(false);
     });
 
     it('should reject keys that are too long', () => {
-      const invalidKey = 'sk-lh-1234567890abcdef0';
-      expect(validateApiKeyFormat(invalidKey)).toBe(false);
-    });
-
-    it('should reject keys with uppercase letters', () => {
-      const invalidKey = 'sk-lh-1234567890ABCDEF';
+      const invalidKey = 'sk-lh-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
       expect(validateApiKeyFormat(invalidKey)).toBe(false);
     });
 
     it('should reject keys with special characters', () => {
-      const invalidKey = 'sk-lh-1234567890abcd-f';
+      const invalidKey = 'sk-lh-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA!';
       expect(validateApiKeyFormat(invalidKey)).toBe(false);
     });
 
@@ -121,7 +115,7 @@ describe('apiKey', () => {
     });
 
     it('should reject keys with spaces', () => {
-      const invalidKey = 'sk-lh-1234567890abcd f';
+      const invalidKey = 'sk-lh-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ';
       expect(validateApiKeyFormat(invalidKey)).toBe(false);
     });
 

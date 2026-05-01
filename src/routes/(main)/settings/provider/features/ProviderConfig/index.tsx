@@ -1,6 +1,6 @@
 'use client';
 
-import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
+import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { AES_GCM_URL, BASE_PROVIDER_DOC_URL, FORM_STYLE } from '@lobechat/const';
 import { ProviderCombine } from '@lobehub/icons';
 import { type FormGroupItemType, type FormItemProps } from '@lobehub/ui';
@@ -466,7 +466,7 @@ const ProviderConfig = memo<ProviderConfigProps>(
       <Flexbox horizontal align={'center'} gap={8}>
         {extra}
         {isCustom && <UpdateProviderInfo />}
-        {canDeactivate && !(ENABLE_BUSINESS_FEATURES && id === 'lobehub') && (
+        {canDeactivate && !(ENABLE_BUSINESS_FEATURES && id === BRANDING_PROVIDER) && (
           <EnableSwitch id={id} key={id} />
         )}
       </Flexbox>

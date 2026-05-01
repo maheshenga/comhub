@@ -97,6 +97,8 @@ interface CreateAssistantMessageStream extends FetchSSEOptions {
   historySummary?: string;
   /** Initial context for page editor (captured at operation start) */
   initialContext?: RuntimeInitialContext;
+  messageId?: string;
+  operationId?: string;
   params: GetChatCompletionPayload;
   /** Step context for page editor (updated each step) */
   stepContext?: RuntimeStepContext;
@@ -329,15 +331,19 @@ class ChatService {
     trace,
     historySummary,
     initialContext,
+    messageId,
+    operationId,
     stepContext,
   }: CreateAssistantMessageStream) => {
     await this.createAssistantMessage(params, {
       historySummary,
       initialContext,
+      messageId,
       onAbort,
       onErrorHandle,
       onFinish,
       onMessageHandle,
+      operationId,
       signal: abortController?.signal,
       stepContext,
       trace: this.mapTrace(trace, TraceTagMap.Chat),
@@ -345,7 +351,7 @@ class ChatService {
   };
 
   getChatCompletion = async (params: Partial<ChatStreamPayload>, options?: FetchOptions) => {
-    const { agentId, signal, responseAnimation, topicId } = options ?? {};
+    const { agentId, messageId, operationId, signal, responseAnimation, topicId } = options ?? {};
 
     const { provider = ModelProvider.OpenAI, ...res } = params;
 
@@ -442,6 +448,11 @@ class ChatService {
         'Content-Type': 'application/json',
         ...traceHeader,
         ...(agentId && { 'x-agent-id': agentId }),
+        ...(messageId && {
+          'x-assistant-message-id': messageId,
+          'x-message-id': messageId,
+        }),
+        ...(operationId && { 'x-operation-id': operationId }),
         ...(topicId && { 'x-topic-id': topicId }),
       },
       provider,

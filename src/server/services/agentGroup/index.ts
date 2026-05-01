@@ -107,11 +107,11 @@ export class AgentGroupService {
   mergeAgentsDefaultConfig<T extends Record<string, any>>(
     defaultAgentConfig: DefaultAgentConfig,
     agents: T[],
+    serverDefaultAgentConfig = getServerDefaultAgentConfig(),
   ) {
     const userDefaultAgentConfig =
       (defaultAgentConfig as { config?: PartialDeep<LobeAgentConfig> })?.config || {};
 
-    const serverDefaultAgentConfig = getServerDefaultAgentConfig();
     const baseConfig = merge(DEFAULT_AGENT_CONFIG, serverDefaultAgentConfig);
     const withUserConfig = merge(baseConfig, userDefaultAgentConfig);
 

@@ -1,4 +1,4 @@
-import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
+import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 
 import type { ChatModelCard, ModelProviderCard } from '@/types/llm';
 
@@ -84,6 +84,15 @@ import ZenMuxProvider from './zenmux';
 import ZeroOneProvider from './zeroone';
 import ZhiPuProvider from './zhipu';
 
+const businessDefaultProviderList =
+  !ENABLE_BUSINESS_FEATURES
+    ? []
+    : BRANDING_PROVIDER === 'lobehub'
+      ? [LobeHubProvider]
+      : BRANDING_PROVIDER === 'newapi'
+        ? [NewAPIProvider]
+        : [];
+
 /**
  * @deprecated
  */
@@ -141,7 +150,7 @@ export const LOBE_DEFAULT_MODEL_LIST: ChatModelCard[] = [
 ].flat();
 
 export const DEFAULT_MODEL_PROVIDER_LIST = [
-  ...(ENABLE_BUSINESS_FEATURES ? [LobeHubProvider] : []),
+  ...businessDefaultProviderList,
   AnthropicProvider,
   GoogleProvider,
   GLMCodingPlanProvider,
@@ -166,7 +175,7 @@ export const DEFAULT_MODEL_PROVIDER_LIST = [
   CloudflareProvider,
   GithubProvider,
   GithubCopilotProvider,
-  NewAPIProvider,
+  ...(ENABLE_BUSINESS_FEATURES && BRANDING_PROVIDER === 'newapi' ? [] : [NewAPIProvider]),
   BflProvider,
   NovitaProvider,
   PPIOProvider,

@@ -73,31 +73,29 @@ export const useCategory = (): CategoryGroup[] => {
       }),
     ];
 
-    const subscription: CategoryItem[] = enableBusinessFeatures
-      ? [
-          makeItem({ icon: Map, key: SettingsTabs.Plans, label: t('subscription:tab.plans') }),
-          makeItem({
-            icon: ChartColumnBigIcon,
-            key: SettingsTabs.Usage,
-            label: t('setting:tab.usage'),
-          }),
-          makeItem({
-            icon: Coins,
-            key: SettingsTabs.Credits,
-            label: t('subscription:tab.credits'),
-          }),
-          makeItem({
-            icon: CreditCard,
-            key: SettingsTabs.Billing,
-            label: t('subscription:tab.billing'),
-          }),
-          makeItem({
-            icon: Gift,
-            key: SettingsTabs.Referral,
-            label: t('subscription:tab.referral'),
-          }),
-        ]
-      : [];
+    const subscription: CategoryItem[] = [
+      makeItem({ icon: Map, key: SettingsTabs.Plans, label: t('subscription:tab.plans') }),
+      makeItem({
+        icon: ChartColumnBigIcon,
+        key: SettingsTabs.Usage,
+        label: t('setting:tab.usage'),
+      }),
+      makeItem({
+        icon: Coins,
+        key: SettingsTabs.Credits,
+        label: t('subscription:tab.credits'),
+      }),
+      makeItem({
+        icon: CreditCard,
+        key: SettingsTabs.Billing,
+        label: t('subscription:tab.billing'),
+      }),
+      makeItem({
+        icon: Gift,
+        key: SettingsTabs.Referral,
+        label: t('subscription:tab.referral'),
+      }),
+    ];
 
     const agent: CategoryItem[] = [
       (!enableBusinessFeatures || isDevMode) &&

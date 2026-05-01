@@ -458,6 +458,8 @@ export const createAgentExecutors = (context: {
 
       await chatService.createAssistantMessageStream({
         abortController,
+        messageId: assistantMessageId,
+        operationId: context.operationId,
         params: {
           agentId: agentId || undefined,
           groupId,

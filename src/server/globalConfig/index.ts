@@ -1,7 +1,10 @@
-import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
+import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
+import { merge } from '@lobechat/utils';
+import { type AIChatModelCard } from 'model-bank';
 
 import { klavisEnv } from '@/config/klavis';
 import { isDesktop } from '@/const/version';
+import { type LobeChatDatabase } from '@/database/type';
 import { appEnv, getAppConfig } from '@/envs/app';
 import { authEnv } from '@/envs/auth';
 import { fileEnv } from '@/envs/file';
@@ -10,6 +13,10 @@ import { knowledgeEnv } from '@/envs/knowledge';
 import { langfuseEnv } from '@/envs/langfuse';
 import { parseSSOProviders } from '@/libs/better-auth/utils/server';
 import { parseSystemAgent } from '@/server/globalConfig/parseSystemAgent';
+import {
+  getServerDefaultAgentSettingOverrides,
+  getServerManagedNewApiModelIds,
+} from '@/server/services/appSettings';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { cleanObject } from '@/utils/object';
 
@@ -26,53 +33,71 @@ const getBetterAuthSSOProviders = () => {
   return parseSSOProviders(authEnv.AUTH_SSO_PROVIDERS);
 };
 
-export const getServerGlobalConfig = async () => {
-  const { DEFAULT_AGENT_CONFIG } = getAppConfig();
+export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
+  const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
+  const aiProvider = await genServerAiProvidersConfig({
+    ...(ENABLE_BUSINESS_FEATURES
+      ? {
+          [BRANDING_PROVIDER]: {
+            enabled: true,
+          },
+        }
+      : {}),
+    azure: {
+      enabledKey: 'ENABLED_AZURE_OPENAI',
+      withDeploymentName: true,
+    },
+    bedrock: {
+      enabledKey: 'ENABLED_AWS_BEDROCK',
+      modelListKey: 'AWS_BEDROCK_MODEL_LIST',
+    },
+    giteeai: {
+      enabledKey: 'ENABLED_GITEE_AI',
+      modelListKey: 'GITEE_AI_MODEL_LIST',
+    },
+    lmstudio: {
+      fetchOnClient: isDesktop ? false : undefined,
+    },
+    ollama: {
+      enabled: isDesktop ? true : undefined,
+      fetchOnClient: isDesktop ? false : !process.env.OLLAMA_PROXY_URL,
+    },
+    ollamacloud: {
+      enabledKey: 'ENABLED_OLLAMA_CLOUD',
+    },
+    qwen: {
+      withDeploymentName: true,
+    },
+    tencentcloud: {
+      enabledKey: 'ENABLED_TENCENT_CLOUD',
+      modelListKey: 'TENCENT_CLOUD_MODEL_LIST',
+    },
+    volcengine: {
+      withDeploymentName: true,
+    },
+  });
+
+  if (ENABLE_BUSINESS_FEATURES && BRANDING_PROVIDER === 'newapi') {
+    const managedNewApiModelIds = await getServerManagedNewApiModelIds(db);
+
+    if (managedNewApiModelIds.length > 0) {
+      aiProvider[BRANDING_PROVIDER] = {
+        ...aiProvider[BRANDING_PROVIDER],
+        enabledModels: managedNewApiModelIds,
+        serverModelLists: managedNewApiModelIds.map<AIChatModelCard>((id) => ({
+          displayName: id,
+          enabled: true,
+          id,
+          type: 'chat',
+        })),
+      };
+    }
+  }
 
   const config: GlobalServerConfig = {
-    aiProvider: await genServerAiProvidersConfig({
-      ...(ENABLE_BUSINESS_FEATURES
-        ? {
-            lobehub: {
-              enabled: true,
-            },
-          }
-        : {}),
-      azure: {
-        enabledKey: 'ENABLED_AZURE_OPENAI',
-        withDeploymentName: true,
-      },
-      bedrock: {
-        enabledKey: 'ENABLED_AWS_BEDROCK',
-        modelListKey: 'AWS_BEDROCK_MODEL_LIST',
-      },
-      giteeai: {
-        enabledKey: 'ENABLED_GITEE_AI',
-        modelListKey: 'GITEE_AI_MODEL_LIST',
-      },
-      lmstudio: {
-        fetchOnClient: isDesktop ? false : undefined,
-      },
-      ollama: {
-        enabled: isDesktop ? true : undefined,
-        fetchOnClient: isDesktop ? false : !process.env.OLLAMA_PROXY_URL,
-      },
-      ollamacloud: {
-        enabledKey: 'ENABLED_OLLAMA_CLOUD',
-      },
-      qwen: {
-        withDeploymentName: true,
-      },
-      tencentcloud: {
-        enabledKey: 'ENABLED_TENCENT_CLOUD',
-        modelListKey: 'TENCENT_CLOUD_MODEL_LIST',
-      },
-      volcengine: {
-        withDeploymentName: true,
-      },
-    }),
+    aiProvider,
     defaultAgent: {
-      config: parseAgentConfig(DEFAULT_AGENT_CONFIG),
+      config: defaultAgentConfig,
     },
     disableEmailPassword: authEnv.AUTH_DISABLE_EMAIL_PASSWORD,
     enableBusinessFeatures: ENABLE_BUSINESS_FEATURES,
@@ -110,6 +135,13 @@ export const getServerDefaultAgentConfig = () => {
   const { DEFAULT_AGENT_CONFIG } = getAppConfig();
 
   return parseAgentConfig(DEFAULT_AGENT_CONFIG) || {};
+};
+
+export const getResolvedServerDefaultAgentConfig = async (db?: LobeChatDatabase) => {
+  const envDefaultAgentConfig = getServerDefaultAgentConfig();
+  const appSettingOverrides = await getServerDefaultAgentSettingOverrides(db);
+
+  return merge(envDefaultAgentConfig, appSettingOverrides);
 };
 
 export const getServerDefaultFilesConfig = () => {

@@ -415,6 +415,39 @@ describe('RuntimeExecutors', () => {
       expect((result.nextContext?.payload as any).parentMessageId).toBe('persisted-assistant-id');
     });
 
+    it('should pass assistant message id as billing metadata to ModelRuntime', async () => {
+      const mockChat = vi.fn().mockResolvedValue(new Response('done'));
+      vi.mocked(initModelRuntimeFromDB).mockResolvedValueOnce({ chat: mockChat } as any);
+      mockMessageModel.create.mockResolvedValueOnce({ id: 'billing-assistant-id' });
+
+      const executors = createRuntimeExecutors(ctx);
+      const state = createMockState();
+
+      await executors.call_llm!(
+        {
+          payload: {
+            messages: [{ content: 'Hello', role: 'user' }],
+            model: 'gpt-4',
+            provider: 'openai',
+            tools: [],
+          },
+          type: 'call_llm' as const,
+        },
+        state,
+      );
+
+      expect(mockChat).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            assistantMessageId: 'billing-assistant-id',
+            messageId: 'billing-assistant-id',
+            operationId: 'op-123',
+          }),
+        }),
+      );
+    });
+
     it('should execute compress_context and return compression_result', async () => {
       const mockChat = vi.fn().mockImplementation(async (_payload, options) => {
         await options?.callback?.onText?.('summary');

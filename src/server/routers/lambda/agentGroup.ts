@@ -9,6 +9,7 @@ import { type ChatGroupConfig } from '@/database/types/chatGroup';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { AgentGroupService } from '@/server/services/agentGroup';
+import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 
 /**
  * Custom schema for agent member input, replacing drizzle-generated insertAgentSchema
@@ -239,28 +240,38 @@ export const agentGroupRouter = router({
   getGroupDetail: agentGroupProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
-      const [defaultAgentConfig, detail] = await Promise.all([
+      const [defaultAgentConfig, detail, serverDefaultAgentConfig] = await Promise.all([
         ctx.userModel.getUserSettingsDefaultAgentConfig(),
         ctx.agentGroupService.getGroupDetail(input.id),
+        getResolvedServerDefaultAgentConfig(ctx.serverDB),
       ]);
 
       if (!detail) return null;
 
       return {
         ...detail,
-        agents: ctx.agentGroupService.mergeAgentsDefaultConfig(defaultAgentConfig, detail.agents),
+        agents: ctx.agentGroupService.mergeAgentsDefaultConfig(
+          defaultAgentConfig,
+          detail.agents,
+          serverDefaultAgentConfig,
+        ),
       };
     }),
 
   getGroups: agentGroupProcedure.query(async ({ ctx }) => {
-    const [defaultAgentConfig, groups] = await Promise.all([
+    const [defaultAgentConfig, groups, serverDefaultAgentConfig] = await Promise.all([
       ctx.userModel.getUserSettingsDefaultAgentConfig(),
       ctx.agentGroupService.getGroups(),
+      getResolvedServerDefaultAgentConfig(ctx.serverDB),
     ]);
 
     return groups.map((group) => ({
       ...group,
-      agents: ctx.agentGroupService.mergeAgentsDefaultConfig(defaultAgentConfig, group.agents),
+      agents: ctx.agentGroupService.mergeAgentsDefaultConfig(
+        defaultAgentConfig,
+        group.agents,
+        serverDefaultAgentConfig,
+      ),
     }));
   }),
 

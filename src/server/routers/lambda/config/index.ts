@@ -3,8 +3,9 @@ import debug from 'debug';
 
 import { businessConfigEndpoints } from '@/business/server/lambda-routers/config';
 import { publicProcedure, router } from '@/libs/trpc/lambda';
+import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 import { getServerFeatureFlagsStateFromRuntimeConfig } from '@/server/featureFlags';
-import { getServerDefaultAgentConfig, getServerGlobalConfig } from '@/server/globalConfig';
+import { getResolvedServerDefaultAgentConfig, getServerGlobalConfig } from '@/server/globalConfig';
 import {
   type GlobalBillboard,
   type GlobalBillboardItem,
@@ -12,6 +13,7 @@ import {
 } from '@/types/serverConfig';
 
 const log = debug('config-router');
+const publicDbProcedure = publicProcedure.use(serverDatabase);
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -55,15 +57,15 @@ const getActiveBillboard = async (): Promise<GlobalBillboard | null> => {
 };
 
 export const configRouter = router({
-  getDefaultAgentConfig: publicProcedure.query(async () => {
-    return getServerDefaultAgentConfig();
+  getDefaultAgentConfig: publicDbProcedure.query(async ({ ctx }) => {
+    return getResolvedServerDefaultAgentConfig(ctx.serverDB);
   }),
 
-  getGlobalConfig: publicProcedure.query(async ({ ctx }): Promise<GlobalRuntimeConfig> => {
+  getGlobalConfig: publicDbProcedure.query(async ({ ctx }): Promise<GlobalRuntimeConfig> => {
     log('[GlobalConfig] Starting global config retrieval for user:', ctx.userId || 'anonymous');
 
     const [serverConfig, serverFeatureFlags, billboard] = await Promise.all([
-      getServerGlobalConfig(),
+      getServerGlobalConfig(ctx.serverDB),
       getServerFeatureFlagsStateFromRuntimeConfig(ctx.userId || undefined),
       getActiveBillboard(),
     ]);

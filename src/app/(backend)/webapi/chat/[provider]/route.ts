@@ -1,4 +1,4 @@
-import { type ChatCompletionErrorPayload } from '@lobechat/model-runtime';
+import { type ChatCompletionErrorPayload, type ChatMethodOptions } from '@lobechat/model-runtime';
 import { AGENT_RUNTIME_ERROR_SET } from '@lobechat/model-runtime';
 import { ChatErrorType } from '@lobechat/types';
 
@@ -31,11 +31,27 @@ export const POST = checkAuth(async (req: Request, { params, userId, serverDB })
       traceOptions = createTraceOptions(data, { provider, trace: tracePayload });
     }
 
-    return await modelRuntime.chat(data, {
+    const assistantMessageId =
+      req.headers.get('x-assistant-message-id') || req.headers.get('x-message-id') || undefined;
+    const operationId = req.headers.get('x-operation-id') || undefined;
+    const billingMetadata = {
+      ...(assistantMessageId && { assistantMessageId, messageId: assistantMessageId }),
+      ...(operationId && { operationId }),
+    };
+    const runtimeOptions: ChatMethodOptions = {
       user: userId,
       ...traceOptions,
       signal: req.signal,
-    });
+    };
+
+    if (Object.keys(billingMetadata).length > 0) {
+      runtimeOptions.metadata = {
+        ...(runtimeOptions.metadata as Record<string, unknown> | undefined),
+        ...billingMetadata,
+      };
+    }
+
+    return await modelRuntime.chat(data, runtimeOptions);
   } catch (e) {
     const {
       errorType = ChatErrorType.InternalServerError,

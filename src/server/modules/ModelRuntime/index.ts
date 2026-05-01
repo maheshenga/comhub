@@ -18,6 +18,7 @@ import { getBusinessModelRuntimeHooks } from '@/business/server/model-runtime';
 import { AiProviderModel } from '@/database/models/aiProvider';
 import { type LobeChatDatabase } from '@/database/type';
 import { getLLMConfig } from '@/envs/llm';
+import { getServerManagedNewApiConfig } from '@/server/services/appSettings';
 
 import { KeyVaultsGateKeeper } from '../KeyVaultsEncrypt';
 import apiKeyManager from './apiKeyManager';
@@ -418,6 +419,13 @@ export const initModelRuntimeFromDB = async (
   // This ensures provider-specific fields (e.g., cloudflareBaseURLOrAccountID) are included
   const keyVaults = (providerConfig?.keyVaults || {}) as ProviderKeyVaults;
   const payload = buildPayloadFromKeyVaults(keyVaults, runtimeProvider);
+
+  if (provider === ModelProvider.NewAPI) {
+    const managedNewApiConfig = await getServerManagedNewApiConfig(db);
+
+    payload.apiKey ||= managedNewApiConfig.apiKey || undefined;
+    payload.baseURL ||= managedNewApiConfig.proxyUrlText || undefined;
+  }
 
   // 4. Get business hooks (billing in cloud, undefined in OSS)
   const hooks = getBusinessModelRuntimeHooks(userId, provider);

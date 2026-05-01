@@ -17,7 +17,10 @@ import {
   RedisKeyNamespace,
   RedisKeys,
 } from '@/libs/redis';
-import { getServerDefaultAgentConfig } from '@/server/globalConfig';
+import {
+  getResolvedServerDefaultAgentConfig,
+  getServerDefaultAgentConfig,
+} from '@/server/globalConfig';
 
 import { type UpdateAgentResult } from './type';
 
@@ -55,7 +58,7 @@ export class AgentService {
 
   async createInbox() {
     const sessionModel = new SessionModel(this.db, this.userId);
-    const defaultAgentConfig = getServerDefaultAgentConfig();
+    const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(this.db);
     await sessionModel.createInbox(defaultAgentConfig);
   }
 
@@ -73,12 +76,17 @@ export class AgentService {
    */
   async getBuiltinAgent(slug: string) {
     // Fetch agent and defaultAgentConfig in parallel
-    const [agent, defaultAgentConfig] = await Promise.all([
+    const [agent, defaultAgentConfig, serverDefaultAgentConfig] = await Promise.all([
       this.agentModel.getBuiltinAgent(slug),
       this.userModel.getUserSettingsDefaultAgentConfig(),
+      getResolvedServerDefaultAgentConfig(this.db),
     ]);
 
-    const mergedConfig = this.mergeDefaultConfig(agent, defaultAgentConfig);
+    const mergedConfig = this.mergeDefaultConfig(
+      agent,
+      defaultAgentConfig,
+      serverDefaultAgentConfig,
+    );
     if (!mergedConfig) return null;
 
     // Use builtin avatar as fallback only when DB has no custom avatar
@@ -101,12 +109,17 @@ export class AgentService {
    * 4. The actual agent config from database
    */
   async getAgentConfig(idOrSlug: string): Promise<AgentConfigWithId | null> {
-    const [agent, defaultAgentConfig] = await Promise.all([
+    const [agent, defaultAgentConfig, serverDefaultAgentConfig] = await Promise.all([
       this.agentModel.getAgentConfig(idOrSlug),
       this.userModel.getUserSettingsDefaultAgentConfig(),
+      getResolvedServerDefaultAgentConfig(this.db),
     ]);
 
-    return this.mergeDefaultConfig(agent, defaultAgentConfig) as AgentConfigWithId | null;
+    return this.mergeDefaultConfig(
+      agent,
+      defaultAgentConfig,
+      serverDefaultAgentConfig,
+    ) as AgentConfigWithId | null;
   }
 
   /**
@@ -120,13 +133,14 @@ export class AgentService {
    * 5. AI-generated welcome data from Redis (if available)
    */
   async getAgentConfigById(agentId: string) {
-    const [agent, defaultAgentConfig, welcomeData] = await Promise.all([
+    const [agent, defaultAgentConfig, welcomeData, serverDefaultAgentConfig] = await Promise.all([
       this.agentModel.getAgentConfigById(agentId),
       this.userModel.getUserSettingsDefaultAgentConfig(),
       this.getAgentWelcomeFromRedis(agentId),
+      getResolvedServerDefaultAgentConfig(this.db),
     ]);
 
-    const config = this.mergeDefaultConfig(agent, defaultAgentConfig);
+    const config = this.mergeDefaultConfig(agent, defaultAgentConfig, serverDefaultAgentConfig);
     if (!config) return null;
 
     // Merge AI-generated welcome data if available
@@ -178,6 +192,7 @@ export class AgentService {
   private mergeDefaultConfig(
     agent: any,
     defaultAgentConfig: Awaited<ReturnType<UserModel['getUserSettingsDefaultAgentConfig']>>,
+    serverDefaultAgentConfig = getServerDefaultAgentConfig(),
   ): LobeAgentConfig | null {
     if (!agent) return null;
 
@@ -185,7 +200,6 @@ export class AgentService {
       (defaultAgentConfig as { config?: PartialDeep<LobeAgentConfig> })?.config || {};
 
     // Merge configs in order: DEFAULT -> server -> user -> agent
-    const serverDefaultAgentConfig = getServerDefaultAgentConfig();
     const baseConfig = merge(DEFAULT_AGENT_CONFIG, serverDefaultAgentConfig);
     const withUserConfig = merge(baseConfig, userDefaultAgentConfig);
 

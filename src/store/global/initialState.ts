@@ -41,6 +41,7 @@ export enum GroupSettingsTabs {
 export enum SettingsTabs {
   About = 'about',
   Advanced = 'advanced',
+  Admin = 'admin',
   /** @deprecated Use ServiceModel instead */
   Agent = 'agent',
   APIKey = 'apikey',

@@ -815,6 +815,8 @@ export const createRuntimeExecutors = (
               },
             },
             metadata: {
+              assistantMessageId: assistantMessageItem.id,
+              messageId: assistantMessageItem.id,
               operationId,
               topicId: state.metadata?.topicId,
               trigger: state.metadata?.trigger,

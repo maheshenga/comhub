@@ -347,6 +347,12 @@ export const desktopRoutes: RouteObject[] = [
         path: 'resource',
       },
 
+      // Legacy admin route redirects into Settings
+      {
+        element: redirectElement('/settings/admin'),
+        path: 'admin/settings',
+      },
+
       // Settings routes
       {
         children: [

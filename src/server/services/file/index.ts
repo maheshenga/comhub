@@ -19,48 +19,55 @@ import { type FileServiceImpl } from './impls/type';
 export class FileService {
   private userId: string;
   private fileModel: FileModel;
+  private db: LobeChatDatabase;
 
-  private impl: FileServiceImpl;
+  private impl?: FileServiceImpl;
 
   constructor(db: LobeChatDatabase, userId: string) {
+    this.db = db;
     this.userId = userId;
     this.fileModel = new FileModel(db, userId);
-    this.impl = createFileServiceModule(db);
+  }
+
+  private getImpl() {
+    this.impl ||= createFileServiceModule(this.db);
+
+    return this.impl;
   }
 
   /**
    * Delete file
    */
   public async deleteFile(key: string) {
-    return this.impl.deleteFile(key);
+    return this.getImpl().deleteFile(key);
   }
 
   /**
    * Delete files in batch
    */
   public async deleteFiles(keys: string[]) {
-    return this.impl.deleteFiles(keys);
+    return this.getImpl().deleteFiles(keys);
   }
 
   /**
    * Get file content
    */
   public async getFileContent(key: string): Promise<string> {
-    return this.impl.getFileContent(key);
+    return this.getImpl().getFileContent(key);
   }
 
   /**
    * Get file byte array
    */
   public async getFileByteArray(key: string): Promise<Uint8Array> {
-    return this.impl.getFileByteArray(key);
+    return this.getImpl().getFileByteArray(key);
   }
 
   /**
    * Create pre-signed upload URL
    */
   public async createPreSignedUrl(key: string): Promise<string> {
-    return this.impl.createPreSignedUrl(key);
+    return this.getImpl().createPreSignedUrl(key);
   }
 
   /**
@@ -70,42 +77,42 @@ export class FileService {
   public async getFileMetadata(
     key: string,
   ): Promise<{ contentLength: number; contentType?: string }> {
-    return this.impl.getFileMetadata(key);
+    return this.getImpl().getFileMetadata(key);
   }
 
   /**
    * Create pre-signed preview URL
    */
   public async createPreSignedUrlForPreview(key: string, expiresIn?: number): Promise<string> {
-    return this.impl.createPreSignedUrlForPreview(key, expiresIn);
+    return this.getImpl().createPreSignedUrlForPreview(key, expiresIn);
   }
 
   /**
    * Upload content
    */
   public async uploadContent(path: string, content: string) {
-    return this.impl.uploadContent(path, content);
+    return this.getImpl().uploadContent(path, content);
   }
 
   /**
    * Get full file URL
    */
   public async getFullFileUrl(url?: string | null, expiresIn?: number): Promise<string> {
-    return this.impl.getFullFileUrl(url, expiresIn);
+    return this.getImpl().getFullFileUrl(url, expiresIn);
   }
 
   /**
    * Extract key from full URL
    */
   public async getKeyFromFullUrl(url: string): Promise<string | null> {
-    return this.impl.getKeyFromFullUrl(url);
+    return this.getImpl().getKeyFromFullUrl(url);
   }
 
   /**
    * Upload media file (images only)
    */
   public async uploadMedia(key: string, buffer: Buffer): Promise<{ key: string }> {
-    return this.impl.uploadMedia(key, buffer);
+    return this.getImpl().uploadMedia(key, buffer);
   }
 
   /**
@@ -116,7 +123,7 @@ export class FileService {
     buffer: Buffer,
     contentType: string,
   ): Promise<{ key: string }> {
-    return this.impl.uploadBuffer(key, buffer, contentType);
+    return this.getImpl().uploadBuffer(key, buffer, contentType);
   }
 
   /**

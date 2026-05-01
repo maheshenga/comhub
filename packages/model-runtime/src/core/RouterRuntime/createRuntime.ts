@@ -77,6 +77,7 @@ interface RouterInstance {
 }
 
 type ConstructorOptions<T extends Record<string, any> = any> = ClientOptions & T;
+type RouterOptionSelectionStrategy = 'ordered' | 'roundRobin';
 
 type Routers =
   | RouterInstance[]
@@ -157,6 +158,7 @@ export interface CreateRouterRuntimeOptions<T extends Record<string, any> = any>
         transformModel?: (model: OpenAI.Model) => ChatModelCard;
       };
   onRouteAttempt?: (result: RouteAttemptResult) => Promise<void>;
+  optionSelectionStrategy?: RouterOptionSelectionStrategy;
   responses?: {
     handlePayload?: (
       payload: ChatStreamPayload,
@@ -171,8 +173,11 @@ export const createRouterRuntime = ({
   routers,
   apiKey: DEFAULT_API_KEY,
   models: modelsOption,
+  optionSelectionStrategy = 'ordered',
   ...params
 }: CreateRouterRuntimeOptions) => {
+  const routerOptionCursor = new Map<string, number>();
+
   return class UniformRuntime implements LobeRuntimeAI {
     public _options: ClientOptions & Record<string, any>;
     private _routers: Routers;
@@ -239,6 +244,47 @@ export const createRouterRuntime = ({
       }
 
       return routerOptions;
+    }
+
+    private getRouterOptionExecutionPlan(
+      router: RouterInstance,
+      _model: string,
+    ): Array<{ optionIndex: number; optionItem: RouterOptionItem }> {
+      const routerOptions = this.normalizeRouterOptions(router);
+
+      if (optionSelectionStrategy !== 'roundRobin' || routerOptions.length <= 1) {
+        return routerOptions.map((optionItem, optionIndex) => ({ optionIndex, optionItem }));
+      }
+
+      const routerIdentity = [
+        router.id ?? router.apiType,
+        router.baseURLPattern?.source ?? '',
+        router.models?.join(',') ?? '',
+      ].join('|');
+      const optionIdentity = routerOptions
+        .map(
+          (optionItem) =>
+            [
+              optionItem.apiType ?? router.apiType,
+              optionItem.id ?? '',
+              optionItem.remark ?? '',
+              optionItem.baseURL ?? '',
+            ].join('|'),
+        )
+        .join('||');
+      const rotationKey = [this._id, routerIdentity, optionIdentity].join('::');
+      const startIndex = routerOptionCursor.get(rotationKey) ?? 0;
+
+      routerOptionCursor.set(rotationKey, (startIndex + 1) % routerOptions.length);
+
+      return Array.from({ length: routerOptions.length }, (_, offset) => {
+        const optionIndex = (startIndex + offset) % routerOptions.length;
+
+        return {
+          optionIndex,
+          optionItem: routerOptions[optionIndex],
+        };
+      });
     }
 
     /**
@@ -312,20 +358,21 @@ export const createRouterRuntime = ({
       metadata?: Record<string, unknown>,
     ): Promise<T> {
       const matchedRouter = await this.resolveMatchedRouter(model);
-      const routerOptions = this.normalizeRouterOptions(matchedRouter);
-      const totalOptions = routerOptions.length;
+      const routerOptionPlan = this.getRouterOptionExecutionPlan(matchedRouter, model);
+      const totalOptions = routerOptionPlan.length;
 
       log(
-        'resolve router for model=%s apiType=%s options=%d',
+        'resolve router for model=%s apiType=%s options=%d strategy=%s',
         model,
         matchedRouter.apiType,
         totalOptions,
+        optionSelectionStrategy,
       );
 
       let lastError: unknown;
 
-      for (const [index, optionItem] of routerOptions.entries()) {
-        const attempt = index + 1;
+      for (const [attemptIndex, { optionIndex, optionItem }] of routerOptionPlan.entries()) {
+        const attempt = attemptIndex + 1;
         const startTime = Date.now();
         const {
           channelId,
@@ -364,7 +411,7 @@ export const createRouterRuntime = ({
               durationMs: Date.now() - startTime,
               metadata,
               model,
-              optionIndex: index,
+              optionIndex,
               providerId: id,
               remark,
               routerId: matchedRouter.id,
@@ -387,7 +434,7 @@ export const createRouterRuntime = ({
               error,
               metadata,
               model,
-              optionIndex: index,
+              optionIndex,
               providerId: id,
               remark,
               routerId: matchedRouter.id,

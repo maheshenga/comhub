@@ -1,7 +1,7 @@
 'use client';
 
 import { SiDiscord, SiGithub, SiRss, SiX, SiYoutube } from '@icons-pack/react-simple-icons';
-import { BRANDING_EMAIL, BRANDING_NAME, SOCIAL_URL } from '@lobechat/business-const';
+import { BRANDING_EMAIL, SOCIAL_URL } from '@lobechat/business-const';
 import { Flexbox, Form } from '@lobehub/ui';
 import { Divider } from 'antd';
 import { createStaticStyles } from 'antd-style';
@@ -9,6 +9,7 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { BLOG, mailTo,OFFICIAL_SITE, PRIVACY_URL, TERMS_URL } from '@/const/url';
+import { useBrandName } from '@/features/Brand';
 
 import AboutList from './AboutList';
 import ItemCard from './ItemCard';
@@ -25,13 +26,14 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
 const About = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t } = useTranslation('common');
+  const brandingName = useBrandName();
 
   return (
     <Form.Group
       collapsible={false}
       gap={16}
       style={{ maxWidth: '1024px', width: '100%' }}
-      title={`${t('about')} ${BRANDING_NAME}`}
+      title={`${t('about')} ${brandingName}`}
       variant={'filled'}
     >
       <Flexbox gap={20} paddingBlock={20} width={'100%'}>

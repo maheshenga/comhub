@@ -18,6 +18,7 @@ import {
   KeyRound,
   Map,
   PaletteIcon,
+  ShieldCheck,
   Sparkles,
   TerminalSquare,
 } from 'lucide-react';
@@ -116,21 +117,19 @@ export const useCategory = () => {
     });
 
     // Subscription group
-    if (enableBusinessFeatures) {
-      const subscriptionItems: CategoryItem[] = [
-        { icon: Map, key: SettingsTabs.Plans, label: tSubscription('tab.plans') },
-        { icon: ChartColumnBigIcon, key: SettingsTabs.Usage, label: t('tab.usage') },
-        { icon: Coins, key: SettingsTabs.Credits, label: tSubscription('tab.credits') },
-        { icon: CreditCard, key: SettingsTabs.Billing, label: tSubscription('tab.billing') },
-        { icon: Gift, key: SettingsTabs.Referral, label: tSubscription('tab.referral') },
-      ];
+    const subscriptionItems: CategoryItem[] = [
+      { icon: Map, key: SettingsTabs.Plans, label: tSubscription('tab.plans') },
+      { icon: ChartColumnBigIcon, key: SettingsTabs.Usage, label: t('tab.usage') },
+      { icon: Coins, key: SettingsTabs.Credits, label: tSubscription('tab.credits') },
+      { icon: CreditCard, key: SettingsTabs.Billing, label: tSubscription('tab.billing') },
+      { icon: Gift, key: SettingsTabs.Referral, label: tSubscription('tab.referral') },
+    ];
 
-      groups.push({
-        items: subscriptionItems,
-        key: SettingsGroupKey.Subscription,
-        title: t('group.subscription'),
-      });
-    }
+    groups.push({
+      items: subscriptionItems,
+      key: SettingsGroupKey.Subscription,
+      title: t('group.subscription'),
+    });
 
     // Agent group
     const agentItems: CategoryItem[] = [
@@ -174,6 +173,11 @@ export const useCategory = () => {
 
     // System group
     const systemItems: CategoryItem[] = [
+      {
+        icon: ShieldCheck,
+        key: SettingsTabs.Admin,
+        label: tSubscription('admin.console', '后台管理'),
+      },
       isDesktop && {
         icon: EthernetPort,
         key: SettingsTabs.Proxy,

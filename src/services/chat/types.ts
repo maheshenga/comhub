@@ -10,6 +10,8 @@ export interface FetchOptions extends FetchSSEOptions {
   historySummary?: string;
   /** Initial context for page editor (captured at operation start) */
   initialContext?: RuntimeInitialContext;
+  messageId?: string;
+  operationId?: string;
   signal?: AbortSignal | undefined;
   /** Step context for page editor (updated each step) */
   stepContext?: RuntimeStepContext;

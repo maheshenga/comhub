@@ -366,6 +366,12 @@ export interface AIChatModelCard extends AIBaseModelCard {
 }
 
 export interface AIEmbeddingModelCard extends AIBaseModelCard {
+  /**
+   * The dimension size this deployment uses by default (passed as `dimensions`
+   * to the embeddings API). May be less than `maxDimension` when the schema
+   * stores a fixed-size vector (e.g. pgvector column is vector(1024)).
+   */
+  defaultDimensions?: number;
   maxDimension: number;
   pricing?: Pricing;
   type: 'embedding';
