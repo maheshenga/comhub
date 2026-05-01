@@ -749,6 +749,13 @@
       "when": 1777488000000,
       "tag": "0106_add_redemption_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1777552567945,
+      "tag": "0107_add_metadata_and_trigger_to_briefs",
+      "breakpoints": true
     }
   ],
   "version": "6"

@@ -7,6 +7,7 @@ import { redemptionRouter } from '@/business/server/lambda-routers/admin/redempt
 import { referralRouter } from '@/business/server/lambda-routers/referral';
 import { spendRouter } from '@/business/server/lambda-routers/spend';
 import { subscriptionRouter } from '@/business/server/lambda-routers/subscription';
+import { taskTemplateRouter } from '@/business/server/lambda-routers/taskTemplate';
 import { publicProcedure, router } from '@/libs/trpc/lambda';
 
 import { agentRouter } from './agent';
@@ -33,6 +34,7 @@ import { deviceRouter } from './device';
 import { documentRouter } from './document';
 import { exporterRouter } from './exporter';
 import { fileRouter } from './file';
+import { followUpActionRouter } from './followUpAction';
 import { generationRouter } from './generation';
 import { generationBatchRouter } from './generationBatch';
 import { generationTopicRouter } from './generationTopic';
@@ -89,6 +91,7 @@ export const lambdaRouter = router({
   document: documentRouter,
   exporter: exporterRouter,
   file: fileRouter,
+  followUpAction: followUpActionRouter,
   generation: generationRouter,
   generationBatch: generationBatchRouter,
   generationTopic: generationTopicRouter,
@@ -126,6 +129,7 @@ export const lambdaRouter = router({
   referral: referralRouter,
   spend: spendRouter,
   subscription: subscriptionRouter,
+  taskTemplate: taskTemplateRouter,
 });
 
 export type LambdaRouter = typeof lambdaRouter;

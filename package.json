@@ -1,6 +1,6 @@
 {
   "name": "@lobehub/lobehub",
-  "version": "2.1.51",
+  "version": "2.1.56",
   "description": "LobeHub - an open-source,comprehensive AI Agent framework that supports speech synthesis, multimodal, and extensible Function Call plugin system. Supports one-click free deployment of your private ChatGPT/LLM web application.",
   "keywords": [
     "framework",
@@ -168,7 +168,7 @@
     "stylelint-config-clean-order": "7.0.0"
   },
   "dependencies": {
-    "@ant-design/icons": "^6.1.0",
+    "@ant-design/icons": "^6.2.1",
     "@ant-design/pro-components": "^2.8.10",
     "@anthropic-ai/sdk": "^0.73.0",
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
@@ -196,7 +196,7 @@
     "@fal-ai/client": "^1.8.4",
     "@floating-ui/react": "^0.27.19",
     "@formkit/auto-animate": "^0.9.0",
-    "@google/genai": "^1.38.0",
+    "@google/genai": "~1.50.1",
     "@henrygd/queue": "^1.2.0",
     "@huggingface/inference": "^4.13.10",
     "@icons-pack/react-simple-icons": "^13.8.0",
@@ -213,6 +213,7 @@
     "@lobechat/builtin-tool-agent-builder": "workspace:*",
     "@lobechat/builtin-tool-agent-documents": "workspace:*",
     "@lobechat/builtin-tool-agent-management": "workspace:*",
+    "@lobechat/builtin-tool-agent-marketplace": "workspace:*",
     "@lobechat/builtin-tool-brief": "workspace:*",
     "@lobechat/builtin-tool-calculator": "workspace:*",
     "@lobechat/builtin-tool-claude-code": "workspace:*",
@@ -241,6 +242,7 @@
     "@lobechat/business-const": "workspace:*",
     "@lobechat/business-model-runtime": "workspace:*",
     "@lobechat/chat-adapter-feishu": "workspace:*",
+    "@lobechat/chat-adapter-line": "workspace:*",
     "@lobechat/chat-adapter-qq": "workspace:*",
     "@lobechat/chat-adapter-wechat": "workspace:*",
     "@lobechat/config": "workspace:*",
@@ -276,7 +278,7 @@
     "@lobehub/desktop-ipc-typings": "workspace:*",
     "@lobehub/editor": "^4.9.3",
     "@lobehub/icons": "^5.0.0",
-    "@lobehub/market-sdk": "0.32.2",
+    "@lobehub/market-sdk": "0.33.3",
     "@lobehub/tts": "^5.1.2",
     "@lobehub/ui": "^5.9.6",
     "@modelcontextprotocol/sdk": "^1.26.0",

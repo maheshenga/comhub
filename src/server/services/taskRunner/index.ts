@@ -4,6 +4,7 @@ import type { ExecAgentResult } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import debug from 'debug';
 
+import { TopicTrigger } from '@/const/topic';
 import { BriefModel } from '@/database/models/brief';
 import { TaskModel } from '@/database/models/task';
 import { TaskTopicModel } from '@/database/models/taskTopic';
@@ -131,8 +132,19 @@ export class TaskRunnerService {
 
       const checkpoint = this.taskModel.getCheckpointConfig(task);
       const reviewConfig = this.taskModel.getReviewConfig(task);
+      // Default mode is 'auto' — brief synthesis happens programmatically in
+      // TaskLifecycleService.synthesizeTopicBrief. 'agent' is an explicit
+      // escape hatch that re-mounts the legacy createBrief tool surface.
+      const briefMode = (
+        (task.config as { brief?: { mode?: string } } | null)?.brief?.mode === 'agent'
+          ? 'agent'
+          : 'auto'
+      ) as 'agent' | 'auto';
       const pluginIds = [TaskSkillIdentifier];
-      if (!reviewConfig?.enabled && checkpoint.onAgentRequest !== false) {
+      // Mount BriefIdentifier (createBrief + requestCheckpoint) only in the
+      // legacy 'agent' path; in 'auto' the agent must not also call
+      // createBrief or we'd double up.
+      if (briefMode === 'agent' && !reviewConfig?.enabled && checkpoint.onAgentRequest !== false) {
         pluginIds.push(BriefIdentifier);
       }
 
@@ -162,6 +174,7 @@ export class TaskRunnerService {
             type: 'onComplete' as const,
             webhook: {
               body: { taskId, taskIdentifier, userId },
+              delivery: 'qstash' as const,
               url: '/api/workflows/task/on-topic-complete',
             },
           },
@@ -169,7 +182,7 @@ export class TaskRunnerService {
         prompt,
         taskId: task.id,
         title: extraPrompt ? extraPrompt.slice(0, 100) : task.name || task.identifier,
-        trigger: 'task',
+        trigger: TopicTrigger.RunTask,
         userInterventionConfig: { approvalMode: 'headless' },
         ...(continueTopicId && { appContext: { topicId: continueTopicId } }),
       });
