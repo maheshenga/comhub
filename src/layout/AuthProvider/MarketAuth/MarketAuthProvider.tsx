@@ -115,20 +115,6 @@ const getRefreshToken = (): string | null => {
 };
 
 /**
- * Check if the user needs to set up a username (first-time login)
- */
-const checkNeedsProfileSetup = async (username: string): Promise<boolean> => {
-  try {
-    const profile = await lambdaClient.market.user.getUserByUsername.query({ username });
-    // If userName is not set, user needs to complete profile setup
-    return !profile.userName;
-  } catch {
-    // Error fetching profile (e.g., NOT_FOUND), assume needs setup
-    return true;
-  }
-};
-
-/**
  * Market authorization context provider
  */
 export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderProps) => {
@@ -359,19 +345,6 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
       setSession(newSession);
       setStatus('authenticated');
 
-      // Check if user needs to set up profile (first-time login)
-      if (userInfo?.sub) {
-        const needsSetup = await checkNeedsProfileSetup(userInfo.sub);
-        if (needsSetup) {
-          // Wait for next tick to ensure session state is updated before opening modal
-          // This prevents the edge case where accessToken is null when modal opens
-          setTimeout(() => {
-            setIsFirstTimeSetup(true);
-            setShowProfileSetupModal(true);
-          }, 0);
-        }
-      }
-
       return userInfo?.accountId ?? null;
     } catch (error) {
       setStatus('unauthenticated');
@@ -404,10 +377,10 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   const handleConfirmAuth = async () => {
     setShowConfirmModal(false);
 
-    // If in trustedClient mode, open ProfileSetupModal directly to complete profile
+    // In trustedClient mode, consuming community resources should not force users to
+    // create a community profile. Resolve directly and let explicit profile-edit
+    // entry points open ProfileSetupModal when needed.
     if (enableMarketTrustedClient) {
-      setIsFirstTimeSetup(true);
-      setShowProfileSetupModal(true);
       if (pendingSignInResolve) {
         pendingSignInResolve(session?.userInfo?.accountId ?? null);
         setPendingSignInResolve(null);

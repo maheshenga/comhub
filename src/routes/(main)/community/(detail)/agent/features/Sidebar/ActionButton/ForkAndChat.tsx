@@ -3,16 +3,13 @@
 import { Button } from '@lobehub/ui';
 import { App } from 'antd';
 import { createStaticStyles } from 'antd-style';
-import { customAlphabet } from 'nanoid/non-secure';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { SESSION_CHAT_URL } from '@/const/url';
-import { useMarketAuth } from '@/layout/AuthProvider/MarketAuth';
 import { agentService } from '@/services/agent';
 import { discoverService } from '@/services/discover';
-import { marketApiService } from '@/services/marketApi';
 import { useAgentStore } from '@/store/agent';
 import { useHomeStore } from '@/store/home';
 
@@ -24,15 +21,6 @@ const styles = createStaticStyles(({ css }) => ({
   `,
 }));
 
-/**
- * Generate a market identifier (8-character lowercase alphanumeric string)
- */
-const generateMarketIdentifier = () => {
-  const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz';
-  const generate = customAlphabet(alphabet, 8);
-  return generate();
-};
-
 const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { identifier, title, config, avatar, backgroundColor, description, tags, editorData } =
     useDetailContext();
@@ -42,7 +30,6 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const { t } = useTranslation('discover');
-  const { isAuthenticated, signIn } = useMarketAuth();
 
   const meta = {
     avatar,
@@ -54,15 +41,6 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
   };
 
   const handleForkAndChat = async () => {
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      try {
-        await signIn();
-      } catch {
-        return;
-      }
-    }
-
     try {
       setIsLoading(true);
 
@@ -76,18 +54,8 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
         return;
       }
 
-      // Generate a unique identifier for the forked agent
-      const newIdentifier = generateMarketIdentifier();
-
-      // Step 2: Fork the agent via Market API
-      const forkResult = await marketApiService.forkAgent(identifier!, {
-        identifier: newIdentifier,
-        name: title,
-        status: 'published',
-        visibility: 'public',
-      });
-
-      // Step 3: Create agent config with forked data
+      // Step 2: Create agent config directly from community data.
+      // ComHub does not require a community profile for consuming community resources.
       if (!config) throw new Error('Agent config is missing');
 
       const agentData = {
@@ -95,29 +63,28 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
           ...config,
           editorData,
           ...meta,
-          marketIdentifier: forkResult.agent.identifier,
+          marketIdentifier: identifier,
           params: {
             ...config.params,
             forkedFromIdentifier: identifier, // Store the source agent identifier
           },
-          title: forkResult.agent.name,
         },
       };
 
-      // Step 4: Add to local agent list
+      // Step 3: Add to local agent list
       const result = await createAgent(agentData);
       await refreshAgentList();
 
-      // Step 5: Report fork event (using 'add' event type)
+      // Step 4: Report add event without blocking the local add flow
       discoverService.reportAgentEvent({
         event: 'add',
-        identifier: forkResult.agent.identifier,
+        identifier: identifier!,
         source: location.pathname,
       });
 
       message.success(t('fork.success'));
 
-      // Step 6: Navigate to chat
+      // Step 5: Navigate to chat
       navigate(SESSION_CHAT_URL(result!.agentId, mobile));
     } catch (error: any) {
       console.error('Fork failed:', error);
