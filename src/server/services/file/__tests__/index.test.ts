@@ -54,6 +54,7 @@ describe('FileService', () => {
   let mockFileModel: any;
   let mockTempManager: any;
   let consoleErrorSpy: any;
+  const getMockImpl = () => service['impl']!;
 
   beforeEach(() => {
     mockFileModel = {
@@ -72,6 +73,7 @@ describe('FileService', () => {
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     service = new FileService(mockDb, mockUserId);
+    service['getImpl']();
   });
 
   afterEach(() => {
@@ -96,7 +98,7 @@ describe('FileService', () => {
 
     it('should throw error if file content is empty', async () => {
       mockFileModel.findById.mockResolvedValue(mockFile);
-      vi.mocked(service['impl'].getFileByteArray).mockResolvedValue(undefined as any);
+      vi.mocked(getMockImpl().getFileByteArray).mockResolvedValue(undefined as any);
 
       await expect(service.downloadFileToLocal('test-file-id')).rejects.toThrow(
         new TRPCError({ code: 'BAD_REQUEST', message: 'File content is empty' }),
@@ -105,7 +107,7 @@ describe('FileService', () => {
 
     it('should delete file from db and throw error if file not found in storage', async () => {
       mockFileModel.findById.mockResolvedValue(mockFile);
-      vi.mocked(service['impl'].getFileByteArray).mockRejectedValue({ Code: 'NoSuchKey' });
+      vi.mocked(getMockImpl().getFileByteArray).mockRejectedValue({ Code: 'NoSuchKey' });
 
       await expect(service.downloadFileToLocal('test-file-id')).rejects.toThrow(
         new TRPCError({ code: 'BAD_REQUEST', message: 'File not found' }),
@@ -117,7 +119,7 @@ describe('FileService', () => {
     it('should log error and rethrow for non-NoSuchKey errors', async () => {
       const originalError = new Error('Network error');
       mockFileModel.findById.mockResolvedValue(mockFile);
-      vi.mocked(service['impl'].getFileByteArray).mockRejectedValue(originalError);
+      vi.mocked(getMockImpl().getFileByteArray).mockRejectedValue(originalError);
 
       await expect(service.downloadFileToLocal('test-file-id')).rejects.toThrow(
         new TRPCError({ code: 'BAD_REQUEST', message: 'File content is empty' }),
@@ -131,7 +133,7 @@ describe('FileService', () => {
 
     it('should handle getFileByteArray returning null content', async () => {
       mockFileModel.findById.mockResolvedValue(mockFile);
-      vi.mocked(service['impl'].getFileByteArray).mockResolvedValue(null as any);
+      vi.mocked(getMockImpl().getFileByteArray).mockResolvedValue(null as any);
 
       await expect(service.downloadFileToLocal('test-file-id')).rejects.toThrow(
         new TRPCError({ code: 'BAD_REQUEST', message: 'File content is empty' }),
@@ -143,7 +145,7 @@ describe('FileService', () => {
       const mockFilePath = '/tmp/test.txt';
 
       mockFileModel.findById.mockResolvedValue(mockFile);
-      vi.mocked(service['impl'].getFileByteArray).mockResolvedValue(mockContent);
+      vi.mocked(getMockImpl().getFileByteArray).mockResolvedValue(mockContent);
       mockTempManager.writeTempFile.mockResolvedValue(mockFilePath);
 
       const result = await service.downloadFileToLocal('test-file-id');
@@ -162,46 +164,46 @@ describe('FileService', () => {
     const testKey = 'test-key';
     await service.deleteFile(testKey);
 
-    expect(service['impl'].deleteFile).toHaveBeenCalledWith(testKey);
+    expect(getMockImpl().deleteFile).toHaveBeenCalledWith(testKey);
   });
 
   it('should delegate deleteFiles to implementation', async () => {
     const testKeys = ['key1', 'key2'];
     await service.deleteFiles(testKeys);
 
-    expect(service['impl'].deleteFiles).toHaveBeenCalledWith(testKeys);
+    expect(getMockImpl().deleteFiles).toHaveBeenCalledWith(testKeys);
   });
 
   it('should delegate getFileContent to implementation', async () => {
     const testKey = 'test-key';
     const expectedContent = 'file content';
-    vi.mocked(service['impl'].getFileContent).mockResolvedValue(expectedContent);
+    vi.mocked(getMockImpl().getFileContent).mockResolvedValue(expectedContent);
 
     const result = await service.getFileContent(testKey);
 
-    expect(service['impl'].getFileContent).toHaveBeenCalledWith(testKey);
+    expect(getMockImpl().getFileContent).toHaveBeenCalledWith(testKey);
     expect(result).toBe(expectedContent);
   });
 
   it('should delegate getFileByteArray to implementation', async () => {
     const testKey = 'test-key';
     const expectedBytes = new Uint8Array([1, 2, 3]);
-    vi.mocked(service['impl'].getFileByteArray).mockResolvedValue(expectedBytes);
+    vi.mocked(getMockImpl().getFileByteArray).mockResolvedValue(expectedBytes);
 
     const result = await service.getFileByteArray(testKey);
 
-    expect(service['impl'].getFileByteArray).toHaveBeenCalledWith(testKey);
+    expect(getMockImpl().getFileByteArray).toHaveBeenCalledWith(testKey);
     expect(result).toBe(expectedBytes);
   });
 
   it('should delegate createPreSignedUrl to implementation', async () => {
     const testKey = 'test-key';
     const expectedUrl = 'https://example.com/signed-url';
-    vi.mocked(service['impl'].createPreSignedUrl).mockResolvedValue(expectedUrl);
+    vi.mocked(getMockImpl().createPreSignedUrl).mockResolvedValue(expectedUrl);
 
     const result = await service.createPreSignedUrl(testKey);
 
-    expect(service['impl'].createPreSignedUrl).toHaveBeenCalledWith(testKey);
+    expect(getMockImpl().createPreSignedUrl).toHaveBeenCalledWith(testKey);
     expect(result).toBe(expectedUrl);
   });
 
@@ -209,11 +211,11 @@ describe('FileService', () => {
     const testKey = 'test-key';
     const expiresIn = 3600;
     const expectedUrl = 'https://example.com/preview-url';
-    vi.mocked(service['impl'].createPreSignedUrlForPreview).mockResolvedValue(expectedUrl);
+    vi.mocked(getMockImpl().createPreSignedUrlForPreview).mockResolvedValue(expectedUrl);
 
     const result = await service.createPreSignedUrlForPreview(testKey, expiresIn);
 
-    expect(service['impl'].createPreSignedUrlForPreview).toHaveBeenCalledWith(testKey, expiresIn);
+    expect(getMockImpl().createPreSignedUrlForPreview).toHaveBeenCalledWith(testKey, expiresIn);
     expect(result).toBe(expectedUrl);
   });
 
@@ -223,29 +225,29 @@ describe('FileService', () => {
 
     await service.uploadContent(testPath, testContent);
 
-    expect(service['impl'].uploadContent).toHaveBeenCalledWith(testPath, testContent);
+    expect(getMockImpl().uploadContent).toHaveBeenCalledWith(testPath, testContent);
   });
 
   it('should delegate getFullFileUrl to implementation', async () => {
     const testUrl = 'test-url';
     const expiresIn = 3600;
     const expectedUrl = 'https://example.com/full-url';
-    vi.mocked(service['impl'].getFullFileUrl).mockResolvedValue(expectedUrl);
+    vi.mocked(getMockImpl().getFullFileUrl).mockResolvedValue(expectedUrl);
 
     const result = await service.getFullFileUrl(testUrl, expiresIn);
 
-    expect(service['impl'].getFullFileUrl).toHaveBeenCalledWith(testUrl, expiresIn);
+    expect(getMockImpl().getFullFileUrl).toHaveBeenCalledWith(testUrl, expiresIn);
     expect(result).toBe(expectedUrl);
   });
 
   it('should delegate getKeyFromFullUrl to implementation', async () => {
     const testUrl = 'https://example.com/path/to/file.jpg';
     const expectedKey = 'path/to/file.jpg';
-    vi.mocked(service['impl'].getKeyFromFullUrl).mockResolvedValue(expectedKey);
+    vi.mocked(getMockImpl().getKeyFromFullUrl).mockResolvedValue(expectedKey);
 
     const result = await service.getKeyFromFullUrl(testUrl);
 
-    expect(service['impl'].getKeyFromFullUrl).toHaveBeenCalledWith(testUrl);
+    expect(getMockImpl().getKeyFromFullUrl).toHaveBeenCalledWith(testUrl);
     expect(result).toBe(expectedKey);
   });
 
@@ -253,11 +255,11 @@ describe('FileService', () => {
     const testKey = 'test-key';
     const testBuffer = Buffer.from('test content');
     const expectedResult = { key: testKey };
-    vi.mocked(service['impl'].uploadMedia).mockResolvedValue(expectedResult);
+    vi.mocked(getMockImpl().uploadMedia).mockResolvedValue(expectedResult);
 
     const result = await service.uploadMedia(testKey, testBuffer);
 
-    expect(service['impl'].uploadMedia).toHaveBeenCalledWith(testKey, testBuffer);
+    expect(getMockImpl().uploadMedia).toHaveBeenCalledWith(testKey, testBuffer);
     expect(result).toBe(expectedResult);
   });
 
@@ -265,7 +267,7 @@ describe('FileService', () => {
     beforeEach(() => {
       mockFileModel.checkHash = vi.fn().mockResolvedValue({ isExist: false });
       mockFileModel.create = vi.fn().mockResolvedValue({ id: 'new-file-id' });
-      vi.mocked(service['impl'].uploadBuffer).mockResolvedValue({
+      vi.mocked(getMockImpl().uploadBuffer).mockResolvedValue({
         key: 'files/test-user/abc/file.pdf',
       });
     });
@@ -281,7 +283,7 @@ describe('FileService', () => {
 
       expect(result.fileId).toBe('new-file-id');
       // Must use uploadBuffer (explicit content type), not uploadMedia (infers from extension)
-      expect(service['impl'].uploadBuffer).toHaveBeenCalledWith(
+      expect(getMockImpl().uploadBuffer).toHaveBeenCalledWith(
         'files/test-user/abc/report.pdf',
         content,
         'application/pdf',

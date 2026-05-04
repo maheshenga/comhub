@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Plans } from '@lobechat/types';
 import * as dotenv from 'dotenv';
 import dotenvExpand from 'dotenv-expand';
-import { and, eq, or } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 
 type ScenarioKey = 'budget-blocked' | 'credit-mix' | 'free-reset' | 'starter-ready';
 
@@ -58,10 +58,7 @@ Examples:
 };
 
 const normalizeReferralCode = (value: string) => {
-  const normalized = value
-    .replace(/[^a-zA-Z0-9_]/g, '')
-    .toUpperCase()
-    .slice(0, 8);
+  const normalized = value.replaceAll(/\W/g, '').toUpperCase().slice(0, 8);
 
   return normalized.length >= 2 ? normalized : 'COMHUB';
 };
@@ -70,9 +67,9 @@ const createSyntheticUserId = (userId: string, suffix: string) =>
   `commercial-seed:${userId}:${suffix}`;
 
 const createSyntheticEmail = (userId: string, suffix: string) =>
-  `${userId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 24) || 'comhub'}+${suffix}@seed.local`;
+  `${userId.replaceAll(/[^a-z0-9]/gi, '').slice(0, 24) || 'comhub'}+${suffix}@seed.local`;
 
-const assertScenario = (value: string): asserts value is ScenarioKey => {
+const assertScenario: (value: string) => asserts value is ScenarioKey = (value) => {
   if (
     value !== 'budget-blocked' &&
     value !== 'starter-ready' &&
@@ -194,7 +191,7 @@ const run = async () => {
       type: 'consume' | 'referral_reward' | 'subscription_grant' | 'topup';
     };
 
-    let ledgerSeeds: LedgerSeed[] = [];
+    const ledgerSeeds: LedgerSeed[] = [];
     let creditMixRelationId: string | undefined;
     let autoTopUpSeed:
       | {

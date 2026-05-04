@@ -34,6 +34,7 @@
     "apps/desktop/src/main"
   ],
   "scripts": {
+    "admin:promote": "tsx scripts/promoteAdmin.ts",
     "build": "bun run build:spa && bun run build:spa:copy && bun run build:next",
     "build:analyze": "cross-env NODE_OPTIONS=--max-old-space-size=81920 next experimental-analyze",
     "build:docker": "pnpm run build:spa && pnpm run build:spa:mobile && pnpm run build:spa:copy && cross-env NODE_OPTIONS=--max-old-space-size=8192 DOCKER=true next build && pnpm run build-sitemap",
@@ -50,7 +51,6 @@
     "clean:node_modules": "bash -lc 'set -e; echo \"Removing all node_modules...\"; rm -rf node_modules; pnpm -r exec rm -rf node_modules; rm -rf apps/desktop/node_modules; echo \"All node_modules removed.\"'",
     "commercial:seed": "tsx scripts/seedCommercialState.ts",
     "commercial:seed-catalog": "tsx scripts/seedCommercialCatalog.ts",
-    "admin:promote": "tsx scripts/promoteAdmin.ts",
     "db:generate": "drizzle-kit generate && npm run workflow:dbml",
     "db:migrate": "cross-env MIGRATION_DB=1 tsx ./scripts/migrateServerDB/index.ts",
     "db:studio": "drizzle-kit studio",
@@ -546,8 +546,14 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@vercel/speed-insights",
       "@lobehub/editor",
-      "ffmpeg-static"
+      "electron",
+      "esbuild",
+      "ffmpeg-static",
+      "protobufjs",
+      "sharp",
+      "unrs-resolver"
     ],
     "overrides": {
       "@react-pdf/image": "3.0.4",
@@ -562,6 +568,10 @@
     },
     "patchedDependencies": {
       "@upstash/qstash": "patches/@upstash__qstash.patch"
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "core-js",
+      "es5-ext"
+    ]
   }
 }

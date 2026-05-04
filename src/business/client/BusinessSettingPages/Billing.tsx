@@ -11,10 +11,13 @@ import PlanIcon from '@/features/PlanIcon';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
+import {
+  type SubscriptionChangeRequestItem,
+  type SubscriptionChangeRequestStatusType,
+  type SubscriptionCycleType,
+} from '@/types/business';
 
 import RedemptionPanel from './RedemptionPanel';
-import { type SubscriptionChangeRequestItem } from '@/types/business';
-
 import {
   formatBusinessDate,
   getSubscriptionCycleTranslationKey,
@@ -45,25 +48,26 @@ const Billing = memo<{ mobile?: boolean }>(() => {
       {
         dataIndex: 'fromPlan',
         key: 'fromPlan',
-        render: (value) => t(`plans.plan.${value}.title`),
+        render: (value: SubscriptionChangeRequestItem['fromPlan']) =>
+          t(`plans.plan.${value}.title`),
         title: t('billing.planChangeFrom'),
       },
       {
         dataIndex: 'toPlan',
         key: 'toPlan',
-        render: (value) => t(`plans.plan.${value}.title`),
+        render: (value: SubscriptionChangeRequestItem['toPlan']) => t(`plans.plan.${value}.title`),
         title: t('billing.planChangeTo'),
       },
       {
         dataIndex: 'cycle',
         key: 'cycle',
-        render: (value) => t(getSubscriptionCycleTranslationKey(value)),
+        render: (value: SubscriptionCycleType) => t(getSubscriptionCycleTranslationKey(value)),
         title: t('billing.planChangeCycle'),
       },
       {
         dataIndex: 'status',
         key: 'status',
-        render: (value) => t(`billing.changeStatus.${value}`),
+        render: (value: SubscriptionChangeRequestStatusType) => t(`billing.changeStatus.${value}`),
         title: t('billing.planChangeStatus'),
       },
       {
@@ -94,14 +98,14 @@ const Billing = memo<{ mobile?: boolean }>(() => {
         </Descriptions>
         {pendingChangeRequest ? (
           <Alert
+            showIcon
+            message={t('plans.pendingChange')}
+            type={'info'}
             description={`${t('plans.pendingChangeDescription', {
               cycle: t(getSubscriptionCycleTranslationKey(pendingChangeRequest.cycle)),
               from: t(`plans.plan.${pendingChangeRequest.fromPlan}.title`),
               to: t(`plans.plan.${pendingChangeRequest.toPlan}.title`),
             })} · ${formatBusinessDate(pendingChangeRequest.createdAt)}`}
-            message={t('plans.pendingChange')}
-            showIcon
-            type={'info'}
           />
         ) : null}
         <div>{t('summary.desc')}</div>
@@ -132,10 +136,10 @@ const Billing = memo<{ mobile?: boolean }>(() => {
           variant={'filled'}
         >
           <InlineTable
-            columns={changeRequestColumns}
+            columns={changeRequestColumns as any}
             dataSource={changeRequests}
-            locale={{ emptyText: <Empty description={t('billing.empty')} /> }}
             loading={isChangeRequestsLoading}
+            locale={{ emptyText: <Empty description={t('billing.empty')} /> }}
             rowKey={(record) => record.id}
           />
         </FormGroup>

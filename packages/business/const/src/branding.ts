@@ -34,7 +34,7 @@ export const BRANDING_EMAIL = {
   support: 'support@lobehub.com',
 };
 
-export const BRANDING_PROVIDER = 'newapi';
+export const BRANDING_PROVIDER: 'lobehub' | 'newapi' = 'newapi';
 
 export const COPYRIGHT = `© ${new Date().getFullYear()} ${ORG_NAME}`;
 export const COPYRIGHT_FULL = `${COPYRIGHT}. All rights reserved.`;

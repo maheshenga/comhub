@@ -20,8 +20,8 @@ import {
   formatSignedCredits,
   getCreditLedgerTypeTranslationKey,
   getCreditSourceTranslationKey,
-  SubscriptionPreviewNotice,
   subscriptionPageStyles,
+  SubscriptionPreviewNotice,
   SummaryTile,
   useBusinessSubscriptionProfile,
 } from './shared';
@@ -151,37 +151,37 @@ const Credits = memo<{ mobile?: boolean }>(() => {
             value={formatCredits(accountSummary?.totalDebited ?? 0)}
           />
           <SummaryTile
+            title={t('credits.account.breakdown.subscription')}
+            value={formatCredits(accountBreakdown?.subscription.available ?? 0)}
             caption={t('credits.account.breakdown.stats', {
               credited: formatCredits(accountBreakdown?.subscription.credited ?? 0),
               used: formatCredits(accountBreakdown?.subscription.consumed ?? 0),
             })}
-            title={t('credits.account.breakdown.subscription')}
-            value={formatCredits(accountBreakdown?.subscription.available ?? 0)}
           />
           <SummaryTile
+            title={t('credits.account.breakdown.referral')}
+            value={formatCredits(accountBreakdown?.referral.available ?? 0)}
             caption={t('credits.account.breakdown.stats', {
               credited: formatCredits(accountBreakdown?.referral.credited ?? 0),
               used: formatCredits(accountBreakdown?.referral.consumed ?? 0),
             })}
-            title={t('credits.account.breakdown.referral')}
-            value={formatCredits(accountBreakdown?.referral.available ?? 0)}
           />
           <SummaryTile
+            title={t('credits.account.breakdown.topUp')}
+            value={formatCredits(accountBreakdown?.topup.available ?? 0)}
             caption={t('credits.account.breakdown.stats', {
               credited: formatCredits(accountBreakdown?.topup.credited ?? 0),
               used: formatCredits(accountBreakdown?.topup.consumed ?? 0),
             })}
-            title={t('credits.account.breakdown.topUp')}
-            value={formatCredits(accountBreakdown?.topup.available ?? 0)}
           />
           {shouldShowOtherBreakdown ? (
             <SummaryTile
+              title={t('credits.account.breakdown.other')}
+              value={formatCredits(accountBreakdown?.other.available ?? 0)}
               caption={t('credits.account.breakdown.stats', {
                 credited: formatCredits(accountBreakdown?.other.credited ?? 0),
                 used: formatCredits(accountBreakdown?.other.consumed ?? 0),
               })}
-              title={t('credits.account.breakdown.other')}
-              value={formatCredits(accountBreakdown?.other.available ?? 0)}
             />
           ) : null}
         </div>
@@ -197,7 +197,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
       <FormGroup collapsible={false} gap={16} title={t('tab.spend')} variant={'filled'}>
         <div className={subscriptionPageStyles.caption}>{t('credits.ledger.desc')}</div>
         <InlineTable
-          columns={ledgerColumns}
+          columns={ledgerColumns as any}
           dataSource={ledgerResult?.items || []}
           loading={isLedgerLoading}
           locale={{ emptyText: <Empty description={t('credits.ledger.empty')} /> }}

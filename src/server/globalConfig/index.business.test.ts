@@ -1,4 +1,7 @@
+import type * as BusinessConst from '@lobechat/business-const';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getServerGlobalConfig } from './index';
 
 const mocks = vi.hoisted(() => ({
   genServerAiProvidersConfig: vi.fn(),
@@ -10,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@lobechat/business-const', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@lobechat/business-const')>();
+  const actual = await importOriginal<typeof BusinessConst>();
 
   return {
     ...actual,
@@ -102,8 +105,6 @@ vi.mock('./parseMemoryExtractionConfig', () => ({
   getPublicMemoryExtractionConfig: vi.fn(() => undefined),
 }));
 
-import { getServerGlobalConfig } from './index';
-
 describe('getServerGlobalConfig business newapi model injection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -131,8 +132,8 @@ describe('getServerGlobalConfig business newapi model injection', () => {
 
     const result = await getServerGlobalConfig({} as any);
 
-    expect(result.aiProvider.newapi.enabledModels).toEqual(['gpt-4o-mini', 'gpt-4.1']);
-    expect(result.aiProvider.newapi.serverModelLists).toEqual([
+    expect(result.aiProvider.newapi!.enabledModels).toEqual(['gpt-4o-mini', 'gpt-4.1']);
+    expect(result.aiProvider.newapi!.serverModelLists).toEqual([
       {
         displayName: 'gpt-4o-mini',
         enabled: true,
@@ -151,8 +152,23 @@ describe('getServerGlobalConfig business newapi model injection', () => {
   it('keeps the generated provider config unchanged when no global newapi model IDs are configured', async () => {
     const result = await getServerGlobalConfig({} as any);
 
-    expect(result.aiProvider.newapi.enabledModels).toBeUndefined();
-    expect(result.aiProvider.newapi.serverModelLists).toEqual([]);
-    expect(result.aiProvider.openai.serverModelLists).toEqual([{ id: 'gpt-4o', type: 'chat' }]);
+    expect(result.aiProvider.newapi!.enabledModels).toBeUndefined();
+    expect(result.aiProvider.newapi!.serverModelLists).toEqual([]);
+    expect(result.aiProvider.openai!.serverModelLists).toEqual([{ id: 'gpt-4o', type: 'chat' }]);
+  });
+
+  it('merges backend default provider and model overrides into default agent config', async () => {
+    mocks.parseAgentConfig.mockReturnValue({ model: 'env-model', provider: 'openai' });
+    mocks.getServerDefaultAgentSettingOverrides.mockResolvedValue({
+      model: 'deepseek-chat',
+      provider: 'newapi',
+    });
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.defaultAgent?.config).toMatchObject({
+      model: 'deepseek-chat',
+      provider: 'newapi',
+    });
   });
 });

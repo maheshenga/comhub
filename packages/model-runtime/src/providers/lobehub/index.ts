@@ -10,17 +10,17 @@ const SYSTEM_BASE_URL = () => process.env.NEWAPI_PROXY_URL;
 const lobehubParams: CreateRouterRuntimeOptions = {
   ...newapiParams,
   defaultHeaders: {
-    ...(newapiParams.defaultHeaders ?? {}),
+    ...newapiParams.defaultHeaders,
     'X-Client': 'ComHub',
   },
   id: ModelProvider.LobeHub,
-  routers: (options, runtimeContext) => {
+  routers: (options) => {
     const systemOptions = {
       ...options,
       apiKey: options?.apiKey || SYSTEM_API_KEY(),
       baseURL: options?.baseURL || SYSTEM_BASE_URL(),
     };
-    return newapiParams.routers(systemOptions, runtimeContext);
+    return newapiParams.routers(systemOptions);
   },
 };
 
