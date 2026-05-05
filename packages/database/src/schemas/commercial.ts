@@ -1,13 +1,15 @@
 import type {
   AutoTopUpSetting,
   CreditLedgerEntryType,
+  Plans,
+  type ReferralStatusString,
   SubscriptionChangeRequestReasonType,
   SubscriptionChangeRequestStatusType,
   SubscriptionCycleType,
   SubscriptionStatusType,
+  TopUpOrderSourceType,
   TopUpOrderStatusType,
 } from '@lobechat/types';
-import { type ReferralStatusString, Plans } from '@lobechat/types';
 import {
   boolean,
   index,
@@ -102,6 +104,9 @@ export const creditAccounts = pgTable(
     totalDebited: amountNumeric('total_debited').notNull().default(0),
     currency: varchar('currency', { length: 16 }).notNull().default('CREDITS'),
 
+    storageUsed: amountNumeric('storage_used').notNull().default(0),
+    storageQuota: amountNumeric('storage_quota'),
+
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -190,6 +195,8 @@ export const topUpOrders = pgTable(
 
     provider: text('provider'),
     externalOrderId: text('external_order_id'),
+    source: text('source').$type<TopUpOrderSourceType>(),
+    redemptionCodeId: text('redemption_code_id'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     paidAt: timestamptz('paid_at'),
 
@@ -287,68 +294,59 @@ export type ReferralRewardItem = typeof referralRewards.$inferSelect;
 // Phase 3: Plan catalog, top-up packages, app settings (admin-managed)
 // ============================================================================
 
-export const planCatalog = pgTable(
-  'plan_catalog',
-  {
-    plan: varchar('plan', { length: 32 }).primaryKey().notNull(),
+export const planCatalog = pgTable('plan_catalog', {
+  plan: varchar('plan', { length: 32 }).primaryKey().notNull(),
 
-    displayName: text('display_name').notNull(),
-    monthlyCredits: amountNumeric('monthly_credits').notNull().default(0),
-    monthlyPrice: amountNumeric('monthly_price').notNull().default(0),
-    yearlyPrice: amountNumeric('yearly_price').notNull().default(0),
-    currency: varchar('currency', { length: 16 }).notNull().default('USD'),
+  displayName: text('display_name').notNull(),
+  monthlyCredits: amountNumeric('monthly_credits').notNull().default(0),
+  monthlyPrice: amountNumeric('monthly_price').notNull().default(0),
+  yearlyPrice: amountNumeric('yearly_price').notNull().default(0),
+  currency: varchar('currency', { length: 16 }).notNull().default('USD'),
 
-    features: jsonb('features').$type<string[]>().notNull().default([]),
-    isActive: boolean('is_active').notNull().default(true),
-    sortOrder: amountNumeric('sort_order').notNull().default(0),
+  features: jsonb('features').$type<string[]>().notNull().default([]),
+  isActive: boolean('is_active').notNull().default(true),
+  sortOrder: amountNumeric('sort_order').notNull().default(0),
 
-    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
 
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-);
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 export type NewPlanCatalog = typeof planCatalog.$inferInsert;
 export type PlanCatalogItem = typeof planCatalog.$inferSelect;
 
-export const topUpPackages = pgTable(
-  'topup_packages',
-  {
-    id: varchar('id', { length: 64 }).primaryKey().notNull(),
+export const topUpPackages = pgTable('topup_packages', {
+  id: varchar('id', { length: 64 }).primaryKey().notNull(),
 
-    displayName: text('display_name').notNull(),
-    credits: amountNumeric('credits').notNull(),
-    amount: amountNumeric('amount').notNull(),
-    currency: varchar('currency', { length: 16 }).notNull().default('USD'),
-    validityMonths: amountNumeric('validity_months').notNull().default(12),
+  displayName: text('display_name').notNull(),
+  credits: amountNumeric('credits').notNull(),
+  amount: amountNumeric('amount').notNull(),
+  currency: varchar('currency', { length: 16 }).notNull().default('USD'),
+  validityMonths: amountNumeric('validity_months').notNull().default(12),
 
-    recommended: boolean('recommended').notNull().default(false),
-    isActive: boolean('is_active').notNull().default(true),
-    sortOrder: amountNumeric('sort_order').notNull().default(0),
+  recommended: boolean('recommended').notNull().default(false),
+  isActive: boolean('is_active').notNull().default(true),
+  sortOrder: amountNumeric('sort_order').notNull().default(0),
 
-    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
 
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-);
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 export type NewTopUpPackage = typeof topUpPackages.$inferInsert;
 export type TopUpPackageRow = typeof topUpPackages.$inferSelect;
 
-export const appSettings = pgTable(
-  'app_settings',
-  {
-    key: varchar('key', { length: 128 }).primaryKey().notNull(),
-    value: jsonb('value'),
+export const appSettings = pgTable('app_settings', {
+  key: varchar('key', { length: 128 }).primaryKey().notNull(),
+  value: jsonb('value'),
 
-    description: text('description'),
+  description: text('description'),
 
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-);
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 export type NewAppSetting = typeof appSettings.$inferInsert;
 export type AppSettingItem = typeof appSettings.$inferSelect;
@@ -358,8 +356,7 @@ export const adminAuditLogs = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
 
-    actorUserId: text('actor_user_id')
-      .references(() => users.id, { onDelete: 'set null' }),
+    actorUserId: text('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
     targetUserId: text('target_user_id'),
 
     action: varchar('action', { length: 64 }).notNull(),
@@ -397,9 +394,7 @@ export const redemptionCodes = pgTable(
     code: varchar('code', { length: 64 }).notNull().unique(),
     batchId: varchar('batch_id', { length: 64 }),
 
-    rewardType: varchar('reward_type', { length: 32 })
-      .$type<RedemptionRewardType>()
-      .notNull(),
+    rewardType: varchar('reward_type', { length: 32 }).$type<RedemptionRewardType>().notNull(),
 
     // For rewardType = 'plan'
     planKey: varchar('plan_key', { length: 32 }),
@@ -413,10 +408,7 @@ export const redemptionCodes = pgTable(
     topupPackageId: varchar('topup_package_id', { length: 64 }),
 
     note: text('note'),
-    status: varchar('status', { length: 16 })
-      .$type<RedemptionStatus>()
-      .notNull()
-      .default('active'),
+    status: varchar('status', { length: 16 }).$type<RedemptionStatus>().notNull().default('active'),
 
     expiresAt: timestamptz('expires_at'),
     redeemedAt: timestamptz('redeemed_at'),

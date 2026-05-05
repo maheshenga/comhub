@@ -79,7 +79,6 @@ export interface CreditConsumeAllocation {
 
 export const TopUpOrderStatusEnum = {
   Canceled: 'canceled',
-  Cancelled: 'cancelled',
   Expired: 'expired',
   Failed: 'failed',
   Paid: 'paid',
@@ -88,6 +87,15 @@ export const TopUpOrderStatusEnum = {
 } as const;
 
 export type TopUpOrderStatusType = (typeof TopUpOrderStatusEnum)[keyof typeof TopUpOrderStatusEnum];
+
+export const TopUpOrderSourceEnum = {
+  Alipay: 'alipay',
+  Manual: 'manual',
+  Redemption: 'redemption',
+  WechatPay: 'wechat_pay',
+} as const;
+
+export type TopUpOrderSourceType = (typeof TopUpOrderSourceEnum)[keyof typeof TopUpOrderSourceEnum];
 
 export interface CreditAccountSummary {
   balance: number;
@@ -183,6 +191,8 @@ export interface TopUpOrderHistoryItem {
   id: string;
   paidAt?: Date | null;
   provider?: string | null;
+  redemptionCodeId?: string | null;
+  source?: TopUpOrderSourceType;
   status: TopUpOrderStatusType;
 }
 
@@ -221,6 +231,15 @@ export const CreateTopUpOrderSchema = z
   .object({
     credits: z.number().int().min(50_000_000).max(5_000_000_000).optional(),
     packageId: z.string().trim().min(1).optional(),
+    redemptionCodeId: z.string().uuid().optional(),
+    source: z
+      .enum([
+        TopUpOrderSourceEnum.Redemption,
+        TopUpOrderSourceEnum.Alipay,
+        TopUpOrderSourceEnum.WechatPay,
+        TopUpOrderSourceEnum.Manual,
+      ])
+      .optional(),
   })
   .refine((value) => Boolean(value.packageId || value.credits), {
     message: 'TOP_UP_PACKAGE_OR_CREDITS_REQUIRED',
