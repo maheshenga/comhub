@@ -94,14 +94,14 @@ Comhub（玄果）平台基于 LobeHub fork，采用卡密分发模型：后台�
 
 `lambda-routers/payment.ts`：
 
-- `createPaymentOrder` — 创建支付订单，返回支付参数（当前骨架，return not-implemented）
-- `handlePaymentCallback` — 网关异步回调（当前骨架）
+- `createPaymentOrder` — 创建支付订单，返回支付参数（当前骨架，throw TRPCError with NOT_IMPLEMENTED）
+- `handlePaymentCallback` — 网关异步回调（当前骨架，throw TRPCError with NOT_IMPLEMENTED）
 
 后续接支付宝时只需填充这两个过程，零架构改动。
 
 ### ONLINE_PAYMENT_ENABLED 处理
 
-删除 `CommercialModel` 中的硬编码常量。路由层各自控制：redemption 路由直接创建，payment 路由由 feature flag 控制。
+删除 `CommercialModel` 中的硬编码常量。路由层各自控制：redemption 路由直接创建，payment 路由由 appSettings feature flag 控制（如 `payment.alipay.enabled`），后续新增支付渠道只加 flag。
 
 ## 3. 图像计费 — 桩函数填充
 
@@ -134,7 +134,7 @@ Comhub（玄果）平台基于 LobeHub fork，采用卡密分发模型：后台�
 
 ### notifyImageCompleted
 
-本次仅移除空桩注释，保留空实现。后续可扩展通知逻辑。
+本次仅移除空桩注释，保留空实现。后续可扩展通知逻辑。优先级最低，不阻塞上线。
 
 ### 计费单位
 
@@ -364,7 +364,7 @@ videoBackgroundPolling 完成
 - `src/business/server/lambda-routers/admin/redemption.ts` — 兑换流程重构
 - `src/business/server/lambda-routers/admin/referral.ts` — 新增 getReferralStats
 - `src/business/server/lambda-routers/accountDeletion.ts` — 填充
-- `src/business/server/lambda-routers/payment.ts` — 新增（预留骨架）
+- `src/business/server/lambda-routers/payment.ts` — 新增（预留骨架，TRPCError NOT_IMPLEMENTED）
 - `src/business/server/trpc-middlewares/lambda.ts` — 填充 checkFileStorageUsage
 - `src/server/services/generation/videoBackgroundPolling.ts` — 插入计费调用
 
