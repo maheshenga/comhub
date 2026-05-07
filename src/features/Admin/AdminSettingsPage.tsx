@@ -7,7 +7,6 @@ import {
   AutoComplete,
   Button,
   Card,
-  Collapse,
   Form,
   Input,
   InputNumber,
@@ -21,8 +20,6 @@ import { useTranslation } from 'react-i18next';
 
 import {
   SETTINGS_DEFAULT_MODEL_NOTICE,
-  SETTINGS_LEGACY_NEWAPI_NOTICE,
-  SETTINGS_LEGACY_NEWAPI_TITLE,
   SETTINGS_SUBTITLE,
 } from '@/features/Admin/adminSettingsCopy';
 import {
@@ -32,10 +29,6 @@ import {
   buildModelOptions,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
-  getGatewayUrlSummary,
-  getModelIdSummary,
-  normalizeGatewayUrls,
-  normalizeModelIds,
   normalizeText,
 } from '@/features/Admin/adminSettingsForm';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -63,14 +56,10 @@ const AdminSettingsPage = memo(() => {
   } | null>(null);
 
   const watchedValues = Form.useWatch([], form) as Partial<AdminSettingsFormValues> | undefined;
-  const watchedModels = Form.useWatch('newapiEnabledModels', form);
-  const watchedUrls = Form.useWatch('newapiProxyUrl', form);
 
   const initialValues = useMemo(() => buildFormValues(data), [data]);
   const pendingUpdates = buildSettingUpdates(watchedValues ?? initialValues, initialValues);
   const hasPendingChanges = pendingUpdates.length > 0;
-  const modelSummary = getModelIdSummary(watchedModels);
-  const urlSummary = getGatewayUrlSummary(watchedUrls);
   const defaultModelOptions = buildModelOptions(data);
   const paymentGatewayStatus = data?.paymentGatewayStatus;
 
@@ -78,20 +67,6 @@ const AdminSettingsPage = memo(() => {
     if (!data) return;
     form.setFieldsValue(buildFormValues(data));
   }, [data, form]);
-
-  const handleNormalizeModelIds = () => {
-    form.setFieldValue(
-      'newapiEnabledModels',
-      normalizeModelIds(form.getFieldValue('newapiEnabledModels')),
-    );
-  };
-
-  const handleNormalizeGatewayUrls = () => {
-    form.setFieldValue(
-      'newapiProxyUrl',
-      normalizeGatewayUrls(form.getFieldValue('newapiProxyUrl')),
-    );
-  };
 
   const handleSave = async () => {
     try {
@@ -105,7 +80,6 @@ const AdminSettingsPage = memo(() => {
 
       setSubmitting(true);
       await Promise.all(updates.map((update) => adminCommercialService.setAppSetting(update)));
-      form.setFieldValue('newapiApiKey', '');
       form.setFieldValue('cronSecret', '');
       await mutate(ADMIN_SETTINGS_SWR_KEY);
 
@@ -256,106 +230,6 @@ const AdminSettingsPage = memo(() => {
               </AutoComplete>
             </Form.Item>
           </Card>
-
-          <Collapse
-            items={[
-              {
-                children: (
-                  <Flexbox gap={16}>
-                    <Alert
-                      showIcon
-                      message={t('admin.settings.legacyNewapiNotice', SETTINGS_LEGACY_NEWAPI_NOTICE)}
-                      type="warning"
-                    />
-                    <Form.Item
-                      label={t('admin.settings.newapiModels', 'NewAPI 聊天模型 ID')}
-                      name="newapiEnabledModels"
-                      extra={
-                        <Flexbox gap={4}>
-                          <Text type="secondary">
-                            {t(
-                              'admin.settings.newapiModels.help',
-                              '每行填写一个聊天模型 ID；保存时会自动去重，并作为默认模型建议。',
-                            )}
-                          </Text>
-                          {modelSummary.models.length > 0 && (
-                            <Text type="secondary">
-                              {modelSummary.rawCount === modelSummary.models.length
-                                ? `已准备 ${modelSummary.models.length} 个模型 ID`
-                                : `检测到 ${modelSummary.rawCount} 条输入，整理后保留 ${modelSummary.models.length} 个唯一模型 ID`}
-                            </Text>
-                          )}
-                        </Flexbox>
-                      }
-                    >
-                      <Input.TextArea
-                        placeholder={'gpt-4o-mini\ngpt-4.1\ndeepseek-chat'}
-                        rows={5}
-                        onBlur={handleNormalizeModelIds}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      label={t('admin.settings.newapiKey', 'NewAPI 密钥（API Key）')}
-                      name="newapiApiKey"
-                      extra={
-                        data?.newapiApiKeyMasked
-                          ? `${t('admin.settings.current', '当前值')}: ${data.newapiApiKeyMasked}`
-                          : t('admin.settings.notSet', '未配置')
-                      }
-                    >
-                      <Input.Password
-                        placeholder={t('admin.settings.leaveBlank', '留空则保持当前值')}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      label={t('admin.settings.newapiUrl', 'NewAPI 代理地址（Proxy URL）')}
-                      name="newapiProxyUrl"
-                      extra={
-                        <Flexbox gap={4}>
-                          <Text type="secondary">
-                            {t(
-                              'admin.settings.newapiUrl.help',
-                              '支持多个代理地址，每行一个 URL。运行时会按顺序尝试可用地址。',
-                            )}
-                          </Text>
-                          {urlSummary.urls.length > 0 && (
-                            <Text type="secondary">
-                              {urlSummary.rawCount === urlSummary.urls.length
-                                ? `已准备 ${urlSummary.urls.length} 个地址`
-                                : `检测到 ${urlSummary.rawCount} 条输入，整理后保留 ${urlSummary.urls.length} 个唯一地址`}
-                            </Text>
-                          )}
-                          {urlSummary.invalidUrls.length > 0 && (
-                            <Text type="danger">
-                              发现 {urlSummary.invalidUrls.length} 个地址格式不正确
-                            </Text>
-                          )}
-                        </Flexbox>
-                      }
-                      rules={[
-                        {
-                          validator: async (_, value) => {
-                            const summary = getGatewayUrlSummary(value);
-                            if (summary.invalidUrls.length === 0) return;
-
-                            throw new Error(`发现 ${summary.invalidUrls.length} 个地址格式不正确`);
-                          },
-                        },
-                      ]}
-                    >
-                      <Input.TextArea
-                        placeholder={'https://ai-1.example.com/v1\nhttps://ai-2.example.com/v1'}
-                        rows={4}
-                        onBlur={handleNormalizeGatewayUrls}
-                      />
-                    </Form.Item>
-                  </Flexbox>
-                ),
-                key: 'legacy-newapi',
-                label: t('admin.settings.legacyNewapiSection', SETTINGS_LEGACY_NEWAPI_TITLE),
-              },
-            ]}
-          />
 
           <Card title={t('admin.settings.paymentSection', '支付网关状态')}>
             <Alert

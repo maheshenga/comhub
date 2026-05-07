@@ -4,27 +4,14 @@ import {
   buildModelOptions,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
-  normalizeGatewayUrls,
-  normalizeModelIds,
   SETTING_KEYS,
 } from './adminSettingsForm';
 
 describe('adminSettingsForm', () => {
-  it('normalizes model ids and gateway urls before saving', () => {
-    expect(normalizeModelIds('gpt-4o-mini\ngpt-4o-mini, deepseek-chat')).toBe(
-      'gpt-4o-mini\ndeepseek-chat',
-    );
-    expect(
-      normalizeGatewayUrls(
-        'https://a.example.com/v1/\nhttps://a.example.com/v1; https://b.example.com',
-      ),
-    ).toBe('https://a.example.com/v1\nhttps://b.example.com');
-  });
-
-  it('builds default model options from enabled NewAPI models and legacy suggestions', () => {
+  it('builds default model options from enabled NewAPI models and suggestions', () => {
     expect(
       buildModelOptions({
-        defaultModelSuggestions: ['legacy-chat', 'deepseek-chat'],
+        defaultModelSuggestions: ['manual-chat', 'deepseek-chat'],
         enabledNewapiModels: [
           {
             displayName: 'DeepSeek Chat',
@@ -56,10 +43,10 @@ describe('adminSettingsForm', () => {
         value: 'newapi:flux-kontext',
       },
       {
-        label: 'legacy-chat（newapi / legacy）',
-        model: 'legacy-chat',
+        label: 'manual-chat（newapi / 建议）',
+        model: 'manual-chat',
         provider: 'newapi',
-        value: 'newapi:legacy-chat',
+        value: 'newapi:manual-chat',
       },
     ]);
   });
@@ -79,9 +66,6 @@ describe('adminSettingsForm', () => {
       desktopDownloadLabel: '',
       desktopDownloadUrl: '',
       helpMenuItems: [],
-      newapiApiKey: '',
-      newapiEnabledModels: 'gpt-4o-mini',
-      newapiProxyUrl: 'https://a.example.com/v1',
       referralRewardCredits: 0,
     };
 
@@ -90,16 +74,10 @@ describe('adminSettingsForm', () => {
         {
           ...initial,
           defaultAgentModel: 'deepseek-chat',
-          newapiApiKey: 'sk-test',
-          newapiEnabledModels: 'gpt-4o-mini, deepseek-chat',
         },
         initial,
       ),
-    ).toEqual([
-      { key: SETTING_KEYS.newapiApiKey, value: 'sk-test' },
-      { key: SETTING_KEYS.newapiEnabledModels, value: 'gpt-4o-mini\ndeepseek-chat' },
-      { key: SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' },
-    ]);
+    ).toEqual([{ key: SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' }]);
   });
 
   it('refreshes runtime config and user state when default model or provider changes', () => {

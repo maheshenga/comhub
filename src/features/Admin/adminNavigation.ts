@@ -159,7 +159,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'settings',
     items: [
       {
-        description: '配置品牌、默认模型、兼容 API 设置和帮助菜单',
+        description: '配置品牌、默认模型、支付状态和帮助菜单',
         icon: 'settings',
         label: '站点与 API 设置',
         path: `${ADMIN_BASE_PATH}/settings`,

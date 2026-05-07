@@ -209,7 +209,7 @@ const AdminModelPolicyPage = memo(() => {
           )}
         >
           <Input.TextArea
-            placeholder={'openai:o1*\n*:legacy-*'}
+            placeholder={'openai:o1*\n*:old-*'}
             rows={6}
             onBlur={handleNormalizeBlocklist}
           />

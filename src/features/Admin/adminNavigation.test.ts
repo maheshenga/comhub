@@ -78,6 +78,14 @@ describe('adminNavigation', () => {
     );
   });
 
+  it('does not advertise old API settings in the operations module', () => {
+    const settingsItem = ADMIN_NAV_GROUPS.flatMap((group) => group.items).find(
+      (item) => item.path === `${ADMIN_BASE_PATH}/settings`,
+    );
+
+    expect(settingsItem?.description).not.toContain('兼容');
+  });
+
   it('selects the nearest admin item for nested URLs and opens its module', () => {
     expect(getAdminSelectedKey('/settings/admin')).toBe(ADMIN_BASE_PATH);
     expect(getAdminSelectedKey('/settings/admin/users/abc')).toBe(`${ADMIN_BASE_PATH}/users`);

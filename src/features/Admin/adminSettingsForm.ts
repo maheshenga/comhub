@@ -14,9 +14,6 @@ export const SETTING_KEYS = {
   desktopDownloadLabel: 'desktop.download.label',
   desktopDownloadUrl: 'desktop.download.url',
   helpMenuItems: 'help.menu.items',
-  newapiApiKey: 'newapi.apiKey',
-  newapiEnabledModels: 'newapi.enabledModels',
-  newapiProxyUrl: 'newapi.proxyUrl',
   pricingModelRules: 'pricing.modelRules',
   referralRewardCredits: 'referral.rewardCredits',
 } as const;
@@ -57,8 +54,6 @@ export type AdminSettingsData = {
   desktopDownloadUrl?: string | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
   helpMenuItems?: unknown;
-  newapiEnabledModels?: string | null;
-  newapiProxyUrl?: string | null;
   paymentGatewayStatus?: {
     configured: boolean;
     message: string;
@@ -82,15 +77,10 @@ export type AdminSettingsFormValues = {
   desktopDownloadLabel: string;
   desktopDownloadUrl: string;
   helpMenuItems: HelpMenuItem[];
-  newapiApiKey: string;
-  newapiEnabledModels: string;
-  newapiProxyUrl: string;
   referralRewardCredits: number;
 };
 
 export type SettingUpdate = { key: string; value: unknown };
-
-const LIST_SPLIT_REGEX = /[\r\n,;，；]+/;
 
 export const normalizeText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
@@ -132,7 +122,7 @@ export const buildModelOptions = (data?: {
     seen.add(key);
 
     options.push({
-      label: `${model}（${provider} / legacy）`,
+      label: `${model}（${provider} / 建议）`,
       model,
       provider,
       value: key,
@@ -140,58 +130,6 @@ export const buildModelOptions = (data?: {
   }
 
   return options;
-};
-
-const normalizeUniqueList = (value: unknown, transform?: (value: string) => string) => {
-  const raw = Array.isArray(value)
-    ? value.flatMap((item) => (typeof item === 'string' ? item.split(LIST_SPLIT_REGEX) : []))
-    : typeof value === 'string'
-      ? value.split(LIST_SPLIT_REGEX)
-      : [];
-
-  return Array.from(
-    new Set(raw.map((item) => (transform ? transform(item.trim()) : item.trim())).filter(Boolean)),
-  );
-};
-
-export const normalizeModelIds = (value: unknown) => normalizeUniqueList(value).join('\n');
-
-export const normalizeGatewayUrls = (value: unknown) =>
-  normalizeUniqueList(value, (item) => item.replace(/\/+$/, '')).join('\n');
-
-export const getGatewayUrlSummary = (value: unknown) => {
-  const urls = normalizeGatewayUrls(value)
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const rawCount =
-    typeof value === 'string'
-      ? value.split(LIST_SPLIT_REGEX).filter((item) => item.trim()).length
-      : urls.length;
-  const invalidUrls = urls.filter((item) => {
-    try {
-      const url = new URL(item);
-
-      return url.protocol !== 'http:' && url.protocol !== 'https:';
-    } catch {
-      return true;
-    }
-  });
-
-  return { invalidUrls, rawCount, urls };
-};
-
-export const getModelIdSummary = (value: unknown) => {
-  const models = normalizeModelIds(value)
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const rawCount =
-    typeof value === 'string'
-      ? value.split(LIST_SPLIT_REGEX).filter((item) => item.trim()).length
-      : models.length;
-
-  return { models, rawCount };
 };
 
 const normalizeHelpMenuItems = (items: unknown): HelpMenuItem[] =>
@@ -219,9 +157,6 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   desktopDownloadLabel: data?.desktopDownloadLabel ?? '',
   desktopDownloadUrl: data?.desktopDownloadUrl ?? '',
   helpMenuItems: normalizeHelpMenuItems(data?.helpMenuItems),
-  newapiApiKey: '',
-  newapiEnabledModels: data?.newapiEnabledModels ?? '',
-  newapiProxyUrl: data?.newapiProxyUrl ?? '',
   referralRewardCredits: data?.referralRewardCredits ?? 0,
 });
 
@@ -243,9 +178,6 @@ export const normalizeFormValues = (
   desktopDownloadLabel: normalizeText(values.desktopDownloadLabel),
   desktopDownloadUrl: normalizeText(values.desktopDownloadUrl),
   helpMenuItems: normalizeHelpMenuItems(values.helpMenuItems),
-  newapiApiKey: normalizeText(values.newapiApiKey),
-  newapiEnabledModels: normalizeModelIds(values.newapiEnabledModels),
-  newapiProxyUrl: normalizeGatewayUrls(values.newapiProxyUrl),
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
 });
@@ -258,13 +190,9 @@ export const buildSettingUpdates = (
   const initial = normalizeFormValues(initialValues);
   const updates: SettingUpdate[] = [];
 
-  if (current.newapiApiKey)
-    updates.push({ key: SETTING_KEYS.newapiApiKey, value: current.newapiApiKey });
   if (current.cronSecret) updates.push({ key: SETTING_KEYS.cronSecret, value: current.cronSecret });
 
   const keys: Array<keyof AdminSettingsFormValues> = [
-    'newapiProxyUrl',
-    'newapiEnabledModels',
     'defaultAgentModel',
     'defaultAgentProvider',
     'referralRewardCredits',
@@ -291,8 +219,6 @@ export const buildSettingUpdates = (
     defaultAgentProvider: SETTING_KEYS.defaultAgentProvider,
     desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
     desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
-    newapiEnabledModels: SETTING_KEYS.newapiEnabledModels,
-    newapiProxyUrl: SETTING_KEYS.newapiProxyUrl,
     referralRewardCredits: SETTING_KEYS.referralRewardCredits,
   };
 
