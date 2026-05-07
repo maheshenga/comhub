@@ -65,7 +65,9 @@ ENV NEXT_PUBLIC_ANALYTICS_UMAMI="${NEXT_PUBLIC_ANALYTICS_UMAMI}" \
     NEXT_PUBLIC_UMAMI_WEBSITE_ID="${NEXT_PUBLIC_UMAMI_WEBSITE_ID}"
 
 # Node
-ENV NODE_OPTIONS="--max-old-space-size=8192"
+ENV NODE_OPTIONS="--max-old-space-size=8192" \
+    ELECTRON_SKIP_BINARY_DOWNLOAD="1" \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD="1"
 
 WORKDIR /app
 
@@ -89,7 +91,7 @@ RUN set -e && \
     pnpm i && \
     mkdir -p /deps && \
     cd /deps && \
-    pnpm init && \
+    printf '{"name":"deps","version":"1.0.0","private":true}\n' > package.json && \
     pnpm add pg drizzle-orm
 
 COPY . .
