@@ -1,19 +1,11 @@
 import type { InstallMarketplaceAgentSummary } from '@lobechat/builtin-tool-agent-marketplace';
-import { customAlphabet } from 'nanoid/non-secure';
 
 import { agentService } from '@/services/agent';
 import { discoverService } from '@/services/discover';
-import { marketApiService } from '@/services/marketApi';
 import { useAgentStore } from '@/store/agent';
 import { useHomeStore } from '@/store/home';
 
 export type { InstallMarketplaceAgentSummary };
-
-const generateMarketIdentifier = () => {
-  const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz';
-  const generate = customAlphabet(alphabet, 8);
-  return generate();
-};
 
 const getSourcePath = () => {
   if (typeof location === 'undefined') return 'onboarding/agent-marketplace';
@@ -61,13 +53,6 @@ export const installMarketplaceAgents = async (
       title: marketAgent.title,
     };
 
-    const forkResult = await marketApiService.forkAgent(sourceAgentId, {
-      identifier: generateMarketIdentifier(),
-      name: marketAgent.title,
-      status: 'published',
-      visibility: 'public',
-    });
-
     const result = await createAgent({
       config: {
         ...marketAgent.config,
@@ -75,13 +60,13 @@ export const installMarketplaceAgents = async (
         backgroundColor: marketAgent.backgroundColor,
         description: marketAgent.description,
         editorData: marketAgent.editorData,
-        marketIdentifier: forkResult.agent.identifier,
+        marketIdentifier: sourceAgentId,
         params: {
           ...marketAgent.config.params,
           forkedFromIdentifier: sourceAgentId,
         },
         tags: marketAgent.tags,
-        title: forkResult.agent.name,
+        title: marketAgent.title,
       },
     });
 
@@ -90,7 +75,7 @@ export const installMarketplaceAgents = async (
 
     discoverService.reportAgentEvent({
       event: 'add',
-      identifier: forkResult.agent.identifier,
+      identifier: sourceAgentId,
       source: getSourcePath(),
     });
   }

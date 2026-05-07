@@ -633,7 +633,7 @@ export default {
   'skillDetail.trustWarning':
     "Only use connectors from developers you trust. LobeHub does not control which tools developers make available and cannot verify that they will work as intended or that they won't change.",
   'skillInstallBanner.dismiss': 'Dismiss',
-  'skillInstallBanner.title': 'Add skills to Lobe AI',
+  'skillInstallBanner.title': 'Add skills to {{brandName}}',
   'store.actions.cancel': 'Cancel',
   'store.actions.configure': 'Configure',
   'store.actions.confirmUninstall': 'Uninstalling will clear Skill config. Continue?',

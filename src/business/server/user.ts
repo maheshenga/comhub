@@ -1,5 +1,5 @@
 import type { LobeChatDatabase } from '@lobechat/database';
-import type { Plans, type ReferralStatusString } from '@lobechat/types';
+import type { Plans, ReferralStatusString } from '@lobechat/types';
 import { and, eq, sql } from 'drizzle-orm';
 
 import { CommercialModel } from '@/database/models/commercial';
