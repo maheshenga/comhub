@@ -51,11 +51,18 @@ export type AdminSettingsData = {
   cronPendingOrderExpiryDays?: number | null;
   defaultAgentModel?: string | null;
   defaultAgentProvider?: string | null;
+  defaultModelSuggestions?: string[] | null;
   desktopDownloadLabel?: string | null;
   desktopDownloadUrl?: string | null;
+  enabledNewapiModels?: EnabledNewapiModelOption[] | null;
   helpMenuItems?: unknown;
   newapiEnabledModels?: string | null;
   newapiProxyUrl?: string | null;
+  paymentGatewayStatus?: {
+    configured: boolean;
+    message: string;
+    provider?: string | null;
+  } | null;
   referralRewardCredits?: number | null;
 };
 
