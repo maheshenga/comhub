@@ -5,14 +5,17 @@ import { memo } from 'react';
 
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 import Avatar from './Avatar';
 
 const HeaderInfo = memo(() => {
   const isInbox = useAgentStore(builtinAgentSelectors.isInboxAgent);
   const title = useAgentStore(agentSelectors.currentAgentTitle);
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
 
-  const displayTitle = isInbox ? 'Lobe AI' : title;
+  const displayTitle = isInbox ? defaultAgentMeta.title || '青柚助手' : title;
 
   return (
     <Flexbox

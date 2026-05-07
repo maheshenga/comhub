@@ -21,6 +21,8 @@ import { AgentSettings as Settings } from '@/features/AgentSetting';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { ChatSettingsTabs } from '@/store/global/initialState';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 const Content = memo(() => {
   const { t } = useTranslation('setting');
@@ -31,6 +33,7 @@ const Content = memo(() => {
   );
   const config = useAgentStore(agentSelectors.currentAgentConfig, isEqual);
   const meta = useAgentStore(agentSelectors.currentAgentMeta, isEqual);
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
   const [tab, setTab] = useState(isInbox ? ChatSettingsTabs.Modal : ChatSettingsTabs.Meta);
 
   const updateAgentConfig = async (config: any) => {
@@ -79,7 +82,9 @@ const Content = memo(() => {
     [t, isInbox],
   );
 
-  const displayTitle = isInbox ? 'Lobe AI' : meta.title || t('defaultSession', { ns: 'common' });
+  const displayTitle = isInbox
+    ? defaultAgentMeta.title || '青柚助手'
+    : meta.title || t('defaultSession', { ns: 'common' });
 
   return (
     <Flexbox
@@ -112,10 +117,14 @@ const Content = memo(() => {
           }}
         >
           <Avatar
-            avatar={isInbox ? DEFAULT_INBOX_AVATAR : meta.avatar || DEFAULT_AVATAR}
             background={meta.backgroundColor || undefined}
             shape={'square'}
             size={28}
+            avatar={
+              isInbox
+                ? defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR
+                : meta.avatar || DEFAULT_AVATAR
+            }
           />
           <Text ellipsis weight={500}>
             {displayTitle}

@@ -9,7 +9,10 @@ import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useUserStore } from '@/store/user';
-import { userGeneralSettingsSelectors } from '@/store/user/slices/settings/selectors';
+import {
+  settingsSelectors,
+  userGeneralSettingsSelectors,
+} from '@/store/user/slices/settings/selectors';
 
 const AgentInfo = memo(() => {
   const { t } = useTranslation(['chat', 'welcome']);
@@ -18,9 +21,10 @@ const AgentInfo = memo(() => {
   const meta = useAgentStore(agentSelectors.currentAgentMeta, isEqual);
   const openingMessage = useAgentStore(agentSelectors.openingMessage);
   const fontSize = useUserStore(userGeneralSettingsSelectors.fontSize);
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
 
   const displayTitle = isInbox
-    ? meta.title || 'Lobe AI'
+    ? meta.title || defaultAgentMeta.title || 'Lobe AI'
     : meta.title || t('defaultSession', { ns: 'common' });
 
   const message = useMemo(() => {
@@ -45,10 +49,14 @@ const AgentInfo = memo(() => {
   return (
     <Flexbox gap={12}>
       <Avatar
-        avatar={isInbox ? meta.avatar || DEFAULT_INBOX_AVATAR : meta.avatar || DEFAULT_AVATAR}
         background={meta.backgroundColor}
         shape={'square'}
         size={64}
+        avatar={
+          isInbox
+            ? meta.avatar || defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR
+            : meta.avatar || DEFAULT_AVATAR
+        }
       />
       <Text fontSize={24} weight={'bold'}>
         {displayTitle}

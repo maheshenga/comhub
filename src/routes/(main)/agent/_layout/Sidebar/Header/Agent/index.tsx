@@ -10,6 +10,8 @@ import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { SkeletonItem } from '@/features/NavPanel/components/SkeletonList';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 import SwitchPanel from './SwitchPanel';
 
@@ -23,9 +25,10 @@ const Agent = memo<PropsWithChildren>(() => {
     agentSelectors.currentAgentAvatar(s),
     agentSelectors.currentAgentBackgroundColor(s),
   ]);
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
 
   const displayTitle = isInbox
-    ? title || 'Lobe AI'
+    ? title || defaultAgentMeta.title || '青柚助手'
     : title || t('defaultSession', { ns: 'common' });
 
   if (isLoading) return <SkeletonItem height={32} padding={0} />;
@@ -45,10 +48,14 @@ const Agent = memo<PropsWithChildren>(() => {
         }}
       >
         <Avatar
-          avatar={isInbox ? avatar || DEFAULT_INBOX_AVATAR : avatar || DEFAULT_AVATAR}
           background={backgroundColor || undefined}
           shape={'square'}
           size={28}
+          avatar={
+            isInbox
+              ? avatar || defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR
+              : avatar || DEFAULT_AVATAR
+          }
         />
         <Text ellipsis weight={500}>
           {displayTitle}

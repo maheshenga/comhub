@@ -17,6 +17,8 @@ import useBusinessMeCells from '@/business/client/features/User/useBusinessMeCel
 import { type CellProps } from '@/components/Cell';
 import { DOCUMENTS, FEEDBACK } from '@/const/index';
 import { usePlatform } from '@/hooks/usePlatform';
+import { useClientDataSWR } from '@/libs/swr';
+import { adminCommercialService } from '@/services/adminCommercial';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
@@ -29,11 +31,20 @@ export const useCategory = (onOpenChangelogModal: () => void) => {
   const { isIOS, isAndroid } = usePlatform();
   const businessMeCells = useBusinessMeCells();
 
+  const { data: desktopUpdateConfig } = useClientDataSWR(
+    'public-desktop-update',
+    () => adminCommercialService.getPublicDesktopUpdate(),
+    { revalidateOnFocus: false },
+  );
+
   const downloadUrl = useMemo(() => {
     if (isIOS) return DOWNLOAD_URL.ios;
     if (isAndroid) return DOWNLOAD_URL.android;
     return DOWNLOAD_URL.default;
   }, [isIOS, isAndroid]);
+
+  const resolvedDownloadUrl = desktopUpdateConfig?.downloadUrl || downloadUrl;
+  const resolvedDownloadLabel = desktopUpdateConfig?.downloadLabel;
 
   const profile: CellProps[] = [
     {
@@ -60,8 +71,8 @@ export const useCategory = (onOpenChangelogModal: () => void) => {
     {
       icon: Download,
       key: 'get-desktop-app',
-      label: t('getDesktopApp'),
-      onClick: () => window.open(downloadUrl, '__blank'),
+      label: resolvedDownloadLabel || t('getDesktopApp'),
+      onClick: () => window.open(resolvedDownloadUrl, '_blank'),
     },
     {
       type: 'divider',
@@ -73,19 +84,19 @@ export const useCategory = (onOpenChangelogModal: () => void) => {
       icon: Cloudy,
       key: 'cloud',
       label: t('userPanel.cloud', { name: LOBE_CHAT_CLOUD }),
-      onClick: () => window.open(`${OFFICIAL_URL}?utm_source=${UTM_SOURCE}`, '__blank'),
+      onClick: () => window.open(`${OFFICIAL_URL}?utm_source=${UTM_SOURCE}`, '_blank'),
     },
     {
       icon: Book,
       key: 'docs',
       label: t('document'),
-      onClick: () => window.open(DOCUMENTS, '__blank'),
+      onClick: () => window.open(DOCUMENTS, '_blank'),
     },
     {
       icon: Feather,
       key: 'feedback',
       label: t('feedback'),
-      onClick: () => window.open(FEEDBACK, '__blank'),
+      onClick: () => window.open(FEEDBACK, '_blank'),
     },
     {
       icon: FileClockIcon,

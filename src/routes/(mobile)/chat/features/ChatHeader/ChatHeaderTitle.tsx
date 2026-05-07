@@ -10,6 +10,8 @@ import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { topicSelectors } from '@/store/chat/selectors';
 import { useGlobalStore } from '@/store/global';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 const ChatHeaderTitle = memo(() => {
   const { t } = useTranslation(['chat', 'topic']);
@@ -20,8 +22,9 @@ const ChatHeaderTitle = memo(() => {
   ]);
   const isInbox = useAgentStore(builtinAgentSelectors.isInboxAgent);
   const title = useAgentStore(agentSelectors.currentAgentTitle);
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
 
-  const displayTitle = isInbox ? 'Lobe AI' : title;
+  const displayTitle = isInbox ? defaultAgentMeta.title || '青柚助手' : title;
 
   return (
     <ChatHeader.Title
