@@ -59,6 +59,14 @@ class AdminCommercialService {
     return lambdaClient.admin.subscriptions.forceChange.mutate(params);
   };
 
+  assignUserPlan = async (params: {
+    cycle: 'monthly' | 'yearly';
+    durationMonths: number;
+    plan: string;
+    reason: string;
+    userId: string;
+  }) => lambdaClient.admin.subscriptions.assignPlan.mutate(params);
+
   // Settings
   getAllSettings = async () => {
     return lambdaClient.admin.settings.getAll.query();
@@ -117,6 +125,7 @@ class AdminCommercialService {
     monthlyCredits: number;
     monthlyPrice: number;
     plan: Plans;
+    purchaseUrl?: string;
     sortOrder?: number;
     yearlyPrice: number;
   }) => lambdaClient.admin.plans.upsert.mutate(params);

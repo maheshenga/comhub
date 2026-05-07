@@ -1,9 +1,9 @@
 'use client';
 
-import { Button, Empty, Input, Modal, Select, Tag, message } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Empty, Input, message, Modal, Select, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Flexbox } from '@lobehub/ui';
 
 import InlineTable from '@/components/InlineTable';
 import { useClientDataSWR } from '@/libs/swr';
@@ -56,10 +56,10 @@ const AdminChangeRequestsPage = memo(() => {
     setSubmitting(id);
     try {
       await adminCommercialService.approveChangeRequest(id);
-      message.success(t('admin.changeRequests.approveSuccess', 'Approved'));
+      message.success(t('admin.changeRequests.approveSuccess', '已通过'));
       await mutate();
     } catch {
-      message.error(t('admin.changeRequests.approveFailed', 'Approve failed'));
+      message.error(t('admin.changeRequests.approveFailed', '通过失败'));
     } finally {
       setSubmitting(null);
     }
@@ -73,11 +73,11 @@ const AdminChangeRequestsPage = memo(() => {
         reason: rejectTarget.reason || undefined,
         requestId: rejectTarget.id,
       });
-      message.success(t('admin.changeRequests.rejectSuccess', 'Rejected'));
+      message.success(t('admin.changeRequests.rejectSuccess', '已拒绝'));
       setRejectTarget(null);
       await mutate();
     } catch {
-      message.error(t('admin.changeRequests.rejectFailed', 'Reject failed'));
+      message.error(t('admin.changeRequests.rejectFailed', '拒绝失败'));
     } finally {
       setSubmitting(null);
     }
@@ -91,12 +91,12 @@ const AdminChangeRequestsPage = memo(() => {
       const ok = res.results.filter((r) => r.ok).length;
       const fail = res.results.length - ok;
       message.success(
-        t('admin.changeRequests.bulkApproveDone', `Approved ${ok}, failed ${fail}`),
+        t('admin.changeRequests.bulkApproveDone', `已通过 ${ok} 个，失败 ${fail} 个`),
       );
       setSelectedIds([]);
       await mutate();
     } catch {
-      message.error(t('admin.changeRequests.bulkFailed', 'Bulk action failed'));
+      message.error(t('admin.changeRequests.bulkFailed', '批量操作失败'));
     } finally {
       setBulkRunning(false);
     }
@@ -112,13 +112,13 @@ const AdminChangeRequestsPage = memo(() => {
       });
       const ok = res.results.filter((r) => r.ok).length;
       const fail = res.results.length - ok;
-      message.success(t('admin.changeRequests.bulkRejectDone', `Rejected ${ok}, failed ${fail}`));
+      message.success(t('admin.changeRequests.bulkRejectDone', `已拒绝 ${ok} 个，失败 ${fail} 个`));
       setSelectedIds([]);
       setBulkReason('');
       setBulkRejectOpen(false);
       await mutate();
     } catch {
-      message.error(t('admin.changeRequests.bulkFailed', 'Bulk action failed'));
+      message.error(t('admin.changeRequests.bulkFailed', '批量操作失败'));
     } finally {
       setBulkRunning(false);
     }
@@ -129,127 +129,122 @@ const AdminChangeRequestsPage = memo(() => {
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (v: Date) => new Date(v).toLocaleString(),
-      title: t('admin.changeRequests.col.created', 'Created'),
+      title: t('admin.changeRequests.col.created', '创建时间'),
       width: 170,
     },
     {
       dataIndex: 'userId',
       key: 'userId',
       render: (v: string) => <code>{v?.slice(0, 8)}</code>,
-      title: t('admin.changeRequests.col.user', 'User'),
+      title: t('admin.changeRequests.col.user', '用户'),
     },
     {
       dataIndex: 'fromPlan',
       key: 'fromPlan',
       render: (v: string) => <Tag>{v}</Tag>,
-      title: t('admin.changeRequests.col.from', 'From'),
+      title: t('admin.changeRequests.col.from', '原套餐'),
     },
     {
       dataIndex: 'toPlan',
       key: 'toPlan',
       render: (v: string) => <Tag color="blue">{v}</Tag>,
-      title: t('admin.changeRequests.col.to', 'To'),
+      title: t('admin.changeRequests.col.to', '目标套餐'),
     },
     {
       dataIndex: 'cycle',
       key: 'cycle',
-      title: t('admin.changeRequests.col.cycle', 'Cycle'),
+      title: t('admin.changeRequests.col.cycle', '周期'),
     },
     {
       dataIndex: 'reason',
       key: 'reason',
       render: (v: string) => <Tag color={REASON_COLORS[v] ?? 'default'}>{v}</Tag>,
-      title: t('admin.changeRequests.col.reason', 'Reason'),
+      title: t('admin.changeRequests.col.reason', '原因'),
     },
     {
       dataIndex: 'status',
       key: 'status',
       render: (v: string) => <Tag color={STATUS_COLORS[v] ?? 'default'}>{v}</Tag>,
-      title: t('admin.changeRequests.col.status', 'Status'),
+      title: t('admin.changeRequests.col.status', '状态'),
     },
     {
       key: 'actions',
       render: (_: unknown, row: any) =>
         row.status === 'pending' ? (
-          <Flexbox gap={6} horizontal>
+          <Flexbox horizontal gap={6}>
             <Button
               loading={submitting === row.id}
-              onClick={() => handleApprove(row.id)}
               size="small"
               type="primary"
+              onClick={() => handleApprove(row.id)}
             >
-              {t('admin.changeRequests.approve', 'Approve')}
+              {t('admin.changeRequests.approve', '通过')}
             </Button>
             <Button
               danger
               loading={submitting === row.id}
-              onClick={() => setRejectTarget({ id: row.id, reason: '' })}
               size="small"
+              onClick={() => setRejectTarget({ id: row.id, reason: '' })}
             >
-              {t('admin.changeRequests.reject', 'Reject')}
+              {t('admin.changeRequests.reject', '拒绝')}
             </Button>
           </Flexbox>
         ) : (
           '—'
         ),
-      title: t('admin.changeRequests.col.actions', 'Actions'),
+      title: t('admin.changeRequests.col.actions', '操作'),
     },
   ];
 
   return (
     <Flexbox gap={16} padding={24}>
-      <Flexbox align="center" gap={12} horizontal>
+      <Flexbox horizontal align="center" gap={12}>
         <Select<StatusFilter>
+          style={{ width: 160 }}
+          value={status}
+          options={[
+            { label: t('admin.changeRequests.status.all', '全部'), value: 'all' },
+            { label: t('admin.changeRequests.status.pending', '待处理'), value: 'pending' },
+            { label: t('admin.changeRequests.status.completed', '已完成'), value: 'completed' },
+            { label: t('admin.changeRequests.status.canceled', '已取消'), value: 'canceled' },
+            { label: t('admin.changeRequests.status.rejected', '已拒绝'), value: 'rejected' },
+          ]}
           onChange={(v) => {
             setStatus(v);
             setCursor(0);
           }}
-          options={[
-            { label: t('admin.changeRequests.status.all', 'All'), value: 'all' },
-            { label: t('admin.changeRequests.status.pending', 'Pending'), value: 'pending' },
-            { label: t('admin.changeRequests.status.completed', 'Completed'), value: 'completed' },
-            { label: t('admin.changeRequests.status.canceled', 'Canceled'), value: 'canceled' },
-            { label: t('admin.changeRequests.status.rejected', 'Rejected'), value: 'rejected' },
-          ]}
-          style={{ width: 160 }}
-          value={status}
         />
         <Input
           allowClear
+          placeholder={t('admin.changeRequests.filter.user', '用户 ID')}
+          style={{ width: 240 }}
+          value={userIdFilter}
           onChange={(e) => {
             setUserIdFilter(e.target.value);
             setCursor(0);
           }}
-          placeholder={t('admin.changeRequests.filter.user', 'User ID')}
-          style={{ width: 240 }}
-          value={userIdFilter}
         />
       </Flexbox>
 
       {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.changeRequests.empty', 'No change requests')} />
+        <Empty description={t('admin.changeRequests.empty', '暂无变更请求')} />
       ) : (
         <>
           {selectedIds.length > 0 && (
-            <Flexbox gap={8} horizontal>
-              <Button
-                loading={bulkRunning}
-                onClick={handleBulkApprove}
-                size="small"
-                type="primary"
-              >
-                {t('admin.changeRequests.bulkApprove', `Approve (${selectedIds.length})`)}
+            <Flexbox horizontal gap={8}>
+              <Button loading={bulkRunning} size="small" type="primary" onClick={handleBulkApprove}>
+                {t('admin.changeRequests.bulkApprove', `批量通过（${selectedIds.length}）`)}
               </Button>
               <Button
                 danger
                 loading={bulkRunning}
-                onClick={() => setBulkRejectOpen(true)}
                 size="small"
+                onClick={() => setBulkRejectOpen(true)}
               >
-                {t('admin.changeRequests.bulkReject', `Reject (${selectedIds.length})`)}
+                {t('admin.changeRequests.bulkReject', `批量拒绝（${selectedIds.length}）`)}
               </Button>
-              <Button onClick={() => setSelectedIds([])} size="small">
-                {t('admin.changeRequests.clearSel', 'Clear')}
+              <Button size="small" onClick={() => setSelectedIds([])}>
+                {t('admin.changeRequests.clearSel', '清空选择')}
               </Button>
             </Flexbox>
           )}
@@ -270,47 +265,47 @@ const AdminChangeRequestsPage = memo(() => {
       {data?.nextCursor != null && (
         <Flexbox align="center">
           <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-            {t('admin.changeRequests.loadMore', 'Load More')}
+            {t('admin.changeRequests.loadMore', '加载更多')}
           </Button>
         </Flexbox>
       )}
 
       <Modal
         confirmLoading={!!submitting}
+        open={!!rejectTarget}
+        title={t('admin.changeRequests.rejectTitle', '拒绝变更请求')}
         onCancel={() => setRejectTarget(null)}
         onOk={handleRejectConfirm}
-        open={!!rejectTarget}
-        title={t('admin.changeRequests.rejectTitle', 'Reject Change Request')}
       >
         <Flexbox gap={8}>
-          <div>{t('admin.changeRequests.rejectReason', 'Reason (optional)')}</div>
+          <div>{t('admin.changeRequests.rejectReason', '原因（可选）')}</div>
           <Input.TextArea
+            placeholder={t('admin.changeRequests.rejectPlaceholder', '请输入拒绝原因')}
+            rows={3}
+            value={rejectTarget?.reason ?? ''}
             onChange={(e) =>
               setRejectTarget((prev) => (prev ? { ...prev, reason: e.target.value } : prev))
             }
-            placeholder={t('admin.changeRequests.rejectPlaceholder', 'Why is this rejected?')}
-            rows={3}
-            value={rejectTarget?.reason ?? ''}
           />
         </Flexbox>
       </Modal>
 
       <Modal
         confirmLoading={bulkRunning}
+        open={bulkRejectOpen}
+        title={t('admin.changeRequests.bulkRejectTitle', '批量拒绝')}
         onCancel={() => setBulkRejectOpen(false)}
         onOk={handleBulkReject}
-        open={bulkRejectOpen}
-        title={t('admin.changeRequests.bulkRejectTitle', 'Bulk Reject')}
       >
         <Flexbox gap={8}>
           <div>
-            {t('admin.changeRequests.bulkRejectCount', `Reject ${selectedIds.length} requests`)}
+            {t('admin.changeRequests.bulkRejectCount', `将拒绝 ${selectedIds.length} 个请求`)}
           </div>
           <Input.TextArea
-            onChange={(e) => setBulkReason(e.target.value)}
-            placeholder={t('admin.changeRequests.rejectPlaceholder', 'Why is this rejected?')}
+            placeholder={t('admin.changeRequests.rejectPlaceholder', '请输入拒绝原因')}
             rows={3}
             value={bulkReason}
+            onChange={(e) => setBulkReason(e.target.value)}
           />
         </Flexbox>
       </Modal>

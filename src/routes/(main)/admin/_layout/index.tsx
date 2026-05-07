@@ -8,14 +8,17 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 const AdminLayout = () => {
-  const user = useUserStore(userProfileSelectors.userProfile);
+  const [user, isUserStateInit] = useUserStore((s) => [
+    userProfileSelectors.userProfile(s),
+    s.isUserStateInit,
+  ]);
   const role = (user as any)?.role as string | undefined;
 
-  if (!user) return null;
+  if (!user || !isUserStateInit) return null;
   if (role !== 'admin') return <Navigate replace to="/" />;
 
   return (
-    <Flexbox flex={1} horizontal style={{ height: '100%' }}>
+    <Flexbox horizontal flex={1} style={{ height: '100%' }}>
       <AdminSidebar />
       <Flexbox flex={1} style={{ overflow: 'auto' }}>
         <Outlet />

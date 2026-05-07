@@ -9,6 +9,7 @@ import { DiscordIcon, GithubIcon } from '@lobehub/ui/icons';
 import {
   Book,
   CircleHelp,
+  ExternalLink,
   Feather,
   FileClockIcon,
   FlaskConical,
@@ -30,6 +31,8 @@ import { useBillboardMenuItems } from '@/features/Billboard/MenuItems';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
 import { useFeedbackModal } from '@/hooks/useFeedbackModal';
 import { useNavLayout } from '@/hooks/useNavLayout';
+import { useClientDataSWR } from '@/libs/swr';
+import { adminCommercialService } from '@/services/adminCommercial';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors/systemStatus';
 import { useServerConfigStore } from '@/store/serverConfig';
@@ -256,8 +259,30 @@ const Footer = memo(() => {
     t,
   ]);
 
-  const helpMenuItems: MenuProps['items'] = useMemo(
-    () => [
+  const { data: serverHelpMenuItems } = useClientDataSWR(
+    'public-help-menu',
+    () => adminCommercialService.getPublicHelpMenu(),
+    { revalidateOnFocus: false },
+  );
+
+  const helpMenuItems: MenuProps['items'] = useMemo(() => {
+    const configuredItems = (serverHelpMenuItems ?? []) as Array<{ label: string; url?: string }>;
+
+    if (configuredItems.length > 0) {
+      return configuredItems.map((item, i) => ({
+        icon: <Icon icon={ExternalLink} />,
+        key: `help-custom-${i}`,
+        label: item.url ? (
+          <a href={item.url} rel="noopener noreferrer" target="_blank">
+            {item.label}
+          </a>
+        ) : (
+          <span>{item.label}</span>
+        ),
+      }));
+    }
+
+    return [
       ...(footer.showSettingsEntry && !isDevMode
         ? [
             {
@@ -338,20 +363,20 @@ const Footer = memo(() => {
       ...(billboardMenuItems && billboardMenuItems.length > 0
         ? [{ type: 'divider' as const }, ...billboardMenuItems]
         : []),
-    ],
-    [
-      footer.showSettingsEntry,
-      footer.layout,
-      footer.hideGitHub,
-      footer.showEvalEntry,
-      handleOpenFeedbackModal,
-      handleOpenProductHuntCard,
-      isDevMode,
-      shouldShowProductHuntMenuEntry,
-      t,
-      billboardMenuItems,
-    ],
-  );
+    ];
+  }, [
+    serverHelpMenuItems,
+    footer.showSettingsEntry,
+    footer.layout,
+    footer.hideGitHub,
+    footer.showEvalEntry,
+    handleOpenFeedbackModal,
+    handleOpenProductHuntCard,
+    isDevMode,
+    shouldShowProductHuntMenuEntry,
+    t,
+    billboardMenuItems,
+  ]);
 
   return (
     <>

@@ -17,11 +17,12 @@ export const POST = checkAuth(async (req: Request, { params, userId, serverDB })
 
   try {
     // ============  1. init chat model   ============ //
-    const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider);
-
-    // ============  2. create chat completion   ============ //
-
     const data = (await req.json()) as ChatStreamPayload;
+
+    const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
+      model: data.model,
+      modelType: 'chat',
+    });
 
     const tracePayload = getTracePayload(req);
 

@@ -1,9 +1,9 @@
 'use client';
 
-import { Alert, Button, Descriptions, Input, Tag, message } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Alert, Button, Descriptions, Input, message, Tag } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Flexbox } from '@lobehub/ui';
 
 import { redemptionService } from '@/services/redemption';
 
@@ -17,6 +17,19 @@ interface PreviewState {
   status: string | null;
   topupPackageId: string | null;
 }
+
+const rewardTypeLabel: Record<string, string> = {
+  credits: '积分',
+  plan: '套餐',
+  topup_package: '充值包',
+};
+
+const statusLabel: Record<string, string> = {
+  active: '可兑换',
+  disabled: '已停用',
+  expired: '已过期',
+  redeemed: '已兑换',
+};
 
 const RedemptionPanel = memo<{ onSuccess?: () => void }>(({ onSuccess }) => {
   const { t } = useTranslation('subscription');
@@ -45,7 +58,7 @@ const RedemptionPanel = memo<{ onSuccess?: () => void }>(({ onSuccess }) => {
         });
       }
     } catch {
-      message.error(t('billing.redeem.previewFailed', 'Preview failed'));
+      message.error(t('billing.redeem.previewFailed', '查询兑换码失败'));
     } finally {
       setLoading(false);
     }
@@ -57,23 +70,21 @@ const RedemptionPanel = memo<{ onSuccess?: () => void }>(({ onSuccess }) => {
     setLoading(true);
     try {
       const r = await redemptionService.redeem(trimmed);
-      message.success(
-        t('billing.redeem.success', `Redeemed: ${r.reward}`),
-      );
+      message.success(t('billing.redeem.success', `兑换成功：${r.reward}`));
       setCode('');
       setPreview(null);
       onSuccess?.();
     } catch (err: any) {
       const msg = err?.message ?? '';
       const errorMap: Record<string, string> = {
-        CODE_ALREADY_REDEEMED: t('billing.redeem.alreadyRedeemed', 'Already redeemed'),
-        CODE_DISABLED: t('billing.redeem.disabled', 'Code disabled'),
-        CODE_EXPIRED: t('billing.redeem.expired', 'Code expired'),
-        CODE_NOT_FOUND: t('billing.redeem.notFound', 'Code not found'),
-        CODE_RACE: t('billing.redeem.race', 'Code already taken'),
+        CODE_ALREADY_REDEEMED: t('billing.redeem.alreadyRedeemed', '兑换码已被使用'),
+        CODE_DISABLED: t('billing.redeem.disabled', '兑换码已停用'),
+        CODE_EXPIRED: t('billing.redeem.expired', '兑换码已过期'),
+        CODE_NOT_FOUND: t('billing.redeem.notFound', '兑换码不存在'),
+        CODE_RACE: t('billing.redeem.race', '兑换码已被使用'),
       };
       const matched = Object.keys(errorMap).find((k) => msg.includes(k));
-      message.error(matched ? errorMap[matched] : t('billing.redeem.failed', 'Redemption failed'));
+      message.error(matched ? errorMap[matched] : t('billing.redeem.failed', '兑换失败'));
     } finally {
       setLoading(false);
     }
@@ -83,59 +94,50 @@ const RedemptionPanel = memo<{ onSuccess?: () => void }>(({ onSuccess }) => {
 
   return (
     <Flexbox gap={12}>
-      <Flexbox align="center" gap={8} horizontal>
+      <Flexbox horizontal align="center" gap={8}>
         <Input
+          placeholder={t('billing.redeem.placeholder', '输入兑换码')}
+          style={{ maxWidth: 360 }}
+          value={code}
+          onPressEnter={handleCheck}
           onChange={(e) => {
             setCode(e.target.value);
             setPreview(null);
           }}
-          onPressEnter={handleCheck}
-          placeholder={t('billing.redeem.placeholder', 'Enter redemption code')}
-          style={{ maxWidth: 360 }}
-          value={code}
         />
         <Button loading={loading} onClick={handleCheck}>
-          {t('billing.redeem.check', 'Check')}
+          {t('billing.redeem.check', '查询')}
         </Button>
-        <Button
-          disabled={!canRedeem}
-          loading={loading}
-          onClick={handleRedeem}
-          type="primary"
-        >
-          {t('billing.redeem.redeem', 'Redeem')}
+        <Button disabled={!canRedeem} loading={loading} type="primary" onClick={handleRedeem}>
+          {t('billing.redeem.redeem', '兑换')}
         </Button>
       </Flexbox>
 
       {preview && !preview.found && (
-        <Alert
-          message={t('billing.redeem.notFound', 'Code not found')}
-          showIcon
-          type="error"
-        />
+        <Alert showIcon message={t('billing.redeem.notFound', '兑换码不存在')} type="error" />
       )}
       {preview?.found && (
         <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label={t('billing.redeem.type', 'Reward Type')}>
-            <Tag color="blue">{preview.rewardType}</Tag>
+          <Descriptions.Item label={t('billing.redeem.type', '奖励类型')}>
+            <Tag color="blue">{preview.rewardType ? rewardTypeLabel[preview.rewardType] : '-'}</Tag>
           </Descriptions.Item>
           {preview.rewardType === 'plan' && (
-            <Descriptions.Item label={t('billing.redeem.plan', 'Plan')}>
-              {preview.planKey} · {preview.planCycle}
-              {preview.planDurationMonths ? ` · ${preview.planDurationMonths}m` : ''}
+            <Descriptions.Item label={t('billing.redeem.plan', '套餐')}>
+              {preview.planKey} / {preview.planCycle}
+              {preview.planDurationMonths ? ` / ${preview.planDurationMonths} 个月` : ''}
             </Descriptions.Item>
           )}
           {preview.rewardType === 'credits' && (
-            <Descriptions.Item label={t('billing.redeem.credits', 'Credits')}>
+            <Descriptions.Item label={t('billing.redeem.credits', '积分')}>
               {preview.creditsAmount}
             </Descriptions.Item>
           )}
           {preview.rewardType === 'topup_package' && (
-            <Descriptions.Item label={t('billing.redeem.package', 'Package')}>
+            <Descriptions.Item label={t('billing.redeem.package', '充值包')}>
               {preview.topupPackageId}
             </Descriptions.Item>
           )}
-          <Descriptions.Item label={t('billing.redeem.status', 'Status')}>
+          <Descriptions.Item label={t('billing.redeem.status', '状态')}>
             <Tag
               color={
                 preview.status === 'active'
@@ -147,7 +149,7 @@ const RedemptionPanel = memo<{ onSuccess?: () => void }>(({ onSuccess }) => {
                       : 'default'
               }
             >
-              {preview.status}
+              {preview.status ? statusLabel[preview.status] || preview.status : '-'}
             </Tag>
           </Descriptions.Item>
         </Descriptions>

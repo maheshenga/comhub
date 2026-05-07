@@ -1,8 +1,9 @@
 'use client';
 
-import { FormGroup } from '@lobehub/ui';
+import { FormGroup, Icon } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
 import { Button, Empty, Input, message } from 'antd';
+import { Copy, Pencil } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -13,10 +14,9 @@ import { commercialService } from '@/services/commercial';
 import { type ReferralHistoryItem } from '@/types/business';
 
 import {
-  formatBusinessNumber,
   formatBusinessDate,
+  formatBusinessNumber,
   formatCredits,
-  SubscriptionPreviewNotice,
   subscriptionPageStyles,
   SummaryTile,
   toDisplayCredits,
@@ -24,15 +24,15 @@ import {
   useBusinessSubscriptionProfile,
 } from './shared';
 
-const REFERRAL_CODE_RE = /^[A-Za-z0-9_]{2,8}$/;
+const REFERRAL_CODE_RE = /^\d{7}$/;
 
 const extractReferralCodeInput = (value: string) => {
   const trimmed = value.trim();
-  const normalize = (input: string) => input.replace(/[^A-Za-z0-9_]/g, '').toUpperCase();
+  const normalize = (input: string) => input.replaceAll(/\D/g, '').slice(0, 7);
 
   try {
     const url = new URL(trimmed);
-    return normalize(url.searchParams.get('ref') || '');
+    return normalize(url.searchParams.get('ref') || url.searchParams.get('referral') || '');
   } catch {
     return normalize(trimmed);
   }
@@ -40,7 +40,6 @@ const extractReferralCodeInput = (value: string) => {
 
 const Referral = memo<{ mobile?: boolean }>(() => {
   const { t } = useTranslation('subscription');
-  const { t: tCommon } = useTranslation('common');
   const { referralCode, referralLink, referralStatus } = useBusinessSubscriptionProfile();
   const { data: referralOverview } = useClientDataSWR(['business-referral-overview'], () =>
     commercialService.getReferralOverview(),
@@ -66,6 +65,7 @@ const Referral = memo<{ mobile?: boolean }>(() => {
   const hasBoundReferral = Boolean(effectiveReferralStatus);
   const canActivateReward =
     effectiveReferralStatus === 'registered' || effectiveReferralStatus === 'pending_reward';
+  const rewardCredits = referralOverview?.rewardCreditsPerInvite ?? toRawCredits(100);
 
   useEffect(() => {
     if (referralOverview?.referralCode) {
@@ -77,68 +77,75 @@ const Referral = memo<{ mobile?: boolean }>(() => {
   const columns = useMemo<TableColumnType<ReferralHistoryItem>[]>(
     () => [
       {
+        dataIndex: 'createdAt',
+        key: 'createdAt',
+        render: (value) => formatBusinessDate(value),
+        title: '注册时间',
+      },
+      {
         dataIndex: 'inviteeEmail',
         key: 'inviteeEmail',
-        title: t('referral.table.columns.inviteeEmail'),
+        render: (value) => value || '--',
+        title: '被邀请人邮箱',
+      },
+      {
+        dataIndex: 'status',
+        key: 'status',
+        render: (value) => t(`referral.table.status.${value}` as any),
+        title: '状态',
       },
       {
         dataIndex: 'inviterRewardAmount',
         key: 'inviterRewardAmount',
         render: (value) => formatCredits(value),
-        title: t('referral.table.columns.inviterRewardAmount'),
-      },
-      {
-        dataIndex: 'status',
-        key: 'status',
-        render: (value) => t(`referral.table.status.${value}`),
-        title: t('referral.table.columns.status'),
-      },
-      {
-        dataIndex: 'createdAt',
-        key: 'createdAt',
-        render: (value) => formatBusinessDate(value),
-        title: t('referral.table.columns.createdAt'),
+        title: '我的奖励',
       },
       {
         dataIndex: 'rewardedAt',
         key: 'rewardedAt',
         render: (value) => formatBusinessDate(value),
-        title: t('referral.table.columns.rewardedAt'),
+        title: '奖励时间',
       },
     ],
     [t],
   );
 
-  const copyText = async (
-    value: string,
-    successKey: 'referral.copy.codeSuccess' | 'referral.copy.linkSuccess',
-  ) => {
+  const copyText = async (value: string, label: string) => {
     await navigator.clipboard.writeText(value);
-    message.success(t(successKey));
+    message.success(`${label}已复制`);
   };
 
   const resolveReferralError = (error: unknown) => {
     const code = error instanceof Error ? error.message : '';
 
     switch (code) {
-      case 'INVALID_REFERRAL_CODE_FORMAT':
-        return t('referral.errors.invalidFormat');
-      case 'REFERRAL_CODE_TAKEN':
-        return t('referral.errors.codeExists');
-      case 'REFERRAL_CODE_NOT_FOUND':
-        return t('referral.errors.invalidCode');
-      case 'REFERRAL_ALREADY_BOUND':
-        return t('referral.rules.backfill.alreadyBound');
-      case 'REFERRAL_BACKFILL_EXPIRED':
-        return t('referral.errors.backfillExpired');
-      case 'SELF_REFERRAL':
-        return t('referral.errors.selfReferral');
-      case 'REFERRAL_REWARD_NOT_FOUND':
-        return t('referral.errors.rewardNotFound');
-      case 'REFERRAL_REWARD_NOT_ACTIVATABLE':
-        return t('referral.errors.rewardNotActivatable');
-      default:
-        return t('referral.errors.updateFailed');
+      case 'INVALID_REFERRAL_CODE_FORMAT': {
+        return '推荐码必须为 7 位数字';
+      }
+      case 'REFERRAL_CODE_TAKEN': {
+        return '推荐码已被占用';
+      }
+      case 'REFERRAL_CODE_NOT_FOUND': {
+        return '推荐码不存在';
+      }
+      case 'REFERRAL_ALREADY_BOUND': {
+        return '你已经绑定过邀请码';
+      }
+      case 'REFERRAL_BACKFILL_EXPIRED': {
+        return '补填邀请码已过期';
+      }
+      case 'SELF_REFERRAL': {
+        return '不能绑定自己的推荐码';
+      }
+      case 'REFERRAL_REWARD_NOT_FOUND': {
+        return '没有可领取的推荐奖励';
+      }
+      case 'REFERRAL_REWARD_NOT_ACTIVATABLE': {
+        return '推荐奖励暂不可领取';
+      }
+      default: {
+        return '操作失败，请稍后重试';
+      }
     }
   };
 
@@ -151,21 +158,21 @@ const Referral = memo<{ mobile?: boolean }>(() => {
 
   const handleSaveCode = async () => {
     if (!REFERRAL_CODE_RE.test(draftCode)) {
-      message.error(t('referral.errors.invalidFormat'));
+      message.error('推荐码必须为 7 位数字');
       return;
     }
 
     setIsSavingCode(true);
     try {
       const nextOverview = await commercialService.updateReferralCode({
-        code: draftCode.toUpperCase(),
+        code: draftCode,
       });
 
       setEditableCode(nextOverview.referralCode);
       setDraftCode(nextOverview.referralCode);
       setIsEditing(false);
       await refreshReferralData();
-      message.success(t('referral.edit.saveSuccess'));
+      message.success('推荐码已保存');
     } catch (error) {
       message.error(resolveReferralError(error));
     } finally {
@@ -177,17 +184,17 @@ const Referral = memo<{ mobile?: boolean }>(() => {
     const normalized = extractReferralCodeInput(backfillCode);
 
     if (hasBoundReferral) {
-      message.error(t('referral.rules.backfill.alreadyBound'));
+      message.error('你已经绑定过邀请码');
       return;
     }
 
     if (!REFERRAL_CODE_RE.test(normalized)) {
-      message.error(t('referral.errors.invalidFormat'));
+      message.error('推荐码必须为 7 位数字');
       return;
     }
 
-    if (normalized.toUpperCase() === effectiveReferralCode.toUpperCase()) {
-      message.error(t('referral.errors.selfReferral'));
+    if (normalized === effectiveReferralCode) {
+      message.error('不能绑定自己的推荐码');
       return;
     }
 
@@ -196,7 +203,7 @@ const Referral = memo<{ mobile?: boolean }>(() => {
       await commercialService.bindReferralCode({ code: normalized });
       setBackfillCode('');
       await refreshReferralData();
-      message.success(t('referral.rules.backfill.success'));
+      message.success('邀请码绑定成功');
     } catch (error) {
       message.error(resolveReferralError(error));
     } finally {
@@ -213,7 +220,7 @@ const Referral = memo<{ mobile?: boolean }>(() => {
         mutate(['business-commercial-overview']),
         mutate(['business-credit-ledger']),
       ]);
-      message.success(t('referral.activateRewardSuccess'));
+      message.success('推荐奖励已领取');
     } catch (error) {
       message.error(resolveReferralError(error));
     } finally {
@@ -223,146 +230,118 @@ const Referral = memo<{ mobile?: boolean }>(() => {
 
   return (
     <>
-      <SettingHeader title={t('tab.referral')} />
-      <FormGroup
-        collapsible={false}
-        gap={16}
-        title={t('referral.inviteCode.title')}
-        variant={'filled'}
-      >
-        <SubscriptionPreviewNotice />
-        <div className={subscriptionPageStyles.cardGrid}>
-          <SummaryTile
-            caption={t('referral.inviteCode.description')}
-            extra={
-              isEditing ? (
-                <Button
-                  loading={isSavingCode}
-                  size={'small'}
-                  type={'primary'}
-                  onClick={() => void handleSaveCode()}
-                >
-                  {t('referral.edit.save')}
-                </Button>
-              ) : (
-                <Button size={'small'} onClick={() => setIsEditing(true)}>
-                  {t('referral.edit.button')}
-                </Button>
-              )
-            }
-            title={t('referral.inviteCode.title')}
-            value={
-              isEditing ? (
-                <Input
-                  maxLength={8}
-                  value={draftCode}
-                  onChange={(e) => setDraftCode(e.target.value)}
-                />
-              ) : (
-                effectiveReferralCode
-              )
-            }
-          />
-          <SummaryTile
-            caption={t('referral.inviteLink.description')}
-            extra={
-              <Button
-                size={'small'}
-                onClick={() => void copyText(effectiveReferralLink, 'referral.copy.linkSuccess')}
-              >
-                {tCommon('copy')}
-              </Button>
-            }
-            title={t('referral.inviteLink.title')}
-            value={<Input readOnly value={effectiveReferralLink} />}
-          />
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Button onClick={() => void copyText(effectiveReferralCode, 'referral.copy.codeSuccess')}>
-            {tCommon('copy')}
-          </Button>
-          {isEditing && (
-            <Button
-              onClick={() => {
-                setDraftCode(editableCode);
-                setIsEditing(false);
-              }}
-            >
-              {t('referral.edit.cancel')}
-            </Button>
-          )}
-        </div>
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title={t('referral.stats.title')} variant={'filled'}>
-        <div className={subscriptionPageStyles.cardGrid}>
-          <SummaryTile
-            title={t('referral.stats.totalInvites')}
-            value={String(referralOverview?.totalInvites ?? 0)}
-          />
-          <SummaryTile
-            title={t('referral.stats.totalRewarded')}
-            value={String(referralOverview?.totalRewarded ?? 0)}
-          />
-          <SummaryTile
-            title={t('referral.stats.totalRewardedAmount')}
-            value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
-          />
-          <SummaryTile
-            title={t('referral.table.columns.status')}
-            value={
-              effectiveReferralStatus ? t(`referral.table.status.${effectiveReferralStatus}`) : '--'
-            }
-          />
-        </div>
-        {canActivateReward ? (
-          <div style={{ display: 'flex', gap: 12 }}>
+      <SettingHeader title="推荐奖励" />
+      <div className={subscriptionPageStyles.pageStack}>
+        <FormGroup collapsible={false} gap={16} title="推荐概览" variant="filled">
+          <div className={subscriptionPageStyles.cardGrid}>
+            <SummaryTile title="邀请总数" value={String(referralOverview?.totalInvites ?? 0)} />
+            <SummaryTile title="有效转化" value={String(referralOverview?.totalRewarded ?? 0)} />
+            <SummaryTile
+              title="累计奖励"
+              value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
+            />
+            <SummaryTile
+              title="可用余额"
+              value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
+            />
+          </div>
+          {canActivateReward ? (
             <Button
               loading={isActivatingReward}
-              type={'primary'}
+              type="primary"
               onClick={() => void handleActivateReward()}
             >
-              {t('referral.activateReward')}
+              领取推荐奖励
+            </Button>
+          ) : null}
+        </FormGroup>
+        <FormGroup collapsible={false} gap={16} title="我的推荐码" variant="filled">
+          {isEditing ? (
+            <Input
+              maxLength={7}
+              value={draftCode}
+              onChange={(e) => setDraftCode(e.target.value.replaceAll(/\D/g, '').slice(0, 7))}
+            />
+          ) : (
+            <div className={subscriptionPageStyles.monoBlock}>{effectiveReferralCode}</div>
+          )}
+          <div className={subscriptionPageStyles.actionRow}>
+            <Button
+              icon={<Icon icon={Copy} />}
+              onClick={() => void copyText(effectiveReferralCode, '推荐码')}
+            >
+              复制
+            </Button>
+            {isEditing ? (
+              <>
+                <Button loading={isSavingCode} type="primary" onClick={() => void handleSaveCode()}>
+                  保存
+                </Button>
+                <Button
+                  onClick={() => {
+                    setDraftCode(editableCode);
+                    setIsEditing(false);
+                  }}
+                >
+                  取消
+                </Button>
+              </>
+            ) : (
+              <Button icon={<Icon icon={Pencil} />} onClick={() => setIsEditing(true)}>
+                编辑
+              </Button>
+            )}
+          </div>
+        </FormGroup>
+        <FormGroup collapsible={false} gap={16} title="推荐链接" variant="filled">
+          <div className={subscriptionPageStyles.monoBlock}>{effectiveReferralLink}</div>
+          <Button
+            icon={<Icon icon={Copy} />}
+            onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
+          >
+            复制链接
+          </Button>
+        </FormGroup>
+        <FormGroup collapsible={false} gap={16} title="推荐记录" variant="filled">
+          <InlineTable
+            columns={columns as any}
+            dataSource={referralHistory}
+            loading={isLoading}
+            locale={{ emptyText: <Empty description="暂无数据" /> }}
+            rowKey={(record) => record.id}
+          />
+        </FormGroup>
+        <FormGroup collapsible={false} gap={16} title="计划规则" variant="filled">
+          <ol className={subscriptionPageStyles.featureList}>
+            <li>注册方式：被邀请用户通过推荐链接注册，或在注册页输入推荐码。</li>
+            <li>推荐码规则：系统默认生成随机 7 位数字，也可以手动改为未被占用的 7 位数字。</li>
+            <li>有效邀请：被邀请人使用你的推荐码注册并完成一次有效操作。</li>
+            <li>有效操作标准：在对话页发送一条消息，或在图片页生成一张图片。</li>
+            <li>
+              奖励：邀请人和被邀请人各获得 {formatBusinessNumber(toDisplayCredits(rewardCredits))}M
+              积分。
+            </li>
+            <li>奖励处理：积分将在审核通过后发放，审核最多需要 6 小时。</li>
+            <li>
+              积分使用优先级：订阅积分 {'>'} 推荐积分 {'>'} 充值积分 {'>'} 其他积分。
+            </li>
+            <li>积分有效期：用户 100 天未活跃后，推荐积分将被清除。</li>
+            <li>忘记填写邀请码：注册三天内可以补填邀请码。</li>
+            <li>如检测到通过不正当手段获取积分，相关账号将被永久封禁。</li>
+          </ol>
+          <div className={subscriptionPageStyles.actionRow}>
+            <Input
+              placeholder="输入 7 位推荐码或推荐链接"
+              style={{ maxWidth: 360 }}
+              value={backfillCode}
+              onChange={(e) => setBackfillCode(e.target.value)}
+            />
+            <Button loading={isBindingCode} type="primary" onClick={() => void handleBindCode()}>
+              确认绑定
             </Button>
           </div>
-        ) : null}
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title={t('referral.rules.title')} variant={'filled'}>
-        <ul className={subscriptionPageStyles.featureList}>
-          <li>{t('referral.rules.registration')}</li>
-          <li>{t('referral.rules.validInvitation')}</li>
-          <li>{t('referral.rules.validOperation')}</li>
-          <li>
-            {t('referral.rules.reward', {
-              reward: formatBusinessNumber(
-                toDisplayCredits(referralOverview?.rewardCreditsPerInvite ?? toRawCredits(100)),
-              ),
-            })}
-          </li>
-          <li>{t('referral.rules.rewardDelay')}</li>
-          <li>{t('referral.rules.priority')}</li>
-          <li>{t('referral.rules.expiry')}</li>
-          <li>{t('referral.rules.antiAbuse')}</li>
-        </ul>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Input
-            placeholder={t('referral.rules.backfill.placeholder')}
-            value={backfillCode}
-            onChange={(e) => setBackfillCode(e.target.value)}
-          />
-          <Button loading={isBindingCode} type={'primary'} onClick={() => void handleBindCode()}>
-            {t('referral.rules.backfill.submit')}
-          </Button>
-        </div>
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title={t('referral.table.title')} variant={'filled'}>
-        <InlineTable
-          columns={columns}
-          dataSource={referralHistory}
-          locale={{ emptyText: <Empty description={t('billing.empty')} /> }}
-          loading={isLoading}
-          rowKey={(record) => record.id}
-        />
-      </FormGroup>
+        </FormGroup>
+      </div>
     </>
   );
 });

@@ -192,7 +192,7 @@ export interface TopUpOrderHistoryItem {
   paidAt?: Date | null;
   provider?: string | null;
   redemptionCodeId?: string | null;
-  source?: TopUpOrderSourceType;
+  source?: TopUpOrderSourceType | null;
   status: TopUpOrderStatusType;
 }
 

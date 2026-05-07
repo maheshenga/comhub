@@ -4,11 +4,10 @@ import { ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
-import { type MenuProps } from '@/components/Menu';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-export default function useBusinessMenuItems(isSignin: boolean | undefined): MenuProps['items'] {
+export default function useBusinessMenuItems(isSignin: boolean | undefined): ItemType[] {
   const { t } = useTranslation('subscription');
   const user = useUserStore(userProfileSelectors.userProfile);
   const role = (user as any)?.role as string | undefined;

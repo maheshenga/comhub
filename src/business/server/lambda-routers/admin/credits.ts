@@ -35,6 +35,18 @@ export const adminCreditsRouter = router({
             })
             .where(eq(creditAccounts.userId, userId));
         } else {
+          // Pre-check: ensure sufficient balance for negative adjustment
+          const [current] = await tx
+            .select({ balance: creditAccounts.balance })
+            .from(creditAccounts)
+            .where(eq(creditAccounts.userId, userId));
+
+          if (current && Number(current.balance) + amount < 0) {
+            throw new Error(
+              `Insufficient balance: current ${current.balance}, adjustment ${amount}`,
+            );
+          }
+
           await tx
             .update(creditAccounts)
             .set({
@@ -116,9 +128,7 @@ export const adminCreditsRouter = router({
         limit: z.number().int().min(1).max(200).default(50),
         negativeOnly: z.boolean().optional(),
         order: z.enum(['asc', 'desc']).default('desc'),
-        sort: z
-          .enum(['balance', 'totalCredited', 'totalDebited', 'updatedAt'])
-          .default('balance'),
+        sort: z.enum(['balance', 'totalCredited', 'totalDebited', 'updatedAt']).default('balance'),
       }),
     )
     .query(async ({ ctx, input }) => {

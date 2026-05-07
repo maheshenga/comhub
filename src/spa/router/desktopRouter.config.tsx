@@ -3,8 +3,8 @@
 import { type RouteObject } from 'react-router-dom';
 
 import {
-  BusinessDesktopRoutesWithMainLayout,
   BusinessDesktopRoutesWithoutMainLayout,
+  BusinessDesktopRoutesWithSettingsLayout,
 } from '@/business/client/BusinessDesktopRoutes';
 import { dynamicElement, dynamicLayout, ErrorBoundary, redirectElement } from '@/utils/router';
 
@@ -347,12 +347,6 @@ export const desktopRoutes: RouteObject[] = [
         path: 'resource',
       },
 
-      // Legacy admin route redirects into Settings
-      {
-        element: redirectElement('/settings/admin'),
-        path: 'admin/settings',
-      },
-
       // Settings routes
       {
         children: [
@@ -382,6 +376,7 @@ export const desktopRoutes: RouteObject[] = [
             ),
             path: 'provider',
           },
+          ...BusinessDesktopRoutesWithSettingsLayout,
           // Other settings tabs
           {
             element: dynamicElement(
@@ -490,8 +485,6 @@ export const desktopRoutes: RouteObject[] = [
         errorElement: <ErrorBoundary />,
         path: 'image',
       },
-
-      ...BusinessDesktopRoutesWithMainLayout,
 
       // Eval routes
       {

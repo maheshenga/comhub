@@ -66,6 +66,10 @@ describe('POST handler', () => {
         expect.anything(),
         'test-user-id',
         'test-provider',
+        {
+          model: 'test-model',
+          modelType: 'chat',
+        },
       );
     });
 

@@ -4,6 +4,7 @@
 import { accountDeletionRouter } from '@/business/server/lambda-routers/accountDeletion';
 import { adminRouter } from '@/business/server/lambda-routers/admin';
 import { redemptionRouter } from '@/business/server/lambda-routers/admin/redemption';
+import { paymentRouter } from '@/business/server/lambda-routers/payment';
 import { referralRouter } from '@/business/server/lambda-routers/referral';
 import { spendRouter } from '@/business/server/lambda-routers/spend';
 import { subscriptionRouter } from '@/business/server/lambda-routers/subscription';
@@ -123,6 +124,7 @@ export const lambdaRouter = router({
   userMemories: userMemoriesRouter,
   userMemory: userMemoryRouter,
   video: videoRouter,
+  payment: paymentRouter,
   accountDeletion: accountDeletionRouter,
   admin: adminRouter,
   redemption: redemptionRouter,

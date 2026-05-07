@@ -1,9 +1,9 @@
 'use client';
 
-import { Button, Descriptions, Empty, Input, Modal, Tag, message } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Descriptions, Empty, Input, message, Modal, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Flexbox } from '@lobehub/ui';
 
 import InlineTable from '@/components/InlineTable';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
@@ -119,9 +119,9 @@ const AdminAuditPage = memo(() => {
         targetUserId: targetFilter || undefined,
       });
       downloadCsv(res.items as AuditRow[]);
-      message.success(t('admin.audit.exportSuccess', `Exported ${res.items.length} rows`));
+      message.success(t('admin.audit.exportSuccess', `已导出 ${res.items.length} 行`));
     } catch {
-      message.error(t('admin.audit.exportFailed', 'Export failed'));
+      message.error(t('admin.audit.exportFailed', '导出失败'));
     } finally {
       setExporting(false);
     }
@@ -132,52 +132,62 @@ const AdminAuditPage = memo(() => {
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (v: Date) => new Date(v).toLocaleString(),
-      title: t('admin.audit.col.time', 'Time'),
+      title: t('admin.audit.col.time', '时间'),
       width: 180,
     },
     {
       dataIndex: 'action',
       key: 'action',
       render: (v: string) => <Tag color={ACTION_COLORS[v] ?? 'default'}>{v}</Tag>,
-      title: t('admin.audit.col.action', 'Action'),
+      title: t('admin.audit.col.action', '操作'),
     },
     {
       dataIndex: 'actorUserId',
       key: 'actor',
       render: (v: string | null) =>
         v ? (
-          <a onClick={(e) => { e.stopPropagation(); setDrawerUser(v); }}>
+          <a
+            onClick={(e) => {
+              e.stopPropagation();
+              setDrawerUser(v);
+            }}
+          >
             <code>{v.slice(0, 8)}</code>
           </a>
         ) : (
           '—'
         ),
-      title: t('admin.audit.col.actor', 'Actor'),
+      title: t('admin.audit.col.actor', '操作者'),
     },
     {
       dataIndex: 'targetUserId',
       key: 'target',
       render: (v: string | null) =>
         v ? (
-          <a onClick={(e) => { e.stopPropagation(); setDrawerUser(v); }}>
+          <a
+            onClick={(e) => {
+              e.stopPropagation();
+              setDrawerUser(v);
+            }}
+          >
             <code>{v.slice(0, 8)}</code>
           </a>
         ) : (
           '—'
         ),
-      title: t('admin.audit.col.target', 'Target'),
+      title: t('admin.audit.col.target', '目标用户'),
     },
     {
       dataIndex: 'resourceType',
       key: 'resourceType',
       render: (v: string | null) => v ?? '—',
-      title: t('admin.audit.col.resourceType', 'Resource'),
+      title: t('admin.audit.col.resourceType', '资源'),
     },
     {
       dataIndex: 'resourceId',
       key: 'resourceId',
       render: (v: string | null) => (v ? <code>{v.slice(0, 16)}</code> : '—'),
-      title: t('admin.audit.col.resourceId', 'Resource ID'),
+      title: t('admin.audit.col.resourceId', '资源 ID'),
     },
     {
       dataIndex: 'ipAddress',
@@ -196,96 +206,96 @@ const AdminAuditPage = memo(() => {
         ) : (
           '—'
         ),
-      title: t('admin.audit.col.payload', 'Payload'),
+      title: t('admin.audit.col.payload', '载荷（Payload）'),
     },
   ];
 
   return (
     <Flexbox gap={16} padding={24}>
-      <Flexbox align="center" gap={12} horizontal>
+      <Flexbox horizontal align="center" gap={12}>
         <Input
           allowClear
+          placeholder={t('admin.audit.filter.actor', '操作者用户 ID')}
+          style={{ width: 240 }}
+          value={actorFilter}
           onChange={(e) => {
             setActorFilter(e.target.value);
             setCursor(0);
           }}
-          placeholder={t('admin.audit.filter.actor', 'Actor user ID')}
-          style={{ width: 240 }}
-          value={actorFilter}
         />
         <Input
           allowClear
+          placeholder={t('admin.audit.filter.target', '目标用户 ID')}
+          style={{ width: 240 }}
+          value={targetFilter}
           onChange={(e) => {
             setTargetFilter(e.target.value);
             setCursor(0);
           }}
-          placeholder={t('admin.audit.filter.target', 'Target user ID')}
-          style={{ width: 240 }}
-          value={targetFilter}
         />
         <Input
           allowClear
+          placeholder={t('admin.audit.filter.action', '操作（如 user.ban）')}
+          style={{ width: 240 }}
+          value={actionFilter}
           onChange={(e) => {
             setActionFilter(e.target.value);
             setCursor(0);
           }}
-          placeholder={t('admin.audit.filter.action', 'Action (e.g. user.ban)')}
-          style={{ width: 240 }}
-          value={actionFilter}
         />
         <Button loading={exporting} onClick={handleExport}>
-          {t('admin.audit.exportCsv', 'Export CSV')}
+          {t('admin.audit.exportCsv', '导出 CSV')}
         </Button>
       </Flexbox>
 
       {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.audit.empty', 'No audit logs')} />
+        <Empty description={t('admin.audit.empty', '暂无审计日志')} />
       ) : (
         <InlineTable
           columns={columns}
           dataSource={items}
           loading={isLoading}
+          rowKey="id"
           onRow={(record) => ({
             onClick: () => setDetail(record as AuditRow),
             style: { cursor: 'pointer' },
           })}
-          rowKey="id"
         />
       )}
 
       {data?.nextCursor != null && (
         <Flexbox align="center">
           <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-            {t('admin.audit.loadMore', 'Load More')}
+            {t('admin.audit.loadMore', '加载更多')}
           </Button>
         </Flexbox>
       )}
 
       <Modal
         footer={null}
-        onCancel={() => setDetail(null)}
         open={!!detail}
-        title={t('admin.audit.detail.title', 'Audit Log Detail')}
+        title={t('admin.audit.detail.title', '审计日志详情')}
         width={720}
+        onCancel={() => setDetail(null)}
       >
         {detail && (
           <Descriptions bordered column={1} size="small">
             <Descriptions.Item label="ID">
               <code>{detail.id}</code>
             </Descriptions.Item>
-            <Descriptions.Item label="Time">
+            <Descriptions.Item label="时间">
               {new Date(detail.createdAt).toLocaleString()}
             </Descriptions.Item>
-            <Descriptions.Item label="Action">
+            <Descriptions.Item label="操作">
               <Tag color={ACTION_COLORS[detail.action] ?? 'default'}>{detail.action}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Actor">{detail.actorUserId ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Target">{detail.targetUserId ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Resource">
+            <Descriptions.Item label="???">{detail.actorUserId ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="????">{detail.targetUserId ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="??">
               {detail.resourceType ?? '—'} {detail.resourceId ? `· ${detail.resourceId}` : ''}
             </Descriptions.Item>
             <Descriptions.Item label="IP">{detail.ipAddress ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Payload">
+            <Descriptions.Item label="载荷（Payload）">
               <pre
                 style={{
                   fontSize: 12,
@@ -302,7 +312,7 @@ const AdminAuditPage = memo(() => {
         )}
       </Modal>
 
-      <AdminUserDetailDrawer onClose={() => setDrawerUser(null)} userId={drawerUser} />
+      <AdminUserDetailDrawer userId={drawerUser} onClose={() => setDrawerUser(null)} />
     </Flexbox>
   );
 });

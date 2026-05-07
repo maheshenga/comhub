@@ -1,7 +1,8 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 
 import { CommercialModel } from '@/database/models/commercial';
-import { planCatalog } from '@/database/schemas';
+import { planCatalog, userPlanSnapshots } from '@/database/schemas';
+import { type PlanModelRules } from '@/database/schemas';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import {
@@ -11,6 +12,23 @@ import {
   type SubscriptionChangeRequestItem,
   type SubscriptionSummary,
 } from '@/types/business';
+
+import { resolvePlanModelRules } from '../planModelRules';
+
+const getPlanPurchaseUrl = (metadata: unknown) => {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
+  const raw = (metadata as Record<string, unknown>).purchaseUrl;
+  const purchaseUrl = typeof raw === 'string' ? raw.trim() : '';
+  if (!purchaseUrl) return null;
+
+  try {
+    const url = new URL(purchaseUrl);
+
+    return url.protocol === 'http:' || url.protocol === 'https:' ? purchaseUrl : null;
+  } catch {
+    return null;
+  }
+};
 
 const commercialProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
@@ -55,11 +73,27 @@ export const subscriptionRouter = router({
       currency: r.currency,
       displayName: r.displayName,
       features: (r.features ?? []) as string[],
+      modelRules: r.modelRules as PlanModelRules | null,
       monthlyCredits: Number(r.monthlyCredits),
       monthlyPrice: Number(r.monthlyPrice),
       plan: r.plan,
+      purchaseUrl: getPlanPurchaseUrl(r.metadata),
       sortOrder: Number(r.sortOrder),
       yearlyPrice: Number(r.yearlyPrice),
     }));
   }),
+
+  getCurrentPlanModelRules: authedProcedure
+    .use(serverDatabase)
+    .query(async ({ ctx }): Promise<{ modelRules: PlanModelRules | null; plan: string | null }> => {
+      const snapshot = await ctx.serverDB.query.userPlanSnapshots.findFirst({
+        orderBy: desc(userPlanSnapshots.createdAt),
+        where: eq(userPlanSnapshots.userId, ctx.userId),
+      });
+      const modelRules = await resolvePlanModelRules({ db: ctx.serverDB, userId: ctx.userId });
+      return {
+        modelRules,
+        plan: snapshot?.plan ?? null,
+      };
+    }),
 });

@@ -1,9 +1,12 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getBusinessModelRuntimeHooks } from './model-runtime';
+
 const mocks = vi.hoisted(() => ({
   assertCommercialChatBudget: vi.fn(),
   assertCommercialMinimumBudget: vi.fn(),
+  assertPlanModelAllowed: vi.fn(),
   getServerDB: vi.fn(),
   recordCommercialAiUsage: vi.fn(),
   recordCommercialChatUsage: vi.fn(),
@@ -20,7 +23,9 @@ vi.mock('./commercialBilling', () => ({
   recordCommercialChatUsage: mocks.recordCommercialChatUsage,
 }));
 
-import { getBusinessModelRuntimeHooks } from './model-runtime';
+vi.mock('./planModelRules', () => ({
+  assertPlanModelAllowed: mocks.assertPlanModelAllowed,
+}));
 
 describe('getBusinessModelRuntimeHooks', () => {
   beforeEach(() => {
@@ -43,6 +48,12 @@ describe('getBusinessModelRuntimeHooks', () => {
       provider: 'newapi',
       userId: 'user-1',
     });
+    expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'gpt-test',
+      modelType: 'chat',
+      userId: 'user-1',
+    });
   });
 
   it('should check commercial budget before structured output starts', async () => {
@@ -61,6 +72,12 @@ describe('getBusinessModelRuntimeHooks', () => {
       provider: 'newapi',
       userId: 'user-1',
     });
+    expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'gpt-test',
+      modelType: 'chat',
+      userId: 'user-1',
+    });
   });
 
   it('should check minimum commercial budget before embeddings start', async () => {
@@ -72,6 +89,12 @@ describe('getBusinessModelRuntimeHooks', () => {
       db: { id: 'db' },
       model: 'embedding-test',
       provider: 'newapi',
+      userId: 'user-1',
+    });
+    expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'embedding-test',
+      modelType: 'embedding',
       userId: 'user-1',
     });
   });

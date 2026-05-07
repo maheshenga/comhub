@@ -1,9 +1,9 @@
 'use client';
 
+import { Flexbox } from '@lobehub/ui';
 import { Card, Col, Row, Spin, Statistic } from 'antd';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Flexbox } from '@lobehub/ui';
 
 import { BarChart, Sparkline, StackedBarChart } from '@/features/Admin';
 import { useClientDataSWR } from '@/libs/swr';
@@ -35,9 +35,16 @@ const AdminStatsPage = memo(() => {
     adminCommercialService.getStatsRedemptionOverview(),
   );
 
-  const dauValues = useMemo(() => (dauTrend ?? []).map((d: { count: number }) => d.count), [dauTrend]);
+  const dauValues = useMemo(
+    () => (dauTrend ?? []).map((d: { count: number }) => d.count),
+    [dauTrend],
+  );
   const planBars = useMemo(
-    () => (byPlan ?? []).map((d: { count: number; plan: string }) => ({ label: d.plan, value: d.count })),
+    () =>
+      (byPlan ?? []).map((d: { count: number; plan: string }) => ({
+        label: d.plan,
+        value: d.count,
+      })),
     [byPlan],
   );
   const revenueStacked = useMemo(
@@ -57,23 +64,26 @@ const AdminStatsPage = memo(() => {
       <Row gutter={[16, 16]}>
         <Col span={8}>
           <Card>
-            <Statistic title={t('admin.stats.totalUsers')} value={overview?.totalUsers ?? 0} />
+            <Statistic
+              title={t('admin.stats.totalUsers', '总用户')}
+              value={overview?.totalUsers ?? 0}
+            />
           </Card>
         </Col>
         <Col span={8}>
           <Card>
-            <Statistic title={t('admin.stats.dau')} value={overview?.dau ?? 0} />
+            <Statistic title={t('admin.stats.dau', '日活用户')} value={overview?.dau ?? 0} />
           </Card>
         </Col>
         <Col span={8}>
           <Card>
-            <Statistic title={t('admin.stats.mau')} value={overview?.mau ?? 0} />
+            <Statistic title={t('admin.stats.mau', '月活用户')} value={overview?.mau ?? 0} />
           </Card>
         </Col>
         <Col span={8}>
           <Card>
             <Statistic
-              title={t('admin.stats.activeSubscriptions')}
+              title={t('admin.stats.activeSubscriptions', '有效订阅')}
               value={overview?.activeSubscriptions ?? 0}
             />
           </Card>
@@ -82,17 +92,17 @@ const AdminStatsPage = memo(() => {
           <Card>
             <Statistic
               prefix="$"
-              title={t('admin.stats.revenue')}
+              title={t('admin.stats.revenue', '近 30 天收入')}
               value={overview?.revenueLast30dUsd ?? 0}
             />
           </Card>
         </Col>
       </Row>
 
-      <Card title={t('admin.stats.dauTrend', 'Active Users (last 30 days)')}>
+      <Card title={t('admin.stats.dauTrend', '最近 30 天日活趋势')}>
         {dauTrend ? (
           dauValues.length === 0 ? (
-            <div style={{ color: '#888' }}>{t('admin.stats.noData', 'No data yet')}</div>
+            <div style={{ color: '#888' }}>{t('admin.stats.noData', '暂无数据')}</div>
           ) : (
             <Sparkline data={dauValues} height={120} width={720} />
           )
@@ -101,16 +111,16 @@ const AdminStatsPage = memo(() => {
         )}
       </Card>
 
-      <Card title={t('admin.stats.subsByPlan', 'Active Subscriptions by Plan')}>
+      <Card title={t('admin.stats.subsByPlan', '订阅按套餐分布')}>
         {byPlan ? (
           planBars.length === 0 ? (
-            <div style={{ color: '#888' }}>{t('admin.stats.noData', 'No data yet')}</div>
+            <div style={{ color: '#888' }}>{t('admin.stats.noData', '暂无数据')}</div>
           ) : (
             <Flexbox gap={16}>
               <BarChart data={planBars} height={200} width={720} />
-              <Flexbox gap={12} horizontal wrap="wrap">
+              <Flexbox horizontal gap={12} wrap="wrap">
                 {planBars.map((b: { label: string; value: number }) => (
-                  <Flexbox align="center" gap={6} horizontal key={b.label}>
+                  <Flexbox horizontal align="center" gap={6} key={b.label}>
                     <span
                       style={{
                         background: PLAN_COLORS[b.label] ?? '#888',
@@ -133,15 +143,15 @@ const AdminStatsPage = memo(() => {
         )}
       </Card>
 
-      <Card title={t('admin.stats.revenueByMonth', 'Revenue by Month (last 6 months)')}>
+      <Card title={t('admin.stats.revenueByMonth', '最近 6 个月收入')}>
         {revenue ? (
           revenueStacked.length === 0 ? (
-            <div style={{ color: '#888' }}>{t('admin.stats.noData', 'No data yet')}</div>
+            <div style={{ color: '#888' }}>{t('admin.stats.noData', '暂无数据')}</div>
           ) : (
             <Flexbox gap={16}>
               <StackedBarChart data={revenueStacked} height={240} width={720} />
-              <Flexbox gap={16} horizontal>
-                <Flexbox align="center" gap={6} horizontal>
+              <Flexbox horizontal gap={16}>
+                <Flexbox horizontal align="center" gap={6}>
                   <span
                     style={{
                       background: '#1677ff',
@@ -151,9 +161,9 @@ const AdminStatsPage = memo(() => {
                       width: 12,
                     }}
                   />
-                  <span>{t('admin.stats.subscription', 'Subscription')}</span>
+                  <span>{t('admin.stats.subscription', '订阅')}</span>
                 </Flexbox>
-                <Flexbox align="center" gap={6} horizontal>
+                <Flexbox horizontal align="center" gap={6}>
                   <span
                     style={{
                       background: '#faad14',
@@ -163,7 +173,7 @@ const AdminStatsPage = memo(() => {
                       width: 12,
                     }}
                   />
-                  <span>{t('admin.stats.topup', 'Top-up')}</span>
+                  <span>{t('admin.stats.topup', '充值')}</span>
                 </Flexbox>
               </Flexbox>
             </Flexbox>
@@ -173,48 +183,48 @@ const AdminStatsPage = memo(() => {
         )}
       </Card>
 
-      <Card title={t('admin.stats.redemption.title', 'Redemption Codes')}>
+      <Card title={t('admin.stats.redemption.title', '兑换码')}>
         {redemptionStats ? (
           <Row gutter={[16, 16]}>
             <Col span={4}>
               <Statistic
-                title={t('admin.stats.redemption.active', 'Active')}
+                title={t('admin.stats.redemption.active', '可用')}
                 value={redemptionStats.pending}
               />
             </Col>
             <Col span={4}>
               <Statistic
-                title={t('admin.stats.redemption.redeemed', 'Redeemed')}
+                title={t('admin.stats.redemption.redeemed', '已兑换')}
                 value={redemptionStats.redeemed}
               />
             </Col>
             <Col span={4}>
               <Statistic
-                title={t('admin.stats.redemption.disabled', 'Disabled')}
+                title={t('admin.stats.redemption.disabled', '已停用')}
                 value={redemptionStats.disabled}
               />
             </Col>
             <Col span={4}>
               <Statistic
-                title={t('admin.stats.redemption.expired', 'Expired')}
+                title={t('admin.stats.redemption.expired', '已过期')}
                 value={redemptionStats.expired}
               />
             </Col>
             <Col span={4}>
               <Statistic
-                title={t('admin.stats.redemption.last30dRedeemed', 'Redeemed (30d)')}
+                title={t('admin.stats.redemption.last30dRedeemed', '近 30 天兑换')}
                 value={redemptionStats.redeemed30d}
               />
             </Col>
             <Col span={4}>
               <Statistic
-                title={t('admin.stats.redemption.last30dCredits', 'Credits Granted (30d)')}
+                title={t('admin.stats.redemption.last30dCredits', '近 30 天发放积分')}
                 value={redemptionStats.creditsGranted30d}
               />
             </Col>
             {redemptionStats.byRewardType.length > 0 && (
               <Col span={24}>
-                <Flexbox gap={8} horizontal wrap="wrap">
+                <Flexbox horizontal gap={8} wrap="wrap">
                   {redemptionStats.byRewardType.map((r: { rewardType: string; total: number }) => (
                     <Card key={r.rewardType} size="small">
                       <Statistic title={r.rewardType} value={r.total} />

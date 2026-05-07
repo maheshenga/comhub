@@ -1,16 +1,16 @@
 'use client';
 
-import { Button, Empty, Input, Modal, Select, Tag, message } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Empty, Input, message, Modal, Select, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Flexbox } from '@lobehub/ui';
 
-import InlineTable from '@/components/InlineTable';
 import {
   formatBusinessDate,
   formatCredits,
   formatCurrencyAmount,
 } from '@/business/client/BusinessSettingPages/shared';
+import InlineTable from '@/components/InlineTable';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -79,17 +79,17 @@ const AdminSubscriptionsPage = memo(() => {
   const handleForceConfirm = async () => {
     const { userId, plan: newPlan, cycle, reason } = forceModal;
     if (!reason.trim()) {
-      message.warning(t('admin.subscriptions.reasonRequired', 'Reason is required'));
+      message.warning(t('admin.subscriptions.reasonRequired', '?????'));
       return;
     }
     setSubmitting(true);
     try {
       await adminCommercialService.forceChangePlan({ cycle, plan: newPlan, reason, userId });
-      message.success(t('admin.subscriptions.forceSuccess', 'Plan changed'));
+      message.success(t('admin.subscriptions.forceSuccess', '?????'));
       closeForceModal();
       await mutate();
     } catch {
-      message.error(t('admin.subscriptions.forceFailed', 'Action failed'));
+      message.error(t('admin.subscriptions.forceFailed', '????'));
     } finally {
       setSubmitting(false);
     }
@@ -101,58 +101,57 @@ const AdminSubscriptionsPage = memo(() => {
         dataIndex: 'userId',
         key: 'userId',
         render: (uid: string) => <code>{uid?.slice(0, 8)}</code>,
-        title: t('admin.subscriptions.columns.userId', 'User ID'),
+        title: t('admin.subscriptions.columns.userId', '?? ID'),
       },
       {
         dataIndex: 'plan',
         key: 'plan',
         render: (p: string) => <Tag color={PLAN_COLORS[p] ?? 'default'}>{p}</Tag>,
-        title: t('admin.subscriptions.columns.plan', 'Plan'),
+        title: t('admin.subscriptions.columns.plan', '??'),
       },
       {
         dataIndex: 'status',
         key: 'status',
         render: (s: string) => <Tag color={STATUS_COLORS[s] ?? 'default'}>{s}</Tag>,
-        title: t('admin.subscriptions.columns.status', 'Status'),
+        title: t('admin.subscriptions.columns.status', '??'),
       },
       {
         dataIndex: 'cycle',
         key: 'cycle',
-        title: t('admin.subscriptions.columns.cycle', 'Cycle'),
+        title: t('admin.subscriptions.columns.cycle', '??'),
       },
       {
         dataIndex: 'monthlyCredits',
         key: 'monthlyCredits',
         render: (v: number) => (v != null ? formatCredits(v) : '--'),
-        title: t('admin.subscriptions.columns.monthlyCredits', 'Monthly Credits'),
+        title: t('admin.subscriptions.columns.monthlyCredits', '????'),
       },
       {
         dataIndex: 'monthlyPrice',
         key: 'monthlyPrice',
-        render: (v: number, row: any) =>
-          v != null ? formatCurrencyAmount(v, row.currency) : '--',
-        title: t('admin.subscriptions.columns.monthlyPrice', 'Monthly Price'),
+        render: (v: number, row: any) => (v != null ? formatCurrencyAmount(v, row.currency) : '--'),
+        title: t('admin.subscriptions.columns.monthlyPrice', '????'),
       },
       {
         dataIndex: 'startedAt',
         key: 'startedAt',
         render: (v: string) => formatBusinessDate(v),
-        title: t('admin.subscriptions.columns.started', 'Started'),
+        title: t('admin.subscriptions.columns.started', '????'),
       },
       {
         dataIndex: 'renewsAt',
         key: 'renewsAt',
         render: (v: string) => formatBusinessDate(v),
-        title: t('admin.subscriptions.columns.renewsAt', 'Renews At'),
+        title: t('admin.subscriptions.columns.renewsAt', '????'),
       },
       {
         key: 'actions',
         render: (_: unknown, row: any) => (
           <Button size="small" type="primary" onClick={() => openForceModal(row.userId)}>
-            {t('admin.subscriptions.actions.forceChange', 'Force Change')}
+            {t('admin.subscriptions.actions.forceChange', '????')}
           </Button>
         ),
-        title: t('admin.subscriptions.columns.actions', 'Actions'),
+        title: t('admin.subscriptions.columns.actions', '??'),
       },
     ],
     [t],
@@ -162,22 +161,22 @@ const AdminSubscriptionsPage = memo(() => {
     <Flexbox gap={16} padding={24}>
       <Flexbox horizontal gap={12}>
         <Select<PlanFilter>
-          onChange={handlePlanFilterChange}
-          options={[
-            { label: t('admin.subscriptions.plan.all', 'All'), value: 'all' },
-            { label: t('admin.subscriptions.plan.free', 'Free'), value: 'free' },
-            { label: t('admin.subscriptions.plan.hobby', 'Hobby'), value: 'hobby' },
-            { label: t('admin.subscriptions.plan.starter', 'Starter'), value: 'starter' },
-            { label: t('admin.subscriptions.plan.premium', 'Premium'), value: 'premium' },
-            { label: t('admin.subscriptions.plan.ultimate', 'Ultimate'), value: 'ultimate' },
-          ]}
           style={{ width: 160 }}
           value={plan}
+          options={[
+            { label: t('admin.subscriptions.plan.all', '??'), value: 'all' },
+            { label: t('admin.subscriptions.plan.free', '????Free?'), value: 'free' },
+            { label: t('admin.subscriptions.plan.hobby', '????Hobby?'), value: 'hobby' },
+            { label: t('admin.subscriptions.plan.starter', '????Starter?'), value: 'starter' },
+            { label: t('admin.subscriptions.plan.premium', '????Premium?'), value: 'premium' },
+            { label: t('admin.subscriptions.plan.ultimate', '????Ultimate?'), value: 'ultimate' },
+          ]}
+          onChange={handlePlanFilterChange}
         />
       </Flexbox>
 
       {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.subscriptions.empty', 'No subscriptions found')} />
+        <Empty description={t('admin.subscriptions.empty', '??????')} />
       ) : (
         <InlineTable columns={columns} dataSource={items} loading={isLoading} rowKey="userId" />
       )}
@@ -185,53 +184,53 @@ const AdminSubscriptionsPage = memo(() => {
       {nextCursor != null && (
         <Flexbox align="center">
           <Button loading={isLoading} onClick={handleLoadMore}>
-            {t('admin.subscriptions.loadMore', 'Load More')}
+            {t('admin.subscriptions.loadMore', '????')}
           </Button>
         </Flexbox>
       )}
 
       <Modal
         confirmLoading={submitting}
+        open={forceModal.visible}
+        title={t('admin.subscriptions.modal.title', '??????')}
         onCancel={closeForceModal}
         onOk={handleForceConfirm}
-        open={forceModal.visible}
-        title={t('admin.subscriptions.modal.title', 'Force Change Plan')}
       >
         <Flexbox gap={12}>
           <Flexbox gap={4}>
-            <div>{t('admin.subscriptions.modal.planLabel', 'Plan')}</div>
+            <div>{t('admin.subscriptions.modal.planLabel', '??')}</div>
             <Select
-              onChange={(val) => setForceModal((prev) => ({ ...prev, plan: val }))}
-              options={[
-                { label: 'Free', value: 'free' },
-                { label: 'Hobby', value: 'hobby' },
-                { label: 'Starter', value: 'starter' },
-                { label: 'Premium', value: 'premium' },
-                { label: 'Ultimate', value: 'ultimate' },
-              ]}
               style={{ width: '100%' }}
               value={forceModal.plan}
+              options={[
+                { label: '????Free?', value: 'free' },
+                { label: '????Hobby?', value: 'hobby' },
+                { label: '????Starter?', value: 'starter' },
+                { label: '????Premium?', value: 'premium' },
+                { label: '????Ultimate?', value: 'ultimate' },
+              ]}
+              onChange={(val) => setForceModal((prev) => ({ ...prev, plan: val }))}
             />
           </Flexbox>
           <Flexbox gap={4}>
-            <div>{t('admin.subscriptions.modal.cycleLabel', 'Cycle')}</div>
+            <div>{t('admin.subscriptions.modal.cycleLabel', '??')}</div>
             <Select<'monthly' | 'yearly'>
-              onChange={(val) => setForceModal((prev) => ({ ...prev, cycle: val }))}
-              options={[
-                { label: t('admin.subscriptions.modal.monthly', 'Monthly'), value: 'monthly' },
-                { label: t('admin.subscriptions.modal.yearly', 'Yearly'), value: 'yearly' },
-              ]}
               style={{ width: '100%' }}
               value={forceModal.cycle}
+              options={[
+                { label: t('admin.subscriptions.modal.monthly', '??'), value: 'monthly' },
+                { label: t('admin.subscriptions.modal.yearly', '??'), value: 'yearly' },
+              ]}
+              onChange={(val) => setForceModal((prev) => ({ ...prev, cycle: val }))}
             />
           </Flexbox>
           <Flexbox gap={4}>
-            <div>{t('admin.subscriptions.modal.reasonLabel', 'Reason')}</div>
+            <div>{t('admin.subscriptions.modal.reasonLabel', '??')}</div>
             <Input.TextArea
-              onChange={(e) => setForceModal((prev) => ({ ...prev, reason: e.target.value }))}
-              placeholder={t('admin.subscriptions.modal.reasonPlaceholder', 'Enter reason...')}
+              placeholder={t('admin.subscriptions.modal.reasonPlaceholder', '?????...')}
               rows={3}
               value={forceModal.reason}
+              onChange={(e) => setForceModal((prev) => ({ ...prev, reason: e.target.value }))}
             />
           </Flexbox>
         </Flexbox>

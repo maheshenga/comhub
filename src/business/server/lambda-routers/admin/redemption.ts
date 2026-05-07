@@ -1,5 +1,6 @@
+import type { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, count, desc, eq, ilike, inArray, isNotNull, lt, or } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { CommercialModel } from '@/database/models/commercial';
@@ -13,8 +14,6 @@ import {
 import type { Transaction } from '@/database/type';
 import { adminProcedure, authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
-import { sql } from 'drizzle-orm';
-import { Plans } from '@lobechat/types';
 
 import { recordAdminAudit } from './audit';
 
@@ -101,8 +100,7 @@ export const adminRedemptionRouter = router({
     .mutation(async ({ ctx, input }) => {
       const ctxUserId = ctx.userId;
       const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
-      const batchId =
-        input.batchId ?? `batch_${new Date().toISOString().replaceAll(/[:.]/g, '-')}`;
+      const batchId = input.batchId ?? `batch_${new Date().toISOString().replaceAll(/[:.]/g, '-')}`;
 
       if (input.rewardType === 'plan') {
         await assertPlanRewardIsRedeemable(ctx.serverDB, input.planKey);
@@ -279,12 +277,7 @@ export const adminRedemptionRouter = router({
       const updated = await ctx.serverDB
         .update(redemptionCodes)
         .set({ status: 'disabled', updatedAt: new Date() })
-        .where(
-          and(
-            inArray(redemptionCodes.id, input.ids),
-            eq(redemptionCodes.status, 'active'),
-          ),
-        )
+        .where(and(inArray(redemptionCodes.id, input.ids), eq(redemptionCodes.status, 'active')))
         .returning({ id: redemptionCodes.id });
 
       await recordAdminAudit(ctx, {
@@ -304,12 +297,7 @@ export const adminRedemptionRouter = router({
     .mutation(async ({ ctx, input }) => {
       const deleted = await ctx.serverDB
         .delete(redemptionCodes)
-        .where(
-          and(
-            inArray(redemptionCodes.id, input.ids),
-            eq(redemptionCodes.status, 'active'),
-          ),
-        )
+        .where(and(inArray(redemptionCodes.id, input.ids), eq(redemptionCodes.status, 'active')))
         .returning({ id: redemptionCodes.id });
 
       await recordAdminAudit(ctx, {
@@ -389,8 +377,7 @@ export const redemptionRouter = router({
           })
           .where(and(eq(redemptionCodes.id, row.id), eq(redemptionCodes.status, 'active')))
           .returning({ id: redemptionCodes.id });
-        if (claim.length === 0)
-          throw new TRPCError({ code: 'CONFLICT', message: 'CODE_RACE' });
+        if (claim.length === 0) throw new TRPCError({ code: 'CONFLICT', message: 'CODE_RACE' });
 
         if (row.rewardType === 'credits') {
           appliedKind = 'credits';
@@ -418,7 +405,7 @@ export const redemptionRouter = router({
             referenceId: row.id,
             referenceType: 'redemption_code',
             title: 'Redemption',
-            type: 'adjustment',
+            type: 'topup',
             userId,
           });
           summary = { credits: amount };
@@ -427,37 +414,19 @@ export const redemptionRouter = router({
           const pkg = await tx.query.topUpPackages.findFirst({
             where: eq(topUpPackages.id, row.topupPackageId!),
           });
-          if (!pkg)
-            throw new TRPCError({ code: 'BAD_REQUEST', message: 'TOPUP_PACKAGE_MISSING' });
+          if (!pkg) throw new TRPCError({ code: 'BAD_REQUEST', message: 'TOPUP_PACKAGE_MISSING' });
           if (!pkg.isActive)
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'TOPUP_PACKAGE_INACTIVE' });
-          await tx
-            .insert(creditAccounts)
-            .values({ balance: 0, totalCredited: 0, totalDebited: 0, userId })
-            .onConflictDoNothing({ target: creditAccounts.userId });
-          await tx
-            .update(creditAccounts)
-            .set({
-              balance: sql`${creditAccounts.balance} + ${pkg.credits}`,
-              totalCredited: sql`${creditAccounts.totalCredited} + ${pkg.credits}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(creditAccounts.userId, userId));
-          const [account] = await tx
-            .select({ balance: creditAccounts.balance })
-            .from(creditAccounts)
-            .where(eq(creditAccounts.userId, userId));
-          await tx.insert(creditLedgerEntries).values({
-            amount: pkg.credits,
-            balanceAfter: account.balance,
-            description: `Redeemed package ${pkg.id}`,
-            referenceId: row.id,
-            referenceType: 'redemption_code',
-            title: pkg.displayName,
-            type: 'topup',
-            userId,
+
+          const commercial = new CommercialModel(ctx.serverDB, userId);
+          const order = await commercial.createTopUpOrder({
+            credits: Number(pkg.credits),
+            redemptionCodeId: row.id,
+            source: 'redemption',
           });
-          summary = { credits: pkg.credits, packageId: pkg.id };
+          await commercial.settleTopUpOrder(order.id);
+
+          summary = { credits: Number(pkg.credits), packageId: pkg.id };
         } else {
           appliedKind = 'plan';
           if (!row.planKey || !row.planCycle) {
@@ -466,7 +435,7 @@ export const redemptionRouter = router({
 
           await assertPlanRewardIsRedeemable(tx, row.planKey);
 
-          const model = new CommercialModel(ctx.serverDB, userId);
+          const model = new CommercialModel(tx, userId);
           await model.grantPlanFromRedemptionCode({
             code,
             cycle: row.planCycle,

@@ -5,6 +5,7 @@ import { type LobeChatDatabase } from '@lobechat/database';
 import { type AgentItem, type LobeAgentConfig } from '@lobechat/types';
 import { cleanObject, merge } from '@lobechat/utils';
 import debug from 'debug';
+import { pick } from 'es-toolkit/compat';
 import { type PartialDeep } from 'type-fest';
 
 import { AgentModel } from '@/database/models/agent';
@@ -104,8 +105,8 @@ export class AgentService {
    *
    * The returned agent config is merged with:
    * 1. DEFAULT_AGENT_CONFIG (hardcoded defaults)
-   * 2. Server's globalDefaultAgentConfig (from environment variable DEFAULT_AGENT_CONFIG)
-   * 3. User's defaultAgentConfig (from user settings)
+   * 2. User's defaultAgentConfig (from user settings)
+   * 3. Server's managed default agent config (from env/admin settings)
    * 4. The actual agent config from database
    */
   async getAgentConfig(idOrSlug: string): Promise<AgentConfigWithId | null> {
@@ -127,8 +128,8 @@ export class AgentService {
    *
    * The returned agent config is merged with:
    * 1. DEFAULT_AGENT_CONFIG (hardcoded defaults)
-   * 2. Server's globalDefaultAgentConfig (from environment variable DEFAULT_AGENT_CONFIG)
-   * 3. User's defaultAgentConfig (from user settings)
+   * 2. User's defaultAgentConfig (from user settings)
+   * 3. Server's managed default agent config (from env/admin settings)
    * 4. The actual agent config from database
    * 5. AI-generated welcome data from Redis (if available)
    */
@@ -185,8 +186,8 @@ export class AgentService {
    *
    * Merge order (later values override earlier):
    * 1. DEFAULT_AGENT_CONFIG - hardcoded defaults
-   * 2. serverDefaultAgentConfig - from environment variable
-   * 3. userDefaultAgentConfig - from user settings (defaultAgent.config)
+   * 2. userDefaultAgentConfig - from user settings (defaultAgent.config)
+   * 3. serverDefaultAgentConfig - from env/admin settings
    * 4. agent - actual agent config from database
    */
   private mergeDefaultConfig(
@@ -199,11 +200,16 @@ export class AgentService {
     const userDefaultAgentConfig =
       (defaultAgentConfig as { config?: PartialDeep<LobeAgentConfig> })?.config || {};
 
-    // Merge configs in order: DEFAULT -> server -> user -> agent
+    // Admin-managed API settings should control the default model/provider,
+    // while user defaults still own other default-agent fields.
     const baseConfig = merge(DEFAULT_AGENT_CONFIG, serverDefaultAgentConfig);
     const withUserConfig = merge(baseConfig, userDefaultAgentConfig);
+    const withManagedModel = merge(
+      withUserConfig,
+      pick(serverDefaultAgentConfig, ['model', 'provider']),
+    );
 
-    return merge(withUserConfig, cleanObject(agent));
+    return merge(withManagedModel, cleanObject(agent));
   }
 
   /**

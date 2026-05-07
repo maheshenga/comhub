@@ -1,8 +1,7 @@
 import type {
   AutoTopUpSetting,
   CreditLedgerEntryType,
-  Plans,
-  type ReferralStatusString,
+  ReferralStatusString,
   SubscriptionChangeRequestReasonType,
   SubscriptionChangeRequestStatusType,
   SubscriptionCycleType,
@@ -10,6 +9,7 @@ import type {
   TopUpOrderSourceType,
   TopUpOrderStatusType,
 } from '@lobechat/types';
+import { Plans } from '@lobechat/types';
 import {
   boolean,
   index,
@@ -22,6 +22,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { amountNumeric, createdAt, timestamptz, updatedAt } from './_helpers';
+import type { PlanModelRules } from './newapiInstance';
 import { users } from './user';
 
 export const userPlanSnapshots = pgTable(
@@ -306,6 +307,8 @@ export const planCatalog = pgTable('plan_catalog', {
   features: jsonb('features').$type<string[]>().notNull().default([]),
   isActive: boolean('is_active').notNull().default(true),
   sortOrder: amountNumeric('sort_order').notNull().default(0),
+
+  modelRules: jsonb('model_rules').$type<PlanModelRules>(),
 
   metadata: jsonb('metadata').$type<Record<string, unknown>>(),
 

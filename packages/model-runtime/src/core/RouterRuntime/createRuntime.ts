@@ -269,14 +269,13 @@ export const createRouterRuntime = ({
         router.models?.join(',') ?? '',
       ].join('|');
       const optionIdentity = routerOptions
-        .map(
-          (optionItem) =>
-            [
-              optionItem.apiType ?? router.apiType,
-              optionItem.id ?? '',
-              optionItem.remark ?? '',
-              optionItem.baseURL ?? '',
-            ].join('|'),
+        .map((optionItem) =>
+          [
+            optionItem.apiType ?? router.apiType,
+            optionItem.id ?? '',
+            optionItem.remark ?? '',
+            optionItem.baseURL ?? '',
+          ].join('|'),
         )
         .join('||');
       const rotationKey = [this._id, routerIdentity, optionIdentity].join('::');
@@ -461,7 +460,7 @@ export const createRouterRuntime = ({
               error,
               metadata,
               model,
-              optionIndex: index,
+              optionIndex,
             });
 
             if (shouldStopFallback) {

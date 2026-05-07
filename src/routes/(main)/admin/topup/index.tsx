@@ -1,9 +1,9 @@
 'use client';
 
-import { Button, Empty, Form, Input, InputNumber, Modal, Switch, Tag, message } from 'antd';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Empty, Form, Input, InputNumber, message, Modal, Switch, Tag } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Flexbox } from '@lobehub/ui';
 
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -65,11 +65,11 @@ const AdminTopUpPage = memo(() => {
         sortOrder: Number(values.sortOrder || 0),
         validityMonths: Number(values.validityMonths || 12),
       });
-      message.success(t('admin.topup.saveSuccess', 'Package saved'));
+      message.success(t('admin.topup.saveSuccess', '??????'));
       setEditing(null);
       await mutate(SWR_KEY);
     } catch {
-      message.error(t('admin.topup.saveFailed', 'Save failed'));
+      message.error(t('admin.topup.saveFailed', '????'));
     } finally {
       setSubmitting(false);
     }
@@ -80,10 +80,10 @@ const AdminTopUpPage = memo(() => {
       content: id,
       onOk: async () => {
         await adminCommercialService.deletePackage(id);
-        message.success(t('admin.topup.deleted', 'Package deleted'));
+        message.success(t('admin.topup.deleted', '??????'));
         await mutate(SWR_KEY);
       },
-      title: t('admin.topup.confirmDelete', 'Delete package?'),
+      title: t('admin.topup.confirmDelete', '????????'),
     });
   };
 
@@ -94,49 +94,47 @@ const AdminTopUpPage = memo(() => {
 
   const columns = [
     { dataIndex: 'id', key: 'id', title: t('admin.topup.col.id', 'ID') },
-    { dataIndex: 'displayName', key: 'displayName', title: t('admin.topup.col.name', 'Name') },
-    { dataIndex: 'credits', key: 'credits', title: t('admin.topup.col.credits', 'Credits') },
+    { dataIndex: 'displayName', key: 'displayName', title: t('admin.topup.col.name', '????') },
+    { dataIndex: 'credits', key: 'credits', title: t('admin.topup.col.credits', '??') },
     {
       dataIndex: 'amount',
       key: 'amount',
       render: (v: number, r: PackageRow) => `${v} ${r.currency}`,
-      title: t('admin.topup.col.amount', 'Amount'),
+      title: t('admin.topup.col.amount', '??'),
     },
     {
       dataIndex: 'validityMonths',
       key: 'validityMonths',
-      title: t('admin.topup.col.validity', 'Validity (months)'),
+      title: t('admin.topup.col.validity', '??????'),
     },
     {
       dataIndex: 'recommended',
       key: 'recommended',
-      render: (v: boolean) => (v ? <Tag color="gold">Recommended</Tag> : '—'),
-      title: t('admin.topup.col.recommended', 'Recommended'),
+      render: (v: boolean) => (v ? <Tag color="gold">??</Tag> : '—'),
+      title: t('admin.topup.col.recommended', '??'),
     },
     {
       dataIndex: 'isActive',
       key: 'isActive',
-      render: (v: boolean) => (v ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>),
-      title: t('admin.topup.col.active', 'Active'),
+      render: (v: boolean) => (v ? <Tag color="green">??</Tag> : <Tag>??</Tag>),
+      title: t('admin.topup.col.active', '??'),
     },
     {
       key: 'actions',
       render: (_: unknown, row: PackageRow) => (
-        <Flexbox gap={8} horizontal>
+        <Flexbox horizontal gap={8}>
           <Button size="small" onClick={() => openEdit(row)}>
-            {t('admin.topup.edit', 'Edit')}
+            {t('admin.topup.edit', '??')}
           </Button>
           <Button size="small" onClick={() => handleToggleActive(row)}>
-            {row.isActive
-              ? t('admin.topup.deactivate', 'Deactivate')
-              : t('admin.topup.activate', 'Activate')}
+            {row.isActive ? t('admin.topup.deactivate', '??') : t('admin.topup.activate', '??')}
           </Button>
           <Button danger size="small" onClick={() => handleDelete(row.id)}>
-            {t('admin.topup.delete', 'Delete')}
+            {t('admin.topup.delete', '??')}
           </Button>
         </Flexbox>
       ),
-      title: t('admin.topup.col.actions', 'Actions'),
+      title: t('admin.topup.col.actions', '??'),
     },
   ];
 
@@ -144,91 +142,91 @@ const AdminTopUpPage = memo(() => {
     <Flexbox gap={16} padding={24}>
       <Flexbox horizontal>
         <Button type="primary" onClick={() => openEdit()}>
-          {t('admin.topup.create', 'Create Package')}
+          {t('admin.topup.create', '?????')}
         </Button>
       </Flexbox>
       {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.topup.empty', 'No packages configured')} />
+        <Empty description={t('admin.topup.empty', '???????')} />
       ) : (
         <InlineTable columns={columns as any} dataSource={items} loading={isLoading} rowKey="id" />
       )}
 
       <Modal
         confirmLoading={submitting}
-        onCancel={() => setEditing(null)}
-        onOk={handleSave}
         open={!!editing}
+        width={600}
         title={
           editing?.id
-            ? t('admin.topup.modal.edit', 'Edit Package')
-            : t('admin.topup.modal.create', 'Create Package')
+            ? t('admin.topup.modal.edit', '?????')
+            : t('admin.topup.modal.create', '?????')
         }
-        width={600}
+        onCancel={() => setEditing(null)}
+        onOk={handleSave}
       >
         <Form form={form} layout="vertical">
           <Form.Item
-            label={t('admin.topup.field.id', 'Package ID (e.g. starter-100)')}
+            label={t('admin.topup.field.id', '??? ID?? starter-100?')}
             name="id"
             rules={[{ required: true }]}
           >
             <Input disabled={!!editing?.id} />
           </Form.Item>
           <Form.Item
-            label={t('admin.topup.field.name', 'Display Name')}
+            label={t('admin.topup.field.name', '????')}
             name="displayName"
             rules={[{ required: true }]}
           >
             <Input />
           </Form.Item>
-          <Flexbox gap={12} horizontal>
+          <Flexbox horizontal gap={12}>
             <Form.Item
-              label={t('admin.topup.field.credits', 'Credits')}
+              label={t('admin.topup.field.credits', '??')}
               name="credits"
               style={{ flex: 1 }}
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.topup.field.amount', 'Amount')}
+              label={t('admin.topup.field.amount', '??')}
               name="amount"
               style={{ flex: 1 }}
             >
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.topup.field.currency', 'Currency')}
+              label={t('admin.topup.field.currency', '??')}
               name="currency"
               style={{ width: 100 }}
             >
               <Input />
             </Form.Item>
           </Flexbox>
-          <Flexbox gap={12} horizontal>
+          <Flexbox horizontal gap={12}>
             <Form.Item
-              label={t('admin.topup.field.validity', 'Validity (months)')}
+              label={t('admin.topup.field.validity', '??????')}
               name="validityMonths"
               style={{ flex: 1 }}
             >
               <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.topup.field.sortOrder', 'Sort Order')}
+              label={t('admin.topup.field.sortOrder', '???')}
               name="sortOrder"
               style={{ flex: 1 }}
             >
               <InputNumber style={{ width: '100%' }} />
             </Form.Item>
           </Flexbox>
-          <Flexbox gap={24} horizontal>
+          <Flexbox horizontal gap={24}>
             <Form.Item
-              label={t('admin.topup.field.recommended', 'Recommended')}
+              label={t('admin.topup.field.recommended', '??')}
               name="recommended"
               valuePropName="checked"
             >
               <Switch />
             </Form.Item>
             <Form.Item
-              label={t('admin.topup.field.active', 'Active')}
+              label={t('admin.topup.field.active', '??')}
               name="isActive"
               valuePropName="checked"
             >

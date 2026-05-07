@@ -9,6 +9,8 @@ import {
   creditAccounts,
   creditLedgerEntries,
   planCatalog,
+  referralProfiles,
+  referralRelations,
   subscriptionChangeRequests,
   topUpOrders,
   topUpPackages,
@@ -138,6 +140,8 @@ afterEach(async () => {
   await serverDB.delete(userPlanSnapshots).where(eq(userPlanSnapshots.userId, userId));
   await serverDB.delete(creditLedgerEntries).where(eq(creditLedgerEntries.userId, userId));
   await serverDB.delete(creditAccounts).where(eq(creditAccounts.userId, userId));
+  await serverDB.delete(referralRelations).where(eq(referralRelations.inviteeUserId, userId));
+  await serverDB.delete(referralProfiles).where(eq(referralProfiles.userId, userId));
   await serverDB.delete(planCatalog);
   await serverDB.delete(topUpPackages);
   await serverDB.delete(users).where(eq(users.id, userId));
@@ -546,6 +550,38 @@ describe('CommercialModel', () => {
     });
   });
 
+  describe('referral profile', () => {
+    it('creates a random 7-digit numeric referral code instead of using user identity', async () => {
+      await serverDB
+        .update(users)
+        .set({
+          email: 'named-user@example.com',
+          fullName: 'Named User',
+          username: 'nameduser',
+        })
+        .where(eq(users.id, userId));
+
+      const profile = await commercialModel.getReferralProfile();
+
+      expect(profile.code).toMatch(/^\d{7}$/);
+      expect(profile.code).not.toBe('NAMEDUSE');
+    });
+
+    it('requires manually edited and bound referral codes to be 7 digits', async () => {
+      await expect(commercialModel.updateReferralCode('ABC123')).rejects.toThrow(
+        'INVALID_REFERRAL_CODE_FORMAT',
+      );
+
+      await expect(commercialModel.updateReferralCode('1234567')).resolves.toMatchObject({
+        code: '1234567',
+      });
+
+      await expect(commercialModel.bindReferralCode('ABC123')).rejects.toThrow(
+        'INVALID_REFERRAL_CODE_FORMAT',
+      );
+    });
+  });
+
   describe('createTopUpOrder', () => {
     afterEach(async () => {
       await serverDB.delete(topUpOrders).where(eq(topUpOrders.userId, userId));
@@ -568,9 +604,9 @@ describe('CommercialModel', () => {
     };
 
     it('rejects top-up order creation because online payment is disabled', async () => {
-      await expect(
-        commercialModel.createTopUpOrder({ packageId: 'starter' }),
-      ).rejects.toThrow('ONLINE_PAYMENT_DISABLED_USE_REDEMPTION_CODE');
+      await expect(commercialModel.createTopUpOrder({ packageId: 'starter' })).rejects.toThrow(
+        'ONLINE_PAYMENT_DISABLED_USE_REDEMPTION_CODE',
+      );
     });
 
     it('does not create a pending order even for a paid plan and DB-backed package', async () => {

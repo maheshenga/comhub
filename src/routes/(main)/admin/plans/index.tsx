@@ -36,6 +36,9 @@ type PlanRow = {
   modelRules: AdminPlanModelRules | null;
   monthlyCredits: number;
   monthlyPrice: number;
+  metadata?: {
+    purchaseUrl?: string;
+  } | null;
   plan: string;
   sortOrder: number;
   yearlyPrice: number;
@@ -49,6 +52,7 @@ type PlanFormValues = {
   monthlyCredits?: number;
   monthlyPrice?: number;
   plan: Plans;
+  purchaseUrl?: string;
   sortOrder?: number;
   yearlyPrice?: number;
 };
@@ -77,15 +81,19 @@ const AdminPlansPage = memo(() => {
       isActive: true,
       monthlyCredits: 0,
       monthlyPrice: 0,
+      metadata: {},
       plan: '',
       sortOrder: 0,
       yearlyPrice: 0,
     };
 
     setEditing(init);
+    const metadata = init.metadata as PlanRow['metadata'];
+
     form.setFieldsValue({
       ...init,
       features: (init.features ?? []).join('\n'),
+      purchaseUrl: metadata?.purchaseUrl ?? '',
     } as PlanFormValues);
   };
 
@@ -106,6 +114,7 @@ const AdminPlansPage = memo(() => {
         monthlyCredits: Number(values.monthlyCredits || 0),
         monthlyPrice: Number(values.monthlyPrice || 0),
         plan: values.plan,
+        purchaseUrl: values.purchaseUrl?.trim() || undefined,
         sortOrder: Number(values.sortOrder || 0),
         yearlyPrice: Number(values.yearlyPrice || 0),
       });
@@ -155,6 +164,13 @@ const AdminPlansPage = memo(() => {
       key: 'yearlyPrice',
       render: (value: number, row: PlanRow) => `${value} ${row.currency}`,
       title: t('admin.plans.col.yearly', '年付'),
+    },
+    {
+      dataIndex: 'metadata',
+      key: 'purchaseUrl',
+      render: (metadata: PlanRow['metadata']) =>
+        metadata?.purchaseUrl ? <Tag color="blue">已设置</Tag> : <Tag>未设置</Tag>,
+      title: t('admin.plans.col.purchaseUrl', '购买链接'),
     },
     {
       dataIndex: 'isActive',
@@ -291,6 +307,16 @@ const AdminPlansPage = memo(() => {
             name="features"
           >
             <Input.TextArea rows={4} />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.plans.field.purchaseUrl', '购买链接')}
+            name="purchaseUrl"
+            extra={t(
+              'admin.plans.field.purchaseUrlHint',
+              '用户在套餐页点击“升级”时会打开该链接，仅支持 http/https。',
+            )}
+          >
+            <Input placeholder="https://..." />
           </Form.Item>
           <Flexbox horizontal gap={12}>
             <Form.Item

@@ -763,4 +763,66 @@ export default {
   'admin.sidebar.subscriptions': 'Subscriptions',
   'admin.sidebar.settings': 'Settings',
   'admin.sidebar.stats': 'Stats',
+  'admin.sidebar.desktopUpdate': 'Desktop Update',
+
+  // Admin Desktop Update
+  'admin.desktopUpdate.serverSection': 'Update Server',
+  'admin.desktopUpdate.serverUrl': 'Update Server URL',
+  'admin.desktopUpdate.serverUrl.help':
+    'S3/CDN base URL for update manifests and packages. Format: https://releases.example.com. Each channel resolves to {url}/{channel}/.',
+  'admin.desktopUpdate.channel': 'Default Update Channel',
+  'admin.desktopUpdate.channel.help': 'stable = production releases, canary = pre-release builds.',
+  'admin.desktopUpdate.checkSection': 'Auto Check',
+  'admin.desktopUpdate.autoCheck': 'Auto Check for Updates',
+  'admin.desktopUpdate.checkInterval': 'Check Interval (minutes)',
+  'admin.desktopUpdate.checkInterval.help':
+    'How often the desktop app checks for updates (1-1440 minutes).',
+  'admin.desktopUpdate.versionSection': 'Current Release',
+  'admin.desktopUpdate.currentVersion': 'Current Version',
+  'admin.desktopUpdate.currentVersion.help':
+    'The latest version number published to the update server (for display only).',
+  'admin.desktopUpdate.releaseNotes': 'Release Notes',
+  'admin.desktopUpdate.releaseNotes.help':
+    'Release notes shown to users when an update is available. Supports markdown.',
+  'admin.desktopUpdate.save': 'Save',
+  'admin.desktopUpdate.noChanges': 'No changes to save',
+  'admin.desktopUpdate.saveSuccess': 'Desktop update settings saved',
+  'admin.desktopUpdate.saveFailed': 'Save failed',
+  'admin.desktopUpdate.ossSection': 'Alibaba Cloud OSS',
+  'admin.desktopUpdate.ossBucket': 'OSS Bucket',
+  'admin.desktopUpdate.ossBucket.help': 'OSS Bucket name (without oss:// prefix), e.g. comhubup.',
+  'admin.desktopUpdate.ossEndpoint': 'OSS Endpoint',
+  'admin.desktopUpdate.ossEndpoint.help': 'OSS Endpoint, e.g. oss-cn-beijing.aliyuncs.com.',
+  'admin.desktopUpdate.ossAccessKeyId': 'AccessKey ID',
+  'admin.desktopUpdate.ossAccessKeySecret': 'AccessKey Secret',
+  'admin.desktopUpdate.ossPath': 'OSS Path Prefix',
+  'admin.desktopUpdate.ossPath.help':
+    'Path prefix in the bucket, e.g. releases. Final URL: https://{bucket}.{endpoint}/{path}/{channel}/latest.yml',
+  'admin.desktopUpdate.current': 'Current',
+  'admin.desktopUpdate.notSet': 'Not configured',
+  'admin.desktopUpdate.leaveBlank': 'Leave blank to keep current',
+
+  // TopUp related
+  'topup.title': '充值中心',
+  'topup.balance': '当前余额',
+  'topup.balance.unit': '算力',
+  'topup.redeem.title': '兑换卡密',
+  'topup.redeem.placeholder': '输入算力卡密',
+  'topup.redeem.button': '兑换',
+  'topup.redeem.success': '兑换成功！',
+  'topup.redeem.empty': '请输入卡密',
+  'topup.redeem.failed': '兑换失败',
+  'topup.history.title': '充值记录',
+  'topup.history.time': '时间',
+  'topup.history.credits': '算力',
+  'topup.history.source': '来源',
+  'topup.history.status': '状态',
+  'topup.source.redemption': '卡密兑换',
+  'topup.source.alipay': '支付宝',
+  'topup.source.wechat_pay': '微信支付',
+  'topup.source.manual': '手动充值',
+
+  // Error messages
+  'response.StorageQuotaExceeded': '存储空间不足',
+  'response.InsufficientBudgetForModel.action': '去充值',
 };

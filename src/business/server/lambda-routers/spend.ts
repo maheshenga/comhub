@@ -4,6 +4,7 @@ import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import {
   type CreditAccountSummary,
   type CreditLedgerListResult,
+  QueryCommercialListSchema,
   QueryCreditLedgerSchema,
 } from '@/types/business';
 
@@ -26,5 +27,15 @@ export const spendRouter = router({
     .input(QueryCreditLedgerSchema)
     .query(async ({ ctx, input }): Promise<CreditLedgerListResult> => {
       return ctx.commercialModel.listCreditLedger(input);
+    }),
+
+  listTopUpPackages: commercialProcedure.query(async ({ ctx }) => {
+    return ctx.commercialModel.listTopUpPackages();
+  }),
+
+  listTopUpOrders: commercialProcedure
+    .input(QueryCommercialListSchema.default({}))
+    .query(async ({ ctx, input }) => {
+      return ctx.commercialModel.listTopUpOrders(input);
     }),
 });

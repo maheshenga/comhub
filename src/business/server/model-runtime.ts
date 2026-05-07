@@ -1,12 +1,15 @@
 import { type ModelRuntimeHooks } from '@lobechat/model-runtime';
 
+import { getServerDB } from '@/database/core/db-adaptor';
+
 import {
   assertCommercialChatBudget,
   assertCommercialMinimumBudget,
   recordCommercialAiUsage,
   recordCommercialChatUsage,
 } from './commercialBilling';
-import { getServerDB } from '@/database/core/db-adaptor';
+import { assertModelPolicyAllowed } from './modelPolicy';
+import { assertPlanModelAllowed } from './planModelRules';
 
 const COMMERCIAL_BILLING_REFERENCE_KEYS = [
   'messageId',
@@ -46,14 +49,30 @@ export function getBusinessModelRuntimeHooks(
   return {
     beforeChat: async (payload) => {
       const db = await getServerDB();
+      await assertModelPolicyAllowed({ db, model: payload.model, provider, usageType: 'chat' });
+      await assertPlanModelAllowed({ db, model: payload.model, modelType: 'chat', userId });
       await assertCommercialChatBudget({ db, payload, provider, userId });
     },
     beforeEmbeddings: async (payload) => {
       const db = await getServerDB();
+      await assertModelPolicyAllowed({
+        db,
+        model: payload.model,
+        provider,
+        usageType: 'embeddings',
+      });
+      await assertPlanModelAllowed({ db, model: payload.model, modelType: 'embedding', userId });
       await assertCommercialMinimumBudget({ db, model: payload.model, provider, userId });
     },
     beforeGenerateObject: async (payload) => {
       const db = await getServerDB();
+      await assertModelPolicyAllowed({
+        db,
+        model: payload.model,
+        provider,
+        usageType: 'generate_object',
+      });
+      await assertPlanModelAllowed({ db, model: payload.model, modelType: 'chat', userId });
       await assertCommercialChatBudget({ db, payload: payload as any, provider, userId });
     },
     onChatFinal: async (data, { options, payload }) => {

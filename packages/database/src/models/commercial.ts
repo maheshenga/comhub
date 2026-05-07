@@ -1,3 +1,4 @@
+import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import type {
   AutoTopUpSetting,
   CommercialOverview,
@@ -11,19 +12,19 @@ import type {
   QueryCommercialListParams,
   QueryCreditLedgerParams,
   ReferralHistoryItem,
+  ReferralOverview,
   SubscriptionChangeRequestItem,
   SubscriptionChangeRequestReasonType,
   SubscriptionCycleType,
-  ReferralOverview,
   SubscriptionSummary,
-  TopUpPackageItem,
   TopUpOrderHistoryItem,
+  TopUpPackageItem,
 } from '@lobechat/types';
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
-import { and, asc, desc, eq, gte, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
 
 import {
+  appSettings,
   autoTopUpSettings,
   creditAccounts,
   creditLedgerEntries,
@@ -58,15 +59,23 @@ const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
 const REFERRAL_BACKFILL_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 const DISPLAY_CREDITS_UNIT = CREDITS_PER_DOLLAR;
 const REFERRAL_PREVIEW_REWARD_CREDITS = 100 * DISPLAY_CREDITS_UNIT;
+const REFERRAL_CODE_LENGTH = 7;
 const MIN_CUSTOM_TOP_UP_DISPLAY_CREDITS = 50;
 const MAX_CUSTOM_TOP_UP_DISPLAY_CREDITS = 5000;
 const MAX_TOP_UP_AMOUNT = 500;
 const CUSTOM_TOP_UP_UNIT_PRICE = 0.1;
 const TOP_UP_CURRENCY = 'USD';
 const TOP_UP_VALIDITY_MONTHS = 12;
-const ONLINE_PAYMENT_ENABLED = false;
-const ONLINE_PAYMENT_DISABLED_ERROR = 'ONLINE_PAYMENT_DISABLED_USE_REDEMPTION_CODE';
 const CREDIT_SOURCE_PRIORITY: CreditSourceType[] = ['subscription', 'referral', 'topup', 'other'];
+const PRICING_CREDIT_MULTIPLIER_KEY = 'pricing.creditMultiplier';
+const PRICING_MODEL_RULES_KEY = 'pricing.modelRules';
+
+type AiUsagePricingRule = {
+  creditsPerDollar?: number;
+  model?: string;
+  multiplier?: number;
+  provider?: string;
+};
 
 const DEFAULT_TOP_UP_PACKAGES: TopUpPackageItem[] = [
   {
@@ -110,14 +119,18 @@ const topUpOrderHistoryColumns = {
   id: topUpOrders.id,
   paidAt: topUpOrders.paidAt,
   provider: topUpOrders.provider,
+  redemptionCodeId: topUpOrders.redemptionCodeId,
+  source: topUpOrders.source,
   status: topUpOrders.status,
 };
 
 const normalizeReferralCodeValue = (value: string) =>
-  value
-    .replace(/[^A-Za-z0-9_]/g, '')
-    .toUpperCase()
-    .slice(0, 8);
+  value.replaceAll(/\D/g, '').slice(0, REFERRAL_CODE_LENGTH);
+
+const isValidReferralCode = (value: string) => /^\d{7}$/.test(value);
+
+const generateReferralCodeValue = () =>
+  String(Math.floor(Math.random() * 10_000_000)).padStart(REFERRAL_CODE_LENGTH, '0');
 
 const addMonths = (date: Date, months: number) => {
   const next = new Date(date);
@@ -295,10 +308,65 @@ export class CommercialModel {
     };
   };
 
-  private getChatUsageCreditAmount = (usdCost: number) => {
+  private getChatUsageCreditAmount = (
+    usdCost: number,
+    pricing: { creditsPerDollar?: number; multiplier?: number } = {},
+  ) => {
     if (!Number.isFinite(usdCost) || usdCost <= 0) return 0;
 
-    return Math.ceil(usdCost * CREDITS_PER_DOLLAR);
+    const creditsPerDollar =
+      Number.isFinite(pricing.creditsPerDollar) && Number(pricing.creditsPerDollar) > 0
+        ? Number(pricing.creditsPerDollar)
+        : CREDITS_PER_DOLLAR;
+    const multiplier =
+      Number.isFinite(pricing.multiplier) && Number(pricing.multiplier) >= 0
+        ? Number(pricing.multiplier)
+        : 1;
+
+    return Math.ceil(usdCost * creditsPerDollar * multiplier);
+  };
+
+  private getAiUsagePricing = async ({ model, provider }: { model: string; provider: string }) => {
+    try {
+      const rows = await this.db.query.appSettings.findMany({
+        where: inArray(appSettings.key, [PRICING_CREDIT_MULTIPLIER_KEY, PRICING_MODEL_RULES_KEY]),
+      });
+      const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+      const globalMultiplier = Number(settings[PRICING_CREDIT_MULTIPLIER_KEY] ?? 1);
+      const rules = Array.isArray(settings[PRICING_MODEL_RULES_KEY])
+        ? (settings[PRICING_MODEL_RULES_KEY] as AiUsagePricingRule[])
+        : [];
+      const normalizedModel = model.toLowerCase();
+      const normalizedProvider = provider.toLowerCase();
+      const matchedRule = rules
+        .filter((rule) => {
+          const ruleModel = rule?.model?.trim().toLowerCase();
+          const ruleProvider = rule?.provider?.trim().toLowerCase();
+          const modelMatched = !ruleModel || ruleModel === '*' || ruleModel === normalizedModel;
+          const providerMatched =
+            !ruleProvider || ruleProvider === '*' || ruleProvider === normalizedProvider;
+
+          return modelMatched && providerMatched;
+        })
+        .sort((a, b) => {
+          const score = (rule: AiUsagePricingRule) =>
+            (rule.provider && rule.provider !== '*' ? 2 : 0) +
+            (rule.model && rule.model !== '*' ? 2 : 0) +
+            (Number.isFinite(rule.creditsPerDollar) ? 1 : 0);
+
+          return score(b) - score(a);
+        })[0];
+
+      return {
+        creditsPerDollar: matchedRule?.creditsPerDollar,
+        matchedRule,
+        multiplier:
+          (Number.isFinite(globalMultiplier) ? globalMultiplier : 1) *
+          (Number.isFinite(matchedRule?.multiplier) ? Number(matchedRule?.multiplier) : 1),
+      };
+    } catch {
+      return { multiplier: 1 };
+    }
   };
 
   private assertSupportedPlan = (plan: string): plan is Plans => {
@@ -310,13 +378,16 @@ export class CommercialModel {
   private getDefaultPlanDurationMonths = (cycle: SubscriptionCycleType) => {
     switch (cycle) {
       case 'yearly':
-      case 'one_time':
+      case 'one_time': {
         return 12;
-      case 'lifetime':
+      }
+      case 'lifetime': {
         return null;
+      }
       case 'monthly':
-      default:
+      default: {
         return 1;
+      }
     }
   };
 
@@ -343,14 +414,18 @@ export class CommercialModel {
 
   private resolveCreditSourceForGrant = (type?: string): CreditSourceType => {
     switch (type) {
-      case 'subscription_grant':
+      case 'subscription_grant': {
         return 'subscription';
-      case 'referral_reward':
+      }
+      case 'referral_reward': {
         return 'referral';
-      case 'topup':
+      }
+      case 'topup': {
         return 'topup';
-      default:
+      }
+      default: {
         return 'other';
+      }
     }
   };
 
@@ -568,19 +643,28 @@ export class CommercialModel {
     const duePeriods = this.listDueSubscriptionGrantPeriods(snapshot);
     if (!snapshot || duePeriods.length === 0) return 0;
 
-    let granted = 0;
-
-    for (const period of duePeriods) {
-      const existed = await tx.query.creditLedgerEntries.findFirst({
-        where: and(
+    // Batch-fetch existing referenceIds to avoid N+1 queries
+    const existingEntries = await tx
+      .select({ referenceId: creditLedgerEntries.referenceId })
+      .from(creditLedgerEntries)
+      .where(
+        and(
           eq(creditLedgerEntries.userId, this.userId),
           eq(creditLedgerEntries.type, 'subscription_grant'),
           eq(creditLedgerEntries.referenceType, 'subscription_snapshot_period'),
-          eq(creditLedgerEntries.referenceId, period.referenceId),
+          inArray(
+            creditLedgerEntries.referenceId,
+            duePeriods.map((p) => p.referenceId),
+          ),
         ),
-      });
+      );
 
-      if (existed) continue;
+    const existingReferenceIds = new Set(existingEntries.map((e) => e.referenceId));
+
+    let granted = 0;
+
+    for (const period of duePeriods) {
+      if (existingReferenceIds.has(period.referenceId)) continue;
 
       await this.grantCreditsToUser({
         amount: snapshot.monthlyCredits,
@@ -628,7 +712,10 @@ export class CommercialModel {
 
       const snapshot = await tx.query.userPlanSnapshots.findFirst({
         orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
-        where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
+        where: and(
+          eq(userPlanSnapshots.userId, this.userId),
+          eq(userPlanSnapshots.status, 'active'),
+        ),
       });
 
       return this.syncSubscriptionCreditsForSnapshot({ snapshot, tx });
@@ -645,6 +732,66 @@ export class CommercialModel {
     });
 
     return (account?.balance ?? 0) >= Math.max(1, Math.ceil(requiredCredits));
+  };
+
+  preCharge = async (estimatedCredits: number, db: LobeChatDatabase | Transaction = this.db) => {
+    const sufficient = await this.canStartChatUsage(estimatedCredits);
+    if (!sufficient) {
+      throw new Error('InsufficientBudgetForModel');
+    }
+    await this.ensureCreditAccount(db);
+    return { creditAccountId: this.userId };
+  };
+
+  postCharge = async (
+    params: {
+      credits: number;
+      metadata?: Record<string, unknown>;
+      model: string;
+      operationId?: string;
+      provider: string;
+      referenceId?: string;
+      referenceType?: string;
+      source: string;
+      title?: string;
+      userId: string;
+    },
+    db: LobeChatDatabase | Transaction = this.db,
+  ) => {
+    const creditsAmount = params.credits;
+
+    await db.transaction(async (tx) => {
+      const [account] = await tx
+        .select()
+        .from(creditAccounts)
+        .where(eq(creditAccounts.userId, params.userId))
+        .limit(1);
+
+      if (!account) throw new Error('CREDIT_ACCOUNT_NOT_FOUND');
+
+      const newBalance = Number(account.balance) - creditsAmount;
+      const newDebited = Number(account.totalDebited) + creditsAmount;
+
+      await tx
+        .update(creditAccounts)
+        .set({
+          balance: newBalance,
+          totalDebited: newDebited,
+        })
+        .where(eq(creditAccounts.userId, params.userId));
+
+      await tx.insert(creditLedgerEntries).values({
+        amount: -creditsAmount,
+        balanceAfter: newBalance,
+        description: `${params.source} usage: ${params.model}`,
+        metadata: params.metadata ?? { source: params.source },
+        referenceId: params.referenceId,
+        referenceType: params.referenceType ?? `${params.source}_generation`,
+        title: params.title ?? `${params.source} Usage`,
+        type: 'consume',
+        userId: params.userId,
+      });
+    });
   };
 
   consumeCreditsForChatUsage = async ({
@@ -704,7 +851,8 @@ export class CommercialModel {
     usageType: 'chat' | 'embeddings' | 'generate_object';
   }) => {
     const usdCost = usage?.cost ?? 0;
-    const amount = this.getChatUsageCreditAmount(usdCost);
+    const pricing = await this.getAiUsagePricing({ model, provider });
+    const amount = this.getChatUsageCreditAmount(usdCost, pricing);
 
     if (amount <= 0) return null;
 
@@ -723,10 +871,12 @@ export class CommercialModel {
       if (existed) return existed;
 
       await this.ensureCreditAccount(tx);
-      const accountBefore = await tx.query.creditAccounts.findFirst({
-        columns: { balance: true },
-        where: eq(creditAccounts.userId, this.userId),
-      });
+      const accountBefore = await tx
+        .select({ balance: creditAccounts.balance })
+        .from(creditAccounts)
+        .where(eq(creditAccounts.userId, this.userId))
+        .for('update')
+        .then((rows) => rows[0]);
       const breakdown = this.buildCreditBreakdownFromLedger({
         accountBalance: accountBefore?.balance ?? 0,
         ledgerEntries: await this.listCreditLedgerReplayEntries(tx),
@@ -760,9 +910,12 @@ export class CommercialModel {
             allocations,
             billingMode: 'official_raw_credits',
             chargedCredits: amount,
+            creditsPerDollar: pricing.creditsPerDollar ?? CREDITS_PER_DOLLAR,
             ...(usage?.costSource ? { costSource: usage.costSource } : {}),
+            matchedPricingRule: pricing.matchedRule ?? null,
             model,
             operationId,
+            pricingMultiplier: pricing.multiplier ?? 1,
             provider,
             totalInputTokens: usage?.totalInputTokens ?? 0,
             totalOutputTokens: usage?.totalOutputTokens ?? 0,
@@ -821,26 +974,6 @@ export class CommercialModel {
     }));
   };
 
-  private getReferralCodeCandidates = async () => {
-    const user = await this.db.query.users.findFirst({
-      columns: { email: true, fullName: true, username: true },
-      where: eq(users.id, this.userId),
-    });
-
-    const candidates = [user?.username, user?.fullName, user?.email, this.userId, 'COMHUB']
-      .map((item) => normalizeReferralCodeValue(item || ''))
-      .filter((item, index, array) => item.length >= 2 && array.indexOf(item) === index);
-
-    return candidates.length > 0 ? candidates : ['COMHUB'];
-  };
-
-  private buildReferralCodeAttempt = (base: string, attempt: number) => {
-    if (attempt === 0) return base;
-
-    const suffix = String(attempt);
-    return `${base.slice(0, Math.max(0, 8 - suffix.length))}${suffix}`;
-  };
-
   private assertReferralBackfillWindow = async () => {
     const user = await this.db.query.users.findFirst({
       columns: { createdAt: true },
@@ -861,31 +994,27 @@ export class CommercialModel {
 
     if (existing) return existing;
 
-    const candidates = await this.getReferralCodeCandidates();
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const nextCode = generateReferralCodeValue();
 
-    for (const base of candidates) {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        const nextCode = this.buildReferralCodeAttempt(base, attempt);
+      try {
+        const [created] = await this.db
+          .insert(referralProfiles)
+          .values({ code: nextCode, userId: this.userId })
+          .returning();
 
-        try {
-          const [created] = await this.db
-            .insert(referralProfiles)
-            .values({ code: nextCode, userId: this.userId })
-            .returning();
+        if (created) return created;
+      } catch (error) {
+        if (isUniqueViolationError(error)) {
+          const profile = await this.db.query.referralProfiles.findFirst({
+            where: eq(referralProfiles.userId, this.userId),
+          });
 
-          if (created) return created;
-        } catch (error) {
-          if (isUniqueViolationError(error)) {
-            const profile = await this.db.query.referralProfiles.findFirst({
-              where: eq(referralProfiles.userId, this.userId),
-            });
-
-            if (profile) return profile;
-            continue;
-          }
-
-          throw error;
+          if (profile) return profile;
+          continue;
         }
+
+        throw error;
       }
     }
 
@@ -989,8 +1118,10 @@ export class CommercialModel {
     });
   };
 
-  getSubscriptionSummary = async (): Promise<SubscriptionSummary> => {
-    const snapshot = await this.getLatestPlanSnapshot();
+  getSubscriptionSummary = async (
+    db: LobeChatDatabase | Transaction = this.db,
+  ): Promise<SubscriptionSummary> => {
+    const snapshot = await this.getLatestPlanSnapshot(db);
 
     if (!snapshot) return FREE_SUBSCRIPTION_SUMMARY;
 
@@ -1061,8 +1192,10 @@ export class CommercialModel {
     return this.getAutoTopUpSetting();
   };
 
-  getPendingSubscriptionChangeRequest = async (): Promise<SubscriptionChangeRequestItem | null> => {
-    const request = await this.db.query.subscriptionChangeRequests.findFirst({
+  getPendingSubscriptionChangeRequest = async (
+    db: LobeChatDatabase | Transaction = this.db,
+  ): Promise<SubscriptionChangeRequestItem | null> => {
+    const request = await db.query.subscriptionChangeRequests.findFirst({
       orderBy: [desc(subscriptionChangeRequests.createdAt)],
       where: and(
         eq(subscriptionChangeRequests.userId, this.userId),
@@ -1122,7 +1255,7 @@ export class CommercialModel {
     };
 
     switch (cycle) {
-      case 'yearly':
+      case 'yearly': {
         return {
           currency: preset.currency,
           endsAt: null,
@@ -1130,7 +1263,8 @@ export class CommercialModel {
           monthlyPrice: Number(preset.yearlyPrice.toFixed(2)),
           renewsAt: addYears(startedAt, 1),
         };
-      case 'one_time':
+      }
+      case 'one_time': {
         return {
           currency: preset.currency,
           endsAt: addYears(startedAt, 1),
@@ -1138,7 +1272,8 @@ export class CommercialModel {
           monthlyPrice: Number((preset.monthlyPrice * 12).toFixed(2)),
           renewsAt: null,
         };
-      case 'lifetime':
+      }
+      case 'lifetime': {
         return {
           currency: preset.currency,
           endsAt: null,
@@ -1146,8 +1281,9 @@ export class CommercialModel {
           monthlyPrice: Number((preset.monthlyPrice * 24).toFixed(2)),
           renewsAt: null,
         };
+      }
       case 'monthly':
-      default:
+      default: {
         return {
           currency: preset.currency,
           endsAt: null,
@@ -1155,6 +1291,7 @@ export class CommercialModel {
           monthlyPrice: preset.monthlyPrice,
           renewsAt: addMonths(startedAt, 1),
         };
+      }
     }
   };
 
@@ -1163,43 +1300,43 @@ export class CommercialModel {
   ): Promise<SubscriptionChangeRequestItem> => {
     await this.getRequiredPlanCatalogEntry(input.targetPlan);
 
-    const [summary, existingPending] = await Promise.all([
-      this.getSubscriptionSummary(),
-      this.getPendingSubscriptionChangeRequest(),
-    ]);
+    return this.db.transaction(async (tx) => {
+      const summary = await this.getSubscriptionSummary(tx);
+      const existingPending = await this.getPendingSubscriptionChangeRequest(tx);
 
-    if (summary.plan === input.targetPlan && summary.cycle === input.cycle) {
-      throw new Error('SUBSCRIPTION_PLAN_UNCHANGED');
-    }
+      if (summary.plan === input.targetPlan && summary.cycle === input.cycle) {
+        throw new Error('SUBSCRIPTION_PLAN_UNCHANGED');
+      }
 
-    if (
-      existingPending &&
-      existingPending.toPlan === input.targetPlan &&
-      existingPending.cycle === input.cycle
-    ) {
-      return existingPending;
-    }
+      if (
+        existingPending &&
+        existingPending.toPlan === input.targetPlan &&
+        existingPending.cycle === input.cycle
+      ) {
+        return existingPending;
+      }
 
-    if (existingPending) {
-      await this.db
-        .update(subscriptionChangeRequests)
-        .set({ status: 'canceled', updatedAt: new Date() })
-        .where(eq(subscriptionChangeRequests.id, existingPending.id));
-    }
+      if (existingPending) {
+        await tx
+          .update(subscriptionChangeRequests)
+          .set({ status: 'canceled', updatedAt: new Date() })
+          .where(eq(subscriptionChangeRequests.id, existingPending.id));
+      }
 
-    const [request] = await this.db
-      .insert(subscriptionChangeRequests)
-      .values({
-        cycle: input.cycle,
-        fromPlan: summary.plan,
-        reason: this.resolveSubscriptionChangeReason(summary.plan, input.targetPlan),
-        status: 'pending',
-        toPlan: input.targetPlan,
-        userId: this.userId,
-      })
-      .returning();
+      const [request] = await tx
+        .insert(subscriptionChangeRequests)
+        .values({
+          cycle: input.cycle,
+          fromPlan: summary.plan,
+          reason: this.resolveSubscriptionChangeReason(summary.plan, input.targetPlan),
+          status: 'pending',
+          toPlan: input.targetPlan,
+          userId: this.userId,
+        })
+        .returning();
 
-    return request;
+      return request;
+    });
   };
 
   cancelSubscriptionChangeRequest = async (): Promise<SubscriptionChangeRequestItem | null> => {
@@ -1252,7 +1389,10 @@ export class CommercialModel {
       const activatedAt = new Date();
       const currentSnapshot = await tx.query.userPlanSnapshots.findFirst({
         orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
-        where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
+        where: and(
+          eq(userPlanSnapshots.userId, this.userId),
+          eq(userPlanSnapshots.status, 'active'),
+        ),
       });
 
       if (currentSnapshot) {
@@ -1503,10 +1643,6 @@ export class CommercialModel {
   };
 
   createTopUpOrder = async (input: CreateTopUpOrderParams): Promise<TopUpOrderHistoryItem> => {
-    if (!ONLINE_PAYMENT_ENABLED) {
-      throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
-    }
-
     await this.assertPaidPlanForTopUp();
 
     let packageItem: TopUpPackageItem | undefined;
@@ -1546,7 +1682,9 @@ export class CommercialModel {
           packageId: packageItem.id,
           validityMonths: packageItem.validityMonths,
         },
-        provider: 'manual_preview',
+        provider: input.source === 'redemption' ? 'redemption' : (input.source ?? null),
+        redemptionCodeId: input.redemptionCodeId ?? null,
+        source: input.source ?? null,
         status: 'pending',
         userId: this.userId,
       })
@@ -1556,10 +1694,6 @@ export class CommercialModel {
   };
 
   cancelTopUpOrder = async (orderId: string): Promise<TopUpOrderHistoryItem> => {
-    if (!ONLINE_PAYMENT_ENABLED) {
-      throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
-    }
-
     const order = await this.db.query.topUpOrders.findFirst({
       where: and(eq(topUpOrders.id, orderId), eq(topUpOrders.userId, this.userId)),
     });
@@ -1586,10 +1720,6 @@ export class CommercialModel {
   };
 
   settleTopUpOrder = async (orderId: string): Promise<TopUpOrderHistoryItem> => {
-    if (!ONLINE_PAYMENT_ENABLED) {
-      throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
-    }
-
     return this.db.transaction(async (tx) => {
       const order = await tx.query.topUpOrders.findFirst({
         where: and(eq(topUpOrders.id, orderId), eq(topUpOrders.userId, this.userId)),
@@ -1799,7 +1929,10 @@ export class CommercialModel {
       .select({
         createdAt: referralRelations.createdAt,
         id: referralRelations.id,
-        inviteeEmail: users.email,
+        inviteeEmail:
+          sql<string>`CASE WHEN ${users.email} IS NULL THEN NULL ELSE CONCAT(LEFT(${users.email}, 2), '***', SUBSTRING(${users.email} FROM POSITION('@' IN ${users.email}))) END`.as(
+            'inviteeEmail',
+          ),
         inviterRewardAmount: referralRelations.rewardCredits,
         rewardedAt: referralRelations.rewardedAt,
         status: referralRelations.status,
@@ -1828,7 +1961,7 @@ export class CommercialModel {
 
   updateReferralCode = async (input: string) => {
     const code = normalizeReferralCodeValue(input.trim());
-    if (code.length < 2) throw new Error('INVALID_REFERRAL_CODE_FORMAT');
+    if (!isValidReferralCode(code)) throw new Error('INVALID_REFERRAL_CODE_FORMAT');
 
     const profile = await this.getReferralProfile();
     if (profile.code === code) return profile;
@@ -1851,7 +1984,7 @@ export class CommercialModel {
         .returning();
     } catch (error) {
       if (isUniqueViolationError(error)) {
-        throw new Error('REFERRAL_CODE_TAKEN');
+        throw new Error('REFERRAL_CODE_TAKEN', { cause: error });
       }
 
       throw error;
@@ -1862,7 +1995,7 @@ export class CommercialModel {
 
   bindReferralCode = async (input: string) => {
     const code = extractReferralCodeValue(input);
-    if (code.length < 2) throw new Error('INVALID_REFERRAL_CODE_FORMAT');
+    if (!isValidReferralCode(code)) throw new Error('INVALID_REFERRAL_CODE_FORMAT');
 
     const [currentProfile, existingRelation] = await Promise.all([
       this.getReferralProfile(),
@@ -1897,7 +2030,7 @@ export class CommercialModel {
         .returning();
     } catch (error) {
       if (isUniqueViolationError(error)) {
-        throw new Error('REFERRAL_ALREADY_BOUND');
+        throw new Error('REFERRAL_ALREADY_BOUND', { cause: error });
       }
 
       throw error;

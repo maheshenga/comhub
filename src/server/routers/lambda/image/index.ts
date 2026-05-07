@@ -8,6 +8,8 @@ import { isLobeHubModelAvailable } from 'model-bank/lobehub';
 import { z } from 'zod';
 
 import { chargeBeforeGenerate } from '@/business/server/image-generation/chargeBeforeGenerate';
+import { assertModelPolicyAllowed } from '@/business/server/modelPolicy';
+import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { type NewGeneration, type NewGenerationBatch } from '@/database/schemas';
 import { asyncTasks, generationBatches, generations } from '@/database/schemas';
@@ -153,6 +155,14 @@ export const imageRouter = router({
     // Defensive check: ensure no full URLs enter the database
     validateNoUrlsInConfig(configForDatabase, 'configForDatabase');
 
+    await assertModelPolicyAllowed({
+      db: ctx.serverDB,
+      model,
+      provider,
+      usageType: 'image',
+    });
+    await assertPlanModelAllowed({ db: ctx.serverDB, model, modelType: 'image', userId });
+
     const chargeResult = await chargeBeforeGenerate({
       clientIp: ctx.clientIp,
       configForDatabase,
@@ -162,6 +172,7 @@ export const imageRouter = router({
       model,
       provider,
       userId,
+      db: ctx.serverDB,
     });
     if (chargeResult) {
       return chargeResult;

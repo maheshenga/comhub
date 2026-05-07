@@ -3,8 +3,8 @@
 import type { RouteObject } from 'react-router-dom';
 
 import {
-  BusinessDesktopRoutesWithMainLayout,
   BusinessDesktopRoutesWithoutMainLayout,
+  BusinessDesktopRoutesWithSettingsLayout,
 } from '@/business/client/BusinessDesktopRoutes';
 import DesktopOnboarding from '@/routes/(desktop)/desktop-onboarding';
 // Layouts — sync import (Electron local, no network overhead)
@@ -312,12 +312,6 @@ export const desktopRoutes: RouteObject[] = [
         path: 'resource',
       },
 
-      // Legacy admin route redirects into Settings
-      {
-        element: redirectElement('/settings/admin'),
-        path: 'admin/settings',
-      },
-
       // Settings routes
       {
         children: [
@@ -340,6 +334,7 @@ export const desktopRoutes: RouteObject[] = [
             element: <ProviderLayout />,
             path: 'provider',
           },
+          ...BusinessDesktopRoutesWithSettingsLayout,
           // Other settings tabs
           {
             element: <SettingsTabPage />,
@@ -409,8 +404,6 @@ export const desktopRoutes: RouteObject[] = [
         errorElement: <ErrorBoundary />,
         path: 'image',
       },
-
-      ...BusinessDesktopRoutesWithMainLayout,
 
       // Eval routes
       {

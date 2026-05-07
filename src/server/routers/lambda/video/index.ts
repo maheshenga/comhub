@@ -14,6 +14,7 @@ import { after } from 'next/server';
 import { z } from 'zod';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
+import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { chargeBeforeGenerate } from '@/business/server/video-generation/chargeBeforeGenerate';
 import { getVideoFreeQuota } from '@/business/server/video-generation/getVideoFreeQuota';
@@ -149,12 +150,14 @@ export const videoRouter = router({
     }
 
     // Step 0: Pre-charge (atomic budget deduction to prevent concurrent abuse)
+    await assertPlanModelAllowed({ db: ctx.serverDB, model, modelType: 'video', userId });
     const { errorBatch, prechargeResult } = await chargeBeforeGenerate({
       generationTopicId,
       model,
       params,
       provider,
       userId,
+      db: ctx.serverDB,
     });
     if (errorBatch) return errorBatch;
 
@@ -345,10 +348,10 @@ export const videoRouter = router({
     };
   }),
 
-  getVideoFreeQuota: authedProcedure
+  getVideoFreeQuota: videoProcedure
     .input(z.object({ model: z.string() }))
     .query(async ({ ctx, input }) => {
-      return getVideoFreeQuota(ctx.userId, input.model);
+      return getVideoFreeQuota(ctx.userId, input.model, ctx.serverDB);
     }),
 });
 

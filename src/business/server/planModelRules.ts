@@ -1,0 +1,139 @@
+import { AgentRuntimeError } from '@lobechat/model-runtime';
+import { ChatErrorType } from '@lobechat/types';
+import { desc, eq } from 'drizzle-orm';
+
+import { planCatalog, userPlanSnapshots } from '@/database/schemas';
+import { type PlanModelRules } from '@/database/schemas';
+import { type LobeChatDatabase } from '@/database/type';
+
+export type PlanModelRuleType =
+  | 'chat'
+  | 'embedding'
+  | 'tts'
+  | 'stt'
+  | 'image'
+  | 'video'
+  | 'text2music'
+  | 'realtime';
+
+const escapeRegExp = (value: string) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const wildcardMatch = (pattern: string, value: string): boolean => {
+  if (pattern === '*') return true;
+  if (!pattern.includes('*')) return pattern === value;
+  const regexp = new RegExp(`^${pattern.split('*').map(escapeRegExp).join('.*')}$`, 'i');
+  return regexp.test(value);
+};
+
+const matchesEntry = (entry: string, model: string) => {
+  const normalized = entry.trim().toLowerCase();
+  if (!normalized) return false;
+  return wildcardMatch(normalized, model.toLowerCase());
+};
+
+interface AssertPlanModelAllowedParams {
+  db: LobeChatDatabase;
+  model: string | null | undefined;
+  modelType?: PlanModelRuleType;
+  userId: string;
+}
+
+/**
+ * Enforce per-plan model rules on top of the global model policy.
+ *
+ * - No active plan snapshot OR no `modelRules` configured => allow.
+ * - Rule for the type missing => allow (per-type opt-in).
+ * - mode='allowlist': model must match at least one allowlist entry.
+ * - mode='blocklist': model must not match any blocklist entry.
+ *
+ * Throws a Forbidden ChatError when denied.
+ */
+export const assertPlanModelAllowed = async ({
+  db,
+  model,
+  modelType = 'chat',
+  userId,
+}: AssertPlanModelAllowedParams): Promise<void> => {
+  const trimmed = model?.trim();
+  if (!trimmed) return;
+
+  const snapshot = await db.query.userPlanSnapshots.findFirst({
+    orderBy: desc(userPlanSnapshots.createdAt),
+    where: eq(userPlanSnapshots.userId, userId),
+  });
+  if (!snapshot) return;
+
+  const catalog = await db.query.planCatalog.findFirst({
+    where: eq(planCatalog.plan, snapshot.plan),
+  });
+  const rules = catalog?.modelRules as PlanModelRules | undefined | null;
+  if (!rules) return;
+
+  const rule = rules[modelType];
+  if (!rule) return;
+
+  const matchedAllowlist = (rule.allowlist ?? []).some((e) => matchesEntry(e, trimmed));
+  const matchedBlocklist = (rule.blocklist ?? []).some((e) => matchesEntry(e, trimmed));
+
+  const denied =
+    rule.mode === 'allowlist' ? !matchedAllowlist : rule.mode === 'blocklist' && matchedBlocklist;
+
+  if (!denied) return;
+
+  throw AgentRuntimeError.createError(ChatErrorType.Forbidden, {
+    message: `当前套餐未授权使用模型 ${trimmed}，请升级套餐或选择其他模型。`,
+    model: trimmed,
+    modelType,
+    plan: snapshot.plan,
+    reason: 'PLAN_MODEL_RULE_DENIED',
+  });
+};
+
+interface ResolvePlanModelRulesParams {
+  db: LobeChatDatabase;
+  userId: string;
+}
+
+/**
+ * Resolve the user's effective per-type model rules, or null if no plan
+ * snapshot exists or no rules are configured for the plan. Pure read — used
+ * by both the runtime check and frontend list filtering.
+ */
+export const resolvePlanModelRules = async ({
+  db,
+  userId,
+}: ResolvePlanModelRulesParams): Promise<PlanModelRules | null> => {
+  const snapshot = await db.query.userPlanSnapshots.findFirst({
+    orderBy: desc(userPlanSnapshots.createdAt),
+    where: eq(userPlanSnapshots.userId, userId),
+  });
+  if (!snapshot) return null;
+
+  const catalog = await db.query.planCatalog.findFirst({
+    where: eq(planCatalog.plan, snapshot.plan),
+  });
+  return (catalog?.modelRules ?? null) as PlanModelRules | null;
+};
+
+/**
+ * Apply a PlanModelRules object to a model id of a given type. Returns true
+ * when the model is allowed under the rules, or when no rule applies.
+ */
+export const isModelAllowedByPlanRules = (
+  rules: PlanModelRules | null | undefined,
+  modelId: string | null | undefined,
+  modelType: PlanModelRuleType,
+): boolean => {
+  const trimmed = modelId?.trim();
+  if (!trimmed) return true;
+  if (!rules) return true;
+  const rule = rules[modelType];
+  if (!rule) return true;
+
+  const matchedAllowlist = (rule.allowlist ?? []).some((e) => matchesEntry(e, trimmed));
+  const matchedBlocklist = (rule.blocklist ?? []).some((e) => matchesEntry(e, trimmed));
+
+  if (rule.mode === 'allowlist') return matchedAllowlist;
+  if (rule.mode === 'blocklist') return !matchedBlocklist;
+  return true;
+};

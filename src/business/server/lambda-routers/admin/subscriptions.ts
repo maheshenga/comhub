@@ -1,17 +1,90 @@
+import type { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, count, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { CommercialModel } from '@/database/models/commercial';
 import { subscriptionChangeRequests, userPlanSnapshots } from '@/database/schemas';
+import type { Transaction } from '@/database/type';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
-import { Plans } from '@lobechat/types';
 
 import { recordAdminAudit } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
 
 export const adminSubscriptionsRouter = router({
+  assignPlan: adminProcedure
+    .input(
+      z.object({
+        cycle: z.enum(['monthly', 'yearly']),
+        durationMonths: z.number().int().min(1).max(120),
+        plan: z.string().min(1),
+        reason: z.string().min(1).max(500),
+        userId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const model = new CommercialModel(ctx.serverDB, input.userId);
+      const assignedAt = Date.now();
+      const adminSubscriptionId = `admin-${ctx.userId}-${assignedAt}`;
+      const request = await ctx.serverDB.transaction(async (tx: Transaction) => {
+        const changeRequest = await model.grantPlanFromRedemptionCode({
+          code: `ADMIN-${Date.now()}`,
+          cycle: input.cycle,
+          durationMonths: input.durationMonths,
+          redemptionCodeId: adminSubscriptionId,
+          targetPlan: input.plan as Plans,
+          tx,
+        });
+
+        const latestSnapshot = await tx.query.userPlanSnapshots.findFirst({
+          orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+          where: and(
+            eq(userPlanSnapshots.userId, input.userId),
+            eq(userPlanSnapshots.status, 'active'),
+          ),
+        });
+
+        if (latestSnapshot) {
+          const previousMetadata =
+            latestSnapshot.metadata && typeof latestSnapshot.metadata === 'object'
+              ? latestSnapshot.metadata
+              : undefined;
+          await tx
+            .update(userPlanSnapshots)
+            .set({
+              externalSubscriptionId: adminSubscriptionId,
+              metadata: {
+                ...previousMetadata,
+                adminReason: input.reason,
+                assignedByUserId: ctx.userId,
+                source: 'admin_manual',
+              },
+              provider: 'admin_manual',
+              updatedAt: new Date(),
+            })
+            .where(eq(userPlanSnapshots.id, latestSnapshot.id));
+        }
+
+        return changeRequest;
+      });
+
+      await recordAdminAudit(ctx, {
+        action: 'subscription.assignPlan',
+        payload: {
+          cycle: input.cycle,
+          durationMonths: input.durationMonths,
+          plan: input.plan,
+          reason: input.reason,
+          requestId: request.id,
+        },
+        resourceType: 'subscription',
+        targetUserId: input.userId,
+      });
+
+      return { ok: true, requestId: request.id };
+    }),
+
   forceChange: adminProcedure
     .input(
       z.object({
@@ -116,8 +189,7 @@ export const adminSubscriptionsRouter = router({
       const request = await ctx.serverDB.query.subscriptionChangeRequests.findFirst({
         where: eq(subscriptionChangeRequests.id, input.requestId),
       });
-      if (!request)
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Change request not found' });
+      if (!request) throw new TRPCError({ code: 'NOT_FOUND', message: 'Change request not found' });
       if (request.status !== 'pending')
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Request is not pending' });
 
@@ -145,8 +217,7 @@ export const adminSubscriptionsRouter = router({
       const request = await ctx.serverDB.query.subscriptionChangeRequests.findFirst({
         where: eq(subscriptionChangeRequests.id, input.requestId),
       });
-      if (!request)
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Change request not found' });
+      if (!request) throw new TRPCError({ code: 'NOT_FOUND', message: 'Change request not found' });
       if (request.status !== 'pending')
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Request is not pending' });
 

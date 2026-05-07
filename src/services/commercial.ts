@@ -54,6 +54,22 @@ class CommercialService {
   listReferralHistory = async (params?: QueryCommercialListParams) => {
     return lambdaClient.referral.listHistory.query(params ?? {});
   };
+
+  getTopUpPackages = async () => {
+    return lambdaClient.spend.listTopUpPackages.query();
+  };
+
+  listTopUpOrders = async (params?: QueryCommercialListParams) => {
+    return lambdaClient.spend.listTopUpOrders.query(params ?? {});
+  };
+
+  redeemCode = async (code: string) => {
+    return lambdaClient.redemption.redeem.mutate({ code });
+  };
+
+  previewCode = async (code: string) => {
+    return lambdaClient.redemption.preview.query({ code });
+  };
 }
 
 export const commercialService = new CommercialService();
