@@ -9,13 +9,13 @@ interface SkillSourceTagProps {
 }
 
 const SkillSourceTag = memo<SkillSourceTagProps>(({ source }) => {
-  const { t } = useTranslation('plugin');
+  const { t } = useTranslation(['plugin', 'setting']);
 
   switch (source) {
     case 'builtin': {
       return (
         <Tag color={'success'} icon={<Icon icon={BadgeCheck} />} size={'small'}>
-          LobeHub
+          {t('skillStore.tabs.lobehub', { ns: 'setting' })}
         </Tag>
       );
     }

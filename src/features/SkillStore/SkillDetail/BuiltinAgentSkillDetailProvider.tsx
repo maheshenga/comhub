@@ -37,9 +37,10 @@ export const BuiltinAgentSkillDetailProvider = ({
   const localizedReadme = t(`tools.builtins.${identifier}.readme`, {
     defaultValue: '',
   });
+  const brandName = t('skillStore.tabs.lobehub');
 
   const value: DetailContextValue = {
-    author: 'LobeHub',
+    author: brandName,
     authorUrl: 'https://lobehub.com',
     config: null as any,
     description: skill.description,

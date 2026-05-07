@@ -17,10 +17,41 @@ test -s "$PKG"
 ls -lh "$PKG"
 
 echo "== stop old app if running =="
+stop_pid() {
+  local pid="$1"
+
+  if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+    return 0
+  fi
+
+  kill "$pid" 2>/dev/null || true
+  for _ in $(seq 1 15); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  kill -9 "$pid" 2>/dev/null || true
+}
+
+if [ -s "$APP_DIR/app.pid" ]; then
+  stop_pid "$(cat "$APP_DIR/app.pid")"
+fi
+
 pkill -f "${APP_DIR}/.*server\\.js" 2>/dev/null || true
 pkill -f "${APP_DIR}/.*startServer\\.js" 2>/dev/null || true
+
+PORT_PIDS=$(ss -ltnp 2>/dev/null | awk -v port=":${PORT}" '$4 ~ port {print $0}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)
+for pid in $PORT_PIDS; do
+  stop_pid "$pid"
+done
+
 sleep 1
-ss -ltnp | grep ":${PORT}" || true
+if ss -ltnp | grep ":${PORT}"; then
+  echo "ERROR: port ${PORT} is still in use after stopping old app" >&2
+  exit 1
+fi
 
 echo "== backup env and current app =="
 test -f "$APP_DIR/.env"

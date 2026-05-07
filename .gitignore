@@ -55,6 +55,9 @@ bun.lockb
 
 # Build outputs
 dist/
+dist-deploy/
+deploy-extract-*/
+app/
 public/_spa/
 public/spa/
 es/

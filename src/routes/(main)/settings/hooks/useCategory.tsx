@@ -66,6 +66,8 @@ export const useCategory = () => {
     userProfileSelectors.userAvatar(s),
     userProfileSelectors.nickName(s),
   ]);
+  const user = useUserStore(userProfileSelectors.userProfile);
+  const isAdmin = (user as any)?.role === 'admin';
   const remoteServerUrl = useElectronStore(electronSyncSelectors.remoteServerUrl);
   const isDevMode = useUserStore((s) => userGeneralSettingsSelectors.config(s).isDevMode);
 
@@ -85,7 +87,7 @@ export const useCategory = () => {
       {
         icon: avatarUrl ? <Avatar avatar={avatarUrl} shape={'square'} size={26} /> : undefined,
         key: SettingsTabs.Profile,
-        label: username ? username : tAuth('tab.profile'),
+        label: username || tAuth('tab.profile'),
       },
       {
         icon: ChartColumnBigIcon,
@@ -172,7 +174,7 @@ export const useCategory = () => {
 
     // System group
     const systemItems: CategoryItem[] = [
-      {
+      isAdmin && {
         icon: ShieldCheck,
         key: SettingsTabs.Admin,
         label: tSubscription('admin.console', '后台管理'),
@@ -225,6 +227,7 @@ export const useCategory = () => {
     mobile,
     showApiKeyManage,
     isDevMode,
+    isAdmin,
     avatarUrl,
     username,
   ]);

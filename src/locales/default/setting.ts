@@ -788,7 +788,8 @@ export default {
   'settingSystemTools.tools.grep.desc': 'GNU grep - standard text search tool',
   'settingSystemTools.tools.kimi.desc': 'Kimi CLI - Moonshot AI agentic coding CLI',
   'settingSystemTools.tools.mdfind.desc': 'macOS Spotlight search (fast indexed search)',
-  'settingSystemTools.tools.lobehub.desc': 'LobeHub CLI - manage and connect to LobeHub services',
+  'settingSystemTools.tools.lobehub.desc':
+    '{{brandName}} CLI - manage and connect to {{brandName}} services',
   'settingSystemTools.tools.bun.desc': 'Bun - fast JavaScript runtime and package manager',
   'settingSystemTools.tools.bunx.desc': 'bunx - Bun package runner for executing npm packages',
   'settingSystemTools.tools.node.desc': 'Node.js - JavaScript runtime for executing JS/TS',
@@ -831,7 +832,7 @@ export default {
   'skillStore.search': 'Search skills by name or keyword, press Enter to search…',
   'skillStore.tabs.community': 'Community',
   'skillStore.tabs.custom': 'Custom',
-  'skillStore.tabs.lobehub': 'LobeHub',
+  'skillStore.tabs.lobehub': '{{brandName}}',
   'skillStore.tabs.mcp': 'MCP',
   'skillStore.tabs.skills': 'Skills',
   'skillStore.title': 'Skill Store',
@@ -1109,8 +1110,8 @@ When I am ___, I need ___
     'Browser automation CLI for AI agents. Use when tasks involve website or Electron interaction such as navigation, form filling, clicking, screenshot capture, scraping data, login flows, and end-to-end app testing.',
   'tools.builtins.lobe-agent-browser.title': 'Agent Browser',
   'tools.builtins.lobehub.description':
-    'Manage the LobeHub platform via CLI — knowledge bases, memory, agents, files, search, generation, and more.',
-  'tools.builtins.lobehub.title': 'LobeHub',
+    'Manage the {{brandName}} platform via CLI — knowledge bases, memory, agents, files, search, generation, and more.',
+  'tools.builtins.lobehub.title': '{{brandName}}',
   'tools.builtins.task.description':
     'Task management and execution — create, track, review, and complete tasks via CLI.',
   'tools.builtins.task.title': 'Task',
