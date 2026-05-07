@@ -18,6 +18,13 @@ import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
+  MATRIX_ACCESS_SAVE_LABEL,
+  MATRIX_DISCARD_LABEL,
+  MATRIX_NOTICE,
+  MATRIX_PRICING_SAVE_LABEL,
+  MATRIX_SUBTITLE,
+} from '@/features/Admin/adminMatrixCopy';
+import {
   buildMatrixRows,
   buildPlanModelRulesFromRows,
   buildPricingRulesFromRows,
@@ -183,9 +190,9 @@ const AdminModelBillingMatrixPage = memo(() => {
         value: buildPricingRulesFromRows(rows),
       });
       await mutate(ADMIN_SETTINGS_SWR_KEY);
-      message.success(t('admin.modelBillingMatrix.pricingSaved', '模型计费规则已保存'));
+      message.success(t('admin.modelBillingMatrix.pricingSaved', '模型计费已保存'));
     } catch {
-      message.error(t('admin.modelBillingMatrix.pricingSaveFailed', '保存模型计费规则失败'));
+      message.error(t('admin.modelBillingMatrix.pricingSaveFailed', '保存模型计费失败'));
     } finally {
       setSaving(false);
     }
@@ -297,30 +304,24 @@ const AdminModelBillingMatrixPage = memo(() => {
           {t('admin.modelBillingMatrix.title', '模型与计费矩阵')}
         </Title>
         <Text type="secondary">
-          {t(
-            'admin.modelBillingMatrix.subtitle',
-            '统一查看模型来源、套餐权限、默认模型和计费倍率。默认模型立即保存，套餐权限和计费覆盖分别保存。',
-          )}
+          {t('admin.modelBillingMatrix.subtitle', MATRIX_SUBTITLE)}
         </Text>
       </Flexbox>
 
       <Alert
         showIcon
+        message={t('admin.modelBillingMatrix.notice', MATRIX_NOTICE)}
         type="info"
-        message={t(
-          'admin.modelBillingMatrix.notice',
-          '套餐开关会写入套餐模型规则；当某个套餐关闭了同类型任一模型时，该类型会保存为允许列表，避免误伤其它类型模型。',
-        )}
       />
 
       <Space wrap>
         <Button loading={saving} type="primary" onClick={handleSaveAccess}>
-          保存套餐权限
+          {MATRIX_ACCESS_SAVE_LABEL}
         </Button>
         <Button loading={saving} onClick={handleSavePricing}>
-          保存计费规则
+          {MATRIX_PRICING_SAVE_LABEL}
         </Button>
-        {rowsOverride && <Button onClick={() => setRowsOverride(null)}>放弃本页未保存调整</Button>}
+        {rowsOverride && <Button onClick={() => setRowsOverride(null)}>{MATRIX_DISCARD_LABEL}</Button>}
       </Space>
 
       <Table
