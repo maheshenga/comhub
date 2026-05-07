@@ -70,6 +70,14 @@ describe('adminNavigation', () => {
     });
   });
 
+  it('describes the model and API module using current admin concepts', () => {
+    const modelApiGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'model-api');
+
+    expect(modelApiGroup?.description).toBe(
+      'NewAPI 实例、模型与计费矩阵、全局模型策略和全局计费设置',
+    );
+  });
+
   it('selects the nearest admin item for nested URLs and opens its module', () => {
     expect(getAdminSelectedKey('/settings/admin')).toBe(ADMIN_BASE_PATH);
     expect(getAdminSelectedKey('/settings/admin/users/abc')).toBe(`${ADMIN_BASE_PATH}/users`);

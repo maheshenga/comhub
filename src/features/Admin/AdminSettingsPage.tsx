@@ -19,6 +19,10 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
+  SETTINGS_DEFAULT_MODEL_NOTICE,
+  SETTINGS_SUBTITLE,
+} from '@/features/Admin/adminSettingsCopy';
+import {
   ADMIN_SETTINGS_SWR_KEY,
   type AdminSettingsFormValues,
   buildFormValues,
@@ -142,20 +146,14 @@ const AdminSettingsPage = memo(() => {
           {t('admin.settings.title', '站点与 API 设置')}
         </Title>
         <Text type="secondary">
-          {t(
-            'admin.settings.subtitle',
-            '这里保留全站基础设置。套餐、模型策略、计费规则等独立管理项已移动到左侧对应模块。',
-          )}
+          {t('admin.settings.subtitle', SETTINGS_SUBTITLE)}
         </Text>
       </Flexbox>
 
       <Alert
         showIcon
+        message={t('admin.settings.defaultModelNotice', SETTINGS_DEFAULT_MODEL_NOTICE)}
         type="info"
-        message={t(
-          'admin.settings.defaultModelNotice',
-          '默认模型保存后会刷新运行时配置和用户状态。新用户、新建助手以及未单独指定模型的助手会优先使用这里的默认供应商和模型。',
-        )}
       />
 
       <Form disabled={isLoading} form={form} layout="vertical">

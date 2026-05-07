@@ -123,7 +123,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '商业化',
   },
   {
-    description: 'NewAPI 实例、默认模型、全局策略和计费规则',
+    description: 'NewAPI 实例、模型与计费矩阵、全局模型策略和全局计费设置',
     icon: 'models',
     items: [
       {
