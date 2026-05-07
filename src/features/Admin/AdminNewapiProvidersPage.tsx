@@ -1,0 +1,543 @@
+'use client';
+
+import { Flexbox } from '@lobehub/ui';
+import {
+  Button,
+  Drawer,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Modal,
+  Popconfirm,
+  Switch,
+  Table,
+  Tabs,
+  Tag,
+  Tooltip,
+} from 'antd';
+import { memo, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { mutate, useClientDataSWR } from '@/libs/swr';
+import { adminCommercialService } from '@/services/adminCommercial';
+
+type ModelType =
+  | 'chat'
+  | 'embedding'
+  | 'tts'
+  | 'stt'
+  | 'image'
+  | 'video'
+  | 'text2music'
+  | 'realtime';
+
+const MODEL_TYPES: ModelType[] = [
+  'chat',
+  'image',
+  'video',
+  'embedding',
+  'tts',
+  'stt',
+  'text2music',
+  'realtime',
+];
+
+interface InstanceRow {
+  apiKey: string | null;
+  baseUrl: string;
+  description: string | null;
+  enabled: boolean;
+  fetchOnClient: boolean;
+  id: string;
+  name: string;
+  priority: number;
+}
+
+interface ModelRow {
+  displayName: string | null;
+  enabled: boolean;
+  modelId: string;
+  modelType: ModelType;
+  sortOrder: number;
+}
+
+const INSTANCES_KEY = ['admin-newapi-instances'];
+const modelsKey = (instanceId: string, modelType?: ModelType) =>
+  ['admin-newapi-instance-models', instanceId, modelType ?? 'all'] as const;
+
+const splitToList = (text: string): string[] =>
+  text
+    .split(/[\r\n,;；，]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+const InstanceFormModal = memo<{
+  initial?: InstanceRow | null;
+  onClose: () => void;
+  open: boolean;
+}>(({ initial, onClose, open }) => {
+  const { t } = useTranslation('subscription');
+  const [form] = Form.useForm();
+  const [submitting, setSubmitting] = useState(false);
+  const isEdit = !!initial;
+
+  const handleOk = async () => {
+    try {
+      const values = await form.validateFields();
+      setSubmitting(true);
+      if (isEdit && initial) {
+        const data: Record<string, unknown> = {
+          baseUrl: values.baseUrl,
+          description: values.description || undefined,
+          enabled: !!values.enabled,
+          fetchOnClient: !!values.fetchOnClient,
+          name: values.name,
+          priority: Number(values.priority || 0),
+        };
+        if (values.apiKey && !values.apiKey.includes('****')) {
+          data.apiKey = values.apiKey;
+        }
+        await adminCommercialService.updateNewapiInstance({ data, id: initial.id });
+      } else {
+        await adminCommercialService.createNewapiInstance({
+          apiKey: values.apiKey,
+          baseUrl: values.baseUrl,
+          description: values.description || undefined,
+          enabled: !!values.enabled,
+          fetchOnClient: !!values.fetchOnClient,
+          name: values.name,
+          priority: Number(values.priority || 0),
+        });
+      }
+      message.success(t('admin.newapi.saveSuccess', '已保存'));
+      await mutate(INSTANCES_KEY);
+      onClose();
+    } catch (e) {
+      if ((e as { errorFields?: unknown }).errorFields) return;
+      message.error(t('admin.newapi.saveFailed', '保存失败'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      destroyOnClose
+      confirmLoading={submitting}
+      open={open}
+      width={560}
+      afterOpenChange={(visible) => {
+        if (visible) {
+          form.setFieldsValue(
+            initial ?? {
+              apiKey: '',
+              baseUrl: '',
+              description: '',
+              enabled: true,
+              fetchOnClient: false,
+              name: '',
+              priority: 0,
+            },
+          );
+        }
+      }}
+      title={
+        isEdit
+          ? t('admin.newapi.modal.editInstance', '编辑实例')
+          : t('admin.newapi.modal.createInstance', '新建实例')
+      }
+      onCancel={onClose}
+      onOk={handleOk}
+    >
+      <Form form={form} layout="vertical">
+        <Form.Item
+          label={t('admin.newapi.field.name', '名称')}
+          name="name"
+          rules={[{ message: t('admin.newapi.field.nameRequired', '请填写名称'), required: true }]}
+        >
+          <Input placeholder="Default" />
+        </Form.Item>
+        <Form.Item
+          label={t('admin.newapi.field.baseUrl', '基础地址（Base URL）')}
+          name="baseUrl"
+          rules={[
+            {
+              message: t('admin.newapi.field.baseUrlRequired', '请填写基础地址'),
+              required: true,
+            },
+            { type: 'url' },
+          ]}
+        >
+          <Input placeholder="https://api.example.com" />
+        </Form.Item>
+        <Form.Item
+          label={t('admin.newapi.field.apiKey', 'API 密钥（API Key）')}
+          name="apiKey"
+          rules={isEdit ? [] : [{ required: true }]}
+          extra={
+            isEdit
+              ? t(
+                  'admin.newapi.field.apiKeyEditHint',
+                  '留空表示保持现有密钥不变；填写新密钥会替换当前密钥。',
+                )
+              : undefined
+          }
+        >
+          <Input.Password placeholder="sk-..." />
+        </Form.Item>
+        <Flexbox horizontal gap={12}>
+          <Form.Item
+            extra={t('admin.newapi.field.priorityHint', '数字越小优先级越高，用于路由和故障切换。')}
+            label={t('admin.newapi.field.priority', '优先级')}
+            name="priority"
+            style={{ flex: 1 }}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.newapi.field.enabled', '启用')}
+            name="enabled"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.newapi.field.fetchOnClient', '客户端拉取')}
+            name="fetchOnClient"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+        </Flexbox>
+        <Form.Item label={t('admin.newapi.field.description', '描述')} name="description">
+          <Input.TextArea rows={2} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+});
+InstanceFormModal.displayName = 'InstanceFormModal';
+
+const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
+  ({ instanceId, modelType }) => {
+    const { t } = useTranslation('subscription');
+    const swrKey = modelsKey(instanceId, modelType);
+    const { data, isLoading } = useClientDataSWR(swrKey, () =>
+      adminCommercialService.listNewapiInstanceModels({ instanceId, modelType }),
+    );
+    const items = (data?.items ?? []) as ModelRow[];
+
+    const [bulkText, setBulkText] = useState('');
+    const [adding, setAdding] = useState(false);
+
+    const handleBulkAdd = async () => {
+      const ids = splitToList(bulkText);
+      if (ids.length === 0) return;
+      setAdding(true);
+      try {
+        await adminCommercialService.addNewapiInstanceModels({
+          instanceId,
+          models: ids.map((id, i) => ({
+            enabled: true,
+            modelId: id,
+            modelType,
+            sortOrder: i,
+          })),
+        });
+        message.success(t('admin.newapi.models.addSuccess', '模型已添加'));
+        setBulkText('');
+        await mutate(swrKey);
+      } catch {
+        message.error(t('admin.newapi.models.addFailed', '添加模型失败'));
+      } finally {
+        setAdding(false);
+      }
+    };
+
+    const handleToggle = async (row: ModelRow) => {
+      await adminCommercialService.updateNewapiInstanceModel({
+        data: { enabled: !row.enabled },
+        instanceId,
+        modelId: row.modelId,
+        modelType: row.modelType,
+      });
+      await mutate(swrKey);
+    };
+
+    const handleRename = async (row: ModelRow, displayName: string) => {
+      await adminCommercialService.updateNewapiInstanceModel({
+        data: { displayName: displayName || undefined },
+        instanceId,
+        modelId: row.modelId,
+        modelType: row.modelType,
+      });
+      await mutate(swrKey);
+    };
+
+    const handleDelete = async (row: ModelRow) => {
+      await adminCommercialService.removeNewapiInstanceModel({
+        instanceId,
+        modelId: row.modelId,
+        modelType: row.modelType,
+      });
+      await mutate(swrKey);
+    };
+
+    const columns = [
+      {
+        dataIndex: 'modelId',
+        key: 'modelId',
+        title: t('admin.newapi.models.col.id', '模型 ID'),
+      },
+      {
+        dataIndex: 'displayName',
+        key: 'displayName',
+        render: (v: string | null, r: ModelRow) => (
+          <Input
+            defaultValue={v ?? ''}
+            placeholder={r.modelId}
+            size="small"
+            onBlur={(e) => {
+              const next = e.target.value.trim();
+              if ((v ?? '') !== next) handleRename(r, next);
+            }}
+          />
+        ),
+        title: t('admin.newapi.models.col.displayName', '显示名称'),
+        width: 220,
+      },
+      {
+        dataIndex: 'enabled',
+        key: 'enabled',
+        render: (v: boolean, r: ModelRow) => (
+          <Switch checked={v} size="small" onChange={() => handleToggle(r)} />
+        ),
+        title: t('admin.newapi.models.col.enabled', '启用'),
+        width: 100,
+      },
+      {
+        key: 'actions',
+        render: (_: unknown, r: ModelRow) => (
+          <Popconfirm
+            okButtonProps={{ danger: true }}
+            okText={t('admin.newapi.models.confirmRemove', '移除')}
+            title={t('admin.newapi.models.confirmRemoveTitle', '移除这个模型？')}
+            onConfirm={() => handleDelete(r)}
+          >
+            <Button danger size="small" type="link">
+              {t('admin.newapi.models.remove', '移除')}
+            </Button>
+          </Popconfirm>
+        ),
+        title: t('admin.newapi.models.col.actions', '操作'),
+        width: 100,
+      },
+    ];
+
+    return (
+      <Flexbox gap={12}>
+        <Flexbox gap={8}>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>
+            {t('admin.newapi.models.bulkAddHint', '可批量添加模型 ID，使用换行或逗号分隔。')}
+          </div>
+          <Input.TextArea
+            placeholder={'gpt-4o-mini\ngpt-4o'}
+            rows={3}
+            value={bulkText}
+            onChange={(e) => setBulkText(e.target.value)}
+          />
+          <Flexbox horizontal>
+            <Button
+              disabled={!bulkText.trim()}
+              loading={adding}
+              type="primary"
+              onClick={handleBulkAdd}
+            >
+              {t('admin.newapi.models.add', '添加模型')}
+            </Button>
+          </Flexbox>
+        </Flexbox>
+        {!isLoading && items.length === 0 ? (
+          <Empty description={t('admin.newapi.models.empty', '该类型暂无模型')} />
+        ) : (
+          <Table
+            columns={columns as any}
+            dataSource={items}
+            loading={isLoading}
+            pagination={false}
+            rowKey={(r) => `${r.modelId}__${r.modelType}`}
+            size="small"
+          />
+        )}
+      </Flexbox>
+    );
+  },
+);
+ModelTypePanel.displayName = 'ModelTypePanel';
+
+const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>(
+  ({ instance, onClose }) => {
+    const { t } = useTranslation('subscription');
+    const [activeTab, setActiveTab] = useState<ModelType>('chat');
+
+    const tabs = useMemo(
+      () =>
+        MODEL_TYPES.map((type) => ({
+          children: instance ? <ModelTypePanel instanceId={instance.id} modelType={type} /> : null,
+          key: type,
+          label: t(`admin.newapi.modelType.${type}`, type),
+        })),
+      [instance, t],
+    );
+
+    return (
+      <Drawer
+        destroyOnClose
+        open={!!instance}
+        width={760}
+        title={
+          instance ? t('admin.newapi.drawer.title', '{{name}} 的模型', { name: instance.name }) : ''
+        }
+        onClose={onClose}
+      >
+        <Tabs activeKey={activeTab} items={tabs} onChange={(k) => setActiveTab(k as ModelType)} />
+      </Drawer>
+    );
+  },
+);
+ModelsDrawer.displayName = 'ModelsDrawer';
+
+const AdminNewapiProvidersPage = memo(() => {
+  const { t } = useTranslation('subscription');
+  const { data, isLoading } = useClientDataSWR(INSTANCES_KEY, () =>
+    adminCommercialService.listNewapiInstances(),
+  );
+
+  const [editing, setEditing] = useState<InstanceRow | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [modelsTarget, setModelsTarget] = useState<InstanceRow | null>(null);
+
+  const items = (data?.items ?? []) as InstanceRow[];
+
+  const handleToggle = async (row: InstanceRow) => {
+    await adminCommercialService.toggleNewapiInstance({ enabled: !row.enabled, id: row.id });
+    await mutate(INSTANCES_KEY);
+  };
+
+  const handleDelete = async (row: InstanceRow) => {
+    await adminCommercialService.deleteNewapiInstance(row.id);
+    message.success(t('admin.newapi.deleteSuccess', '实例已删除'));
+    await mutate(INSTANCES_KEY);
+  };
+
+  const columns = [
+    {
+      dataIndex: 'name',
+      key: 'name',
+      title: t('admin.newapi.col.name', '名称'),
+    },
+    {
+      dataIndex: 'baseUrl',
+      key: 'baseUrl',
+      render: (v: string) => (
+        <Tooltip title={v}>
+          <code style={{ fontSize: 12 }}>{v}</code>
+        </Tooltip>
+      ),
+      title: t('admin.newapi.col.baseUrl', '基础地址'),
+    },
+    {
+      dataIndex: 'apiKey',
+      key: 'apiKey',
+      render: (v: string | null) => <code style={{ fontSize: 12 }}>{v ?? '-'}</code>,
+      title: t('admin.newapi.col.apiKey', 'API 密钥'),
+      width: 160,
+    },
+    {
+      dataIndex: 'priority',
+      key: 'priority',
+      title: t('admin.newapi.col.priority', '优先级'),
+      width: 90,
+    },
+    {
+      dataIndex: 'enabled',
+      key: 'enabled',
+      render: (v: boolean, r: InstanceRow) => (
+        <Switch checked={v} size="small" onChange={() => handleToggle(r)} />
+      ),
+      title: t('admin.newapi.col.enabled', '启用'),
+      width: 90,
+    },
+    {
+      dataIndex: 'fetchOnClient',
+      key: 'fetchOnClient',
+      render: (v: boolean) =>
+        v ? <Tag color="blue">客户端（Client）</Tag> : <Tag color="default">服务端（Server）</Tag>,
+      title: t('admin.newapi.col.fetchMode', '拉取方式'),
+      width: 140,
+    },
+    {
+      key: 'actions',
+      render: (_: unknown, row: InstanceRow) => (
+        <Flexbox horizontal gap={8}>
+          <Button size="small" onClick={() => setModelsTarget(row)}>
+            {t('admin.newapi.action.models', '模型')}
+          </Button>
+          <Button size="small" onClick={() => setEditing(row)}>
+            {t('admin.newapi.action.edit', '编辑')}
+          </Button>
+          <Popconfirm
+            okButtonProps={{ danger: true }}
+            okText={t('admin.newapi.action.delete', '删除')}
+            title={t('admin.newapi.confirmDelete', '删除这个实例及其全部模型？')}
+            onConfirm={() => handleDelete(row)}
+          >
+            <Button danger size="small">
+              {t('admin.newapi.action.delete', '删除')}
+            </Button>
+          </Popconfirm>
+        </Flexbox>
+      ),
+      title: t('admin.newapi.col.actions', '操作'),
+      width: 240,
+    },
+  ];
+
+  return (
+    <Flexbox gap={16} padding={24}>
+      <Flexbox horizontal gap={12} justify="space-between">
+        <div style={{ fontSize: 13, opacity: 0.7 }}>
+          {t(
+            'admin.newapi.intro',
+            '配置多个 NewAPI 上游实例，并按模型类型登记可用模型。运行时会优先使用匹配模型且优先级最高的实例，失败时按优先级切换到下一个实例。',
+          )}
+        </div>
+        <Button type="primary" onClick={() => setCreating(true)}>
+          {t('admin.newapi.createInstance', '新建实例')}
+        </Button>
+      </Flexbox>
+
+      {!isLoading && items.length === 0 ? (
+        <Empty description={t('admin.newapi.empty', '暂未配置 NewAPI 实例')} />
+      ) : (
+        <Table
+          columns={columns as any}
+          dataSource={items}
+          loading={isLoading}
+          pagination={false}
+          rowKey="id"
+        />
+      )}
+
+      <InstanceFormModal open={creating} onClose={() => setCreating(false)} />
+      <InstanceFormModal initial={editing} open={!!editing} onClose={() => setEditing(null)} />
+      <ModelsDrawer instance={modelsTarget} onClose={() => setModelsTarget(null)} />
+    </Flexbox>
+  );
+});
+
+AdminNewapiProvidersPage.displayName = 'AdminNewapiProvidersPage';
+
+export default AdminNewapiProvidersPage;

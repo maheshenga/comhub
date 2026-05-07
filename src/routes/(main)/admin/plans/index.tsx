@@ -1,20 +1,53 @@
 'use client';
 
 import { Plans } from '@lobechat/types';
-import { Button, Empty, Form, Input, InputNumber, Modal, Select, Switch, Tag, message } from 'antd';
-import { memo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Flexbox } from '@lobehub/ui';
+import {
+  Button,
+  Drawer,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Modal,
+  Radio,
+  Select,
+  Switch,
+  Tabs,
+  Tag,
+} from 'antd';
+import { memo, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+type PlanModelRule = {
+  allowlist?: string[];
+  blocklist?: string[];
+  mode: 'allowlist' | 'blocklist';
+};
+
+type ModelType =
+  | 'chat'
+  | 'embedding'
+  | 'tts'
+  | 'stt'
+  | 'image'
+  | 'video'
+  | 'text2music'
+  | 'realtime';
+
+type PlanModelRules = Partial<Record<ModelType, PlanModelRule>>;
 
 type PlanRow = {
   currency: string;
   displayName: string;
   features: string[] | null;
   isActive: boolean;
+  modelRules: PlanModelRules | null;
   monthlyCredits: number;
   monthlyPrice: number;
   plan: string;
@@ -22,18 +55,194 @@ type PlanRow = {
   yearlyPrice: number;
 };
 
+const MODEL_TYPES = [
+  'chat',
+  'embedding',
+  'tts',
+  'stt',
+  'image',
+  'video',
+  'text2music',
+  'realtime',
+] as const;
+
 const SWR_KEY = ['admin-plans'];
 const PLAN_OPTIONS = Object.values(Plans).map((plan) => ({
   label: plan,
   value: plan,
 }));
 
+const splitList = (value: string) =>
+  value
+    .split(/[\r\n,;；，]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const ModelRulesDrawer = memo<{
+  onClose: () => void;
+  plan: PlanRow | null;
+}>(({ onClose, plan }) => {
+  const { t } = useTranslation('subscription');
+  const [rules, setRules] = useState<PlanModelRules>(plan?.modelRules ?? {});
+  const [activeType, setActiveType] = useState<ModelType>('chat');
+  const [saving, setSaving] = useState(false);
+
+  const currentRule = rules[activeType];
+
+  const handleSave = async () => {
+    if (!plan) return;
+    setSaving(true);
+    try {
+      const cleaned: PlanModelRules = {};
+      for (const [type, rule] of Object.entries(rules)) {
+        if (rule) cleaned[type as ModelType] = rule;
+      }
+      await adminCommercialService.setPlanModelRules({
+        modelRules: Object.keys(cleaned).length > 0 ? cleaned : undefined,
+        plan: plan.plan,
+      });
+      message.success(t('admin.plans.modelRulesSaveSuccess', '套餐模型权限已保存'));
+      await mutate(SWR_KEY);
+      onClose();
+    } catch {
+      message.error(t('admin.plans.modelRulesSaveFailed', '保存失败'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateRule = (patch: Partial<PlanModelRule>) => {
+    setRules((prev) => ({
+      ...prev,
+      [activeType]: {
+        allowlist: patch.allowlist ?? prev[activeType]?.allowlist,
+        blocklist: patch.blocklist ?? prev[activeType]?.blocklist,
+        mode: patch.mode ?? prev[activeType]?.mode ?? 'blocklist',
+      },
+    }));
+  };
+
+  const removeRule = () => {
+    setRules((prev) => {
+      const next = { ...prev };
+      delete next[activeType];
+      return next;
+    });
+  };
+
+  const tabs = useMemo(
+    () =>
+      MODEL_TYPES.map((type) => {
+        const hasRule = !!rules[type];
+        return {
+          key: type,
+          label: (
+            <span>
+              {t(`admin.plans.modelType.${type}`, type)}
+              {hasRule && (
+                <Tag color="blue" style={{ fontSize: 10, marginLeft: 4 }}>
+                  已配置
+                </Tag>
+              )}
+            </span>
+          ),
+        };
+      }),
+    [rules, t],
+  );
+
+  return (
+    <Drawer
+      destroyOnClose
+      open={!!plan}
+      width={560}
+      extra={
+        <Button loading={saving} type="primary" onClick={handleSave}>
+          {t('admin.plans.modelRulesSave', '保存')}
+        </Button>
+      }
+      title={t('admin.plans.modelRulesTitle', '套餐模型权限 - {{name}}', {
+        name: plan?.displayName ?? plan?.plan ?? '',
+      })}
+      onClose={onClose}
+    >
+      <Tabs
+        activeKey={activeType}
+        items={tabs}
+        onChange={(key) => setActiveType(key as ModelType)}
+      />
+      {currentRule ? (
+        <Flexbox gap={16}>
+          <Radio.Group
+            value={currentRule.mode}
+            onChange={(e) => updateRule({ mode: e.target.value })}
+          >
+            <Radio value="allowlist">
+              {t('admin.plans.modelRulesModeAllowlist', '仅允许列表中的模型')}
+            </Radio>
+            <Radio value="blocklist">
+              {t('admin.plans.modelRulesModeBlocklist', '禁用列表中的模型')}
+            </Radio>
+          </Radio.Group>
+          {currentRule.mode === 'allowlist' ? (
+            <Form.Item
+              label={t('admin.plans.modelRulesAllowlist', '允许列表')}
+              extra={t(
+                'admin.plans.modelRulesListHint',
+                '每行一个模型 ID，支持 gpt-* 这类通配符。',
+              )}
+            >
+              <Input.TextArea
+                rows={6}
+                value={(currentRule.allowlist ?? []).join('\n')}
+                onChange={(e) => updateRule({ allowlist: splitList(e.target.value) })}
+              />
+            </Form.Item>
+          ) : (
+            <Form.Item
+              label={t('admin.plans.modelRulesBlocklist', '禁用列表')}
+              extra={t(
+                'admin.plans.modelRulesListHint',
+                '每行一个模型 ID，支持 gpt-* 这类通配符。',
+              )}
+            >
+              <Input.TextArea
+                rows={6}
+                value={(currentRule.blocklist ?? []).join('\n')}
+                onChange={(e) => updateRule({ blocklist: splitList(e.target.value) })}
+              />
+            </Form.Item>
+          )}
+          <Button danger size="small" onClick={removeRule}>
+            {t('admin.plans.modelRulesRemove', '移除此类型规则')}
+          </Button>
+        </Flexbox>
+      ) : (
+        <Empty
+          description={t('admin.plans.modelRulesEmpty', '此类型未设置权限规则，默认允许所有模型')}
+        >
+          <Button
+            onClick={() =>
+              setRules((prev) => ({
+                ...prev,
+                [activeType]: { blocklist: [], mode: 'blocklist' },
+              }))
+            }
+          >
+            {t('admin.plans.modelRulesAdd', '添加权限规则')}
+          </Button>
+        </Empty>
+      )}
+    </Drawer>
+  );
+});
+ModelRulesDrawer.displayName = 'ModelRulesDrawer';
+
 const AdminPlansPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(SWR_KEY, () =>
-    adminCommercialService.listPlans(),
-  );
+  const { data, isLoading } = useClientDataSWR(SWR_KEY, () => adminCommercialService.listPlans());
   const [editing, setEditing] = useState<Partial<PlanRow> | null>(null);
+  const [rulesPlan, setRulesPlan] = useState<PlanRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
 
@@ -77,11 +286,11 @@ const AdminPlansPage = memo(() => {
         sortOrder: Number(values.sortOrder || 0),
         yearlyPrice: Number(values.yearlyPrice || 0),
       });
-      message.success(t('admin.plans.saveSuccess', 'Plan saved'));
+      message.success(t('admin.plans.saveSuccess', '套餐已保存'));
       setEditing(null);
       await mutate(SWR_KEY);
     } catch {
-      message.error(t('admin.plans.saveFailed', 'Save failed'));
+      message.error(t('admin.plans.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -90,12 +299,12 @@ const AdminPlansPage = memo(() => {
   const handleDelete = (plan: string) => {
     Modal.confirm({
       content: plan,
+      title: t('admin.plans.confirmDelete', '确认删除套餐？'),
       onOk: async () => {
         await adminCommercialService.deletePlan(plan);
-        message.success(t('admin.plans.deleted', 'Plan deleted'));
+        message.success(t('admin.plans.deleted', '套餐已删除'));
         await mutate(SWR_KEY);
       },
-      title: t('admin.plans.confirmDelete', 'Delete plan?'),
     });
   };
 
@@ -105,49 +314,50 @@ const AdminPlansPage = memo(() => {
   };
 
   const columns = [
-    { dataIndex: 'plan', key: 'plan', title: t('admin.plans.col.key', 'Key') },
-    { dataIndex: 'displayName', key: 'displayName', title: t('admin.plans.col.name', 'Name') },
+    { dataIndex: 'plan', key: 'plan', title: t('admin.plans.col.key', '键名') },
+    { dataIndex: 'displayName', key: 'displayName', title: t('admin.plans.col.name', '显示名称') },
     {
       dataIndex: 'monthlyCredits',
       key: 'monthlyCredits',
-      title: t('admin.plans.col.monthlyCredits', 'Monthly Credits'),
+      title: t('admin.plans.col.monthlyCredits', '每月积分'),
     },
     {
       dataIndex: 'monthlyPrice',
       key: 'monthlyPrice',
       render: (v: number, r: PlanRow) => `${v} ${r.currency}`,
-      title: t('admin.plans.col.monthly', 'Monthly'),
+      title: t('admin.plans.col.monthly', '月付'),
     },
     {
       dataIndex: 'yearlyPrice',
       key: 'yearlyPrice',
       render: (v: number, r: PlanRow) => `${v} ${r.currency}`,
-      title: t('admin.plans.col.yearly', 'Yearly'),
+      title: t('admin.plans.col.yearly', '年付'),
     },
     {
       dataIndex: 'isActive',
       key: 'isActive',
-      render: (v: boolean) => (v ? <Tag color="green">Active</Tag> : <Tag>Inactive</Tag>),
-      title: t('admin.plans.col.active', 'Active'),
+      render: (v: boolean) => (v ? <Tag color="green">启用</Tag> : <Tag>停用</Tag>),
+      title: t('admin.plans.col.active', '状态'),
     },
     {
       key: 'actions',
       render: (_: unknown, row: PlanRow) => (
-        <Flexbox gap={8} horizontal>
+        <Flexbox horizontal gap={8}>
+          <Button size="small" onClick={() => setRulesPlan(row)}>
+            {t('admin.plans.modelRules', '模型权限')}
+          </Button>
           <Button size="small" onClick={() => openEdit(row)}>
-            {t('admin.plans.edit', 'Edit')}
+            {t('admin.plans.edit', '编辑')}
           </Button>
           <Button size="small" onClick={() => handleToggleActive(row)}>
-            {row.isActive
-              ? t('admin.plans.deactivate', 'Deactivate')
-              : t('admin.plans.activate', 'Activate')}
+            {row.isActive ? t('admin.plans.deactivate', '停用') : t('admin.plans.activate', '启用')}
           </Button>
           <Button danger size="small" onClick={() => handleDelete(row.plan)}>
-            {t('admin.plans.delete', 'Delete')}
+            {t('admin.plans.delete', '删除')}
           </Button>
         </Flexbox>
       ),
-      title: t('admin.plans.col.actions', 'Actions'),
+      title: t('admin.plans.col.actions', '操作'),
     },
   ];
 
@@ -155,75 +365,77 @@ const AdminPlansPage = memo(() => {
     <Flexbox gap={16} padding={24}>
       <Flexbox horizontal>
         <Button type="primary" onClick={() => openEdit()}>
-          {t('admin.plans.create', 'Create Plan')}
+          {t('admin.plans.create', '新建套餐')}
         </Button>
       </Flexbox>
       {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.plans.empty', 'No plans configured')} />
+        <Empty description={t('admin.plans.empty', '暂无套餐配置')} />
       ) : (
-        <InlineTable columns={columns as any} dataSource={items} loading={isLoading} rowKey="plan" />
+        <InlineTable
+          columns={columns as any}
+          dataSource={items}
+          loading={isLoading}
+          rowKey="plan"
+        />
       )}
 
       <Modal
         confirmLoading={submitting}
-        onCancel={() => setEditing(null)}
-        onOk={handleSave}
         open={!!editing}
+        width={600}
         title={
           editing?.plan
-            ? t('admin.plans.modal.edit', 'Edit Plan')
-            : t('admin.plans.modal.create', 'Create Plan')
+            ? t('admin.plans.modal.edit', '编辑套餐')
+            : t('admin.plans.modal.create', '新建套餐')
         }
-        width={600}
+        onCancel={() => setEditing(null)}
+        onOk={handleSave}
       >
         <Form form={form} layout="vertical">
           <Form.Item
-            label={t('admin.plans.field.key', 'Plan Key (e.g. starter)')}
+            label={t('admin.plans.field.key', '套餐键名（如 starter）')}
             name="plan"
             rules={[{ required: true }]}
           >
             <Select
               disabled={!!editing?.plan}
               options={PLAN_OPTIONS}
-              placeholder={t(
-                'admin.plans.field.keyPlaceholder',
-                'Select one of the supported built-in plan keys',
-              )}
+              placeholder={t('admin.plans.field.keyPlaceholder', '请选择一个内置支持的套餐键名')}
             />
           </Form.Item>
           <Form.Item
-            label={t('admin.plans.field.name', 'Display Name')}
+            label={t('admin.plans.field.name', '显示名称')}
             name="displayName"
             rules={[{ required: true }]}
           >
             <Input />
           </Form.Item>
-          <Flexbox gap={12} horizontal>
+          <Flexbox horizontal gap={12}>
             <Form.Item
-              label={t('admin.plans.field.monthlyCredits', 'Monthly Credits')}
+              label={t('admin.plans.field.monthlyCredits', '每月积分')}
               name="monthlyCredits"
               style={{ flex: 1 }}
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.plans.field.currency', 'Currency')}
+              label={t('admin.plans.field.currency', '币种')}
               name="currency"
               style={{ width: 120 }}
             >
               <Input />
             </Form.Item>
           </Flexbox>
-          <Flexbox gap={12} horizontal>
+          <Flexbox horizontal gap={12}>
             <Form.Item
-              label={t('admin.plans.field.monthly', 'Monthly Price')}
+              label={t('admin.plans.field.monthly', '月付价格')}
               name="monthlyPrice"
               style={{ flex: 1 }}
             >
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.plans.field.yearly', 'Yearly Price')}
+              label={t('admin.plans.field.yearly', '年付价格')}
               name="yearlyPrice"
               style={{ flex: 1 }}
             >
@@ -231,22 +443,22 @@ const AdminPlansPage = memo(() => {
             </Form.Item>
           </Flexbox>
           <Form.Item
-            extra={t('admin.plans.field.featuresHint', 'One per line')}
-            label={t('admin.plans.field.features', 'Features')}
+            extra={t('admin.plans.field.featuresHint', '每行一条')}
+            label={t('admin.plans.field.features', '权益说明')}
             name="features"
           >
             <Input.TextArea rows={4} />
           </Form.Item>
-          <Flexbox gap={12} horizontal>
+          <Flexbox horizontal gap={12}>
             <Form.Item
-              label={t('admin.plans.field.sortOrder', 'Sort Order')}
+              label={t('admin.plans.field.sortOrder', '排序值')}
               name="sortOrder"
               style={{ flex: 1 }}
             >
               <InputNumber style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.plans.field.active', 'Active')}
+              label={t('admin.plans.field.active', '启用')}
               name="isActive"
               valuePropName="checked"
             >
@@ -255,6 +467,8 @@ const AdminPlansPage = memo(() => {
           </Flexbox>
         </Form>
       </Modal>
+
+      <ModelRulesDrawer plan={rulesPlan} onClose={() => setRulesPlan(null)} />
     </Flexbox>
   );
 });
