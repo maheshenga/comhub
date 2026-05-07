@@ -113,4 +113,8 @@ describe('adminSettingsForm', () => {
       getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.brandName, value: '青柚 AI' }]),
     ).toEqual([]);
   });
+
+  it('shares the pricing model rules setting key with matrix-style admin pages', () => {
+    expect(SETTING_KEYS.pricingModelRules).toBe('pricing.modelRules');
+  });
 });

@@ -133,6 +133,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/newapi-providers`,
       },
       {
+        description: '统一查看模型来源、套餐权限、默认模型和计费倍率',
+        icon: 'pricing',
+        label: '模型与计费矩阵',
+        path: `${ADMIN_BASE_PATH}/model-billing-matrix`,
+      },
+      {
         description: '设置全局模型访问策略和兜底模型',
         icon: 'models',
         label: '模型策略',

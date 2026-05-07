@@ -17,6 +17,7 @@ export const SETTING_KEYS = {
   newapiApiKey: 'newapi.apiKey',
   newapiEnabledModels: 'newapi.enabledModels',
   newapiProxyUrl: 'newapi.proxyUrl',
+  pricingModelRules: 'pricing.modelRules',
   referralRewardCredits: 'referral.rewardCredits',
 } as const;
 
@@ -63,6 +64,7 @@ export type AdminSettingsData = {
     message: string;
     provider?: string | null;
   } | null;
+  pricingModelRules?: unknown[] | null;
   referralRewardCredits?: number | null;
 };
 

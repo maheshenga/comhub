@@ -2,12 +2,12 @@ import { type RouteObject } from 'react-router-dom';
 
 import { dynamicElement, dynamicLayout, ErrorBoundary } from '@/utils/router';
 
-const adminRoute: RouteObject = {
+const settingsAdminRoute: RouteObject = {
   children: [
     {
       element: dynamicElement(
-        () => import('@/routes/(main)/admin/users'),
-        'Desktop > Admin > Users',
+        () => import('@/routes/(main)/admin/overview'),
+        'Desktop > Admin > Overview',
       ),
       index: true,
     },
@@ -34,10 +34,66 @@ const adminRoute: RouteObject = {
     },
     {
       element: dynamicElement(
+        () => import('@/routes/(main)/admin/orders'),
+        'Desktop > Admin > Orders',
+      ),
+      path: 'orders',
+    },
+    {
+      element: dynamicElement(
         () => import('@/routes/(main)/admin/credits'),
         'Desktop > Admin > Credits',
       ),
       path: 'credits',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/pricing'),
+        'Desktop > Admin > Pricing',
+      ),
+      path: 'pricing',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/recommendations'),
+        'Desktop > Admin > Recommendations',
+      ),
+      path: 'recommendations',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/operations'),
+        'Desktop > Admin > Operations',
+      ),
+      path: 'operations',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/growth'),
+        'Desktop > Admin > Growth',
+      ),
+      path: 'growth',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/model-policy'),
+        'Desktop > Admin > Model Policy',
+      ),
+      path: 'model-policy',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/newapi-providers'),
+        'Desktop > Admin > NewAPI Providers',
+      ),
+      path: 'newapi-providers',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/model-billing-matrix'),
+        'Desktop > Admin > Model Billing Matrix',
+      ),
+      path: 'model-billing-matrix',
     },
     {
       element: dynamicElement(
@@ -81,15 +137,24 @@ const adminRoute: RouteObject = {
       ),
       path: 'audit',
     },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/desktop-update'),
+        'Desktop > Admin > Desktop Update',
+      ),
+      path: 'desktop-update',
+    },
   ],
-  element: dynamicLayout(
-    () => import('@/routes/(main)/admin/_layout'),
-    'Desktop > Admin > Layout',
-  ),
+  element: dynamicLayout(() => import('@/routes/(main)/admin/_layout'), 'Desktop > Admin > Layout'),
   errorElement: <ErrorBoundary />,
   path: 'admin',
 };
 
-export const BusinessDesktopRoutesWithMainLayout: RouteObject[] = [adminRoute];
-export const BusinessDesktopRoutesWithSettingsLayout: RouteObject[] = [];
+export const BusinessDesktopRoutesWithMainLayout: RouteObject[] = [
+  {
+    element: dynamicElement(() => import('@/routes/(main)/topup'), 'Desktop > TopUp'),
+    path: 'topup',
+  },
+];
+export const BusinessDesktopRoutesWithSettingsLayout: RouteObject[] = [settingsAdminRoute];
 export const BusinessDesktopRoutesWithoutMainLayout: RouteObject[] = [];
