@@ -183,6 +183,10 @@ const getParamsFromPayload = (provider: string, payload: ClientSecretPayload) =>
       return { apikey: payload.apiKey, baseURL: payload.baseURL, ...payload };
     }
 
+    case ModelProvider.NewAPI: {
+      return payload.baseURL ? { apiKey: payload.apiKey, baseURL: payload.baseURL } : { apiKey: payload.apiKey };
+    }
+
     case ModelProvider.VertexAI: {
       return {};
     }
