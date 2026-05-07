@@ -1,12 +1,12 @@
 'use client';
 
-import { COPYRIGHT_FULL } from '@lobechat/business-const';
 import { Center, Flexbox, Text } from '@lobehub/ui';
 import { Divider } from 'antd';
 import { cx } from 'antd-style';
 import { type FC, type PropsWithChildren } from 'react';
 
 import { ProductLogo } from '@/components/Branding';
+import { useBrand } from '@/features/Brand';
 import { useIsDark } from '@/hooks/useIsDark';
 
 import AuthLangButton from './AuthLangButton';
@@ -14,6 +14,7 @@ import AuthThemeButton from './AuthThemeButton';
 import { styles } from './style';
 
 const AuthContainer: FC<PropsWithChildren> = ({ children }) => {
+  const brand = useBrand();
   const isDarkMode = useIsDark();
   return (
     <Flexbox className={styles.outerContainer} height={'100%'} padding={8} width={'100%'}>
@@ -42,7 +43,7 @@ const AuthContainer: FC<PropsWithChildren> = ({ children }) => {
         </Center>
         <Center padding={24}>
           <Text align={'center'} type={'secondary'}>
-            {COPYRIGHT_FULL}
+            {brand.copyrightText}
           </Text>
         </Center>
       </Flexbox>

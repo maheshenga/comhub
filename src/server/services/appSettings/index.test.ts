@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  APP_SETTING_KEYS,
+  getServerDefaultAgentSettingOverrides,
   getServerDefaultModelSuggestions,
   invalidateServerAppSettings,
   normalizeModelIdList,
@@ -37,5 +39,27 @@ describe('appSettings model helpers', () => {
     });
 
     expect(result).toEqual([]);
+  });
+
+  it('returns default assistant identity overrides from app settings', async () => {
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            { key: APP_SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' },
+            { key: APP_SETTING_KEYS.defaultAgentProvider, value: 'newapi' },
+            { key: APP_SETTING_KEYS.defaultAgentName, value: '青柚助手' },
+            { key: APP_SETTING_KEYS.defaultAgentAvatar, value: '/images/brand/logo.svg' },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerDefaultAgentSettingOverrides(db)).resolves.toEqual({
+      avatar: '/images/brand/logo.svg',
+      model: 'deepseek-chat',
+      provider: 'newapi',
+      title: '青柚助手',
+    });
   });
 });

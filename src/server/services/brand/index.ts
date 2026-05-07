@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 
+import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { appSettings } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
 
@@ -45,15 +46,21 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       readString(db, KEYS.primary),
       readString(db, KEYS.slogan),
     ]);
-    const data: ServerBrandConfig = { faviconUrl, logoUrl, name, primaryColor, slogan };
+    const data: ServerBrandConfig = {
+      faviconUrl,
+      logoUrl: logoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
+      name: name ?? DEFAULT_RUNTIME_BRAND.name,
+      primaryColor: primaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
+      slogan,
+    };
     cached = { at: Date.now(), data };
     return data;
   } catch {
     const data: ServerBrandConfig = {
       faviconUrl: null,
-      logoUrl: null,
-      name: null,
-      primaryColor: null,
+      logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
+      name: DEFAULT_RUNTIME_BRAND.name,
+      primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
       slogan: null,
     };
     cached = { at: Date.now(), data };

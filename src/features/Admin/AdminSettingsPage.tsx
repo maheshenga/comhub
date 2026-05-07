@@ -56,7 +56,6 @@ const AdminSettingsPage = memo(() => {
   } | null>(null);
 
   const watchedValues = Form.useWatch([], form) as Partial<AdminSettingsFormValues> | undefined;
-
   const initialValues = useMemo(() => buildFormValues(data), [data]);
   const pendingUpdates = buildSettingUpdates(watchedValues ?? initialValues, initialValues);
   const hasPendingChanges = pendingUpdates.length > 0;
@@ -92,7 +91,7 @@ const AdminSettingsPage = memo(() => {
         refreshKeys.length > 0
           ? t(
               'admin.settings.saveSuccessWithRuntimeRefresh',
-              '设置已保存，默认模型配置已刷新到当前会话',
+              '设置已保存，默认助手配置已刷新到当前会话',
             )
           : t('admin.settings.saveSuccess', '设置已保存'),
       );
@@ -122,9 +121,7 @@ const AdminSettingsPage = memo(() => {
         <Title level={3} style={{ margin: 0 }}>
           {t('admin.settings.title', '站点与 API 设置')}
         </Title>
-        <Text type="secondary">
-          {t('admin.settings.subtitle', SETTINGS_SUBTITLE)}
-        </Text>
+        <Text type="secondary">{t('admin.settings.subtitle', SETTINGS_SUBTITLE)}</Text>
       </Flexbox>
 
       <Alert
@@ -137,14 +134,34 @@ const AdminSettingsPage = memo(() => {
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Card title={t('admin.settings.brandSection', '品牌展示')}>
             <Form.Item
-              extra={t('admin.settings.brandName.help', '用于登录页、加载页、标题和站内品牌展示。')}
               label={t('admin.settings.brandName', '品牌名称')}
               name="brandName"
+              extra={t('admin.settings.brandName.help', '用于登录页、加载页、标题和站内品牌展示。')}
             >
               <Input placeholder="青柚 AI" />
             </Form.Item>
             <Form.Item label={t('admin.settings.brandSlogan', '品牌标语')} name="brandSlogan">
-              <Input placeholder={t('admin.settings.brandSlogan.placeholder', '可选的副标题')} />
+              <Input placeholder={t('admin.settings.brandSlogan.placeholder', '可选副标题')} />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.settings.brandAuthTitle', '登录页主文案')}
+              name="brandAuthTitle"
+              extra={t(
+                'admin.settings.brandAuthTitle.help',
+                '显示在登录和注册表单上方，例如 Agent teammates that grow with you。',
+              )}
+            >
+              <Input placeholder="Agent teammates that grow with you" />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.settings.brandCopyrightText', '登录页底部版权')}
+              name="brandCopyrightText"
+              extra={t(
+                'admin.settings.brandCopyrightText.help',
+                '显示在登录页底部，留空时使用默认版权文案。',
+              )}
+            >
+              <Input placeholder="© 2026 青柚 AI. All rights reserved." />
             </Form.Item>
             <Form.Item
               label={t('admin.settings.brandLogoUrl', 'Logo 地址（URL）')}
@@ -159,15 +176,35 @@ const AdminSettingsPage = memo(() => {
               <Input placeholder="https://.../favicon.ico" />
             </Form.Item>
             <Form.Item
-              extra={t('admin.settings.brandPrimary.help', '填写十六进制颜色值，例如 #1677ff。')}
               label={t('admin.settings.brandPrimaryColor', '主题主色')}
               name="brandPrimaryColor"
+              extra={t('admin.settings.brandPrimary.help', '填写十六进制颜色值，例如 #1677ff。')}
             >
               <Input placeholder="#1677ff" />
             </Form.Item>
           </Card>
 
-          <Card title={t('admin.settings.gatewaySection', '模型与 API 默认设置')}>
+          <Card title={t('admin.settings.defaultAssistantSection', '默认 AI 助手')}>
+            <Form.Item
+              label={t('admin.settings.defaultAgentName', '助手名称')}
+              name="defaultAgentName"
+              extra={t(
+                'admin.settings.defaultAgentName.help',
+                '用于新用户默认会话、欢迎页和侧边栏中的助手名称。',
+              )}
+            >
+              <Input placeholder="青柚助手" />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.settings.defaultAgentAvatar', '助手头像代码')}
+              name="defaultAgentAvatar"
+              extra={t(
+                'admin.settings.defaultAgentAvatar.help',
+                '支持图片 URL、站内路径或 emoji。留空时使用默认头像。',
+              )}
+            >
+              <Input placeholder="/images/brand/qingyou-ai-logo.png" />
+            </Form.Item>
             <Form.Item
               label={t('admin.settings.defaultProvider', '默认供应商（Provider）')}
               name="defaultAgentProvider"
@@ -290,11 +327,11 @@ const AdminSettingsPage = memo(() => {
 
           <Card title={t('admin.settings.clientSection', '客户端入口')}>
             <Form.Item
-              label={t('admin.settings.desktopDownloadUrl', '桌面端下载地址（URL）')}
+              label={t('admin.settings.desktopDownloadUrl', '桌面客户端下载地址（URL）')}
               name="desktopDownloadUrl"
               extra={t(
                 'admin.settings.desktopDownloadUrl.help',
-                '用于覆盖用户面板中的桌面端下载链接。留空则使用内置地址。',
+                '用于覆盖用户面板中的桌面客户端下载链接。留空则使用内置地址。',
               )}
             >
               <Input placeholder="https://example.com/download" />

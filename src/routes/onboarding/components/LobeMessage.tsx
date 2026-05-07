@@ -7,6 +7,8 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ProductLogo } from '@/components/Branding';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 interface LobeMessageProps extends Omit<FlexboxProps, 'children'> {
   avatar?: string;
@@ -20,12 +22,14 @@ const LobeMessage = memo<LobeMessageProps>(
   ({ gap = 8, avatar, avatarSize, sentences, fontSize = 24, ...rest }) => {
     const { i18n } = useTranslation();
     const locale = i18n.language;
+    const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
+    const displayAvatar = avatar ?? defaultAgentMeta.avatar;
 
     return (
       <Flexbox gap={gap} {...rest}>
         <Flexbox align={'center'} justify={'center'}>
-          {avatar ? (
-            <Avatar avatar={avatar} size={avatarSize || fontSize * 2} />
+          {displayAvatar ? (
+            <Avatar avatar={displayAvatar} size={avatarSize || fontSize * 2} />
           ) : (
             <ProductLogo size={avatarSize || fontSize * 2} />
           )}

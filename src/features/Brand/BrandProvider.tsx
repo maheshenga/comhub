@@ -1,11 +1,16 @@
 'use client';
 
-import { createContext, type FC, type ReactNode, useContext, useEffect, useMemo } from 'react';
+import { BRANDING_NAME } from '@lobechat/business-const';
+import { createContext, type FC, type ReactNode, use, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
+import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { lambdaClient } from '@/libs/trpc/client';
 
 export interface BrandConfig {
+  authTitle: string;
+  copyrightText: string;
   faviconUrl: string | null;
   logoUrl: string | null;
   name: string;
@@ -14,10 +19,12 @@ export interface BrandConfig {
 }
 
 const DEFAULT_BRAND: BrandConfig = {
+  authTitle: DEFAULT_RUNTIME_BRAND.authTitle,
+  copyrightText: DEFAULT_RUNTIME_BRAND.copyrightText,
   faviconUrl: null,
-  logoUrl: null,
-  name: 'LobeHub',
-  primaryColor: null,
+  logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
+  name: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
+  primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
   slogan: null,
 };
 
@@ -27,10 +34,12 @@ const fetchBrand = async (): Promise<BrandConfig> => {
   try {
     const r = await lambdaClient.admin.settings.getPublicBrand.query();
     return {
+      authTitle: (r?.authTitle && r.authTitle.trim()) || DEFAULT_BRAND.authTitle,
+      copyrightText: (r?.copyrightText && r.copyrightText.trim()) || DEFAULT_BRAND.copyrightText,
       faviconUrl: r?.faviconUrl ?? null,
-      logoUrl: r?.logoUrl ?? null,
+      logoUrl: r?.logoUrl ?? DEFAULT_BRAND.logoUrl,
       name: (r?.name && r.name.trim()) || DEFAULT_BRAND.name,
-      primaryColor: r?.primaryColor ?? null,
+      primaryColor: r?.primaryColor ?? DEFAULT_BRAND.primaryColor,
       slogan: r?.slogan ?? null,
     };
   } catch {
@@ -53,9 +62,19 @@ const applyDocumentBrand = (b: BrandConfig) => {
   if (b.primaryColor) {
     document.documentElement.style.setProperty('--brand-primary', b.primaryColor);
   }
+
+  // Replace the loading screen brand text with the runtime brand name.
+  const loadingBrand = document.getElementById('loading-brand');
+  if (loadingBrand && b.name) {
+    const name = document.createElement('span');
+    name.style.cssText = 'font-size:28px;font-weight:700;color:inherit';
+    name.textContent = b.name;
+    loadingBrand.replaceChildren(name);
+  }
 };
 
 export const BrandProvider: FC<{ children: ReactNode }> = ({ children }) => {
+  const { i18n } = useTranslation();
   const { data } = useSWR<BrandConfig>('brand-config', fetchBrand, {
     dedupingInterval: 60_000,
     revalidateOnFocus: false,
@@ -64,9 +83,17 @@ export const BrandProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     applyDocumentBrand(value);
-  }, [value]);
+    i18n.options ??= {};
+    i18n.options.interpolation = {
+      ...i18n.options.interpolation,
+      defaultVariables: {
+        ...i18n.options.interpolation?.defaultVariables,
+        brandName: value.name,
+      },
+    };
+  }, [value, i18n]);
 
-  return <BrandContext.Provider value={value}>{children}</BrandContext.Provider>;
+  return <BrandContext value={value}>{children}</BrandContext>;
 };
 
-export const useBrand = (): BrandConfig => useContext(BrandContext);
+export const useBrand = (): BrandConfig => use(BrandContext);

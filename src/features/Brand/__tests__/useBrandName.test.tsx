@@ -1,10 +1,20 @@
-/* eslint-disable */
 import { renderHook } from '@testing-library/react';
-import type { FC, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+
+import { useBrandName } from '../useBrandName';
 
 vi.mock('@lobechat/business-const', () => ({
   BRANDING_NAME: 'LobeHub',
+}));
+
+vi.mock('@/const/brand', () => ({
+  DEFAULT_RUNTIME_BRAND: {
+    authTitle: 'Agent teammates that grow with you',
+    copyrightText: '© 2026 青柚 AI. All rights reserved.',
+    logoUrl: '/images/brand/qingyou-ai-logo.png',
+    name: '青柚 AI',
+    primaryColor: '#12b981',
+  },
 }));
 
 const mockUseBrand = vi.fn();
@@ -12,11 +22,11 @@ vi.mock('../BrandProvider', () => ({
   useBrand: () => mockUseBrand(),
 }));
 
-import { useBrandName } from '../useBrandName';
-
 describe('useBrandName', () => {
   it('returns admin-configured brand name when present', () => {
     mockUseBrand.mockReturnValue({
+      authTitle: 'Agent teammates that grow with you',
+      copyrightText: '© 2026 Acme',
       faviconUrl: null,
       logoUrl: null,
       name: 'Acme Inc',
@@ -29,6 +39,8 @@ describe('useBrandName', () => {
 
   it('falls back to BRANDING_NAME when admin value is empty', () => {
     mockUseBrand.mockReturnValue({
+      authTitle: 'Agent teammates that grow with you',
+      copyrightText: '© 2026 Acme',
       faviconUrl: null,
       logoUrl: null,
       name: '   ',
@@ -41,6 +53,8 @@ describe('useBrandName', () => {
 
   it('falls back to BRANDING_NAME when admin value is empty string', () => {
     mockUseBrand.mockReturnValue({
+      authTitle: 'Agent teammates that grow with you',
+      copyrightText: '© 2026 Acme',
       faviconUrl: null,
       logoUrl: null,
       name: '',

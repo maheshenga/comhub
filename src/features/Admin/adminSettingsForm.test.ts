@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildFormValues,
   buildModelOptions,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
@@ -54,6 +55,8 @@ describe('adminSettingsForm', () => {
   it('builds app setting updates only for changed values', () => {
     const initial = {
       brandFaviconUrl: '',
+      brandAuthTitle: 'Agent teammates that grow with you',
+      brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
       brandLogoUrl: '/logo.png',
       brandName: '青柚 AI',
       brandPrimaryColor: '#1677ff',
@@ -61,7 +64,9 @@ describe('adminSettingsForm', () => {
       cronAuditRetentionDays: 365,
       cronPendingOrderExpiryDays: 7,
       cronSecret: '',
+      defaultAgentAvatar: '/avatars/qingyou-ai.png',
       defaultAgentModel: 'gpt-4o-mini',
+      defaultAgentName: '青柚助手',
       defaultAgentProvider: 'newapi',
       desktopDownloadLabel: '',
       desktopDownloadUrl: '',
@@ -80,11 +85,60 @@ describe('adminSettingsForm', () => {
     ).toEqual([{ key: SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' }]);
   });
 
-  it('refreshes runtime config and user state when default model or provider changes', () => {
+  it('includes default assistant name and avatar in form values and updates', () => {
+    const initial = buildFormValues({
+      defaultAgentAvatar: '/images/brand/qingyou-ai-logo.png',
+      defaultAgentName: '青柚助手',
+    });
+
+    expect(initial.defaultAgentName).toBe('青柚助手');
+    expect(initial.defaultAgentAvatar).toBe('/images/brand/qingyou-ai-logo.png');
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          defaultAgentAvatar: '/images/brand/logo.svg',
+          defaultAgentName: '青柚 AI 助手',
+        },
+        initial,
+      ),
+    ).toEqual([
+      { key: SETTING_KEYS.defaultAgentName, value: '青柚 AI 助手' },
+      { key: SETTING_KEYS.defaultAgentAvatar, value: '/images/brand/logo.svg' },
+    ]);
+  });
+
+  it('includes login page title and copyright in brand setting updates', () => {
+    const initial = buildFormValues({
+      brandAuthTitle: 'Agent teammates that grow with you',
+      brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
+    });
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          brandAuthTitle: '与团队一起成长的 AI 助手',
+          brandCopyrightText: '© 2026 Qingyou AI',
+        },
+        initial,
+      ),
+    ).toEqual([
+      { key: SETTING_KEYS.brandAuthTitle, value: '与团队一起成长的 AI 助手' },
+      { key: SETTING_KEYS.brandCopyrightText, value: '© 2026 Qingyou AI' },
+    ]);
+  });
+
+  it('refreshes runtime config and user state when default assistant config changes', () => {
     expect(
       getAdminSettingsRefreshKeys([
         { key: SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' },
       ]),
+    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
+
+    expect(
+      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.defaultAgentName, value: '青柚助手' }]),
     ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
 
     expect(

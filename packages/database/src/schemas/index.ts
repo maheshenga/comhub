@@ -14,6 +14,7 @@ export * from './documentHistory';
 export * from './file';
 export * from './generation';
 export * from './message';
+export * from './newapiInstance';
 export * from './nextauth';
 export * from './notification';
 export * from './oidc';

@@ -74,6 +74,14 @@ describe('UserModel', () => {
       expect(result.settings.notification).toEqual({ inbox: { enabled: false } });
     });
 
+    it('should return the user role', async () => {
+      await serverDB.update(users).set({ role: 'admin' }).where(eq(users.id, userId));
+
+      const result = await userModel.getUserState(mockDecryptor);
+
+      expect((result as any).role).toBe('admin');
+    });
+
     it('should throw UserNotFoundError for non-existent user', async () => {
       const nonExistentUserModel = new UserModel(serverDB, 'non-existent');
 

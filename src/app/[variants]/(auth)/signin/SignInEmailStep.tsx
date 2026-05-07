@@ -1,3 +1,5 @@
+'use client';
+
 import { Alert, Button, Flexbox, Icon, Input, Skeleton, Text } from '@lobehub/ui';
 import { type FormInstance, type InputRef } from 'antd';
 import { Badge, Divider, Form } from 'antd';
@@ -8,7 +10,7 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import AuthIcons from '@/components/AuthIcons';
 import { PRIVACY_URL, TERMS_URL } from '@/const/url';
-import { useBrandName } from '@/features/Brand';
+import { useBrand, useBrandName } from '@/features/Brand';
 
 import AuthCard from '../../../../features/AuthCard';
 
@@ -53,6 +55,7 @@ export const SignInEmailStep = ({
   onSocialSignIn,
 }: SignInEmailStepProps) => {
   const { t } = useTranslation('auth');
+  const brand = useBrand();
   const brandingName = useBrandName();
   const emailInputRef = useRef<InputRef>(null);
 
@@ -108,7 +111,7 @@ export const SignInEmailStep = ({
     <AuthCard
       footer={footer}
       subtitle={t('signin.subtitle', { appName: brandingName })}
-      title={'Agent teammates that grow with you'}
+      title={brand.authTitle}
     >
       {!serverConfigInit && (
         <Flexbox gap={12}>

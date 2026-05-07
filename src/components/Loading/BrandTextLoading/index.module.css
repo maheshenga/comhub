@@ -36,6 +36,19 @@
   color: inherit;
 }
 
+.logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+.name {
+  font-size: 28px;
+  font-weight: 700;
+  color: inherit;
+}
+
 .debug {
   display: flex;
   flex-direction: column;

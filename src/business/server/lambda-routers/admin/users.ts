@@ -98,11 +98,13 @@ export const adminUsersRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const escapeLike = (s: string) => s.replaceAll(/[%_\\]/g, '\\$&');
       const where = input.query
         ? or(
-            like(users.email, `%${input.query}%`),
-            like(users.username, `%${input.query}%`),
-            like(users.fullName, `%${input.query}%`),
+            like(users.email, `%${escapeLike(input.query)}%`),
+            like(users.username, `%${escapeLike(input.query)}%`),
+            like(users.fullName, `%${escapeLike(input.query)}%`),
+            like(users.phone, `%${escapeLike(input.query)}%`),
           )
         : undefined;
 
@@ -116,6 +118,7 @@ export const adminUsersRouter = router({
             fullName: true,
             id: true,
             lastActiveAt: true,
+            phone: true,
             role: true,
           },
           limit: input.limit,
@@ -141,10 +144,11 @@ export const adminUsersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await ctx.serverDB
-        .update(users)
-        .set({ role: input.role })
-        .where(eq(users.id, input.userId));
+      if (input.userId === ctx.userId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Cannot change your own role' });
+      }
+
+      await ctx.serverDB.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
       await recordAdminAudit(ctx, {
         action: 'user.setRole',
         payload: { role: input.role },
@@ -177,11 +181,13 @@ export const adminUsersRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const escapeLike = (s: string) => s.replaceAll(/[%_\\]/g, '\\$&');
       const where = input.query
         ? or(
-            like(users.email, `%${input.query}%`),
-            like(users.username, `%${input.query}%`),
-            like(users.fullName, `%${input.query}%`),
+            like(users.email, `%${escapeLike(input.query)}%`),
+            like(users.username, `%${escapeLike(input.query)}%`),
+            like(users.fullName, `%${escapeLike(input.query)}%`),
+            like(users.phone, `%${escapeLike(input.query)}%`),
           )
         : undefined;
       const items = await ctx.serverDB.query.users.findMany({
@@ -192,6 +198,7 @@ export const adminUsersRouter = router({
           fullName: true,
           id: true,
           lastActiveAt: true,
+          phone: true,
           role: true,
           username: true,
         },

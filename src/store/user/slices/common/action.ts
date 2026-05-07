@@ -21,6 +21,36 @@ import { userGeneralSettingsSelectors } from '../settings/selectors';
 const n = setNamespace('common');
 
 const GET_USER_STATE_KEY = 'initUserState';
+
+const mergeServerManagedDefaultAgent = (
+  settings: PartialDeep<UserSettings> | undefined,
+  serverConfig: GlobalServerConfig,
+): PartialDeep<UserSettings> => {
+  const serverDefaultAgentConfig = serverConfig.defaultAgent?.config;
+  if (
+    !serverDefaultAgentConfig?.model &&
+    !serverDefaultAgentConfig?.provider &&
+    !serverDefaultAgentConfig?.title &&
+    !serverDefaultAgentConfig?.avatar
+  )
+    return settings || {};
+
+  return merge(settings || {}, {
+    defaultAgent: {
+      config: {
+        ...(serverDefaultAgentConfig.model ? { model: serverDefaultAgentConfig.model } : {}),
+        ...(serverDefaultAgentConfig.provider
+          ? { provider: serverDefaultAgentConfig.provider }
+          : {}),
+      },
+      meta: {
+        ...(serverDefaultAgentConfig.avatar ? { avatar: serverDefaultAgentConfig.avatar } : {}),
+        ...(serverDefaultAgentConfig.title ? { title: serverDefaultAgentConfig.title } : {}),
+      },
+    },
+  } as PartialDeep<UserSettings>);
+};
+
 /**
  * Common actions
  */
@@ -127,6 +157,7 @@ export class CommonActionImpl {
                     id: data.userId,
                     interests: data.interests,
                     latestName: data.lastName,
+                    role: data.role,
                     username: data.username,
                   } as LobeUser)
                 : this.#get().user;
@@ -144,7 +175,7 @@ export class CommonActionImpl {
                 onboarding: data.onboarding,
                 preference,
                 referralStatus: data.referralStatus,
-                settings: data.settings || {},
+                settings: mergeServerManagedDefaultAgent(data.settings, serverConfig),
                 subscriptionPlan: data.subscriptionPlan,
                 user,
               },

@@ -2,6 +2,8 @@ import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 
 export const SETTING_KEYS = {
   brandFaviconUrl: 'brand.faviconUrl',
+  brandAuthTitle: 'brand.authTitle',
+  brandCopyrightText: 'brand.copyrightText',
   brandLogoUrl: 'brand.logoUrl',
   brandName: 'brand.name',
   brandPrimaryColor: 'brand.primaryColor',
@@ -9,7 +11,9 @@ export const SETTING_KEYS = {
   cronAuditRetentionDays: 'cron.auditRetentionDays',
   cronPendingOrderExpiryDays: 'cron.pendingOrderExpiryDays',
   cronSecret: 'cron.secret',
+  defaultAgentAvatar: 'defaultAgent.avatar',
   defaultAgentModel: 'defaultAgent.model',
+  defaultAgentName: 'defaultAgent.name',
   defaultAgentProvider: 'defaultAgent.provider',
   desktopDownloadLabel: 'desktop.download.label',
   desktopDownloadUrl: 'desktop.download.url',
@@ -41,13 +45,17 @@ export type DefaultModelOption = {
 
 export type AdminSettingsData = {
   brandFaviconUrl?: string | null;
+  brandAuthTitle?: string | null;
+  brandCopyrightText?: string | null;
   brandLogoUrl?: string | null;
   brandName?: string | null;
   brandPrimaryColor?: string | null;
   brandSlogan?: string | null;
   cronAuditRetentionDays?: number | null;
   cronPendingOrderExpiryDays?: number | null;
+  defaultAgentAvatar?: string | null;
   defaultAgentModel?: string | null;
+  defaultAgentName?: string | null;
   defaultAgentProvider?: string | null;
   defaultModelSuggestions?: string[] | null;
   desktopDownloadLabel?: string | null;
@@ -65,6 +73,8 @@ export type AdminSettingsData = {
 
 export type AdminSettingsFormValues = {
   brandFaviconUrl: string;
+  brandAuthTitle: string;
+  brandCopyrightText: string;
   brandLogoUrl: string;
   brandName: string;
   brandPrimaryColor: string;
@@ -72,7 +82,9 @@ export type AdminSettingsFormValues = {
   cronAuditRetentionDays: number;
   cronPendingOrderExpiryDays: number;
   cronSecret: string;
+  defaultAgentAvatar: string;
   defaultAgentModel: string;
+  defaultAgentName: string;
   defaultAgentProvider: string;
   desktopDownloadLabel: string;
   desktopDownloadUrl: string;
@@ -145,6 +157,8 @@ const normalizeHelpMenuItems = (items: unknown): HelpMenuItem[] =>
 
 export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValues => ({
   brandFaviconUrl: data?.brandFaviconUrl ?? '',
+  brandAuthTitle: data?.brandAuthTitle ?? DEFAULT_RUNTIME_BRAND.authTitle,
+  brandCopyrightText: data?.brandCopyrightText ?? DEFAULT_RUNTIME_BRAND.copyrightText,
   brandLogoUrl: data?.brandLogoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
   brandName: data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
   brandPrimaryColor: data?.brandPrimaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
@@ -152,7 +166,9 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
   cronSecret: '',
+  defaultAgentAvatar: data?.defaultAgentAvatar ?? '/images/brand/qingyou-ai-logo.png',
   defaultAgentModel: data?.defaultAgentModel ?? '',
+  defaultAgentName: data?.defaultAgentName ?? '青柚助手',
   defaultAgentProvider: data?.defaultAgentProvider ?? '',
   desktopDownloadLabel: data?.desktopDownloadLabel ?? '',
   desktopDownloadUrl: data?.desktopDownloadUrl ?? '',
@@ -164,6 +180,8 @@ export const normalizeFormValues = (
   values: Partial<AdminSettingsFormValues>,
 ): AdminSettingsFormValues => ({
   brandFaviconUrl: normalizeText(values.brandFaviconUrl),
+  brandAuthTitle: normalizeText(values.brandAuthTitle),
+  brandCopyrightText: normalizeText(values.brandCopyrightText),
   brandLogoUrl: normalizeText(values.brandLogoUrl),
   brandName: normalizeText(values.brandName),
   brandPrimaryColor: normalizeText(values.brandPrimaryColor),
@@ -173,7 +191,9 @@ export const normalizeFormValues = (
   cronPendingOrderExpiryDays:
     typeof values.cronPendingOrderExpiryDays === 'number' ? values.cronPendingOrderExpiryDays : 7,
   cronSecret: normalizeText(values.cronSecret),
+  defaultAgentAvatar: normalizeText(values.defaultAgentAvatar),
   defaultAgentModel: normalizeText(values.defaultAgentModel),
+  defaultAgentName: normalizeText(values.defaultAgentName),
   defaultAgentProvider: normalizeText(values.defaultAgentProvider),
   desktopDownloadLabel: normalizeText(values.desktopDownloadLabel),
   desktopDownloadUrl: normalizeText(values.desktopDownloadUrl),
@@ -195,10 +215,14 @@ export const buildSettingUpdates = (
   const keys: Array<keyof AdminSettingsFormValues> = [
     'defaultAgentModel',
     'defaultAgentProvider',
+    'defaultAgentName',
+    'defaultAgentAvatar',
     'referralRewardCredits',
     'cronAuditRetentionDays',
     'cronPendingOrderExpiryDays',
     'brandName',
+    'brandAuthTitle',
+    'brandCopyrightText',
     'brandLogoUrl',
     'brandFaviconUrl',
     'brandPrimaryColor',
@@ -207,18 +231,24 @@ export const buildSettingUpdates = (
     'desktopDownloadLabel',
   ];
 
-  const keyMap: Record<string, string> = {
+  const keyMap: Record<keyof AdminSettingsFormValues, string> = {
     brandFaviconUrl: SETTING_KEYS.brandFaviconUrl,
+    brandAuthTitle: SETTING_KEYS.brandAuthTitle,
+    brandCopyrightText: SETTING_KEYS.brandCopyrightText,
     brandLogoUrl: SETTING_KEYS.brandLogoUrl,
     brandName: SETTING_KEYS.brandName,
     brandPrimaryColor: SETTING_KEYS.brandPrimaryColor,
     brandSlogan: SETTING_KEYS.brandSlogan,
     cronAuditRetentionDays: SETTING_KEYS.cronAuditRetentionDays,
     cronPendingOrderExpiryDays: SETTING_KEYS.cronPendingOrderExpiryDays,
+    cronSecret: SETTING_KEYS.cronSecret,
+    defaultAgentAvatar: SETTING_KEYS.defaultAgentAvatar,
     defaultAgentModel: SETTING_KEYS.defaultAgentModel,
+    defaultAgentName: SETTING_KEYS.defaultAgentName,
     defaultAgentProvider: SETTING_KEYS.defaultAgentProvider,
     desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
     desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
+    helpMenuItems: SETTING_KEYS.helpMenuItems,
     referralRewardCredits: SETTING_KEYS.referralRewardCredits,
   };
 
@@ -234,7 +264,12 @@ export const buildSettingUpdates = (
 };
 
 export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
-  const runtimeKeys = new Set([SETTING_KEYS.defaultAgentModel, SETTING_KEYS.defaultAgentProvider]);
+  const runtimeKeys = new Set([
+    SETTING_KEYS.defaultAgentAvatar,
+    SETTING_KEYS.defaultAgentModel,
+    SETTING_KEYS.defaultAgentName,
+    SETTING_KEYS.defaultAgentProvider,
+  ]);
   const needsRuntimeRefresh = updates.some((update) => runtimeKeys.has(update.key as any));
 
   return needsRuntimeRefresh ? [RUNTIME_CONFIG_SWR_KEY, USER_STATE_SWR_KEY] : [];

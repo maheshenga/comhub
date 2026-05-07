@@ -30,9 +30,7 @@ const ProSettingsStep = memo<ProSettingsStepProps>(({ onBack }) => {
     s.finishOnboarding,
   ]);
 
-  const defaultAgentConfig = useUserStore(
-    (s) => settingsSelectors.currentSettings(s).defaultAgent?.config,
-  );
+  const defaultAgentConfig = useUserStore(settingsSelectors.defaultAgentConfig);
 
   const [isNavigating, setIsNavigating] = useState(false);
   const isNavigatingRef = useRef(false);

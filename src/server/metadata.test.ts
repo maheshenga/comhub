@@ -1,16 +1,27 @@
 // @vitest-environment node
-import { BRANDING_NAME } from '@lobechat/business-const';
 import { OG_URL } from '@lobechat/const';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { Meta } from './metadata';
+
+vi.mock('@/server/services/brand', () => ({
+  getServerBrand: vi
+    .fn()
+    .mockResolvedValue({
+      name: 'TestBrand',
+      logoUrl: null,
+      faviconUrl: null,
+      primaryColor: null,
+      slogan: null,
+    }),
+}));
 
 describe('Metadata', () => {
   const meta = new Meta();
 
   describe('generate', () => {
-    it('should generate metadata with default values', () => {
-      const result = meta.generate({
+    it('should generate metadata with default values', async () => {
+      const result = await meta.generate({
         title: 'Test Title',
         url: 'https://example.com',
       });
@@ -19,20 +30,20 @@ describe('Metadata', () => {
         title: 'Test Title',
         description: expect.any(String),
         openGraph: expect.objectContaining({
-          title: `Test Title · ${BRANDING_NAME}`,
+          title: `Test Title · TestBrand`,
           description: expect.any(String),
-          images: [{ url: OG_URL, alt: `Test Title · ${BRANDING_NAME}` }],
+          images: [{ url: OG_URL, alt: `Test Title · TestBrand` }],
         }),
         twitter: expect.objectContaining({
-          title: `Test Title · ${BRANDING_NAME}`,
+          title: `Test Title · TestBrand`,
           description: expect.any(String),
           images: [OG_URL],
         }),
       });
     });
 
-    it('should generate metadata with custom values', () => {
-      const result = meta.generate({
+    it('should generate metadata with custom values', async () => {
+      const result = await meta.generate({
         title: 'Custom Title',
         description: 'Custom description',
         image: 'https://custom-image.com',
@@ -47,14 +58,14 @@ describe('Metadata', () => {
         title: 'Custom Title',
         description: expect.stringContaining('Custom description'),
         openGraph: expect.objectContaining({
-          title: `Custom Title · ${BRANDING_NAME}`,
+          title: `Custom Title · TestBrand`,
           description: 'Custom description',
-          images: [{ url: 'https://custom-image.com', alt: `Custom Title · ${BRANDING_NAME}` }],
+          images: [{ url: 'https://custom-image.com', alt: `Custom Title · TestBrand` }],
           type: 'article',
           locale: 'fr-FR',
         }),
         twitter: expect.objectContaining({
-          title: `Custom Title · ${BRANDING_NAME}`,
+          title: `Custom Title · TestBrand`,
           description: 'Custom description',
           images: ['https://custom-image.com'],
         }),
@@ -98,6 +109,7 @@ describe('Metadata', () => {
   describe('genOpenGraph', () => {
     it('should generate OpenGraph metadata correctly', () => {
       const result = (meta as any).genOpenGraph({
+        brandName: 'TestBrand',
         title: 'OG Title',
         description: 'OG description',
         image: 'https://og-image.com',
@@ -114,7 +126,7 @@ describe('Metadata', () => {
         locale: 'es-ES',
         type: 'article',
         url: 'https://example.com/og',
-        siteName: BRANDING_NAME,
+        siteName: 'TestBrand',
         alternateLocale: expect.arrayContaining([
           'ar',
           'bg-BG',

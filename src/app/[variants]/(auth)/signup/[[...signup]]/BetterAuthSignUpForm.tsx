@@ -2,11 +2,13 @@
 
 import { Button, Icon, Text } from '@lobehub/ui';
 import { Form, Input } from 'antd';
-import { Lock, Mail } from 'lucide-react';
+import { Lock, Mail, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import { useBrand } from '@/features/Brand';
 
 import { AuthCard } from '../../../../../features/AuthCard';
 import { trackLoginOrSignupClicked } from '../../../../../features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
@@ -15,7 +17,8 @@ import { useSignUp } from './useSignUp';
 
 const BetterAuthSignUpForm = () => {
   const [form] = Form.useForm<SignUpFormValues>();
-  const { loading, onSubmit, businessElement } = useSignUp();
+  const { loading, onSubmit, businessElement, phoneEnabled } = useSignUp();
+  const brand = useBrand();
 
   const { t } = useTranslation('auth');
   const searchParams = useSearchParams();
@@ -46,7 +49,7 @@ const BetterAuthSignUpForm = () => {
     <AuthCard
       footer={footer}
       subtitle={t('betterAuth.signup.subtitle')}
-      title={t('betterAuth.signup.title')}
+      title={brand.authTitle || t('betterAuth.signup.title')}
     >
       <Form form={form} layout="vertical" onFinish={onSubmit}>
         <Form.Item
@@ -69,6 +72,30 @@ const BetterAuthSignUpForm = () => {
             }
           />
         </Form.Item>
+        {phoneEnabled && (
+          <Form.Item
+            name="phone"
+            rules={[
+              {
+                message: t('betterAuth.errors.phoneInvalid', '请输入有效的手机号'),
+                pattern: /^[+\d][\d\s-]{5,24}$/,
+              },
+            ]}
+          >
+            <Input
+              placeholder={t('betterAuth.signup.phonePlaceholder', '手机号（选填）')}
+              size="large"
+              prefix={
+                <Icon
+                  icon={Phone}
+                  style={{
+                    marginInline: 6,
+                  }}
+                />
+              }
+            />
+          </Form.Item>
+        )}
         <Form.Item
           name="password"
           rules={[

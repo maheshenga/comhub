@@ -8,7 +8,7 @@ import { lazy, memo, type PropsWithChildren, Suspense, useLayoutEffect } from 'r
 import { LobeAnalyticsProviderWrapper } from '@/components/Analytics/LobeAnalyticsProviderWrapper';
 import { DragUploadProvider } from '@/components/DragUploadZone/DragUploadProvider';
 import { isDesktop } from '@/const/version';
-import AuthProvider from '@/layout/AuthProvider';
+import AuthProvider from '@/layout/AuthProvider/index.vite';
 import AppTheme from '@/layout/GlobalProvider/AppTheme';
 import DynamicFavicon from '@/layout/GlobalProvider/DynamicFavicon';
 import { FaviconProvider } from '@/layout/GlobalProvider/FaviconProvider';

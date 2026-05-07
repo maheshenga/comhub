@@ -208,9 +208,9 @@ export function defineConfig(customOptions: CustomBetterAuthOptions) {
             await userService.initUser({
               email: user.email,
               id: user.id,
+              phone: (user as any).phone as string | null,
               username: user.username as string | null,
               createdAt: user.createdAt,
-              // TODO: if add phone plugin, we should fill phone here
             });
           },
         },
@@ -221,6 +221,10 @@ export function defineConfig(customOptions: CustomBetterAuthOptions) {
         enabled: true,
       },
       additionalFields: {
+        phone: {
+          required: false,
+          type: 'string',
+        },
         username: {
           required: false,
           type: 'string',

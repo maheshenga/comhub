@@ -34,6 +34,8 @@ const SENSITIVE_KEYS = new Set<string>([
 ]);
 
 const BRAND_KEYS = [
+  SETTING_KEYS.brandAuthTitle,
+  SETTING_KEYS.brandCopyrightText,
   SETTING_KEYS.brandName,
   SETTING_KEYS.brandLogoUrl,
   SETTING_KEYS.brandFaviconUrl,
@@ -84,6 +86,7 @@ const OPERATIONS_KEYS = [
 const GROWTH_KEYS = [
   SETTING_KEYS.authSignupEnabled,
   SETTING_KEYS.authSignupDisabledMessage,
+  SETTING_KEYS.authSignupPhoneEnabled,
   SETTING_KEYS.onboardingInitialCreditsEnabled,
   SETTING_KEYS.onboardingInitialCredits,
   SETTING_KEYS.uploadMaxInputSizeMb,
@@ -122,9 +125,9 @@ const readSetting = async (db: any, key: string): Promise<unknown> => {
 
 const toStringList = (value: unknown): string[] => {
   const raw = Array.isArray(value)
-    ? value.flatMap((item) => (typeof item === 'string' ? item.split(/[\r\n,;；，]+/) : []))
+    ? value.flatMap((item) => (typeof item === 'string' ? item.split(/[\r\n,;，；]+/) : []))
     : typeof value === 'string'
-      ? value.split(/[\r\n,;；，]+/)
+      ? value.split(/[\r\n,;，；]+/)
       : [];
 
   return Array.from(new Set(raw.map((item) => item.trim()).filter(Boolean)));
@@ -265,6 +268,7 @@ const readPublicGrowth = async (db: any) => {
   const [
     signupEnabled,
     signupDisabledMessage,
+    signupPhoneEnabled,
     initialCreditsEnabled,
     initialCredits,
     uploadMaxInputSizeMb,
@@ -272,6 +276,7 @@ const readPublicGrowth = async (db: any) => {
   ] = await Promise.all([
     readSetting(db, SETTING_KEYS.authSignupEnabled),
     readSetting(db, SETTING_KEYS.authSignupDisabledMessage),
+    readSetting(db, SETTING_KEYS.authSignupPhoneEnabled),
     readSetting(db, SETTING_KEYS.onboardingInitialCreditsEnabled),
     readSetting(db, SETTING_KEYS.onboardingInitialCredits),
     readSetting(db, SETTING_KEYS.uploadMaxInputSizeMb),
@@ -286,6 +291,7 @@ const readPublicGrowth = async (db: any) => {
     signup: {
       disabledMessage: toString(signupDisabledMessage) || 'Registration is temporarily closed.',
       enabled: toBoolean(signupEnabled, true),
+      phoneEnabled: toBoolean(signupPhoneEnabled, false),
     },
     upload: {
       maxActualSizeMb: toBoundedInt(uploadMaxActualSizeMb, 0, 0, 10_240),
@@ -301,14 +307,24 @@ export const adminSettingsRouter = router({
    * Only non-sensitive keys are exposed.
    */
   getPublicBrand: publicDbProcedure.query(async ({ ctx }) => {
-    const [name, logo, favicon, primary, slogan] = await Promise.all([
+    const [name, logo, favicon, primary, slogan, authTitle, copyrightText] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.brandName),
       readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandFaviconUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandPrimaryColor),
       readSetting(ctx.serverDB, SETTING_KEYS.brandSlogan),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
     ]);
     return {
+      authTitle:
+        typeof authTitle === 'string' && authTitle.trim()
+          ? authTitle
+          : DEFAULT_RUNTIME_BRAND.authTitle,
+      copyrightText:
+        typeof copyrightText === 'string' && copyrightText.trim()
+          ? copyrightText
+          : DEFAULT_RUNTIME_BRAND.copyrightText,
       faviconUrl: typeof favicon === 'string' ? favicon : null,
       logoUrl: typeof logo === 'string' ? logo : DEFAULT_RUNTIME_BRAND.logoUrl,
       name: typeof name === 'string' ? name : DEFAULT_RUNTIME_BRAND.name,
@@ -363,7 +379,11 @@ export const adminSettingsRouter = router({
       brandFavicon,
       brandPrimary,
       brandSlogan,
+      brandAuthTitle,
+      brandCopyrightText,
       defaultAgentModel,
+      defaultAgentName,
+      defaultAgentAvatar,
       defaultAgentProvider,
       recommendationConfig,
       pricingCreditMultiplier,
@@ -396,7 +416,11 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.brandFaviconUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandPrimaryColor),
       readSetting(ctx.serverDB, SETTING_KEYS.brandSlogan),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentModel),
+      readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentName),
+      readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentAvatar),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentProvider),
       readPublicRecommendations(ctx.serverDB),
       readSetting(ctx.serverDB, SETTING_KEYS.pricingCreditMultiplier),
@@ -430,6 +454,11 @@ export const adminSettingsRouter = router({
     const currentDefaultProvider = ((typeof defaultAgentProvider === 'string' &&
       defaultAgentProvider.trim()) ||
       resolvedDefaultAgentConfig.provider) as string | undefined;
+    const currentDefaultName = ((typeof defaultAgentName === 'string' && defaultAgentName.trim()) ||
+      resolvedDefaultAgentConfig.title) as string | undefined;
+    const currentDefaultAvatar = ((typeof defaultAgentAvatar === 'string' &&
+      defaultAgentAvatar.trim()) ||
+      resolvedDefaultAgentConfig.avatar) as string | undefined;
     const defaultModelSuggestions = await getServerDefaultModelSuggestions({
       currentModel: currentDefaultModel,
     });
@@ -437,6 +466,12 @@ export const adminSettingsRouter = router({
 
     return {
       brandFaviconUrl: typeof brandFavicon === 'string' ? brandFavicon : '',
+      brandAuthTitle:
+        typeof brandAuthTitle === 'string' ? brandAuthTitle : DEFAULT_RUNTIME_BRAND.authTitle,
+      brandCopyrightText:
+        typeof brandCopyrightText === 'string'
+          ? brandCopyrightText
+          : DEFAULT_RUNTIME_BRAND.copyrightText,
       brandLogoUrl: typeof brandLogo === 'string' ? brandLogo : DEFAULT_RUNTIME_BRAND.logoUrl,
       brandName: typeof brandName === 'string' ? brandName : DEFAULT_RUNTIME_BRAND.name,
       brandPrimaryColor:
@@ -446,7 +481,9 @@ export const adminSettingsRouter = router({
       cronPendingOrderExpiryDays: typeof pendingDays === 'number' ? pendingDays : 7,
       cronSecretConfigured: Boolean(dbCronSecret ?? process.env.CRON_SECRET),
       cronSecretMasked: maskApiKey(dbCronSecret ?? process.env.CRON_SECRET),
+      defaultAgentAvatar: currentDefaultAvatar || '/images/brand/qingyou-ai-logo.png',
       defaultAgentModel: currentDefaultModel || '',
+      defaultAgentName: currentDefaultName || '青柚助手',
       defaultAgentProvider: currentDefaultProvider || '',
       defaultModelSuggestions,
       enabledNewapiModels: enabledNewapiModels.map((item) => ({
@@ -500,6 +537,8 @@ export const adminSettingsRouter = router({
       z.object({
         key: z.enum([
           SETTING_KEYS.defaultAgentModel,
+          SETTING_KEYS.defaultAgentName,
+          SETTING_KEYS.defaultAgentAvatar,
           SETTING_KEYS.defaultAgentProvider,
           SETTING_KEYS.referralRewardCredits,
           SETTING_KEYS.cronSecret,
@@ -535,6 +574,10 @@ export const adminSettingsRouter = router({
         if (!Number.isFinite(n)) throw new Error('referralRewardCredits must be a number');
         value = Math.max(0, Math.round(n));
       } else if (input.key === SETTING_KEYS.defaultAgentModel) {
+        value = typeof value === 'string' ? value.trim() : '';
+      } else if (input.key === SETTING_KEYS.defaultAgentName) {
+        value = typeof value === 'string' ? value.trim() : '';
+      } else if (input.key === SETTING_KEYS.defaultAgentAvatar) {
         value = typeof value === 'string' ? value.trim() : '';
       } else if (input.key === SETTING_KEYS.defaultAgentProvider) {
         value = typeof value === 'string' ? value.trim() : '';
@@ -572,7 +615,8 @@ export const adminSettingsRouter = router({
         if (
           [SETTING_KEYS.authSignupEnabled, SETTING_KEYS.onboardingInitialCreditsEnabled].includes(
             input.key as any,
-          )
+          ) ||
+          input.key === SETTING_KEYS.authSignupPhoneEnabled
         ) {
           value = Boolean(value);
         } else if (
@@ -623,6 +667,8 @@ export const adminSettingsRouter = router({
         } else {
           value = toStringList(value);
         }
+      } else if ((BRAND_KEYS as readonly string[]).includes(input.key)) {
+        value = toString(value);
       } else if (input.key === SETTING_KEYS.helpMenuItems) {
         if (!Array.isArray(value)) {
           value = [];

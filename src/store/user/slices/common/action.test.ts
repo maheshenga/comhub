@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PREFERENCE } from '@/const/user';
 import { userService } from '@/services/user';
 import { useUserStore } from '@/store/user';
-import { userGeneralSettingsSelectors } from '@/store/user/selectors';
+import { settingsSelectors, userGeneralSettingsSelectors } from '@/store/user/selectors';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { type UserInitializationState, type UserPreference } from '@/types/user';
 import { withSWR } from '~test-utils';
@@ -50,7 +50,7 @@ describe('createCommonSlice', () => {
     } as GlobalServerConfig;
 
     it('should not fetch user state if user is not login', async () => {
-      const mockUserConfig: any = undefined; // 模拟未初始化服务器的情况
+      const mockUserConfig: any = undefined; // ģ��δ��ʼ�������������
       vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserConfig);
       const successCallback = vi.fn();
 
@@ -62,11 +62,11 @@ describe('createCommonSlice', () => {
         { wrapper: withSWR },
       );
 
-      // 因为 initServer 为 false，所以不会触发 getUserState 的调用
+      // ��Ϊ initServer Ϊ false�����Բ��ᴥ�� getUserState �ĵ���
       expect(userService.getUserState).not.toHaveBeenCalled();
-      // 也不会触发 onSuccess 回调
+      // Ҳ���ᴥ�� onSuccess �ص�
       expect(successCallback).not.toHaveBeenCalled();
-      // 确保状态未改变
+      // ȷ��״̬δ�ı�
       expect(result.current.data).toBeUndefined();
     });
 
@@ -96,10 +96,10 @@ describe('createCommonSlice', () => {
         },
       );
 
-      // 等待 SWR 完成数据获取
+      // �ȴ� SWR ������ݻ�ȡ
       await waitFor(() => expect(result.current.data).toEqual(mockUserState));
 
-      // 验证状态是否正确更新
+      // ��֤״̬�Ƿ���ȷ����
       expect(useUserStore.getState().user?.avatar).toBe(mockUserState.avatar);
       expect(userGeneralSettingsSelectors.config(useUserStore.getState() as any)).toEqual(
         expect.objectContaining({
@@ -110,6 +110,76 @@ describe('createCommonSlice', () => {
       );
       expect(useUserStore.getState().user?.email).toEqual(mockUserState.email);
       expect(successCallback).toHaveBeenCalledWith(mockUserState);
+    });
+
+    it('should merge user role into the profile when user state initializes', async () => {
+      const mockUserState = {
+        userId: 'user-id',
+        isOnboard: true,
+        preference: {
+          telemetry: true,
+        },
+        role: 'admin',
+        settings: {},
+      } as UserInitializationState;
+
+      vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
+
+      renderHook(() => useUserStore().useInitUserState(true, mockServerConfig), {
+        wrapper: withSWR,
+      });
+
+      await waitFor(() => {
+        expect(useUserStore.getState().isUserStateInit).toBeTruthy();
+        expect((useUserStore.getState().user as any)?.role).toBe('admin');
+      });
+    });
+
+    it('should apply admin-managed default model and provider over saved user defaults', async () => {
+      const mockUserState = {
+        userId: 'user-id',
+        isOnboard: true,
+        preference: {
+          telemetry: true,
+        },
+        settings: {
+          defaultAgent: {
+            config: {
+              model: 'user-model',
+              provider: 'openai',
+              systemRole: 'keep user role',
+            },
+          },
+        },
+      } as UserInitializationState;
+      const serverConfig = {
+        ...mockServerConfig,
+        defaultAgent: {
+          config: {
+            model: 'admin-model',
+            provider: 'newapi',
+          },
+        },
+      } as GlobalServerConfig;
+
+      vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
+
+      renderHook(() => useUserStore().useInitUserState(true, serverConfig), {
+        wrapper: withSWR,
+      });
+
+      await waitFor(() => {
+        expect(useUserStore.getState().isUserStateInit).toBeTruthy();
+        expect(settingsSelectors.defaultAgentConfig(useUserStore.getState()).model).toBe(
+          'admin-model',
+        );
+        expect(settingsSelectors.defaultAgentConfig(useUserStore.getState()).provider).toBe(
+          'newapi',
+        );
+        expect(settingsSelectors.defaultAgentConfig(useUserStore.getState()).systemRole).toBe(
+          'keep user role',
+        );
+      });
     });
 
     it('should call switch language when language is auto', async () => {
@@ -128,7 +198,7 @@ describe('createCommonSlice', () => {
         wrapper: withSWR,
       });
 
-      // 等待 SWR 完成数据获取
+      // �ȴ� SWR ������ݻ�ȡ
       await waitFor(() => expect(result.current.data).toEqual(mockUserState));
     });
 
@@ -195,10 +265,10 @@ describe('createCommonSlice', () => {
         wrapper: withSWR,
       });
 
-      //   等待 SWR 完成数据获取
+      //   �ȴ� SWR ������ݻ�ȡ
       await waitFor(() => {
         expect(result.current.isUserStateInit).toBeTruthy();
-        // 验证状态未被错误更新
+        // ��֤״̬δ���������
         expect(result.current.user?.avatar).toEqual('abc');
         // When settings is null, auto-detect general settings will set them
         expect(result.current.settings).toEqual({

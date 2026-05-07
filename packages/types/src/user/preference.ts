@@ -15,6 +15,7 @@ export interface LobeUser {
   id: string;
   interests?: string[];
   latestName?: string | null;
+  role?: string | null;
   username?: string | null;
 }
 
@@ -113,6 +114,7 @@ export interface UserInitializationState {
    * Referral lifecycle status for the current user (invitee side).
    */
   referralStatus?: ReferralStatusString;
+  role?: string | null;
   settings: PartialDeep<UserSettings>;
   subscriptionPlan?: Plans;
   userId?: string;

@@ -16,17 +16,18 @@ interface ProductLogoProps extends LobeHubProps {
 
 export const ProductLogo = memo<ProductLogoProps>((props) => {
   const brand = useBrand();
+  const logoHeight = props.height ?? props.size;
+  const logoWidth = props.width ?? props.size;
 
-  // Runtime-configured brand logo (admin Settings → Brand) takes precedence
-  // over build-time CUSTOM_BRANDING. Only override when a logo URL is set.
+  // Runtime-configured brand logo takes precedence over build-time CUSTOM_BRANDING.
   if (brand.logoUrl) {
     return (
       <img
         alt={brand.name || 'logo'}
-        height={props.height}
+        height={logoHeight}
         src={brand.logoUrl}
-        style={{ height: props.height, width: props.width, ...((props as any).style ?? {}) }}
-        width={props.width}
+        style={{ height: logoHeight, objectFit: 'contain', width: logoWidth, ...props.style }}
+        width={logoWidth}
       />
     );
   }

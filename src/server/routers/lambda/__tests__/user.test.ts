@@ -10,6 +10,11 @@ import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { userRouter } from '../user';
 
 // Mock modules
+vi.mock('@/business/server/user', () => ({
+  getReferralStatus: vi.fn().mockResolvedValue(undefined),
+  getSubscriptionPlan: vi.fn().mockResolvedValue('free'),
+}));
+
 vi.mock('@/database/server', () => ({
   serverDB: {},
 }));
@@ -77,6 +82,7 @@ describe('userRouter', () => {
       const mockState = {
         isOnboarded: true,
         preference: { telemetry: true },
+        role: 'admin',
         settings: {},
         userId: mockUserId,
       };
@@ -112,6 +118,7 @@ describe('userRouter', () => {
         hasConversation: true,
         canEnablePWAGuide: true,
         canEnableTrace: true,
+        role: 'admin',
         userId: mockUserId,
       });
     });

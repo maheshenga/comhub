@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getServerBrand, invalidateServerBrand } from '../index';
+
 const findFirstMock = vi.fn();
 vi.mock('@/database/server', () => ({
   getServerDB: vi.fn(async () => ({
@@ -9,11 +11,16 @@ vi.mock('@/database/server', () => ({
 vi.mock('@/database/schemas', () => ({
   appSettings: { key: 'app_settings.key' },
 }));
+vi.mock('@/const/brand', () => ({
+  DEFAULT_RUNTIME_BRAND: {
+    logoUrl: '/images/brand/qingyou-ai-logo.png',
+    name: '青柚AI',
+    primaryColor: '#12b981',
+  },
+}));
 vi.mock('drizzle-orm', () => ({
   eq: (a: unknown, b: unknown) => ({ a, b }),
 }));
-
-import { getServerBrand, invalidateServerBrand } from '../index';
 
 describe('getServerBrand', () => {
   beforeEach(() => {
@@ -47,14 +54,14 @@ describe('getServerBrand', () => {
     });
   });
 
-  it('returns nulls when keys are missing', async () => {
+  it('uses the default runtime brand when keys are missing', async () => {
     findFirstMock.mockResolvedValue(null);
     const out = await getServerBrand();
     expect(out).toEqual({
       faviconUrl: null,
-      logoUrl: null,
-      name: null,
-      primaryColor: null,
+      logoUrl: '/images/brand/qingyou-ai-logo.png',
+      name: '青柚AI',
+      primaryColor: '#12b981',
       slogan: null,
     });
   });
@@ -76,14 +83,14 @@ describe('getServerBrand', () => {
     expect(findFirstMock).toHaveBeenCalledTimes(10);
   });
 
-  it('falls back to null on database errors', async () => {
+  it('falls back to the default runtime brand on database errors', async () => {
     findFirstMock.mockRejectedValue(new Error('boom'));
     const out = await getServerBrand();
     expect(out).toEqual({
       faviconUrl: null,
-      logoUrl: null,
-      name: null,
-      primaryColor: null,
+      logoUrl: '/images/brand/qingyou-ai-logo.png',
+      name: '青柚AI',
+      primaryColor: '#12b981',
       slogan: null,
     });
   });

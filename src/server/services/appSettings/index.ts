@@ -7,16 +7,16 @@ import { getServerDB } from '@/database/server';
 import { type LobeChatDatabase } from '@/database/type';
 
 export const APP_SETTING_KEYS = {
+  authSignupDisabledMessage: 'auth.signup.disabledMessage',
+  authSignupEnabled: 'auth.signup.enabled',
+  authSignupPhoneEnabled: 'auth.signup.phoneEnabled',
   brandFaviconUrl: 'brand.faviconUrl',
+  brandAuthTitle: 'brand.authTitle',
+  brandCopyrightText: 'brand.copyrightText',
   brandLogoUrl: 'brand.logoUrl',
   brandName: 'brand.name',
   brandPrimaryColor: 'brand.primaryColor',
   brandSlogan: 'brand.slogan',
-  cronAuditRetentionDays: 'cron.auditRetentionDays',
-  cronPendingOrderExpiryDays: 'cron.pendingOrderExpiryDays',
-  cronSecret: 'cron.secret',
-  defaultAgentModel: 'defaultAgent.model',
-  defaultAgentProvider: 'defaultAgent.provider',
   communityCreatorRewardBannerEnabled: 'community.creatorRewardBanner.enabled',
   communityFeaturedAssistantPageSize: 'community.featuredAssistant.pageSize',
   communityFeaturedAssistantTitle: 'community.featuredAssistant.title',
@@ -33,12 +33,27 @@ export const APP_SETTING_KEYS = {
   communityHomeAnnouncementEnabled: 'community.homeAnnouncement.enabled',
   communityHomeAnnouncementTitle: 'community.homeAnnouncement.title',
   communityHomeAnnouncementType: 'community.homeAnnouncement.type',
-  authSignupDisabledMessage: 'auth.signup.disabledMessage',
-  authSignupEnabled: 'auth.signup.enabled',
-  onboardingInitialCredits: 'onboarding.initialCredits',
-  onboardingInitialCreditsEnabled: 'onboarding.initialCredits.enabled',
-  uploadMaxActualSizeMb: 'upload.maxActualSizeMb',
-  uploadMaxInputSizeMb: 'upload.maxInputSizeMb',
+  cronAuditRetentionDays: 'cron.auditRetentionDays',
+  cronPendingOrderExpiryDays: 'cron.pendingOrderExpiryDays',
+  cronSecret: 'cron.secret',
+  defaultAgentAvatar: 'defaultAgent.avatar',
+  defaultAgentModel: 'defaultAgent.model',
+  defaultAgentName: 'defaultAgent.name',
+  defaultAgentProvider: 'defaultAgent.provider',
+  desktopDownloadLabel: 'desktop.download.label',
+  desktopDownloadUrl: 'desktop.download.url',
+  desktopOssAccessKeyId: 'desktop.oss.accessKeyId',
+  desktopOssAccessKeySecret: 'desktop.oss.accessKeySecret',
+  desktopOssBucket: 'desktop.oss.bucket',
+  desktopOssEndpoint: 'desktop.oss.endpoint',
+  desktopOssPath: 'desktop.oss.path',
+  desktopUpdateAutoCheck: 'desktop.update.autoCheck',
+  desktopUpdateChannel: 'desktop.update.channel',
+  desktopUpdateCheckInterval: 'desktop.update.checkInterval',
+  desktopUpdateCurrentVersion: 'desktop.update.currentVersion',
+  desktopUpdateReleaseNotes: 'desktop.update.releaseNotes',
+  desktopUpdateServerUrl: 'desktop.update.serverUrl',
+  helpMenuItems: 'help.menu.items',
   modelPolicyAllowlist: 'model.policy.allowlist',
   modelPolicyApplyToEmbeddings: 'model.policy.applyToEmbeddings',
   modelPolicyApplyToGenerateObject: 'model.policy.applyToGenerateObject',
@@ -47,40 +62,32 @@ export const APP_SETTING_KEYS = {
   modelPolicyDeniedMessage: 'model.policy.deniedMessage',
   modelPolicyEnabled: 'model.policy.enabled',
   modelPolicyMode: 'model.policy.mode',
+  onboardingInitialCredits: 'onboarding.initialCredits',
+  onboardingInitialCreditsEnabled: 'onboarding.initialCredits.enabled',
   ordersManagementEnabled: 'orders.management.enabled',
   pricingCreditMultiplier: 'pricing.creditMultiplier',
   pricingModelRules: 'pricing.modelRules',
-  referralRewardCredits: 'referral.rewardCredits',
-  desktopUpdateServerUrl: 'desktop.update.serverUrl',
-  desktopUpdateChannel: 'desktop.update.channel',
-  desktopUpdateAutoCheck: 'desktop.update.autoCheck',
-  desktopUpdateCheckInterval: 'desktop.update.checkInterval',
-  desktopUpdateCurrentVersion: 'desktop.update.currentVersion',
-  desktopUpdateReleaseNotes: 'desktop.update.releaseNotes',
-  desktopOssBucket: 'desktop.oss.bucket',
-  desktopOssEndpoint: 'desktop.oss.endpoint',
-  desktopOssAccessKeyId: 'desktop.oss.accessKeyId',
-  desktopOssAccessKeySecret: 'desktop.oss.accessKeySecret',
-  desktopOssPath: 'desktop.oss.path',
-  recommendationAssistantsEnabled: 'recommendation.assistants.enabled',
   recommendationAssistantTags: 'recommendation.assistantTags',
-  recommendationGeneralSkillsEnabled: 'recommendation.generalSkills.enabled',
+  recommendationAssistantsEnabled: 'recommendation.assistants.enabled',
   recommendationGeneralSkillCategories: 'recommendation.generalSkillCategories',
-  recommendationHotSkillsEnabled: 'recommendation.hotSkills.enabled',
+  recommendationGeneralSkillsEnabled: 'recommendation.generalSkills.enabled',
   recommendationHotSkillSort: 'recommendation.hotSkillSort',
-  recommendationMcpsEnabled: 'recommendation.mcps.enabled',
+  recommendationHotSkillsEnabled: 'recommendation.hotSkills.enabled',
   recommendationMcpCategories: 'recommendation.mcpCategories',
+  recommendationMcpsEnabled: 'recommendation.mcps.enabled',
   recommendationSectionEnabled: 'recommendation.section.enabled',
-  recommendationSkillsEnabled: 'recommendation.skills.enabled',
   recommendationSelectedTags: 'recommendation.selectedTags',
   recommendationSkillCategories: 'recommendation.skillCategories',
-  desktopDownloadUrl: 'desktop.download.url',
-  desktopDownloadLabel: 'desktop.download.label',
-  helpMenuItems: 'help.menu.items',
+  recommendationSkillsEnabled: 'recommendation.skills.enabled',
+  referralRewardCredits: 'referral.rewardCredits',
+  uploadMaxActualSizeMb: 'upload.maxActualSizeMb',
+  uploadMaxInputSizeMb: 'upload.maxInputSizeMb',
 } as const;
 
 const CACHED_KEYS = [
+  APP_SETTING_KEYS.defaultAgentAvatar,
   APP_SETTING_KEYS.defaultAgentModel,
+  APP_SETTING_KEYS.defaultAgentName,
   APP_SETTING_KEYS.defaultAgentProvider,
   APP_SETTING_KEYS.modelPolicyAllowlist,
   APP_SETTING_KEYS.modelPolicyApplyToEmbeddings,
@@ -106,9 +113,9 @@ const normalizeString = (value: unknown) => {
 
 export const normalizeModelIdList = (value: unknown): string[] => {
   const rawValues = Array.isArray(value)
-    ? value.flatMap((item) => (typeof item === 'string' ? item.split(/[\r\n,;；，]+/) : []))
+    ? value.flatMap((item) => (typeof item === 'string' ? item.split(/[\r\n,;，；]+/) : []))
     : typeof value === 'string'
-      ? value.split(/[\r\n,;；，]+/)
+      ? value.split(/[\r\n,;，；]+/)
       : [];
 
   return Array.from(new Set(rawValues.map((item) => item.trim()).filter(Boolean)));
@@ -159,14 +166,22 @@ export const getAppSettingValue = async (key: string, db?: LobeChatDatabase): Pr
 export const getServerDefaultAgentSettingOverrides = async (
   db?: LobeChatDatabase,
 ): Promise<PartialDeep<LobeAgentConfig>> => {
-  const rawModel = await getAppSettingValue(APP_SETTING_KEYS.defaultAgentModel, db);
-  const rawProvider = await getAppSettingValue(APP_SETTING_KEYS.defaultAgentProvider, db);
+  const [rawModel, rawProvider, rawName, rawAvatar] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.defaultAgentModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.defaultAgentProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.defaultAgentName, db),
+    getAppSettingValue(APP_SETTING_KEYS.defaultAgentAvatar, db),
+  ]);
   const model = normalizeString(rawModel);
   const provider = normalizeString(rawProvider);
+  const title = normalizeString(rawName);
+  const avatar = normalizeString(rawAvatar);
 
   return {
+    ...(avatar ? { avatar } : {}),
     ...(model ? { model } : {}),
     ...(provider ? { provider } : {}),
+    ...(title ? { title } : {}),
   };
 };
 
@@ -178,7 +193,7 @@ export const getServerDefaultModelSuggestions = async ({
   return Array.from(new Set([currentModel?.trim()].filter(Boolean) as string[]));
 };
 
-export type ServerModelPolicyUsageType = 'chat' | 'embeddings' | 'generate_object';
+export type ServerModelPolicyUsageType = 'chat' | 'embeddings' | 'generate_object' | 'image';
 
 export type ServerModelPolicyConfig = {
   allowlist: string[];
