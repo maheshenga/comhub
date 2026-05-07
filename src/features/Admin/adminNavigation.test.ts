@@ -63,6 +63,11 @@ describe('adminNavigation', () => {
     expect(modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/pricing`)).toMatchObject({
       label: '全局计费设置',
     });
+    expect(
+      modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/model-policy`),
+    ).toMatchObject({
+      label: '全局模型策略',
+    });
   });
 
   it('selects the nearest admin item for nested URLs and opens its module', () => {

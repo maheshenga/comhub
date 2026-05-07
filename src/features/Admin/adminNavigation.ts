@@ -139,9 +139,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/model-billing-matrix`,
       },
       {
-        description: '设置全局模型访问策略和兜底模型',
+        description: '设置平台级模型允许/禁用清单和兜底提示',
         icon: 'models',
-        label: '模型策略',
+        label: '全局模型策略',
         path: `${ADMIN_BASE_PATH}/model-policy`,
       },
       {
