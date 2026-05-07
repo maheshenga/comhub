@@ -35,6 +35,7 @@ import {
   type MatrixSourceModel,
   togglePlanAccess,
 } from '@/features/Admin/adminModelBillingMatrix';
+import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import {
   ADMIN_SETTINGS_SWR_KEY,
   getAdminSettingsRefreshKeys,
@@ -47,17 +48,6 @@ const { Text, Title } = Typography;
 
 const MATRIX_KEY = ['admin-model-billing-matrix'];
 const PLANS_KEY = ['admin-plans'];
-
-const MODEL_TYPE_LABELS: Record<MatrixModelType, string> = {
-  chat: '对话',
-  embedding: '向量',
-  image: '图像',
-  realtime: '实时',
-  stt: '语音转文字',
-  text2music: '文生音乐',
-  tts: '文字转语音',
-  video: '视频',
-};
 
 type PlanItem = {
   displayName?: string | null;
@@ -229,7 +219,7 @@ const AdminModelBillingMatrixPage = memo(() => {
             </Text>
             <Space wrap size={4}>
               <Tag>{row.provider}</Tag>
-              <Tag>{MODEL_TYPE_LABELS[row.modelType] ?? row.modelType}</Tag>
+              <Tag>{getAdminModelTypeLabel(row.modelType)}</Tag>
             </Space>
           </Flexbox>
         ),

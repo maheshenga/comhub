@@ -20,6 +20,7 @@ import {
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -387,7 +388,7 @@ const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>
         MODEL_TYPES.map((type) => ({
           children: instance ? <ModelTypePanel instanceId={instance.id} modelType={type} /> : null,
           key: type,
-          label: t(`admin.newapi.modelType.${type}`, type),
+          label: t(`admin.newapi.modelType.${type}`, getAdminModelTypeLabel(type)),
         })),
       [instance, t],
     );
