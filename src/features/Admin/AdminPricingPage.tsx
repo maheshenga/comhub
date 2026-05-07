@@ -1,62 +1,27 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Form, Input, InputNumber, message, Switch } from 'antd';
+import { Alert, Button, Form, InputNumber, message, Switch, Typography } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
+import { ADMIN_BASE_PATH } from '@/features/Admin/adminNavigation';
+import {
+  type AdminPricingSettingsFormValues,
+  buildPricingSettingUpdates,
+} from '@/features/Admin/adminPricingSettings';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-const SETTING_KEYS = {
-  ordersEnabled: 'orders.management.enabled',
-  pricingMultiplier: 'pricing.creditMultiplier',
-  pricingRules: 'pricing.modelRules',
-} as const;
+const { Text, Title } = Typography;
 
 const SWR_KEY = ['admin-settings'];
 
-type PricingRule = {
-  creditsPerDollar?: number;
-  model?: string;
-  multiplier?: number;
-  provider?: string;
-};
-
-type FormValues = {
-  ordersEnabled: boolean;
-  pricingMultiplier: number;
-  pricingRulesText: string;
-};
-
-const exampleRules: PricingRule[] = [
-  { model: 'gpt-4o-mini', multiplier: 0.8, provider: 'openai' },
-  { creditsPerDollar: 1_000_000, model: 'deepseek-chat', provider: 'newapi' },
-  { model: '*', multiplier: 1.2, provider: 'anthropic' },
-];
-
-const parseRules = (value: string): PricingRule[] => {
-  if (!value.trim()) return [];
-  const parsed = JSON.parse(value);
-  if (!Array.isArray(parsed)) throw new Error('rules must be array');
-
-  return parsed.map((item) => ({
-    creditsPerDollar:
-      Number.isFinite(Number(item.creditsPerDollar)) && Number(item.creditsPerDollar) > 0
-        ? Number(item.creditsPerDollar)
-        : undefined,
-    model: typeof item.model === 'string' ? item.model.trim() : undefined,
-    multiplier:
-      Number.isFinite(Number(item.multiplier)) && Number(item.multiplier) >= 0
-        ? Number(item.multiplier)
-        : undefined,
-    provider: typeof item.provider === 'string' ? item.provider.trim() : undefined,
-  }));
-};
-
 const AdminPricingPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const [form] = Form.useForm<FormValues>();
+  const navigate = useNavigate();
+  const [form] = Form.useForm<AdminPricingSettingsFormValues>();
   const [submitting, setSubmitting] = useState(false);
   const { data, isLoading } = useClientDataSWR(SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
@@ -64,77 +29,68 @@ const AdminPricingPage = memo(() => {
 
   useEffect(() => {
     if (!data) return;
+
     form.setFieldsValue({
       ordersEnabled: data.ordersManagementEnabled ?? true,
       pricingMultiplier: data.pricingCreditMultiplier ?? 1,
-      pricingRulesText: JSON.stringify(data.pricingModelRules ?? [], null, 2),
     });
   }, [data, form]);
 
   const handleSave = async () => {
     setSubmitting(true);
+
     try {
       const values = await form.validateFields();
-      const rules = parseRules(values.pricingRulesText);
-      await Promise.all([
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.pricingMultiplier,
-          value: values.pricingMultiplier,
-        }),
-        adminCommercialService.setAppSetting({ key: SETTING_KEYS.pricingRules, value: rules }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.ordersEnabled,
-          value: Boolean(values.ordersEnabled),
-        }),
-      ]);
-      message.success(t('admin.pricing.saveSuccess', '计费规则已保存'));
+      await Promise.all(
+        buildPricingSettingUpdates(values).map((update) =>
+          adminCommercialService.setAppSetting(update),
+        ),
+      );
+      message.success(t('admin.pricing.saveSuccess', '全局计费设置已保存'));
       await mutate(SWR_KEY);
     } catch {
-      message.error(t('admin.pricing.saveFailed', '保存失败，请检查计费规则 JSON 配置。'));
+      message.error(t('admin.pricing.saveFailed', '保存全局计费设置失败'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const fillExample = () => {
-    form.setFieldValue('pricingRulesText', JSON.stringify(exampleRules, null, 2));
-  };
-
   return (
     <Flexbox gap={16} padding={24} style={{ maxWidth: 760 }}>
+      <Flexbox gap={4}>
+        <Title level={3} style={{ margin: 0 }}>
+          {t('admin.pricing.title', '全局计费设置')}
+        </Title>
+        <Text type="secondary">
+          {t(
+            'admin.pricing.subtitle',
+            '这里只保留影响全站的计费开关。模型级倍率、套餐权限和默认模型统一在“模型与计费矩阵”维护。',
+          )}
+        </Text>
+      </Flexbox>
+
       <Alert
         showIcon
         type="info"
+        action={
+          <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/model-billing-matrix`)}>
+            打开矩阵
+          </Button>
+        }
         message={t(
           'admin.pricing.tip',
-          '计费规则用于按 provider/model 调整积分消耗；model 目前只支持精确模型 ID 或 "*"，creditsPerDollar 可覆盖美元到积分的换算。',
+          '模型级计费规则已迁移到矩阵页面，避免同一规则在多个入口被覆盖。当前页面保存全局积分倍率和订单管理开关。',
         )}
       />
+
       <Form
         disabled={isLoading}
         form={form}
-        initialValues={{ ordersEnabled: true, pricingMultiplier: 1, pricingRulesText: '[]' }}
+        initialValues={{ ordersEnabled: true, pricingMultiplier: 1 }}
         layout="vertical"
       >
         <Form.Item label={t('admin.pricing.multiplier', '全局积分倍率')} name="pricingMultiplier">
           <InputNumber min={0} precision={4} step={0.1} style={{ width: '100%' }} />
-        </Form.Item>
-        <Form.Item
-          label={t('admin.pricing.rules', '模型计费规则')}
-          name="pricingRulesText"
-          extra={t(
-            'admin.pricing.rules.help',
-            'JSON 数组。每一项可包含 provider、model、multiplier、creditsPerDollar。',
-          )}
-          rules={[
-            {
-              validator: async (_, value) => {
-                parseRules(value || '');
-              },
-            },
-          ]}
-        >
-          <Input.TextArea rows={12} />
         </Form.Item>
         <Form.Item
           label={t('admin.pricing.ordersEnabled', '启用订单管理')}
@@ -147,7 +103,6 @@ const AdminPricingPage = memo(() => {
           <Button loading={submitting} type="primary" onClick={handleSave}>
             {t('admin.settings.save', '保存')}
           </Button>
-          <Button onClick={fillExample}>{t('admin.pricing.example', '填入示例')}</Button>
         </Flexbox>
       </Form>
     </Flexbox>

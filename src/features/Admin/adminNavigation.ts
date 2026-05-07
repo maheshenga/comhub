@@ -145,9 +145,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/model-policy`,
       },
       {
-        description: '配置模型积分倍率和订单开关',
+        description: '配置全局积分倍率和订单管理开关',
         icon: 'pricing',
-        label: '计费规则',
+        label: '全局计费设置',
         path: `${ADMIN_BASE_PATH}/pricing`,
       },
     ],

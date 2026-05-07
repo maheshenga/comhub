@@ -52,6 +52,19 @@ describe('adminNavigation', () => {
     );
   });
 
+  it('labels model pricing and global billing settings as separate admin tasks', () => {
+    const modelApiItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'model-api')?.items ?? [];
+
+    expect(
+      modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/model-billing-matrix`),
+    ).toMatchObject({
+      label: '模型与计费矩阵',
+    });
+    expect(modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/pricing`)).toMatchObject({
+      label: '全局计费设置',
+    });
+  });
+
   it('selects the nearest admin item for nested URLs and opens its module', () => {
     expect(getAdminSelectedKey('/settings/admin')).toBe(ADMIN_BASE_PATH);
     expect(getAdminSelectedKey('/settings/admin/users/abc')).toBe(`${ADMIN_BASE_PATH}/users`);
