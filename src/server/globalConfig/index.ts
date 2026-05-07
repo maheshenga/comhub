@@ -1,6 +1,6 @@
 import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { merge } from '@lobechat/utils';
-import { type AIChatModelCard } from 'model-bank';
+import { type AiFullModelCard } from 'model-bank';
 
 import { klavisEnv } from '@/config/klavis';
 import { isDesktop } from '@/const/version';
@@ -13,10 +13,8 @@ import { knowledgeEnv } from '@/envs/knowledge';
 import { langfuseEnv } from '@/envs/langfuse';
 import { parseSSOProviders } from '@/libs/better-auth/utils/server';
 import { parseSystemAgent } from '@/server/globalConfig/parseSystemAgent';
-import {
-  getServerDefaultAgentSettingOverrides,
-  getServerManagedNewApiModelIds,
-} from '@/server/services/appSettings';
+import { getServerDefaultAgentSettingOverrides } from '@/server/services/appSettings';
+import { getAllEnabledModels } from '@/server/services/newapiInstance';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { cleanObject } from '@/utils/object';
 
@@ -78,18 +76,21 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   });
 
   if (ENABLE_BUSINESS_FEATURES && BRANDING_PROVIDER === 'newapi') {
-    const managedNewApiModelIds = await getServerManagedNewApiModelIds(db);
+    const instanceModels = await getAllEnabledModels(db);
+    const managedNewApiModelIds = Array.from(new Set(instanceModels.map((m) => m.id)));
 
     if (managedNewApiModelIds.length > 0) {
+      const serverModelLists: AiFullModelCard[] = instanceModels.map((m) => ({
+        displayName: m.displayName || m.id,
+        enabled: true,
+        id: m.id,
+        type: m.type,
+      }));
+
       aiProvider[BRANDING_PROVIDER] = {
         ...aiProvider[BRANDING_PROVIDER],
         enabledModels: managedNewApiModelIds,
-        serverModelLists: managedNewApiModelIds.map<AIChatModelCard>((id) => ({
-          displayName: id,
-          enabled: true,
-          id,
-          type: 'chat',
-        })),
+        serverModelLists,
       };
     }
   }

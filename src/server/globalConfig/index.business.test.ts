@@ -6,7 +6,7 @@ import { getServerGlobalConfig } from './index';
 const mocks = vi.hoisted(() => ({
   genServerAiProvidersConfig: vi.fn(),
   getServerDefaultAgentSettingOverrides: vi.fn(),
-  getServerManagedNewApiModelIds: vi.fn(),
+  getAllEnabledModels: vi.fn(),
   parseAgentConfig: vi.fn(),
   parseSSOProviders: vi.fn(),
   parseSystemAgent: vi.fn(),
@@ -86,7 +86,10 @@ vi.mock('@/server/globalConfig/parseSystemAgent', () => ({
 
 vi.mock('@/server/services/appSettings', () => ({
   getServerDefaultAgentSettingOverrides: mocks.getServerDefaultAgentSettingOverrides,
-  getServerManagedNewApiModelIds: mocks.getServerManagedNewApiModelIds,
+}));
+
+vi.mock('@/server/services/newapiInstance', () => ({
+  getAllEnabledModels: mocks.getAllEnabledModels,
 }));
 
 vi.mock('./genServerAiProviderConfig', () => ({
@@ -121,18 +124,22 @@ describe('getServerGlobalConfig business newapi model injection', () => {
       },
     });
     mocks.getServerDefaultAgentSettingOverrides.mockResolvedValue({});
-    mocks.getServerManagedNewApiModelIds.mockResolvedValue([]);
+    mocks.getAllEnabledModels.mockResolvedValue([]);
     mocks.parseAgentConfig.mockReturnValue({});
     mocks.parseSSOProviders.mockReturnValue([]);
     mocks.parseSystemAgent.mockReturnValue(undefined);
   });
 
-  it('injects global newapi chat model IDs into server provider config', async () => {
-    mocks.getServerManagedNewApiModelIds.mockResolvedValue(['gpt-4o-mini', 'gpt-4.1']);
+  it('injects global newapi model IDs with all types into server provider config', async () => {
+    mocks.getAllEnabledModels.mockResolvedValue([
+      { id: 'gpt-4o-mini', type: 'chat', displayName: null },
+      { id: 'dall-e-3', type: 'image', displayName: 'DALL-E 3' },
+      { id: 'tts-1', type: 'tts', displayName: null },
+    ]);
 
     const result = await getServerGlobalConfig({} as any);
 
-    expect(result.aiProvider.newapi!.enabledModels).toEqual(['gpt-4o-mini', 'gpt-4.1']);
+    expect(result.aiProvider.newapi!.enabledModels).toEqual(['gpt-4o-mini', 'dall-e-3', 'tts-1']);
     expect(result.aiProvider.newapi!.serverModelLists).toEqual([
       {
         displayName: 'gpt-4o-mini',
@@ -141,11 +148,30 @@ describe('getServerGlobalConfig business newapi model injection', () => {
         type: 'chat',
       },
       {
-        displayName: 'gpt-4.1',
+        displayName: 'DALL-E 3',
         enabled: true,
-        id: 'gpt-4.1',
-        type: 'chat',
+        id: 'dall-e-3',
+        type: 'image',
       },
+      {
+        displayName: 'tts-1',
+        enabled: true,
+        id: 'tts-1',
+        type: 'tts',
+      },
+    ]);
+  });
+
+  it('uses only enabled NewAPI instance models for provider injection', async () => {
+    mocks.getAllEnabledModels.mockResolvedValue([
+      { id: 'gpt-4o-mini', type: 'chat', displayName: null },
+    ]);
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.aiProvider.newapi!.enabledModels).toEqual(['gpt-4o-mini']);
+    expect(result.aiProvider.newapi!.serverModelLists).toEqual([
+      { displayName: 'gpt-4o-mini', enabled: true, id: 'gpt-4o-mini', type: 'chat' },
     ]);
   });
 

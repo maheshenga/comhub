@@ -8,12 +8,10 @@ import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import {
   APP_SETTING_KEYS,
-  getServerManagedDefaultModelSuggestions,
-  getServerManagedNewApiModelIds,
+  getServerDefaultModelSuggestions,
   getServerModelPolicyConfig,
   invalidateServerAppSettings,
   serializeModelIdList,
-  serializeUrlList,
 } from '@/server/services/appSettings';
 import { invalidateServerBrand } from '@/server/services/brand';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
@@ -31,7 +29,6 @@ const maskApiKey = (key: string | null | undefined): string | null => {
 const SETTING_KEYS = APP_SETTING_KEYS;
 
 const SENSITIVE_KEYS = new Set<string>([
-  SETTING_KEYS.newapiApiKey,
   SETTING_KEYS.cronSecret,
   SETTING_KEYS.desktopOssAccessKeySecret,
 ]);
@@ -357,9 +354,6 @@ export const adminSettingsRouter = router({
 
   getAll: adminProcedure.query(async ({ ctx }) => {
     const [
-      apiKey,
-      managedModels,
-      proxyUrl,
       referralReward,
       cronSecret,
       auditDays,
@@ -393,9 +387,6 @@ export const adminSettingsRouter = router({
       desktopDownloadLabel,
       helpMenuItems,
     ] = await Promise.all([
-      readSetting(ctx.serverDB, SETTING_KEYS.newapiApiKey),
-      readSetting(ctx.serverDB, SETTING_KEYS.newapiEnabledModels),
-      readSetting(ctx.serverDB, SETTING_KEYS.newapiProxyUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.referralRewardCredits),
       readSetting(ctx.serverDB, SETTING_KEYS.cronSecret),
       readSetting(ctx.serverDB, SETTING_KEYS.cronAuditRetentionDays),
@@ -430,9 +421,6 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems),
     ]);
 
-    const dbApiKey = typeof apiKey === 'string' ? apiKey : null;
-    const managedModelIds = await getServerManagedNewApiModelIds(ctx.serverDB);
-    const dbProxyUrl = proxyUrl;
     const dbCronSecret = typeof cronSecret === 'string' ? cronSecret : null;
 
     const resolvedDefaultAgentConfig = await getResolvedServerDefaultAgentConfig(ctx.serverDB);
@@ -442,9 +430,8 @@ export const adminSettingsRouter = router({
     const currentDefaultProvider = ((typeof defaultAgentProvider === 'string' &&
       defaultAgentProvider.trim()) ||
       resolvedDefaultAgentConfig.provider) as string | undefined;
-    const defaultModelSuggestions = await getServerManagedDefaultModelSuggestions({
+    const defaultModelSuggestions = await getServerDefaultModelSuggestions({
       currentModel: currentDefaultModel,
-      db: ctx.serverDB,
     });
     const enabledNewapiModels = await getAllEnabledModels(ctx.serverDB);
 
@@ -469,11 +456,6 @@ export const adminSettingsRouter = router({
         modelType: item.type,
         provider: 'newapi',
       })),
-      newapiApiKeyMasked: maskApiKey(dbApiKey ?? process.env.NEWAPI_API_KEY),
-      newapiEnabledModels:
-        serializeModelIdList(managedModelIds) ?? serializeModelIdList(managedModels) ?? null,
-      newapiProxyUrl:
-        serializeUrlList(dbProxyUrl) ?? serializeUrlList(process.env.NEWAPI_PROXY_URL) ?? null,
       ordersManagementEnabled: toBoolean(ordersManagementEnabled, true),
       paymentGatewayStatus: {
         configured: false,
@@ -517,9 +499,6 @@ export const adminSettingsRouter = router({
     .input(
       z.object({
         key: z.enum([
-          SETTING_KEYS.newapiApiKey,
-          SETTING_KEYS.newapiEnabledModels,
-          SETTING_KEYS.newapiProxyUrl,
           SETTING_KEYS.defaultAgentModel,
           SETTING_KEYS.defaultAgentProvider,
           SETTING_KEYS.referralRewardCredits,
@@ -555,10 +534,6 @@ export const adminSettingsRouter = router({
         const n = Number(value);
         if (!Number.isFinite(n)) throw new Error('referralRewardCredits must be a number');
         value = Math.max(0, Math.round(n));
-      } else if (input.key === SETTING_KEYS.newapiEnabledModels) {
-        value = typeof value === 'string' ? value : (serializeModelIdList(value) ?? '');
-      } else if (input.key === SETTING_KEYS.newapiProxyUrl) {
-        value = typeof value === 'string' ? value : (serializeUrlList(value) ?? '');
       } else if (input.key === SETTING_KEYS.defaultAgentModel) {
         value = typeof value === 'string' ? value.trim() : '';
       } else if (input.key === SETTING_KEYS.defaultAgentProvider) {

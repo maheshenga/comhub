@@ -18,12 +18,25 @@ import { getBusinessModelRuntimeHooks } from '@/business/server/model-runtime';
 import { AiProviderModel } from '@/database/models/aiProvider';
 import { type LobeChatDatabase } from '@/database/type';
 import { getLLMConfig } from '@/envs/llm';
-import { getServerManagedNewApiConfig } from '@/server/services/appSettings';
+import {
+  type NewapiModelType,
+  resolveDefaultNewapiInstance,
+  resolveNewapiInstancesForModel,
+} from '@/server/services/newapiInstance';
 
 import { KeyVaultsGateKeeper } from '../KeyVaultsEncrypt';
 import apiKeyManager from './apiKeyManager';
 
-export * from './trace';
+export { createTraceOptions } from './trace';
+
+export interface NewapiFailoverInstance {
+  apiKey: string;
+  baseUrl: string;
+  instanceId: string;
+  instanceName: string;
+  priority: number;
+  source: 'instance';
+}
 
 /**
  * Combined KeyVaults type for all providers
@@ -347,6 +360,64 @@ const buildVertexOptions = (
 };
 
 /**
+ * Wraps a ModelRuntime to add automatic failover for NewAPI instances.
+ * When the primary instance returns a retriable error (5xx, network), this
+ * wrapper retries with the next fallback instance in priority order.
+ */
+const wrapNewapiRuntimeWithFailover = (
+  runtime: ModelRuntime,
+  provider: string,
+  payload: ClientSecretPayload,
+  failoverInstances: NewapiFailoverInstance[],
+  userId: string,
+): ModelRuntime => {
+  const originalChat = runtime.chat.bind(runtime);
+
+  runtime.chat = async function (chatPayload, options?) {
+    try {
+      return await originalChat(chatPayload, options);
+    } catch (primaryError) {
+      const statusCode = (primaryError as any)?.statusCode;
+      const is5xx = typeof statusCode === 'number' && statusCode >= 500;
+      const isNetwork = ['NetworkError', 'ServiceUnavailable', 'TimeoutError'].includes(
+        (primaryError as any)?.errorType,
+      );
+
+      if (!is5xx && !isNetwork) throw primaryError;
+
+      // Try fallback instances in order — skip billing hooks to avoid double-charge
+      // (the primary instance already triggered beforeChat deduction)
+      for (const instance of failoverInstances) {
+        try {
+          const fallbackPayload = {
+            ...payload,
+            apiKey: instance.apiKey,
+            baseURL: instance.baseUrl,
+          };
+          const fallbackRuntime = await initModelRuntimeWithUserPayload(
+            provider,
+            fallbackPayload,
+            { userId },
+            undefined,
+          );
+          console.warn(
+            `[newapi-failover] primary failed (${statusCode}), retrying on instance "${instance.instanceName}" (priority ${instance.priority})`,
+          );
+          return await fallbackRuntime.chat(chatPayload, options);
+        } catch {
+          // Continue to next fallback
+        }
+      }
+
+      // All fallbacks exhausted, throw the original error
+      throw primaryError;
+    }
+  };
+
+  return runtime;
+};
+
+/**
  * Initializes the agent runtime with the user payload in backend
  * @param provider - The provider name.
  * @param payload - The JWT payload.
@@ -400,6 +471,7 @@ export const initModelRuntimeFromDB = async (
   db: LobeChatDatabase,
   userId: string,
   provider: string,
+  options?: { model?: string | null; modelType?: NewapiModelType },
 ): Promise<ModelRuntime> => {
   // 1. Get user's provider configuration from database
   const aiProviderModel = new AiProviderModel(db, userId);
@@ -421,15 +493,44 @@ export const initModelRuntimeFromDB = async (
   const payload = buildPayloadFromKeyVaults(keyVaults, runtimeProvider);
 
   if (provider === ModelProvider.NewAPI) {
-    const managedNewApiConfig = await getServerManagedNewApiConfig(db);
+    // Multi-instance routing: when a specific model is in flight, prefer the
+    // highest-priority enabled instance that has it registered. Otherwise use
+    // the default (lowest-priority enabled) instance.
+    const resolvedInstances = options?.model
+      ? await resolveNewapiInstancesForModel(db, options.model, options.modelType ?? 'chat')
+      : await resolveDefaultNewapiInstance(db).then((r) => (r ? [r] : []));
 
-    payload.apiKey ||= managedNewApiConfig.apiKey || undefined;
-    payload.baseURL ||= managedNewApiConfig.proxyUrlText || undefined;
+    const primary = resolvedInstances[0];
+    if (primary) {
+      payload.apiKey ||= primary.apiKey;
+      payload.baseURL ||= primary.baseUrl;
+    }
+
+    // Store fallback instances for failover (exclude primary which is already set)
+    const fallbackInstances = resolvedInstances.slice(1);
+
+    // 4. Get business hooks (billing in cloud, undefined in OSS)
+    const hooks = getBusinessModelRuntimeHooks(userId, provider);
+
+    // 5. Initialize ModelRuntime with the payload and hooks
+    const runtime = await initModelRuntimeWithUserPayload(provider, payload, { userId }, hooks);
+
+    // 6. Wire up NewAPI failover: if the primary instance returns a retriable
+    //    error (5xx / network), automatically retry with the next fallback instance.
+    if (fallbackInstances.length > 0) {
+      return wrapNewapiRuntimeWithFailover(
+        runtime,
+        provider,
+        payload,
+        fallbackInstances,
+        userId,
+      );
+    }
+
+    return runtime;
   }
 
-  // 4. Get business hooks (billing in cloud, undefined in OSS)
+  // Non-NewAPI providers: standard path
   const hooks = getBusinessModelRuntimeHooks(userId, provider);
-
-  // 5. Initialize ModelRuntime with the payload and hooks
   return initModelRuntimeWithUserPayload(provider, payload, { userId }, hooks);
 };
