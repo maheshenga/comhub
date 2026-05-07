@@ -10,6 +10,7 @@ import { fileEnv } from '@/envs/file';
 import { pythonEnv } from '@/envs/python';
 import { type Locales } from '@/locales/resources';
 import { getServerGlobalConfig } from '@/server/globalConfig';
+import { getServerBrand } from '@/server/services/brand';
 import { translation } from '@/server/translation';
 import { serializeForHtml } from '@/server/utils/serializeForHtml';
 import {
@@ -176,9 +177,10 @@ function buildClientEnv(): SPAClientEnv {
 }
 
 async function buildSeoMeta(locale: string): Promise<string> {
-  const { t } = await translation('metadata', locale);
-  const title = t('chat.title', { appName: BRANDING_NAME });
-  const description = t('chat.description', { appName: BRANDING_NAME });
+  const [{ t }, brand] = await Promise.all([translation('metadata', locale), getServerBrand()]);
+  const appName = brand.name?.trim() || BRANDING_NAME;
+  const title = t('chat.title', { appName });
+  const description = t('chat.description', { appName });
 
   return [
     `<title>${title}</title>`,
@@ -188,7 +190,7 @@ async function buildSeoMeta(locale: string): Promise<string> {
     `<meta property="og:type" content="website" />`,
     `<meta property="og:url" content="${OFFICIAL_URL}" />`,
     `<meta property="og:image" content="${OG_URL}" />`,
-    `<meta property="og:site_name" content="${BRANDING_NAME}" />`,
+    `<meta property="og:site_name" content="${appName}" />`,
     `<meta property="og:locale" content="${locale}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${title}" />`,
@@ -197,6 +199,24 @@ async function buildSeoMeta(locale: string): Promise<string> {
     `<meta name="twitter:site" content="${isCustomORG ? `@${ORG_NAME}` : '@lobehub'}" />`,
   ].join('\n    ');
 }
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
+const buildLoadingBrandHtml = ({ logoUrl, name }: { logoUrl: string | null; name: string }) => {
+  const safeName = escapeHtml(name);
+
+  if (logoUrl) {
+    return `<img src="${escapeHtml(logoUrl)}" alt="${safeName}" style="width:56px;height:56px;border-radius:14px;object-fit:contain" />`;
+  }
+
+  return `<span style="font-size:28px;font-weight:700;color:inherit">${safeName}</span>`;
+};
 
 export async function GET(
   _request: Request,
@@ -228,6 +248,14 @@ export async function GET(
   const seoMeta = await buildSeoMeta(locale);
   html = html.replace('<!--SEO_META-->', seoMeta);
   html = html.replace('<!--ANALYTICS_SCRIPTS-->', '');
+
+  const brand = await getServerBrand();
+  const appName = brand.name?.trim() || BRANDING_NAME;
+  const loadingBrandHtml = buildLoadingBrandHtml({ logoUrl: brand.logoUrl, name: appName });
+  html = html.replace(
+    /<div id="loading-brand" aria-label="Loading" role="status">[\s\S]*?<\/div>\s*<\/div>/,
+    `<div id="loading-brand" aria-label="${escapeHtml(appName)} 正在加载" role="status">${loadingBrandHtml}</div>\n    </div>`,
+  );
 
   return new Response(html, {
     headers: {

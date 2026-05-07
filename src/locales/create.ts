@@ -1,3 +1,4 @@
+import { BRANDING_NAME } from '@lobechat/business-const';
 import i18n from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import resourcesToBackend from 'i18next-resources-to-backend';
@@ -99,6 +100,7 @@ export const createI18nNext = (lang?: string) => {
         partialBundledLanguages: true,
 
         interpolation: {
+          defaultVariables: { brandName: BRANDING_NAME },
           escapeValue: false,
         },
         // Re-render components when new language resources are loaded from backend,

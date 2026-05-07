@@ -12,6 +12,7 @@ import urlJoin from 'url-join';
 
 import { OFFICIAL_SITE } from '@/const/url';
 import { isDesktop } from '@/const/version';
+import { useBrandName } from '@/features/Brand';
 import UserInfo from '@/features/User/UserInfo';
 import { useIMECompositionEvent } from '@/hooks/useIMECompositionEvent';
 import { remoteServerService } from '@/services/electron/remoteServer';
@@ -61,6 +62,7 @@ interface LoginStepProps {
 
 const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
   const { t } = useTranslation('desktop-onboarding');
+  const brandName = useBrandName();
   const [endpoint, setEndpoint] = useState('');
   const [cloudLoginStatus, setCloudLoginStatus] = useState<LoginStatus>('idle');
   const [authProgress, setAuthProgress] = useState<AuthorizationProgress | null>(null);
@@ -356,7 +358,7 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
         type={'primary'}
         onClick={handleCloudLogin}
       >
-        {t('screen5.actions.signInCloud')}
+        {t('screen5.actions.signInCloud', { brandName })}
       </Button>
     );
   };
@@ -451,7 +453,9 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
 
     return (
       <Flexbox gap={16} style={{ width: '100%' }}>
-        <Text color={cssVar.colorTextSecondary}>{t(loginMethodMetas.selfhost.descriptionKey)}</Text>
+        <Text color={cssVar.colorTextSecondary}>
+          {t(loginMethodMetas.selfhost.descriptionKey, { brandName })}
+        </Text>
         <Input
           placeholder={t('screen5.selfhost.endpointPlaceholder')}
           prefix={<Icon icon={Server} style={{ marginRight: 4 }} />}
@@ -524,7 +528,7 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
               }}
               onClick={() => setShowEndpoint(true)}
             >
-              {t(loginMethodMetas.selfhost.descriptionKey)}
+              {t(loginMethodMetas.selfhost.descriptionKey, { brandName })}
             </Button>
           </Center>
         ) : (

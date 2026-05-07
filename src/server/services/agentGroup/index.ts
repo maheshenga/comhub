@@ -2,6 +2,7 @@ import { DEFAULT_AGENT_CONFIG, DEFAULT_CHAT_GROUP_CHAT_CONFIG } from '@lobechat/
 import { type LobeChatDatabase } from '@lobechat/database';
 import { type LobeAgentConfig } from '@lobechat/types';
 import { cleanObject, merge } from '@lobechat/utils';
+import { pick } from 'es-toolkit/compat';
 import { type PartialDeep } from 'type-fest';
 
 import { AgentModel } from '@/database/models/agent';
@@ -96,8 +97,8 @@ export class AgentGroupService {
    *
    * Merge order (later values override earlier):
    * 1. DEFAULT_AGENT_CONFIG - hardcoded defaults
-   * 2. serverDefaultAgentConfig - from environment variable
-   * 3. userDefaultAgentConfig - from user settings
+   * 2. userDefaultAgentConfig - from user settings
+   * 3. serverDefaultAgentConfig - from env/admin settings
    * 4. agent - actual agent config from database
    *
    * @param defaultAgentConfig - User's default agent config from settings
@@ -114,7 +115,11 @@ export class AgentGroupService {
 
     const baseConfig = merge(DEFAULT_AGENT_CONFIG, serverDefaultAgentConfig);
     const withUserConfig = merge(baseConfig, userDefaultAgentConfig);
+    const withManagedModel = merge(
+      withUserConfig,
+      pick(serverDefaultAgentConfig, ['model', 'provider']),
+    );
 
-    return agents.map((agent) => merge(withUserConfig, cleanObject(agent)) as T);
+    return agents.map((agent) => merge(withManagedModel, cleanObject(agent)) as T);
   }
 }

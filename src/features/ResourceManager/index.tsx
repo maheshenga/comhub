@@ -1,12 +1,12 @@
 'use client';
 
-import { BRANDING_NAME } from '@lobechat/business-const';
 import { Flexbox } from '@lobehub/ui';
 import { createStaticStyles, useTheme } from 'antd-style';
 import { memo, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import DragUploadZone from '@/components/DragUploadZone';
+import { useBrandName } from '@/features/Brand';
 import { PageEditor } from '@/features/PageEditor';
 import dynamic from '@/libs/next/dynamic';
 import { useCurrentFolderId } from '@/routes/(main)/resource/features/hooks/useCurrentFolderId';
@@ -58,6 +58,7 @@ export type ResourceManagerMode = 'editor' | 'explorer' | 'page';
  * Business component, no need be reusable.
  */
 const ResourceManager = memo(() => {
+  const brandName = useBrandName();
   const theme = useTheme();
   const [, setSearchParams] = useSearchParams();
   const currentFolderId = useCurrentFolderId();
@@ -81,9 +82,9 @@ const ResourceManager = memo(() => {
 
   const cssVariables = useMemo<Record<string, string>>(
     () => ({
-      '--editor-overlay-bg': theme.colorBgContainerSecondary,
+      '--editor-overlay-bg': theme.colorBgContainer,
     }),
-    [theme.colorBgContainerSecondary],
+    [theme.colorBgContainer],
   );
 
   // Fetch specific document when switching to page mode if not already loaded
@@ -110,7 +111,7 @@ const ResourceManager = memo(() => {
       return prev;
     });
     // Reset document title to default
-    document.title = BRANDING_NAME;
+    document.title = brandName;
   };
 
   // Optimistic update handlers for page title and emoji
