@@ -1,3 +1,5 @@
+import type { Plans } from '@lobechat/types';
+
 import { lambdaClient } from '@/libs/trpc/client';
 
 class AdminCommercialService {
@@ -66,6 +68,45 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
   };
 
+  getPublicRecommendations = async () => {
+    return lambdaClient.admin.settings.getPublicRecommendations.query();
+  };
+
+  getPublicOperations = async () => {
+    return lambdaClient.admin.settings.getPublicOperations.query();
+  };
+
+  getPublicGrowth = async () => {
+    return lambdaClient.admin.settings.getPublicGrowth.query();
+  };
+
+  getPublicHelpMenu = async () => {
+    return lambdaClient.admin.settings.getPublicHelpMenu.query();
+  };
+
+  getPublicDesktopUpdate = async () => {
+    return lambdaClient.admin.settings.getPublicDesktopUpdate.query();
+  };
+
+  // Orders
+  listOrders = async (params: {
+    cursor?: number;
+    limit?: number;
+    status?: 'pending' | 'paid' | 'canceled' | 'expired' | 'failed' | 'refunded';
+    userId?: string;
+  }) => lambdaClient.admin.orders.list.query(params);
+
+  cancelOrder = async (orderId: string) => lambdaClient.admin.orders.cancel.mutate({ orderId });
+
+  expireOrder = async (orderId: string) => lambdaClient.admin.orders.expire.mutate({ orderId });
+
+  getOrderDetail = async (orderId: string) =>
+    lambdaClient.admin.orders.getDetail.query({ orderId });
+
+  settleOrder = async (orderId: string) => lambdaClient.admin.orders.settle.mutate({ orderId });
+
+  getReferralStats = async () => lambdaClient.admin.referral.getReferralStats.query();
+
   // Plan catalog
   listPlans = async () => lambdaClient.admin.plans.list.query();
   upsertPlan = async (params: {
@@ -75,7 +116,7 @@ class AdminCommercialService {
     isActive?: boolean;
     monthlyCredits: number;
     monthlyPrice: number;
-    plan: string;
+    plan: Plans;
     sortOrder?: number;
     yearlyPrice: number;
   }) => lambdaClient.admin.plans.upsert.mutate(params);
@@ -96,8 +137,7 @@ class AdminCommercialService {
     sortOrder?: number;
     validityMonths?: number;
   }) => lambdaClient.admin.topupPackages.upsert.mutate(params);
-  deletePackage = async (id: string) =>
-    lambdaClient.admin.topupPackages.delete.mutate({ id });
+  deletePackage = async (id: string) => lambdaClient.admin.topupPackages.delete.mutate({ id });
   setPackageActive = async (params: { id: string; isActive: boolean }) =>
     lambdaClient.admin.topupPackages.setActive.mutate(params);
 
@@ -107,11 +147,9 @@ class AdminCommercialService {
   };
 
   getStatsDauTrend = async () => lambdaClient.admin.stats.dauTrend.query();
-  getStatsSubscriptionsByPlan = async () =>
-    lambdaClient.admin.stats.subscriptionsByPlan.query();
+  getStatsSubscriptionsByPlan = async () => lambdaClient.admin.stats.subscriptionsByPlan.query();
   getStatsRevenueByMonth = async () => lambdaClient.admin.stats.revenueByMonth.query();
-  getStatsRedemptionOverview = async () =>
-    lambdaClient.admin.stats.redemptionOverview.query();
+  getStatsRedemptionOverview = async () => lambdaClient.admin.stats.redemptionOverview.query();
 
   // Audit log
   listAudit = async (params: {
@@ -197,17 +235,113 @@ class AdminCommercialService {
   disableRedemptionCode = async (id: string) =>
     lambdaClient.admin.redemption.disable.mutate({ id });
 
-  enableRedemptionCode = async (id: string) =>
-    lambdaClient.admin.redemption.enable.mutate({ id });
+  enableRedemptionCode = async (id: string) => lambdaClient.admin.redemption.enable.mutate({ id });
 
-  expireOverdueRedemptionCodes = async () =>
-    lambdaClient.admin.redemption.expireOverdue.mutate();
+  expireOverdueRedemptionCodes = async () => lambdaClient.admin.redemption.expireOverdue.mutate();
 
   bulkDisableRedemptionCodes = async (ids: string[]) =>
     lambdaClient.admin.redemption.bulkDisable.mutate({ ids });
 
   bulkDeleteRedemptionCodes = async (ids: string[]) =>
     lambdaClient.admin.redemption.bulkDelete.mutate({ ids });
+
+  // NewAPI Providers (multi-instance)
+  listNewapiInstances = async () => lambdaClient.admin.newapiProviders.listInstances.query();
+
+  listAllEnabledNewapiModels = async (params?: {
+    modelType?:
+      | 'chat'
+      | 'embedding'
+      | 'tts'
+      | 'stt'
+      | 'image'
+      | 'video'
+      | 'text2music'
+      | 'realtime';
+  }) => lambdaClient.admin.newapiProviders.getAllEnabledModels.query(params);
+
+  createNewapiInstance = async (params: {
+    apiKey: string;
+    baseUrl: string;
+    description?: string;
+    enabled?: boolean;
+    fetchOnClient?: boolean;
+    name: string;
+    priority?: number;
+  }) => lambdaClient.admin.newapiProviders.createInstance.mutate(params);
+
+  updateNewapiInstance = async (params: {
+    data: {
+      apiKey?: string;
+      baseUrl?: string;
+      description?: string;
+      enabled?: boolean;
+      fetchOnClient?: boolean;
+      name?: string;
+      priority?: number;
+    };
+    id: string;
+  }) => lambdaClient.admin.newapiProviders.updateInstance.mutate(params);
+
+  deleteNewapiInstance = async (id: string) =>
+    lambdaClient.admin.newapiProviders.deleteInstance.mutate({ id });
+
+  toggleNewapiInstance = async (params: { enabled: boolean; id: string }) =>
+    lambdaClient.admin.newapiProviders.toggleInstanceEnabled.mutate(params);
+
+  listNewapiInstanceModels = async (params: {
+    instanceId: string;
+    modelType?:
+      | 'chat'
+      | 'embedding'
+      | 'tts'
+      | 'stt'
+      | 'image'
+      | 'video'
+      | 'text2music'
+      | 'realtime';
+  }) => lambdaClient.admin.newapiProviders.listModels.query(params);
+
+  addNewapiInstanceModels = async (params: {
+    instanceId: string;
+    models: Array<{
+      displayName?: string;
+      enabled?: boolean;
+      modelId: string;
+      modelType:
+        | 'chat'
+        | 'embedding'
+        | 'tts'
+        | 'stt'
+        | 'image'
+        | 'video'
+        | 'text2music'
+        | 'realtime';
+      sortOrder?: number;
+    }>;
+  }) => lambdaClient.admin.newapiProviders.addModels.mutate(params);
+
+  removeNewapiInstanceModel = async (params: {
+    instanceId: string;
+    modelId: string;
+    modelType: 'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
+  }) => lambdaClient.admin.newapiProviders.removeModel.mutate(params);
+
+  updateNewapiInstanceModel = async (params: {
+    data: { displayName?: string; enabled?: boolean; sortOrder?: number };
+    instanceId: string;
+    modelId: string;
+    modelType: 'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
+  }) => lambdaClient.admin.newapiProviders.updateModel.mutate(params);
+
+  // Plan model rules (per-type allowlist/blocklist)
+  setPlanModelRules = async (params: {
+    modelRules?: Record<
+      string,
+      { allowlist?: string[]; blocklist?: string[]; mode: 'allowlist' | 'blocklist' }
+    >;
+    plan: string;
+  }) => lambdaClient.admin.plans.setModelRules.mutate(params as any);
 }
 
 export const adminCommercialService = new AdminCommercialService();
