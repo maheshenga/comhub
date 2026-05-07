@@ -81,9 +81,9 @@ if (!hasAppleCertificate) {
 
 // 根据版本类型确定协议 scheme
 const getProtocolScheme = () => {
-  if (isCanary) return 'lobehub-canary';
-  if (isNightly) return 'lobehub-nightly';
-  return 'lobehub';
+  if (isCanary) return 'comhub-canary';
+  if (isNightly) return 'comhub-nightly';
+  return 'comhub';
 };
 
 const protocolScheme = getProtocolScheme();
@@ -110,25 +110,26 @@ const config = {
     console.info('📦 Downloading agent-browser binary...');
     execSync('node scripts/download-agent-browser.mjs', { stdio: 'inherit', cwd: __dirname });
 
-    // Build and copy CLI bundle for embedding
-    console.info('📦 Building CLI for embedding...');
-    execSync('npm run build:cli', { stdio: 'inherit', cwd: __dirname });
-    const cliSrc = path.resolve(__dirname, '../cli/dist/index.js');
-    const cliDest = path.resolve(__dirname, 'resources/bin/lobe-cli.js');
-    await fs.copyFile(cliSrc, cliDest);
+    // Skip CLI build if bun is not available (placeholder file used instead)
+    try {
+      execSync('bun --version', { stdio: 'ignore' });
+      console.info('📦 Building CLI for embedding...');
+      execSync('npm run build:cli', { stdio: 'inherit', cwd: __dirname });
+      const cliSrc = path.resolve(__dirname, '../cli/dist/index.js');
+      const cliDest = path.resolve(__dirname, 'resources/bin/lobe-cli.js');
+      await fs.copyFile(cliSrc, cliDest);
 
-    // Write a minimal package.json next to the CLI bundle so that
-    // createRequire('../package.json') resolves correctly in the packaged app.
-    // The CLI script lives at Resources/bin/lobe-cli.js, so '../package.json'
-    // resolves to Resources/package.json.
-    const cliPkg = JSON.parse(
-      await fs.readFile(path.resolve(__dirname, '../cli/package.json'), 'utf8'),
-    );
-    await fs.writeFile(
-      path.resolve(__dirname, 'resources/cli-package.json'),
-      JSON.stringify({ name: cliPkg.name, type: 'module', version: cliPkg.version }),
-    );
-    console.info('✅ CLI bundle copied to resources/bin/lobe-cli.js');
+      const cliPkg = JSON.parse(
+        await fs.readFile(path.resolve(__dirname, '../cli/package.json'), 'utf8'),
+      );
+      await fs.writeFile(
+        path.resolve(__dirname, 'resources/cli-package.json'),
+        JSON.stringify({ name: cliPkg.name, type: 'module', version: cliPkg.version }),
+      );
+      console.info('✅ CLI bundle copied to resources/bin/lobe-cli.js');
+    } catch {
+      console.info('⏭️  bun not found, skipping CLI build (using placeholder)');
+    }
   },
   /**
    * AfterPack hook for post-processing:
@@ -208,7 +209,8 @@ const config = {
       console.info(`⏭️  Skipping Assets.car (not found or copy failed)`);
     }
   },
-  appId: 'com.lobehub.lobehub-desktop',
+  appId: 'com.comhub.comhub-desktop',
+  productName: '玄果AI',
   appImage: {
     artifactName: '${productName}-${version}.${ext}',
   },
@@ -266,7 +268,7 @@ const config = {
       CFBundleIconName: 'AppIcon',
       CFBundleURLTypes: [
         {
-          CFBundleURLName: 'LobeHub Protocol',
+          CFBundleURLName: 'ComHub Protocol',
           CFBundleURLSchemes: [protocolScheme],
         },
       ],
@@ -290,7 +292,7 @@ const config = {
       { arch: [arch === 'arm64' ? 'arm64' : 'x64'], target: 'zip' },
     ],
   },
-  npmRebuild: true,
+  npmRebuild: false,
   nsis: {
     allowToChangeInstallationDirectory: true,
     artifactName: '${productName}-${version}-setup.${ext}',
@@ -298,13 +300,13 @@ const config = {
     installerHeader: './build/nsis-header.bmp',
     installerSidebar: './build/nsis-sidebar.bmp',
     oneClick: false,
-    shortcutName: '${productName}',
-    uninstallDisplayName: '${productName}',
+    shortcutName: '玄果AI',
+    uninstallDisplayName: '玄果AI',
     uninstallerSidebar: './build/nsis-sidebar.bmp',
   },
   protocols: [
     {
-      name: 'LobeHub Protocol',
+      name: 'ComHub Protocol',
       schemes: [protocolScheme],
     },
   ],
@@ -323,7 +325,7 @@ const config = {
   ],
 
   win: {
-    executableName: 'LobeHub',
+    executableName: '玄果AI',
   },
 };
 

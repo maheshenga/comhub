@@ -38,7 +38,7 @@ vi.mock('electron', () => ({
 
 // Mock @/const/env
 vi.mock('@/const/env', () => ({
-  OFFICIAL_CLOUD_SERVER: 'https://cloud.lobehub.com',
+  OFFICIAL_CLOUD_SERVER: 'https://chat.qingyouai.com/',
 }));
 
 // Mock storeManager
@@ -77,7 +77,7 @@ describe('RemoteServerConfigCtr', () => {
   });
 
   describe('getRemoteServerConfig', () => {
-    it('should return stored configuration', async () => {
+    it('should normalize stored self-host configuration to cloud mode', async () => {
       const config: DataSyncConfig = {
         active: true,
         remoteServerUrl: 'https://my-server.com',
@@ -87,13 +87,22 @@ describe('RemoteServerConfigCtr', () => {
 
       const result = await controller.getRemoteServerConfig();
 
-      expect(result).toEqual(config);
+      expect(result).toEqual({
+        active: true,
+        remoteServerUrl: undefined,
+        storageMode: 'cloud',
+      });
       expect(mockStoreManager.get).toHaveBeenCalledWith('dataSyncConfig');
+      expect(mockStoreManager.set).toHaveBeenCalledWith('dataSyncConfig', {
+        active: true,
+        remoteServerUrl: undefined,
+        storageMode: 'cloud',
+      });
     });
   });
 
   describe('setRemoteServerConfig', () => {
-    it('should update configuration', async () => {
+    it('should force self-host configuration to cloud mode', async () => {
       const prevConfig: DataSyncConfig = {
         active: false,
         storageMode: 'cloud',
@@ -110,8 +119,9 @@ describe('RemoteServerConfigCtr', () => {
 
       expect(result).toBe(true);
       expect(mockStoreManager.set).toHaveBeenCalledWith('dataSyncConfig', {
-        ...prevConfig,
-        ...newConfig,
+        active: true,
+        remoteServerUrl: undefined,
+        storageMode: 'cloud',
       });
     });
   });
@@ -496,7 +506,7 @@ describe('RemoteServerConfigCtr', () => {
 
       expect(result.success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://server.com/oidc/token',
+        'https://chat.qingyouai.com/oidc/token',
         expect.objectContaining({
           body: expect.stringContaining('grant_type=refresh_token'),
           method: 'POST',
@@ -729,10 +739,10 @@ describe('RemoteServerConfigCtr', () => {
 
       const result = await controller.getRemoteServerUrl();
 
-      expect(result).toBe('https://cloud.lobehub.com');
+      expect(result).toBe('https://chat.qingyouai.com/');
     });
 
-    it('should return custom URL for selfHost mode', async () => {
+    it('should ignore custom URL for selfHost mode and return official cloud server', async () => {
       mockStoreManager.get.mockReturnValue({
         active: true,
         remoteServerUrl: 'https://my-server.com',
@@ -741,10 +751,10 @@ describe('RemoteServerConfigCtr', () => {
 
       const result = await controller.getRemoteServerUrl();
 
-      expect(result).toBe('https://my-server.com');
+      expect(result).toBe('https://chat.qingyouai.com/');
     });
 
-    it('should use provided config instead of stored config', async () => {
+    it('should normalize provided selfHost config to official cloud server', async () => {
       const customConfig: DataSyncConfig = {
         active: true,
         remoteServerUrl: 'https://custom-server.com',
@@ -753,7 +763,7 @@ describe('RemoteServerConfigCtr', () => {
 
       const result = await controller.getRemoteServerUrl(customConfig);
 
-      expect(result).toBe('https://custom-server.com');
+      expect(result).toBe('https://chat.qingyouai.com/');
     });
   });
 
@@ -803,7 +813,7 @@ describe('RemoteServerConfigCtr', () => {
       expect(result).toBe(false);
     });
 
-    it('should return false for selfHost mode without remoteServerUrl', async () => {
+    it('should return true for active legacy selfHost mode without remoteServerUrl after normalization', async () => {
       mockStoreManager.get.mockReturnValue({
         active: true,
         storageMode: 'selfHost',
@@ -812,10 +822,10 @@ describe('RemoteServerConfigCtr', () => {
 
       const result = await controller.isRemoteServerConfigured();
 
-      expect(result).toBe(false);
+      expect(result).toBe(true);
     });
 
-    it('should return false for selfHost mode with blank remoteServerUrl', async () => {
+    it('should return true for active legacy selfHost mode with blank remoteServerUrl after normalization', async () => {
       mockStoreManager.get.mockReturnValue({
         active: true,
         remoteServerUrl: '   ',
@@ -824,10 +834,10 @@ describe('RemoteServerConfigCtr', () => {
 
       const result = await controller.isRemoteServerConfigured();
 
-      expect(result).toBe(false);
+      expect(result).toBe(true);
     });
 
-    it('should return false for selfHost mode with invalid remoteServerUrl', async () => {
+    it('should return true for active legacy selfHost mode with invalid remoteServerUrl after normalization', async () => {
       mockStoreManager.get.mockReturnValue({
         active: true,
         remoteServerUrl: 'foo',
@@ -836,7 +846,7 @@ describe('RemoteServerConfigCtr', () => {
 
       const result = await controller.isRemoteServerConfigured();
 
-      expect(result).toBe(false);
+      expect(result).toBe(true);
     });
 
     it('should use provided config instead of fetching', async () => {

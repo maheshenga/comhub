@@ -12,6 +12,7 @@ import { autoUpdater } from 'electron-updater';
 import { isDev, isWindows } from '@/const/env';
 import { getDesktopEnv } from '@/env';
 import { UPDATE_CHANNEL, UPDATE_SERVER_URL, updaterConfig } from '@/modules/updater/configs';
+import { fetchRemoteUpdateConfig } from '@/modules/updater/remoteConfig';
 import { createLogger } from '@/utils/logger';
 
 import type { App as AppCore } from '../App';
@@ -37,6 +38,8 @@ export class UpdaterManager {
   private latestUpdateInfo: UpdateInfo | null = null;
   private latestProgress: ProgressInfo | null = null;
   private latestError: string | null = null;
+  private remoteServerUrl: string | null = null;
+  private checkIntervalTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(app: AppCore) {
     this.app = app;
@@ -97,8 +100,23 @@ export class UpdaterManager {
       return;
     }
 
-    // Read persisted channel from store (defaults to build-time UPDATE_CHANNEL)
-    this.currentChannel = this.app.storeManager.get('updateChannel') ?? UPDATE_CHANNEL;
+    // Fetch remote config from backend (non-blocking, falls back to local defaults)
+    const remoteConfig = await fetchRemoteUpdateConfig();
+    if (remoteConfig.serverUrl) {
+      this.remoteServerUrl = remoteConfig.serverUrl;
+      logger.info(`Remote update server URL: ${this.remoteServerUrl}`);
+    }
+    if (remoteConfig.channel === 'canary' || remoteConfig.channel === 'stable') {
+      const storedChannel = this.app.storeManager.get('updateChannel');
+      if (!storedChannel) {
+        this.currentChannel = remoteConfig.channel as UpdateChannel;
+        logger.info(`Using remote default channel: ${this.currentChannel}`);
+      }
+    }
+
+    // Read persisted channel from store (defaults to remote or build-time UPDATE_CHANNEL)
+    this.currentChannel =
+      this.app.storeManager.get('updateChannel') ?? this.currentChannel ?? UPDATE_CHANNEL;
 
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
@@ -121,9 +139,15 @@ export class UpdaterManager {
 
     this.registerEvents();
 
-    if (updaterConfig.app.autoCheckUpdate) {
+    const autoCheck = remoteConfig.autoCheck;
+    const intervalMs = remoteConfig.checkIntervalMinutes * 60 * 1000;
+
+    if (autoCheck) {
       setTimeout(() => this.checkForUpdates(), 60 * 1000);
-      setInterval(() => this.checkForUpdates(), updaterConfig.app.checkUpdateInterval);
+      this.checkIntervalTimer = setInterval(() => this.checkForUpdates(), intervalMs);
+      logger.info(`Auto check enabled, interval: ${remoteConfig.checkIntervalMinutes} minutes`);
+    } else {
+      logger.info('Auto check disabled by remote config');
     }
 
     logger.debug(
@@ -367,8 +391,9 @@ export class UpdaterManager {
    * Handles both base URL (https://cdn.example.com) and legacy URLs with channel suffixes.
    */
   private getBaseUpdateUrl(): string | undefined {
-    if (!UPDATE_SERVER_URL) return undefined;
-    return UPDATE_SERVER_URL.replace(/\/(stable|nightly|canary|beta)\/?$/, '');
+    const url = this.remoteServerUrl || UPDATE_SERVER_URL;
+    if (!url) return undefined;
+    return url.replace(/\/(stable|nightly|canary|beta)\/?$/, '');
   }
 
   /**
