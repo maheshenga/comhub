@@ -298,6 +298,12 @@ class AdminCommercialService {
   toggleNewapiInstance = async (params: { enabled: boolean; id: string }) =>
     lambdaClient.admin.newapiProviders.toggleInstanceEnabled.mutate(params);
 
+  testNewapiInstanceConnection = async (id: string) =>
+    lambdaClient.admin.newapiProviders.testInstanceConnection.query({ id });
+
+  syncNewapiInstanceModels = async (id: string) =>
+    lambdaClient.admin.newapiProviders.syncInstanceModels.mutate({ id });
+
   listNewapiInstanceModels = async (params: {
     instanceId: string;
     modelType?:

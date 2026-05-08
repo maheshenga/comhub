@@ -101,6 +101,10 @@ describe('videoBackgroundPolling', () => {
 
       await processBackgroundVideoPolling(mockDb, mockParams);
 
+      expect(initModelRuntimeFromDB).toHaveBeenCalledWith(mockDb, 'user-xyz', 'test-provider', {
+        model: 'test-model',
+        modelType: 'video',
+      });
       expect(mockModelRuntime.handlePollVideoStatus).toHaveBeenCalledWith('inference-abc');
 
       expect(mockVideoService.processVideoForGeneration).toHaveBeenCalledWith(

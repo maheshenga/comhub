@@ -419,6 +419,8 @@ const AdminNewapiProvidersPage = memo(() => {
   const [editing, setEditing] = useState<InstanceRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [modelsTarget, setModelsTarget] = useState<InstanceRow | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const items = (data?.items ?? []) as InstanceRow[];
 
@@ -431,6 +433,54 @@ const AdminNewapiProvidersPage = memo(() => {
     await adminCommercialService.deleteNewapiInstance(row.id);
     message.success(t('admin.newapi.deleteSuccess', '实例已删除'));
     await mutate(INSTANCES_KEY);
+  };
+
+  const handleTestConnection = async (row: InstanceRow) => {
+    setTestingId(row.id);
+    try {
+      const result = await adminCommercialService.testNewapiInstanceConnection(row.id);
+      if (result.ok) {
+        message.success(
+          t(
+            'admin.newapi.test.success',
+            '连接成功：模型 {{modelsCount}} 个，价格 {{pricingCount}} 条',
+            {
+              modelsCount: result.modelsCount,
+              pricingCount: result.pricingCount,
+            },
+          ),
+        );
+      } else {
+        message.error(
+          t('admin.newapi.test.failed', '连接失败：{{error}}', {
+            error: result.error || t('admin.newapi.test.unknownError', '未知错误'),
+          }),
+        );
+      }
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const handleSyncModels = async (row: InstanceRow) => {
+    setSyncingId(row.id);
+    try {
+      const result = await adminCommercialService.syncNewapiInstanceModels(row.id);
+      message.success(
+        t('admin.newapi.sync.success', '同步完成：导入 {{count}} 个模型，新模型默认未启用', {
+          count: result.importedCount,
+        }),
+      );
+      await Promise.all(MODEL_TYPES.map((type) => mutate(modelsKey(row.id, type))));
+    } catch (error) {
+      message.error(
+        t('admin.newapi.sync.failed', '同步失败：{{error}}', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    } finally {
+      setSyncingId(null);
+    }
   };
 
   const columns = [
@@ -483,6 +533,22 @@ const AdminNewapiProvidersPage = memo(() => {
       key: 'actions',
       render: (_: unknown, row: InstanceRow) => (
         <Flexbox horizontal gap={8}>
+          <Button
+            loading={testingId === row.id}
+            size="small"
+            onClick={() => handleTestConnection(row)}
+          >
+            {t('admin.newapi.action.test', '测试')}
+          </Button>
+          <Popconfirm
+            okText={t('admin.newapi.action.sync', '同步')}
+            title={t('admin.newapi.sync.confirm', '同步到本地模型库？新模型默认不会启用。')}
+            onConfirm={() => handleSyncModels(row)}
+          >
+            <Button loading={syncingId === row.id} size="small">
+              {t('admin.newapi.action.sync', '同步')}
+            </Button>
+          </Popconfirm>
           <Button size="small" onClick={() => setModelsTarget(row)}>
             {t('admin.newapi.action.models', '模型')}
           </Button>

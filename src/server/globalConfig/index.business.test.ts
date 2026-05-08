@@ -141,25 +141,42 @@ describe('getServerGlobalConfig business newapi model injection', () => {
 
     expect(result.aiProvider.newapi!.enabledModels).toEqual(['gpt-4o-mini', 'dall-e-3', 'tts-1']);
     expect(result.aiProvider.newapi!.serverModelLists).toEqual([
-      {
+      expect.objectContaining({
         displayName: 'gpt-4o-mini',
         enabled: true,
         id: 'gpt-4o-mini',
         type: 'chat',
-      },
-      {
+      }),
+      expect.objectContaining({
         displayName: 'DALL-E 3',
         enabled: true,
         id: 'dall-e-3',
         type: 'image',
-      },
-      {
+      }),
+      expect.objectContaining({
         displayName: 'tts-1',
         enabled: true,
         id: 'tts-1',
         type: 'tts',
-      },
+      }),
     ]);
+  });
+
+  it('adds generic parameters for admin-managed NewAPI image and video models', async () => {
+    mocks.getAllEnabledModels.mockResolvedValue([
+      { displayName: 'Flux', id: 'flux-pro', type: 'image' },
+      { displayName: 'Sora', id: 'sora-2', type: 'video' },
+    ]);
+
+    const result = await getServerGlobalConfig({} as any);
+    const models = result.aiProvider.newapi!.serverModelLists!;
+
+    expect(models.find((m) => m.id === 'flux-pro')?.parameters).toEqual(
+      expect.objectContaining({ prompt: { default: '' } }),
+    );
+    expect(models.find((m) => m.id === 'sora-2')?.parameters).toEqual(
+      expect.objectContaining({ duration: expect.objectContaining({ default: 5 }) }),
+    );
   });
 
   it('uses only enabled NewAPI instance models for provider injection', async () => {

@@ -1,6 +1,7 @@
 import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { merge } from '@lobechat/utils';
 import { type AiFullModelCard } from 'model-bank';
+import { gptImage1Schema, seedance15ProParams } from 'model-bank/lobehub';
 
 import { klavisEnv } from '@/config/klavis';
 import { isDesktop } from '@/const/version';
@@ -29,6 +30,12 @@ import { getPublicMemoryExtractionConfig } from './parseMemoryExtractionConfig';
  */
 const getBetterAuthSSOProviders = () => {
   return parseSSOProviders(authEnv.AUTH_SSO_PROVIDERS);
+};
+
+const getGenericNewapiParameters = (type: string) => {
+  if (type === 'image') return gptImage1Schema;
+  if (type === 'video') return seedance15ProParams;
+  return undefined;
 };
 
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
@@ -80,12 +87,17 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     const managedNewApiModelIds = Array.from(new Set(instanceModels.map((m) => m.id)));
 
     if (managedNewApiModelIds.length > 0) {
-      const serverModelLists: AiFullModelCard[] = instanceModels.map((m) => ({
-        displayName: m.displayName || m.id,
-        enabled: true,
-        id: m.id,
-        type: m.type,
-      }));
+      const serverModelLists: AiFullModelCard[] = instanceModels.map((m) => {
+        const parameters = getGenericNewapiParameters(m.type);
+
+        return {
+          displayName: m.displayName || m.id,
+          enabled: true,
+          id: m.id,
+          ...(parameters ? { parameters } : {}),
+          type: m.type,
+        };
+      });
 
       aiProvider[BRANDING_PROVIDER] = {
         ...aiProvider[BRANDING_PROVIDER],

@@ -54,7 +54,10 @@ export async function processBackgroundVideoPolling(
     const videoService = new VideoGenerationService(db, userId);
     const generationModel = new GenerationModel(db, userId);
 
-    const modelRuntime = await initModelRuntimeFromDB(db, userId, provider);
+    const modelRuntime = await initModelRuntimeFromDB(db, userId, provider, {
+      model,
+      modelType: 'video',
+    });
     const pollResult = await pollUntilCompletion(modelRuntime, inferenceId);
 
     if (!pollResult) {
