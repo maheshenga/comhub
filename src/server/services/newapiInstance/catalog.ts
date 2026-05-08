@@ -166,6 +166,15 @@ export const fetchNewapiPricing = async ({
 
   if (!response.ok) return [];
 
-  const body = await response.json();
+  const contentType = response.headers?.get('content-type') ?? '';
+  if (contentType && !contentType.toLowerCase().includes('application/json')) return [];
+
+  let body: { data?: unknown; success?: boolean };
+  try {
+    body = await response.json();
+  } catch {
+    return [];
+  }
+
   return body?.success && Array.isArray(body.data) ? body.data : [];
 };

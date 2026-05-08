@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { classifyNewapiModelType, normalizeNewapiSyncRows } from './catalog';
+import { classifyNewapiModelType, fetchNewapiPricing, normalizeNewapiSyncRows } from './catalog';
 
 describe('NewAPI catalog sync', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('classifies models from supported endpoint metadata first', () => {
     expect(
       classifyNewapiModelType({
@@ -56,5 +60,23 @@ describe('NewAPI catalog sync', () => {
     });
 
     expect(rows[0]).toEqual(expect.objectContaining({ enabled: true, modelType: 'video' }));
+  });
+
+  it('treats non-json pricing responses as unavailable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+        ok: true,
+        text: async () => '<!doctype html><html></html>',
+      }),
+    );
+
+    await expect(
+      fetchNewapiPricing({
+        apiKey: 'sk-test',
+        baseUrl: 'https://newapi.example.com/v1',
+      }),
+    ).resolves.toEqual([]);
   });
 });
