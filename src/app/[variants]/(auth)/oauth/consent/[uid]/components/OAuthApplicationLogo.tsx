@@ -36,7 +36,11 @@ interface OAuthApplicationLogoProps {
 const OAuthApplicationLogo = memo<OAuthApplicationLogoProps>(
   ({ isFirstParty, clientDisplayName, logoUrl, size = 72 }) => {
     return isFirstParty ? (
-      <Avatar alt={clientDisplayName} avatar={logoUrl!} shape={'square'} size={size} />
+      logoUrl ? (
+        <Avatar alt={clientDisplayName} avatar={logoUrl} shape={'square'} size={size} />
+      ) : (
+        <ProductLogo height={size} size={size} width={size} />
+      )
     ) : (
       <Flexbox horizontal align={'center'} gap={8}>
         {logoUrl ? (
