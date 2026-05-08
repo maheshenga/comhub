@@ -61,6 +61,11 @@ describe('adminSettingsForm', () => {
       brandName: '青柚 AI',
       brandPrimaryColor: '#1677ff',
       brandSlogan: '',
+      aboutLinks: {
+        contact: [],
+        information: [],
+        legal: [],
+      },
       cronAuditRetentionDays: 365,
       cronPendingOrderExpiryDays: 7,
       cronSecret: '',
@@ -148,5 +153,39 @@ describe('adminSettingsForm', () => {
 
   it('shares the pricing model rules setting key with matrix-style admin pages', () => {
     expect(SETTING_KEYS.pricingModelRules).toBe('pricing.modelRules');
+  });
+
+  it('saves about page links as one shared setting', () => {
+    const initial = buildFormValues({
+      aboutLinks: {
+        contact: [{ id: 'officialSite', label: '官方网站', url: 'https://lobehub.com' }],
+        information: [],
+        legal: [],
+      },
+    });
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          aboutLinks: {
+            ...initial.aboutLinks,
+            contact: [{ id: 'officialSite', label: '青柚官网', url: 'https://chat.qingyouai.com' }],
+          },
+        },
+        initial,
+      ),
+    ).toEqual([
+      {
+        key: SETTING_KEYS.aboutLinks,
+        value: {
+          ...initial.aboutLinks,
+          contact: [
+            { id: 'officialSite', label: '青柚官网', url: 'https://chat.qingyouai.com' },
+            ...initial.aboutLinks.contact.slice(1),
+          ],
+        },
+      },
+    ]);
   });
 });

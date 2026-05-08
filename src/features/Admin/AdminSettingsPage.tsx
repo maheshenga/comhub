@@ -40,6 +40,12 @@ const providerOptions = ['newapi', 'openai', 'anthropic', 'google', 'deepseek', 
   (value) => ({ label: value, value }),
 );
 
+const aboutLinkGroups = [
+  { key: 'contact', title: '联系入口', titleKey: 'admin.settings.aboutLinks.contact' },
+  { key: 'information', title: '社区与资讯', titleKey: 'admin.settings.aboutLinks.information' },
+  { key: 'legal', title: '法律声明', titleKey: 'admin.settings.aboutLinks.legal' },
+] as const;
+
 const AdminSettingsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
@@ -115,6 +121,52 @@ const AdminSettingsPage = memo(() => {
     }
   };
 
+  const renderAboutLinkGroup = (group: (typeof aboutLinkGroups)[number]) => (
+    <Form.List key={group.key} name={['aboutLinks', group.key]}>
+      {(fields) => (
+        <Flexbox gap={8}>
+          <Text strong>{t(group.titleKey, group.title)}</Text>
+          {fields.map(({ key, name, ...restField }) => (
+            <Flexbox horizontal align="center" gap={8} key={key}>
+              <Form.Item {...restField} hidden name={[name, 'id']}>
+                <Input />
+              </Form.Item>
+              <Form.Item
+                {...restField}
+                noStyle
+                name={[name, 'label']}
+                rules={[
+                  {
+                    message: t('admin.settings.aboutLinks.labelRequired', '请填写名称'),
+                    required: true,
+                  },
+                ]}
+              >
+                <Input
+                  placeholder={t('admin.settings.aboutLinks.label', '名称')}
+                  style={{ flex: 1 }}
+                />
+              </Form.Item>
+              <Form.Item
+                {...restField}
+                noStyle
+                name={[name, 'url']}
+                rules={[
+                  {
+                    message: t('admin.settings.aboutLinks.urlRequired', '请填写链接'),
+                    required: true,
+                  },
+                ]}
+              >
+                <Input placeholder="https://..." style={{ flex: 1.6 }} />
+              </Form.Item>
+            </Flexbox>
+          ))}
+        </Flexbox>
+      )}
+    </Form.List>
+  );
+
   return (
     <Flexbox gap={16} padding={24} style={{ maxWidth: 920 }}>
       <Flexbox gap={4}>
@@ -124,19 +176,13 @@ const AdminSettingsPage = memo(() => {
         <Text type="secondary">{t('admin.settings.subtitle', SETTINGS_SUBTITLE)}</Text>
       </Flexbox>
 
-      <Alert
-        showIcon
-        message={t('admin.settings.defaultModelNotice', SETTINGS_DEFAULT_MODEL_NOTICE)}
-        type="info"
-      />
-
       <Form disabled={isLoading} form={form} layout="vertical">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Card title={t('admin.settings.brandSection', '品牌展示')}>
             <Form.Item
+              extra={t('admin.settings.brandName.help', '用于登录页、加载页、标题和站内品牌展示。')}
               label={t('admin.settings.brandName', '品牌名称')}
               name="brandName"
-              extra={t('admin.settings.brandName.help', '用于登录页、加载页、标题和站内品牌展示。')}
             >
               <Input placeholder="青柚 AI" />
             </Form.Item>
@@ -176,15 +222,33 @@ const AdminSettingsPage = memo(() => {
               <Input placeholder="https://.../favicon.ico" />
             </Form.Item>
             <Form.Item
+              extra={t('admin.settings.brandPrimary.help', '填写十六进制颜色值，例如 #1677ff。')}
               label={t('admin.settings.brandPrimaryColor', '主题主色')}
               name="brandPrimaryColor"
-              extra={t('admin.settings.brandPrimary.help', '填写十六进制颜色值，例如 #1677ff。')}
             >
               <Input placeholder="#1677ff" />
             </Form.Item>
           </Card>
 
+          <Card title={t('admin.settings.aboutLinksSection', '关于页面链接')}>
+            <Flexbox gap={16}>
+              <Text type="secondary">
+                {t(
+                  'admin.settings.aboutLinks.help',
+                  '用于 settings/about 页面。名称和链接都会按这里的配置显示；未填写时使用系统默认值。',
+                )}
+              </Text>
+              {aboutLinkGroups.map(renderAboutLinkGroup)}
+            </Flexbox>
+          </Card>
+
           <Card title={t('admin.settings.defaultAssistantSection', '默认 AI 助手')}>
+            <Alert
+              showIcon
+              message={t('admin.settings.defaultModelNotice', SETTINGS_DEFAULT_MODEL_NOTICE)}
+              style={{ marginBottom: 16 }}
+              type="info"
+            />
             <Form.Item
               label={t('admin.settings.defaultAgentName', '助手名称')}
               name="defaultAgentName"

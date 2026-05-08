@@ -1,6 +1,7 @@
 import { and, eq, lt } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { normalizeAboutLinksConfig } from '@/const/aboutLinks';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { adminAuditLogs, appSettings, topUpOrders } from '@/database/schemas';
 import { adminProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
@@ -348,6 +349,11 @@ export const adminSettingsRouter = router({
     return Array.isArray(raw) ? raw : [];
   }),
 
+  getPublicAboutLinks: publicDbProcedure.query(async ({ ctx }) => {
+    const raw = await readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks);
+    return normalizeAboutLinksConfig(raw);
+  }),
+
   getPublicDesktopUpdate: publicDbProcedure.query(async ({ ctx }) => {
     const [serverUrl, channel, autoCheck, checkInterval, downloadUrl, downloadLabel] =
       await Promise.all([
@@ -406,6 +412,7 @@ export const adminSettingsRouter = router({
       desktopDownloadUrl,
       desktopDownloadLabel,
       helpMenuItems,
+      aboutLinks,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.referralRewardCredits),
       readSetting(ctx.serverDB, SETTING_KEYS.cronSecret),
@@ -443,6 +450,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems),
+      readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks),
     ]);
 
     const dbCronSecret = typeof cronSecret === 'string' ? cronSecret : null;
@@ -529,6 +537,7 @@ export const adminSettingsRouter = router({
       desktopDownloadLabel: toString(desktopDownloadLabel) || null,
       desktopDownloadUrl: toString(desktopDownloadUrl) || null,
       helpMenuItems: Array.isArray(helpMenuItems) ? helpMenuItems : [],
+      aboutLinks: normalizeAboutLinksConfig(aboutLinks),
     };
   }),
 
@@ -554,6 +563,7 @@ export const adminSettingsRouter = router({
           SETTING_KEYS.desktopDownloadUrl,
           SETTING_KEYS.desktopDownloadLabel,
           SETTING_KEYS.helpMenuItems,
+          SETTING_KEYS.aboutLinks,
         ]),
         value: z.unknown(),
       }),
@@ -682,6 +692,8 @@ export const adminSettingsRouter = router({
               ...(typeof item.url === 'string' && item.url.trim() ? { url: item.url.trim() } : {}),
             }));
         }
+      } else if (input.key === SETTING_KEYS.aboutLinks) {
+        value = normalizeAboutLinksConfig(value);
       } else if (input.key === SETTING_KEYS.desktopDownloadUrl) {
         value = toString(value);
       } else if (input.key === SETTING_KEYS.desktopDownloadLabel) {

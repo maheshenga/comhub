@@ -1,6 +1,12 @@
+import {
+  type AboutLinksConfig,
+  DEFAULT_ABOUT_LINKS,
+  normalizeAboutLinksConfig,
+} from '@/const/aboutLinks';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 
 export const SETTING_KEYS = {
+  aboutLinks: 'about.links',
   brandFaviconUrl: 'brand.faviconUrl',
   brandAuthTitle: 'brand.authTitle',
   brandCopyrightText: 'brand.copyrightText',
@@ -51,6 +57,7 @@ export type AdminSettingsData = {
   brandName?: string | null;
   brandPrimaryColor?: string | null;
   brandSlogan?: string | null;
+  aboutLinks?: unknown;
   cronAuditRetentionDays?: number | null;
   cronPendingOrderExpiryDays?: number | null;
   defaultAgentAvatar?: string | null;
@@ -79,6 +86,7 @@ export type AdminSettingsFormValues = {
   brandName: string;
   brandPrimaryColor: string;
   brandSlogan: string;
+  aboutLinks: AboutLinksConfig;
   cronAuditRetentionDays: number;
   cronPendingOrderExpiryDays: number;
   cronSecret: string;
@@ -163,6 +171,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   brandName: data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
   brandPrimaryColor: data?.brandPrimaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
   brandSlogan: data?.brandSlogan ?? '',
+  aboutLinks: normalizeAboutLinksConfig(data?.aboutLinks ?? DEFAULT_ABOUT_LINKS),
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
   cronSecret: '',
@@ -186,6 +195,7 @@ export const normalizeFormValues = (
   brandName: normalizeText(values.brandName),
   brandPrimaryColor: normalizeText(values.brandPrimaryColor),
   brandSlogan: normalizeText(values.brandSlogan),
+  aboutLinks: normalizeAboutLinksConfig(values.aboutLinks),
   cronAuditRetentionDays:
     typeof values.cronAuditRetentionDays === 'number' ? values.cronAuditRetentionDays : 365,
   cronPendingOrderExpiryDays:
@@ -233,6 +243,7 @@ export const buildSettingUpdates = (
 
   const keyMap: Record<keyof AdminSettingsFormValues, string> = {
     brandFaviconUrl: SETTING_KEYS.brandFaviconUrl,
+    aboutLinks: SETTING_KEYS.aboutLinks,
     brandAuthTitle: SETTING_KEYS.brandAuthTitle,
     brandCopyrightText: SETTING_KEYS.brandCopyrightText,
     brandLogoUrl: SETTING_KEYS.brandLogoUrl,
@@ -258,6 +269,10 @@ export const buildSettingUpdates = (
 
   if (JSON.stringify(current.helpMenuItems) !== JSON.stringify(initial.helpMenuItems)) {
     updates.push({ key: SETTING_KEYS.helpMenuItems, value: current.helpMenuItems });
+  }
+
+  if (JSON.stringify(current.aboutLinks) !== JSON.stringify(initial.aboutLinks)) {
+    updates.push({ key: SETTING_KEYS.aboutLinks, value: current.aboutLinks });
   }
 
   return updates;

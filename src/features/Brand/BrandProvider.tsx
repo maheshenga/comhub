@@ -62,15 +62,6 @@ const applyDocumentBrand = (b: BrandConfig) => {
   if (b.primaryColor) {
     document.documentElement.style.setProperty('--brand-primary', b.primaryColor);
   }
-
-  // Replace the loading screen brand text with the runtime brand name.
-  const loadingBrand = document.getElementById('loading-brand');
-  if (loadingBrand && b.name) {
-    const name = document.createElement('span');
-    name.style.cssText = 'font-size:28px;font-weight:700;color:inherit';
-    name.textContent = b.name;
-    loadingBrand.replaceChildren(name);
-  }
 };
 
 export const BrandProvider: FC<{ children: ReactNode }> = ({ children }) => {

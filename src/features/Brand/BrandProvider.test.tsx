@@ -10,9 +10,9 @@ vi.mock('@lobechat/business-const', () => ({
 vi.mock('@/const/brand', () => ({
   DEFAULT_RUNTIME_BRAND: {
     authTitle: 'Agent teammates that grow with you',
-    copyrightText: '© 2026 青柚 AI. All rights reserved.',
+    copyrightText: '2026 Qingyou AI. All rights reserved.',
     logoUrl: '/images/brand/qingyou-ai-logo.png',
-    name: '青柚 AI',
+    name: 'Qingyou AI',
     primaryColor: '#12b981',
   },
 }));
@@ -34,11 +34,11 @@ vi.mock('react-i18next', () => ({
 vi.mock('swr', () => ({
   default: () => ({
     data: {
-      authTitle: '与团队一起成长的 AI 助手',
-      copyrightText: '© 2026 玄果',
+      authTitle: 'Runtime auth title',
+      copyrightText: '2026 Runtime',
       faviconUrl: null,
       logoUrl: null,
-      name: '玄果',
+      name: 'Runtime Brand',
       primaryColor: null,
       slogan: null,
     },
@@ -60,6 +60,7 @@ vi.mock('@/libs/trpc/client', () => ({
 describe('BrandProvider', () => {
   beforeEach(() => {
     i18n.options = undefined;
+    document.body.innerHTML = '';
   });
 
   it('initializes i18n interpolation options when they are missing during SPA boot', async () => {
@@ -70,7 +71,26 @@ describe('BrandProvider', () => {
     );
 
     await waitFor(() => {
-      expect(i18n.options?.interpolation?.defaultVariables?.brandName).toBe('玄果');
+      expect(i18n.options?.interpolation?.defaultVariables?.brandName).toBe('Runtime Brand');
     });
+  });
+
+  it('keeps the original loading SVG during SPA boot', async () => {
+    document.body.innerHTML =
+      '<div id="loading-brand" aria-label="Loading" role="status"><svg data-testid="original-loading-svg"><path /></svg></div>';
+
+    render(
+      <BrandProvider>
+        <div>content</div>
+      </BrandProvider>,
+    );
+
+    await waitFor(() => {
+      expect(i18n.options?.interpolation?.defaultVariables?.brandName).toBe('Runtime Brand');
+    });
+
+    const loadingBrand = document.getElementById('loading-brand');
+    expect(loadingBrand?.querySelector('[data-testid="original-loading-svg"]')).not.toBeNull();
+    expect(loadingBrand?.querySelector('span')).toBeNull();
   });
 });

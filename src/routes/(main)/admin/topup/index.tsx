@@ -65,11 +65,11 @@ const AdminTopUpPage = memo(() => {
         sortOrder: Number(values.sortOrder || 0),
         validityMonths: Number(values.validityMonths || 12),
       });
-      message.success(t('admin.topup.saveSuccess', '??????'));
+      message.success(t('admin.topup.saveSuccess', '充值套餐已保存'));
       setEditing(null);
       await mutate(SWR_KEY);
     } catch {
-      message.error(t('admin.topup.saveFailed', '????'));
+      message.error(t('admin.topup.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -80,10 +80,10 @@ const AdminTopUpPage = memo(() => {
       content: id,
       onOk: async () => {
         await adminCommercialService.deletePackage(id);
-        message.success(t('admin.topup.deleted', '??????'));
+        message.success(t('admin.topup.deleted', '充值套餐已删除'));
         await mutate(SWR_KEY);
       },
-      title: t('admin.topup.confirmDelete', '????????'),
+      title: t('admin.topup.confirmDelete', '确认删除这个充值套餐？'),
     });
   };
 
@@ -94,47 +94,47 @@ const AdminTopUpPage = memo(() => {
 
   const columns = [
     { dataIndex: 'id', key: 'id', title: t('admin.topup.col.id', 'ID') },
-    { dataIndex: 'displayName', key: 'displayName', title: t('admin.topup.col.name', '????') },
-    { dataIndex: 'credits', key: 'credits', title: t('admin.topup.col.credits', '??') },
+    { dataIndex: 'displayName', key: 'displayName', title: t('admin.topup.col.name', '套餐名称') },
+    { dataIndex: 'credits', key: 'credits', title: t('admin.topup.col.credits', '积分') },
     {
       dataIndex: 'amount',
       key: 'amount',
       render: (v: number, r: PackageRow) => `${v} ${r.currency}`,
-      title: t('admin.topup.col.amount', '??'),
+      title: t('admin.topup.col.amount', '金额'),
     },
     {
       dataIndex: 'validityMonths',
       key: 'validityMonths',
-      title: t('admin.topup.col.validity', '??????'),
+      title: t('admin.topup.col.validity', '有效期（月）'),
     },
     {
       dataIndex: 'recommended',
       key: 'recommended',
-      render: (v: boolean) => (v ? <Tag color="gold">??</Tag> : '—'),
-      title: t('admin.topup.col.recommended', '??'),
+      render: (v: boolean) => (v ? <Tag color="gold">推荐</Tag> : '-'),
+      title: t('admin.topup.col.recommended', '推荐'),
     },
     {
       dataIndex: 'isActive',
       key: 'isActive',
-      render: (v: boolean) => (v ? <Tag color="green">??</Tag> : <Tag>??</Tag>),
-      title: t('admin.topup.col.active', '??'),
+      render: (v: boolean) => (v ? <Tag color="green">启用</Tag> : <Tag>停用</Tag>),
+      title: t('admin.topup.col.active', '状态'),
     },
     {
       key: 'actions',
       render: (_: unknown, row: PackageRow) => (
         <Flexbox horizontal gap={8}>
           <Button size="small" onClick={() => openEdit(row)}>
-            {t('admin.topup.edit', '??')}
+            {t('admin.topup.edit', '编辑')}
           </Button>
           <Button size="small" onClick={() => handleToggleActive(row)}>
-            {row.isActive ? t('admin.topup.deactivate', '??') : t('admin.topup.activate', '??')}
+            {row.isActive ? t('admin.topup.deactivate', '停用') : t('admin.topup.activate', '启用')}
           </Button>
           <Button danger size="small" onClick={() => handleDelete(row.id)}>
-            {t('admin.topup.delete', '??')}
+            {t('admin.topup.delete', '删除')}
           </Button>
         </Flexbox>
       ),
-      title: t('admin.topup.col.actions', '??'),
+      title: t('admin.topup.col.actions', '操作'),
     },
   ];
 
@@ -142,11 +142,11 @@ const AdminTopUpPage = memo(() => {
     <Flexbox gap={16} padding={24}>
       <Flexbox horizontal>
         <Button type="primary" onClick={() => openEdit()}>
-          {t('admin.topup.create', '?????')}
+          {t('admin.topup.create', '新增充值套餐')}
         </Button>
       </Flexbox>
       {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.topup.empty', '???????')} />
+        <Empty description={t('admin.topup.empty', '暂无充值套餐')} />
       ) : (
         <InlineTable columns={columns as any} dataSource={items} loading={isLoading} rowKey="id" />
       )}
@@ -157,22 +157,22 @@ const AdminTopUpPage = memo(() => {
         width={600}
         title={
           editing?.id
-            ? t('admin.topup.modal.edit', '?????')
-            : t('admin.topup.modal.create', '?????')
+            ? t('admin.topup.modal.edit', '编辑充值套餐')
+            : t('admin.topup.modal.create', '新增充值套餐')
         }
         onCancel={() => setEditing(null)}
         onOk={handleSave}
       >
         <Form form={form} layout="vertical">
           <Form.Item
-            label={t('admin.topup.field.id', '??? ID?? starter-100?')}
+            label={t('admin.topup.field.id', '套餐 ID（如 starter-100）')}
             name="id"
             rules={[{ required: true }]}
           >
             <Input disabled={!!editing?.id} />
           </Form.Item>
           <Form.Item
-            label={t('admin.topup.field.name', '????')}
+            label={t('admin.topup.field.name', '套餐名称')}
             name="displayName"
             rules={[{ required: true }]}
           >
@@ -180,21 +180,21 @@ const AdminTopUpPage = memo(() => {
           </Form.Item>
           <Flexbox horizontal gap={12}>
             <Form.Item
-              label={t('admin.topup.field.credits', '??')}
+              label={t('admin.topup.field.credits', '积分')}
               name="credits"
               style={{ flex: 1 }}
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.topup.field.amount', '??')}
+              label={t('admin.topup.field.amount', '金额')}
               name="amount"
               style={{ flex: 1 }}
             >
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.topup.field.currency', '??')}
+              label={t('admin.topup.field.currency', '币种')}
               name="currency"
               style={{ width: 100 }}
             >
@@ -203,14 +203,14 @@ const AdminTopUpPage = memo(() => {
           </Flexbox>
           <Flexbox horizontal gap={12}>
             <Form.Item
-              label={t('admin.topup.field.validity', '??????')}
+              label={t('admin.topup.field.validity', '有效期（月）')}
               name="validityMonths"
               style={{ flex: 1 }}
             >
               <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              label={t('admin.topup.field.sortOrder', '???')}
+              label={t('admin.topup.field.sortOrder', '排序值')}
               name="sortOrder"
               style={{ flex: 1 }}
             >
@@ -219,14 +219,14 @@ const AdminTopUpPage = memo(() => {
           </Flexbox>
           <Flexbox horizontal gap={24}>
             <Form.Item
-              label={t('admin.topup.field.recommended', '??')}
+              label={t('admin.topup.field.recommended', '推荐')}
               name="recommended"
               valuePropName="checked"
             >
               <Switch />
             </Form.Item>
             <Form.Item
-              label={t('admin.topup.field.active', '??')}
+              label={t('admin.topup.field.active', '启用')}
               name="isActive"
               valuePropName="checked"
             >

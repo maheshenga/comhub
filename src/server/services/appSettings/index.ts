@@ -10,6 +10,7 @@ export const APP_SETTING_KEYS = {
   authSignupDisabledMessage: 'auth.signup.disabledMessage',
   authSignupEnabled: 'auth.signup.enabled',
   authSignupPhoneEnabled: 'auth.signup.phoneEnabled',
+  aboutLinks: 'about.links',
   brandFaviconUrl: 'brand.faviconUrl',
   brandAuthTitle: 'brand.authTitle',
   brandCopyrightText: 'brand.copyrightText',

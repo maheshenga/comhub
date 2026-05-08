@@ -48,10 +48,18 @@ const AdminUsersPage = memo(() => {
   const [adjustTarget, setAdjustTarget] = useState<string | null>(null);
   const [adjustAmount, setAdjustAmount] = useState<number>(0);
   const [adjustReason, setAdjustReason] = useState('');
+  const [assignTarget, setAssignTarget] = useState<string | null>(null);
+  const [assignPlan, setAssignPlan] = useState<string>();
+  const [assignCycle, setAssignCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [assignDurationMonths, setAssignDurationMonths] = useState<number>(1);
+  const [assignReason, setAssignReason] = useState('');
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const swrKey = ['admin-users', query, cursor];
+  const { data: plansData } = useClientDataSWR(['admin-user-list-plan-options'], () =>
+    adminCommercialService.listPlans(),
+  );
 
   const { data, isLoading } = useClientDataSWR(
     swrKey,
@@ -154,6 +162,47 @@ const AdminUsersPage = memo(() => {
     }
   };
 
+  const openAssignPlan = (userId: string) => {
+    setAssignTarget(userId);
+    setAssignPlan(undefined);
+    setAssignCycle('monthly');
+    setAssignDurationMonths(1);
+    setAssignReason('');
+  };
+
+  const closeAssignPlan = () => {
+    setAssignTarget(null);
+    setAssignPlan(undefined);
+    setAssignCycle('monthly');
+    setAssignDurationMonths(1);
+    setAssignReason('');
+  };
+
+  const handleAssignPlan = async () => {
+    if (!assignTarget || !assignPlan || !assignDurationMonths || !assignReason.trim()) {
+      message.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
+      return;
+    }
+
+    setActionLoading(assignTarget + '-plan');
+    try {
+      await adminCommercialService.assignUserPlan({
+        cycle: assignCycle,
+        durationMonths: Math.round(assignDurationMonths),
+        plan: assignPlan,
+        reason: assignReason.trim(),
+        userId: assignTarget,
+      });
+      message.success(t('admin.assignPlan.success', '套餐已设置'));
+      closeAssignPlan();
+      await mutate(['admin-subscriptions']);
+    } catch {
+      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const columns: ColumnsType<UserRow> = [
     {
       dataIndex: 'fullName',
@@ -248,6 +297,13 @@ const AdminUsersPage = memo(() => {
             }}
           >
             {t('admin.adjustCredits', '调整积分')}
+          </Button>
+          <Button
+            loading={actionLoading === row.id + '-plan'}
+            size="small"
+            onClick={() => openAssignPlan(row.id)}
+          >
+            {t('admin.assignPlan', '设置套餐')}
           </Button>
           <Button size="small" onClick={() => setDetailUserId(row.id)}>
             {t('admin.viewDetail', '详情')}
@@ -380,6 +436,68 @@ const AdminUsersPage = memo(() => {
               rows={3}
               value={adjustReason}
               onChange={(e) => setAdjustReason(e.target.value)}
+            />
+          </Flexbox>
+        </Flexbox>
+      </Modal>
+      <Modal
+        confirmLoading={actionLoading === (assignTarget ?? '') + '-plan'}
+        open={!!assignTarget}
+        title={t('admin.assignPlan.title', '设置用户套餐')}
+        onCancel={closeAssignPlan}
+        onOk={handleAssignPlan}
+      >
+        <Flexbox gap={12}>
+          <Flexbox gap={4}>
+            <div>{t('admin.assignPlan.plan', '套餐')}</div>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder={t('admin.assignPlan.plan.placeholder', '选择套餐')}
+              style={{ width: '100%' }}
+              value={assignPlan}
+              options={(plansData?.items ?? [])
+                .filter((item: any) => item.isActive !== false)
+                .map((item: any) => ({
+                  label: `${item.displayName || item.plan} (${item.plan})`,
+                  value: item.plan,
+                }))}
+              onChange={setAssignPlan}
+            />
+          </Flexbox>
+          <Flexbox gap={4}>
+            <div>{t('admin.assignPlan.cycle', '周期')}</div>
+            <Select
+              style={{ width: '100%' }}
+              value={assignCycle}
+              options={[
+                { label: t('admin.assignPlan.monthly', '月付'), value: 'monthly' },
+                { label: t('admin.assignPlan.yearly', '年付'), value: 'yearly' },
+              ]}
+              onChange={setAssignCycle}
+            />
+          </Flexbox>
+          <Flexbox gap={4}>
+            <div>{t('admin.assignPlan.durationMonths', '使用时长（月）')}</div>
+            <InputNumber
+              max={120}
+              min={1}
+              precision={0}
+              style={{ width: '100%' }}
+              value={assignDurationMonths}
+              onChange={(v) => setAssignDurationMonths(Number(v ?? 1))}
+            />
+          </Flexbox>
+          <Flexbox gap={4}>
+            <div>{t('admin.assignPlan.reason', '原因')}</div>
+            <Input.TextArea
+              rows={3}
+              value={assignReason}
+              placeholder={t(
+                'admin.assignPlan.reason.placeholder',
+                '例如：线下购买、客服补偿、测试账号等',
+              )}
+              onChange={(e) => setAssignReason(e.target.value)}
             />
           </Flexbox>
         </Flexbox>
