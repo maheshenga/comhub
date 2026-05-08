@@ -5,7 +5,7 @@ APP_DIR=${APP_DIR:-/www/wwwroot/comhub/app}
 ROOT_DIR=${ROOT_DIR:-/www/wwwroot/comhub}
 PKG=${1:-${PKG:-/tmp/comhub-latest-app.tar.gz}}
 PORT=${PORT:-3210}
-HOSTNAME=${HOSTNAME:-0.0.0.0}
+APP_HOST=${APP_HOST:-0.0.0.0}
 NODE=${NODE:-/usr/local/bin/node}
 
 TS=$(date +%Y%m%d-%H%M%S)
@@ -80,12 +80,13 @@ if [ -n "${DATABASE_DRIVER:-}" ] && [ -f docker.cjs ]; then
 fi
 
 echo "== start node standalone =="
-PORT="$PORT" HOSTNAME="$HOSTNAME" NODE_ENV=production nohup "$NODE" server.js > start.log 2>&1 &
+PORT="$PORT" HOSTNAME="$APP_HOST" NODE_ENV=production nohup "$NODE" server.js > start.log 2>&1 &
 echo $! > app.pid
 sleep 5
 ss -ltnp | grep ":${PORT}"
 curl -I --max-time 15 "http://127.0.0.1:${PORT}/" | head -20
 curl --max-time 15 "http://127.0.0.1:${PORT}/api/version" | head -c 500 || true
+echo "bind_host=$APP_HOST"
 
 echo ""
 echo "== done =="
