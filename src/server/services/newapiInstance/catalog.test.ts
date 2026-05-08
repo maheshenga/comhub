@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { classifyNewapiModelType, fetchNewapiPricing, normalizeNewapiSyncRows } from './catalog';
+import {
+  classifyNewapiModelType,
+  fetchNewapiModels,
+  fetchNewapiPricing,
+  normalizeNewapiSyncRows,
+} from './catalog';
 
 describe('NewAPI catalog sync', () => {
   afterEach(() => {
@@ -78,5 +83,44 @@ describe('NewAPI catalog sync', () => {
         baseUrl: 'https://newapi.example.com/v1',
       }),
     ).resolves.toEqual([]);
+  });
+
+  it('does not duplicate the v1 segment when fetching models', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ data: [] }),
+      ok: true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchNewapiModels({
+      apiKey: 'sk-test',
+      baseUrl: 'https://newapi.example.com/v1',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://newapi.example.com/v1/models', {
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer sk-test',
+      },
+    });
+  });
+
+  it('reports a clear error when the models endpoint returns html', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+        ok: true,
+        text: async () => '<!doctype html><html></html>',
+      }),
+    );
+
+    await expect(
+      fetchNewapiModels({
+        apiKey: 'sk-test',
+        baseUrl: 'https://newapi.example.com/v1',
+      }),
+    ).rejects.toThrow('模型列表接口返回的不是 JSON');
   });
 });

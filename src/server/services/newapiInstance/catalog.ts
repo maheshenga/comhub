@@ -37,6 +37,14 @@ const endpointIncludes = (values: string[], terms: string[]) =>
 
 const idIncludes = (id: string, terms: string[]) => terms.some((term) => id.includes(term));
 
+const normalizeNewapiRoot = (baseUrl: string) =>
+  baseUrl.replace(/\/+$/, '').replace(/\/v\d+[a-z]*\/?$/, '');
+
+const normalizeNewapiApiBase = (baseUrl: string) => {
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  return /\/v\d+[a-z]*$/i.test(trimmed) ? trimmed : urlJoin(trimmed, '/v1');
+};
+
 export const classifyNewapiModelType = (
   model: Pick<NewapiRemoteModel, 'id' | 'supported_endpoint_types' | 'type'>,
   pricing?: Pick<NewapiRemotePricing, 'supported_endpoint_types'>,
@@ -133,7 +141,7 @@ export const fetchNewapiModels = async ({
   apiKey: string;
   baseUrl: string;
 }): Promise<NewapiRemoteModel[]> => {
-  const response = await fetch(urlJoin(baseUrl.replace(/\/+$/, ''), '/v1/models'), {
+  const response = await fetch(urlJoin(normalizeNewapiApiBase(baseUrl), '/models'), {
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${apiKey}`,
@@ -145,7 +153,18 @@ export const fetchNewapiModels = async ({
     throw new Error(`NewAPI models request failed: ${response.status} ${text}`);
   }
 
-  const body = await response.json();
+  const contentType = response.headers?.get('content-type') ?? '';
+  if (contentType && !contentType.toLowerCase().includes('application/json')) {
+    throw new Error('模型列表接口返回的不是 JSON，请检查 NewAPI Base URL 是否填写为 API 地址。');
+  }
+
+  let body: { data?: unknown };
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error('模型列表接口返回的不是 JSON，请检查 NewAPI Base URL 是否填写为 API 地址。');
+  }
+
   return Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : [];
 };
 
@@ -156,8 +175,7 @@ export const fetchNewapiPricing = async ({
   apiKey: string;
   baseUrl: string;
 }): Promise<NewapiRemotePricing[]> => {
-  const rootBaseUrl = baseUrl.replace(/\/+$/, '').replace(/\/v\d+[a-z]*\/?$/, '');
-  const response = await fetch(urlJoin(rootBaseUrl, '/api/pricing'), {
+  const response = await fetch(urlJoin(normalizeNewapiRoot(baseUrl), '/api/pricing'), {
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${apiKey}`,
