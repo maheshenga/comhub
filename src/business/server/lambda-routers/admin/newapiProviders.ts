@@ -9,6 +9,11 @@ import {
 } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
+import {
+  fetchNewapiModels,
+  fetchNewapiPricing,
+  normalizeNewapiSyncRows,
+} from '@/server/services/newapiInstance/catalog';
 
 import { recordAdminAudit } from './audit';
 
@@ -156,6 +161,103 @@ export const adminNewapiProvidersRouter = router({
     }),
 
   // ─── Instance Models CRUD ──────────────────────────────────────────────────
+
+  syncInstanceModels: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const instance = await ctx.serverDB.query.adminNewapiInstances.findFirst({
+        where: eq(adminNewapiInstances.id, input.id),
+      });
+      if (!instance) throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+
+      const [models, pricing, existingRows] = await Promise.all([
+        fetchNewapiModels({ apiKey: instance.apiKey, baseUrl: instance.baseUrl }),
+        fetchNewapiPricing({ apiKey: instance.apiKey, baseUrl: instance.baseUrl }),
+        ctx.serverDB
+          .select({
+            enabled: adminNewapiInstanceModels.enabled,
+            modelId: adminNewapiInstanceModels.modelId,
+            modelType: adminNewapiInstanceModels.modelType,
+          })
+          .from(adminNewapiInstanceModels)
+          .where(eq(adminNewapiInstanceModels.instanceId, input.id)),
+      ]);
+
+      const rows = normalizeNewapiSyncRows({ existingRows, models, pricing }).map((row) => ({
+        ...row,
+        instanceId: input.id,
+      }));
+
+      if (rows.length > 0) {
+        await ctx.serverDB
+          .insert(adminNewapiInstanceModels)
+          .values(rows)
+          .onConflictDoUpdate({
+            set: {
+              displayName: sql`excluded.display_name`,
+              metadata: sql`excluded.metadata`,
+              sortOrder: sql`excluded.sort_order`,
+              updatedAt: new Date(),
+            },
+            target: [
+              adminNewapiInstanceModels.instanceId,
+              adminNewapiInstanceModels.modelId,
+              adminNewapiInstanceModels.modelType,
+            ],
+          });
+      }
+
+      await recordAdminAudit(ctx, {
+        action: 'newapiInstanceModels.sync',
+        payload: { count: rows.length },
+        resourceId: input.id,
+        resourceType: 'admin_newapi_instance_models',
+      });
+      invalidateNewapiInstancesCache();
+
+      return {
+        importedCount: rows.length,
+        modelsCount: models.length,
+        ok: true,
+        pricingCount: pricing.length,
+        warnings: pricing.length === 0 ? ['Pricing endpoint unavailable or empty'] : [],
+      };
+    }),
+
+  testInstanceConnection: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const instance = await ctx.serverDB.query.adminNewapiInstances.findFirst({
+        where: eq(adminNewapiInstances.id, input.id),
+      });
+      if (!instance) throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+
+      try {
+        const models = await fetchNewapiModels({
+          apiKey: instance.apiKey,
+          baseUrl: instance.baseUrl,
+        });
+        const pricing = await fetchNewapiPricing({
+          apiKey: instance.apiKey,
+          baseUrl: instance.baseUrl,
+        });
+
+        return {
+          modelsCount: models.length,
+          ok: true,
+          pricingCount: pricing.length,
+          warnings: pricing.length === 0 ? ['Pricing endpoint unavailable or empty'] : [],
+        };
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : String(error),
+          modelsCount: 0,
+          ok: false,
+          pricingCount: 0,
+          warnings: [],
+        };
+      }
+    }),
 
   addModels: adminProcedure
     .input(
