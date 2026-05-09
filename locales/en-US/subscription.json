@@ -519,8 +519,6 @@
   "models.link": "View",
   "models.output": "Output",
   "models.title": "Models",
-  "nativePreview.desc": "This page now reads live local data for subscription, balance, billing, and referral records. Referral code editing, referral reward activation, auto top-up settings, top-up order creation and activation, plus plan change request creation and local activation now work locally, while real payment provider integration still remains preview-only.",
-  "nativePreview.title": "Local Data Preview",
   "payDiffPrice": "Pay Difference",
   "payDiffPriceApprox": "Approx.",
   "payDiffPriceTip": "Actual amount subject to payment page",

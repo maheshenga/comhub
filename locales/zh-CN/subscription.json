@@ -531,8 +531,6 @@
   "models.link": "查看",
   "models.output": "输出",
   "models.title": "模型",
-  "nativePreview.desc": "该页面现在会读取本地后端的订阅、余额、账单与推荐数据；推荐码编辑、推荐奖励激活、自动充值设置、充值订单创建与激活，以及套餐变更请求创建与本地生效都已接入本地后端，真实支付渠道接入仍是预览。",
-  "nativePreview.title": "本地数据预览",
   "payDiffPrice": "支付差价",
   "payDiffPriceApprox": "约",
   "payDiffPriceTip": "实际金额以支付页面为准",
