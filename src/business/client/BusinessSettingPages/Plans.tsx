@@ -26,14 +26,13 @@ import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 
 import { getPlanPurchaseUrl } from './planPurchase';
+import { formatPlanCurrencyAmount, getVisiblePaidPlans } from './plansDisplay';
 import {
   formatBusinessNumber,
   formatCredits,
-  formatCurrencyAmount,
   getSubscriptionCycleTranslationKey,
   subscriptionPageStyles,
   subscriptionPlanOrder,
-  SubscriptionPreviewNotice,
   useBusinessSubscriptionProfile,
 } from './shared';
 
@@ -159,9 +158,23 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     border-block-start: 1px dashed ${cssVar.colorBorderSecondary};
   `,
   grid: css`
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    scrollbar-width: thin;
+
+    overflow-x: auto;
+    display: flex;
     gap: 12px;
+
+    padding-block-end: 4px;
+
+    > .ant-card {
+      flex: 0 0 min(320px, 86vw);
+    }
+
+    @media (width >= 1280px) {
+      > .ant-card {
+        flex-basis: calc((100% - 36px) / 4);
+      }
+    }
   `,
   header: css`
     min-height: 116px;
@@ -190,6 +203,7 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     font-weight: 700;
     line-height: 1;
     color: ${cssVar.colorText};
+    white-space: nowrap;
   `,
   priceUnit: css`
     font-size: 13px;
@@ -304,7 +318,9 @@ const Plans = memo<{ mobile?: boolean }>(() => {
       configuredPlans.includes(plan),
     );
 
-    return orderedConfiguredPlans.length > 0 ? orderedConfiguredPlans : [...subscriptionPlanOrder];
+    return getVisiblePaidPlans(
+      orderedConfiguredPlans.length > 0 ? orderedConfiguredPlans : [...subscriptionPlanOrder],
+    );
   }, [planCatalog]);
 
   const getPlanFeatures = (plan: SubscriptionPlan) => {
@@ -322,8 +338,8 @@ const Plans = memo<{ mobile?: boolean }>(() => {
 
     if (billingCycle === 'monthly') {
       return {
-        label: formatCurrencyAmount(catalogPlan.monthlyPrice, catalogPlan.currency),
-        unit: '每月',
+        label: formatPlanCurrencyAmount(catalogPlan.monthlyPrice, catalogPlan.currency),
+        unit: '人民币 / 月',
       };
     }
 
@@ -331,15 +347,15 @@ const Plans = memo<{ mobile?: boolean }>(() => {
       return {
         label:
           catalogPlan.yearlyPrice > 0
-            ? formatCurrencyAmount(catalogPlan.yearlyPrice, catalogPlan.currency)
+            ? formatPlanCurrencyAmount(catalogPlan.yearlyPrice, catalogPlan.currency)
             : '--',
-        unit: '一次性',
+        unit: '人民币 / 一次性',
       };
     }
 
     return {
-      label: formatCurrencyAmount(catalogPlan.monthlyPrice, catalogPlan.currency),
-      unit: '每月（按年）',
+      label: formatPlanCurrencyAmount(catalogPlan.monthlyPrice, catalogPlan.currency),
+      unit: '人民币 / 月（按年）',
     };
   };
 
@@ -392,7 +408,6 @@ const Plans = memo<{ mobile?: boolean }>(() => {
     <>
       <SettingHeader title="套餐" />
       <div className={styles.wrapper}>
-        <SubscriptionPreviewNotice />
         <div className={styles.cycleWrap}>
           <Segmented
             value={billingCycle}
@@ -484,10 +499,10 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                         </div>
                         <div className={styles.yearlyLine}>
                           {catalogPlan?.yearlyPrice
-                            ? `${formatCurrencyAmount(
+                            ? `${formatPlanCurrencyAmount(
                                 catalogPlan.yearlyPrice,
                                 catalogPlan.currency,
-                              )} / 每年`
+                              )} / 人民币 / 年`
                             : '--'}
                           {billingCycle === 'yearly' && discountPercent > 0 ? (
                             <Tag color="green" style={{ margin: 0 }}>

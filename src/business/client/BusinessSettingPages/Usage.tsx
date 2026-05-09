@@ -20,7 +20,6 @@ import { usageService } from '@/services/usage';
 import {
   formatCredits,
   subscriptionPageStyles,
-  SubscriptionPreviewNotice,
   SummaryTile,
   useBusinessSubscriptionProfile,
 } from './shared';
@@ -49,7 +48,6 @@ const Usage = memo<{ mobile?: boolean }>(() => {
     <>
       <SettingHeader title={'用量'} />
       <div className={subscriptionPageStyles.pageStack}>
-        <SubscriptionPreviewNotice />
         <FormGroup
           collapsible={false}
           gap={16}

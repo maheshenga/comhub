@@ -473,6 +473,25 @@ describe('convertUsage', () => {
 });
 
 describe('convertOpenAIImageUsage', () => {
+  it('should handle image usage without token details', () => {
+    const compatibleImageUsage = {
+      input_tokens: 14,
+      output_tokens: 4160,
+      total_tokens: 4174,
+    } as OpenAI.Images.ImagesResponse.Usage;
+
+    const result = convertOpenAIImageUsage(compatibleImageUsage);
+
+    expect(result).toEqual({
+      inputImageTokens: 0,
+      inputTextTokens: 14,
+      outputImageTokens: 4160,
+      totalInputTokens: 14,
+      totalOutputTokens: 4160,
+      totalTokens: 4174,
+    });
+  });
+
   it('should convert gpt-image-1 usage data correctly', () => {
     // Arrange - Based on actual gpt-image-1 logs
     const gptImage1Usage: OpenAI.Images.ImagesResponse.Usage = {

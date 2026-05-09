@@ -351,6 +351,36 @@ describe('CommercialModel', () => {
   });
 
   describe('subscription credits', () => {
+    it('should grant hobby plan credits when activating a subscription change request', async () => {
+      await seedPlanCatalogEntry(Plans.Hobby, {
+        monthlyCredits: 10 * CREDITS_PER_DOLLAR,
+      });
+
+      const request = await commercialModel.createSubscriptionChangeRequest({
+        cycle: 'monthly',
+        targetPlan: Plans.Hobby,
+      });
+
+      await commercialModel.activateSubscriptionChangeRequest(request.id);
+
+      const account = await serverDB.query.creditAccounts.findFirst({
+        where: eq(creditAccounts.userId, userId),
+      });
+      const grantEntries = await serverDB.query.creditLedgerEntries.findMany({
+        where: eq(creditLedgerEntries.userId, userId),
+      });
+
+      expect(account?.balance).toBe(10 * CREDITS_PER_DOLLAR);
+      expect(account?.totalCredited).toBe(10 * CREDITS_PER_DOLLAR);
+      expect(grantEntries).toHaveLength(1);
+      expect(grantEntries[0]).toMatchObject({
+        amount: 10 * CREDITS_PER_DOLLAR,
+        referenceType: 'subscription_snapshot_period',
+        title: 'Subscription Credits',
+        type: 'subscription_grant',
+      });
+    });
+
     it('should grant paid-plan credits when activating a subscription change request', async () => {
       await seedPlanCatalogEntry(Plans.Starter);
 

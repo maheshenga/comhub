@@ -24,7 +24,6 @@ import {
   getBillingStatusTranslationKey,
   getSubscriptionCycleTranslationKey,
   subscriptionPageStyles,
-  SubscriptionPreviewNotice,
   useBusinessSubscriptionProfile,
 } from './shared';
 
@@ -102,7 +101,6 @@ const Billing = memo<{ mobile?: boolean }>(() => {
     <>
       <SettingHeader title={'账单'} />
       <div className={subscriptionPageStyles.pageStack}>
-        <SubscriptionPreviewNotice />
         <FormGroup collapsible={false} gap={16} title={'账单摘要'} variant={'filled'}>
           <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
             <div className={subscriptionPageStyles.cardGrid}>

@@ -23,7 +23,6 @@ import {
   getCreditLedgerTypeTranslationKey,
   getCreditSourceTranslationKey,
   subscriptionPageStyles,
-  SubscriptionPreviewNotice,
   SummaryTile,
   toRawCredits,
   useBusinessSubscriptionProfile,
@@ -211,7 +210,6 @@ const Credits = memo<{ mobile?: boolean }>(() => {
     <>
       <SettingHeader title={'积分'} />
       <div className={subscriptionPageStyles.pageStack}>
-        <SubscriptionPreviewNotice />
         <FormGroup collapsible={false} gap={16} title={'余额'} variant={'filled'}>
           <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
             <div className={subscriptionPageStyles.cardGrid}>

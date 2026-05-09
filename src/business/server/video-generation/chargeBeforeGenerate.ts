@@ -1,3 +1,5 @@
+import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
 import { CommercialModel } from '@/database/models/commercial';
 import type { NewGeneration, NewGenerationBatch } from '@/database/schemas';
@@ -27,12 +29,12 @@ interface ChargeBeforeResult {
 }
 
 export async function chargeBeforeGenerate(params: ChargeParams): Promise<ChargeBeforeResult> {
-  const { model, provider, userId, db } = params;
+  const { provider, userId, db } = params;
 
   const shouldCharge = await shouldChargeCommercialUsage({ db: db!, provider, userId });
   if (!shouldCharge) return {};
 
-  const estimatedCredits = 1;
+  const estimatedCredits = CREDITS_PER_DOLLAR;
 
   const commercialModel = new CommercialModel(db!, userId);
   await commercialModel.preCharge(estimatedCredits, db!);

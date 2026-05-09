@@ -1,3 +1,5 @@
+import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
 import { CommercialModel } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
@@ -30,24 +32,9 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
   const estimatedCredits =
     (prechargeResult as any).estimatedCredits ??
     (prechargeResult as any).costDetail?.totalCredits ??
-    1;
+    CREDITS_PER_DOLLAR;
 
   if (isError) {
-    await commercialModel.postCharge({
-      credits: estimatedCredits,
-      metadata: {
-        asyncTaskId: metadata.asyncTaskId,
-        batchId: metadata.generationBatchId,
-        reason: 'generation_failed',
-      },
-      model: model ?? metadata.modelId,
-      provider,
-      referenceId: metadata.generationBatchId,
-      referenceType: 'video_generation',
-      source: 'video_refund',
-      title: 'Video Generation Refund',
-      userId,
-    });
     return;
   }
 

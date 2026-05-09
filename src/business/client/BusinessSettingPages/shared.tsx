@@ -3,11 +3,10 @@
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Card } from 'antd';
+import { Card } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import dayjs from 'dayjs';
 import { memo, type ReactNode, useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 
 import { OFFICIAL_URL } from '@/const/url';
 import { useClientDataSWR } from '@/libs/swr';
@@ -139,7 +138,7 @@ export const subscriptionPlanOrder = [
   Plans.Ultimate,
 ] as const;
 
-export const isPaidPlan = (plan: Plans) => plan !== Plans.Free && plan !== Plans.Hobby;
+export const isPaidPlan = (plan: Plans) => plan !== Plans.Free;
 
 export const resolveCurrentPlan = (subscriptionPlan?: Plans, isFreePlan?: boolean): Plans => {
   if (subscriptionPlan) return subscriptionPlan;
@@ -386,18 +385,3 @@ export const OverviewPanel = memo<OverviewPanelProps>(({ title, description, ext
 });
 
 OverviewPanel.displayName = 'OverviewPanel';
-
-export const SubscriptionPreviewNotice = memo(() => {
-  const { t } = useTranslation('subscription');
-
-  return (
-    <Alert
-      showIcon
-      description={t('nativePreview.desc')}
-      message={t('nativePreview.title')}
-      type={'info'}
-    />
-  );
-});
-
-SubscriptionPreviewNotice.displayName = 'SubscriptionPreviewNotice';

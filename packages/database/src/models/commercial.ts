@@ -273,7 +273,7 @@ export class CommercialModel {
 
   private assertPaidPlanForTopUp = async () => {
     const currentPlan = await this.getCurrentPlan();
-    const isPaidPlan = currentPlan !== Plans.Free && currentPlan !== Plans.Hobby;
+    const isPaidPlan = currentPlan !== Plans.Free;
 
     if (!isPaidPlan) {
       throw new Error('TOP_UP_REQUIRES_PAID_PLAN');
@@ -607,7 +607,7 @@ export class CommercialModel {
   ) => {
     if (!snapshot) return [];
     if (snapshot.status !== 'active') return [];
-    if (snapshot.plan === Plans.Free || snapshot.plan === Plans.Hobby) return [];
+    if (snapshot.plan === Plans.Free) return [];
     if (!snapshot.monthlyCredits || snapshot.monthlyCredits <= 0) return [];
 
     const now = new Date();
@@ -1163,7 +1163,7 @@ export class CommercialModel {
     }
 
     const currentPlan = await this.getCurrentPlan();
-    const isPaidPlan = currentPlan !== Plans.Free && currentPlan !== Plans.Hobby;
+    const isPaidPlan = currentPlan !== Plans.Free;
 
     if (input.enabled && !isPaidPlan) {
       throw new Error('AUTO_TOP_UP_REQUIRES_PAID_PLAN');

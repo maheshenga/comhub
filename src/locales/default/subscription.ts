@@ -513,9 +513,6 @@ export default {
   'summary.title': 'Billing Summary',
   'summary.usageThisMonth': 'View your usage this month.',
   'summary.viewBillingHistory': 'View Payment History',
-  'nativePreview.desc':
-    'This page now reads live local data for subscription, balance, billing, and referral records. Referral code editing, referral reward activation, auto top-up settings, top-up order creation and activation, plus plan change request creation and local activation now work locally, while real payment provider integration still remains preview-only.',
-  'nativePreview.title': 'Local Data Preview',
   'switchDowngradeTarget': 'Switch Downgrade Target',
   'switchPlan': 'Downgrade',
   'switchToMonthly.desc':

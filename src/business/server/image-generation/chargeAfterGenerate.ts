@@ -1,3 +1,5 @@
+import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
 import { CommercialModel } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
@@ -27,24 +29,9 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
 
   const commercialModel = new CommercialModel(db!, userId);
 
-  const credits = estimatedCredits ?? 1;
+  const credits = estimatedCredits ?? CREDITS_PER_DOLLAR;
 
   if (isError) {
-    await commercialModel.postCharge({
-      credits,
-      metadata: {
-        asyncTaskId: metadata.asyncTaskId,
-        batchId: metadata.generationBatchId,
-        reason: 'generation_failed',
-      },
-      model: metadata.modelId,
-      provider,
-      referenceId: metadata.generationBatchId,
-      referenceType: 'image_generation',
-      source: 'image_refund',
-      title: 'Image Generation Refund',
-      userId,
-    });
     return;
   }
 
