@@ -15,6 +15,8 @@ export type MatrixPlan = {
 
 export type MatrixSourceModel = {
   displayName: string | null;
+  groupKey?: string | null;
+  groupName?: string | null;
   instanceId: string;
   instanceName: string;
   modelId: string;
@@ -24,6 +26,7 @@ export type MatrixSourceModel = {
 
 export type MatrixPricingRule = {
   creditsPerDollar?: number;
+  group?: string;
   model?: string;
   multiplier?: number;
   provider?: string;
@@ -40,6 +43,8 @@ export type MatrixPlanRules = Partial<Record<MatrixModelType, MatrixPlanRule>>;
 export type MatrixRow = {
   creditsPerDollar?: number;
   displayName: string;
+  groupKey?: string | null;
+  groupName?: string | null;
   instanceNames: string[];
   isDefault: boolean;
   key: string;
@@ -60,36 +65,67 @@ const wildcardMatch = (pattern: string, value: string) => {
   return regexp.test(value);
 };
 
-const matchesList = (list: string[] | undefined, modelId: string) =>
-  (list ?? []).some((item) => wildcardMatch(item.trim().toLowerCase(), modelId.toLowerCase()));
+const normalizeGroupKey = (groupKey?: string | null) => groupKey?.trim().toLowerCase();
 
-const isAllowedByRule = (rule: MatrixPlanRule | undefined, modelId: string) => {
+const matchesEntry = (entry: string, modelId: string, groupKey?: string | null) => {
+  const normalized = entry.trim().toLowerCase();
+  if (!normalized) return false;
+
+  const separatorIndex = normalized.indexOf(':');
+  if (separatorIndex > -1) {
+    const groupPattern = normalized.slice(0, separatorIndex).trim();
+    const modelPattern = normalized.slice(separatorIndex + 1).trim();
+    if (!groupPattern || !modelPattern) return false;
+
+    return (
+      wildcardMatch(groupPattern, normalizeGroupKey(groupKey) || 'default') &&
+      wildcardMatch(modelPattern, modelId.toLowerCase())
+    );
+  }
+
+  return wildcardMatch(normalized, modelId.toLowerCase());
+};
+
+const matchesList = (list: string[] | undefined, modelId: string, groupKey?: string | null) =>
+  (list ?? []).some((item) => matchesEntry(item, modelId, groupKey));
+
+const isAllowedByRule = (
+  rule: MatrixPlanRule | undefined,
+  modelId: string,
+  groupKey?: string | null,
+) => {
   if (!rule) return true;
-  if (rule.mode === 'allowlist') return matchesList(rule.allowlist, modelId);
+  if (rule.mode === 'allowlist') return matchesList(rule.allowlist, modelId, groupKey);
 
-  return !matchesList(rule.blocklist, modelId);
+  return !matchesList(rule.blocklist, modelId, groupKey);
 };
 
 const findPricingRule = ({
+  groupKey,
   modelId,
   pricingRules,
   provider,
 }: {
+  groupKey?: string | null;
   modelId: string;
   pricingRules: MatrixPricingRule[];
   provider: string;
 }) =>
   pricingRules
     .filter((rule) => {
+      const normalizedGroup = normalizeGroupKey(groupKey);
+      const ruleGroup = rule.group?.trim().toLowerCase();
       const ruleProvider = rule.provider?.trim().toLowerCase();
       const ruleModel = rule.model?.trim().toLowerCase();
+      const groupMatched = ruleGroup ? ruleGroup === normalizedGroup : true;
       const providerMatched = !ruleProvider || ruleProvider === '*' || ruleProvider === provider;
       const modelMatched = !ruleModel || ruleModel === '*' || ruleModel === modelId.toLowerCase();
 
-      return providerMatched && modelMatched;
+      return groupMatched && providerMatched && modelMatched;
     })
     .sort((a, b) => {
       const score = (rule: MatrixPricingRule) =>
+        (rule.group ? 4 : 0) +
         (rule.provider && rule.provider !== '*' ? 2 : 0) +
         (rule.model && rule.model !== '*' ? 2 : 0) +
         (Number.isFinite(rule.creditsPerDollar) ? 1 : 0);
@@ -115,7 +151,10 @@ export const buildMatrixRows = ({
   const grouped = new Map<string, MatrixSourceModel[]>();
 
   for (const model of models) {
-    const key = `newapi:${model.modelType}:${model.modelId}`;
+    const groupKey = normalizeGroupKey(model.groupKey);
+    const key = groupKey
+      ? `newapi:${groupKey}:${model.modelType}:${model.modelId}`
+      : `newapi:${model.modelType}:${model.modelId}`;
     grouped.set(key, [...(grouped.get(key) ?? []), model]);
   }
 
@@ -124,7 +163,9 @@ export const buildMatrixRows = ({
       const sorted = [...rows].sort((a, b) => a.priority - b.priority);
       const first = sorted[0];
       const provider = 'newapi';
+      const groupKey = normalizeGroupKey(first.groupKey);
       const pricingRule = findPricingRule({
+        groupKey,
         modelId: first.modelId,
         pricingRules,
         provider,
@@ -133,6 +174,8 @@ export const buildMatrixRows = ({
       return {
         creditsPerDollar: pricingRule?.creditsPerDollar,
         displayName: first.displayName || first.modelId,
+        groupKey,
+        groupName: first.groupName,
         instanceNames: sorted.map((item) => item.instanceName),
         isDefault:
           (defaultProvider || provider).toLowerCase() === provider &&
@@ -143,7 +186,7 @@ export const buildMatrixRows = ({
         planAccess: Object.fromEntries(
           plans.map((plan) => [
             plan.plan,
-            isAllowedByRule(planRulesByPlan[plan.plan]?.[first.modelType], first.modelId),
+            isAllowedByRule(planRulesByPlan[plan.plan]?.[first.modelType], first.modelId, groupKey),
           ]),
         ),
         pricingMultiplier: pricingRule?.multiplier,
@@ -152,6 +195,9 @@ export const buildMatrixRows = ({
     })
     .sort((a, b) => a.modelType.localeCompare(b.modelType) || a.modelId.localeCompare(b.modelId));
 };
+
+const rowModelRuleEntry = (row: MatrixRow) =>
+  row.groupKey ? `${row.groupKey}:${row.modelId}` : row.modelId;
 
 export const togglePlanAccess = (
   rows: MatrixRow[],
@@ -181,7 +227,7 @@ export const buildPlanModelRulesFromRows = (rows: MatrixRow[], plans: MatrixPlan
       rules[modelType] = {
         allowlist: typedRows
           .filter((row) => row.planAccess[plan.plan] !== false)
-          .map((row) => row.modelId),
+          .map(rowModelRuleEntry),
         mode: 'allowlist',
       };
     }
@@ -201,6 +247,7 @@ export const buildPricingRulesFromRows = (rows: MatrixRow[]): MatrixPricingRule[
     return [
       {
         ...(hasCreditsPerDollar ? { creditsPerDollar: row.creditsPerDollar } : {}),
+        ...(row.groupKey ? { group: row.groupKey } : {}),
         model: row.modelId,
         ...(hasMultiplier ? { multiplier: row.pricingMultiplier } : {}),
         provider: row.provider,

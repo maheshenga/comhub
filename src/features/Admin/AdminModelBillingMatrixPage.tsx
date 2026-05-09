@@ -57,6 +57,8 @@ type PlanItem = {
 
 type EnabledModelItem = {
   displayName?: string | null;
+  groupKey?: string | null;
+  groupName?: string | null;
   instanceId: string;
   instanceName: string;
   modelId: string;
@@ -96,6 +98,8 @@ const AdminModelBillingMatrixPage = memo(() => {
     () =>
       ((modelData?.items ?? []) as EnabledModelItem[]).map((item) => ({
         displayName: item.displayName ?? null,
+        groupKey: item.groupKey,
+        groupName: item.groupName,
         instanceId: item.instanceId,
         instanceName: item.instanceName,
         modelId: item.modelId,
@@ -189,102 +193,108 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const planColumns: TableColumnsType<MatrixRow> = plans.map((plan) => ({
-      key: `plan-${plan.plan}`,
-      render: (_, row) => (
-        <Switch
-          checked={row.planAccess[plan.plan] !== false}
-          size="small"
-          onChange={(checked) =>
-            setRowsOverride((current) =>
-              togglePlanAccess(current ?? baseRows, row.key, plan.plan, checked),
-            )
-          }
-        />
-      ),
-      title: plan.displayName,
-      width: 104,
+    key: `plan-${plan.plan}`,
+    render: (_, row) => (
+      <Switch
+        checked={row.planAccess[plan.plan] !== false}
+        size="small"
+        onChange={(checked) =>
+          setRowsOverride((current) =>
+            togglePlanAccess(current ?? baseRows, row.key, plan.plan, checked),
+          )
+        }
+      />
+    ),
+    title: plan.displayName,
+    width: 104,
   }));
 
   const columns: TableColumnsType<MatrixRow> = [
-      {
-        key: 'model',
-        render: (_, row) => (
-          <Flexbox gap={4}>
-            <Space wrap size={6}>
-              <Text strong>{row.displayName}</Text>
-              {row.isDefault && <Tag color="green">默认</Tag>}
-            </Space>
-            <Text copyable type="secondary">
-              {row.modelId}
-            </Text>
-            <Space wrap size={4}>
-              <Tag>{row.provider}</Tag>
-              <Tag>{getAdminModelTypeLabel(row.modelType)}</Tag>
-            </Space>
-          </Flexbox>
-        ),
-        title: t('admin.modelBillingMatrix.col.model', '模型'),
-        width: 280,
-      },
-      {
-        dataIndex: 'instanceNames',
-        key: 'instanceNames',
-        render: (names: string[]) => (
-          <Space wrap size={[4, 4]}>
-            {names.map((name) => (
-              <Tag key={name}>{name}</Tag>
-            ))}
+    {
+      key: 'model',
+      render: (_, row) => (
+        <Flexbox gap={4}>
+          <Space wrap size={6}>
+            <Text strong>{row.displayName}</Text>
+            {row.isDefault && <Tag color="green">默认</Tag>}
           </Space>
-        ),
-        title: t('admin.modelBillingMatrix.col.instances', '来源实例'),
-        width: 220,
-      },
-      ...planColumns,
-      {
-        dataIndex: 'pricingMultiplier',
-        key: 'pricingMultiplier',
-        render: (value: number | undefined, row) => (
-          <InputNumber
-            min={0}
-            placeholder="默认"
-            precision={4}
-            size="small"
-            step={0.1}
-            style={{ width: 96 }}
-            value={value}
-            onChange={(next) => updateRow(row.key, { pricingMultiplier: toFiniteNumber(next) })}
-          />
-        ),
-        title: t('admin.modelBillingMatrix.col.multiplier', '倍率'),
-        width: 120,
-      },
-      {
-        dataIndex: 'creditsPerDollar',
-        key: 'creditsPerDollar',
-        render: (value: number | undefined, row) => (
-          <InputNumber
-            min={1}
-            placeholder="默认"
-            size="small"
-            style={{ width: 132 }}
-            value={value}
-            onChange={(next) => updateRow(row.key, { creditsPerDollar: toFiniteNumber(next) })}
-          />
-        ),
-        title: t('admin.modelBillingMatrix.col.creditsPerDollar', '每美元积分'),
-        width: 152,
-      },
-      {
-        fixed: 'right',
-        key: 'actions',
-        render: (_, row) => (
-          <Button disabled={row.isDefault} loading={saving} size="small" onClick={() => handleSetDefault(row)}>
-            {row.isDefault ? '当前默认' : '设为默认'}
-          </Button>
-        ),
-        title: t('admin.modelBillingMatrix.col.actions', '操作'),
-        width: 124,
-      },
+          <Text copyable type="secondary">
+            {row.modelId}
+          </Text>
+          <Space wrap size={4}>
+            <Tag>{row.provider}</Tag>
+            {row.groupKey ? <Tag color="purple">{row.groupName || row.groupKey}</Tag> : null}
+            <Tag>{getAdminModelTypeLabel(row.modelType)}</Tag>
+          </Space>
+        </Flexbox>
+      ),
+      title: t('admin.modelBillingMatrix.col.model', '模型'),
+      width: 280,
+    },
+    {
+      dataIndex: 'instanceNames',
+      key: 'instanceNames',
+      render: (names: string[]) => (
+        <Space wrap size={[4, 4]}>
+          {names.map((name) => (
+            <Tag key={name}>{name}</Tag>
+          ))}
+        </Space>
+      ),
+      title: t('admin.modelBillingMatrix.col.instances', '来源实例'),
+      width: 220,
+    },
+    ...planColumns,
+    {
+      dataIndex: 'pricingMultiplier',
+      key: 'pricingMultiplier',
+      render: (value: number | undefined, row) => (
+        <InputNumber
+          min={0}
+          placeholder="默认"
+          precision={4}
+          size="small"
+          step={0.1}
+          style={{ width: 96 }}
+          value={value}
+          onChange={(next) => updateRow(row.key, { pricingMultiplier: toFiniteNumber(next) })}
+        />
+      ),
+      title: t('admin.modelBillingMatrix.col.multiplier', '倍率'),
+      width: 120,
+    },
+    {
+      dataIndex: 'creditsPerDollar',
+      key: 'creditsPerDollar',
+      render: (value: number | undefined, row) => (
+        <InputNumber
+          min={1}
+          placeholder="默认"
+          size="small"
+          style={{ width: 132 }}
+          value={value}
+          onChange={(next) => updateRow(row.key, { creditsPerDollar: toFiniteNumber(next) })}
+        />
+      ),
+      title: t('admin.modelBillingMatrix.col.creditsPerDollar', '每美元积分'),
+      width: 152,
+    },
+    {
+      fixed: 'right',
+      key: 'actions',
+      render: (_, row) => (
+        <Button
+          disabled={row.isDefault}
+          loading={saving}
+          size="small"
+          onClick={() => handleSetDefault(row)}
+        >
+          {row.isDefault ? '当前默认' : '设为默认'}
+        </Button>
+      ),
+      title: t('admin.modelBillingMatrix.col.actions', '操作'),
+      width: 124,
+    },
   ];
 
   return (
@@ -293,16 +303,10 @@ const AdminModelBillingMatrixPage = memo(() => {
         <Title level={3} style={{ margin: 0 }}>
           {t('admin.modelBillingMatrix.title', '模型与计费矩阵')}
         </Title>
-        <Text type="secondary">
-          {t('admin.modelBillingMatrix.subtitle', MATRIX_SUBTITLE)}
-        </Text>
+        <Text type="secondary">{t('admin.modelBillingMatrix.subtitle', MATRIX_SUBTITLE)}</Text>
       </Flexbox>
 
-      <Alert
-        showIcon
-        message={t('admin.modelBillingMatrix.notice', MATRIX_NOTICE)}
-        type="info"
-      />
+      <Alert showIcon message={t('admin.modelBillingMatrix.notice', MATRIX_NOTICE)} type="info" />
 
       <Space wrap>
         <Button loading={saving} type="primary" onClick={handleSaveAccess}>
@@ -311,7 +315,9 @@ const AdminModelBillingMatrixPage = memo(() => {
         <Button loading={saving} onClick={handleSavePricing}>
           {MATRIX_PRICING_SAVE_LABEL}
         </Button>
-        {rowsOverride && <Button onClick={() => setRowsOverride(null)}>{MATRIX_DISCARD_LABEL}</Button>}
+        {rowsOverride && (
+          <Button onClick={() => setRowsOverride(null)}>{MATRIX_DISCARD_LABEL}</Button>
+        )}
       </Space>
 
       <Table

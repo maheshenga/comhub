@@ -432,6 +432,8 @@ export const adminNewapiProvidersRouter = router({
         .select({
           baseUrl: adminNewapiInstances.baseUrl,
           displayName: adminNewapiInstanceModels.displayName,
+          groupKey: adminNewapiInstances.groupKey,
+          groupName: adminNewapiInstances.groupName,
           instanceId: adminNewapiInstances.id,
           instanceName: adminNewapiInstances.name,
           modelId: adminNewapiInstanceModels.modelId,

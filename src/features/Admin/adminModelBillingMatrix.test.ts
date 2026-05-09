@@ -98,6 +98,58 @@ describe('adminModelBillingMatrix', () => {
     });
   });
 
+  it('keeps newapi groups as separate matrix rows and serializes group-qualified access rules', () => {
+    const rows = buildMatrixRows({
+      models: [
+        {
+          displayName: 'GPT Basic',
+          groupKey: 'basic',
+          groupName: 'Basic Group',
+          instanceId: 'inst-basic',
+          instanceName: 'Basic Gateway',
+          modelId: 'gpt-4o-mini',
+          modelType: 'chat',
+          priority: 0,
+        },
+        {
+          displayName: 'GPT Pro',
+          groupKey: 'pro',
+          groupName: 'Pro Group',
+          instanceId: 'inst-pro',
+          instanceName: 'Pro Gateway',
+          modelId: 'gpt-4o-mini',
+          modelType: 'chat',
+          priority: 0,
+        },
+      ],
+      plans,
+      planRulesByPlan: {
+        free: { chat: { allowlist: ['basic:gpt-4o-mini'], mode: 'allowlist' } },
+        starter: { chat: { allowlist: ['pro:gpt-4o-mini'], mode: 'allowlist' } },
+      },
+      pricingRules: [],
+    });
+
+    expect(rows.map((row) => row.key)).toEqual([
+      'newapi:basic:chat:gpt-4o-mini',
+      'newapi:pro:chat:gpt-4o-mini',
+    ]);
+    expect(rows.map((row) => row.planAccess)).toEqual([
+      { free: true, starter: false },
+      { free: false, starter: true },
+    ]);
+
+    const starterProOnly = togglePlanAccess(
+      rows,
+      'newapi:basic:chat:gpt-4o-mini',
+      'starter',
+      false,
+    );
+    expect(buildPlanModelRulesFromRows(starterProOnly, plans).starter).toEqual({
+      chat: { allowlist: ['pro:gpt-4o-mini'], mode: 'allowlist' },
+    });
+  });
+
   it('serializes pricing rules only for rows with overrides', () => {
     const rows = buildMatrixRows({
       models,
@@ -115,6 +167,35 @@ describe('adminModelBillingMatrix', () => {
         creditsPerDollar: 1_000_000,
         model: 'deepseek-chat',
         multiplier: 0.9,
+        provider: 'newapi',
+      },
+    ]);
+  });
+
+  it('serializes pricing rules with group keys', () => {
+    const rows = buildMatrixRows({
+      models: [
+        {
+          displayName: 'GPT Pro',
+          groupKey: 'pro',
+          groupName: 'Pro Group',
+          instanceId: 'inst-pro',
+          instanceName: 'Pro Gateway',
+          modelId: 'gpt-4o-mini',
+          modelType: 'chat',
+          priority: 0,
+        },
+      ],
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [],
+    }).map((row) => ({ ...row, pricingMultiplier: 1.4 }));
+
+    expect(buildPricingRulesFromRows(rows)).toEqual([
+      {
+        group: 'pro',
+        model: 'gpt-4o-mini',
+        multiplier: 1.4,
         provider: 'newapi',
       },
     ]);
