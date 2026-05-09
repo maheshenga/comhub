@@ -19,15 +19,17 @@ const createDbMock = ({
 }: {
   existingRows?: Array<{ enabled: boolean; modelId: string; modelType: string }>;
 } = {}) => {
-  const inserted = { rows: [] as any[] };
+  const inserted = { rows: [] as any[], value: undefined as any };
 
   const db = {
     insert: vi.fn(() => ({
-      values: vi.fn((rows: any[]) => {
-        inserted.rows = rows;
+      values: vi.fn((rows: any[] | Record<string, any>) => {
+        inserted.value = rows;
+        inserted.rows = Array.isArray(rows) ? rows : [rows];
 
         return {
           onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
+          returning: vi.fn().mockResolvedValue([{ id: instanceId }]),
         };
       }),
     })),
@@ -36,9 +38,25 @@ const createDbMock = ({
         findFirst: vi.fn().mockResolvedValue({
           apiKey: 'sk-test',
           baseUrl: 'https://newapi.example.com',
+          groupKey: 'default',
+          groupName: 'Default',
+          groupMultiplier: null,
           id: instanceId,
           name: 'Default',
+          usageScope: null,
         }),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            apiKey: 'sk-test-key',
+            baseUrl: 'https://newapi.example.com',
+            groupKey: 'pro',
+            groupName: 'Pro Group',
+            groupMultiplier: 1.25,
+            id: instanceId,
+            name: 'NewAPI Pro',
+            usageScope: ['chat', 'image'],
+          },
+        ]),
       },
       users: {
         findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
@@ -57,6 +75,45 @@ const createDbMock = ({
 describe('adminNewapiProvidersRouter', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  it('creates and lists instances with group routing fields while masking api key', async () => {
+    const { db, inserted } = createDbMock();
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.createInstance({
+      apiKey: 'sk-test-key',
+      baseUrl: 'https://newapi.example.com',
+      groupKey: 'pro',
+      groupName: 'Pro Group',
+      groupMultiplier: 1.25,
+      name: 'NewAPI Pro',
+      priority: 10,
+      usageScope: ['chat', 'image'],
+    } as any);
+
+    expect(inserted.value).toEqual(
+      expect.objectContaining({
+        groupKey: 'pro',
+        groupName: 'Pro Group',
+        groupMultiplier: 1.25,
+        usageScope: ['chat', 'image'],
+      }),
+    );
+
+    const result = await caller.listInstances();
+
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        apiKey: 'sk-t****-key',
+        groupKey: 'pro',
+        groupName: 'Pro Group',
+        groupMultiplier: 1.25,
+        usageScope: ['chat', 'image'],
+      }),
+    );
   });
 
   it('syncs fetched models as disabled by default', async () => {

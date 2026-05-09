@@ -23,30 +23,36 @@ const maskApiKey = (key: string | null | undefined): string | null => {
   return `${key.slice(0, 4)}****${key.slice(-4)}`;
 };
 
+const NewapiModelTypeSchema = z.enum([
+  'chat',
+  'embedding',
+  'tts',
+  'stt',
+  'image',
+  'video',
+  'text2music',
+  'realtime',
+]);
+
 const InstanceInputSchema = z.object({
   apiKey: z.string().min(1),
   baseUrl: z.string().url(),
   description: z.string().optional(),
   enabled: z.boolean().default(true),
   fetchOnClient: z.boolean().default(false),
+  groupKey: z.string().min(1).max(64).default('default'),
+  groupMultiplier: z.number().positive().optional(),
+  groupName: z.string().max(128).optional(),
   name: z.string().min(1).max(128),
   priority: z.number().int().min(0).default(0),
+  usageScope: z.array(NewapiModelTypeSchema).optional(),
 });
 
 const ModelInputSchema = z.object({
   displayName: z.string().optional(),
   enabled: z.boolean().default(true),
   modelId: z.string().min(1).max(128),
-  modelType: z.enum([
-    'chat',
-    'embedding',
-    'tts',
-    'stt',
-    'image',
-    'video',
-    'text2music',
-    'realtime',
-  ]),
+  modelType: NewapiModelTypeSchema,
   sortOrder: z.number().int().default(0),
 });
 

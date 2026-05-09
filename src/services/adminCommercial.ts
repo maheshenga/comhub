@@ -2,6 +2,16 @@ import type { Plans } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
 
+type NewapiModelType =
+  | 'chat'
+  | 'embedding'
+  | 'tts'
+  | 'stt'
+  | 'image'
+  | 'video'
+  | 'text2music'
+  | 'realtime';
+
 class AdminCommercialService {
   // Users
   listUsers = async (params: { cursor?: number; limit?: number; query?: string }) => {
@@ -275,8 +285,12 @@ class AdminCommercialService {
     description?: string;
     enabled?: boolean;
     fetchOnClient?: boolean;
+    groupKey?: string;
+    groupMultiplier?: number;
+    groupName?: string;
     name: string;
     priority?: number;
+    usageScope?: NewapiModelType[];
   }) => lambdaClient.admin.newapiProviders.createInstance.mutate(params);
 
   updateNewapiInstance = async (params: {
@@ -286,8 +300,12 @@ class AdminCommercialService {
       description?: string;
       enabled?: boolean;
       fetchOnClient?: boolean;
+      groupKey?: string;
+      groupMultiplier?: number;
+      groupName?: string;
       name?: string;
       priority?: number;
+      usageScope?: NewapiModelType[];
     };
     id: string;
   }) => lambdaClient.admin.newapiProviders.updateInstance.mutate(params);

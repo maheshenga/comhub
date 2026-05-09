@@ -10,7 +10,17 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-import { createdAt, updatedAt } from './_helpers';
+import { amountNumeric, createdAt, updatedAt } from './_helpers';
+
+export type NewapiModelType =
+  | 'chat'
+  | 'embedding'
+  | 'tts'
+  | 'stt'
+  | 'image'
+  | 'video'
+  | 'text2music'
+  | 'realtime';
 
 /**
  * Admin-managed NewAPI gateway instances. Each row represents a single upstream
@@ -32,6 +42,11 @@ export const adminNewapiInstances = pgTable(
     enabled: boolean('enabled').notNull().default(true),
     priority: integer('priority').notNull().default(0),
 
+    groupKey: text('group_key').notNull().default('default'),
+    groupName: text('group_name'),
+    groupMultiplier: amountNumeric('group_multiplier'),
+    usageScope: jsonb('usage_scope').$type<NewapiModelType[]>(),
+
     description: text('description'),
     fetchOnClient: boolean('fetch_on_client').notNull().default(false),
 
@@ -42,6 +57,11 @@ export const adminNewapiInstances = pgTable(
   },
   (table) => [
     index('admin_newapi_instances_enabled_priority_idx').on(table.enabled, table.priority),
+    index('admin_newapi_instances_group_enabled_priority_idx').on(
+      table.groupKey,
+      table.enabled,
+      table.priority,
+    ),
   ],
 );
 
@@ -91,6 +111,4 @@ export interface PlanModelRule {
   mode: 'allowlist' | 'blocklist';
 }
 
-export type PlanModelRules = Partial<
-  Record<'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime', PlanModelRule>
->;
+export type PlanModelRules = Partial<Record<NewapiModelType, PlanModelRule>>;
