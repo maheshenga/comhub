@@ -25,14 +25,31 @@ const wildcardMatch = (pattern: string, value: string): boolean => {
   return regexp.test(value);
 };
 
-const matchesEntry = (entry: string, model: string) => {
+const normalizeGroupKey = (groupKey: string | null | undefined) =>
+  groupKey?.trim().toLowerCase() || 'default';
+
+const matchesEntry = (entry: string, model: string, groupKey?: string | null) => {
   const normalized = entry.trim().toLowerCase();
   if (!normalized) return false;
+
+  const separatorIndex = normalized.indexOf(':');
+  if (separatorIndex > -1) {
+    const groupPattern = normalized.slice(0, separatorIndex).trim();
+    const modelPattern = normalized.slice(separatorIndex + 1).trim();
+    if (!groupPattern || !modelPattern) return false;
+
+    return (
+      wildcardMatch(groupPattern, normalizeGroupKey(groupKey)) &&
+      wildcardMatch(modelPattern, model.toLowerCase())
+    );
+  }
+
   return wildcardMatch(normalized, model.toLowerCase());
 };
 
 interface AssertPlanModelAllowedParams {
   db: LobeChatDatabase;
+  groupKey?: string | null;
   model: string | null | undefined;
   modelType?: PlanModelRuleType;
   userId: string;
@@ -50,6 +67,7 @@ interface AssertPlanModelAllowedParams {
  */
 export const assertPlanModelAllowed = async ({
   db,
+  groupKey,
   model,
   modelType = 'chat',
   userId,
@@ -72,8 +90,8 @@ export const assertPlanModelAllowed = async ({
   const rule = rules[modelType];
   if (!rule) return;
 
-  const matchedAllowlist = (rule.allowlist ?? []).some((e) => matchesEntry(e, trimmed));
-  const matchedBlocklist = (rule.blocklist ?? []).some((e) => matchesEntry(e, trimmed));
+  const matchedAllowlist = (rule.allowlist ?? []).some((e) => matchesEntry(e, trimmed, groupKey));
+  const matchedBlocklist = (rule.blocklist ?? []).some((e) => matchesEntry(e, trimmed, groupKey));
 
   const denied =
     rule.mode === 'allowlist' ? !matchedAllowlist : rule.mode === 'blocklist' && matchedBlocklist;
@@ -123,6 +141,7 @@ export const isModelAllowedByPlanRules = (
   rules: PlanModelRules | null | undefined,
   modelId: string | null | undefined,
   modelType: PlanModelRuleType,
+  groupKey?: string | null,
 ): boolean => {
   const trimmed = modelId?.trim();
   if (!trimmed) return true;
@@ -130,8 +149,8 @@ export const isModelAllowedByPlanRules = (
   const rule = rules[modelType];
   if (!rule) return true;
 
-  const matchedAllowlist = (rule.allowlist ?? []).some((e) => matchesEntry(e, trimmed));
-  const matchedBlocklist = (rule.blocklist ?? []).some((e) => matchesEntry(e, trimmed));
+  const matchedAllowlist = (rule.allowlist ?? []).some((e) => matchesEntry(e, trimmed, groupKey));
+  const matchedBlocklist = (rule.blocklist ?? []).some((e) => matchesEntry(e, trimmed, groupKey));
 
   if (rule.mode === 'allowlist') return matchedAllowlist;
   if (rule.mode === 'blocklist') return !matchedBlocklist;
