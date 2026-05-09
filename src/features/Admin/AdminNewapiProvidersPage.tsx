@@ -11,6 +11,7 @@ import {
   message,
   Modal,
   Popconfirm,
+  Select,
   Switch,
   Table,
   Tabs,
@@ -23,6 +24,8 @@ import { useTranslation } from 'react-i18next';
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+import { buildNewapiInstancePayload } from './adminNewapiInstanceForm';
 
 type ModelType =
   | 'chat'
@@ -51,9 +54,13 @@ interface InstanceRow {
   description: string | null;
   enabled: boolean;
   fetchOnClient: boolean;
+  groupKey: string;
+  groupMultiplier: number | null;
+  groupName: string | null;
   id: string;
   name: string;
   priority: number;
+  usageScope: ModelType[] | null;
 }
 
 interface ModelRow {
@@ -83,34 +90,24 @@ const InstanceFormModal = memo<{
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!initial;
+  const usageScopeOptions = useMemo(
+    () =>
+      MODEL_TYPES.map((type) => ({
+        label: t(`admin.newapi.modelType.${type}`, getAdminModelTypeLabel(type)),
+        value: type,
+      })),
+    [t],
+  );
 
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
       setSubmitting(true);
+      const payload = buildNewapiInstancePayload(values, { isEdit });
       if (isEdit && initial) {
-        const data: Record<string, unknown> = {
-          baseUrl: values.baseUrl,
-          description: values.description || undefined,
-          enabled: !!values.enabled,
-          fetchOnClient: !!values.fetchOnClient,
-          name: values.name,
-          priority: Number(values.priority || 0),
-        };
-        if (values.apiKey && !values.apiKey.includes('****')) {
-          data.apiKey = values.apiKey;
-        }
-        await adminCommercialService.updateNewapiInstance({ data, id: initial.id });
+        await adminCommercialService.updateNewapiInstance({ data: payload as any, id: initial.id });
       } else {
-        await adminCommercialService.createNewapiInstance({
-          apiKey: values.apiKey,
-          baseUrl: values.baseUrl,
-          description: values.description || undefined,
-          enabled: !!values.enabled,
-          fetchOnClient: !!values.fetchOnClient,
-          name: values.name,
-          priority: Number(values.priority || 0),
-        });
+        await adminCommercialService.createNewapiInstance(payload as any);
       }
       message.success(t('admin.newapi.saveSuccess', '已保存'));
       await mutate(INSTANCES_KEY);
@@ -138,8 +135,12 @@ const InstanceFormModal = memo<{
               description: '',
               enabled: true,
               fetchOnClient: false,
+              groupKey: 'default',
+              groupMultiplier: undefined,
+              groupName: '',
               name: '',
               priority: 0,
+              usageScope: [],
             },
           );
         }
@@ -212,6 +213,49 @@ const InstanceFormModal = memo<{
             <Switch />
           </Form.Item>
         </Flexbox>
+        <Flexbox horizontal gap={12}>
+          <Form.Item
+            extra={t(
+              'admin.newapi.field.groupKeyHint',
+              '用于套餐授权和分组计费；未区分时使用 default。',
+            )}
+            label={t('admin.newapi.field.groupKey', '分组 Key')}
+            name="groupKey"
+            style={{ flex: 1 }}
+          >
+            <Input placeholder="default / basic / pro" />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.newapi.field.groupName', '分组名称')}
+            name="groupName"
+            style={{ flex: 1 }}
+          >
+            <Input placeholder="基础分组 / 专业分组" />
+          </Form.Item>
+          <Form.Item
+            extra={t('admin.newapi.field.groupMultiplierHint', '可选，用于记录上游分组成本倍率。')}
+            label={t('admin.newapi.field.groupMultiplier', '分组倍率')}
+            name="groupMultiplier"
+            style={{ flex: 1 }}
+          >
+            <InputNumber min={0} precision={4} step={0.1} style={{ width: '100%' }} />
+          </Form.Item>
+        </Flexbox>
+        <Form.Item
+          extra={t(
+            'admin.newapi.field.usageScopeHint',
+            '为空表示不限用途；填写后该实例只承接选中的模型类型。',
+          )}
+          label={t('admin.newapi.field.usageScope', '用途范围')}
+          name="usageScope"
+        >
+          <Select
+            allowClear
+            mode="multiple"
+            options={usageScopeOptions}
+            placeholder={t('admin.newapi.field.usageScopePlaceholder', '不限用途')}
+          />
+        </Form.Item>
         <Form.Item label={t('admin.newapi.field.description', '描述')} name="description">
           <Input.TextArea rows={2} />
         </Form.Item>
@@ -511,6 +555,38 @@ const AdminNewapiProvidersPage = memo(() => {
       key: 'priority',
       title: t('admin.newapi.col.priority', '优先级'),
       width: 90,
+    },
+    {
+      key: 'group',
+      render: (_: unknown, row: InstanceRow) => (
+        <Flexbox gap={4}>
+          <Tag color="purple">{row.groupKey || 'default'}</Tag>
+          {row.groupName ? <span style={{ fontSize: 12 }}>{row.groupName}</span> : null}
+          {row.groupMultiplier ? (
+            <span style={{ fontSize: 12, opacity: 0.7 }}>x{row.groupMultiplier}</span>
+          ) : null}
+        </Flexbox>
+      ),
+      title: t('admin.newapi.col.group', '分组'),
+      width: 160,
+    },
+    {
+      dataIndex: 'usageScope',
+      key: 'usageScope',
+      render: (value: ModelType[] | null) =>
+        value?.length ? (
+          <Flexbox horizontal gap={4} wrap="wrap">
+            {value.map((type) => (
+              <Tag key={type}>
+                {t(`admin.newapi.modelType.${type}`, getAdminModelTypeLabel(type))}
+              </Tag>
+            ))}
+          </Flexbox>
+        ) : (
+          <Tag color="default">{t('admin.newapi.col.usageScopeAll', '不限')}</Tag>
+        ),
+      title: t('admin.newapi.col.usageScope', '用途'),
+      width: 220,
     },
     {
       dataIndex: 'enabled',
