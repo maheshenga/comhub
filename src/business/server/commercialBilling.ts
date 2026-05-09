@@ -1,5 +1,5 @@
-import { type ChatStreamPayload, AgentRuntimeError } from '@lobechat/model-runtime';
 import { BRANDING_PROVIDER } from '@lobechat/business-const';
+import { AgentRuntimeError, type ChatStreamPayload } from '@lobechat/model-runtime';
 import { ChatErrorType } from '@lobechat/types';
 import { getTextInputUnitRate, getTextOutputUnitRate } from '@lobechat/utils';
 import { type AiProviderModelListItem } from 'model-bank';
@@ -47,16 +47,21 @@ const estimateMessageTokens = (message: ChatStreamPayload['messages'][number]) =
   } else {
     total += (message.content || []).reduce((sum, part) => {
       switch (part.type) {
-        case 'image_url':
+        case 'image_url': {
           return sum + APPROX_IMAGE_INPUT_TOKENS;
-        case 'thinking':
+        }
+        case 'thinking': {
           return sum + estimateTextTokens(part.thinking);
-        case 'text':
+        }
+        case 'text': {
           return sum + estimateTextTokens(part.text);
-        case 'video_url':
+        }
+        case 'video_url': {
           return sum + APPROX_VIDEO_INPUT_TOKENS;
-        default:
+        }
+        default: {
           return sum;
+        }
       }
     }, 0);
   }

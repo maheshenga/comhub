@@ -1,6 +1,14 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatErrorType } from '@lobechat/types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  assertCommercialChatBudget,
+  assertCommercialMinimumBudget,
+  estimateCommercialChatCredits,
+  recordCommercialAiUsage,
+  recordCommercialChatUsage,
+} from './commercialBilling';
 
 const mocks = vi.hoisted(() => ({
   canStartChatUsage: vi.fn(),
@@ -36,14 +44,6 @@ vi.mock('@/database/repositories/aiInfra', () => ({
 vi.mock('@/server/globalConfig', () => ({
   getServerGlobalConfig: mocks.getServerGlobalConfig,
 }));
-
-import {
-  assertCommercialChatBudget,
-  assertCommercialMinimumBudget,
-  estimateCommercialChatCredits,
-  recordCommercialAiUsage,
-  recordCommercialChatUsage,
-} from './commercialBilling';
 
 describe('estimateCommercialChatCredits', () => {
   beforeEach(() => {

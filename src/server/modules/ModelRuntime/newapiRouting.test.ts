@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { initModelRuntimeFromDB } from './index';
+
 const mocks = vi.hoisted(() => ({
   getAiProviderById: vi.fn(),
   getBusinessModelRuntimeHooks: vi.fn(),
@@ -51,8 +53,6 @@ vi.mock('./apiKeyManager', () => ({
     pick: vi.fn((key) => key),
   },
 }));
-
-import { initModelRuntimeFromDB } from './index';
 
 describe('initModelRuntimeFromDB newapi routing', () => {
   beforeEach(() => {

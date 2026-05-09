@@ -215,13 +215,13 @@ const InstanceFormModal = memo<{
         </Flexbox>
         <Flexbox horizontal gap={12}>
           <Form.Item
+            label={t('admin.newapi.field.groupKey', '分组 Key')}
+            name="groupKey"
+            style={{ flex: 1 }}
             extra={t(
               'admin.newapi.field.groupKeyHint',
               '用于套餐授权和分组计费；未区分时使用 default。',
             )}
-            label={t('admin.newapi.field.groupKey', '分组 Key')}
-            name="groupKey"
-            style={{ flex: 1 }}
           >
             <Input placeholder="default / basic / pro" />
           </Form.Item>
@@ -242,12 +242,12 @@ const InstanceFormModal = memo<{
           </Form.Item>
         </Flexbox>
         <Form.Item
+          label={t('admin.newapi.field.usageScope', '用途范围')}
+          name="usageScope"
           extra={t(
             'admin.newapi.field.usageScopeHint',
             '为空表示不限用途；填写后该实例只承接选中的模型类型。',
           )}
-          label={t('admin.newapi.field.usageScope', '用途范围')}
-          name="usageScope"
         >
           <Select
             allowClear

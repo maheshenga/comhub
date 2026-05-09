@@ -422,7 +422,6 @@ export class CommercialModel {
       case 'lifetime': {
         return null;
       }
-      case 'monthly':
       default: {
         return 1;
       }
@@ -1337,7 +1336,6 @@ export class CommercialModel {
           renewsAt: null,
         };
       }
-      case 'monthly':
       default: {
         return {
           currency: preset.currency,
