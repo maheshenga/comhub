@@ -67,6 +67,33 @@ describe('NewAPI catalog sync', () => {
     expect(rows[0]).toEqual(expect.objectContaining({ enabled: true, modelType: 'video' }));
   });
 
+  it('preserves upstream group and pricing metadata during sync', () => {
+    const rows = normalizeNewapiSyncRows({
+      existingRows: [],
+      models: [{ id: 'gpt-4o', object: 'model' }],
+      pricing: [
+        {
+          completion_ratio: 3,
+          description: 'GPT 4o Pro',
+          enable_groups: ['pro', 'vip'],
+          model_name: 'gpt-4o',
+          model_ratio: 15,
+          quota_type: 0,
+          supported_endpoint_types: ['chat_completions'],
+        },
+      ],
+    });
+
+    expect(rows[0].metadata).toMatchObject({
+      completionRatio: 3,
+      enableGroups: ['pro', 'vip'],
+      modelRatio: 15,
+      pricingAvailable: true,
+      quotaType: 0,
+      supportedEndpointTypes: ['chat_completions'],
+    });
+  });
+
   it('treats non-json pricing responses as unavailable', async () => {
     vi.stubGlobal(
       'fetch',

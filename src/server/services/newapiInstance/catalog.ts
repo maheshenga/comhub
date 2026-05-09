@@ -12,8 +12,13 @@ export interface NewapiRemoteModel {
 }
 
 export interface NewapiRemotePricing {
+  completion_ratio?: number;
   description?: string;
+  enable_groups?: string[];
   model_name: string;
+  model_price?: number;
+  model_ratio?: number;
+  quota_type?: number;
   supported_endpoint_types?: string[];
 }
 
@@ -120,7 +125,12 @@ export const normalizeNewapiSyncRows = ({
           created: model.created,
           object: model.object,
           ownedBy: model.owned_by,
+          completionRatio: pricingItem?.completion_ratio,
+          enableGroups: pricingItem?.enable_groups,
+          modelPrice: pricingItem?.model_price,
+          modelRatio: pricingItem?.model_ratio,
           pricingAvailable: Boolean(pricingItem),
+          quotaType: pricingItem?.quota_type,
           supportedEndpointTypes: [
             ...(model.supported_endpoint_types ?? []),
             ...(pricingItem?.supported_endpoint_types ?? []),
