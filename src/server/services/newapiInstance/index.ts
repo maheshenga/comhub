@@ -1,5 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm';
 
+import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
 import { adminNewapiInstanceModels, adminNewapiInstances } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 
@@ -16,6 +17,9 @@ export type NewapiModelType =
 export interface ResolvedNewapiInstance {
   apiKey: string;
   baseUrl: string;
+  groupKey: string;
+  groupMultiplier?: number | null;
+  groupName?: string | null;
   instanceId: string;
   instanceName: string;
   priority: number;
@@ -29,9 +33,13 @@ interface InstanceRowCache {
   apiKey: string;
   baseUrl: string;
   enabled: boolean;
+  groupKey: string;
+  groupMultiplier?: number | null;
+  groupName?: string | null;
   id: string;
   name: string;
   priority: number;
+  usageScope?: NewapiModelType[] | null;
 }
 
 const readEnabledInstances = async (db: LobeChatDatabase): Promise<InstanceRowCache[]> => {
@@ -42,9 +50,13 @@ const readEnabledInstances = async (db: LobeChatDatabase): Promise<InstanceRowCa
         apiKey: adminNewapiInstances.apiKey,
         baseUrl: adminNewapiInstances.baseUrl,
         enabled: adminNewapiInstances.enabled,
+        groupKey: adminNewapiInstances.groupKey,
+        groupMultiplier: adminNewapiInstances.groupMultiplier,
+        groupName: adminNewapiInstances.groupName,
         id: adminNewapiInstances.id,
         name: adminNewapiInstances.name,
         priority: adminNewapiInstances.priority,
+        usageScope: adminNewapiInstances.usageScope,
       })
       .from(adminNewapiInstances)
       .where(eq(adminNewapiInstances.enabled, true))
@@ -61,6 +73,42 @@ export const invalidateNewapiInstancesCache = () => {
   cache = null;
 };
 
+interface ResolveNewapiInstancesParams {
+  modelId?: string | null;
+  modelType?: NewapiModelType;
+  preferredGroupKey?: string | null;
+  userId?: string;
+}
+
+interface NewapiRouteRow {
+  apiKey: string;
+  baseUrl: string;
+  groupKey?: string | null;
+  groupMultiplier?: number | null;
+  groupName?: string | null;
+  id: string;
+  name: string;
+  priority: number;
+  usageScope?: NewapiModelType[] | null;
+}
+
+const toResolvedInstance = (row: NewapiRouteRow): ResolvedNewapiInstance => ({
+  apiKey: row.apiKey,
+  baseUrl: row.baseUrl,
+  groupKey: row.groupKey || 'default',
+  groupMultiplier: row.groupMultiplier,
+  groupName: row.groupName,
+  instanceId: row.id,
+  instanceName: row.name,
+  priority: row.priority,
+  source: 'instance',
+});
+
+const usageScopeAllows = (
+  usageScope: NewapiModelType[] | null | undefined,
+  modelType: NewapiModelType,
+) => !Array.isArray(usageScope) || usageScope.length === 0 || usageScope.includes(modelType);
+
 /**
  * Resolve the NewAPI instances that can serve a given model.
  *
@@ -69,19 +117,29 @@ export const invalidateNewapiInstancesCache = () => {
  */
 export const resolveNewapiInstancesForModel = async (
   db: LobeChatDatabase,
-  modelId: string | undefined | null,
-  modelType: NewapiModelType = 'chat',
+  modelIdOrParams: string | undefined | null | ResolveNewapiInstancesParams,
+  legacyModelType: NewapiModelType = 'chat',
 ): Promise<ResolvedNewapiInstance[]> => {
-  const trimmedModel = modelId?.trim();
+  const params =
+    typeof modelIdOrParams === 'object' && modelIdOrParams !== null
+      ? modelIdOrParams
+      : { modelId: modelIdOrParams, modelType: legacyModelType };
+  const modelType = params.modelType ?? 'chat';
+  const preferredGroupKey = params.preferredGroupKey?.trim();
+  const trimmedModel = params.modelId?.trim();
 
   if (trimmedModel) {
-    const rows = await db
+    const rows: NewapiRouteRow[] = await db
       .select({
         apiKey: adminNewapiInstances.apiKey,
         baseUrl: adminNewapiInstances.baseUrl,
+        groupKey: adminNewapiInstances.groupKey,
+        groupMultiplier: adminNewapiInstances.groupMultiplier,
+        groupName: adminNewapiInstances.groupName,
         id: adminNewapiInstances.id,
         name: adminNewapiInstances.name,
         priority: adminNewapiInstances.priority,
+        usageScope: adminNewapiInstances.usageScope,
       })
       .from(adminNewapiInstanceModels)
       .innerJoin(
@@ -99,14 +157,22 @@ export const resolveNewapiInstancesForModel = async (
       .orderBy(asc(adminNewapiInstances.priority));
 
     if (rows.length > 0) {
-      return rows.map((r) => ({
-        apiKey: r.apiKey,
-        baseUrl: r.baseUrl,
-        instanceId: r.id,
-        instanceName: r.name,
-        priority: r.priority,
-        source: 'instance' as const,
-      }));
+      const rules = params.userId
+        ? await resolvePlanModelRules({ db, userId: params.userId })
+        : null;
+
+      const allowedRows = rows.filter((row) => {
+        const groupKey = row.groupKey || 'default';
+        if (preferredGroupKey && groupKey !== preferredGroupKey) return false;
+        if (!usageScopeAllows(row.usageScope, modelType)) return false;
+
+        return isModelAllowedByPlanRules(rules, trimmedModel, modelType, groupKey);
+      });
+
+      const selectedGroupKey = preferredGroupKey || allowedRows[0]?.groupKey || 'default';
+      return allowedRows
+        .filter((row) => (row.groupKey || 'default') === selectedGroupKey)
+        .map(toResolvedInstance);
     }
   }
 
@@ -122,15 +188,8 @@ export const resolveDefaultNewapiInstance = async (
 ): Promise<ResolvedNewapiInstance | null> => {
   const rows = await readEnabledInstances(db);
   if (rows.length > 0) {
-    const r = rows[0];
-    return {
-      apiKey: r.apiKey,
-      baseUrl: r.baseUrl,
-      instanceId: r.id,
-      instanceName: r.name,
-      priority: r.priority,
-      source: 'instance',
-    };
+    const r = rows.find((row) => (row.groupKey || 'default') === 'default') ?? rows[0];
+    return toResolvedInstance(r);
   }
 
   return null;
