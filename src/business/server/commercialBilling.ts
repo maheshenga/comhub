@@ -5,7 +5,7 @@ import { getTextInputUnitRate, getTextOutputUnitRate } from '@lobechat/utils';
 import { type AiProviderModelListItem } from 'model-bank';
 
 import { AiProviderModel } from '@/database/models/aiProvider';
-import { CommercialModel } from '@/database/models/commercial';
+import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
 import { type LobeChatDatabase } from '@/database/type';
 import { getServerGlobalConfig } from '@/server/globalConfig';
@@ -251,10 +251,9 @@ const resolveEffectiveCost = (
     usage.totalOutputTokens ?? (usageType === 'embeddings' ? 0 : (usage.totalTokens ?? 0));
 
   if (inputTokens <= 0 && outputTokens <= 0) {
-    console.warn(
-      '[billing] cost=0 and no token counts for usage record — skipping charge',
-      { usage },
-    );
+    console.warn('[billing] cost=0 and no token counts for usage record — skipping charge', {
+      usage,
+    });
     return null;
   }
 
@@ -263,8 +262,7 @@ const resolveEffectiveCost = (
   const outputRate = getTextOutputUnitRate(modelCard?.pricing);
 
   if (inputRate !== undefined || outputRate !== undefined) {
-    const usdCost =
-      (inputTokens * (inputRate ?? 0) + outputTokens * (outputRate ?? 0)) / 1_000_000;
+    const usdCost = (inputTokens * (inputRate ?? 0) + outputTokens * (outputRate ?? 0)) / 1_000_000;
 
     if (usdCost > 0) {
       return { costSource: 'local-pricing', usdCost };
@@ -327,6 +325,7 @@ export const recordCommercialAiUsage = async ({
   provider,
   referenceId,
   referenceType,
+  routeMetadata,
   title,
   usage,
   usageType,
@@ -338,6 +337,7 @@ export const recordCommercialAiUsage = async ({
   provider: string;
   referenceId: string;
   referenceType: string;
+  routeMetadata?: AiUsageRouteMetadata;
   title?: string;
   usage?: CommercialUsagePayload;
   usageType: CommercialAiUsageType;
@@ -361,6 +361,7 @@ export const recordCommercialAiUsage = async ({
     provider,
     referenceId,
     referenceType,
+    routeMetadata,
     title,
     usage: {
       ...usage,
@@ -380,6 +381,7 @@ export const recordCommercialChatUsage = async ({
   model,
   operationId,
   provider,
+  routeMetadata,
   usage,
   userId,
 }: {
@@ -388,6 +390,7 @@ export const recordCommercialChatUsage = async ({
   model: string;
   operationId?: string;
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   usage?: CommercialUsagePayload;
   userId: string;
 }) => {
@@ -398,6 +401,7 @@ export const recordCommercialChatUsage = async ({
     provider,
     referenceId: messageId,
     referenceType: 'assistant_message',
+    routeMetadata,
     title: 'AI Chat Usage',
     usage,
     usageType: 'chat',

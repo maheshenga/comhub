@@ -218,6 +218,36 @@ describe('recordCommercialChatUsage', () => {
     });
   });
 
+  it('should pass newapi route metadata to final credit consumption', async () => {
+    await recordCommercialChatUsage({
+      db: {} as any,
+      messageId: 'assistant-message-newapi-route-1',
+      model: 'gpt-test',
+      provider: 'newapi',
+      routeMetadata: {
+        groupKey: 'pro',
+        groupMultiplier: 1.5,
+        groupName: 'Pro Group',
+        instanceId: 'instance-pro',
+        instanceName: 'NewAPI Pro',
+      },
+      usage: { cost: 0.25, totalTokens: 100 },
+      userId: 'user-1',
+    });
+
+    expect(mocks.consumeCreditsForAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routeMetadata: {
+          groupKey: 'pro',
+          groupMultiplier: 1.5,
+          groupName: 'Pro Group',
+          instanceId: 'instance-pro',
+          instanceName: 'NewAPI Pro',
+        },
+      }),
+    );
+  });
+
   it('should compute local pricing when gateway cost is missing', async () => {
     await recordCommercialChatUsage({
       db: {} as any,

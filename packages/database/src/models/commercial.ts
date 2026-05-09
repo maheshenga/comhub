@@ -72,9 +72,65 @@ const PRICING_MODEL_RULES_KEY = 'pricing.modelRules';
 
 type AiUsagePricingRule = {
   creditsPerDollar?: number;
+  group?: string;
   model?: string;
   multiplier?: number;
   provider?: string;
+};
+
+export type AiUsageRouteMetadata = {
+  groupKey?: string | null;
+  groupMultiplier?: number | null;
+  groupName?: string | null;
+  instanceId?: string | null;
+  instanceName?: string | null;
+};
+
+export const resolveAiUsagePricing = ({
+  globalMultiplier,
+  groupKey,
+  model,
+  provider,
+  rules,
+}: {
+  globalMultiplier?: number;
+  groupKey?: string | null;
+  model: string;
+  provider: string;
+  rules: AiUsagePricingRule[];
+}) => {
+  const normalizedGroup = groupKey?.trim().toLowerCase();
+  const normalizedModel = model.toLowerCase();
+  const normalizedProvider = provider.toLowerCase();
+  const matchedRule = rules
+    .filter((rule) => {
+      const ruleGroup = rule?.group?.trim().toLowerCase();
+      const ruleModel = rule?.model?.trim().toLowerCase();
+      const ruleProvider = rule?.provider?.trim().toLowerCase();
+      const groupMatched = ruleGroup ? ruleGroup === normalizedGroup : true;
+      const modelMatched = !ruleModel || ruleModel === '*' || ruleModel === normalizedModel;
+      const providerMatched =
+        !ruleProvider || ruleProvider === '*' || ruleProvider === normalizedProvider;
+
+      return groupMatched && modelMatched && providerMatched;
+    })
+    .sort((a, b) => {
+      const score = (rule: AiUsagePricingRule) =>
+        (rule.group ? 4 : 0) +
+        (rule.provider && rule.provider !== '*' ? 2 : 0) +
+        (rule.model && rule.model !== '*' ? 2 : 0) +
+        (Number.isFinite(rule.creditsPerDollar) ? 1 : 0);
+
+      return score(b) - score(a);
+    })[0];
+
+  return {
+    creditsPerDollar: matchedRule?.creditsPerDollar,
+    matchedRule,
+    multiplier:
+      (Number.isFinite(globalMultiplier) ? Number(globalMultiplier) : 1) *
+      (Number.isFinite(matchedRule?.multiplier) ? Number(matchedRule?.multiplier) : 1),
+  };
 };
 
 const DEFAULT_TOP_UP_PACKAGES: TopUpPackageItem[] = [
@@ -326,7 +382,15 @@ export class CommercialModel {
     return Math.ceil(usdCost * creditsPerDollar * multiplier);
   };
 
-  private getAiUsagePricing = async ({ model, provider }: { model: string; provider: string }) => {
+  private getAiUsagePricing = async ({
+    groupKey,
+    model,
+    provider,
+  }: {
+    groupKey?: string | null;
+    model: string;
+    provider: string;
+  }) => {
     try {
       const rows = await this.db.query.appSettings.findMany({
         where: inArray(appSettings.key, [PRICING_CREDIT_MULTIPLIER_KEY, PRICING_MODEL_RULES_KEY]),
@@ -336,36 +400,10 @@ export class CommercialModel {
       const rules = Array.isArray(settings[PRICING_MODEL_RULES_KEY])
         ? (settings[PRICING_MODEL_RULES_KEY] as AiUsagePricingRule[])
         : [];
-      const normalizedModel = model.toLowerCase();
-      const normalizedProvider = provider.toLowerCase();
-      const matchedRule = rules
-        .filter((rule) => {
-          const ruleModel = rule?.model?.trim().toLowerCase();
-          const ruleProvider = rule?.provider?.trim().toLowerCase();
-          const modelMatched = !ruleModel || ruleModel === '*' || ruleModel === normalizedModel;
-          const providerMatched =
-            !ruleProvider || ruleProvider === '*' || ruleProvider === normalizedProvider;
 
-          return modelMatched && providerMatched;
-        })
-        .sort((a, b) => {
-          const score = (rule: AiUsagePricingRule) =>
-            (rule.provider && rule.provider !== '*' ? 2 : 0) +
-            (rule.model && rule.model !== '*' ? 2 : 0) +
-            (Number.isFinite(rule.creditsPerDollar) ? 1 : 0);
-
-          return score(b) - score(a);
-        })[0];
-
-      return {
-        creditsPerDollar: matchedRule?.creditsPerDollar,
-        matchedRule,
-        multiplier:
-          (Number.isFinite(globalMultiplier) ? globalMultiplier : 1) *
-          (Number.isFinite(matchedRule?.multiplier) ? Number(matchedRule?.multiplier) : 1),
-      };
+      return resolveAiUsagePricing({ globalMultiplier, groupKey, model, provider, rules });
     } catch {
-      return { multiplier: 1 };
+      return { creditsPerDollar: undefined, matchedRule: undefined, multiplier: 1 };
     }
   };
 
@@ -799,12 +837,14 @@ export class CommercialModel {
     model,
     operationId,
     provider,
+    routeMetadata,
     usage,
   }: {
     messageId: string;
     model: string;
     operationId?: string;
     provider: string;
+    routeMetadata?: AiUsageRouteMetadata;
     usage?: {
       cost?: number;
       costSource?: string;
@@ -819,6 +859,7 @@ export class CommercialModel {
       provider,
       referenceId: messageId,
       referenceType: 'assistant_message',
+      routeMetadata,
       title: 'AI Chat Usage',
       usage,
       usageType: 'chat',
@@ -831,6 +872,7 @@ export class CommercialModel {
     provider,
     referenceId,
     referenceType,
+    routeMetadata,
     title = 'AI Usage',
     usage,
     usageType,
@@ -840,6 +882,7 @@ export class CommercialModel {
     provider: string;
     referenceId: string;
     referenceType: string;
+    routeMetadata?: AiUsageRouteMetadata;
     title?: string;
     usage?: {
       cost?: number;
@@ -851,7 +894,11 @@ export class CommercialModel {
     usageType: 'chat' | 'embeddings' | 'generate_object';
   }) => {
     const usdCost = usage?.cost ?? 0;
-    const pricing = await this.getAiUsagePricing({ model, provider });
+    const pricing = await this.getAiUsagePricing({
+      groupKey: routeMetadata?.groupKey,
+      model,
+      provider,
+    });
     const amount = this.getChatUsageCreditAmount(usdCost, pricing);
 
     if (amount <= 0) return null;
@@ -912,6 +959,14 @@ export class CommercialModel {
             chargedCredits: amount,
             creditsPerDollar: pricing.creditsPerDollar ?? CREDITS_PER_DOLLAR,
             ...(usage?.costSource ? { costSource: usage.costSource } : {}),
+            ...(routeMetadata?.groupKey ? { groupKey: routeMetadata.groupKey } : {}),
+            ...(routeMetadata?.groupMultiplier === null ||
+            routeMetadata?.groupMultiplier === undefined
+              ? {}
+              : { groupMultiplier: routeMetadata.groupMultiplier }),
+            ...(routeMetadata?.groupName ? { groupName: routeMetadata.groupName } : {}),
+            ...(routeMetadata?.instanceId ? { instanceId: routeMetadata.instanceId } : {}),
+            ...(routeMetadata?.instanceName ? { instanceName: routeMetadata.instanceName } : {}),
             matchedPricingRule: pricing.matchedRule ?? null,
             model,
             operationId,

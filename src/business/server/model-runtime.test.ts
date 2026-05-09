@@ -34,7 +34,12 @@ describe('getBusinessModelRuntimeHooks', () => {
   });
 
   it('should check commercial budget before chat starts', async () => {
-    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi', {
+      groupKey: 'pro',
+      groupName: 'Pro Group',
+      instanceId: 'instance-pro',
+      instanceName: 'NewAPI Pro',
+    });
     const payload = {
       messages: [{ content: 'hello', role: 'user' }],
       model: 'gpt-test',
@@ -52,6 +57,7 @@ describe('getBusinessModelRuntimeHooks', () => {
       db: { id: 'db' },
       model: 'gpt-test',
       modelType: 'chat',
+      groupKey: 'pro',
       userId: 'user-1',
     });
   });
@@ -100,7 +106,14 @@ describe('getBusinessModelRuntimeHooks', () => {
   });
 
   it('should record final chat usage with assistant message metadata', async () => {
-    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
+    const routeMetadata = {
+      groupKey: 'pro',
+      groupMultiplier: 1.5,
+      groupName: 'Pro Group',
+      instanceId: 'instance-pro',
+      instanceName: 'NewAPI Pro',
+    };
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi', routeMetadata);
 
     await hooks?.onChatFinal?.(
       {
@@ -127,6 +140,7 @@ describe('getBusinessModelRuntimeHooks', () => {
       model: 'gpt-test',
       operationId: 'operation-1',
       provider: 'newapi',
+      routeMetadata,
       usage: { cost: 0.25, totalInputTokens: 100, totalOutputTokens: 50, totalTokens: 150 },
       userId: 'user-1',
     });

@@ -1,6 +1,7 @@
 import { type ModelRuntimeHooks } from '@lobechat/model-runtime';
 
 import { getServerDB } from '@/database/core/db-adaptor';
+import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 
 import {
   assertCommercialChatBudget,
@@ -45,34 +46,56 @@ const createEphemeralBillingReferenceId = (usageType: 'embeddings' | 'generate_o
 export function getBusinessModelRuntimeHooks(
   userId: string,
   provider: string,
+  routeMetadata?: AiUsageRouteMetadata,
 ): ModelRuntimeHooks | undefined {
   return {
     beforeChat: async (payload) => {
       const db = await getServerDB();
+      const groupKey = routeMetadata?.groupKey ?? undefined;
       await assertModelPolicyAllowed({ db, model: payload.model, provider, usageType: 'chat' });
-      await assertPlanModelAllowed({ db, model: payload.model, modelType: 'chat', userId });
+      await assertPlanModelAllowed({
+        db,
+        ...(groupKey ? { groupKey } : {}),
+        model: payload.model,
+        modelType: 'chat',
+        userId,
+      });
       await assertCommercialChatBudget({ db, payload, provider, userId });
     },
     beforeEmbeddings: async (payload) => {
       const db = await getServerDB();
+      const groupKey = routeMetadata?.groupKey ?? undefined;
       await assertModelPolicyAllowed({
         db,
         model: payload.model,
         provider,
         usageType: 'embeddings',
       });
-      await assertPlanModelAllowed({ db, model: payload.model, modelType: 'embedding', userId });
+      await assertPlanModelAllowed({
+        db,
+        ...(groupKey ? { groupKey } : {}),
+        model: payload.model,
+        modelType: 'embedding',
+        userId,
+      });
       await assertCommercialMinimumBudget({ db, model: payload.model, provider, userId });
     },
     beforeGenerateObject: async (payload) => {
       const db = await getServerDB();
+      const groupKey = routeMetadata?.groupKey ?? undefined;
       await assertModelPolicyAllowed({
         db,
         model: payload.model,
         provider,
         usageType: 'generate_object',
       });
-      await assertPlanModelAllowed({ db, model: payload.model, modelType: 'chat', userId });
+      await assertPlanModelAllowed({
+        db,
+        ...(groupKey ? { groupKey } : {}),
+        model: payload.model,
+        modelType: 'chat',
+        userId,
+      });
       await assertCommercialChatBudget({ db, payload: payload as any, provider, userId });
     },
     onChatFinal: async (data, { options, payload }) => {
@@ -96,6 +119,7 @@ export function getBusinessModelRuntimeHooks(
         model: payload.model,
         operationId: getStringMetadataValue(metadata, 'operationId'),
         provider,
+        routeMetadata,
         usage: data.usage,
         userId,
       });
@@ -117,6 +141,7 @@ export function getBusinessModelRuntimeHooks(
         provider,
         referenceId,
         referenceType: 'model_runtime_embeddings',
+        routeMetadata,
         title: 'AI Embeddings Usage',
         usage: data.usage,
         usageType: 'embeddings',
@@ -140,6 +165,7 @@ export function getBusinessModelRuntimeHooks(
         provider,
         referenceId,
         referenceType: 'model_runtime_generate_object',
+        routeMetadata,
         title: 'AI Structured Output Usage',
         usage: data.usage,
         usageType: 'generate_object',

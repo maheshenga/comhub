@@ -16,6 +16,7 @@ import { ModelProvider } from 'model-bank';
 
 import { getBusinessModelRuntimeHooks } from '@/business/server/model-runtime';
 import { AiProviderModel } from '@/database/models/aiProvider';
+import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
 import { getLLMConfig } from '@/envs/llm';
 import {
@@ -32,6 +33,9 @@ export { createTraceOptions } from './trace';
 export interface NewapiFailoverInstance {
   apiKey: string;
   baseUrl: string;
+  groupKey?: string | null;
+  groupMultiplier?: number | null;
+  groupName?: string | null;
   instanceId: string;
   instanceName: string;
   priority: number;
@@ -65,6 +69,22 @@ const resolveRuntimeProvider = (provider: string, sdkType?: string): string => {
   if (isBuiltin) return provider;
 
   return sdkType || 'openai';
+};
+
+const toNewapiRouteMetadata = (
+  instance?: Partial<NewapiFailoverInstance> | null,
+): AiUsageRouteMetadata | undefined => {
+  if (!instance) return undefined;
+
+  return {
+    ...(instance.groupKey ? { groupKey: instance.groupKey } : {}),
+    ...(instance.groupMultiplier === null || instance.groupMultiplier === undefined
+      ? {}
+      : { groupMultiplier: instance.groupMultiplier }),
+    ...(instance.groupName ? { groupName: instance.groupName } : {}),
+    ...(instance.instanceId ? { instanceId: instance.instanceId } : {}),
+    ...(instance.instanceName ? { instanceName: instance.instanceName } : {}),
+  };
 };
 
 /**
@@ -184,7 +204,9 @@ const getParamsFromPayload = (provider: string, payload: ClientSecretPayload) =>
     }
 
     case ModelProvider.NewAPI: {
-      return payload.baseURL ? { apiKey: payload.apiKey, baseURL: payload.baseURL } : { apiKey: payload.apiKey };
+      return payload.baseURL
+        ? { apiKey: payload.apiKey, baseURL: payload.baseURL }
+        : { apiKey: payload.apiKey };
     }
 
     case ModelProvider.VertexAI: {
@@ -501,7 +523,11 @@ export const initModelRuntimeFromDB = async (
     // highest-priority enabled instance that has it registered. Otherwise use
     // the default (lowest-priority enabled) instance.
     const resolvedInstances = options?.model
-      ? await resolveNewapiInstancesForModel(db, options.model, options.modelType ?? 'chat')
+      ? await resolveNewapiInstancesForModel(db, {
+          modelId: options.model,
+          modelType: options.modelType ?? 'chat',
+          userId,
+        })
       : await resolveDefaultNewapiInstance(db).then((r) => (r ? [r] : []));
 
     const primary = resolvedInstances[0];
@@ -514,7 +540,7 @@ export const initModelRuntimeFromDB = async (
     const fallbackInstances = resolvedInstances.slice(1);
 
     // 4. Get business hooks (billing in cloud, undefined in OSS)
-    const hooks = getBusinessModelRuntimeHooks(userId, provider);
+    const hooks = getBusinessModelRuntimeHooks(userId, provider, toNewapiRouteMetadata(primary));
 
     // 5. Initialize ModelRuntime with the payload and hooks
     const runtime = await initModelRuntimeWithUserPayload(provider, payload, { userId }, hooks);
@@ -522,13 +548,7 @@ export const initModelRuntimeFromDB = async (
     // 6. Wire up NewAPI failover: if the primary instance returns a retriable
     //    error (5xx / network), automatically retry with the next fallback instance.
     if (fallbackInstances.length > 0) {
-      return wrapNewapiRuntimeWithFailover(
-        runtime,
-        provider,
-        payload,
-        fallbackInstances,
-        userId,
-      );
+      return wrapNewapiRuntimeWithFailover(runtime, provider, payload, fallbackInstances, userId);
     }
 
     return runtime;
