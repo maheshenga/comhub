@@ -47,7 +47,10 @@ export class FollowUpActionService {
 
     let raw: unknown;
     try {
-      const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider);
+      const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider, {
+        model,
+        modelType: 'chat',
+      });
       raw = await modelRuntime.generateObject({
         messages: [
           { content: system, role: 'system' as const },

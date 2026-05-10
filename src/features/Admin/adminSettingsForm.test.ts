@@ -58,6 +58,7 @@ describe('adminSettingsForm', () => {
       brandAuthTitle: 'Agent teammates that grow with you',
       brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
       brandLogoUrl: '/logo.png',
+      brandLoadingText: 'Loading',
       brandName: '青柚 AI',
       brandPrimaryColor: '#1677ff',
       brandSlogan: '',
@@ -73,6 +74,11 @@ describe('adminSettingsForm', () => {
       defaultAgentModel: 'gpt-4o-mini',
       defaultAgentName: '青柚助手',
       defaultAgentProvider: 'newapi',
+      defaultImageModel: 'flux-pro',
+      defaultImageProvider: 'newapi',
+      defaultSkillName: 'LobeHub',
+      defaultVideoModel: 'sora-2',
+      defaultVideoProvider: 'newapi',
       desktopDownloadLabel: '',
       desktopDownloadUrl: '',
       helpMenuItems: [],
@@ -88,6 +94,34 @@ describe('adminSettingsForm', () => {
         initial,
       ),
     ).toEqual([{ key: SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' }]);
+  });
+
+  it('includes default image and video models in form values and updates', () => {
+    const initial = buildFormValues({
+      defaultImageModel: 'flux-pro',
+      defaultImageProvider: 'newapi',
+      defaultVideoModel: 'sora-2',
+      defaultVideoProvider: 'newapi',
+    });
+
+    expect(initial.defaultImageModel).toBe('flux-pro');
+    expect(initial.defaultImageProvider).toBe('newapi');
+    expect(initial.defaultVideoModel).toBe('sora-2');
+    expect(initial.defaultVideoProvider).toBe('newapi');
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          defaultImageModel: 'flux-kontext',
+          defaultVideoModel: 'kling-v2',
+        },
+        initial,
+      ),
+    ).toEqual([
+      { key: SETTING_KEYS.defaultImageModel, value: 'flux-kontext' },
+      { key: SETTING_KEYS.defaultVideoModel, value: 'kling-v2' },
+    ]);
   });
 
   it('includes default assistant name and avatar in form values and updates', () => {
@@ -114,6 +148,24 @@ describe('adminSettingsForm', () => {
     ]);
   });
 
+  it('includes default skill name in form values and updates', () => {
+    const initial = buildFormValues({
+      defaultSkillName: 'LobeHub',
+    });
+
+    expect(initial.defaultSkillName).toBe('LobeHub');
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          defaultSkillName: '玄果技能',
+        },
+        initial,
+      ),
+    ).toEqual([{ key: SETTING_KEYS.defaultSkillName, value: '玄果技能' }]);
+  });
+
   it('includes login page title and copyright in brand setting updates', () => {
     const initial = buildFormValues({
       brandAuthTitle: 'Agent teammates that grow with you',
@@ -135,6 +187,28 @@ describe('adminSettingsForm', () => {
     ]);
   });
 
+  it('keeps loading copy separate from login and slogan copy', () => {
+    const initial = buildFormValues({
+      brandAuthTitle: 'Login page copy',
+      brandLoadingText: 'Loading copy',
+      brandSlogan: 'Legacy slogan',
+    });
+
+    expect(initial.brandAuthTitle).toBe('Login page copy');
+    expect(initial.brandLoadingText).toBe('Loading copy');
+    expect(initial.brandSlogan).toBe('Legacy slogan');
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          brandLoadingText: 'Only this appears while loading',
+        },
+        initial,
+      ),
+    ).toEqual([{ key: SETTING_KEYS.brandLoadingText, value: 'Only this appears while loading' }]);
+  });
+
   it('refreshes runtime config and user state when default assistant config changes', () => {
     expect(
       getAdminSettingsRefreshKeys([
@@ -148,7 +222,7 @@ describe('adminSettingsForm', () => {
 
     expect(
       getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.brandName, value: '青柚 AI' }]),
-    ).toEqual([]);
+    ).toEqual(['brand-config']);
   });
 
   it('shares the pricing model rules setting key with matrix-style admin pages', () => {

@@ -19,8 +19,33 @@ export type NewapiInstanceFormValues = {
   groupName?: string;
   name: string;
   priority?: number;
+  providerType?: AdminModelApiProviderType;
   usageScope?: NewapiModelType[];
 };
+
+export type AdminModelApiProviderType =
+  | 'newapi'
+  | 'openai-compatible'
+  | 'openai'
+  | 'deepseek'
+  | 'aliyun';
+
+export const ADMIN_MODEL_API_PROVIDER_TYPES: AdminModelApiProviderType[] = [
+  'newapi',
+  'openai-compatible',
+  'openai',
+  'deepseek',
+  'aliyun',
+];
+
+const DEFAULT_BASE_URL_BY_PROVIDER_TYPE: Partial<Record<AdminModelApiProviderType, string>> = {
+  aliyun: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  deepseek: 'https://api.deepseek.com/v1',
+  openai: 'https://api.openai.com/v1',
+};
+
+export const getDefaultBaseUrlForAdminProviderType = (providerType?: AdminModelApiProviderType) =>
+  providerType ? DEFAULT_BASE_URL_BY_PROVIDER_TYPE[providerType] : undefined;
 
 const cleanText = (value?: string) => {
   const trimmed = value?.trim();
@@ -32,7 +57,10 @@ export const buildNewapiInstancePayload = (
   options: { isEdit?: boolean } = {},
 ) => {
   const apiKey = cleanText(values.apiKey);
-  const groupMultiplier = Number(values.groupMultiplier);
+  const groupMultiplier =
+    values.groupMultiplier === null || values.groupMultiplier === undefined
+      ? undefined
+      : Number(values.groupMultiplier);
   const payload: Record<string, unknown> = {
     baseUrl: values.baseUrl,
     description: cleanText(values.description),
@@ -42,10 +70,11 @@ export const buildNewapiInstancePayload = (
     groupName: cleanText(values.groupName),
     name: values.name,
     priority: Number(values.priority || 0),
+    providerType: values.providerType ?? 'newapi',
     usageScope: values.usageScope ?? [],
   };
 
-  if (Number.isFinite(groupMultiplier)) {
+  if (Number.isFinite(groupMultiplier) && Number(groupMultiplier) > 0) {
     payload.groupMultiplier = groupMultiplier;
   }
 

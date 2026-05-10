@@ -1,9 +1,12 @@
+import { Plans } from '@lobechat/types';
+import { TRPCError } from '@trpc/server';
 import { and, eq, lt } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { normalizeAboutLinksConfig } from '@/const/aboutLinks';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
-import { adminAuditLogs, appSettings, topUpOrders } from '@/database/schemas';
+import { adminAuditLogs, appSettings, planCatalog, topUpOrders } from '@/database/schemas';
+import { type LobeChatDatabase } from '@/database/type';
 import { adminProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
@@ -17,6 +20,8 @@ import {
 import { invalidateServerBrand } from '@/server/services/brand';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
 
+import { isModelAllowedByPlanRules } from '../../planModelRules';
+import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
@@ -37,11 +42,13 @@ const SENSITIVE_KEYS = new Set<string>([
 const BRAND_KEYS = [
   SETTING_KEYS.brandAuthTitle,
   SETTING_KEYS.brandCopyrightText,
+  SETTING_KEYS.brandLoadingText,
   SETTING_KEYS.brandName,
   SETTING_KEYS.brandLogoUrl,
   SETTING_KEYS.brandFaviconUrl,
   SETTING_KEYS.brandPrimaryColor,
   SETTING_KEYS.brandSlogan,
+  SETTING_KEYS.defaultSkillName,
 ] as const;
 
 const RECOMMENDATION_KEYS = [
@@ -151,6 +158,63 @@ const toBoundedInt = (value: unknown, fallback: number, min: number, max: number
 
 const toString = (value: unknown, fallback = '') =>
   typeof value === 'string' ? value.trim() : fallback;
+
+type AppSettingDraft = Record<string, unknown>;
+type DefaultModelType = 'chat' | 'image' | 'video';
+
+const settingDraftString = (settings: AppSettingDraft, key: string) =>
+  typeof settings[key] === 'string' ? (settings[key] as string).trim() : '';
+
+export const validateDefaultAgentModelUsability = async (
+  db: LobeChatDatabase,
+  settings: AppSettingDraft,
+  options: {
+    modelKey?: string;
+    modelType?: DefaultModelType;
+    providerKey?: string;
+  } = {},
+): Promise<void> => {
+  const modelKey = options.modelKey ?? SETTING_KEYS.defaultAgentModel;
+  const providerKey = options.providerKey ?? SETTING_KEYS.defaultAgentProvider;
+  const modelType = options.modelType ?? 'chat';
+  const provider = settingDraftString(settings, providerKey);
+  const model = settingDraftString(settings, modelKey);
+
+  if (!provider || !model) return;
+
+  if (provider === 'newapi') {
+    const enabledModels = await getAllEnabledModels(db);
+    const matchedModel = enabledModels.find((item) => item.id === model);
+
+    if (!matchedModel) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'DEFAULT_MODEL_NOT_ENABLED',
+      });
+    }
+
+    if (matchedModel.type !== modelType) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'DEFAULT_MODEL_TYPE_MISMATCH',
+      });
+    }
+  }
+
+  const freePlan = await db.query.planCatalog.findFirst({
+    where: eq(planCatalog.plan, Plans.Free),
+  });
+  const modelRules = freePlan?.modelRules;
+
+  if (!modelRules) return;
+
+  if (!isModelAllowedByPlanRules(modelRules, model, modelType)) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN',
+    });
+  }
+};
 
 const readPublicRecommendations = async (db: any) => {
   const [
@@ -308,15 +372,28 @@ export const adminSettingsRouter = router({
    * Only non-sensitive keys are exposed.
    */
   getPublicBrand: publicDbProcedure.query(async ({ ctx }) => {
-    const [name, logo, favicon, primary, slogan, authTitle, copyrightText] = await Promise.all([
+    const [
+      name,
+      logo,
+      favicon,
+      primary,
+      slogan,
+      loadingText,
+      authTitle,
+      copyrightText,
+      defaultSkillName,
+    ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.brandName),
       readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandFaviconUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandPrimaryColor),
       readSetting(ctx.serverDB, SETTING_KEYS.brandSlogan),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingText),
       readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
+      readSetting(ctx.serverDB, SETTING_KEYS.defaultSkillName),
     ]);
+    const brandName = typeof name === 'string' ? name : DEFAULT_RUNTIME_BRAND.name;
     return {
       authTitle:
         typeof authTitle === 'string' && authTitle.trim()
@@ -326,11 +403,20 @@ export const adminSettingsRouter = router({
         typeof copyrightText === 'string' && copyrightText.trim()
           ? copyrightText
           : DEFAULT_RUNTIME_BRAND.copyrightText,
+      defaultSkillName:
+        typeof defaultSkillName === 'string' && defaultSkillName.trim()
+          ? defaultSkillName
+          : brandName,
       faviconUrl: typeof favicon === 'string' ? favicon : null,
+      loadingText:
+        typeof loadingText === 'string' && loadingText.trim()
+          ? loadingText
+          : DEFAULT_RUNTIME_BRAND.loadingText,
       logoUrl: typeof logo === 'string' ? logo : DEFAULT_RUNTIME_BRAND.logoUrl,
-      name: typeof name === 'string' ? name : DEFAULT_RUNTIME_BRAND.name,
+      name: brandName,
       primaryColor: typeof primary === 'string' ? primary : DEFAULT_RUNTIME_BRAND.primaryColor,
-      slogan: typeof slogan === 'string' ? slogan : null,
+      slogan:
+        typeof slogan === 'string' && slogan.trim() ? slogan : DEFAULT_RUNTIME_BRAND.authTitle,
     };
   }),
 
@@ -385,12 +471,18 @@ export const adminSettingsRouter = router({
       brandFavicon,
       brandPrimary,
       brandSlogan,
+      brandLoadingText,
       brandAuthTitle,
       brandCopyrightText,
       defaultAgentModel,
       defaultAgentName,
       defaultAgentAvatar,
       defaultAgentProvider,
+      defaultImageModel,
+      defaultImageProvider,
+      defaultSkillName,
+      defaultVideoModel,
+      defaultVideoProvider,
       recommendationConfig,
       pricingCreditMultiplier,
       pricingModelRules,
@@ -423,12 +515,18 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.brandFaviconUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandPrimaryColor),
       readSetting(ctx.serverDB, SETTING_KEYS.brandSlogan),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingText),
       readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentModel),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentName),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentAvatar),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentProvider),
+      readSetting(ctx.serverDB, SETTING_KEYS.defaultImageModel),
+      readSetting(ctx.serverDB, SETTING_KEYS.defaultImageProvider),
+      readSetting(ctx.serverDB, SETTING_KEYS.defaultSkillName),
+      readSetting(ctx.serverDB, SETTING_KEYS.defaultVideoModel),
+      readSetting(ctx.serverDB, SETTING_KEYS.defaultVideoProvider),
       readPublicRecommendations(ctx.serverDB),
       readSetting(ctx.serverDB, SETTING_KEYS.pricingCreditMultiplier),
       readSetting(ctx.serverDB, SETTING_KEYS.pricingModelRules),
@@ -484,7 +582,14 @@ export const adminSettingsRouter = router({
       brandName: typeof brandName === 'string' ? brandName : DEFAULT_RUNTIME_BRAND.name,
       brandPrimaryColor:
         typeof brandPrimary === 'string' ? brandPrimary : DEFAULT_RUNTIME_BRAND.primaryColor,
-      brandSlogan: typeof brandSlogan === 'string' ? brandSlogan : '',
+      brandSlogan:
+        typeof brandSlogan === 'string' && brandSlogan.trim()
+          ? brandSlogan
+          : DEFAULT_RUNTIME_BRAND.authTitle,
+      brandLoadingText:
+        typeof brandLoadingText === 'string' && brandLoadingText.trim()
+          ? brandLoadingText
+          : DEFAULT_RUNTIME_BRAND.loadingText,
       cronAuditRetentionDays: typeof auditDays === 'number' ? auditDays : 365,
       cronPendingOrderExpiryDays: typeof pendingDays === 'number' ? pendingDays : 7,
       cronSecretConfigured: Boolean(dbCronSecret ?? process.env.CRON_SECRET),
@@ -493,6 +598,16 @@ export const adminSettingsRouter = router({
       defaultAgentModel: currentDefaultModel || '',
       defaultAgentName: currentDefaultName || '青柚助手',
       defaultAgentProvider: currentDefaultProvider || '',
+      defaultImageModel: typeof defaultImageModel === 'string' ? defaultImageModel : '',
+      defaultImageProvider: typeof defaultImageProvider === 'string' ? defaultImageProvider : '',
+      defaultSkillName:
+        typeof defaultSkillName === 'string' && defaultSkillName.trim()
+          ? defaultSkillName
+          : typeof brandName === 'string' && brandName.trim()
+            ? brandName
+            : DEFAULT_RUNTIME_BRAND.name,
+      defaultVideoModel: typeof defaultVideoModel === 'string' ? defaultVideoModel : '',
+      defaultVideoProvider: typeof defaultVideoProvider === 'string' ? defaultVideoProvider : '',
       defaultModelSuggestions,
       enabledNewapiModels: enabledNewapiModels.map((item) => ({
         displayName: item.displayName,
@@ -541,6 +656,44 @@ export const adminSettingsRouter = router({
     };
   }),
 
+  validateDefaultAgentSettings: adminProcedure
+    .input(
+      z.object({
+        model: z.string().optional(),
+        modelType: z.enum(['chat', 'image', 'video']).optional(),
+        provider: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const modelType = input.modelType ?? 'chat';
+      const keys =
+        modelType === 'image'
+          ? {
+              modelKey: SETTING_KEYS.defaultImageModel,
+              providerKey: SETTING_KEYS.defaultImageProvider,
+            }
+          : modelType === 'video'
+            ? {
+                modelKey: SETTING_KEYS.defaultVideoModel,
+                providerKey: SETTING_KEYS.defaultVideoProvider,
+              }
+            : {
+                modelKey: SETTING_KEYS.defaultAgentModel,
+                providerKey: SETTING_KEYS.defaultAgentProvider,
+              };
+
+      await validateDefaultAgentModelUsability(
+        ctx.serverDB,
+        {
+          [keys.modelKey]: toString(input.model),
+          [keys.providerKey]: toString(input.provider),
+        },
+        { ...keys, modelType },
+      );
+
+      return { ok: true };
+    }),
+
   setAppSetting: adminProcedure
     .input(
       z.object({
@@ -549,6 +702,11 @@ export const adminSettingsRouter = router({
           SETTING_KEYS.defaultAgentName,
           SETTING_KEYS.defaultAgentAvatar,
           SETTING_KEYS.defaultAgentProvider,
+          SETTING_KEYS.defaultImageModel,
+          SETTING_KEYS.defaultImageProvider,
+          SETTING_KEYS.defaultSkillName,
+          SETTING_KEYS.defaultVideoModel,
+          SETTING_KEYS.defaultVideoProvider,
           SETTING_KEYS.referralRewardCredits,
           SETTING_KEYS.cronSecret,
           SETTING_KEYS.cronAuditRetentionDays,
@@ -590,6 +748,15 @@ export const adminSettingsRouter = router({
       } else if (input.key === SETTING_KEYS.defaultAgentAvatar) {
         value = typeof value === 'string' ? value.trim() : '';
       } else if (input.key === SETTING_KEYS.defaultAgentProvider) {
+        value = typeof value === 'string' ? value.trim() : '';
+      } else if (
+        input.key === SETTING_KEYS.defaultImageModel ||
+        input.key === SETTING_KEYS.defaultImageProvider ||
+        input.key === SETTING_KEYS.defaultVideoModel ||
+        input.key === SETTING_KEYS.defaultVideoProvider
+      ) {
+        value = typeof value === 'string' ? value.trim() : '';
+      } else if (input.key === SETTING_KEYS.defaultSkillName) {
         value = typeof value === 'string' ? value.trim() : '';
       } else if (input.key === SETTING_KEYS.pricingCreditMultiplier) {
         const n = Number(value);
@@ -710,6 +877,50 @@ export const adminSettingsRouter = router({
         }
       }
 
+      if (
+        input.key === SETTING_KEYS.defaultAgentModel ||
+        input.key === SETTING_KEYS.defaultAgentProvider ||
+        input.key === SETTING_KEYS.defaultImageModel ||
+        input.key === SETTING_KEYS.defaultImageProvider ||
+        input.key === SETTING_KEYS.defaultVideoModel ||
+        input.key === SETTING_KEYS.defaultVideoProvider
+      ) {
+        const target =
+          input.key === SETTING_KEYS.defaultImageModel ||
+          input.key === SETTING_KEYS.defaultImageProvider
+            ? {
+                modelKey: SETTING_KEYS.defaultImageModel,
+                modelType: 'image' as const,
+                providerKey: SETTING_KEYS.defaultImageProvider,
+              }
+            : input.key === SETTING_KEYS.defaultVideoModel ||
+                input.key === SETTING_KEYS.defaultVideoProvider
+              ? {
+                  modelKey: SETTING_KEYS.defaultVideoModel,
+                  modelType: 'video' as const,
+                  providerKey: SETTING_KEYS.defaultVideoProvider,
+                }
+              : {
+                  modelKey: SETTING_KEYS.defaultAgentModel,
+                  modelType: 'chat' as const,
+                  providerKey: SETTING_KEYS.defaultAgentProvider,
+                };
+        const [currentModel, currentProvider] = await Promise.all([
+          readSetting(ctx.serverDB, target.modelKey),
+          readSetting(ctx.serverDB, target.providerKey),
+        ]);
+
+        await validateDefaultAgentModelUsability(
+          ctx.serverDB,
+          {
+            [target.modelKey]: toString(currentModel),
+            [target.providerKey]: toString(currentProvider),
+            [input.key]: value,
+          },
+          target,
+        );
+      }
+
       await ctx.serverDB
         .insert(appSettings)
         .values({ key: input.key, value: value as any })
@@ -761,8 +972,10 @@ export const adminSettingsRouter = router({
       const result: {
         auditCutoff?: string;
         auditLogsDeleted?: number;
+        freeSnapshotsCreated?: number;
         pendingOrdersCutoff?: string;
         pendingOrdersExpired?: number;
+        subscriptionSnapshotsExpired?: number;
       } = {};
 
       if (!opts.skipAudit) {
@@ -795,6 +1008,10 @@ export const adminSettingsRouter = router({
         result.pendingOrdersCutoff = cutoff.toISOString();
         result.pendingOrdersExpired = expired.length;
       }
+
+      const subscriptionResult = await syncExpiredSubscriptionsToFree(ctx.serverDB);
+      result.subscriptionSnapshotsExpired = subscriptionResult.expiredSnapshots;
+      result.freeSnapshotsCreated = subscriptionResult.freeSnapshotsCreated;
 
       await recordAdminAudit(ctx, {
         action: 'maintenance.run',

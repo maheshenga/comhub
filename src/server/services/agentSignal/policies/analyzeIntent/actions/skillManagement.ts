@@ -890,6 +890,10 @@ class SkillManagementDecisionAgentService {
       this.db,
       this.userId,
       this.modelConfig.provider,
+      {
+        model: this.modelConfig.model,
+        modelType: 'chat',
+      },
     );
     const candidateSkills =
       input.candidateSkills ??
@@ -939,6 +943,10 @@ class SkillMaintainerWorkflowAgentService {
       this.db,
       this.userId,
       this.modelConfig.provider,
+      {
+        model: this.modelConfig.model,
+        modelType: 'chat',
+      },
     );
     const isRefine = input.type === 'refine';
     const content = isRefine

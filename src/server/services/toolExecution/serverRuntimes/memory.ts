@@ -90,6 +90,10 @@ const getEmbeddingRuntime = async (serverDB: LobeChatDatabase, userId: string) =
     serverDB,
     userId,
     ENABLE_BUSINESS_FEATURES ? BRANDING_PROVIDER : provider,
+    {
+      model: embeddingModel,
+      modelType: 'embedding',
+    },
   );
 
   return { agentRuntime, embeddingModel };
@@ -195,7 +199,10 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
     const { provider, model: embeddingModel } =
       getServerDefaultFilesConfig().embeddingModel || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
 
-    const modelRuntime = await initModelRuntimeFromDB(this.serverDB, this.userId, provider);
+    const modelRuntime = await initModelRuntimeFromDB(this.serverDB, this.userId, provider, {
+      model: embeddingModel,
+      modelType: 'embedding',
+    });
     const normalizedQueries = [
       ...new Set((normalizedParams.queries ?? []).map((query) => query.trim()).filter(Boolean)),
     ];

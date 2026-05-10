@@ -14,6 +14,7 @@ export const APP_SETTING_KEYS = {
   brandFaviconUrl: 'brand.faviconUrl',
   brandAuthTitle: 'brand.authTitle',
   brandCopyrightText: 'brand.copyrightText',
+  brandLoadingText: 'brand.loadingText',
   brandLogoUrl: 'brand.logoUrl',
   brandName: 'brand.name',
   brandPrimaryColor: 'brand.primaryColor',
@@ -41,6 +42,11 @@ export const APP_SETTING_KEYS = {
   defaultAgentModel: 'defaultAgent.model',
   defaultAgentName: 'defaultAgent.name',
   defaultAgentProvider: 'defaultAgent.provider',
+  defaultImageModel: 'defaultImage.model',
+  defaultImageProvider: 'defaultImage.provider',
+  defaultSkillName: 'defaultSkill.name',
+  defaultVideoModel: 'defaultVideo.model',
+  defaultVideoProvider: 'defaultVideo.provider',
   desktopDownloadLabel: 'desktop.download.label',
   desktopDownloadUrl: 'desktop.download.url',
   desktopOssAccessKeyId: 'desktop.oss.accessKeyId',
@@ -90,6 +96,10 @@ const CACHED_KEYS = [
   APP_SETTING_KEYS.defaultAgentModel,
   APP_SETTING_KEYS.defaultAgentName,
   APP_SETTING_KEYS.defaultAgentProvider,
+  APP_SETTING_KEYS.defaultImageModel,
+  APP_SETTING_KEYS.defaultImageProvider,
+  APP_SETTING_KEYS.defaultVideoModel,
+  APP_SETTING_KEYS.defaultVideoProvider,
   APP_SETTING_KEYS.modelPolicyAllowlist,
   APP_SETTING_KEYS.modelPolicyApplyToEmbeddings,
   APP_SETTING_KEYS.modelPolicyApplyToGenerateObject,
@@ -98,6 +108,8 @@ const CACHED_KEYS = [
   APP_SETTING_KEYS.modelPolicyDeniedMessage,
   APP_SETTING_KEYS.modelPolicyEnabled,
   APP_SETTING_KEYS.modelPolicyMode,
+  APP_SETTING_KEYS.pricingCreditMultiplier,
+  APP_SETTING_KEYS.pricingModelRules,
 ] as const;
 
 const TTL_MS = 30_000;
@@ -183,6 +195,43 @@ export const getServerDefaultAgentSettingOverrides = async (
     ...(model ? { model } : {}),
     ...(provider ? { provider } : {}),
     ...(title ? { title } : {}),
+  };
+};
+
+export const getServerDefaultGenerationModelSettingOverrides = async (
+  db?: LobeChatDatabase,
+): Promise<{
+  image?: { model?: string; provider?: string };
+  video?: { model?: string; provider?: string };
+}> => {
+  const [rawImageModel, rawImageProvider, rawVideoModel, rawVideoProvider] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.defaultImageModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.defaultImageProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.defaultVideoModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.defaultVideoProvider, db),
+  ]);
+  const imageModel = normalizeString(rawImageModel);
+  const imageProvider = normalizeString(rawImageProvider);
+  const videoModel = normalizeString(rawVideoModel);
+  const videoProvider = normalizeString(rawVideoProvider);
+
+  return {
+    ...(imageModel || imageProvider
+      ? {
+          image: {
+            ...(imageModel ? { model: imageModel } : {}),
+            ...(imageProvider ? { provider: imageProvider } : {}),
+          },
+        }
+      : {}),
+    ...(videoModel || videoProvider
+      ? {
+          video: {
+            ...(videoModel ? { model: videoModel } : {}),
+            ...(videoProvider ? { provider: videoProvider } : {}),
+          },
+        }
+      : {}),
   };
 };
 

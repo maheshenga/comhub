@@ -4,6 +4,8 @@ import {
   buildMatrixRows,
   buildPlanModelRulesFromRows,
   buildPricingRulesFromRows,
+  findFreePlanDefaultModelConflict,
+  getDefaultModelHealth,
   togglePlanAccess,
 } from './adminModelBillingMatrix';
 
@@ -43,6 +45,9 @@ describe('adminModelBillingMatrix', () => {
   it('deduplicates models and marks default/pricing/plan access', () => {
     const rows = buildMatrixRows({
       defaultModel: 'deepseek-chat',
+      defaultModelsByType: {
+        image: { model: 'flux-kontext', provider: 'newapi' },
+      },
       defaultProvider: 'newapi',
       models,
       plans,
@@ -53,7 +58,7 @@ describe('adminModelBillingMatrix', () => {
       pricingRules: [{ model: 'deepseek-chat', multiplier: 0.8, provider: 'newapi' }],
     });
 
-    expect(rows).toEqual([
+    expect(rows).toMatchObject([
       {
         creditsPerDollar: undefined,
         displayName: 'DeepSeek Chat',
@@ -70,7 +75,7 @@ describe('adminModelBillingMatrix', () => {
         creditsPerDollar: undefined,
         displayName: 'flux-kontext',
         instanceNames: ['图像网关'],
-        isDefault: false,
+        isDefault: true,
         key: 'newapi:image:flux-kontext',
         modelId: 'flux-kontext',
         modelType: 'image',
@@ -199,5 +204,225 @@ describe('adminModelBillingMatrix', () => {
         provider: 'newapi',
       },
     ]);
+  });
+
+  it('matches and serializes provider-type and single-instance pricing rules', () => {
+    const rows = buildMatrixRows({
+      models: [
+        {
+          displayName: 'DeepSeek Chat',
+          groupKey: 'pro',
+          groupName: 'Pro Group',
+          instanceId: 'inst-deepseek',
+          instanceName: 'DeepSeek Gateway',
+          modelId: 'deepseek-chat',
+          modelType: 'chat',
+          priority: 0,
+          providerType: 'deepseek',
+        },
+      ],
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [
+        {
+          instanceId: 'inst-deepseek',
+          model: 'deepseek-chat',
+          multiplier: 1.8,
+          provider: 'newapi',
+          providerType: 'deepseek',
+        },
+      ],
+    });
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        instanceIds: ['inst-deepseek'],
+        pricingMultiplier: 1.8,
+        providerType: 'deepseek',
+        providerTypes: ['deepseek'],
+      }),
+    );
+    expect(buildPricingRulesFromRows(rows)).toEqual([
+      {
+        group: 'pro',
+        instanceId: 'inst-deepseek',
+        model: 'deepseek-chat',
+        multiplier: 1.8,
+        provider: 'newapi',
+        providerType: 'deepseek',
+      },
+    ]);
+  });
+
+  it('detects when the current default chat model is disabled for the Free plan', () => {
+    const rows = buildMatrixRows({
+      defaultModel: 'deepseek-chat',
+      defaultProvider: 'newapi',
+      models,
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [],
+    });
+    const nextRows = togglePlanAccess(rows, 'newapi:chat:deepseek-chat', 'free', false);
+
+    expect(findFreePlanDefaultModelConflict(nextRows)).toEqual({
+      displayName: 'DeepSeek Chat',
+      modelId: 'deepseek-chat',
+      modelType: 'chat',
+      provider: 'newapi',
+    });
+  });
+
+  it('does not report a default conflict when at least one matching group is available to Free', () => {
+    const rows = buildMatrixRows({
+      defaultModel: 'gpt-4o-mini',
+      defaultProvider: 'newapi',
+      models: [
+        {
+          displayName: 'GPT Basic',
+          groupKey: 'basic',
+          groupName: 'Basic Group',
+          instanceId: 'inst-basic',
+          instanceName: 'Basic Gateway',
+          modelId: 'gpt-4o-mini',
+          modelType: 'chat',
+          priority: 0,
+        },
+        {
+          displayName: 'GPT Pro',
+          groupKey: 'pro',
+          groupName: 'Pro Group',
+          instanceId: 'inst-pro',
+          instanceName: 'Pro Gateway',
+          modelId: 'gpt-4o-mini',
+          modelType: 'chat',
+          priority: 0,
+        },
+      ],
+      plans,
+      planRulesByPlan: {
+        free: { chat: { allowlist: ['basic:gpt-4o-mini'], mode: 'allowlist' } },
+      },
+      pricingRules: [],
+    });
+
+    expect(findFreePlanDefaultModelConflict(rows)).toBeNull();
+    expect(
+      getDefaultModelHealth(rows, {
+        chat: { model: 'gpt-4o-mini', provider: 'newapi' },
+      }).chat,
+    ).toEqual(
+      expect.objectContaining({
+        model: 'gpt-4o-mini',
+        status: 'ok',
+      }),
+    );
+  });
+
+  it('detects when the current default image model is disabled for the Free plan', () => {
+    const rows = buildMatrixRows({
+      defaultModelsByType: {
+        image: { model: 'flux-kontext', provider: 'newapi' },
+      },
+      models,
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [],
+    });
+    const nextRows = togglePlanAccess(rows, 'newapi:image:flux-kontext', 'free', false);
+
+    expect(findFreePlanDefaultModelConflict(nextRows)).toEqual({
+      displayName: 'flux-kontext',
+      modelId: 'flux-kontext',
+      modelType: 'image',
+      provider: 'newapi',
+    });
+  });
+
+  it('reports default model health for configured chat/image/video defaults', () => {
+    const rows = buildMatrixRows({
+      defaultModel: 'deepseek-chat',
+      defaultModelsByType: {
+        image: { model: 'flux-kontext', provider: 'newapi' },
+        video: { model: 'veo-3', provider: 'newapi' },
+      },
+      defaultProvider: 'newapi',
+      models: [
+        ...models,
+        {
+          displayName: 'Veo 3',
+          instanceId: 'inst-video',
+          instanceName: 'Video Gateway',
+          modelId: 'veo-3',
+          modelType: 'video' as const,
+          priority: 0,
+        },
+      ],
+      plans,
+      planRulesByPlan: {
+        free: { video: { blocklist: ['veo-3'], mode: 'blocklist' } },
+      },
+      pricingRules: [],
+    });
+
+    expect(
+      getDefaultModelHealth(rows, {
+        chat: { model: 'deepseek-chat', provider: 'newapi' },
+        image: { model: 'flux-kontext', provider: 'newapi' },
+        video: { model: 'veo-3', provider: 'newapi' },
+      }),
+    ).toEqual({
+      chat: expect.objectContaining({
+        displayName: 'DeepSeek Chat',
+        model: 'deepseek-chat',
+        provider: 'newapi',
+        status: 'ok',
+      }),
+      image: expect.objectContaining({
+        displayName: 'flux-kontext',
+        model: 'flux-kontext',
+        provider: 'newapi',
+        status: 'ok',
+      }),
+      video: expect.objectContaining({
+        displayName: 'Veo 3',
+        model: 'veo-3',
+        provider: 'newapi',
+        status: 'denied_by_free_plan',
+      }),
+    });
+  });
+
+  it('reports missing, disabled, and type-mismatched default models', () => {
+    const rows = buildMatrixRows({
+      models,
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [],
+    });
+
+    expect(
+      getDefaultModelHealth(rows, {
+        chat: { model: '', provider: 'newapi' },
+        image: { model: 'deepseek-chat', provider: 'newapi' },
+        video: { model: 'veo-3', provider: 'newapi' },
+      }),
+    ).toEqual({
+      chat: expect.objectContaining({
+        provider: 'newapi',
+        status: 'not_configured',
+      }),
+      image: expect.objectContaining({
+        actualModelType: 'chat',
+        model: 'deepseek-chat',
+        provider: 'newapi',
+        status: 'type_mismatch',
+      }),
+      video: expect.objectContaining({
+        model: 'veo-3',
+        provider: 'newapi',
+        status: 'not_enabled',
+      }),
+    });
   });
 });

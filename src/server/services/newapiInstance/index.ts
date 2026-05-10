@@ -14,6 +14,13 @@ export type NewapiModelType =
   | 'text2music'
   | 'realtime';
 
+export type AdminModelApiProviderType =
+  | 'newapi'
+  | 'openai-compatible'
+  | 'openai'
+  | 'deepseek'
+  | 'aliyun';
+
 export interface ResolvedNewapiInstance {
   apiKey: string;
   baseUrl: string;
@@ -23,6 +30,7 @@ export interface ResolvedNewapiInstance {
   instanceId: string;
   instanceName: string;
   priority: number;
+  providerType: AdminModelApiProviderType;
   source: 'instance';
 }
 
@@ -39,6 +47,7 @@ interface InstanceRowCache {
   id: string;
   name: string;
   priority: number;
+  providerType?: AdminModelApiProviderType | null;
   usageScope?: NewapiModelType[] | null;
 }
 
@@ -56,6 +65,7 @@ const readEnabledInstances = async (db: LobeChatDatabase): Promise<InstanceRowCa
         id: adminNewapiInstances.id,
         name: adminNewapiInstances.name,
         priority: adminNewapiInstances.priority,
+        providerType: adminNewapiInstances.providerType,
         usageScope: adminNewapiInstances.usageScope,
       })
       .from(adminNewapiInstances)
@@ -89,6 +99,7 @@ interface NewapiRouteRow {
   id: string;
   name: string;
   priority: number;
+  providerType?: AdminModelApiProviderType | null;
   usageScope?: NewapiModelType[] | null;
 }
 
@@ -101,6 +112,7 @@ const toResolvedInstance = (row: NewapiRouteRow): ResolvedNewapiInstance => ({
   instanceId: row.id,
   instanceName: row.name,
   priority: row.priority,
+  providerType: row.providerType || 'newapi',
   source: 'instance',
 });
 
@@ -139,6 +151,7 @@ export const resolveNewapiInstancesForModel = async (
         id: adminNewapiInstances.id,
         name: adminNewapiInstances.name,
         priority: adminNewapiInstances.priority,
+        providerType: adminNewapiInstances.providerType,
         usageScope: adminNewapiInstances.usageScope,
       })
       .from(adminNewapiInstanceModels)

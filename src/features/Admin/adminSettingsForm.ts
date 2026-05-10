@@ -10,6 +10,7 @@ export const SETTING_KEYS = {
   brandFaviconUrl: 'brand.faviconUrl',
   brandAuthTitle: 'brand.authTitle',
   brandCopyrightText: 'brand.copyrightText',
+  brandLoadingText: 'brand.loadingText',
   brandLogoUrl: 'brand.logoUrl',
   brandName: 'brand.name',
   brandPrimaryColor: 'brand.primaryColor',
@@ -21,6 +22,11 @@ export const SETTING_KEYS = {
   defaultAgentModel: 'defaultAgent.model',
   defaultAgentName: 'defaultAgent.name',
   defaultAgentProvider: 'defaultAgent.provider',
+  defaultImageModel: 'defaultImage.model',
+  defaultImageProvider: 'defaultImage.provider',
+  defaultSkillName: 'defaultSkill.name',
+  defaultVideoModel: 'defaultVideo.model',
+  defaultVideoProvider: 'defaultVideo.provider',
   desktopDownloadLabel: 'desktop.download.label',
   desktopDownloadUrl: 'desktop.download.url',
   helpMenuItems: 'help.menu.items',
@@ -29,6 +35,7 @@ export const SETTING_KEYS = {
 } as const;
 
 export const ADMIN_SETTINGS_SWR_KEY = ['admin-settings'];
+export const BRAND_CONFIG_SWR_KEY = 'brand-config';
 export const RUNTIME_CONFIG_SWR_KEY = 'FETCH_SERVER_CONFIG';
 export const USER_STATE_SWR_KEY = 'initUserState';
 
@@ -54,6 +61,7 @@ export type AdminSettingsData = {
   brandAuthTitle?: string | null;
   brandCopyrightText?: string | null;
   brandLogoUrl?: string | null;
+  brandLoadingText?: string | null;
   brandName?: string | null;
   brandPrimaryColor?: string | null;
   brandSlogan?: string | null;
@@ -64,6 +72,11 @@ export type AdminSettingsData = {
   defaultAgentModel?: string | null;
   defaultAgentName?: string | null;
   defaultAgentProvider?: string | null;
+  defaultImageModel?: string | null;
+  defaultImageProvider?: string | null;
+  defaultSkillName?: string | null;
+  defaultVideoModel?: string | null;
+  defaultVideoProvider?: string | null;
   defaultModelSuggestions?: string[] | null;
   desktopDownloadLabel?: string | null;
   desktopDownloadUrl?: string | null;
@@ -83,6 +96,7 @@ export type AdminSettingsFormValues = {
   brandAuthTitle: string;
   brandCopyrightText: string;
   brandLogoUrl: string;
+  brandLoadingText: string;
   brandName: string;
   brandPrimaryColor: string;
   brandSlogan: string;
@@ -94,6 +108,11 @@ export type AdminSettingsFormValues = {
   defaultAgentModel: string;
   defaultAgentName: string;
   defaultAgentProvider: string;
+  defaultImageModel: string;
+  defaultImageProvider: string;
+  defaultSkillName: string;
+  defaultVideoModel: string;
+  defaultVideoProvider: string;
   desktopDownloadLabel: string;
   desktopDownloadUrl: string;
   helpMenuItems: HelpMenuItem[];
@@ -107,6 +126,7 @@ export const normalizeText = (value: unknown) => (typeof value === 'string' ? va
 export const buildModelOptions = (data?: {
   defaultModelSuggestions?: string[] | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
+  modelType?: string;
 }): DefaultModelOption[] => {
   const seen = new Set<string>();
   const options: DefaultModelOption[] = [];
@@ -122,6 +142,7 @@ export const buildModelOptions = (data?: {
 
     const name = normalizeText(item.displayName) || model;
     const modelType = normalizeText(item.modelType) || 'chat';
+    if (data?.modelType && modelType !== data.modelType) continue;
     const instanceName = normalizeText(item.instanceName);
 
     options.push({
@@ -132,7 +153,9 @@ export const buildModelOptions = (data?: {
     });
   }
 
-  for (const suggestion of data?.defaultModelSuggestions ?? []) {
+  for (const suggestion of data?.modelType && data.modelType !== 'chat'
+    ? []
+    : (data?.defaultModelSuggestions ?? [])) {
     const model = normalizeText(suggestion);
     if (!model) continue;
 
@@ -168,9 +191,10 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   brandAuthTitle: data?.brandAuthTitle ?? DEFAULT_RUNTIME_BRAND.authTitle,
   brandCopyrightText: data?.brandCopyrightText ?? DEFAULT_RUNTIME_BRAND.copyrightText,
   brandLogoUrl: data?.brandLogoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
+  brandLoadingText: data?.brandLoadingText ?? DEFAULT_RUNTIME_BRAND.loadingText,
   brandName: data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
   brandPrimaryColor: data?.brandPrimaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
-  brandSlogan: data?.brandSlogan ?? '',
+  brandSlogan: data?.brandSlogan ?? DEFAULT_RUNTIME_BRAND.authTitle,
   aboutLinks: normalizeAboutLinksConfig(data?.aboutLinks ?? DEFAULT_ABOUT_LINKS),
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
@@ -179,6 +203,11 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   defaultAgentModel: data?.defaultAgentModel ?? '',
   defaultAgentName: data?.defaultAgentName ?? '青柚助手',
   defaultAgentProvider: data?.defaultAgentProvider ?? '',
+  defaultImageModel: data?.defaultImageModel ?? '',
+  defaultImageProvider: data?.defaultImageProvider ?? '',
+  defaultSkillName: data?.defaultSkillName ?? data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
+  defaultVideoModel: data?.defaultVideoModel ?? '',
+  defaultVideoProvider: data?.defaultVideoProvider ?? '',
   desktopDownloadLabel: data?.desktopDownloadLabel ?? '',
   desktopDownloadUrl: data?.desktopDownloadUrl ?? '',
   helpMenuItems: normalizeHelpMenuItems(data?.helpMenuItems),
@@ -192,6 +221,7 @@ export const normalizeFormValues = (
   brandAuthTitle: normalizeText(values.brandAuthTitle),
   brandCopyrightText: normalizeText(values.brandCopyrightText),
   brandLogoUrl: normalizeText(values.brandLogoUrl),
+  brandLoadingText: normalizeText(values.brandLoadingText),
   brandName: normalizeText(values.brandName),
   brandPrimaryColor: normalizeText(values.brandPrimaryColor),
   brandSlogan: normalizeText(values.brandSlogan),
@@ -205,6 +235,11 @@ export const normalizeFormValues = (
   defaultAgentModel: normalizeText(values.defaultAgentModel),
   defaultAgentName: normalizeText(values.defaultAgentName),
   defaultAgentProvider: normalizeText(values.defaultAgentProvider),
+  defaultImageModel: normalizeText(values.defaultImageModel),
+  defaultImageProvider: normalizeText(values.defaultImageProvider),
+  defaultSkillName: normalizeText(values.defaultSkillName),
+  defaultVideoModel: normalizeText(values.defaultVideoModel),
+  defaultVideoProvider: normalizeText(values.defaultVideoProvider),
   desktopDownloadLabel: normalizeText(values.desktopDownloadLabel),
   desktopDownloadUrl: normalizeText(values.desktopDownloadUrl),
   helpMenuItems: normalizeHelpMenuItems(values.helpMenuItems),
@@ -227,10 +262,16 @@ export const buildSettingUpdates = (
     'defaultAgentProvider',
     'defaultAgentName',
     'defaultAgentAvatar',
+    'defaultImageModel',
+    'defaultImageProvider',
+    'defaultVideoModel',
+    'defaultVideoProvider',
+    'defaultSkillName',
     'referralRewardCredits',
     'cronAuditRetentionDays',
     'cronPendingOrderExpiryDays',
     'brandName',
+    'brandLoadingText',
     'brandAuthTitle',
     'brandCopyrightText',
     'brandLogoUrl',
@@ -247,6 +288,7 @@ export const buildSettingUpdates = (
     brandAuthTitle: SETTING_KEYS.brandAuthTitle,
     brandCopyrightText: SETTING_KEYS.brandCopyrightText,
     brandLogoUrl: SETTING_KEYS.brandLogoUrl,
+    brandLoadingText: SETTING_KEYS.brandLoadingText,
     brandName: SETTING_KEYS.brandName,
     brandPrimaryColor: SETTING_KEYS.brandPrimaryColor,
     brandSlogan: SETTING_KEYS.brandSlogan,
@@ -257,6 +299,11 @@ export const buildSettingUpdates = (
     defaultAgentModel: SETTING_KEYS.defaultAgentModel,
     defaultAgentName: SETTING_KEYS.defaultAgentName,
     defaultAgentProvider: SETTING_KEYS.defaultAgentProvider,
+    defaultImageModel: SETTING_KEYS.defaultImageModel,
+    defaultImageProvider: SETTING_KEYS.defaultImageProvider,
+    defaultSkillName: SETTING_KEYS.defaultSkillName,
+    defaultVideoModel: SETTING_KEYS.defaultVideoModel,
+    defaultVideoProvider: SETTING_KEYS.defaultVideoProvider,
     desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
     desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
     helpMenuItems: SETTING_KEYS.helpMenuItems,
@@ -284,8 +331,27 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     SETTING_KEYS.defaultAgentModel,
     SETTING_KEYS.defaultAgentName,
     SETTING_KEYS.defaultAgentProvider,
+    SETTING_KEYS.defaultImageModel,
+    SETTING_KEYS.defaultImageProvider,
+    SETTING_KEYS.defaultVideoModel,
+    SETTING_KEYS.defaultVideoProvider,
   ]);
   const needsRuntimeRefresh = updates.some((update) => runtimeKeys.has(update.key as any));
+  const brandKeys = new Set([
+    SETTING_KEYS.brandAuthTitle,
+    SETTING_KEYS.brandCopyrightText,
+    SETTING_KEYS.brandFaviconUrl,
+    SETTING_KEYS.brandLogoUrl,
+    SETTING_KEYS.brandLoadingText,
+    SETTING_KEYS.brandName,
+    SETTING_KEYS.brandPrimaryColor,
+    SETTING_KEYS.brandSlogan,
+    SETTING_KEYS.defaultSkillName,
+  ]);
+  const needsBrandRefresh = updates.some((update) => brandKeys.has(update.key as any));
 
-  return needsRuntimeRefresh ? [RUNTIME_CONFIG_SWR_KEY, USER_STATE_SWR_KEY] : [];
+  return [
+    ...(needsRuntimeRefresh ? [RUNTIME_CONFIG_SWR_KEY, USER_STATE_SWR_KEY] : []),
+    ...(needsBrandRefresh ? [BRAND_CONFIG_SWR_KEY] : []),
+  ];
 };

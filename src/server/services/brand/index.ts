@@ -5,7 +5,10 @@ import { appSettings } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
 
 export interface ServerBrandConfig {
+  authTitle: string | null;
+  copyrightText: string | null;
   faviconUrl: string | null;
+  loadingText: string | null;
   logoUrl: string | null;
   name: string | null;
   primaryColor: string | null;
@@ -13,7 +16,10 @@ export interface ServerBrandConfig {
 }
 
 const KEYS = {
+  authTitle: 'brand.authTitle',
+  copyrightText: 'brand.copyrightText',
   favicon: 'brand.faviconUrl',
+  loadingText: 'brand.loadingText',
   logo: 'brand.logoUrl',
   name: 'brand.name',
   primary: 'brand.primaryColor',
@@ -39,29 +45,39 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
   if (cached && Date.now() - cached.at < TTL_MS) return cached.data;
   try {
     const db = await getServerDB();
-    const [name, logoUrl, faviconUrl, primaryColor, slogan] = await Promise.all([
-      readString(db, KEYS.name),
-      readString(db, KEYS.logo),
-      readString(db, KEYS.favicon),
-      readString(db, KEYS.primary),
-      readString(db, KEYS.slogan),
-    ]);
+    const [name, logoUrl, faviconUrl, primaryColor, slogan, loadingText, authTitle, copyrightText] =
+      await Promise.all([
+        readString(db, KEYS.name),
+        readString(db, KEYS.logo),
+        readString(db, KEYS.favicon),
+        readString(db, KEYS.primary),
+        readString(db, KEYS.slogan),
+        readString(db, KEYS.loadingText),
+        readString(db, KEYS.authTitle),
+        readString(db, KEYS.copyrightText),
+      ]);
     const data: ServerBrandConfig = {
+      authTitle: authTitle ?? DEFAULT_RUNTIME_BRAND.authTitle,
+      copyrightText: copyrightText ?? DEFAULT_RUNTIME_BRAND.copyrightText,
       faviconUrl,
+      loadingText: loadingText ?? DEFAULT_RUNTIME_BRAND.loadingText,
       logoUrl: logoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
       name: name ?? DEFAULT_RUNTIME_BRAND.name,
       primaryColor: primaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
-      slogan,
+      slogan: slogan ?? DEFAULT_RUNTIME_BRAND.authTitle,
     };
     cached = { at: Date.now(), data };
     return data;
   } catch {
     const data: ServerBrandConfig = {
+      authTitle: DEFAULT_RUNTIME_BRAND.authTitle,
+      copyrightText: DEFAULT_RUNTIME_BRAND.copyrightText,
       faviconUrl: null,
+      loadingText: DEFAULT_RUNTIME_BRAND.loadingText,
       logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
       name: DEFAULT_RUNTIME_BRAND.name,
       primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
-      slogan: null,
+      slogan: DEFAULT_RUNTIME_BRAND.authTitle,
     };
     cached = { at: Date.now(), data };
     return data;

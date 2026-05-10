@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationModel } from '@/database/models/generation';
 import type { LobeChatDatabase } from '@/database/type';
@@ -24,6 +25,10 @@ vi.mock('@/server/modules/ModelRuntime', () => ({
   initModelRuntimeFromDB: vi.fn(),
 }));
 
+vi.mock('@/business/server/video-generation/chargeAfterGenerate', () => ({
+  chargeAfterGenerate: vi.fn(),
+}));
+
 describe('videoBackgroundPolling', () => {
   const mockAsyncTaskModel = {
     update: vi.fn(),
@@ -40,6 +45,8 @@ describe('videoBackgroundPolling', () => {
   const mockModelRuntime = {
     handlePollVideoStatus: vi.fn(),
   };
+
+  const mockChargeAfterGenerate = vi.mocked(chargeAfterGenerate);
 
   const mockDb = {
     query: {
@@ -85,6 +92,7 @@ describe('videoBackgroundPolling', () => {
         status: 'success',
         videoUrl: 'https://example.com/video.mp4',
         headers: { 'Content-Type': 'video/mp4' },
+        usage: { completionTokens: 500_000, totalTokens: 500_000 },
       });
 
       mockVideoService.processVideoForGeneration.mockResolvedValue({
@@ -138,6 +146,17 @@ describe('videoBackgroundPolling', () => {
         duration: expect.any(Number),
         status: AsyncTaskStatus.Success,
       });
+
+      expect(mockChargeAfterGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          computePriceParams: {
+            generateAudio: undefined,
+            resolution: undefined,
+          },
+          prechargeResult: mockParams.prechargeResult,
+          usage: { completionTokens: 500_000, totalTokens: 500_000 },
+        }),
+      );
     });
   });
 

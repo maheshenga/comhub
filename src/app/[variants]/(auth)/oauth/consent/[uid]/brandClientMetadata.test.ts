@@ -6,7 +6,10 @@ describe('resolveBrandedClientMetadata', () => {
   it('uses runtime brand for the built-in desktop OAuth client', () => {
     const metadata = resolveBrandedClientMetadata({
       brand: {
+        authTitle: null,
+        copyrightText: null,
         faviconUrl: null,
+        loadingText: null,
         logoUrl: '/brand/logo.png',
         name: 'Qingyou AI',
         primaryColor: null,
@@ -37,7 +40,10 @@ describe('resolveBrandedClientMetadata', () => {
     expect(
       resolveBrandedClientMetadata({
         brand: {
+          authTitle: null,
+          copyrightText: null,
           faviconUrl: null,
+          loadingText: null,
           logoUrl: '/brand/logo.png',
           name: 'Qingyou AI',
           primaryColor: null,

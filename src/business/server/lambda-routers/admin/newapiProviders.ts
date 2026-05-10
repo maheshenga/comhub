@@ -34,6 +34,10 @@ const NewapiModelTypeSchema = z.enum([
   'realtime',
 ]);
 
+const ProviderTypeSchema = z
+  .enum(['newapi', 'openai-compatible', 'openai', 'deepseek', 'aliyun'])
+  .default('newapi');
+
 const InstanceInputSchema = z.object({
   apiKey: z.string().min(1),
   baseUrl: z.string().url(),
@@ -45,6 +49,7 @@ const InstanceInputSchema = z.object({
   groupName: z.string().max(128).optional(),
   name: z.string().min(1).max(128),
   priority: z.number().int().min(0).default(0),
+  providerType: ProviderTypeSchema,
   usageScope: z.array(NewapiModelTypeSchema).optional(),
 });
 
@@ -178,7 +183,11 @@ export const adminNewapiProvidersRouter = router({
 
       const [models, pricing, existingRows] = await Promise.all([
         fetchNewapiModels({ apiKey: instance.apiKey, baseUrl: instance.baseUrl }),
-        fetchNewapiPricing({ apiKey: instance.apiKey, baseUrl: instance.baseUrl }),
+        fetchNewapiPricing({
+          apiKey: instance.apiKey,
+          baseUrl: instance.baseUrl,
+          providerType: instance.providerType,
+        }),
         ctx.serverDB
           .select({
             enabled: adminNewapiInstanceModels.enabled,
@@ -246,6 +255,7 @@ export const adminNewapiProvidersRouter = router({
         const pricing = await fetchNewapiPricing({
           apiKey: instance.apiKey,
           baseUrl: instance.baseUrl,
+          providerType: instance.providerType,
         });
 
         return {
@@ -439,6 +449,7 @@ export const adminNewapiProvidersRouter = router({
           modelId: adminNewapiInstanceModels.modelId,
           modelType: adminNewapiInstanceModels.modelType,
           priority: adminNewapiInstances.priority,
+          providerType: adminNewapiInstances.providerType,
         })
         .from(adminNewapiInstanceModels)
         .innerJoin(

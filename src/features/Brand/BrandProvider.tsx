@@ -11,37 +11,51 @@ import { lambdaClient } from '@/libs/trpc/client';
 export interface BrandConfig {
   authTitle: string;
   copyrightText: string;
+  defaultSkillName: string;
   faviconUrl: string | null;
+  loadingText: string | null;
   logoUrl: string | null;
   name: string;
   primaryColor: string | null;
   slogan: string | null;
 }
 
+type BrandInput = Partial<{ [K in keyof BrandConfig]: BrandConfig[K] | null }>;
+
 const DEFAULT_BRAND: BrandConfig = {
   authTitle: DEFAULT_RUNTIME_BRAND.authTitle,
   copyrightText: DEFAULT_RUNTIME_BRAND.copyrightText,
+  defaultSkillName: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
   faviconUrl: null,
+  loadingText: DEFAULT_RUNTIME_BRAND.loadingText,
   logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
   name: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
   primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
-  slogan: null,
+  slogan: DEFAULT_RUNTIME_BRAND.authTitle,
 };
 
 const BrandContext = createContext<BrandConfig>(DEFAULT_BRAND);
 
+const normalizeBrand = (brand?: BrandInput | null): BrandConfig => ({
+  authTitle: (brand?.authTitle && brand.authTitle.trim()) || DEFAULT_BRAND.authTitle,
+  copyrightText:
+    (brand?.copyrightText && brand.copyrightText.trim()) || DEFAULT_BRAND.copyrightText,
+  defaultSkillName:
+    (brand?.defaultSkillName && brand.defaultSkillName.trim()) ||
+    (brand?.name && brand.name.trim()) ||
+    DEFAULT_BRAND.defaultSkillName,
+  faviconUrl: brand?.faviconUrl ?? DEFAULT_BRAND.faviconUrl,
+  loadingText: (brand?.loadingText && brand.loadingText.trim()) || DEFAULT_BRAND.loadingText,
+  logoUrl: brand?.logoUrl ?? DEFAULT_BRAND.logoUrl,
+  name: (brand?.name && brand.name.trim()) || DEFAULT_BRAND.name,
+  primaryColor: brand?.primaryColor ?? DEFAULT_BRAND.primaryColor,
+  slogan: (brand?.slogan && brand.slogan.trim()) || DEFAULT_BRAND.slogan,
+});
+
 const fetchBrand = async (): Promise<BrandConfig> => {
   try {
     const r = await lambdaClient.admin.settings.getPublicBrand.query();
-    return {
-      authTitle: (r?.authTitle && r.authTitle.trim()) || DEFAULT_BRAND.authTitle,
-      copyrightText: (r?.copyrightText && r.copyrightText.trim()) || DEFAULT_BRAND.copyrightText,
-      faviconUrl: r?.faviconUrl ?? null,
-      logoUrl: r?.logoUrl ?? DEFAULT_BRAND.logoUrl,
-      name: (r?.name && r.name.trim()) || DEFAULT_BRAND.name,
-      primaryColor: r?.primaryColor ?? DEFAULT_BRAND.primaryColor,
-      slogan: r?.slogan ?? null,
-    };
+    return normalizeBrand(r);
   } catch {
     return DEFAULT_BRAND;
   }
@@ -64,13 +78,19 @@ const applyDocumentBrand = (b: BrandConfig) => {
   }
 };
 
-export const BrandProvider: FC<{ children: ReactNode }> = ({ children }) => {
+export const BrandProvider: FC<{ children: ReactNode; initialBrand?: BrandInput }> = ({
+  children,
+  initialBrand,
+}) => {
   const { i18n } = useTranslation();
   const { data } = useSWR<BrandConfig>('brand-config', fetchBrand, {
     dedupingInterval: 60_000,
     revalidateOnFocus: false,
   });
-  const value = useMemo<BrandConfig>(() => data ?? DEFAULT_BRAND, [data]);
+  const value = useMemo<BrandConfig>(
+    () => data ?? normalizeBrand(initialBrand),
+    [data, initialBrand],
+  );
 
   useEffect(() => {
     applyDocumentBrand(value);
@@ -80,6 +100,7 @@ export const BrandProvider: FC<{ children: ReactNode }> = ({ children }) => {
       defaultVariables: {
         ...i18n.options.interpolation?.defaultVariables,
         brandName: value.name,
+        defaultSkillName: value.defaultSkillName,
       },
     };
   }, [value, i18n]);

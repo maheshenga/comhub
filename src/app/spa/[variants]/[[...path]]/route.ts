@@ -8,6 +8,7 @@ import { analyticsEnv } from '@/envs/analytics';
 import { appEnv } from '@/envs/app';
 import { fileEnv } from '@/envs/file';
 import { pythonEnv } from '@/envs/python';
+import { buildStaticLoadingBrandHtml, getBrandLoadingText } from '@/features/Brand/loadingBrand';
 import { type Locales } from '@/locales/resources';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { getServerBrand } from '@/server/services/brand';
@@ -208,16 +209,6 @@ const escapeHtml = (value: string) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 
-const buildLoadingBrandHtml = ({ logoUrl, name }: { logoUrl: string | null; name: string }) => {
-  const safeName = escapeHtml(name);
-
-  if (logoUrl) {
-    return `<img src="${escapeHtml(logoUrl)}" alt="${safeName}" style="width:56px;height:56px;border-radius:14px;object-fit:contain" />`;
-  }
-
-  return `<span style="font-size:28px;font-weight:700;color:inherit">${safeName}</span>`;
-};
-
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ path?: string[]; variants: string }> },
@@ -251,10 +242,14 @@ export async function GET(
 
   const brand = await getServerBrand();
   const appName = brand.name?.trim() || BRANDING_NAME;
-  const loadingBrandHtml = buildLoadingBrandHtml({ logoUrl: brand.logoUrl, name: appName });
+  const loadingText = getBrandLoadingText(
+    { loadingText: brand.loadingText, name: appName, slogan: brand.slogan },
+    appName,
+  );
+  const loadingBrandHtml = buildStaticLoadingBrandHtml(loadingText);
   html = html.replace(
     /<div id="loading-brand" aria-label="Loading" role="status">[\s\S]*?<\/div>\s*<\/div>/,
-    `<div id="loading-brand" aria-label="${escapeHtml(appName)} 正在加载" role="status">${loadingBrandHtml}</div>\n    </div>`,
+    `<div id="loading-brand" aria-label="${escapeHtml(loadingText)} 正在加载" role="status">${loadingBrandHtml}</div>\n    </div>`,
   );
 
   return new Response(html, {

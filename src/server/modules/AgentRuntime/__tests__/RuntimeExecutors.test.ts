@@ -191,6 +191,29 @@ describe('RuntimeExecutors', () => {
       );
     });
 
+    it('should initialize model runtime with the selected chat model for admin-managed routing', async () => {
+      const executors = createRuntimeExecutors(ctx);
+      const state = createMockState();
+
+      await executors.call_llm!(
+        {
+          payload: {
+            messages: [{ content: 'Hello', role: 'user' }],
+            model: 'deepseek-chat',
+            provider: 'newapi',
+            tools: [],
+          },
+          type: 'call_llm',
+        },
+        state,
+      );
+
+      expect(initModelRuntimeFromDB).toHaveBeenCalledWith(ctx.serverDB, ctx.userId, 'newapi', {
+        model: 'deepseek-chat',
+        modelType: 'chat',
+      });
+    });
+
     it('should pass parentId from payload.parentMessageId to messageModel.create', async () => {
       const executors = createRuntimeExecutors(ctx);
       const state = createMockState();

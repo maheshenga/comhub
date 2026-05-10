@@ -54,7 +54,11 @@ async function pollUntilCompletion(
   modelRuntime: any,
   inferenceId: string,
   signal: AbortSignal,
-): Promise<{ headers?: Record<string, string>; videoUrl: string } | null> {
+): Promise<{
+  headers?: Record<string, string>;
+  usage?: { completionTokens: number; totalTokens: number };
+  videoUrl: string;
+} | null> {
   const maxRetries = 120;
   const pollingInterval = 5000;
 
@@ -68,7 +72,7 @@ async function pollUntilCompletion(
 
       if (result.status === 'success') {
         log('Video generation succeeded for inferenceId: %s', inferenceId);
-        return { headers: result.headers, videoUrl: result.videoUrl };
+        return { headers: result.headers, usage: result.usage, videoUrl: result.videoUrl };
       }
 
       if (result.status === 'failed') {
@@ -229,7 +233,7 @@ export const videoRouter = router({
               model: resolvedModelId,
               prechargeResult,
               provider,
-              usage: undefined,
+              usage: pollResult.usage,
               userId: ctx.userId,
               db: ctx.serverDB,
             });

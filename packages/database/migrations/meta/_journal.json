@@ -791,6 +791,41 @@
       "when": 1778006400000,
       "tag": "0112_add_newapi_instances_and_plan_model_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1778092800000,
+      "tag": "0113_remove_old_newapi_app_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1778179200000,
+      "tag": "0114_add_newapi_group_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1778265600000,
+      "tag": "0115_reset_users_to_unlimited_free_plan",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1778352000000,
+      "tag": "0116_add_admin_model_api_provider_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1778374800000,
+      "tag": "0117_add_ban_expires_at_compat",
+      "breakpoints": true
     }
   ],
   "version": "6"

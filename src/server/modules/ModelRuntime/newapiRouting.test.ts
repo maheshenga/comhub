@@ -73,6 +73,7 @@ describe('initModelRuntimeFromDB newapi routing', () => {
       instanceId: 'instance-pro',
       instanceName: 'NewAPI Pro',
       priority: 10,
+      providerType: 'newapi',
       source: 'instance' as const,
     };
     mocks.resolveNewapiInstancesForModel.mockResolvedValue([primaryRoute]);
@@ -93,6 +94,7 @@ describe('initModelRuntimeFromDB newapi routing', () => {
       groupName: 'Pro Group',
       instanceId: 'instance-pro',
       instanceName: 'NewAPI Pro',
+      providerType: 'newapi',
     });
     expect(mocks.initializeWithProvider).toHaveBeenCalledWith(
       'newapi',
@@ -102,6 +104,45 @@ describe('initModelRuntimeFromDB newapi routing', () => {
         userId: 'user-1',
       }),
       expect.anything(),
+    );
+  });
+
+  it('should initialize provider-specific runtime for admin OpenAI-compatible instances', async () => {
+    const db = { id: 'db' } as any;
+    mocks.resolveNewapiInstancesForModel.mockResolvedValue([
+      {
+        apiKey: 'sk-deepseek',
+        baseUrl: 'https://api.deepseek.com/v1',
+        groupKey: 'default',
+        instanceId: 'instance-deepseek',
+        instanceName: 'DeepSeek',
+        priority: 1,
+        providerType: 'deepseek',
+        source: 'instance' as const,
+      },
+    ]);
+
+    await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
+      model: 'deepseek-chat',
+      modelType: 'chat',
+    });
+
+    expect(mocks.initializeWithProvider).toHaveBeenCalledWith(
+      'deepseek',
+      expect.objectContaining({
+        apiKey: 'sk-deepseek',
+        baseURL: 'https://api.deepseek.com/v1',
+        userId: 'user-1',
+      }),
+      expect.anything(),
+    );
+    expect(mocks.getBusinessModelRuntimeHooks).toHaveBeenCalledWith(
+      'user-1',
+      'newapi',
+      expect.objectContaining({
+        instanceId: 'instance-deepseek',
+        providerType: 'deepseek',
+      }),
     );
   });
 });

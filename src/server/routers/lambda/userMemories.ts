@@ -126,7 +126,10 @@ const searchUserMemories = async (
   const normalizedInput = normalizeSearchMemoryParams(input);
   const { provider, model: embeddingModel } =
     getServerDefaultFilesConfig().embeddingModel || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
-  const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider);
+  const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
+    model: embeddingModel,
+    modelType: 'embedding',
+  });
   const normalizedQueries = [
     ...new Set((normalizedInput.queries ?? []).map((query) => query.trim()).filter(Boolean)),
   ];
@@ -171,6 +174,10 @@ const getEmbeddingRuntime = async (serverDB: LobeChatDatabase, userId: string) =
     serverDB,
     userId,
     ENABLE_BUSINESS_FEATURES ? BRANDING_PROVIDER : provider,
+    {
+      model: embeddingModel,
+      modelType: 'embedding',
+    },
   );
 
   return { agentRuntime, embeddingModel };

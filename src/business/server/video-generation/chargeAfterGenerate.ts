@@ -1,7 +1,12 @@
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import { getModelPricing } from '@lobechat/model-runtime';
 
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
+import {
+  resolveGenerationPricingMultiplier,
+  resolveVideoChargeCredits,
+} from '@/business/server/generationBilling';
 import { CommercialModel } from '@/database/models/commercial';
+import { getServerDB } from '@/database/server';
 import { type LobeChatDatabase } from '@/database/type';
 
 interface ChargeParams {
@@ -23,25 +28,36 @@ interface ChargeParams {
 }
 
 export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
-  const { isError, metadata, model, prechargeResult, provider, userId, db } = params;
+  const { computePriceParams, isError, metadata, model, prechargeResult, provider, usage, userId } =
+    params;
 
   if (!prechargeResult || Object.keys(prechargeResult).length === 0) return;
-
-  const commercialModel = new CommercialModel(db!, userId);
-
-  const estimatedCredits =
-    (prechargeResult as any).estimatedCredits ??
-    (prechargeResult as any).costDetail?.totalCredits ??
-    CREDITS_PER_DOLLAR;
 
   if (isError) {
     return;
   }
 
-  const shouldCharge = await shouldChargeCommercialUsage({ db: db!, provider, userId });
+  const db = params.db ?? (await getServerDB());
+  const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
   if (!shouldCharge) return;
 
-  const effectiveCredits = (prechargeResult as any).costDetail?.totalCredits ?? estimatedCredits;
+  const pricing = await getModelPricing(model ?? metadata.modelId, provider);
+  const baseCredits = resolveVideoChargeCredits({
+    computePriceParams,
+    prechargeResult,
+    pricing,
+    usage,
+  });
+  const multiplier = await resolveGenerationPricingMultiplier({
+    db,
+    model: model ?? metadata.modelId,
+    provider,
+  });
+  const effectiveCredits = Math.ceil(baseCredits * multiplier);
+
+  if (effectiveCredits <= 0) return;
+
+  const commercialModel = new CommercialModel(db, userId);
 
   await commercialModel.postCharge({
     credits: effectiveCredits,

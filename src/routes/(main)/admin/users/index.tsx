@@ -21,6 +21,15 @@ type UserRow = {
   lastActiveAt: Date | null;
   phone: string | null;
   role: string | null;
+  subscription: UserSubscription | null;
+};
+
+type UserSubscription = {
+  cycle: string;
+  endsAt: Date | null;
+  plan: string;
+  startedAt: Date | null;
+  status: string;
 };
 
 const EMPTY_TEXT = '-';
@@ -41,6 +50,8 @@ const roleLabel = (role: string | null) => {
 const AdminUsersPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [query, setQuery] = useState('');
+  const [planFilter, setPlanFilter] = useState<string | undefined>();
+  const [subscriptionStartedOrder, setSubscriptionStartedOrder] = useState<'asc' | 'desc'>();
   const [cursor, setCursor] = useState(0);
   const [allItems, setAllItems] = useState<UserRow[]>([]);
   const [banTarget, setBanTarget] = useState<string | null>(null);
@@ -56,14 +67,21 @@ const AdminUsersPage = memo(() => {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const swrKey = ['admin-users', query, cursor];
+  const swrKey = ['admin-users', query, planFilter ?? '', subscriptionStartedOrder ?? '', cursor];
   const { data: plansData } = useClientDataSWR(['admin-user-list-plan-options'], () =>
     adminCommercialService.listPlans(),
   );
 
   const { data, isLoading } = useClientDataSWR(
     swrKey,
-    () => adminCommercialService.listUsers({ cursor, limit: 20, query: query || undefined }),
+    () =>
+      adminCommercialService.listUsers({
+        cursor,
+        limit: 20,
+        plan: planFilter,
+        query: query || undefined,
+        subscriptionStartedOrder,
+      }),
     {
       onSuccess: (res) => {
         if (cursor === 0) {
@@ -81,6 +99,11 @@ const AdminUsersPage = memo(() => {
     setAllItems([]);
   };
 
+  const resetList = () => {
+    setCursor(0);
+    setAllItems([]);
+  };
+
   const handleLoadMore = () => {
     if (data?.nextCursor != null) {
       setCursor(data.nextCursor);
@@ -90,7 +113,7 @@ const AdminUsersPage = memo(() => {
   const invalidate = () => {
     setCursor(0);
     setAllItems([]);
-    mutate(['admin-users', query, 0]);
+    mutate(['admin-users', query, planFilter ?? '', subscriptionStartedOrder ?? '', 0]);
   };
 
   const handleBan = async () => {
@@ -196,11 +219,68 @@ const AdminUsersPage = memo(() => {
       message.success(t('admin.assignPlan.success', '套餐已设置'));
       closeAssignPlan();
       await mutate(['admin-subscriptions']);
+      invalidate();
     } catch {
       message.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handleResetAllToFreePlan = async () => {
+    setActionLoading('reset-all-free-preview');
+
+    let preview: { canceledPaid: number; insertedFree: number; normalizedFree: number };
+    try {
+      preview = await adminCommercialService.getResetAllUsersToFreePlanPreview();
+    } catch {
+      setActionLoading(null);
+      message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+      return;
+    }
+
+    setActionLoading(null);
+
+    Modal.confirm({
+      content: (
+        <Flexbox gap={8}>
+          <div>
+            {t(
+              'admin.resetAllToFreePlan.confirmContent',
+              '这会取消所有当前付费套餐，并确保每个用户都有一个无限期免费套餐。用户已有积分余额不会被清零。',
+            )}
+          </div>
+          <div>
+            {t(
+              'admin.resetAllToFreePlan.preview',
+              `预计影响：取消 ${preview.canceledPaid} 个付费套餐，规范 ${preview.normalizedFree} 个免费套餐，补充 ${preview.insertedFree} 个免费套餐。`,
+            )}
+          </div>
+        </Flexbox>
+      ),
+      okButtonProps: { danger: true },
+      okText: t('admin.resetAllToFreePlan.ok', '确认重置'),
+      title: t('admin.resetAllToFreePlan.confirmTitle', '确认重置所有用户套餐？'),
+      onOk: async () => {
+        setActionLoading('reset-all-free');
+        try {
+          const result = await adminCommercialService.resetAllUsersToFreePlan({
+            reason: 'admin_reset_from_users_page',
+          });
+          message.success(
+            t(
+              'admin.resetAllToFreePlan.success',
+              `已重置：取消 ${result.canceledPaid} 个付费套餐，规范 ${result.normalizedFree} 个免费套餐，新增 ${result.insertedFree} 个免费套餐。`,
+            ),
+          );
+          invalidate();
+        } catch {
+          message.error(t('admin.error.generic', '操作失败，请稍后重试'));
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
   };
 
   const columns: ColumnsType<UserRow> = [
@@ -226,6 +306,24 @@ const AdminUsersPage = memo(() => {
       key: 'phone',
       render: (v: string | null) => v ?? EMPTY_TEXT,
       title: t('admin.phone', '手机号'),
+    },
+    {
+      dataIndex: 'subscription',
+      key: 'subscription',
+      render: (subscription: UserSubscription | null) =>
+        subscription ? (
+          <Space size={6}>
+            <Tag color="blue">{subscription.plan}</Tag>
+            <span>
+              {subscription.startedAt
+                ? new Date(subscription.startedAt).toLocaleDateString()
+                : EMPTY_TEXT}
+            </span>
+          </Space>
+        ) : (
+          <Tag>{EMPTY_TEXT}</Tag>
+        ),
+      title: '当前套餐 / 开始时间',
     },
     {
       dataIndex: 'role',
@@ -323,6 +421,34 @@ const AdminUsersPage = memo(() => {
           style={{ maxWidth: 320 }}
           onSearch={handleSearch}
         />
+        <Select
+          allowClear
+          placeholder="按套餐筛选"
+          style={{ width: 180 }}
+          value={planFilter}
+          options={(plansData?.items ?? []).map((item: any) => ({
+            label: `${item.displayName || item.plan} (${item.plan})`,
+            value: item.plan,
+          }))}
+          onChange={(value) => {
+            setPlanFilter(value);
+            resetList();
+          }}
+        />
+        <Select
+          allowClear
+          placeholder="套餐开始时间排序"
+          style={{ width: 190 }}
+          value={subscriptionStartedOrder}
+          options={[
+            { label: '开始时间正序', value: 'asc' },
+            { label: '开始时间倒序', value: 'desc' },
+          ]}
+          onChange={(value) => {
+            setSubscriptionStartedOrder(value);
+            resetList();
+          }}
+        />
         <Button
           onClick={async () => {
             try {
@@ -378,6 +504,13 @@ const AdminUsersPage = memo(() => {
           }}
         >
           {t('admin.exportCsv', '导出 CSV')}
+        </Button>
+        <Button
+          danger
+          loading={actionLoading === 'reset-all-free' || actionLoading === 'reset-all-free-preview'}
+          onClick={handleResetAllToFreePlan}
+        >
+          {t('admin.resetAllToFreePlan', '重置所有用户为免费套餐')}
         </Button>
       </Flexbox>
       <InlineTable

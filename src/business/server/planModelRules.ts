@@ -1,6 +1,6 @@
 import { AgentRuntimeError } from '@lobechat/model-runtime';
-import { ChatErrorType } from '@lobechat/types';
-import { desc, eq } from 'drizzle-orm';
+import { ChatErrorType, Plans } from '@lobechat/types';
+import { and, desc, eq, lt } from 'drizzle-orm';
 
 import { planCatalog, userPlanSnapshots } from '@/database/schemas';
 import { type PlanModelRules } from '@/database/schemas';
@@ -47,6 +47,60 @@ const matchesEntry = (entry: string, model: string, groupKey?: string | null) =>
   return wildcardMatch(normalized, model.toLowerCase());
 };
 
+const matchesEntryWithoutGroupContext = (entry: string, model: string) => {
+  const normalized = entry.trim().toLowerCase();
+  if (!normalized) return false;
+
+  const separatorIndex = normalized.indexOf(':');
+  if (separatorIndex > -1) {
+    const modelPattern = normalized.slice(separatorIndex + 1).trim();
+    return !!modelPattern && wildcardMatch(modelPattern, model.toLowerCase());
+  }
+
+  return wildcardMatch(normalized, model.toLowerCase());
+};
+
+const ensureActivePlanSnapshot = async (db: LobeChatDatabase, userId: string) => {
+  const now = new Date();
+
+  await db
+    .update(userPlanSnapshots)
+    .set({ status: 'expired', updatedAt: now })
+    .where(
+      and(
+        eq(userPlanSnapshots.userId, userId),
+        eq(userPlanSnapshots.status, 'active'),
+        lt(userPlanSnapshots.endsAt, now),
+      ),
+    );
+
+  const activeSnapshot = await db.query.userPlanSnapshots.findFirst({
+    orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+    where: and(eq(userPlanSnapshots.userId, userId), eq(userPlanSnapshots.status, 'active')),
+  });
+
+  if (activeSnapshot) return activeSnapshot;
+
+  const [freeSnapshot] = await db
+    .insert(userPlanSnapshots)
+    .values({
+      cycle: 'monthly',
+      currency: 'CNY',
+      externalSubscriptionId: `default-free-${userId}`,
+      metadata: { source: 'model_rules_expiry_fallback', unlimited: true },
+      monthlyCredits: 0,
+      monthlyPrice: 0,
+      plan: Plans.Free,
+      provider: 'system_default',
+      startedAt: now,
+      status: 'active',
+      userId,
+    })
+    .returning();
+
+  return freeSnapshot ?? null;
+};
+
 interface AssertPlanModelAllowedParams {
   db: LobeChatDatabase;
   groupKey?: string | null;
@@ -75,10 +129,7 @@ export const assertPlanModelAllowed = async ({
   const trimmed = model?.trim();
   if (!trimmed) return;
 
-  const snapshot = await db.query.userPlanSnapshots.findFirst({
-    orderBy: desc(userPlanSnapshots.createdAt),
-    where: eq(userPlanSnapshots.userId, userId),
-  });
+  const snapshot = await ensureActivePlanSnapshot(db, userId);
   if (!snapshot) return;
 
   const catalog = await db.query.planCatalog.findFirst({
@@ -121,10 +172,7 @@ export const resolvePlanModelRules = async ({
   db,
   userId,
 }: ResolvePlanModelRulesParams): Promise<PlanModelRules | null> => {
-  const snapshot = await db.query.userPlanSnapshots.findFirst({
-    orderBy: desc(userPlanSnapshots.createdAt),
-    where: eq(userPlanSnapshots.userId, userId),
-  });
+  const snapshot = await ensureActivePlanSnapshot(db, userId);
   if (!snapshot) return null;
 
   const catalog = await db.query.planCatalog.findFirst({
@@ -149,7 +197,12 @@ export const isModelAllowedByPlanRules = (
   const rule = rules[modelType];
   if (!rule) return true;
 
-  const matchedAllowlist = (rule.allowlist ?? []).some((e) => matchesEntry(e, trimmed, groupKey));
+  const hasGroupContext = typeof groupKey === 'string' && groupKey.trim().length > 0;
+  const matchedAllowlist = (rule.allowlist ?? []).some((e) =>
+    hasGroupContext
+      ? matchesEntry(e, trimmed, groupKey)
+      : matchesEntryWithoutGroupContext(e, trimmed),
+  );
   const matchedBlocklist = (rule.blocklist ?? []).some((e) => matchesEntry(e, trimmed, groupKey));
 
   if (rule.mode === 'allowlist') return matchedAllowlist;

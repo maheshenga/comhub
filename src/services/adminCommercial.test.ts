@@ -7,6 +7,9 @@ import { adminCommercialService } from './adminCommercial';
 vi.mock('@/libs/trpc/client', () => ({
   lambdaClient: {
     admin: {
+      settings: {
+        validateDefaultAgentSettings: { mutate: vi.fn() },
+      },
       newapiProviders: {
         syncInstanceModels: { mutate: vi.fn() },
         testInstanceConnection: { query: vi.fn() },
@@ -48,6 +51,22 @@ describe('adminCommercialService NewAPI helpers', () => {
 
     expect(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).toHaveBeenCalledWith({
       id: 'instance-1',
+    });
+  });
+
+  it('calls the default agent settings validation endpoint', async () => {
+    vi.mocked(lambdaClient.admin.settings.validateDefaultAgentSettings.mutate).mockResolvedValue({
+      ok: true,
+    });
+
+    await adminCommercialService.validateDefaultAgentSettings({
+      model: 'deepseek-chat',
+      provider: 'newapi',
+    });
+
+    expect(lambdaClient.admin.settings.validateDefaultAgentSettings.mutate).toHaveBeenCalledWith({
+      model: 'deepseek-chat',
+      provider: 'newapi',
     });
   });
 });

@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
+import { useServerConfigStore } from '@/store/serverConfig';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
 import { useVideoStore } from '@/store/video';
@@ -42,6 +43,7 @@ export const useFetchAiVideoConfig = () => {
   }));
   const isInitializedVideoConfig = useVideoStore((s) => s.isInit);
   const initializeVideoConfig = useVideoStore((s) => s.initializeVideoConfig);
+  const defaultVideoConfig = useServerConfigStore((s) => s.serverConfig.video);
 
   const enabledVideoModelList = useAiInfraStore(aiProviderSelectors.enabledVideoModelList);
 
@@ -56,7 +58,23 @@ export const useFetchAiVideoConfig = () => {
       return { model: lastSelectedVideoModel, provider: lastSelectedVideoProvider };
     }
 
-    // 2. Try default model from any enabled provider (prefer default provider first)
+    // 2. Try backend default video model from admin settings
+    if (
+      defaultVideoConfig?.defaultModel &&
+      defaultVideoConfig?.defaultProvider &&
+      checkModelEnabled(
+        enabledVideoModelList,
+        defaultVideoConfig.defaultProvider,
+        defaultVideoConfig.defaultModel,
+      )
+    ) {
+      return {
+        model: defaultVideoConfig.defaultModel,
+        provider: defaultVideoConfig.defaultProvider,
+      };
+    }
+
+    // 3. Try built-in default model from any enabled provider (prefer default provider first)
     if (
       checkModelEnabled(enabledVideoModelList, DEFAULT_AI_VIDEO_PROVIDER, DEFAULT_AI_VIDEO_MODEL)
     ) {
@@ -69,7 +87,7 @@ export const useFetchAiVideoConfig = () => {
       return { model: DEFAULT_AI_VIDEO_MODEL, provider: providerWithDefaultModel.id };
     }
 
-    // 3. Fallback to first enabled model
+    // 4. Fallback to first enabled model
     const firstProvider = enabledVideoModelList[0];
     const firstModel = firstProvider?.children[0];
     if (firstProvider && firstModel) {
@@ -78,7 +96,13 @@ export const useFetchAiVideoConfig = () => {
 
     // No enabled models
     return { model: undefined, provider: undefined };
-  }, [lastSelectedVideoModel, lastSelectedVideoProvider, enabledVideoModelList]);
+  }, [
+    lastSelectedVideoModel,
+    lastSelectedVideoProvider,
+    enabledVideoModelList,
+    defaultVideoConfig?.defaultModel,
+    defaultVideoConfig?.defaultProvider,
+  ]);
 
   useEffect(() => {
     if (!isInitializedVideoConfig && isReadyForInit) {

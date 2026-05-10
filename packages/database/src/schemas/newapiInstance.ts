@@ -22,6 +22,13 @@ export type NewapiModelType =
   | 'text2music'
   | 'realtime';
 
+export type AdminNewapiProviderType =
+  | 'newapi'
+  | 'openai-compatible'
+  | 'openai'
+  | 'deepseek'
+  | 'aliyun';
+
 /**
  * Admin-managed NewAPI gateway instances. Each row represents a single upstream
  * NewAPI deployment. Requests route across enabled instances in ascending
@@ -36,6 +43,10 @@ export const adminNewapiInstances = pgTable(
     id: uuid('id').defaultRandom().primaryKey().notNull(),
 
     name: text('name').notNull(),
+    providerType: text('provider_type')
+      .$type<AdminNewapiProviderType>()
+      .notNull()
+      .default('newapi'),
     baseUrl: text('base_url').notNull(),
     apiKey: text('api_key').notNull(),
 

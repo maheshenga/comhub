@@ -1,5 +1,6 @@
+import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, count, desc, eq, like, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import {
@@ -10,9 +11,205 @@ import {
   userPlanSnapshots,
   users,
 } from '@/database/schemas';
+import type { Transaction } from '@/database/type';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 
+import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
+
+type ResetAllUsersToFreePlanResult = {
+  canceledPaid: number;
+  insertedFree: number;
+  normalizedFree: number;
+};
+
+const buildResetAllUsersToFreePlanFilters = (userIds?: string[]) => {
+  const targetUserIds = userIds?.filter(Boolean) ?? [];
+  const targetUserIdList =
+    targetUserIds.length > 0
+      ? sql.join(
+          targetUserIds.map((id) => sql`${id}`),
+          sql`, `,
+        )
+      : null;
+
+  return {
+    planSnapshotUserFilter: targetUserIdList
+      ? sql`AND "user_plan_snapshots"."user_id" IN (${targetUserIdList})`
+      : sql``,
+    usersFilter: targetUserIdList ? sql`AND "users"."id" IN (${targetUserIdList})` : sql``,
+  };
+};
+
+export const getResetAllUsersToFreePlanPreview = async (
+  db: { execute: (query: ReturnType<typeof sql>) => Promise<{ rows?: unknown[] }> },
+  options: { userIds?: string[] } = {},
+): Promise<ResetAllUsersToFreePlanResult> => {
+  const { planSnapshotUserFilter, usersFilter } = buildResetAllUsersToFreePlanFilters(
+    options.userIds,
+  );
+
+  const previewResult = await db.execute(sql`
+    WITH active_paid AS (
+      SELECT "user_id"
+      FROM "user_plan_snapshots"
+      WHERE
+        "status" = 'active'
+        AND "plan" <> ${Plans.Free}::text
+        ${planSnapshotUserFilter}
+    ),
+    active_free AS (
+      SELECT "id"
+      FROM "user_plan_snapshots"
+      WHERE
+        "status" = 'active'
+        AND "plan" = ${Plans.Free}::text
+        ${planSnapshotUserFilter}
+    ),
+    target_users AS (
+      SELECT "id"
+      FROM "users"
+      WHERE TRUE ${usersFilter}
+    ),
+    users_needing_free AS (
+      SELECT "target_users"."id"
+      FROM target_users
+      WHERE
+        "target_users"."id" IN (SELECT "user_id" FROM active_paid)
+        OR NOT EXISTS (
+          SELECT 1
+          FROM "user_plan_snapshots"
+          WHERE
+            "user_plan_snapshots"."user_id" = "target_users"."id"
+            AND "user_plan_snapshots"."status" = 'active'
+        )
+    )
+    SELECT
+      (SELECT COUNT(*)::int FROM active_paid) AS "canceledPaid",
+      (SELECT COUNT(*)::int FROM active_free) AS "normalizedFree",
+      (SELECT COUNT(*)::int FROM users_needing_free) AS "insertedFree"
+  `);
+
+  return (previewResult.rows?.[0] ?? {
+    canceledPaid: 0,
+    insertedFree: 0,
+    normalizedFree: 0,
+  }) as ResetAllUsersToFreePlanResult;
+};
+
+export const resetAllUsersToFreePlan = async (
+  db: { transaction: <T>(cb: (tx: Transaction) => Promise<T>) => Promise<T> },
+  reason = 'admin_reset_to_unlimited_free_plan',
+  options: { userIds?: string[] } = {},
+): Promise<ResetAllUsersToFreePlanResult> => {
+  const { planSnapshotUserFilter, usersFilter } = buildResetAllUsersToFreePlanFilters(
+    options.userIds,
+  );
+
+  return db.transaction(async (tx: Transaction) => {
+    const resetResult = await tx.execute(sql`
+      WITH canceled_paid AS (
+        UPDATE "user_plan_snapshots"
+        SET
+          "status" = 'canceled',
+          "ends_at" = COALESCE("ends_at", NOW()),
+          "renews_at" = COALESCE("renews_at", NOW()),
+          "metadata" = COALESCE("metadata", '{}'::jsonb) || jsonb_build_object(
+            'resetToFreeAt',
+            NOW(),
+            'resetReason',
+            ${reason}::text
+          ),
+          "updated_at" = NOW()
+        WHERE
+          "status" = 'active'
+          AND "plan" <> ${Plans.Free}::text
+          ${planSnapshotUserFilter}
+        RETURNING "id", "user_id"
+      ),
+      normalized_free AS (
+        UPDATE "user_plan_snapshots"
+        SET
+          "cycle" = 'monthly',
+          "currency" = 'CNY',
+          "monthly_credits" = 0,
+          "monthly_price" = 0,
+          "provider" = COALESCE("provider", 'system_default'),
+          "renews_at" = NULL,
+          "ends_at" = NULL,
+          "metadata" = COALESCE("metadata", '{}'::jsonb) || jsonb_build_object(
+            'resetToFreeAt',
+            NOW(),
+            'resetReason',
+            ${reason}::text,
+            'unlimited',
+            true
+          ),
+          "updated_at" = NOW()
+        WHERE
+          "status" = 'active'
+          AND "plan" = ${Plans.Free}::text
+          ${planSnapshotUserFilter}
+        RETURNING "id"
+      ),
+      inserted_free AS (
+        INSERT INTO "user_plan_snapshots" (
+          "user_id",
+          "plan",
+          "status",
+          "cycle",
+          "monthly_credits",
+          "monthly_price",
+          "currency",
+          "provider",
+          "external_subscription_id",
+          "metadata",
+          "started_at",
+          "renews_at",
+          "ends_at"
+        )
+        SELECT
+          "users"."id",
+          ${Plans.Free}::text,
+          'active',
+          'monthly',
+          0,
+          0,
+          'CNY',
+          'system_default',
+          CONCAT('default-free-', "users"."id"),
+          jsonb_build_object('source', ${reason}::text, 'unlimited', true),
+          NOW(),
+          NULL,
+          NULL
+        FROM "users"
+        WHERE
+          (
+            "users"."id" IN (SELECT "user_id" FROM canceled_paid)
+            OR NOT EXISTS (
+              SELECT 1
+              FROM "user_plan_snapshots"
+              WHERE
+                "user_plan_snapshots"."user_id" = "users"."id"
+                AND "user_plan_snapshots"."status" = 'active'
+            )
+          )
+          ${usersFilter}
+        RETURNING "id"
+      )
+      SELECT
+        (SELECT COUNT(*)::int FROM canceled_paid) AS "canceledPaid",
+        (SELECT COUNT(*)::int FROM normalized_free) AS "normalizedFree",
+        (SELECT COUNT(*)::int FROM inserted_free) AS "insertedFree"
+    `);
+
+    return (resetResult.rows?.[0] ?? {
+      canceledPaid: 0,
+      insertedFree: 0,
+      normalizedFree: 0,
+    }) as ResetAllUsersToFreePlanResult;
+  });
+};
 
 export const adminUsersRouter = router({
   ban: adminProcedure
@@ -50,6 +247,7 @@ export const adminUsersRouter = router({
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const { userId } = input;
+      await syncExpiredSubscriptionsToFree(ctx.serverDB);
       const [user, creditAccount, latestSnapshot, recentLedger, recentOrders, recentAudit] =
         await Promise.all([
           ctx.serverDB.query.users.findFirst({ where: eq(users.id, userId) }),
@@ -94,12 +292,16 @@ export const adminUsersRouter = router({
       z.object({
         cursor: z.number().int().min(0).default(0),
         limit: z.number().int().min(1).max(100).default(20),
+        plan: z.string().optional(),
         query: z.string().optional(),
+        subscriptionStartedOrder: z.enum(['asc', 'desc']).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
+      await syncExpiredSubscriptionsToFree(ctx.serverDB);
+
       const escapeLike = (s: string) => s.replaceAll(/[%_\\]/g, '\\$&');
-      const where = input.query
+      const searchWhere = input.query
         ? or(
             like(users.email, `%${escapeLike(input.query)}%`),
             like(users.username, `%${escapeLike(input.query)}%`),
@@ -108,26 +310,96 @@ export const adminUsersRouter = router({
           )
         : undefined;
 
-      const [items, totalRow] = await Promise.all([
-        ctx.serverDB.query.users.findMany({
-          columns: {
-            avatar: true,
-            banned: true,
-            createdAt: true,
-            email: true,
-            fullName: true,
-            id: true,
-            lastActiveAt: true,
-            phone: true,
-            role: true,
-          },
-          limit: input.limit,
-          offset: input.cursor,
-          orderBy: desc(users.createdAt),
-          where,
-        }),
-        ctx.serverDB.select({ value: count() }).from(users).where(where),
+      const latestSnapshots = ctx.serverDB
+        .select({
+          createdAt: userPlanSnapshots.createdAt,
+          currency: userPlanSnapshots.currency,
+          cycle: userPlanSnapshots.cycle,
+          endsAt: userPlanSnapshots.endsAt,
+          id: userPlanSnapshots.id,
+          monthlyCredits: userPlanSnapshots.monthlyCredits,
+          monthlyPrice: userPlanSnapshots.monthlyPrice,
+          plan: userPlanSnapshots.plan,
+          renewsAt: userPlanSnapshots.renewsAt,
+          rn: sql<number>`row_number() over (partition by ${userPlanSnapshots.userId} order by ${userPlanSnapshots.startedAt} desc, ${userPlanSnapshots.createdAt} desc)`.as(
+            'rn',
+          ),
+          startedAt: userPlanSnapshots.startedAt,
+          status: userPlanSnapshots.status,
+          updatedAt: userPlanSnapshots.updatedAt,
+          userId: userPlanSnapshots.userId,
+        })
+        .from(userPlanSnapshots)
+        .where(eq(userPlanSnapshots.status, 'active'))
+        .as('latest_plan_snapshot');
+
+      const joinLatestSnapshot = and(
+        eq(users.id, latestSnapshots.userId),
+        eq(latestSnapshots.rn, 1),
+      );
+      const where = and(
+        searchWhere,
+        input.plan ? eq(latestSnapshots.plan, input.plan as Plans) : undefined,
+      );
+      const orderBy =
+        input.subscriptionStartedOrder === 'asc'
+          ? [asc(latestSnapshots.startedAt), desc(users.createdAt)]
+          : input.subscriptionStartedOrder === 'desc'
+            ? [desc(latestSnapshots.startedAt), desc(users.createdAt)]
+            : [desc(users.createdAt)];
+
+      const [rows, totalRow] = await Promise.all([
+        ctx.serverDB
+          .select({
+            subscription: {
+              createdAt: latestSnapshots.createdAt,
+              currency: latestSnapshots.currency,
+              cycle: latestSnapshots.cycle,
+              endsAt: latestSnapshots.endsAt,
+              id: latestSnapshots.id,
+              monthlyCredits: latestSnapshots.monthlyCredits,
+              monthlyPrice: latestSnapshots.monthlyPrice,
+              plan: latestSnapshots.plan,
+              renewsAt: latestSnapshots.renewsAt,
+              startedAt: latestSnapshots.startedAt,
+              status: latestSnapshots.status,
+              updatedAt: latestSnapshots.updatedAt,
+              userId: latestSnapshots.userId,
+            },
+            user: {
+              avatar: users.avatar,
+              banned: users.banned,
+              createdAt: users.createdAt,
+              email: users.email,
+              fullName: users.fullName,
+              id: users.id,
+              lastActiveAt: users.lastActiveAt,
+              phone: users.phone,
+              role: users.role,
+            },
+          })
+          .from(users)
+          .leftJoin(latestSnapshots, joinLatestSnapshot)
+          .where(where)
+          .orderBy(...orderBy)
+          .limit(input.limit)
+          .offset(input.cursor),
+        ctx.serverDB
+          .select({ value: count() })
+          .from(users)
+          .leftJoin(latestSnapshots, joinLatestSnapshot)
+          .where(where),
       ]);
+
+      const items = (
+        rows as Array<{
+          subscription: ({ id?: string | null } & Record<string, unknown>) | null;
+          user: Record<string, unknown>;
+        }>
+      ).map(({ user, subscription }) => ({
+        ...user,
+        subscription: subscription?.id ? subscription : null,
+      }));
 
       return {
         items,
@@ -207,6 +479,31 @@ export const adminUsersRouter = router({
         where,
       });
       return { items };
+    }),
+
+  getResetAllToFreePlanPreview: adminProcedure.query(async ({ ctx }) => {
+    return getResetAllUsersToFreePlanPreview(ctx.serverDB);
+  }),
+
+  resetAllToFreePlan: adminProcedure
+    .input(
+      z
+        .object({
+          reason: z.string().max(500).optional(),
+        })
+        .optional(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const reason = input?.reason?.trim() || 'admin_reset_to_unlimited_free_plan';
+      const result = await resetAllUsersToFreePlan(ctx.serverDB, reason);
+
+      await recordAdminAudit(ctx, {
+        action: 'user.resetAllToFreePlan',
+        payload: { ...result, reason },
+        resourceType: 'user',
+      });
+
+      return { ok: true, ...result };
     }),
 });
 

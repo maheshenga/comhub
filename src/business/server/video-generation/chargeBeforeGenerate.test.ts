@@ -1,31 +1,61 @@
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import type * as ModelRuntimeModule from '@lobechat/model-runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as CommercialModelModule from '@/database/models/commercial';
 
 import { chargeBeforeGenerate } from './chargeBeforeGenerate';
 
 const mocks = vi.hoisted(() => ({
   preCharge: vi.fn(),
   shouldChargeCommercialUsage: vi.fn(),
+  getModelPricing: vi.fn(),
+  getAppSettingValue: vi.fn(),
 }));
+
+vi.mock('@lobechat/model-runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof ModelRuntimeModule>();
+  return {
+    ...actual,
+    getModelPricing: mocks.getModelPricing,
+  };
+});
 
 vi.mock('@/business/server/commercialBilling', () => ({
   shouldChargeCommercialUsage: mocks.shouldChargeCommercialUsage,
 }));
 
-vi.mock('@/database/models/commercial', () => ({
-  CommercialModel: vi.fn().mockImplementation(() => ({
-    preCharge: mocks.preCharge,
-  })),
+vi.mock('@/server/services/appSettings', () => ({
+  APP_SETTING_KEYS: { pricingCreditMultiplier: 'pricing.creditMultiplier' },
+  getAppSettingValue: mocks.getAppSettingValue,
 }));
+
+vi.mock('@/database/models/commercial', async (importOriginal) => {
+  const actual = await importOriginal<typeof CommercialModelModule>();
+  return {
+    ...actual,
+    CommercialModel: vi.fn().mockImplementation(() => ({
+      preCharge: mocks.preCharge,
+    })),
+  };
+});
 
 describe('video chargeBeforeGenerate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
     mocks.preCharge.mockResolvedValue({ creditAccountId: 'user-1' });
+    mocks.getAppSettingValue.mockImplementation(async (key: string) =>
+      key === 'pricing.creditMultiplier'
+        ? 1.65
+        : [{ model: 'veo3.1-fast', multiplier: 1.4, provider: 'newapi' }],
+    );
+    mocks.getModelPricing.mockResolvedValue({
+      approximatePricePerVideo: 0.25,
+      units: [],
+    });
   });
 
-  it('checks budget using at least one display credit', async () => {
+  it('checks budget using the model video price with the configured multiplier', async () => {
     const result = await chargeBeforeGenerate({
       db: {} as any,
       generationTopicId: 'topic-1',
@@ -35,7 +65,9 @@ describe('video chargeBeforeGenerate', () => {
       userId: 'user-1',
     });
 
-    expect(mocks.preCharge).toHaveBeenCalledWith(CREDITS_PER_DOLLAR, {});
-    expect(result.prechargeResult?.estimatedCredits).toBe(CREDITS_PER_DOLLAR);
+    expect(mocks.getModelPricing).toHaveBeenCalledWith('veo3.1-fast', 'newapi');
+    expect(mocks.preCharge).toHaveBeenCalledWith(577_500, {});
+    expect(result.prechargeResult?.estimatedCredits).toBe(577_500);
+    expect(result.prechargeResult?.costDetail?.totalCost).toBe(0.25);
   });
 });

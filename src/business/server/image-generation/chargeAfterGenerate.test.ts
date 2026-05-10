@@ -1,24 +1,45 @@
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import type * as ModelRuntimeModule from '@lobechat/model-runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as CommercialModelModule from '@/database/models/commercial';
 
 import { chargeAfterGenerate } from './chargeAfterGenerate';
 
 const mocks = vi.hoisted(() => ({
   consumeCreditsForAiUsage: vi.fn(),
+  getModelPricing: vi.fn(),
   postCharge: vi.fn(),
   shouldChargeCommercialUsage: vi.fn(),
+  getAppSettingValue: vi.fn(),
 }));
+
+vi.mock('@lobechat/model-runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof ModelRuntimeModule>();
+  return {
+    ...actual,
+    getModelPricing: mocks.getModelPricing,
+  };
+});
 
 vi.mock('@/business/server/commercialBilling', () => ({
   shouldChargeCommercialUsage: mocks.shouldChargeCommercialUsage,
 }));
 
-vi.mock('@/database/models/commercial', () => ({
-  CommercialModel: vi.fn().mockImplementation(() => ({
-    consumeCreditsForAiUsage: mocks.consumeCreditsForAiUsage,
-    postCharge: mocks.postCharge,
-  })),
+vi.mock('@/server/services/appSettings', () => ({
+  APP_SETTING_KEYS: { pricingCreditMultiplier: 'pricing.creditMultiplier' },
+  getAppSettingValue: mocks.getAppSettingValue,
 }));
+
+vi.mock('@/database/models/commercial', async (importOriginal) => {
+  const actual = await importOriginal<typeof CommercialModelModule>();
+  return {
+    ...actual,
+    CommercialModel: vi.fn().mockImplementation(() => ({
+      consumeCreditsForAiUsage: mocks.consumeCreditsForAiUsage,
+      postCharge: mocks.postCharge,
+    })),
+  };
+});
 
 describe('image chargeAfterGenerate', () => {
   beforeEach(() => {
@@ -26,11 +47,18 @@ describe('image chargeAfterGenerate', () => {
     mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
     mocks.postCharge.mockResolvedValue({ id: 'ledger-1' });
     mocks.consumeCreditsForAiUsage.mockResolvedValue({ id: 'ledger-1' });
+    mocks.getAppSettingValue.mockResolvedValue(1.65);
+    mocks.getModelPricing.mockResolvedValue({
+      approximatePricePerImage: 0.053,
+      units: [],
+    });
   });
 
-  it('charges at least one display credit when exact image usage cost is unavailable', async () => {
+  it('charges the actual image usage cost with the configured multiplier', async () => {
     await chargeAfterGenerate({
       db: {} as any,
+      modelUsage: { cost: 0.034 },
+      metrics: { latency: 1234 },
       metadata: {
         asyncTaskId: 'task-1',
         generationBatchId: 'batch-1',
@@ -42,7 +70,7 @@ describe('image chargeAfterGenerate', () => {
 
     expect(mocks.postCharge).toHaveBeenCalledWith(
       expect.objectContaining({
-        credits: CREDITS_PER_DOLLAR,
+        credits: 56_100,
         referenceId: 'batch-1',
         referenceType: 'image_generation',
       }),

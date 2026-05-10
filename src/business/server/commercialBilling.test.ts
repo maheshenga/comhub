@@ -230,6 +230,7 @@ describe('recordCommercialChatUsage', () => {
         groupName: 'Pro Group',
         instanceId: 'instance-pro',
         instanceName: 'NewAPI Pro',
+        providerType: 'deepseek',
       },
       usage: { cost: 0.25, totalTokens: 100 },
       userId: 'user-1',
@@ -243,6 +244,7 @@ describe('recordCommercialChatUsage', () => {
           groupName: 'Pro Group',
           instanceId: 'instance-pro',
           instanceName: 'NewAPI Pro',
+          providerType: 'deepseek',
         },
       }),
     );

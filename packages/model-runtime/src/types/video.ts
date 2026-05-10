@@ -30,6 +30,7 @@ export type CreateVideoResponse =
 
 export type PollVideoStatusResult =
   | {
+      usage?: { completionTokens: number; totalTokens: number };
       headers?: Record<string, string>;
       status: 'success';
       videoUrl: string;

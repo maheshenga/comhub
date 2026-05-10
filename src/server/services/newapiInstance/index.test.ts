@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as PlanModelRulesModule from '@/business/server/planModelRules';
 import { resolvePlanModelRules } from '@/business/server/planModelRules';
 
 import { resolveDefaultNewapiInstance, resolveNewapiInstancesForModel } from './index';
 
 vi.mock('@/business/server/planModelRules', async () => {
-  const actual = await vi.importActual<typeof import('@/business/server/planModelRules')>(
+  const actual = await vi.importActual<typeof PlanModelRulesModule>(
     '@/business/server/planModelRules',
   );
 
@@ -86,6 +87,7 @@ describe('NewAPI instance resolver', () => {
         id: 'pro-1',
         name: 'Pro 1',
         priority: 0,
+        providerType: 'aliyun',
         usageScope: ['chat'],
       },
     ]);
@@ -101,6 +103,7 @@ describe('NewAPI instance resolver', () => {
         groupKey: 'pro',
         groupName: 'Pro',
         groupMultiplier: 2,
+        providerType: 'aliyun',
       }),
     );
   });

@@ -1,6 +1,10 @@
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import { getModelPricing } from '@lobechat/model-runtime';
 
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
+import {
+  estimateImageCharge,
+  resolveGenerationPricingMultiplier,
+} from '@/business/server/generationBilling';
 import { CommercialModel } from '@/database/models/commercial';
 import { type NewGeneration, type NewGenerationBatch } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
@@ -29,15 +33,18 @@ type ChargeResult =
     };
 
 export async function chargeBeforeGenerate(params: ChargeParams): Promise<ChargeResult> {
-  const { imageNum, provider, userId, db } = params;
+  const { imageNum, provider, userId, db, model, generationParams } = params;
 
   const shouldCharge = await shouldChargeCommercialUsage({ db: db!, provider, userId });
   if (!shouldCharge) return undefined;
 
-  const estimatedCredits = imageNum * CREDITS_PER_DOLLAR;
+  const pricing = await getModelPricing(model, provider);
+  const { estimatedCredits } = estimateImageCharge(pricing, generationParams, imageNum);
+  const multiplier = await resolveGenerationPricingMultiplier({ db, model, provider });
+  const adjustedCredits = Math.ceil(estimatedCredits * multiplier);
 
   const commercialModel = new CommercialModel(db!, userId);
-  await commercialModel.preCharge(estimatedCredits, db!);
+  await commercialModel.preCharge(adjustedCredits, db!);
 
   return undefined;
 }

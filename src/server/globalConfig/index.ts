@@ -14,7 +14,10 @@ import { knowledgeEnv } from '@/envs/knowledge';
 import { langfuseEnv } from '@/envs/langfuse';
 import { parseSSOProviders } from '@/libs/better-auth/utils/server';
 import { parseSystemAgent } from '@/server/globalConfig/parseSystemAgent';
-import { getServerDefaultAgentSettingOverrides } from '@/server/services/appSettings';
+import {
+  getServerDefaultAgentSettingOverrides,
+  getServerDefaultGenerationModelSettingOverrides,
+} from '@/server/services/appSettings';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { cleanObject } from '@/utils/object';
@@ -40,6 +43,7 @@ const getGenericNewapiParameters = (type: string) => {
 
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
+  const generationModelConfig = await getServerDefaultGenerationModelSettingOverrides(db);
   const aiProvider = await genServerAiProvidersConfig({
     ...(ENABLE_BUSINESS_FEATURES
       ? {
@@ -129,7 +133,13 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
       : undefined),
 
     image: cleanObject({
+      defaultModel: generationModelConfig.image?.model,
       defaultImageNum: imageEnv.AI_IMAGE_DEFAULT_IMAGE_NUM,
+      defaultProvider: generationModelConfig.image?.provider,
+    }),
+    video: cleanObject({
+      defaultModel: generationModelConfig.video?.model,
+      defaultProvider: generationModelConfig.video?.provider,
     }),
     memory: {
       userMemory: cleanObject(getPublicMemoryExtractionConfig()),

@@ -213,6 +213,10 @@ export class FeedbackSatisfactionJudgeAgentService implements FeedbackSatisfacti
       this.db,
       this.userId,
       this.modelConfig.provider,
+      {
+        model: this.modelConfig.model,
+        modelType: 'chat',
+      },
     );
 
     log(

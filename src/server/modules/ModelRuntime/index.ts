@@ -20,6 +20,7 @@ import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
 import { getLLMConfig } from '@/envs/llm';
 import {
+  type AdminModelApiProviderType,
   type NewapiModelType,
   resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel,
@@ -39,6 +40,7 @@ export interface NewapiFailoverInstance {
   instanceId: string;
   instanceName: string;
   priority: number;
+  providerType?: AdminModelApiProviderType | null;
   source: 'instance';
 }
 
@@ -84,7 +86,27 @@ const toNewapiRouteMetadata = (
     ...(instance.groupName ? { groupName: instance.groupName } : {}),
     ...(instance.instanceId ? { instanceId: instance.instanceId } : {}),
     ...(instance.instanceName ? { instanceName: instance.instanceName } : {}),
+    ...(instance.providerType ? { providerType: instance.providerType } : {}),
   };
+};
+
+const resolveAdminRuntimeProvider = (providerType?: AdminModelApiProviderType | null) => {
+  switch (providerType) {
+    case 'openai':
+    case 'openai-compatible': {
+      return ModelProvider.OpenAI;
+    }
+    case 'deepseek': {
+      return ModelProvider.DeepSeek;
+    }
+    case 'aliyun': {
+      return ModelProvider.Qwen;
+    }
+    case 'newapi':
+    default: {
+      return ModelProvider.NewAPI;
+    }
+  }
 };
 
 /**
@@ -392,7 +414,6 @@ const buildVertexOptions = (
  */
 const wrapNewapiRuntimeWithFailover = (
   runtime: ModelRuntime,
-  provider: string,
   payload: ClientSecretPayload,
   failoverInstances: NewapiFailoverInstance[],
   userId: string,
@@ -420,8 +441,10 @@ const wrapNewapiRuntimeWithFailover = (
             apiKey: instance.apiKey,
             baseURL: instance.baseUrl,
           };
+          const fallbackRuntimeProvider = resolveAdminRuntimeProvider(instance.providerType);
+          fallbackPayload.runtimeProvider = fallbackRuntimeProvider;
           const fallbackRuntime = await initModelRuntimeWithUserPayload(
-            provider,
+            fallbackRuntimeProvider,
             fallbackPayload,
             { userId },
             undefined,
@@ -535,6 +558,8 @@ export const initModelRuntimeFromDB = async (
       payload.apiKey ||= primary.apiKey;
       payload.baseURL ||= primary.baseUrl;
     }
+    const adminRuntimeProvider = resolveAdminRuntimeProvider(primary?.providerType);
+    payload.runtimeProvider = adminRuntimeProvider;
 
     // Store fallback instances for failover (exclude primary which is already set)
     const fallbackInstances = resolvedInstances.slice(1);
@@ -543,12 +568,17 @@ export const initModelRuntimeFromDB = async (
     const hooks = getBusinessModelRuntimeHooks(userId, provider, toNewapiRouteMetadata(primary));
 
     // 5. Initialize ModelRuntime with the payload and hooks
-    const runtime = await initModelRuntimeWithUserPayload(provider, payload, { userId }, hooks);
+    const runtime = await initModelRuntimeWithUserPayload(
+      adminRuntimeProvider,
+      payload,
+      { userId },
+      hooks,
+    );
 
     // 6. Wire up NewAPI failover: if the primary instance returns a retriable
     //    error (5xx / network), automatically retry with the next fallback instance.
     if (fallbackInstances.length > 0) {
-      return wrapNewapiRuntimeWithFailover(runtime, provider, payload, fallbackInstances, userId);
+      return wrapNewapiRuntimeWithFailover(runtime, payload, fallbackInstances, userId);
     }
 
     return runtime;

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -310,6 +310,53 @@ describe('CommercialModel', () => {
       });
     });
 
+    it('should apply route group multiplier and persist provider route metadata', async () => {
+      await commercialModel.ensureCreditAccount();
+      await serverDB
+        .update(creditAccounts)
+        .set({ balance: 5 * CREDITS_PER_DOLLAR, totalCredited: 5 * CREDITS_PER_DOLLAR })
+        .where(eq(creditAccounts.userId, userId));
+
+      await commercialModel.consumeCreditsForAiUsage({
+        model: 'gpt-4.1',
+        provider: 'newapi',
+        referenceId: 'assistant-message-route-multiplier',
+        referenceType: 'assistant_message',
+        routeMetadata: {
+          groupKey: 'pro',
+          groupMultiplier: 1.5,
+          groupName: 'Pro Group',
+          instanceId: 'instance-pro',
+          instanceName: 'NewAPI Pro',
+          providerType: 'deepseek',
+        },
+        title: 'AI Chat Usage',
+        usage: { cost: 0.2, costSource: 'gateway', totalTokens: 100 },
+        usageType: 'chat',
+      });
+
+      const account = await serverDB.query.creditAccounts.findFirst({
+        where: eq(creditAccounts.userId, userId),
+      });
+      const ledgerEntries = await serverDB.query.creditLedgerEntries.findMany({
+        where: eq(creditLedgerEntries.userId, userId),
+      });
+
+      expect(account?.balance).toBe(4_700_000);
+      expect(account?.totalDebited).toBe(300_000);
+      expect(ledgerEntries[0]).toMatchObject({
+        amount: -300_000,
+        metadata: expect.objectContaining({
+          groupKey: 'pro',
+          groupMultiplier: 1.5,
+          instanceId: 'instance-pro',
+          pricingMultiplier: 1.5,
+          provider: 'newapi',
+          providerType: 'deepseek',
+        }),
+      });
+    });
+
     it('should consume subscription credits before referral and top-up credits', async () => {
       await seedCreditLedger([
         { amount: 600_000, title: 'Subscription Credits', type: 'subscription_grant' },
@@ -483,7 +530,7 @@ describe('CommercialModel', () => {
       });
     });
 
-    it('should expire elapsed paid-plan snapshots and fall back to free summary', async () => {
+    it('should expire elapsed paid-plan snapshots and create an unlimited free snapshot', async () => {
       await serverDB.insert(userPlanSnapshots).values({
         cycle: 'monthly',
         currency: 'USD',
@@ -499,13 +546,32 @@ describe('CommercialModel', () => {
       });
 
       const summary = await commercialModel.getSubscriptionSummary();
-      const snapshot = await serverDB.query.userPlanSnapshots.findFirst({
+      const snapshots = await serverDB.query.userPlanSnapshots.findMany({
         where: eq(userPlanSnapshots.userId, userId),
+        orderBy: asc(userPlanSnapshots.startedAt),
       });
+      const repeatedSummary = await commercialModel.getSubscriptionSummary();
 
       expect(summary.plan).toBe(Plans.Free);
       expect(summary.isFreePlan).toBe(true);
-      expect(snapshot?.status).toBe('expired');
+      expect(summary.endsAt).toBeNull();
+      expect(summary.renewsAt).toBeNull();
+      expect(repeatedSummary.plan).toBe(Plans.Free);
+      expect(snapshots).toHaveLength(2);
+      expect(snapshots[0]).toMatchObject({
+        plan: Plans.Starter,
+        status: 'expired',
+      });
+      expect(snapshots[1]).toMatchObject({
+        cycle: 'monthly',
+        monthlyCredits: 0,
+        monthlyPrice: 0,
+        plan: Plans.Free,
+        provider: 'system_default',
+        status: 'active',
+      });
+      expect(snapshots[1]?.endsAt).toBeNull();
+      expect(snapshots[1]?.renewsAt).toBeNull();
     });
   });
 

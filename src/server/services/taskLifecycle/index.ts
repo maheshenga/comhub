@@ -294,7 +294,10 @@ export class TaskLifecycleService {
         taskName: currentTask?.name || taskIdentifier,
       });
 
-      const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider);
+      const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider, {
+        model,
+        modelType: 'chat',
+      });
       const result = await modelRuntime.generateObject(
         {
           messages: payload.messages as any[],
@@ -393,7 +396,10 @@ export class TaskLifecycleService {
           taskName: currentTask.name || taskIdentifier,
         });
 
-        const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider);
+        const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider, {
+          model,
+          modelType: 'chat',
+        });
         const judgeResult = (await modelRuntime.generateObject(
           {
             messages: judgePayload.messages as any[],
@@ -445,7 +451,10 @@ export class TaskLifecycleService {
         taskName: currentTask.name || taskIdentifier,
       });
 
-      const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider);
+      const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider, {
+        model,
+        modelType: 'chat',
+      });
       const result = await modelRuntime.generateObject(
         {
           messages: payload.messages as any[],

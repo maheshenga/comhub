@@ -8,6 +8,7 @@ import { subscriptionChangeRequests, userPlanSnapshots } from '@/database/schema
 import type { Transaction } from '@/database/type';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 
+import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
@@ -113,6 +114,8 @@ export const adminSubscriptionsRouter = router({
   getUserSubscription: adminProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
+      await syncExpiredSubscriptionsToFree(ctx.serverDB);
+
       const snapshot = await ctx.serverDB.query.userPlanSnapshots.findFirst({
         orderBy: desc(userPlanSnapshots.createdAt),
         where: eq(userPlanSnapshots.userId, input.userId),
@@ -129,6 +132,8 @@ export const adminSubscriptionsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      await syncExpiredSubscriptionsToFree(ctx.serverDB);
+
       const { cursor, limit, plan } = input;
       const where = plan ? eq(userPlanSnapshots.plan, plan as Plans) : undefined;
 

@@ -16,6 +16,15 @@ $tarPath = Join-Path $dist $tarName
 $imageTag = "${Image}:$Tag"
 $container = "comhub-export-$Tag"
 
+function Remove-DockerContainerIfExists {
+  param([string]$Name)
+
+  $existing = docker ps -a --filter "name=^/$Name$" --format '{{.ID}}'
+  if ($existing) {
+    docker rm -f $Name | Out-Null
+  }
+}
+
 function Assert-UnderPath {
   param([string]$Path, [string]$Parent)
 
@@ -54,7 +63,7 @@ try {
     Remove-Item -LiteralPath $tarPath -Force
   }
 
-  docker rm -f $container 2>$null | Out-Null
+  Remove-DockerContainerIfExists -Name $container
   docker create --name $container $imageTag | Out-Null
   docker cp "${container}:/app" $exportDir
   docker rm $container | Out-Null
@@ -84,6 +93,6 @@ try {
   Write-Host "Remote upload target: /tmp/$tarName"
 }
 finally {
-  docker rm -f $container 2>$null | Out-Null
+  Remove-DockerContainerIfExists -Name $container
   Pop-Location
 }

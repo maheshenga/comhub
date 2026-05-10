@@ -73,9 +73,11 @@ const PRICING_MODEL_RULES_KEY = 'pricing.modelRules';
 type AiUsagePricingRule = {
   creditsPerDollar?: number;
   group?: string;
+  instanceId?: string;
   model?: string;
   multiplier?: number;
   provider?: string;
+  providerType?: string;
 };
 
 export type AiUsageRouteMetadata = {
@@ -84,39 +86,58 @@ export type AiUsageRouteMetadata = {
   groupName?: string | null;
   instanceId?: string | null;
   instanceName?: string | null;
+  providerType?: string | null;
 };
 
 export const resolveAiUsagePricing = ({
   globalMultiplier,
   groupKey,
+  groupMultiplier,
+  instanceId,
   model,
   provider,
+  providerType,
   rules,
 }: {
   globalMultiplier?: number;
   groupKey?: string | null;
+  groupMultiplier?: number | null;
+  instanceId?: string | null;
   model: string;
   provider: string;
+  providerType?: string | null;
   rules: AiUsagePricingRule[];
 }) => {
   const normalizedGroup = groupKey?.trim().toLowerCase();
+  const normalizedInstanceId = instanceId?.trim().toLowerCase();
   const normalizedModel = model.toLowerCase();
   const normalizedProvider = provider.toLowerCase();
+  const normalizedProviderType = providerType?.trim().toLowerCase();
   const matchedRule = rules
     .filter((rule) => {
       const ruleGroup = rule?.group?.trim().toLowerCase();
+      const ruleInstanceId = rule?.instanceId?.trim().toLowerCase();
       const ruleModel = rule?.model?.trim().toLowerCase();
       const ruleProvider = rule?.provider?.trim().toLowerCase();
+      const ruleProviderType = rule?.providerType?.trim().toLowerCase();
       const groupMatched = ruleGroup ? ruleGroup === normalizedGroup : true;
+      const instanceMatched = ruleInstanceId ? ruleInstanceId === normalizedInstanceId : true;
       const modelMatched = !ruleModel || ruleModel === '*' || ruleModel === normalizedModel;
       const providerMatched =
         !ruleProvider || ruleProvider === '*' || ruleProvider === normalizedProvider;
+      const providerTypeMatched = ruleProviderType
+        ? ruleProviderType === normalizedProviderType
+        : true;
 
-      return groupMatched && modelMatched && providerMatched;
+      return (
+        groupMatched && instanceMatched && modelMatched && providerMatched && providerTypeMatched
+      );
     })
     .sort((a, b) => {
       const score = (rule: AiUsagePricingRule) =>
+        (rule.instanceId ? 8 : 0) +
         (rule.group ? 4 : 0) +
+        (rule.providerType ? 3 : 0) +
         (rule.provider && rule.provider !== '*' ? 2 : 0) +
         (rule.model && rule.model !== '*' ? 2 : 0) +
         (Number.isFinite(rule.creditsPerDollar) ? 1 : 0);
@@ -129,7 +150,10 @@ export const resolveAiUsagePricing = ({
     matchedRule,
     multiplier:
       (Number.isFinite(globalMultiplier) ? Number(globalMultiplier) : 1) *
-      (Number.isFinite(matchedRule?.multiplier) ? Number(matchedRule?.multiplier) : 1),
+      (Number.isFinite(matchedRule?.multiplier) ? Number(matchedRule?.multiplier) : 1) *
+      (Number.isFinite(groupMultiplier) && Number(groupMultiplier) > 0
+        ? Number(groupMultiplier)
+        : 1),
   };
 };
 
@@ -384,12 +408,18 @@ export class CommercialModel {
 
   private getAiUsagePricing = async ({
     groupKey,
+    groupMultiplier,
+    instanceId,
     model,
     provider,
+    providerType,
   }: {
     groupKey?: string | null;
+    groupMultiplier?: number | null;
+    instanceId?: string | null;
     model: string;
     provider: string;
+    providerType?: string | null;
   }) => {
     try {
       const rows = await this.db.query.appSettings.findMany({
@@ -401,7 +431,16 @@ export class CommercialModel {
         ? (settings[PRICING_MODEL_RULES_KEY] as AiUsagePricingRule[])
         : [];
 
-      return resolveAiUsagePricing({ globalMultiplier, groupKey, model, provider, rules });
+      return resolveAiUsagePricing({
+        globalMultiplier,
+        groupKey,
+        groupMultiplier,
+        instanceId,
+        model,
+        provider,
+        providerType,
+        rules,
+      });
     } catch {
       return { creditsPerDollar: undefined, matchedRule: undefined, multiplier: 1 };
     }
@@ -731,7 +770,7 @@ export class CommercialModel {
   private syncExpiredPlanSnapshots = async (db: LobeChatDatabase | Transaction = this.db) => {
     const now = new Date();
 
-    return db
+    await db
       .update(userPlanSnapshots)
       .set({ status: 'expired', updatedAt: now })
       .where(
@@ -741,6 +780,38 @@ export class CommercialModel {
           lt(userPlanSnapshots.endsAt, now),
         ),
       );
+
+    return this.ensureUnlimitedFreePlanSnapshot(db, now);
+  };
+
+  private ensureUnlimitedFreePlanSnapshot = async (
+    db: LobeChatDatabase | Transaction = this.db,
+    startedAt: Date = new Date(),
+  ) => {
+    const activeSnapshot = await db.query.userPlanSnapshots.findFirst({
+      orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+      where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
+    });
+
+    if (activeSnapshot) return activeSnapshot;
+
+    const [freeSnapshot] = await db
+      .insert(userPlanSnapshots)
+      .values({
+        cycle: 'monthly',
+        externalSubscriptionId: `default-free-${this.userId}`,
+        metadata: { source: 'subscription_expiry_fallback', unlimited: true },
+        monthlyCredits: 0,
+        monthlyPrice: 0,
+        plan: Plans.Free,
+        provider: 'system_default',
+        startedAt,
+        status: 'active',
+        userId: this.userId,
+      })
+      .returning();
+
+    return freeSnapshot;
   };
 
   private syncLatestSubscriptionCredits = async () => {
@@ -895,8 +966,11 @@ export class CommercialModel {
     const usdCost = usage?.cost ?? 0;
     const pricing = await this.getAiUsagePricing({
       groupKey: routeMetadata?.groupKey,
+      groupMultiplier: routeMetadata?.groupMultiplier,
+      instanceId: routeMetadata?.instanceId,
       model,
       provider,
+      providerType: routeMetadata?.providerType,
     });
     const amount = this.getChatUsageCreditAmount(usdCost, pricing);
 
@@ -966,6 +1040,7 @@ export class CommercialModel {
             ...(routeMetadata?.groupName ? { groupName: routeMetadata.groupName } : {}),
             ...(routeMetadata?.instanceId ? { instanceId: routeMetadata.instanceId } : {}),
             ...(routeMetadata?.instanceName ? { instanceName: routeMetadata.instanceName } : {}),
+            ...(routeMetadata?.providerType ? { providerType: routeMetadata.providerType } : {}),
             matchedPricingRule: pricing.matchedRule ?? null,
             model,
             operationId,

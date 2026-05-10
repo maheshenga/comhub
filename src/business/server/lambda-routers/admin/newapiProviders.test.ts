@@ -43,6 +43,7 @@ const createDbMock = ({
           groupMultiplier: null,
           id: instanceId,
           name: 'Default',
+          providerType: 'newapi',
           usageScope: null,
         }),
         findMany: vi.fn().mockResolvedValue([
@@ -54,6 +55,7 @@ const createDbMock = ({
             groupMultiplier: 1.25,
             id: instanceId,
             name: 'NewAPI Pro',
+            providerType: 'deepseek',
             usageScope: ['chat', 'image'],
           },
         ]),
@@ -91,6 +93,7 @@ describe('adminNewapiProvidersRouter', () => {
       groupMultiplier: 1.25,
       name: 'NewAPI Pro',
       priority: 10,
+      providerType: 'deepseek',
       usageScope: ['chat', 'image'],
     } as any);
 
@@ -99,6 +102,7 @@ describe('adminNewapiProvidersRouter', () => {
         groupKey: 'pro',
         groupName: 'Pro Group',
         groupMultiplier: 1.25,
+        providerType: 'deepseek',
         usageScope: ['chat', 'image'],
       }),
     );
@@ -111,7 +115,27 @@ describe('adminNewapiProvidersRouter', () => {
         groupKey: 'pro',
         groupName: 'Pro Group',
         groupMultiplier: 1.25,
+        providerType: 'deepseek',
         usageScope: ['chat', 'image'],
+      }),
+    );
+  });
+
+  it('defaults legacy create payloads to the newapi provider type', async () => {
+    const { db, inserted } = createDbMock();
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.createInstance({
+      apiKey: 'sk-test-key',
+      baseUrl: 'https://newapi.example.com',
+      name: 'Legacy NewAPI',
+    } as any);
+
+    expect(inserted.value).toEqual(
+      expect.objectContaining({
+        providerType: 'newapi',
       }),
     );
   });

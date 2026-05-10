@@ -2,6 +2,13 @@ import urlJoin from 'url-join';
 
 import type { NewapiModelType } from './index';
 
+export type AdminModelApiProviderType =
+  | 'newapi'
+  | 'openai-compatible'
+  | 'openai'
+  | 'deepseek'
+  | 'aliyun';
+
 export interface NewapiRemoteModel {
   created?: number;
   id: string;
@@ -181,10 +188,14 @@ export const fetchNewapiModels = async ({
 export const fetchNewapiPricing = async ({
   apiKey,
   baseUrl,
+  providerType = 'newapi',
 }: {
   apiKey: string;
   baseUrl: string;
+  providerType?: AdminModelApiProviderType | string | null;
 }): Promise<NewapiRemotePricing[]> => {
+  if (providerType && providerType !== 'newapi') return [];
+
   const response = await fetch(urlJoin(normalizeNewapiRoot(baseUrl), '/api/pricing'), {
     headers: {
       Accept: 'application/json',

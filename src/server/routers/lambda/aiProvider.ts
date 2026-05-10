@@ -21,7 +21,7 @@ import { type ProviderConfig } from '@/types/user/settings';
 const aiProviderProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
 
-  const { aiProvider } = await getServerGlobalConfig();
+  const { aiProvider } = await getServerGlobalConfig(ctx.serverDB);
 
   const gateKeeper = await KeyVaultsGateKeeper.initWithEnvKey();
   return opts.next({
@@ -59,7 +59,10 @@ export const aiProviderRouter = router({
       }
 
       try {
-        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.id);
+        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.id, {
+          model,
+          modelType: 'chat',
+        });
 
         const response = await modelRuntime.chat({
           messages: [{ content: 'Hi', role: 'user' }],

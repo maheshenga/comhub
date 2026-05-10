@@ -25,7 +25,12 @@ import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-import { buildNewapiInstancePayload } from './adminNewapiInstanceForm';
+import {
+  ADMIN_MODEL_API_PROVIDER_TYPES,
+  type AdminModelApiProviderType,
+  buildNewapiInstancePayload,
+  getDefaultBaseUrlForAdminProviderType,
+} from './adminNewapiInstanceForm';
 
 type ModelType =
   | 'chat'
@@ -60,6 +65,7 @@ interface InstanceRow {
   id: string;
   name: string;
   priority: number;
+  providerType: AdminModelApiProviderType;
   usageScope: ModelType[] | null;
 }
 
@@ -74,6 +80,14 @@ interface ModelRow {
 const INSTANCES_KEY = ['admin-newapi-instances'];
 const modelsKey = (instanceId: string, modelType?: ModelType) =>
   ['admin-newapi-instance-models', instanceId, modelType ?? 'all'] as const;
+
+const PROVIDER_TYPE_LABELS: Record<AdminModelApiProviderType, string> = {
+  'aliyun': '阿里云 DashScope',
+  'deepseek': 'DeepSeek',
+  'newapi': 'NewAPI',
+  'openai': 'OpenAI',
+  'openai-compatible': 'OpenAI 兼容',
+};
 
 const splitToList = (text: string): string[] =>
   text
@@ -90,6 +104,15 @@ const InstanceFormModal = memo<{
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!initial;
+  const providerType = Form.useWatch('providerType', form) as AdminModelApiProviderType | undefined;
+  const providerTypeOptions = useMemo(
+    () =>
+      ADMIN_MODEL_API_PROVIDER_TYPES.map((type) => ({
+        label: PROVIDER_TYPE_LABELS[type],
+        value: type,
+      })),
+    [],
+  );
   const usageScopeOptions = useMemo(
     () =>
       MODEL_TYPES.map((type) => ({
@@ -120,6 +143,14 @@ const InstanceFormModal = memo<{
     }
   };
 
+  const handleProviderTypeChange = (nextProviderType: AdminModelApiProviderType) => {
+    const currentBaseUrl = form.getFieldValue('baseUrl');
+    const defaultBaseUrl = getDefaultBaseUrlForAdminProviderType(nextProviderType);
+    if (!currentBaseUrl && defaultBaseUrl) {
+      form.setFieldValue('baseUrl', defaultBaseUrl);
+    }
+  };
+
   return (
     <Modal
       destroyOnClose
@@ -140,6 +171,7 @@ const InstanceFormModal = memo<{
               groupName: '',
               name: '',
               priority: 0,
+              providerType: 'newapi',
               usageScope: [],
             },
           );
@@ -154,6 +186,20 @@ const InstanceFormModal = memo<{
       onOk={handleOk}
     >
       <Form form={form} layout="vertical">
+        <Form.Item
+          label={t('admin.newapi.field.providerType', '服务商类型')}
+          name="providerType"
+          extra={
+            providerType === 'newapi'
+              ? t('admin.newapi.field.providerTypeNewapiHint', 'NewAPI 支持同步模型和价格。')
+              : t(
+                  'admin.newapi.field.providerTypeOpenaiHint',
+                  'OpenAI 兼容服务商支持同步模型，价格需要在计费矩阵中配置。',
+                )
+          }
+        >
+          <Select options={providerTypeOptions} onChange={handleProviderTypeChange} />
+        </Form.Item>
         <Form.Item
           label={t('admin.newapi.field.name', '名称')}
           name="name"
@@ -542,6 +588,17 @@ const AdminNewapiProvidersPage = memo(() => {
         </Tooltip>
       ),
       title: t('admin.newapi.col.baseUrl', '基础地址'),
+    },
+    {
+      dataIndex: 'providerType',
+      key: 'providerType',
+      render: (value: AdminModelApiProviderType | null) => (
+        <Tag color={value === 'newapi' ? 'green' : 'blue'}>
+          {PROVIDER_TYPE_LABELS[value || 'newapi']}
+        </Tag>
+      ),
+      title: t('admin.newapi.col.providerType', '服务商'),
+      width: 150,
     },
     {
       dataIndex: 'apiKey',

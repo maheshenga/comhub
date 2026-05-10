@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { useBrandName } from '@/features/Brand';
+import { replaceLegacyBrandTokens } from '@/features/Brand/brandText';
 import { getPlatformIcon } from '@/routes/(main)/agent/channel/const';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors/builtinAgentSelectors';
@@ -113,6 +114,7 @@ const BotIntegrationBanner = memo(() => {
     },
     [updateSystemStatus],
   );
+  const title = replaceLegacyBrandTokens(t('botIntegrationBanner.title', { brandName }), brandName);
 
   return (
     <div
@@ -122,7 +124,7 @@ const BotIntegrationBanner = memo(() => {
     >
       <Flexbox horizontal align="center" gap={4}>
         <Icon className={styles.icon} icon={RadioTowerIcon} size={18} />
-        <span className={styles.text}>{t('botIntegrationBanner.title', { brandName })}</span>
+        <span className={styles.text}>{title}</span>
       </Flexbox>
       <Flexbox horizontal align="center" gap={8}>
         {platformIcons.length > 0 && (

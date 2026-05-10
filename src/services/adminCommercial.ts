@@ -12,9 +12,17 @@ type NewapiModelType =
   | 'text2music'
   | 'realtime';
 
+type AdminModelApiProviderType = 'newapi' | 'openai-compatible' | 'openai' | 'deepseek' | 'aliyun';
+
 class AdminCommercialService {
   // Users
-  listUsers = async (params: { cursor?: number; limit?: number; query?: string }) => {
+  listUsers = async (params: {
+    cursor?: number;
+    limit?: number;
+    plan?: string;
+    query?: string;
+    subscriptionStartedOrder?: 'asc' | 'desc';
+  }) => {
     return lambdaClient.admin.users.list.query(params);
   };
 
@@ -84,6 +92,14 @@ class AdminCommercialService {
 
   setAppSetting = async (params: { key: string; value: unknown }) => {
     return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
+  };
+
+  validateDefaultAgentSettings = async (params: {
+    model?: string;
+    modelType?: 'chat' | 'image' | 'video';
+    provider?: string;
+  }) => {
+    return lambdaClient.admin.settings.validateDefaultAgentSettings.mutate(params);
   };
 
   getPublicRecommendations = async () => {
@@ -219,6 +235,12 @@ class AdminCommercialService {
   exportUsers = async (params: { limit?: number; query?: string }) =>
     lambdaClient.admin.users.exportAll.query(params);
 
+  resetAllUsersToFreePlan = async (params?: { reason?: string }) =>
+    lambdaClient.admin.users.resetAllToFreePlan.mutate(params ?? {});
+
+  getResetAllUsersToFreePlanPreview = async () =>
+    lambdaClient.admin.users.getResetAllToFreePlanPreview.query();
+
   // Maintenance
   runMaintenance = async (params?: {
     auditRetentionDays?: number;
@@ -290,6 +312,7 @@ class AdminCommercialService {
     groupName?: string;
     name: string;
     priority?: number;
+    providerType?: AdminModelApiProviderType;
     usageScope?: NewapiModelType[];
   }) => lambdaClient.admin.newapiProviders.createInstance.mutate(params);
 
@@ -305,6 +328,7 @@ class AdminCommercialService {
       groupName?: string;
       name?: string;
       priority?: number;
+      providerType?: AdminModelApiProviderType;
       usageScope?: NewapiModelType[];
     };
     id: string;

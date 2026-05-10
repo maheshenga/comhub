@@ -1,11 +1,14 @@
 import { and, count, eq, gte, sql } from 'drizzle-orm';
 
-import { redemptionCodes, topUpOrders, users } from '@/database/schemas';
-import { userPlanSnapshots } from '@/database/schemas';
+import { redemptionCodes, topUpOrders, userPlanSnapshots, users } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
+
+import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 
 export const adminStatsRouter = router({
   overview: adminProcedure.query(async ({ ctx }) => {
+    await syncExpiredSubscriptionsToFree(ctx.serverDB);
+
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -19,10 +22,7 @@ export const adminStatsRouter = router({
       [{ value: subscriptionRevenue }],
     ] = await Promise.all([
       ctx.serverDB.select({ value: count() }).from(users),
-      ctx.serverDB
-        .select({ value: count() })
-        .from(users)
-        .where(gte(users.lastActiveAt, oneDayAgo)),
+      ctx.serverDB.select({ value: count() }).from(users).where(gte(users.lastActiveAt, oneDayAgo)),
       ctx.serverDB
         .select({ value: count() })
         .from(users)
@@ -36,9 +36,7 @@ export const adminStatsRouter = router({
           value: sql<number>`COALESCE(SUM(${topUpOrders.amount}), 0)`,
         })
         .from(topUpOrders)
-        .where(
-          and(eq(topUpOrders.status, 'paid'), gte(topUpOrders.paidAt, thirtyDaysAgo)),
-        ),
+        .where(and(eq(topUpOrders.status, 'paid'), gte(topUpOrders.paidAt, thirtyDaysAgo))),
       ctx.serverDB
         .select({
           value: sql<number>`COALESCE(SUM(${userPlanSnapshots.monthlyPrice}), 0)`,
@@ -78,20 +76,30 @@ export const adminStatsRouter = router({
       .groupBy(sql`date_trunc('day', ${users.lastActiveAt})`)
       .orderBy(sql`date_trunc('day', ${users.lastActiveAt})`);
 
-    return rows.map((r: { count: number; day: unknown }) => ({ count: Number(r.count), day: r.day }));
+    return rows.map((r: { count: number; day: unknown }) => ({
+      count: Number(r.count),
+      day: r.day,
+    }));
   }),
 
   subscriptionsByPlan: adminProcedure.query(async ({ ctx }) => {
+    await syncExpiredSubscriptionsToFree(ctx.serverDB);
+
     const rows = await ctx.serverDB
       .select({ count: count(), plan: userPlanSnapshots.plan })
       .from(userPlanSnapshots)
       .where(eq(userPlanSnapshots.status, 'active'))
       .groupBy(userPlanSnapshots.plan);
 
-    return rows.map((r: { count: number; plan: string }) => ({ count: Number(r.count), plan: r.plan }));
+    return rows.map((r: { count: number; plan: string }) => ({
+      count: Number(r.count),
+      plan: r.plan,
+    }));
   }),
 
   revenueByMonth: adminProcedure.query(async ({ ctx }) => {
+    await syncExpiredSubscriptionsToFree(ctx.serverDB);
+
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
@@ -112,10 +120,7 @@ export const adminStatsRouter = router({
       })
       .from(userPlanSnapshots)
       .where(
-        and(
-          eq(userPlanSnapshots.status, 'active'),
-          gte(userPlanSnapshots.startedAt, sixMonthsAgo),
-        ),
+        and(eq(userPlanSnapshots.status, 'active'), gte(userPlanSnapshots.startedAt, sixMonthsAgo)),
       )
       .groupBy(sql`date_trunc('month', ${userPlanSnapshots.startedAt})`)
       .orderBy(sql`date_trunc('month', ${userPlanSnapshots.startedAt})`);
@@ -198,12 +203,10 @@ export const adminStatsRouter = router({
       .groupBy(redemptionCodes.rewardType);
 
     return {
-      byRewardType: byTypeRows.map(
-        (r: { rewardType: string; total: number }) => ({
-          rewardType: r.rewardType,
-          total: Number(r.total),
-        }),
-      ),
+      byRewardType: byTypeRows.map((r: { rewardType: string; total: number }) => ({
+        rewardType: r.rewardType,
+        total: Number(r.total),
+      })),
       creditsGranted30d: Number(creditsGranted30d),
       disabled: Number(totalDisabled),
       expired: Number(totalExpired),

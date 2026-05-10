@@ -4,18 +4,21 @@ import { BadgeCheck, CircleUser, Package } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useBrandName } from '@/features/Brand';
+
 interface SkillSourceTagProps {
   source: SkillSource;
 }
 
 const SkillSourceTag = memo<SkillSourceTagProps>(({ source }) => {
   const { t } = useTranslation(['plugin', 'setting']);
+  const brandName = useBrandName();
 
   switch (source) {
     case 'builtin': {
       return (
         <Tag color={'success'} icon={<Icon icon={BadgeCheck} />} size={'small'}>
-          {t('skillStore.tabs.lobehub', { ns: 'setting' })}
+          {brandName}
         </Tag>
       );
     }

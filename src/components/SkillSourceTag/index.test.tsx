@@ -9,11 +9,15 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+vi.mock('@/features/Brand', () => ({
+  useBrandName: () => '玄果AI',
+}));
+
 describe('SkillSourceTag', () => {
   it('uses the configured brand label for builtin skills', () => {
     render(<SkillSourceTag source="builtin" />);
 
-    expect(screen.getByText('青柚AI')).toBeInTheDocument();
+    expect(screen.getByText('玄果AI')).toBeInTheDocument();
     expect(screen.queryByText('LobeHub')).not.toBeInTheDocument();
   });
 });

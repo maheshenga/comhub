@@ -1,33 +1,67 @@
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import type * as ModelRuntimeModule from '@lobechat/model-runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as CommercialModelModule from '@/database/models/commercial';
 
 import { chargeAfterGenerate } from './chargeAfterGenerate';
 
 const mocks = vi.hoisted(() => ({
   postCharge: vi.fn(),
   shouldChargeCommercialUsage: vi.fn(),
+  getModelPricing: vi.fn(),
+  getAppSettingValue: vi.fn(),
 }));
+
+vi.mock('@lobechat/model-runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof ModelRuntimeModule>();
+  return {
+    ...actual,
+    getModelPricing: mocks.getModelPricing,
+  };
+});
 
 vi.mock('@/business/server/commercialBilling', () => ({
   shouldChargeCommercialUsage: mocks.shouldChargeCommercialUsage,
 }));
 
-vi.mock('@/database/models/commercial', () => ({
-  CommercialModel: vi.fn().mockImplementation(() => ({
-    postCharge: mocks.postCharge,
-  })),
+vi.mock('@/server/services/appSettings', () => ({
+  APP_SETTING_KEYS: { pricingCreditMultiplier: 'pricing.creditMultiplier' },
+  getAppSettingValue: mocks.getAppSettingValue,
 }));
+
+vi.mock('@/database/models/commercial', async (importOriginal) => {
+  const actual = await importOriginal<typeof CommercialModelModule>();
+  return {
+    ...actual,
+    CommercialModel: vi.fn().mockImplementation(() => ({
+      postCharge: mocks.postCharge,
+    })),
+  };
+});
 
 describe('video chargeAfterGenerate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
     mocks.postCharge.mockResolvedValue({ id: 'ledger-1' });
+    mocks.getAppSettingValue.mockResolvedValue(1.65);
+    mocks.getModelPricing.mockResolvedValue({
+      units: [
+        {
+          name: 'videoGeneration',
+          rate: 0.21,
+          strategy: 'fixed',
+          unit: 'millionTokens',
+        },
+      ],
+    });
   });
 
-  it('charges the prechecked display credit amount on successful generation', async () => {
+  it('charges the actual video usage cost on successful generation', async () => {
     await chargeAfterGenerate({
       db: {} as any,
+      computePriceParams: { generateAudio: true, resolution: '720p' },
       metadata: {
         asyncTaskId: 'task-1',
         generationBatchId: 'batch-1',
@@ -35,20 +69,22 @@ describe('video chargeAfterGenerate', () => {
       },
       model: 'veo3.1-fast',
       prechargeResult: { estimatedCredits: CREDITS_PER_DOLLAR },
+      usage: { completionTokens: 500_000, totalTokens: 500_000 },
       provider: 'newapi',
       userId: 'user-1',
     });
 
+    expect(mocks.getModelPricing).toHaveBeenCalledWith('veo3.1-fast', 'newapi');
     expect(mocks.postCharge).toHaveBeenCalledWith(
       expect.objectContaining({
-        credits: CREDITS_PER_DOLLAR,
+        credits: 173_250,
         referenceId: 'batch-1',
         referenceType: 'video_generation',
       }),
     );
   });
 
-  it('falls back to one display credit when legacy precharge metadata has no amount', async () => {
+  it('falls back to the precharge amount when usage is unavailable', async () => {
     await chargeAfterGenerate({
       db: {} as any,
       metadata: {
@@ -57,14 +93,14 @@ describe('video chargeAfterGenerate', () => {
         modelId: 'veo3.1-fast',
       },
       model: 'veo3.1-fast',
-      prechargeResult: { costDetail: {} },
+      prechargeResult: { costDetail: { totalCredits: 60_000 } },
       provider: 'newapi',
       userId: 'user-1',
     });
 
     expect(mocks.postCharge).toHaveBeenCalledWith(
       expect.objectContaining({
-        credits: CREDITS_PER_DOLLAR,
+        credits: 99_000,
       }),
     );
   });

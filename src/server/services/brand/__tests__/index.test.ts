@@ -13,8 +13,11 @@ vi.mock('@/database/schemas', () => ({
 }));
 vi.mock('@/const/brand', () => ({
   DEFAULT_RUNTIME_BRAND: {
+    authTitle: 'Default auth title',
+    copyrightText: '2026 Default. All rights reserved.',
+    loadingText: 'Loading',
     logoUrl: '/images/brand/qingyou-ai-logo.png',
-    name: '青柚AI',
+    name: 'Default Brand',
     primaryColor: '#12b981',
   },
 }));
@@ -35,7 +38,10 @@ describe('getServerBrand', () => {
     findFirstMock.mockImplementation(async (args: any) => {
       const k = args.where.b;
       const map: Record<string, string> = {
+        'brand.authTitle': 'Welcome to Acme',
+        'brand.copyrightText': '2026 Acme',
         'brand.faviconUrl': 'https://x/favicon.ico',
+        'brand.loadingText': 'Loading Acme',
         'brand.logoUrl': 'https://x/logo.svg',
         'brand.name': 'Acme',
         'brand.primaryColor': '#ff00aa',
@@ -46,7 +52,10 @@ describe('getServerBrand', () => {
 
     const out = await getServerBrand();
     expect(out).toEqual({
+      authTitle: 'Welcome to Acme',
+      copyrightText: '2026 Acme',
       faviconUrl: 'https://x/favicon.ico',
+      loadingText: 'Loading Acme',
       logoUrl: 'https://x/logo.svg',
       name: 'Acme',
       primaryColor: '#ff00aa',
@@ -58,11 +67,14 @@ describe('getServerBrand', () => {
     findFirstMock.mockResolvedValue(null);
     const out = await getServerBrand();
     expect(out).toEqual({
+      authTitle: 'Default auth title',
+      copyrightText: '2026 Default. All rights reserved.',
       faviconUrl: null,
+      loadingText: 'Loading',
       logoUrl: '/images/brand/qingyou-ai-logo.png',
-      name: '青柚AI',
+      name: 'Default Brand',
       primaryColor: '#12b981',
-      slogan: null,
+      slogan: 'Default auth title',
     });
   });
 
@@ -71,8 +83,8 @@ describe('getServerBrand', () => {
     await getServerBrand();
     await getServerBrand();
     await getServerBrand();
-    // Each call queries 5 keys; only the first call should hit the DB.
-    expect(findFirstMock).toHaveBeenCalledTimes(5);
+    // Each call queries 8 keys; only the first call should hit the DB.
+    expect(findFirstMock).toHaveBeenCalledTimes(8);
   });
 
   it('invalidate forces a fresh fetch', async () => {
@@ -80,18 +92,21 @@ describe('getServerBrand', () => {
     await getServerBrand();
     invalidateServerBrand();
     await getServerBrand();
-    expect(findFirstMock).toHaveBeenCalledTimes(10);
+    expect(findFirstMock).toHaveBeenCalledTimes(16);
   });
 
   it('falls back to the default runtime brand on database errors', async () => {
     findFirstMock.mockRejectedValue(new Error('boom'));
     const out = await getServerBrand();
     expect(out).toEqual({
+      authTitle: 'Default auth title',
+      copyrightText: '2026 Default. All rights reserved.',
       faviconUrl: null,
+      loadingText: 'Loading',
       logoUrl: '/images/brand/qingyou-ai-logo.png',
-      name: '青柚AI',
+      name: 'Default Brand',
       primaryColor: '#12b981',
-      slogan: null,
+      slogan: 'Default auth title',
     });
   });
 });

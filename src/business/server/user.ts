@@ -1,9 +1,9 @@
 import type { LobeChatDatabase } from '@lobechat/database';
-import type { Plans, ReferralStatusString } from '@lobechat/types';
+import { Plans, type ReferralStatusString } from '@lobechat/types';
 import { and, eq, sql } from 'drizzle-orm';
 
 import { CommercialModel } from '@/database/models/commercial';
-import { creditAccounts, creditLedgerEntries } from '@/database/schemas';
+import { creditAccounts, creditLedgerEntries, userPlanSnapshots } from '@/database/schemas';
 import type { Transaction } from '@/database/type';
 import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
 
@@ -27,6 +27,7 @@ export async function initNewUserForBusiness(
 ): Promise<void> {
   const model = new CommercialModel(db, userId);
   await model.ensureCreditAccount();
+  await ensureDefaultFreePlanSnapshot(db, userId, createdAt);
 
   const [enabled, amountValue] = await Promise.all([
     getAppSettingValue(APP_SETTING_KEYS.onboardingInitialCreditsEnabled, db),
@@ -74,5 +75,31 @@ export async function initNewUserForBusiness(
       type: 'bonus',
       userId,
     });
+  });
+}
+
+async function ensureDefaultFreePlanSnapshot(
+  db: LobeChatDatabase,
+  userId: string,
+  createdAt: Date | null | undefined,
+): Promise<void> {
+  const existed = await db.query.userPlanSnapshots.findFirst({
+    where: and(eq(userPlanSnapshots.userId, userId), eq(userPlanSnapshots.status, 'active')),
+  });
+
+  if (existed) return;
+
+  const startedAt = createdAt ?? new Date();
+  await db.insert(userPlanSnapshots).values({
+    cycle: 'monthly',
+    externalSubscriptionId: `default-free-${userId}`,
+    metadata: { source: 'registration_default' },
+    monthlyCredits: 0,
+    monthlyPrice: 0,
+    plan: Plans.Free,
+    provider: 'system_default',
+    startedAt,
+    status: 'active',
+    userId,
   });
 }

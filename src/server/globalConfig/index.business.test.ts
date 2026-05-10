@@ -6,6 +6,7 @@ import { getServerGlobalConfig } from './index';
 const mocks = vi.hoisted(() => ({
   genServerAiProvidersConfig: vi.fn(),
   getServerDefaultAgentSettingOverrides: vi.fn(),
+  getServerDefaultGenerationModelSettingOverrides: vi.fn(),
   getAllEnabledModels: vi.fn(),
   parseAgentConfig: vi.fn(),
   parseSSOProviders: vi.fn(),
@@ -86,6 +87,8 @@ vi.mock('@/server/globalConfig/parseSystemAgent', () => ({
 
 vi.mock('@/server/services/appSettings', () => ({
   getServerDefaultAgentSettingOverrides: mocks.getServerDefaultAgentSettingOverrides,
+  getServerDefaultGenerationModelSettingOverrides:
+    mocks.getServerDefaultGenerationModelSettingOverrides,
 }));
 
 vi.mock('@/server/services/newapiInstance', () => ({
@@ -124,6 +127,7 @@ describe('getServerGlobalConfig business newapi model injection', () => {
       },
     });
     mocks.getServerDefaultAgentSettingOverrides.mockResolvedValue({});
+    mocks.getServerDefaultGenerationModelSettingOverrides.mockResolvedValue({});
     mocks.getAllEnabledModels.mockResolvedValue([]);
     mocks.parseAgentConfig.mockReturnValue({});
     mocks.parseSSOProviders.mockReturnValue([]);
@@ -212,6 +216,24 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     expect(result.defaultAgent?.config).toMatchObject({
       model: 'deepseek-chat',
       provider: 'newapi',
+    });
+  });
+
+  it('exposes backend default image and video generation models', async () => {
+    mocks.getServerDefaultGenerationModelSettingOverrides.mockResolvedValue({
+      image: { model: 'flux-pro', provider: 'newapi' },
+      video: { model: 'sora-2', provider: 'newapi' },
+    });
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.image).toMatchObject({
+      defaultModel: 'flux-pro',
+      defaultProvider: 'newapi',
+    });
+    expect(result.video).toMatchObject({
+      defaultModel: 'sora-2',
+      defaultProvider: 'newapi',
     });
   });
 });

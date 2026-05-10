@@ -39,7 +39,10 @@ export const aiChatRouter = router({
 
     log('initializing model runtime from DB with provider: %s', input.provider);
     // Read user's provider config from database
-    const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.provider);
+    const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.provider, {
+      model: input.model,
+      modelType: 'chat',
+    });
 
     log('calling generateObject');
     const result = await modelRuntime.generateObject(

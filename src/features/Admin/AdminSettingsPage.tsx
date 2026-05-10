@@ -30,6 +30,7 @@ import {
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
   normalizeText,
+  SETTING_KEYS,
 } from '@/features/Admin/adminSettingsForm';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -57,15 +58,19 @@ const AdminSettingsPage = memo(() => {
   const [runResult, setRunResult] = useState<{
     auditCutoff?: string;
     auditLogsDeleted?: number;
+    freeSnapshotsCreated?: number;
     pendingOrdersCutoff?: string;
     pendingOrdersExpired?: number;
+    subscriptionSnapshotsExpired?: number;
   } | null>(null);
 
   const watchedValues = Form.useWatch([], form) as Partial<AdminSettingsFormValues> | undefined;
   const initialValues = useMemo(() => buildFormValues(data), [data]);
   const pendingUpdates = buildSettingUpdates(watchedValues ?? initialValues, initialValues);
   const hasPendingChanges = pendingUpdates.length > 0;
-  const defaultModelOptions = buildModelOptions(data);
+  const defaultModelOptions = buildModelOptions({ ...data, modelType: 'chat' });
+  const defaultImageModelOptions = buildModelOptions({ ...data, modelType: 'image' });
+  const defaultVideoModelOptions = buildModelOptions({ ...data, modelType: 'video' });
   const paymentGatewayStatus = data?.paymentGatewayStatus;
 
   useEffect(() => {
@@ -84,6 +89,45 @@ const AdminSettingsPage = memo(() => {
       }
 
       setSubmitting(true);
+      if (
+        updates.some(
+          (update) =>
+            update.key === SETTING_KEYS.defaultAgentModel ||
+            update.key === SETTING_KEYS.defaultAgentProvider,
+        )
+      ) {
+        await adminCommercialService.validateDefaultAgentSettings({
+          model: values.defaultAgentModel,
+          provider: values.defaultAgentProvider,
+        });
+      }
+      if (
+        updates.some(
+          (update) =>
+            update.key === SETTING_KEYS.defaultImageModel ||
+            update.key === SETTING_KEYS.defaultImageProvider,
+        )
+      ) {
+        await adminCommercialService.validateDefaultAgentSettings({
+          model: values.defaultImageModel,
+          modelType: 'image',
+          provider: values.defaultImageProvider,
+        });
+      }
+      if (
+        updates.some(
+          (update) =>
+            update.key === SETTING_KEYS.defaultVideoModel ||
+            update.key === SETTING_KEYS.defaultVideoProvider,
+        )
+      ) {
+        await adminCommercialService.validateDefaultAgentSettings({
+          model: values.defaultVideoModel,
+          modelType: 'video',
+          provider: values.defaultVideoProvider,
+        });
+      }
+
       await Promise.all(updates.map((update) => adminCommercialService.setAppSetting(update)));
       form.setFieldValue('cronSecret', '');
       await mutate(ADMIN_SETTINGS_SWR_KEY);
@@ -101,8 +145,25 @@ const AdminSettingsPage = memo(() => {
             )
           : t('admin.settings.saveSuccess', '设置已保存'),
       );
-    } catch {
-      message.error(t('admin.settings.saveFailed', '保存失败，请检查表单内容'));
+    } catch (error: any) {
+      const errorMessage =
+        error?.message === 'DEFAULT_MODEL_NOT_ENABLED'
+          ? t(
+              'admin.settings.defaultModel.notEnabled',
+              '默认模型未在已启用模型目录中，请先在 NewAPI 实例中启用该模型。',
+            )
+          : error?.message === 'DEFAULT_MODEL_TYPE_MISMATCH'
+            ? t(
+                'admin.settings.defaultModel.typeMismatch',
+                '默认模型类型不匹配，请确认聊天、图像、视频分别选择对应类型的模型。',
+              )
+            : error?.message === 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN'
+              ? t(
+                  'admin.settings.defaultModel.deniedByFreePlan',
+                  '默认模型未被免费套餐允许，新注册用户将无法使用该模型。请调整免费套餐模型规则。',
+                )
+              : t('admin.settings.saveFailed', '保存失败，请检查表单内容');
+      message.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -180,14 +241,29 @@ const AdminSettingsPage = memo(() => {
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Card title={t('admin.settings.brandSection', '品牌展示')}>
             <Form.Item
-              extra={t('admin.settings.brandName.help', '用于登录页、加载页、标题和站内品牌展示。')}
               label={t('admin.settings.brandName', '品牌名称')}
               name="brandName"
+              extra={t(
+                'admin.settings.brandName.help',
+                '用于页面标题、导航、关于页面和站内品牌展示。',
+              )}
             >
               <Input placeholder="青柚 AI" />
             </Form.Item>
-            <Form.Item label={t('admin.settings.brandSlogan', '品牌标语')} name="brandSlogan">
-              <Input placeholder={t('admin.settings.brandSlogan.placeholder', '可选副标题')} />
+            <Form.Item
+              label={t('admin.settings.brandSlogan', '加载页文案')}
+              name="brandLoadingText"
+              extra={t(
+                'admin.settings.brandSlogan.help',
+                '用于页面中央加载状态。首屏静态加载和 React 接管后的加载都会显示这段文案；未配置时使用默认加载文案。',
+              )}
+            >
+              <Input
+                placeholder={t(
+                  'admin.settings.brandSlogan.placeholder',
+                  '同 Agent 团队一起无限进步',
+                )}
+              />
             </Form.Item>
             <Form.Item
               label={t('admin.settings.brandAuthTitle', '登录页主文案')}
@@ -212,6 +288,10 @@ const AdminSettingsPage = memo(() => {
             <Form.Item
               label={t('admin.settings.brandLogoUrl', 'Logo 地址（URL）')}
               name="brandLogoUrl"
+              extra={t(
+                'admin.settings.brandLogoUrl.help',
+                '用于登录页右上角、站内品牌 Logo 和图标展示；页面中央加载状态不会显示此 Logo。',
+              )}
             >
               <Input placeholder="https://.../logo.svg" />
             </Form.Item>
@@ -227,6 +307,118 @@ const AdminSettingsPage = memo(() => {
               name="brandPrimaryColor"
             >
               <Input placeholder="#1677ff" />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.settings.defaultImageProvider', '默认图像供应商（Provider）')}
+              name="defaultImageProvider"
+              extra={t(
+                'admin.settings.defaultImageProvider.help',
+                '用于 image 页面初始化。使用 NewAPI 图像模型时填写 newapi。',
+              )}
+            >
+              <AutoComplete options={providerOptions}>
+                <Input
+                  allowClear
+                  placeholder="newapi"
+                  onBlur={() =>
+                    form.setFieldValue(
+                      'defaultImageProvider',
+                      normalizeText(form.getFieldValue('defaultImageProvider')),
+                    )
+                  }
+                />
+              </AutoComplete>
+            </Form.Item>
+            <Form.Item
+              label={t('admin.settings.defaultImageModel', '默认图像模型（Model）')}
+              name="defaultImageModel"
+              extra={t(
+                'admin.settings.defaultImageModel.help',
+                '只能选择已启用的图像模型；免费套餐必须允许该模型。',
+              )}
+            >
+              <AutoComplete
+                options={defaultImageModelOptions}
+                filterOption={(inputValue, option) =>
+                  String(option?.label ?? option?.value ?? '')
+                    .toLowerCase()
+                    .includes(inputValue.toLowerCase())
+                }
+                onSelect={(value) => {
+                  const selected = defaultImageModelOptions.find((item) => item.value === value);
+                  if (!selected) return;
+
+                  form.setFieldValue('defaultImageProvider', selected.provider);
+                  form.setFieldValue('defaultImageModel', selected.model);
+                }}
+              >
+                <Input
+                  allowClear
+                  placeholder="flux-pro"
+                  onBlur={() =>
+                    form.setFieldValue(
+                      'defaultImageModel',
+                      normalizeText(form.getFieldValue('defaultImageModel')),
+                    )
+                  }
+                />
+              </AutoComplete>
+            </Form.Item>
+            <Form.Item
+              label={t('admin.settings.defaultVideoProvider', '默认视频供应商（Provider）')}
+              name="defaultVideoProvider"
+              extra={t(
+                'admin.settings.defaultVideoProvider.help',
+                '用于 video 页面初始化。使用 NewAPI 视频模型时填写 newapi。',
+              )}
+            >
+              <AutoComplete options={providerOptions}>
+                <Input
+                  allowClear
+                  placeholder="newapi"
+                  onBlur={() =>
+                    form.setFieldValue(
+                      'defaultVideoProvider',
+                      normalizeText(form.getFieldValue('defaultVideoProvider')),
+                    )
+                  }
+                />
+              </AutoComplete>
+            </Form.Item>
+            <Form.Item
+              label={t('admin.settings.defaultVideoModel', '默认视频模型（Model）')}
+              name="defaultVideoModel"
+              extra={t(
+                'admin.settings.defaultVideoModel.help',
+                '只能选择已启用的视频模型；免费套餐必须允许该模型。',
+              )}
+            >
+              <AutoComplete
+                options={defaultVideoModelOptions}
+                filterOption={(inputValue, option) =>
+                  String(option?.label ?? option?.value ?? '')
+                    .toLowerCase()
+                    .includes(inputValue.toLowerCase())
+                }
+                onSelect={(value) => {
+                  const selected = defaultVideoModelOptions.find((item) => item.value === value);
+                  if (!selected) return;
+
+                  form.setFieldValue('defaultVideoProvider', selected.provider);
+                  form.setFieldValue('defaultVideoModel', selected.model);
+                }}
+              >
+                <Input
+                  allowClear
+                  placeholder="sora-2"
+                  onBlur={() =>
+                    form.setFieldValue(
+                      'defaultVideoModel',
+                      normalizeText(form.getFieldValue('defaultVideoModel')),
+                    )
+                  }
+                />
+              </AutoComplete>
             </Form.Item>
           </Card>
 
@@ -268,6 +460,16 @@ const AdminSettingsPage = memo(() => {
               )}
             >
               <Input placeholder="/images/brand/qingyou-ai-logo.png" />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.settings.defaultSkillName', '默认技能名称')}
+              name="defaultSkillName"
+              extra={t(
+                'admin.settings.defaultSkillName.help',
+                '用于替换内置默认技能原来的 LobeHub 显示名称；留空时使用品牌名称。',
+              )}
+            >
+              <Input placeholder={t('admin.settings.defaultSkillName.placeholder', '玄果技能')} />
             </Form.Item>
             <Form.Item
               label={t('admin.settings.defaultProvider', '默认供应商（Provider）')}
@@ -481,6 +683,8 @@ const AdminSettingsPage = memo(() => {
           <div>审计日志清理时间点：{runResult?.auditCutoff ?? '-'}</div>
           <div>已过期待支付订单：{runResult?.pendingOrdersExpired ?? 0}</div>
           <div>待支付订单过期时间点：{runResult?.pendingOrdersCutoff ?? '-'}</div>
+          <div>已过期套餐快照：{runResult?.subscriptionSnapshotsExpired ?? 0}</div>
+          <div>已补充免费套餐：{runResult?.freeSnapshotsCreated ?? 0}</div>
         </Flexbox>
       </Modal>
     </Flexbox>

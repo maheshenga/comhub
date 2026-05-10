@@ -608,7 +608,10 @@ export const createRuntimeExecutors = (
       }
 
       // Initialize ModelRuntime (read user's keyVaults from database)
-      const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId!, provider);
+      const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId!, provider, {
+        model,
+        modelType: 'chat',
+      });
 
       // Construct ChatStreamPayload
       const stream = ctx.stream ?? true;
@@ -1217,6 +1220,10 @@ export const createRuntimeExecutors = (
         ctx.serverDB,
         ctx.userId,
         compressionModel.provider,
+        {
+          model: compressionModel.model,
+          modelType: 'chat',
+        },
       );
 
       let summaryContent = '';

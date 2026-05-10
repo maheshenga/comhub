@@ -1,8 +1,10 @@
 import { and, eq, lt } from 'drizzle-orm';
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
-import { getServerDB } from '@/database/server';
+import { syncExpiredSubscriptionsToFree } from '@/business/server/subscriptionMaintenance';
 import { adminAuditLogs, appSettings, topUpOrders } from '@/database/schemas';
+import { getServerDB } from '@/database/server';
 
 /**
  * POST /api/admin/maintenance
@@ -12,6 +14,7 @@ import { adminAuditLogs, appSettings, topUpOrders } from '@/database/schemas';
  *   1. Prune admin audit logs older than `auditRetentionDays` (default 365, range 7..3650).
  *   2. Mark `pending` top-up orders older than `pendingOrderExpiryDays` as `expired`
  *      (default 7, range 1..365).
+ *   3. Expire ended active subscriptions and create unlimited free-plan fallbacks.
  *
  * Body (optional):
  *   {
@@ -66,6 +69,8 @@ export const POST = async (req: NextRequest) => {
     auditCutoff?: string;
     pendingOrdersExpired?: number;
     pendingOrdersCutoff?: string;
+    subscriptionSnapshotsExpired?: number;
+    freeSnapshotsCreated?: number;
     ok: true;
   } = { ok: true };
 
@@ -101,6 +106,10 @@ export const POST = async (req: NextRequest) => {
     result.pendingOrdersExpired = expired.length;
     result.pendingOrdersCutoff = cutoff.toISOString();
   }
+
+  const subscriptionResult = await syncExpiredSubscriptionsToFree(db);
+  result.subscriptionSnapshotsExpired = subscriptionResult.expiredSnapshots;
+  result.freeSnapshotsCreated = subscriptionResult.freeSnapshotsCreated;
 
   return NextResponse.json(result);
 };

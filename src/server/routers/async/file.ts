@@ -98,6 +98,10 @@ export const fileRouter = router({
                   ctx.serverDB,
                   ctx.userId,
                   provider,
+                  {
+                    model,
+                    modelType: 'embedding',
+                  },
                 );
 
                 const embeddings = await modelRuntime.embeddings(

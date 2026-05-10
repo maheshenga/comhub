@@ -219,7 +219,10 @@ export const chunkRouter = router({
       const { model, provider } =
         getServerDefaultFilesConfig().embeddingModel || DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
       // Read user's provider config from database
-      const agentRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider);
+      const agentRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
+        model,
+        modelType: 'embedding',
+      });
 
       const embeddings = await agentRuntime.embeddings(
         {
@@ -244,7 +247,10 @@ export const chunkRouter = router({
         const { model, provider } =
           getServerDefaultFilesConfig().embeddingModel || DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
         // Read user's provider config from database
-        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider);
+        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
+          model,
+          modelType: 'embedding',
+        });
 
         // slice content to make sure in the context window limit
         const query = input.query.length > 8000 ? input.query.slice(0, 8000) : input.query;

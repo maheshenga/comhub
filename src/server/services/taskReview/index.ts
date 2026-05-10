@@ -62,7 +62,10 @@ export class TaskReviewService {
     );
 
     // 2. Initialize ModelRuntime for LLM-based rubrics
-    const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider);
+    const modelRuntime = await initModelRuntimeFromDB(this.db, this.userId, provider, {
+      model,
+      modelType: 'chat',
+    });
 
     // 3. Run evaluate() from @lobechat/eval-rubric
     const result: EvaluateResult = await evaluate(
