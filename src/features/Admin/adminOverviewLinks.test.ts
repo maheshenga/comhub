@@ -4,7 +4,7 @@ import { ADMIN_BASE_PATH } from './adminNavigation';
 import { ADMIN_OVERVIEW_QUICK_LINKS } from './adminOverviewLinks';
 
 describe('adminOverviewLinks', () => {
-  it('uses the current provider center name for NewAPI-compatible upstreams', () => {
+  it('uses the current provider center name and route for upstream instances', () => {
     expect(ADMIN_OVERVIEW_QUICK_LINKS).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

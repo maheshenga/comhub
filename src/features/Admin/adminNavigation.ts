@@ -14,11 +14,11 @@ export type AdminNavIcon =
   | 'desktop'
   | 'growth'
   | 'models'
-  | 'newapi'
   | 'orders'
   | 'overview'
   | 'plans'
   | 'pricing'
+  | 'providers'
   | 'redemption'
   | 'recommendations'
   | 'settings'
@@ -107,7 +107,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     items: [
       {
         description: '维护服务商实例、分组、用途范围和模型目录',
-        icon: 'newapi',
+        icon: 'providers',
         label: '服务商实例',
         path: `${ADMIN_BASE_PATH}/providers`,
       },

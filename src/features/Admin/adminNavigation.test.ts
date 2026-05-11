@@ -74,6 +74,10 @@ describe('adminNavigation', () => {
       '服务商实例、模型同步、默认模型、套餐权限、模型策略和计费矩阵',
     );
     expect(providerItem?.description).toBe('维护服务商实例、分组、用途范围和模型目录');
+    expect(providerItem?.icon).toBe('providers');
+    expect(ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.icon))).not.toContain(
+      'newapi',
+    );
     expect(providerItem?.description).not.toContain('NewAPI / OpenAI');
     expect(collectPaths()).not.toContain(`${ADMIN_BASE_PATH}/newapi-providers`);
   });

@@ -23,8 +23,8 @@ const { Text, Title } = Typography;
 
 const QUICK_LINK_ICONS = {
   matrix: Settings,
-  newapi: Plug,
   plans: Package,
+  providers: Plug,
   stats: BarChart3,
 };
 
