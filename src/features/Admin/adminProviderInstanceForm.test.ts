@@ -6,7 +6,7 @@ import {
 } from './adminProviderInstanceForm';
 
 describe('buildProviderInstancePayload', () => {
-  it('should serialize newapi group fields for create payloads', () => {
+  it('should serialize provider group fields for create payloads', () => {
     expect(
       buildProviderInstancePayload({
         apiKey: 'sk-test',
@@ -17,7 +17,7 @@ describe('buildProviderInstancePayload', () => {
         groupKey: ' pro ',
         groupMultiplier: 1.25,
         groupName: 'Pro Group',
-        name: 'NewAPI Pro',
+        name: 'Gateway Pro',
         priority: 10,
         providerType: 'newapi',
         usageScope: ['chat', 'image'],
@@ -30,7 +30,7 @@ describe('buildProviderInstancePayload', () => {
       groupKey: 'pro',
       groupMultiplier: 1.25,
       groupName: 'Pro Group',
-      name: 'NewAPI Pro',
+      name: 'Gateway Pro',
       priority: 10,
       providerType: 'newapi',
       usageScope: ['chat', 'image'],
@@ -49,7 +49,7 @@ describe('buildProviderInstancePayload', () => {
           groupKey: '',
           groupMultiplier: undefined,
           groupName: '',
-          name: 'NewAPI Default',
+          name: 'Default Gateway',
           priority: undefined,
           providerType: 'deepseek',
           usageScope: [],
@@ -62,7 +62,7 @@ describe('buildProviderInstancePayload', () => {
       enabled: false,
       fetchOnClient: true,
       groupKey: 'default',
-      name: 'NewAPI Default',
+      name: 'Default Gateway',
       priority: 0,
       providerType: 'deepseek',
       usageScope: [],
@@ -78,7 +78,7 @@ describe('buildProviderInstancePayload', () => {
           enabled: true,
           groupKey: 'default',
           groupMultiplier: null as any,
-          name: 'NewAPI Default',
+          name: 'Default Gateway',
         },
         { isEdit: true },
       ),
@@ -87,7 +87,7 @@ describe('buildProviderInstancePayload', () => {
       enabled: true,
       fetchOnClient: false,
       groupKey: 'default',
-      name: 'NewAPI Default',
+      name: 'Default Gateway',
       priority: 0,
       providerType: 'newapi',
       usageScope: [],

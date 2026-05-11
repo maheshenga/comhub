@@ -9,7 +9,7 @@ import {
 } from './adminSettingsForm';
 
 describe('adminSettingsForm', () => {
-  it('builds default model options from enabled NewAPI models and suggestions', () => {
+  it('builds default model options from enabled provider models and suggestions', () => {
     expect(
       buildModelOptions({
         defaultModelSuggestions: ['manual-chat', 'deepseek-chat'],
