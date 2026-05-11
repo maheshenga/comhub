@@ -30,6 +30,7 @@
 - 服务商实例后台入口已从 `/settings/admin/newapi-providers` 收口为 `/settings/admin/providers`，Web 与桌面端路由、后台导航和工作台快捷入口统一使用服务商中性路径；旧 `newapi-providers` 后台入口不再保留。
 - 后台服务商实例页面与表单 helper 已改为服务商中性文件名：`AdminProvidersPage`、`adminProviderInstanceForm`。底层 `newapi` 仍作为一种服务商类型保留，避免影响运行时枚举和已有实例数据。
 - 后台服务商实例页面的 i18n key 已从 `admin.newapi.*` 收口为 `admin.providers.*`，减少前端维护层面的旧版 NewAPI-only 语义残留。
+- 默认中文 locale 已补齐 `admin.providers.*` 服务商实例管理文案，避免服务商页面依赖组件内 fallback 文案展示。
 
 ## 已记录待办
 

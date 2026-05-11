@@ -134,6 +134,23 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.desktopUpdate.save']).toBe('保存');
   });
 
+  it('includes default Chinese copy for provider instance management', () => {
+    expect(subscription['admin.providers.createInstance']).toBe('新建实例');
+    expect(subscription['admin.providers.empty']).toBe('暂未配置服务商实例');
+    expect(subscription['admin.providers.field.providerType']).toBe('服务商类型');
+    expect(subscription['admin.providers.field.providerTypeNewapiHint']).toBe(
+      'NewAPI 支持同步模型和价格。',
+    );
+    expect(subscription['admin.providers.models.bulkAddHint']).toBe(
+      '可批量添加模型 ID，使用换行或逗号分隔。',
+    );
+    expect(subscription['admin.providers.sync.success']).toBe(
+      '同步完成：导入 {{count}} 个模型，新模型默认未启用',
+    );
+    expect(subscription['admin.providers.test.failed']).toBe('连接失败：{{error}}');
+    expect(subscription['admin.providers.col.providerType']).toBe('服务商');
+  });
+
   it('keeps redemption filters in Chinese', () => {
     const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
 
