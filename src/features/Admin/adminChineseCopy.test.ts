@@ -125,6 +125,15 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.settings.title']).toBe('站点与 API 设置');
     expect(subscription['admin.settings.save']).toBe('保存');
     expect(subscription['admin.settings.noChanges']).toBe('没有需要保存的变更');
+    expect(subscription['admin.settings.defaultProvider.help']).toBe(
+      '使用服务商网关时填写对应供应商标识，例如 openai、deepseek、aliyun 或自定义兼容服务商。该值会写入后台默认助手配置。',
+    );
+    expect(subscription['admin.settings.defaultImageProvider.help']).toBe(
+      '用于 image 页面初始化。请填写图像模型所属服务商标识，例如 openai、google、aliyun 或自定义兼容服务商。',
+    );
+    expect(subscription['admin.settings.defaultVideoProvider.help']).toBe(
+      '用于 video 页面初始化。请填写视频模型所属服务商标识，例如 google、aliyun 或自定义兼容服务商。',
+    );
   });
 
   it('keeps default admin desktop update labels in Chinese', () => {

@@ -582,6 +582,12 @@ export default {
   'admin.settings.defaultModel': '默认模型（Model）',
   'admin.settings.defaultModel.help':
     '用于新注册用户、新建助手和未保存模型的助手。已注册用户需要刷新页面、重新登录或重新初始化用户状态后才会看到变更。该模型也必须在服务商实例中启用，并且被用户套餐允许使用。',
+  'admin.settings.defaultProvider.help':
+    '使用服务商网关时填写对应供应商标识，例如 openai、deepseek、aliyun 或自定义兼容服务商。该值会写入后台默认助手配置。',
+  'admin.settings.defaultImageProvider.help':
+    '用于 image 页面初始化。请填写图像模型所属服务商标识，例如 openai、google、aliyun 或自定义兼容服务商。',
+  'admin.settings.defaultVideoProvider.help':
+    '用于 video 页面初始化。请填写视频模型所属服务商标识，例如 google、aliyun 或自定义兼容服务商。',
   'admin.settings.newapiKey': '服务商 API Key',
   'admin.settings.newapiUrl': '服务商 API 地址',
   'admin.settings.newapiUrl.deduped': '检测到 {{raw}} 条地址，已规范化为 {{count}} 个唯一地址。',

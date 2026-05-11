@@ -309,12 +309,12 @@ const AdminSettingsPage = memo(() => {
                     <Input placeholder="https://.../favicon.ico" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandPrimaryColor', '主题主色')}
+                    name="brandPrimaryColor"
                     extra={t(
                       'admin.settings.brandPrimary.help',
                       '填写十六进制颜色值，例如 #1677ff。',
                     )}
-                    label={t('admin.settings.brandPrimaryColor', '主题主色')}
-                    name="brandPrimaryColor"
                   >
                     <Input placeholder="#1677ff" />
                   </Form.Item>
@@ -369,7 +369,7 @@ const AdminSettingsPage = memo(() => {
                     name="defaultAgentProvider"
                     extra={t(
                       'admin.settings.defaultProvider.help',
-                      '使用服务商网关时填写对应供应商标识，例如 newapi、openai、deepseek 或 aliyun。该值会写入后台默认助手配置。',
+                      '使用服务商网关时填写对应供应商标识，例如 openai、deepseek、aliyun 或自定义兼容服务商。该值会写入后台默认助手配置。',
                     )}
                   >
                     <AutoComplete
@@ -380,7 +380,7 @@ const AdminSettingsPage = memo(() => {
                     >
                       <Input
                         allowClear
-                        placeholder="newapi"
+                        placeholder="选择或输入服务商标识"
                         onBlur={() =>
                           form.setFieldValue(
                             'defaultAgentProvider',
@@ -438,13 +438,13 @@ const AdminSettingsPage = memo(() => {
                     name="defaultImageProvider"
                     extra={t(
                       'admin.settings.defaultImageProvider.help',
-                      '用于 image 页面初始化。请填写图像模型所属服务商标识，例如 newapi、openai、google 或 aliyun。',
+                      '用于 image 页面初始化。请填写图像模型所属服务商标识，例如 openai、google、aliyun 或自定义兼容服务商。',
                     )}
                   >
                     <AutoComplete options={providerOptions}>
                       <Input
                         allowClear
-                        placeholder="newapi"
+                        placeholder="选择或输入服务商标识"
                         onBlur={() =>
                           form.setFieldValue(
                             'defaultImageProvider',
@@ -496,13 +496,13 @@ const AdminSettingsPage = memo(() => {
                     name="defaultVideoProvider"
                     extra={t(
                       'admin.settings.defaultVideoProvider.help',
-                      '用于 video 页面初始化。请填写视频模型所属服务商标识，例如 newapi、google 或自定义 OpenAI 兼容服务商。',
+                      '用于 video 页面初始化。请填写视频模型所属服务商标识，例如 google、aliyun 或自定义兼容服务商。',
                     )}
                   >
                     <AutoComplete options={providerOptions}>
                       <Input
                         allowClear
-                        placeholder="newapi"
+                        placeholder="选择或输入服务商标识"
                         onBlur={() =>
                           form.setFieldValue(
                             'defaultVideoProvider',
