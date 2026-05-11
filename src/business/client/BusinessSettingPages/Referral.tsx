@@ -7,6 +7,7 @@ import { Copy, Pencil } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
@@ -215,11 +216,7 @@ const Referral = memo<{ mobile?: boolean }>(() => {
     setIsActivatingReward(true);
     try {
       await commercialService.activateReferralReward();
-      await Promise.all([
-        refreshReferralData(),
-        mutate(['business-commercial-overview']),
-        mutate(['business-credit-ledger']),
-      ]);
+      await Promise.all([refreshReferralData(), refreshCommercialEntitlementState()]);
       message.success('推荐奖励已领取');
     } catch (error) {
       message.error(resolveReferralError(error));

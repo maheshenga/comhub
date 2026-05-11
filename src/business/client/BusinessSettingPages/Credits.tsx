@@ -7,9 +7,10 @@ import { Pencil, ShoppingCart } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import InlineTable from '@/components/InlineTable';
 import PlanIcon from '@/features/PlanIcon';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 import { type CreditLedgerEntryItem, type TopUpOrderHistoryItem } from '@/types/business';
@@ -195,11 +196,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
   );
 
   const refreshCreditData = () => {
-    void Promise.all([
-      mutate(['business-commercial-overview']),
-      mutate(['business-credit-ledger']),
-      mutate(['business-topup-orders']),
-    ]);
+    void refreshCommercialEntitlementState();
   };
 
   const handleSubscribeFirst = () => {

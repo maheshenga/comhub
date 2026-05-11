@@ -1,6 +1,7 @@
 import { Button, Input, message } from 'antd';
 import { useState } from 'react';
 
+import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import { commercialService } from '@/services/commercial';
 
 export const RedeemForm = () => {
@@ -18,6 +19,7 @@ export const RedeemForm = () => {
       const result = await commercialService.redeemCode(code.trim());
       message.success(`兑换成功！获得 ${result.summary?.credits ?? ''} 算力`);
       setCode('');
+      await refreshCommercialEntitlementState();
     } catch (error: any) {
       message.error(error?.message ?? '兑换失败');
     } finally {

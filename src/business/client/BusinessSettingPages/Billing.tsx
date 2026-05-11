@@ -7,9 +7,10 @@ import { Check, X } from 'lucide-react';
 import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import InlineTable from '@/components/InlineTable';
 import PlanIcon from '@/features/PlanIcon';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 import {
@@ -175,10 +176,7 @@ const Billing = memo<{ mobile?: boolean }>(() => {
         <FormGroup collapsible={false} gap={16} title={'兑换码'} variant={'filled'}>
           <RedemptionPanel
             onSuccess={() => {
-              mutate(['business-commercial-overview']);
-              mutate(['business-credit-ledger']);
-              mutate(['business-subscription-change-history']);
-              mutate(['business-subscription-change-request']);
+              void refreshCommercialEntitlementState();
             }}
           />
         </FormGroup>

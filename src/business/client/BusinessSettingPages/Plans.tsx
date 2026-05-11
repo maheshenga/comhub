@@ -20,8 +20,9 @@ import { Check, ChevronRight, Info, LockKeyhole, Sparkles, Ticket } from 'lucide
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import PlanIcon from '@/features/PlanIcon';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 
@@ -382,12 +383,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
       message.success('兑换成功，权益已发放');
       setRedeemCode('');
       setRedeemOpen(false);
-      await Promise.all([
-        mutate(['business-commercial-overview']),
-        mutate(['business-plan-catalog']),
-        mutate(['business-subscription-change-request']),
-        mutate(['business-credit-ledger']),
-      ]);
+      await refreshCommercialEntitlementState();
     } catch (error: any) {
       const msg = error?.message || '';
       const errorMap: Record<string, string> = {
