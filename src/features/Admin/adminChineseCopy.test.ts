@@ -64,6 +64,31 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.sidebar.pricing']).toBe('模型与计费矩阵');
   });
 
+  it('keeps subscription customer-facing business pages in Chinese', () => {
+    expect(subscription['tab.plans']).toBe('套餐');
+    expect(subscription['tab.usage']).toBe('用量');
+    expect(subscription['tab.credits']).toBe('积分');
+    expect(subscription['tab.billing']).toBe('账单');
+    expect(subscription['tab.referral']).toBe('推荐奖励');
+
+    expect(subscription['billing.history']).toBe('账单记录');
+    expect(subscription['credits.ledger.empty']).toBe('暂无积分流水');
+    expect(subscription['plans.current']).toBe('当前套餐');
+    expect(subscription['payment.success.title']).toBe('订阅成功');
+    expect(subscription['referral.stats.title']).toBe('推荐概览');
+    expect(subscription['usage.title']).toBe('本月用量');
+
+    for (const key of [
+      'billing.history',
+      'credits.ledger.empty',
+      'plans.current',
+      'referral.stats.title',
+      'usage.title',
+    ] as const) {
+      expect(subscription[key]).not.toContain('????');
+    }
+  });
+
   it('keeps recommendation admin locale labels in Chinese', () => {
     expect(subscription['admin.recommendations.enabled']).toBe('启用推荐模块');
     expect(subscription['admin.recommendations.criteria']).toBe('推荐条件');
