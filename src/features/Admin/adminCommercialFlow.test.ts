@@ -103,14 +103,18 @@ describe('admin commercial flow pages', () => {
     const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
     const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
     const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
+    const modelPolicyPage = readRepoFile('src/features/Admin/AdminModelPolicyPage.tsx');
 
     expect(matrixPage).not.toContain('暂无已启用的 NewAPI 模型');
     expect(providersPage).not.toContain('配置多个 NewAPI 上游实例');
+    expect(settingsPage).not.toContain('LobeHub 品牌名称');
+    expect(settingsPage).not.toContain('LobeHub 显示名称');
     expect(settingsPage).not.toContain('使用 NewAPI 转站');
     expect(settingsPage).not.toContain('使用 NewAPI 图像模型');
     expect(settingsPage).not.toContain('使用 NewAPI 视频模型');
     expect(settingsPage).not.toContain('例如 newapi');
     expect(settingsPage).not.toContain('placeholder="newapi"');
+    expect(modelPolicyPage).not.toContain("placeholder={'newapi:");
     expect(providersPage).not.toContain('NewAPI 支持同步模型和价格');
     expect(matrixPage).toContain('暂无已启用的服务商模型');
     expect(providersPage).toContain('配置多个服务商上游实例');

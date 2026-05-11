@@ -357,7 +357,7 @@ const AdminSettingsPage = memo(() => {
                     name="defaultSkillName"
                     extra={t(
                       'admin.settings.defaultSkillName.help',
-                      '用于替换内置默认技能原来的 LobeHub 显示名称；留空时使用品牌名称。',
+                      '用于配置内置默认技能的显示名称；留空时使用品牌名称。',
                     )}
                   >
                     <Input

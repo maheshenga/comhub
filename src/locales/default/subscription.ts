@@ -567,7 +567,7 @@ export default {
   'admin.settings.brandFaviconUrl': '网站图标地址（Favicon URL）',
   'admin.settings.brandLogoUrl': 'Logo 地址（URL）',
   'admin.settings.brandName': '品牌名称',
-  'admin.settings.brandName.help': '替换应用内展示的 LobeHub 品牌名称。',
+  'admin.settings.brandName.help': '用于页面标题、导航、关于页面和站内品牌展示。',
   'admin.settings.brandPrimaryColor': '主题主色',
   'admin.settings.brandPrimary.help': '填写十六进制颜色值，例如 #1677ff。',
   'admin.settings.brandSection': '品牌',
@@ -584,6 +584,7 @@ export default {
     '用于新注册用户、新建助手和未保存模型的助手。已注册用户需要刷新页面、重新登录或重新初始化用户状态后才会看到变更。该模型也必须在服务商实例中启用，并且被用户套餐允许使用。',
   'admin.settings.defaultProvider.help':
     '使用服务商网关时填写对应供应商标识，例如 openai、deepseek、aliyun 或自定义兼容服务商。该值会写入后台默认助手配置。',
+  'admin.settings.defaultSkillName.help': '用于配置内置默认技能的显示名称；留空时使用品牌名称。',
   'admin.settings.defaultImageProvider.help':
     '用于 image 页面初始化。请填写图像模型所属服务商标识，例如 openai、google、aliyun 或自定义兼容服务商。',
   'admin.settings.defaultVideoProvider.help':

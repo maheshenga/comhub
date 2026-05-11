@@ -125,6 +125,12 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.settings.title']).toBe('站点与 API 设置');
     expect(subscription['admin.settings.save']).toBe('保存');
     expect(subscription['admin.settings.noChanges']).toBe('没有需要保存的变更');
+    expect(subscription['admin.settings.brandName.help']).toBe(
+      '用于页面标题、导航、关于页面和站内品牌展示。',
+    );
+    expect(subscription['admin.settings.defaultSkillName.help']).toBe(
+      '用于配置内置默认技能的显示名称；留空时使用品牌名称。',
+    );
     expect(subscription['admin.settings.defaultProvider.help']).toBe(
       '使用服务商网关时填写对应供应商标识，例如 openai、deepseek、aliyun 或自定义兼容服务商。该值会写入后台默认助手配置。',
     );

@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Divider, Form, Input, message,Radio, Switch } from 'antd';
+import { Alert, Button, Divider, Form, Input, message, Radio, Switch } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -195,7 +195,7 @@ const AdminModelPolicyPage = memo(() => {
           )}
         >
           <Input.TextArea
-            placeholder={'newapi:gpt-4o-mini\nnewapi:deepseek-chat'}
+            placeholder={'openai:gpt-4o-mini\ndeepseek:deepseek-chat'}
             rows={6}
             onBlur={handleNormalizeAllowlist}
           />
@@ -245,10 +245,7 @@ const AdminModelPolicyPage = memo(() => {
             <option key={item.value} value={item.value} />
           ))}
         </datalist>
-        <Form.Item
-          label={t('admin.modelPolicy.deniedMessage', '拒绝提示')}
-          name="deniedMessage"
-        >
+        <Form.Item label={t('admin.modelPolicy.deniedMessage', '拒绝提示')} name="deniedMessage">
           <Input.TextArea rows={3} />
         </Form.Item>
         <Button loading={submitting} type="primary" onClick={handleSave}>
