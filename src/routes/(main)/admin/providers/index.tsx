@@ -1,5 +1,5 @@
 'use client';
 
-import AdminNewapiProvidersPage from '@/features/Admin/AdminNewapiProvidersPage';
+import AdminProvidersPage from '@/features/Admin/AdminProvidersPage';
 
-export default AdminNewapiProvidersPage;
+export default AdminProvidersPage;

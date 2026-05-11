@@ -28,9 +28,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import {
   ADMIN_MODEL_API_PROVIDER_TYPES,
   type AdminModelApiProviderType,
-  buildNewapiInstancePayload,
+  buildProviderInstancePayload,
   getDefaultBaseUrlForAdminProviderType,
-} from './adminNewapiInstanceForm';
+} from './adminProviderInstanceForm';
 
 type ModelType =
   | 'chat'
@@ -77,9 +77,9 @@ interface ModelRow {
   sortOrder: number;
 }
 
-const INSTANCES_KEY = ['admin-newapi-instances'];
+const INSTANCES_KEY = ['admin-provider-instances'];
 const modelsKey = (instanceId: string, modelType?: ModelType) =>
-  ['admin-newapi-instance-models', instanceId, modelType ?? 'all'] as const;
+  ['admin-provider-instance-models', instanceId, modelType ?? 'all'] as const;
 
 const PROVIDER_TYPE_LABELS: Record<AdminModelApiProviderType, string> = {
   'aliyun': '阿里云 DashScope',
@@ -126,7 +126,7 @@ const InstanceFormModal = memo<{
     try {
       const values = await form.validateFields();
       setSubmitting(true);
-      const payload = buildNewapiInstancePayload(values, { isEdit });
+      const payload = buildProviderInstancePayload(values, { isEdit });
       if (isEdit && initial) {
         await adminCommercialService.updateNewapiInstance({ data: payload as any, id: initial.id });
       } else {
@@ -500,7 +500,7 @@ const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>
 );
 ModelsDrawer.displayName = 'ModelsDrawer';
 
-const AdminNewapiProvidersPage = memo(() => {
+const AdminProvidersPage = memo(() => {
   const { t } = useTranslation('subscription');
   const { data, isLoading } = useClientDataSWR(INSTANCES_KEY, () =>
     adminCommercialService.listNewapiInstances(),
@@ -738,6 +738,6 @@ const AdminNewapiProvidersPage = memo(() => {
   );
 });
 
-AdminNewapiProvidersPage.displayName = 'AdminNewapiProvidersPage';
+AdminProvidersPage.displayName = 'AdminProvidersPage';
 
-export default AdminNewapiProvidersPage;
+export default AdminProvidersPage;

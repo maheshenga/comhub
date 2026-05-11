@@ -28,6 +28,7 @@
 - 默认中文 locale 已继续清理：后台侧边栏 fallback、站点设置、订单与充值、运营配置、增长限制、推荐运营和旧计费说明不再被英文 locale 覆盖。
 - 站点设置默认供应商说明、模型中心导航说明和兑换码批次筛选文案已继续中文化和服务商中性化，避免后台出现旧版 NewAPI-only 口径或英文占位符。
 - 服务商实例后台入口已从 `/settings/admin/newapi-providers` 收口为 `/settings/admin/providers`，Web 与桌面端路由、后台导航和工作台快捷入口统一使用服务商中性路径；旧 `newapi-providers` 后台入口不再保留。
+- 后台服务商实例页面与表单 helper 已改为服务商中性文件名：`AdminProvidersPage`、`adminProviderInstanceForm`。底层 `newapi` 仍作为一种服务商类型保留，避免影响运行时枚举和已有实例数据。
 
 ## 已记录待办
 

@@ -101,7 +101,7 @@ describe('admin commercial flow pages', () => {
 
   it('uses provider-neutral copy for shared model center surfaces', () => {
     const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
-    const providersPage = readRepoFile('src/features/Admin/AdminNewapiProvidersPage.tsx');
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
     const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
 
     expect(matrixPage).not.toContain('暂无已启用的 NewAPI 模型');
@@ -112,6 +112,21 @@ describe('admin commercial flow pages', () => {
     expect(matrixPage).toContain('暂无已启用的服务商模型');
     expect(providersPage).toContain('配置多个服务商上游实例');
     expect(settingsPage).toContain('使用服务商网关时填写对应供应商标识');
+  });
+
+  it('uses provider-neutral file names for the admin provider page', () => {
+    expect(existsSync(path.resolve(repoRoot, 'src/features/Admin/AdminProvidersPage.tsx'))).toBe(
+      true,
+    );
+    expect(
+      existsSync(path.resolve(repoRoot, 'src/features/Admin/AdminNewapiProvidersPage.tsx')),
+    ).toBe(false);
+    expect(
+      existsSync(path.resolve(repoRoot, 'src/features/Admin/adminProviderInstanceForm.ts')),
+    ).toBe(true);
+    expect(
+      existsSync(path.resolve(repoRoot, 'src/features/Admin/adminNewapiInstanceForm.ts')),
+    ).toBe(false);
   });
 
   it('uses the provider-neutral admin route for service provider management', () => {

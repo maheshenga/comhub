@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildNewapiInstancePayload,
+  buildProviderInstancePayload,
   getDefaultBaseUrlForAdminProviderType,
-} from './adminNewapiInstanceForm';
+} from './adminProviderInstanceForm';
 
-describe('buildNewapiInstancePayload', () => {
+describe('buildProviderInstancePayload', () => {
   it('should serialize newapi group fields for create payloads', () => {
     expect(
-      buildNewapiInstancePayload({
+      buildProviderInstancePayload({
         apiKey: 'sk-test',
         baseUrl: 'https://newapi.example.com',
         description: '',
@@ -39,7 +39,7 @@ describe('buildNewapiInstancePayload', () => {
 
   it('should omit masked api keys for update payloads', () => {
     expect(
-      buildNewapiInstancePayload(
+      buildProviderInstancePayload(
         {
           apiKey: 'sk-****test',
           baseUrl: 'https://newapi.example.com',
@@ -71,7 +71,7 @@ describe('buildNewapiInstancePayload', () => {
 
   it('should omit empty group multiplier from update payloads', () => {
     expect(
-      buildNewapiInstancePayload(
+      buildProviderInstancePayload(
         {
           apiKey: 'sk-****test',
           baseUrl: 'https://newapi.example.com',
@@ -96,7 +96,7 @@ describe('buildNewapiInstancePayload', () => {
 
   it('should default provider type to newapi for legacy form values', () => {
     expect(
-      buildNewapiInstancePayload({
+      buildProviderInstancePayload({
         apiKey: 'sk-test',
         baseUrl: 'https://newapi.example.com',
         enabled: true,

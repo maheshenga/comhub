@@ -1,4 +1,4 @@
-type NewapiModelType =
+type ProviderModelType =
   | 'chat'
   | 'embedding'
   | 'tts'
@@ -8,7 +8,7 @@ type NewapiModelType =
   | 'text2music'
   | 'realtime';
 
-export type NewapiInstanceFormValues = {
+export type ProviderInstanceFormValues = {
   apiKey?: string;
   baseUrl: string;
   description?: string;
@@ -20,7 +20,7 @@ export type NewapiInstanceFormValues = {
   name: string;
   priority?: number;
   providerType?: AdminModelApiProviderType;
-  usageScope?: NewapiModelType[];
+  usageScope?: ProviderModelType[];
 };
 
 export type AdminModelApiProviderType =
@@ -52,8 +52,8 @@ const cleanText = (value?: string) => {
   return trimmed || undefined;
 };
 
-export const buildNewapiInstancePayload = (
-  values: NewapiInstanceFormValues,
+export const buildProviderInstancePayload = (
+  values: ProviderInstanceFormValues,
   options: { isEdit?: boolean } = {},
 ) => {
   const apiKey = cleanText(values.apiKey);
