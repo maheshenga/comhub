@@ -1,13 +1,15 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Input, message, Popconfirm, Select, Space, Tag } from 'antd';
+import { Button, Input, message, Popconfirm, Select, Space, Tabs, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+import AdminTopUpPackagesPage from './AdminTopUpPackagesPage';
 
 type OrderStatus = 'pending' | 'paid' | 'canceled' | 'expired' | 'failed' | 'refunded';
 
@@ -59,16 +61,16 @@ const AdminOrdersPage = memo(() => {
     {
       dataIndex: 'id',
       key: 'id',
-      render: (v: string) => <code>{v.slice(0, 12)}</code>,
+      render: (value: string) => <code>{value.slice(0, 12)}</code>,
       title: t('admin.orders.col.id', '订单 ID'),
     },
     {
       dataIndex: 'userId',
       key: 'userId',
-      render: (v: string, r: any) => (
+      render: (value: string, row: any) => (
         <Flexbox gap={2}>
-          <code>{v.slice(0, 12)}</code>
-          <span>{r.userEmail || r.userName || '—'}</span>
+          <code>{value.slice(0, 12)}</code>
+          <span>{row.userEmail || row.userName || '-'}</span>
         </Flexbox>
       ),
       title: t('admin.orders.col.user', '用户'),
@@ -76,7 +78,7 @@ const AdminOrdersPage = memo(() => {
     {
       dataIndex: 'status',
       key: 'status',
-      render: (v: OrderStatus) => <Tag color={statusColor[v] ?? 'default'}>{v}</Tag>,
+      render: (value: OrderStatus) => <Tag color={statusColor[value] ?? 'default'}>{value}</Tag>,
       title: t('admin.orders.col.status', '状态'),
     },
     {
@@ -87,40 +89,40 @@ const AdminOrdersPage = memo(() => {
     {
       dataIndex: 'amount',
       key: 'amount',
-      render: (v: number, r: any) => `${r.currency || 'USD'} ${v}`,
+      render: (value: number, row: any) => `${row.currency || 'CNY'} ${value}`,
       title: t('admin.orders.col.amount', '金额'),
     },
     {
       dataIndex: 'provider',
       key: 'provider',
-      render: (v: string | null) => v || '—',
+      render: (value: string | null) => value || '-',
       title: t('admin.orders.col.provider', '支付渠道（Provider）'),
     },
     {
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (v: Date) => (v ? new Date(v).toLocaleString() : '—'),
+      render: (value: Date) => (value ? new Date(value).toLocaleString() : '-'),
       title: t('admin.orders.col.createdAt', '创建时间'),
       width: 180,
     },
     {
       key: 'actions',
-      render: (_: unknown, r: any) =>
-        r.status === 'pending' ? (
+      render: (_: unknown, row: any) =>
+        row.status === 'pending' ? (
           <Space>
             <Popconfirm
               title={t('admin.orders.expireConfirm', '确认将这个待支付订单设为过期？')}
-              onConfirm={() => handlePendingAction(r.id, 'expire')}
+              onConfirm={() => handlePendingAction(row.id, 'expire')}
             >
-              <Button loading={actingId === r.id} size="small">
+              <Button loading={actingId === row.id} size="small">
                 {t('admin.orders.expire', '设为过期')}
               </Button>
             </Popconfirm>
             <Popconfirm
               title={t('admin.orders.cancelConfirm', '确认取消这个待支付订单？')}
-              onConfirm={() => handlePendingAction(r.id, 'cancel')}
+              onConfirm={() => handlePendingAction(row.id, 'cancel')}
             >
-              <Button danger loading={actingId === r.id} size="small">
+              <Button danger loading={actingId === row.id} size="small">
                 {t('admin.orders.cancel', '取消订单')}
               </Button>
             </Popconfirm>
@@ -132,44 +134,61 @@ const AdminOrdersPage = memo(() => {
   ];
 
   return (
-    <Flexbox gap={16} padding={24}>
-      <Flexbox horizontal align="center" gap={12}>
-        <Select<OrderStatus>
-          allowClear
-          placeholder={t('admin.orders.filter.status', '状态')}
-          style={{ width: 160 }}
-          value={status}
-          options={(['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded'] as const).map(
-            (value) => ({ label: value, value }),
-          )}
-          onChange={(value) => {
-            setStatus(value);
-            setCursor(0);
-          }}
-        />
-        <Input.Search
-          allowClear
-          placeholder={t('admin.orders.filter.userId', '用户 ID')}
-          style={{ width: 260 }}
-          onSearch={(value) => {
-            setUserId(value);
-            setCursor(0);
-          }}
-        />
-      </Flexbox>
-      <InlineTable
-        columns={columns}
-        dataSource={data?.items ?? []}
-        loading={isLoading}
-        rowKey="id"
+    <Flexbox padding={24}>
+      <Tabs
+        items={[
+          {
+            children: (
+              <Flexbox gap={16}>
+                <Flexbox horizontal align="center" gap={12}>
+                  <Select<OrderStatus>
+                    allowClear
+                    placeholder={t('admin.orders.filter.status', '状态')}
+                    style={{ width: 160 }}
+                    value={status}
+                    options={(
+                      ['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded'] as const
+                    ).map((value) => ({ label: value, value }))}
+                    onChange={(value) => {
+                      setStatus(value);
+                      setCursor(0);
+                    }}
+                  />
+                  <Input.Search
+                    allowClear
+                    placeholder={t('admin.orders.filter.userId', '用户 ID')}
+                    style={{ width: 260 }}
+                    onSearch={(value) => {
+                      setUserId(value);
+                      setCursor(0);
+                    }}
+                  />
+                </Flexbox>
+                <InlineTable
+                  columns={columns}
+                  dataSource={data?.items ?? []}
+                  loading={isLoading}
+                  rowKey="id"
+                />
+                {data?.nextCursor != null && (
+                  <Flexbox align="center">
+                    <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
+                      {t('admin.orders.loadMore', '加载更多')}
+                    </Button>
+                  </Flexbox>
+                )}
+              </Flexbox>
+            ),
+            key: 'orders',
+            label: t('admin.orders.tabs.orders', '订单列表'),
+          },
+          {
+            children: <AdminTopUpPackagesPage embedded />,
+            key: 'topup',
+            label: t('admin.orders.tabs.topup', '充值套餐'),
+          },
+        ]}
       />
-      {data?.nextCursor != null && (
-        <Flexbox align="center">
-          <Button loading={isLoading} onClick={() => setCursor(data.nextCursor!)}>
-            {t('admin.orders.loadMore', '加载更多')}
-          </Button>
-        </Flexbox>
-      )}
     </Flexbox>
   );
 });

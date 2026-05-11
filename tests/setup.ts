@@ -19,6 +19,15 @@ import oauth from '@/locales/default/oauth';
 enablePatches();
 enableMapSet();
 
+const originalConsoleWarn = console.warn.bind(console);
+console.warn = (...args) => {
+  if (typeof args[0] === 'string' && args[0].includes("KaTeX doesn't work in quirks mode")) {
+    return;
+  }
+
+  originalConsoleWarn(...args);
+};
+
 // Global mock for @lobehub/analytics/react to avoid AnalyticsProvider dependency
 // This prevents tests from failing when components use useAnalytics hook
 vi.mock('@lobehub/analytics/react', () => ({
@@ -27,6 +36,24 @@ vi.mock('@lobehub/analytics/react', () => ({
       track: vi.fn(),
     },
   }),
+}));
+
+// Avoid loading the real PostHog browser SDK in happy-dom tests. The SDK probes
+// Node's experimental localStorage and emits `--localstorage-file` warnings.
+vi.mock('posthog-js', () => ({
+  default: {
+    capture: vi.fn(),
+    has_opted_out_capturing: vi.fn(() => false),
+    identify: vi.fn(),
+    init: vi.fn(),
+    isFeatureEnabled: vi.fn(() => false),
+    onFeatureFlags: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+    register: vi.fn(),
+    reset: vi.fn(),
+    unregister: vi.fn(),
+  },
 }));
 
 // Global mock for @/auth to avoid better-auth validator module issue in tests

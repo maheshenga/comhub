@@ -92,6 +92,7 @@ export default {
   'extendParams.enableReasoning.desc':
     'Let the model reason before answering. Use it for complex tasks.',
   'extendParams.enableReasoning.title': 'Enable Deep Thinking',
+  'extendParams.async.title': 'Async Image Task',
   'extendParams.imageAspectRatio.title': 'Image Aspect Ratio',
   'extendParams.imageResolution.title': 'Image Resolution',
   'extendParams.reasoningBudgetToken.title': 'Thinking Consumption Token',

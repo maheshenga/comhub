@@ -554,9 +554,317 @@ describe('createOpenAICompatibleImage', () => {
       expect(mockClient.images.generate).toHaveBeenCalled();
       expect(mockClient.chat.completions.create).not.toHaveBeenCalled();
     });
+
+    it('should reject async image task route with explicit unsupported error', async () => {
+      const payload: CreateImagePayload = {
+        model: 'jimeng-image-async',
+        params: { prompt: 'Generate async image' },
+      };
+
+      await expect(createOpenAICompatibleImage(mockClient, payload, 'openai')).rejects.toThrow(
+        'Async image task route is not implemented for OpenAI-compatible runtime',
+      );
+
+      expect(mockClient.images.generate).not.toHaveBeenCalled();
+      expect(mockClient.images.edit).not.toHaveBeenCalled();
+      expect(mockClient.chat.completions.create).not.toHaveBeenCalled();
+    });
+
+    it('should route async image task models to async task runner when options are provided', async () => {
+      vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ id: 'task-1' }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: [{ url: 'https://example.com/async-result.png' }],
+              status: 'succeeded',
+            }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+              status: 200,
+            },
+          ),
+        );
+
+      const payload: CreateImagePayload = {
+        model: 'jimeng-image-async',
+        params: { prompt: 'Generate async image' },
+      };
+
+      const result = await createOpenAICompatibleImage(mockClient, payload, 'openai', {
+        apiKey: 'sk-test',
+        baseURL: 'https://api.example.com/v1',
+        initialInterval: 1,
+        maxInterval: 1,
+        maxRetries: 2,
+      });
+
+      expect(result).toEqual({ imageUrl: 'https://example.com/async-result.png' });
+      expect(mockClient.images.generate).not.toHaveBeenCalled();
+      expect(mockClient.images.edit).not.toHaveBeenCalled();
+      expect(mockClient.chat.completions.create).not.toHaveBeenCalled();
+    });
+
+    it('should route image models with async param to async task runner', async () => {
+      vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ task_id: 'task-2' }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                data: { data: [{ url: 'https://example.com/async-param-result.png' }] },
+                status: 'SUCCESS',
+              },
+            }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+              status: 200,
+            },
+          ),
+        );
+
+      const payload: CreateImagePayload = {
+        model: 'jimeng-image',
+        params: { async: true, prompt: 'Generate async image' } as any,
+      };
+
+      const result = await createOpenAICompatibleImage(mockClient, payload, 'openai', {
+        apiKey: 'sk-test',
+        baseURL: 'https://api.example.com/v1',
+        initialInterval: 1,
+        maxInterval: 1,
+        maxRetries: 2,
+      });
+
+      expect(result).toEqual({ imageUrl: 'https://example.com/async-param-result.png' });
+      expect(mockClient.images.generate).not.toHaveBeenCalled();
+      expect(mockClient.images.edit).not.toHaveBeenCalled();
+      expect(mockClient.chat.completions.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('image mode - parameter mapping', () => {
+    it('should sanitize gpt-image-2 generation parameters for compatible upstreams', async () => {
+      const mockImageResponse = {
+        data: [
+          {
+            b64_json: 'gptImage2Base64Result',
+          },
+        ],
+      };
+
+      vi.mocked(mockClient.images.generate).mockResolvedValue(mockImageResponse as any);
+
+      const payload: CreateImagePayload = {
+        model: 'gpt-image-2',
+        params: {
+          prompt: 'Generate image with gpt-image-2',
+          quality: 'auto',
+          response_format: 'b64_json',
+          size: 'auto',
+          style: 'vivid',
+        } as any,
+      };
+
+      const result = await createOpenAICompatibleImage(mockClient, payload, 'openai');
+
+      expect(result.imageUrl).toBe('data:image/png;base64,gptImage2Base64Result');
+      expect(mockClient.images.generate).toHaveBeenCalledWith({
+        model: 'gpt-image-2',
+        prompt: 'Generate image with gpt-image-2',
+        quality: 'auto',
+        size: '1024x1024',
+      });
+    });
+
+    it('should sanitize gpt-image-2 snapshot generation parameters for compatible upstreams', async () => {
+      const mockImageResponse = {
+        data: [
+          {
+            b64_json: 'gptImage2SnapshotBase64Result',
+          },
+        ],
+      };
+
+      vi.mocked(mockClient.images.generate).mockResolvedValue(mockImageResponse as any);
+
+      const payload: CreateImagePayload = {
+        model: 'gpt-image-2-2026-04-21',
+        params: {
+          prompt: 'Generate image with gpt-image-2 snapshot',
+          response_format: 'b64_json',
+          size: 'auto',
+          style: 'vivid',
+        } as any,
+      };
+
+      await createOpenAICompatibleImage(mockClient, payload, 'openai');
+
+      expect(mockClient.images.generate).toHaveBeenCalledWith({
+        model: 'gpt-image-2-2026-04-21',
+        prompt: 'Generate image with gpt-image-2 snapshot',
+        size: '1024x1024',
+      });
+    });
+
+    it('should not send input_fidelity for gpt-image-2 image edits', async () => {
+      const mockImageResponse = {
+        data: [
+          {
+            b64_json: 'gptImage2EditedBase64Result',
+          },
+        ],
+      };
+
+      const mockArrayBuffer = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer;
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => mockArrayBuffer,
+        headers: {
+          get: (name: string) => (name === 'content-type' ? 'image/jpeg' : null),
+        },
+      } as any);
+
+      vi.mocked(mockClient.images.edit).mockResolvedValue(mockImageResponse as any);
+
+      const payload: CreateImagePayload = {
+        model: 'gpt-image-2',
+        params: {
+          imageUrl: 'https://example.com/source.jpg',
+          input_fidelity: 'high',
+          prompt: 'Edit image with gpt-image-2',
+          size: 'auto',
+        } as any,
+      };
+
+      const result = await createOpenAICompatibleImage(mockClient, payload, 'openai');
+
+      expect(result.imageUrl).toBe('data:image/png;base64,gptImage2EditedBase64Result');
+      const editOptions = vi.mocked(mockClient.images.edit).mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(editOptions.model).toBe('gpt-image-2');
+      expect(editOptions.size).toBe('1024x1024');
+      expect(editOptions.input_fidelity).toBeUndefined();
+      expect(editOptions.n).toBeUndefined();
+    });
+
+    it('should map Nano Banana image parameters for compatible upstreams', async () => {
+      const mockImageResponse = {
+        data: [
+          {
+            url: 'https://example.com/nano-banana.png',
+          },
+        ],
+      };
+
+      vi.mocked(mockClient.images.generate).mockResolvedValue(mockImageResponse as any);
+
+      const payload: CreateImagePayload = {
+        model: 'gemini-3.1-flash-image-preview',
+        params: {
+          aspectRatio: '16:9',
+          prompt: 'Generate image with Nano Banana',
+          resolution: '4K',
+        } as any,
+      };
+
+      await createOpenAICompatibleImage(mockClient, payload, 'openai');
+
+      expect(mockClient.images.generate).toHaveBeenCalledWith({
+        aspect_ratio: '16:9',
+        image_size: '4K',
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'Generate image with Nano Banana',
+      });
+    });
+
+    it('should omit auto Nano Banana image parameters for compatible upstreams', async () => {
+      const mockImageResponse = {
+        data: [
+          {
+            url: 'https://example.com/nano-banana-auto.png',
+          },
+        ],
+      };
+
+      vi.mocked(mockClient.images.generate).mockResolvedValue(mockImageResponse as any);
+
+      const payload: CreateImagePayload = {
+        model: 'gemini-3.1-flash-image-preview',
+        params: {
+          aspectRatio: 'auto',
+          prompt: 'Generate image with defaults',
+          resolution: '1K',
+        } as any,
+      };
+
+      await createOpenAICompatibleImage(mockClient, payload, 'openai');
+
+      expect(mockClient.images.generate).toHaveBeenCalledWith({
+        image_size: '1K',
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'Generate image with defaults',
+      });
+    });
+
+    it('should sanitize qwen-image-edit parameters for compatible upstreams', async () => {
+      const mockImageResponse = {
+        data: [
+          {
+            url: 'https://example.com/qwen-image-edit.png',
+          },
+        ],
+      };
+
+      const mockArrayBuffer = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer;
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => mockArrayBuffer,
+        headers: {
+          get: (name: string) => (name === 'content-type' ? 'image/jpeg' : null),
+        },
+      } as any);
+
+      vi.mocked(mockClient.images.edit).mockResolvedValue(mockImageResponse as any);
+
+      const payload: CreateImagePayload = {
+        model: 'qwen-image-edit',
+        params: {
+          imageUrl: 'https://example.com/source.jpg',
+          input_fidelity: 'high',
+          prompt: 'Edit image with qwen',
+          response_format: 'b64_json',
+          size: '1024x1024',
+        } as any,
+      };
+
+      await createOpenAICompatibleImage(mockClient, payload, 'openai');
+
+      const editOptions = vi.mocked(mockClient.images.edit).mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(editOptions.model).toBe('qwen-image-edit');
+      expect(editOptions.prompt).toBe('Edit image with qwen');
+      expect(editOptions.image).toBeDefined();
+      expect(editOptions).not.toHaveProperty('input_fidelity');
+      expect(editOptions).not.toHaveProperty('n');
+      expect(editOptions).not.toHaveProperty('response_format');
+      expect(editOptions).not.toHaveProperty('size');
+    });
+
     it('should map single imageUrl string parameter to image array', async () => {
       const mockImageResponse = {
         data: [
@@ -567,7 +875,7 @@ describe('createOpenAICompatibleImage', () => {
       };
 
       // Mock fetch for image download
-      const mockArrayBuffer = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0]).buffer;
+      const mockArrayBuffer = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer;
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         arrayBuffer: async () => mockArrayBuffer,

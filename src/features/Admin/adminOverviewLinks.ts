@@ -3,7 +3,7 @@ import { ADMIN_BASE_PATH } from './adminNavigation';
 export const ADMIN_OVERVIEW_QUICK_LINKS = [
   {
     key: 'newapi',
-    label: 'NewAPI 实例',
+    label: '服务商实例',
     path: `${ADMIN_BASE_PATH}/newapi-providers`,
   },
   {

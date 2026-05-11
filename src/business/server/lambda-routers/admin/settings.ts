@@ -60,10 +60,15 @@ const RECOMMENDATION_KEYS = [
   SETTING_KEYS.recommendationHotSkillsEnabled,
   SETTING_KEYS.recommendationSelectedTags,
   SETTING_KEYS.recommendationAssistantTags,
+  SETTING_KEYS.recommendationAssistantTitle,
   SETTING_KEYS.recommendationSkillCategories,
+  SETTING_KEYS.recommendationSkillTitle,
   SETTING_KEYS.recommendationMcpCategories,
+  SETTING_KEYS.recommendationMcpTitle,
   SETTING_KEYS.recommendationGeneralSkillCategories,
+  SETTING_KEYS.recommendationGeneralSkillTitle,
   SETTING_KEYS.recommendationHotSkillSort,
+  SETTING_KEYS.recommendationHotSkillTitle,
 ] as const;
 
 const PRICING_KEYS = [
@@ -226,10 +231,15 @@ const readPublicRecommendations = async (db: any) => {
     hotSkillsEnabled,
     selectedTags,
     assistantTags,
+    assistantTitle,
     skillCategories,
+    skillTitle,
     mcpCategories,
+    mcpTitle,
     generalSkillCategories,
+    generalSkillTitle,
     hotSkillSort,
+    hotSkillTitle,
   ] = await Promise.all([
     readSetting(db, SETTING_KEYS.recommendationSectionEnabled),
     readSetting(db, SETTING_KEYS.recommendationAssistantsEnabled),
@@ -239,25 +249,35 @@ const readPublicRecommendations = async (db: any) => {
     readSetting(db, SETTING_KEYS.recommendationHotSkillsEnabled),
     readSetting(db, SETTING_KEYS.recommendationSelectedTags),
     readSetting(db, SETTING_KEYS.recommendationAssistantTags),
+    readSetting(db, SETTING_KEYS.recommendationAssistantTitle),
     readSetting(db, SETTING_KEYS.recommendationSkillCategories),
+    readSetting(db, SETTING_KEYS.recommendationSkillTitle),
     readSetting(db, SETTING_KEYS.recommendationMcpCategories),
+    readSetting(db, SETTING_KEYS.recommendationMcpTitle),
     readSetting(db, SETTING_KEYS.recommendationGeneralSkillCategories),
+    readSetting(db, SETTING_KEYS.recommendationGeneralSkillTitle),
     readSetting(db, SETTING_KEYS.recommendationHotSkillSort),
+    readSetting(db, SETTING_KEYS.recommendationHotSkillTitle),
   ]);
 
   return {
     assistantTags: toStringList(assistantTags),
+    assistantTitle: toString(assistantTitle, '为你推荐的助理'),
     assistantsEnabled: toBoolean(assistantsEnabled, true),
     enabled: toBoolean(enabled, false),
     generalSkillCategories: toStringList(generalSkillCategories),
+    generalSkillTitle: toString(generalSkillTitle, '通用推荐技能'),
     generalSkillsEnabled: toBoolean(generalSkillsEnabled, true),
     hotSkillsEnabled: toBoolean(hotSkillsEnabled, true),
     hotSkillSort:
       typeof hotSkillSort === 'string' && hotSkillSort.length > 0 ? hotSkillSort : 'installCount',
+    hotSkillTitle: toString(hotSkillTitle, '热门技能'),
     mcpCategories: toStringList(mcpCategories),
+    mcpTitle: toString(mcpTitle, '推荐 MCP / 工具'),
     mcpsEnabled: toBoolean(mcpsEnabled, true),
     selectedTags: toStringList(selectedTags),
     skillCategories: toStringList(skillCategories),
+    skillTitle: toString(skillTitle, '推荐技能'),
     skillsEnabled: toBoolean(skillsEnabled, true),
   };
 };
@@ -841,6 +861,16 @@ export const adminSettingsRouter = router({
           value = Boolean(value);
         } else if (input.key === SETTING_KEYS.recommendationHotSkillSort) {
           value = typeof value === 'string' && value.trim() ? value.trim() : 'installCount';
+        } else if (
+          [
+            SETTING_KEYS.recommendationAssistantTitle,
+            SETTING_KEYS.recommendationMcpTitle,
+            SETTING_KEYS.recommendationSkillTitle,
+            SETTING_KEYS.recommendationGeneralSkillTitle,
+            SETTING_KEYS.recommendationHotSkillTitle,
+          ].includes(input.key as any)
+        ) {
+          value = toString(value);
         } else {
           value = toStringList(value);
         }

@@ -474,6 +474,32 @@ describe('modelParse', () => {
         expect(settings?.searchImpl).toBe('tool');
         expect(settings?.searchProvider).toBe('builtin');
       });
+
+      it('should add async parameter defaults for image models with async extend param', async () => {
+        const modelList = [
+          {
+            id: 'custom-async-image-model',
+            parameters: {
+              prompt: { default: '' },
+              size: { default: '1024x1024', enum: ['1024x1024'] },
+            },
+            settings: {
+              extendParams: ['async'],
+            },
+            type: 'image',
+          },
+        ];
+
+        const result = await processModelList(modelList, config);
+
+        expect(result[0].parameters).toMatchObject({
+          async: {
+            default: true,
+            type: 'boolean',
+          },
+          prompt: { default: '' },
+        });
+      });
     });
   });
 

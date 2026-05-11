@@ -82,6 +82,8 @@ describe('adminSettingsForm', () => {
       desktopDownloadLabel: '',
       desktopDownloadUrl: '',
       helpMenuItems: [],
+      ordersEnabled: true,
+      pricingMultiplier: 1,
       referralRewardCredits: 0,
     };
 
@@ -227,6 +229,30 @@ describe('adminSettingsForm', () => {
 
   it('shares the pricing model rules setting key with matrix-style admin pages', () => {
     expect(SETTING_KEYS.pricingModelRules).toBe('pricing.modelRules');
+  });
+
+  it('includes global billing controls in site setting updates', () => {
+    const initial = buildFormValues({
+      ordersManagementEnabled: true,
+      pricingCreditMultiplier: 1,
+    });
+
+    expect(initial.ordersEnabled).toBe(true);
+    expect(initial.pricingMultiplier).toBe(1);
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          ordersEnabled: false,
+          pricingMultiplier: 1.35,
+        },
+        initial,
+      ),
+    ).toEqual([
+      { key: SETTING_KEYS.pricingCreditMultiplier, value: 1.35 },
+      { key: SETTING_KEYS.ordersManagementEnabled, value: false },
+    ]);
   });
 
   it('saves about page links as one shared setting', () => {

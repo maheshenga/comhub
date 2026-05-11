@@ -289,9 +289,9 @@ const AdminAuditPage = memo(() => {
             <Descriptions.Item label="操作">
               <Tag color={ACTION_COLORS[detail.action] ?? 'default'}>{detail.action}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="???">{detail.actorUserId ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="????">{detail.targetUserId ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="??">
+            <Descriptions.Item label="操作用户">{detail.actorUserId ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="目标用户">{detail.targetUserId ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="资源">
               {detail.resourceType ?? '—'} {detail.resourceId ? `· ${detail.resourceId}` : ''}
             </Descriptions.Item>
             <Descriptions.Item label="IP">{detail.ipAddress ?? '—'}</Descriptions.Item>

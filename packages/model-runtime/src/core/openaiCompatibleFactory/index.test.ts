@@ -1555,8 +1555,8 @@ describe('LobeOpenAICompatibleFactory', () => {
         expect(editArgs).not.toHaveProperty('input_fidelity');
         expect(editArgs).toMatchObject({
           model: 'gpt-image-2',
-          n: 1,
         });
+        expect(editArgs).not.toHaveProperty('n');
       });
 
       it.each([

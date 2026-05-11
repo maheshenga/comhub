@@ -10,7 +10,6 @@ import {
   InputNumber,
   message,
   Modal,
-  Select,
   Space,
   Spin,
   Table,
@@ -22,10 +21,14 @@ import { useTranslation } from 'react-i18next';
 import { mutate as swrMutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import AdminAssignPlanModal from './AdminAssignPlanModal';
+
 interface AdminUserDetailDrawerProps {
   onClose: () => void;
   userId: string | null;
 }
+
+const EMPTY_TEXT = '-';
 
 const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userId }) => {
   const { t } = useTranslation('subscription');
@@ -73,7 +76,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
 
   const handleAssignPlan = async () => {
     if (!userId || !assignPlan || !assignDurationMonths || !assignReason.trim()) {
-      message.warning('请选择套餐、使用时长并填写原因');
+      message.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
       return;
     }
 
@@ -86,7 +89,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
         reason: assignReason.trim(),
         userId,
       });
-      message.success('套餐已分配');
+      message.success(t('admin.assignPlan.success', '套餐已设置'));
       setAssignOpen(false);
       setAssignReason('');
       if (swrKey) await swrMutate(swrKey);
@@ -107,7 +110,9 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
       extra={
         userId ? (
           <Space>
-            <Button onClick={() => setAssignOpen(true)}>分配套餐</Button>
+            <Button onClick={() => setAssignOpen(true)}>
+              {t('admin.userDetail.assignPlan', '给用户分配套餐')}
+            </Button>
             <Button type="primary" onClick={() => setAdjustOpen(true)}>
               {t('admin.adjustCredits', '调整积分')}
             </Button>
@@ -126,30 +131,30 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
             size="small"
             title={t('admin.userDetail.profile', '用户资料')}
           >
-            <Descriptions.Item label="ID">
+            <Descriptions.Item label={t('admin.userDetail.userId', 'ID')}>
               <code>{data.user.id}</code>
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.email', '邮箱')}>
-              {data.user.email ?? '—'}
+              {data.user.email ?? EMPTY_TEXT}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.phone', '手机号')}>
-              {data.user.phone ?? '—'}
+              {data.user.phone ?? EMPTY_TEXT}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.name', '名称')}>
-              {data.user.fullName ?? '—'}
+              {data.user.fullName ?? EMPTY_TEXT}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.role', '角色')}>
               {data.user.role ? (
                 <Tag color={data.user.role === 'admin' ? 'purple' : 'blue'}>{data.user.role}</Tag>
               ) : (
-                '—'
+                EMPTY_TEXT
               )}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.status', '状态')}>
               {data.user.banned ? <Tag color="red">已封禁</Tag> : <Tag color="green">正常</Tag>}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.joined', '注册时间')}>
-              {data.user.createdAt ? new Date(data.user.createdAt).toLocaleString() : '—'}
+              {data.user.createdAt ? new Date(data.user.createdAt).toLocaleString() : EMPTY_TEXT}
             </Descriptions.Item>
           </Descriptions>
 
@@ -198,12 +203,12 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
               <Descriptions.Item label={t('admin.userDetail.renewsAt', '续费时间')}>
                 {data.subscription.renewsAt
                   ? new Date(data.subscription.renewsAt).toLocaleDateString()
-                  : '—'}
+                  : EMPTY_TEXT}
               </Descriptions.Item>
-              <Descriptions.Item label="结束时间">
+              <Descriptions.Item label={t('admin.userDetail.endTime', '结束时间')}>
                 {data.subscription.endsAt
                   ? new Date(data.subscription.endsAt).toLocaleDateString()
-                  : '—'}
+                  : EMPTY_TEXT}
               </Descriptions.Item>
             </Descriptions>
           ) : (
@@ -218,15 +223,27 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
               rowKey="id"
               size="small"
               columns={[
-                { dataIndex: 'type', key: 'type', title: '类型' },
-                { dataIndex: 'amount', key: 'amount', title: '数量' },
-                { dataIndex: 'balanceAfter', key: 'balanceAfter', title: '变动后余额' },
-                { dataIndex: 'description', key: 'description', title: '描述' },
+                { dataIndex: 'type', key: 'type', title: t('admin.userDetail.ledgerType', '类型') },
+                {
+                  dataIndex: 'amount',
+                  key: 'amount',
+                  title: t('admin.userDetail.ledgerAmount', '数量'),
+                },
+                {
+                  dataIndex: 'balanceAfter',
+                  key: 'balanceAfter',
+                  title: t('admin.userDetail.ledgerBalanceAfter', '变动后余额'),
+                },
+                {
+                  dataIndex: 'description',
+                  key: 'description',
+                  title: t('admin.userDetail.ledgerDescription', '描述'),
+                },
                 {
                   dataIndex: 'createdAt',
                   key: 'createdAt',
-                  render: (v: Date) => new Date(v).toLocaleString(),
-                  title: '时间',
+                  render: (value: Date) => new Date(value).toLocaleString(),
+                  title: t('admin.userDetail.ledgerTime', '时间'),
                 },
               ]}
             />
@@ -243,23 +260,35 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
                 {
                   dataIndex: 'id',
                   key: 'id',
-                  render: (v: string) => <code>{v.slice(0, 8)}</code>,
-                  title: 'ID',
+                  render: (value: string) => <code>{value.slice(0, 8)}</code>,
+                  title: t('admin.userDetail.orderId', 'ID'),
                 },
-                { dataIndex: 'credits', key: 'credits', title: '积分' },
-                { dataIndex: 'amount', key: 'amount', title: '金额' },
-                { dataIndex: 'currency', key: 'currency', title: '币种' },
+                {
+                  dataIndex: 'credits',
+                  key: 'credits',
+                  title: t('admin.userDetail.orderCredits', '积分'),
+                },
+                {
+                  dataIndex: 'amount',
+                  key: 'amount',
+                  title: t('admin.userDetail.orderAmount', '金额'),
+                },
+                {
+                  dataIndex: 'currency',
+                  key: 'currency',
+                  title: t('admin.userDetail.orderCurrency', '币种'),
+                },
                 {
                   dataIndex: 'status',
                   key: 'status',
-                  render: (s: string) => <Tag>{s}</Tag>,
-                  title: '状态',
+                  render: (value: string) => <Tag>{value}</Tag>,
+                  title: t('admin.userDetail.orderStatus', '状态'),
                 },
                 {
                   dataIndex: 'createdAt',
                   key: 'createdAt',
-                  render: (v: Date) => new Date(v).toLocaleString(),
-                  title: '创建时间',
+                  render: (value: Date) => new Date(value).toLocaleString(),
+                  title: t('admin.userDetail.orderCreatedAt', '创建时间'),
                 },
               ]}
             />
@@ -276,89 +305,55 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
                 {
                   dataIndex: 'createdAt',
                   key: 'createdAt',
-                  render: (v: Date) => new Date(v).toLocaleString(),
-                  title: '时间',
+                  render: (value: Date) => new Date(value).toLocaleString(),
+                  title: t('admin.userDetail.auditTime', '时间'),
                   width: 160,
                 },
                 {
                   dataIndex: 'action',
                   key: 'action',
-                  render: (v: string) => <Tag>{v}</Tag>,
-                  title: '操作',
+                  render: (value: string) => <Tag>{value}</Tag>,
+                  title: t('admin.userDetail.auditAction', '操作'),
                 },
                 {
                   dataIndex: 'actorUserId',
                   key: 'actor',
-                  render: (v: string | null) => (v ? <code>{v.slice(0, 8)}</code> : '—'),
-                  title: '操作者',
+                  render: (value: string | null) =>
+                    value ? <code>{value.slice(0, 8)}</code> : EMPTY_TEXT,
+                  title: t('admin.userDetail.auditActor', '操作者'),
                 },
                 {
                   dataIndex: 'payload',
                   key: 'payload',
-                  render: (v: Record<string, unknown> | null) =>
-                    v ? (
-                      <code style={{ fontSize: 11 }}>{JSON.stringify(v).slice(0, 80)}</code>
+                  render: (value: Record<string, unknown> | null) =>
+                    value ? (
+                      <code style={{ fontSize: 11 }}>{JSON.stringify(value).slice(0, 80)}</code>
                     ) : (
-                      '—'
+                      EMPTY_TEXT
                     ),
-                  title: '载荷（Payload）',
+                  title: t('admin.userDetail.auditPayload', '载荷（Payload）'),
                 },
               ]}
             />
           </div>
         </Flexbox>
       )}
-      <Modal
+      <AdminAssignPlanModal
         confirmLoading={assigning}
+        cycle={assignCycle}
+        durationMonths={assignDurationMonths}
         open={assignOpen}
-        title="给用户分配套餐"
+        plan={assignPlan}
+        plans={plansData?.items ?? []}
+        reason={assignReason}
+        title={t('admin.userDetail.assignPlan', '给用户分配套餐')}
         onCancel={() => setAssignOpen(false)}
+        onCycleChange={setAssignCycle}
+        onDurationMonthsChange={setAssignDurationMonths}
         onOk={handleAssignPlan}
-      >
-        <Flexbox gap={12}>
-          <div>套餐</div>
-          <Select
-            showSearch
-            optionFilterProp="label"
-            placeholder="选择套餐"
-            style={{ width: '100%' }}
-            value={assignPlan}
-            options={(plansData?.items ?? [])
-              .filter((item: any) => item.isActive !== false)
-              .map((item: any) => ({
-                label: `${item.displayName || item.plan} (${item.plan})`,
-                value: item.plan,
-              }))}
-            onChange={setAssignPlan}
-          />
-          <div>周期</div>
-          <Select
-            style={{ width: '100%' }}
-            value={assignCycle}
-            options={[
-              { label: '月付', value: 'monthly' },
-              { label: '年付', value: 'yearly' },
-            ]}
-            onChange={setAssignCycle}
-          />
-          <div>使用时长（月）</div>
-          <InputNumber
-            max={120}
-            min={1}
-            precision={0}
-            style={{ width: '100%' }}
-            value={assignDurationMonths}
-            onChange={(v) => setAssignDurationMonths((v as number | null) ?? 1)}
-          />
-          <div>原因</div>
-          <Input.TextArea
-            placeholder="例如：线下购买、客服补偿、测试账号等"
-            rows={3}
-            value={assignReason}
-            onChange={(e) => setAssignReason(e.target.value)}
-          />
-        </Flexbox>
-      </Modal>
+        onPlanChange={setAssignPlan}
+        onReasonChange={setAssignReason}
+      />
       <Modal
         confirmLoading={adjusting}
         open={adjustOpen}
@@ -371,13 +366,14 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
           <InputNumber
             style={{ width: '100%' }}
             value={adjustAmount}
-            onChange={(v) => setAdjustAmount((v as number | null) ?? 0)}
+            onChange={(value) => setAdjustAmount((value as number | null) ?? 0)}
           />
           <div>{t('admin.adjustCredits.reason', '原因')}</div>
           <Input.TextArea
+            placeholder={t('admin.adjustCredits.reason.placeholder', '请输入调整原因')}
             rows={3}
             value={adjustReason}
-            onChange={(e) => setAdjustReason(e.target.value)}
+            onChange={(event) => setAdjustReason(event.target.value)}
           />
         </Flexbox>
       </Modal>

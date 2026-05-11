@@ -711,7 +711,7 @@ const AdminNewapiProvidersPage = memo(() => {
         <div style={{ fontSize: 13, opacity: 0.7 }}>
           {t(
             'admin.newapi.intro',
-            '配置多个 NewAPI 上游实例，并按模型类型登记可用模型。运行时会优先使用匹配模型且优先级最高的实例，失败时按优先级切换到下一个实例。',
+            '配置多个服务商上游实例，并按模型类型登记可用模型。运行时会优先使用匹配模型且优先级最高的实例，失败时按优先级切换到下一个实例。',
           )}
         </div>
         <Button type="primary" onClick={() => setCreating(true)}>
@@ -720,7 +720,7 @@ const AdminNewapiProvidersPage = memo(() => {
       </Flexbox>
 
       {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.newapi.empty', '暂未配置 NewAPI 实例')} />
+        <Empty description={t('admin.newapi.empty', '暂未配置服务商实例')} />
       ) : (
         <Table
           columns={columns as any}

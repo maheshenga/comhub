@@ -11,18 +11,17 @@ const collectPaths = () =>
   ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.path));
 
 describe('adminNavigation', () => {
-  it('organizes admin pages into the planned six management modules', () => {
+  it('organizes admin pages into the planned five management modules', () => {
     expect(ADMIN_NAV_GROUPS.map((group) => group.label)).toEqual([
-      '概览',
-      '用户',
-      '商业化',
-      '模型与 API',
-      '运营',
-      '系统',
+      '工作台',
+      '用户与套餐',
+      '模型与计费',
+      '品牌与增长',
+      '系统运维',
     ]);
   });
 
-  it('keeps all existing admin routes reachable without duplicate sidebar paths', () => {
+  it('keeps all visible admin routes reachable without duplicate sidebar paths', () => {
     const paths = collectPaths();
 
     expect(new Set(paths).size).toBe(paths.length);
@@ -31,10 +30,8 @@ describe('adminNavigation', () => {
         ADMIN_BASE_PATH,
         `${ADMIN_BASE_PATH}/users`,
         `${ADMIN_BASE_PATH}/plans`,
-        `${ADMIN_BASE_PATH}/topup`,
         `${ADMIN_BASE_PATH}/orders`,
         `${ADMIN_BASE_PATH}/credits`,
-        `${ADMIN_BASE_PATH}/pricing`,
         `${ADMIN_BASE_PATH}/recommendations`,
         `${ADMIN_BASE_PATH}/operations`,
         `${ADMIN_BASE_PATH}/growth`,
@@ -42,7 +39,6 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/newapi-providers`,
         `${ADMIN_BASE_PATH}/model-billing-matrix`,
         `${ADMIN_BASE_PATH}/subscriptions`,
-        `${ADMIN_BASE_PATH}/change-requests`,
         `${ADMIN_BASE_PATH}/redemption`,
         `${ADMIN_BASE_PATH}/settings`,
         `${ADMIN_BASE_PATH}/stats`,
@@ -52,16 +48,14 @@ describe('adminNavigation', () => {
     );
   });
 
-  it('labels model pricing and global billing settings as separate admin tasks', () => {
-    const modelApiItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'model-api')?.items ?? [];
+  it('labels model pricing and policy tasks as part of the model center', () => {
+    const modelApiItems =
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'model-billing')?.items ?? [];
 
     expect(
       modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/model-billing-matrix`),
     ).toMatchObject({
       label: '模型与计费矩阵',
-    });
-    expect(modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/pricing`)).toMatchObject({
-      label: '全局计费设置',
     });
     expect(
       modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/model-policy`),
@@ -70,20 +64,27 @@ describe('adminNavigation', () => {
     });
   });
 
-  it('describes the model and API module using current admin concepts', () => {
-    const modelApiGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'model-api');
+  it('describes the model center using current admin concepts', () => {
+    const modelApiGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'model-billing');
+    const providerItem = modelApiGroup?.items.find(
+      (item) => item.path === `${ADMIN_BASE_PATH}/newapi-providers`,
+    );
 
     expect(modelApiGroup?.description).toBe(
-      'NewAPI 实例、模型与计费矩阵、全局模型策略和全局计费设置',
+      '服务商实例、模型同步、默认模型、套餐权限、模型策略和计费矩阵',
     );
+    expect(providerItem?.description).toBe('维护服务商实例、分组、用途范围和模型目录');
+    expect(providerItem?.description).not.toContain('NewAPI / OpenAI');
   });
 
-  it('does not advertise old API settings in the operations module', () => {
-    const settingsItem = ADMIN_NAV_GROUPS.flatMap((group) => group.items).find(
-      (item) => item.path === `${ADMIN_BASE_PATH}/settings`,
+  it('maps legacy billing routes to their merged sidebar entries', () => {
+    expect(getAdminSelectedKey('/settings/admin/pricing')).toBe(
+      `${ADMIN_BASE_PATH}/model-billing-matrix`,
     );
-
-    expect(settingsItem?.description).not.toContain('兼容');
+    expect(getAdminSelectedKey('/settings/admin/topup')).toBe(`${ADMIN_BASE_PATH}/orders`);
+    expect(getAdminSelectedKey('/settings/admin/change-requests')).toBe(
+      `${ADMIN_BASE_PATH}/subscriptions`,
+    );
   });
 
   it('selects the nearest admin item for nested URLs and opens its module', () => {
@@ -96,7 +97,7 @@ describe('adminNavigation', () => {
       `${ADMIN_BASE_PATH}/model-billing-matrix`,
     );
 
-    expect(getAdminOpenKeys('/settings/admin/newapi-providers/edit')).toEqual(['model-api']);
-    expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['model-api']);
+    expect(getAdminOpenKeys('/settings/admin/newapi-providers/edit')).toEqual(['model-billing']);
+    expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['model-billing']);
   });
 });

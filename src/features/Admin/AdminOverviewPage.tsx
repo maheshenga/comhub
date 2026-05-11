@@ -53,14 +53,18 @@ const AdminOverviewPage = memo(() => {
           后台工作台
         </Title>
         <Text type="secondary">
-          集中查看关键状态，并从这里进入用户、商业化、模型与 API、运营和系统管理。
+          集中查看关键状态，并从这里进入用户与套餐、模型与计费、品牌增长和系统运维。
         </Text>
       </Space>
 
       <Row gutter={[16, 16]}>
         <Col lg={6} md={12} xs={24}>
           <Card>
-            <Statistic prefix={<Icon icon={Users} />} title="总用户" value={overview?.totalUsers ?? 0} />
+            <Statistic
+              prefix={<Icon icon={Users} />}
+              title="总用户"
+              value={overview?.totalUsers ?? 0}
+            />
           </Card>
         </Col>
         <Col lg={6} md={12} xs={24}>
@@ -88,7 +92,7 @@ const AdminOverviewPage = memo(() => {
         <Col lg={12} xs={24}>
           <Card
             extra={
-              <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/change-requests`)}>
+              <Button size="small" onClick={() => navigate(`${ADMIN_BASE_PATH}/subscriptions`)}>
                 处理
               </Button>
             }
@@ -153,7 +157,12 @@ const AdminOverviewPage = memo(() => {
             <Card
               title={group.label}
               actions={group.items.slice(0, 3).map((item) => (
-                <Button key={item.path} size="small" type="link" onClick={() => navigate(item.path)}>
+                <Button
+                  key={item.path}
+                  size="small"
+                  type="link"
+                  onClick={() => navigate(item.path)}
+                >
                   {item.label}
                 </Button>
               ))}
@@ -161,7 +170,8 @@ const AdminOverviewPage = memo(() => {
               <Space direction="vertical" size={8}>
                 <Text type="secondary">{group.description}</Text>
                 <Text type="secondary">
-                  {group.items.length} 个入口，覆盖 {group.items.map((item) => item.label).join('、')}
+                  {group.items.length} 个入口，覆盖{' '}
+                  {group.items.map((item) => item.label).join('、')}
                 </Text>
               </Space>
             </Card>

@@ -9,8 +9,19 @@ import { getModelPricing } from '../../utils/getModelPricing';
 import { parseDataUri } from '../../utils/uriParser';
 import { convertImageUrlToFile } from '../contextBuilders/openai';
 import { convertOpenAIImageUsage } from '../usageConverters/openai';
+import { createOpenAICompatibleAsyncImageTask } from './asyncImageTask';
+import { getOpenAIImageModelAdapter, sanitizeImageOptions } from './imageAdapter';
+import { resolveImageRouteMode } from './imageRoute';
 
 const log = createDebug('lobe-image:openai-compatible');
+
+type OpenAICompatibleImageOptions = {
+  apiKey?: string;
+  baseURL?: string;
+  initialInterval?: number;
+  maxInterval?: number;
+  maxRetries?: number;
+};
 
 /**
  * Generate images using traditional OpenAI images API (DALL-E, etc.)
@@ -60,7 +71,7 @@ async function generateByImageMode(
     delete userInput.image;
   }
 
-  if (userInput.size === 'auto') {
+  if (userInput.size === 'auto' && !getOpenAIImageModelAdapter(model, 'generate')?.defaultSize) {
     delete userInput.size;
   }
 
@@ -78,11 +89,15 @@ async function generateByImageMode(
     ...(supportsInputFidelity ? { input_fidelity: 'high' } : {}),
   };
 
-  const options = cleanObject({
+  const options = sanitizeImageOptions(
     model,
-    ...defaultInput,
-    ...userInput,
-  });
+    cleanObject({
+      model,
+      ...defaultInput,
+      ...userInput,
+    }),
+    isImageEdit ? 'edit' : 'generate',
+  );
 
   log('options: %O', options);
 
@@ -232,14 +247,31 @@ export async function createOpenAICompatibleImage(
   client: OpenAI,
   payload: CreateImagePayload,
   provider: string,
+  options?: OpenAICompatibleImageOptions,
 ): Promise<CreateImageResponse> {
-  const { model } = payload;
+  const routeMode = resolveImageRouteMode(payload.model, payload.params as Record<string, unknown>);
 
-  // Check if it's a chat model for image generation (via :image suffix)
-  if (model.endsWith(':image')) {
-    return await generateByChatModel(client, payload);
+  switch (routeMode) {
+    case 'async-image-task': {
+      if (options?.apiKey && options.baseURL) {
+        return await createOpenAICompatibleAsyncImageTask(payload, {
+          apiKey: options.apiKey,
+          baseURL: options.baseURL,
+          initialInterval: options.initialInterval,
+          maxInterval: options.maxInterval,
+          maxRetries: options.maxRetries,
+        });
+      }
+
+      throw new Error('Async image task route is not implemented for OpenAI-compatible runtime');
+    }
+
+    case 'chat-image': {
+      return await generateByChatModel(client, payload);
+    }
+
+    case 'openai-images': {
+      return await generateByImageMode(client, payload, provider);
+    }
   }
-
-  // Default to traditional images API
-  return await generateByImageMode(client, payload, provider);
 }

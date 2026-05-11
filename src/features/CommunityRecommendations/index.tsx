@@ -105,27 +105,27 @@ const RecommendationContent = memo<{
         </Flexbox>
       )}
       {config.assistantsEnabled && (assistants?.items?.length ?? 0) > 0 && (
-        <Section moreLink="/community/agent" title="为你推荐的助理">
+        <Section moreLink="/community/agent" title={config.assistantTitle || '为你推荐的助理'}>
           <AssistantList data={assistants?.items} rows={4} />
         </Section>
       )}
       {config.mcpsEnabled && (mcps?.items?.length ?? 0) > 0 && (
-        <Section moreLink="/community/mcp" title="推荐 MCP / 工具">
+        <Section moreLink="/community/mcp" title={config.mcpTitle || '推荐 MCP / 工具'}>
           <McpList data={mcps?.items} rows={4} />
         </Section>
       )}
       {config.skillsEnabled && (skills?.items?.length ?? 0) > 0 && (
-        <Section moreLink="/community/skill" title="推荐技能">
+        <Section moreLink="/community/skill" title={config.skillTitle || '推荐技能'}>
           <SkillList data={skills?.items} rows={4} />
         </Section>
       )}
       {config.generalSkillsEnabled && (generalSkills?.items?.length ?? 0) > 0 && (
-        <Section moreLink="/community/skill" title="通用推荐技能">
+        <Section moreLink="/community/skill" title={config.generalSkillTitle || '通用推荐技能'}>
           <SkillList data={generalSkills?.items} rows={4} />
         </Section>
       )}
       {config.hotSkillsEnabled && (hotSkills?.items?.length ?? 0) > 0 && (
-        <Section moreLink="/community/skill" title="热门技能">
+        <Section moreLink="/community/skill" title={config.hotSkillTitle || '热门技能'}>
           <SkillList data={hotSkills?.items} rows={4} />
         </Section>
       )}

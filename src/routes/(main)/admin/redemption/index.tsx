@@ -307,7 +307,7 @@ const AdminRedemptionPage = memo(() => {
         />
         <Input
           allowClear
-          placeholder={t('admin.redemption.filter.batch', 'Batch ID')}
+          placeholder={t('admin.redemption.filter.batch', '批次 ID')}
           style={{ width: 200 }}
           value={batchId}
           onChange={(e) => {
@@ -499,11 +499,11 @@ const AdminRedemptionPage = memo(() => {
                 >
                   <Select
                     disabled={packageOptions.length === 0}
+                    options={packageOptions}
                     notFoundContent={t(
                       'admin.redemption.field.topupPackageId.notFound',
                       '暂无充值套餐',
                     )}
-                    options={packageOptions}
                     placeholder={t(
                       'admin.redemption.field.topupPackageId.placeholder',
                       '请选择兑换后获得的充值套餐',

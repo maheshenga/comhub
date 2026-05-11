@@ -219,6 +219,14 @@ export const ModelParamsMetaSchema = z.object({
     })
     .optional(),
 
+  async: z
+    .object({
+      default: z.boolean().default(false),
+      description: z.string().optional(),
+      type: z.literal('boolean').optional(),
+    })
+    .optional(),
+
   webSearch: z
     .object({
       default: z.boolean().default(true),

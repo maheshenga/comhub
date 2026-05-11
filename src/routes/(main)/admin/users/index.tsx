@@ -8,8 +8,17 @@ import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import { AdminUserDetailDrawer } from '@/features/Admin';
+import AdminAssignPlanModal from '@/features/Admin/AdminAssignPlanModal';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+type UserSubscription = {
+  cycle: string;
+  endsAt: Date | null;
+  plan: string;
+  startedAt: Date | null;
+  status: string;
+};
 
 type UserRow = {
   avatar: string | null;
@@ -22,14 +31,6 @@ type UserRow = {
   phone: string | null;
   role: string | null;
   subscription: UserSubscription | null;
-};
-
-type UserSubscription = {
-  cycle: string;
-  endsAt: Date | null;
-  plan: string;
-  startedAt: Date | null;
-  status: string;
 };
 
 const EMPTY_TEXT = '-';
@@ -83,31 +84,28 @@ const AdminUsersPage = memo(() => {
         subscriptionStartedOrder,
       }),
     {
-      onSuccess: (res) => {
+      onSuccess: (result) => {
         if (cursor === 0) {
-          setAllItems(res.items as UserRow[]);
+          setAllItems(result.items as UserRow[]);
         } else {
-          setAllItems((prev) => [...prev, ...(res.items as UserRow[])]);
+          setAllItems((prev) => [...prev, ...(result.items as UserRow[])]);
         }
       },
     },
   );
-
-  const handleSearch = (value: string) => {
-    setQuery(value);
-    setCursor(0);
-    setAllItems([]);
-  };
 
   const resetList = () => {
     setCursor(0);
     setAllItems([]);
   };
 
+  const handleSearch = (value: string) => {
+    setQuery(value);
+    resetList();
+  };
+
   const handleLoadMore = () => {
-    if (data?.nextCursor != null) {
-      setCursor(data.nextCursor);
-    }
+    if (data?.nextCursor != null) setCursor(data.nextCursor);
   };
 
   const invalidate = () => {
@@ -149,7 +147,7 @@ const AdminUsersPage = memo(() => {
   };
 
   const handleSetRole = async (userId: string, value: string) => {
-    setActionLoading(userId + '-role');
+    setActionLoading(`${userId}-role`);
     try {
       const role = value === '__none__' ? null : (value as 'admin' | 'user');
       await adminCommercialService.setUserRole({ role, userId });
@@ -167,7 +165,7 @@ const AdminUsersPage = memo(() => {
       message.warning(t('admin.adjustCredits.invalid', '请输入积分数量和调整原因'));
       return;
     }
-    setActionLoading(adjustTarget + '-credits');
+    setActionLoading(`${adjustTarget}-credits`);
     try {
       await adminCommercialService.adjustCredits({
         amount: Math.round(adjustAmount),
@@ -207,7 +205,7 @@ const AdminUsersPage = memo(() => {
       return;
     }
 
-    setActionLoading(assignTarget + '-plan');
+    setActionLoading(`${assignTarget}-plan`);
     try {
       await adminCommercialService.assignUserPlan({
         cycle: assignCycle,
@@ -298,13 +296,13 @@ const AdminUsersPage = memo(() => {
     {
       dataIndex: 'email',
       key: 'email',
-      render: (v: string | null) => v ?? EMPTY_TEXT,
+      render: (value: string | null) => value ?? EMPTY_TEXT,
       title: t('admin.email', '邮箱'),
     },
     {
       dataIndex: 'phone',
       key: 'phone',
-      render: (v: string | null) => v ?? EMPTY_TEXT,
+      render: (value: string | null) => value ?? EMPTY_TEXT,
       title: t('admin.phone', '手机号'),
     },
     {
@@ -323,14 +321,14 @@ const AdminUsersPage = memo(() => {
         ) : (
           <Tag>{EMPTY_TEXT}</Tag>
         ),
-      title: '当前套餐 / 开始时间',
+      title: t('admin.currentPlanWithStartedAt', '当前套餐 / 开始时间'),
     },
     {
       dataIndex: 'role',
       key: 'role',
-      render: (v: string | null) =>
-        v ? (
-          <Tag color={v === 'admin' ? 'purple' : 'blue'}>{roleLabel(v)}</Tag>
+      render: (value: string | null) =>
+        value ? (
+          <Tag color={value === 'admin' ? 'purple' : 'blue'}>{roleLabel(value)}</Tag>
         ) : (
           <span>{EMPTY_TEXT}</span>
         ),
@@ -339,20 +337,20 @@ const AdminUsersPage = memo(() => {
     {
       dataIndex: 'banned',
       key: 'status',
-      render: (v: boolean | null) =>
-        v ? <Tag color="red">已封禁</Tag> : <Tag color="green">正常</Tag>,
+      render: (value: boolean | null) =>
+        value ? <Tag color="red">已封禁</Tag> : <Tag color="green">正常</Tag>,
       title: t('admin.status', '状态'),
     },
     {
       dataIndex: 'createdAt',
       key: 'joined',
-      render: (v: Date | null) => (v ? new Date(v).toLocaleDateString() : EMPTY_TEXT),
+      render: (value: Date | null) => (value ? new Date(value).toLocaleDateString() : EMPTY_TEXT),
       title: t('admin.joined', '注册时间'),
     },
     {
       dataIndex: 'lastActiveAt',
       key: 'lastActive',
-      render: (v: Date | null) => (v ? new Date(v).toLocaleDateString() : EMPTY_TEXT),
+      render: (value: Date | null) => (value ? new Date(value).toLocaleDateString() : EMPTY_TEXT),
       title: t('admin.lastActive', '最近活跃'),
     },
     {
@@ -378,13 +376,13 @@ const AdminUsersPage = memo(() => {
             </Button>
           )}
           <Select
-            loading={actionLoading === row.id + '-role'}
+            loading={actionLoading === `${row.id}-role`}
             options={ROLE_OPTIONS}
             placeholder={t('admin.setRole', '设置角色')}
             size="small"
             style={{ width: 132 }}
             value={row.role ?? '__none__'}
-            onChange={(v) => handleSetRole(row.id, v)}
+            onChange={(value) => handleSetRole(row.id, value)}
           />
           <Button
             size="small"
@@ -397,7 +395,7 @@ const AdminUsersPage = memo(() => {
             {t('admin.adjustCredits', '调整积分')}
           </Button>
           <Button
-            loading={actionLoading === row.id + '-plan'}
+            loading={actionLoading === `${row.id}-plan`}
             size="small"
             onClick={() => openAssignPlan(row.id)}
           >
@@ -423,7 +421,7 @@ const AdminUsersPage = memo(() => {
         />
         <Select
           allowClear
-          placeholder="按套餐筛选"
+          placeholder={t('admin.filterByPlan', '按套餐筛选')}
           style={{ width: 180 }}
           value={planFilter}
           options={(plansData?.items ?? []).map((item: any) => ({
@@ -437,12 +435,12 @@ const AdminUsersPage = memo(() => {
         />
         <Select
           allowClear
-          placeholder="套餐开始时间排序"
+          placeholder={t('admin.subscriptionStartedOrder', '套餐开始时间排序')}
           style={{ width: 190 }}
           value={subscriptionStartedOrder}
           options={[
-            { label: '开始时间正序', value: 'asc' },
-            { label: '开始时间倒序', value: 'desc' },
+            { label: t('admin.subscriptionStartedOrder.asc', '开始时间正序'), value: 'asc' },
+            { label: t('admin.subscriptionStartedOrder.desc', '开始时间倒序'), value: 'desc' },
           ]}
           onChange={(value) => {
             setSubscriptionStartedOrder(value);
@@ -452,7 +450,7 @@ const AdminUsersPage = memo(() => {
         <Button
           onClick={async () => {
             try {
-              const res = await adminCommercialService.exportUsers({
+              const result = await adminCommercialService.exportUsers({
                 limit: 10_000,
                 query: undefined,
               });
@@ -467,37 +465,37 @@ const AdminUsersPage = memo(() => {
                 'createdAt',
                 'lastActiveAt',
               ];
-              const escape = (v: unknown) => {
-                if (v === null || v === undefined) return '';
-                const s = typeof v === 'string' ? v : JSON.stringify(v);
+              const escape = (value: unknown) => {
+                if (value === null || value === undefined) return '';
+                const text = typeof value === 'string' ? value : JSON.stringify(value);
 
-                return /[",\n\r]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+                return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
               };
               const lines = [header.join(',')];
-              for (const u of res.items as any[]) {
+              for (const user of result.items as any[]) {
                 lines.push(
                   [
-                    u.id,
-                    u.email,
-                    u.username,
-                    u.fullName,
-                    u.phone,
-                    u.role,
-                    u.banned,
-                    u.createdAt ? new Date(u.createdAt).toISOString() : '',
-                    u.lastActiveAt ? new Date(u.lastActiveAt).toISOString() : '',
+                    user.id,
+                    user.email,
+                    user.username,
+                    user.fullName,
+                    user.phone,
+                    user.role,
+                    user.banned,
+                    user.createdAt ? new Date(user.createdAt).toISOString() : '',
+                    user.lastActiveAt ? new Date(user.lastActiveAt).toISOString() : '',
                   ]
                     .map(escape)
                     .join(','),
                 );
               }
               const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-              const a = document.createElement('a');
-              a.download = `admin-users-${new Date().toISOString().slice(0, 10)}.csv`;
-              a.href = URL.createObjectURL(blob);
-              a.click();
-              URL.revokeObjectURL(a.href);
-              message.success(t('admin.exportSuccess', `已导出 ${res.items.length} 条`));
+              const link = document.createElement('a');
+              link.download = `admin-users-${new Date().toISOString().slice(0, 10)}.csv`;
+              link.href = URL.createObjectURL(blob);
+              link.click();
+              URL.revokeObjectURL(link.href);
+              message.success(t('admin.exportSuccess', `已导出 ${result.items.length} 条`));
             } catch {
               message.error(t('admin.exportFailed', '导出失败'));
             }
@@ -540,11 +538,11 @@ const AdminUsersPage = memo(() => {
           placeholder={t('admin.ban.reason', '请输入封禁原因')}
           rows={3}
           value={banReason}
-          onChange={(e) => setBanReason(e.target.value)}
+          onChange={(event) => setBanReason(event.target.value)}
         />
       </Modal>
       <Modal
-        confirmLoading={actionLoading === (adjustTarget ?? '') + '-credits'}
+        confirmLoading={actionLoading === `${adjustTarget ?? ''}-credits`}
         open={!!adjustTarget}
         title={t('admin.adjustCredits', '调整积分')}
         onOk={handleAdjustCredits}
@@ -560,7 +558,7 @@ const AdminUsersPage = memo(() => {
             <InputNumber
               style={{ width: '100%' }}
               value={adjustAmount}
-              onChange={(v) => setAdjustAmount(Number(v ?? 0))}
+              onChange={(value) => setAdjustAmount(Number(value ?? 0))}
             />
           </Flexbox>
           <Flexbox gap={4}>
@@ -568,73 +566,27 @@ const AdminUsersPage = memo(() => {
             <Input.TextArea
               rows={3}
               value={adjustReason}
-              onChange={(e) => setAdjustReason(e.target.value)}
+              onChange={(event) => setAdjustReason(event.target.value)}
             />
           </Flexbox>
         </Flexbox>
       </Modal>
-      <Modal
-        confirmLoading={actionLoading === (assignTarget ?? '') + '-plan'}
+      <AdminAssignPlanModal
+        confirmLoading={actionLoading === `${assignTarget ?? ''}-plan`}
+        cycle={assignCycle}
+        durationMonths={assignDurationMonths}
         open={!!assignTarget}
+        plan={assignPlan}
+        plans={plansData?.items ?? []}
+        reason={assignReason}
         title={t('admin.assignPlan.title', '设置用户套餐')}
         onCancel={closeAssignPlan}
+        onCycleChange={setAssignCycle}
+        onDurationMonthsChange={setAssignDurationMonths}
         onOk={handleAssignPlan}
-      >
-        <Flexbox gap={12}>
-          <Flexbox gap={4}>
-            <div>{t('admin.assignPlan.plan', '套餐')}</div>
-            <Select
-              showSearch
-              optionFilterProp="label"
-              placeholder={t('admin.assignPlan.plan.placeholder', '选择套餐')}
-              style={{ width: '100%' }}
-              value={assignPlan}
-              options={(plansData?.items ?? [])
-                .filter((item: any) => item.isActive !== false)
-                .map((item: any) => ({
-                  label: `${item.displayName || item.plan} (${item.plan})`,
-                  value: item.plan,
-                }))}
-              onChange={setAssignPlan}
-            />
-          </Flexbox>
-          <Flexbox gap={4}>
-            <div>{t('admin.assignPlan.cycle', '周期')}</div>
-            <Select
-              style={{ width: '100%' }}
-              value={assignCycle}
-              options={[
-                { label: t('admin.assignPlan.monthly', '月付'), value: 'monthly' },
-                { label: t('admin.assignPlan.yearly', '年付'), value: 'yearly' },
-              ]}
-              onChange={setAssignCycle}
-            />
-          </Flexbox>
-          <Flexbox gap={4}>
-            <div>{t('admin.assignPlan.durationMonths', '使用时长（月）')}</div>
-            <InputNumber
-              max={120}
-              min={1}
-              precision={0}
-              style={{ width: '100%' }}
-              value={assignDurationMonths}
-              onChange={(v) => setAssignDurationMonths(Number(v ?? 1))}
-            />
-          </Flexbox>
-          <Flexbox gap={4}>
-            <div>{t('admin.assignPlan.reason', '原因')}</div>
-            <Input.TextArea
-              rows={3}
-              value={assignReason}
-              placeholder={t(
-                'admin.assignPlan.reason.placeholder',
-                '例如：线下购买、客服补偿、测试账号等',
-              )}
-              onChange={(e) => setAssignReason(e.target.value)}
-            />
-          </Flexbox>
-        </Flexbox>
-      </Modal>
+        onPlanChange={setAssignPlan}
+        onReasonChange={setAssignReason}
+      />
       <AdminUserDetailDrawer userId={detailUserId} onClose={() => setDetailUserId(null)} />
     </Flexbox>
   );

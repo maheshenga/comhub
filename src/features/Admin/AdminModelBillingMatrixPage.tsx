@@ -82,7 +82,7 @@ const toFiniteNumber = (value: number | string | null | undefined) =>
 
 const getDefaultModelErrorMessage = (error: any) => {
   if (error?.message === 'DEFAULT_MODEL_NOT_ENABLED') {
-    return '默认模型未在已启用模型目录中，请先在 NewAPI 实例中启用该模型。';
+    return '默认模型未在已启用模型目录中，请先在服务商实例中启用该模型。';
   }
 
   if (error?.message === 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN') {
@@ -454,7 +454,7 @@ const AdminModelBillingMatrixPage = memo(() => {
         columns={columns}
         dataSource={rows}
         loading={loading}
-        locale={{ emptyText: <Empty description="暂无已启用的 NewAPI 模型" /> }}
+        locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}
         pagination={false}
         rowKey="key"
         scroll={{ x: 900 + plans.length * 104 }}

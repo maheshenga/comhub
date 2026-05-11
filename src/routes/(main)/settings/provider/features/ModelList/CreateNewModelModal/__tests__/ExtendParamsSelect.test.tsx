@@ -10,6 +10,7 @@ describe('ExtendParamsSelect', () => {
     const definitionMap = new Map([
       ['enableReasoning', { key: 'enableReasoning' }],
       ['reasoningBudgetToken', { key: 'reasoningBudgetToken' }],
+      ['async', { key: 'async' }],
     ]) as any;
 
     it('should keep an explicit empty array when cleared', () => {
@@ -20,10 +21,10 @@ describe('ExtendParamsSelect', () => {
     it('should filter unsupported extend params while keeping valid values', () => {
       expect(
         normalizeExtendParamsValue(
-          ['enableReasoning', 'unsupportedParam', 'reasoningBudgetToken'] as any,
+          ['enableReasoning', 'unsupportedParam', 'reasoningBudgetToken', 'async'] as any,
           definitionMap,
         ),
-      ).toEqual(['enableReasoning', 'reasoningBudgetToken']);
+      ).toEqual(['enableReasoning', 'reasoningBudgetToken', 'async']);
     });
   });
 

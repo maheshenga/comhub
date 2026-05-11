@@ -12,31 +12,41 @@ import { SkillSorts } from '@/types/discover';
 const SETTING_KEYS = {
   assistantsEnabled: 'recommendation.assistants.enabled',
   assistantTags: 'recommendation.assistantTags',
+  assistantTitle: 'recommendation.assistantTitle',
   enabled: 'recommendation.section.enabled',
   generalSkillsEnabled: 'recommendation.generalSkills.enabled',
   generalSkillCategories: 'recommendation.generalSkillCategories',
+  generalSkillTitle: 'recommendation.generalSkillTitle',
   hotSkillsEnabled: 'recommendation.hotSkills.enabled',
   hotSkillSort: 'recommendation.hotSkillSort',
+  hotSkillTitle: 'recommendation.hotSkillTitle',
   mcpsEnabled: 'recommendation.mcps.enabled',
   mcpCategories: 'recommendation.mcpCategories',
+  mcpTitle: 'recommendation.mcpTitle',
   selectedTags: 'recommendation.selectedTags',
   skillsEnabled: 'recommendation.skills.enabled',
   skillCategories: 'recommendation.skillCategories',
+  skillTitle: 'recommendation.skillTitle',
 } as const;
 
 type FormValues = {
   assistantsEnabled: boolean;
   assistantTags: string;
+  assistantTitle: string;
   enabled: boolean;
   generalSkillsEnabled: boolean;
   generalSkillCategories: string;
+  generalSkillTitle: string;
   hotSkillsEnabled: boolean;
   hotSkillSort: SkillSorts;
+  hotSkillTitle: string;
   mcpsEnabled: boolean;
   mcpCategories: string;
+  mcpTitle: string;
   selectedTags: string;
   skillsEnabled: boolean;
   skillCategories: string;
+  skillTitle: string;
 };
 
 const SWR_KEY = ['admin-settings'];
@@ -59,16 +69,21 @@ const AdminRecommendationsPage = memo(() => {
     form.setFieldsValue({
       assistantsEnabled: data.recommendationConfig.assistantsEnabled,
       assistantTags: joinList(data.recommendationConfig.assistantTags),
+      assistantTitle: data.recommendationConfig.assistantTitle,
       enabled: data.recommendationConfig.enabled,
       generalSkillsEnabled: data.recommendationConfig.generalSkillsEnabled,
       generalSkillCategories: joinList(data.recommendationConfig.generalSkillCategories),
+      generalSkillTitle: data.recommendationConfig.generalSkillTitle,
       hotSkillsEnabled: data.recommendationConfig.hotSkillsEnabled,
       hotSkillSort: data.recommendationConfig.hotSkillSort as SkillSorts,
+      hotSkillTitle: data.recommendationConfig.hotSkillTitle,
       mcpsEnabled: data.recommendationConfig.mcpsEnabled,
       mcpCategories: joinList(data.recommendationConfig.mcpCategories),
+      mcpTitle: data.recommendationConfig.mcpTitle,
       selectedTags: joinList(data.recommendationConfig.selectedTags),
       skillsEnabled: data.recommendationConfig.skillsEnabled,
       skillCategories: joinList(data.recommendationConfig.skillCategories),
+      skillTitle: data.recommendationConfig.skillTitle,
     });
   }, [data, form]);
 
@@ -110,20 +125,40 @@ const AdminRecommendationsPage = memo(() => {
           value: splitList(values.assistantTags),
         }),
         adminCommercialService.setAppSetting({
+          key: SETTING_KEYS.assistantTitle,
+          value: values.assistantTitle,
+        }),
+        adminCommercialService.setAppSetting({
           key: SETTING_KEYS.skillCategories,
           value: splitList(values.skillCategories),
+        }),
+        adminCommercialService.setAppSetting({
+          key: SETTING_KEYS.skillTitle,
+          value: values.skillTitle,
         }),
         adminCommercialService.setAppSetting({
           key: SETTING_KEYS.mcpCategories,
           value: splitList(values.mcpCategories),
         }),
         adminCommercialService.setAppSetting({
+          key: SETTING_KEYS.mcpTitle,
+          value: values.mcpTitle,
+        }),
+        adminCommercialService.setAppSetting({
           key: SETTING_KEYS.generalSkillCategories,
           value: splitList(values.generalSkillCategories),
         }),
         adminCommercialService.setAppSetting({
+          key: SETTING_KEYS.generalSkillTitle,
+          value: values.generalSkillTitle,
+        }),
+        adminCommercialService.setAppSetting({
           key: SETTING_KEYS.hotSkillSort,
           value: values.hotSkillSort || SkillSorts.InstallCount,
+        }),
+        adminCommercialService.setAppSetting({
+          key: SETTING_KEYS.hotSkillTitle,
+          value: values.hotSkillTitle,
         }),
       ]);
       message.success(t('admin.recommendations.saveSuccess', '推荐配置已保存'));
@@ -149,6 +184,11 @@ const AdminRecommendationsPage = memo(() => {
           hotSkillsEnabled: true,
           mcpsEnabled: true,
           skillsEnabled: true,
+          assistantTitle: '为你推荐的助理',
+          generalSkillTitle: '通用推荐技能',
+          hotSkillTitle: '热门技能',
+          mcpTitle: '推荐 MCP / 工具',
+          skillTitle: '推荐技能',
         }}
       >
         <Form.Item
@@ -181,6 +221,12 @@ const AdminRecommendationsPage = memo(() => {
           <Switch />
         </Form.Item>
         <Form.Item
+          label={t('admin.recommendations.assistantTitle', '助手模块标题')}
+          name="assistantTitle"
+        >
+          <Input />
+        </Form.Item>
+        <Form.Item
           label={t('admin.recommendations.assistantTags', '助手标签/分类')}
           name="assistantTags"
         >
@@ -192,6 +238,9 @@ const AdminRecommendationsPage = memo(() => {
           valuePropName="checked"
         >
           <Switch />
+        </Form.Item>
+        <Form.Item label={t('admin.recommendations.mcpTitle', 'MCP 模块标题')} name="mcpTitle">
+          <Input />
         </Form.Item>
         <Form.Item
           label={t('admin.recommendations.mcpCategories', 'MCP 分类')}
@@ -205,6 +254,9 @@ const AdminRecommendationsPage = memo(() => {
           valuePropName="checked"
         >
           <Switch />
+        </Form.Item>
+        <Form.Item label={t('admin.recommendations.skillTitle', '技能模块标题')} name="skillTitle">
+          <Input />
         </Form.Item>
         <Form.Item
           label={t('admin.recommendations.skillCategories', '推荐技能分类')}
@@ -220,6 +272,12 @@ const AdminRecommendationsPage = memo(() => {
           <Switch />
         </Form.Item>
         <Form.Item
+          label={t('admin.recommendations.generalSkillTitle', '通用技能模块标题')}
+          name="generalSkillTitle"
+        >
+          <Input />
+        </Form.Item>
+        <Form.Item
           label={t('admin.recommendations.generalSkillCategories', '通用技能分类')}
           name="generalSkillCategories"
         >
@@ -231,6 +289,12 @@ const AdminRecommendationsPage = memo(() => {
           valuePropName="checked"
         >
           <Switch />
+        </Form.Item>
+        <Form.Item
+          label={t('admin.recommendations.hotSkillTitle', '热门技能模块标题')}
+          name="hotSkillTitle"
+        >
+          <Input />
         </Form.Item>
         <Form.Item
           label={t('admin.recommendations.hotSkillSort', '热门技能排序')}

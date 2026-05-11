@@ -2,10 +2,9 @@ export const ADMIN_BASE_PATH = '/settings/admin';
 
 export type AdminNavGroupKey =
   | 'overview'
-  | 'users'
-  | 'business'
-  | 'model-api'
-  | 'operations'
+  | 'user-plan'
+  | 'model-billing'
+  | 'brand-growth'
   | 'system';
 
 export type AdminNavIcon =
@@ -49,145 +48,119 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'overview',
     items: [
       {
-        description: '查看后台核心指标和常用管理入口',
+        description: '查看后台核心指标、配置健康状态和常用管理入口',
         icon: 'overview',
         label: '工作台',
         path: ADMIN_BASE_PATH,
       },
     ],
     key: 'overview',
-    label: '概览',
+    label: '工作台',
   },
   {
-    description: '用户查询、封禁、角色和积分调整',
+    description: '用户、套餐、订阅、订单、兑换码和积分账户',
     icon: 'users',
     items: [
       {
-        description: '搜索用户、调整角色、封禁和人工调账',
+        description: '搜索用户、调整角色、封禁、人工调账和分配套餐',
         icon: 'users',
         label: '用户管理',
         path: `${ADMIN_BASE_PATH}/users`,
       },
-    ],
-    key: 'users',
-    label: '用户',
-  },
-  {
-    description: '套餐、订阅、订单、充值和兑换码',
-    icon: 'billing',
-    items: [
       {
-        description: '配置订阅套餐、价格、月积分和套餐权益',
-        icon: 'plans',
-        label: '套餐管理',
-        path: `${ADMIN_BASE_PATH}/plans`,
-      },
-      {
-        description: '查看用户订阅状态并执行人工变更',
+        description: '查看用户订阅状态、人工变更套餐和处理套餐变更请求',
         icon: 'subscriptions',
         label: '订阅管理',
         path: `${ADMIN_BASE_PATH}/subscriptions`,
       },
       {
-        description: '处理用户提交的套餐变更请求',
-        icon: 'growth',
-        label: '变更请求',
-        path: `${ADMIN_BASE_PATH}/change-requests`,
+        description: '配置订阅套餐、价格、月积分、购买链接和套餐权益',
+        icon: 'plans',
+        label: '套餐管理',
+        path: `${ADMIN_BASE_PATH}/plans`,
       },
       {
-        description: '配置一次性充值套餐和赠送积分',
-        icon: 'topup',
-        label: '充值套餐',
-        path: `${ADMIN_BASE_PATH}/topup`,
-      },
-      {
-        description: '查看和处理充值订单',
+        description: '查看充值订单并处理待支付、过期和取消状态；充值包入口已收口到订单链路',
         icon: 'orders',
-        label: '订单管理',
+        label: '订单与充值',
         path: `${ADMIN_BASE_PATH}/orders`,
       },
       {
-        description: '查看积分账户和异常余额',
-        icon: 'credits',
-        label: '积分账户',
-        path: `${ADMIN_BASE_PATH}/credits`,
-      },
-      {
-        description: '生成、查询和停用兑换码',
+        description: '生成、查询、停用和批量管理兑换码',
         icon: 'redemption',
         label: '兑换码',
         path: `${ADMIN_BASE_PATH}/redemption`,
       },
+      {
+        description: '查看积分账户、余额异常和积分流水',
+        icon: 'credits',
+        label: '积分账户',
+        path: `${ADMIN_BASE_PATH}/credits`,
+      },
     ],
-    key: 'business',
-    label: '商业化',
+    key: 'user-plan',
+    label: '用户与套餐',
   },
   {
-    description: 'NewAPI 实例、模型与计费矩阵、全局模型策略和全局计费设置',
+    description: '服务商实例、模型同步、默认模型、套餐权限、模型策略和计费矩阵',
     icon: 'models',
     items: [
       {
-        description: '维护 NewAPI 网关实例、优先级和模型目录',
+        description: '维护服务商实例、分组、用途范围和模型目录',
         icon: 'newapi',
-        label: 'NewAPI 实例',
+        label: '服务商实例',
         path: `${ADMIN_BASE_PATH}/newapi-providers`,
       },
       {
-        description: '统一查看模型来源、套餐权限、默认模型和计费倍率',
+        description: '统一管理默认模型、套餐模型权限、模型倍率和每美元积分',
         icon: 'pricing',
         label: '模型与计费矩阵',
         path: `${ADMIN_BASE_PATH}/model-billing-matrix`,
       },
       {
-        description: '设置平台级模型允许/禁用清单和兜底提示',
+        description: '设置平台级模型允许 / 禁用清单和拒绝提示',
         icon: 'models',
         label: '全局模型策略',
         path: `${ADMIN_BASE_PATH}/model-policy`,
       },
-      {
-        description: '配置全局积分倍率和订单管理开关',
-        icon: 'pricing',
-        label: '全局计费设置',
-        path: `${ADMIN_BASE_PATH}/pricing`,
-      },
     ],
-    key: 'model-api',
-    label: '模型与 API',
+    key: 'model-billing',
+    label: '模型与计费',
   },
   {
-    description: '品牌、增长、首页内容和推荐模块',
+    description: '品牌、登录页、默认助手、注册、推荐和公开运营内容',
     icon: 'settings',
     items: [
       {
-        description: '配置品牌、默认模型、支付状态和帮助菜单',
+        description: '配置品牌展示、默认助手、默认模型、关于页、帮助菜单、客户端入口和维护任务',
         icon: 'settings',
-        label: '站点与 API 设置',
+        label: '站点设置',
         path: `${ADMIN_BASE_PATH}/settings`,
       },
       {
-        description: '配置注册、注册送积分、推荐奖励和上传限制',
+        description: '配置注册、手机号、注册送积分和上传限制',
         icon: 'growth',
         label: '增长设置',
         path: `${ADMIN_BASE_PATH}/growth`,
       },
       {
-        description: '管理首页、社区和推荐展示内容',
+        description: '管理首页、社区、推荐和精选展示内容',
         icon: 'recommendations',
         label: '推荐运营',
         path: `${ADMIN_BASE_PATH}/recommendations`,
       },
       {
-        description: '配置运营开关和公共展示信息',
+        description: '配置公开运营开关、公告和精选模块',
         icon: 'settings',
         label: '运营配置',
         path: `${ADMIN_BASE_PATH}/operations`,
       },
     ],
-    key: 'operations',
-    label: '运营',
+    key: 'brand-growth',
+    label: '品牌与增长',
   },
   {
-    description: '数据看板、审计日志、维护和客户端更新',
+    description: '桌面端更新、数据看板、审计日志和系统运维',
     icon: 'stats',
     items: [
       {
@@ -203,16 +176,22 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/audit`,
       },
       {
-        description: '配置桌面端下载和版本更新',
+        description: '配置桌面端下载、发布版本和自动更新',
         icon: 'desktop',
         label: '桌面端更新',
         path: `${ADMIN_BASE_PATH}/desktop-update`,
       },
     ],
     key: 'system',
-    label: '系统',
+    label: '系统运维',
   },
 ];
+
+const ADMIN_NAV_ALIASES: Record<string, string> = {
+  [`${ADMIN_BASE_PATH}/change-requests`]: `${ADMIN_BASE_PATH}/subscriptions`,
+  [`${ADMIN_BASE_PATH}/pricing`]: `${ADMIN_BASE_PATH}/model-billing-matrix`,
+  [`${ADMIN_BASE_PATH}/topup`]: `${ADMIN_BASE_PATH}/orders`,
+};
 
 const allAdminItems = ADMIN_NAV_GROUPS.flatMap((group) =>
   group.items.map((item) => ({ ...item, groupKey: group.key })),
@@ -220,6 +199,11 @@ const allAdminItems = ADMIN_NAV_GROUPS.flatMap((group) =>
 
 export const getAdminSelectedKey = (pathname: string) => {
   const cleanPath = pathname.replace(/\/+$/, '') || ADMIN_BASE_PATH;
+  const alias = Object.entries(ADMIN_NAV_ALIASES).find(
+    ([from]) => cleanPath === from || cleanPath.startsWith(`${from}/`),
+  )?.[1];
+
+  if (alias) return alias;
 
   return (
     allAdminItems.find((item) => cleanPath === item.path || cleanPath.startsWith(`${item.path}/`))

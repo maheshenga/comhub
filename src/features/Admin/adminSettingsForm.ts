@@ -30,6 +30,8 @@ export const SETTING_KEYS = {
   desktopDownloadLabel: 'desktop.download.label',
   desktopDownloadUrl: 'desktop.download.url',
   helpMenuItems: 'help.menu.items',
+  ordersManagementEnabled: 'orders.management.enabled',
+  pricingCreditMultiplier: 'pricing.creditMultiplier',
   pricingModelRules: 'pricing.modelRules',
   referralRewardCredits: 'referral.rewardCredits',
 } as const;
@@ -82,11 +84,13 @@ export type AdminSettingsData = {
   desktopDownloadUrl?: string | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
   helpMenuItems?: unknown;
+  ordersManagementEnabled?: boolean | null;
   paymentGatewayStatus?: {
     configured: boolean;
     message: string;
     provider?: string | null;
   } | null;
+  pricingCreditMultiplier?: number | null;
   pricingModelRules?: unknown[] | null;
   referralRewardCredits?: number | null;
 };
@@ -116,6 +120,8 @@ export type AdminSettingsFormValues = {
   desktopDownloadLabel: string;
   desktopDownloadUrl: string;
   helpMenuItems: HelpMenuItem[];
+  ordersEnabled: boolean;
+  pricingMultiplier: number;
   referralRewardCredits: number;
 };
 
@@ -211,6 +217,8 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   desktopDownloadLabel: data?.desktopDownloadLabel ?? '',
   desktopDownloadUrl: data?.desktopDownloadUrl ?? '',
   helpMenuItems: normalizeHelpMenuItems(data?.helpMenuItems),
+  ordersEnabled: data?.ordersManagementEnabled ?? true,
+  pricingMultiplier: data?.pricingCreditMultiplier ?? 1,
   referralRewardCredits: data?.referralRewardCredits ?? 0,
 });
 
@@ -243,6 +251,8 @@ export const normalizeFormValues = (
   desktopDownloadLabel: normalizeText(values.desktopDownloadLabel),
   desktopDownloadUrl: normalizeText(values.desktopDownloadUrl),
   helpMenuItems: normalizeHelpMenuItems(values.helpMenuItems),
+  ordersEnabled: typeof values.ordersEnabled === 'boolean' ? values.ordersEnabled : true,
+  pricingMultiplier: typeof values.pricingMultiplier === 'number' ? values.pricingMultiplier : 1,
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
 });
@@ -280,6 +290,8 @@ export const buildSettingUpdates = (
     'brandSlogan',
     'desktopDownloadUrl',
     'desktopDownloadLabel',
+    'pricingMultiplier',
+    'ordersEnabled',
   ];
 
   const keyMap: Record<keyof AdminSettingsFormValues, string> = {
@@ -307,6 +319,8 @@ export const buildSettingUpdates = (
     desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
     desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
     helpMenuItems: SETTING_KEYS.helpMenuItems,
+    ordersEnabled: SETTING_KEYS.ordersManagementEnabled,
+    pricingMultiplier: SETTING_KEYS.pricingCreditMultiplier,
     referralRewardCredits: SETTING_KEYS.referralRewardCredits,
   };
 

@@ -580,7 +580,11 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
 
       log('using default createOpenAICompatibleImage');
       // Use the new createOpenAICompatibleImage function
-      return createOpenAICompatibleImage(this.client, payload, this.id);
+      return createOpenAICompatibleImage(this.client, payload, this.id, {
+        ...this._options,
+        apiKey: this._options.apiKey!,
+        baseURL: this._options.baseURL,
+      });
     }
 
     async createVideo(payload: CreateVideoPayload) {

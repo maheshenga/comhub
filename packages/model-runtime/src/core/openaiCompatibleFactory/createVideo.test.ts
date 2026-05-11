@@ -114,6 +114,49 @@ describe('createOpenAICompatibleVideo', () => {
       const body = JSON.parse((global.fetch as any).mock.calls[0][1].body);
       expect(body.input_reference).toBe('https://example.com/image.jpg');
     });
+
+    it('should fall back to v2 video generations when OpenAI videos endpoint is unavailable', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          text: async () => '<!doctype html>Not Found',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ task_id: 'cgt-20250831141439-sqmgf' }),
+        });
+
+      const payload: CreateVideoPayload = {
+        model: 'doubao-seedance-1-0-lite-t2v-250428',
+        params: {
+          prompt: 'dance',
+          duration: 5,
+          resolution: '720p',
+        },
+      };
+
+      const result = await createOpenAICompatibleVideo(payload, {
+        ...mockOptions,
+        baseURL: 'https://ai.t8star.org/v1',
+      });
+
+      expect(fetch).toHaveBeenNthCalledWith(
+        2,
+        'https://ai.t8star.org/v2/videos/generations',
+        expect.objectContaining({
+          body: JSON.stringify({
+            model: 'doubao-seedance-1-0-lite-t2v-250428',
+            prompt: 'dance',
+            duration: 5,
+            resolution: '720p',
+          }),
+          method: 'POST',
+        }),
+      );
+      expect(result).toEqual({ inferenceId: 'cgt-20250831141439-sqmgf' });
+    });
   });
 
   describe('Error scenarios', () => {
@@ -236,19 +279,69 @@ describe('pollOpenAICompatibleVideoStatus', () => {
     expect(result).toEqual({ status: 'pending' });
   });
 
-  it('should throw on HTTP error', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: async () => 'Task not found',
+  it('should fall back to v2 generation task status and parse data.output video url', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => 'Task not found',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          task_id: 'cgt-20250831141439-sqmgf',
+          status: 'SUCCESS',
+          data: {
+            output: 'https://cdn.example.com/video.mp4',
+            usage: {
+              completion_tokens: 49005,
+              total_tokens: 49005,
+            },
+          },
+        }),
+      });
+
+    const result = await pollOpenAICompatibleVideoStatus('cgt-20250831141439-sqmgf', {
+      apiKey: 'test-key',
+      baseURL: 'https://ai.t8star.org/v1',
     });
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      'https://ai.t8star.org/v2/videos/generations/cgt-20250831141439-sqmgf',
+      expect.any(Object),
+    );
+    expect(result).toEqual({
+      status: 'success',
+      usage: {
+        completionTokens: 49005,
+        totalTokens: 49005,
+      },
+      videoUrl: 'https://cdn.example.com/video.mp4',
+    });
+  });
+
+  it('should throw on HTTP error', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => 'Task not found',
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => 'Gateway error',
+      });
 
     await expect(
       pollOpenAICompatibleVideoStatus('invalid-task', {
         apiKey: 'test-key',
         baseURL: 'https://api.openai.com/v1',
       }),
-    ).rejects.toThrow('OpenAI-compatible video status API error: 404 Task not found');
+    ).rejects.toThrow('OpenAI-compatible video v2 status API error: 500 Gateway error');
   });
 });
 
