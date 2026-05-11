@@ -116,7 +116,7 @@ const InstanceFormModal = memo<{
   const usageScopeOptions = useMemo(
     () =>
       MODEL_TYPES.map((type) => ({
-        label: t(`admin.newapi.modelType.${type}`, getAdminModelTypeLabel(type)),
+        label: t(`admin.providers.modelType.${type}`, getAdminModelTypeLabel(type)),
         value: type,
       })),
     [t],
@@ -132,12 +132,12 @@ const InstanceFormModal = memo<{
       } else {
         await adminCommercialService.createNewapiInstance(payload as any);
       }
-      message.success(t('admin.newapi.saveSuccess', '已保存'));
+      message.success(t('admin.providers.saveSuccess', '已保存'));
       await mutate(INSTANCES_KEY);
       onClose();
     } catch (e) {
       if ((e as { errorFields?: unknown }).errorFields) return;
-      message.error(t('admin.newapi.saveFailed', '保存失败'));
+      message.error(t('admin.providers.saveFailed', '保存失败'));
     } finally {
       setSubmitting(false);
     }
@@ -179,21 +179,21 @@ const InstanceFormModal = memo<{
       }}
       title={
         isEdit
-          ? t('admin.newapi.modal.editInstance', '编辑实例')
-          : t('admin.newapi.modal.createInstance', '新建实例')
+          ? t('admin.providers.modal.editInstance', '编辑实例')
+          : t('admin.providers.modal.createInstance', '新建实例')
       }
       onCancel={onClose}
       onOk={handleOk}
     >
       <Form form={form} layout="vertical">
         <Form.Item
-          label={t('admin.newapi.field.providerType', '服务商类型')}
+          label={t('admin.providers.field.providerType', '服务商类型')}
           name="providerType"
           extra={
             providerType === 'newapi'
-              ? t('admin.newapi.field.providerTypeNewapiHint', 'NewAPI 支持同步模型和价格。')
+              ? t('admin.providers.field.providerTypeNewapiHint', 'NewAPI 支持同步模型和价格。')
               : t(
-                  'admin.newapi.field.providerTypeOpenaiHint',
+                  'admin.providers.field.providerTypeOpenaiHint',
                   'OpenAI 兼容服务商支持同步模型，价格需要在计费矩阵中配置。',
                 )
           }
@@ -201,18 +201,20 @@ const InstanceFormModal = memo<{
           <Select options={providerTypeOptions} onChange={handleProviderTypeChange} />
         </Form.Item>
         <Form.Item
-          label={t('admin.newapi.field.name', '名称')}
+          label={t('admin.providers.field.name', '名称')}
           name="name"
-          rules={[{ message: t('admin.newapi.field.nameRequired', '请填写名称'), required: true }]}
+          rules={[
+            { message: t('admin.providers.field.nameRequired', '请填写名称'), required: true },
+          ]}
         >
           <Input placeholder="Default" />
         </Form.Item>
         <Form.Item
-          label={t('admin.newapi.field.baseUrl', '基础地址（Base URL）')}
+          label={t('admin.providers.field.baseUrl', '基础地址（Base URL）')}
           name="baseUrl"
           rules={[
             {
-              message: t('admin.newapi.field.baseUrlRequired', '请填写基础地址'),
+              message: t('admin.providers.field.baseUrlRequired', '请填写基础地址'),
               required: true,
             },
             { type: 'url' },
@@ -221,13 +223,13 @@ const InstanceFormModal = memo<{
           <Input placeholder="https://api.example.com" />
         </Form.Item>
         <Form.Item
-          label={t('admin.newapi.field.apiKey', 'API 密钥（API Key）')}
+          label={t('admin.providers.field.apiKey', 'API 密钥（API Key）')}
           name="apiKey"
           rules={isEdit ? [] : [{ required: true }]}
           extra={
             isEdit
               ? t(
-                  'admin.newapi.field.apiKeyEditHint',
+                  'admin.providers.field.apiKeyEditHint',
                   '留空表示保持现有密钥不变；填写新密钥会替换当前密钥。',
                 )
               : undefined
@@ -237,22 +239,25 @@ const InstanceFormModal = memo<{
         </Form.Item>
         <Flexbox horizontal gap={12}>
           <Form.Item
-            extra={t('admin.newapi.field.priorityHint', '数字越小优先级越高，用于路由和故障切换。')}
-            label={t('admin.newapi.field.priority', '优先级')}
+            label={t('admin.providers.field.priority', '优先级')}
             name="priority"
             style={{ flex: 1 }}
+            extra={t(
+              'admin.providers.field.priorityHint',
+              '数字越小优先级越高，用于路由和故障切换。',
+            )}
           >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
-            label={t('admin.newapi.field.enabled', '启用')}
+            label={t('admin.providers.field.enabled', '启用')}
             name="enabled"
             valuePropName="checked"
           >
             <Switch />
           </Form.Item>
           <Form.Item
-            label={t('admin.newapi.field.fetchOnClient', '客户端拉取')}
+            label={t('admin.providers.field.fetchOnClient', '客户端拉取')}
             name="fetchOnClient"
             valuePropName="checked"
           >
@@ -261,37 +266,40 @@ const InstanceFormModal = memo<{
         </Flexbox>
         <Flexbox horizontal gap={12}>
           <Form.Item
-            label={t('admin.newapi.field.groupKey', '分组 Key')}
+            label={t('admin.providers.field.groupKey', '分组 Key')}
             name="groupKey"
             style={{ flex: 1 }}
             extra={t(
-              'admin.newapi.field.groupKeyHint',
+              'admin.providers.field.groupKeyHint',
               '用于套餐授权和分组计费；未区分时使用 default。',
             )}
           >
             <Input placeholder="default / basic / pro" />
           </Form.Item>
           <Form.Item
-            label={t('admin.newapi.field.groupName', '分组名称')}
+            label={t('admin.providers.field.groupName', '分组名称')}
             name="groupName"
             style={{ flex: 1 }}
           >
             <Input placeholder="基础分组 / 专业分组" />
           </Form.Item>
           <Form.Item
-            extra={t('admin.newapi.field.groupMultiplierHint', '可选，用于记录上游分组成本倍率。')}
-            label={t('admin.newapi.field.groupMultiplier', '分组倍率')}
+            label={t('admin.providers.field.groupMultiplier', '分组倍率')}
             name="groupMultiplier"
             style={{ flex: 1 }}
+            extra={t(
+              'admin.providers.field.groupMultiplierHint',
+              '可选，用于记录上游分组成本倍率。',
+            )}
           >
             <InputNumber min={0} precision={4} step={0.1} style={{ width: '100%' }} />
           </Form.Item>
         </Flexbox>
         <Form.Item
-          label={t('admin.newapi.field.usageScope', '用途范围')}
+          label={t('admin.providers.field.usageScope', '用途范围')}
           name="usageScope"
           extra={t(
-            'admin.newapi.field.usageScopeHint',
+            'admin.providers.field.usageScopeHint',
             '为空表示不限用途；填写后该实例只承接选中的模型类型。',
           )}
         >
@@ -299,10 +307,10 @@ const InstanceFormModal = memo<{
             allowClear
             mode="multiple"
             options={usageScopeOptions}
-            placeholder={t('admin.newapi.field.usageScopePlaceholder', '不限用途')}
+            placeholder={t('admin.providers.field.usageScopePlaceholder', '不限用途')}
           />
         </Form.Item>
-        <Form.Item label={t('admin.newapi.field.description', '描述')} name="description">
+        <Form.Item label={t('admin.providers.field.description', '描述')} name="description">
           <Input.TextArea rows={2} />
         </Form.Item>
       </Form>
@@ -337,11 +345,11 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
             sortOrder: i,
           })),
         });
-        message.success(t('admin.newapi.models.addSuccess', '模型已添加'));
+        message.success(t('admin.providers.models.addSuccess', '模型已添加'));
         setBulkText('');
         await mutate(swrKey);
       } catch {
-        message.error(t('admin.newapi.models.addFailed', '添加模型失败'));
+        message.error(t('admin.providers.models.addFailed', '添加模型失败'));
       } finally {
         setAdding(false);
       }
@@ -380,7 +388,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       {
         dataIndex: 'modelId',
         key: 'modelId',
-        title: t('admin.newapi.models.col.id', '模型 ID'),
+        title: t('admin.providers.models.col.id', '模型 ID'),
       },
       {
         dataIndex: 'displayName',
@@ -396,7 +404,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
             }}
           />
         ),
-        title: t('admin.newapi.models.col.displayName', '显示名称'),
+        title: t('admin.providers.models.col.displayName', '显示名称'),
         width: 220,
       },
       {
@@ -405,7 +413,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         render: (v: boolean, r: ModelRow) => (
           <Switch checked={v} size="small" onChange={() => handleToggle(r)} />
         ),
-        title: t('admin.newapi.models.col.enabled', '启用'),
+        title: t('admin.providers.models.col.enabled', '启用'),
         width: 100,
       },
       {
@@ -413,16 +421,16 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         render: (_: unknown, r: ModelRow) => (
           <Popconfirm
             okButtonProps={{ danger: true }}
-            okText={t('admin.newapi.models.confirmRemove', '移除')}
-            title={t('admin.newapi.models.confirmRemoveTitle', '移除这个模型？')}
+            okText={t('admin.providers.models.confirmRemove', '移除')}
+            title={t('admin.providers.models.confirmRemoveTitle', '移除这个模型？')}
             onConfirm={() => handleDelete(r)}
           >
             <Button danger size="small" type="link">
-              {t('admin.newapi.models.remove', '移除')}
+              {t('admin.providers.models.remove', '移除')}
             </Button>
           </Popconfirm>
         ),
-        title: t('admin.newapi.models.col.actions', '操作'),
+        title: t('admin.providers.models.col.actions', '操作'),
         width: 100,
       },
     ];
@@ -431,7 +439,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       <Flexbox gap={12}>
         <Flexbox gap={8}>
           <div style={{ fontSize: 12, opacity: 0.7 }}>
-            {t('admin.newapi.models.bulkAddHint', '可批量添加模型 ID，使用换行或逗号分隔。')}
+            {t('admin.providers.models.bulkAddHint', '可批量添加模型 ID，使用换行或逗号分隔。')}
           </div>
           <Input.TextArea
             placeholder={'gpt-4o-mini\ngpt-4o'}
@@ -446,12 +454,12 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
               type="primary"
               onClick={handleBulkAdd}
             >
-              {t('admin.newapi.models.add', '添加模型')}
+              {t('admin.providers.models.add', '添加模型')}
             </Button>
           </Flexbox>
         </Flexbox>
         {!isLoading && items.length === 0 ? (
-          <Empty description={t('admin.newapi.models.empty', '该类型暂无模型')} />
+          <Empty description={t('admin.providers.models.empty', '该类型暂无模型')} />
         ) : (
           <Table
             columns={columns as any}
@@ -478,7 +486,7 @@ const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>
         MODEL_TYPES.map((type) => ({
           children: instance ? <ModelTypePanel instanceId={instance.id} modelType={type} /> : null,
           key: type,
-          label: t(`admin.newapi.modelType.${type}`, getAdminModelTypeLabel(type)),
+          label: t(`admin.providers.modelType.${type}`, getAdminModelTypeLabel(type)),
         })),
       [instance, t],
     );
@@ -489,7 +497,9 @@ const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>
         open={!!instance}
         width={760}
         title={
-          instance ? t('admin.newapi.drawer.title', '{{name}} 的模型', { name: instance.name }) : ''
+          instance
+            ? t('admin.providers.drawer.title', '{{name}} 的模型', { name: instance.name })
+            : ''
         }
         onClose={onClose}
       >
@@ -521,7 +531,7 @@ const AdminProvidersPage = memo(() => {
 
   const handleDelete = async (row: InstanceRow) => {
     await adminCommercialService.deleteNewapiInstance(row.id);
-    message.success(t('admin.newapi.deleteSuccess', '实例已删除'));
+    message.success(t('admin.providers.deleteSuccess', '实例已删除'));
     await mutate(INSTANCES_KEY);
   };
 
@@ -532,7 +542,7 @@ const AdminProvidersPage = memo(() => {
       if (result.ok) {
         message.success(
           t(
-            'admin.newapi.test.success',
+            'admin.providers.test.success',
             '连接成功：模型 {{modelsCount}} 个，价格 {{pricingCount}} 条',
             {
               modelsCount: result.modelsCount,
@@ -542,8 +552,8 @@ const AdminProvidersPage = memo(() => {
         );
       } else {
         message.error(
-          t('admin.newapi.test.failed', '连接失败：{{error}}', {
-            error: result.error || t('admin.newapi.test.unknownError', '未知错误'),
+          t('admin.providers.test.failed', '连接失败：{{error}}', {
+            error: result.error || t('admin.providers.test.unknownError', '未知错误'),
           }),
         );
       }
@@ -557,14 +567,14 @@ const AdminProvidersPage = memo(() => {
     try {
       const result = await adminCommercialService.syncNewapiInstanceModels(row.id);
       message.success(
-        t('admin.newapi.sync.success', '同步完成：导入 {{count}} 个模型，新模型默认未启用', {
+        t('admin.providers.sync.success', '同步完成：导入 {{count}} 个模型，新模型默认未启用', {
           count: result.importedCount,
         }),
       );
       await Promise.all(MODEL_TYPES.map((type) => mutate(modelsKey(row.id, type))));
     } catch (error) {
       message.error(
-        t('admin.newapi.sync.failed', '同步失败：{{error}}', {
+        t('admin.providers.sync.failed', '同步失败：{{error}}', {
           error: error instanceof Error ? error.message : String(error),
         }),
       );
@@ -577,7 +587,7 @@ const AdminProvidersPage = memo(() => {
     {
       dataIndex: 'name',
       key: 'name',
-      title: t('admin.newapi.col.name', '名称'),
+      title: t('admin.providers.col.name', '名称'),
     },
     {
       dataIndex: 'baseUrl',
@@ -587,7 +597,7 @@ const AdminProvidersPage = memo(() => {
           <code style={{ fontSize: 12 }}>{v}</code>
         </Tooltip>
       ),
-      title: t('admin.newapi.col.baseUrl', '基础地址'),
+      title: t('admin.providers.col.baseUrl', '基础地址'),
     },
     {
       dataIndex: 'providerType',
@@ -597,20 +607,20 @@ const AdminProvidersPage = memo(() => {
           {PROVIDER_TYPE_LABELS[value || 'newapi']}
         </Tag>
       ),
-      title: t('admin.newapi.col.providerType', '服务商'),
+      title: t('admin.providers.col.providerType', '服务商'),
       width: 150,
     },
     {
       dataIndex: 'apiKey',
       key: 'apiKey',
       render: (v: string | null) => <code style={{ fontSize: 12 }}>{v ?? '-'}</code>,
-      title: t('admin.newapi.col.apiKey', 'API 密钥'),
+      title: t('admin.providers.col.apiKey', 'API 密钥'),
       width: 160,
     },
     {
       dataIndex: 'priority',
       key: 'priority',
-      title: t('admin.newapi.col.priority', '优先级'),
+      title: t('admin.providers.col.priority', '优先级'),
       width: 90,
     },
     {
@@ -624,7 +634,7 @@ const AdminProvidersPage = memo(() => {
           ) : null}
         </Flexbox>
       ),
-      title: t('admin.newapi.col.group', '分组'),
+      title: t('admin.providers.col.group', '分组'),
       width: 160,
     },
     {
@@ -635,14 +645,14 @@ const AdminProvidersPage = memo(() => {
           <Flexbox horizontal gap={4} wrap="wrap">
             {value.map((type) => (
               <Tag key={type}>
-                {t(`admin.newapi.modelType.${type}`, getAdminModelTypeLabel(type))}
+                {t(`admin.providers.modelType.${type}`, getAdminModelTypeLabel(type))}
               </Tag>
             ))}
           </Flexbox>
         ) : (
-          <Tag color="default">{t('admin.newapi.col.usageScopeAll', '不限')}</Tag>
+          <Tag color="default">{t('admin.providers.col.usageScopeAll', '不限')}</Tag>
         ),
-      title: t('admin.newapi.col.usageScope', '用途'),
+      title: t('admin.providers.col.usageScope', '用途'),
       width: 220,
     },
     {
@@ -651,7 +661,7 @@ const AdminProvidersPage = memo(() => {
       render: (v: boolean, r: InstanceRow) => (
         <Switch checked={v} size="small" onChange={() => handleToggle(r)} />
       ),
-      title: t('admin.newapi.col.enabled', '启用'),
+      title: t('admin.providers.col.enabled', '启用'),
       width: 90,
     },
     {
@@ -659,7 +669,7 @@ const AdminProvidersPage = memo(() => {
       key: 'fetchOnClient',
       render: (v: boolean) =>
         v ? <Tag color="blue">客户端（Client）</Tag> : <Tag color="default">服务端（Server）</Tag>,
-      title: t('admin.newapi.col.fetchMode', '拉取方式'),
+      title: t('admin.providers.col.fetchMode', '拉取方式'),
       width: 140,
     },
     {
@@ -671,36 +681,36 @@ const AdminProvidersPage = memo(() => {
             size="small"
             onClick={() => handleTestConnection(row)}
           >
-            {t('admin.newapi.action.test', '测试')}
+            {t('admin.providers.action.test', '测试')}
           </Button>
           <Popconfirm
-            okText={t('admin.newapi.action.sync', '同步')}
-            title={t('admin.newapi.sync.confirm', '同步到本地模型库？新模型默认不会启用。')}
+            okText={t('admin.providers.action.sync', '同步')}
+            title={t('admin.providers.sync.confirm', '同步到本地模型库？新模型默认不会启用。')}
             onConfirm={() => handleSyncModels(row)}
           >
             <Button loading={syncingId === row.id} size="small">
-              {t('admin.newapi.action.sync', '同步')}
+              {t('admin.providers.action.sync', '同步')}
             </Button>
           </Popconfirm>
           <Button size="small" onClick={() => setModelsTarget(row)}>
-            {t('admin.newapi.action.models', '模型')}
+            {t('admin.providers.action.models', '模型')}
           </Button>
           <Button size="small" onClick={() => setEditing(row)}>
-            {t('admin.newapi.action.edit', '编辑')}
+            {t('admin.providers.action.edit', '编辑')}
           </Button>
           <Popconfirm
             okButtonProps={{ danger: true }}
-            okText={t('admin.newapi.action.delete', '删除')}
-            title={t('admin.newapi.confirmDelete', '删除这个实例及其全部模型？')}
+            okText={t('admin.providers.action.delete', '删除')}
+            title={t('admin.providers.confirmDelete', '删除这个实例及其全部模型？')}
             onConfirm={() => handleDelete(row)}
           >
             <Button danger size="small">
-              {t('admin.newapi.action.delete', '删除')}
+              {t('admin.providers.action.delete', '删除')}
             </Button>
           </Popconfirm>
         </Flexbox>
       ),
-      title: t('admin.newapi.col.actions', '操作'),
+      title: t('admin.providers.col.actions', '操作'),
       width: 240,
     },
   ];
@@ -710,17 +720,17 @@ const AdminProvidersPage = memo(() => {
       <Flexbox horizontal gap={12} justify="space-between">
         <div style={{ fontSize: 13, opacity: 0.7 }}>
           {t(
-            'admin.newapi.intro',
+            'admin.providers.intro',
             '配置多个服务商上游实例，并按模型类型登记可用模型。运行时会优先使用匹配模型且优先级最高的实例，失败时按优先级切换到下一个实例。',
           )}
         </div>
         <Button type="primary" onClick={() => setCreating(true)}>
-          {t('admin.newapi.createInstance', '新建实例')}
+          {t('admin.providers.createInstance', '新建实例')}
         </Button>
       </Flexbox>
 
       {!isLoading && items.length === 0 ? (
-        <Empty description={t('admin.newapi.empty', '暂未配置服务商实例')} />
+        <Empty description={t('admin.providers.empty', '暂未配置服务商实例')} />
       ) : (
         <Table
           columns={columns as any}

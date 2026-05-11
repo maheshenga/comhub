@@ -114,6 +114,13 @@ describe('admin commercial flow pages', () => {
     expect(settingsPage).toContain('使用服务商网关时填写对应供应商标识');
   });
 
+  it('uses provider-neutral i18n keys for the admin provider page', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+
+    expect(providersPage).toContain('admin.providers.');
+    expect(providersPage).not.toContain('admin.newapi.');
+  });
+
   it('uses provider-neutral file names for the admin provider page', () => {
     expect(existsSync(path.resolve(repoRoot, 'src/features/Admin/AdminProvidersPage.tsx'))).toBe(
       true,
