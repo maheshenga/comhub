@@ -27,6 +27,7 @@
 - 模型中心的通用说明和空状态文案已改为服务商通用表达，避免把 OpenAI 兼容、DeepSeek、阿里云等实例误描述为仅 NewAPI。
 - 默认中文 locale 已继续清理：后台侧边栏 fallback、站点设置、订单与充值、运营配置、增长限制、推荐运营和旧计费说明不再被英文 locale 覆盖。
 - 站点设置默认供应商说明、模型中心导航说明和兑换码批次筛选文案已继续中文化和服务商中性化，避免后台出现旧版 NewAPI-only 口径或英文占位符。
+- 服务商实例后台入口已从 `/settings/admin/newapi-providers` 收口为 `/settings/admin/providers`，Web 与桌面端路由、后台导航和工作台快捷入口统一使用服务商中性路径；旧 `newapi-providers` 后台入口不再保留。
 
 ## 已记录待办
 

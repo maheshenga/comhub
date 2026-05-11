@@ -9,6 +9,13 @@ describe('adminOverviewLinks', () => {
       expect.arrayContaining([
         expect.objectContaining({
           label: '服务商实例',
+          path: `${ADMIN_BASE_PATH}/providers`,
+        }),
+      ]),
+    );
+    expect(ADMIN_OVERVIEW_QUICK_LINKS).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
           path: `${ADMIN_BASE_PATH}/newapi-providers`,
         }),
       ]),

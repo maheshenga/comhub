@@ -36,7 +36,7 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/operations`,
         `${ADMIN_BASE_PATH}/growth`,
         `${ADMIN_BASE_PATH}/model-policy`,
-        `${ADMIN_BASE_PATH}/newapi-providers`,
+        `${ADMIN_BASE_PATH}/providers`,
         `${ADMIN_BASE_PATH}/model-billing-matrix`,
         `${ADMIN_BASE_PATH}/subscriptions`,
         `${ADMIN_BASE_PATH}/redemption`,
@@ -67,7 +67,7 @@ describe('adminNavigation', () => {
   it('describes the model center using current admin concepts', () => {
     const modelApiGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'model-billing');
     const providerItem = modelApiGroup?.items.find(
-      (item) => item.path === `${ADMIN_BASE_PATH}/newapi-providers`,
+      (item) => item.path === `${ADMIN_BASE_PATH}/providers`,
     );
 
     expect(modelApiGroup?.description).toBe(
@@ -75,6 +75,7 @@ describe('adminNavigation', () => {
     );
     expect(providerItem?.description).toBe('维护服务商实例、分组、用途范围和模型目录');
     expect(providerItem?.description).not.toContain('NewAPI / OpenAI');
+    expect(collectPaths()).not.toContain(`${ADMIN_BASE_PATH}/newapi-providers`);
   });
 
   it('maps legacy billing routes to their merged sidebar entries', () => {
@@ -90,14 +91,14 @@ describe('adminNavigation', () => {
   it('selects the nearest admin item for nested URLs and opens its module', () => {
     expect(getAdminSelectedKey('/settings/admin')).toBe(ADMIN_BASE_PATH);
     expect(getAdminSelectedKey('/settings/admin/users/abc')).toBe(`${ADMIN_BASE_PATH}/users`);
-    expect(getAdminSelectedKey('/settings/admin/newapi-providers/edit')).toBe(
-      `${ADMIN_BASE_PATH}/newapi-providers`,
+    expect(getAdminSelectedKey('/settings/admin/providers/edit')).toBe(
+      `${ADMIN_BASE_PATH}/providers`,
     );
     expect(getAdminSelectedKey('/settings/admin/model-billing-matrix')).toBe(
       `${ADMIN_BASE_PATH}/model-billing-matrix`,
     );
 
-    expect(getAdminOpenKeys('/settings/admin/newapi-providers/edit')).toEqual(['model-billing']);
+    expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['model-billing']);
     expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['model-billing']);
   });
 });

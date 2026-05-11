@@ -109,7 +109,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         description: '维护服务商实例、分组、用途范围和模型目录',
         icon: 'newapi',
         label: '服务商实例',
-        path: `${ADMIN_BASE_PATH}/newapi-providers`,
+        path: `${ADMIN_BASE_PATH}/providers`,
       },
       {
         description: '统一管理默认模型、套餐模型权限、模型倍率和每美元积分',

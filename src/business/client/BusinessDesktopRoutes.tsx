@@ -83,10 +83,10 @@ const settingsAdminRoute: RouteObject = {
     },
     {
       element: dynamicElement(
-        () => import('@/routes/(main)/admin/newapi-providers'),
-        'Desktop > Admin > NewAPI Providers',
+        () => import('@/routes/(main)/admin/providers'),
+        'Desktop > Admin > Providers',
       ),
-      path: 'newapi-providers',
+      path: 'providers',
     },
     {
       element: dynamicElement(

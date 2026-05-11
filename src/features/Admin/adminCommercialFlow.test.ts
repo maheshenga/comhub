@@ -113,4 +113,18 @@ describe('admin commercial flow pages', () => {
     expect(providersPage).toContain('配置多个服务商上游实例');
     expect(settingsPage).toContain('使用服务商网关时填写对应供应商标识');
   });
+
+  it('uses the provider-neutral admin route for service provider management', () => {
+    const desktopRoutes = readRepoFile('src/business/client/BusinessDesktopRoutes.tsx');
+
+    expect(existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/providers/index.tsx'))).toBe(
+      true,
+    );
+    expect(
+      existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/newapi-providers/index.tsx')),
+    ).toBe(false);
+    expect(desktopRoutes).toContain("() => import('@/routes/(main)/admin/providers')");
+    expect(desktopRoutes).toContain("path: 'providers'");
+    expect(desktopRoutes).not.toContain('newapi-providers');
+  });
 });

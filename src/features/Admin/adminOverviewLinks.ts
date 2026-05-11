@@ -2,9 +2,9 @@ import { ADMIN_BASE_PATH } from './adminNavigation';
 
 export const ADMIN_OVERVIEW_QUICK_LINKS = [
   {
-    key: 'newapi',
+    key: 'providers',
     label: '服务商实例',
-    path: `${ADMIN_BASE_PATH}/newapi-providers`,
+    path: `${ADMIN_BASE_PATH}/providers`,
   },
   {
     key: 'matrix',
