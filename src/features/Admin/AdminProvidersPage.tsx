@@ -191,7 +191,7 @@ const InstanceFormModal = memo<{
           name="providerType"
           extra={
             providerType === 'newapi'
-              ? t('admin.providers.field.providerTypeNewapiHint', 'NewAPI 支持同步模型和价格。')
+              ? t('admin.providers.field.providerTypeNewapiHint', '该类型支持同步模型和价格。')
               : t(
                   'admin.providers.field.providerTypeOpenaiHint',
                   'OpenAI 兼容服务商支持同步模型，价格需要在计费矩阵中配置。',

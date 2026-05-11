@@ -109,6 +109,7 @@ describe('admin commercial flow pages', () => {
     expect(settingsPage).not.toContain('使用 NewAPI 转站');
     expect(settingsPage).not.toContain('使用 NewAPI 图像模型');
     expect(settingsPage).not.toContain('使用 NewAPI 视频模型');
+    expect(providersPage).not.toContain('NewAPI 支持同步模型和价格');
     expect(matrixPage).toContain('暂无已启用的服务商模型');
     expect(providersPage).toContain('配置多个服务商上游实例');
     expect(settingsPage).toContain('使用服务商网关时填写对应供应商标识');

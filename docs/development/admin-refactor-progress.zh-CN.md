@@ -32,6 +32,7 @@
 - 后台服务商实例页面的 i18n key 已从 `admin.newapi.*` 收口为 `admin.providers.*`，减少前端维护层面的旧版 NewAPI-only 语义残留。
 - 默认中文 locale 已补齐 `admin.providers.*` 服务商实例管理文案，避免服务商页面依赖组件内 fallback 文案展示。
 - 后台导航和工作台快捷入口的图标 key 已从 `newapi` 改为 `providers`，前端维护层不再把服务商中心绑定到旧 NewAPI-only 命名；`newapi` 仅保留为运行时服务商类型。
+- 服务商类型说明文案已改为通用表达，不再在实例表单 fallback 和默认中文 locale 中把同步模型与价格能力写死为 NewAPI。
 
 ## 已记录待办
 

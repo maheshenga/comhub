@@ -718,7 +718,7 @@ export default {
   'admin.providers.field.priority': '优先级',
   'admin.providers.field.priorityHint': '数字越小优先级越高，用于路由和故障切换。',
   'admin.providers.field.providerType': '服务商类型',
-  'admin.providers.field.providerTypeNewapiHint': 'NewAPI 支持同步模型和价格。',
+  'admin.providers.field.providerTypeNewapiHint': '该类型支持同步模型和价格。',
   'admin.providers.field.providerTypeOpenaiHint':
     'OpenAI 兼容服务商支持同步模型，价格需要在计费矩阵中配置。',
   'admin.providers.field.usageScope': '用途范围',
