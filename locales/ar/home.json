@@ -5,7 +5,12 @@
   "agentSelection.search": "لم يتم العثور على وكلاء مطابقين",
   "brief.action.acknowledge": "إقرار",
   "brief.action.approve": "الموافقة",
+<<<<<<< HEAD
   "brief.action.confirmDone": "تأكيد الإنهاء",
+=======
+  "brief.action.confirm": "تأكيد",
+  "brief.action.confirmDone": "تأكيد",
+>>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "ملاحظات",
   "brief.action.retry": "إعادة المحاولة",
   "brief.addFeedback": "مشاركة الملاحظات",
@@ -25,6 +30,11 @@
   "brief.viewRun": "عرض التشغيل",
   "project.create": "مشروع جديد",
   "project.deleteConfirm": "سيتم حذف هذا المشروع ولن يمكن استعادته. أكد للمتابعة.",
+  "recommendations.heteroAgent.cta": "أضف الوكيل",
+  "recommendations.heteroAgent.description": "تم اكتشاف واجهة الأوامر {{name}} على هذا الجهاز — أضف وكيل {{name}} للدردشة معه من LobeHub.",
+  "recommendations.heteroAgent.tag": "وكيل البرمجة",
+  "recommendations.heteroAgent.title": "أضف وكيل {{name}}",
+  "recommendations.subtitle": "بعض التوصيات لإعدادك",
   "starter.createAgent": "إنشاء وكيل",
   "starter.createGroup": "إنشاء مجموعة",
   "starter.deepResearch": "بحث معمق",

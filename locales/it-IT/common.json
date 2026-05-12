@@ -29,7 +29,11 @@
   "batchDelete": "Eliminazione multipla",
   "blog": "Blog del prodotto",
   "botIntegrationBanner.dismiss": "Chiudi",
+<<<<<<< HEAD
   "botIntegrationBanner.title": "Aggiungi canali a LobeAI",
+=======
+  "botIntegrationBanner.title": "Parla con Lobe AI nelle tue app di messaggistica preferite",
+>>>>>>> v2.1.58-canary.16
   "branching": "Crea sottotema",
   "branchingDisable": "La funzione \"Sottotema\" non è disponibile nella modalità attuale. Per utilizzarla, passa alla modalità DB Postgres/PGlite o usa LobeHub Cloud.",
   "branchingRequiresSavedTopic": "Il tema attuale non è salvato, salvalo prima per usare la funzione sottotema",
@@ -448,6 +452,10 @@
   "telemetry.title": "Aiutaci a migliorare {{appName}}",
   "temp": "Temporaneo",
   "terms": "Termini di servizio",
+  "time.formatOtherYear": "D MMM YYYY",
+  "time.formatThisYear": "D MMM",
+  "time.today": "Oggi",
+  "time.yesterday": "Ieri",
   "unknownError": "Errore sconosciuto",
   "update": "Aggiorna",
   "updateAgent": "Aggiorna informazioni agente",

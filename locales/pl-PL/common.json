@@ -29,7 +29,11 @@
   "batchDelete": "Usuń zbiorczo",
   "blog": "Blog produktu",
   "botIntegrationBanner.dismiss": "Zamknij",
+<<<<<<< HEAD
   "botIntegrationBanner.title": "Dodaj kanały do LobeAI",
+=======
+  "botIntegrationBanner.title": "Rozmawiaj z Lobe AI w ulubionych aplikacjach do wiadomości",
+>>>>>>> v2.1.58-canary.16
   "branching": "Utwórz podtemat",
   "branchingDisable": "Funkcja „Podtemat” jest niedostępna w bieżącym trybie. Aby z niej skorzystać, przełącz się na tryb bazy danych Postgres/PGlite lub użyj LobeHub Cloud.",
   "branchingRequiresSavedTopic": "Bieżący temat nie został zapisany, zapisz go najpierw, aby użyć funkcji podtematu",
@@ -448,6 +452,10 @@
   "telemetry.title": "Pomóż ulepszyć {{appName}}",
   "temp": "Tymczasowe",
   "terms": "Warunki korzystania",
+  "time.formatOtherYear": "MMM D, YYYY",
+  "time.formatThisYear": "MMM D",
+  "time.today": "Dziś",
+  "time.yesterday": "Wczoraj",
   "unknownError": "Nieznany błąd",
   "update": "Aktualizuj",
   "updateAgent": "Zaktualizuj dane agenta",

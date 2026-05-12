@@ -122,6 +122,34 @@ describe('GeneralChatAgent', () => {
         },
       });
     });
+
+    it('should trigger compression using thresholdRatio from compressionConfig', async () => {
+      const agent = new GeneralChatAgent({
+        agentConfig: { maxSteps: 100 },
+        compressionConfig: {
+          enabled: true,
+          maxWindowToken: 200_000,
+          thresholdRatio: 0.5,
+        },
+        operationId: 'test-session',
+        modelRuntimeConfig: mockModelRuntimeConfig,
+      });
+
+      const state = createMockState({
+        messages: [
+          {
+            content: '',
+            metadata: { usage: { totalOutputTokens: 100_001 } },
+            role: 'assistant',
+          },
+        ] as any,
+      });
+      const context = createMockContext('init', { model: 'gpt-4o-mini', provider: 'openai' });
+
+      const result = await agent.runner(context, state);
+
+      expect(result).toEqual(expectCompressionInstruction(state.messages));
+    });
   });
 
   describe('llm_result phase', () => {
@@ -145,6 +173,41 @@ describe('GeneralChatAgent', () => {
         type: 'finish',
         reason: 'completed',
         reasonDetail: 'LLM response completed without tool calls',
+      });
+    });
+
+    // Regression for LOBE-8696: when the LLM emits tool_calls whose names
+    // can't be resolved (e.g. `activateTools` instead of
+    // `lobe-activator____activateTools`), the agent used to silently finish
+    // with "completed without tool calls". Surface the unresolved names so
+    // dashboards can spot the regression.
+    it('should report unresolvable tool_calls in reasonDetail', async () => {
+      const agent = new GeneralChatAgent({
+        agentConfig: { maxSteps: 100 },
+        operationId: 'test-session',
+        modelRuntimeConfig: mockModelRuntimeConfig,
+      });
+
+      const state = createMockState();
+      const context = createMockContext('llm_result', {
+        hasToolsCalling: true,
+        toolsCalling: [],
+        parentMessageId: 'msg-1',
+        result: {
+          content: '',
+          tool_calls: [
+            { id: 't1', type: 'function', function: { name: 'activateTools', arguments: '{}' } },
+            { id: 't2', type: 'function', function: { name: 'activateSkill', arguments: '{}' } },
+          ],
+        },
+      });
+
+      const result = await agent.runner(context, state);
+
+      expect(result).toEqual({
+        type: 'finish',
+        reason: 'completed',
+        reasonDetail: 'LLM returned 2 unresolvable tool_calls: activateTools, activateSkill',
       });
     });
 

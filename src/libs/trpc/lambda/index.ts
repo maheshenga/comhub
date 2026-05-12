@@ -11,9 +11,8 @@
 import { openTelemetry } from '../middleware/openTelemetry';
 import { userAuth } from '../middleware/userAuth';
 import { trpc } from './init';
+import { heteroOperationAuth } from './middleware/heteroOperationAuth';
 import { oidcAuth } from './middleware/oidcAuth';
-import { requireSuperAdmin } from './middleware/requireSuperAdmin';
-import { serverDatabase } from './middleware/serverDatabase';
 
 /**
  * Create a router
@@ -32,8 +31,8 @@ export const publicProcedure = baseProcedure;
 // procedure that asserts that the user is logged in
 export const authedProcedure = baseProcedure.use(oidcAuth).use(userAuth);
 
-// procedure that asserts the caller is a super-admin (users.role === 'admin')
-export const adminProcedure = authedProcedure.use(serverDatabase).use(requireSuperAdmin);
+// procedure for hetero-agent ingest/finish endpoints — requires a `hetero-operation` JWT
+export const heteroAuthedProcedure = baseProcedure.use(heteroOperationAuth).use(userAuth);
 
 /**
  * Create a server-side caller

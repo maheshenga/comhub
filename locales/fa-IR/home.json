@@ -5,7 +5,12 @@
   "agentSelection.search": "هیچ عاملی مطابق با جستجو یافت نشد",
   "brief.action.acknowledge": "تأیید",
   "brief.action.approve": "پذیرفتن",
+<<<<<<< HEAD
   "brief.action.confirmDone": "تایید انجام",
+=======
+  "brief.action.confirm": "تأیید",
+  "brief.action.confirmDone": "تأیید",
+>>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "بازخورد",
   "brief.action.retry": "تلاش دوباره",
   "brief.addFeedback": "اشتراک‌گذاری بازخورد",
@@ -25,6 +30,11 @@
   "brief.viewRun": "مشاهده اجرا",
   "project.create": "پروژه جدید",
   "project.deleteConfirm": "این پروژه حذف خواهد شد و امکان بازیابی آن وجود ندارد. برای ادامه تأیید کنید.",
+  "recommendations.heteroAgent.cta": "افزودن عامل",
+  "recommendations.heteroAgent.description": "CLI {{name}} در این دستگاه شناسایی شد — عامل {{name}} را اضافه کنید تا از LobeHub با آن گفتگو کنید.",
+  "recommendations.heteroAgent.tag": "عامل کدنویسی",
+  "recommendations.heteroAgent.title": "افزودن عامل {{name}}",
+  "recommendations.subtitle": "برخی پیشنهادات برای تنظیمات شما",
   "starter.createAgent": "ایجاد عامل",
   "starter.createGroup": "ایجاد گروه",
   "starter.deepResearch": "تحقیق عمیق",

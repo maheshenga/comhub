@@ -155,7 +155,7 @@ describe('GoogleGenerativeAIStream', () => {
         `data: "STOP"\n\n`,
         'id: chat_E5M9dFKw\n',
         'event: usage\n',
-        `data: {"inputCachedTokens":0,"inputImageTokens":0,"inputTextTokens":0,"outputImageTokens":0,"outputTextTokens":0,"totalInputTokens":0,"totalOutputTokens":0,"totalTokens":0}\n\n`,
+        `data: {"inputCacheMissTokens":0,"inputCachedTokens":0,"inputImageTokens":0,"inputTextTokens":0,"outputImageTokens":0,"outputTextTokens":0,"totalInputTokens":0,"totalOutputTokens":0,"totalTokens":0}\n\n`,
       ]);
     });
 
@@ -567,7 +567,7 @@ describe('GoogleGenerativeAIStream', () => {
         // usage
         'id: chat_1\n',
         'event: usage\n',
-        `data: {"inputCacheMissTokens":1439,"inputCachedTokens":14286,"inputTextTokens":15725,"outputImageTokens":0,"outputTextTokens":1053,"totalInputTokens":15725,"totalOutputTokens":1053,"totalTokens":16778}\n\n`,
+        `data: {"inputCachedTextTokens":14286,"inputCacheMissTokens":1439,"inputCachedTokens":14286,"inputTextTokens":15725,"outputImageTokens":0,"outputTextTokens":1053,"totalInputTokens":15725,"totalOutputTokens":1053,"totalTokens":16778}\n\n`,
       ]);
     });
 

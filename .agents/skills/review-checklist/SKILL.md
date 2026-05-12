@@ -1,6 +1,10 @@
 ---
 name: review-checklist
 description: 'Common recurring mistakes in LobeHub code review — console leftovers, missing return await, hardcoded secrets, hardcoded i18n strings, desktop router pair drift, antd vs @lobehub/ui, non-idempotent migrations, cloud impact red flags. Use as a quick checklist when reviewing PRs, diffs, or branch changes.'
+<<<<<<< HEAD
+=======
+user-invocable: false
+>>>>>>> v2.1.58-canary.16
 ---
 
 # Review Checklist

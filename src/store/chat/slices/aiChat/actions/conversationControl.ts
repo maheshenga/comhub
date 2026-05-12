@@ -3,6 +3,9 @@ import { type AgentRuntimeContext } from '@lobechat/agent-runtime';
 import { MESSAGE_CANCEL_FLAT } from '@lobechat/const';
 import { type ConversationContext } from '@lobechat/types';
 
+import { getAgentStoreState } from '@/store/agent';
+import { agentSelectors } from '@/store/agent/selectors';
+import { selectRuntimeType } from '@/store/chat/slices/aiChat/actions/agentDispatcher';
 import { operationSelectors } from '@/store/chat/slices/operation/selectors';
 import { AI_RUNTIME_OPERATION_TYPES } from '@/store/chat/slices/operation/types';
 import { type ChatStore } from '@/store/chat/store';
@@ -33,11 +36,12 @@ export class ConversationControlActionImpl {
   /**
    * Decide whether approve/reject/reject_continue should go through the
    * Gateway resume path (new op carrying `resumeApproval`) instead of the
-   * local `internal_execAgentRuntime` path. Mirrors the "interrupt + new op"
+   * local `executeClientAgent` path. Mirrors the "interrupt + new op"
    * pattern from LOBE-7142.
    *
-   * Uses the same `isGatewayModeEnabled()` lab flag that routes the initial
-   * send, so approve/reject align with how the conversation was dispatched.
+   * Routes via `selectRuntimeType` so approve/reject align with how the
+   * conversation was dispatched at sendMessage time. Hetero resume is not yet
+   * implemented and falls through to client local resume — see LOBE-8519.
    *
    * We deliberately do **not** look for a living `execServerAgentRuntime`
    * op here. The server's `waiting_for_human` → `agent_runtime_end` signal
@@ -47,8 +51,16 @@ export class ConversationControlActionImpl {
    * scanning for it would flip us back into client-mode against a live
    * Gateway backend.
    */
-  #shouldUseGatewayResume = (): boolean => {
-    return this.#get().isGatewayModeEnabled();
+  #shouldUseGatewayResume = (context: ConversationContext): boolean => {
+    const agentConfig = context.agentId
+      ? agentSelectors.getAgentConfigById(context.agentId)(getAgentStoreState())
+      : undefined;
+    return (
+      selectRuntimeType({
+        heterogeneousProvider: agentConfig?.agencyConfig?.heterogeneousProvider,
+        isGatewayMode: this.#get().isGatewayModeEnabled(),
+      }) === 'gateway'
+    );
   };
 
   /**
@@ -170,7 +182,7 @@ export class ConversationControlActionImpl {
     _assistantGroupId: string,
     context?: ConversationContext,
   ): Promise<void> => {
-    const { internal_execAgentRuntime, startOperation, completeOperation } = this.#get();
+    const { executeClientAgent, startOperation, completeOperation } = this.#get();
 
     // Build effective context from provided context or global state
     const effectiveContext: ConversationContext = context ?? {
@@ -212,7 +224,7 @@ export class ConversationControlActionImpl {
     // message, persists `intervention=approved`, dispatches the approved
     // tool, and streams results back on the new op. No in-place resume of
     // the paused op — simpler state + avoids stepIndex races.
-    if (this.#shouldUseGatewayResume()) {
+    if (this.#shouldUseGatewayResume(effectiveContext)) {
       const toolCallId = toolMessage.tool_call_id;
       if (!toolCallId) {
         console.warn(
@@ -277,7 +289,7 @@ export class ConversationControlActionImpl {
 
     // 7. Execute agent runtime from tool message position
     try {
-      await internal_execAgentRuntime({
+      await executeClientAgent({
         context: effectiveContext,
         messages: currentMessages,
         parentMessageId: toolMessageId, // Start from tool message
@@ -303,9 +315,13 @@ export class ConversationControlActionImpl {
     toolMessageId: string,
     response: Record<string, unknown>,
     context?: ConversationContext,
-    options?: { createUserMessage?: boolean; toolResultContent?: string },
+    options?: {
+      createUserMessage?: boolean;
+      pluginState?: Record<string, unknown>;
+      toolResultContent?: string;
+    },
   ): Promise<void> => {
-    const { internal_execAgentRuntime, startOperation, completeOperation } = this.#get();
+    const { executeClientAgent, startOperation, completeOperation } = this.#get();
 
     const effectiveContext: ConversationContext = context ?? {
       agentId: this.#get().activeAgentId,
@@ -347,6 +363,14 @@ export class ConversationControlActionImpl {
       optimisticContext,
     );
 
+    if (options?.pluginState) {
+      await this.#get().optimisticUpdatePluginState(
+        toolMessageId,
+        options.pluginState,
+        optimisticContext,
+      );
+    }
+
     const chatKey = messageMapKey({ agentId, topicId, threadId, scope });
 
     // 2a. Tool-result-only path: skip the synthetic user message and resume from the
@@ -380,7 +404,7 @@ export class ConversationControlActionImpl {
       };
 
       try {
-        await internal_execAgentRuntime({
+        await executeClientAgent({
           context: effectiveContext,
           messages: currentMessages,
           parentMessageId: toolMessageId,
@@ -437,7 +461,7 @@ export class ConversationControlActionImpl {
     });
 
     try {
-      await internal_execAgentRuntime({
+      await executeClientAgent({
         context: effectiveContext,
         messages: currentMessages,
         parentMessageId: userMsg.id,
@@ -462,7 +486,7 @@ export class ConversationControlActionImpl {
     reason?: string,
     context?: ConversationContext,
   ): Promise<void> => {
-    const { internal_execAgentRuntime, startOperation, completeOperation } = this.#get();
+    const { executeClientAgent, startOperation, completeOperation } = this.#get();
 
     const effectiveContext: ConversationContext = context ?? {
       agentId: this.#get().activeAgentId,
@@ -540,7 +564,7 @@ export class ConversationControlActionImpl {
     });
 
     try {
-      await internal_execAgentRuntime({
+      await executeClientAgent({
         context: effectiveContext,
         messages: currentMessages,
         parentMessageId: userMsg.id,
@@ -607,6 +631,179 @@ export class ConversationControlActionImpl {
     completeOperation(operationId);
   };
 
+  /**
+   * Resolve a heterogeneous-runtime intervention (CC AskUserQuestion, …).
+   *
+   * Why this action exists separately from `submitToolInteraction`:
+   * - The CC subprocess is already running and blocked on an MCP call —
+   *   we need to feed the answer back through the IPC bridge, not spawn
+   *   a fresh `executeClientAgent` turn.
+   * - Once the answer ships, CC's existing stream emits `tool_result` and
+   *   keeps going on its own; no synthetic user message, no new op.
+   *
+   * The framework's intervention surface still drives the UI: we just
+   * stamp `pluginIntervention.status` and the eventual `tool_result`
+   * content via the same optimistic primitives, so the InterventionBar /
+   * inline tool body update synchronously and the answered Render takes
+   * over once `pluginIntervention.status === 'approved' | 'rejected'`.
+   *
+   * `actionType`:
+   *   - `'submit'` → mark approved, ship `payload` as the answer
+   *   - `'skip' | 'cancel'` → mark rejected, ship `cancelled: true` so the
+   *     bridge resolves with `cancelReason` and CC sees an isError result
+   *     (it'll fall back to plain-text questioning)
+   */
+  submitHeteroIntervention = async (
+    toolMessageId: string,
+    actionType: 'submit' | 'skip' | 'cancel',
+    payload?: Record<string, unknown>,
+    context?: ConversationContext,
+  ): Promise<void> => {
+    const toolMessage = dbMessageSelectors.getDbMessageById(toolMessageId)(this.#get());
+    if (!toolMessage) return;
+
+    const toolCallId = toolMessage.tool_call_id;
+    if (!toolCallId) {
+      console.warn('[submitHeteroIntervention] tool message has no tool_call_id', toolMessageId);
+      return;
+    }
+
+    // Walk up to the assistant that owns this tool — its operation is the
+    // running CC stream we need to address. Falls through to the tool
+    // message id itself if a producer ever associated it directly.
+    const { messageOperationMap } = this.#get();
+    const operationId =
+      (toolMessage.parentId && messageOperationMap?.[toolMessage.parentId]) ??
+      messageOperationMap?.[toolMessageId];
+
+    if (!operationId) {
+      console.warn('[submitHeteroIntervention] no operationId for', toolMessageId);
+      return;
+    }
+
+    const effectiveContext: ConversationContext = context ?? {
+      agentId: this.#get().activeAgentId,
+      topicId: this.#get().activeTopicId,
+      threadId: this.#get().activeThreadId,
+    };
+    const optimisticContext: OptimisticUpdateContext = { operationId };
+
+    if (actionType === 'submit') {
+      await this.#get().optimisticUpdateMessagePlugin(
+        toolMessageId,
+        { intervention: { status: 'approved' } },
+        optimisticContext,
+      );
+      // Persist the structured `{ [questionText]: selectedLabel(s) }` answers
+      // to `pluginState.askUserAnswers` so the Render component can show
+      // Q&A pairs instead of parsing the bridge's prose `User answers:`
+      // dump out of `content`. Best-effort — never block the IPC submit.
+      await this.setInterventionAnswers(toolMessageId, payload ?? {}, optimisticContext);
+      // Bridge formats its own "User answers:" string for CC, so the eventual
+      // tool_result re-rewrites this content. The optimistic write is just
+      // for the brief gap between Submit and CC echoing the result back.
+      const summary = `User submitted: ${JSON.stringify(payload ?? {})}`;
+      await this.#get().optimisticUpdateMessageContent(
+        toolMessageId,
+        summary,
+        undefined,
+        optimisticContext,
+      );
+    } else {
+      const reason = actionType === 'skip' ? 'User skipped' : 'User cancelled';
+      await this.#get().optimisticUpdateMessagePlugin(
+        toolMessageId,
+        { intervention: { rejectedReason: reason, status: 'rejected' } },
+        optimisticContext,
+      );
+      await this.#get().optimisticUpdateMessageContent(
+        toolMessageId,
+        `${reason} this interaction.`,
+        undefined,
+        optimisticContext,
+      );
+    }
+
+    // Forward to the producer (Electron main → bridge.resolve). Dynamic
+    // import keeps `@/services/electron/*` out of non-Electron bundles.
+    try {
+      const { heterogeneousAgentService } = await import('@/services/electron/heterogeneousAgent');
+      await heterogeneousAgentService.submitIntervention(
+        actionType === 'submit'
+          ? { operationId, result: payload ?? {}, toolCallId }
+          : {
+              cancelReason: actionType === 'skip' ? 'user_cancelled' : 'user_cancelled',
+              cancelled: true,
+              operationId,
+              toolCallId,
+            },
+      );
+    } catch (err) {
+      console.error('[submitHeteroIntervention] IPC submitIntervention failed:', err);
+    }
+
+    void effectiveContext;
+  };
+
+  /**
+   * In-memory draft store for an intervention form. Backs the renderer's
+   * "remember what I'd partially answered" behaviour without paying for a
+   * DB round-trip on every keystroke — drafts only matter while the
+   * intervention is pending (5 min cap), and the canonical pluginState
+   * mirror is enough to survive HMR / panel re-mounts.
+   *
+   * `askUserDraft` is irrelevant after submit (the form unmounts), so we
+   * don't bother clearing it — it stays buried under `askUserAnswers` in
+   * `pluginState` and never affects the completed Render.
+   */
+  setInterventionDraft = (toolMessageId: string, draft: Record<string, unknown>): void => {
+    this.#get().internal_dispatchMessage({
+      id: toolMessageId,
+      key: 'askUserDraft',
+      type: 'updatePluginState',
+      value: draft,
+    });
+  };
+
+  /**
+   * Persist the structured intervention answers (`{ questionText:
+   * selectedLabel | selectedLabel[] }`) to the tool message's
+   * `pluginState.askUserAnswers`. Drives structured Q&A rendering on the
+   * `Render` component without re-parsing the bridge's prose tool_result.
+   *
+   * Both writes are merge-style by key — the in-memory `updatePluginState`
+   * reducer (`message/reducer.ts:142`) and the DB
+   * `messageModel.updatePluginState` shallow-merge so co-existing keys
+   * (`askUserDraft` etc.) survive. DB write is best-effort: a slow lambda
+   * must not strand the IPC submit that follows.
+   */
+  setInterventionAnswers = async (
+    toolMessageId: string,
+    answers: Record<string, unknown>,
+    context?: OptimisticUpdateContext,
+  ): Promise<void> => {
+    this.#get().internal_dispatchMessage(
+      {
+        id: toolMessageId,
+        key: 'askUserAnswers',
+        type: 'updatePluginState',
+        value: answers,
+      },
+      context,
+    );
+    try {
+      const { messageService } = await import('@/services/message');
+      const ctx = this.#get().internal_getConversationContext(context);
+      await messageService.updateMessagePluginState(
+        toolMessageId,
+        { askUserAnswers: answers },
+        ctx,
+      );
+    } catch (err) {
+      console.warn('[setInterventionAnswers] persist failed:', err);
+    }
+  };
+
   rejectToolCalling = async (
     messageId: string,
     reason?: string,
@@ -667,7 +864,7 @@ export class ConversationControlActionImpl {
     // `rejected_continue` share the same code path (both surface the
     // rejection to the LLM as user feedback), so a separate `rejected`
     // decision adds complexity without behavioural difference.
-    if (this.#shouldUseGatewayResume()) {
+    if (this.#shouldUseGatewayResume(effectiveContext)) {
       const toolCallId = toolMessage.tool_call_id;
       if (!toolCallId) {
         console.warn(
@@ -706,7 +903,7 @@ export class ConversationControlActionImpl {
     const toolMessage = dbMessageSelectors.getDbMessageById(messageId)(this.#get());
     if (!toolMessage) return;
 
-    const { internal_execAgentRuntime, startOperation, completeOperation } = this.#get();
+    const { executeClientAgent, startOperation, completeOperation } = this.#get();
 
     // Build effective context from provided context or global state
     const effectiveContext: ConversationContext = context ?? {
@@ -722,7 +919,7 @@ export class ConversationControlActionImpl {
     // the LLM loop with the rejection content surfaced as user feedback.
     // Skip the client-mode `rejectToolCalling` chain below — that would fire
     // a duplicate halting `reject` before this continue signal.
-    if (this.#shouldUseGatewayResume()) {
+    if (this.#shouldUseGatewayResume(effectiveContext)) {
       const toolCallId = toolMessage.tool_call_id;
       if (!toolCallId) {
         console.warn(
@@ -823,7 +1020,7 @@ export class ConversationControlActionImpl {
 
     // Execute agent runtime from rejected tool message position to continue
     try {
-      await internal_execAgentRuntime({
+      await executeClientAgent({
         context: effectiveContext,
         messages: currentMessages,
         parentMessageId: messageId,

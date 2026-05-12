@@ -10,10 +10,12 @@ import {
   UsageCounter,
 } from '@lobechat/agent-runtime';
 import { LobeActivatorIdentifier } from '@lobechat/builtin-tool-activator';
+import { CredsIdentifier, type CredSummary, generateCredsList } from '@lobechat/builtin-tool-creds';
 import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
 import {
   AGENT_DOCUMENT_INJECTION_POSITIONS,
   type AgentContextDocument,
+  type BotPlatformContext,
   buildStepSkillDelta,
   buildStepToolDelta,
   type LobeToolManifest,
@@ -34,12 +36,18 @@ import debug from 'debug';
 
 import { type MessageModel, MessageModel as MessageModelClass } from '@/database/models/message';
 import { TopicModel } from '@/database/models/topic';
+import { UserModel } from '@/database/models/user';
 import { type LobeChatDatabase } from '@/database/type';
 import { serverMessagesEngine } from '@/server/modules/Mecha/ContextEngineering';
 import { type EvalContext } from '@/server/modules/Mecha/ContextEngineering/types';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { AgentDocumentsService } from '@/server/services/agentDocuments';
 import type { HookDispatcher } from '@/server/services/agentRuntime/hooks/HookDispatcher';
+import {
+  type DeviceAccessReason,
+  isDeviceToolIdentifier,
+  logDeviceToolAudit,
+} from '@/server/services/aiAgent/deviceToolAudit';
 import { FileService } from '@/server/services/file';
 import { MessageService } from '@/server/services/message';
 import { OnboardingService } from '@/server/services/onboarding';
@@ -198,7 +206,7 @@ const buildToolDiscoveryConfig = (operationToolSet: OperationToolSet, enabledToo
 
 export interface RuntimeExecutorContext {
   agentConfig?: any;
-  botPlatformContext?: any;
+  botPlatformContext?: BotPlatformContext;
   discordContext?: any;
   evalContext?: EvalContext;
   hookDispatcher?: HookDispatcher;
@@ -231,8 +239,19 @@ export const createRuntimeExecutors = (
     // Fallback to state's modelRuntimeConfig if not in payload
     const model = llmPayload.model || state.modelRuntimeConfig?.model;
     const provider = llmPayload.provider || state.modelRuntimeConfig?.provider;
-    // Resolve tools via ToolResolver (unified tool injection)
-    const activeDeviceId = state.metadata?.activeDeviceId;
+    // Resolve tools via ToolResolver (unified tool injection).
+    //
+    // Belt-and-suspenders: even if `aiAgent.execAgent` ever forgets to clear
+    // `state.metadata.activeDeviceId` for a non-trusted sender, swallowing
+    // it here keeps `buildStepToolDelta` from re-injecting `local-system` —
+    // the engine's enabledToolIds exclusion alone is not enough, since the
+    // delta builder treats activeDeviceId as an independent activation
+    // signal and only dedupes against already-enabled tools.
+    const devicePolicy = state.metadata?.deviceAccessPolicy as
+      | { canUseDevice: boolean; reason: DeviceAccessReason }
+      | undefined;
+    const activeDeviceId =
+      devicePolicy?.canUseDevice === false ? undefined : state.metadata?.activeDeviceId;
     const operationToolSet: OperationToolSet = state.operationToolSet ?? {
       enabledToolIds: [],
       executorMap: state.toolExecutorMap ?? {},
@@ -443,7 +462,7 @@ export const createRuntimeExecutors = (
             const docService = new AgentDocumentsService(ctx.serverDB, ctx.userId);
             const personaModel = new UserPersonaModel(ctx.serverDB, ctx.userId);
 
-            const [onboardingState, soulDoc, persona] = await Promise.all([
+            const [onboardingState, soulDoc, persona, userInfo] = await Promise.all([
               onboardingService.getState(),
               onboardingService
                 .getInboxAgentId()
@@ -458,12 +477,17 @@ export const createRuntimeExecutors = (
                 log('Failed to fetch user persona for onboarding context: %O', error);
                 return null;
               }),
+              onboardingService.getInitialUserInfo().catch((error) => {
+                log('Failed to fetch initial user info for onboarding context: %O', error);
+                return undefined;
+              }),
             ]);
 
             onboardingContext = {
               personaContent: persona?.persona ?? null,
               phaseGuidance: formatWebOnboardingStateMessage(onboardingState),
               soulContent: soulDoc?.content ?? null,
+              userInfo,
             };
             log('Built onboarding context for agent %s, phase: %s', agentId, onboardingState.phase);
           } catch (error) {
@@ -509,11 +533,72 @@ export const createRuntimeExecutors = (
           topic_title: lobehubSkillTopicTitle,
         };
 
+        // ── Tool-specific template variable resolution ────────────────────
+        // The client-side contextEngineering.ts resolves these via Zustand stores
+        // and lambdaClient. In execAgent (server/bot) mode we must fetch from DB
+        // directly. Each block is gated on the relevant tool being enabled.
+
+        // {{username}} / {{language}} — used by memory and creds system roles.
+        // Single indexed DB lookup; cheap enough to run on each call_llm step.
+        let serverUsername = '';
+        let serverLanguage = '';
+        if (ctx.serverDB && ctx.userId) {
+          try {
+            const userInfo = await UserModel.getInfoForAIGeneration(ctx.serverDB, ctx.userId);
+            serverUsername = userInfo.userName;
+            serverLanguage = userInfo.responseLanguage;
+          } catch (error) {
+            log('Failed to fetch user info for {{username}}/{{language}} substitution: %O', error);
+          }
+        }
+
+        // {{sandbox_enabled}} — mirrors client-side check for lobe-cloud-sandbox.
+        const sandboxEnabled = String(resolved.enabledToolIds.includes('lobe-cloud-sandbox'));
+
+        // {{memory_effort}} — read from agentConfig chatConfig; no extra query needed.
+        const memoryEffort = String(
+          (state.metadata?.agentConfig as any)?.chatConfig?.memory?.effort ?? '',
+        );
+
+        // {{CREDS_LIST}} — used by lobe-creds system role.
+        // Mirrors client-side: lambdaClient.market.creds.list.query()
+        const isCredsEnabled = resolved.enabledToolIds.includes(CredsIdentifier);
+        let credsListStr = '';
+        if (isCredsEnabled && ctx.userId) {
+          try {
+            const { MarketService } = await import('@/server/services/market');
+            const marketService = new MarketService({ userInfo: { userId: ctx.userId } });
+            const credsResult = await marketService.market.creds.list();
+            const userCreds = (credsResult as any)?.data ?? [];
+            credsListStr = generateCredsList(
+              userCreds.map(
+                (cred: any): CredSummary => ({
+                  description: cred.description,
+                  key: cred.key,
+                  name: cred.name,
+                  type: cred.type,
+                }),
+              ),
+            );
+            log('Fetched %d creds for {{CREDS_LIST}} substitution', userCreds.length);
+          } catch (error) {
+            log('Failed to fetch creds for {{CREDS_LIST}} substitution: %O', error);
+          }
+        }
+
         const contextEngineInput = {
           agentDocuments,
           additionalVariables: {
             ...state.metadata?.deviceSystemInfo,
             ...lobehubSkillVariables,
+            // User identity variables
+            username: serverUsername,
+            language: serverLanguage,
+            // Creds tool variables
+            sandbox_enabled: sandboxEnabled,
+            ...(isCredsEnabled && { CREDS_LIST: credsListStr }),
+            // Memory tool variables
+            memory_effort: memoryEffort,
           },
           userTimezone: ctx.userTimezone,
           capabilities: {
@@ -524,9 +609,9 @@ export const createRuntimeExecutors = (
               return info?.abilities?.functionCall ?? true;
             },
             isCanUseVideo: (m: string, p: string) => {
-              const info = LOBE_DEFAULT_MODEL_LIST.find(
-                (item) => item.id === m && item.providerId === p,
-              );
+              const info =
+                LOBE_DEFAULT_MODEL_LIST.find((item) => item.id === m && item.providerId === p) ??
+                LOBE_DEFAULT_MODEL_LIST.find((item) => item.id === m);
               return info?.abilities?.video ?? false;
             },
             isCanUseVision: (m: string, p: string) => {
@@ -608,10 +693,7 @@ export const createRuntimeExecutors = (
       }
 
       // Initialize ModelRuntime (read user's keyVaults from database)
-      const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId!, provider, {
-        model,
-        modelType: 'chat',
-      });
+      const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId!, provider);
 
       // Construct ChatStreamPayload
       const stream = ctx.stream ?? true;
@@ -823,8 +905,6 @@ export const createRuntimeExecutors = (
               },
             },
             metadata: {
-              assistantMessageId: assistantMessageItem.id,
-              messageId: assistantMessageItem.id,
               operationId,
               topicId: state.metadata?.topicId,
               trigger: state.metadata?.trigger,
@@ -1220,10 +1300,6 @@ export const createRuntimeExecutors = (
         ctx.serverDB,
         ctx.userId,
         compressionModel.provider,
-        {
-          model: compressionModel.model,
-          modelType: 'chat',
-        },
       );
 
       let summaryContent = '';
@@ -1521,6 +1597,28 @@ export const createRuntimeExecutors = (
         : null;
 
       let execution: { result: ToolExecutionResultResponse; attempts: number };
+      if (isDeviceToolIdentifier(chatToolPayload.identifier) && !hookResult?.isMocked) {
+        // Per-call audit for device tools (local-system / remote-device).
+        // Emitted before dispatch so the record exists even if dispatch
+        // throws. We rely on the engine's enable gate to keep `canUseDevice`
+        // true here; recording the policy reason inline lets an operator
+        // distinguish first-party vs bot-owner runs without joining logs.
+        const policy = state.metadata?.deviceAccessPolicy as
+          | { canUseDevice: boolean; reason: DeviceAccessReason }
+          | undefined;
+        logDeviceToolAudit({
+          apiName: chatToolPayload.apiName,
+          botContext: state.metadata?.botContext,
+          canUseDevice: policy?.canUseDevice ?? true,
+          messageId: state.metadata?.sourceMessageId,
+          operationId,
+          reason: policy?.reason ?? 'first-party',
+          toolIdentifier: chatToolPayload.identifier,
+          topicId: ctx.topicId,
+          userId: ctx.userId,
+        });
+      }
+
       if (hookResult?.isMocked) {
         log(`[${operationLogId}] Tool ${toolName} mocked by beforeToolCall hook`);
         toolCallMocked = true;
@@ -1550,12 +1648,14 @@ export const createRuntimeExecutors = (
               activeDeviceId: state.metadata?.activeDeviceId,
               agentId: state.metadata?.agentId,
               documentId: state.metadata?.documentId,
+              groupId: state.metadata?.groupId,
               memoryToolPermission: agentConfig?.chatConfig?.memory?.toolPermission,
               messageId: state.metadata?.sourceMessageId,
               operationId,
               scope: state.metadata?.scope,
               serverDB: ctx.serverDB,
               taskId: state.metadata?.taskId,
+              threadId: state.metadata?.threadId,
               toolCallId: chatToolPayload.id,
               toolManifestMap: effectiveManifestMap,
               toolResultMaxLength,
@@ -1956,6 +2056,23 @@ export const createRuntimeExecutors = (
               })()
             : null;
 
+          if (isDeviceToolIdentifier(chatToolPayload.identifier) && !batchHookResult?.isMocked) {
+            const policy = state.metadata?.deviceAccessPolicy as
+              | { canUseDevice: boolean; reason: DeviceAccessReason }
+              | undefined;
+            logDeviceToolAudit({
+              apiName: chatToolPayload.apiName,
+              botContext: state.metadata?.botContext,
+              canUseDevice: policy?.canUseDevice ?? true,
+              messageId: state.metadata?.sourceMessageId,
+              operationId,
+              reason: policy?.reason ?? 'first-party',
+              toolIdentifier: chatToolPayload.identifier,
+              topicId: ctx.topicId,
+              userId: ctx.userId,
+            });
+          }
+
           let execution: { result: ToolExecutionResultResponse; attempts: number };
           if (batchHookResult?.isMocked) {
             log(`[${operationLogId}] Tool ${toolName} mocked by beforeToolCall hook`);
@@ -1987,12 +2104,14 @@ export const createRuntimeExecutors = (
                   activeDeviceId: state.metadata?.activeDeviceId,
                   agentId: state.metadata?.agentId,
                   documentId: state.metadata?.documentId,
+                  groupId: state.metadata?.groupId,
                   memoryToolPermission: batchAgentConfig?.chatConfig?.memory?.toolPermission,
                   messageId: state.metadata?.sourceMessageId,
                   operationId,
                   scope: state.metadata?.scope,
                   serverDB: ctx.serverDB,
                   taskId: state.metadata?.taskId,
+                  threadId: state.metadata?.threadId,
                   toolCallId: chatToolPayload.id,
                   toolManifestMap: batchManifestMap,
                   toolResultMaxLength: batchAgentConfig?.chatConfig?.toolResultMaxLength,

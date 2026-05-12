@@ -219,6 +219,31 @@ export default {
   'heterogeneousStatus.plan.label': 'Plan',
   'heterogeneousStatus.redetect': 'Re-detect',
   'heterogeneousStatus.unavailable': '{{name}} CLI not found. Please install or configure it.',
+
+  // Heterogeneous agent — Cloud tab (web environment config)
+  'heterogeneousStatus.cloud.tabLabel': 'Cloud',
+  'heterogeneousStatus.cloud.tokenLabel': 'Claude Code Token',
+  'heterogeneousStatus.cloud.tokenDesc':
+    'Your Claude Code OAuth token. Saved securely to Credentials once submitted. Run `claude setup-token` in your terminal to generate one.',
+  'heterogeneousStatus.cloud.tokenPlaceholder': 'Paste your OAuth token here',
+  'heterogeneousStatus.cloud.tokenChange': 'Change',
+  'heterogeneousStatus.cloud.tokenSave': 'Save',
+  'heterogeneousStatus.cloud.tokenCancel': 'Cancel',
+  'heterogeneousStatus.cloud.githubLabel': 'GitHub Connection',
+  'heterogeneousStatus.cloud.githubDesc':
+    'Select a GitHub OAuth credential to allow the sandbox to clone your private repositories.',
+  'heterogeneousStatus.cloud.githubPlaceholder': 'Select a GitHub credential...',
+  'heterogeneousStatus.cloud.githubNoCreds': 'No GitHub credentials found.',
+  'heterogeneousStatus.cloud.manageCredentials': 'Manage Credentials →',
+  'heterogeneousStatus.cloud.repoLabel': 'Repositories',
+  'heterogeneousStatus.cloud.repoDesc':
+    'Add repositories to the list. Switch the active one from the bottom bar in the chat view.',
+  'heterogeneousStatus.cloud.repoPlaceholder': 'owner/repo or https://github.com/owner/repo',
+  'heterogeneousStatus.cloud.repoAdd': 'Add',
+
+  // Heterogeneous agent — Desktop tab
+  'heterogeneousStatus.desktop.tabLabel': 'Desktop',
+
   'checking': 'Checking...',
 
   // Credentials Management
@@ -549,6 +574,9 @@ export default {
   'settingAgent.tag.placeholder': 'Enter tag',
   'settingAgent.tag.title': 'Tag',
   'settingAgent.title': 'Agent info',
+  'settingAppearance.appTray.desc':
+    'Show the LobeHub icon in the system tray or macOS menu bar. Disabling it also removes tray menu access.',
+  'settingAppearance.appTray.title': 'Show App Tray',
   'settingAppearance.animationMode.agile': 'Agile',
   'settingAppearance.animationMode.desc':
     'Select the animation speed for application response actions',
@@ -559,6 +587,7 @@ export default {
   'settingAppearance.contextMenuMode.desc': 'Enable the right-click menu for some list items.',
   'settingAppearance.contextMenuMode.disabled': 'Disabled',
   'settingAppearance.contextMenuMode.title': 'Right-Click Menu Mode',
+  'settingAppearance.desktop.title': 'Desktop',
   'settingAppearance.neutralColor.desc': 'Custom grayscale with different color tendencies',
   'settingAppearance.neutralColor.title': 'Neutral Color',
   'settingAppearance.noAnimation.desc': 'Disable all animation effects in the application',
@@ -596,6 +625,10 @@ export default {
   'settingChat.inputTemplate.placeholder':
     'Preprocessing template {{text}} will be replaced with real-time input information',
   'settingChat.inputTemplate.title': 'User Input Preprocessing',
+  'settingChat.selfIteration.enabled.desc':
+    'Allow this assistant to review recent signals and improve its own skills when the lab workflow runs',
+  'settingChat.selfIteration.enabled.title': 'Enable Self-Iteration',
+  'settingChat.selfIteration.title': 'Advanced Labs',
   'settingChat.submit': 'Update Chat Preferences',
   'settingChat.title': 'Chat Settings',
   'settingChatAppearance.autoScrollOnStreaming.desc':
@@ -976,6 +1009,7 @@ When I am ___, I need ___
   'tab.manualFill': 'Manually Fill In',
   'tab.manualFill.desc': 'Configure a custom MCP skill manually',
   'tab.memory': 'Memory',
+  'tab.messenger': 'Messenger',
   'tab.notification': 'Notifications',
   'tab.profile': 'My Account',
   'tab.provider': 'Provider',
@@ -1310,6 +1344,10 @@ When I am ___, I need ___
     'Outlook Calendar is an integrated scheduling tool within Microsoft Outlook that enables users to create appointments, organize meetings with others, and manage their time and events effectively.',
   'tools.lobehubSkill.providers.microsoft.readme':
     'Integrate with Outlook Calendar to view, create, and manage your events seamlessly. Schedule meetings, check availability, set reminders, and coordinate your time—all through natural language commands.',
+  'tools.lobehubSkill.providers.notion.description':
+    'Notion is a collaborative productivity and note-taking application.',
+  'tools.lobehubSkill.providers.notion.readme':
+    'Connect to Notion to access and manage your workspace. Create pages, search content, update databases, and organize your knowledge base—all through natural conversation with your AI assistant.',
   'tools.lobehubSkill.providers.twitter.description':
     'X (Twitter) is a social media platform for sharing real-time updates, news, and engaging with your audience through posts, replies, and direct messages.',
   'tools.lobehubSkill.providers.twitter.readme':

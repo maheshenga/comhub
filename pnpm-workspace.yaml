@@ -5,18 +5,9 @@ packages:
   - apps/desktop/src/main
 
 onlyBuiltDependencies:
-  - '@vercel/speed-insights'
+  - '@google/genai'
   - '@lobehub/editor'
-  - electron
-  - esbuild
-  - ffmpeg-static
-  - protobufjs
-  - sharp
-  - unrs-resolver
-
-ignoredBuiltDependencies:
-  - core-js
-  - es5-ext
+  - '@vercel/speed-insights'
 
 overrides:
   jose: ^6.1.3

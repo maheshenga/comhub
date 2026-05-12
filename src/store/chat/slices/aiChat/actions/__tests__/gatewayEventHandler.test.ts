@@ -2,6 +2,7 @@ import type { AgentStreamEvent } from '@lobechat/agent-gateway-client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { messageService } from '@/services/message';
+import { emitClientAgentSignalSourceEvent } from '@/store/chat/slices/aiChat/actions/agentSignalBridge';
 import { notifyDesktopHumanApprovalRequired } from '@/store/chat/utils/desktopNotification';
 
 import { createGatewayEventHandler } from '../gatewayEventHandler';
@@ -14,6 +15,9 @@ vi.mock('@/services/message', () => ({
 }));
 vi.mock('@/store/chat/utils/desktopNotification', () => ({
   notifyDesktopHumanApprovalRequired: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('@/store/chat/slices/aiChat/actions/agentSignalBridge', () => ({
+  emitClientAgentSignalSourceEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ─── Test Helpers ───
@@ -74,6 +78,15 @@ describe('createGatewayEventHandler', () => {
 
       expect(store.associateMessageWithOperation).toHaveBeenCalledWith('msg-step2', 'op-1');
       expect(store.replaceMessages).toHaveBeenCalled();
+      expect(emitClientAgentSignalSourceEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            assistantMessageId: 'msg-step2',
+            operationId: 'op-1',
+          }),
+          sourceType: 'client.gateway.stream_start',
+        }),
+      );
     });
 
     it('should keep current ID if event data has no assistantMessage', async () => {
@@ -86,6 +99,30 @@ describe('createGatewayEventHandler', () => {
       // No new message to associate, but fetch still happens
       expect(store.associateMessageWithOperation).not.toHaveBeenCalled();
       expect(store.replaceMessages).toHaveBeenCalled();
+    });
+
+    it('should resolve the new assistant from DB on hetero newStep when the event has no assistantMessage id', async () => {
+      const store = createMockStore();
+      const handler = createHandler(store);
+
+      vi.mocked(messageService.getMessages).mockResolvedValueOnce([
+        { id: 'msg-initial', role: 'assistant' } as any,
+        { id: 'tool-1', role: 'tool' } as any,
+        { id: 'msg-step2', role: 'assistant' } as any,
+      ]);
+
+      handler(makeEvent('stream_start', { newStep: true }));
+      handler(makeEvent('stream_chunk', { chunkType: 'text', content: 'world' }));
+      await flush();
+
+      expect(store.associateMessageWithOperation).toHaveBeenCalledWith('msg-step2', 'op-1');
+      expect(store.internal_dispatchMessage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          id: 'msg-step2',
+          value: { content: 'world' },
+        }),
+        { operationId: 'op-1' },
+      );
     });
 
     it('should reset accumulators on each stream_start', async () => {
@@ -348,6 +385,25 @@ describe('createGatewayEventHandler', () => {
 
       expect(store.completeOperation).toHaveBeenCalledWith('op-1');
       expect(store.replaceMessages).toHaveBeenCalled();
+    });
+
+    it('should emit runtime end signal with the current assistant message id', async () => {
+      const store = createMockStore();
+      const handler = createHandler(store);
+
+      handler(makeEvent('stream_start', { assistantMessage: { id: 'msg-step2' } }));
+      handler(makeEvent('agent_runtime_end'));
+      await flush();
+
+      expect(emitClientAgentSignalSourceEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            assistantMessageId: 'msg-step2',
+            operationId: 'op-1',
+          }),
+          sourceType: 'client.gateway.runtime_end',
+        }),
+      );
     });
   });
 

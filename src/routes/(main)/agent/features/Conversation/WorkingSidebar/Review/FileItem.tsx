@@ -1,16 +1,47 @@
 'use client';
 
 import type { GitFileDiffStatus } from '@lobechat/electron-client-ipc';
+<<<<<<< HEAD
 import { PatchDiff } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import path from 'path-browserify-esm';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+=======
+import { ActionIcon, copyToClipboard, PatchDiff } from '@lobehub/ui';
+import { createStaticStyles } from 'antd-style';
+import { CopyIcon } from 'lucide-react';
+import path from 'path-browserify-esm';
+import { memo, type MouseEvent, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { message } from '@/components/AntdStaticMethods';
+
+>>>>>>> v2.1.58-canary.16
 const styles = createStaticStyles(({ css, cssVar }) => ({
   additions: css`
     color: ${cssVar.colorSuccess};
   `,
+<<<<<<< HEAD
+=======
+  // Copy button stays hidden until the row is hovered so it doesn't add
+  // visual noise to the long file list. Mirrors GitHub's "Files changed".
+  copy: css`
+    flex: none;
+    color: ${cssVar.colorTextTertiary};
+    opacity: 0;
+    transition: opacity 0.15s;
+
+    &:focus-visible {
+      opacity: 1;
+    }
+
+    .ant-collapse-header:hover & {
+      opacity: 1;
+    }
+  `,
+>>>>>>> v2.1.58-canary.16
   deletions: css`
     color: ${cssVar.colorError};
   `,
@@ -19,9 +50,36 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorTextTertiary};
     text-align: center;
   `,
+<<<<<<< HEAD
   header: css`
     display: flex;
     gap: 12px;
+=======
+  dir: css`
+    direction: rtl;
+
+    /* Only the directory portion shrinks + head-truncates. Short dirs
+       sit naturally next to the filename (no awkward right-alignment);
+       long dirs collapse leading segments into "…" via the RTL trick. */
+    overflow: hidden;
+    flex: 0 1 auto;
+
+    min-width: 0;
+
+    color: ${cssVar.colorTextTertiary};
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  `,
+  fileName: css`
+    flex: none;
+    color: ${cssVar.colorText};
+    white-space: nowrap;
+  `,
+  header: css`
+    display: flex;
+    gap: 8px;
+>>>>>>> v2.1.58-canary.16
     align-items: center;
 
     width: 100%;
@@ -29,6 +87,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     font-size: 12px;
   `,
+<<<<<<< HEAD
   path: css`
     overflow: hidden;
     flex: 1;
@@ -36,6 +95,17 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorText};
     text-overflow: ellipsis;
     white-space: nowrap;
+=======
+  pathWrapper: css`
+    overflow: hidden;
+
+    /* Shrink-only (no grow): short paths stay content-sized so stats sit
+       right after the filename; long paths still shrink so the dir part
+       can head-truncate. */
+    display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
+>>>>>>> v2.1.58-canary.16
   `,
   stats: css`
     flex: none;
@@ -55,16 +125,56 @@ interface FileItemHeaderProps {
 }
 
 export const FileItemHeader = memo<FileItemHeaderProps>(({ filePath, additions, deletions }) => {
+<<<<<<< HEAD
   return (
     <span className={styles.header}>
       <span className={styles.path} title={filePath}>
         {filePath}
+=======
+  const { t } = useTranslation('chat');
+
+  const lastSlash = filePath.lastIndexOf('/');
+  const dir = lastSlash >= 0 ? filePath.slice(0, lastSlash + 1) : '';
+  const fileName = lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
+
+  const handleCopy = useCallback(
+    async (event: MouseEvent<HTMLDivElement>) => {
+      // Stop propagation so the row doesn't toggle expand on copy click.
+      event.stopPropagation();
+      await copyToClipboard(filePath);
+      message.success(t('workingPanel.review.copied'));
+    },
+    [filePath, t],
+  );
+
+  return (
+    <span className={styles.header}>
+      <span className={styles.pathWrapper} title={filePath}>
+        {dir && (
+          // bdi keeps the dir's visual order LTR while the span is
+          // direction: rtl for head-side truncation of leading segments.
+          <span className={styles.dir}>
+            <bdi dir={'ltr'}>{dir}</bdi>
+          </span>
+        )}
+        <span className={styles.fileName}>{fileName}</span>
+>>>>>>> v2.1.58-canary.16
       </span>
       <span className={styles.stats}>
         {additions > 0 && <span className={styles.additions}>+{additions}</span>}
         {additions > 0 && deletions > 0 && ' '}
         {deletions > 0 && <span className={styles.deletions}>-{deletions}</span>}
       </span>
+<<<<<<< HEAD
+=======
+      <ActionIcon
+        className={styles.copy}
+        icon={CopyIcon}
+        size={'small'}
+        title={t('workingPanel.review.copyPath')}
+        onClick={handleCopy}
+      />
+>>>>>>> v2.1.58-canary.16
     </span>
   );
 });
@@ -77,12 +187,24 @@ interface FileItemBodyProps {
   filePath: string;
   isBinary: boolean;
   patch: string;
+<<<<<<< HEAD
   truncated: boolean;
   viewMode: 'unified' | 'split';
 }
 
 const FileItemBody = memo<FileItemBodyProps>(
   ({ filePath, patch, isBinary, truncated, expanded, viewMode }) => {
+=======
+  /** Inline word-level diff highlighting; off → plain line-level. */
+  textDiff: boolean;
+  truncated: boolean;
+  viewMode: 'unified' | 'split';
+  wordWrap: boolean;
+}
+
+const FileItemBody = memo<FileItemBodyProps>(
+  ({ filePath, patch, isBinary, truncated, expanded, viewMode, wordWrap, textDiff }) => {
+>>>>>>> v2.1.58-canary.16
     const { t } = useTranslation('chat');
 
     if (!expanded) return null;
@@ -102,6 +224,13 @@ const FileItemBody = memo<FileItemBodyProps>(
         showHeader={false}
         variant={'borderless'}
         viewMode={viewMode}
+<<<<<<< HEAD
+=======
+        diffOptions={{
+          lineDiffType: textDiff ? 'word-alt' : 'none',
+          overflow: wordWrap ? 'wrap' : 'scroll',
+        }}
+>>>>>>> v2.1.58-canary.16
       />
     );
   },

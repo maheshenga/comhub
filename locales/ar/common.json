@@ -29,7 +29,11 @@
   "batchDelete": "حذف جماعي",
   "blog": "مدونة المنتج",
   "botIntegrationBanner.dismiss": "إغلاق",
+<<<<<<< HEAD
   "botIntegrationBanner.title": "إضافة قنوات إلى LobeAI",
+=======
+  "botIntegrationBanner.title": "تحدث إلى Lobe AI عبر تطبيقات المراسلة المفضلة لديك",
+>>>>>>> v2.1.58-canary.16
   "branching": "إنشاء موضوع فرعي",
   "branchingDisable": "ميزة \"الموضوع الفرعي\" غير متاحة في الوضع الحالي. لاستخدام هذه الميزة، يرجى التبديل إلى وضع قاعدة بيانات Postgres/Pglite أو استخدام LobeHub Cloud.",
   "branchingRequiresSavedTopic": "الموضوع الحالي غير محفوظ، يرجى حفظه أولاً لاستخدام ميزة الموضوع الفرعي",
@@ -448,6 +452,10 @@
   "telemetry.title": "ساعدنا في تحسين {{appName}}",
   "temp": "مؤقت",
   "terms": "شروط الخدمة",
+  "time.formatOtherYear": "MMM D، YYYY",
+  "time.formatThisYear": "MMM D",
+  "time.today": "اليوم",
+  "time.yesterday": "أمس",
   "unknownError": "خطأ غير معروف",
   "update": "تحديث",
   "updateAgent": "تحديث معلومات الوكيل",

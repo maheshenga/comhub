@@ -5,7 +5,12 @@
   "agentSelection.search": "一致するアシスタントが見つかりませんでした",
   "brief.action.acknowledge": "確認",
   "brief.action.approve": "承認",
+<<<<<<< HEAD
   "brief.action.confirmDone": "完了を確認",
+=======
+  "brief.action.confirm": "確認",
+  "brief.action.confirmDone": "確認",
+>>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "フィードバック",
   "brief.action.retry": "再試行",
   "brief.addFeedback": "フィードバックを共有",
@@ -25,6 +30,11 @@
   "brief.viewRun": "実行を表示",
   "project.create": "新しいプロジェクトを作成",
   "project.deleteConfirm": "このプロジェクトは削除され、復元できません。続行するには確認してください。",
+  "recommendations.heteroAgent.cta": "エージェントを追加",
+  "recommendations.heteroAgent.description": "このデバイスで{{name}} CLIが検出されました — {{name}}エージェントを追加してLobeHubからチャットしましょう。",
+  "recommendations.heteroAgent.tag": "コーディングエージェント",
+  "recommendations.heteroAgent.title": "{{name}}エージェントを追加",
+  "recommendations.subtitle": "セットアップのためのいくつかのおすすめ",
   "starter.createAgent": "アシスタントを作成",
   "starter.createGroup": "グループを作成",
   "starter.deepResearch": "リサーチ",

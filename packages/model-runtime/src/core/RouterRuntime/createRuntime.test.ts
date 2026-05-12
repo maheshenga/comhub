@@ -10,7 +10,7 @@ describe('createRouterRuntime', () => {
   });
 
   describe('initialization', () => {
-    it('should throw error when routers array is empty', async () => {
+    it('should throw NoAvailableProvider error when routers array is empty', async () => {
       const Runtime = createRouterRuntime({
         id: 'test-runtime',
         routers: [],
@@ -20,7 +20,11 @@ describe('createRouterRuntime', () => {
       // 现在错误在使用时才抛出，因为是延迟创建
       await expect(
         runtime.chat({ model: 'test-model', messages: [], temperature: 0.7 }),
-      ).rejects.toThrow('empty providers');
+      ).rejects.toMatchObject({
+        error: { message: 'empty providers' },
+        errorType: AgentRuntimeErrorType.NoAvailableProvider,
+        provider: 'test-runtime',
+      });
     });
 
     it('should create UniformRuntime class with valid routers', () => {
@@ -369,7 +373,7 @@ describe('createRouterRuntime', () => {
       );
     });
 
-    it('should throw error when dynamic routers function returns empty array', async () => {
+    it('should throw NoAvailableProvider error when dynamic routers function returns empty array', async () => {
       const emptyRoutersFunction = () => [];
 
       const Runtime = createRouterRuntime({
@@ -381,7 +385,11 @@ describe('createRouterRuntime', () => {
       // 现在错误在使用时才抛出，因为是延迟创建
       await expect(
         runtime.chat({ model: 'test-model', messages: [], temperature: 0.7 }),
-      ).rejects.toThrow('empty providers');
+      ).rejects.toMatchObject({
+        error: { message: 'empty providers' },
+        errorType: AgentRuntimeErrorType.NoAvailableProvider,
+        provider: 'test-runtime',
+      });
     });
 
     it('should support async function-based routers configuration', async () => {
@@ -441,82 +449,6 @@ describe('createRouterRuntime', () => {
 
       // Verify chat was called twice (once per option)
       expect(mockChatAlwaysFail).toHaveBeenCalledTimes(2);
-    });
-
-    it('should rotate starting option across requests when roundRobin is enabled', async () => {
-      const constructorApiKeys: string[] = [];
-
-      class RoundRobinRuntime implements LobeRuntimeAI {
-        private readonly apiKey: string;
-
-        constructor(options: any) {
-          this.apiKey = options.apiKey;
-          constructorApiKeys.push(options.apiKey);
-        }
-
-        chat = vi.fn().mockImplementation(async () => this.apiKey);
-      }
-
-      const Runtime = createRouterRuntime({
-        id: 'test-runtime',
-        optionSelectionStrategy: 'roundRobin',
-        routers: [
-          {
-            apiType: 'openai',
-            options: [{ apiKey: 'key-1' }, { apiKey: 'key-2' }, { apiKey: 'key-3' }],
-            runtime: RoundRobinRuntime as any,
-            models: ['gpt-4'],
-          },
-        ],
-      });
-
-      const payload = { model: 'gpt-4', messages: [], temperature: 0.7 };
-
-      await expect(new Runtime().chat(payload)).resolves.toBe('key-1');
-      await expect(new Runtime().chat(payload)).resolves.toBe('key-2');
-      await expect(new Runtime().chat(payload)).resolves.toBe('key-3');
-      await expect(new Runtime().chat(payload)).resolves.toBe('key-1');
-
-      expect(constructorApiKeys).toEqual(['key-1', 'key-2', 'key-3', 'key-1']);
-    });
-
-    it('should fallback from the rotated option when roundRobin is enabled', async () => {
-      const constructorApiKeys: string[] = [];
-
-      class RoundRobinFallbackRuntime implements LobeRuntimeAI {
-        private readonly apiKey: string;
-
-        constructor(options: any) {
-          this.apiKey = options.apiKey;
-          constructorApiKeys.push(options.apiKey);
-        }
-
-        chat = vi.fn().mockImplementation(async () => {
-          if (this.apiKey === 'key-2') throw new Error('key-2 unavailable');
-
-          return this.apiKey;
-        });
-      }
-
-      const Runtime = createRouterRuntime({
-        id: 'test-runtime',
-        optionSelectionStrategy: 'roundRobin',
-        routers: [
-          {
-            apiType: 'openai',
-            options: [{ apiKey: 'key-1' }, { apiKey: 'key-2' }, { apiKey: 'key-3' }],
-            runtime: RoundRobinFallbackRuntime as any,
-            models: ['gpt-4'],
-          },
-        ],
-      });
-
-      const payload = { model: 'gpt-4', messages: [], temperature: 0.7 };
-
-      await expect(new Runtime().chat(payload)).resolves.toBe('key-1');
-      await expect(new Runtime().chat(payload)).resolves.toBe('key-3');
-
-      expect(constructorApiKeys).toEqual(['key-1', 'key-2', 'key-3']);
     });
 
     it('should throw error when options array is empty', async () => {
@@ -649,6 +581,47 @@ describe('createRouterRuntime', () => {
       await expect(
         runtime.chat({ model: 'gpt-4', messages: [], temperature: 0.7 }),
       ).rejects.toEqual(invalidSchemaError);
+
+      expect(mockChatFail).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not retry when the upstream rejects an unsupported model parameter', async () => {
+      const unsupportedParameterError = {
+        errorType: AgentRuntimeErrorType.ProviderBizError,
+        error: {
+          error: {
+            code: 'bad_response_status_code',
+            message: 'Model grok-4.20-0309-reasoning does not support parameter presencePenalty.',
+            param: '400',
+            type: 'upstream_error',
+          },
+          message: '400 Model grok-4.20-0309-reasoning does not support parameter presencePenalty.',
+        },
+        provider: 'test',
+      };
+
+      const mockChatFail = vi.fn().mockRejectedValue(unsupportedParameterError);
+
+      class FailRuntime implements LobeRuntimeAI {
+        chat = mockChatFail;
+      }
+
+      const Runtime = createRouterRuntime({
+        id: 'test-runtime',
+        routers: [
+          {
+            apiType: 'openai',
+            options: [{ apiKey: 'key-1' }, { apiKey: 'key-2' }],
+            runtime: FailRuntime as any,
+            models: ['gpt-4'],
+          },
+        ],
+      });
+
+      const runtime = new Runtime();
+      await expect(
+        runtime.chat({ model: 'gpt-4', messages: [], temperature: 0.7 }),
+      ).rejects.toEqual(unsupportedParameterError);
 
       expect(mockChatFail).toHaveBeenCalledTimes(1);
     });
@@ -1193,6 +1166,46 @@ describe('createRouterRuntime', () => {
       await runtime.chat({ model: 'gpt-4', messages: [], temperature: 0.7 });
 
       expect(constructorOptions[0].apiKey).toBe('default-api-key');
+    });
+
+    it('should preserve inherited runtime id across nested router runtimes', async () => {
+      const constructorOptions: any[] = [];
+
+      class LeafRuntime implements LobeRuntimeAI {
+        constructor(options: any) {
+          constructorOptions.push(options);
+        }
+        chat = vi.fn().mockResolvedValue('response');
+      }
+
+      const InnerRuntime = createRouterRuntime({
+        id: 'deepseek',
+        routers: [
+          {
+            apiType: 'deepseek',
+            models: ['deepseek-v4-pro'],
+            options: {},
+            runtime: LeafRuntime as any,
+          },
+        ],
+      });
+
+      const OuterRuntime = createRouterRuntime({
+        id: 'lobehub',
+        routers: [
+          {
+            apiType: 'deepseek',
+            models: ['deepseek-v4-pro'],
+            options: {},
+            runtime: InnerRuntime as any,
+          },
+        ],
+      });
+
+      const runtime = new OuterRuntime();
+      await runtime.chat({ messages: [], model: 'deepseek-v4-pro', temperature: 0.7 });
+
+      expect(constructorOptions[0]).toEqual(expect.objectContaining({ id: 'lobehub' }));
     });
   });
 });

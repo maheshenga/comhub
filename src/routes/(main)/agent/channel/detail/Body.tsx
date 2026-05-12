@@ -12,7 +12,7 @@ import {
 } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { Fragment, memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { FormInput, FormPassword } from '@/components/FormInput';
@@ -112,7 +112,12 @@ const SchemaField = memo<SchemaFieldProps>(({ field, parentKey, divider }) => {
   let children: React.ReactNode;
   switch (field.type) {
     case 'password': {
-      children = <FormPassword autoComplete="new-password" placeholder={field.placeholder} />;
+      children = (
+        <FormPassword
+          autoComplete="new-password"
+          placeholder={field.placeholder ? t(field.placeholder) : undefined}
+        />
+      );
       break;
     }
     case 'boolean': {
@@ -125,7 +130,7 @@ const SchemaField = memo<SchemaFieldProps>(({ field, parentKey, divider }) => {
         <InputNumber
           max={field.maximum}
           min={field.minimum}
-          placeholder={field.placeholder}
+          placeholder={field.placeholder ? t(field.placeholder) : undefined}
           style={{ width: '100%' }}
         />
       );
@@ -136,7 +141,11 @@ const SchemaField = memo<SchemaFieldProps>(({ field, parentKey, divider }) => {
         const hasDescriptions = field.enumDescriptions?.some(Boolean);
         children = (
           <Select
+<<<<<<< HEAD
             placeholder={field.placeholder}
+=======
+            placeholder={field.placeholder ? t(field.placeholder) : undefined}
+>>>>>>> v2.1.58-canary.16
             optionRender={
               hasDescriptions
                 ? (item) => (
@@ -159,12 +168,16 @@ const SchemaField = memo<SchemaFieldProps>(({ field, parentKey, divider }) => {
           />
         );
       } else {
-        children = <FormInput placeholder={field.placeholder || t(field.label)} />;
+        children = (
+          <FormInput placeholder={field.placeholder ? t(field.placeholder) : t(field.label)} />
+        );
       }
       break;
     }
     default: {
-      children = <FormInput placeholder={field.placeholder || t(field.label)} />;
+      children = (
+        <FormInput placeholder={field.placeholder ? t(field.placeholder) : t(field.label)} />
+      );
     }
   }
 
@@ -282,13 +295,14 @@ const ObjectListField = memo<ObjectListFieldProps>(({ field, parentKey, divider,
 
 // --------------- ApplicationId field (standalone, not nested) ---------------
 
-const ApplicationIdField = memo<{ field: FieldSchema }>(({ field }) => {
+const ApplicationIdField = memo<{ divider?: boolean; field: FieldSchema }>(({ field, divider }) => {
   const { t: _t } = useTranslation('agent');
   const t = _t as (key: string) => string;
 
   return (
     <FormItem
       desc={field.description ? t(field.description) : undefined}
+      divider={divider}
       initialValue={field.default}
       label={t(field.label)}
       minWidth={'max(50%, 400px)'}
@@ -297,7 +311,7 @@ const ApplicationIdField = memo<{ field: FieldSchema }>(({ field }) => {
       tag={isDev ? 'applicationId' : undefined}
       variant="borderless"
     >
-      <FormInput placeholder={field.placeholder || t(field.label)} />
+      <FormInput placeholder={field.placeholder ? t(field.placeholder) : t(field.label)} />
     </FormItem>
   );
 });
@@ -352,11 +366,14 @@ const Body = memo<BodyProps>(({ platformDef, form, hasConfig, currentConfig, onA
 
   const CustomCredentialBody = platformCredentialBodyMap[platformDef.id];
   const CredentialExtras = platformCredentialExtrasMap[platformDef.id];
+<<<<<<< HEAD
 
   const applicationIdField = useMemo(
     () => platformDef.schema.find((f) => f.key === 'applicationId'),
     [platformDef.schema],
   );
+=======
+>>>>>>> v2.1.58-canary.16
 
   const credentialFields = useMemo(
     () => getFields(platformDef.schema, 'credentials'),
@@ -407,6 +424,7 @@ const Body = memo<BodyProps>(({ platformDef, form, hasConfig, currentConfig, onA
         />
       ) : (
         <>
+<<<<<<< HEAD
           {applicationIdField && <ApplicationIdField field={applicationIdField} />}
           {credentialFields.map((field, i) => (
             <SchemaField
@@ -416,6 +434,39 @@ const Body = memo<BodyProps>(({ platformDef, form, hasConfig, currentConfig, onA
               parentKey="credentials"
             />
           ))}
+=======
+          {/* Render top-level sections in schema order so each platform controls
+              its own field ordering. LINE places `credentials` before `applicationId`
+              because the operator must enter the channel access token before the
+              "Fetch from LINE" button (rendered after applicationId) can auto-fill
+              the destination user ID; Discord/Slack/QQ/Feishu place `applicationId`
+              first as a primary identifier. */}
+          {platformDef.schema
+            .filter((section) => section.key === 'applicationId' || section.key === 'credentials')
+            .map((section, sectionIndex) => {
+              const needsDivider = sectionIndex > 0;
+              if (section.key === 'applicationId') {
+                return (
+                  <ApplicationIdField divider={needsDivider} field={section} key="applicationId" />
+                );
+              }
+              return (
+                <Fragment key="credentials">
+                  {credentialFields.map((field, i) => (
+                    <SchemaField
+                      divider={needsDivider || i !== 0}
+                      field={field}
+                      key={field.key}
+                      parentKey="credentials"
+                    />
+                  ))}
+                </Fragment>
+              );
+            })}
+          {/* Platform-specific helpers (e.g. LINE's "Fetch from LINE" button)
+              render after the credential + applicationId block so the button
+              sits next to the field it acts on. */}
+>>>>>>> v2.1.58-canary.16
           {CredentialExtras && <CredentialExtras />}
         </>
       )}

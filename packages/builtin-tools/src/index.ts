@@ -2,21 +2,21 @@ import { LobeActivatorManifest } from '@lobechat/builtin-tool-activator';
 import { AgentBuilderManifest } from '@lobechat/builtin-tool-agent-builder';
 import { AgentDocumentsManifest } from '@lobechat/builtin-tool-agent-documents';
 import { AgentManagementManifest } from '@lobechat/builtin-tool-agent-management';
-import { AgentMarketplaceManifest } from '@lobechat/builtin-tool-agent-marketplace';
 import { BriefManifest } from '@lobechat/builtin-tool-brief';
 import { CalculatorManifest } from '@lobechat/builtin-tool-calculator';
 import { CloudSandboxManifest } from '@lobechat/builtin-tool-cloud-sandbox';
 import { CredsManifest } from '@lobechat/builtin-tool-creds';
-import { CronManifest } from '@lobechat/builtin-tool-cron';
 import { GroupAgentBuilderManifest } from '@lobechat/builtin-tool-group-agent-builder';
 import { GroupManagementManifest } from '@lobechat/builtin-tool-group-management';
 import { GTDManifest } from '@lobechat/builtin-tool-gtd';
 import { KnowledgeBaseManifest } from '@lobechat/builtin-tool-knowledge-base';
+import { LobeAgentManifest } from '@lobechat/builtin-tool-lobe-agent';
 import { LocalSystemManifest } from '@lobechat/builtin-tool-local-system';
 import { MemoryManifest } from '@lobechat/builtin-tool-memory';
 import { MessageManifest } from '@lobechat/builtin-tool-message';
 import { PageAgentManifest } from '@lobechat/builtin-tool-page-agent';
 import { RemoteDeviceManifest } from '@lobechat/builtin-tool-remote-device';
+import { selfIterationIntentManifest } from '@lobechat/builtin-tool-self-iteration';
 import { SkillMaintainerManifest } from '@lobechat/builtin-tool-skill-maintainer';
 import { SkillStoreManifest } from '@lobechat/builtin-tool-skill-store';
 import { SkillsManifest } from '@lobechat/builtin-tool-skills';
@@ -45,6 +45,7 @@ export const defaultToolIds = [
   AgentDocumentsManifest.identifier,
   GTDManifest.identifier,
   TaskManifest.identifier,
+  LobeAgentManifest.identifier,
 ];
 
 /**
@@ -87,6 +88,7 @@ export const runtimeManagedToolIds = [
   LocalSystemManifest.identifier,
   MemoryManifest.identifier,
   RemoteDeviceManifest.identifier,
+  LobeAgentManifest.identifier,
   WebBrowsingManifest.identifier,
 ];
 
@@ -116,6 +118,13 @@ export const builtinTools: LobeBuiltinTool[] = [
     hidden: true,
     identifier: SkillMaintainerManifest.identifier,
     manifest: SkillMaintainerManifest,
+    type: 'builtin',
+  },
+  {
+    discoverable: false,
+    hidden: true,
+    identifier: selfIterationIntentManifest.identifier,
+    manifest: selfIterationIntentManifest,
     type: 'builtin',
   },
   {
@@ -151,11 +160,6 @@ export const builtinTools: LobeBuiltinTool[] = [
   {
     identifier: CredsManifest.identifier,
     manifest: CredsManifest,
-    type: 'builtin',
-  },
-  {
-    identifier: CronManifest.identifier,
-    manifest: CronManifest,
     type: 'builtin',
   },
   {
@@ -243,13 +247,6 @@ export const builtinTools: LobeBuiltinTool[] = [
   {
     discoverable: false,
     hidden: true,
-    identifier: AgentMarketplaceManifest.identifier,
-    manifest: AgentMarketplaceManifest,
-    type: 'builtin',
-  },
-  {
-    discoverable: false,
-    hidden: true,
     identifier: TaskManifest.identifier,
     manifest: TaskManifest,
     type: 'builtin',
@@ -259,6 +256,12 @@ export const builtinTools: LobeBuiltinTool[] = [
     hidden: true,
     identifier: BriefManifest.identifier,
     manifest: BriefManifest,
+    type: 'builtin',
+  },
+  {
+    hidden: true,
+    identifier: LobeAgentManifest.identifier,
+    manifest: LobeAgentManifest,
     type: 'builtin',
   },
 ];

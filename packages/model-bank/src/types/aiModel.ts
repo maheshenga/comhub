@@ -147,6 +147,7 @@ export type PricingUnitName =
   | 'imageOutput'
 
   // Video-based pricing units
+  | 'videoInput'
   | 'videoGeneration';
 
 export type PricingUnitType =
@@ -166,6 +167,10 @@ export interface PricingUnitBase {
 }
 
 export interface FixedPricingUnit extends PricingUnitBase {
+  /**
+   * Original display price before discounts. Billing and cost calculation use `rate`.
+   */
+  originalRate?: number;
   rate: number;
   strategy: 'fixed';
 }
@@ -224,7 +229,14 @@ export interface AIBaseModelCard {
   organization?: string;
 
   releasedAt?: string;
+  /**
+   * Whether the model should be shown in user-facing model lists.
+   * Runtime-only aliases can set this to false while staying enabled and resolvable.
+   */
+  visible?: boolean;
 }
+
+export const isAiModelVisible = (model: { visible?: boolean }) => model.visible !== false;
 
 export interface AiModelConfig {
   /**
@@ -248,14 +260,15 @@ export type ExtendParamsType =
   | 'enableAdaptiveThinking'
   | 'disableContextCaching'
   | 'effort'
+  | 'deepseekV4ReasoningEffort'
   | 'reasoningEffort'
   | 'gpt5ReasoningEffort'
   | 'gpt5_1ReasoningEffort'
   | 'gpt5_2ReasoningEffort'
   | 'gpt5_2ProReasoningEffort'
   | 'grok4_20ReasoningEffort'
+  | 'grok4_3ReasoningEffort'
   | 'hy3ReasoningEffort'
-  | 'deepseekV4ReasoningEffort'
   | 'codexMaxReasoningEffort'
   | 'opus47Effort'
   | 'textVerbosity'
@@ -270,19 +283,9 @@ export type ExtendParamsType =
   | 'imageAspectRatio2'
   | 'imageResolution'
   | 'imageResolution2'
-  | 'async'
   | 'urlContext';
 
 export type DisabledParamType = 'temperature' | 'top_p' | 'frequency_penalty' | 'presence_penalty';
-
-export interface EnableReasoningExtendParamOptions {
-  defaultValue?: boolean;
-  includeBudget?: boolean;
-}
-
-export interface ExtendParamOptions {
-  enableReasoning?: EnableReasoningExtendParamOptions;
-}
 
 export interface AiModelSettings {
   /**
@@ -291,7 +294,6 @@ export interface AiModelSettings {
    * params (e.g. Claude Opus 4.7 returns 400 on any non-default temperature / top_p).
    */
   disabledParams?: DisabledParamType[];
-  extendParamOptions?: ExtendParamOptions;
   extendParams?: ExtendParamsType[];
   /**
    * How the model layer implements search
@@ -308,14 +310,15 @@ export const ExtendParamsTypeSchema = z.enum([
   'enableAdaptiveThinking',
   'disableContextCaching',
   'effort',
+  'deepseekV4ReasoningEffort',
   'reasoningEffort',
   'gpt5ReasoningEffort',
   'gpt5_1ReasoningEffort',
   'gpt5_2ReasoningEffort',
   'gpt5_2ProReasoningEffort',
   'grok4_20ReasoningEffort',
+  'grok4_3ReasoningEffort',
   'hy3ReasoningEffort',
-  'deepseekV4ReasoningEffort',
   'codexMaxReasoningEffort',
   'opus47Effort',
   'textVerbosity',
@@ -330,7 +333,6 @@ export const ExtendParamsTypeSchema = z.enum([
   'imageAspectRatio2',
   'imageResolution',
   'imageResolution2',
-  'async',
   'urlContext',
 ]);
 
@@ -343,18 +345,8 @@ export const DisabledParamTypeSchema = z.enum([
   'presence_penalty',
 ]);
 
-export const EnableReasoningExtendParamOptionsSchema = z.object({
-  defaultValue: z.boolean().optional(),
-  includeBudget: z.boolean().optional(),
-});
-
-export const ExtendParamOptionsSchema = z.object({
-  enableReasoning: EnableReasoningExtendParamOptionsSchema.optional(),
-});
-
 export const AiModelSettingsSchema = z.object({
   disabledParams: z.array(DisabledParamTypeSchema).optional(),
-  extendParamOptions: ExtendParamOptionsSchema.optional(),
   extendParams: z.array(ExtendParamsTypeSchema).optional(),
   searchImpl: ModelSearchImplementTypeSchema.optional(),
   searchProvider: z.string().optional(),
@@ -370,12 +362,6 @@ export interface AIChatModelCard extends AIBaseModelCard {
 }
 
 export interface AIEmbeddingModelCard extends AIBaseModelCard {
-  /**
-   * The dimension size this deployment uses by default (passed as `dimensions`
-   * to the embeddings API). May be less than `maxDimension` when the schema
-   * stores a fixed-size vector (e.g. pgvector column is vector(1024)).
-   */
-  defaultDimensions?: number;
   maxDimension: number;
   pricing?: Pricing;
   type: 'embedding';
@@ -441,6 +427,7 @@ export interface AiFullModelCard extends AIBaseModelCard {
   maxDimension?: number;
   parameters?: ModelParamsSchema;
   pricing?: Pricing;
+  settings?: AiModelSettings;
   type: AiModelType;
 }
 
@@ -482,6 +469,7 @@ export interface AiProviderModelListItem {
   settings?: AiModelSettings;
   source?: AiModelSourceType;
   type: AiModelType;
+  visible?: boolean;
 }
 
 // Update
@@ -556,4 +544,5 @@ export interface EnabledAiModel {
   settings?: AiModelSettings;
   sort?: number;
   type: AiModelType;
+  visible?: boolean;
 }

@@ -29,7 +29,11 @@
   "batchDelete": "Batch verwijderen",
   "blog": "Productblog",
   "botIntegrationBanner.dismiss": "Sluiten",
+<<<<<<< HEAD
   "botIntegrationBanner.title": "Kanalen toevoegen aan LobeAI",
+=======
+  "botIntegrationBanner.title": "Praat met Lobe AI in je favoriete berichtenapps",
+>>>>>>> v2.1.58-canary.16
   "branching": "Subonderwerp aanmaken",
   "branchingDisable": "De functie \"Subonderwerp\" is niet beschikbaar in de huidige modus. Schakel over naar Postgres/PGlite DB-modus of gebruik LobeHub Cloud om deze functie te gebruiken.",
   "branchingRequiresSavedTopic": "Huidig onderwerp is niet opgeslagen, sla het eerst op om subonderwerpen te kunnen gebruiken",
@@ -448,6 +452,10 @@
   "telemetry.title": "Help {{appName}} verbeteren",
   "temp": "Tijdelijk",
   "terms": "Gebruiksvoorwaarden",
+  "time.formatOtherYear": "MMM D, YYYY",
+  "time.formatThisYear": "MMM D",
+  "time.today": "Vandaag",
+  "time.yesterday": "Gisteren",
   "unknownError": "Onbekende fout",
   "update": "Bijwerken",
   "updateAgent": "Agentinformatie bijwerken",

@@ -9,11 +9,11 @@ import { agentManagementExecutor } from '@lobechat/builtin-tool-agent-management
 import { calculatorExecutor } from '@lobechat/builtin-tool-calculator/executor';
 import { cloudSandboxExecutor } from '@lobechat/builtin-tool-cloud-sandbox/executor';
 import { credsExecutor } from '@lobechat/builtin-tool-creds/executor';
-import { cronExecutor } from '@lobechat/builtin-tool-cron/executor';
 import { groupAgentBuilderExecutor } from '@lobechat/builtin-tool-group-agent-builder/executor';
 import { groupManagementExecutor } from '@lobechat/builtin-tool-group-management/executor';
 import { gtdExecutor } from '@lobechat/builtin-tool-gtd/executor';
-import { knowledgeBaseExecutor } from '@lobechat/builtin-tool-knowledge-base/executor';
+import { knowledgeBaseExecutor } from '@lobechat/builtin-tool-knowledge-base/client';
+import { lobeAgentExecutor } from '@lobechat/builtin-tool-lobe-agent/executor';
 import { localSystemExecutor } from '@lobechat/builtin-tool-local-system/executor';
 import { memoryExecutor } from '@lobechat/builtin-tool-memory/executor';
 import { taskExecutor } from '@lobechat/builtin-tool-task/executor';
@@ -141,7 +141,6 @@ registerExecutors([
   calculatorExecutor,
   cloudSandboxExecutor,
   credsExecutor,
-  cronExecutor,
   groupAgentBuilderExecutor,
   groupManagementExecutor,
   gtdExecutor,
@@ -157,6 +156,7 @@ registerExecutors([
   activatorExecutor,
   topicReferenceExecutor,
   userInteractionExecutor,
+  lobeAgentExecutor,
   webOnboardingExecutor,
   webBrowsing,
 ]);

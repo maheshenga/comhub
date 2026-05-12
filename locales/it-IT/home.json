@@ -5,7 +5,12 @@
   "agentSelection.search": "Nessun agente corrispondente trovato",
   "brief.action.acknowledge": "Conferma",
   "brief.action.approve": "Approva",
+<<<<<<< HEAD
   "brief.action.confirmDone": "Conferma completamento",
+=======
+  "brief.action.confirm": "Conferma",
+  "brief.action.confirmDone": "Conferma",
+>>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "Feedback",
   "brief.action.retry": "Riprova",
   "brief.addFeedback": "Condividi feedback",
@@ -25,6 +30,11 @@
   "brief.viewRun": "Visualizza esecuzione",
   "project.create": "Nuovo progetto",
   "project.deleteConfirm": "Questo progetto verrà eliminato e non potrà essere recuperato. Conferma per continuare.",
+  "recommendations.heteroAgent.cta": "Aggiungi Agente",
+  "recommendations.heteroAgent.description": "Rilevato il CLI di {{name}} su questo dispositivo — aggiungi l'agente {{name}} per chattare con esso da LobeHub.",
+  "recommendations.heteroAgent.tag": "Agente di Codifica",
+  "recommendations.heteroAgent.title": "Aggiungi agente {{name}}",
+  "recommendations.subtitle": "Alcuni suggerimenti per la tua configurazione",
   "starter.createAgent": "Crea Agente",
   "starter.createGroup": "Crea Gruppo",
   "starter.deepResearch": "Ricerca Approfondita",

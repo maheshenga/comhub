@@ -29,7 +29,11 @@
   "batchDelete": "Excluir em Lote",
   "blog": "Blog do Produto",
   "botIntegrationBanner.dismiss": "Fechar",
+<<<<<<< HEAD
   "botIntegrationBanner.title": "Adicionar Canais ao LobeAI",
+=======
+  "botIntegrationBanner.title": "Converse com o Lobe AI nos seus apps de mensagens favoritos",
+>>>>>>> v2.1.58-canary.16
   "branching": "Criar Subtópico",
   "branchingDisable": "O recurso \"Subtópico\" não está disponível no modo atual. Para usá-lo, alterne para o modo de banco de dados Postgres/PGlite ou utilize o LobeHub Cloud.",
   "branchingRequiresSavedTopic": "O tópico atual não está salvo, salve-o primeiro para usar o recurso de subtópico",
@@ -448,6 +452,10 @@
   "telemetry.title": "Ajude a melhorar o {{appName}}",
   "temp": "Temporário",
   "terms": "Termos de Serviço",
+  "time.formatOtherYear": "D de MMM de YYYY",
+  "time.formatThisYear": "D de MMM",
+  "time.today": "Hoje",
+  "time.yesterday": "Ontem",
   "unknownError": "Erro desconhecido",
   "update": "Atualizar",
   "updateAgent": "Atualizar Informações do Agente",

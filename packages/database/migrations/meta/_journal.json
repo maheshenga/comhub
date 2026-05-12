@@ -826,6 +826,13 @@
       "when": 1778374800000,
       "tag": "0117_add_ban_expires_at_compat",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1778378400000,
+      "tag": "0118_add_messenger_tables",
+      "breakpoints": true
     }
   ],
   "version": "6"

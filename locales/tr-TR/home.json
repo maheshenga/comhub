@@ -5,7 +5,12 @@
   "agentSelection.search": "Eşleşen ajan bulunamadı",
   "brief.action.acknowledge": "Onayla",
   "brief.action.approve": "Kabul et",
+<<<<<<< HEAD
   "brief.action.confirmDone": "Tamamlandığını onayla",
+=======
+  "brief.action.confirm": "Onayla",
+  "brief.action.confirmDone": "Onayla",
+>>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "Geri bildirim",
   "brief.action.retry": "Yeniden dene",
   "brief.addFeedback": "Geri bildirim paylaş",
@@ -25,6 +30,11 @@
   "brief.viewRun": "Çalışmayı görüntüle",
   "project.create": "Yeni proje",
   "project.deleteConfirm": "Bu proje silinecek ve geri alınamaz. Devam etmek için onaylayın.",
+  "recommendations.heteroAgent.cta": "Aracı Ekle",
+  "recommendations.heteroAgent.description": "Bu cihazda {{name}} CLI tespit edildi — {{name}} aracını ekleyerek LobeHub'dan onunla sohbet edin.",
+  "recommendations.heteroAgent.tag": "Kodlama Aracı",
+  "recommendations.heteroAgent.title": "{{name}} aracını ekle",
+  "recommendations.subtitle": "Kurulumunuz için bazı öneriler",
   "starter.createAgent": "Ajan Oluştur",
   "starter.createGroup": "Grup Oluştur",
   "starter.deepResearch": "Derin Araştırma",

@@ -29,7 +29,11 @@
   "batchDelete": "Групово изтриване",
   "blog": "Блог на продукта",
   "botIntegrationBanner.dismiss": "Затвори",
+<<<<<<< HEAD
   "botIntegrationBanner.title": "Добавяне на канали към LobeAI",
+=======
+  "botIntegrationBanner.title": "Говорете с Lobe AI в любимите си приложения за съобщения",
+>>>>>>> v2.1.58-canary.16
   "branching": "Създай подтема",
   "branchingDisable": "Функцията „Подтема“ не е налична в текущия режим. За да я използвате, превключете към режим Postgres/Pglite DB или използвайте LobeHub Cloud.",
   "branchingRequiresSavedTopic": "Текущата тема не е запазена, моля, запазете я, за да използвате функцията за подтема",
@@ -448,6 +452,10 @@
   "telemetry.title": "Помогнете ни да подобрим {{appName}}",
   "temp": "Временно",
   "terms": "Условия за ползване",
+  "time.formatOtherYear": "MMM D, YYYY",
+  "time.formatThisYear": "MMM D",
+  "time.today": "Днес",
+  "time.yesterday": "Вчера",
   "unknownError": "Неизвестна грешка",
   "update": "Актуализирай",
   "updateAgent": "Актуализирай информацията за агента",

@@ -48,6 +48,29 @@ export class AgentModel {
   };
 
   /**
+   * Lightweight lookup of an agent's currently-configured model + provider,
+   * used to snapshot the model into a task config so later changes to the
+   * agent's default model don't silently affect already-created tasks.
+   * Returns null when the agent has no model/provider set, or the agent
+   * cannot be found for this user.
+   */
+  getAgentModelConfig = async (
+    idOrSlug: string,
+  ): Promise<{ model: string; provider: string } | null> => {
+    const rows = await this.db
+      .select({ model: agents.model, provider: agents.provider })
+      .from(agents)
+      .where(
+        and(eq(agents.userId, this.userId), or(eq(agents.id, idOrSlug), eq(agents.slug, idOrSlug))),
+      )
+      .limit(1);
+
+    const row = rows[0];
+    if (!row || !row.model || !row.provider) return null;
+    return { model: row.model, provider: row.provider };
+  };
+
+  /**
    * Query non-virtual agents with optional keyword filter.
    * Returns minimal agent info (id, title, description, avatar, backgroundColor).
    * Excludes virtual agents (like inbox, supervisors, etc).
@@ -104,7 +127,7 @@ export class AgentModel {
     return rows.map(({ slug, ...row }) => ({
       ...row,
       avatar: row.avatar || (slug === INBOX_SESSION_ID ? DEFAULT_INBOX_AVATAR : null),
-      title: row.title || (slug === INBOX_SESSION_ID ? '青柚助手' : null),
+      title: row.title || (slug === INBOX_SESSION_ID ? 'Lobe AI' : null),
     }));
   };
 

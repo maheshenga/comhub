@@ -5,7 +5,13 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DESKTOP_HEADER_ICON_SMALL_SIZE } from '@/const/layoutTokens';
+import { useRepoType } from '@/features/ChatInput/RuntimeConfig/useRepoType';
 import RightPanel from '@/features/RightPanel';
+<<<<<<< HEAD
+=======
+import { useAgentStore } from '@/store/agent';
+import { agentByIdSelectors } from '@/store/agent/selectors';
+>>>>>>> v2.1.58-canary.16
 import { useChatStore } from '@/store/chat';
 import { topicSelectors } from '@/store/chat/selectors';
 import { useGlobalStore } from '@/store/global';
@@ -68,6 +74,7 @@ type Tab = 'review' | 'resources';
 const AgentWorkingSidebar = memo(() => {
   const { t } = useTranslation('chat');
   const toggleRightPanel = useGlobalStore((s) => s.toggleRightPanel);
+<<<<<<< HEAD
   const workingDirectory = useChatStore(topicSelectors.currentTopicWorkingDirectory);
 
   const reviewAvailable = !!workingDirectory;
@@ -76,6 +83,22 @@ const AgentWorkingSidebar = memo(() => {
   // we just show the resources view as before.
   const [tab, setTab] = useState<Tab>(reviewAvailable ? 'review' : 'resources');
   const activeTab: Tab = reviewAvailable ? tab : 'resources';
+=======
+  const setWorkingSidebarTab = useGlobalStore((s) => s.setWorkingSidebarTab);
+  const storedTab = useGlobalStore((s) => s.status.workingSidebarTab);
+  const topicWorkingDirectory = useChatStore(topicSelectors.currentTopicWorkingDirectory);
+  const activeAgentId = useAgentStore((s) => s.activeAgentId);
+  const agentWorkingDirectory = useAgentStore((s) =>
+    activeAgentId ? agentByIdSelectors.getAgentWorkingDirectoryById(activeAgentId)(s) : undefined,
+  );
+  const workingDirectory = topicWorkingDirectory || agentWorkingDirectory;
+  const repoType = useRepoType(workingDirectory);
+
+  const reviewAvailable = !!workingDirectory && !!repoType;
+  // Topic metadata is preferred for resuming a coding session, but Review is
+  // project-scoped and should also work before a topic has bound metadata.
+  const activeTab: Tab = reviewAvailable ? (storedTab ?? 'review') : 'resources';
+>>>>>>> v2.1.58-canary.16
 
   return (
     <RightPanel stableLayout defaultWidth={360} maxWidth={720} minWidth={300}>
@@ -93,14 +116,22 @@ const AgentWorkingSidebar = memo(() => {
               <button
                 className={`${styles.tab} ${activeTab === 'resources' ? styles.tabActive : ''}`}
                 type="button"
+<<<<<<< HEAD
                 onClick={() => setTab('resources')}
+=======
+                onClick={() => setWorkingSidebarTab('resources')}
+>>>>>>> v2.1.58-canary.16
               >
                 {t('workingPanel.space')}
               </button>
               <button
                 className={`${styles.tab} ${activeTab === 'review' ? styles.tabActive : ''}`}
                 type="button"
+<<<<<<< HEAD
                 onClick={() => setTab('review')}
+=======
+                onClick={() => setWorkingSidebarTab('review')}
+>>>>>>> v2.1.58-canary.16
               >
                 {t('workingPanel.review.title')}
               </button>
