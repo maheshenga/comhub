@@ -5,11 +5,7 @@
   "agentSelection.search": "未找到匹配的助理",
   "brief.action.acknowledge": "确认",
   "brief.action.approve": "批准",
-<<<<<<< HEAD
-  "brief.action.confirm": "确认",
-=======
   "brief.action.confirm": "已阅",
->>>>>>> v2.1.58-canary.16
   "brief.action.confirmDone": "确认完成",
   "brief.action.feedback": "反馈",
   "brief.action.retry": "重试",

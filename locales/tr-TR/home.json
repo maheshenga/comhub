@@ -5,12 +5,8 @@
   "agentSelection.search": "Eşleşen ajan bulunamadı",
   "brief.action.acknowledge": "Onayla",
   "brief.action.approve": "Kabul et",
-<<<<<<< HEAD
-  "brief.action.confirmDone": "Tamamlandığını onayla",
-=======
   "brief.action.confirm": "Onayla",
   "brief.action.confirmDone": "Onayla",
->>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "Geri bildirim",
   "brief.action.retry": "Yeniden dene",
   "brief.addFeedback": "Geri bildirim paylaş",

@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Adı veya avatarı doğrudan aşağıdan düzenleyebilirsiniz.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Temsilci adı",
   "tool.intervention.onboarding.agentIdentity.title": "Ajan kimliği güncellemesini onayla",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Avatarımı güncelleyeceğim",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Adımı güncelleyeceğim",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Bu bilgiler onaylandıktan sonra profilinize kaydedilecektir.",
   "tool.intervention.onboarding.userProfile.description": "Bu değişikliği onaylamak, temsilcinin gelecekteki yanıtları kişiselleştirebilmesi için giriş profilinizi günceller.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Giriş onayı",
   "tool.intervention.onboarding.userProfile.fullName": "Tam ad",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Yanıt dili",
   "tool.intervention.onboarding.userProfile.title": "Profil güncellemenizi onaylayın",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Onayla",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "Beklemede",
   "tool.intervention.reject": "Reddet",
   "tool.intervention.rejectOnly": "Reddet",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Yük kuralı güncellendi",
   "workflow.toolDisplayName.updatePlan": "Güncellenmiş plan",
   "workflow.toolDisplayName.updateTodos": "Yapılacaklar güncellendi",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Bir belge yazıldı",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Bir dosya yazıldı",
   "workflow.working": "Çalışıyor...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "{{time}} tarihinde güncellendi",
   "workingPanel.resources.viewMode.list": "Liste görünümü",
   "workingPanel.resources.viewMode.tree": "Ağaç görünümü",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "İkili dosya — fark gösterilmiyor",
-  "workingPanel.review.empty": "Çalışma ağacında değişiklik yok",
-  "workingPanel.review.error": "Bu dosyanın farkı yüklenemedi",
-=======
   "workingPanel.review.baseRef.default": "varsayılan",
   "workingPanel.review.baseRef.loading": "Dallar yükleniyor…",
   "workingPanel.review.baseRef.reset": "Varsayılan dala sıfırla",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Yenile",
   "workingPanel.review.textDiff.disable": "Satır içi metin farkını devre dışı bırak",
   "workingPanel.review.textDiff.enable": "Satır içi metin farkını etkinleştir",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "İnceleme",
   "workingPanel.review.tooLarge": "Dosya satır içi fark için çok büyük",
   "workingPanel.review.unstaged": "Sahneye alınmamış",
   "workingPanel.review.viewMode.split": "Bölünmüş görünüme geç",
   "workingPanel.review.viewMode.unified": "Birleşik görünüme geç",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Kelime kaydırmayı devre dışı bırak",
   "workingPanel.review.wordWrap.enable": "Kelime kaydırmayı etkinleştir",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Boşluk",
   "workingPanel.title": "Working Panel",
   "you": "Sen",

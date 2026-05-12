@@ -319,15 +319,9 @@
   "claude-haiku-4-5.description": "Claude Haiku 4.5 by Anthropic — 次世代Haikuモデルで、推論能力とビジョンが強化されています。",
   "claude-haiku-4.5.description": "Claude Haiku 4.5は、Anthropicの最速かつ最も賢いHaikuモデルで、驚異的なスピードと高度な推論能力を備えています。",
   "claude-opus-4-1-20250805-thinking.description": "Claude Opus 4.1 Thinkingは、推論プロセスを可視化できる高度なバリアントです。",
-<<<<<<< HEAD
-  "claude-opus-4-1-20250805.description": "Claude Opus 4.1はAnthropicの最新かつ最も高性能なモデルで、非常に複雑なタスクにおいて卓越したパフォーマンス、知性、流暢さ、理解力を発揮します。",
-  "claude-opus-4-1.description": "Claude Opus 4.1 by Anthropic — 深い分析能力を備えたプレミアム推論モデル。",
-  "claude-opus-4-20250514.description": "Claude Opus 4はAnthropicの最も強力なモデルで、非常に複雑なタスクにおいて卓越したパフォーマンス、知性、流暢さ、理解力を発揮します。",
-=======
   "claude-opus-4-1-20250805.description": "Claude Opus 4.1はAnthropicの最新かつ最も高性能なモデルで、非常に複雑なタスクにおいて卓越した性能、知性、流暢さ、理解力を発揮します。",
   "claude-opus-4-1.description": "Claude Opus 4.1 by Anthropic — 深い分析能力を備えたプレミアム推論モデル。",
   "claude-opus-4-20250514.description": "Claude Opus 4はAnthropicの最も強力なモデルで、非常に複雑なタスクにおいて卓越した性能、知性、流暢さ、理解力を発揮します。",
->>>>>>> v2.1.58-canary.16
   "claude-opus-4-5-20251101.description": "Claude Opus 4.5は、Anthropicのフラッグシップモデルで、卓越した知性とスケーラブルな性能を兼ね備え、最高品質の応答と推論が求められる複雑なタスクに最適です。",
   "claude-opus-4-5.description": "Claude Opus 4.5 by Anthropic — 最高レベルの推論とコーディング能力を備えたフラッグシップモデル。",
   "claude-opus-4-6.description": "Claude Opus 4.6 by Anthropic — 1Mコンテキストウィンドウを備えたフラッグシップモデルで、高度な推論能力を提供します。",
@@ -336,11 +330,7 @@
   "claude-opus-4.6-fast.description": "Claude Opus 4.6は、エージェント構築やコーディングにおいてAnthropicの最も知的なモデルです。",
   "claude-opus-4.6.description": "Claude Opus 4.6は、エージェント構築やコーディングにおいてAnthropicの最も知的なモデルです。",
   "claude-sonnet-4-20250514-thinking.description": "Claude Sonnet 4 Thinkingは、即時応答または段階的な思考プロセスを可視化しながら出力できます。",
-<<<<<<< HEAD
-  "claude-sonnet-4-20250514.description": "Claude Sonnet 4はAnthropicのこれまでで最も知的なモデルで、ほぼ瞬時の応答や、APIユーザー向けの詳細なステップバイステップの思考制御を提供します。",
-=======
   "claude-sonnet-4-20250514.description": "Claude Sonnet 4はAnthropicのこれまでで最も知的なモデルで、APIユーザー向けに即時応答または詳細なステップバイステップ思考を提供し、きめ細かい制御が可能です。",
->>>>>>> v2.1.58-canary.16
   "claude-sonnet-4-5-20250929.description": "Claude Sonnet 4.5はAnthropicのこれまでで最も知的なモデルです。",
   "claude-sonnet-4-5.description": "Claude Sonnet 4.5 by Anthropic — コーディング性能が向上した改良版Sonnet。",
   "claude-sonnet-4-6.description": "Claude Sonnet 4.6 by Anthropic — 最新のSonnetモデルで、優れたコーディングとツール使用能力を備えています。",
@@ -501,13 +491,8 @@
   "doubao-seedream-4-0-250828.description": "Seedream 4.0 は ByteDance Seed による画像生成モデルで、テキストと画像入力に対応し、高品質かつ制御性の高い画像生成を実現します。テキストプロンプトから画像を生成します。",
   "doubao-seedream-4-5-251128.description": "Seedream 4.5はByteDanceの最新マルチモーダル画像モデルで、テキストから画像生成、画像間変換、バッチ画像生成機能を統合し、常識と推論能力を組み込んでいます。前バージョン4.0と比較して、生成品質が大幅に向上し、編集の一貫性や複数画像の融合が改善されています。視覚的な詳細の制御がより正確になり、小さなテキストや顔を自然に生成し、レイアウトや色彩の調和が向上し、全体的な美観が強化されています。",
   "doubao-seedream-5-0-260128.description": "Doubao-Seedream-5.0-liteはByteDanceの最新画像生成モデルです。初めてオンライン検索機能を統合し、リアルタイムのウェブ情報を取り入れることで生成画像のタイムリー性を向上させています。モデルの知能もアップグレードされ、複雑な指示や視覚コンテンツを正確に解釈できるようになりました。また、専門的なシナリオでのグローバルな知識カバレッジ、一貫性、生成品質が向上し、企業レベルの視覚制作ニーズにより適合しています。",
-<<<<<<< HEAD
-  "dreamina-seedance-2-0-260128.description": "ByteDanceのSeedance 2.0は、マルチモーダル参照ビデオ生成、ビデオ編集、ビデオ拡張、テキストからビデオ、画像からビデオへの同期音声付き生成をサポートする最も強力なビデオ生成モデルです。",
-  "dreamina-seedance-2-0-fast-260128.description": "ByteDanceのSeedance 2.0 Fastは、Seedance 2.0と同じ機能を備えながら、より高速な生成速度と競争力のある価格を提供します。",
-=======
   "dreamina-seedance-2-0-260128.description": "ByteDanceのSeedance 2.0は、最も強力なビデオ生成モデルで、マルチモーダル参照ビデオ生成、ビデオ編集、ビデオ拡張、テキストからビデオ、画像からビデオへの同期音声付き生成をサポートします。",
   "dreamina-seedance-2-0-fast-260128.description": "ByteDanceのSeedance 2.0 Fastは、Seedance 2.0と同じ機能を提供しながら、より高速な生成速度と競争力のある価格を実現します。",
->>>>>>> v2.1.58-canary.16
   "emohaa.description": "Emohaa は、専門的なカウンセリング能力を備えたメンタルヘルスモデルで、ユーザーが感情的な問題を理解するのを支援します。",
   "ernie-4.5-0.3b.description": "ERNIE 4.5 0.3B は、ローカルおよびカスタマイズ展開に適した軽量なオープンソースモデルです。",
   "ernie-4.5-8k-preview.description": "ERNIE 4.5 8K Preview は、ERNIE 4.5 の評価用に設計された 8K コンテキストプレビューモデルです。",
@@ -521,10 +506,6 @@
   "ernie-5.0-thinking-latest.description": "文心 5.0 Thinking は、テキスト、画像、音声、動画を統合的に扱うネイティブなフルモーダルフラッグシップモデルであり、複雑な質問応答、創作、エージェントシナリオにおいて大幅な能力向上を実現します。",
   "ernie-5.0-thinking-preview.description": "文心 5.0 Thinking Preview は、テキスト、画像、音声、動画を統合的に扱うネイティブなフルモーダルフラッグシップモデルであり、複雑な質問応答、創作、エージェントシナリオにおいて大幅な能力向上を実現します。",
   "ernie-5.0.description": "ERNIE 5.0は、ERNIEシリーズの新世代モデルで、ネイティブにマルチモーダルな大規模モデルです。統一されたマルチモーダルモデリングアプローチを採用し、テキスト、画像、音声、動画を共同でモデリングして包括的なマルチモーダル能力を提供します。その基盤能力は大幅に向上し、ベンチマーク評価で優れた性能を達成しています。特にマルチモーダル理解、指示の追従、創造的な執筆、事実の正確性、エージェント計画、ツール利用において優れています。",
-<<<<<<< HEAD
-  "ernie-char-8k.description": "ERNIE Character 8K は、IP キャラクター構築や長期的な会話に適した人格対話モデルです。",
-=======
->>>>>>> v2.1.58-canary.16
   "ernie-char-fiction-8k-preview.description": "ERNIE Character Fiction 8K Preview は、キャラクターとプロットの創作に対応したモデルのプレビュー版であり、機能評価とテストに適しています。",
   "ernie-char-fiction-8k.description": "ERNIE Character Fiction 8K は、小説やプロット創作に適した人格モデルであり、長編ストーリー生成に最適です。",
   "ernie-image-turbo.description": "ERNIE-Imageは、Baiduが開発した8Bパラメータのテキストから画像への生成モデルです。複数のベンチマークでトップにランクインしており、中国のSuperCLUEで同率1位を達成し、オープンソーストラックでリードしています。",
@@ -536,13 +517,8 @@
   "ernie-x1-turbo-32k.description": "ERNIE X1 Turbo 32K は、複雑な推論やマルチターン対話に対応した 32K コンテキストの高速思考モデルです。",
   "ernie-x1.1-preview.description": "ERNIE X1.1 Preview は、評価およびテスト用の思考モデルプレビューです。",
   "ernie-x1.1.description": "ERNIE X1.1は評価とテスト用の思考モデルプレビューです。",
-<<<<<<< HEAD
-  "fal-ai/bytedance/seedream/v4.5.description": "ByteDance Seedチームが開発したSeedream 4.5は、マルチイメージ編集と構成をサポートします。被写体の一貫性向上、正確な指示の遵守、空間論理の理解、美的表現、ポスターレイアウトやロゴデザイン、高精度なテキスト画像レンダリングを特徴としています。",
-  "fal-ai/bytedance/seedream/v4.description": "ByteDance Seedが開発したSeedream 4.0は、プロンプトからの高品質で高度に制御可能な画像生成をサポートするテキストおよび画像入力に対応しています。",
-=======
   "fal-ai/bytedance/seedream/v4.5.description": "Seedream 4.5はByteDance Seedチームによって構築され、マルチ画像編集と構成をサポートします。被写体の一貫性の向上、正確な指示の遵守、空間論理の理解、美的表現、ポスターのレイアウトおよびロゴデザイン、高精度なテキスト画像レンダリングを特徴とします。",
   "fal-ai/bytedance/seedream/v4.description": "Seedream 4.0はByteDance Seedによって構築され、プロンプトからの高度に制御可能で高品質な画像生成をテキストおよび画像入力でサポートします。",
->>>>>>> v2.1.58-canary.16
   "fal-ai/flux-kontext/dev.description": "FLUX.1 モデルは画像編集に特化しており、テキストと画像の入力に対応しています。",
   "fal-ai/flux-pro/kontext.description": "FLUX.1 Kontext [pro] は、テキストと参照画像を入力として受け取り、局所的な編集や複雑なシーン全体の変換を可能にします。",
   "fal-ai/flux/krea.description": "Flux Krea [dev] は、よりリアルで自然な画像を生成する美的バイアスを持つ画像生成モデルです。",
@@ -550,13 +526,8 @@
   "fal-ai/hunyuan-image/v3.description": "強力なネイティブマルチモーダル画像生成モデルです。",
   "fal-ai/imagen4/preview.description": "Google による高品質な画像生成モデルです。",
   "fal-ai/nano-banana.description": "Nano Banana は Google による最新・最速・最も効率的なネイティブマルチモーダルモデルで、会話を通じた画像生成と編集が可能です。",
-<<<<<<< HEAD
-  "fal-ai/qwen-image-edit.description": "Qwenチームによるプロフェッショナルな画像編集モデルで、意味的および外観的編集、正確な中国語/英語のテキスト編集、スタイル変換、回転などをサポートします。",
-  "fal-ai/qwen-image.description": "Qwenチームによる強力な画像生成モデルで、中国語テキストのレンダリング能力が高く、多様なビジュアルスタイルを提供します。",
-=======
   "fal-ai/qwen-image-edit.description": "Qwenチームによるプロフェッショナルな画像編集モデルで、意味的および外観の編集、正確な中国語/英語テキスト編集、スタイル転送、回転などをサポートします。",
   "fal-ai/qwen-image.description": "Qwenチームによる強力な画像生成モデルで、中国語テキストレンダリングと多様な視覚スタイルに優れています。",
->>>>>>> v2.1.58-canary.16
   "flux-1-schnell.description": "Black Forest Labs による 120 億パラメータのテキストから画像への変換モデルで、潜在敵対的拡散蒸留を用いて 1～4 ステップで高品質な画像を生成します。クローズドな代替モデルに匹敵し、Apache-2.0 ライセンスのもと、個人・研究・商用利用が可能です。",
   "flux-dev.description": "非商用の研究開発向けに効率化されたオープンソース画像生成モデルです。",
   "flux-kontext-max.description": "最先端のコンテキスト画像生成・編集モデルで、テキストと画像を組み合わせて精密かつ一貫性のある結果を生成します。",
@@ -595,30 +566,17 @@
   "gemini-3-flash-preview.description": "Gemini 3 Flash は、最先端の知能と優れた検索基盤を融合し、スピードに特化した最もスマートなモデルです。",
   "gemini-3-flash.description": "Gemini 3 Flash by Google — 超高速モデルでマルチモーダル入力をサポートします。",
   "gemini-3-pro-image-preview.description": "Gemini 3 Pro Image（Nano Banana Pro）は、Googleの画像生成モデルで、マルチモーダル対話もサポートします。",
-<<<<<<< HEAD
-  "gemini-3-pro-image-preview:image.description": "Gemini 3 Pro Image（Nano Banana Pro）はGoogleの画像生成モデルで、マルチモーダルチャットもサポートします。",
-  "gemini-3-pro-preview.description": "Gemini 3 Pro は、Google による最も強力なエージェントおよびバイブコーディングモデルで、最先端の推論に加え、より豊かなビジュアルと深い対話を実現します。",
-  "gemini-3.1-flash-image-preview.description": "Gemini 3.1 Flash Image（Nano Banana 2）は、Googleの最速のネイティブ画像生成モデルで、思考サポート、対話型画像生成および編集を提供します。",
-  "gemini-3.1-flash-image-preview:image.description": "Gemini 3.1 Flash Image（Nano Banana 2）は、Flash速度でプロレベルの画像品質を提供し、マルチモーダルチャットをサポートします。",
-=======
   "gemini-3-pro-image-preview:image.description": "Gemini 3 Pro Image (Nano Banana Pro)はGoogleの画像生成モデルで、マルチモーダルチャットもサポートします。",
   "gemini-3-pro-preview.description": "Gemini 3 Pro は、Google による最も強力なエージェントおよびバイブコーディングモデルで、最先端の推論に加え、より豊かなビジュアルと深い対話を実現します。",
   "gemini-3.1-flash-image-preview.description": "Gemini 3.1 Flash Image（Nano Banana 2）は、Googleの最速のネイティブ画像生成モデルで、思考サポート、対話型画像生成および編集を提供します。",
   "gemini-3.1-flash-image-preview:image.description": "Gemini 3.1 Flash Image (Nano Banana 2)は、プロレベルの画像品質をフラッシュ速度で提供し、マルチモーダルチャットをサポートします。",
->>>>>>> v2.1.58-canary.16
   "gemini-3.1-flash-lite-preview.description": "Gemini 3.1 Flash-Lite PreviewはGoogleの最もコスト効率の高いマルチモーダルモデルで、大量のエージェントタスク、翻訳、データ処理に最適化されています。",
   "gemini-3.1-flash-lite.description": "Gemini 3.1 Flash-LiteはGoogleの最もコスト効率の高いマルチモーダルモデルで、大量のエージェントタスク、翻訳、データ処理に最適化されています。",
   "gemini-3.1-pro-preview.description": "Gemini 3.1 Pro Previewは、Gemini 3 Proの推論能力を強化し、中程度の思考レベルサポートを追加しています。",
   "gemini-3.1-pro.description": "Gemini 3.1 Pro by Google — 1Mコンテキストウィンドウを備えたプレミアムマルチモーダルモデル。",
-<<<<<<< HEAD
-  "gemini-flash-latest.description": "Gemini Flash の最新リリース",
-  "gemini-flash-lite-latest.description": "Gemini Flash-Lite の最新リリース",
-  "gemini-pro-latest.description": "Gemini Pro の最新リリース",
-=======
   "gemini-flash-latest.description": "gemini-3-flash-previewを指します。",
   "gemini-flash-lite-latest.description": "gemini-2.5-flash-lite-preview-09-2025を指します。",
   "gemini-pro-latest.description": "gemini-3.1-pro-previewを指します。",
->>>>>>> v2.1.58-canary.16
   "gemma-7b-it.description": "Gemma 7B は、小規模から中規模のタスクに最適なコストパフォーマンスを提供します。",
   "gemma2-9b-it.description": "Gemma 2 9B は、特定タスクやツール統合に最適化されたモデルです。",
   "gemma2.description": "Gemma 2 は Google の高効率モデルで、小規模アプリから複雑なデータ処理まで幅広いユースケースに対応します。",
@@ -755,11 +713,7 @@
   "gpt-5.4-pro.description": "GPT-5.4 Pro by OpenAI — 最大コンテキストと推論能力を備えた最も能力の高いモデル。",
   "gpt-5.4.description": "GPT-5.4 by OpenAI — 1M+コンテキストウィンドウとマルチモーダル入力を備えた次世代モデル。",
   "gpt-5.5-pro.description": "GPT-5.5 Proは、より多くの計算を使用して、より深く考え、一貫して優れた回答を提供します。",
-<<<<<<< HEAD
-  "gpt-5.5.description": "GPT-5.5は、最も複雑な専門的な作業、コーディング、エージェントタスクに対応する最前線モデルです。",
-=======
   "gpt-5.5.description": "GPT-5.5は、最も複雑なプロフェッショナルな作業向けの最新のフロンティアモデルです。",
->>>>>>> v2.1.58-canary.16
   "gpt-5.description": "GPT-5 by OpenAI — 高度な推論とマルチモーダル入力を備えたフラッグシップモデル。",
   "gpt-audio.description": "GPT Audio は、音声の入出力に対応した汎用チャットモデルで、Chat Completions API に対応しています。",
   "gpt-image-1-mini.description": "低コストな GPT Image 1 バリアントで、テキストと画像の入力および画像出力に対応しています。",
@@ -774,29 +728,17 @@
   "grok-3-mini.description": "xAIのGrok 3 Miniは、強力な推論能力と高速応答を備えています。",
   "grok-3.description": "xAIのGrok 3は、強力な推論能力を備えています。",
   "grok-4-0709.description": "xAI による Grok 4 は、強力な推論能力を備えています。",
-<<<<<<< HEAD
-  "grok-4-1-fast-non-reasoning.description": "高性能なエージェントツール使用に最適化された最先端マルチモーダルモデルです。",
-  "grok-4-1-fast-reasoning.description": "高性能なエージェントツール使用に最適化された最先端マルチモーダルモデルです。",
-=======
->>>>>>> v2.1.58-canary.16
   "grok-4-20-non-reasoning.description": "単純なユースケース向けの非推論バリアント。",
   "grok-4-20-reasoning.description": "応答前に推論する知的で超高速なモデル。",
   "grok-4-fast-non-reasoning.description": "Grok 4 Fast をリリースしました。コスト効率の高い推論モデルにおける最新の進展です。",
   "grok-4-fast-reasoning.description": "Grok 4 Fast をリリースしました。コスト効率の高い推論モデルにおける最新の進展です。",
   "grok-4.20-0309-non-reasoning.description": "単純なユースケース向けの非推論バリアント。",
   "grok-4.20-0309-reasoning.description": "応答前に推論する知的で超高速なモデル。",
-<<<<<<< HEAD
-  "grok-4.20-beta-0309-non-reasoning.description": "シンプルなユースケース向けの非思考型バリアント",
-  "grok-4.20-beta-0309-reasoning.description": "応答前に推論を行う知的で非常に高速なモデル",
-  "grok-4.20-multi-agent-0309.description": "4または16のエージェントチーム。研究ユースケースに優れています。現在、クライアントサイドツールはサポートしていません。xAIサーバーサイドツール（例：X Search、Web Searchツール）およびリモートMCPツールのみをサポートします。",
-  "grok-4.description": "NLP、数学、推論において卓越した性能を発揮する、最新かつ最強のフラッグシップモデルで、万能型として理想的です。",
-=======
   "grok-4.20-beta-0309-non-reasoning.description": "単純なユースケース向けの非思考型バリアント",
   "grok-4.20-beta-0309-reasoning.description": "応答前に推論する知的で超高速なモデル",
   "grok-4.20-multi-agent-0309.description": "4または16のエージェントチーム。研究ユースケースに優れています。現在、クライアントサイドツールはサポートしていません。xAIサーバーサイドツール（例：X Search、Web Searchツール）およびリモートMCPツールのみをサポートします。",
   "grok-4.3.description": "世界で最も真実を追求する大規模言語モデル",
   "grok-4.description": "最新のGrokフラッグシップモデルで、言語、数学、推論において比類のない性能を発揮する真のオールラウンダーです。現在はgrok-4-0709を指しており、リソースの制限により一時的に公式価格より10%高く設定されていますが、後に公式価格に戻る予定です。",
->>>>>>> v2.1.58-canary.16
   "grok-code-fast-1.description": "grok-code-fast-1 をリリースできることを嬉しく思います。このモデルは、高速かつコスト効率に優れた推論モデルで、エージェント型コーディングにおいて卓越した性能を発揮します。",
   "grok-imagine-image-quality.description": "テキストプロンプトから画像を生成したり、自然言語で既存の画像を編集したり、マルチターン会話を通じて画像を反復的に改良したりします。",
   "grok-imagine-image.description": "テキストプロンプトから画像を生成し、自然言語で既存の画像を編集したり、マルチターン会話を通じて画像を反復的に改良します。",
@@ -860,12 +802,7 @@
   "kimi-k2-thinking.description": "kimi-k2-thinkingはMoonshot AIの思考モデルで、一般的なエージェント能力と推論能力を備えています。深い推論に優れ、マルチステップツールを使用して難しい問題を解決できます。",
   "kimi-k2-turbo-preview.description": "kimi-k2 は、強力なコーディングおよびエージェント機能を備えた MoE 基盤モデルです（総パラメータ数 1T、アクティブ 32B）。推論、プログラミング、数学、エージェントベンチマークにおいて、他の主流のオープンモデルを上回る性能を発揮します。",
   "kimi-k2.5.description": "Kimi K2.5はKimiの最も汎用性の高いモデルで、ネイティブのマルチモーダルアーキテクチャを備え、視覚とテキスト入力をサポートします。「思考」モードと「非思考」モード、会話およびエージェントタスクの両方に対応しています。",
-<<<<<<< HEAD
-  "kimi-k2.6.description": "Kimi K2.6は、Kimiの最新かつ最も能力の高いモデルであり、長期的なコーディング、指示の追従、自己修正能力を強化し、テキスト、画像、動画入力に加えてチャットやエージェントタスクをサポートします。",
-  "kimi-k2.description": "Kimi-K2 は Moonshot AI による MoE ベースモデルで、強力なコーディングおよびエージェント機能を備えています。総パラメータ数は 1T、アクティブは 32B。一般的な推論、コーディング、数学、エージェントタスクのベンチマークにおいて、他の主流のオープンモデルを上回る性能を示します。",
-=======
   "kimi-k2.6.description": "Kimi-K2.6はMoonshot AIが発表した大規模言語モデルで、優れたコーディングおよびツール呼び出し機能を備えています。サービス展開は中国本土のみでサポートされています。",
->>>>>>> v2.1.58-canary.16
   "kimi-k2:1t.description": "Kimi K2 は、Moonshot AI による大規模 MoE LLM で、総パラメータ数 1T、1回のフォワードパスでアクティブ 32B。高度なツール使用、推論、コード生成などのエージェント機能に最適化されています。",
   "kling/kling-v3-image-generation.description": "最大10枚の参照画像をサポートし、被写体、要素、色調を固定して一貫したスタイルを確保します。スタイル転送、ポートレート/キャラクター参照、マルチイメージ融合、局所的なインペインティングを組み合わせ、柔軟な制御を実現します。リアルなポートレートのディテールを提供し、全体的なビジュアルは繊細で層が豊かで、映画的な色彩と雰囲気を特徴とします。",
   "kling/kling-v3-omni-image-generation.description": "新しいシリーズ画像生成と直接2K/4K出力で映画的なストーリーテリングビジュアルを解放します。プロンプト内の視聴覚要素を深く分析し、創造的な指示を正確に実行します。柔軟なマルチ参照入力と包括的な品質アップグレードをサポートし、ストーリーボード、物語のコンセプトアート、シーンデザインに最適です。",
@@ -1271,11 +1208,7 @@
   "qwen3.5-plus-2026-04-20.description": "Qwen 3.5はネイティブビジョン言語Plusモデルです。2026年2月15日のスナップショットと比較して、このバージョンはエージェントコーディング能力において大幅な改善を提供し、推論速度が大幅に向上しています。その知識、推論、長いコンテキスト能力は依然として高いレベルにあり、複雑なエージェントタスクの要求を満たしています。このバージョンは2026年4月20日のスナップショットに対応しています。",
   "qwen3.5-plus.description": "Qwen3.5 Plusは、テキスト、画像、ビデオ入力をサポートします。純粋なテキストタスクでの性能はQwen3 Maxに匹敵し、より良い性能と低コストを実現します。そのマルチモーダル能力はQwen3 VLシリーズと比較して大幅に向上しています。",
   "qwen3.5:397b.description": "Qwen3.5は、ハイブリッドアーキテクチャ（Mixture-of-Experts + 線形注意）を備えた統一的なビジョン・言語基盤モデルで、強力なマルチモーダル推論、コーディング、長文コンテキスト能力を提供し、256Kのコンテキストウィンドウをサポートします。",
-<<<<<<< HEAD
-  "qwen3.6-27b.description": "Qwen 3.6シリーズ27Bはネイティブビジョン言語密モデルです。バージョン3.5-27Bと比較して、エージェントコーディング能力において大幅な改善を提供し、STEM性能と推論能力がさらに向上しています。視覚面では、空間知能、オブジェクトの位置特定、検出において顕著な向上を示し、動画理解、ドキュメントOCR、視覚エージェント能力においても着実に改善しています。",
-=======
   "qwen3.6-27b.description": "Qwen3.6 27Bは、推論、コーディング、一般的な能力において強力な性能を発揮するオープンソースの密集モデルです。デフォルトで思考モードをサポートし、性能と効率のバランスを提供します。",
->>>>>>> v2.1.58-canary.16
   "qwen3.6-35b-a3b.description": "Qwen3.6 35B-A3B ネイティブ視覚言語モデルは、線形アテンション機構とスパース MoE を統合したハイブリッド構造により高い推論効率を実現しています。3.5-35B-A3B モデルと比べて、エージェント型コーディング、数理推論、コード推論、空間認識、物体位置特定やターゲット検出などが大幅に強化されています。",
   "qwen3.6-flash.description": "Qwen3.6 ネイティブ視覚言語 Flash モデルは、3.5-Flash と比べて大幅に性能が向上しています。とくにエージェント型コーディング能力（複数のコードエージェントベンチマークで前世代を大幅に上回る）、数理推論・コード推論が強化されています。視覚面では空間認識能力が向上し、物体位置特定やターゲット検出で顕著な改善が見られます。",
   "qwen3.6-max-preview.description": "Qwen3.6 シリーズで最大規模のクローズドソースモデルです。世界知識、指示理解、エージェント型コーディングなど複雑なタスクに対して高い性能を発揮します。テキスト専用で、思考モードがデフォルト有効、明示的なキャッシング、関数呼び出しに対応しています。",
@@ -1287,13 +1220,8 @@
   "qwq.description": "QwQは、Qwenファミリーの推論モデルです。標準的な指示調整モデルと比較して、思考と推論能力に優れ、特に難解な問題において下流性能を大幅に向上させます。QwQ-32Bは、DeepSeek-R1やo1-miniと競合する中規模の推論モデルです。",
   "qwq_32b.description": "Qwenファミリーの中規模推論モデル。標準的な指示調整モデルと比較して、QwQの思考と推論能力は、特に難解な問題において下流性能を大幅に向上させます。",
   "r1-1776.description": "R1-1776は、DeepSeek R1のポストトレーニングバリアントで、検閲のない偏りのない事実情報を提供するよう設計されています。",
-<<<<<<< HEAD
-  "seedance-1-5-pro-251215.description": "ByteDanceのSeedance 1.5 Proは、テキストからビデオ、画像からビデオ（最初のフレーム、最初+最後のフレーム）、および視覚と同期した音声生成をサポートします。",
-  "seedream-5-0-260128.description": "BytePlusのByteDance-Seedream-5.0-liteは、リアルタイム情報のためのウェブ検索強化生成、複雑なプロンプト解釈の向上、プロフェッショナルなビジュアル作成のための参照一貫性の向上を特徴としています。",
-=======
   "seedance-1-5-pro-251215.description": "ByteDanceのSeedance 1.5 Proは、テキストからビデオ、画像からビデオ（最初のフレーム、最初+最後のフレーム）、視覚と同期した音声生成をサポートします。",
   "seedream-5-0-260128.description": "BytePlusによるByteDance-Seedream-5.0-liteは、リアルタイム情報のためのウェブ検索強化生成、複雑なプロンプト解釈の向上、プロフェッショナルな視覚制作のための参照一貫性の改善を特徴とします。",
->>>>>>> v2.1.58-canary.16
   "solar-mini-ja.description": "Solar Mini (Ja)は、Solar Miniを日本語に特化させたモデルで、英語と韓国語でも効率的かつ高性能な動作を維持します。",
   "solar-mini.description": "Solar Miniは、GPT-3.5を上回る性能を持つコンパクトなLLMで、英語と韓国語に対応した多言語機能を備え、効率的な小型ソリューションを提供します。",
   "solar-pro.description": "Solar Proは、Upstageが提供する高知能LLMで、単一GPU上での指示追従に特化し、IFEvalスコア80以上を記録しています。現在は英語に対応しており、2024年11月の正式リリースでは対応言語とコンテキスト長が拡張される予定です。",

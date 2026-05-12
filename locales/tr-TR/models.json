@@ -315,21 +315,13 @@
   "claude-3-haiku-20240307.description": "Claude 3 Haiku, Anthropic’in en hızlı ve en kompakt modelidir; anında yanıtlar için hızlı ve doğru performans sunar.",
   "claude-3-opus-20240229.description": "Claude 3 Opus, karmaşık görevler için Anthropic’in en güçlü modelidir; performans, zeka, akıcılık ve anlama konularında üstündür.",
   "claude-3-sonnet-20240229.description": "Claude 3 Sonnet, kurumsal iş yükleri için zeka ve hızı dengeler; düşük maliyetle yüksek fayda ve güvenilir büyük ölçekli dağıtım sunar.",
-<<<<<<< HEAD
-  "claude-haiku-4-5-20251001.description": "Claude Haiku 4.5, Anthropic'in en hızlı ve en zeki Haiku modeli olup, yıldırım hızında ve genişletilmiş düşünme yeteneğine sahiptir.",
-=======
   "claude-haiku-4-5-20251001.description": "Claude Haiku 4.5, Anthropic'in en hızlı ve en akıllı Haiku modelidir, yıldırım hızında ve genişletilmiş düşünme yeteneklerine sahiptir.",
->>>>>>> v2.1.58-canary.16
   "claude-haiku-4-5.description": "Anthropic’in Claude Haiku 4.5 modeli — gelişmiş akıl yürütme ve görsel yeteneklere sahip yeni nesil Haiku.",
   "claude-haiku-4.5.description": "Claude Haiku 4.5, Anthropic'in en hızlı ve en akıllı Haiku modeli olup, yıldırım hızında ve gelişmiş akıl yürütme yeteneklerine sahiptir.",
   "claude-opus-4-1-20250805-thinking.description": "Claude Opus 4.1 Thinking, akıl yürütme sürecini görünür şekilde ortaya koyabilen gelişmiş bir varyanttır.",
   "claude-opus-4-1-20250805.description": "Claude Opus 4.1, Anthropic'in en yeni ve en yetenekli modeli olup, performans, zeka, akıcılık ve anlama konularında üstünlük sağlar.",
   "claude-opus-4-1.description": "Anthropic’in Claude Opus 4.1 modeli — derin analiz yeteneklerine sahip üst seviye akıl yürütme modeli.",
-<<<<<<< HEAD
-  "claude-opus-4-20250514.description": "Claude Opus 4, Anthropic'in en güçlü modeli olup, performans, zeka, akıcılık ve anlama konularında üstünlük sağlar.",
-=======
   "claude-opus-4-20250514.description": "Claude Opus 4, Anthropic'in en güçlü modeli olup, karmaşık görevlerde performans, zeka, akıcılık ve anlama konularında üstünlük sağlar.",
->>>>>>> v2.1.58-canary.16
   "claude-opus-4-5-20251101.description": "Claude Opus 4.5, Anthropic’in amiral gemisi modelidir; olağanüstü zeka ile ölçeklenebilir performansı birleştirir. En yüksek kaliteli yanıtlar ve akıl yürütme gerektiren karmaşık görevler için idealdir.",
   "claude-opus-4-5.description": "Anthropic’in Claude Opus 4.5 modeli — üst düzey akıl yürütme ve kodlama yeteneklerine sahip amiral gemisi model.",
   "claude-opus-4-6.description": "Anthropic’in Claude Opus 4.6 modeli — 1M bağlam penceresi ve gelişmiş akıl yürütme yetenekleriyle amiral gemisi sürümü.",
@@ -338,13 +330,8 @@
   "claude-opus-4.6-fast.description": "Claude Opus 4.6, Anthropic'in ajanlar oluşturma ve kodlama için en akıllı modelidir.",
   "claude-opus-4.6.description": "Claude Opus 4.6, Anthropic'in ajanlar oluşturma ve kodlama için en akıllı modelidir.",
   "claude-sonnet-4-20250514-thinking.description": "Claude Sonnet 4 Thinking, anında yanıtlar veya adım adım düşünme süreçleri üretebilir.",
-<<<<<<< HEAD
-  "claude-sonnet-4-20250514.description": "Claude Sonnet 4, Anthropic'in bugüne kadarki en zeki modeli olup, API kullanıcıları için ince ayarlı kontrol ile anında yanıtlar veya adım adım genişletilmiş düşünme sunar.",
-  "claude-sonnet-4-5-20250929.description": "Claude Sonnet 4.5, Anthropic'in bugüne kadarki en zeki modelidir.",
-=======
   "claude-sonnet-4-20250514.description": "Claude Sonnet 4, Anthropic'in bugüne kadarki en akıllı modelidir ve API kullanıcıları için ince ayarlı kontrol ile anında yanıtlar veya adım adım düşünme sunar.",
   "claude-sonnet-4-5-20250929.description": "Claude Sonnet 4.5, Anthropic'in bugüne kadarki en akıllı modelidir.",
->>>>>>> v2.1.58-canary.16
   "claude-sonnet-4-5.description": "Anthropic’in Claude Sonnet 4.5 modeli — geliştirilmiş kodlama performansıyla güçlendirilmiş Sonnet sürümü.",
   "claude-sonnet-4-6.description": "Anthropic’in Claude Sonnet 4.6 modeli — üstün kodlama ve araç kullanımıyla en yeni Sonnet.",
   "claude-sonnet-4.5.description": "Claude Sonnet 4.5, Anthropic'in bugüne kadarki en akıllı modelidir.",
@@ -417,11 +404,7 @@
   "deepseek-ai/deepseek-llm-67b-chat.description": "DeepSeek LLM Chat (67B), derin dil anlama ve etkileşim sunan yenilikçi bir modeldir.",
   "deepseek-ai/deepseek-v3.1-terminus.description": "DeepSeek V3.1, karmaşık akıl yürütme ve düşünce zinciriyle derin analiz görevleri için geliştirilmiş yeni nesil bir modeldir.",
   "deepseek-ai/deepseek-v3.2.description": "DeepSeek V3.2, daha güçlü karmaşık akıl yürütme ve düşünce zinciri yeteneklerine sahip yeni nesil bir akıl yürütme modelidir.",
-<<<<<<< HEAD
-  "deepseek-chat.description": "DeepSeek V4 Flash düşünme modu olmayan sürüm için uyumluluk takma adı. Kullanımdan kaldırılması planlanıyor — bunun yerine DeepSeek V4 Flash kullanın.",
-=======
   "deepseek-chat.description": "DeepSeek V4 Flash düşünme modu olmayan uyumluluk takma adı. Kullanımdan kaldırılacak — bunun yerine DeepSeek V4 Flash kullanın.",
->>>>>>> v2.1.58-canary.16
   "deepseek-coder-33B-instruct.description": "DeepSeek Coder 33B, 2T token (%%87 kod, %%13 Çince/İngilizce metin) ile eğitilmiş bir kodlama dil modelidir. 16K bağlam penceresi ve ortadan doldurma görevleri sunar; proje düzeyinde kod tamamlama ve kod parçacığı doldurma sağlar.",
   "deepseek-coder-v2.description": "DeepSeek Coder V2, GPT-4 Turbo ile karşılaştırılabilir güçlü performansa sahip açık kaynaklı bir MoE kod modeli.",
   "deepseek-coder-v2:236b.description": "DeepSeek Coder V2, GPT-4 Turbo ile karşılaştırılabilir güçlü performansa sahip açık kaynaklı bir MoE kod modeli.",
@@ -443,11 +426,7 @@
   "deepseek-r1-fast-online.description": "Gerçek zamanlı web aramasıyla 671B ölçekli yetenek ve hızlı yanıtları birleştiren DeepSeek R1 hızlı tam sürüm.",
   "deepseek-r1-online.description": "671B parametreli ve gerçek zamanlı web aramasına sahip DeepSeek R1 tam sürüm; güçlü anlama ve üretim sunar.",
   "deepseek-r1.description": "DeepSeek-R1, RL öncesi soğuk başlangıç verileri kullanır ve matematik, kodlama ve akıl yürütmede OpenAI-o1 ile karşılaştırılabilir performans sunar.",
-<<<<<<< HEAD
-  "deepseek-reasoner.description": "DeepSeek V4 Flash düşünme modu için uyumluluk takma adı. Kullanımdan kaldırılması planlanıyor — bunun yerine DeepSeek V4 Flash kullanın.",
-=======
   "deepseek-reasoner.description": "DeepSeek V4 Flash düşünme modu için uyumluluk takma adı. Kullanımdan kaldırılacak — bunun yerine DeepSeek V4 Flash kullanın.",
->>>>>>> v2.1.58-canary.16
   "deepseek-v2.description": "DeepSeek V2, maliyet etkin işlem için verimli bir MoE modelidir.",
   "deepseek-v2:236b.description": "DeepSeek V2 236B, güçlü kod üretimi sunan DeepSeek’in kod odaklı modelidir.",
   "deepseek-v3-0324.description": "DeepSeek-V3-0324, programlama ve teknik yetenek, bağlam anlama ve uzun metin işleme konularında öne çıkan 671B parametreli bir MoE modelidir.",
@@ -512,13 +491,8 @@
   "doubao-seedream-4-0-250828.description": "Seedream 4.0, ByteDance Seed tarafından geliştirilen bir görsel üretim modelidir; metin ve görsel girişlerini destekler, yüksek kaliteli ve kontrol edilebilir görseller üretir. Metin istemlerinden görseller oluşturur.",
   "doubao-seedream-4-5-251128.description": "Seedream 4.5, ByteDance'in en son çok modlu görüntü modelidir. Metinden görüntüye, görüntüden görüntüye ve toplu görüntü oluşturma yeteneklerini entegre ederken, sağduyu ve akıl yürütme yeteneklerini içerir. Önceki 4.0 sürümüne kıyasla, daha iyi düzenleme tutarlılığı ve çoklu görüntü birleştirme ile önemli ölçüde geliştirilmiş üretim kalitesi sunar. Görsel detaylar üzerinde daha hassas kontrol sağlar, küçük metin ve küçük yüzleri daha doğal bir şekilde üretir ve daha uyumlu düzen ve renk elde ederek genel estetiği artırır.",
   "doubao-seedream-5-0-260128.description": "Doubao-Seedream-5.0-lite, ByteDance'in en son görüntü oluşturma modelidir. İlk kez çevrimiçi bilgi alma yeteneklerini entegre ederek gerçek zamanlı web bilgilerini dahil etmesine ve oluşturulan görüntülerin zamanlamasını artırmasına olanak tanır. Modelin zekası da yükseltilmiş, karmaşık talimatları ve görsel içeriği hassas bir şekilde yorumlama yeteneği kazandırılmıştır. Ayrıca, profesyonel senaryolarda daha iyi küresel bilgi kapsamı, referans tutarlılığı ve üretim kalitesi sunarak kurumsal düzeyde görsel yaratım ihtiyaçlarını daha iyi karşılar.",
-<<<<<<< HEAD
-  "dreamina-seedance-2-0-260128.description": "ByteDance tarafından geliştirilen Seedance 2.0, çok modlu referans video oluşturma, video düzenleme, video genişletme, metinden videoya ve görüntüden videoya senkronize ses ile destekleyen en güçlü video oluşturma modelidir.",
-  "dreamina-seedance-2-0-fast-260128.description": "ByteDance tarafından geliştirilen Seedance 2.0 Fast, Seedance 2.0 ile aynı yetenekleri daha hızlı üretim hızları ve daha rekabetçi bir fiyatla sunar.",
-=======
   "dreamina-seedance-2-0-260128.description": "ByteDance tarafından geliştirilen Seedance 2.0, en güçlü video üretim modelidir ve çok modlu referans video üretimi, video düzenleme, video genişletme, metinden videoya ve görüntüden videoya senkronize ses ile destekler.",
   "dreamina-seedance-2-0-fast-260128.description": "ByteDance tarafından geliştirilen Seedance 2.0 Fast, Seedance 2.0 ile aynı yetenekleri daha hızlı üretim hızları ve daha rekabetçi fiyatlarla sunar.",
->>>>>>> v2.1.58-canary.16
   "emohaa.description": "Emohaa, kullanıcıların duygusal sorunları anlamalarına yardımcı olmak için profesyonel danışmanlık yeteneklerine sahip bir ruh sağlığı modelidir.",
   "ernie-4.5-0.3b.description": "ERNIE 4.5 0.3B, yerel ve özelleştirilmiş dağıtım için açık kaynaklı hafif bir modeldir.",
   "ernie-4.5-8k-preview.description": "ERNIE 4.5 8K Önizleme, ERNIE 4.5'in değerlendirilmesi için 8K bağlam önizleme modelidir.",
@@ -532,10 +506,6 @@
   "ernie-5.0-thinking-latest.description": "Wenxin 5.0 Thinking, metin, görsel, ses ve video modellemesini birleştiren yerel tam modlu amiral gemisi modelidir. Karmaşık QA, içerik üretimi ve ajan senaryoları için kapsamlı yetenek geliştirmeleri sunar.",
   "ernie-5.0-thinking-preview.description": "Wenxin 5.0 Thinking Önizleme, metin, görsel, ses ve video modellemesini birleştiren yerel tam modlu amiral gemisi modelidir. Karmaşık QA, içerik üretimi ve ajan senaryoları için kapsamlı yetenek geliştirmeleri sunar.",
   "ernie-5.0.description": "ERNIE 5.0, ERNIE serisinin yeni nesil modelidir ve doğal olarak çok modludur. Metin, görüntü, ses ve videoyu tek bir birleşik çok modlu modelleme yaklaşımıyla işler. Temel yetenekleri önemli ölçüde geliştirilmiş olup çok yönlü kıyaslamalarda güçlü performans sergiler. Özellikle çok modlu anlama, talimat takip etme, yaratıcı yazma, gerçeklik doğruluğu, aracı planlama ve araç kullanımı konularında üstündür.",
-<<<<<<< HEAD
-  "ernie-char-8k.description": "ERNIE Character 8K, IP karakter oluşturma ve uzun vadeli arkadaşlık sohbeti için kişilik odaklı bir diyalog modelidir.",
-=======
->>>>>>> v2.1.58-canary.16
   "ernie-char-fiction-8k-preview.description": "ERNIE Character Fiction 8K Önizleme, karakter ve hikâye oluşturma özelliklerinin değerlendirilmesi ve test edilmesi için bir önizleme modelidir.",
   "ernie-char-fiction-8k.description": "ERNIE Character Fiction 8K, romanlar ve hikâye kurgusu için kişilik odaklı bir modeldir; uzun biçimli hikâye üretimi için uygundur.",
   "ernie-image-turbo.description": "ERNIE-Image, Baidu tarafından geliştirilen 8B parametreli bir metinden görüntüye modelidir. Çin’de SuperCLUE dahil birçok kıyaslamada üst sıralarda yer almakta ve açık kaynak kategorisinde lider konumdadır.",
@@ -547,13 +517,8 @@
   "ernie-x1-turbo-32k.description": "ERNIE X1 Turbo 32K, karmaşık akıl yürütme ve çoklu dönüşlü sohbetler için 32K bağlamlı hızlı düşünme modelidir.",
   "ernie-x1.1-preview.description": "ERNIE X1.1 Önizleme, değerlendirme ve test için bir düşünme modeli önizlemesidir.",
   "ernie-x1.1.description": "ERNIE X1.1, değerlendirme ve test için bir düşünme-modeli önizlemesidir.",
-<<<<<<< HEAD
-  "fal-ai/bytedance/seedream/v4.5.description": "ByteDance Seed ekibi tarafından geliştirilen Seedream 4.5, çoklu görüntü düzenleme ve kompozisyonu destekler. Geliştirilmiş konu tutarlılığı, hassas talimat takibi, mekansal mantık anlama, estetik ifade, poster düzeni ve logo tasarımı ile yüksek hassasiyetli metin-görüntü oluşturma özelliklerine sahiptir.",
-  "fal-ai/bytedance/seedream/v4.description": "ByteDance Seed tarafından geliştirilen Seedream 4.0, metin ve görüntü girdilerini destekleyerek istemlerden yüksek kaliteli, kontrol edilebilir görüntü oluşturma sağlar.",
-=======
   "fal-ai/bytedance/seedream/v4.5.description": "Seedream 4.5, ByteDance Seed ekibi tarafından geliştirilmiştir ve çoklu görüntü düzenleme ve kompozisyonu destekler. Geliştirilmiş konu tutarlılığı, hassas talimat takibi, mekansal mantık anlayışı, estetik ifade, poster düzeni ve logo tasarımı ile yüksek hassasiyetli metin-görüntü oluşturma özelliklerine sahiptir.",
   "fal-ai/bytedance/seedream/v4.description": "Seedream 4.0, ByteDance Seed tarafından geliştirilmiştir ve metin ve görüntü girdilerini kullanarak yüksek kaliteli, kontrol edilebilir görüntü üretimini destekler.",
->>>>>>> v2.1.58-canary.16
   "fal-ai/flux-kontext/dev.description": "FLUX.1 modeli, metin ve görsel girdileri destekleyen görsel düzenleme odaklı bir modeldir.",
   "fal-ai/flux-pro/kontext.description": "FLUX.1 Kontext [pro], metin ve referans görselleri girdi olarak alarak hedefe yönelik yerel düzenlemeler ve karmaşık sahne dönüşümleri sağlar.",
   "fal-ai/flux/krea.description": "Flux Krea [dev], daha gerçekçi ve doğal görseller üretmeye eğilimli estetik önyargıya sahip bir görsel üretim modelidir.",
@@ -561,13 +526,8 @@
   "fal-ai/hunyuan-image/v3.description": "Güçlü bir yerel çok modlu görsel üretim modelidir.",
   "fal-ai/imagen4/preview.description": "Google tarafından geliştirilen yüksek kaliteli görsel üretim modeli.",
   "fal-ai/nano-banana.description": "Nano Banana, Google’ın en yeni, en hızlı ve en verimli yerel çok modlu modelidir. Konuşma yoluyla görsel üretim ve düzenleme sağlar.",
-<<<<<<< HEAD
-  "fal-ai/qwen-image-edit.description": "Qwen ekibinden profesyonel bir görüntü düzenleme modeli olup, anlamsal ve görünüm düzenlemeleri, hassas Çince/İngilizce metin düzenleme, stil transferi, döndürme ve daha fazlasını destekler.",
-  "fal-ai/qwen-image.description": "Qwen ekibinden güçlü bir görüntü oluşturma modeli olup, güçlü Çince metin işleme ve çeşitli görsel stiller sunar.",
-=======
   "fal-ai/qwen-image-edit.description": "Qwen ekibinden profesyonel bir görüntü düzenleme modeli olup, semantik ve görünüm düzenlemeleri, hassas Çince/İngilizce metin düzenleme, stil transferi, döndürme ve daha fazlasını destekler.",
   "fal-ai/qwen-image.description": "Qwen ekibinden güçlü bir görüntü üretim modeli olup, güçlü Çince metin işleme ve çeşitli görsel stilleri destekler.",
->>>>>>> v2.1.58-canary.16
   "flux-1-schnell.description": "Black Forest Labs tarafından geliştirilen 12 milyar parametreli metinden görsele model. Latent adversarial diffusion distillation yöntemiyle 1-4 adımda yüksek kaliteli görseller üretir. Kapalı kaynaklı alternatiflerle rekabet eder ve kişisel, araştırma ve ticari kullanım için Apache-2.0 lisansı ile sunulur.",
   "flux-dev.description": "Açık kaynaklı Ar-Ge görsel üretim modelidir; ticari olmayan yenilikçi araştırmalar için verimli şekilde optimize edilmiştir.",
   "flux-kontext-max.description": "Metin ve görselleri birleştirerek hassas ve tutarlı sonuçlar sunan son teknoloji bağlamsal görsel üretim ve düzenleme.",
@@ -606,30 +566,17 @@
   "gemini-3-flash-preview.description": "Gemini 3 Flash, hız için tasarlanmış en akıllı modeldir. En son yapay zeka zekasını mükemmel arama temellendirmesiyle birleştirir.",
   "gemini-3-flash.description": "Google’ın Gemini 3 Flash modeli — çok hızlı ve çok modlu giriş desteğine sahiptir.",
   "gemini-3-pro-image-preview.description": "Gemini 3 Pro Image (Nano Banana Pro), Google'ın çok modlu diyaloğu da destekleyen görüntü oluşturma modelidir.",
-<<<<<<< HEAD
-  "gemini-3-pro-image-preview:image.description": "Gemini 3 Pro Image (Nano Banana Pro), Google'ın görüntü oluşturma modeli olup, çok modlu sohbeti de destekler.",
-  "gemini-3-pro-preview.description": "Gemini 3 Pro, Google’ın en güçlü ajan ve vibe-coding modelidir. En yeni akıl yürütme yeteneklerinin üzerine zengin görseller ve derin etkileşim sunar.",
-  "gemini-3.1-flash-image-preview.description": "Gemini 3.1 Flash Image (Nano Banana 2), Google'ın düşünme desteği, konuşmalı görüntü oluşturma ve düzenleme özelliklerine sahip en hızlı yerel görüntü oluşturma modelidir.",
-  "gemini-3.1-flash-image-preview:image.description": "Gemini 3.1 Flash Image (Nano Banana 2), Flash hızında Pro seviyesinde görüntü kalitesi sunar ve çok modlu sohbet desteği sağlar.",
-=======
   "gemini-3-pro-image-preview:image.description": "Gemini 3 Pro Image (Nano Banana Pro), Google'ın görüntü üretim modelidir ve çok modlu sohbeti de destekler.",
   "gemini-3-pro-preview.description": "Gemini 3 Pro, Google’ın en güçlü ajan ve vibe-coding modelidir. En yeni akıl yürütme yeteneklerinin üzerine zengin görseller ve derin etkileşim sunar.",
   "gemini-3.1-flash-image-preview.description": "Gemini 3.1 Flash Image (Nano Banana 2), Google'ın düşünme desteği, konuşmalı görüntü oluşturma ve düzenleme özelliklerine sahip en hızlı yerel görüntü oluşturma modelidir.",
   "gemini-3.1-flash-image-preview:image.description": "Gemini 3.1 Flash Image (Nano Banana 2), Flash hızında Pro seviyesinde görüntü kalitesi sunar ve çok modlu sohbeti destekler.",
->>>>>>> v2.1.58-canary.16
   "gemini-3.1-flash-lite-preview.description": "Gemini 3.1 Flash-Lite Preview, Google'ın en maliyet etkin çok modlu modeli olup, yüksek hacimli ajan görevleri, çeviri ve veri işleme için optimize edilmiştir.",
   "gemini-3.1-flash-lite.description": "Gemini 3.1 Flash-Lite, Google'ın en maliyet etkin çok modlu modelidir ve yüksek hacimli ajan görevleri, çeviri ve veri işleme için optimize edilmiştir.",
   "gemini-3.1-pro-preview.description": "Gemini 3.1 Pro Preview, Gemini 3 Pro'ya kıyasla geliştirilmiş akıl yürütme yetenekleri sunar ve orta düzey düşünme desteği ekler.",
   "gemini-3.1-pro.description": "Google’ın Gemini 3.1 Pro modeli — 1M bağlam penceresine sahip üst düzey çok modlu model.",
-<<<<<<< HEAD
-  "gemini-flash-latest.description": "Gemini Flash'ın en son sürümü",
-  "gemini-flash-lite-latest.description": "Gemini Flash-Lite'ın en son sürümü",
-  "gemini-pro-latest.description": "Gemini Pro'nun en son sürümü",
-=======
   "gemini-flash-latest.description": "gemini-3-flash-preview'e işaret eder",
   "gemini-flash-lite-latest.description": "gemini-2.5-flash-lite-preview-09-2025'e işaret eder",
   "gemini-pro-latest.description": "gemini-3.1-pro-preview'e işaret eder",
->>>>>>> v2.1.58-canary.16
   "gemma-7b-it.description": "Gemma 7B, küçük ve orta ölçekli görevler için maliyet açısından verimlidir.",
   "gemma2-9b-it.description": "Gemma 2 9B, belirli görevler ve araç entegrasyonu için optimize edilmiştir.",
   "gemma2.description": "Gemma 2, Google’ın verimli modelidir; küçük uygulamalardan karmaşık veri işleme senaryolarına kadar geniş kullanım alanlarını kapsar.",
@@ -766,11 +713,7 @@
   "gpt-5.4-pro.description": "OpenAI’nin GPT-5.4 Pro modeli — maksimum bağlam ve akıl yürütme kabiliyetlerine sahip en güçlü model.",
   "gpt-5.4.description": "OpenAI’nin GPT-5.4 modeli — 1M+ bağlam penceresi ve çok modlu giriş desteğine sahip yeni nesil model.",
   "gpt-5.5-pro.description": "GPT-5.5 Pro, daha yoğun hesaplama kullanarak daha derin düşünür ve sürekli daha iyi yanıtlar üretir.",
-<<<<<<< HEAD
-  "gpt-5.5.description": "GPT-5.5, en karmaşık profesyonel işler, kodlama ve aracı tabanlı görevler için sınırları zorlayan modeldir.",
-=======
   "gpt-5.5.description": "GPT-5.5, en karmaşık profesyonel işler için en yeni sınır modelimizdir.",
->>>>>>> v2.1.58-canary.16
   "gpt-5.description": "OpenAI’nin GPT-5 modeli — gelişmiş akıl yürütme ve çok modlu giriş kabiliyetiyle amiral gemisi model.",
   "gpt-audio.description": "GPT Audio, Chat Completions API'de ses girdi/çıktısını destekleyen genel bir sohbet modelidir.",
   "gpt-image-1-mini.description": "Doğal metin ve görsel girdi ile görsel çıktı sunan, daha düşük maliyetli GPT Image 1 varyantı.",
@@ -785,11 +728,6 @@
   "grok-3-mini.description": "xAI’ın Grok 3 Mini modeli — güçlü akıl yürütme ve hızlı yanıtlar.",
   "grok-3.description": "xAI’ın Grok 3 modeli — güçlü akıl yürütme kabiliyetleri sunar.",
   "grok-4-0709.description": "xAI'nin güçlü akıl yürütme yeteneğine sahip Grok 4 modelidir.",
-<<<<<<< HEAD
-  "grok-4-1-fast-non-reasoning.description": "Yüksek performanslı ajan araç kullanımı için optimize edilmiş öncü çok modlu modeldir.",
-  "grok-4-1-fast-reasoning.description": "Yüksek performanslı ajan araç kullanımı için optimize edilmiş öncü çok modlu modeldir.",
-=======
->>>>>>> v2.1.58-canary.16
   "grok-4-20-non-reasoning.description": "Basit kullanım senaryoları için akıl yürütme içermeyen varyant.",
   "grok-4-20-reasoning.description": "Yanıt vermeden önce akıl yürüten, son derece hızlı ve akıllı model.",
   "grok-4-fast-non-reasoning.description": "Grok 4 Fast modelimizi sunmaktan heyecan duyuyoruz; uygun maliyetli akıl yürütme modellerinde en son gelişmemizdir.",
@@ -797,16 +735,10 @@
   "grok-4.20-0309-non-reasoning.description": "Basit kullanım senaryoları için akıl yürütme içermeyen varyant.",
   "grok-4.20-0309-reasoning.description": "Yanıt vermeden önce akıl yürüten, son derece hızlı ve akıllı model.",
   "grok-4.20-beta-0309-non-reasoning.description": "Basit kullanım durumları için düşünme yeteneği olmayan bir varyant.",
-<<<<<<< HEAD
-  "grok-4.20-beta-0309-reasoning.description": "Yanıt vermeden önce düşünen, son derece hızlı ve zeki bir model.",
-  "grok-4.20-multi-agent-0309.description": "4 veya 16 ajanlık bir ekip; araştırma senaryolarında üstündür. Şu anda istemci tarafı araçları desteklemez. Yalnızca xAI sunucu tarafı araçlarını (örn. X Search, Web Search araçları) ve uzak MCP araçlarını destekler.",
-  "grok-4.description": "NLP, matematik ve akıl yürütmede üstünlük sağlayan, en yeni ve en güçlü amiral gemisi modelimiz — ideal bir çok yönlü.",
-=======
   "grok-4.20-beta-0309-reasoning.description": "Yanıt vermeden önce düşünen, son derece hızlı ve akıllı bir model.",
   "grok-4.20-multi-agent-0309.description": "4 veya 16 ajanlık bir ekip; araştırma senaryolarında üstündür. Şu anda istemci tarafı araçları desteklemez. Yalnızca xAI sunucu tarafı araçlarını (örn. X Search, Web Search araçları) ve uzak MCP araçlarını destekler.",
   "grok-4.3.description": "Dünyanın en doğruyu arayan büyük dil modeli",
   "grok-4.description": "Dil, matematik ve akıl yürütme konularında rakipsiz performansa sahip en son Grok amiral gemisi — gerçek bir çok yönlü model. Şu anda grok-4-0709'a işaret ediyor; sınırlı kaynaklar nedeniyle geçici olarak resmi fiyatlandırmadan %10 daha yüksek ve daha sonra resmi fiyatına dönmesi bekleniyor.",
->>>>>>> v2.1.58-canary.16
   "grok-code-fast-1.description": "Ajan tabanlı kodlama görevlerinde öne çıkan, hızlı ve uygun maliyetli bir akıl yürütme modeli olan grok-code-fast-1 modelini sunmaktan heyecan duyuyoruz.",
   "grok-imagine-image-quality.description": "Metin girdilerinden görüntü oluşturun, mevcut görüntüleri doğal dil ile düzenleyin veya çoklu dönüşlü konuşmalarla görüntüleri iteratif olarak iyileştirin.",
   "grok-imagine-image.description": "Metin istemlerinden görüntüler oluşturun, mevcut görüntüleri doğal dil ile düzenleyin veya çoklu dönüşlü konuşmalarla görüntüleri iteratif olarak geliştirin.",
@@ -870,12 +802,7 @@
   "kimi-k2-thinking.description": "kimi-k2-thinking, genel ajanlık ve akıl yürütme yeteneklerine sahip bir Moonshot AI düşünme modelidir. Derin akıl yürütmede mükemmeldir ve çok adımlı araç kullanımıyla zor problemleri çözebilir.",
   "kimi-k2-turbo-preview.description": "kimi-k2, güçlü kodlama ve ajan yeteneklerine sahip bir MoE temel modelidir (toplam 1T parametre, 32B aktif); akıl yürütme, programlama, matematik ve ajan testlerinde diğer yaygın açık modelleri geride bırakır.",
   "kimi-k2.5.description": "Kimi K2.5, Kimi'nin bugüne kadarki en çok yönlü modeli olup, hem görsel hem de metin girdilerini destekleyen yerel çok modlu bir mimariye sahiptir. 'Düşünme' ve 'düşünmeme' modlarını, hem sohbet hem de ajan görevlerini destekler.",
-<<<<<<< HEAD
-  "kimi-k2.6.description": "Kimi K2.6, Kimi’nin en yeni ve en yetenekli modelidir; uzun vadeli kodlama, talimat takip etme ve kendi kendini düzeltme konularında daha güçlüdür. Metin, görsel ve video girdilerini; sohbet ve aracı görevlerini destekler.",
-  "kimi-k2.description": "Kimi-K2, Moonshot AI tarafından geliştirilen güçlü kodlama ve ajan yeteneklerine sahip bir MoE temel modelidir; toplamda 1T parametreye ve her ileri geçişte 32B aktif parametreye sahiptir. Genel akıl yürütme, kodlama, matematik ve ajan görevleri için yapılan testlerde diğer yaygın açık modelleri geride bırakır.",
-=======
   "kimi-k2.6.description": "Kimi-K2.6, Moonshot AI tarafından piyasaya sürülen büyük bir dil modelidir ve mükemmel kodlama ve araç çağırma yeteneklerine sahiptir. Hizmet dağıtımı yalnızca Çin anakarasında desteklenmektedir.",
->>>>>>> v2.1.58-canary.16
   "kimi-k2:1t.description": "Kimi K2, Moonshot AI tarafından geliştirilen büyük bir MoE LLM'dir; toplamda 1T parametreye ve her ileri geçişte 32B aktif parametreye sahiptir. Gelişmiş araç kullanımı, akıl yürütme ve kod üretimi gibi ajan yetenekleri için optimize edilmiştir.",
   "kling/kling-v3-image-generation.description": "10 referans görüntüye kadar destekleyerek konuları, öğeleri ve renk tonlarını kilitleyerek tutarlı bir stil sağlar. Stil transferi, portre/karakter referansı, çoklu görüntü birleştirme ve yerel inpainting'i birleştirerek esnek kontrol sağlar. Gerçekçi portre detayları sunar ve genel görseller sinematik renk ve atmosferle hassas ve zengin katmanlıdır.",
   "kling/kling-v3-omni-image-generation.description": "Yeni seri görüntü üretimi ve doğrudan 2K/4K çıkış ile sinematik hikaye anlatımı görsellerini açığa çıkarın. İstemlerdeki görsel-işitsel öğeleri derinlemesine analiz ederek yaratıcı talimatları hassas bir şekilde yürütür. Esnek çoklu referans girdilerini ve kapsamlı kalite yükseltmelerini destekler, storyboardlar, anlatı konsept sanatı ve sahne tasarımı için idealdir.",
@@ -1281,11 +1208,7 @@
   "qwen3.5-plus-2026-04-20.description": "Qwen 3.5, doğal bir görsel-dil Plus modelidir. 15 Şubat sürümüne kıyasla aracı kodlama yeteneklerinde önemli iyileşmeler ve çok daha hızlı çıkarım sunar. Bilgi, akıl yürütme ve uzun bağlam yetenekleri yüksek seviyeyi korur ve karmaşık aracı görevleri karşılar. Bu sürüm, 20 Nisan 2026 görüntüsüne karşılık gelir.",
   "qwen3.5-plus.description": "Qwen3.5 Plus, metin, görüntü ve video girişini destekler. Saf metin görevlerindeki performansı Qwen3 Max ile karşılaştırılabilir olup, daha iyi performans ve daha düşük maliyet sunar. Çok modlu yetenekleri Qwen3 VL serisine kıyasla önemli ölçüde geliştirilmiştir.",
   "qwen3.5:397b.description": "Qwen3.5, 256K bağlam penceresi ile güçlü çok modlu akıl yürütme, kodlama ve uzun bağlam yetenekleri sunan bir hibrit mimariye (Mixture-of-Experts + lineer dikkat) sahip birleşik bir görsel-dil temel modelidir.",
-<<<<<<< HEAD
-  "qwen3.6-27b.description": "Qwen 3.6 serisi 27B, doğal bir görsel-dil yoğun modelidir. 3.5-27B sürümüne kıyasla aracı kodlamada belirgin gelişmeler sunar; STEM performansı ve akıl yürütme kabiliyeti daha da güçlendirilmiştir. Görsel tarafta mekânsal zekâ, nesne konumlama ve tespit konularında kayda değer ilerleme sağlar; video anlama, belge OCR ve görsel aracı yeteneklerinde istikrarlı gelişim gösterir.",
-=======
   "qwen3.6-27b.description": "Qwen3.6 27B, akıl yürütme, kodlama ve genel yeteneklerde güçlü performansa sahip açık kaynaklı yoğun bir modeldir. Varsayılan olarak düşünme modunu destekler ve dengeli performans ve verimlilik sunar.",
->>>>>>> v2.1.58-canary.16
   "qwen3.6-35b-a3b.description": "Qwen3.6 35B-A3B yerel görsel-dil modeli, doğrusal dikkat mekanizmasını seyrek Mixture-of-Experts (MoE) tasarımıyla birleştiren hibrit bir mimari üzerine kuruludur ve daha yüksek çıkarım verimliliği sunar. 3.5-35B-A3B modeline kıyasla otonom kodlama yeteneklerinde, matematiksel akıl yürütmede, kod akıl yürütmede, mekânsal zekâda ve nesne konumlandırma ile hedef tespitinde önemli geliştirmeler sağlar.",
   "qwen3.6-flash.description": "Qwen3.6 yerel görsel-dil Flash modeli, 3.5-Flash sürümüne kıyasla önemli ölçüde geliştirilmiş performans sunar. Bu model, otonom kodlama yeteneklerinin geliştirilmesine (birçok kod-ajansı kıyaslamasında selefinden belirgin şekilde daha iyi performans gösterir) ve matematiksel ile kod odaklı akıl yürütme yeteneklerinin iyileştirilmesine odaklanır. Görsel tarafta ise mekânsal zekâda kayda değer kazanımlar gösterir; özellikle nesne konumlandırma ve hedef tespitinde güçlü gelişmeler sağlar.",
   "qwen3.6-max-preview.description": "Qwen3.6 serisinin en büyük kapalı kaynak modelidir. Karmaşık görevler için daha güçlü dünya bilgisi, yönerge takibi ve otonom kodlama performansı sunar. Yalnızca metin desteklidir, varsayılan olarak düşünme modunu destekler, açık önbellekleme ve fonksiyon çağırmayı destekler.",
@@ -1297,13 +1220,8 @@
   "qwq.description": "QwQ, Qwen ailesine ait bir akıl yürütme modelidir. Standart talimatla eğitilmiş modellere kıyasla düşünme ve akıl yürütme yetenekleriyle özellikle zor problemler üzerinde performansı önemli ölçüde artırır. QwQ-32B, DeepSeek-R1 ve o1-mini gibi üst düzey modellerle rekabet eden orta boyutlu bir modeldir.",
   "qwq_32b.description": "Qwen ailesine ait orta boyutlu bir akıl yürütme modelidir. Standart talimatla eğitilmiş modellere kıyasla QwQ’nun düşünme ve akıl yürütme yetenekleri, özellikle zor problemler üzerinde performansı önemli ölçüde artırır.",
   "r1-1776.description": "R1-1776, sansürsüz ve tarafsız gerçek bilgi sunmak üzere DeepSeek R1 üzerine eğitilmiş bir varyanttır.",
-<<<<<<< HEAD
-  "seedance-1-5-pro-251215.description": "ByteDance tarafından geliştirilen Seedance 1.5 Pro, metinden videoya, görüntüden videoya (ilk kare, ilk+son kare) ve görsellerle senkronize ses oluşturmayı destekler.",
-  "seedream-5-0-260128.description": "BytePlus tarafından geliştirilen ByteDance-Seedream-5.0-lite, gerçek zamanlı bilgi için web arama ile desteklenen üretim, karmaşık istem yorumlama ve profesyonel görsel oluşturma için geliştirilmiş referans tutarlılığı sunar.",
-=======
   "seedance-1-5-pro-251215.description": "ByteDance tarafından geliştirilen Seedance 1.5 Pro, metinden videoya, görüntüden videoya (ilk kare, ilk+son kare) ve görsellerle senkronize ses üretimini destekler.",
   "seedream-5-0-260128.description": "BytePlus tarafından geliştirilen ByteDance-Seedream-5.0-lite, gerçek zamanlı bilgi için web arama ile desteklenen üretim, karmaşık talimat yorumlama ve profesyonel görsel oluşturma için geliştirilmiş referans tutarlılığı sunar.",
->>>>>>> v2.1.58-canary.16
   "solar-mini-ja.description": "Solar Mini (Ja), Japonca odaklı geliştirilmiş Solar Mini modelidir; İngilizce ve Korece'de de verimli ve güçlü performans sunar.",
   "solar-mini.description": "Solar Mini, GPT-3.5'i geride bırakan kompakt bir LLM'dir. İngilizce ve Korece destekli çok dilli yetenekleriyle verimli ve küçük boyutlu bir çözüm sunar.",
   "solar-pro.description": "Solar Pro, Upstage tarafından geliştirilen yüksek zekaya sahip bir LLM'dir. Tek bir GPU üzerinde talimat izleme odaklıdır ve IFEval skorları 80'in üzerindedir. Şu anda İngilizce desteklidir; tam sürüm Kasım 2024'te daha fazla dil desteği ve uzun bağlamla planlanmıştır.",

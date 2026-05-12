@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "認証方法",
   "heterogeneousStatus.auth.subscription": "サブスクリプション",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "コマンドを編集",
-  "heterogeneousStatus.command.label": "起動コマンド",
-  "heterogeneousStatus.command.placeholder": "コマンド名または絶対パス",
-=======
   "heterogeneousStatus.cloud.githubDesc": "サンドボックスがプライベートリポジトリをクローンできるようにするため、GitHub OAuth資格情報を選択してください。",
   "heterogeneousStatus.cloud.githubLabel": "GitHub接続",
   "heterogeneousStatus.cloud.githubNoCreds": "GitHub資格情報が見つかりません。",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "起動コマンド",
   "heterogeneousStatus.command.placeholder": "コマンド名または絶対パス",
   "heterogeneousStatus.desktop.tabLabel": "デスクトップ",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "{{name}} CLI を検出しています…",
   "heterogeneousStatus.plan.label": "プラン",
   "heterogeneousStatus.redetect": "再検出",

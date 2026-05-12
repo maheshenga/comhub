@@ -30,11 +30,6 @@
   "agentMarketplace.category.personalLife": "Личен живот",
   "agentMarketplace.category.productManagement": "Управление на продукти",
   "agentMarketplace.category.salesCustomer": "Продажби и клиенти",
-<<<<<<< HEAD
-  "agentMarketplace.picker.empty": "Няма налични шаблони.",
-  "agentMarketplace.picker.failedToLoad": "Неуспешно зареждане на шаблоните. Моля, опитайте отново по-късно.",
-  "agentMarketplace.picker.summary": "{{filtered}} / {{total}} налични шаблони.",
-=======
   "agentMarketplace.inspector.moreCategories_one": "+{{count}}",
   "agentMarketplace.inspector.moreCategories_other": "+{{count}}",
   "agentMarketplace.inspector.pickCount_one": "{{count}} агент",
@@ -45,7 +40,6 @@
   "agentMarketplace.render.alreadyInLibraryTag": "Вече в библиотеката",
   "agentMarketplace.render.alreadyInLibrary_one": "{{count}} вече в библиотеката",
   "agentMarketplace.render.alreadyInLibrary_other": "{{count}} вече в библиотеката",
->>>>>>> v2.1.58-canary.16
   "codeInterpreter-legacy.error": "Грешка при изпълнение",
   "codeInterpreter-legacy.executing": "Изпълнение...",
   "codeInterpreter-legacy.files": "Файлове:",

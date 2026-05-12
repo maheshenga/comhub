@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Możesz edytować nazwę lub awatar bezpośrednio poniżej.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Nazwa agenta",
   "tool.intervention.onboarding.agentIdentity.title": "Potwierdź aktualizację tożsamości agenta",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Zaktualizuję swój awatar",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Zaktualizuję swoje imię",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Te dane zostaną zapisane w Twoim profilu po zatwierdzeniu.",
   "tool.intervention.onboarding.userProfile.description": "Zatwierdzenie tej zmiany aktualizuje Twój profil onboardingowy, dzięki czemu Agent może dostosować przyszłe odpowiedzi.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Zatwierdzenie onboardingu",
   "tool.intervention.onboarding.userProfile.fullName": "Pełne imię i nazwisko",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Język odpowiedzi",
   "tool.intervention.onboarding.userProfile.title": "Potwierdź aktualizację swojego profilu",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Zatwierdź",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "Oczekujące",
   "tool.intervention.reject": "Odrzuć",
   "tool.intervention.rejectOnly": "Odrzuć",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Zaktualizowano regułę obciążenia",
   "workflow.toolDisplayName.updatePlan": "Zaktualizowany plan",
   "workflow.toolDisplayName.updateTodos": "Zaktualizowane zadania",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Napisano dokument",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Zapisano plik",
   "workflow.working": "Przetwarzanie...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Zaktualizowano {{time}}",
   "workingPanel.resources.viewMode.list": "Widok listy",
   "workingPanel.resources.viewMode.tree": "Widok drzewa",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "Plik binarny — różnice nie są wyświetlane",
-  "workingPanel.review.empty": "Brak zmian w drzewie roboczym",
-  "workingPanel.review.error": "Nie udało się załadować różnic dla tego pliku",
-=======
   "workingPanel.review.baseRef.default": "domyślny",
   "workingPanel.review.baseRef.loading": "Ładowanie gałęzi…",
   "workingPanel.review.baseRef.reset": "Przywróć do domyślnej gałęzi",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Odśwież",
   "workingPanel.review.textDiff.disable": "Wyłącz różnice tekstowe w linii",
   "workingPanel.review.textDiff.enable": "Włącz różnice tekstowe w linii",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Przegląd",
   "workingPanel.review.tooLarge": "Plik jest zbyt duży, aby wyświetlić różnice w trybie inline",
   "workingPanel.review.unstaged": "Niezatwierdzone",
   "workingPanel.review.viewMode.split": "Przełącz na widok podzielony",
   "workingPanel.review.viewMode.unified": "Przełącz na widok zjednoczony",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Wyłącz zawijanie wierszy",
   "workingPanel.review.wordWrap.enable": "Włącz zawijanie wierszy",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Przestrzeń",
   "workingPanel.title": "Working Panel",
   "you": "Ty",

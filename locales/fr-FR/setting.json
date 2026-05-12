@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "Méthode d’authentification",
   "heterogeneousStatus.auth.subscription": "Abonnement",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "Modifier la commande",
-  "heterogeneousStatus.command.label": "Commande de lancement",
-  "heterogeneousStatus.command.placeholder": "Nom de la commande ou chemin absolu",
-=======
   "heterogeneousStatus.cloud.githubDesc": "Sélectionnez une autorisation OAuth GitHub pour permettre au sandbox de cloner vos dépôts privés.",
   "heterogeneousStatus.cloud.githubLabel": "Connexion GitHub",
   "heterogeneousStatus.cloud.githubNoCreds": "Aucune autorisation GitHub trouvée.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "Commande de lancement",
   "heterogeneousStatus.command.placeholder": "Nom de la commande ou chemin absolu",
   "heterogeneousStatus.desktop.tabLabel": "Bureau",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "Détection du CLI {{name}}…",
   "heterogeneousStatus.plan.label": "Forfait",
   "heterogeneousStatus.redetect": "Relancer la détection",

@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "Метод аутентификации",
   "heterogeneousStatus.auth.subscription": "Подписка",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "Редактировать команду",
-  "heterogeneousStatus.command.label": "Команда запуска",
-  "heterogeneousStatus.command.placeholder": "Название команды или абсолютный путь",
-=======
   "heterogeneousStatus.cloud.githubDesc": "Выберите учетные данные OAuth GitHub, чтобы позволить песочнице клонировать ваши приватные репозитории.",
   "heterogeneousStatus.cloud.githubLabel": "Подключение к GitHub",
   "heterogeneousStatus.cloud.githubNoCreds": "Учетные данные GitHub не найдены.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "Команда запуска",
   "heterogeneousStatus.command.placeholder": "Название команды или абсолютный путь",
   "heterogeneousStatus.desktop.tabLabel": "Рабочий стол",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "Обнаружение CLI {{name}}...",
   "heterogeneousStatus.plan.label": "Тарифный план",
   "heterogeneousStatus.redetect": "Повторное обнаружение",

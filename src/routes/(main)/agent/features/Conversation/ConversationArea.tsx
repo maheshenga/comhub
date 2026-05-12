@@ -15,11 +15,7 @@ import { useOperationState } from '@/hooks/useOperationState';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
-<<<<<<< HEAD
-import { topicSelectors } from '@/store/chat/selectors';
-=======
 import { threadSelectors, topicSelectors } from '@/store/chat/selectors';
->>>>>>> v2.1.58-canary.16
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
 
 import HeterogeneousChatInput from './HeterogeneousChatInput';
@@ -122,11 +118,7 @@ const Conversation = memo(() => {
           }
         />
       </Flexbox>
-<<<<<<< HEAD
-      {isHeterogeneousAgent ? <HeterogeneousChatInput /> : <MainChatInput />}
-=======
       {!isSubagentThread && (isHeterogeneousAgent ? <HeterogeneousChatInput /> : <MainChatInput />)}
->>>>>>> v2.1.58-canary.16
       <ThreadHydration />
       <ChatMiniMap />
       <Suspense>

@@ -56,10 +56,6 @@ const ViewSwitcher = memo(() => {
   const location = useLocation();
   const params = useParams<{ aid?: string; topicId?: string }>();
   const activeTopicId = useChatStore((s) => s.activeTopicId);
-<<<<<<< HEAD
-  const enableAgentTask = useServerConfigStore((s) => featureFlagsSelectors(s).enableAgentTask);
-=======
->>>>>>> v2.1.58-canary.16
   const isHeterogeneousAgent = useAgentStore(agentSelectors.isCurrentAgentHeterogeneous);
 
   const aid = params.aid;
@@ -125,11 +121,7 @@ const ViewSwitcher = memo(() => {
     }
   };
 
-<<<<<<< HEAD
-  if (!topicId || !enableAgentTask || isHeterogeneousAgent) return null;
-=======
   if (!topicId || isHeterogeneousAgent) return null;
->>>>>>> v2.1.58-canary.16
 
   return (
     <Segmented

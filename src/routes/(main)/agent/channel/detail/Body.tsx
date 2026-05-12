@@ -141,11 +141,7 @@ const SchemaField = memo<SchemaFieldProps>(({ field, parentKey, divider }) => {
         const hasDescriptions = field.enumDescriptions?.some(Boolean);
         children = (
           <Select
-<<<<<<< HEAD
-            placeholder={field.placeholder}
-=======
             placeholder={field.placeholder ? t(field.placeholder) : undefined}
->>>>>>> v2.1.58-canary.16
             optionRender={
               hasDescriptions
                 ? (item) => (
@@ -366,14 +362,6 @@ const Body = memo<BodyProps>(({ platformDef, form, hasConfig, currentConfig, onA
 
   const CustomCredentialBody = platformCredentialBodyMap[platformDef.id];
   const CredentialExtras = platformCredentialExtrasMap[platformDef.id];
-<<<<<<< HEAD
-
-  const applicationIdField = useMemo(
-    () => platformDef.schema.find((f) => f.key === 'applicationId'),
-    [platformDef.schema],
-  );
-=======
->>>>>>> v2.1.58-canary.16
 
   const credentialFields = useMemo(
     () => getFields(platformDef.schema, 'credentials'),
@@ -424,17 +412,6 @@ const Body = memo<BodyProps>(({ platformDef, form, hasConfig, currentConfig, onA
         />
       ) : (
         <>
-<<<<<<< HEAD
-          {applicationIdField && <ApplicationIdField field={applicationIdField} />}
-          {credentialFields.map((field, i) => (
-            <SchemaField
-              divider={applicationIdField ? true : i !== 0}
-              field={field}
-              key={field.key}
-              parentKey="credentials"
-            />
-          ))}
-=======
           {/* Render top-level sections in schema order so each platform controls
               its own field ordering. LINE places `credentials` before `applicationId`
               because the operator must enter the channel access token before the
@@ -466,7 +443,6 @@ const Body = memo<BodyProps>(({ platformDef, form, hasConfig, currentConfig, onA
           {/* Platform-specific helpers (e.g. LINE's "Fetch from LINE" button)
               render after the credential + applicationId block so the button
               sits next to the field it acts on. */}
->>>>>>> v2.1.58-canary.16
           {CredentialExtras && <CredentialExtras />}
         </>
       )}

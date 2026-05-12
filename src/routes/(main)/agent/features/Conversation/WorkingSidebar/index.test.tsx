@@ -1,6 +1,22 @@
+/* eslint-disable import-x/first */
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.hoisted(() => {
+  const storage = new Map<string, string>();
+  const localStorageMock = {
+    clear: () => storage.clear(),
+    getItem: (key: string) => storage.get(key) ?? null,
+    removeItem: (key: string) => storage.delete(key),
+    setItem: (key: string, value: string) => storage.set(key, value),
+  };
+
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: localStorageMock,
+  });
+});
 
 import * as swr from '@/libs/swr';
 import { useGlobalStore } from '@/store/global';
@@ -32,6 +48,10 @@ vi.mock('./Review', () => ({
 
 vi.mock('@/features/ChatInput/RuntimeConfig/useRepoType', () => ({
   useRepoType: (path?: string) => (path ? mocks.repoType : undefined),
+}));
+
+vi.mock('@/features/AgentDocumentsExplorer', () => ({
+  DocumentExplorerTree: () => <div data-testid="document-explorer-tree" />,
 }));
 
 vi.mock('@lobehub/ui', () => ({
@@ -136,10 +156,7 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'workingPanel.resources.empty': 'No agent documents yet',
-<<<<<<< HEAD
-=======
           'workingPanel.review.title': 'Review',
->>>>>>> v2.1.58-canary.16
           'workingPanel.space': 'Space',
         }) as Record<string, string>
       )[key] || key,
@@ -176,11 +193,7 @@ vi.mock('@/store/chat/selectors', () => ({
     portalDocumentId: () => null,
   },
   topicSelectors: {
-<<<<<<< HEAD
-    currentTopicWorkingDirectory: () => undefined,
-=======
     currentTopicWorkingDirectory: () => mocks.topicWorkingDirectory,
->>>>>>> v2.1.58-canary.16
   },
 }));
 

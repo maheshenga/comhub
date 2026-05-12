@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "يمكنك تعديل الاسم أو الصورة الرمزية مباشرة أدناه.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "اسم الوكيل",
   "tool.intervention.onboarding.agentIdentity.title": "تأكيد تحديث هوية الوكيل",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "سأقوم بتحديث صورتي الرمزية",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "سأقوم بتحديث اسمي",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "سيتم حفظ هذه التفاصيل في ملفك الشخصي بعد الموافقة.",
   "tool.intervention.onboarding.userProfile.description": "الموافقة على هذا التغيير ستحدث ملف تعريف الانضمام الخاص بك حتى يتمكن الوكيل من تخصيص الردود المستقبلية.",
   "tool.intervention.onboarding.userProfile.eyebrow": "الموافقة على الانضمام",
   "tool.intervention.onboarding.userProfile.fullName": "الاسم الكامل",
   "tool.intervention.onboarding.userProfile.responseLanguage": "لغة الرد",
   "tool.intervention.onboarding.userProfile.title": "تأكيد تحديث ملفك الشخصي",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "الموافقة",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "قيد الانتظار",
   "tool.intervention.reject": "رفض",
   "tool.intervention.rejectOnly": "رفض",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "تم تحديث قاعدة التحميل",
   "workflow.toolDisplayName.updatePlan": "الخطة المحدَّثة",
   "workflow.toolDisplayName.updateTodos": "تم تحديث المهام",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "تم كتابة مستند",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "تمت كتابة ملف",
   "workflow.working": "جارٍ العمل...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "تم التحديث في {{time}}",
   "workingPanel.resources.viewMode.list": "عرض القائمة",
   "workingPanel.resources.viewMode.tree": "عرض الشجرة",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "ملف ثنائي — لا يمكن عرض الفرق",
-  "workingPanel.review.empty": "لا توجد تغييرات في شجرة العمل",
-  "workingPanel.review.error": "تعذر تحميل الفرق لهذا الملف",
-=======
   "workingPanel.review.baseRef.default": "افتراضي",
   "workingPanel.review.baseRef.loading": "جارٍ تحميل الفروع...",
   "workingPanel.review.baseRef.reset": "إعادة التعيين إلى الفرع الافتراضي",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "تحديث",
   "workingPanel.review.textDiff.disable": "تعطيل مقارنة النصوص المضمنة",
   "workingPanel.review.textDiff.enable": "تمكين مقارنة النصوص المضمنة",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "مراجعة",
   "workingPanel.review.tooLarge": "الملف كبير جدًا لعرض الفرق داخليًا",
   "workingPanel.review.unstaged": "غير مُعدّل",
   "workingPanel.review.viewMode.split": "التبديل إلى العرض المنقسم",
   "workingPanel.review.viewMode.unified": "التبديل إلى العرض الموحد",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "تعطيل التفاف النص",
   "workingPanel.review.wordWrap.enable": "تمكين التفاف النص",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "مسافة",
   "workingPanel.title": "Working Panel",
   "you": "أنت",

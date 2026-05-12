@@ -5,12 +5,8 @@
   "agentSelection.search": "Няма намерени съвпадащи агенти",
   "brief.action.acknowledge": "Потвърждаване",
   "brief.action.approve": "Одобряване",
-<<<<<<< HEAD
-  "brief.action.confirmDone": "Потвърди завършването",
-=======
   "brief.action.confirm": "Потвърди",
   "brief.action.confirmDone": "Потвърди",
->>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "Обратна връзка",
   "brief.action.retry": "Опит отново",
   "brief.addFeedback": "Споделяне на обратна връзка",

@@ -30,11 +30,6 @@
   "agentMarketplace.category.personalLife": "Persoonlijk Leven",
   "agentMarketplace.category.productManagement": "Productbeheer",
   "agentMarketplace.category.salesCustomer": "Verkoop & Klant",
-<<<<<<< HEAD
-  "agentMarketplace.picker.empty": "Geen sjablonen beschikbaar.",
-  "agentMarketplace.picker.failedToLoad": "Laden van sjablonen mislukt. Probeer het later opnieuw.",
-  "agentMarketplace.picker.summary": "{{filtered}} / {{total}} sjablonen beschikbaar.",
-=======
   "agentMarketplace.inspector.moreCategories_one": "+{{count}}",
   "agentMarketplace.inspector.moreCategories_other": "+{{count}}",
   "agentMarketplace.inspector.pickCount_one": "{{count}} agent",
@@ -45,7 +40,6 @@
   "agentMarketplace.render.alreadyInLibraryTag": "Al in bibliotheek",
   "agentMarketplace.render.alreadyInLibrary_one": "{{count}} al in bibliotheek",
   "agentMarketplace.render.alreadyInLibrary_other": "{{count}} al in bibliotheek",
->>>>>>> v2.1.58-canary.16
   "codeInterpreter-legacy.error": "Uitvoeringsfout",
   "codeInterpreter-legacy.executing": "Bezig met uitvoeren...",
   "codeInterpreter-legacy.files": "Bestanden:",

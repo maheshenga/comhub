@@ -1,16 +1,6 @@
 'use client';
 
 import { ActionIcon, Center, Collapse, Empty, Flexbox } from '@lobehub/ui';
-<<<<<<< HEAD
-import { Spin } from 'antd';
-import { createStaticStyles } from 'antd-style';
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  Columns2Icon,
-  GitCompareIcon,
-  Rows2Icon,
-=======
 import { Dropdown, type MenuProps } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import {
@@ -27,15 +17,10 @@ import {
   UnfoldVerticalIcon,
   WholeWordIcon,
   WrapTextIcon,
->>>>>>> v2.1.58-canary.16
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-<<<<<<< HEAD
-import FileItemBody, { FileItemHeader } from './FileItem';
-import { useWorkingTreePatches } from './useWorkingTreePatches';
-=======
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 
@@ -47,7 +32,6 @@ const TEXT_DIFF_STORAGE_KEY = 'lobechat-review-text-diff';
 const VIEW_MODE_STORAGE_KEY = 'lobechat-review-view-mode';
 const REVIEW_MODE_STORAGE_KEY = 'lobechat-review-mode';
 const BASE_REF_OVERRIDES_STORAGE_KEY = 'lobechat-review-base-overrides';
->>>>>>> v2.1.58-canary.16
 
 interface ReviewProps {
   workingDirectory: string;
@@ -63,29 +47,6 @@ const itemKey = (entry: { filePath: string; status: string }) =>
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   caret: css`
-<<<<<<< HEAD
-    color: ${cssVar.colorTextTertiary};
-  `,
-  count: css`
-    padding-block: 1px;
-    padding-inline: 6px;
-    border-radius: 999px;
-
-    font-family: ${cssVar.fontFamilyCode};
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    color: ${cssVar.colorTextSecondary};
-
-    background: ${cssVar.colorFillTertiary};
-  `,
-  scopeChip: css`
-    display: inline-flex;
-    gap: 6px;
-    align-items: center;
-
-    font-size: 12px;
-    color: ${cssVar.colorTextSecondary};
-=======
     flex-shrink: 0;
     color: ${cssVar.colorTextTertiary};
   `,
@@ -211,7 +172,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     &:hover {
       background: ${cssVar.colorFillTertiary};
     }
->>>>>>> v2.1.58-canary.16
   `,
   subheader: css`
     display: flex;
@@ -227,13 +187,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
 const Review = memo<ReviewProps>(({ workingDirectory }) => {
   const { t } = useTranslation('chat');
-<<<<<<< HEAD
-  const { data, isLoading } = useWorkingTreePatches(workingDirectory);
-  // Memo-stabilise the fallback so downstream useMemo deps don't flap on
-  // every render while the SWR result is undefined.
-  const patches = useMemo(() => data?.patches ?? [], [data]);
-  const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified');
-=======
   const [mode, setMode] = useLocalStorageState<ReviewMode>(REVIEW_MODE_STORAGE_KEY, 'unstaged');
   // Per-repo base-ref override — when set, the branch diff compares against
   // this ref instead of `origin/HEAD`. Stored as a single keyed object so we
@@ -276,7 +229,6 @@ const Review = memo<ReviewProps>(({ workingDirectory }) => {
   // pierre/diffs default lineDiffType is 'word-alt' (text-level highlighting on),
   // so we default the persisted toggle to true to preserve current behaviour.
   const [textDiff, setTextDiff] = useLocalStorageState<boolean>(TEXT_DIFF_STORAGE_KEY, true);
->>>>>>> v2.1.58-canary.16
 
   // Default-expand by patch-size budget: take entries until cumulative patch
   // bytes exceed DEFAULT_EXPAND_BYTE_BUDGET, capped at DEFAULT_EXPAND_MAX_COUNT.
@@ -305,19 +257,7 @@ const Review = memo<ReviewProps>(({ workingDirectory }) => {
   if (!data && isLoading) {
     return (
       <Center flex={1}>
-<<<<<<< HEAD
-        <Spin />
-      </Center>
-    );
-  }
-
-  if (patches.length === 0) {
-    return (
-      <Center flex={1} gap={8} paddingBlock={24}>
-        <Empty description={t('workingPanel.review.empty')} icon={GitCompareIcon} />
-=======
         <NeuralNetworkLoading size={48} />
->>>>>>> v2.1.58-canary.16
       </Center>
     );
   }
@@ -331,15 +271,10 @@ const Review = memo<ReviewProps>(({ workingDirectory }) => {
           filePath={entry.filePath}
           isBinary={entry.isBinary}
           patch={entry.patch}
-<<<<<<< HEAD
-          truncated={entry.truncated}
-          viewMode={viewMode}
-=======
           textDiff={textDiff}
           truncated={entry.truncated}
           viewMode={viewMode}
           wordWrap={wordWrap}
->>>>>>> v2.1.58-canary.16
         />
       ),
       key,
@@ -354,48 +289,6 @@ const Review = memo<ReviewProps>(({ workingDirectory }) => {
     };
   });
 
-<<<<<<< HEAD
-  return (
-    <Flexbox style={{ overflow: 'hidden' }} width={'100%'}>
-      <div className={styles.subheader}>
-        <span className={styles.scopeChip}>
-          {t('workingPanel.review.unstaged')}
-          <span className={styles.count}>{patches.length}</span>
-          <ChevronDownIcon className={styles.caret} size={12} />
-        </span>
-        <ActionIcon
-          active={viewMode === 'split'}
-          icon={viewMode === 'unified' ? Columns2Icon : Rows2Icon}
-          size={'small'}
-          title={
-            viewMode === 'unified'
-              ? t('workingPanel.review.viewMode.split')
-              : t('workingPanel.review.viewMode.unified')
-          }
-          onClick={() => setViewMode((m) => (m === 'unified' ? 'split' : 'unified'))}
-        />
-      </div>
-      <Flexbox gap={6} paddingInline={8} style={{ overflow: 'auto' }} width={'100%'}>
-        <Collapse
-          activeKey={activeKeys}
-          expandIconPlacement={'end'}
-          items={items}
-          padding={{ body: 0, header: '6px 12px' }}
-          variant={'outlined'}
-          expandIcon={({ isActive }) => (
-            <ChevronRightIcon
-              size={14}
-              style={{
-                color: 'var(--ant-color-text-tertiary)',
-                transform: isActive ? 'rotate(90deg)' : 'rotate(0deg)',
-                transition: 'transform 0.2s',
-              }}
-            />
-          )}
-          onChange={(next) => setActiveKeys(Array.isArray(next) ? next : [next])}
-        />
-      </Flexbox>
-=======
   const allExpanded = patches.length > 0 && activeKeys.length === patches.length;
   const handleToggleAll = () => {
     setActiveKeys(allExpanded ? [] : patches.map(itemKey));
@@ -612,7 +505,6 @@ const Review = memo<ReviewProps>(({ workingDirectory }) => {
           />
         </Flexbox>
       )}
->>>>>>> v2.1.58-canary.16
     </Flexbox>
   );
 });

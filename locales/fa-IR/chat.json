@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "شما می‌توانید نام یا آواتار را مستقیماً در زیر ویرایش کنید.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "نام نماینده",
   "tool.intervention.onboarding.agentIdentity.title": "تأیید به‌روزرسانی هویت عامل",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "من آواتارم را به‌روزرسانی می‌کنم",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "من نامم را به‌روزرسانی می‌کنم",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "این جزئیات پس از تأیید به پروفایل شما ذخیره خواهد شد.",
   "tool.intervention.onboarding.userProfile.description": "تأیید این تغییر، پروفایل ورود شما را به‌روزرسانی می‌کند تا نماینده بتواند پاسخ‌های آینده را متناسب کند.",
   "tool.intervention.onboarding.userProfile.eyebrow": "تأیید ورود",
   "tool.intervention.onboarding.userProfile.fullName": "نام کامل",
   "tool.intervention.onboarding.userProfile.responseLanguage": "زبان پاسخ",
   "tool.intervention.onboarding.userProfile.title": "به‌روزرسانی پروفایل خود را تأیید کنید",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "تأیید",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "در انتظار",
   "tool.intervention.reject": "رد کردن",
   "tool.intervention.rejectOnly": "رد کردن",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "قانون بارگذاری به‌روزرسانی شد",
   "workflow.toolDisplayName.updatePlan": "طرح به‌روزرسانی‌شده",
   "workflow.toolDisplayName.updateTodos": "وظایف به‌روزرسانی شدند",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "یک سند نوشته شد",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "یک فایل نوشته شد",
   "workflow.working": "در حال انجام...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "به‌روزرسانی شده در {{time}}",
   "workingPanel.resources.viewMode.list": "نمای فهرست",
   "workingPanel.resources.viewMode.tree": "نمای درختی",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "فایل باینری — تفاوت نمایش داده نمی‌شود",
-  "workingPanel.review.empty": "هیچ تغییری در درخت کاری وجود ندارد",
-  "workingPanel.review.error": "بارگذاری تفاوت این فایل ممکن نیست",
-=======
   "workingPanel.review.baseRef.default": "پیش‌فرض",
   "workingPanel.review.baseRef.loading": "در حال بارگذاری شاخه‌ها…",
   "workingPanel.review.baseRef.reset": "بازنشانی به شاخه پیش‌فرض",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "تازه‌سازی",
   "workingPanel.review.textDiff.disable": "غیرفعال کردن تفاوت متنی درون‌خطی",
   "workingPanel.review.textDiff.enable": "فعال کردن تفاوت متنی درون‌خطی",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "بررسی",
   "workingPanel.review.tooLarge": "فایل برای نمایش تفاوت به صورت درون‌خطی بیش از حد بزرگ است",
   "workingPanel.review.unstaged": "غیربه‌صحنه‌گذاری‌شده",
   "workingPanel.review.viewMode.split": "تغییر به نمای تقسیم‌شده",
   "workingPanel.review.viewMode.unified": "تغییر به نمای یکپارچه",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "غیرفعال کردن پیچش کلمات",
   "workingPanel.review.wordWrap.enable": "فعال کردن پیچش کلمات",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "فضا",
   "workingPanel.title": "Working Panel",
   "you": "شما",

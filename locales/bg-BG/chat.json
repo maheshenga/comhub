@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Можете да редактирате името или аватара директно по-долу.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Име на агент",
   "tool.intervention.onboarding.agentIdentity.title": "Потвърждение за обновяване на идентичността на агента",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Ще актуализирам аватара си",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Ще актуализирам името си",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Тези данни ще бъдат запазени във вашия профил след одобрение.",
   "tool.intervention.onboarding.userProfile.description": "Одобряването на тази промяна актуализира вашия профил за въвеждане, така че агентът да може да персонализира бъдещите отговори.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Одобрение на въвеждане",
   "tool.intervention.onboarding.userProfile.fullName": "Пълно име",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Език на отговора",
   "tool.intervention.onboarding.userProfile.title": "Потвърдете актуализацията на профила си",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Одобри",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "В очакване",
   "tool.intervention.reject": "Отхвърли",
   "tool.intervention.rejectOnly": "Отхвърли",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Актуализирано правило за натоварване",
   "workflow.toolDisplayName.updatePlan": "Актуализиран план",
   "workflow.toolDisplayName.updateTodos": "Актуализирани задачи",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Написан документ",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Записа файл",
   "workflow.working": "В процес на работа...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Актуализирано {{time}}",
   "workingPanel.resources.viewMode.list": "Списъчен изглед",
   "workingPanel.resources.viewMode.tree": "Дървовиден изглед",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "Двоичен файл — разликата не е показана",
-  "workingPanel.review.empty": "Няма промени в работното дърво",
-  "workingPanel.review.error": "Не може да се зареди разликата на този файл",
-=======
   "workingPanel.review.baseRef.default": "по подразбиране",
   "workingPanel.review.baseRef.loading": "Зареждане на клонове...",
   "workingPanel.review.baseRef.reset": "Връщане към клона по подразбиране",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Обнови",
   "workingPanel.review.textDiff.disable": "Деактивирай вградени текстови разлики",
   "workingPanel.review.textDiff.enable": "Активирай вградени текстови разлики",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Преглед",
   "workingPanel.review.tooLarge": "Файлът е твърде голям за показване на разликата в линия",
   "workingPanel.review.unstaged": "Нестадирано",
   "workingPanel.review.viewMode.split": "Превключете към разделен изглед",
   "workingPanel.review.viewMode.unified": "Превключете към обединен изглед",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Деактивирай пренасяне на думи",
   "workingPanel.review.wordWrap.enable": "Активирай пренасяне на думи",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Пространство",
   "workingPanel.title": "Working Panel",
   "you": "Вие",

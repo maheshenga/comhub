@@ -24,10 +24,7 @@
   "table.columns.trigger.enums.semantic_search": "Tìm kiếm Tri thức",
   "table.columns.trigger.enums.topic": "Tóm tắt Chủ đề",
   "table.columns.trigger.enums.video": "Tạo video",
-<<<<<<< HEAD
-=======
   "table.columns.trigger.enums.visual_analysis": "Phân tích hình ảnh",
->>>>>>> v2.1.58-canary.16
   "table.columns.trigger.title": "Kích hoạt",
   "table.columns.type.enums.chat": "Tạo văn bản",
   "table.columns.type.enums.embedding": "Nhúng",

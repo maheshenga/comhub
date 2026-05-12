@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "驗證方式",
   "heterogeneousStatus.auth.subscription": "訂閱",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "編輯指令",
-  "heterogeneousStatus.command.label": "啟動指令",
-  "heterogeneousStatus.command.placeholder": "指令名稱或絕對路徑",
-=======
   "heterogeneousStatus.cloud.githubDesc": "選擇 GitHub OAuth 憑證以允許沙盒克隆您的私人存儲庫。",
   "heterogeneousStatus.cloud.githubLabel": "GitHub 連接",
   "heterogeneousStatus.cloud.githubNoCreds": "未找到 GitHub 憑證。",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "啟動指令",
   "heterogeneousStatus.command.placeholder": "指令名稱或絕對路徑",
   "heterogeneousStatus.desktop.tabLabel": "桌面",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "正在偵測 {{name}} CLI...",
   "heterogeneousStatus.plan.label": "方案",
   "heterogeneousStatus.redetect": "重新偵測",

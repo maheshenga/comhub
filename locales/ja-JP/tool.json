@@ -30,11 +30,6 @@
   "agentMarketplace.category.personalLife": "個人生活",
   "agentMarketplace.category.productManagement": "プロダクトマネジメント",
   "agentMarketplace.category.salesCustomer": "営業と顧客",
-<<<<<<< HEAD
-  "agentMarketplace.picker.empty": "テンプレートがありません。",
-  "agentMarketplace.picker.failedToLoad": "テンプレートの読み込みに失敗しました。後でもう一度お試しください。",
-  "agentMarketplace.picker.summary": "{{filtered}} / {{total}} テンプレートが利用可能です。",
-=======
   "agentMarketplace.inspector.moreCategories_one": "+{{count}}",
   "agentMarketplace.inspector.moreCategories_other": "+{{count}}",
   "agentMarketplace.inspector.pickCount_one": "{{count}} エージェント",
@@ -45,7 +40,6 @@
   "agentMarketplace.render.alreadyInLibraryTag": "すでにライブラリにあります",
   "agentMarketplace.render.alreadyInLibrary_one": "{{count}} 件がすでにライブラリにあります",
   "agentMarketplace.render.alreadyInLibrary_other": "{{count}} 件がすでにライブラリにあります",
->>>>>>> v2.1.58-canary.16
   "codeInterpreter-legacy.error": "実行エラー",
   "codeInterpreter-legacy.executing": "実行中...",
   "codeInterpreter-legacy.files": "ファイル：",

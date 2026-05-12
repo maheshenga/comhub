@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "واجهة برمجة التطبيقات",
   "heterogeneousStatus.auth.label": "طريقة التوثيق",
   "heterogeneousStatus.auth.subscription": "الاشتراك",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "تحرير الأمر",
-  "heterogeneousStatus.command.label": "أمر التشغيل",
-  "heterogeneousStatus.command.placeholder": "اسم الأمر أو المسار المطلق",
-=======
   "heterogeneousStatus.cloud.githubDesc": "اختر بيانات اعتماد OAuth لـ GitHub للسماح للصندوق الرمل باستنساخ مستودعاتك الخاصة.",
   "heterogeneousStatus.cloud.githubLabel": "اتصال GitHub",
   "heterogeneousStatus.cloud.githubNoCreds": "لم يتم العثور على بيانات اعتماد GitHub.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "أمر التشغيل",
   "heterogeneousStatus.command.placeholder": "اسم الأمر أو المسار المطلق",
   "heterogeneousStatus.desktop.tabLabel": "سطح المكتب",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "يتم الآن اكتشاف واجهة سطر الأوامر لـ {{name}}...",
   "heterogeneousStatus.plan.label": "الخطة",
   "heterogeneousStatus.redetect": "إعادة الاكتشاف",

@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "Метод за удостоверяване",
   "heterogeneousStatus.auth.subscription": "Абонамент",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "Редактиране на команда",
-  "heterogeneousStatus.command.label": "Команда за стартиране",
-  "heterogeneousStatus.command.placeholder": "Име на команда или абсолютен път",
-=======
   "heterogeneousStatus.cloud.githubDesc": "Изберете GitHub OAuth идентификационни данни, за да позволите на пясъчника да клонира вашите частни хранилища.",
   "heterogeneousStatus.cloud.githubLabel": "Връзка с GitHub",
   "heterogeneousStatus.cloud.githubNoCreds": "Не са намерени GitHub идентификационни данни.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "Команда за стартиране",
   "heterogeneousStatus.command.placeholder": "Име на команда или абсолютен път",
   "heterogeneousStatus.desktop.tabLabel": "Работен плот",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "Откриване на {{name}} CLI...",
   "heterogeneousStatus.plan.label": "План",
   "heterogeneousStatus.redetect": "Повторно откриване",

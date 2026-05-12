@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Bạn có thể chỉnh sửa tên hoặc hình đại diện trực tiếp bên dưới.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Tên đại diện",
   "tool.intervention.onboarding.agentIdentity.title": "Xác nhận cập nhật danh tính Tác tử",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Tôi sẽ cập nhật ảnh đại diện của mình",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Tôi sẽ cập nhật tên của mình",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Những thông tin này sẽ được lưu vào hồ sơ của bạn sau khi được phê duyệt.",
   "tool.intervention.onboarding.userProfile.description": "Phê duyệt thay đổi này sẽ cập nhật hồ sơ giới thiệu của bạn để Đại lý có thể điều chỉnh các phản hồi trong tương lai.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Phê duyệt giới thiệu",
   "tool.intervention.onboarding.userProfile.fullName": "Họ và tên",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Ngôn ngữ phản hồi",
   "tool.intervention.onboarding.userProfile.title": "Xác nhận cập nhật hồ sơ của bạn",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Phê duyệt",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "Đang chờ xử lý",
   "tool.intervention.reject": "Từ chối",
   "tool.intervention.rejectOnly": "Từ chối",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Quy tắc tải đã được cập nhật",
   "workflow.toolDisplayName.updatePlan": "Kế hoạch đã được cập nhật",
   "workflow.toolDisplayName.updateTodos": "Đã cập nhật việc cần làm",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Đã viết tài liệu",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Đã ghi một tệp",
   "workflow.working": "Đang xử lý...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Cập nhật {{time}}",
   "workingPanel.resources.viewMode.list": "Chế độ danh sách",
   "workingPanel.resources.viewMode.tree": "Chế độ cây",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "Tệp nhị phân — không hiển thị sự khác biệt",
-  "workingPanel.review.empty": "Không có thay đổi trong cây làm việc",
-  "workingPanel.review.error": "Không thể tải sự khác biệt của tệp này",
-=======
   "workingPanel.review.baseRef.default": "mặc định",
   "workingPanel.review.baseRef.loading": "Đang tải các nhánh…",
   "workingPanel.review.baseRef.reset": "Đặt lại về nhánh mặc định",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Làm mới",
   "workingPanel.review.textDiff.disable": "Tắt so sánh văn bản nội tuyến",
   "workingPanel.review.textDiff.enable": "Bật so sánh văn bản nội tuyến",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Xem xét",
   "workingPanel.review.tooLarge": "Tệp quá lớn để hiển thị sự khác biệt trực tiếp",
   "workingPanel.review.unstaged": "Chưa được dàn dựng",
   "workingPanel.review.viewMode.split": "Chuyển sang chế độ xem chia đôi",
   "workingPanel.review.viewMode.unified": "Chuyển sang chế độ xem hợp nhất",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Tắt ngắt dòng",
   "workingPanel.review.wordWrap.enable": "Bật ngắt dòng",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Khoảng trống",
   "workingPanel.title": "Working Panel",
   "you": "Bạn",

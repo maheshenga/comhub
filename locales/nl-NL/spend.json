@@ -24,10 +24,7 @@
   "table.columns.trigger.enums.semantic_search": "Kenniszoekopdracht",
   "table.columns.trigger.enums.topic": "Onderwerp Samenvatting",
   "table.columns.trigger.enums.video": "Videogeneratie",
-<<<<<<< HEAD
-=======
   "table.columns.trigger.enums.visual_analysis": "Visuele Analyse",
->>>>>>> v2.1.58-canary.16
   "table.columns.trigger.title": "Trigger",
   "table.columns.type.enums.chat": "Tekstgeneratie",
   "table.columns.type.enums.embedding": "Inbedding",

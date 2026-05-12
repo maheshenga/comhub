@@ -30,11 +30,6 @@
   "agentMarketplace.category.personalLife": "Privatleben",
   "agentMarketplace.category.productManagement": "Produktmanagement",
   "agentMarketplace.category.salesCustomer": "Vertrieb & Kunden",
-<<<<<<< HEAD
-  "agentMarketplace.picker.empty": "Keine Vorlagen verfügbar.",
-  "agentMarketplace.picker.failedToLoad": "Vorlagen konnten nicht geladen werden. Bitte versuchen Sie es später erneut.",
-  "agentMarketplace.picker.summary": "{{filtered}} / {{total}} Vorlagen verfügbar.",
-=======
   "agentMarketplace.inspector.moreCategories_one": "+{{count}}",
   "agentMarketplace.inspector.moreCategories_other": "+{{count}}",
   "agentMarketplace.inspector.pickCount_one": "{{count}} Agent",
@@ -45,7 +40,6 @@
   "agentMarketplace.render.alreadyInLibraryTag": "Bereits in der Bibliothek",
   "agentMarketplace.render.alreadyInLibrary_one": "{{count}} bereits in der Bibliothek",
   "agentMarketplace.render.alreadyInLibrary_other": "{{count}} bereits in der Bibliothek",
->>>>>>> v2.1.58-canary.16
   "codeInterpreter-legacy.error": "Ausführungsfehler",
   "codeInterpreter-legacy.executing": "Wird ausgeführt...",
   "codeInterpreter-legacy.files": "Dateien:",

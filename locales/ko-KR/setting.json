@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "인증 방식",
   "heterogeneousStatus.auth.subscription": "구독",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "명령어 편집",
-  "heterogeneousStatus.command.label": "실행 명령어",
-  "heterogeneousStatus.command.placeholder": "명령어 이름 또는 절대 경로",
-=======
   "heterogeneousStatus.cloud.githubDesc": "샌드박스가 개인 저장소를 복제할 수 있도록 GitHub OAuth 자격 증명을 선택하세요.",
   "heterogeneousStatus.cloud.githubLabel": "GitHub 연결",
   "heterogeneousStatus.cloud.githubNoCreds": "GitHub 자격 증명이 없습니다.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "실행 명령어",
   "heterogeneousStatus.command.placeholder": "명령어 이름 또는 절대 경로",
   "heterogeneousStatus.desktop.tabLabel": "데스크톱",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "{{name}} CLI 감지 중...",
   "heterogeneousStatus.plan.label": "플랜",
   "heterogeneousStatus.redetect": "다시 감지",

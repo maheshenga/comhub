@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "Kimlik Doğrulama Yöntemi",
   "heterogeneousStatus.auth.subscription": "Abonelik",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "Komutu düzenle",
-  "heterogeneousStatus.command.label": "Komut Başlat",
-  "heterogeneousStatus.command.placeholder": "Komut adı veya mutlak yol",
-=======
   "heterogeneousStatus.cloud.githubDesc": "Sandbox'un özel depolarınızı klonlamasına izin vermek için bir GitHub OAuth kimlik bilgisi seçin.",
   "heterogeneousStatus.cloud.githubLabel": "GitHub Bağlantısı",
   "heterogeneousStatus.cloud.githubNoCreds": "GitHub kimlik bilgisi bulunamadı.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "Komut Başlat",
   "heterogeneousStatus.command.placeholder": "Komut adı veya mutlak yol",
   "heterogeneousStatus.desktop.tabLabel": "Masaüstü",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "{{name}} CLI algılanıyor...",
   "heterogeneousStatus.plan.label": "Plan",
   "heterogeneousStatus.redetect": "Yeniden algıla",

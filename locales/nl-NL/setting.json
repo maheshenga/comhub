@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "Authenticatiemethode",
   "heterogeneousStatus.auth.subscription": "Abonnement",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "Opdracht bewerken",
-  "heterogeneousStatus.command.label": "Opstartopdracht",
-  "heterogeneousStatus.command.placeholder": "Opdrachtnaam of absoluut pad",
-=======
   "heterogeneousStatus.cloud.githubDesc": "Selecteer een GitHub OAuth-referentie om de sandbox toegang te geven tot je privérepositories.",
   "heterogeneousStatus.cloud.githubLabel": "GitHub-verbinding",
   "heterogeneousStatus.cloud.githubNoCreds": "Geen GitHub-referenties gevonden.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "Opstartopdracht",
   "heterogeneousStatus.command.placeholder": "Opdrachtnaam of absoluut pad",
   "heterogeneousStatus.desktop.tabLabel": "Desktop",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "{{name}} CLI wordt gedetecteerd...",
   "heterogeneousStatus.plan.label": "Plan",
   "heterogeneousStatus.redetect": "Opnieuw detecteren",

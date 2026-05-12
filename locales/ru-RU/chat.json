@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Вы можете изменить имя или аватар прямо ниже.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Имя агента",
   "tool.intervention.onboarding.agentIdentity.title": "Подтвердите обновление личности агента",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Я обновлю свой аватар",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Я обновлю своё имя",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Эти данные будут сохранены в вашем профиле после одобрения.",
   "tool.intervention.onboarding.userProfile.description": "Одобрение этого изменения обновит ваш профиль, чтобы Агент мог адаптировать будущие ответы.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Одобрение профиля",
   "tool.intervention.onboarding.userProfile.fullName": "Полное имя",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Язык ответа",
   "tool.intervention.onboarding.userProfile.title": "Подтвердите обновление вашего профиля",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Одобрить",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "В ожидании",
   "tool.intervention.reject": "Отклонить",
   "tool.intervention.rejectOnly": "Отклонить",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Правило нагрузки обновлено",
   "workflow.toolDisplayName.updatePlan": "Обновлённый план",
   "workflow.toolDisplayName.updateTodos": "Обновленные задачи",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Создан документ",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Файл записан",
   "workflow.working": "Выполнение...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Обновлено {{time}}",
   "workingPanel.resources.viewMode.list": "Список",
   "workingPanel.resources.viewMode.tree": "Дерево",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "Двоичный файл — разница не отображается",
-  "workingPanel.review.empty": "Нет изменений в рабочем дереве",
-  "workingPanel.review.error": "Не удалось загрузить разницу этого файла",
-=======
   "workingPanel.review.baseRef.default": "по умолчанию",
   "workingPanel.review.baseRef.loading": "Загрузка веток…",
   "workingPanel.review.baseRef.reset": "Сбросить на ветку по умолчанию",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Обновить",
   "workingPanel.review.textDiff.disable": "Отключить встроенное сравнение текста",
   "workingPanel.review.textDiff.enable": "Включить встроенное сравнение текста",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Обзор",
   "workingPanel.review.tooLarge": "Файл слишком большой для отображения разницы в строке",
   "workingPanel.review.unstaged": "Не подготовлено",
   "workingPanel.review.viewMode.split": "Переключиться на разделенный вид",
   "workingPanel.review.viewMode.unified": "Переключиться на объединенный вид",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Отключить перенос слов",
   "workingPanel.review.wordWrap.enable": "Включить перенос слов",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Пространство",
   "workingPanel.title": "Working Panel",
   "you": "Вы",

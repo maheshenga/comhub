@@ -24,10 +24,7 @@
   "table.columns.trigger.enums.semantic_search": "知識検索",
   "table.columns.trigger.enums.topic": "トピック要約",
   "table.columns.trigger.enums.video": "動画生成",
-<<<<<<< HEAD
-=======
   "table.columns.trigger.enums.visual_analysis": "視覚分析",
->>>>>>> v2.1.58-canary.16
   "table.columns.trigger.title": "トリガー",
   "table.columns.type.enums.chat": "テキスト生成",
   "table.columns.type.enums.embedding": "埋め込み",

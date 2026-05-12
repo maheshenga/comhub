@@ -35,15 +35,12 @@
   "builtins.lobe-agent-documents.apiName.renameDocument": "重命名文档",
   "builtins.lobe-agent-documents.apiName.replaceDocumentContent": "替换文档内容",
   "builtins.lobe-agent-documents.apiName.updateLoadRule": "更新加载规则",
-<<<<<<< HEAD
-=======
   "builtins.lobe-agent-documents.inspector.chars": "{{count}} 字",
   "builtins.lobe-agent-documents.inspector.docCount": "{{count}} 篇",
   "builtins.lobe-agent-documents.inspector.opsCount": "{{count}} 项操作",
   "builtins.lobe-agent-documents.inspector.opsResult": "{{success}}/{{total}} 项",
   "builtins.lobe-agent-documents.inspector.target.agent": "Agent 范围",
   "builtins.lobe-agent-documents.inspector.target.currentTopic": "当前话题",
->>>>>>> v2.1.58-canary.16
   "builtins.lobe-agent-documents.title": "Agent 文档",
   "builtins.lobe-agent-management.apiName.callAgent": "呼叫代理",
   "builtins.lobe-agent-management.apiName.createAgent": "创建代理",
@@ -72,11 +69,7 @@
   "builtins.lobe-agent-management.render.installPlugin.plugin": "插件",
   "builtins.lobe-agent-management.render.installPlugin.success": "安装成功",
   "builtins.lobe-agent-management.title": "代理管理器",
-<<<<<<< HEAD
-  "builtins.lobe-agent-marketplace.apiName.showAgentMarketplace": "打开助手市场",
-=======
   "builtins.lobe-agent-marketplace.apiName.showAgentMarketplace": "组建 Agent 团队",
->>>>>>> v2.1.58-canary.16
   "builtins.lobe-agent-marketplace.apiName.submitAgentPick": "提交助手选择",
   "builtins.lobe-agent-marketplace.title": "助手市场",
   "builtins.lobe-claude-code.agent.instruction": "指令",
@@ -691,11 +684,7 @@
   "skillDetail.tools": "工具",
   "skillDetail.trustWarning": "请仅使用您信任的开发者提供的连接器。LobeHub 无法控制开发者提供哪些工具，也无法验证这些工具是否按预期工作或是否会发生变化。",
   "skillInstallBanner.dismiss": "关闭",
-<<<<<<< HEAD
-  "skillInstallBanner.title": "为 Lobe AI 添加技能",
-=======
   "skillInstallBanner.title": "将你的常用软件连接到 Lobe AI",
->>>>>>> v2.1.58-canary.16
   "store.actions.cancel": "取消安装",
   "store.actions.configure": "配置",
   "store.actions.confirmUninstall": "即将卸载该技能，卸载后将清除该技能配置，请确认你的操作",

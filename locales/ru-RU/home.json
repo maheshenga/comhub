@@ -5,12 +5,8 @@
   "agentSelection.search": "Совпадающих агентов не найдено",
   "brief.action.acknowledge": "Подтвердить",
   "brief.action.approve": "Одобрить",
-<<<<<<< HEAD
-  "brief.action.confirmDone": "Подтвердить завершение",
-=======
   "brief.action.confirm": "Подтвердить",
   "brief.action.confirmDone": "Подтвердить",
->>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "Отзыв",
   "brief.action.retry": "Повторить",
   "brief.addFeedback": "Оставить отзыв",

@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "您可以直接在下方編輯名稱或頭像。",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "代理名稱",
   "tool.intervention.onboarding.agentIdentity.title": "確認代理身分更新",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "我會更新我的頭像",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "我會更新我的名字",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "這些詳細資料將在批准後儲存到您的個人檔案中。",
   "tool.intervention.onboarding.userProfile.description": "批准此變更將更新您的入職檔案，以便代理可以量身定制未來的回覆。",
   "tool.intervention.onboarding.userProfile.eyebrow": "入職批准",
   "tool.intervention.onboarding.userProfile.fullName": "全名",
   "tool.intervention.onboarding.userProfile.responseLanguage": "回應語言",
   "tool.intervention.onboarding.userProfile.title": "確認您的檔案更新",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "批准",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "待處理",
   "tool.intervention.reject": "拒絕",
   "tool.intervention.rejectOnly": "拒絕",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "已更新載入規則",
   "workflow.toolDisplayName.updatePlan": "更新後的計畫",
   "workflow.toolDisplayName.updateTodos": "已更新的待辦事項",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "已撰寫文件",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "已寫入檔案",
   "workflow.working": "處理中...",
   "workingPanel.agentDocuments": "助理文件",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "更新於 {{time}}",
   "workingPanel.resources.viewMode.list": "列表檢視",
   "workingPanel.resources.viewMode.tree": "樹狀檢視",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "二進位檔案 — 無法顯示差異",
-  "workingPanel.review.empty": "沒有工作樹變更",
-  "workingPanel.review.error": "無法載入此檔案的差異",
-=======
   "workingPanel.review.baseRef.default": "預設",
   "workingPanel.review.baseRef.loading": "正在載入分支…",
   "workingPanel.review.baseRef.reset": "重置為預設分支",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "重新整理",
   "workingPanel.review.textDiff.disable": "停用內嵌文字差異",
   "workingPanel.review.textDiff.enable": "啟用內嵌文字差異",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "檢視",
   "workingPanel.review.tooLarge": "檔案過大，無法內嵌顯示差異",
   "workingPanel.review.unstaged": "未分階段",
   "workingPanel.review.viewMode.split": "切換至分割檢視",
   "workingPanel.review.viewMode.unified": "切換至統一檢視",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "停用自動換行",
   "workingPanel.review.wordWrap.enable": "啟用自動換行",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "空間",
   "workingPanel.title": "Working Panel",
   "you": "你",

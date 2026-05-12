@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "认证方式",
   "heterogeneousStatus.auth.subscription": "订阅",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "编辑指令",
-  "heterogeneousStatus.command.label": "启动指令",
-  "heterogeneousStatus.command.placeholder": "指令名称或绝对路径",
-=======
   "heterogeneousStatus.cloud.githubDesc": "选择一个 GitHub OAuth 凭据，以允许沙箱克隆您的私有存储库。",
   "heterogeneousStatus.cloud.githubLabel": "GitHub 连接",
   "heterogeneousStatus.cloud.githubNoCreds": "未找到 GitHub 凭证。",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "启动指令",
   "heterogeneousStatus.command.placeholder": "指令名称或绝对路径",
   "heterogeneousStatus.desktop.tabLabel": "桌面端",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "正在检测 {{name}} CLI…",
   "heterogeneousStatus.plan.label": "方案",
   "heterogeneousStatus.redetect": "重新检测",

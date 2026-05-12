@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Sie können den Namen oder Avatar direkt unten bearbeiten.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Agentenname",
   "tool.intervention.onboarding.agentIdentity.title": "Aktualisierung der Agentenidentität bestätigen",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Ich werde meinen Avatar aktualisieren",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Ich werde meinen Namen aktualisieren",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Diese Angaben werden nach Genehmigung in Ihrem Profil gespeichert.",
   "tool.intervention.onboarding.userProfile.description": "Die Genehmigung dieser Änderung aktualisiert Ihr Onboarding-Profil, damit der Agent zukünftige Antworten anpassen kann.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Onboarding-Genehmigung",
   "tool.intervention.onboarding.userProfile.fullName": "Vollständiger Name",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Antwortsprache",
   "tool.intervention.onboarding.userProfile.title": "Bestätigen Sie Ihre Profilaktualisierung",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Genehmigen",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "Ausstehend",
   "tool.intervention.reject": "Ablehnen",
   "tool.intervention.rejectOnly": "Ablehnen",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Aktualisierte Lastregel",
   "workflow.toolDisplayName.updatePlan": "Aktualisierter Plan",
   "workflow.toolDisplayName.updateTodos": "Todos aktualisiert",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Ein Dokument geschrieben",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Datei wurde geschrieben",
   "workflow.working": "Wird ausgeführt...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Aktualisiert {{time}}",
   "workingPanel.resources.viewMode.list": "Listenansicht",
   "workingPanel.resources.viewMode.tree": "Baumansicht",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "Binärdatei — Diff wird nicht angezeigt",
-  "workingPanel.review.empty": "Keine Änderungen im Arbeitsbaum",
-  "workingPanel.review.error": "Konnte den Diff dieser Datei nicht laden",
-=======
   "workingPanel.review.baseRef.default": "Standard",
   "workingPanel.review.baseRef.loading": "Zweige werden geladen…",
   "workingPanel.review.baseRef.reset": "Auf den Standardzweig zurücksetzen",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Aktualisieren",
   "workingPanel.review.textDiff.disable": "Inline-Textvergleich deaktivieren",
   "workingPanel.review.textDiff.enable": "Inline-Textvergleich aktivieren",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Überprüfung",
   "workingPanel.review.tooLarge": "Datei ist zu groß, um inline verglichen zu werden",
   "workingPanel.review.unstaged": "Nicht gestaged",
   "workingPanel.review.viewMode.split": "Zur geteilten Ansicht wechseln",
   "workingPanel.review.viewMode.unified": "Zur einheitlichen Ansicht wechseln",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Zeilenumbruch deaktivieren",
   "workingPanel.review.wordWrap.enable": "Zeilenumbruch aktivieren",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Leerzeichen",
   "workingPanel.title": "Working Panel",
   "you": "Du",

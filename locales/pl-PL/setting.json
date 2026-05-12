@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "Metoda uwierzytelniania",
   "heterogeneousStatus.auth.subscription": "Subskrypcja",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "Edytuj polecenie",
-  "heterogeneousStatus.command.label": "Polecenie startowe",
-  "heterogeneousStatus.command.placeholder": "Nazwa polecenia lub pełna ścieżka",
-=======
   "heterogeneousStatus.cloud.githubDesc": "Wybierz poświadczenie OAuth GitHub, aby umożliwić piaskownicy klonowanie Twoich prywatnych repozytoriów.",
   "heterogeneousStatus.cloud.githubLabel": "Połączenie z GitHub",
   "heterogeneousStatus.cloud.githubNoCreds": "Nie znaleziono poświadczeń GitHub.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "Polecenie startowe",
   "heterogeneousStatus.command.placeholder": "Nazwa polecenia lub pełna ścieżka",
   "heterogeneousStatus.desktop.tabLabel": "Pulpit",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "Wykrywanie CLI {{name}}...",
   "heterogeneousStatus.plan.label": "Plan",
   "heterogeneousStatus.redetect": "Wykryj ponownie",

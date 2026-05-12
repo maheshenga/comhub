@@ -35,15 +35,12 @@
   "builtins.lobe-agent-documents.apiName.renameDocument": "Rinomina documento",
   "builtins.lobe-agent-documents.apiName.replaceDocumentContent": "Sostituisci contenuto del documento",
   "builtins.lobe-agent-documents.apiName.updateLoadRule": "Aggiorna regola di caricamento",
-<<<<<<< HEAD
-=======
   "builtins.lobe-agent-documents.inspector.chars": "{{count}} caratteri",
   "builtins.lobe-agent-documents.inspector.docCount": "{{count}} documenti",
   "builtins.lobe-agent-documents.inspector.opsCount": "{{count}} operazioni",
   "builtins.lobe-agent-documents.inspector.opsResult": "{{success}}/{{total}} operazioni",
   "builtins.lobe-agent-documents.inspector.target.agent": "nell'agente",
   "builtins.lobe-agent-documents.inspector.target.currentTopic": "nell'argomento",
->>>>>>> v2.1.58-canary.16
   "builtins.lobe-agent-documents.title": "Documenti dell'agente",
   "builtins.lobe-agent-management.apiName.callAgent": "Chiamare agente",
   "builtins.lobe-agent-management.apiName.createAgent": "Creare agente",

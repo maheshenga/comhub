@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Vous pouvez modifier le nom ou l'avatar directement ci-dessous.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Nom de l'agent",
   "tool.intervention.onboarding.agentIdentity.title": "Confirmer la mise à jour de l’identité de l’agent",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Je vais mettre à jour mon avatar",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Je vais mettre à jour mon nom",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Ces détails seront enregistrés dans votre profil après approbation.",
   "tool.intervention.onboarding.userProfile.description": "L'approbation de ce changement met à jour votre profil d'intégration afin que l'Agent puisse adapter les réponses futures.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Approbation d'intégration",
   "tool.intervention.onboarding.userProfile.fullName": "Nom complet",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Langue de réponse",
   "tool.intervention.onboarding.userProfile.title": "Confirmez la mise à jour de votre profil",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Approuver",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "En attente",
   "tool.intervention.reject": "Rejeter",
   "tool.intervention.rejectOnly": "Rejeter",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Règle de chargement mise à jour",
   "workflow.toolDisplayName.updatePlan": "Plan mis à jour",
   "workflow.toolDisplayName.updateTodos": "Tâches mises à jour",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Document rédigé",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "A écrit un fichier",
   "workflow.working": "En cours...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Mis à jour {{time}}",
   "workingPanel.resources.viewMode.list": "Vue en liste",
   "workingPanel.resources.viewMode.tree": "Vue arborescente",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "Fichier binaire — diff non affiché",
-  "workingPanel.review.empty": "Aucun changement dans l'arborescence de travail",
-  "workingPanel.review.error": "Impossible de charger le diff de ce fichier",
-=======
   "workingPanel.review.baseRef.default": "par défaut",
   "workingPanel.review.baseRef.loading": "Chargement des branches…",
   "workingPanel.review.baseRef.reset": "Réinitialiser à la branche par défaut",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Actualiser",
   "workingPanel.review.textDiff.disable": "Désactiver la comparaison de texte en ligne",
   "workingPanel.review.textDiff.enable": "Activer la comparaison de texte en ligne",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Revue",
   "workingPanel.review.tooLarge": "Le fichier est trop volumineux pour un diff en ligne",
   "workingPanel.review.unstaged": "Non indexé",
   "workingPanel.review.viewMode.split": "Passer à la vue fractionnée",
   "workingPanel.review.viewMode.unified": "Passer à la vue unifiée",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Désactiver le retour à la ligne",
   "workingPanel.review.wordWrap.enable": "Activer le retour à la ligne",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Espace",
   "workingPanel.title": "Working Panel",
   "you": "Vous",

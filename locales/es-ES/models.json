@@ -319,11 +319,7 @@
   "claude-haiku-4-5.description": "Claude Haiku 4.5 de Anthropic: Haiku de nueva generación con razonamiento y visión mejorados.",
   "claude-haiku-4.5.description": "Claude Haiku 4.5 es el modelo Haiku más rápido e inteligente de Anthropic, con velocidad relámpago y razonamiento extendido.",
   "claude-opus-4-1-20250805-thinking.description": "Claude Opus 4.1 Thinking es una variante avanzada que puede mostrar su proceso de razonamiento.",
-<<<<<<< HEAD
-  "claude-opus-4-1-20250805.description": "Claude Opus 4.1 es el modelo más reciente y avanzado de Anthropic para tareas altamente complejas, destacando en rendimiento, inteligencia, fluidez y comprensión.",
-=======
   "claude-opus-4-1-20250805.description": "Claude Opus 4.1 es el modelo más reciente y capaz de Anthropic para tareas altamente complejas, destacando en rendimiento, inteligencia, fluidez y comprensión.",
->>>>>>> v2.1.58-canary.16
   "claude-opus-4-1.description": "Claude Opus 4.1 de Anthropic: modelo de razonamiento premium con profundas capacidades de análisis.",
   "claude-opus-4-20250514.description": "Claude Opus 4 es el modelo más poderoso de Anthropic para tareas altamente complejas, destacando en rendimiento, inteligencia, fluidez y comprensión.",
   "claude-opus-4-5-20251101.description": "Claude Opus 4.5 es el modelo insignia de Anthropic, combinando inteligencia excepcional con rendimiento escalable, ideal para tareas complejas que requieren respuestas y razonamiento de la más alta calidad.",
@@ -408,11 +404,7 @@
   "deepseek-ai/deepseek-llm-67b-chat.description": "DeepSeek LLM Chat (67B) es un modelo innovador que ofrece una comprensión profunda del lenguaje y una interacción avanzada.",
   "deepseek-ai/deepseek-v3.1-terminus.description": "DeepSeek V3.1 es un modelo de razonamiento de nueva generación con capacidades mejoradas para razonamiento complejo y cadenas de pensamiento, ideal para tareas de análisis profundo.",
   "deepseek-ai/deepseek-v3.2.description": "DeepSeek V3.2 es un modelo de razonamiento de próxima generación con capacidades mejoradas de razonamiento complejo y cadenas de pensamiento.",
-<<<<<<< HEAD
-  "deepseek-chat.description": "Alias de compatibilidad para el modo sin razonamiento de DeepSeek V4 Flash. Programado para ser descontinuado: utiliza DeepSeek V4 Flash en su lugar.",
-=======
   "deepseek-chat.description": "Alias de compatibilidad para el modo sin pensamiento de DeepSeek V4 Flash. Programado para ser descontinuado — utiliza DeepSeek V4 Flash en su lugar.",
->>>>>>> v2.1.58-canary.16
   "deepseek-coder-33B-instruct.description": "DeepSeek Coder 33B es un modelo de lenguaje para código entrenado con 2T de tokens (87% código, 13% texto en chino/inglés). Introduce una ventana de contexto de 16K y tareas de completado intermedio, ofreciendo completado de código a nivel de proyecto y relleno de fragmentos.",
   "deepseek-coder-v2.description": "DeepSeek Coder V2 es un modelo de código MoE de código abierto que tiene un rendimiento sólido en tareas de programación, comparable a GPT-4 Turbo.",
   "deepseek-coder-v2:236b.description": "DeepSeek Coder V2 es un modelo de código MoE de código abierto que tiene un rendimiento sólido en tareas de programación, comparable a GPT-4 Turbo.",
@@ -434,11 +426,7 @@
   "deepseek-r1-fast-online.description": "Versión completa rápida de DeepSeek R1 con búsqueda web en tiempo real, combinando capacidad a escala 671B y respuesta ágil.",
   "deepseek-r1-online.description": "Versión completa de DeepSeek R1 con 671B de parámetros y búsqueda web en tiempo real, ofreciendo mejor comprensión y generación.",
   "deepseek-r1.description": "DeepSeek-R1 utiliza datos de arranque en frío antes del aprendizaje por refuerzo y tiene un rendimiento comparable a OpenAI-o1 en matemáticas, programación y razonamiento.",
-<<<<<<< HEAD
-  "deepseek-reasoner.description": "Alias de compatibilidad para el modo de razonamiento de DeepSeek V4 Flash. Programado para ser descontinuado: utiliza DeepSeek V4 Flash en su lugar.",
-=======
   "deepseek-reasoner.description": "Alias de compatibilidad para el modo de pensamiento de DeepSeek V4 Flash. Programado para ser descontinuado — utiliza DeepSeek V4 Flash en su lugar.",
->>>>>>> v2.1.58-canary.16
   "deepseek-v2.description": "DeepSeek V2 es un modelo MoE eficiente para procesamiento rentable.",
   "deepseek-v2:236b.description": "DeepSeek V2 236B es el modelo de DeepSeek centrado en código con fuerte generación de código.",
   "deepseek-v3-0324.description": "DeepSeek-V3-0324 es un modelo MoE con 671 mil millones de parámetros, con fortalezas destacadas en programación, capacidad técnica, comprensión de contexto y manejo de textos largos.",
@@ -518,10 +506,6 @@
   "ernie-5.0-thinking-latest.description": "Wenxin 5.0 Thinking es un modelo insignia nativo multimodal con modelado unificado de texto, imagen, audio y video. Ofrece mejoras amplias en capacidades para preguntas complejas, creación y escenarios de agentes.",
   "ernie-5.0-thinking-preview.description": "Wenxin 5.0 Thinking Preview es un modelo insignia nativo multimodal con modelado unificado de texto, imagen, audio y video. Ofrece mejoras amplias en capacidades para preguntas complejas, creación y escenarios de agentes.",
   "ernie-5.0.description": "ERNIE 5.0, el modelo de nueva generación de la serie ERNIE, es un modelo multimodal nativo. Adopta un enfoque unificado de modelado multimodal, integrando texto, imágenes, audio y vídeo para ofrecer capacidades completas. Sus habilidades fundamentales han sido significativamente mejoradas, logrando un sólido rendimiento en benchmarks. Destaca en comprensión multimodal, seguimiento de instrucciones, redacción creativa, precisión factual, planificación agéntica y uso de herramientas.",
-<<<<<<< HEAD
-  "ernie-char-8k.description": "ERNIE Character 8K es un modelo de diálogo con personalidad para la creación de personajes de propiedad intelectual y conversaciones de compañía a largo plazo.",
-=======
->>>>>>> v2.1.58-canary.16
   "ernie-char-fiction-8k-preview.description": "ERNIE Character Fiction 8K Preview es un modelo preliminar para la creación de personajes y tramas, diseñado para evaluación y pruebas.",
   "ernie-char-fiction-8k.description": "ERNIE Character Fiction 8K es un modelo de personajes para novelas y creación de tramas, ideal para generación de historias extensas.",
   "ernie-image-turbo.description": "ERNIE‑Image es un modelo de texto a imagen de 8B parámetros desarrollado por Baidu. Se sitúa entre los mejores en múltiples benchmarks, logrando el primer puesto compartido en SuperCLUE en China y liderando la categoría de código abierto.",
@@ -533,11 +517,7 @@
   "ernie-x1-turbo-32k.description": "ERNIE X1 Turbo 32K es un modelo de pensamiento rápido con contexto de 32K para razonamiento complejo y chat de múltiples turnos.",
   "ernie-x1.1-preview.description": "ERNIE X1.1 Preview es una vista previa del modelo de pensamiento para evaluación y pruebas.",
   "ernie-x1.1.description": "ERNIE X1.1 es un modelo de pensamiento en vista previa para evaluación y pruebas.",
-<<<<<<< HEAD
-  "fal-ai/bytedance/seedream/v4.5.description": "Seedream 4.5, desarrollado por el equipo Seed de ByteDance, admite edición y composición de múltiples imágenes. Incluye consistencia mejorada de sujetos, seguimiento preciso de instrucciones, comprensión de lógica espacial, expresión estética, diseño de carteles y logotipos con renderizado de texto-imagen de alta precisión.",
-=======
   "fal-ai/bytedance/seedream/v4.5.description": "Seedream 4.5, desarrollado por el equipo Seed de ByteDance, admite edición y composición de múltiples imágenes. Presenta consistencia mejorada de sujetos, seguimiento preciso de instrucciones, comprensión de lógica espacial, expresión estética, diseño de carteles y logotipos con renderizado de texto e imagen de alta precisión.",
->>>>>>> v2.1.58-canary.16
   "fal-ai/bytedance/seedream/v4.description": "Seedream 4.0, desarrollado por ByteDance Seed, admite entradas de texto e imagen para generación de imágenes altamente controlable y de alta calidad a partir de indicaciones.",
   "fal-ai/flux-kontext/dev.description": "Modelo FLUX.1 centrado en la edición de imágenes, compatible con entradas de texto e imagen.",
   "fal-ai/flux-pro/kontext.description": "FLUX.1 Kontext [pro] acepta texto e imágenes de referencia como entrada, permitiendo ediciones locales dirigidas y transformaciones globales complejas de escenas.",
@@ -547,11 +527,7 @@
   "fal-ai/imagen4/preview.description": "Modelo de generación de imágenes de alta calidad de Google.",
   "fal-ai/nano-banana.description": "Nano Banana es el modelo multimodal nativo más nuevo, rápido y eficiente de Google, que permite generación y edición de imágenes mediante conversación.",
   "fal-ai/qwen-image-edit.description": "Un modelo profesional de edición de imágenes del equipo Qwen, que admite ediciones semánticas y de apariencia, edición precisa de texto en chino/inglés, transferencia de estilo, rotación y más.",
-<<<<<<< HEAD
-  "fal-ai/qwen-image.description": "Un modelo poderoso de generación de imágenes del equipo Qwen con un fuerte renderizado de texto en chino y estilos visuales diversos.",
-=======
   "fal-ai/qwen-image.description": "Un modelo poderoso de generación de imágenes del equipo Qwen con fuerte renderizado de texto en chino y estilos visuales diversos.",
->>>>>>> v2.1.58-canary.16
   "flux-1-schnell.description": "Modelo de texto a imagen con 12 mil millones de parámetros de Black Forest Labs que utiliza destilación difusiva adversarial latente para generar imágenes de alta calidad en 1 a 4 pasos. Compite con alternativas cerradas y se lanza bajo licencia Apache-2.0 para uso personal, de investigación y comercial.",
   "flux-dev.description": "Modelo de generación de imágenes de I+D de código abierto, optimizado de forma eficiente para investigación innovadora no comercial.",
   "flux-kontext-max.description": "Generación y edición de imágenes contextual de última generación, combinando texto e imágenes para resultados precisos y coherentes.",
@@ -593,24 +569,14 @@
   "gemini-3-pro-image-preview:image.description": "Gemini 3 Pro Image (Nano Banana Pro) es el modelo de generación de imágenes de Google y también admite chat multimodal.",
   "gemini-3-pro-preview.description": "Gemini 3 Pro es el agente más potente de Google y modelo de codificación emocional, que ofrece visuales más ricos e interacción más profunda sobre un razonamiento de última generación.",
   "gemini-3.1-flash-image-preview.description": "Gemini 3.1 Flash Image (Nano Banana 2) es el modelo nativo de generación de imágenes más rápido de Google con soporte de pensamiento, generación conversacional de imágenes y edición.",
-<<<<<<< HEAD
-  "gemini-3.1-flash-image-preview:image.description": "Gemini 3.1 Flash Image (Nano Banana 2) ofrece calidad de imagen a nivel Pro a velocidad Flash con soporte para chat multimodal.",
-=======
   "gemini-3.1-flash-image-preview:image.description": "Gemini 3.1 Flash Image (Nano Banana 2) ofrece calidad de imagen a nivel Pro con velocidad Flash y soporte para chat multimodal.",
->>>>>>> v2.1.58-canary.16
   "gemini-3.1-flash-lite-preview.description": "Gemini 3.1 Flash-Lite Preview es el modelo multimodal más rentable de Google, optimizado para tareas agentivas de alto volumen, traducción y procesamiento de datos.",
   "gemini-3.1-flash-lite.description": "Gemini 3.1 Flash-Lite es el modelo multimodal más eficiente en costos de Google, optimizado para tareas agentivas de alto volumen, traducción y procesamiento de datos.",
   "gemini-3.1-pro-preview.description": "Gemini 3.1 Pro Preview mejora las capacidades de razonamiento de Gemini 3 Pro y añade soporte para un nivel de pensamiento medio.",
   "gemini-3.1-pro.description": "Gemini 3.1 Pro de Google: modelo multimodal premium con ventana de contexto de 1M.",
-<<<<<<< HEAD
-  "gemini-flash-latest.description": "Última versión de Gemini Flash",
-  "gemini-flash-lite-latest.description": "Última versión de Gemini Flash-Lite",
-  "gemini-pro-latest.description": "Última versión de Gemini Pro",
-=======
   "gemini-flash-latest.description": "Apunta a gemini-3-flash-preview",
   "gemini-flash-lite-latest.description": "Apunta a gemini-2.5-flash-lite-preview-09-2025",
   "gemini-pro-latest.description": "Apunta a gemini-3.1-pro-preview",
->>>>>>> v2.1.58-canary.16
   "gemma-7b-it.description": "Gemma 7B es rentable para tareas de pequeña a mediana escala.",
   "gemma2-9b-it.description": "Gemma 2 9B está optimizado para tareas específicas e integración con herramientas.",
   "gemma2.description": "Gemma 2 es el modelo eficiente de Google, adecuado para casos de uso que van desde aplicaciones pequeñas hasta procesamiento de datos complejos.",
@@ -747,11 +713,7 @@
   "gpt-5.4-pro.description": "GPT‑5.4 Pro de OpenAI: modelo más capaz con máximo contexto y razonamiento.",
   "gpt-5.4.description": "GPT‑5.4 de OpenAI: modelo de nueva generación con ventana de contexto de más de 1M y entrada multimodal.",
   "gpt-5.5-pro.description": "GPT‑5.5 Pro utiliza más cómputo para ofrecer razonamientos más profundos y respuestas consistentemente superiores.",
-<<<<<<< HEAD
-  "gpt-5.5.description": "GPT‑5.5 es el modelo de frontera para el trabajo profesional más complejo, programación y tareas agénticas.",
-=======
   "gpt-5.5.description": "GPT-5.5 es nuestro modelo de frontera más reciente para el trabajo profesional más complejo.",
->>>>>>> v2.1.58-canary.16
   "gpt-5.description": "GPT‑5 de OpenAI: modelo insignia con razonamiento avanzado y entrada multimodal.",
   "gpt-audio.description": "GPT Audio es un modelo general de chat con entrada/salida de audio, compatible con la API de Chat Completions.",
   "gpt-image-1-mini.description": "Una variante de menor costo de GPT Image 1 con entrada nativa de texto e imagen y salida de imagen.",
@@ -766,11 +728,6 @@
   "grok-3-mini.description": "Grok 3 Mini de xAI: razonamiento sólido y respuestas rápidas.",
   "grok-3.description": "Grok 3 de xAI: modelo con gran capacidad de razonamiento.",
   "grok-4-0709.description": "Grok 4 de xAI con gran capacidad de razonamiento.",
-<<<<<<< HEAD
-  "grok-4-1-fast-non-reasoning.description": "Modelo multimodal de frontera optimizado para el uso de herramientas de agentes de alto rendimiento.",
-  "grok-4-1-fast-reasoning.description": "Modelo multimodal de frontera optimizado para el uso de herramientas de agentes de alto rendimiento.",
-=======
->>>>>>> v2.1.58-canary.16
   "grok-4-20-non-reasoning.description": "Variante sin razonamiento para casos de uso simples.",
   "grok-4-20-reasoning.description": "Modelo inteligente y rapidísimo que razona antes de responder.",
   "grok-4-fast-non-reasoning.description": "Nos complace lanzar Grok 4 Fast, nuestro último avance en modelos de razonamiento rentables.",
@@ -780,12 +737,8 @@
   "grok-4.20-beta-0309-non-reasoning.description": "Una variante sin razonamiento para casos de uso simples.",
   "grok-4.20-beta-0309-reasoning.description": "Modelo inteligente y ultrarrápido que razona antes de responder.",
   "grok-4.20-multi-agent-0309.description": "Equipo de 4 o 16 agentes. Destaca en casos de investigación. No admite herramientas del lado del cliente. Solo admite herramientas del lado del servidor de xAI (como X Search, Web Search) y herramientas MCP remotas.",
-<<<<<<< HEAD
-  "grok-4.description": "Nuestro modelo insignia más nuevo y fuerte, destacando en PNL, matemáticas y razonamiento: un todoterreno ideal.",
-=======
   "grok-4.3.description": "El modelo de lenguaje grande más orientado a la verdad en el mundo.",
   "grok-4.description": "Último modelo insignia de Grok con un rendimiento inigualable en lenguaje, matemáticas y razonamiento — un verdadero todoterreno. Actualmente apunta a grok-4-0709; debido a recursos limitados, tiene un precio temporalmente un 10% más alto que el oficial y se espera que regrese al precio oficial más adelante.",
->>>>>>> v2.1.58-canary.16
   "grok-code-fast-1.description": "Nos complace lanzar grok-code-fast-1, un modelo de razonamiento rápido y rentable que destaca en codificación agente.",
   "grok-imagine-image-quality.description": "Genera imágenes a partir de indicaciones de texto, edita imágenes existentes con lenguaje natural o refina imágenes de manera iterativa a través de conversaciones de múltiples turnos.",
   "grok-imagine-image.description": "Genera imágenes a partir de indicaciones de texto, edita imágenes existentes con lenguaje natural o refina imágenes de manera iterativa a través de conversaciones de múltiples turnos.",
@@ -849,12 +802,7 @@
   "kimi-k2-thinking.description": "kimi-k2-thinking es un modelo reflexivo de Moonshot AI con habilidades generales de razonamiento y agente. Destaca en razonamiento profundo y puede resolver problemas difíciles mediante el uso de herramientas en múltiples pasos.",
   "kimi-k2-turbo-preview.description": "kimi-k2 es un modelo base MoE con sólidas capacidades de programación y agentes (1T de parámetros totales, 32B activos), superando a otros modelos abiertos en razonamiento, programación, matemáticas y benchmarks de agentes.",
   "kimi-k2.5.description": "Kimi K2.5 es el modelo más versátil de Kimi hasta la fecha, con una arquitectura multimodal nativa que admite entradas de visión y texto, modos de 'pensamiento' y 'no pensamiento', y tareas tanto conversacionales como de agentes.",
-<<<<<<< HEAD
-  "kimi-k2.6.description": "Kimi K2.6 es el modelo más avanzado de Kimi, con mejoras en programación de largo alcance, seguimiento de instrucciones y autocorrección. Admite entradas de texto, imagen y vídeo, además de tareas de chat y agentes.",
-  "kimi-k2.description": "Kimi-K2 es un modelo base MoE de Moonshot AI con sólidas capacidades de programación y agentes, con un total de 1T de parámetros y 32B activos. En benchmarks de razonamiento general, programación, matemáticas y tareas de agentes, supera a otros modelos abiertos.",
-=======
   "kimi-k2.6.description": "Kimi-K2.6 es un modelo de lenguaje grande lanzado por Moonshot AI, con excelentes capacidades de codificación y uso de herramientas. El despliegue del servicio solo se admite en China continental.",
->>>>>>> v2.1.58-canary.16
   "kimi-k2:1t.description": "Kimi K2 es un gran modelo MoE LLM de Moonshot AI con 1T de parámetros totales y 32B activos por pasada. Está optimizado para capacidades de agentes, incluyendo uso avanzado de herramientas, razonamiento y síntesis de código.",
   "kling/kling-v3-image-generation.description": "Soporta hasta 10 imágenes de referencia, permitiendo bloquear sujetos, elementos y tonos de color para garantizar un estilo consistente. Combina transferencia de estilo, referencia de retratos/personajes, fusión de múltiples imágenes y pintura localizada para un control flexible. Ofrece detalles realistas de retratos, con visuales generales delicados y ricamente estratificados, con color y atmósfera cinematográficos.",
   "kling/kling-v3-omni-image-generation.description": "Desbloquea visuales narrativos cinematográficos con generación de imágenes de nueva serie y salida directa en 2K/4K. Analiza profundamente elementos audiovisuales en indicaciones para ejecutar instrucciones creativas con precisión. Soporta entradas de múltiples referencias flexibles y mejoras de calidad integrales, ideal para guiones gráficos, arte conceptual narrativo y diseño de escenas.",
@@ -1260,11 +1208,7 @@
   "qwen3.5-plus-2026-04-20.description": "Qwen 3.5 es un modelo nativo visión‑lenguaje Plus. En comparación con la versión del 15 de febrero, esta edición mejora significativamente las capacidades de programación agéntica y acelera sustancialmente la inferencia. Sus capacidades de conocimiento, razonamiento y contexto largo se mantienen en un nivel alto, adecuadas para tareas agénticas complejas. Esta versión corresponde a la instantánea del 20 de abril de 2026.",
   "qwen3.5-plus.description": "Qwen3.5 Plus admite entrada de texto, imagen y video. Su rendimiento en tareas de texto puro es comparable al de Qwen3 Max, con mejor rendimiento y menor costo. Sus capacidades multimodales están significativamente mejoradas en comparación con la serie Qwen3 VL.",
   "qwen3.5:397b.description": "Qwen3.5 es un modelo fundacional unificado de visión-lenguaje con una arquitectura híbrida (Mixture-of-Experts + atención lineal), que ofrece un razonamiento multimodal sólido, codificación y capacidades de contexto largo con una ventana de contexto de 256K.",
-<<<<<<< HEAD
-  "qwen3.6-27b.description": "La serie Qwen 3.6 de 27B es un modelo denso de visión‑lenguaje nativo. Frente a 3.5‑27B, ofrece mejoras significativas en capacidades de programación agéntica, además de un rendimiento superior en áreas STEM y razonamiento. En el ámbito visual, muestra avances notables en inteligencia espacial, localización y detección de objetos, además de progreso constante en comprensión de video, OCR de documentos y capacidades de agentes visuales.",
-=======
   "qwen3.6-27b.description": "Qwen3.6 27B es un modelo denso de código abierto con un rendimiento sólido en razonamiento, codificación y capacidades generales. Admite el modo reflexivo por defecto, ofreciendo un equilibrio entre rendimiento y eficiencia.",
->>>>>>> v2.1.58-canary.16
   "qwen3.6-35b-a3b.description": "El modelo nativo visión‑lenguaje Qwen3.6 35B‑A3B se basa en una arquitectura híbrida que integra un mecanismo de atención lineal con un diseño Mixture‑of‑Experts (MoE) disperso, logrando mayor eficiencia en la inferencia. En comparación con el modelo 3.5‑35B‑A3B, ofrece mejoras significativas en capacidades de codificación agentiva, razonamiento matemático, razonamiento de código, inteligencia espacial, así como en localización de objetos y detección de objetivos.",
   "qwen3.6-flash.description": "El modelo nativo visión‑lenguaje Qwen3.6 Flash ofrece un rendimiento significativamente mejorado en comparación con la versión 3.5‑Flash. Este modelo se centra en mejorar las capacidades de codificación agentiva (superando ampliamente a su predecesor en múltiples pruebas de agentes de código), además de mejorar el razonamiento matemático y el razonamiento de código. En el aspecto visual, muestra avances notables en inteligencia espacial, con mejoras especialmente fuertes en localización de objetos y detección de objetivos.",
   "qwen3.6-max-preview.description": "El modelo de mayor tamaño y de código cerrado de la serie Qwen3.6. Ofrece mayor conocimiento del mundo, mejor seguimiento de instrucciones y un rendimiento superior en codificación agentiva para tareas complejas. Es solo de texto, admite el modo de pensamiento por defecto, almacenamiento en caché explícito y llamadas a funciones.",
@@ -1276,13 +1220,8 @@
   "qwq.description": "QwQ es un modelo de razonamiento de la familia Qwen. En comparación con los modelos estándar ajustados por instrucciones, ofrece capacidades de pensamiento y razonamiento que mejoran significativamente el rendimiento en tareas difíciles. QwQ-32B es un modelo de razonamiento de tamaño medio que compite con los mejores modelos como DeepSeek-R1 y o1-mini.",
   "qwq_32b.description": "Modelo de razonamiento de tamaño medio de la familia Qwen. En comparación con los modelos estándar ajustados por instrucciones, las capacidades de pensamiento y razonamiento de QwQ mejoran significativamente el rendimiento en tareas difíciles.",
   "r1-1776.description": "R1-1776 es una variante postentrenada de DeepSeek R1 diseñada para proporcionar información factual sin censura ni sesgo.",
-<<<<<<< HEAD
-  "seedance-1-5-pro-251215.description": "Seedance 1.5 Pro de ByteDance admite texto a video, imagen a video (primer fotograma, primer+último fotograma) y generación de audio sincronizado con visuales.",
-  "seedream-5-0-260128.description": "ByteDance-Seedream-5.0-lite de BytePlus incluye generación aumentada con recuperación web para información en tiempo real, interpretación mejorada de indicaciones complejas y mayor consistencia de referencia para creación visual profesional.",
-=======
   "seedance-1-5-pro-251215.description": "Seedance 1.5 Pro de ByteDance admite generación de texto a video, imagen a video (primer cuadro, primer+último cuadro) y generación de audio sincronizado con visuales.",
   "seedream-5-0-260128.description": "ByteDance-Seedream-5.0-lite de BytePlus presenta generación aumentada con recuperación web para información en tiempo real, interpretación mejorada de indicaciones complejas y mayor consistencia de referencia para creación visual profesional.",
->>>>>>> v2.1.58-canary.16
   "solar-mini-ja.description": "Solar Mini (Ja) amplía Solar Mini con un enfoque en japonés, manteniendo un rendimiento eficiente y sólido en inglés y coreano.",
   "solar-mini.description": "Solar Mini es un modelo LLM compacto que supera a GPT-3.5, con una sólida capacidad multilingüe compatible con inglés y coreano, ofreciendo una solución eficiente de bajo consumo.",
   "solar-pro.description": "Solar Pro es un LLM de alta inteligencia de Upstage, enfocado en el seguimiento de instrucciones en una sola GPU, con puntuaciones IFEval superiores a 80. Actualmente admite inglés; el lanzamiento completo estaba previsto para noviembre de 2024 con soporte de idiomas ampliado y contexto más largo.",

@@ -5,12 +5,8 @@
   "agentSelection.search": "Nessun agente corrispondente trovato",
   "brief.action.acknowledge": "Conferma",
   "brief.action.approve": "Approva",
-<<<<<<< HEAD
-  "brief.action.confirmDone": "Conferma completamento",
-=======
   "brief.action.confirm": "Conferma",
   "brief.action.confirmDone": "Conferma",
->>>>>>> v2.1.58-canary.16
   "brief.action.feedback": "Feedback",
   "brief.action.retry": "Riprova",
   "brief.addFeedback": "Condividi feedback",

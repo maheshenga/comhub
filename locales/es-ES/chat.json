@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Puedes editar el nombre o el avatar directamente abajo.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Nombre del agente",
   "tool.intervention.onboarding.agentIdentity.title": "Confirmar actualización de identidad del agente",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Actualizaré mi avatar",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Actualizaré mi nombre",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Estos detalles se guardarán en tu perfil después de la aprobación.",
   "tool.intervention.onboarding.userProfile.description": "Aprobar este cambio actualiza tu perfil de incorporación para que el Agente pueda personalizar futuras respuestas.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Aprobación de incorporación",
   "tool.intervention.onboarding.userProfile.fullName": "Nombre completo",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Idioma de respuesta",
   "tool.intervention.onboarding.userProfile.title": "Confirma la actualización de tu perfil",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Aprobar",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "Pendiente",
   "tool.intervention.reject": "Rechazar",
   "tool.intervention.rejectOnly": "Rechazar",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Regla de carga actualizada",
   "workflow.toolDisplayName.updatePlan": "Plan actualizado",
   "workflow.toolDisplayName.updateTodos": "Tareas actualizadas",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Documento escrito",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Se escribió un archivo",
   "workflow.working": "Trabajando...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Actualizado {{time}}",
   "workingPanel.resources.viewMode.list": "Vista de lista",
   "workingPanel.resources.viewMode.tree": "Vista de árbol",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "Archivo binario — diferencia no mostrada",
-  "workingPanel.review.empty": "No hay cambios en el árbol de trabajo",
-  "workingPanel.review.error": "No se pudo cargar la diferencia de este archivo",
-=======
   "workingPanel.review.baseRef.default": "predeterminado",
   "workingPanel.review.baseRef.loading": "Cargando ramas…",
   "workingPanel.review.baseRef.reset": "Restablecer a la rama predeterminada",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Actualizar",
   "workingPanel.review.textDiff.disable": "Desactivar diferencia de texto en línea",
   "workingPanel.review.textDiff.enable": "Activar diferencia de texto en línea",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Revisión",
   "workingPanel.review.tooLarge": "El archivo es demasiado grande para mostrar la diferencia en línea",
   "workingPanel.review.unstaged": "No preparado",
   "workingPanel.review.viewMode.split": "Cambiar a vista dividida",
   "workingPanel.review.viewMode.unified": "Cambiar a vista unificada",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Desactivar ajuste de línea",
   "workingPanel.review.wordWrap.enable": "Activar ajuste de línea",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Espacio",
   "workingPanel.title": "Working Panel",
   "you": "Tú",

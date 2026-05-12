@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Je kunt de naam of avatar direct hieronder bewerken.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Naam van de agent",
   "tool.intervention.onboarding.agentIdentity.title": "Bevestig update van agentidentiteit",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Ik zal mijn avatar bijwerken",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Ik zal mijn naam bijwerken",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Deze gegevens worden na goedkeuring aan je profiel toegevoegd.",
   "tool.intervention.onboarding.userProfile.description": "Door deze wijziging goed te keuren, wordt je onboarding-profiel bijgewerkt zodat de Agent toekomstige antwoorden kan afstemmen.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Goedkeuring onboarding",
   "tool.intervention.onboarding.userProfile.fullName": "Volledige naam",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Antwoordtaal",
   "tool.intervention.onboarding.userProfile.title": "Bevestig je profielupdate",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Goedkeuren",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "In afwachting",
   "tool.intervention.reject": "Afwijzen",
   "tool.intervention.rejectOnly": "Afwijzen",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Bijgewerkte laadregel",
   "workflow.toolDisplayName.updatePlan": "Bijgewerkt plan",
   "workflow.toolDisplayName.updateTodos": "Taken bijgewerkt",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Document geschreven",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Heeft een bestand geschreven",
   "workflow.working": "Bezig...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Bijgewerkt {{time}}",
   "workingPanel.resources.viewMode.list": "Lijstweergave",
   "workingPanel.resources.viewMode.tree": "Boomweergave",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "Binaire bestand — diff niet weergegeven",
-  "workingPanel.review.empty": "Geen wijzigingen in de werkboom",
-  "workingPanel.review.error": "Kon de diff van dit bestand niet laden",
-=======
   "workingPanel.review.baseRef.default": "standaard",
   "workingPanel.review.baseRef.loading": "Branches laden…",
   "workingPanel.review.baseRef.reset": "Terugzetten naar standaardbranch",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Vernieuwen",
   "workingPanel.review.textDiff.disable": "Inline tekstverschillen uitschakelen",
   "workingPanel.review.textDiff.enable": "Inline tekstverschillen inschakelen",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Beoordeling",
   "workingPanel.review.tooLarge": "Bestand is te groot om inline te vergelijken",
   "workingPanel.review.unstaged": "Niet gestaged",
   "workingPanel.review.viewMode.split": "Schakel over naar gesplitste weergave",
   "workingPanel.review.viewMode.unified": "Schakel over naar uniforme weergave",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Tekstterugloop uitschakelen",
   "workingPanel.review.wordWrap.enable": "Tekstterugloop inschakelen",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Ruimte",
   "workingPanel.title": "Working Panel",
   "you": "Jij",

@@ -24,10 +24,7 @@
   "table.columns.trigger.enums.semantic_search": "جستجوی دانش",
   "table.columns.trigger.enums.topic": "خلاصه موضوع",
   "table.columns.trigger.enums.video": "تولید ویدئو",
-<<<<<<< HEAD
-=======
   "table.columns.trigger.enums.visual_analysis": "تحلیل بصری",
->>>>>>> v2.1.58-canary.16
   "table.columns.trigger.title": "محرک",
   "table.columns.type.enums.chat": "تولید متن",
   "table.columns.type.enums.embedding": "جاسازی",

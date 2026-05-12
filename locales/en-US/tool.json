@@ -30,11 +30,6 @@
   "agentMarketplace.category.personalLife": "Personal Life",
   "agentMarketplace.category.productManagement": "Product Management",
   "agentMarketplace.category.salesCustomer": "Sales & Customer",
-<<<<<<< HEAD
-  "agentMarketplace.picker.empty": "No templates available.",
-  "agentMarketplace.picker.failedToLoad": "Failed to load templates. Please try again later.",
-  "agentMarketplace.picker.summary": "{{filtered}} / {{total}} templates available.",
-=======
   "agentMarketplace.inspector.moreCategories_one": "+{{count}}",
   "agentMarketplace.inspector.moreCategories_other": "+{{count}}",
   "agentMarketplace.inspector.pickCount_one": "{{count}} agent",
@@ -45,7 +40,6 @@
   "agentMarketplace.render.alreadyInLibraryTag": "Already in library",
   "agentMarketplace.render.alreadyInLibrary_one": "{{count}} already in library",
   "agentMarketplace.render.alreadyInLibrary_other": "{{count}} already in library",
->>>>>>> v2.1.58-canary.16
   "codeInterpreter-legacy.error": "Execution Error",
   "codeInterpreter-legacy.executing": "Executing...",
   "codeInterpreter-legacy.files": "Files:",

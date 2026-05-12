@@ -506,10 +506,6 @@
   "ernie-5.0-thinking-latest.description": "Wenxin 5.0 Thinking is a native full-modal flagship model with unified text, image, audio, and video modeling. It delivers broad capability upgrades for complex QA, creation, and agent scenarios.",
   "ernie-5.0-thinking-preview.description": "Wenxin 5.0 Thinking Preview is a native full-modal flagship model with unified text, image, audio, and video modeling. It delivers broad capability upgrades for complex QA, creation, and agent scenarios.",
   "ernie-5.0.description": "ERNIE 5.0, the new-generation model in the ERNIE series, is a natively multimodal large model. It adopts a unified multimodal modeling approach, jointly modeling text, images, audio, and video to deliver comprehensive multimodal capabilities. Its foundational abilities have been significantly upgraded, achieving strong performance on benchmark evaluations. It particularly excels in multimodal understanding, instruction following, creative writing, factual accuracy, agent planning, and tool utilization.",
-<<<<<<< HEAD
-  "ernie-char-8k.description": "ERNIE Character 8K is a persona dialogue model for IP character building and long-term companionship chat.",
-=======
->>>>>>> v2.1.58-canary.16
   "ernie-char-fiction-8k-preview.description": "ERNIE Character Fiction 8K Preview is a character and plot creation model preview for feature evaluation and testing.",
   "ernie-char-fiction-8k.description": "ERNIE Character Fiction 8K is a persona model for novels and plot creation, suited for long-form story generation.",
   "ernie-image-turbo.description": "ERNIE-Image is an 8B-parameter text-to-image model developed by Baidu. It ranks among the top on multiple benchmarks, achieving a tied first place in SuperCLUE in China and leading in the open-source track.",
@@ -578,15 +574,9 @@
   "gemini-3.1-flash-lite.description": "Gemini 3.1 Flash-Lite is Google's most cost-efficient multimodal model, optimized for high-volume agentic tasks, translation, and data processing.",
   "gemini-3.1-pro-preview.description": "Gemini 3.1 Pro Preview improves on Gemini 3 Pro with enhanced reasoning capabilities and adds medium thinking level support.",
   "gemini-3.1-pro.description": "Gemini 3.1 Pro by Google — premium multimodal model with 1M context window.",
-<<<<<<< HEAD
-  "gemini-flash-latest.description": "Latest release of Gemini Flash",
-  "gemini-flash-lite-latest.description": "Latest release of Gemini Flash-Lite",
-  "gemini-pro-latest.description": "Latest release of Gemini Pro",
-=======
   "gemini-flash-latest.description": "Points to gemini-3-flash-preview",
   "gemini-flash-lite-latest.description": "Points to gemini-2.5-flash-lite-preview-09-2025",
   "gemini-pro-latest.description": "Points to gemini-3.1-pro-preview",
->>>>>>> v2.1.58-canary.16
   "gemma-7b-it.description": "Gemma 7B is cost-effective for small to mid-scale tasks.",
   "gemma2-9b-it.description": "Gemma 2 9B is optimized for specific tasks and tool integration.",
   "gemma2.description": "Gemma 2 is Google’s efficient model, covering use cases from small apps to complex data processing.",
@@ -723,11 +713,7 @@
   "gpt-5.4-pro.description": "GPT-5.4 Pro by OpenAI — most capable model with maximum context and reasoning.",
   "gpt-5.4.description": "GPT-5.4 by OpenAI — next-gen model with 1M+ context window and multimodal input.",
   "gpt-5.5-pro.description": "GPT-5.5 pro uses more compute to think harder and provide consistently better answers.",
-<<<<<<< HEAD
-  "gpt-5.5.description": "GPT-5.5 is the frontier model for the most complex professional work, coding, and agentic tasks.",
-=======
   "gpt-5.5.description": "GPT-5.5 is our newest frontier model for the most complex professional work.",
->>>>>>> v2.1.58-canary.16
   "gpt-5.description": "GPT-5 by OpenAI — flagship model with advanced reasoning and multimodal input.",
   "gpt-audio.description": "GPT Audio is a general chat model for audio input/output, supported in the Chat Completions API.",
   "gpt-image-1-mini.description": "A lower-cost GPT Image 1 variant with native text and image input and image output.",
@@ -742,11 +728,6 @@
   "grok-3-mini.description": "xAI’s Grok 3 Mini with strong reasoning and fast responses.",
   "grok-3.description": "xAI’s Grok 3 with strong reasoning capability.",
   "grok-4-0709.description": "xAI’s Grok 4 with strong reasoning capability.",
-<<<<<<< HEAD
-  "grok-4-1-fast-non-reasoning.description": "A frontier multimodal model optimized for high-performance agent tool use.",
-  "grok-4-1-fast-reasoning.description": "A frontier multimodal model optimized for high-performance agent tool use.",
-=======
->>>>>>> v2.1.58-canary.16
   "grok-4-20-non-reasoning.description": "A non-reasoning variant for simple use cases",
   "grok-4-20-reasoning.description": "Intelligent, blazing-fast model that reasons before responding",
   "grok-4-fast-non-reasoning.description": "We’re excited to release Grok 4 Fast, our latest progress in cost-effective reasoning models.",
@@ -756,12 +737,8 @@
   "grok-4.20-beta-0309-non-reasoning.description": "A non-reasoning variant for simple use cases",
   "grok-4.20-beta-0309-reasoning.description": "Intelligent, blazing-fast model that reasons before responding",
   "grok-4.20-multi-agent-0309.description": "A team of 4 or 16 agents, Excels at research use cases, Does not currently support client-side tools. Only supports xAI server side tools (eg X Search, Web Search tools) and remote MCP tools.",
-<<<<<<< HEAD
-  "grok-4.description": "Our newest and strongest flagship model, excelling in NLP, math, and reasoning—an ideal all-rounder.",
-=======
   "grok-4.3.description": "The most truth-seeking large language model in the world",
   "grok-4.description": "Latest Grok flagship with unmatched performance in language, math, and reasoning — a true all-rounder. Currently points to grok-4-0709; due to limited resources it is temporarily 10% higher than official pricing and is expected to return to official price later.",
->>>>>>> v2.1.58-canary.16
   "grok-code-fast-1.description": "We’re excited to launch grok-code-fast-1, a fast and cost-effective reasoning model that excels at agentic coding.",
   "grok-imagine-image-quality.description": "Generate images from text prompts, edit existing images with natural language, or iteratively refine images through multi-turn conversations.",
   "grok-imagine-image.description": "Generate images from text prompts, edit existing images with natural language, or iteratively refine images through multi-turn conversations.",
@@ -825,12 +802,7 @@
   "kimi-k2-thinking.description": "kimi-k2-thinking is a Moonshot AI thinking model with general agentic and reasoning abilities. It excels at deep reasoning and can solve hard problems via multi-step tool use.",
   "kimi-k2-turbo-preview.description": "kimi-k2 is an MoE foundation model with strong coding and agent capabilities (1T total params, 32B active), outperforming other mainstream open models across reasoning, programming, math, and agent benchmarks.",
   "kimi-k2.5.description": "Kimi K2.5 is Kimi's most versatile model to date, featuring a native multimodal architecture that supports both vision and text inputs, 'thinking' and 'non-thinking' modes, and both conversational and agent tasks.",
-<<<<<<< HEAD
-  "kimi-k2.6.description": "Kimi K2.6 is Kimi's latest and most capable model, delivering stronger long-horizon coding, instruction following, and self-correction while supporting text, image, and video inputs plus chat and agent tasks.",
-  "kimi-k2.description": "Kimi-K2 is a MoE base model from Moonshot AI with strong coding and agent capabilities, totaling 1T parameters with 32B active. On benchmarks for general reasoning, coding, math, and agent tasks, it outperforms other mainstream open models.",
-=======
   "kimi-k2.6.description": "Kimi-K2.6 is a large language model launched by Moonshot AI, with excellent coding and tool calling capabilities. Service deployment is only supported in mainland China.",
->>>>>>> v2.1.58-canary.16
   "kimi-k2:1t.description": "Kimi K2 is a large MoE LLM from Moonshot AI with 1T total parameters and 32B active per forward pass. It is optimized for agent capabilities including advanced tool use, reasoning, and code synthesis.",
   "kling/kling-v3-image-generation.description": "Supports up to 10 reference images, allowing you to lock subjects, elements, and color tones to ensure consistent style. Combines style transfer, portrait/character referencing, multi-image fusion, and localized inpainting for flexible control. Delivers realistic portrait details, with overall visuals that are delicate and richly layered, featuring cinematic color and atmosphere.",
   "kling/kling-v3-omni-image-generation.description": "Unlock cinematic storytelling visuals with new series image generation and direct 2K/4K output. Deeply analyzes audiovisual elements in prompts to precisely execute creative instructions. Supports flexible multi-reference inputs and comprehensive quality upgrades, ideal for storyboards, narrative concept art, and scene design.",
@@ -1236,11 +1208,7 @@
   "qwen3.5-plus-2026-04-20.description": "Qwen 3.5 is a native vision-language Plus model. Compared to the February 15 snapshot, this version delivers substantial improvements in agentic coding capabilities and significantly faster inference speed. Its knowledge, reasoning, and long-context abilities remain at a high level, meeting the demands of complex agent tasks. It is well-suited for coding agents, production workflows, and high-throughput scenarios. This version corresponds to the April 20, 2026 snapshot.",
   "qwen3.5-plus.description": "Qwen3.5 Plus supports text, image, and video input. Its performance on pure text tasks is comparable to Qwen3 Max, with better performance and lower cost. Its multimodal capabilities are significantly improved compared to the Qwen3 VL series.",
   "qwen3.5:397b.description": "Qwen3.5 is a unified vision–language foundation model with a hybrid architecture (Mixture-of-Experts + linear attention), offering strong multimodal reasoning, coding, and long-context capabilities with a 256K context window.",
-<<<<<<< HEAD
-  "qwen3.6-27b.description": "The Qwen 3.6 series 27B is a native vision-language dense model. Compared to version 3.5-27B, it delivers significant improvements in agentic coding capabilities, with further enhancements in STEM performance and reasoning ability. On the visual side, it shows notable gains in spatial intelligence, object localization, and detection, while also steadily improving in video understanding, document OCR, and visual agent capabilities.",
-=======
   "qwen3.6-27b.description": "Qwen3.6 27B is an open-source dense model with strong performance in reasoning, coding, and general capabilities. It supports thinking mode by default, offering balanced performance and efficiency.",
->>>>>>> v2.1.58-canary.16
   "qwen3.6-35b-a3b.description": "The Qwen3.6 35B-A3B native vision-language model is built on a hybrid architecture that integrates a linear attention mechanism with a sparse Mixture-of-Experts (MoE) design, achieving higher inference efficiency. Compared to the 3.5-35B-A3B model, it delivers significant improvements in agentic coding capabilities, mathematical reasoning, code reasoning, spatial intelligence, as well as object localization and target detection.",
   "qwen3.6-flash.description": "Qwen3.6 native vision-language Flash model delivers significantly improved performance compared to the 3.5-Flash version. This model focuses on enhancing agentic coding capabilities (substantially outperforming its predecessor across multiple code-agent benchmarks), as well as improving mathematical reasoning and code reasoning abilities. On the vision side, it shows notable gains in spatial intelligence, with particularly strong improvements in object localization and target detection.",
   "qwen3.6-max-preview.description": "The largest closed-source model in the Qwen3.6 series. It delivers stronger world knowledge, instruction following, and agentic coding performance for complex tasks. It is text-only, supports thinking mode by default, explicit caching, and function calling.",

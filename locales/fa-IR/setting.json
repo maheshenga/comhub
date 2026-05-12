@@ -291,11 +291,6 @@
   "heterogeneousStatus.auth.api": "API",
   "heterogeneousStatus.auth.label": "روش احراز هویت",
   "heterogeneousStatus.auth.subscription": "اشتراک",
-<<<<<<< HEAD
-  "heterogeneousStatus.command.edit": "ویرایش فرمان",
-  "heterogeneousStatus.command.label": "فرمان اجرا",
-  "heterogeneousStatus.command.placeholder": "نام فرمان یا مسیر کامل",
-=======
   "heterogeneousStatus.cloud.githubDesc": "یک اعتبارنامه OAuth GitHub را انتخاب کنید تا به سندباکس اجازه دهید مخازن خصوصی شما را کلون کند.",
   "heterogeneousStatus.cloud.githubLabel": "اتصال GitHub",
   "heterogeneousStatus.cloud.githubNoCreds": "هیچ اعتبارنامه GitHub یافت نشد.",
@@ -316,7 +311,6 @@
   "heterogeneousStatus.command.label": "فرمان اجرا",
   "heterogeneousStatus.command.placeholder": "نام فرمان یا مسیر کامل",
   "heterogeneousStatus.desktop.tabLabel": "دسکتاپ",
->>>>>>> v2.1.58-canary.16
   "heterogeneousStatus.detecting": "در حال شناسایی رابط خط فرمان {{name}} ...",
   "heterogeneousStatus.plan.label": "طرح",
   "heterogeneousStatus.redetect": "شناسایی دوباره",

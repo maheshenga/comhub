@@ -24,10 +24,7 @@
   "table.columns.trigger.enums.semantic_search": "Búsqueda de Conocimiento",
   "table.columns.trigger.enums.topic": "Resumen de Tema",
   "table.columns.trigger.enums.video": "Generación de vídeo",
-<<<<<<< HEAD
-=======
   "table.columns.trigger.enums.visual_analysis": "Análisis visual",
->>>>>>> v2.1.58-canary.16
   "table.columns.trigger.title": "Disparador",
   "table.columns.type.enums.chat": "Generación de texto",
   "table.columns.type.enums.embedding": "Incrustación",

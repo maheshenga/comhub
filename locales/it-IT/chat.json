@@ -690,21 +690,15 @@
   "tool.intervention.onboarding.agentIdentity.editHint": "Puoi modificare il nome o l'avatar direttamente qui sotto.",
   "tool.intervention.onboarding.agentIdentity.namePlaceholder": "Nome agente",
   "tool.intervention.onboarding.agentIdentity.title": "Conferma aggiornamento identità dell’agente",
-<<<<<<< HEAD
-=======
   "tool.intervention.onboarding.agentIdentity.titleAvatarOnly": "Aggiornerò il mio avatar",
   "tool.intervention.onboarding.agentIdentity.titleNameOnly": "Aggiornerò il mio nome",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.onboarding.userProfile.applyHint": "Questi dettagli verranno salvati nel tuo profilo dopo l'approvazione.",
   "tool.intervention.onboarding.userProfile.description": "Approvando questa modifica, il tuo profilo di onboarding verrà aggiornato in modo che l'Agente possa personalizzare le risposte future.",
   "tool.intervention.onboarding.userProfile.eyebrow": "Approvazione onboarding",
   "tool.intervention.onboarding.userProfile.fullName": "Nome completo",
   "tool.intervention.onboarding.userProfile.responseLanguage": "Lingua di risposta",
   "tool.intervention.onboarding.userProfile.title": "Conferma l'aggiornamento del tuo profilo",
-<<<<<<< HEAD
-=======
   "tool.intervention.optionApprove": "Approva",
->>>>>>> v2.1.58-canary.16
   "tool.intervention.pending": "In sospeso",
   "tool.intervention.reject": "Rifiuta",
   "tool.intervention.rejectOnly": "Rifiuta",
@@ -833,10 +827,7 @@
   "workflow.toolDisplayName.updateLoadRule": "Regola di carico aggiornata",
   "workflow.toolDisplayName.updatePlan": "Piano aggiornato",
   "workflow.toolDisplayName.updateTodos": "Attività aggiornate",
-<<<<<<< HEAD
-=======
   "workflow.toolDisplayName.writeDocument": "Documento scritto",
->>>>>>> v2.1.58-canary.16
   "workflow.toolDisplayName.writeLocalFile": "Ha scritto un file",
   "workflow.working": "In corso...",
   "workingPanel.agentDocuments": "Agent Documents",
@@ -879,11 +870,6 @@
   "workingPanel.resources.updatedAt": "Aggiornato {{time}}",
   "workingPanel.resources.viewMode.list": "Vista elenco",
   "workingPanel.resources.viewMode.tree": "Vista ad albero",
-<<<<<<< HEAD
-  "workingPanel.review.binary": "File binario — diff non mostrato",
-  "workingPanel.review.empty": "Nessuna modifica nell'albero di lavoro",
-  "workingPanel.review.error": "Impossibile caricare il diff di questo file",
-=======
   "workingPanel.review.baseRef.default": "predefinito",
   "workingPanel.review.baseRef.loading": "Caricamento rami…",
   "workingPanel.review.baseRef.reset": "Reimposta al ramo predefinito",
@@ -903,17 +889,13 @@
   "workingPanel.review.refresh": "Aggiorna",
   "workingPanel.review.textDiff.disable": "Disabilita differenza di testo in linea",
   "workingPanel.review.textDiff.enable": "Abilita differenza di testo in linea",
->>>>>>> v2.1.58-canary.16
   "workingPanel.review.title": "Revisione",
   "workingPanel.review.tooLarge": "Il file è troppo grande per il diff inline",
   "workingPanel.review.unstaged": "Non preparato",
   "workingPanel.review.viewMode.split": "Passa alla vista divisa",
   "workingPanel.review.viewMode.unified": "Passa alla vista unificata",
-<<<<<<< HEAD
-=======
   "workingPanel.review.wordWrap.disable": "Disabilita ritorno a capo automatico",
   "workingPanel.review.wordWrap.enable": "Abilita ritorno a capo automatico",
->>>>>>> v2.1.58-canary.16
   "workingPanel.space": "Spazio",
   "workingPanel.title": "Working Panel",
   "you": "Tu",
