@@ -5,6 +5,7 @@ import { adminCreditsRouter } from './credits';
 import { adminNewapiProvidersRouter } from './newapiProviders';
 import { adminOrdersRouter } from './orders';
 import { adminPlansRouter } from './plans';
+import { adminPptRouter } from './ppt';
 import { adminRedemptionRouter } from './redemption';
 import { adminReferralRouter } from './referral';
 import { adminSettingsRouter } from './settings';
@@ -19,6 +20,7 @@ export const adminRouter = router({
   newapiProviders: adminNewapiProvidersRouter,
   orders: adminOrdersRouter,
   plans: adminPlansRouter,
+  ppt: adminPptRouter,
   referral: adminReferralRouter,
   redemption: adminRedemptionRouter,
   settings: adminSettingsRouter,

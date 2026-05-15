@@ -37,6 +37,7 @@ const SETTING_KEYS = APP_SETTING_KEYS;
 const SENSITIVE_KEYS = new Set<string>([
   SETTING_KEYS.cronSecret,
   SETTING_KEYS.desktopOssAccessKeySecret,
+  SETTING_KEYS.docmeePptApiKey,
 ]);
 
 const BRAND_KEYS = [
