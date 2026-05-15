@@ -132,10 +132,11 @@ export const resolveNewapiInstancesForModel = async (
   modelIdOrParams: string | undefined | null | ResolveNewapiInstancesParams,
   legacyModelType: NewapiModelType = 'chat',
 ): Promise<ResolvedNewapiInstance[]> => {
-  const params =
-    typeof modelIdOrParams === 'object' && modelIdOrParams !== null
-      ? modelIdOrParams
-      : { modelId: modelIdOrParams, modelType: legacyModelType };
+  const rawParams = modelIdOrParams as any;
+  const params: ResolveNewapiInstancesParams =
+    typeof rawParams === 'object' && rawParams !== null
+      ? rawParams
+      : { modelId: rawParams, modelType: legacyModelType };
   const modelType = params.modelType ?? 'chat';
   const preferredGroupKey = params.preferredGroupKey?.trim();
   const trimmedModel = params.modelId?.trim();

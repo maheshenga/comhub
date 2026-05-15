@@ -167,7 +167,7 @@ export class GlobalGeneralActionImpl {
     this.#get().updateSystemStatus(
       {
         hiddenSidebarSections: DEFAULT_HIDDEN_SECTIONS,
-        sidebarExpandedKeys: DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS,
+        sidebarExpandedKeys: [...DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS],
         sidebarItems: DEFAULT_SIDEBAR_ITEMS,
       },
       n('resetSidebarCustomization'),

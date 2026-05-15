@@ -283,6 +283,7 @@ export type ExtendParamsType =
   | 'imageAspectRatio2'
   | 'imageResolution'
   | 'imageResolution2'
+  | 'async'
   | 'urlContext';
 
 export type DisabledParamType = 'temperature' | 'top_p' | 'frequency_penalty' | 'presence_penalty';
@@ -333,6 +334,7 @@ export const ExtendParamsTypeSchema = z.enum([
   'imageAspectRatio2',
   'imageResolution',
   'imageResolution2',
+  'async',
   'urlContext',
 ]);
 

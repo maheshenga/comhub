@@ -237,7 +237,9 @@ const AdminSubscriptionsPage = memo(() => {
                           { label: '专业版（Premium）', value: 'premium' },
                           { label: '旗舰版（Ultimate）', value: 'ultimate' },
                         ]}
-                        onChange={(value) => setForceModal((prev) => ({ ...prev, plan: value }))}
+                        onChange={(value: string) =>
+                          setForceModal((prev) => ({ ...prev, plan: value }))
+                        }
                       />
                     </Flexbox>
                     <Flexbox gap={4}>
@@ -252,7 +254,9 @@ const AdminSubscriptionsPage = memo(() => {
                           },
                           { label: t('admin.subscriptions.modal.yearly', '年付'), value: 'yearly' },
                         ]}
-                        onChange={(value) => setForceModal((prev) => ({ ...prev, cycle: value }))}
+                        onChange={(value: 'monthly' | 'yearly') =>
+                          setForceModal((prev) => ({ ...prev, cycle: value }))
+                        }
                       />
                     </Flexbox>
                     <Flexbox gap={4}>
@@ -264,7 +268,7 @@ const AdminSubscriptionsPage = memo(() => {
                           'admin.subscriptions.modal.reasonPlaceholder',
                           '请输入变更原因...',
                         )}
-                        onChange={(event) =>
+                        onChange={(event: { target: { value: string } }) =>
                           setForceModal((prev) => ({ ...prev, reason: event.target.value }))
                         }
                       />

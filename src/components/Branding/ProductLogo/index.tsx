@@ -2,7 +2,7 @@
 
 import { type LobeHubProps } from '@lobehub/ui/brand';
 import { LobeHub } from '@lobehub/ui/brand';
-import { memo } from 'react';
+import { type CSSProperties, memo } from 'react';
 
 import { isCustomBranding } from '@/const/version';
 import { useBrand } from '@/features/Brand';
@@ -10,7 +10,11 @@ import { useBrand } from '@/features/Brand';
 import CustomLogo from './Custom';
 
 interface ProductLogoProps extends LobeHubProps {
+  color?: string;
   height?: number;
+  size?: number;
+  style?: CSSProperties;
+  type?: '3d' | 'combine' | 'flat' | 'mono' | 'text';
   width?: number;
 }
 

@@ -5,10 +5,13 @@ import type { App as AppCore } from '../../App';
 import { UpdaterManager } from '../UpdaterManager';
 
 // Use vi.hoisted to ensure mocks work with require()
-const { mockGetAllWindows, mockReleaseSingleInstanceLock } = vi.hoisted(() => ({
-  mockGetAllWindows: vi.fn().mockReturnValue([]),
-  mockReleaseSingleInstanceLock: vi.fn(),
-}));
+const { mockGetAllWindows, mockReleaseSingleInstanceLock, mockUpdateServerUrl } = vi.hoisted(
+  () => ({
+    mockGetAllWindows: vi.fn().mockReturnValue([]),
+    mockReleaseSingleInstanceLock: vi.fn(),
+    mockUpdateServerUrl: { value: 'https://mock.update.server' },
+  }),
+);
 
 // Mock electron-log
 vi.mock('electron-log', () => ({
@@ -65,7 +68,9 @@ vi.mock('@/utils/logger', () => ({
 // Mock updater configs
 vi.mock('@/modules/updater/configs', () => ({
   UPDATE_CHANNEL: 'stable',
-  UPDATE_SERVER_URL: 'https://mock.update.server',
+  get UPDATE_SERVER_URL() {
+    return mockUpdateServerUrl.value;
+  },
   updaterConfig: {
     app: {
       autoCheckUpdate: false,
@@ -97,6 +102,7 @@ describe('UpdaterManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    mockUpdateServerUrl.value = 'https://mock.update.server';
 
     // Reset autoUpdater state
     (autoUpdater as any).autoDownload = false;
@@ -168,6 +174,21 @@ describe('UpdaterManager', () => {
       expect(autoUpdater.on).toHaveBeenCalledWith('download-progress', expect.any(Function));
       expect(autoUpdater.on).toHaveBeenCalledWith('update-downloaded', expect.any(Function));
     });
+
+    it('should not configure the LobeHub GitHub feed when no update server is configured', async () => {
+      mockUpdateServerUrl.value = '';
+      updaterManager = new UpdaterManager(mockApp);
+
+      await updaterManager.initialize();
+
+      expect(autoUpdater.setFeedURL).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          owner: 'lobehub',
+          provider: 'github',
+          repo: 'lobehub',
+        }),
+      );
+    });
   });
 
   describe('checkForUpdates', () => {
@@ -180,6 +201,20 @@ describe('UpdaterManager', () => {
       await updaterManager.checkForUpdates();
 
       expect(autoUpdater.checkForUpdates).toHaveBeenCalled();
+    });
+
+    it('should not check updates when no update server is configured', async () => {
+      mockUpdateServerUrl.value = '';
+      const managerWithoutServer = new UpdaterManager(mockApp);
+      await managerWithoutServer.initialize();
+
+      await managerWithoutServer.checkForUpdates({ manual: true });
+
+      expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+      expect(mockBroadcast).toHaveBeenCalledWith(
+        'updaterStateChanged',
+        expect.objectContaining({ stage: 'error' }),
+      );
     });
 
     it('should broadcast updaterStateChanged with checking stage when checking', async () => {

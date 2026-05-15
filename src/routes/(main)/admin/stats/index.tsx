@@ -1,10 +1,11 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Card, Col, Row, Spin, Statistic } from 'antd';
+import { Col, Row, Spin, Statistic } from 'antd';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Card } from '@/components/antd-compat/Card';
 import { BarChart, Sparkline, StackedBarChart } from '@/features/Admin';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';

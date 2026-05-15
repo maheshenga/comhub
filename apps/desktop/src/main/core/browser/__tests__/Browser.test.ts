@@ -9,9 +9,11 @@ const {
   mockBrowserWindow,
   mockNativeTheme,
   mockIpcMain,
+  mockNetFetch,
   mockScreen,
   MockBrowserWindow,
   mockEnv,
+  mockGetDesktopEnv,
 } = vi.hoisted(() => {
   const mockBrowserWindow = {
     center: vi.fn(),
@@ -74,6 +76,10 @@ const {
       handle: vi.fn(),
       removeHandler: vi.fn(),
     },
+    mockGetDesktopEnv: vi.fn(() => ({
+      OFFICIAL_CLOUD_SERVER: 'https://chat.qingyouai.com/',
+    })),
+    mockNetFetch: vi.fn(),
     mockNativeTheme: {
       off: vi.fn(),
       on: vi.fn(),
@@ -93,6 +99,21 @@ const {
     },
   };
 });
+
+const getLastLoadedDataHtml = () => {
+  const url = mockBrowserWindow.loadURL.mock.calls.findLast(([value]) =>
+    String(value).startsWith('data:text/html'),
+  )?.[0] as string | undefined;
+
+  expect(url).toBeDefined();
+  return decodeURIComponent(url!.split(',').slice(1).join(','));
+};
+
+const settleAutoLoading = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 // Mock electron
 vi.mock('electron', () => ({
@@ -138,6 +159,14 @@ vi.mock('@/const/env', () => ({
   },
 }));
 
+vi.mock('@/env', () => ({
+  getDesktopEnv: mockGetDesktopEnv,
+}));
+
+vi.mock('@/utils/net-fetch', () => ({
+  netFetch: mockNetFetch,
+}));
+
 vi.mock('../../../const/theme', () => ({
   BACKGROUND_DARK: '#1a1a1a',
   BACKGROUND_LIGHT: '#ffffff',
@@ -177,6 +206,22 @@ describe('Browser', () => {
     mockBrowserWindow.isFullScreen.mockReturnValue(false);
     mockBrowserWindow.loadURL.mockResolvedValue(undefined);
     mockBrowserWindow.loadFile.mockResolvedValue(undefined);
+    mockGetDesktopEnv.mockReturnValue({
+      OFFICIAL_CLOUD_SERVER: 'https://chat.qingyouai.com/',
+    });
+    mockNetFetch.mockResolvedValue({
+      json: async () => ({
+        result: {
+          data: {
+            json: {
+              loadingText: '你的商业大咖',
+              name: '玄果AI',
+            },
+          },
+        },
+      }),
+      ok: true,
+    });
     mockNativeTheme.shouldUseDarkColors = false;
     mockEnv.isLinux = false;
     mockEnv.isMac = false;
@@ -461,7 +506,9 @@ describe('Browser', () => {
 
       await browser.loadUrl('/test-path');
 
-      expect(mockBrowserWindow.loadFile).toHaveBeenCalledWith('/mock/resources/error.html');
+      expect(mockBrowserWindow.loadFile).toHaveBeenCalledWith(
+        expect.stringMatching(/[\\/]mock[\\/]resources[\\/]error\.html$/),
+      );
     });
 
     it('should setup retry handler on error', async () => {
@@ -492,10 +539,36 @@ describe('Browser', () => {
   });
 
   describe('loadPlaceholder', () => {
-    it('should load splash screen', async () => {
+    it('should load splash screen with backend configured brand text', async () => {
+      await settleAutoLoading();
+      mockBrowserWindow.loadFile.mockClear();
+      mockBrowserWindow.loadURL.mockClear();
+      mockNetFetch.mockClear();
+
       await browser.loadPlaceholder();
 
-      expect(mockBrowserWindow.loadFile).toHaveBeenCalledWith('/mock/resources/splash.html');
+      expect(mockNetFetch).toHaveBeenCalledWith(
+        'https://chat.qingyouai.com/trpc/lambda/admin.settings.getPublicBrand',
+        expect.objectContaining({ method: 'GET' }),
+      );
+      expect(mockBrowserWindow.loadFile).not.toHaveBeenCalledWith('/mock/resources/splash.html');
+      const html = getLastLoadedDataHtml();
+      expect(html).toContain('玄果AI');
+      expect(html).toContain('你的商业大咖');
+      expect(html).not.toContain('LobeHub');
+    });
+
+    it('should fall back to the built-in brand text when backend brand request fails', async () => {
+      await settleAutoLoading();
+      mockBrowserWindow.loadFile.mockClear();
+      mockBrowserWindow.loadURL.mockClear();
+      mockNetFetch.mockClear();
+      mockNetFetch.mockRejectedValueOnce(new Error('brand request failed'));
+
+      await browser.loadPlaceholder();
+
+      expect(getLastLoadedDataHtml()).toContain('玄果AI');
+      expect(mockBrowserWindow.loadFile).not.toHaveBeenCalledWith('/mock/resources/splash.html');
     });
   });
 

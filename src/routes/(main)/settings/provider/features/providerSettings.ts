@@ -9,8 +9,8 @@ export const isResponsesApiSupportedSdkType = (sdkType?: AiProviderSDKType) => {
 };
 
 interface NormalizeProviderSettingsParams {
-  nextSettings?: AiProviderSettings;
-  previousSettings?: AiProviderSettings;
+  nextSettings?: unknown;
+  previousSettings?: unknown;
 }
 
 export const normalizeProviderSettings = ({
@@ -18,9 +18,9 @@ export const normalizeProviderSettings = ({
   previousSettings,
 }: NormalizeProviderSettingsParams): AiProviderSettings | undefined => {
   const mergedSettings = {
-    ...previousSettings,
-    ...nextSettings,
-  };
+    ...(previousSettings as Record<string, unknown> | undefined),
+    ...(nextSettings as Record<string, unknown> | undefined),
+  } as AiProviderSettings;
 
   const sdkType = mergedSettings.sdkType;
 

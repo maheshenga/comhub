@@ -100,7 +100,7 @@ const RedemptionPanel = memo<{ onSuccess?: () => void }>(({ onSuccess }) => {
           style={{ maxWidth: 360 }}
           value={code}
           onPressEnter={handleCheck}
-          onChange={(e) => {
+          onChange={(e: { target: { value: string } }) => {
             setCode(e.target.value);
             setPreview(null);
           }}

@@ -80,7 +80,7 @@ const AdminSidebar = memo(() => {
       mode="inline"
       selectedKeys={[selectedKey]}
       style={{ borderInlineEnd: 'none', height: '100%', width: 240 }}
-      onClick={({ key }) => navigate(key)}
+      onClick={({ key }: { key: string }) => navigate(key)}
     />
   );
 });

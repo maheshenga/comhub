@@ -15,6 +15,7 @@ import { appendVercelCookie, setResponseHeader } from '@/utils/http-headers';
 import { createLogger } from '@/utils/logger';
 
 import type { App } from '../App';
+import { buildSplashDataUrl } from './splash';
 import { WindowStateManager } from './WindowStateManager';
 import { WindowThemeManager } from './WindowThemeManager';
 
@@ -403,7 +404,7 @@ export default class Browser {
 
   loadPlaceholder = async (): Promise<void> => {
     logger.debug(`[${this.identifier}] Loading splash screen placeholder`);
-    await this._browserWindow!.loadFile(path.join(resourcesDir, 'splash.html'));
+    await this._browserWindow!.loadURL(await buildSplashDataUrl());
     logger.debug(`[${this.identifier}] Splash screen placeholder loaded.`);
   };
 

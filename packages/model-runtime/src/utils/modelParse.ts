@@ -633,7 +633,7 @@ const processModelCard = (
     type: modelType,
     // current, only image model use the parameters field
     ...(modelType === 'image' && {
-      parameters: imageParameters,
+      parameters: imageParameters as ChatModelCard['parameters'],
     }),
     ...(mergedSettings ? { settings: mergedSettings } : {}),
     video:

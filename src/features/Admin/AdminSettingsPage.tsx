@@ -6,7 +6,6 @@ import {
   Alert,
   AutoComplete,
   Button,
-  Card,
   Form,
   Input,
   InputNumber,
@@ -20,6 +19,7 @@ import {
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Card } from '@/components/antd-compat/Card';
 import {
   SETTINGS_DEFAULT_MODEL_NOTICE,
   SETTINGS_SUBTITLE,
@@ -374,7 +374,7 @@ const AdminSettingsPage = memo(() => {
                   >
                     <AutoComplete
                       options={providerOptions}
-                      filterOption={(inputValue, option) =>
+                      filterOption={(inputValue: string, option?: { value?: string }) =>
                         option?.value?.toLowerCase().includes(inputValue.toLowerCase()) ?? false
                       }
                     >
@@ -400,12 +400,15 @@ const AdminSettingsPage = memo(() => {
                   >
                     <AutoComplete
                       options={defaultModelOptions}
-                      filterOption={(inputValue, option) =>
+                      filterOption={(
+                        inputValue: string,
+                        option?: { label?: unknown; value?: string },
+                      ) =>
                         String(option?.label ?? option?.value ?? '')
                           .toLowerCase()
                           .includes(inputValue.toLowerCase())
                       }
-                      onSelect={(value) => {
+                      onSelect={(value: string) => {
                         const selected = defaultModelOptions.find((item) => item.value === value);
                         if (!selected) return;
 
@@ -464,12 +467,15 @@ const AdminSettingsPage = memo(() => {
                   >
                     <AutoComplete
                       options={defaultImageModelOptions}
-                      filterOption={(inputValue, option) =>
+                      filterOption={(
+                        inputValue: string,
+                        option?: { label?: unknown; value?: string },
+                      ) =>
                         String(option?.label ?? option?.value ?? '')
                           .toLowerCase()
                           .includes(inputValue.toLowerCase())
                       }
-                      onSelect={(value) => {
+                      onSelect={(value: string) => {
                         const selected = defaultImageModelOptions.find(
                           (item) => item.value === value,
                         );
@@ -522,12 +528,15 @@ const AdminSettingsPage = memo(() => {
                   >
                     <AutoComplete
                       options={defaultVideoModelOptions}
-                      filterOption={(inputValue, option) =>
+                      filterOption={(
+                        inputValue: string,
+                        option?: { label?: unknown; value?: string },
+                      ) =>
                         String(option?.label ?? option?.value ?? '')
                           .toLowerCase()
                           .includes(inputValue.toLowerCase())
                       }
-                      onSelect={(value) => {
+                      onSelect={(value: string) => {
                         const selected = defaultVideoModelOptions.find(
                           (item) => item.value === value,
                         );

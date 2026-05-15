@@ -41,7 +41,7 @@ export const fetchRemoteUpdateConfig = async (): Promise<RemoteUpdateConfig> => 
     }
 
     const json = (await response.json()) as any;
-    const data = json?.result?.data;
+    const data = json?.result?.data?.json ?? json?.result?.data;
 
     if (!data) {
       logger.warn('Remote config response has no data');

@@ -22,12 +22,6 @@ import {
   releasePairingClaim,
 } from './dmPairingStore';
 import {
-  createOrGetPairingRequest,
-  deletePairingRequest,
-  peekPairingRequest,
-  releasePairingClaim,
-} from './dmPairingStore';
-import {
   type BotPlatformRuntimeContext,
   type BotReplyLocale,
   buildRuntimeKey,

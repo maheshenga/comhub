@@ -1,7 +1,7 @@
+import { withElectronProtocolIfElectron } from '@lobechat/const';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 
-import { withElectronProtocolIfElectron } from '@/const/protocol';
 import { type AsyncRouter } from '@/server/routers/async';
 
 export const asyncClient = createTRPCClient<AsyncRouter>({

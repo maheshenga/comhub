@@ -1,3 +1,4 @@
+import { existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import tsconfigPaths from 'vite-tsconfig-paths';
@@ -15,6 +16,7 @@ const alias = {
   '@emoji-mart/data': resolve(__dirname, './tests/mocks/emojiMartData.ts'),
   '@emoji-mart/react': resolve(__dirname, './tests/mocks/emojiMartReact.tsx'),
   '@/database/_deprecated': resolve(__dirname, './src/database/_deprecated'),
+  '@/const/url': resolve(__dirname, './packages/const/src/url.ts'),
   '@/utils/client/switchLang': resolve(__dirname, './src/utils/client/switchLang'),
   '@/const/locale': resolve(__dirname, './src/const/locale'),
   // TODO: after refactor the errorResponse, we can remove it
@@ -23,10 +25,72 @@ const alias = {
   '@/utils/server': resolve(__dirname, './src/utils/server'),
   '@/utils/identifier': resolve(__dirname, './src/utils/identifier'),
   '@/utils/electron': resolve(__dirname, './src/utils/electron'),
+  '@/utils/env': resolve(__dirname, './packages/utils/src/env.ts'),
   '@/utils/markdownToTxt': resolve(__dirname, './src/utils/markdownToTxt'),
   '@/utils/sanitizeFileName': resolve(__dirname, './src/utils/sanitizeFileName'),
+  '@/libs/trpc/client/lambda': resolve(__dirname, './src/libs/trpc/client/lambda.ts'),
+  '@/libs/trpc/client': resolve(__dirname, './src/libs/trpc/client/index.ts'),
+  '@/locales/default/subscription': resolve(__dirname, './src/locales/default/subscription.ts'),
+  '@/store/user/selectors': resolve(__dirname, './src/store/user/selectors.ts'),
+  '@/store/user/slices/auth/selectors': resolve(
+    __dirname,
+    './src/store/user/slices/auth/selectors.ts',
+  ),
+  '@/store/user/slices/settings/selectors': resolve(
+    __dirname,
+    './src/store/user/slices/settings/selectors/index.ts',
+  ),
+  '@/store/user/store': resolve(__dirname, './src/store/user/store.ts'),
+  '@/store/user': resolve(__dirname, './src/store/user/index.ts'),
   '~test-utils': resolve(__dirname, './tests/utils.tsx'),
   'lru_map': resolve(__dirname, './tests/mocks/lru_map'),
+};
+
+const resolveFile = (base: string) => {
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    `${base}.mts`,
+    `${base}.cts`,
+    `${base}.js`,
+    `${base}.jsx`,
+    join(base, 'index.ts'),
+    join(base, 'index.tsx'),
+    join(base, 'index.mts'),
+    join(base, 'index.cts'),
+    join(base, 'index.js'),
+    join(base, 'index.jsx'),
+  ];
+
+  return candidates.find((candidate) => {
+    if (!existsSync(candidate)) return false;
+
+    return statSync(candidate).isFile();
+  });
+};
+
+const resolveWorkspaceAlias = (id: string) => {
+  if (!id.startsWith('@/')) return;
+
+  const name = id.slice(2);
+  const [scope, ...restParts] = name.split('/');
+  const rest = restParts.join('/');
+  const scopedPackageRoots: Record<string, string> = {
+    const: './packages/const/src',
+    database: './packages/database/src',
+    types: './packages/types/src',
+    utils: './packages/utils/src',
+  };
+
+  const roots = scopedPackageRoots[scope]
+    ? [join(__dirname, scopedPackageRoots[scope], rest), join(__dirname, './src', name)]
+    : [join(__dirname, './src', name)];
+
+  for (const root of roots) {
+    const resolved = resolveFile(root);
+    if (resolved) return resolved;
+  }
 };
 
 export default defineConfig({
@@ -35,14 +99,20 @@ export default defineConfig({
     include: ['@lobehub/tts'],
   },
   plugins: [
+    {
+      enforce: 'pre',
+      name: 'comhub-workspace-aliases',
+      resolveId(id) {
+        return resolveWorkspaceAlias(id) ?? null;
+      },
+    },
     tsconfigPaths({ projects: ['.'] }),
     // Let `.md` imports resolve to their raw text content so Rollup/Vitest
     // doesn't try to parse Markdown as JavaScript.
     {
       name: 'raw-md',
       transform(_, id) {
-        if (id.endsWith('.md'))
-          return { code: 'export default ""', map: null };
+        if (id.endsWith('.md')) return { code: 'export default ""', map: null };
       },
     },
     /**

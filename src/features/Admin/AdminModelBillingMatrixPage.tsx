@@ -301,7 +301,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       <Switch
         checked={row.planAccess[plan.plan] !== false}
         size="small"
-        onChange={(checked) =>
+        onChange={(checked: boolean) =>
           setRowsOverride((current) =>
             togglePlanAccess(current ?? baseRows, row.key, plan.plan, checked),
           )
@@ -361,7 +361,9 @@ const AdminModelBillingMatrixPage = memo(() => {
           step={0.1}
           style={{ width: 96 }}
           value={value}
-          onChange={(next) => updateRow(row.key, { pricingMultiplier: toFiniteNumber(next) })}
+          onChange={(next: number | null) =>
+            updateRow(row.key, { pricingMultiplier: toFiniteNumber(next) })
+          }
         />
       ),
       title: t('admin.modelBillingMatrix.col.multiplier', '倍率'),
@@ -377,7 +379,9 @@ const AdminModelBillingMatrixPage = memo(() => {
           size="small"
           style={{ width: 132 }}
           value={value}
-          onChange={(next) => updateRow(row.key, { creditsPerDollar: toFiniteNumber(next) })}
+          onChange={(next: number | null) =>
+            updateRow(row.key, { creditsPerDollar: toFiniteNumber(next) })
+          }
         />
       ),
       title: t('admin.modelBillingMatrix.col.creditsPerDollar', '每美元积分'),

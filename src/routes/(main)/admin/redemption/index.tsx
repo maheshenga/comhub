@@ -285,7 +285,7 @@ const AdminRedemptionPage = memo(() => {
             { label: t('admin.redemption.status.disabled', '已停用'), value: 'disabled' },
             { label: t('admin.redemption.status.expired', '已过期'), value: 'expired' },
           ]}
-          onChange={(v) => {
+          onChange={(v: 'active' | 'all' | 'disabled' | 'expired' | 'redeemed') => {
             setStatus(v);
             setCursor(0);
           }}
@@ -300,7 +300,7 @@ const AdminRedemptionPage = memo(() => {
             { label: '积分', value: 'credits' },
             { label: '充值套餐', value: 'topup_package' },
           ]}
-          onChange={(v) => {
+          onChange={(v: RewardType | undefined) => {
             setRewardType(v);
             setCursor(0);
           }}
@@ -310,7 +310,7 @@ const AdminRedemptionPage = memo(() => {
           placeholder={t('admin.redemption.filter.batch', '批次 ID')}
           style={{ width: 200 }}
           value={batchId}
-          onChange={(e) => {
+          onChange={(e: { target: { value: string } }) => {
             setBatchId(e.target.value);
             setCursor(0);
           }}
@@ -320,7 +320,7 @@ const AdminRedemptionPage = memo(() => {
           placeholder={t('admin.redemption.filter.code', '搜索兑换码...')}
           style={{ width: 200 }}
           value={codeQuery}
-          onChange={(e) => {
+          onChange={(e: { target: { value: string } }) => {
             setCodeQuery(e.target.value);
             setCursor(0);
           }}
@@ -424,8 +424,8 @@ const AdminRedemptionPage = memo(() => {
               ]}
             />
           </Form.Item>
-          <Form.Item noStyle shouldUpdate={(p, c) => p.rewardType !== c.rewardType}>
-            {({ getFieldValue }) => {
+          <Form.Item noStyle shouldUpdate={(p: any, c: any) => p.rewardType !== c.rewardType}>
+            {({ getFieldValue }: { getFieldValue: (name: string) => unknown }) => {
               const rt = getFieldValue('rewardType') as RewardType;
               if (rt === 'plan')
                 return (

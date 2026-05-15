@@ -2,12 +2,13 @@
 
 import { Flexbox, FormGroup, Icon, Segmented } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
-import { Button, Card, Empty, InputNumber, message, Tag } from 'antd';
+import { Button, Empty, InputNumber, message, Tag } from 'antd';
 import { Pencil, ShoppingCart } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
+import { Card } from '@/components/antd-compat/Card';
 import InlineTable from '@/components/InlineTable';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
@@ -238,7 +239,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
                 <Segmented
                   options={packageOptions}
                   value={selectedPackageId || topUpPackages[0]?.id || 'custom'}
-                  onChange={(value) => setSelectedPackageId(value as string)}
+                  onChange={(value: string | number) => setSelectedPackageId(value as string)}
                 />
               </div>
               {selectedPackageId === 'custom' || topUpPackages.length === 0 ? (
@@ -247,7 +248,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
                   max={5000}
                   min={50}
                   value={customCredits}
-                  onChange={(value) => setCustomCredits(Number(value || 50))}
+                  onChange={(value: number | null) => setCustomCredits(Number(value || 50))}
                 />
               ) : null}
               <div className={subscriptionPageStyles.caption}>

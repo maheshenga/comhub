@@ -48,7 +48,7 @@ const hiddenSidebarSections = (s: GlobalState): string[] =>
   s.status.hiddenSidebarSections ?? DEFAULT_HIDDEN_SECTIONS;
 
 const sidebarExpandedKeys = (s: GlobalState): string[] =>
-  s.status.sidebarExpandedKeys ?? DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS;
+  s.status.sidebarExpandedKeys ?? [...DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS];
 
 export const DEFAULT_SIDEBAR_ITEMS: string[] = [
   'tasks',

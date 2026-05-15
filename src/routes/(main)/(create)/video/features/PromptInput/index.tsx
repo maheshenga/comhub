@@ -50,7 +50,13 @@ const AspectRatioItem = memo(() => {
 
   if (options.length === 0) return null;
 
-  return <AspectRatioSelect options={options} value={value} onChange={(v) => setValue(v as any)} />;
+  return (
+    <AspectRatioSelect
+      options={options}
+      value={value}
+      onChange={(v: string | number) => setValue(v as any)}
+    />
+  );
 });
 
 const SizeItem = memo(() => {
@@ -67,7 +73,7 @@ const SizeItem = memo(() => {
 
   if (options.length === 0) return null;
 
-  return <Select options={options} value={value} onChange={setValue} />;
+  return <Select options={options} value={value} onChange={(v: unknown) => setValue(v as any)} />;
 });
 
 const ResolutionItem = memo(() => {
@@ -86,7 +92,7 @@ const ResolutionItem = memo(() => {
       style={{ width: '100%' }}
       value={value}
       variant="filled"
-      onChange={(v) => setValue(String(v) as any)}
+      onChange={(v: string | number) => setValue(String(v) as any)}
     />
   );
 });
@@ -113,7 +119,7 @@ const DurationItem = memo(() => {
         style={{ width: '100%' }}
         value={value ?? min}
         variant="filled"
-        onChange={(v) => setValue(Number(v) as any)}
+        onChange={(v: string | number) => setValue(Number(v) as any)}
       />
     );
   }
@@ -124,7 +130,7 @@ const DurationItem = memo(() => {
       min={min}
       step={step ?? 1}
       value={value ?? min}
-      onChange={(v) => setValue(v as any)}
+      onChange={(v: number | null) => setValue(v as any)}
     />
   );
 });
@@ -132,10 +138,11 @@ const DurationItem = memo(() => {
 const SeedItem = memo(() => {
   const { t } = useTranslation('video');
   const { value, setValue } = useVideoGenerationConfigParam('seed');
+  const setSeedValue = setValue as unknown as (next: number | null) => void;
 
   const handleRandomize = useCallback(() => {
-    setValue(generateUniqueSeeds(1)[0] as any);
-  }, [setValue]);
+    setSeedValue(generateUniqueSeeds(1)[0]);
+  }, [setSeedValue]);
 
   return (
     <Flexbox horizontal gap={4}>
@@ -145,9 +152,9 @@ const SeedItem = memo(() => {
         step={1}
         style={{ width: '100%' }}
         value={value}
-        onChange={(v) => setValue(v as any)}
+        onChange={(v) => setSeedValue(typeof v === 'number' ? v : null)}
       />
-      <Action icon={Dices} title={t('config.seed.random')} onClick={handleRandomize} />
+      <Action icon={Dices} title={t('config.seed.random') as any} onClick={handleRandomize} />
     </Flexbox>
   );
 });
@@ -163,7 +170,7 @@ const SwitchItem = memo<SwitchItemProps>(({ label, paramName }) => {
   return (
     <Flexbox horizontal align="center" justify="space-between" padding={'0 2px'}>
       <Text weight={500}>{label}</Text>
-      <Switch checked={!!value} onChange={(checked) => setValue(checked as any)} />
+      <Switch checked={!!value} onChange={(checked: boolean) => setValue(checked as any)} />
     </Flexbox>
   );
 });
@@ -184,7 +191,7 @@ const PromptExtendItem = memo(() => {
           style={{ width: '100%' }}
           value={value as string}
           variant="filled"
-          onChange={(next) => setValue(String(next) as any)}
+          onChange={(next: string | number) => setValue(String(next) as any)}
         />
       </Flexbox>
     );
@@ -193,7 +200,7 @@ const PromptExtendItem = memo(() => {
   return (
     <Flexbox horizontal align="center" justify="space-between" padding={'0 2px'}>
       <Text weight={500}>{t('config.promptExtend.label')}</Text>
-      <Switch checked={!!value} onChange={(checked) => setValue(checked as any)} />
+      <Switch checked={!!value} onChange={(checked: boolean) => setValue(checked as any)} />
     </Flexbox>
   );
 });
@@ -203,6 +210,7 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   const { t } = useTranslation('video');
   const { value, setValue } = useVideoGenerationConfigParam('prompt');
   const { value: imageUrl, setValue: setImageUrl } = useVideoGenerationConfigParam('imageUrl');
+  const setImageUrlValue = setImageUrl as unknown as (next: string | null) => void;
   const {
     value: imageUrls,
     setValue: setImageUrls,
@@ -212,6 +220,8 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   const { maxFileSize: imageUrlMaxFileSize } = useVideoGenerationConfigParam('imageUrl');
   const { value: endImageUrl, setValue: setEndImageUrl } =
     useVideoGenerationConfigParam('endImageUrl');
+  const setImageUrlsValue = setImageUrls as unknown as (next: string[]) => void;
+  const setEndImageUrlValue = setEndImageUrl as unknown as (next: string | null) => void;
   const isCreating = useVideoStore(createVideoSelectors.isCreating);
   const createVideo = useVideoStore((s) => s.createVideo);
   const setModelAndProviderOnSelect = useVideoStore((s) => s.setModelAndProviderOnSelect);
@@ -309,11 +319,11 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
       if (framePreviewUrls.length >= maxCount) return;
 
       if (isSupportImageUrl && !imageUrl) {
-        setImageUrl(url);
+        setImageUrlValue(url);
       } else if (isSupportImageUrls) {
-        setImageUrls([...(imageUrls ?? []), url] as any);
+        setImageUrlsValue([...(imageUrls ?? []), url]);
       } else if (isSupportImageUrl) {
-        setImageUrl(url);
+        setImageUrlValue(url);
       }
     },
     [
@@ -331,9 +341,9 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   const handleRemoveImage = useCallback(
     (url: string) => {
       if (url === imageUrl) {
-        setImageUrl(null);
+        setImageUrlValue(null);
       } else {
-        setImageUrls((imageUrls ?? []).filter((item) => item !== url) as any);
+        setImageUrlsValue((imageUrls ?? []).filter((item) => item !== url));
       }
     },
     [imageUrl, imageUrls, setImageUrl, setImageUrls],
@@ -342,13 +352,13 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   const handleEndImageChange = useCallback(
     (data: string | { dimensions?: { height: number; width: number }; url: string } | null) => {
       if (data === null) {
-        setEndImageUrl(null as any);
+        setEndImageUrlValue(null);
         return;
       }
       const url = typeof data === 'string' ? data : data?.url;
-      setEndImageUrl((url ?? null) as any);
+      setEndImageUrlValue(url ?? null);
     },
-    [setEndImageUrl],
+    [setEndImageUrlValue],
   );
 
   return (

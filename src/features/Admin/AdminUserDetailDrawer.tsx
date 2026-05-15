@@ -366,14 +366,14 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
           <InputNumber
             style={{ width: '100%' }}
             value={adjustAmount}
-            onChange={(value) => setAdjustAmount((value as number | null) ?? 0)}
+            onChange={(value: number | null) => setAdjustAmount(value ?? 0)}
           />
           <div>{t('admin.adjustCredits.reason', '原因')}</div>
           <Input.TextArea
             placeholder={t('admin.adjustCredits.reason.placeholder', '请输入调整原因')}
             rows={3}
             value={adjustReason}
-            onChange={(event) => setAdjustReason(event.target.value)}
+            onChange={(event: { target: { value: string } }) => setAdjustReason(event.target.value)}
           />
         </Flexbox>
       </Modal>

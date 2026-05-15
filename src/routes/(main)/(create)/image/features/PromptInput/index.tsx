@@ -62,7 +62,7 @@ const SwitchItem = memo<SwitchItemProps>(({ label, paramName }) => {
   return (
     <Flexbox horizontal align="center" justify="space-between" padding={'0 2px'}>
       <Text weight={500}>{label}</Text>
-      <Switch checked={!!value} onChange={(checked) => setValue(checked as any)} />
+      <Switch checked={!!value} onChange={(checked: boolean) => setValue(checked as any)} />
     </Flexbox>
   );
 });
@@ -83,7 +83,7 @@ const PromptExtendItem = memo(() => {
           style={{ width: '100%' }}
           value={value as string}
           variant="filled"
-          onChange={(next) => setValue(String(next) as any)}
+          onChange={(next: string | number) => setValue(String(next) as any)}
         />
       </Flexbox>
     );
@@ -92,7 +92,7 @@ const PromptExtendItem = memo(() => {
   return (
     <Flexbox horizontal align="center" justify="space-between" padding={'0 2px'}>
       <Text weight={500}>{t('config.promptExtend.label')}</Text>
-      <Switch checked={!!value} onChange={(checked) => setValue(checked as any)} />
+      <Switch checked={!!value} onChange={(checked: boolean) => setValue(checked as any)} />
     </Flexbox>
   );
 });
@@ -102,12 +102,14 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   const { t } = useTranslation('image');
   const { value, setValue } = useGenerationConfigParam('prompt');
   const { value: imageUrl, setValue: setImageUrl } = useGenerationConfigParam('imageUrl');
+  const setImageUrlValue = setImageUrl as unknown as (next: string | null) => void;
   const {
     value: imageUrls,
     setValue: setImageUrls,
     maxCount: imageUrlsMaxCount,
     maxFileSize: imageUrlsMaxFileSize,
   } = useGenerationConfigParam('imageUrls');
+  const setImageUrlsValue = setImageUrls as unknown as (next: string[]) => void;
   const { maxFileSize: imageUrlMaxFileSize } = useGenerationConfigParam('imageUrl');
   const isCreating = useImageStore(createImageSelectors.isCreating);
   const createImage = useImageStore((s) => s.createImage);
@@ -196,11 +198,11 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
       }
 
       if (isSupportImageUrl && !imageUrl) {
-        setImageUrl(url);
+        setImageUrlValue(url);
       } else if (isSupportImageUrls) {
-        setImageUrls([...(imageUrls ?? []), url] as any);
+        setImageUrlsValue([...(imageUrls ?? []), url]);
       } else if (isSupportImageUrl) {
-        setImageUrl(url);
+        setImageUrlValue(url);
       }
     },
     [
@@ -218,9 +220,9 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   const handleRemoveImage = useCallback(
     (url: string) => {
       if (url === imageUrl) {
-        setImageUrl(null);
+        setImageUrlValue(null);
       } else {
-        setImageUrls((imageUrls ?? []).filter((item) => item !== url) as any);
+        setImageUrlsValue((imageUrls ?? []).filter((item) => item !== url));
       }
     },
     [imageUrl, imageUrls, setImageUrl, setImageUrls],

@@ -41,7 +41,7 @@ const stripChannelSuffix = (url) => url.replace(/\/(stable|nightly|canary|beta)\
 
 // 根据 channel 配置 publish provider
 // - 所有渠道 + UPDATE_SERVER_URL: 使用 generic (S3)
-// - 无 UPDATE_SERVER_URL: 回退到 GitHub (本地开发)
+// - 无 UPDATE_SERVER_URL: 不配置发布源
 const getPublishConfig = () => {
   const channelPath = isStable ? 'stable' : isNightly ? 'nightly' : channel || 'stable';
 
@@ -57,15 +57,9 @@ const getPublishConfig = () => {
     ];
   }
 
-  // 本地开发无 S3 时回退到 GitHub
-  console.info(`📦 ${channelPath} channel: No UPDATE_SERVER_URL, falling back to GitHub provider`);
-  return [
-    {
-      owner: 'lobehub',
-      provider: 'github',
-      repo: 'lobehub',
-    },
-  ];
+  // No fallback provider: desktop builds must use the configured ComHub update server only.
+  console.info(`${channelPath} channel: No UPDATE_SERVER_URL, publish provider disabled`);
+  return null;
 };
 
 // Keep only these Electron Framework localization folders (*.lproj)

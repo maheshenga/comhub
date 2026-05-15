@@ -87,7 +87,6 @@ export interface GlobalServerConfig {
   };
   video?: GlobalGenerationModelConfig;
   visualUnderstanding?: VisualUnderstandingConfig;
-  video?: GlobalGenerationModelConfig;
 }
 
 export interface GlobalBillboardItemLocaleFields {

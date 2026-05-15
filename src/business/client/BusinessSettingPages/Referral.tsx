@@ -257,7 +257,9 @@ const Referral = memo<{ mobile?: boolean }>(() => {
             <Input
               maxLength={7}
               value={draftCode}
-              onChange={(e) => setDraftCode(e.target.value.replaceAll(/\D/g, '').slice(0, 7))}
+              onChange={(e: { target: { value: string } }) =>
+                setDraftCode(e.target.value.replaceAll(/\D/g, '').slice(0, 7))
+              }
             />
           ) : (
             <div className={subscriptionPageStyles.monoBlock}>{effectiveReferralCode}</div>
@@ -331,7 +333,7 @@ const Referral = memo<{ mobile?: boolean }>(() => {
               placeholder="输入 7 位推荐码或推荐链接"
               style={{ maxWidth: 360 }}
               value={backfillCode}
-              onChange={(e) => setBackfillCode(e.target.value)}
+              onChange={(e: { target: { value: string } }) => setBackfillCode(e.target.value)}
             />
             <Button loading={isBindingCode} type="primary" onClick={() => void handleBindCode()}>
               确认绑定

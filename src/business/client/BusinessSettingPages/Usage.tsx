@@ -16,6 +16,7 @@ import UsageTable from '@/routes/(main)/settings/stats/features/usage/UsageTable
 import UsageTrends from '@/routes/(main)/settings/stats/features/usage/UsageTrends';
 import { GroupBy } from '@/routes/(main)/settings/stats/types';
 import { usageService } from '@/services/usage';
+import { type UsageLog } from '@/types/usage/usageRecord';
 
 import {
   formatCredits,
@@ -39,6 +40,7 @@ const Usage = memo<{ mobile?: boolean }>(() => {
   const { data, isLoading } = useClientDataSWR(['business-usage-stat', month], () =>
     usageService.findAndGroupByDay(month),
   );
+  const usageData = (data ?? []) as unknown as UsageLog[];
 
   const handleDateChange: DatePickerProps['onChange'] = (value) => {
     if (value && !Array.isArray(value)) setDateRange(value);
@@ -72,7 +74,7 @@ const Usage = memo<{ mobile?: boolean }>(() => {
                     value: GroupBy.Provider,
                   },
                 ]}
-                onChange={(value) => setGroupBy(value as GroupBy)}
+                onChange={(value: string | number) => setGroupBy(value as GroupBy)}
               />
             </>
           }
@@ -106,9 +108,9 @@ const Usage = memo<{ mobile?: boolean }>(() => {
             />
           </div>
           <Divider style={{ marginBlock: 0 }} />
-          <UsageCards data={data} groupBy={groupBy} isLoading={isLoading} />
+          <UsageCards data={usageData} groupBy={groupBy} isLoading={isLoading} />
           <Divider style={{ marginBlock: 0 }} />
-          <UsageTrends data={data} groupBy={groupBy} isLoading={isLoading} />
+          <UsageTrends data={usageData} groupBy={groupBy} isLoading={isLoading} />
         </FormGroup>
       </div>
     </>

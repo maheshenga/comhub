@@ -333,19 +333,25 @@ export const contextEngineering = async ({
       if (planResult.data.length > 0) {
         const planDoc = planResult.data[0]; // Most recent plan
 
+        const toPlanTimestamp = (value: Date | string) =>
+          value instanceof Date ? value.toISOString() : value;
+        const planCreatedAt = toPlanTimestamp(planDoc.createdAt);
+        const planUpdatedAt = toPlanTimestamp(planDoc.updatedAt);
+
         // Build plan object for injection
         const plan = {
           completed: false, // TODO: Add completed field to document if needed
           context: planDoc.content ?? undefined,
-          createdAt: planDoc.createdAt.toISOString(),
+          createdAt: planCreatedAt,
           description: planDoc.description || '',
           goal: planDoc.title || '',
           id: planDoc.id,
-          updatedAt: planDoc.updatedAt.toISOString(),
+          updatedAt: planUpdatedAt,
         };
 
         // Get todos from plan's metadata
-        const todos = planDoc.metadata?.todos;
+        const metadata = planDoc.metadata as { todos?: GTDConfig['todos'] } | undefined;
+        const todos = metadata?.todos;
 
         gtdConfig = {
           enabled: true,

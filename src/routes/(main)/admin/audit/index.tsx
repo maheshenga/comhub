@@ -218,7 +218,7 @@ const AdminAuditPage = memo(() => {
           placeholder={t('admin.audit.filter.actor', '操作者用户 ID')}
           style={{ width: 240 }}
           value={actorFilter}
-          onChange={(e) => {
+          onChange={(e: { target: { value: string } }) => {
             setActorFilter(e.target.value);
             setCursor(0);
           }}
@@ -228,7 +228,7 @@ const AdminAuditPage = memo(() => {
           placeholder={t('admin.audit.filter.target', '目标用户 ID')}
           style={{ width: 240 }}
           value={targetFilter}
-          onChange={(e) => {
+          onChange={(e: { target: { value: string } }) => {
             setTargetFilter(e.target.value);
             setCursor(0);
           }}
@@ -238,7 +238,7 @@ const AdminAuditPage = memo(() => {
           placeholder={t('admin.audit.filter.action', '操作（如 user.ban）')}
           style={{ width: 240 }}
           value={actionFilter}
-          onChange={(e) => {
+          onChange={(e: { target: { value: string } }) => {
             setActionFilter(e.target.value);
             setCursor(0);
           }}

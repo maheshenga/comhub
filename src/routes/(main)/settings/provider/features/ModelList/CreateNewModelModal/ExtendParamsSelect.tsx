@@ -160,7 +160,7 @@ const EXTEND_PARAMS_OPTIONS: ExtendParamsOption[] = [
   },
   {
     hintKey: 'providerModels.item.modelConfig.extendParams.options.async.hint',
-    key: 'async',
+    key: 'async' as ExtendParamsType,
   },
 ];
 
@@ -233,7 +233,7 @@ const PREVIEW_META: Partial<Record<ExtendParamsType, PreviewMeta>> = {
   imageAspectRatio2: { labelSuffix: ' (Nano Banana 2)', previewWidth: 350, tag: 'aspect_ratio' },
   imageResolution: { labelSuffix: '', previewWidth: 250, tag: 'resolution' },
   imageResolution2: { labelSuffix: ' (512px+)', previewWidth: 280, tag: 'resolution' },
-  async: { labelSuffix: ' (Image Task)', previewWidth: 250, tag: 'async' },
+  ['async' as ExtendParamsType]: { labelSuffix: ' (Image Task)', previewWidth: 250, tag: 'async' },
   opus47Effort: { labelSuffix: ' (Opus 4.7)', previewWidth: 280, tag: 'output_config.effort' },
   reasoningBudgetToken: { previewWidth: 350, tag: 'thinking.budget_tokens' },
   reasoningBudgetToken32k: {
@@ -365,7 +365,7 @@ const ExtendParamsSelect = memo<ExtendParamsSelectProps>(({ value, onChange }) =
       imageAspectRatio2: <ImageAspectRatio2Select value="1:1" />,
       imageResolution: <ImageResolutionSlider value="1K" />,
       imageResolution2: <ImageResolution2Slider value="1K" />,
-      async: <Switch checked disabled />,
+      ['async' as ExtendParamsType]: <Switch checked disabled />,
       opus47Effort: <Opus47EffortSlider value="high" />,
       reasoningBudgetToken: <ReasoningTokenSlider defaultValue={1 * 1024} />,
       reasoningBudgetToken32k: <ReasoningTokenSlider32k defaultValue={1 * 1024} />,
@@ -478,7 +478,7 @@ const ExtendParamsSelect = memo<ExtendParamsSelectProps>(({ value, onChange }) =
         popupMatchSelectWidth={false}
         style={{ width: '100%' }}
         value={value}
-        optionRender={(option) => {
+        optionRender={(option: any) => {
           const def = definitionMap.get(option.value as ExtendParamsType);
           if (!def) return option.label;
 
@@ -506,7 +506,7 @@ const ExtendParamsSelect = memo<ExtendParamsSelectProps>(({ value, onChange }) =
             </Popover>
           );
         }}
-        onChange={(val) => handleChange(val as ExtendParamsType[])}
+        onChange={(val: unknown) => handleChange(val as ExtendParamsType[])}
       />
       {value && value.length > 0 && (
         <Space wrap size={[8, 8]}>

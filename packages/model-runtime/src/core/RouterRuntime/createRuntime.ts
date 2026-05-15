@@ -161,6 +161,7 @@ export interface CreateRouterRuntimeOptions<T extends Record<string, any> = any>
         transformModel?: (model: OpenAI.Model) => ChatModelCard;
       };
   onRouteAttempt?: (result: RouteAttemptResult) => Promise<void>;
+  optionSelectionStrategy?: 'fallback' | 'roundRobin';
   responses?: {
     handlePayload?: (
       payload: ChatStreamPayload,

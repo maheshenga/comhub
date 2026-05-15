@@ -10,12 +10,13 @@ interface FrameUploadProps {
 const FrameUpload = memo<FrameUploadProps>(({ paramName }) => {
   const { value, setValue, maxFileSize, imageConstraints } =
     useVideoGenerationConfigParam(paramName);
+  const setFrameValue = setValue as unknown as (next: string | null) => void;
 
   const handleChange = (
     data?: string | { dimensions?: { height: number; width: number }; url: string },
   ) => {
     const url = typeof data === 'string' ? data : data?.url;
-    setValue((url ?? null) as any);
+    setFrameValue(url ?? null);
   };
 
   return (

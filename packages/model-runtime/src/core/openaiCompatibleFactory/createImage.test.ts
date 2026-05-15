@@ -750,7 +750,7 @@ describe('createOpenAICompatibleImage', () => {
       const result = await createOpenAICompatibleImage(mockClient, payload, 'openai');
 
       expect(result.imageUrl).toBe('data:image/png;base64,gptImage2EditedBase64Result');
-      const editOptions = vi.mocked(mockClient.images.edit).mock.calls[0][0] as Record<
+      const editOptions = vi.mocked(mockClient.images.edit).mock.calls[0][0] as unknown as Record<
         string,
         unknown
       >;
@@ -852,7 +852,7 @@ describe('createOpenAICompatibleImage', () => {
 
       await createOpenAICompatibleImage(mockClient, payload, 'openai');
 
-      const editOptions = vi.mocked(mockClient.images.edit).mock.calls[0][0] as Record<
+      const editOptions = vi.mocked(mockClient.images.edit).mock.calls[0][0] as unknown as Record<
         string,
         unknown
       >;

@@ -1,11 +1,16 @@
-import { type InsertAgentCronJob, type UpdateAgentCronJob } from '@lobechat/types';
-import { InsertAgentCronJobSchema, UpdateAgentCronJobSchema } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { AgentCronJobModel } from '@/database/models/agentCronJob';
+import type {
+  CreateAgentCronJobData,
+  UpdateAgentCronJobData,
+} from '@/database/schemas/agentCronJob';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
+
+type InsertAgentCronJob = CreateAgentCronJobData;
+type UpdateAgentCronJob = UpdateAgentCronJobData;
 
 const agentCronJobProcedure = authedProcedure.use(serverDatabase);
 
@@ -24,6 +29,35 @@ const resetExecutionsSchema = z.object({
 const batchUpdateStatusSchema = z.object({
   enabled: z.boolean(),
   ids: z.array(z.string()),
+});
+
+const executionConditionsSchema = z
+  .object({
+    activeDays: z.array(z.number()).optional(),
+    activeHours: z.object({ end: z.number(), start: z.number() }).optional(),
+    maxExecutionsPerDay: z.number().optional(),
+  })
+  .optional();
+
+const InsertAgentCronJobSchema = z.object({
+  agentId: z.string(),
+  content: z.string(),
+  cronPattern: z.string(),
+  description: z.string().optional().nullable(),
+  editData: z.unknown().optional().nullable(),
+  enabled: z.boolean().optional().nullable(),
+  executionConditions: executionConditionsSchema.nullable(),
+  groupId: z.string().optional().nullable(),
+  maxExecutions: z.number().optional().nullable(),
+  name: z.string().optional().nullable(),
+  remainingExecutions: z.number().optional().nullable(),
+  timezone: z.string().optional().nullable(),
+  userId: z.string(),
+});
+
+const UpdateAgentCronJobSchema = InsertAgentCronJobSchema.partial().omit({
+  agentId: true,
+  userId: true,
 });
 
 // Create input schema for tRPC that omits server-managed fields

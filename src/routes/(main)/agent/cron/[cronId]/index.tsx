@@ -20,7 +20,6 @@ import NavHeader from '@/features/NavHeader';
 import WideScreenContainer from '@/features/WideScreenContainer';
 import { useQueryRoute } from '@/hooks/useQueryRoute';
 import { mutate } from '@/libs/swr';
-import { lambdaClient } from '@/libs/trpc/client/lambda';
 import { agentCronJobService } from '@/services/agentCronJob';
 import { topicService } from '@/services/topic';
 import { useAgentStore } from '@/store/agent';
@@ -110,10 +109,7 @@ const CronJobDetailPage = memo(() => {
     s.switchTopic,
   ]);
 
-  const [activeAgentId, internal_refreshCronTopics] = useAgentStore((s) => [
-    s.activeAgentId,
-    s.internal_refreshCronTopics,
-  ]);
+  const activeAgentId = useAgentStore((s) => s.activeAgentId);
   const cronListAgentId = activeAgentId || aid;
 
   const { data: cronJob, isLoading } = useSWR(
@@ -277,7 +273,7 @@ const CronJobDetailPage = memo(() => {
           (current) => (current ? { ...current, enabled } : current),
           false,
         );
-        await internal_refreshCronTopics();
+        refreshCronList();
         setAutoSaveState({ lastUpdatedTime: new Date(), status: 'saved' });
       } catch (error) {
         console.error('Failed to update cron job status:', error);
@@ -287,7 +283,7 @@ const CronJobDetailPage = memo(() => {
         setIsTogglingEnabled(false);
       }
     },
-    [cronId, internal_refreshCronTopics],
+    [cronId, refreshCronList],
   );
 
   const handleDeleteCronJob = useCallback(async () => {
@@ -301,14 +297,7 @@ const CronJobDetailPage = memo(() => {
       okText: t('ok', { ns: 'common' }),
       onOk: async () => {
         try {
-          let topicIds: string[] = [];
-          if (aid) {
-            const groups = await lambdaClient.topic.getCronTopicsGroupedByCronJob.query({
-              agentId: aid,
-            });
-            const group = groups.find((item) => item.cronJobId === cronId);
-            topicIds = group?.topics.map((topic) => topic.id) || [];
-          }
+          const topicIds: string[] = [];
 
           await agentCronJobService.delete(cronId);
 

@@ -2,15 +2,17 @@ import { type AlertProps, type AvatarProps, type DivProps, type FlexboxProps } f
 import { type EditableMessageProps, type MetaData } from '@lobehub/ui/chat';
 import { type ReactNode } from 'react';
 
+export type ChatItemAvatar = Partial<MetaData> & { title?: string };
+
 export interface ChatItemProps extends Omit<FlexboxProps, 'children' | 'onChange'> {
   aboveMessage?: ReactNode;
   actions?: ReactNode;
   actionsWrapWidth?: number;
-  avatar: MetaData;
+  avatar: ChatItemAvatar;
   avatarProps?: AvatarProps;
   belowMessage?: ReactNode;
   children?: ReactNode;
-  customAvatarRender?: (avatar: MetaData, node: ReactNode) => ReactNode;
+  customAvatarRender?: (avatar: ChatItemAvatar, node: ReactNode) => ReactNode;
   customErrorRender?: (error: AlertProps) => ReactNode;
   /**
    * @description Whether the chat item is disabled
@@ -26,6 +28,7 @@ export interface ChatItemProps extends Omit<FlexboxProps, 'children' | 'onChange
    */
   error?: AlertProps;
   fontSize?: number;
+  id?: string;
   /**
    * @description Whether the chat item is in loading state
    */
@@ -40,6 +43,8 @@ export interface ChatItemProps extends Omit<FlexboxProps, 'children' | 'onChange
    */
   onAvatarClick?: () => void;
   onDoubleClick?: DivProps['onDoubleClick'];
+  onMouseEnter?: DivProps['onMouseEnter'];
+  onMouseLeave?: DivProps['onMouseLeave'];
   /**
    * @default "..."
    */

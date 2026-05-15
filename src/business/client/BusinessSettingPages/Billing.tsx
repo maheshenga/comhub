@@ -2,12 +2,13 @@
 
 import { Flexbox, FormGroup, Icon } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
-import { Alert, Button, Card, Empty } from 'antd';
+import { Alert, Button, Empty } from 'antd';
 import { Check, X } from 'lucide-react';
 import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
+import { Card } from '@/components/antd-compat/Card';
 import InlineTable from '@/components/InlineTable';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';

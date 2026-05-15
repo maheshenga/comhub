@@ -11,6 +11,7 @@ import {
 } from '@lobehub/ui';
 import isEqual from 'fast-deep-equal';
 import { ArrowDownUpIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -107,11 +108,10 @@ const ProviderList = (props: {
       )}
       <Accordion
         expandedKeys={expandedKeys}
-        onExpandedChange={(keys) => setExpandedKeys(keys as string[])}
+        onExpandedChange={(keys) => setExpandedKeys(keys.map(String))}
       >
         {/* Enabled Providers */}
         <AccordionItem
-          headerWrapper={(header) => <ContextMenuTrigger items={[]}>{header}</ContextMenuTrigger>}
           itemKey="enabled"
           paddingBlock={4}
           paddingInline={'8px 4px'}
@@ -125,6 +125,9 @@ const ProviderList = (props: {
               />
             </div>
           }
+          headerWrapper={(header: ReactNode) => (
+            <ContextMenuTrigger items={[]}>{header}</ContextMenuTrigger>
+          )}
           title={
             <Text ellipsis fontSize={12} type={'secondary'} weight={500}>
               {t('menu.list.enabled')}
@@ -141,10 +144,12 @@ const ProviderList = (props: {
         {/* Custom Providers */}
         {disabledCustomProviderList.length > 0 && (
           <AccordionItem
-            headerWrapper={(header) => <ContextMenuTrigger items={[]}>{header}</ContextMenuTrigger>}
             itemKey="custom"
             paddingBlock={4}
             paddingInline={'8px 4px'}
+            headerWrapper={(header: ReactNode) => (
+              <ContextMenuTrigger items={[]}>{header}</ContextMenuTrigger>
+            )}
             title={
               <Text ellipsis fontSize={12} type={'secondary'} weight={500}>
                 {t('menu.list.custom')}
@@ -169,7 +174,7 @@ const ProviderList = (props: {
               <Actions dropdownMenu={dropdownMenu} />
             ) : undefined
           }
-          headerWrapper={(header) => (
+          headerWrapper={(header: ReactNode) => (
             <ContextMenuTrigger items={disabledModelProviderList.length > 1 ? dropdownMenu : []}>
               {header}
             </ContextMenuTrigger>

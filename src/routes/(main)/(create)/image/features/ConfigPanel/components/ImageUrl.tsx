@@ -7,6 +7,7 @@ import ImageUpload from './ImageUpload';
 
 const ImageUrl = memo(() => {
   const { value: imageUrl, setValue, maxFileSize } = useGenerationConfigParam('imageUrl');
+  const setImageUrlValue = setValue as unknown as (next: string | null) => void;
   const { autoSetDimensions, extractUrlAndDimensions } = useAutoDimensions();
 
   const handleChange = (
@@ -16,7 +17,7 @@ const ImageUrl = memo(() => {
   ) => {
     const { url, dimensions } = extractUrlAndDimensions(data);
 
-    setValue(url ?? null);
+    setImageUrlValue(url ?? null);
 
     // Auto-set dimensions if available
     if (dimensions) {

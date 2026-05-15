@@ -157,7 +157,7 @@ const InstanceFormModal = memo<{
       confirmLoading={submitting}
       open={open}
       width={560}
-      afterOpenChange={(visible) => {
+      afterOpenChange={(visible: boolean) => {
         if (visible) {
           form.setFieldsValue(
             initial ?? {
@@ -398,7 +398,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
             defaultValue={v ?? ''}
             placeholder={r.modelId}
             size="small"
-            onBlur={(e) => {
+            onBlur={(e: { target: { value: string } }) => {
               const next = e.target.value.trim();
               if ((v ?? '') !== next) handleRename(r, next);
             }}
@@ -445,7 +445,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
             placeholder={'gpt-4o-mini\ngpt-4o'}
             rows={3}
             value={bulkText}
-            onChange={(e) => setBulkText(e.target.value)}
+            onChange={(e: { target: { value: string } }) => setBulkText(e.target.value)}
           />
           <Flexbox horizontal>
             <Button
@@ -466,7 +466,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
             dataSource={items}
             loading={isLoading}
             pagination={false}
-            rowKey={(r) => `${r.modelId}__${r.modelType}`}
+            rowKey={(r: ModelRow) => `${r.modelId}__${r.modelType}`}
             size="small"
           />
         )}
@@ -503,7 +503,11 @@ const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>
         }
         onClose={onClose}
       >
-        <Tabs activeKey={activeTab} items={tabs} onChange={(k) => setActiveTab(k as ModelType)} />
+        <Tabs
+          activeKey={activeTab}
+          items={tabs}
+          onChange={(k: string) => setActiveTab(k as ModelType)}
+        />
       </Drawer>
     );
   },

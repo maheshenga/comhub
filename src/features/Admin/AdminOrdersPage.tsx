@@ -149,7 +149,7 @@ const AdminOrdersPage = memo(() => {
                     options={(
                       ['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded'] as const
                     ).map((value) => ({ label: value, value }))}
-                    onChange={(value) => {
+                    onChange={(value: OrderStatus) => {
                       setStatus(value);
                       setCursor(0);
                     }}
@@ -158,7 +158,7 @@ const AdminOrdersPage = memo(() => {
                     allowClear
                     placeholder={t('admin.orders.filter.userId', '用户 ID')}
                     style={{ width: 260 }}
-                    onSearch={(value) => {
+                    onSearch={(value: string) => {
                       setUserId(value);
                       setCursor(0);
                     }}

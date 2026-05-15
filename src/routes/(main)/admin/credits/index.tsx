@@ -168,7 +168,7 @@ const AdminCreditsPage = memo(() => {
             { label: t('admin.credits.sort.debited', '累计扣减'), value: 'totalDebited' },
             { label: t('admin.credits.sort.updated', '更新时间'), value: 'updatedAt' },
           ]}
-          onChange={(v) => {
+          onChange={(v: 'balance' | 'totalCredited' | 'totalDebited' | 'updatedAt') => {
             setSort(v);
             setCursor(0);
           }}
@@ -180,7 +180,7 @@ const AdminCreditsPage = memo(() => {
             { label: t('admin.credits.order.desc', '降序'), value: 'desc' },
             { label: t('admin.credits.order.asc', '升序'), value: 'asc' },
           ]}
-          onChange={(v) => {
+          onChange={(v: 'asc' | 'desc') => {
             setOrder(v);
             setCursor(0);
           }}
@@ -188,7 +188,7 @@ const AdminCreditsPage = memo(() => {
         <Flexbox horizontal align="center" gap={6}>
           <Switch
             checked={negativeOnly}
-            onChange={(v) => {
+            onChange={(v: boolean) => {
               setNegativeOnly(v);
               setCursor(0);
             }}

@@ -40,6 +40,7 @@ export class UpdaterManager {
   private latestError: string | null = null;
   private remoteServerUrl: string | null = null;
   private checkIntervalTimer: ReturnType<typeof setInterval> | null = null;
+  private updateProviderConfigured: boolean = false;
 
   constructor(app: AppCore) {
     this.app = app;
@@ -134,7 +135,7 @@ export class UpdaterManager {
       logger.info(
         `Production mode: channel=${this.currentChannel}, allowPrerelease=${this.currentChannel !== 'stable'}`,
       );
-      this.configureUpdateProvider();
+      this.updateProviderConfigured = this.configureUpdateProvider();
     }
 
     this.registerEvents();
@@ -170,7 +171,7 @@ export class UpdaterManager {
     logger.info(`allowDowngrade=${isDowngrade}`);
 
     autoUpdater.allowPrerelease = channel !== 'stable';
-    this.configureUpdateProvider();
+    this.updateProviderConfigured = this.configureUpdateProvider();
 
     this.mainWindow.broadcast('updateChannelChanged', channel);
 
@@ -207,6 +208,21 @@ export class UpdaterManager {
     logger.info('[Updater Config] forceDevUpdateConfig:', autoUpdater.forceDevUpdateConfig);
     logger.info('[Updater Config] Build channel from config:', UPDATE_CHANNEL);
     logger.info('[Updater Config] UPDATE_SERVER_URL:', UPDATE_SERVER_URL || '(not set)');
+
+    if (!this.updateProviderConfigured && !autoUpdater.forceDevUpdateConfig) {
+      const message = 'Desktop update server is not configured';
+      logger.warn(`[Updater] ${message}; skipping update check`);
+      this.checking = false;
+
+      if (manual) {
+        this.setStage('error', { error: message });
+        setTimeout(() => {
+          if (this.stage === 'error') this.setStage('idle');
+        }, 3000);
+      }
+
+      return;
+    }
 
     this.setStage('checking');
 
@@ -401,7 +417,7 @@ export class UpdaterManager {
    * URL format: {base}/{channel}/
    * electron-updater looks for {channel}-mac.yml
    */
-  private configureUpdateProvider() {
+  private configureUpdateProvider(): boolean {
     const baseUrl = this.getBaseUpdateUrl();
     if (baseUrl) {
       const feedUrl = `${baseUrl}/${this.currentChannel}`;
@@ -417,20 +433,13 @@ export class UpdaterManager {
         provider: 'generic',
         url: feedUrl,
       });
-    } else {
-      // Fallback to GitHub when no S3 URL configured (local dev)
-      logger.info(
-        `No UPDATE_SERVER_URL configured, falling back to GitHub provider for ${this.currentChannel} channel`,
-      );
-
-      autoUpdater.setFeedURL({
-        owner: 'lobehub',
-        provider: 'github',
-        repo: 'lobehub',
-      });
-
-      autoUpdater.allowPrerelease = this.currentChannel !== 'stable';
+      return true;
     }
+
+    logger.warn(
+      `No desktop update server configured for ${this.currentChannel} channel; app updates are disabled until UPDATE_SERVER_URL or remote serverUrl is provided`,
+    );
+    return false;
   }
 
   private registerEvents() {

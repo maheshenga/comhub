@@ -3,6 +3,8 @@ export default {
   'action.connect.error': 'Connection failed, please try again.',
   'action.connect.popupBlocked':
     'Connection popup blocked. Allow popups in your browser to continue.',
+  'action.connect.short': 'Connect',
+  'action.connecting': 'Connecting...',
   'action.create.error': 'Failed to create task. Please try again.',
   'action.create.success': 'Scheduled task added. Find it in {{brandName}}.',
   'action.createButton': 'Add as scheduled task',
@@ -10,8 +12,11 @@ export default {
   'action.dismiss.error': 'Failed to dismiss. Please try again.',
   'action.dismiss.tooltip': 'Not interested',
   'action.optionalConnect.button': 'Connect {{provider}} for richer results',
+  'action.refresh.button': 'Refresh',
+  'card.templateTag': 'Template',
 
   'schedule.daily': 'Every day at {{time}}',
+  'schedule.editableAfterCreateTooltip': 'Editable after creation',
   'schedule.weekly': 'Every {{weekday}} at {{time}}',
 
   'section.title': 'Try these scheduled tasks',

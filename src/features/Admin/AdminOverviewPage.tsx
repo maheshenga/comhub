@@ -1,7 +1,7 @@
 'use client';
 
 import { Icon } from '@lobehub/ui';
-import { Button, Card, Col, Row, Space, Spin, Statistic, Tag, Typography } from 'antd';
+import { Button, Col, Row, Space, Spin, Statistic, Tag, Typography } from 'antd';
 import {
   BarChart3,
   ChartNoAxesColumn,
@@ -14,6 +14,7 @@ import {
 import { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Card } from '@/components/antd-compat/Card';
 import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigation';
 import { ADMIN_OVERVIEW_QUICK_LINKS } from '@/features/Admin/adminOverviewLinks';
 import { useClientDataSWR } from '@/libs/swr';

@@ -2,25 +2,14 @@
 
 import { Plans as SubscriptionPlan } from '@lobechat/types';
 import { Flexbox, Icon, Segmented } from '@lobehub/ui';
-import {
-  Alert,
-  Button,
-  Card,
-  Empty,
-  Input,
-  message,
-  Modal,
-  Skeleton,
-  Table,
-  Tag,
-  Tooltip,
-} from 'antd';
+import { Alert, Button, Empty, Input, message, Modal, Skeleton, Table, Tag, Tooltip } from 'antd';
 import { createStyles, cssVar } from 'antd-style';
 import { Check, ChevronRight, Info, LockKeyhole, Sparkles, Ticket } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
+import { Card } from '@/components/antd-compat/Card';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
@@ -423,7 +412,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
               { label: '按月', value: 'monthly' },
               { label: '一次性', value: 'one_time' },
             ]}
-            onChange={(value) => setBillingCycle(value as BillingCycle)}
+            onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
           />
         </div>
         {pendingChangeRequest ? (
@@ -633,12 +622,12 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                 { dataIndex: 'model', title: '模型' },
                 {
                   dataIndex: 'input',
-                  render: (value) => `${value} 算力积分`,
+                  render: (value: number) => `${value} 算力积分`,
                   title: '输入 1M Tokens',
                 },
                 {
                   dataIndex: 'output',
-                  render: (value) => `${value} 算力积分`,
+                  render: (value: number) => `${value} 算力积分`,
                   title: '输出 1M Tokens',
                 },
               ]}
@@ -665,7 +654,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             autoFocus
             placeholder="请输入激活码"
             value={redeemCode}
-            onChange={(e) => setRedeemCode(e.target.value)}
+            onChange={(e: { target: { value: string } }) => setRedeemCode(e.target.value)}
             onPressEnter={() => void handleRedeem()}
           />
         </Flexbox>

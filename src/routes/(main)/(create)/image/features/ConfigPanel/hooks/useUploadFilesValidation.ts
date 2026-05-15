@@ -88,7 +88,7 @@ export const useUploadFilesValidation = (
         const result = await validateImageDimensions(file, imageConstraints);
         if (!result.valid) {
           if (result.error === 'imageDimensionTooSmall') {
-            const parts = [];
+            const parts: string[] = [];
             if (result.minWidth) parts.push(`width ≥ ${result.minWidth}px`);
             if (result.minHeight) parts.push(`height ≥ ${result.minHeight}px`);
 
@@ -101,7 +101,7 @@ export const useUploadFilesValidation = (
               }),
             );
           } else if (result.error === 'imageDimensionTooLarge') {
-            const parts = [];
+            const parts: string[] = [];
             if (result.maxWidth) parts.push(`width ≤ ${result.maxWidth}px`);
             if (result.maxHeight) parts.push(`height ≤ ${result.maxHeight}px`);
 

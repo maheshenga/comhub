@@ -134,6 +134,7 @@ const DocumentItem = memo<DocumentItemProps>(
     const IconComponent: LucideIcon = isWeb ? GlobeIcon : isSkillBundle ? FolderIcon : FileTextIcon;
     const updatedAtLabel = document.updatedAt
       ? t('workingPanel.resources.updatedAt', {
+          defaultValue: '{{time}} updated',
           ns: 'chat',
           time: dayjs(document.updatedAt).fromNow(),
         })

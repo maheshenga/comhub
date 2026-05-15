@@ -381,8 +381,8 @@ const AdminUsersPage = memo(() => {
             placeholder={t('admin.setRole', '设置角色')}
             size="small"
             style={{ width: 132 }}
-            value={row.role ?? '__none__'}
-            onChange={(value) => handleSetRole(row.id, value)}
+            value={(row.role ?? '__none__') as 'admin' | 'user' | '__none__'}
+            onChange={(value: 'admin' | 'user' | '__none__') => handleSetRole(row.id, value)}
           />
           <Button
             size="small"
@@ -428,7 +428,7 @@ const AdminUsersPage = memo(() => {
             label: `${item.displayName || item.plan} (${item.plan})`,
             value: item.plan,
           }))}
-          onChange={(value) => {
+          onChange={(value: string | undefined) => {
             setPlanFilter(value);
             resetList();
           }}
@@ -442,7 +442,7 @@ const AdminUsersPage = memo(() => {
             { label: t('admin.subscriptionStartedOrder.asc', '开始时间正序'), value: 'asc' },
             { label: t('admin.subscriptionStartedOrder.desc', '开始时间倒序'), value: 'desc' },
           ]}
-          onChange={(value) => {
+          onChange={(value: 'asc' | 'desc' | undefined) => {
             setSubscriptionStartedOrder(value);
             resetList();
           }}
@@ -538,7 +538,7 @@ const AdminUsersPage = memo(() => {
           placeholder={t('admin.ban.reason', '请输入封禁原因')}
           rows={3}
           value={banReason}
-          onChange={(event) => setBanReason(event.target.value)}
+          onChange={(event: { target: { value: string } }) => setBanReason(event.target.value)}
         />
       </Modal>
       <Modal
@@ -558,7 +558,7 @@ const AdminUsersPage = memo(() => {
             <InputNumber
               style={{ width: '100%' }}
               value={adjustAmount}
-              onChange={(value) => setAdjustAmount(Number(value ?? 0))}
+              onChange={(value: number | null) => setAdjustAmount(Number(value ?? 0))}
             />
           </Flexbox>
           <Flexbox gap={4}>
@@ -566,7 +566,9 @@ const AdminUsersPage = memo(() => {
             <Input.TextArea
               rows={3}
               value={adjustReason}
-              onChange={(event) => setAdjustReason(event.target.value)}
+              onChange={(event: { target: { value: string } }) =>
+                setAdjustReason(event.target.value)
+              }
             />
           </Flexbox>
         </Flexbox>

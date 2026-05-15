@@ -13,6 +13,7 @@ import { publicProcedure, router } from '@/libs/trpc/lambda';
 
 import { agentRouter } from './agent';
 import { agentBotProviderRouter } from './agentBotProvider';
+import { agentCronJobRouter } from './agentCronJob';
 import { agentDocumentRouter } from './agentDocument';
 import { agentEvalRouter } from './agentEval';
 import { agentEvalExternalRouter } from './agentEvalExternal';
@@ -71,6 +72,7 @@ import { videoRouter } from './video';
 export const lambdaRouter = router({
   agent: agentRouter,
   agentBotProvider: agentBotProviderRouter,
+  agentCronJob: agentCronJobRouter,
   agentNotify: agentNotifyRouter,
   botMessage: botMessageRouter,
   agentDocument: agentDocumentRouter,

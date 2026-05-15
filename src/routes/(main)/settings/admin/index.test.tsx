@@ -1,8 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { useUserStore } from '@/store/user';
-
 import SettingsAdminPage from './index';
 
 vi.hoisted(() => {
@@ -31,6 +29,26 @@ vi.hoisted(() => {
   }
 });
 
+const userStoreMock = vi.hoisted(() => {
+  const initialState = {
+    isSignedIn: false,
+    isUserStateInit: false,
+    user: undefined,
+  };
+  const state: Record<string, any> = { ...initialState };
+  const useUserStore = ((selector?: (value: typeof state) => any) =>
+    typeof selector === 'function' ? selector(state) : state) as any;
+
+  useUserStore.setState = (patch: Record<string, any>) => {
+    Object.assign(state, patch);
+  };
+  useUserStore.reset = () => {
+    Object.assign(state, initialState);
+  };
+
+  return { useUserStore };
+});
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string) => fallback || key,
@@ -39,6 +57,16 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('react-router-dom', () => ({
   Navigate: ({ to }: { to: string }) => <div data-testid="navigate" data-to={to} />,
+}));
+
+vi.mock('@/store/user', () => ({
+  useUserStore: userStoreMock.useUserStore,
+}));
+
+vi.mock('@/store/user/selectors', () => ({
+  userProfileSelectors: {
+    userProfile: (state: { user?: unknown }) => state.user,
+  },
 }));
 
 vi.mock('@/routes/(main)/admin/settings', () => ({
@@ -51,14 +79,14 @@ vi.mock('@/routes/(main)/settings/features/SettingHeader', () => ({
 
 afterEach(() => {
   act(() => {
-    useUserStore.setState({ isSignedIn: false, isUserStateInit: false, user: undefined });
+    userStoreMock.useUserStore.reset();
   });
 });
 
 describe('SettingsAdminPage', () => {
   it('redirects non-admin users away from settings admin', () => {
     act(() => {
-      useUserStore.setState({
+      userStoreMock.useUserStore.setState({
         isSignedIn: true,
         isUserStateInit: true,
         user: { id: 'user-1', role: 'user', username: 'user' } as any,
@@ -73,7 +101,7 @@ describe('SettingsAdminPage', () => {
 
   it('renders settings admin for admin users', () => {
     act(() => {
-      useUserStore.setState({
+      userStoreMock.useUserStore.setState({
         isSignedIn: true,
         isUserStateInit: true,
         user: { id: 'admin-1', role: 'admin', username: 'admin' } as any,

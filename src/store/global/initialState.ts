@@ -40,8 +40,8 @@ export enum GroupSettingsTabs {
 
 export enum SettingsTabs {
   About = 'about',
-  Advanced = 'advanced',
   Admin = 'admin',
+  Advanced = 'advanced',
   /** @deprecated Use ServiceModel instead */
   Agent = 'agent',
   APIKey = 'apikey',
@@ -58,6 +58,7 @@ export enum SettingsTabs {
   Image = 'image',
   LLM = 'llm',
   Memory = 'memory',
+  Messenger = 'messenger',
   Notification = 'notification',
   // business
   Plans = 'plans',
@@ -102,6 +103,8 @@ export const DEFAULT_MODEL_DETAIL_PANEL_EXPANDED_KEYS = [
   'pricing',
   'config',
 ] as const satisfies readonly ModelDetailPanelExpandedKey[];
+
+export const DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS = ['pages', 'recents', 'agent'] as const;
 
 export interface SystemStatus {
   /**
@@ -222,6 +225,10 @@ export interface SystemStatus {
   showVideoPanel?: boolean;
   showVideoTopicPanel?: boolean;
   /**
+   * Expanded accordion sections on the home sidebar.
+   */
+  sidebarExpandedKeys?: string[];
+  /**
    * Flat ordered list of sidebar items.
    */
   sidebarItems?: string[];
@@ -264,6 +271,7 @@ export interface SystemStatus {
   videoPanelWidth: number;
   videoTopicPanelWidth?: number;
   videoTopicViewMode?: 'grid' | 'list';
+  workingSidebarTab?: 'resources' | 'review';
   zenMode?: boolean;
 }
 
@@ -352,6 +360,7 @@ export const INITIAL_STATUS = {
     name: 574,
     size: 140,
   },
+  sidebarExpandedKeys: [...DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS],
   showCommandMenu: false,
   showFilePanel: true,
   showHotkeyHelper: false,

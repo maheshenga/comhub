@@ -3,11 +3,11 @@
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Card } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import dayjs from 'dayjs';
 import { memo, type ReactNode, useEffect, useMemo, useState } from 'react';
 
+import { Card } from '@/components/antd-compat/Card';
 import { OFFICIAL_URL } from '@/const/url';
 import { useClientDataSWR } from '@/libs/swr';
 import { commercialService } from '@/services/commercial';

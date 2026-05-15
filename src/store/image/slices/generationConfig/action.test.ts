@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useImageStore } from '@/store/image';
 
-const { currentImageSettingsMock } = vi.hoisted(() => ({
+const { currentImageSettingsMock, updateSystemStatusMock } = vi.hoisted(() => ({
   currentImageSettingsMock: vi.fn(() => ({
     defaultImageNum: 4,
   })),

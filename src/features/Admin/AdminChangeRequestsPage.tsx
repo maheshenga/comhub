@@ -213,7 +213,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
             { label: t('admin.changeRequests.status.canceled', '已取消'), value: 'canceled' },
             { label: t('admin.changeRequests.status.rejected', '已拒绝'), value: 'rejected' },
           ]}
-          onChange={(value) => {
+          onChange={(value: StatusFilter) => {
             setStatus(value);
             setCursor(0);
           }}
@@ -223,7 +223,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
           placeholder={t('admin.changeRequests.filter.user', '用户 ID')}
           style={{ width: 240 }}
           value={userIdFilter}
-          onChange={(event) => {
+          onChange={(event: { target: { value: string } }) => {
             setUserIdFilter(event.target.value);
             setCursor(0);
           }}
@@ -287,7 +287,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
             placeholder={t('admin.changeRequests.rejectPlaceholder', '请输入拒绝原因')}
             rows={3}
             value={rejectTarget?.reason ?? ''}
-            onChange={(event) =>
+            onChange={(event: { target: { value: string } }) =>
               setRejectTarget((prev) => (prev ? { ...prev, reason: event.target.value } : prev))
             }
           />
@@ -309,7 +309,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
             placeholder={t('admin.changeRequests.rejectPlaceholder', '请输入拒绝原因')}
             rows={3}
             value={bulkReason}
-            onChange={(event) => setBulkReason(event.target.value)}
+            onChange={(event: { target: { value: string } }) => setBulkReason(event.target.value)}
           />
         </Flexbox>
       </Modal>

@@ -1,5 +1,7 @@
 export default {
   'assistant.favorite': 'Save',
+  'time.formatOtherYear': 'MMM D, YYYY',
+  'time.formatThisYear': 'MMM D',
   'assistant.favoriteFailed': 'Failed to save',
   'assistant.favoriteSuccess': 'Saved',
   'assistant.like': 'Like',

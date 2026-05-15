@@ -10,7 +10,6 @@ export const BACK_BUTTON_ID = 'lobe-back-button';
 
 const BackButton = memo<ActionIconProps & { to?: string }>(({ to = '/', onClick, ...rest }) => {
   return (
-    // @ts-expect-error
     <Link to={to} onClick={onClick}>
       <ActionIcon
         icon={ChevronLeftIcon}

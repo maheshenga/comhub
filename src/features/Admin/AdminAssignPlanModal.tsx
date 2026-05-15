@@ -95,7 +95,7 @@ const AdminAssignPlanModal = memo<AdminAssignPlanModalProps>(
               precision={0}
               style={{ width: '100%' }}
               value={durationMonths}
-              onChange={(value) => onDurationMonthsChange(Number(value ?? 1))}
+              onChange={(value: number | null) => onDurationMonthsChange(Number(value ?? 1))}
             />
           </Flexbox>
           <Flexbox gap={4}>
@@ -107,7 +107,9 @@ const AdminAssignPlanModal = memo<AdminAssignPlanModalProps>(
                 'admin.assignPlan.reason.placeholder',
                 '例如：线下购买、客服补偿、测试账号等',
               )}
-              onChange={(event) => onReasonChange(event.target.value)}
+              onChange={(event: { target: { value: string } }) =>
+                onReasonChange(event.target.value)
+              }
             />
           </Flexbox>
         </Flexbox>

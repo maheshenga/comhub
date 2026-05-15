@@ -112,6 +112,91 @@ export default defineConfig({
     bundledDev: false,
   },
   resolve: {
+    alias: [
+      {
+        find: /^react$/,
+        replacement: path.resolve(__dirname, 'node_modules/react/index.js'),
+      },
+      {
+        find: /^react-dom$/,
+        replacement: path.resolve(__dirname, 'node_modules/react-dom/index.js'),
+      },
+      {
+        find: /^react-dom\/client$/,
+        replacement: path.resolve(__dirname, 'node_modules/react-dom/client.js'),
+      },
+      {
+        find: /^react\/jsx-dev-runtime$/,
+        replacement: path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime.js'),
+      },
+      {
+        find: /^react\/jsx-runtime$/,
+        replacement: path.resolve(__dirname, 'node_modules/react/jsx-runtime.js'),
+      },
+      {
+        find: /^@ant-design\/icons$/,
+        replacement: path.resolve(__dirname, 'node_modules/@ant-design/icons/es/index.js'),
+      },
+      {
+        find: /^antd$/,
+        replacement: path.resolve(__dirname, 'node_modules/antd/es/index.js'),
+      },
+      {
+        find: /^@emotion\/react$/,
+        replacement: path.resolve(
+          __dirname,
+          'node_modules/@emotion/react/dist/emotion-react.esm.js',
+        ),
+      },
+      {
+        find: /^@emotion\/react\/jsx-runtime$/,
+        replacement: path.resolve(
+          __dirname,
+          'node_modules/@emotion/react/jsx-runtime/dist/emotion-react-jsx-runtime.esm.js',
+        ),
+      },
+      {
+        find: /^react-router-dom$/,
+        replacement: path.resolve(__dirname, 'node_modules/react-router-dom/dist/index.mjs'),
+      },
+      {
+        find: /^ahooks$/,
+        replacement: path.resolve(__dirname, 'node_modules/ahooks/es/index.js'),
+      },
+      {
+        find: /^swr$/,
+        replacement: path.resolve(__dirname, 'node_modules/swr/dist/index/index.mjs'),
+      },
+      {
+        find: /^zustand$/,
+        replacement: path.resolve(__dirname, 'node_modules/zustand/esm/index.mjs'),
+      },
+      {
+        find: /^zustand\/middleware$/,
+        replacement: path.resolve(__dirname, 'node_modules/zustand/esm/middleware.mjs'),
+      },
+      {
+        find: /^i18next$/,
+        replacement: path.resolve(__dirname, 'node_modules/i18next/dist/esm/i18next.js'),
+      },
+      {
+        find: /^react-i18next$/,
+        replacement: path.resolve(__dirname, 'node_modules/react-i18next/dist/es/index.js'),
+      },
+    ],
+    dedupe: [
+      'react',
+      'react-dom',
+      '@ant-design/icons',
+      'antd',
+      '@emotion/react',
+      'react-router-dom',
+      'ahooks',
+      'swr',
+      'zustand',
+      'i18next',
+      'react-i18next',
+    ],
     tsconfigPaths: true,
   },
   optimizeDeps: sharedOptimizeDeps,
