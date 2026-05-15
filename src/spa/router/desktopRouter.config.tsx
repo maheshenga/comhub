@@ -469,6 +469,18 @@ export const desktopRoutes: RouteObject[] = [
         path: 'video',
       },
 
+      // PPT routes
+      {
+        children: [
+          {
+            element: dynamicElement(() => import('@/routes/(main)/(create)/ppt'), 'Desktop > PPT'),
+            index: true,
+          },
+        ],
+        errorElement: <ErrorBoundary />,
+        path: 'ppt',
+      },
+
       // Image routes
       {
         children: [

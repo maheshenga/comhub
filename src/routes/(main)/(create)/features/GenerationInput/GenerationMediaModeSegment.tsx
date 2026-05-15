@@ -3,7 +3,7 @@
 import { Flexbox, Icon } from '@lobehub/ui';
 import { Select, type SelectProps } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { ImageIcon, Video } from 'lucide-react';
+import { ImageIcon, Presentation, Video } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 export interface GenerationMediaModeSegmentProps {
   /** `hero`: large inline headline select (cyan, borderless). `toolbar`: compact control in the input bar. */
   layout?: 'hero' | 'toolbar';
-  mode: 'image' | 'video';
+  mode: 'image' | 'ppt' | 'video';
 }
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -56,6 +56,15 @@ const GenerationMediaModeSegment = memo<GenerationMediaModeSegmentProps>(
           ),
           value: 'video',
         },
+        {
+          label: (
+            <Flexbox horizontal align="center" gap={8}>
+              {!isHero && <Icon icon={Presentation} />}
+              <span className={isHero ? styles.heroText : undefined}>{t('tab.ppt')}</span>
+            </Flexbox>
+          ),
+          value: 'ppt',
+        },
       ],
       [t, isHero],
     );
@@ -63,8 +72,8 @@ const GenerationMediaModeSegment = memo<GenerationMediaModeSegmentProps>(
     const labelRender: SelectProps['labelRender'] = useCallback(
       (props: any) => {
         const v = String((props as { value?: string }).value ?? '');
-        const isVideo = v === 'video';
-        const text = isVideo ? t('tab.video') : t('tab.image');
+        const text = v === 'video' ? t('tab.video') : v === 'ppt' ? t('tab.ppt') : t('tab.image');
+        const icon = v === 'video' ? Video : v === 'ppt' ? Presentation : ImageIcon;
         if (isHero) {
           return (
             <span
@@ -80,7 +89,7 @@ const GenerationMediaModeSegment = memo<GenerationMediaModeSegmentProps>(
         }
         return (
           <Flexbox horizontal align="center" gap={6}>
-            <Icon icon={isVideo ? Video : ImageIcon} size={16} />
+            <Icon icon={icon} size={16} />
             <span style={{ whiteSpace: 'nowrap' }}>{text}</span>
           </Flexbox>
         );
@@ -91,7 +100,8 @@ const GenerationMediaModeSegment = memo<GenerationMediaModeSegmentProps>(
     const handleChange = useCallback(
       (value: string) => {
         if (value === mode) return;
-        navigate(value === 'video' ? '/video' : '/image');
+        const pathMap = { image: '/image', ppt: '/ppt', video: '/video' } as const;
+        navigate(pathMap[value as keyof typeof pathMap] ?? '/image');
       },
       [mode, navigate],
     );

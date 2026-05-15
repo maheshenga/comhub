@@ -23,6 +23,7 @@ export const config = {
     '/changelog(.*)',
     '/settings(.*)',
     '/image',
+    '/ppt',
     '/video',
     '/resource',
     '/resource(.*)',

@@ -178,6 +178,8 @@ export default {
 
   'cmdk.keywords.provider': 'provider llm model ai',
 
+  'cmdk.keywords.ppt': 'ppt presentation slides deck powerpoint',
+
   'cmdk.keywords.proxy': 'proxy network connection',
 
   'cmdk.keywords.referral': 'referral rewards invite bonus',
@@ -221,6 +223,8 @@ export default {
   'cmdk.pages': 'Pages',
 
   'cmdk.painting': 'Image',
+
+  'cmdk.ppt': 'PPT',
 
   'cmdk.resource': 'Resources',
 
@@ -506,6 +510,7 @@ export default {
   'tab.image': 'Image',
   'tab.audio': 'Audio',
   'tab.chat': 'Chat',
+  'tab.ppt': 'PPT',
   'recents': 'Recents',
   'tab.community': 'Community',
   'tab.create': 'Create',

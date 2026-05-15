@@ -11,6 +11,7 @@ import DesktopOnboarding from '@/routes/(desktop)/desktop-onboarding';
 import DesktopMainLayout from '@/routes/(main)/_layout';
 import ImagePage from '@/routes/(main)/(create)/image';
 import DesktopImageLayout from '@/routes/(main)/(create)/image/_layout';
+import PptPage from '@/routes/(main)/(create)/ppt';
 import VideoPage from '@/routes/(main)/(create)/video';
 import DesktopVideoLayout from '@/routes/(main)/(create)/video/_layout';
 import TaskWorkspaceLayout from '@/routes/(main)/(task-workspace)/_layout';
@@ -390,6 +391,18 @@ export const desktopRoutes: RouteObject[] = [
         element: <DesktopVideoLayout />,
         errorElement: <ErrorBoundary />,
         path: 'video',
+      },
+
+      // PPT routes
+      {
+        children: [
+          {
+            element: <PptPage />,
+            index: true,
+          },
+        ],
+        errorElement: <ErrorBoundary />,
+        path: 'ppt',
       },
 
       // Image routes
