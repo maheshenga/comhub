@@ -173,6 +173,7 @@ export class DocmeePptService {
       return {
         allowPdfExport: settings.allowPdfExport,
         allowPptxDownload: settings.allowPptxDownload,
+        baseUrl: settings.baseUrl,
         configured: Boolean(settings.apiKey),
         creatorVersion: settings.creatorVersion,
         dailyQuota: { limit: settings.dailyLimit, remaining: dailyRemaining, used: dailyUsed },
