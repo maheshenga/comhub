@@ -25,12 +25,13 @@ const PptWorkspace = memo(() => {
   const containerRef = useRef<HTMLDivElement>(null);
   const uiRef = useRef<{ destroy?: () => void } | null>(null);
   const [errorCode, setErrorCode] = useState<string>();
+  const [retryNonce, setRetryNonce] = useState(0);
   const {
     data: runtime,
     isLoading,
     mutate,
   } = useSWR(['docmee-ppt-runtime'], () => docmeeService.getPptRuntime());
-  const tokenMutation = useDocmeeToken();
+  const { trigger: createToken } = useDocmeeToken();
 
   useEffect(() => {
     if (!runtime || !('enabled' in runtime) || runtime.enabled === false || !containerRef.current)
@@ -40,7 +41,8 @@ const PptWorkspace = memo(() => {
 
     const mount = async () => {
       try {
-        const token = await tokenMutation.trigger();
+        setErrorCode(undefined);
+        const token = await createToken();
         if (disposed || !containerRef.current || !token?.token) return;
 
         const { DocmeeUI } = await import('@docmee/sdk-ui');
@@ -81,13 +83,19 @@ const PptWorkspace = memo(() => {
       uiRef.current?.destroy?.();
       uiRef.current = null;
     };
-  }, [runtime]);
+  }, [createToken, runtime, retryNonce]);
+
+  const handleRetry = () => {
+    setErrorCode(undefined);
+    setRetryNonce((value) => value + 1);
+    mutate();
+  };
 
   if (isLoading) return <Spin fullscreen description="正在加载 PPT 创作服务" />;
   if ((runtime as any)?.enabled === false) {
-    return <PptErrorState code={(runtime as any)?.code} onRetry={() => mutate()} />;
+    return <PptErrorState code={(runtime as any)?.code} onRetry={handleRetry} />;
   }
-  if (errorCode) return <PptErrorState code={errorCode} onRetry={() => mutate()} />;
+  if (errorCode) return <PptErrorState code={errorCode} onRetry={handleRetry} />;
 
   return (
     <div

@@ -4,7 +4,7 @@ export const docmeeService = {
   createPptToken: () => lambdaClient.docmee.createPptToken.mutate(),
   getPptRuntime: () => lambdaClient.docmee.getPptRuntime.query(),
   reportPptEvent: (params: {
-    data?: Record<string, unknown>;
+    data?: unknown;
     sessionId: string;
     type: 'afterGenerate' | 'beforeDownload' | 'charge' | 'error' | 'pageChange';
     upstreamTaskId?: string;
