@@ -17,6 +17,7 @@ export type AdminNavIcon =
   | 'orders'
   | 'overview'
   | 'plans'
+  | 'ppt'
   | 'pricing'
   | 'providers'
   | 'redemption'
@@ -122,6 +123,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         icon: 'models',
         label: '全局模型策略',
         path: `${ADMIN_BASE_PATH}/model-policy`,
+      },
+      {
+        description: '配置 Docmee PPT 创作服务、下载权限和套餐额度规则',
+        icon: 'ppt',
+        label: 'PPT 创作',
+        path: `${ADMIN_BASE_PATH}/ppt`,
       },
     ],
     key: 'model-billing',

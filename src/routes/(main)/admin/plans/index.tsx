@@ -37,6 +37,9 @@ type PlanRow = {
   monthlyCredits: number;
   monthlyPrice: number;
   metadata?: {
+    pptCreditCost?: number;
+    pptEnabled?: boolean;
+    pptMonthlyQuota?: null | number;
     purchaseUrl?: string;
   } | null;
   plan: string;
@@ -52,6 +55,9 @@ type PlanFormValues = {
   monthlyCredits?: number;
   monthlyPrice?: number;
   plan: Plans;
+  pptCreditCost?: number;
+  pptEnabled?: boolean;
+  pptMonthlyQuota?: null | number;
   purchaseUrl?: string;
   sortOrder?: number;
   yearlyPrice?: number;
@@ -93,6 +99,9 @@ const AdminPlansPage = memo(() => {
     form.setFieldsValue({
       ...init,
       features: (init.features ?? []).join('\n'),
+      pptCreditCost: Number(metadata?.pptCreditCost ?? 0),
+      pptEnabled: metadata?.pptEnabled === true,
+      pptMonthlyQuota: metadata?.pptMonthlyQuota ?? null,
       purchaseUrl: metadata?.purchaseUrl ?? '',
     } as PlanFormValues);
   };
@@ -114,6 +123,12 @@ const AdminPlansPage = memo(() => {
         monthlyCredits: Number(values.monthlyCredits || 0),
         monthlyPrice: Number(values.monthlyPrice || 0),
         plan: values.plan,
+        pptCreditCost: Number(values.pptCreditCost || 0),
+        pptEnabled: values.pptEnabled === true,
+        pptMonthlyQuota:
+          values.pptMonthlyQuota === null || values.pptMonthlyQuota === undefined
+            ? null
+            : Number(values.pptMonthlyQuota),
         purchaseUrl: values.purchaseUrl?.trim() || undefined,
         sortOrder: Number(values.sortOrder || 0),
         yearlyPrice: Number(values.yearlyPrice || 0),
@@ -171,6 +186,19 @@ const AdminPlansPage = memo(() => {
       render: (metadata: PlanRow['metadata']) =>
         metadata?.purchaseUrl ? <Tag color="blue">已设置</Tag> : <Tag>未设置</Tag>,
       title: t('admin.plans.col.purchaseUrl', '购买链接'),
+    },
+    {
+      dataIndex: 'metadata',
+      key: 'ppt',
+      render: (metadata: PlanRow['metadata']) =>
+        metadata?.pptEnabled ? (
+          <Tag color="purple">
+            PPT {metadata.pptMonthlyQuota ?? '不限'} / {metadata.pptCreditCost ?? 0} 积分
+          </Tag>
+        ) : (
+          <Tag>未启用</Tag>
+        ),
+      title: t('admin.plans.col.ppt', 'PPT 权益'),
     },
     {
       dataIndex: 'isActive',
@@ -318,6 +346,30 @@ const AdminPlansPage = memo(() => {
           >
             <Input placeholder="https://..." />
           </Form.Item>
+          <Flexbox horizontal gap={12}>
+            <Form.Item
+              label={t('admin.plans.field.pptEnabled', '允许 PPT 创作')}
+              name="pptEnabled"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              extra={t('admin.plans.field.pptMonthlyQuotaHint', '留空表示不限制。')}
+              label={t('admin.plans.field.pptMonthlyQuota', 'PPT 月生成次数')}
+              name="pptMonthlyQuota"
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.plans.field.pptCreditCost', '每次成功生成扣除积分')}
+              name="pptCreditCost"
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+          </Flexbox>
           <Flexbox horizontal gap={12}>
             <Form.Item
               label={t('admin.plans.field.sortOrder', '排序值')}

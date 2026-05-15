@@ -122,6 +122,23 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.getPublicDesktopUpdate.query();
   };
 
+  getPptSettings = async () => lambdaClient.admin.ppt.getSettings.query();
+
+  savePptSettings = async (params: {
+    allowPdfExport?: boolean;
+    allowPptxDownload?: boolean;
+    apiKey?: string;
+    auditEnabled?: boolean;
+    baseUrl?: string;
+    clearApiKey?: boolean;
+    creatorVersion?: 'v1' | 'v2';
+    dailyLimit?: null | number;
+    enabled?: boolean;
+    lang?: string;
+    themeColor?: null | string;
+    tokenTtlMinutes?: number;
+  }) => lambdaClient.admin.ppt.saveSettings.mutate(params);
+
   // Orders
   listOrders = async (params: {
     cursor?: number;
@@ -151,6 +168,9 @@ class AdminCommercialService {
     monthlyCredits: number;
     monthlyPrice: number;
     plan: Plans;
+    pptCreditCost?: number;
+    pptEnabled?: boolean;
+    pptMonthlyQuota?: null | number;
     purchaseUrl?: string;
     sortOrder?: number;
     yearlyPrice: number;
