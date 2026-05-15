@@ -10,6 +10,7 @@ import type {
   TopUpOrderStatusType,
 } from '@lobechat/types';
 import { Plans } from '@lobechat/types';
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -318,6 +319,44 @@ export const planCatalog = pgTable('plan_catalog', {
 
 export type NewPlanCatalog = typeof planCatalog.$inferInsert;
 export type PlanCatalogItem = typeof planCatalog.$inferSelect;
+
+export const pptUsageRecords = pgTable(
+  'ppt_usage_records',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    sessionId: varchar('session_id', { length: 64 }).notNull(),
+    docmeeUid: text('docmee_uid').notNull(),
+    upstreamTaskId: text('upstream_task_id'),
+    status: varchar('status', { length: 32 })
+      .$type<'created' | 'editing' | 'generated' | 'failed' | 'canceled' | 'downloaded'>()
+      .notNull()
+      .default('created'),
+    title: text('title'),
+    plan: varchar('plan', { length: 32 }),
+    creditCost: amountNumeric('credit_cost').notNull().default(0),
+    quotaCost: amountNumeric('quota_cost').notNull().default(0),
+    chargedLedgerEntryId: uuid('charged_ledger_entry_id').references(() => creditLedgerEntries.id, {
+      onDelete: 'set null',
+    }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    completedAt: timestamptz('completed_at'),
+  },
+  (table) => [
+    index('ppt_usage_records_user_created_at_idx').on(table.userId, table.createdAt),
+    uniqueIndex('ppt_usage_records_user_session_idx').on(table.userId, table.sessionId),
+    uniqueIndex('ppt_usage_records_user_upstream_task_idx')
+      .on(table.userId, table.upstreamTaskId)
+      .where(sql`${table.upstreamTaskId} IS NOT NULL`),
+  ],
+);
+
+export type NewPptUsageRecord = typeof pptUsageRecords.$inferInsert;
+export type PptUsageRecordItem = typeof pptUsageRecords.$inferSelect;
 
 export const topUpPackages = pgTable('topup_packages', {
   id: varchar('id', { length: 64 }).primaryKey().notNull(),
