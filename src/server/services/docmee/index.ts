@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Plans } from '@lobechat/types';
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
 
 import {
   appSettings,
@@ -56,6 +56,29 @@ const DOCMEE_SETTING_KEYS = Object.values(APP_SETTING_KEYS).filter((key) =>
 
 const TOKEN_LIMIT_FALLBACK = 999_999;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const normalizeMetadata = (value: unknown): Record<string, unknown> | undefined => {
+  if (value === undefined) return undefined;
+  if (isRecord(value)) return value;
+
+  return { value };
+};
+
+const mergeMetadata = (
+  current: Record<string, unknown> | null | undefined,
+  next: unknown,
+): Record<string, unknown> | undefined => {
+  const normalized = normalizeMetadata(next);
+  if (!normalized) return current ?? undefined;
+
+  return {
+    ...current,
+    ...normalized,
+  };
+};
+
 const parseJsonSafely = async (response: Response) => {
   const text = await response.text();
 
@@ -96,6 +119,19 @@ export class DocmeePptService {
   };
 
   private getCurrentPlan = async (): Promise<Plans> => {
+    const now = new Date();
+
+    await this.db
+      .update(userPlanSnapshots)
+      .set({ status: 'expired', updatedAt: now })
+      .where(
+        and(
+          eq(userPlanSnapshots.userId, this.userId),
+          eq(userPlanSnapshots.status, 'active'),
+          lt(userPlanSnapshots.endsAt, now),
+        ),
+      );
+
     const snapshot = await this.db.query.userPlanSnapshots.findFirst({
       orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
       where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
@@ -117,7 +153,11 @@ export class DocmeePptService {
     const rows = await this.db.query.pptUsageRecords.findMany({
       where: and(
         eq(pptUsageRecords.userId, this.userId),
-        eq(pptUsageRecords.status, 'generated'),
+        or(
+          eq(pptUsageRecords.status, 'generated'),
+          eq(pptUsageRecords.status, 'downloaded'),
+          isNotNull(pptUsageRecords.chargedLedgerEntryId),
+        ),
         gte(pptUsageRecords.createdAt, start),
       ),
     });
@@ -259,11 +299,12 @@ export class DocmeePptService {
     sessionId,
     upstreamTaskId,
   }: {
-    data?: Record<string, unknown>;
+    data?: unknown;
     sessionId: string;
     upstreamTaskId?: string;
   }) =>
     this.db.transaction(async (tx) => {
+      const metadata = normalizeMetadata(data);
       const existingLedger = await tx.query.creditLedgerEntries.findFirst({
         where: and(
           eq(creditLedgerEntries.userId, this.userId),
@@ -289,12 +330,15 @@ export class DocmeePptService {
         return { charged: false, ledgerEntryId: existingLedger.id };
       }
 
-      let record = await tx.query.pptUsageRecords.findFirst({
-        where: and(
-          eq(pptUsageRecords.userId, this.userId),
-          eq(pptUsageRecords.sessionId, sessionId),
-        ),
-      });
+      const [lockedRecord] = await tx
+        .select()
+        .from(pptUsageRecords)
+        .where(
+          and(eq(pptUsageRecords.userId, this.userId), eq(pptUsageRecords.sessionId, sessionId)),
+        )
+        .for('update');
+
+      let record = lockedRecord;
 
       if (!record) {
         const { capability, plan } = await this.getPlanCapability();
@@ -303,7 +347,7 @@ export class DocmeePptService {
           .values({
             creditCost: capability.creditCost,
             docmeeUid: `comhub:${this.userId}`,
-            metadata: data,
+            metadata,
             plan,
             quotaCost: 1,
             sessionId,
@@ -361,10 +405,7 @@ export class DocmeePptService {
           amount: -amount,
           balanceAfter: updatedAccount?.balance ?? 0,
           description: 'Docmee PPT generation',
-          metadata: {
-            ...data,
-            upstreamTaskId,
-          },
+          metadata: mergeMetadata(metadata, { upstreamTaskId }),
           referenceId: sessionId,
           referenceType: 'ppt_generation',
           title: 'PPT Generation',
@@ -380,10 +421,7 @@ export class DocmeePptService {
         .set({
           chargedLedgerEntryId: ledgerEntry.id,
           completedAt: new Date(),
-          metadata: {
-            ...record.metadata,
-            ...data,
-          },
+          metadata: mergeMetadata(record.metadata, data),
           status: 'generated',
           updatedAt: new Date(),
           ...(upstreamTaskId ? { upstreamTaskId } : {}),
@@ -399,7 +437,7 @@ export class DocmeePptService {
     type,
     upstreamTaskId,
   }: {
-    data?: Record<string, unknown>;
+    data?: unknown;
     sessionId: string;
     type: DocmeeEventType;
     upstreamTaskId?: string;
@@ -410,26 +448,37 @@ export class DocmeePptService {
       return this.chargeGeneration({ data, sessionId, upstreamTaskId });
     }
 
-    const status =
-      type === 'beforeDownload'
-        ? 'downloaded'
-        : type === 'error'
-          ? 'failed'
-          : type === 'pageChange'
-            ? 'editing'
-            : 'created';
+    await this.db.transaction(async (tx) => {
+      const record = await tx.query.pptUsageRecords.findFirst({
+        where: and(
+          eq(pptUsageRecords.userId, this.userId),
+          eq(pptUsageRecords.sessionId, sessionId),
+        ),
+      });
 
-    await this.db
-      .update(pptUsageRecords)
-      .set({
-        metadata: data,
-        status,
-        updatedAt: new Date(),
-        ...(upstreamTaskId ? { upstreamTaskId } : {}),
-      })
-      .where(
-        and(eq(pptUsageRecords.userId, this.userId), eq(pptUsageRecords.sessionId, sessionId)),
-      );
+      const status =
+        type === 'beforeDownload'
+          ? record?.status === 'generated' || record?.chargedLedgerEntryId
+            ? 'generated'
+            : 'downloaded'
+          : type === 'error'
+            ? 'failed'
+            : type === 'pageChange'
+              ? 'editing'
+              : 'created';
+
+      await tx
+        .update(pptUsageRecords)
+        .set({
+          metadata: mergeMetadata(record?.metadata, data),
+          status,
+          updatedAt: new Date(),
+          ...(upstreamTaskId ? { upstreamTaskId } : {}),
+        })
+        .where(
+          and(eq(pptUsageRecords.userId, this.userId), eq(pptUsageRecords.sessionId, sessionId)),
+        );
+    });
 
     return { charged: false, ledgerEntryId: null };
   };

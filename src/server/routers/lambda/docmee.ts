@@ -47,7 +47,7 @@ export const docmeeRouter = router({
   reportPptEvent: docmeeProcedure
     .input(
       z.object({
-        data: z.record(z.string(), z.unknown()).optional(),
+        data: z.unknown().optional(),
         sessionId: z.string().min(1).max(64),
         type: eventTypeSchema,
         upstreamTaskId: z.string().optional(),

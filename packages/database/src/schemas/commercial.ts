@@ -175,6 +175,11 @@ export const creditLedgerEntries = pgTable(
   (table) => [
     index('credit_ledger_entries_user_id_idx').on(table.userId),
     index('credit_ledger_entries_user_created_at_idx').on(table.userId, table.createdAt),
+    uniqueIndex('credit_ledger_entries_ppt_generation_unique_idx')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'ppt_generation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
+      ),
   ],
 );
 

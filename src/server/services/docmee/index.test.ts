@@ -32,6 +32,7 @@ const createDb = (overrides: any = {}) =>
     update: vi.fn(() => ({
       set: vi.fn(() => ({
         where: vi.fn(() => ({
+          limit: vi.fn().mockResolvedValue([]),
           returning: vi.fn().mockResolvedValue([{ balance: 88 }]),
         })),
       })),
@@ -76,20 +77,70 @@ describe('DocmeePptService', () => {
     expect(runtime).toMatchObject({ configured: true, enabled: true });
   });
 
-  it('charges a successful generation only once for the same session', async () => {
+  it('syncs expired plan snapshots before checking PPT plan capability', async () => {
+    const db = createDb({
+      query: {
+        appSettings: {
+          findMany: vi.fn().mockResolvedValue(enabledSettings),
+        },
+        planCatalog: { findFirst: vi.fn().mockResolvedValue({ metadata: { pptEnabled: true } }) },
+        pptUsageRecords: { findMany: vi.fn().mockResolvedValue([]) },
+        userPlanSnapshots: { findFirst: vi.fn().mockResolvedValue({ plan: Plans.Starter }) },
+      },
+    });
+    const service = new DocmeePptService({ db, userId: 'u1' });
+
+    await service.getRuntime();
+
+    expect(db.update).toHaveBeenCalled();
+  });
+
+  it('keeps generated status when a generated PPT is downloaded', async () => {
+    const updateSet = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
     const tx = createDb({
       query: {
-        creditLedgerEntries: { findFirst: vi.fn().mockResolvedValue(null) },
         pptUsageRecords: {
           findFirst: vi.fn().mockResolvedValue({
-            chargedLedgerEntryId: null,
-            creditCost: 12,
+            chargedLedgerEntryId: 'ledger-1',
             id: 'usage-1',
-            plan: Plans.Starter,
-            sessionId: 's1',
+            status: 'generated',
           }),
         },
       },
+      update: vi.fn(() => ({ set: updateSet })),
+    });
+    const db = createDb({ transaction: vi.fn(async (fn) => fn(tx)) });
+    const service = new DocmeePptService({ db, userId: 'u1' });
+
+    await service.reportEvent({ sessionId: 's1', type: 'beforeDownload' });
+
+    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'generated' }));
+  });
+
+  it('charges a successful generation only once for the same session', async () => {
+    const selectForUpdate = vi.fn().mockResolvedValue([
+      {
+        chargedLedgerEntryId: null,
+        creditCost: 12,
+        id: 'usage-1',
+        metadata: {},
+        plan: Plans.Starter,
+        sessionId: 's1',
+      },
+    ]);
+    const tx = createDb({
+      query: {
+        creditLedgerEntries: { findFirst: vi.fn().mockResolvedValue(null) },
+        pptUsageRecords: { findFirst: vi.fn() },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          for: selectForUpdate,
+          where: vi.fn(() => ({
+            for: selectForUpdate,
+          })),
+        })),
+      })),
     });
     const db = createDb({
       query: {
@@ -115,5 +166,7 @@ describe('DocmeePptService', () => {
     ).resolves.toMatchObject({ charged: true });
 
     expect(tx.insert).toHaveBeenCalled();
+    expect(tx.query.pptUsageRecords.findFirst).not.toHaveBeenCalled();
+    expect(selectForUpdate).toHaveBeenCalled();
   });
 });

@@ -30,9 +30,10 @@ describe('docmeeRouter', () => {
   it('reports PPT lifecycle events', async () => {
     const caller = docmeeRouter.createCaller({ serverDB: {}, userId: 'u1' } as any);
 
-    await caller.reportPptEvent({ sessionId: 's1', type: 'afterGenerate' });
+    await caller.reportPptEvent({ data: null, sessionId: 's1', type: 'afterGenerate' });
 
     expect(serviceMocks.reportEvent).toHaveBeenCalledWith({
+      data: null,
       sessionId: 's1',
       type: 'afterGenerate',
     });
