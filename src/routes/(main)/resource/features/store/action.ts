@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand/vanilla';
 
 import type { ResourceManagerMode } from '@/features/ResourceManager';
+import { useFileStore } from '@/store/file';
 import type { StoreSetter } from '@/store/types';
 import { flattenActions } from '@/store/utils/flattenActions';
 import type { FilesTabs, SortType } from '@/types/files';
@@ -46,7 +47,6 @@ export class ResourceManagerStoreActionImpl {
 
   onActionClick = async (type: MultiSelectActionType): Promise<void> => {
     const { libraryId, resolveSelectedResourceIds, selectAllState, selectedFileIds } = this.#get();
-    const { useFileStore } = await import('@/store/file');
     const { useKnowledgeBaseStore } = await import('@/store/library');
     const { isChunkingUnsupported } = await import('@/utils/isChunkingUnsupported');
 
@@ -120,7 +120,6 @@ export class ResourceManagerStoreActionImpl {
     if (selectAllState !== 'all') return selectedFileIds;
 
     const { resourceService } = await import('@/services/resource');
-    const { useFileStore } = await import('@/store/file');
     const queryParams = useFileStore.getState().queryParams;
 
     if (!queryParams) return selectedFileIds;

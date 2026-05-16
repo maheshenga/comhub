@@ -121,7 +121,7 @@ export const createSharedRolldownOutput = (options: SharedRolldownOutputOptions 
   codeSplitting: {
     groups: [
       {
-        name: (moduleId: string) => sharedManualChunks(moduleId) ?? null,
+        name: (moduleId: string) => sharedManualChunks(moduleId),
       },
     ],
   },

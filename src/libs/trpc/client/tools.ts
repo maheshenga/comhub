@@ -4,6 +4,7 @@ import superjson from 'superjson';
 
 import { withElectronProtocolIfElectron } from '@/const/protocol';
 import { type ToolsRouter } from '@/server/routers/tools';
+import { createHeaderWithAuth } from '@/services/_auth';
 
 // 401 error debouncing for market auth
 let lastMarket401Time = 0;
@@ -55,9 +56,6 @@ export const toolsClient = createTRPCClient<ToolsRouter>({
     errorHandlingLink,
     httpBatchLink({
       headers: async () => {
-        // dynamic import to avoid circular dependency
-        const { createHeaderWithAuth } = await import('@/services/_auth');
-
         return createHeaderWithAuth();
       },
       maxURLLength: 2083,

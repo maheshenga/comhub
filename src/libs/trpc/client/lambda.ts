@@ -9,6 +9,7 @@ import superjson from 'superjson';
 import { withElectronProtocolIfElectron } from '@/const/protocol';
 import { isDesktop } from '@/const/version';
 import { type LambdaRouter } from '@/server/routers/lambda';
+import { createHeaderWithAuth } from '@/services/_auth';
 
 const log = debug('lobe-image:lambda-client');
 
@@ -113,9 +114,6 @@ const linkOptions = {
     return await fetch(input, fetchOptions);
   },
   headers: async () => {
-    // dynamic import to avoid circular dependency
-    const { createHeaderWithAuth } = await import('@/services/_auth');
-
     let provider: ModelProvider | undefined;
     // for image page, we need to get the provider from the store
     log('Getting provider from store for image page: %s', location.pathname);

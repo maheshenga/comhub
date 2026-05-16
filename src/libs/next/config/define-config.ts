@@ -113,6 +113,15 @@ export function defineConfig(config: CustomNextConfig) {
           headers: [
             {
               key: 'Cache-Control',
+              value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            },
+          ],
+          source: '/_spa/sw.js',
+        },
+        {
+          headers: [
+            {
+              key: 'Cache-Control',
               value: 'public, max-age=31536000, immutable',
             },
           ],
