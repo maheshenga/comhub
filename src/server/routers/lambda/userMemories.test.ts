@@ -15,7 +15,10 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('@/server/globalConfig', () => ({
   getServerDefaultFilesConfig: vi.fn().mockReturnValue({
-    embeddingModel: { model: 'text-embedding-3-small' },
+    embeddingModel: { model: 'text-embedding-3-small', provider: 'openai' },
+  }),
+  getResolvedServerDefaultFilesConfig: vi.fn().mockResolvedValue({
+    embeddingModel: { model: 'text-embedding-3-small', provider: 'openai' },
   }),
 }));
 

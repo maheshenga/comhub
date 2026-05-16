@@ -1447,6 +1447,7 @@ export class MemoryExtractionExecutor {
               this.recordJobMetrics(extractionJob, 'completed', Date.now() - startTime);
             }
             span.setStatus({ code: SpanStatusCode.OK, message: 'empty_conversations' });
+            topicProcessed = true;
             return {
               extracted: false,
               layers: {},

@@ -134,11 +134,11 @@ export class CommonActionImpl {
 
           if (data) {
             // merge settings
-            const serverSettings: PartialDeep<UserSettings> = {
+            const serverSettings: PartialDeep<UserSettings> = merge(serverConfig.userDefaults, {
               defaultAgent: serverConfig.defaultAgent,
               image: serverConfig.image,
               systemAgent: serverConfig.systemAgent,
-            };
+            });
 
             const defaultSettings = merge(this.#get().defaultSettings, serverSettings);
 

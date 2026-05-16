@@ -4,15 +4,14 @@ import { normalizeInterestsForStorage } from '@lobechat/const';
 import { Block, Button, Flexbox, Icon, Input, Text } from '@lobehub/ui';
 import { cssVar } from 'antd-style';
 import { BriefcaseIcon, Undo2Icon } from 'lucide-react';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { type ProfileInterestArea, useProfileInterestAreas } from '@/features/ProfileInterests';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import LobeMessage from '../components/LobeMessage';
-import type { InterestAreaKey } from '../config';
-import { INTEREST_AREAS } from '../config';
 
 interface InterestsStepProps {
   onBack: () => void;
@@ -23,6 +22,7 @@ const InterestsStep = memo<InterestsStepProps>(({ onBack, onNext }) => {
   const { t } = useTranslation('onboarding');
   const existingInterests = useUserStore(userProfileSelectors.interests);
   const updateInterests = useUserStore((s) => s.updateInterests);
+  const configuredAreas = useProfileInterestAreas();
 
   const [selectedInterests, setSelectedInterests] = useState<string[]>(() =>
     normalizeInterestsForStorage(existingInterests),
@@ -32,16 +32,12 @@ const InterestsStep = memo<InterestsStepProps>(({ onBack, onNext }) => {
   const [isNavigating, setIsNavigating] = useState(false);
   const isNavigatingRef = useRef(false);
 
-  const areas = useMemo(
-    () =>
-      INTEREST_AREAS.map((area) => ({
-        ...area,
-        label: t(`interests.area.${area.key}`),
-      })),
+  const getAreaLabel = useCallback(
+    (area: ProfileInterestArea) => (area.custom ? area.label : t(`interests.area.${area.key}`)),
     [t],
   );
 
-  const toggleInterest = useCallback((key: InterestAreaKey) => {
+  const toggleInterest = useCallback((key: string) => {
     setSelectedInterests((prev) =>
       prev.includes(key) ? prev.filter((i) => i !== key) : [...prev, key],
     );
@@ -86,7 +82,7 @@ const InterestsStep = memo<InterestsStepProps>(({ onBack, onNext }) => {
         sentences={[t('interests.title'), t('interests.title2'), t('interests.title3')]}
       />
       <Flexbox horizontal align={'center'} gap={12} wrap={'wrap'}>
-        {areas.map((item) => {
+        {configuredAreas.map((item) => {
           const isSelected = selectedInterests.includes(item.key);
           return (
             <Block
@@ -108,7 +104,7 @@ const InterestsStep = memo<InterestsStepProps>(({ onBack, onNext }) => {
             >
               <Icon color={cssVar.colorTextSecondary} icon={item.icon} size={16} />
               <Text fontSize={15} weight={500}>
-                {item.label}
+                {getAreaLabel(item)}
               </Text>
             </Block>
           );

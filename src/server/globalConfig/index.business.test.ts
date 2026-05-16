@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   genServerAiProvidersConfig: vi.fn(),
   getServerDefaultAgentSettingOverrides: vi.fn(),
   getServerDefaultGenerationModelSettingOverrides: vi.fn(),
+  getServerFileS3Config: vi.fn(),
+  getServerUserGlobalSettingsDefaults: vi.fn(),
   getAllEnabledModels: vi.fn(),
   parseAgentConfig: vi.fn(),
   parseSSOProviders: vi.fn(),
@@ -77,6 +79,13 @@ vi.mock('@/envs/image', () => ({
   },
 }));
 
+vi.mock('@/envs/tools', () => ({
+  toolsEnv: {
+    VISUAL_UNDERSTANDING_MODEL: '',
+    VISUAL_UNDERSTANDING_PROVIDER: '',
+  },
+}));
+
 vi.mock('@/libs/better-auth/utils/server', () => ({
   parseSSOProviders: mocks.parseSSOProviders,
 }));
@@ -89,6 +98,8 @@ vi.mock('@/server/services/appSettings', () => ({
   getServerDefaultAgentSettingOverrides: mocks.getServerDefaultAgentSettingOverrides,
   getServerDefaultGenerationModelSettingOverrides:
     mocks.getServerDefaultGenerationModelSettingOverrides,
+  getServerFileS3Config: mocks.getServerFileS3Config,
+  getServerUserGlobalSettingsDefaults: mocks.getServerUserGlobalSettingsDefaults,
 }));
 
 vi.mock('@/server/services/newapiInstance', () => ({
@@ -128,6 +139,19 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     });
     mocks.getServerDefaultAgentSettingOverrides.mockResolvedValue({});
     mocks.getServerDefaultGenerationModelSettingOverrides.mockResolvedValue({});
+    mocks.getServerFileS3Config.mockResolvedValue({
+      accessKeyId: '',
+      bucket: '',
+      enablePathStyle: false,
+      endpoint: '',
+      filePath: 'files',
+      previewUrlExpireIn: 7200,
+      publicDomain: '',
+      region: '',
+      secretAccessKey: '',
+      setAcl: false,
+    });
+    mocks.getServerUserGlobalSettingsDefaults.mockResolvedValue({});
     mocks.getAllEnabledModels.mockResolvedValue([]);
     mocks.parseAgentConfig.mockReturnValue({});
     mocks.parseSSOProviders.mockReturnValue([]);
@@ -234,6 +258,39 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     expect(result.video).toMatchObject({
       defaultModel: 'sora-2',
       defaultProvider: 'newapi',
+    });
+  });
+
+  it('enables upload support when S3 is configured from backend settings', async () => {
+    mocks.getServerFileS3Config.mockResolvedValue({
+      accessKeyId: 'admin-access-key',
+      bucket: 'admin-bucket',
+      enablePathStyle: true,
+      endpoint: 'https://s3.example.com',
+      filePath: 'admin-files',
+      previewUrlExpireIn: 7200,
+      publicDomain: '',
+      region: 'us-east-1',
+      secretAccessKey: 'admin-secret-key',
+      setAcl: false,
+    });
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.enableUploadFileToServer).toBe(true);
+  });
+
+  it('exposes backend user default settings in server config', async () => {
+    mocks.getServerUserGlobalSettingsDefaults.mockResolvedValue({
+      general: { language: 'zh-CN' },
+      tool: { uninstalledBuiltinTools: ['web-browsing'] },
+    });
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.userDefaults).toMatchObject({
+      general: { language: 'zh-CN' },
+      tool: { uninstalledBuiltinTools: ['web-browsing'] },
     });
   });
 });

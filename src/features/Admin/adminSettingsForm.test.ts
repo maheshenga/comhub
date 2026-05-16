@@ -54,6 +54,7 @@ describe('adminSettingsForm', () => {
 
   it('builds app setting updates only for changed values', () => {
     const initial = {
+      ...buildFormValues(),
       brandFaviconUrl: '',
       brandAuthTitle: 'Agent teammates that grow with you',
       brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
@@ -82,8 +83,10 @@ describe('adminSettingsForm', () => {
       desktopDownloadLabel: '',
       desktopDownloadUrl: '',
       helpMenuItems: [],
+      memoryUserMemoryTriggerMode: 'auto' as const,
       ordersEnabled: true,
       pricingMultiplier: 1,
+      profileInterestAreas: [],
       referralRewardCredits: 0,
     };
 
@@ -231,6 +234,28 @@ describe('adminSettingsForm', () => {
     expect(SETTING_KEYS.pricingModelRules).toBe('pricing.modelRules');
   });
 
+  it('shares profile interest setting key with admin-managed profile options', () => {
+    expect(SETTING_KEYS.profileInterestAreas).toBe('profile.interestAreas');
+  });
+
+  it('includes memory trigger mode in system maintenance settings', () => {
+    const initial = buildFormValues({
+      memoryUserMemoryTriggerMode: 'auto',
+    });
+
+    expect(initial.memoryUserMemoryTriggerMode).toBe('auto');
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          memoryUserMemoryTriggerMode: 'direct',
+        },
+        initial,
+      ),
+    ).toEqual([{ key: SETTING_KEYS.memoryUserMemoryTriggerMode, value: 'direct' }]);
+  });
+
   it('includes global billing controls in site setting updates', () => {
     const initial = buildFormValues({
       ordersManagementEnabled: true,
@@ -253,6 +278,73 @@ describe('adminSettingsForm', () => {
       { key: SETTING_KEYS.pricingCreditMultiplier, value: 1.35 },
       { key: SETTING_KEYS.ordersManagementEnabled, value: false },
     ]);
+  });
+
+  it('includes S3 storage settings in site setting updates while keeping the secret write-only', () => {
+    const initial = buildFormValues({
+      storageS3AccessKeyId: 'env-access-key',
+      storageS3Bucket: 'env-bucket',
+      storageS3EnablePathStyle: false,
+      storageS3Endpoint: 'https://env-s3.example.com',
+      storageS3FilePath: 'env-files',
+      storageS3PreviewUrlExpireIn: 7200,
+      storageS3PublicDomain: '',
+      storageS3Region: 'us-east-1',
+      storageS3SecretAccessKeyConfigured: true,
+      storageS3SetAcl: true,
+    });
+
+    expect(initial.storageS3SecretAccessKey).toBe('');
+    expect(initial.storageS3SecretAccessKeyConfigured).toBe(true);
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          storageS3AccessKeyId: 'admin-access-key',
+          storageS3Bucket: 'admin-bucket',
+          storageS3EnablePathStyle: true,
+          storageS3Endpoint: 'https://admin-s3.example.com',
+          storageS3FilePath: '/admin-files/',
+          storageS3PreviewUrlExpireIn: 1800,
+          storageS3PublicDomain: 'https://cdn.example.com',
+          storageS3Region: 'ap-southeast-1',
+          storageS3SecretAccessKey: 'new-secret',
+          storageS3SetAcl: false,
+        },
+        initial,
+      ),
+    ).toEqual([
+      { key: SETTING_KEYS.storageS3AccessKeyId, value: 'admin-access-key' },
+      { key: SETTING_KEYS.storageS3SecretAccessKey, value: 'new-secret' },
+      { key: SETTING_KEYS.storageS3Endpoint, value: 'https://admin-s3.example.com' },
+      { key: SETTING_KEYS.storageS3FilePath, value: 'admin-files' },
+      { key: SETTING_KEYS.storageS3Bucket, value: 'admin-bucket' },
+      { key: SETTING_KEYS.storageS3Region, value: 'ap-southeast-1' },
+      { key: SETTING_KEYS.storageS3PublicDomain, value: 'https://cdn.example.com' },
+      { key: SETTING_KEYS.storageS3EnablePathStyle, value: true },
+      { key: SETTING_KEYS.storageS3SetAcl, value: false },
+      { key: SETTING_KEYS.storageS3PreviewUrlExpireIn, value: 1800 },
+    ]);
+  });
+
+  it('allows rotating only the S3 secret without resending the masked current secret', () => {
+    const initial = buildFormValues({
+      storageS3AccessKeyId: 'env-access-key',
+      storageS3Bucket: 'env-bucket',
+      storageS3Endpoint: 'https://env-s3.example.com',
+      storageS3SecretAccessKeyConfigured: true,
+    });
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          storageS3SecretAccessKey: 'rotated-secret',
+        },
+        initial,
+      ),
+    ).toEqual([{ key: SETTING_KEYS.storageS3SecretAccessKey, value: 'rotated-secret' }]);
   });
 
   it('saves about page links as one shared setting', () => {

@@ -3,9 +3,12 @@ import type { TRPCError } from '@trpc/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
+import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
 
+import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
+import { recordAdminAudit } from './audit';
 import { adminSettingsRouter, validateDefaultAgentModelUsability } from './settings';
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -16,28 +19,48 @@ vi.mock('@/server/services/newapiInstance', () => ({
   getAllEnabledModels: vi.fn(),
 }));
 
+vi.mock('@/server/modules/S3', () => ({
+  invalidateFileS3RuntimeCache: vi.fn(),
+  S3: vi.fn().mockImplementation(() => ({
+    testConnection: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
 }));
 
+vi.mock('../../subscriptionMaintenance', () => ({
+  syncExpiredSubscriptionsToFree: vi.fn(),
+}));
+
 const createDb = ({
   appSettings = [],
+  appSettingsMany = [],
   modelRules = null,
 }: {
   appSettings?: Array<{ value: unknown } | null>;
+  appSettingsMany?: Array<{ key: string; value: unknown }>;
   modelRules?: any;
 } = {}) => {
+  const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+  const values = vi.fn(() => ({
+    onConflictDoUpdate,
+  }));
   const insert = vi.fn(() => ({
-    values: vi.fn(() => ({
-      onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
-    })),
+    values,
   }));
 
   return {
+    __mocks: {
+      onConflictDoUpdate,
+      values,
+    },
     insert,
     query: {
       appSettings: {
         findFirst: vi.fn().mockImplementation(() => Promise.resolve(appSettings.shift() ?? null)),
+        findMany: vi.fn().mockResolvedValue(appSettingsMany),
       },
       planCatalog: {
         findFirst: vi.fn().mockResolvedValue({
@@ -55,6 +78,16 @@ const createDb = ({
 describe('admin settings default model validation', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(S3).mockImplementation(
+      () =>
+        ({
+          testConnection: vi.fn().mockResolvedValue(undefined),
+        }) as any,
+    );
+    vi.mocked(syncExpiredSubscriptionsToFree).mockResolvedValue({
+      expiredSnapshots: 0,
+      freeSnapshotsCreated: 0,
+    });
   });
 
   it('rejects a NewAPI default chat model that is not enabled in the managed model catalog', async () => {
@@ -122,6 +155,61 @@ describe('admin settings default model validation', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('uses the enabled route with the requested model type when duplicate model ids exist', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      { displayName: 'Shared Model Video', id: 'shared-model', type: 'video' },
+      {
+        displayName: 'Shared Model Chat',
+        groupKey: 'default',
+        id: 'shared-model',
+        type: 'chat',
+      } as any,
+    ]);
+
+    await expect(
+      validateDefaultAgentModelUsability(
+        createDb({
+          modelRules: {
+            chat: {
+              allowlist: ['default:shared-model'],
+              mode: 'allowlist',
+            },
+          },
+        }),
+        {
+          [APP_SETTING_KEYS.defaultAgentModel]: 'shared-model',
+          [APP_SETTING_KEYS.defaultAgentProvider]: 'newapi',
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects a default NewAPI model when the Free plan only allows a different group route', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      { displayName: 'GPT-4', groupKey: 'pro', id: 'gpt-4', type: 'chat' } as any,
+    ]);
+
+    await expect(
+      validateDefaultAgentModelUsability(
+        createDb({
+          modelRules: {
+            chat: {
+              allowlist: ['default:gpt-4'],
+              mode: 'allowlist',
+            },
+          },
+        }),
+        {
+          [APP_SETTING_KEYS.defaultAgentModel]: 'gpt-4',
+          [APP_SETTING_KEYS.defaultAgentProvider]: 'newapi',
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN',
+    } satisfies Partial<TRPCError>);
+  });
+
   it('rejects a default image model when the enabled NewAPI model has the wrong type', async () => {
     vi.mocked(getAllEnabledModels).mockResolvedValue([
       { displayName: 'Sora', id: 'sora-2', type: 'video' },
@@ -176,5 +264,140 @@ describe('admin settings default model validation', () => {
     } satisfies Partial<TRPCError>);
 
     expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('cleans archived notifications during maintenance using the configured retention days', async () => {
+    const appSettings = [{ value: 365 }, { value: 7 }, { value: 14 }];
+    const deleteMock = vi
+      .fn()
+      .mockReturnValueOnce({
+        where: vi.fn(() => ({
+          returning: vi.fn().mockResolvedValue([]),
+        })),
+      })
+      .mockReturnValueOnce({
+        where: vi.fn(() => ({
+          returning: vi
+            .fn()
+            .mockResolvedValue([{ id: 'notification-1' }, { id: 'notification-2' }]),
+        })),
+      });
+    const updateMock = vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn().mockResolvedValue([]),
+        })),
+      })),
+    }));
+    const db = {
+      delete: deleteMock,
+      query: {
+        appSettings: {
+          findFirst: vi.fn().mockImplementation(() => Promise.resolve(appSettings.shift() ?? null)),
+        },
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      update: updateMock,
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.runMaintenance();
+
+    expect(result.notificationsDeleted).toBe(2);
+    expect(result.notificationRetentionCutoff).toBeTruthy();
+    expect(deleteMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows admins to save S3 storage settings while keeping the secret out of audit payloads', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.setAppSetting({
+      key: APP_SETTING_KEYS.storageS3Endpoint,
+      value: 'https://s3.example.com',
+    });
+    await caller.setAppSetting({
+      key: APP_SETTING_KEYS.storageS3SecretAccessKey,
+      value: 'admin-secret-key',
+    });
+
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.storageS3Endpoint,
+      value: 'https://s3.example.com',
+    });
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.storageS3SecretAccessKey,
+      value: 'admin-secret-key',
+    });
+    expect(invalidateFileS3RuntimeCache).toHaveBeenCalledTimes(2);
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: {
+          hasValue: true,
+          key: APP_SETTING_KEYS.storageS3SecretAccessKey,
+        },
+      }),
+    );
+  });
+
+  it('rejects invalid S3 endpoint URLs before saving', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSetting({
+        key: APP_SETTING_KEYS.storageS3Endpoint,
+        value: 'not-a-url',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: `${APP_SETTING_KEYS.storageS3Endpoint} must be a valid URL`,
+    } satisfies Partial<TRPCError>);
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('tests the saved S3 storage connection with resolved admin settings', async () => {
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.storageS3AccessKeyId, value: 'admin-access-key' },
+        { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: 'admin-secret-key' },
+        { key: APP_SETTING_KEYS.storageS3Endpoint, value: 'https://s3.example.com' },
+        { key: APP_SETTING_KEYS.storageS3Bucket, value: 'admin-bucket' },
+        { key: APP_SETTING_KEYS.storageS3Region, value: 'ap-southeast-1' },
+        { key: APP_SETTING_KEYS.storageS3FilePath, value: 'admin-files' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.testS3Storage();
+
+    expect(result).toMatchObject({
+      bucket: 'admin-bucket',
+      endpoint: 'https://s3.example.com',
+      filePath: 'admin-files',
+      ok: true,
+    });
+    expect(S3).toHaveBeenCalledWith(
+      'admin-access-key',
+      'admin-secret-key',
+      'https://s3.example.com',
+      {
+        bucket: 'admin-bucket',
+        forcePathStyle: false,
+        previewUrlExpireIn: 7200,
+        region: 'ap-southeast-1',
+        setAcl: false,
+      },
+    );
   });
 });

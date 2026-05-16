@@ -49,7 +49,7 @@ import {
 } from '@/database/schemas';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { getServerDefaultFilesConfig } from '@/server/globalConfig';
+import { getResolvedServerDefaultFilesConfig } from '@/server/globalConfig';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { normalizeSearchMemoryParams } from '@/server/services/memory/userMemory/searchParams';
 
@@ -125,7 +125,8 @@ const searchUserMemories = async (
 ): Promise<SearchMemoryResult> => {
   const normalizedInput = normalizeSearchMemoryParams(input);
   const { provider, model: embeddingModel } =
-    getServerDefaultFilesConfig().embeddingModel || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
+    (await getResolvedServerDefaultFilesConfig(ctx.serverDB)).embeddingModel ||
+    DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
   const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
     model: embeddingModel,
     modelType: 'embedding',
@@ -168,7 +169,8 @@ const searchUserMemories = async (
 
 const getEmbeddingRuntime = async (serverDB: LobeChatDatabase, userId: string) => {
   const { provider, model: embeddingModel } =
-    getServerDefaultFilesConfig().embeddingModel || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
+    (await getResolvedServerDefaultFilesConfig(serverDB)).embeddingModel ||
+    DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
   // Read user's provider config from database
   const agentRuntime = await initModelRuntimeFromDB(
     serverDB,

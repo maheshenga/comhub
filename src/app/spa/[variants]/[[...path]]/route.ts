@@ -11,6 +11,7 @@ import { pythonEnv } from '@/envs/python';
 import { buildStaticLoadingBrandHtml, getBrandLoadingText } from '@/features/Brand/loadingBrand';
 import { type Locales } from '@/locales/resources';
 import { getServerGlobalConfig } from '@/server/globalConfig';
+import { getServerFileS3Config } from '@/server/services/appSettings';
 import { getServerBrand } from '@/server/services/brand';
 import { translation } from '@/server/translation';
 import { serializeForHtml } from '@/server/utils/serializeForHtml';
@@ -168,12 +169,14 @@ function buildAnalyticsConfig(): AnalyticsConfig {
   return config;
 }
 
-function buildClientEnv(): SPAClientEnv {
+async function buildClientEnv(): Promise<SPAClientEnv> {
+  const s3Config = await getServerFileS3Config();
+
   return {
     marketBaseUrl: appEnv.MARKET_BASE_URL,
     pyodideIndexUrl: pythonEnv.NEXT_PUBLIC_PYODIDE_INDEX_URL,
     pyodidePipIndexUrl: pythonEnv.NEXT_PUBLIC_PYODIDE_PIP_INDEX_URL,
-    s3FilePath: fileEnv.NEXT_PUBLIC_S3_FILE_PATH,
+    s3FilePath: s3Config.filePath || fileEnv.NEXT_PUBLIC_S3_FILE_PATH,
   };
 }
 
@@ -219,7 +222,7 @@ export async function GET(
   const serverConfig = await getServerGlobalConfig();
   const featureFlags = getServerFeatureFlagsValue();
   const analyticsConfig = buildAnalyticsConfig();
-  const clientEnv = buildClientEnv();
+  const clientEnv = await buildClientEnv();
 
   const spaConfig: SPAServerConfig = {
     analyticsConfig,

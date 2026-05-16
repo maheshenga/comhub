@@ -15,7 +15,7 @@ import { FileModel } from '@/database/models/file';
 import { type NewChunkItem, type NewEmbeddingsItem } from '@/database/schemas';
 import { fileEnv } from '@/envs/file';
 import { asyncAuthedProcedure, asyncRouter as router } from '@/libs/trpc/async';
-import { getServerDefaultFilesConfig } from '@/server/globalConfig';
+import { getResolvedServerDefaultFilesConfig } from '@/server/globalConfig';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { ChunkService } from '@/server/services/chunk';
 import { DocumentService } from '@/server/services/document';
@@ -60,7 +60,8 @@ export const fileRouter = router({
       const asyncTask = await ctx.asyncTaskModel.findById(input.taskId);
 
       const { model, provider } =
-        getServerDefaultFilesConfig().embeddingModel || DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
+        (await getResolvedServerDefaultFilesConfig(ctx.serverDB)).embeddingModel ||
+        DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
 
       if (!asyncTask) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Async Task not found' });
 

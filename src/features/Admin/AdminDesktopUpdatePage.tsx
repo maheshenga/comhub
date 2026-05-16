@@ -5,6 +5,7 @@ import { Button, Divider, Form, Input, InputNumber, message, Radio, Space, Switc
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -22,8 +23,6 @@ const SETTING_KEYS = {
   desktopUpdateServerUrl: 'desktop.update.serverUrl',
 } as const;
 
-const SWR_KEY = ['admin-settings'];
-
 type FormValues = {
   autoCheck: boolean;
   channel: string;
@@ -40,7 +39,7 @@ type FormValues = {
 
 const AdminDesktopUpdatePage = memo(() => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(SWR_KEY, () =>
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
   );
   const [form] = Form.useForm<FormValues>();
@@ -136,7 +135,7 @@ const AdminDesktopUpdatePage = memo(() => {
       setSubmitting(true);
       await Promise.all(updates.map((u) => adminCommercialService.setAppSetting(u)));
       message.success(t('admin.desktopUpdate.saveSuccess', '桌面端更新设置已保存'));
-      await mutate(SWR_KEY);
+      await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.desktopUpdate.saveFailed', '保存失败'));
     } finally {

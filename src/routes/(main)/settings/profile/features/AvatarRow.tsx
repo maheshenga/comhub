@@ -1,8 +1,8 @@
 'use client';
 
 import { LoadingOutlined } from '@ant-design/icons';
-import { Icon } from '@lobehub/ui';
-import { Spin, Upload } from 'antd';
+import { Avatar, Flexbox, Icon } from '@lobehub/ui';
+import { Button, message, Modal, Spin, Upload } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { PencilIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 
 import { fetchErrorNotification } from '@/components/Error/fetchErrorNotification';
 import UserAvatar from '@/features/User/UserAvatar';
+import { useClientDataSWR } from '@/libs/swr';
+import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
 import { imageToBase64 } from '@/utils/imageToBase64';
@@ -46,6 +48,26 @@ const styles = createStaticStyles(({ css }) => ({
       opacity: 1;
     }
   `,
+  presetGrid: css`
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: 12px;
+  `,
+  presetItem: css`
+    cursor: pointer;
+
+    padding: 12px;
+    border: 1px solid ${cssVar.colorBorderSecondary};
+    border-radius: 8px;
+
+    text-align: center;
+
+    background: ${cssVar.colorBgContainer};
+
+    &:hover {
+      border-color: ${cssVar.colorPrimary};
+    }
+  `,
 }));
 
 const AvatarRow = () => {
@@ -53,6 +75,11 @@ const AvatarRow = () => {
   const isLogin = useUserStore(authSelectors.isLogin);
   const updateAvatar = useUserStore((s) => s.updateAvatar);
   const [uploading, setUploading] = useState(false);
+  const [presetOpen, setPresetOpen] = useState(false);
+  const [selectingPreset, setSelectingPreset] = useState<string | null>(null);
+  const { data: profileOptions } = useClientDataSWR('profile-options', () =>
+    adminCommercialService.getPublicProfileOptions(),
+  );
 
   const handleUploadAvatar = useMemo(
     () =>
@@ -85,17 +112,61 @@ const AvatarRow = () => {
 
   const canUpload = isLogin;
 
+  const handleSelectPreset = async (avatar: string) => {
+    try {
+      setSelectingPreset(avatar);
+      await updateAvatar(avatar);
+      message.success(t('profile.avatarPresetSuccess', '头像已更新'));
+      setPresetOpen(false);
+    } catch (error) {
+      fetchErrorNotification.error({
+        errorMessage: error instanceof Error ? error.message : String(error),
+        status: 500,
+      });
+    } finally {
+      setSelectingPreset(null);
+    }
+  };
+
   const avatarContent = canUpload ? (
-    <Upload beforeUpload={handleUploadAvatar} itemRender={() => void 0} maxCount={1}>
-      <Spin indicator={<LoadingOutlined spin />} spinning={uploading}>
-        <div className={styles.wrapper}>
-          <UserAvatar size={40} />
-          <div className={`${styles.overlay} avatar-edit-overlay`}>
-            <Icon color={cssVar.colorTextLightSolid} icon={PencilIcon} size={16} />
+    <Flexbox horizontal align="center" gap={8}>
+      <Upload beforeUpload={handleUploadAvatar} itemRender={() => void 0} maxCount={1}>
+        <Spin indicator={<LoadingOutlined spin />} spinning={uploading}>
+          <div className={styles.wrapper}>
+            <UserAvatar size={40} />
+            <div className={`${styles.overlay} avatar-edit-overlay`}>
+              <Icon color={cssVar.colorTextLightSolid} icon={PencilIcon} size={16} />
+            </div>
           </div>
+        </Spin>
+      </Upload>
+      <Button onClick={() => setPresetOpen(true)}>
+        {t('profile.avatarPreset', '选择预设头像')}
+      </Button>
+      <Modal
+        footer={null}
+        open={presetOpen}
+        title={t('profile.avatarPreset', '选择预设头像')}
+        onCancel={() => setPresetOpen(false)}
+      >
+        <div className={styles.presetGrid}>
+          {(profileOptions?.avatarPresets ?? []).map((item) => (
+            <button
+              className={styles.presetItem}
+              disabled={selectingPreset === item.value}
+              key={item.value}
+              type="button"
+              onClick={() => handleSelectPreset(item.value)}
+            >
+              <Flexbox align="center" gap={8}>
+                <Avatar avatar={item.value} size={56} title={item.label} />
+                <span>{item.label}</span>
+              </Flexbox>
+            </button>
+          ))}
         </div>
-      </Spin>
-    </Upload>
+      </Modal>
+    </Flexbox>
   ) : (
     <UserAvatar size={40} />
   );

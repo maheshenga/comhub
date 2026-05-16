@@ -8,7 +8,6 @@ import { isDesktop } from '@/const/version';
 import { type LobeChatDatabase } from '@/database/type';
 import { appEnv, getAppConfig } from '@/envs/app';
 import { authEnv } from '@/envs/auth';
-import { fileEnv } from '@/envs/file';
 import { imageEnv } from '@/envs/image';
 import { knowledgeEnv } from '@/envs/knowledge';
 import { langfuseEnv } from '@/envs/langfuse';
@@ -18,6 +17,9 @@ import { parseSystemAgent } from '@/server/globalConfig/parseSystemAgent';
 import {
   getServerDefaultAgentSettingOverrides,
   getServerDefaultGenerationModelSettingOverrides,
+  getServerFileS3Config,
+  getServerUserGlobalSettingsDefaults,
+  getServerVectorSettingOverrides,
 } from '@/server/services/appSettings';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
 import { type GlobalServerConfig } from '@/types/serverConfig';
@@ -45,6 +47,8 @@ const getGenericNewapiParameters = (type: string) => {
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
   const generationModelConfig = await getServerDefaultGenerationModelSettingOverrides(db);
+  const userDefaults = await getServerUserGlobalSettingsDefaults(db);
+  const s3Config = await getServerFileS3Config(db);
   const aiProvider = await genServerAiProvidersConfig({
     ...(ENABLE_BUSINESS_FEATURES
       ? {
@@ -129,7 +133,12 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     enableMarketTrustedClient: !!(
       appEnv.MARKET_TRUSTED_CLIENT_SECRET && appEnv.MARKET_TRUSTED_CLIENT_ID
     ),
-    enableUploadFileToServer: !!fileEnv.S3_SECRET_ACCESS_KEY,
+    enableUploadFileToServer: !!(
+      s3Config.accessKeyId &&
+      s3Config.secretAccessKey &&
+      s3Config.endpoint &&
+      s3Config.bucket
+    ),
     enableVisualUnderstanding: !!(
       toolsEnv.VISUAL_UNDERSTANDING_PROVIDER && toolsEnv.VISUAL_UNDERSTANDING_MODEL
     ),
@@ -162,6 +171,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     telemetry: {
       langfuse: langfuseEnv.ENABLE_LANGFUSE,
     },
+    userDefaults,
   };
 
   return config;
@@ -182,4 +192,11 @@ export const getResolvedServerDefaultAgentConfig = async (db?: LobeChatDatabase)
 
 export const getServerDefaultFilesConfig = () => {
   return parseFilesConfig(knowledgeEnv.DEFAULT_FILES_CONFIG);
+};
+
+export const getResolvedServerDefaultFilesConfig = async (db?: LobeChatDatabase) => {
+  const envFilesConfig = getServerDefaultFilesConfig();
+  const overrides = await getServerVectorSettingOverrides(db);
+
+  return merge(envFilesConfig, overrides);
 };

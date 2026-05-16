@@ -5,6 +5,7 @@ import { type PartialDeep } from 'type-fest';
 import { appSettings } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
 import { type LobeChatDatabase } from '@/database/type';
+import { type UserSettings } from '@/types/user/settings';
 
 export const APP_SETTING_KEYS = {
   authSignupDisabledMessage: 'auth.signup.disabledMessage',
@@ -71,7 +72,23 @@ export const APP_SETTING_KEYS = {
   docmeePptEnabled: 'docmee.ppt.enabled',
   docmeePptThemeColor: 'docmee.ppt.themeColor',
   docmeePptTokenTtlMinutes: 'docmee.ppt.tokenTtlMinutes',
+  expertPlazaCards: 'expertPlaza.cards',
+  expertPlazaCategories: 'expertPlaza.categories',
+  expertPlazaDescription: 'expertPlaza.description',
+  expertPlazaEnabled: 'expertPlaza.enabled',
+  expertPlazaName: 'expertPlaza.name',
   helpMenuItems: 'help.menu.items',
+  memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
+  notificationDesktopEnabled: 'notification.desktop.enabled',
+  notificationEmailEnabled: 'notification.email.enabled',
+  notificationInboxEnabled: 'notification.inbox.enabled',
+  notificationRetentionDays: 'notification.retentionDays',
+  notificationSystemActionUrl: 'notification.system.actionUrl',
+  notificationSystemContent: 'notification.system.content',
+  notificationSystemEnabled: 'notification.system.enabled',
+  notificationSystemTitle: 'notification.system.title',
+  profileAvatarPresets: 'profile.avatarPresets',
+  profileInterestAreas: 'profile.interestAreas',
   modelPolicyAllowlist: 'model.policy.allowlist',
   modelPolicyApplyToEmbeddings: 'model.policy.applyToEmbeddings',
   modelPolicyApplyToGenerateObject: 'model.policy.applyToGenerateObject',
@@ -103,8 +120,24 @@ export const APP_SETTING_KEYS = {
   recommendationSkillTitle: 'recommendation.skillTitle',
   recommendationSkillsEnabled: 'recommendation.skills.enabled',
   referralRewardCredits: 'referral.rewardCredits',
+  storageS3AccessKeyId: 'storage.s3.accessKeyId',
+  storageS3Bucket: 'storage.s3.bucket',
+  storageS3EnablePathStyle: 'storage.s3.enablePathStyle',
+  storageS3Endpoint: 'storage.s3.endpoint',
+  storageS3FilePath: 'storage.s3.filePath',
+  storageS3PreviewUrlExpireIn: 'storage.s3.previewUrlExpireIn',
+  storageS3PublicDomain: 'storage.s3.publicDomain',
+  storageS3Region: 'storage.s3.region',
+  storageS3SecretAccessKey: 'storage.s3.secretAccessKey',
+  storageS3SetAcl: 'storage.s3.setAcl',
   uploadMaxActualSizeMb: 'upload.maxActualSizeMb',
   uploadMaxInputSizeMb: 'upload.maxInputSizeMb',
+  userGlobalSettingsDefaults: 'user.globalSettings.defaults',
+  vectorEmbeddingModel: 'vector.embedding.model',
+  vectorEmbeddingProvider: 'vector.embedding.provider',
+  vectorQueryMode: 'vector.queryMode',
+  vectorRerankerModel: 'vector.reranker.model',
+  vectorRerankerProvider: 'vector.reranker.provider',
 } as const;
 
 const CACHED_KEYS = [
@@ -124,13 +157,34 @@ const CACHED_KEYS = [
   APP_SETTING_KEYS.modelPolicyDeniedMessage,
   APP_SETTING_KEYS.modelPolicyEnabled,
   APP_SETTING_KEYS.modelPolicyMode,
+  APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
+  APP_SETTING_KEYS.notificationInboxEnabled,
   APP_SETTING_KEYS.pricingCreditMultiplier,
   APP_SETTING_KEYS.pricingModelRules,
+  APP_SETTING_KEYS.storageS3AccessKeyId,
+  APP_SETTING_KEYS.storageS3Bucket,
+  APP_SETTING_KEYS.storageS3EnablePathStyle,
+  APP_SETTING_KEYS.storageS3Endpoint,
+  APP_SETTING_KEYS.storageS3FilePath,
+  APP_SETTING_KEYS.storageS3PreviewUrlExpireIn,
+  APP_SETTING_KEYS.storageS3PublicDomain,
+  APP_SETTING_KEYS.storageS3Region,
+  APP_SETTING_KEYS.storageS3SecretAccessKey,
+  APP_SETTING_KEYS.storageS3SetAcl,
+  APP_SETTING_KEYS.userGlobalSettingsDefaults,
+  APP_SETTING_KEYS.vectorEmbeddingModel,
+  APP_SETTING_KEYS.vectorEmbeddingProvider,
+  APP_SETTING_KEYS.vectorQueryMode,
+  APP_SETTING_KEYS.vectorRerankerModel,
+  APP_SETTING_KEYS.vectorRerankerProvider,
 ] as const;
 
 const TTL_MS = 30_000;
 
-let cachedSettings: { at: number; data: Record<string, unknown> } | null = null;
+type CachedSettings = { at: number; data: Record<string, unknown> };
+
+let cachedSettings: CachedSettings | null = null;
+let cachedSettingsByDb = new WeakMap<LobeChatDatabase, CachedSettings>();
 
 const normalizeString = (value: unknown) => {
   if (typeof value !== 'string') return null;
@@ -138,6 +192,94 @@ const normalizeString = (value: unknown) => {
   const trimmed = value.trim();
 
   return trimmed.length > 0 ? trimmed : null;
+};
+
+const normalizeBoolean = (value: unknown, fallback: boolean) =>
+  typeof value === 'boolean' ? value : fallback;
+
+const normalizePositiveInt = (value: unknown, fallback: number, min: number, max: number) => {
+  if (value === null || value === undefined || value === '') return fallback;
+
+  const n = Number(value);
+
+  if (!Number.isFinite(n)) return fallback;
+
+  return Math.max(min, Math.min(max, Math.round(n)));
+};
+
+const DEFAULT_S3_FILE_PATH = 'files';
+
+export const normalizeS3FilePath = (value: unknown) => {
+  const text = normalizeString(value);
+
+  if (!text) return null;
+
+  return text.replaceAll('\\', '/').replaceAll(/^\/+|\/+$/g, '') || null;
+};
+
+export type ServerFileS3Config = {
+  accessKeyId?: string;
+  bucket?: string;
+  enablePathStyle: boolean;
+  endpoint?: string;
+  filePath: string;
+  previewUrlExpireIn: number;
+  publicDomain?: string;
+  region?: string;
+  secretAccessKey?: string;
+  setAcl: boolean;
+};
+
+export const getServerFileS3Config = async (db?: LobeChatDatabase): Promise<ServerFileS3Config> => {
+  const [
+    accessKeyId,
+    secretAccessKey,
+    endpoint,
+    bucket,
+    region,
+    publicDomain,
+    enablePathStyle,
+    setAcl,
+    previewUrlExpireIn,
+    filePath,
+  ] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.storageS3AccessKeyId, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3SecretAccessKey, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3Endpoint, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3Bucket, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3Region, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3PublicDomain, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3EnablePathStyle, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3SetAcl, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3PreviewUrlExpireIn, db),
+    getAppSettingValue(APP_SETTING_KEYS.storageS3FilePath, db),
+  ]);
+
+  const envPreviewUrlExpireIn = Number.parseInt(process.env.S3_PREVIEW_URL_EXPIRE_IN || '7200');
+
+  return {
+    accessKeyId: normalizeString(accessKeyId) ?? process.env.S3_ACCESS_KEY_ID,
+    bucket: normalizeString(bucket) ?? process.env.S3_BUCKET,
+    enablePathStyle: normalizeBoolean(enablePathStyle, process.env.S3_ENABLE_PATH_STYLE === '1'),
+    endpoint: normalizeString(endpoint) ?? process.env.S3_ENDPOINT,
+    filePath:
+      normalizeS3FilePath(filePath) ||
+      normalizeS3FilePath(process.env.NEXT_PUBLIC_S3_FILE_PATH) ||
+      DEFAULT_S3_FILE_PATH,
+    previewUrlExpireIn: normalizePositiveInt(
+      previewUrlExpireIn,
+      Number.isFinite(envPreviewUrlExpireIn) ? envPreviewUrlExpireIn : 7200,
+      60,
+      604_800,
+    ),
+    publicDomain:
+      normalizeString(publicDomain) ??
+      process.env.S3_PUBLIC_DOMAIN ??
+      process.env.NEXT_PUBLIC_S3_DOMAIN,
+    region: normalizeString(region) ?? process.env.S3_REGION,
+    secretAccessKey: normalizeString(secretAccessKey) ?? process.env.S3_SECRET_ACCESS_KEY,
+    setAcl: normalizeBoolean(setAcl, process.env.S3_SET_ACL === '1'),
+  };
 };
 
 export const normalizeModelIdList = (value: unknown): string[] => {
@@ -157,7 +299,10 @@ export const serializeModelIdList = (value: unknown) => {
 };
 
 const readCachedSettings = async (db?: LobeChatDatabase): Promise<Record<string, unknown>> => {
-  if (cachedSettings && Date.now() - cachedSettings.at < TTL_MS) return cachedSettings.data;
+  const now = Date.now();
+  const explicitCache = db ? cachedSettingsByDb.get(db) : cachedSettings;
+
+  if (explicitCache && now - explicitCache.at < TTL_MS) return explicitCache.data;
 
   try {
     const serverDB = db ?? (await getServerDB());
@@ -166,12 +311,22 @@ const readCachedSettings = async (db?: LobeChatDatabase): Promise<Record<string,
     });
 
     const data = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-    cachedSettings = { at: Date.now(), data };
+    const nextCache = { at: now, data };
+    if (db) {
+      cachedSettingsByDb.set(db, nextCache);
+    } else {
+      cachedSettings = nextCache;
+    }
 
     return data;
   } catch {
     const data: Record<string, unknown> = {};
-    cachedSettings = { at: Date.now(), data };
+    const nextCache = { at: now, data };
+    if (db) {
+      cachedSettingsByDb.set(db, nextCache);
+    } else {
+      cachedSettings = nextCache;
+    }
 
     return data;
   }
@@ -251,6 +406,64 @@ export const getServerDefaultGenerationModelSettingOverrides = async (
   };
 };
 
+export const getServerVectorSettingOverrides = async (
+  db?: LobeChatDatabase,
+): Promise<{
+  embeddingModel?: { model?: string; provider?: string };
+  queryMode?: string;
+  rerankerModel?: { model?: string; provider?: string };
+}> => {
+  const [
+    rawEmbeddingProvider,
+    rawEmbeddingModel,
+    rawRerankerProvider,
+    rawRerankerModel,
+    rawQueryMode,
+  ] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.vectorEmbeddingProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.vectorEmbeddingModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.vectorRerankerProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.vectorRerankerModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.vectorQueryMode, db),
+  ]);
+
+  const embeddingProvider = normalizeString(rawEmbeddingProvider);
+  const embeddingModel = normalizeString(rawEmbeddingModel);
+  const rerankerProvider = normalizeString(rawRerankerProvider);
+  const rerankerModel = normalizeString(rawRerankerModel);
+  const queryMode = normalizeString(rawQueryMode);
+
+  return {
+    ...(embeddingProvider || embeddingModel
+      ? {
+          embeddingModel: {
+            ...(embeddingProvider ? { provider: embeddingProvider } : {}),
+            ...(embeddingModel ? { model: embeddingModel } : {}),
+          },
+        }
+      : {}),
+    ...(queryMode ? { queryMode } : {}),
+    ...(rerankerProvider || rerankerModel
+      ? {
+          rerankerModel: {
+            ...(rerankerProvider ? { provider: rerankerProvider } : {}),
+            ...(rerankerModel ? { model: rerankerModel } : {}),
+          },
+        }
+      : {}),
+  };
+};
+
+export const getServerUserGlobalSettingsDefaults = async (
+  db?: LobeChatDatabase,
+): Promise<PartialDeep<UserSettings>> => {
+  const raw = await getAppSettingValue(APP_SETTING_KEYS.userGlobalSettingsDefaults, db);
+
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as PartialDeep<UserSettings>)
+    : {};
+};
+
 export const getServerDefaultModelSuggestions = async ({
   currentModel,
 }: {
@@ -271,9 +484,6 @@ export type ServerModelPolicyConfig = {
   enabled: boolean;
   mode: 'allowlist' | 'blocklist';
 };
-
-const normalizeBoolean = (value: unknown, fallback: boolean) =>
-  typeof value === 'boolean' ? value : fallback;
 
 const normalizeModelPolicyMode = (value: unknown): ServerModelPolicyConfig['mode'] =>
   value === 'allowlist' || value === 'blocklist' ? value : 'blocklist';
@@ -316,4 +526,5 @@ export const getServerModelPolicyConfig = async (
 
 export const invalidateServerAppSettings = () => {
   cachedSettings = null;
+  cachedSettingsByDb = new WeakMap<LobeChatDatabase, CachedSettings>();
 };

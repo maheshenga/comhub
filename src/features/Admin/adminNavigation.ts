@@ -5,6 +5,7 @@ export type AdminNavGroupKey =
   | 'user-plan'
   | 'model-billing'
   | 'brand-growth'
+  | 'content'
   | 'system';
 
 export type AdminNavIcon =
@@ -12,8 +13,12 @@ export type AdminNavIcon =
   | 'billing'
   | 'credits'
   | 'desktop'
+  | 'documents'
+  | 'expert-plaza'
+  | 'files'
   | 'growth'
   | 'models'
+  | 'notifications'
   | 'orders'
   | 'overview'
   | 'plans'
@@ -25,7 +30,9 @@ export type AdminNavIcon =
   | 'settings'
   | 'stats'
   | 'subscriptions'
+  | 'system-defaults'
   | 'topup'
+  | 'topics'
   | 'users';
 
 export type AdminNavItem = {
@@ -157,6 +164,18 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/recommendations`,
       },
       {
+        description: '管理站内通知、桌面通知默认策略、邮件通道预留配置和通知保留时间',
+        icon: 'notifications',
+        label: '通知管理',
+        path: `${ADMIN_BASE_PATH}/notifications`,
+      },
+      {
+        description: '配置侧栏专家广场入口、栏目名称、分类和展示卡片',
+        icon: 'expert-plaza',
+        label: '专家广场',
+        path: `${ADMIN_BASE_PATH}/expert-plaza`,
+      },
+      {
         description: '配置公开运营开关、公告和精选模块',
         icon: 'settings',
         label: '运营配置',
@@ -165,6 +184,32 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     ],
     key: 'brand-growth',
     label: '品牌与增长',
+  },
+  {
+    description: '统一治理用户话题、资源文件和文稿内容',
+    icon: 'documents',
+    items: [
+      {
+        description: '查看所有用户话题，支持按状态筛选、归档和删除异常话题',
+        icon: 'topics',
+        label: '话题管理',
+        path: `${ADMIN_BASE_PATH}/topics`,
+      },
+      {
+        description: '查看所有用户资源文件，定位文件类型、体积、向量任务和归属用户',
+        icon: 'files',
+        label: '资源文件',
+        path: `${ADMIN_BASE_PATH}/files`,
+      },
+      {
+        description: '查看用户文稿、知识文档、网页文档和助理相关文档',
+        icon: 'documents',
+        label: '用户文稿',
+        path: `${ADMIN_BASE_PATH}/documents`,
+      },
+    ],
+    key: 'content',
+    label: '内容治理',
   },
   {
     description: '桌面端更新、数据看板、审计日志和系统运维',
@@ -181,6 +226,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         icon: 'audit',
         label: '审计日志',
         path: `${ADMIN_BASE_PATH}/audit`,
+      },
+      {
+        description: '配置向量检索、用户服务模型默认值、默认技能和头像预设',
+        icon: 'system-defaults',
+        label: '系统默认值',
+        path: `${ADMIN_BASE_PATH}/system-defaults`,
       },
       {
         description: '配置桌面端下载、发布版本和自动更新',

@@ -1,8 +1,8 @@
 import debug from 'debug';
 import pMap from 'p-map';
 
-import { fileEnv } from '@/envs/file';
 import { type AudioContent, type ImageContent, type ToolCallContent } from '@/libs/mcp';
+import { getServerFileS3Config } from '@/server/services/appSettings';
 import { type FileService } from '@/server/services/file';
 import { nanoid } from '@/utils/uuid';
 
@@ -21,6 +21,7 @@ export const processContentBlocks = async (
 ): Promise<ToolCallContent[]> => {
   // Use date-based sharding for privacy compliance (GDPR, CCPA)
   const today = new Date().toISOString().split('T')[0]; // e.g., "2025-11-08"
+  const { filePath } = await getServerFileS3Config();
 
   return pMap(blocks, async (block) => {
     if (block.type === 'image') {
@@ -30,7 +31,7 @@ export const processContentBlocks = async (
       const fileExtension = imageBlock.mimeType.split('/')[1] || 'png';
 
       // Generate unique pathname with date-based sharding
-      const pathname = `${fileEnv.NEXT_PUBLIC_S3_FILE_PATH}/mcp/images/${today}/${nanoid()}.${fileExtension}`;
+      const pathname = `${filePath}/mcp/images/${today}/${nanoid()}.${fileExtension}`;
 
       // Upload base64 image and get proxy URL
       const { url } = await fileService.uploadBase64(imageBlock.data, pathname);
@@ -47,7 +48,7 @@ export const processContentBlocks = async (
       const fileExtension = audioBlock.mimeType.split('/')[1] || 'mp3';
 
       // Generate unique pathname with date-based sharding
-      const pathname = `${fileEnv.NEXT_PUBLIC_S3_FILE_PATH}/mcp/audio/${today}/${nanoid()}.${fileExtension}`;
+      const pathname = `${filePath}/mcp/audio/${today}/${nanoid()}.${fileExtension}`;
 
       // Upload base64 audio and get proxy URL
       const { url } = await fileService.uploadBase64(audioBlock.data, pathname);

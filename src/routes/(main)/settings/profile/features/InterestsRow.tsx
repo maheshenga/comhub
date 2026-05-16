@@ -1,6 +1,5 @@
 'use client';
 
-import type { InterestAreaKey } from '@lobechat/const';
 import { normalizeInterestsForStorage, resolveInterestAreaKey } from '@lobechat/const';
 import { Block, Flexbox, Icon, Input, Text } from '@lobehub/ui';
 import { cssVar } from 'antd-style';
@@ -9,7 +8,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { fetchErrorNotification } from '@/components/Error/fetchErrorNotification';
-import { INTEREST_AREAS } from '@/routes/onboarding/config';
+import { type ProfileInterestArea, useProfileInterestAreas } from '@/features/ProfileInterests';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
@@ -20,6 +19,7 @@ const InterestsRow = () => {
   const { t: tOnboarding } = useTranslation('onboarding');
   const interests = useUserStore(userProfileSelectors.interests);
   const updateInterests = useUserStore((s) => s.updateInterests);
+  const configuredAreas = useProfileInterestAreas();
   const [customInput, setCustomInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -43,17 +43,27 @@ const InterestsRow = () => {
     [updateInterests],
   );
 
-  const areas = useMemo(
-    () =>
-      INTEREST_AREAS.map((area) => ({
-        ...area,
-        label: tOnboarding(`interests.area.${area.key}`),
-      })),
+  const areaKeys = useMemo(
+    () => new Set(configuredAreas.map((area) => area.key)),
+    [configuredAreas],
+  );
+
+  const getAreaLabel = useCallback(
+    (area: ProfileInterestArea) =>
+      area.custom ? area.label : tOnboarding(`interests.area.${area.key}`),
+    [tOnboarding],
+  );
+
+  const getStoredInterestLabel = useCallback(
+    (interest: string) => {
+      const resolvedKey = resolveInterestAreaKey(interest);
+      return resolvedKey ? tOnboarding(`interests.area.${resolvedKey}`) : interest;
+    },
     [tOnboarding],
   );
 
   const toggleInterest = useCallback(
-    async (key: InterestAreaKey) => {
+    async (key: string) => {
       const updated = normalizedInterests.includes(key)
         ? normalizedInterests.filter((i) => i !== key)
         : [...normalizedInterests, key];
@@ -86,7 +96,7 @@ const InterestsRow = () => {
     <ProfileRow label={t('profile.interests')}>
       <Flexbox gap={12}>
         <Flexbox horizontal align="center" gap={8} wrap="wrap">
-          {areas.map((item) => {
+          {configuredAreas.map((item) => {
             const isSelected = normalizedInterests.includes(item.key);
             return (
               <Block
@@ -109,13 +119,13 @@ const InterestsRow = () => {
               >
                 <Icon color={cssVar.colorTextSecondary} icon={item.icon} size={14} />
                 <Text fontSize={13} weight={500}>
-                  {item.label}
+                  {getAreaLabel(item)}
                 </Text>
               </Block>
             );
           })}
           {normalizedInterests
-            .filter((i) => !resolveInterestAreaKey(i))
+            .filter((i) => !areaKeys.has(i))
             .map((interest) => (
               <Block
                 clickable
@@ -130,7 +140,7 @@ const InterestsRow = () => {
                 onClick={() => !saving && removeCustomInterest(interest)}
               >
                 <Text fontSize={13} weight={500}>
-                  {interest}
+                  {getStoredInterestLabel(interest)}
                 </Text>
               </Block>
             ))}

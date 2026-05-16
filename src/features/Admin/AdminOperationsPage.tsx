@@ -5,6 +5,7 @@ import { Alert, Button, Divider, Form, Input, InputNumber, message, Select, Swit
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { SkillSorts } from '@/types/discover';
@@ -47,13 +48,11 @@ type FormValues = {
   featuredSkillsEnabled: boolean;
 };
 
-const SWR_KEY = ['admin-settings'];
-
 const AdminOperationsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(SWR_KEY, () =>
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
   );
 
@@ -151,7 +150,7 @@ const AdminOperationsPage = memo(() => {
         }),
       ]);
       message.success(t('admin.operations.saveSuccess', '运营配置已保存'));
-      await mutate(SWR_KEY);
+      await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.operations.saveFailed', '保存失败'));
     } finally {
@@ -163,8 +162,8 @@ const AdminOperationsPage = memo(() => {
     <Flexbox gap={16} padding={24} style={{ maxWidth: 820 }}>
       <Alert
         showIcon
-        type="info"
         message={t('admin.operations.tip', '这些配置会公开用于社区首页展示，不会暴露敏感数据。')}
+        type="info"
       />
       <Form
         disabled={isLoading}

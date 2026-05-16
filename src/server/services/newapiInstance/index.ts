@@ -211,7 +211,12 @@ export const resolveDefaultNewapiInstance = async (
 
 export interface EnabledModelEntry {
   displayName: string | null;
+  groupKey?: string | null;
+  groupName?: string | null;
   id: string;
+  instanceId?: string | null;
+  instanceName?: string | null;
+  providerType?: AdminModelApiProviderType | null;
   type: NewapiModelType;
 }
 
@@ -228,6 +233,11 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
         modelId: adminNewapiInstanceModels.modelId,
         modelType: adminNewapiInstanceModels.modelType,
         displayName: adminNewapiInstanceModels.displayName,
+        groupKey: adminNewapiInstances.groupKey,
+        groupName: adminNewapiInstances.groupName,
+        instanceId: adminNewapiInstances.id,
+        instanceName: adminNewapiInstances.name,
+        providerType: adminNewapiInstances.providerType,
       })
       .from(adminNewapiInstanceModels)
       .innerJoin(
@@ -242,12 +252,17 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
     const seen = new Set<string>();
     const result: EnabledModelEntry[] = [];
     for (const row of rows) {
-      const key = `${row.modelId}:${row.modelType}`;
+      const key = `${row.instanceId}:${row.modelId}:${row.modelType}`;
       if (!seen.has(key)) {
         seen.add(key);
         result.push({
           displayName: row.displayName,
+          groupKey: row.groupKey,
+          groupName: row.groupName,
           id: row.modelId,
+          instanceId: row.instanceId,
+          instanceName: row.instanceName,
+          providerType: row.providerType,
           type: row.modelType as NewapiModelType,
         });
       }

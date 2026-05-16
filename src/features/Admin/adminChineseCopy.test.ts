@@ -18,7 +18,11 @@ const filesWithAdminCopy = [
   'src/routes/(main)/admin/subscriptions/index.tsx',
   'src/routes/(main)/admin/topup/index.tsx',
   'src/routes/(main)/admin/redemption/index.tsx',
+  'src/routes/(main)/admin/notifications/index.tsx',
   'src/routes/(main)/admin/users/index.tsx',
+  'src/features/Admin/AdminContentPages.tsx',
+  'src/features/Admin/AdminExpertPlazaPage.tsx',
+  'src/features/Admin/AdminSystemDefaultsPage.tsx',
 ];
 
 const corruptedFragments = [
@@ -181,6 +185,41 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.assignPlan.durationMonths']).toBe('使用时长（月）');
     expect(usersPage).toContain("t('admin.assignPlan', '设置套餐')");
     expect(usersPage).toContain('adminCommercialService.assignUserPlan');
+    expect(usersPage).toContain("t('admin.impersonate', '以用户身份登录')");
+  });
+
+  it('includes readable copy for content governance and system defaults pages', () => {
+    const navigation = readRepoFile('src/features/Admin/adminNavigation.ts');
+    const contentPages = readRepoFile('src/features/Admin/AdminContentPages.tsx');
+    const expertPlazaPage = readRepoFile('src/features/Admin/AdminExpertPlazaPage.tsx');
+    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminSystemDefaultsPage.tsx');
+
+    expect(navigation).toContain("label: '内容治理'");
+    expect(navigation).toContain("label: '系统默认值'");
+    expect(contentPages).toContain('话题管理');
+    expect(contentPages).toContain('资源文件管理');
+    expect(contentPages).toContain('用户文稿管理');
+    expect(expertPlazaPage).toContain('专家广场配置已保存');
+    expect(systemDefaultsPage).toContain('服务模型默认设置 JSON');
+    expect(systemDefaultsPage).toContain('默认禁用的内置技能/工具');
+  });
+
+  it('refreshes public profile options after avatar presets are saved', () => {
+    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminSystemDefaultsPage.tsx');
+
+    expect(systemDefaultsPage).toContain('PROFILE_OPTIONS_SWR_KEY');
+  });
+
+  it('keeps admin and public SWR cache keys centralized', () => {
+    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminSystemDefaultsPage.tsx');
+    const expertPlazaAdminPage = readRepoFile('src/features/Admin/AdminExpertPlazaPage.tsx');
+    const expertPlazaPage = readRepoFile('src/features/ExpertPlaza/index.tsx');
+    const navLayout = readRepoFile('src/hooks/useNavLayout.ts');
+
+    expect(systemDefaultsPage).toContain('ADMIN_SETTINGS_SWR_KEY');
+    expect(expertPlazaAdminPage).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
+    expect(expertPlazaPage).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
+    expect(navLayout).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
   });
 
   it('keeps the user detail drawer labels in Chinese for plan assignment and history tables', () => {

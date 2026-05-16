@@ -3,7 +3,27 @@ import {
   DEFAULT_ABOUT_LINKS,
   normalizeAboutLinksConfig,
 } from '@/const/aboutLinks';
+import {
+  BRAND_CONFIG_SWR_KEY,
+  PROFILE_INTEREST_AREAS_SWR_KEY,
+  RUNTIME_CONFIG_SWR_KEY,
+  USER_STATE_SWR_KEY,
+} from '@/const/adminCacheKeys';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import {
+  type ConfiguredInterestArea,
+  normalizeConfiguredInterestAreas,
+} from '@/features/ProfileInterests/interestAreas';
+
+export {
+  ADMIN_SETTINGS_SWR_KEY,
+  BRAND_CONFIG_SWR_KEY,
+  PROFILE_INTEREST_AREAS_SWR_KEY,
+  PROFILE_OPTIONS_SWR_KEY,
+  PUBLIC_EXPERT_PLAZA_SWR_KEY,
+  RUNTIME_CONFIG_SWR_KEY,
+  USER_STATE_SWR_KEY,
+} from '@/const/adminCacheKeys';
 
 export const SETTING_KEYS = {
   aboutLinks: 'about.links',
@@ -30,18 +50,35 @@ export const SETTING_KEYS = {
   desktopDownloadLabel: 'desktop.download.label',
   desktopDownloadUrl: 'desktop.download.url',
   helpMenuItems: 'help.menu.items',
+  memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
+  notificationDesktopEnabled: 'notification.desktop.enabled',
+  notificationEmailEnabled: 'notification.email.enabled',
+  notificationInboxEnabled: 'notification.inbox.enabled',
+  notificationRetentionDays: 'notification.retentionDays',
+  notificationSystemActionUrl: 'notification.system.actionUrl',
+  notificationSystemContent: 'notification.system.content',
+  notificationSystemEnabled: 'notification.system.enabled',
+  notificationSystemTitle: 'notification.system.title',
+  profileInterestAreas: 'profile.interestAreas',
   ordersManagementEnabled: 'orders.management.enabled',
   pricingCreditMultiplier: 'pricing.creditMultiplier',
   pricingModelRules: 'pricing.modelRules',
   referralRewardCredits: 'referral.rewardCredits',
+  storageS3AccessKeyId: 'storage.s3.accessKeyId',
+  storageS3Bucket: 'storage.s3.bucket',
+  storageS3EnablePathStyle: 'storage.s3.enablePathStyle',
+  storageS3Endpoint: 'storage.s3.endpoint',
+  storageS3FilePath: 'storage.s3.filePath',
+  storageS3PreviewUrlExpireIn: 'storage.s3.previewUrlExpireIn',
+  storageS3PublicDomain: 'storage.s3.publicDomain',
+  storageS3Region: 'storage.s3.region',
+  storageS3SecretAccessKey: 'storage.s3.secretAccessKey',
+  storageS3SetAcl: 'storage.s3.setAcl',
 } as const;
 
-export const ADMIN_SETTINGS_SWR_KEY = ['admin-settings'];
-export const BRAND_CONFIG_SWR_KEY = 'brand-config';
-export const RUNTIME_CONFIG_SWR_KEY = 'FETCH_SERVER_CONFIG';
-export const USER_STATE_SWR_KEY = 'initUserState';
-
 export type HelpMenuItem = { label: string; url?: string };
+
+export type MemoryUserMemoryTriggerMode = 'auto' | 'direct' | 'workflow';
 
 export type EnabledNewapiModelOption = {
   displayName?: string | null;
@@ -84,6 +121,17 @@ export type AdminSettingsData = {
   desktopDownloadUrl?: string | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
   helpMenuItems?: unknown;
+  memoryUserMemoryTriggerMode?: MemoryUserMemoryTriggerMode | string | null;
+  memoryUserMemoryTriggerModeEnv?: string | null;
+  qstashTokenConfigured?: boolean | null;
+  notificationDesktopEnabled?: boolean | null;
+  notificationEmailEnabled?: boolean | null;
+  notificationInboxEnabled?: boolean | null;
+  notificationRetentionDays?: number | null;
+  notificationSystemActionUrl?: string | null;
+  notificationSystemContent?: string | null;
+  notificationSystemEnabled?: boolean | null;
+  notificationSystemTitle?: string | null;
   ordersManagementEnabled?: boolean | null;
   paymentGatewayStatus?: {
     configured: boolean;
@@ -92,7 +140,19 @@ export type AdminSettingsData = {
   } | null;
   pricingCreditMultiplier?: number | null;
   pricingModelRules?: unknown[] | null;
+  profileInterestAreas?: unknown;
   referralRewardCredits?: number | null;
+  storageS3AccessKeyId?: string | null;
+  storageS3Bucket?: string | null;
+  storageS3EnablePathStyle?: boolean | null;
+  storageS3Endpoint?: string | null;
+  storageS3FilePath?: string | null;
+  storageS3PreviewUrlExpireIn?: number | null;
+  storageS3PublicDomain?: string | null;
+  storageS3Region?: string | null;
+  storageS3SecretAccessKeyConfigured?: boolean | null;
+  storageS3SecretAccessKeyMasked?: string | null;
+  storageS3SetAcl?: boolean | null;
 };
 
 export type AdminSettingsFormValues = {
@@ -120,14 +180,32 @@ export type AdminSettingsFormValues = {
   desktopDownloadLabel: string;
   desktopDownloadUrl: string;
   helpMenuItems: HelpMenuItem[];
+  memoryUserMemoryTriggerMode: MemoryUserMemoryTriggerMode;
+  profileInterestAreas: ConfiguredInterestArea[];
   ordersEnabled: boolean;
   pricingMultiplier: number;
   referralRewardCredits: number;
+  storageS3AccessKeyId: string;
+  storageS3Bucket: string;
+  storageS3EnablePathStyle: boolean;
+  storageS3Endpoint: string;
+  storageS3FilePath: string;
+  storageS3PreviewUrlExpireIn: number;
+  storageS3PublicDomain: string;
+  storageS3Region: string;
+  storageS3SecretAccessKey: string;
+  storageS3SecretAccessKeyConfigured: boolean;
+  storageS3SetAcl: boolean;
 };
 
 export type SettingUpdate = { key: string; value: unknown };
 
 export const normalizeText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+
+export const normalizeMemoryUserMemoryTriggerMode = (
+  value: unknown,
+): MemoryUserMemoryTriggerMode =>
+  value === 'direct' || value === 'workflow' || value === 'auto' ? value : 'auto';
 
 export const buildModelOptions = (data?: {
   defaultModelSuggestions?: string[] | null;
@@ -217,9 +295,24 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   desktopDownloadLabel: data?.desktopDownloadLabel ?? '',
   desktopDownloadUrl: data?.desktopDownloadUrl ?? '',
   helpMenuItems: normalizeHelpMenuItems(data?.helpMenuItems),
+  memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
+    data?.memoryUserMemoryTriggerMode,
+  ),
+  profileInterestAreas: normalizeConfiguredInterestAreas(data?.profileInterestAreas),
   ordersEnabled: data?.ordersManagementEnabled ?? true,
   pricingMultiplier: data?.pricingCreditMultiplier ?? 1,
   referralRewardCredits: data?.referralRewardCredits ?? 0,
+  storageS3AccessKeyId: data?.storageS3AccessKeyId ?? '',
+  storageS3Bucket: data?.storageS3Bucket ?? '',
+  storageS3EnablePathStyle: data?.storageS3EnablePathStyle ?? false,
+  storageS3Endpoint: data?.storageS3Endpoint ?? '',
+  storageS3FilePath: data?.storageS3FilePath ?? 'files',
+  storageS3PreviewUrlExpireIn: data?.storageS3PreviewUrlExpireIn ?? 7200,
+  storageS3PublicDomain: data?.storageS3PublicDomain ?? '',
+  storageS3Region: data?.storageS3Region ?? '',
+  storageS3SecretAccessKey: '',
+  storageS3SecretAccessKeyConfigured: data?.storageS3SecretAccessKeyConfigured ?? false,
+  storageS3SetAcl: data?.storageS3SetAcl ?? false,
 });
 
 export const normalizeFormValues = (
@@ -251,10 +344,35 @@ export const normalizeFormValues = (
   desktopDownloadLabel: normalizeText(values.desktopDownloadLabel),
   desktopDownloadUrl: normalizeText(values.desktopDownloadUrl),
   helpMenuItems: normalizeHelpMenuItems(values.helpMenuItems),
+  memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
+    values.memoryUserMemoryTriggerMode,
+  ),
+  profileInterestAreas: normalizeConfiguredInterestAreas(values.profileInterestAreas),
   ordersEnabled: typeof values.ordersEnabled === 'boolean' ? values.ordersEnabled : true,
   pricingMultiplier: typeof values.pricingMultiplier === 'number' ? values.pricingMultiplier : 1,
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
+  storageS3AccessKeyId: normalizeText(values.storageS3AccessKeyId),
+  storageS3Bucket: normalizeText(values.storageS3Bucket),
+  storageS3EnablePathStyle:
+    typeof values.storageS3EnablePathStyle === 'boolean' ? values.storageS3EnablePathStyle : false,
+  storageS3Endpoint: normalizeText(values.storageS3Endpoint),
+  storageS3FilePath:
+    normalizeText(values.storageS3FilePath)
+      .replaceAll('\\', '/')
+      .replaceAll(/^\/+|\/+$/g, '') || 'files',
+  storageS3PreviewUrlExpireIn:
+    typeof values.storageS3PreviewUrlExpireIn === 'number'
+      ? values.storageS3PreviewUrlExpireIn
+      : 7200,
+  storageS3PublicDomain: normalizeText(values.storageS3PublicDomain),
+  storageS3Region: normalizeText(values.storageS3Region),
+  storageS3SecretAccessKey: normalizeText(values.storageS3SecretAccessKey),
+  storageS3SecretAccessKeyConfigured:
+    typeof values.storageS3SecretAccessKeyConfigured === 'boolean'
+      ? values.storageS3SecretAccessKeyConfigured
+      : false,
+  storageS3SetAcl: typeof values.storageS3SetAcl === 'boolean' ? values.storageS3SetAcl : false,
 });
 
 export const buildSettingUpdates = (
@@ -266,6 +384,9 @@ export const buildSettingUpdates = (
   const updates: SettingUpdate[] = [];
 
   if (current.cronSecret) updates.push({ key: SETTING_KEYS.cronSecret, value: current.cronSecret });
+  const storageS3SecretUpdate = current.storageS3SecretAccessKey
+    ? { key: SETTING_KEYS.storageS3SecretAccessKey, value: current.storageS3SecretAccessKey }
+    : undefined;
 
   const keys: Array<keyof AdminSettingsFormValues> = [
     'defaultAgentModel',
@@ -290,8 +411,18 @@ export const buildSettingUpdates = (
     'brandSlogan',
     'desktopDownloadUrl',
     'desktopDownloadLabel',
+    'memoryUserMemoryTriggerMode',
     'pricingMultiplier',
     'ordersEnabled',
+    'storageS3AccessKeyId',
+    'storageS3Endpoint',
+    'storageS3FilePath',
+    'storageS3Bucket',
+    'storageS3Region',
+    'storageS3PublicDomain',
+    'storageS3EnablePathStyle',
+    'storageS3SetAcl',
+    'storageS3PreviewUrlExpireIn',
   ];
 
   const keyMap: Record<keyof AdminSettingsFormValues, string> = {
@@ -319,17 +450,39 @@ export const buildSettingUpdates = (
     desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
     desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
     helpMenuItems: SETTING_KEYS.helpMenuItems,
+    memoryUserMemoryTriggerMode: SETTING_KEYS.memoryUserMemoryTriggerMode,
+    profileInterestAreas: SETTING_KEYS.profileInterestAreas,
     ordersEnabled: SETTING_KEYS.ordersManagementEnabled,
     pricingMultiplier: SETTING_KEYS.pricingCreditMultiplier,
     referralRewardCredits: SETTING_KEYS.referralRewardCredits,
+    storageS3AccessKeyId: SETTING_KEYS.storageS3AccessKeyId,
+    storageS3Bucket: SETTING_KEYS.storageS3Bucket,
+    storageS3EnablePathStyle: SETTING_KEYS.storageS3EnablePathStyle,
+    storageS3Endpoint: SETTING_KEYS.storageS3Endpoint,
+    storageS3FilePath: SETTING_KEYS.storageS3FilePath,
+    storageS3PreviewUrlExpireIn: SETTING_KEYS.storageS3PreviewUrlExpireIn,
+    storageS3PublicDomain: SETTING_KEYS.storageS3PublicDomain,
+    storageS3Region: SETTING_KEYS.storageS3Region,
+    storageS3SecretAccessKey: SETTING_KEYS.storageS3SecretAccessKey,
+    storageS3SecretAccessKeyConfigured: SETTING_KEYS.storageS3SecretAccessKey,
+    storageS3SetAcl: SETTING_KEYS.storageS3SetAcl,
   };
 
   for (const key of keys) {
     if (current[key] !== initial[key]) updates.push({ key: keyMap[key], value: current[key] });
+    if (key === 'storageS3AccessKeyId' && storageS3SecretUpdate) {
+      updates.push(storageS3SecretUpdate);
+    }
   }
 
   if (JSON.stringify(current.helpMenuItems) !== JSON.stringify(initial.helpMenuItems)) {
     updates.push({ key: SETTING_KEYS.helpMenuItems, value: current.helpMenuItems });
+  }
+
+  if (
+    JSON.stringify(current.profileInterestAreas) !== JSON.stringify(initial.profileInterestAreas)
+  ) {
+    updates.push({ key: SETTING_KEYS.profileInterestAreas, value: current.profileInterestAreas });
   }
 
   if (JSON.stringify(current.aboutLinks) !== JSON.stringify(initial.aboutLinks)) {
@@ -363,9 +516,13 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     SETTING_KEYS.defaultSkillName,
   ]);
   const needsBrandRefresh = updates.some((update) => brandKeys.has(update.key as any));
+  const needsProfileInterestRefresh = updates.some(
+    (update) => update.key === SETTING_KEYS.profileInterestAreas,
+  );
 
   return [
     ...(needsRuntimeRefresh ? [RUNTIME_CONFIG_SWR_KEY, USER_STATE_SWR_KEY] : []),
     ...(needsBrandRefresh ? [BRAND_CONFIG_SWR_KEY] : []),
+    ...(needsProfileInterestRefresh ? [PROFILE_INTEREST_AREAS_SWR_KEY] : []),
   ];
 };

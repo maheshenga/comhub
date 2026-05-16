@@ -281,6 +281,29 @@ const AdminUsersPage = memo(() => {
     });
   };
 
+  const handleImpersonate = (row: UserRow) => {
+    Modal.confirm({
+      content: t(
+        'admin.impersonate.confirmContent',
+        '系统会把当前管理员会话切换为该用户，用于排查套餐、模型和前台体验问题。完成排查后请退出登录并重新登录管理员账号。',
+      ),
+      okText: t('admin.impersonate.ok', '确认登录'),
+      title: t('admin.impersonate.confirmTitle', '以该用户身份登录？'),
+      onOk: async () => {
+        setActionLoading(`${row.id}-impersonate`);
+        try {
+          await adminCommercialService.impersonateUser(row.id);
+          message.success(t('admin.impersonate.success', '已切换用户身份'));
+          window.location.assign('/');
+        } catch {
+          message.error(t('admin.impersonate.failed', '切换用户身份失败'));
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
+  };
+
   const columns: ColumnsType<UserRow> = [
     {
       dataIndex: 'fullName',
@@ -400,6 +423,13 @@ const AdminUsersPage = memo(() => {
             onClick={() => openAssignPlan(row.id)}
           >
             {t('admin.assignPlan', '设置套餐')}
+          </Button>
+          <Button
+            loading={actionLoading === `${row.id}-impersonate`}
+            size="small"
+            onClick={() => handleImpersonate(row)}
+          >
+            {t('admin.impersonate', '以用户身份登录')}
           </Button>
           <Button size="small" onClick={() => setDetailUserId(row.id)}>
             {t('admin.viewDetail', '详情')}

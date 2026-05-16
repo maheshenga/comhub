@@ -12,7 +12,17 @@ const mockFindById = vi.fn();
 
 const mockCountTopicsForMemoryExtractor = vi.fn();
 const mockDeleteAll = vi.fn();
-const { mockTriggerProcessUsers } = vi.hoisted(() => ({
+const {
+  mockExecutorCreate,
+  mockExecutorGetTopicsForUser,
+  mockExecutorRunDirect,
+  mockGetAppSettingValue,
+  mockTriggerProcessUsers,
+} = vi.hoisted(() => ({
+  mockExecutorCreate: vi.fn(),
+  mockExecutorGetTopicsForUser: vi.fn(),
+  mockExecutorRunDirect: vi.fn(),
+  mockGetAppSettingValue: vi.fn(),
   mockTriggerProcessUsers: vi.fn(),
 }));
 
@@ -58,11 +68,21 @@ vi.mock('@/server/globalConfig/parseMemoryExtractionConfig', () => ({
 }));
 
 vi.mock('@/server/services/memory/userMemory/extract', () => ({
+  MemoryExtractionExecutor: {
+    create: mockExecutorCreate,
+  },
   MemoryExtractionWorkflowService: {
     triggerProcessUsers: mockTriggerProcessUsers,
   },
   buildWorkflowPayloadInput: (payload: any) => payload,
   normalizeMemoryExtractionPayload: (payload: any) => payload,
+}));
+
+vi.mock('@/server/services/appSettings', () => ({
+  APP_SETTING_KEYS: {
+    memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
+  },
+  getAppSettingValue: mockGetAppSettingValue,
 }));
 
 const createCaller = (ctxOverrides: Partial<any> = {}) => {
@@ -78,6 +98,20 @@ const createCaller = (ctxOverrides: Partial<any> = {}) => {
 describe('userMemoryRouter.requestMemoryFromChatTopic', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExecutorCreate.mockReset();
+    mockExecutorGetTopicsForUser.mockReset();
+    mockExecutorRunDirect.mockReset();
+    mockGetAppSettingValue.mockReset();
+    mockTriggerProcessUsers.mockReset();
+    delete process.env.MEMORY_USER_MEMORY_TRIGGER_MODE;
+    process.env.QSTASH_TOKEN = 'test-qstash-token';
+    mockExecutorCreate.mockResolvedValue({
+      getTopicsForUser: mockExecutorGetTopicsForUser,
+      runDirect: mockExecutorRunDirect,
+    });
+    mockExecutorGetTopicsForUser.mockResolvedValue({ ids: [] });
+    mockExecutorRunDirect.mockResolvedValue({ processed: 0, results: [] });
+    mockGetAppSettingValue.mockResolvedValue(null);
     mockTriggerProcessUsers.mockResolvedValue({ workflowRunId: 'workflow-run-1' });
   });
 
@@ -171,6 +205,69 @@ describe('userMemoryRouter.requestMemoryFromChatTopic', () => {
       status: AsyncTaskStatus.Success,
     });
     expect(mockTriggerProcessUsers).not.toHaveBeenCalled();
+  });
+
+  it('falls back to direct extraction when QStash token is not configured', async () => {
+    delete process.env.QSTASH_TOKEN;
+    mockFindActiveByType.mockResolvedValue(undefined);
+    mockCreate.mockResolvedValue('direct-task');
+    mockCountTopicsForMemoryExtractor.mockResolvedValue(2);
+    mockExecutorGetTopicsForUser
+      .mockResolvedValueOnce({ ids: ['topic-1', 'topic-2'] })
+      .mockResolvedValueOnce({ ids: [] });
+
+    const caller = createCaller();
+    const result = await caller.requestMemoryFromChatTopic({});
+
+    expect(result).toMatchObject({
+      deduped: false,
+      id: 'direct-task',
+      status: AsyncTaskStatus.Pending,
+    });
+    expect(mockTriggerProcessUsers).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(mockExecutorCreate).toHaveBeenCalledOnce();
+    });
+    await vi.waitFor(() => {
+      expect(mockExecutorRunDirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          asyncTaskId: 'direct-task',
+          mode: 'direct',
+          sources: [MemorySourceType.ChatTopic],
+          topicIds: ['topic-1', 'topic-2'],
+          userIds: ['user-1'],
+          userInitiated: true,
+        }),
+      );
+    });
+  });
+
+  it('uses direct extraction when the admin memory setting forces direct mode', async () => {
+    process.env.QSTASH_TOKEN = 'test-qstash-token';
+    mockGetAppSettingValue.mockResolvedValue('direct');
+    mockFindActiveByType.mockResolvedValue(undefined);
+    mockCreate.mockResolvedValue('direct-task');
+    mockCountTopicsForMemoryExtractor.mockResolvedValue(1);
+    mockExecutorGetTopicsForUser
+      .mockResolvedValueOnce({ ids: ['topic-1'] })
+      .mockResolvedValueOnce({ ids: [] });
+
+    const caller = createCaller();
+    const result = await caller.requestMemoryFromChatTopic({});
+
+    expect(result).toMatchObject({
+      id: 'direct-task',
+      status: AsyncTaskStatus.Pending,
+    });
+    expect(mockTriggerProcessUsers).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(mockExecutorRunDirect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'direct',
+          topicIds: ['topic-1'],
+        }),
+      );
+    });
   });
 
   it('throws on invalid date range', async () => {

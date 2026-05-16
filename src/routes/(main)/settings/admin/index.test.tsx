@@ -84,12 +84,32 @@ vi.mock('@/routes/(main)/admin/growth', () => ({
   default: () => <div data-testid="admin-growth" />,
 }));
 
+vi.mock('@/routes/(main)/admin/expert-plaza', () => ({
+  default: () => <div data-testid="admin-expert-plaza" />,
+}));
+
+vi.mock('@/routes/(main)/admin/topics', () => ({
+  default: () => <div data-testid="admin-topics" />,
+}));
+
+vi.mock('@/routes/(main)/admin/files', () => ({
+  default: () => <div data-testid="admin-files" />,
+}));
+
+vi.mock('@/routes/(main)/admin/documents', () => ({
+  default: () => <div data-testid="admin-documents" />,
+}));
+
 vi.mock('@/routes/(main)/admin/model-billing-matrix', () => ({
   default: () => <div data-testid="admin-model-billing-matrix" />,
 }));
 
 vi.mock('@/routes/(main)/admin/model-policy', () => ({
   default: () => <div data-testid="admin-model-policy" />,
+}));
+
+vi.mock('@/routes/(main)/admin/notifications', () => ({
+  default: () => <div data-testid="admin-notifications" />,
 }));
 
 vi.mock('@/routes/(main)/admin/operations', () => ({
@@ -148,6 +168,10 @@ vi.mock('@/routes/(main)/admin/stats', () => ({
 
 vi.mock('@/routes/(main)/admin/subscriptions', () => ({
   default: () => <div data-testid="admin-subscriptions" />,
+}));
+
+vi.mock('@/routes/(main)/admin/system-defaults', () => ({
+  default: () => <div data-testid="admin-system-defaults" />,
 }));
 
 vi.mock('@/routes/(main)/admin/users', () => ({
@@ -225,5 +249,60 @@ describe('SettingsAdminPage', () => {
 
     expect(screen.getByTestId('admin-ppt')).toBeInTheDocument();
     expect(screen.queryByTestId('admin-settings')).not.toBeInTheDocument();
+  });
+
+  it('renders notification settings for the notifications admin sub-route', () => {
+    act(() => {
+      locationMock.pathname = '/settings/admin/notifications';
+      userStoreMock.useUserStore.setState({
+        isSignedIn: true,
+        isUserStateInit: true,
+        user: { id: 'admin-1', role: 'admin', username: 'admin' } as any,
+      });
+    });
+
+    render(<SettingsAdminPage />);
+
+    expect(screen.getByTestId('admin-notifications')).toBeInTheDocument();
+    expect(screen.queryByTestId('admin-settings')).not.toBeInTheDocument();
+  });
+
+  it('renders expert plaza settings for the expert plaza admin sub-route', () => {
+    act(() => {
+      locationMock.pathname = '/settings/admin/expert-plaza';
+      userStoreMock.useUserStore.setState({
+        isSignedIn: true,
+        isUserStateInit: true,
+        user: { id: 'admin-1', role: 'admin', username: 'admin' } as any,
+      });
+    });
+
+    render(<SettingsAdminPage />);
+
+    expect(screen.getByTestId('admin-expert-plaza')).toBeInTheDocument();
+  });
+
+  it('renders content governance pages for their admin sub-routes', () => {
+    act(() => {
+      userStoreMock.useUserStore.setState({
+        isSignedIn: true,
+        isUserStateInit: true,
+        user: { id: 'admin-1', role: 'admin', username: 'admin' } as any,
+      });
+    });
+
+    for (const [pathname, testId] of [
+      ['/settings/admin/topics', 'admin-topics'],
+      ['/settings/admin/files', 'admin-files'],
+      ['/settings/admin/documents', 'admin-documents'],
+      ['/settings/admin/system-defaults', 'admin-system-defaults'],
+    ] as const) {
+      act(() => {
+        locationMock.pathname = pathname;
+      });
+      const { unmount } = render(<SettingsAdminPage />);
+      expect(screen.getByTestId(testId)).toBeInTheDocument();
+      unmount();
+    }
   });
 });

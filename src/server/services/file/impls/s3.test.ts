@@ -44,6 +44,20 @@ vi.mock('@/server/modules/S3', () => ({
     createPreSignedUrlForPreview: vi
       .fn()
       .mockResolvedValue('https://presigned.example.com/test.jpg'),
+    getConfig: vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        accessKeyId: 'test-access-key',
+        bucket: config.S3_BUCKET,
+        enablePathStyle: config.S3_ENABLE_PATH_STYLE,
+        endpoint: 'https://s3.example.com',
+        filePath: 'files',
+        previewUrlExpireIn: config.S3_PREVIEW_URL_EXPIRE_IN,
+        publicDomain: config.S3_PUBLIC_DOMAIN,
+        region: 'us-east-1',
+        secretAccessKey: 'test-secret-key',
+        setAcl: config.S3_SET_ACL,
+      }),
+    ),
     getFileContent: vi.fn().mockResolvedValue('file content'),
     getFileByteArray: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
     getFileMetadata: vi.fn().mockResolvedValue({ contentLength: 1024, contentType: 'image/png' }),
@@ -108,6 +122,33 @@ describe('S3StaticFileImpl', () => {
       config.S3_SET_ACL = true;
     });
 
+    it('should not reuse cached presigned preview URLs after S3 config changes', async () => {
+      config.S3_SET_ACL = false;
+      const url = 'path/to/config-sensitive-file.jpg';
+      const createPreSignedUrlForPreview = vi.mocked(
+        fileService['s3'].createPreSignedUrlForPreview,
+      );
+      createPreSignedUrlForPreview
+        .mockResolvedValueOnce('https://old-s3.example.com/signed.jpg')
+        .mockResolvedValueOnce('https://new-s3.example.com/signed.jpg');
+
+      try {
+        await expect(fileService.getFullFileUrl(url)).resolves.toBe(
+          'https://old-s3.example.com/signed.jpg',
+        );
+
+        config.S3_BUCKET = 'new-bucket';
+
+        await expect(fileService.getFullFileUrl(url)).resolves.toBe(
+          'https://new-s3.example.com/signed.jpg',
+        );
+        expect(createPreSignedUrlForPreview).toHaveBeenCalledTimes(2);
+      } finally {
+        config.S3_BUCKET = 'my-bucket';
+        config.S3_SET_ACL = true;
+      }
+    });
+
     it('should reuse Redis cached presigned preview URL across function instances', async () => {
       config.S3_SET_ACL = false;
       redisMocks.getRedisConfig.mockReturnValue({
@@ -141,7 +182,9 @@ describe('S3StaticFileImpl', () => {
       );
 
       expect(redisMocks.redis.set).toHaveBeenCalledWith(
-        'file:presigned-preview:7200:path/to/redis-write-file.jpg',
+        expect.stringMatching(
+          /^file:presigned-preview:7200:[\dA-Fa-f]{16}:path\/to\/redis-write-file\.jpg$/,
+        ),
         'https://presigned.example.com/test.jpg',
         { ex: 3600 },
       );

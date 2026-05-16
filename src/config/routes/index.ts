@@ -1,10 +1,12 @@
 import { type LucideIcon } from 'lucide-react';
 import {
   BrainCircuit,
+  Compass,
   FilePenIcon,
   Image,
   LibraryBigIcon,
   ListTodoIcon,
+  Presentation,
   Settings,
   ShapesIcon,
   Video,
@@ -47,6 +49,16 @@ export const NAVIGATION_ROUTES: NavigationRoute[] = [
     pathPrefix: '/community',
   },
   {
+    cmdkKey: 'cmdk.experts',
+    electronKey: 'navigation.experts',
+    icon: Compass,
+    id: 'experts',
+    keywords: ['expert', 'plaza', 'assistant', 'workflow', 'service'],
+    keywordsKey: 'cmdk.keywords.experts',
+    path: '/experts',
+    pathPrefix: '/experts',
+  },
+  {
     cmdkKey: 'cmdk.video',
     electronKey: 'navigation.video',
     icon: Video,
@@ -65,6 +77,16 @@ export const NAVIGATION_ROUTES: NavigationRoute[] = [
     keywordsKey: 'cmdk.keywords.painting',
     path: '/image',
     pathPrefix: '/image',
+  },
+  {
+    cmdkKey: 'cmdk.ppt',
+    electronKey: 'navigation.ppt',
+    icon: Presentation,
+    id: 'ppt',
+    keywords: ['ppt', 'presentation', 'slides', 'deck', 'powerpoint'],
+    keywordsKey: 'cmdk.keywords.ppt',
+    path: '/ppt',
+    pathPrefix: '/ppt',
   },
   {
     cmdkKey: 'cmdk.resource',
@@ -130,5 +152,5 @@ export const getRouteById = (id: string): NavigationRoute | undefined =>
  */
 export const getNavigableRoutes = (): NavigationRoute[] =>
   NAVIGATION_ROUTES.filter((r) =>
-    ['community', 'video', 'image', 'resource', 'page', 'memory'].includes(r.id),
+    ['community', 'experts', 'video', 'image', 'ppt', 'resource', 'page', 'memory'].includes(r.id),
   );

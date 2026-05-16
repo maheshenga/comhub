@@ -11,12 +11,13 @@ const collectPaths = () =>
   ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.path));
 
 describe('adminNavigation', () => {
-  it('organizes admin pages into the planned five management modules', () => {
+  it('organizes admin pages into the planned management modules', () => {
     expect(ADMIN_NAV_GROUPS.map((group) => group.label)).toEqual([
       '工作台',
       '用户与套餐',
       '模型与计费',
       '品牌与增长',
+      '内容治理',
       '系统运维',
     ]);
   });
@@ -35,6 +36,8 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/recommendations`,
         `${ADMIN_BASE_PATH}/operations`,
         `${ADMIN_BASE_PATH}/growth`,
+        `${ADMIN_BASE_PATH}/notifications`,
+        `${ADMIN_BASE_PATH}/expert-plaza`,
         `${ADMIN_BASE_PATH}/model-policy`,
         `${ADMIN_BASE_PATH}/providers`,
         `${ADMIN_BASE_PATH}/model-billing-matrix`,
@@ -43,6 +46,10 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/redemption`,
         `${ADMIN_BASE_PATH}/settings`,
         `${ADMIN_BASE_PATH}/stats`,
+        `${ADMIN_BASE_PATH}/topics`,
+        `${ADMIN_BASE_PATH}/files`,
+        `${ADMIN_BASE_PATH}/documents`,
+        `${ADMIN_BASE_PATH}/system-defaults`,
         `${ADMIN_BASE_PATH}/audit`,
         `${ADMIN_BASE_PATH}/desktop-update`,
       ]),
@@ -103,9 +110,27 @@ describe('adminNavigation', () => {
       `${ADMIN_BASE_PATH}/model-billing-matrix`,
     );
     expect(getAdminSelectedKey('/settings/admin/ppt')).toBe(`${ADMIN_BASE_PATH}/ppt`);
+    expect(getAdminSelectedKey('/settings/admin/notifications')).toBe(
+      `${ADMIN_BASE_PATH}/notifications`,
+    );
+    expect(getAdminSelectedKey('/settings/admin/expert-plaza')).toBe(
+      `${ADMIN_BASE_PATH}/expert-plaza`,
+    );
+    expect(getAdminSelectedKey('/settings/admin/topics')).toBe(`${ADMIN_BASE_PATH}/topics`);
+    expect(getAdminSelectedKey('/settings/admin/files')).toBe(`${ADMIN_BASE_PATH}/files`);
+    expect(getAdminSelectedKey('/settings/admin/documents')).toBe(`${ADMIN_BASE_PATH}/documents`);
+    expect(getAdminSelectedKey('/settings/admin/system-defaults')).toBe(
+      `${ADMIN_BASE_PATH}/system-defaults`,
+    );
 
     expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['model-billing']);
     expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['model-billing']);
     expect(getAdminOpenKeys('/settings/admin/ppt')).toEqual(['model-billing']);
+    expect(getAdminOpenKeys('/settings/admin/notifications')).toEqual(['brand-growth']);
+    expect(getAdminOpenKeys('/settings/admin/expert-plaza')).toEqual(['brand-growth']);
+    expect(getAdminOpenKeys('/settings/admin/topics')).toEqual(['content']);
+    expect(getAdminOpenKeys('/settings/admin/files')).toEqual(['content']);
+    expect(getAdminOpenKeys('/settings/admin/documents')).toEqual(['content']);
+    expect(getAdminOpenKeys('/settings/admin/system-defaults')).toEqual(['system']);
   });
 });

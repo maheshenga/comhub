@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as PlanModelRulesModule from '@/business/server/planModelRules';
 import { resolvePlanModelRules } from '@/business/server/planModelRules';
 
-import { resolveDefaultNewapiInstance, resolveNewapiInstancesForModel } from './index';
+import {
+  getAllEnabledModels,
+  resolveDefaultNewapiInstance,
+  resolveNewapiInstancesForModel,
+} from './index';
 
 vi.mock('@/business/server/planModelRules', async () => {
   const actual = await vi.importActual<typeof PlanModelRulesModule>(
@@ -201,5 +205,43 @@ describe('NewAPI instance resolver', () => {
         instanceId: 'default-1',
       }),
     );
+  });
+
+  it('keeps enabled model routes distinct when the same model exists in multiple groups', async () => {
+    const db = createDb([
+      {
+        displayName: 'GPT-4o',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        modelId: 'gpt-4o',
+        modelType: 'chat',
+        providerType: 'newapi',
+      },
+      {
+        displayName: 'GPT-4o',
+        groupKey: 'pro',
+        groupName: 'Pro',
+        instanceId: 'pro-1',
+        instanceName: 'Pro Gateway',
+        modelId: 'gpt-4o',
+        modelType: 'chat',
+        providerType: 'openai-compatible',
+      },
+    ]);
+
+    await expect(getAllEnabledModels(db)).resolves.toEqual([
+      expect.objectContaining({
+        groupKey: 'basic',
+        id: 'gpt-4o',
+        instanceName: 'Basic Gateway',
+      }),
+      expect.objectContaining({
+        groupKey: 'pro',
+        id: 'gpt-4o',
+        instanceName: 'Pro Gateway',
+      }),
+    ]);
   });
 });

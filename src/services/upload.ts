@@ -10,6 +10,14 @@ import { type FileUploadState, type FileUploadStatus } from '@/types/files/uploa
 
 export const UPLOAD_NETWORK_ERROR = 'NetWorkError';
 
+const getS3FilePath = () => {
+  if (typeof window !== 'undefined') {
+    return window.__SERVER_CONFIG__?.clientEnv?.s3FilePath || fileEnv.NEXT_PUBLIC_S3_FILE_PATH;
+  }
+
+  return fileEnv.NEXT_PUBLIC_S3_FILE_PATH;
+};
+
 /**
  * Generate file storage path metadata for S3-compatible storage
  * @param originalFilename - Original filename
@@ -31,7 +39,7 @@ const generateFilePathMetadata = (
 
   // Generate timestamp-based directory path
   const date = (Date.now() / 1000 / 60 / 60).toFixed(0);
-  const dirname = `${options.directory || fileEnv.NEXT_PUBLIC_S3_FILE_PATH}/${date}`;
+  const dirname = `${options.directory || getS3FilePath()}/${date}`;
   const pathname = options.pathname ?? `${dirname}/${filename}`;
 
   return {

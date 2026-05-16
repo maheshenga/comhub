@@ -3,6 +3,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -10,11 +11,17 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FileS3, S3 } from './index';
+import { getServerFileS3Config } from '@/server/services/appSettings';
+
+import { FileS3, invalidateFileS3RuntimeCache, S3 } from './index';
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-s3');
 vi.mock('@aws-sdk/s3-request-presigner');
+
+vi.mock('@/server/services/appSettings', () => ({
+  getServerFileS3Config: vi.fn(),
+}));
 
 // Mock environment variables
 vi.mock('@/envs/file', () => ({
@@ -46,6 +53,19 @@ describe('S3', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateFileS3RuntimeCache();
+    vi.mocked(getServerFileS3Config).mockResolvedValue({
+      accessKeyId: 'test-access-key',
+      bucket: 'test-bucket',
+      enablePathStyle: false,
+      endpoint: 'https://s3.amazonaws.com',
+      filePath: 'files',
+      previewUrlExpireIn: 7200,
+      publicDomain: undefined,
+      region: 'us-east-1',
+      secretAccessKey: 'test-secret-key',
+      setAcl: true,
+    });
 
     // Setup S3Client mock
     mockS3ClientSend = vi.fn();
@@ -135,6 +155,19 @@ describe('FileS3', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateFileS3RuntimeCache();
+    vi.mocked(getServerFileS3Config).mockResolvedValue({
+      accessKeyId: 'test-access-key',
+      bucket: 'test-bucket',
+      enablePathStyle: false,
+      endpoint: 'https://s3.amazonaws.com',
+      filePath: 'files',
+      previewUrlExpireIn: 7200,
+      publicDomain: undefined,
+      region: 'us-east-1',
+      secretAccessKey: 'test-secret-key',
+      setAcl: true,
+    });
 
     // Setup S3Client mock
     mockS3ClientSend = vi.fn();
@@ -363,6 +396,95 @@ describe('FileS3', () => {
   });
 
   describe('createPreSignedUrl', () => {
+    it('reuses the runtime S3 client while admin-managed config is unchanged', async () => {
+      const s3 = new FileS3();
+
+      await s3.createPreSignedUrl('upload-1.txt');
+      await s3.createPreSignedUrl('upload-2.txt');
+
+      expect(S3Client).toHaveBeenCalledTimes(2);
+      expect(getServerFileS3Config).toHaveBeenCalledTimes(1);
+    });
+
+    it('creates a fresh runtime S3 client after cache invalidation', async () => {
+      const s3 = new FileS3();
+
+      await s3.createPreSignedUrl('upload-1.txt');
+      invalidateFileS3RuntimeCache();
+      await s3.createPreSignedUrl('upload-2.txt');
+
+      expect(S3Client).toHaveBeenCalledTimes(3);
+      expect(getServerFileS3Config).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not let a static FileS3 config populate the shared runtime cache', async () => {
+      const staticS3 = new FileS3({
+        accessKeyId: 'static-access-key',
+        bucket: 'static-bucket',
+        enablePathStyle: true,
+        endpoint: 'https://static-s3.example.com',
+        filePath: 'static-files',
+        previewUrlExpireIn: 900,
+        publicDomain: undefined,
+        region: 'ap-southeast-1',
+        secretAccessKey: 'static-secret-key',
+        setAcl: false,
+      });
+
+      await staticS3.createPreSignedUrl('static-upload.txt');
+      expect(PutObjectCommand).toHaveBeenLastCalledWith({
+        ACL: undefined,
+        Bucket: 'static-bucket',
+        Key: 'static-upload.txt',
+      });
+
+      const runtimeS3 = new FileS3();
+      await runtimeS3.createPreSignedUrl('runtime-upload.txt');
+
+      expect(getServerFileS3Config).toHaveBeenCalledTimes(1);
+      expect(PutObjectCommand).toHaveBeenLastCalledWith({
+        ACL: 'public-read',
+        Bucket: 'test-bucket',
+        Key: 'runtime-upload.txt',
+      });
+    });
+
+    it('should use admin-managed S3 config before environment config', async () => {
+      vi.mocked(getServerFileS3Config).mockResolvedValueOnce({
+        accessKeyId: 'admin-access-key',
+        bucket: 'admin-bucket',
+        enablePathStyle: true,
+        endpoint: 'https://admin-s3.example.com',
+        filePath: 'admin-files',
+        previewUrlExpireIn: 1800,
+        publicDomain: 'https://cdn.example.com',
+        region: 'ap-southeast-1',
+        secretAccessKey: 'admin-secret-key',
+        setAcl: false,
+      });
+
+      const s3 = new FileS3();
+
+      await s3.createPreSignedUrl('upload-file.txt');
+
+      expect(S3Client).toHaveBeenLastCalledWith({
+        credentials: {
+          accessKeyId: 'admin-access-key',
+          secretAccessKey: 'admin-secret-key',
+        },
+        endpoint: 'https://admin-s3.example.com',
+        forcePathStyle: true,
+        region: 'ap-southeast-1',
+        requestChecksumCalculation: 'WHEN_REQUIRED',
+        responseChecksumValidation: 'WHEN_REQUIRED',
+      });
+      expect(PutObjectCommand).toHaveBeenCalledWith({
+        ACL: undefined,
+        Bucket: 'admin-bucket',
+        Key: 'upload-file.txt',
+      });
+    });
+
     it('should create presigned URL for upload with ACL', async () => {
       const s3 = new FileS3();
 
@@ -377,6 +499,20 @@ describe('FileS3', () => {
         expiresIn: 3600,
       });
       expect(result).toBe('https://presigned-url.example.com');
+    });
+  });
+
+  describe('testConnection', () => {
+    it('should test bucket access with HeadBucket', async () => {
+      const s3 = new FileS3();
+      mockS3ClientSend.mockResolvedValue({});
+
+      await s3.testConnection();
+
+      expect(HeadBucketCommand).toHaveBeenCalledWith({
+        Bucket: 'test-bucket',
+      });
+      expect(mockS3ClientSend).toHaveBeenCalled();
     });
   });
 

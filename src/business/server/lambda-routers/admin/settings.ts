@@ -4,17 +4,32 @@ import { and, eq, lt } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { normalizeAboutLinksConfig } from '@/const/aboutLinks';
+import { normalizeAvatarPresets } from '@/const/avatarPresets';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
-import { adminAuditLogs, appSettings, planCatalog, topUpOrders } from '@/database/schemas';
+import {
+  DEFAULT_EXPERT_PLAZA_CONFIG,
+  normalizeExpertPlazaCards,
+  normalizeExpertPlazaConfig,
+} from '@/const/expertPlaza';
+import {
+  adminAuditLogs,
+  appSettings,
+  notifications,
+  planCatalog,
+  topUpOrders,
+} from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 import { adminProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
+import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import {
   APP_SETTING_KEYS,
   getServerDefaultModelSuggestions,
+  getServerFileS3Config,
   getServerModelPolicyConfig,
   invalidateServerAppSettings,
+  normalizeS3FilePath,
   serializeModelIdList,
 } from '@/server/services/appSettings';
 import { invalidateServerBrand } from '@/server/services/brand';
@@ -38,6 +53,7 @@ const SENSITIVE_KEYS = new Set<string>([
   SETTING_KEYS.cronSecret,
   SETTING_KEYS.desktopOssAccessKeySecret,
   SETTING_KEYS.docmeePptApiKey,
+  SETTING_KEYS.storageS3SecretAccessKey,
 ]);
 
 const BRAND_KEYS = [
@@ -107,6 +123,52 @@ const GROWTH_KEYS = [
   SETTING_KEYS.uploadMaxActualSizeMb,
 ] as const;
 
+const PROFILE_KEYS = [SETTING_KEYS.profileInterestAreas] as const;
+
+const MEMORY_KEYS = [SETTING_KEYS.memoryUserMemoryTriggerMode] as const;
+
+const VECTOR_KEYS = [
+  SETTING_KEYS.vectorEmbeddingProvider,
+  SETTING_KEYS.vectorEmbeddingModel,
+  SETTING_KEYS.vectorRerankerProvider,
+  SETTING_KEYS.vectorRerankerModel,
+  SETTING_KEYS.vectorQueryMode,
+] as const;
+
+const USER_GLOBAL_KEYS = [SETTING_KEYS.userGlobalSettingsDefaults] as const;
+
+const EXPERT_PLAZA_KEYS = [
+  SETTING_KEYS.expertPlazaEnabled,
+  SETTING_KEYS.expertPlazaName,
+  SETTING_KEYS.expertPlazaDescription,
+  SETTING_KEYS.expertPlazaCategories,
+  SETTING_KEYS.expertPlazaCards,
+] as const;
+
+const NOTIFICATION_KEYS = [
+  SETTING_KEYS.notificationInboxEnabled,
+  SETTING_KEYS.notificationDesktopEnabled,
+  SETTING_KEYS.notificationEmailEnabled,
+  SETTING_KEYS.notificationRetentionDays,
+  SETTING_KEYS.notificationSystemEnabled,
+  SETTING_KEYS.notificationSystemTitle,
+  SETTING_KEYS.notificationSystemContent,
+  SETTING_KEYS.notificationSystemActionUrl,
+] as const;
+
+const STORAGE_KEYS = [
+  SETTING_KEYS.storageS3AccessKeyId,
+  SETTING_KEYS.storageS3SecretAccessKey,
+  SETTING_KEYS.storageS3Endpoint,
+  SETTING_KEYS.storageS3Bucket,
+  SETTING_KEYS.storageS3Region,
+  SETTING_KEYS.storageS3PublicDomain,
+  SETTING_KEYS.storageS3FilePath,
+  SETTING_KEYS.storageS3EnablePathStyle,
+  SETTING_KEYS.storageS3SetAcl,
+  SETTING_KEYS.storageS3PreviewUrlExpireIn,
+] as const;
+
 const MODEL_POLICY_KEYS = [
   SETTING_KEYS.modelPolicyEnabled,
   SETTING_KEYS.modelPolicyMode,
@@ -165,6 +227,52 @@ const toBoundedInt = (value: unknown, fallback: number, min: number, max: number
 const toString = (value: unknown, fallback = '') =>
   typeof value === 'string' ? value.trim() : fallback;
 
+const toOptionalUrlString = (value: unknown, key: string) => {
+  const text = toString(value);
+  if (!text) return '';
+
+  try {
+    new URL(text);
+    return text;
+  } catch {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `${key} must be a valid URL`,
+    });
+  }
+};
+
+const normalizeMemoryUserMemoryTriggerMode = (value: unknown) =>
+  value === 'direct' || value === 'workflow' || value === 'auto' ? value : 'auto';
+
+const normalizeOptionalMemoryUserMemoryTriggerMode = (value: unknown) =>
+  value === 'direct' || value === 'workflow' || value === 'auto' ? value : null;
+
+const normalizeProfileInterestAreas = (value: unknown) => {
+  const items = Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  const normalized: Array<{ key: string; label: string }> = [];
+
+  for (const item of items) {
+    const label =
+      typeof item === 'string'
+        ? item.trim()
+        : item && typeof item === 'object'
+          ? toString((item as Record<string, unknown>).label)
+          : '';
+    const key =
+      item && typeof item === 'object'
+        ? toString((item as Record<string, unknown>).key) || label
+        : label;
+
+    if (!key || !label || seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({ key, label });
+  }
+
+  return normalized;
+};
+
 type AppSettingDraft = Record<string, unknown>;
 type DefaultModelType = 'chat' | 'image' | 'video';
 
@@ -190,21 +298,43 @@ export const validateDefaultAgentModelUsability = async (
 
   if (provider === 'newapi') {
     const enabledModels = await getAllEnabledModels(db);
-    const matchedModel = enabledModels.find((item) => item.id === model);
+    const matchedRoutes = enabledModels.filter((item) => item.id === model);
 
-    if (!matchedModel) {
+    if (matchedRoutes.length === 0) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'DEFAULT_MODEL_NOT_ENABLED',
       });
     }
 
-    if (matchedModel.type !== modelType) {
+    const typeMatchedRoutes = matchedRoutes.filter((item) => item.type === modelType);
+
+    if (typeMatchedRoutes.length === 0) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'DEFAULT_MODEL_TYPE_MISMATCH',
       });
     }
+
+    const freePlan = await db.query.planCatalog.findFirst({
+      where: eq(planCatalog.plan, Plans.Free),
+    });
+    const modelRules = freePlan?.modelRules;
+
+    if (!modelRules) return;
+
+    const isAllowedByAnyEnabledRoute = typeMatchedRoutes.some((item) =>
+      isModelAllowedByPlanRules(modelRules, model, modelType, item.groupKey),
+    );
+
+    if (!isAllowedByAnyEnabledRoute) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN',
+      });
+    }
+
+    return;
   }
 
   const freePlan = await db.query.planCatalog.findFirst({
@@ -386,6 +516,24 @@ const readPublicGrowth = async (db: any) => {
   };
 };
 
+const readPublicExpertPlaza = async (db: any) => {
+  const [enabled, name, description, categories, cards] = await Promise.all([
+    readSetting(db, SETTING_KEYS.expertPlazaEnabled),
+    readSetting(db, SETTING_KEYS.expertPlazaName),
+    readSetting(db, SETTING_KEYS.expertPlazaDescription),
+    readSetting(db, SETTING_KEYS.expertPlazaCategories),
+    readSetting(db, SETTING_KEYS.expertPlazaCards),
+  ]);
+
+  return normalizeExpertPlazaConfig({
+    cards: normalizeExpertPlazaCards(cards),
+    categories: toStringList(categories),
+    description: toString(description, DEFAULT_EXPERT_PLAZA_CONFIG.description),
+    enabled: toBoolean(enabled, DEFAULT_EXPERT_PLAZA_CONFIG.enabled),
+    name: toString(name, DEFAULT_EXPERT_PLAZA_CONFIG.name),
+  });
+};
+
 export const adminSettingsRouter = router({
   /**
    * Public read of brand-related settings, used by the SPA shell to render the
@@ -450,6 +598,54 @@ export const adminSettingsRouter = router({
   ),
 
   getPublicGrowth: publicDbProcedure.query(async ({ ctx }) => readPublicGrowth(ctx.serverDB)),
+
+  getPublicExpertPlaza: publicDbProcedure.query(async ({ ctx }) =>
+    readPublicExpertPlaza(ctx.serverDB),
+  ),
+
+  getPublicProfileOptions: publicDbProcedure.query(async ({ ctx }) => {
+    const [interestAreas, avatarPresets] = await Promise.all([
+      readSetting(ctx.serverDB, SETTING_KEYS.profileInterestAreas),
+      readSetting(ctx.serverDB, SETTING_KEYS.profileAvatarPresets),
+    ]);
+
+    return {
+      avatarPresets: normalizeAvatarPresets(avatarPresets),
+      interestAreas: normalizeProfileInterestAreas(interestAreas),
+    };
+  }),
+
+  getPublicNotificationConfig: publicDbProcedure.query(async ({ ctx }) => {
+    const [
+      inboxEnabled,
+      desktopEnabled,
+      emailEnabled,
+      systemEnabled,
+      systemTitle,
+      systemContent,
+      systemActionUrl,
+    ] = await Promise.all([
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationInboxEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationDesktopEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationEmailEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemContent),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionUrl),
+    ]);
+
+    return {
+      desktopEnabled: toBoolean(desktopEnabled, true),
+      emailEnabled: toBoolean(emailEnabled, false),
+      inboxEnabled: toBoolean(inboxEnabled, true),
+      system: {
+        actionUrl: toString(systemActionUrl) || null,
+        content: toString(systemContent),
+        enabled: toBoolean(systemEnabled, false),
+        title: toString(systemTitle),
+      },
+    };
+  }),
 
   getPublicHelpMenu: publicDbProcedure.query(async ({ ctx }) => {
     const raw = await readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems);
@@ -526,6 +722,34 @@ export const adminSettingsRouter = router({
       desktopDownloadLabel,
       helpMenuItems,
       aboutLinks,
+      profileInterestAreas,
+      avatarPresets,
+      memoryUserMemoryTriggerMode,
+      vectorEmbeddingProvider,
+      vectorEmbeddingModel,
+      vectorRerankerProvider,
+      vectorRerankerModel,
+      vectorQueryMode,
+      userGlobalSettingsDefaults,
+      expertPlazaConfig,
+      notificationInboxEnabled,
+      notificationDesktopEnabled,
+      notificationEmailEnabled,
+      notificationRetentionDays,
+      notificationSystemEnabled,
+      notificationSystemTitle,
+      notificationSystemContent,
+      notificationSystemActionUrl,
+      storageS3AccessKeyId,
+      storageS3SecretAccessKey,
+      storageS3Endpoint,
+      storageS3Bucket,
+      storageS3Region,
+      storageS3PublicDomain,
+      storageS3FilePath,
+      storageS3EnablePathStyle,
+      storageS3SetAcl,
+      storageS3PreviewUrlExpireIn,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.referralRewardCredits),
       readSetting(ctx.serverDB, SETTING_KEYS.cronSecret),
@@ -570,9 +794,39 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems),
       readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks),
+      readSetting(ctx.serverDB, SETTING_KEYS.profileInterestAreas),
+      readSetting(ctx.serverDB, SETTING_KEYS.profileAvatarPresets),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryTriggerMode),
+      readSetting(ctx.serverDB, SETTING_KEYS.vectorEmbeddingProvider),
+      readSetting(ctx.serverDB, SETTING_KEYS.vectorEmbeddingModel),
+      readSetting(ctx.serverDB, SETTING_KEYS.vectorRerankerProvider),
+      readSetting(ctx.serverDB, SETTING_KEYS.vectorRerankerModel),
+      readSetting(ctx.serverDB, SETTING_KEYS.vectorQueryMode),
+      readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults),
+      readPublicExpertPlaza(ctx.serverDB),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationInboxEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationDesktopEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationEmailEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationRetentionDays),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemContent),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3AccessKeyId),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3SecretAccessKey),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3Endpoint),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3Bucket),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3Region),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3PublicDomain),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3FilePath),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3EnablePathStyle),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3SetAcl),
+      readSetting(ctx.serverDB, SETTING_KEYS.storageS3PreviewUrlExpireIn),
     ]);
 
     const dbCronSecret = typeof cronSecret === 'string' ? cronSecret : null;
+    const dbS3Secret =
+      typeof storageS3SecretAccessKey === 'string' ? storageS3SecretAccessKey : null;
 
     const resolvedDefaultAgentConfig = await getResolvedServerDefaultAgentConfig(ctx.serverDB);
     const currentDefaultModel = ((typeof defaultAgentModel === 'string' &&
@@ -632,7 +886,7 @@ export const adminSettingsRouter = router({
       defaultModelSuggestions,
       enabledNewapiModels: enabledNewapiModels.map((item) => ({
         displayName: item.displayName,
-        instanceName: null,
+        instanceName: item.instanceName ?? item.groupName ?? null,
         modelId: item.id,
         modelType: item.type,
         provider: 'newapi',
@@ -674,6 +928,63 @@ export const adminSettingsRouter = router({
       desktopDownloadUrl: toString(desktopDownloadUrl) || null,
       helpMenuItems: Array.isArray(helpMenuItems) ? helpMenuItems : [],
       aboutLinks: normalizeAboutLinksConfig(aboutLinks),
+      profileInterestAreas: normalizeProfileInterestAreas(profileInterestAreas),
+      avatarPresets: normalizeAvatarPresets(avatarPresets),
+      memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
+        memoryUserMemoryTriggerMode,
+      ),
+      vectorConfig: {
+        dimensions: 1024,
+        embeddingModel: toString(vectorEmbeddingModel),
+        embeddingProvider: toString(vectorEmbeddingProvider),
+        queryMode: toString(vectorQueryMode),
+        rerankerModel: toString(vectorRerankerModel),
+        rerankerProvider: toString(vectorRerankerProvider),
+      },
+      userGlobalSettingsDefaults:
+        userGlobalSettingsDefaults &&
+        typeof userGlobalSettingsDefaults === 'object' &&
+        !Array.isArray(userGlobalSettingsDefaults)
+          ? userGlobalSettingsDefaults
+          : {},
+      expertPlazaConfig,
+      memoryUserMemoryTriggerModeEnv: normalizeOptionalMemoryUserMemoryTriggerMode(
+        process.env.MEMORY_USER_MEMORY_TRIGGER_MODE,
+      ),
+      qstashTokenConfigured: Boolean(process.env.QSTASH_TOKEN),
+      notificationInboxEnabled: toBoolean(notificationInboxEnabled, true),
+      notificationDesktopEnabled: toBoolean(notificationDesktopEnabled, true),
+      notificationEmailEnabled: toBoolean(notificationEmailEnabled, false),
+      notificationRetentionDays: toBoundedInt(notificationRetentionDays, 90, 1, 3650),
+      notificationSystemEnabled: toBoolean(notificationSystemEnabled, false),
+      notificationSystemTitle: toString(notificationSystemTitle),
+      notificationSystemContent: toString(notificationSystemContent),
+      notificationSystemActionUrl: toString(notificationSystemActionUrl),
+      storageS3AccessKeyId:
+        toString(storageS3AccessKeyId) || toString(process.env.S3_ACCESS_KEY_ID),
+      storageS3Bucket: toString(storageS3Bucket) || toString(process.env.S3_BUCKET),
+      storageS3EnablePathStyle: toBoolean(
+        storageS3EnablePathStyle,
+        process.env.S3_ENABLE_PATH_STYLE === '1',
+      ),
+      storageS3Endpoint: toString(storageS3Endpoint) || toString(process.env.S3_ENDPOINT),
+      storageS3PreviewUrlExpireIn: toBoundedInt(
+        storageS3PreviewUrlExpireIn,
+        Number.parseInt(process.env.S3_PREVIEW_URL_EXPIRE_IN || '7200') || 7200,
+        60,
+        604_800,
+      ),
+      storageS3PublicDomain:
+        toString(storageS3PublicDomain) ||
+        toString(process.env.S3_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_S3_DOMAIN),
+      storageS3FilePath:
+        normalizeS3FilePath(storageS3FilePath) ||
+        normalizeS3FilePath(process.env.NEXT_PUBLIC_S3_FILE_PATH) ||
+        'files',
+      storageS3Region: toString(storageS3Region) || toString(process.env.S3_REGION),
+      storageS3SecretAccessKeyConfigured: Boolean(dbS3Secret ?? process.env.S3_SECRET_ACCESS_KEY),
+      storageS3SecretAccessKeyMasked: maskApiKey(dbS3Secret ?? process.env.S3_SECRET_ACCESS_KEY),
+      storageS3SetAcl: toBoolean(storageS3SetAcl, process.env.S3_SET_ACL === '1'),
     };
   }),
 
@@ -736,6 +1047,14 @@ export const adminSettingsRouter = router({
           ...PRICING_KEYS,
           ...OPERATIONS_KEYS,
           ...GROWTH_KEYS,
+          ...PROFILE_KEYS,
+          SETTING_KEYS.profileAvatarPresets,
+          ...MEMORY_KEYS,
+          ...VECTOR_KEYS,
+          ...USER_GLOBAL_KEYS,
+          ...EXPERT_PLAZA_KEYS,
+          ...NOTIFICATION_KEYS,
+          ...STORAGE_KEYS,
           ...MODEL_POLICY_KEYS,
           ...BRAND_KEYS,
           ...DESKTOP_UPDATE_KEYS,
@@ -825,6 +1144,61 @@ export const adminSettingsRouter = router({
           ].includes(input.key as any)
         ) {
           value = toBoundedInt(value, 0, 0, 10_000_000_000);
+        } else {
+          value = toString(value);
+        }
+      } else if (input.key === SETTING_KEYS.profileInterestAreas) {
+        value = normalizeProfileInterestAreas(value);
+      } else if (input.key === SETTING_KEYS.profileAvatarPresets) {
+        value = normalizeAvatarPresets(value);
+      } else if (input.key === SETTING_KEYS.memoryUserMemoryTriggerMode) {
+        value = normalizeMemoryUserMemoryTriggerMode(value);
+      } else if ((VECTOR_KEYS as readonly string[]).includes(input.key)) {
+        value = toString(value);
+      } else if (input.key === SETTING_KEYS.userGlobalSettingsDefaults) {
+        value = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      } else if ((EXPERT_PLAZA_KEYS as readonly string[]).includes(input.key)) {
+        if (input.key === SETTING_KEYS.expertPlazaEnabled) {
+          value = Boolean(value);
+        } else if (input.key === SETTING_KEYS.expertPlazaCards) {
+          value = normalizeExpertPlazaCards(value);
+        } else if (input.key === SETTING_KEYS.expertPlazaCategories) {
+          value = toStringList(value);
+        } else {
+          value = toString(value);
+        }
+      } else if ((NOTIFICATION_KEYS as readonly string[]).includes(input.key)) {
+        if (
+          [
+            SETTING_KEYS.notificationInboxEnabled,
+            SETTING_KEYS.notificationDesktopEnabled,
+            SETTING_KEYS.notificationEmailEnabled,
+            SETTING_KEYS.notificationSystemEnabled,
+          ].includes(input.key as any)
+        ) {
+          value = Boolean(value);
+        } else if (input.key === SETTING_KEYS.notificationRetentionDays) {
+          value = toBoundedInt(value, 90, 1, 3650);
+        } else {
+          value = toString(value);
+        }
+      } else if ((STORAGE_KEYS as readonly string[]).includes(input.key)) {
+        if (
+          [SETTING_KEYS.storageS3EnablePathStyle, SETTING_KEYS.storageS3SetAcl].includes(
+            input.key as any,
+          )
+        ) {
+          value = Boolean(value);
+        } else if (input.key === SETTING_KEYS.storageS3PreviewUrlExpireIn) {
+          value = toBoundedInt(value, 7200, 60, 604_800);
+        } else if (input.key === SETTING_KEYS.storageS3FilePath) {
+          value = normalizeS3FilePath(value) || '';
+        } else if (
+          [SETTING_KEYS.storageS3Endpoint, SETTING_KEYS.storageS3PublicDomain].includes(
+            input.key as any,
+          )
+        ) {
+          value = toOptionalUrlString(value, input.key);
         } else {
           value = toString(value);
         }
@@ -977,14 +1351,53 @@ export const adminSettingsRouter = router({
       if ((BRAND_KEYS as readonly string[]).includes(input.key)) {
         invalidateServerBrand();
       }
+      if ((STORAGE_KEYS as readonly string[]).includes(input.key)) {
+        invalidateFileS3RuntimeCache();
+      }
 
       invalidateServerAppSettings();
 
       return { ok: true };
     }),
 
+  testS3Storage: adminProcedure.mutation(async ({ ctx }) => {
+    const config = await getServerFileS3Config(ctx.serverDB);
+
+    if (!config.accessKeyId || !config.secretAccessKey || !config.endpoint || !config.bucket) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'S3_CONFIG_INCOMPLETE',
+      });
+    }
+
+    try {
+      const s3 = new S3(config.accessKeyId, config.secretAccessKey, config.endpoint, {
+        bucket: config.bucket,
+        forcePathStyle: config.enablePathStyle,
+        previewUrlExpireIn: config.previewUrlExpireIn,
+        region: config.region,
+        setAcl: config.setAcl,
+      });
+      await s3.testConnection();
+
+      return {
+        bucket: config.bucket,
+        endpoint: config.endpoint,
+        filePath: config.filePath,
+        ok: true,
+        publicDomain: config.publicDomain || null,
+      };
+    } catch (error) {
+      throw new TRPCError({
+        cause: error,
+        code: 'BAD_REQUEST',
+        message: error instanceof Error ? error.message : 'S3_CONNECTION_FAILED',
+      });
+    }
+  }),
+
   /**
-   * Manually trigger maintenance job (audit pruning + pending order expiry).
+   * Manually trigger maintenance job (audit pruning + pending order expiry + notification cleanup).
    * Reuses the same DB-driven defaults as the public cron route.
    */
   runMaintenance: adminProcedure
@@ -992,8 +1405,10 @@ export const adminSettingsRouter = router({
       z
         .object({
           auditRetentionDays: z.number().int().min(7).max(3650).optional(),
+          notificationRetentionDays: z.number().int().min(1).max(3650).optional(),
           pendingOrderExpiryDays: z.number().int().min(1).max(365).optional(),
           skipAudit: z.boolean().optional(),
+          skipNotifications: z.boolean().optional(),
           skipOrders: z.boolean().optional(),
         })
         .optional(),
@@ -1004,6 +1419,8 @@ export const adminSettingsRouter = router({
         auditCutoff?: string;
         auditLogsDeleted?: number;
         freeSnapshotsCreated?: number;
+        notificationRetentionCutoff?: string;
+        notificationsDeleted?: number;
         pendingOrdersCutoff?: string;
         pendingOrdersExpired?: number;
         subscriptionSnapshotsExpired?: number;
@@ -1038,6 +1455,24 @@ export const adminSettingsRouter = router({
           .returning({ id: topUpOrders.id });
         result.pendingOrdersCutoff = cutoff.toISOString();
         result.pendingOrdersExpired = expired.length;
+      }
+
+      if (!opts.skipNotifications) {
+        const dbVal = await readSetting(ctx.serverDB, SETTING_KEYS.notificationRetentionDays);
+        const days = Math.max(
+          1,
+          Math.min(
+            3650,
+            opts.notificationRetentionDays ?? (typeof dbVal === 'number' ? dbVal : 90),
+          ),
+        );
+        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const deleted = await ctx.serverDB
+          .delete(notifications)
+          .where(and(eq(notifications.isArchived, true), lt(notifications.updatedAt, cutoff)))
+          .returning({ id: notifications.id });
+        result.notificationRetentionCutoff = cutoff.toISOString();
+        result.notificationsDeleted = deleted.length;
       }
 
       const subscriptionResult = await syncExpiredSubscriptionsToFree(ctx.serverDB);

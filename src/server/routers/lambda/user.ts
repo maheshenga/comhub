@@ -43,6 +43,7 @@ const usernameSchema = z
   .regex(/^\w+$/, { message: 'USERNAME_INVALID' });
 
 const AVATAR_WEBAPI_PREFIX = '/webapi/';
+const AVATAR_PRESET_PREFIX = '/images/avatar-presets/';
 
 // Accept only: base64 data URL, absolute http(s) URL, empty string,
 // or an internal /webapi/user/avatar/<userId>/... path scoped to the caller.
@@ -55,6 +56,13 @@ const assertSafeAvatarInput = (input: string, userId: string) => {
 
   const ownPrefix = `${AVATAR_WEBAPI_PREFIX}user/avatar/${userId}/`;
   if (input.startsWith(ownPrefix) && !input.includes('..')) return;
+  if (
+    input.startsWith(AVATAR_PRESET_PREFIX) &&
+    !input.includes('..') &&
+    /\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(input)
+  ) {
+    return;
+  }
 
   try {
     const { protocol } = new URL(input);

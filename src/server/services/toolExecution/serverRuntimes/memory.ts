@@ -42,7 +42,7 @@ import {
   UserMemoryModel,
 } from '@/database/models/userMemory';
 import { userSettings } from '@/database/schemas';
-import { getServerDefaultFilesConfig } from '@/server/globalConfig';
+import { getResolvedServerDefaultFilesConfig } from '@/server/globalConfig';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import {
   emitToolOutcomeSafely,
@@ -84,7 +84,8 @@ const applySearchLimitsByEffort = (
 
 const getEmbeddingRuntime = async (serverDB: LobeChatDatabase, userId: string) => {
   const { provider, model: embeddingModel } =
-    getServerDefaultFilesConfig().embeddingModel || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
+    (await getResolvedServerDefaultFilesConfig(serverDB)).embeddingModel ||
+    DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
 
   const agentRuntime = await initModelRuntimeFromDB(
     serverDB,
@@ -197,7 +198,8 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
   searchMemory = async (params: SearchMemoryParams): Promise<SearchMemoryResult> => {
     const normalizedParams = normalizeSearchMemoryParams(params);
     const { provider, model: embeddingModel } =
-      getServerDefaultFilesConfig().embeddingModel || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
+      (await getResolvedServerDefaultFilesConfig(this.serverDB)).embeddingModel ||
+      DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
 
     const modelRuntime = await initModelRuntimeFromDB(this.serverDB, this.userId, provider, {
       model: embeddingModel,

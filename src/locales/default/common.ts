@@ -130,6 +130,7 @@ export default {
   'cmdk.askLobeAI': 'Ask {{brandName}}',
   'cmdk.community': 'Community',
   'cmdk.communitySupport': 'Community Support',
+  'cmdk.experts': 'Expert Plaza',
   'cmdk.contactUs': 'Contact Us',
   'cmdk.context.agent': 'Agent',
   'cmdk.context.community': 'Community',
@@ -154,6 +155,7 @@ export default {
   'cmdk.keywords.billing': 'billing payment invoice transaction',
 
   'cmdk.keywords.community': 'discover market assistant model provider mcp',
+  'cmdk.keywords.experts': 'expert plaza assistant workflow service',
 
   // CMDK search keywords (space-separated for i18n)
   'cmdk.keywords.contactUs': 'feedback issue bug problem',
@@ -513,6 +515,7 @@ export default {
   'tab.ppt': 'PPT',
   'recents': 'Recents',
   'tab.community': 'Community',
+  'tab.experts': 'Expert Plaza',
   'tab.create': 'Create',
   'tab.discover': 'Discover',
   'tab.eval': 'Eval Lab',

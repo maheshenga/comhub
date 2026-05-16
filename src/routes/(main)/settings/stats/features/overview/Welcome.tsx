@@ -1,9 +1,9 @@
-import { BRANDING_NAME } from '@lobechat/business-const';
 import { Flexbox, Skeleton } from '@lobehub/ui';
 import { Clock3Icon, ClockArrowUp } from 'lucide-react';
 import { memo } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
+import { useBrandName } from '@/features/Brand/useBrandName';
 import { useClientDataSWR } from '@/libs/swr';
 import { userService } from '@/services/user';
 import { useUserStore } from '@/store/user';
@@ -21,6 +21,7 @@ const formatEnglishNumber = (number: number) => {
 
 const Welcome = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t, i18n } = useTranslation('auth');
+  const brandName = useBrandName();
   const [nickname, username] = useUserStore((s) => [
     userProfileSelectors.nickName(s),
     userProfileSelectors.username(s),
@@ -53,7 +54,7 @@ const Welcome = memo<{ mobile?: boolean }>(({ mobile }) => {
               ),
           }}
           values={{
-            appName: BRANDING_NAME,
+            appName: brandName,
             days:
               i18n.language === 'en-US'
                 ? formatEnglishNumber(Number(data?.duration || 1))

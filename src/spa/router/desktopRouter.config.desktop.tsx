@@ -55,6 +55,7 @@ import EvalBenchLayout from '@/routes/(main)/eval/bench/[benchmarkId]/_layout';
 import EvalDatasetDetailPage from '@/routes/(main)/eval/bench/[benchmarkId]/datasets/[datasetId]';
 import EvalRunDetailPage from '@/routes/(main)/eval/bench/[benchmarkId]/runs/[runId]';
 import EvalCaseDetailPage from '@/routes/(main)/eval/bench/[benchmarkId]/runs/[runId]/cases/[caseId]';
+import ExpertsPage from '@/routes/(main)/experts';
 import GroupPage from '@/routes/(main)/group';
 import DesktopGroupLayout from '@/routes/(main)/group/_layout';
 import GroupProfilePage from '@/routes/(main)/group/profile';
@@ -271,6 +272,18 @@ export const desktopRoutes: RouteObject[] = [
         element: <CommunityLayout />,
         errorElement: <ErrorBoundary />,
         path: 'community',
+      },
+
+      // Expert plaza routes
+      {
+        children: [
+          {
+            element: <ExpertsPage />,
+            index: true,
+          },
+        ],
+        errorElement: <ErrorBoundary />,
+        path: 'experts',
       },
 
       // Resource routes

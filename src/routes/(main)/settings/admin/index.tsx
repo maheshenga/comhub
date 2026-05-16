@@ -8,9 +8,13 @@ import { AdminSidebar } from '@/features/Admin';
 import AdminAuditPage from '@/routes/(main)/admin/audit';
 import AdminCreditsPage from '@/routes/(main)/admin/credits';
 import AdminDesktopUpdatePage from '@/routes/(main)/admin/desktop-update';
+import AdminDocumentsPage from '@/routes/(main)/admin/documents';
+import AdminExpertPlazaPage from '@/routes/(main)/admin/expert-plaza';
+import AdminFilesPage from '@/routes/(main)/admin/files';
 import AdminGrowthPage from '@/routes/(main)/admin/growth';
 import AdminModelBillingMatrixPage from '@/routes/(main)/admin/model-billing-matrix';
 import AdminModelPolicyPage from '@/routes/(main)/admin/model-policy';
+import AdminNotificationsPage from '@/routes/(main)/admin/notifications';
 import AdminOperationsPage from '@/routes/(main)/admin/operations';
 import AdminOrdersPage from '@/routes/(main)/admin/orders';
 import AdminOverviewPage from '@/routes/(main)/admin/overview';
@@ -23,6 +27,8 @@ import AdminRedemptionPage from '@/routes/(main)/admin/redemption';
 import AdminSettingsPage from '@/routes/(main)/admin/settings';
 import AdminStatsPage from '@/routes/(main)/admin/stats';
 import AdminSubscriptionsPage from '@/routes/(main)/admin/subscriptions';
+import AdminSystemDefaultsPage from '@/routes/(main)/admin/system-defaults';
+import AdminTopicsPage from '@/routes/(main)/admin/topics';
 import AdminUsersPage from '@/routes/(main)/admin/users';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { useUserStore } from '@/store/user';
@@ -33,9 +39,13 @@ const adminPageMap = {
   'change-requests': AdminSubscriptionsPage,
   'credits': AdminCreditsPage,
   'desktop-update': AdminDesktopUpdatePage,
+  'documents': AdminDocumentsPage,
+  'expert-plaza': AdminExpertPlazaPage,
+  'files': AdminFilesPage,
   'growth': AdminGrowthPage,
   'model-billing-matrix': AdminModelBillingMatrixPage,
   'model-policy': AdminModelPolicyPage,
+  'notifications': AdminNotificationsPage,
   'operations': AdminOperationsPage,
   'orders': AdminOrdersPage,
   'overview': AdminOverviewPage,
@@ -48,7 +58,9 @@ const adminPageMap = {
   'settings': AdminSettingsPage,
   'stats': AdminStatsPage,
   'subscriptions': AdminSubscriptionsPage,
+  'system-defaults': AdminSystemDefaultsPage,
   'topup': AdminOrdersPage,
+  'topics': AdminTopicsPage,
   'users': AdminUsersPage,
 };
 

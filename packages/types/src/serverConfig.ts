@@ -7,6 +7,7 @@ import type {
   GlobalLLMProviderKey,
   UserDefaultAgent,
   UserImageConfig,
+  UserSettings,
   UserSystemAgentConfig,
 } from './user/settings';
 
@@ -85,6 +86,7 @@ export interface GlobalServerConfig {
   telemetry: {
     langfuse?: boolean;
   };
+  userDefaults?: PartialDeep<UserSettings>;
   video?: GlobalGenerationModelConfig;
   visualUnderstanding?: VisualUnderstandingConfig;
 }

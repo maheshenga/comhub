@@ -26,8 +26,11 @@ import { appEnv } from '@/envs/app';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { parseMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
+import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
 import {
   buildWorkflowPayloadInput,
+  MemoryExtractionExecutor,
+  type MemoryExtractionNormalizedPayload,
   MemoryExtractionWorkflowService,
   normalizeMemoryExtractionPayload,
 } from '@/server/services/memory/userMemory/extract';
@@ -64,6 +67,7 @@ const userMemoryExtractionTaskInputSchema = z
 // NOTICE(@nekomeowww): Memory extraction time scales with topic count. We estimate
 // an average of ~5 minutes per topic to derive a dynamic timeout budget.
 const USER_MEMORY_EXTRACTION_TIMEOUT_PER_TOPIC_MS = 5 * 60 * 1000;
+const DIRECT_MEMORY_EXTRACTION_TOPIC_PAGE_SIZE = 25;
 
 const getUserMemoryExtractionTimeoutMs = (metadata: UserMemoryExtractionMetadata) => {
   const totalTopics = metadata.progress.totalTopics;
@@ -71,6 +75,94 @@ const getUserMemoryExtractionTimeoutMs = (metadata: UserMemoryExtractionMetadata
   if (!Number.isFinite(totalTopics) || !totalTopics || totalTopics <= 0) return null;
 
   return totalTopics * USER_MEMORY_EXTRACTION_TIMEOUT_PER_TOPIC_MS;
+};
+
+type UserMemoryTriggerMode = 'auto' | 'direct' | 'workflow';
+
+const normalizeUserMemoryTriggerMode = (value: unknown): UserMemoryTriggerMode | null =>
+  value === 'auto' || value === 'direct' || value === 'workflow' ? value : null;
+
+const resolveUserMemoryTriggerMode = async (db: unknown): Promise<UserMemoryTriggerMode> => {
+  const envMode = normalizeUserMemoryTriggerMode(process.env.MEMORY_USER_MEMORY_TRIGGER_MODE);
+  if (envMode) return envMode;
+
+  const adminMode = normalizeUserMemoryTriggerMode(
+    await getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryTriggerMode, db as any),
+  );
+
+  return adminMode ?? 'auto';
+};
+
+const shouldRunMemoryExtractionDirectly = async (db: unknown) => {
+  const mode = await resolveUserMemoryTriggerMode(db);
+
+  if (mode === 'direct') return true;
+
+  // Auto mode and workflow-preferred mode both fall back to direct execution
+  // when QStash is not configured, which matches single-node Node deployments.
+  return !process.env.QSTASH_TOKEN;
+};
+
+const scheduleDirectMemoryExtraction = (
+  payload: MemoryExtractionNormalizedPayload,
+  options: {
+    asyncTaskModel: AsyncTaskModel;
+    taskId: string;
+    userId: string;
+  },
+) => {
+  void (async () => {
+    try {
+      await options.asyncTaskModel.update(options.taskId, { status: AsyncTaskStatus.Processing });
+
+      const executor = await MemoryExtractionExecutor.create();
+      let processedTopics = 0;
+
+      for (const userId of payload.userIds.length ? payload.userIds : [options.userId]) {
+        let cursor: Awaited<ReturnType<MemoryExtractionExecutor['getTopicsForUser']>>['cursor'];
+
+        do {
+          const topicBatch = await executor.getTopicsForUser(
+            {
+              cursor,
+              forceAll: payload.forceAll,
+              forceTopics: payload.forceTopics,
+              from: payload.from,
+              to: payload.to,
+              userId,
+            },
+            DIRECT_MEMORY_EXTRACTION_TOPIC_PAGE_SIZE,
+          );
+
+          cursor = topicBatch.cursor;
+          if (!topicBatch.ids.length) continue;
+
+          processedTopics += topicBatch.ids.length;
+          await executor.runDirect({
+            ...payload,
+            mode: 'direct',
+            topicCursor: undefined,
+            topicIds: topicBatch.ids,
+            userId,
+            userIds: [userId],
+          });
+        } while (cursor);
+      }
+
+      if (processedTopics === 0) {
+        await options.asyncTaskModel.update(options.taskId, { status: AsyncTaskStatus.Success });
+      }
+    } catch (error) {
+      console.error('[user-memory] direct memory extraction failed', error);
+      await options.asyncTaskModel.update(options.taskId, {
+        error: new AsyncTaskError(
+          AsyncTaskErrorType.TaskTriggerError,
+          error instanceof Error ? error.message : 'Failed to run memory extraction directly',
+        ),
+        status: AsyncTaskStatus.Error,
+      });
+    }
+  })();
 };
 
 export const userMemoryRouter = router({
@@ -273,23 +365,38 @@ export const userMemoryRouter = router({
 
       const { webhook, upstashWorkflowExtraHeaders } = parseMemoryExtractionConfig();
       const baseUrl = webhook.baseUrl || appEnv.INTERNAL_APP_URL || appEnv.APP_URL;
+      const mode = (await shouldRunMemoryExtractionDirectly(ctx.serverDB)) ? 'direct' : 'workflow';
+      const payload = normalizeMemoryExtractionPayload({
+        asyncTaskId: taskId,
+        baseUrl,
+        forceAll: false,
+        forceTopics: false,
+        fromDate: input.fromDate,
+        mode,
+        sources: [MemorySourceType.ChatTopic],
+        toDate: input.toDate,
+        userIds: [ctx.userId],
+        userInitiated: true,
+      });
+
+      if (mode === 'direct') {
+        scheduleDirectMemoryExtraction(payload, {
+          asyncTaskModel: ctx.asyncTaskModel,
+          taskId,
+          userId: ctx.userId,
+        });
+
+        return {
+          deduped: false,
+          id: taskId,
+          metadata: metadata as UserMemoryExtractionMetadata,
+          status: AsyncTaskStatus.Pending,
+        };
+      }
 
       try {
         const { workflowRunId } = await MemoryExtractionWorkflowService.triggerProcessUsers(
-          buildWorkflowPayloadInput(
-            normalizeMemoryExtractionPayload({
-              asyncTaskId: taskId,
-              baseUrl,
-              forceAll: false,
-              forceTopics: false,
-              fromDate: input.fromDate,
-              mode: 'workflow',
-              sources: [MemorySourceType.ChatTopic],
-              toDate: input.toDate,
-              userIds: [ctx.userId],
-              userInitiated: true,
-            }),
-          ),
+          buildWorkflowPayloadInput(payload),
           { extraHeaders: upstashWorkflowExtraHeaders },
         );
 

@@ -94,6 +94,10 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
   };
 
+  testS3Storage = async () => {
+    return lambdaClient.admin.settings.testS3Storage.mutate();
+  };
+
   validateDefaultAgentSettings = async (params: {
     model?: string;
     modelType?: 'chat' | 'image' | 'video';
@@ -112,6 +116,36 @@ class AdminCommercialService {
 
   getPublicGrowth = async () => {
     return lambdaClient.admin.settings.getPublicGrowth.query();
+  };
+
+  getPublicExpertPlaza = async () => {
+    return lambdaClient.admin.settings.getPublicExpertPlaza.query();
+  };
+
+  getPublicProfileOptions = async () => {
+    return lambdaClient.admin.settings.getPublicProfileOptions.query();
+  };
+
+  impersonateUser = async (userId: string) => {
+    await this.recordImpersonationAttempt(userId);
+
+    const response = await fetch('/api/auth/admin/impersonate-user', {
+      body: JSON.stringify({ userId }),
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(text || `Impersonation failed: ${response.status}`);
+    }
+
+    return response.json();
+  };
+
+  getPublicNotificationConfig = async () => {
+    return lambdaClient.admin.settings.getPublicNotificationConfig.query();
   };
 
   getPublicHelpMenu = async () => {
@@ -261,11 +295,52 @@ class AdminCommercialService {
   getResetAllUsersToFreePlanPreview = async () =>
     lambdaClient.admin.users.getResetAllToFreePlanPreview.query();
 
+  recordImpersonationAttempt = async (userId: string) =>
+    lambdaClient.admin.users.recordImpersonationAttempt.mutate({ userId });
+
+  // Content governance
+  listAdminTopics = async (params: {
+    cursor?: number;
+    limit?: number;
+    query?: string;
+    status?: 'active' | 'completed' | 'archived';
+    userId?: string;
+  }) => lambdaClient.admin.content.listTopics.query(params);
+
+  archiveAdminTopic = async (topicId: string) =>
+    lambdaClient.admin.content.archiveTopic.mutate({ topicId });
+
+  deleteAdminTopic = async (topicId: string) =>
+    lambdaClient.admin.content.deleteTopic.mutate({ topicId });
+
+  listAdminFiles = async (params: {
+    cursor?: number;
+    limit?: number;
+    query?: string;
+    userId?: string;
+  }) => lambdaClient.admin.content.listFiles.query(params);
+
+  deleteAdminFile = async (fileId: string) =>
+    lambdaClient.admin.content.deleteFile.mutate({ fileId });
+
+  listAdminDocuments = async (params: {
+    cursor?: number;
+    limit?: number;
+    query?: string;
+    sourceType?: 'file' | 'web' | 'api' | 'topic' | 'agent' | 'agent-signal';
+    userId?: string;
+  }) => lambdaClient.admin.content.listDocuments.query(params);
+
+  deleteAdminDocument = async (documentId: string) =>
+    lambdaClient.admin.content.deleteDocument.mutate({ documentId });
+
   // Maintenance
   runMaintenance = async (params?: {
     auditRetentionDays?: number;
+    notificationRetentionDays?: number;
     pendingOrderExpiryDays?: number;
     skipAudit?: boolean;
+    skipNotifications?: boolean;
     skipOrders?: boolean;
   }) => lambdaClient.admin.settings.runMaintenance.mutate(params ?? {});
 

@@ -6,6 +6,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
+import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import {
   GLOBAL_MODEL_POLICY_DENIED_MESSAGE,
   GLOBAL_MODEL_POLICY_HELP_TEXT,
@@ -26,7 +27,6 @@ const SETTING_KEYS = {
 } as const;
 
 const LIST_SPLIT_REGEX = /[\r\n,;；，]+/;
-const SWR_KEY = ['admin-settings'];
 
 type FormValues = {
   allowlistText: string;
@@ -56,7 +56,7 @@ const AdminModelPolicyPage = memo(() => {
   const navigate = useNavigate();
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(SWR_KEY, () =>
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
   );
 
@@ -128,7 +128,7 @@ const AdminModelPolicyPage = memo(() => {
       ]);
 
       message.success(t('admin.modelPolicy.saveSuccess', '全局模型策略已保存'));
-      await mutate(SWR_KEY);
+      await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.modelPolicy.saveFailed', '保存失败'));
     } finally {

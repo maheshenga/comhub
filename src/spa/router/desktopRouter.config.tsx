@@ -288,6 +288,18 @@ export const desktopRoutes: RouteObject[] = [
         path: 'community',
       },
 
+      // Expert plaza routes
+      {
+        children: [
+          {
+            element: dynamicElement(() => import('@/routes/(main)/experts'), 'Desktop > Experts'),
+            index: true,
+          },
+        ],
+        errorElement: <ErrorBoundary />,
+        path: 'experts',
+      },
+
       // Resource routes
       {
         children: [

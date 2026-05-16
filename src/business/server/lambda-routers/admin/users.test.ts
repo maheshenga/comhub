@@ -1,19 +1,34 @@
 // @vitest-environment node
 import { Plans } from '@lobechat/types';
 import { eq, inArray } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getServerDB } from '@/database/core/db-adaptor';
 import { getTestDB } from '@/database/core/getTestDB';
 import { userPlanSnapshots, users } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 
-import { getResetAllUsersToFreePlanPreview, resetAllUsersToFreePlan } from './users';
+import { recordAdminAudit } from './audit';
+import {
+  adminUsersRouter,
+  getResetAllUsersToFreePlanPreview,
+  resetAllUsersToFreePlan,
+} from './users';
+
+vi.mock('@/database/core/db-adaptor', () => ({
+  getServerDB: vi.fn(),
+}));
+
+vi.mock('./audit', () => ({
+  recordAdminAudit: vi.fn(),
+}));
 
 const serverDB: LobeChatDatabase = await getTestDB();
 
 const testUserIds = ['admin-users-reset-paid', 'admin-users-reset-free', 'admin-users-reset-empty'];
 
 beforeEach(async () => {
+  vi.clearAllMocks();
   await serverDB.insert(users).values(testUserIds.map((id) => ({ id })));
 });
 
@@ -172,6 +187,52 @@ describe('resetAllUsersToFreePlan', () => {
           status: 'canceled',
         }),
       ]),
+    );
+  });
+});
+
+describe('adminUsersRouter impersonation audit', () => {
+  it('records impersonation as an attempt instead of a started session', async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ banned: false, role: 'admin' })
+      .mockResolvedValueOnce({
+        email: 'target@example.com',
+        fullName: 'Target User',
+        id: 'target-user',
+        username: 'target',
+      });
+    const db = {
+      query: {
+        users: {
+          findFirst,
+        },
+      },
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminUsersRouter.createCaller({ userId: 'admin-user' } as any);
+    await (caller as any).recordImpersonationAttempt({ userId: 'target-user' });
+
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serverDB: db,
+        userId: 'admin-user',
+      }),
+      expect.objectContaining({
+        action: 'user.impersonate.attempt',
+        payload: {
+          targetEmail: 'target@example.com',
+          targetFullName: 'Target User',
+          targetUsername: 'target',
+        },
+        resourceType: 'user',
+        targetUserId: 'target-user',
+      }),
+    );
+    expect(recordAdminAudit).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'user.impersonate.start' }),
     );
   });
 });

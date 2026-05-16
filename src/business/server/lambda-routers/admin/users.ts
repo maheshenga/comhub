@@ -505,6 +505,34 @@ export const adminUsersRouter = router({
 
       return { ok: true, ...result };
     }),
+
+  recordImpersonationAttempt: adminProcedure
+    .input(z.object({ userId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.userId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'CANNOT_IMPERSONATE_SELF' });
+      }
+
+      const target = await ctx.serverDB.query.users.findFirst({
+        columns: { email: true, fullName: true, id: true, username: true },
+        where: eq(users.id, input.userId),
+      });
+
+      if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'USER_NOT_FOUND' });
+
+      await recordAdminAudit(ctx, {
+        action: 'user.impersonate.attempt',
+        payload: {
+          targetEmail: target.email,
+          targetFullName: target.fullName,
+          targetUsername: target.username,
+        },
+        resourceType: 'user',
+        targetUserId: input.userId,
+      });
+
+      return { ok: true };
+    }),
 });
 
 // avoid lint: unused imports retained for future bulk ops

@@ -1,12 +1,14 @@
+import { createHash } from 'node:crypto';
+
 import { type LobeChatDatabase } from '@lobechat/database';
 import debug from 'debug';
 import urlJoin from 'url-join';
 
 import { FileModel } from '@/database/models/file';
-import { fileEnv } from '@/envs/file';
 import { getRedisConfig } from '@/envs/redis';
 import { initializeRedis, isRedisEnabled } from '@/libs/redis';
 import { FileS3 } from '@/server/modules/S3';
+import { type ServerFileS3Config } from '@/server/services/appSettings';
 
 import { type FileServiceImpl } from './type';
 
@@ -23,8 +25,30 @@ interface PresignedPreviewCacheEntry {
 
 const presignedPreviewUrlCache = new Map<string, PresignedPreviewCacheEntry>();
 
-const createPresignedPreviewCacheKey = (key: string, expiresIn: number) =>
-  `${PRESIGNED_PREVIEW_CACHE_KEY_PREFIX}${expiresIn}:${key}`;
+const createPresignedPreviewCacheKey = (
+  key: string,
+  expiresIn: number,
+  config: ServerFileS3Config,
+) => {
+  const configHash = createHash('sha256')
+    .update(
+      JSON.stringify([
+        config.accessKeyId ?? '',
+        config.secretAccessKey ?? '',
+        config.endpoint ?? '',
+        config.bucket ?? '',
+        config.enablePathStyle,
+        config.previewUrlExpireIn,
+        config.publicDomain ?? '',
+        config.region ?? '',
+        config.setAcl,
+      ]),
+    )
+    .digest('hex')
+    .slice(0, 16);
+
+  return `${PRESIGNED_PREVIEW_CACHE_KEY_PREFIX}${expiresIn}:${configHash}:${key}`;
+};
 
 const getPresignedPreviewCacheTtlSeconds = (expiresInSeconds: number) =>
   Math.min(
@@ -73,8 +97,9 @@ export class S3StaticFileImpl implements FileServiceImpl {
   }
 
   private async getCachedPreSignedUrlForPreview(key: string, expiresIn?: number): Promise<string> {
-    const expiresInSeconds = expiresIn ?? fileEnv.S3_PREVIEW_URL_EXPIRE_IN;
-    const cacheKey = createPresignedPreviewCacheKey(key, expiresInSeconds);
+    const config = await this.s3.getConfig();
+    const expiresInSeconds = expiresIn ?? config.previewUrlExpireIn;
+    const cacheKey = createPresignedPreviewCacheKey(key, expiresInSeconds, config);
     const ttlSeconds = getPresignedPreviewCacheTtlSeconds(expiresInSeconds);
     const now = Date.now();
     const cached = presignedPreviewUrlCache.get(cacheKey);
@@ -143,15 +168,17 @@ export class S3StaticFileImpl implements FileServiceImpl {
     // If bucket is not set public read, or S3_PUBLIC_DOMAIN is not configured,
     // reuse the same presigned preview URL briefly so repeated chat turns keep
     // stable media URLs and can reuse provider-side prefix caches.
-    if (!fileEnv.S3_SET_ACL || !fileEnv.S3_PUBLIC_DOMAIN) {
+    const config = await this.s3.getConfig();
+
+    if (!config.setAcl || !config.publicDomain) {
       return await this.getCachedPreSignedUrlForPreview(key, expiresIn);
     }
 
-    if (fileEnv.S3_ENABLE_PATH_STYLE) {
-      return urlJoin(fileEnv.S3_PUBLIC_DOMAIN, fileEnv.S3_BUCKET!, key);
+    if (config.enablePathStyle) {
+      return urlJoin(config.publicDomain, config.bucket!, key);
     }
 
-    return urlJoin(fileEnv.S3_PUBLIC_DOMAIN, key);
+    return urlJoin(config.publicDomain, key);
   }
 
   async getKeyFromFullUrl(url: string): Promise<string | null> {
@@ -167,11 +194,13 @@ export class S3StaticFileImpl implements FileServiceImpl {
       }
 
       // Case 2: Legacy S3 URL - extract key from pathname
-      if (fileEnv.S3_ENABLE_PATH_STYLE) {
-        if (!fileEnv.S3_BUCKET) {
+      const config = await this.s3.getConfig();
+
+      if (config.enablePathStyle) {
+        if (!config.bucket) {
           return pathname.startsWith('/') ? pathname.slice(1) : pathname;
         }
-        const bucketPrefix = `/${fileEnv.S3_BUCKET}/`;
+        const bucketPrefix = `/${config.bucket}/`;
         if (pathname.startsWith(bucketPrefix)) {
           return pathname.slice(bucketPrefix.length);
         }

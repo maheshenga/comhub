@@ -11,6 +11,7 @@ import {
   InputNumber,
   message,
   Modal,
+  Select,
   Space,
   Switch,
   Tabs,
@@ -43,6 +44,21 @@ const providerOptions = ['newapi', 'openai', 'anthropic', 'google', 'deepseek', 
   (value) => ({ label: value, value }),
 );
 
+const memoryTriggerModeOptions = [
+  {
+    label: '自动选择',
+    value: 'auto',
+  },
+  {
+    label: '直接执行（推荐单机 Node 部署）',
+    value: 'direct',
+  },
+  {
+    label: 'QStash 工作流优先（缺失 Token 时回退直接执行）',
+    value: 'workflow',
+  },
+];
+
 const aboutLinkGroups = [
   { key: 'contact', title: '联系入口', titleKey: 'admin.settings.aboutLinks.contact' },
   { key: 'information', title: '社区与资讯', titleKey: 'admin.settings.aboutLinks.information' },
@@ -56,11 +72,14 @@ const AdminSettingsPage = memo(() => {
   );
   const [form] = Form.useForm<AdminSettingsFormValues>();
   const [submitting, setSubmitting] = useState(false);
+  const [testingS3, setTestingS3] = useState(false);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<{
     auditCutoff?: string;
     auditLogsDeleted?: number;
     freeSnapshotsCreated?: number;
+    notificationRetentionCutoff?: string;
+    notificationsDeleted?: number;
     pendingOrdersCutoff?: string;
     pendingOrdersExpired?: number;
     subscriptionSnapshotsExpired?: number;
@@ -132,6 +151,7 @@ const AdminSettingsPage = memo(() => {
 
       await Promise.all(updates.map((update) => adminCommercialService.setAppSetting(update)));
       form.setFieldValue('cronSecret', '');
+      form.setFieldValue('storageS3SecretAccessKey', '');
       await mutate(ADMIN_SETTINGS_SWR_KEY);
 
       const refreshKeys = getAdminSettingsRefreshKeys(updates);
@@ -181,6 +201,27 @@ const AdminSettingsPage = memo(() => {
       message.error(t('admin.settings.runFailed', '维护任务执行失败'));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleTestS3Storage = async () => {
+    setTestingS3(true);
+    try {
+      const result = await adminCommercialService.testS3Storage();
+      message.success(
+        t(
+          'admin.settings.storageS3.testSuccess',
+          `S3 连接正常：${result.bucket}（${result.filePath}）`,
+        ),
+      );
+    } catch (error) {
+      message.error(
+        `${t('admin.settings.storageS3.testFailed', 'S3 连接失败')}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    } finally {
+      setTestingS3(false);
     }
   };
 
@@ -242,6 +283,134 @@ const AdminSettingsPage = memo(() => {
       <Form disabled={isLoading} form={form} layout="vertical">
         <Tabs
           items={[
+            {
+              key: 'storage',
+              label: '文件存储',
+              children: (
+                <Card title={t('admin.settings.storageS3Section', '文件存储（S3）')}>
+                  <Alert
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    type="info"
+                    message={t(
+                      'admin.settings.storageS3.help',
+                      '这里配置用户上传文件、头像、图片生成、视频生成等内容的对象存储。后台配置优先于环境变量；留空字段会继续使用服务器环境变量作为兜底。修改后后续请求立即使用新配置，不需要重新构建；上传目录前缀在浏览器刷新后生效。',
+                    )}
+                  />
+                  <Space style={{ marginBottom: 16 }}>
+                    <Button loading={testingS3} onClick={handleTestS3Storage}>
+                      {t('admin.settings.storageS3.test', '测试 S3 连接')}
+                    </Button>
+                    <Text type="secondary">
+                      {t(
+                        'admin.settings.storageS3.test.help',
+                        '测试会校验当前已保存配置能否访问 Bucket，不会写入文件。',
+                      )}
+                    </Text>
+                  </Space>
+                  <Form.Item
+                    label={t('admin.settings.storageS3AccessKeyId', 'Access Key ID')}
+                    name="storageS3AccessKeyId"
+                  >
+                    <Input placeholder="S3_ACCESS_KEY_ID" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3SecretAccessKey', 'Secret Access Key')}
+                    name="storageS3SecretAccessKey"
+                    extra={
+                      data?.storageS3SecretAccessKeyConfigured
+                        ? `${t('admin.settings.current', '当前值')}: ${
+                            data.storageS3SecretAccessKeyMasked || '已配置'
+                          }`
+                        : t('admin.settings.notSet', '未配置')
+                    }
+                  >
+                    <Input.Password
+                      autoComplete="new-password"
+                      placeholder={t('admin.settings.leaveBlank', '留空则保持当前值')}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3Endpoint', 'Endpoint 地址')}
+                    name="storageS3Endpoint"
+                    extra={t(
+                      'admin.settings.storageS3Endpoint.help',
+                      '填写 S3 兼容服务的 API 地址，例如 https://s3.amazonaws.com、https://oss-cn-hangzhou.aliyuncs.com 或 MinIO/RustFS 地址。',
+                    )}
+                  >
+                    <Input placeholder="https://s3.example.com" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3Bucket', 'Bucket 名称')}
+                    name="storageS3Bucket"
+                  >
+                    <Input placeholder="lobe" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3Region', 'Region 区域')}
+                    name="storageS3Region"
+                    extra={t(
+                      'admin.settings.storageS3Region.help',
+                      'AWS S3 通常需要区域；MinIO/RustFS 可以留空或使用 us-east-1。',
+                    )}
+                  >
+                    <Input placeholder="us-east-1" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3PublicDomain', '公开访问域名 / CDN')}
+                    name="storageS3PublicDomain"
+                    extra={t(
+                      'admin.settings.storageS3PublicDomain.help',
+                      '当开启公开读 ACL 时用于拼接文件访问 URL；未配置或关闭公开读时系统会返回短期预签名 URL。',
+                    )}
+                  >
+                    <Input placeholder="https://cdn.example.com" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3FilePath', '上传目录前缀')}
+                    name="storageS3FilePath"
+                    extra={t(
+                      'admin.settings.storageS3FilePath.help',
+                      '用于生成对象 Key，例如 files/490000/mock.png。建议使用 files、uploads 或按业务命名的短前缀，不要以 / 开头。',
+                    )}
+                  >
+                    <Input placeholder="files" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3EnablePathStyle', '启用 Path-style 路径')}
+                    name="storageS3EnablePathStyle"
+                    valuePropName="checked"
+                    extra={t(
+                      'admin.settings.storageS3EnablePathStyle.help',
+                      'MinIO、RustFS 等自建 S3 通常需要开启；AWS/R2/OSS 多数场景可以关闭。',
+                    )}
+                  >
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3SetAcl', '上传时设置 public-read ACL')}
+                    name="storageS3SetAcl"
+                    valuePropName="checked"
+                    extra={t(
+                      'admin.settings.storageS3SetAcl.help',
+                      '只有对象存储允许 ACL 且需要直接公开访问时开启；否则建议关闭，系统会使用预签名 URL。',
+                    )}
+                  >
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.storageS3PreviewUrlExpireIn', '预览 URL 有效期（秒）')}
+                    name="storageS3PreviewUrlExpireIn"
+                    extra={t(
+                      'admin.settings.storageS3PreviewUrlExpireIn.help',
+                      '关闭公开读或未配置 CDN 时生效。建议 1800-7200 秒；过短会导致模型读取图片时 URL 过期。',
+                    )}
+                  >
+                    <InputNumber max={604_800} min={60} style={{ width: '100%' }} />
+                  </Form.Item>
+                </Card>
+              ),
+            },
             {
               key: 'brand',
               label: '品牌与登录',
@@ -363,6 +532,50 @@ const AdminSettingsPage = memo(() => {
                     <Input
                       placeholder={t('admin.settings.defaultSkillName.placeholder', '玄果技能')}
                     />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.profileInterestAreas', '用户兴趣领域')}
+                    extra={t(
+                      'admin.settings.profileInterestAreas.help',
+                      '用于注册引导和个人资料页的“兴趣领域”。留空时使用系统默认标签；配置后按这里的列表展示。',
+                    )}
+                  >
+                    <Form.List name="profileInterestAreas">
+                      {(fields, { add, remove }) => (
+                        <Flexbox gap={8}>
+                          {fields.map(({ key, name, ...restField }) => (
+                            <Flexbox horizontal align="center" gap={8} key={key}>
+                              <Form.Item {...restField} noStyle name={[name, 'key']}>
+                                <Input
+                                  placeholder="唯一标识，可留空自动使用名称"
+                                  style={{ flex: 1 }}
+                                />
+                              </Form.Item>
+                              <Form.Item
+                                {...restField}
+                                noStyle
+                                name={[name, 'label']}
+                                rules={[{ message: '请填写显示名称', required: true }]}
+                              >
+                                <Input placeholder="显示名称，例如 AI 绘画" style={{ flex: 1.4 }} />
+                              </Form.Item>
+                              <MinusCircleOutlined
+                                style={{ color: '#ff4d4f' }}
+                                onClick={() => remove(name)}
+                              />
+                            </Flexbox>
+                          ))}
+                          <Button
+                            block
+                            icon={<PlusOutlined />}
+                            type="dashed"
+                            onClick={() => add({ key: '', label: '' })}
+                          >
+                            {t('admin.settings.profileInterestAreas.add', '添加兴趣领域')}
+                          </Button>
+                        </Flexbox>
+                      )}
+                    </Form.List>
                   </Form.Item>
                   <Form.Item
                     label={t('admin.settings.defaultProvider', '默认供应商（Provider）')}
@@ -707,6 +920,34 @@ const AdminSettingsPage = memo(() => {
                     </Button>
                   </Card>
 
+                  <Card title={t('admin.settings.memorySection', '记忆系统')}>
+                    <Alert
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      type="info"
+                      message={t(
+                        'admin.settings.memoryTriggerMode.reason',
+                        '记忆分析会扫描用户聊天主题并调用模型提取长期记忆，任务可能较慢。当前单机 Node 部署建议使用“直接执行”，不依赖 Upstash/QStash；如果后续改为多实例或云函数部署，再切换到 QStash 工作流。',
+                      )}
+                    />
+                    <Form.Item
+                      label={t('admin.settings.memoryTriggerMode', '记忆分析执行模式')}
+                      name="memoryUserMemoryTriggerMode"
+                      extra={t(
+                        'admin.settings.memoryTriggerMode.help',
+                        '自动选择：检测到 QSTASH_TOKEN 时优先使用 QStash 工作流，否则直接执行。直接执行：在当前 Node 服务内异步处理，简单稳定，但服务重启会中断正在执行的任务。QStash 工作流优先：适合多实例、云函数和可重试队列场景；如果缺少 QSTASH_TOKEN，系统会回退为直接执行。环境变量 MEMORY_USER_MEMORY_TRIGGER_MODE 可作为运维级覆盖。',
+                      )}
+                    >
+                      <Select options={memoryTriggerModeOptions} />
+                    </Form.Item>
+                    <Text type="secondary">
+                      QSTASH_TOKEN：
+                      {data?.qstashTokenConfigured ? '已配置，可使用工作流模式' : '未配置'}
+                      ；环境变量 MEMORY_USER_MEMORY_TRIGGER_MODE：
+                      {data?.memoryUserMemoryTriggerModeEnv || '未设置'}
+                    </Text>
+                  </Card>
+
                   <Card title={t('admin.settings.clientSection', '客户端入口')}>
                     <Form.Item
                       label={t('admin.settings.desktopDownloadUrl', '桌面客户端下载地址（URL）')}
@@ -759,6 +1000,8 @@ const AdminSettingsPage = memo(() => {
           <div>审计日志清理时间点：{runResult?.auditCutoff ?? '-'}</div>
           <div>已过期待支付订单：{runResult?.pendingOrdersExpired ?? 0}</div>
           <div>待支付订单过期时间点：{runResult?.pendingOrdersCutoff ?? '-'}</div>
+          <div>已删除归档通知：{runResult?.notificationsDeleted ?? 0}</div>
+          <div>归档通知清理时间点：{runResult?.notificationRetentionCutoff ?? '-'}</div>
           <div>已过期订阅快照：{runResult?.subscriptionSnapshotsExpired ?? 0}</div>
           <div>已补充免费套餐：{runResult?.freeSnapshotsCreated ?? 0}</div>
         </Flexbox>

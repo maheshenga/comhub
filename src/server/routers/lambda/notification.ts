@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { NotificationModel } from '@/database/models/notification';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
+import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
 
 const notificationProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
@@ -11,6 +12,11 @@ const notificationProcedure = authedProcedure.use(serverDatabase).use(async (opt
     ctx: { notificationModel: new NotificationModel(ctx.serverDB, ctx.userId) },
   });
 });
+
+const isInboxNotificationEnabled = async (db: any) => {
+  const value = await getAppSettingValue(APP_SETTING_KEYS.notificationInboxEnabled, db);
+  return value !== false;
+};
 
 export const notificationRouter = router({
   archive: notificationProcedure
@@ -33,6 +39,8 @@ export const notificationRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
+      if (!(await isInboxNotificationEnabled(ctx.serverDB))) return [];
+
       return ctx.notificationModel.list(input);
     }),
 
@@ -47,6 +55,8 @@ export const notificationRouter = router({
     }),
 
   unreadCount: notificationProcedure.query(async ({ ctx }) => {
+    if (!(await isInboxNotificationEnabled(ctx.serverDB))) return 0;
+
     return ctx.notificationModel.getUnreadCount();
   }),
 });
