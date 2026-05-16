@@ -38,6 +38,7 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/model-policy`,
         `${ADMIN_BASE_PATH}/providers`,
         `${ADMIN_BASE_PATH}/model-billing-matrix`,
+        `${ADMIN_BASE_PATH}/ppt`,
         `${ADMIN_BASE_PATH}/subscriptions`,
         `${ADMIN_BASE_PATH}/redemption`,
         `${ADMIN_BASE_PATH}/settings`,
@@ -101,8 +102,10 @@ describe('adminNavigation', () => {
     expect(getAdminSelectedKey('/settings/admin/model-billing-matrix')).toBe(
       `${ADMIN_BASE_PATH}/model-billing-matrix`,
     );
+    expect(getAdminSelectedKey('/settings/admin/ppt')).toBe(`${ADMIN_BASE_PATH}/ppt`);
 
     expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['model-billing']);
     expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['model-billing']);
+    expect(getAdminOpenKeys('/settings/admin/ppt')).toEqual(['model-billing']);
   });
 });

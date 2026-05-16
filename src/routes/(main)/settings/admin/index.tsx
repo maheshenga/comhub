@@ -1,20 +1,72 @@
 'use client';
 
+import { Flexbox } from '@lobehub/ui';
 import { useTranslation } from 'react-i18next';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
+import { AdminSidebar } from '@/features/Admin';
+import AdminAuditPage from '@/routes/(main)/admin/audit';
+import AdminCreditsPage from '@/routes/(main)/admin/credits';
+import AdminDesktopUpdatePage from '@/routes/(main)/admin/desktop-update';
+import AdminGrowthPage from '@/routes/(main)/admin/growth';
+import AdminModelBillingMatrixPage from '@/routes/(main)/admin/model-billing-matrix';
+import AdminModelPolicyPage from '@/routes/(main)/admin/model-policy';
+import AdminOperationsPage from '@/routes/(main)/admin/operations';
+import AdminOrdersPage from '@/routes/(main)/admin/orders';
+import AdminOverviewPage from '@/routes/(main)/admin/overview';
+import AdminPlansPage from '@/routes/(main)/admin/plans';
+import AdminPptPage from '@/routes/(main)/admin/ppt';
+import AdminPricingPage from '@/routes/(main)/admin/pricing';
+import AdminProvidersPage from '@/routes/(main)/admin/providers';
+import AdminRecommendationsPage from '@/routes/(main)/admin/recommendations';
+import AdminRedemptionPage from '@/routes/(main)/admin/redemption';
 import AdminSettingsPage from '@/routes/(main)/admin/settings';
+import AdminStatsPage from '@/routes/(main)/admin/stats';
+import AdminSubscriptionsPage from '@/routes/(main)/admin/subscriptions';
+import AdminUsersPage from '@/routes/(main)/admin/users';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
+const adminPageMap = {
+  'audit': AdminAuditPage,
+  'change-requests': AdminSubscriptionsPage,
+  'credits': AdminCreditsPage,
+  'desktop-update': AdminDesktopUpdatePage,
+  'growth': AdminGrowthPage,
+  'model-billing-matrix': AdminModelBillingMatrixPage,
+  'model-policy': AdminModelPolicyPage,
+  'operations': AdminOperationsPage,
+  'orders': AdminOrdersPage,
+  'overview': AdminOverviewPage,
+  'plans': AdminPlansPage,
+  'ppt': AdminPptPage,
+  'pricing': AdminPricingPage,
+  'providers': AdminProvidersPage,
+  'recommendations': AdminRecommendationsPage,
+  'redemption': AdminRedemptionPage,
+  'settings': AdminSettingsPage,
+  'stats': AdminStatsPage,
+  'subscriptions': AdminSubscriptionsPage,
+  'topup': AdminOrdersPage,
+  'users': AdminUsersPage,
+};
+
+const getAdminPage = (pathname: string) => {
+  const segment = pathname.replace(/\/+$/, '').split('/')[3];
+
+  return adminPageMap[segment as keyof typeof adminPageMap] ?? AdminOverviewPage;
+};
+
 const SettingsAdminPage = () => {
   const { t } = useTranslation('subscription');
+  const location = useLocation();
   const [user, isUserStateInit] = useUserStore((s) => [
     userProfileSelectors.userProfile(s),
     s.isUserStateInit,
   ]);
   const role = (user as any)?.role as string | undefined;
+  const Page = getAdminPage(location.pathname);
 
   if (!isUserStateInit) return null;
   if (role !== 'admin') return <Navigate replace to="/" />;
@@ -22,7 +74,12 @@ const SettingsAdminPage = () => {
   return (
     <>
       <SettingHeader title={t('admin.console', '后台管理')} />
-      <AdminSettingsPage />
+      <Flexbox horizontal flex={1} style={{ minHeight: 0 }}>
+        <AdminSidebar />
+        <Flexbox flex={1} style={{ minWidth: 0, overflow: 'auto' }}>
+          <Page />
+        </Flexbox>
+      </Flexbox>
     </>
   );
 };
