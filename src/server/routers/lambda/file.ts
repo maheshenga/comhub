@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { businessFileUploadCheck } from '@/business/server/lambda-routers/file';
+import { assertStorageQuota } from '@/business/server/resourceQuota';
 import { checkFileStorageUsage } from '@/business/server/trpc-middlewares/lambda';
 import { serverDBEnv } from '@/config/db';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
@@ -167,6 +168,13 @@ export const fileRouter = router({
       if (actualSize < 0) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'File size cannot be negative' });
       }
+
+      await assertStorageQuota({
+        currentUsage: await ctx.fileModel.countUsage(),
+        db: ctx.serverDB,
+        incomingBytes: actualSize,
+        userId: ctx.userId,
+      });
 
       const { id } = await ctx.fileModel.create(
         {

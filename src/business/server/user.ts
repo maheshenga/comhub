@@ -28,6 +28,7 @@ export async function initNewUserForBusiness(
   const model = new CommercialModel(db, userId);
   await model.ensureCreditAccount();
   await ensureDefaultFreePlanSnapshot(db, userId, createdAt);
+  await model.syncActivePlanResourceQuotas();
 
   const [enabled, amountValue] = await Promise.all([
     getAppSettingValue(APP_SETTING_KEYS.onboardingInitialCreditsEnabled, db),

@@ -4,6 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileRouter } from '@/server/routers/lambda/file';
 import { AsyncTaskStatus } from '@/types/asyncTask';
 
+const mockCreditAccountFindFirst = vi.hoisted(() => vi.fn());
+
+vi.mock('@/database/core/db-adaptor', () => ({
+  getServerDB: vi.fn(async () => ({
+    query: {
+      creditAccounts: {
+        findFirst: mockCreditAccountFindFirst,
+      },
+    },
+  })),
+}));
+
 // Patch: Use actual router context middleware to inject the correct models/services
 function createCallerWithCtx(partialCtx: any = {}) {
   // All mocks are spies
@@ -107,10 +119,12 @@ const mockFileModelFindById = vi.fn();
 const mockFileModelFindByIds = vi.fn();
 const mockFileModelQuery = vi.fn();
 const mockFileModelClear = vi.fn();
+const mockFileModelCountUsage = vi.fn();
 
 vi.mock('@/database/models/file', () => ({
   FileModel: vi.fn(() => ({
     checkHash: mockFileModelCheckHash,
+    countUsage: mockFileModelCountUsage,
     create: mockFileModelCreate,
     delete: mockFileModelDelete,
     deleteMany: mockFileModelDeleteMany,
@@ -176,6 +190,9 @@ describe('fileRouter', () => {
       chunkTaskId: null,
       embeddingTaskId: null,
     };
+
+    mockFileModelCountUsage.mockResolvedValue(0);
+    mockCreditAccountFindFirst.mockResolvedValue(null);
 
     // Set default mock for getFileMetadata (security fix for GHSA-wrrr-8jcv-wjf5)
     mockFileServiceGetFileMetadata.mockResolvedValue({
@@ -346,6 +363,28 @@ describe('fileRouter', () => {
           metadata: {},
         }),
       ).rejects.toThrow('File size cannot be negative');
+    });
+
+    it('should reject when actual file size would exceed the user storage quota', async () => {
+      mockFileModelCheckHash.mockResolvedValue({ isExist: false });
+      mockFileModelCountUsage.mockResolvedValue(90);
+      mockCreditAccountFindFirst.mockResolvedValue({ storageQuota: 100, vectorQuota: null });
+      mockFileServiceGetFileMetadata.mockResolvedValue({
+        contentLength: 20,
+        contentType: 'text/plain',
+      });
+
+      await expect(
+        caller.createFile({
+          hash: 'test-hash',
+          fileType: 'text',
+          name: 'test.txt',
+          size: 1,
+          url: 'files/test.txt',
+          metadata: {},
+        }),
+      ).rejects.toThrow('StorageQuotaExceeded');
+      expect(mockFileModelCreate).not.toHaveBeenCalled();
     });
   });
 

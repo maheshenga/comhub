@@ -19,7 +19,7 @@ const router = createAppRouter(desktopRoutes, { basename });
 
 createRoot(document.getElementById('root')!).render(
   <BootErrorBoundary>
-    <BrandProvider>
+    <BrandProvider initialBrand={window.__SERVER_CONFIG__?.brand}>
       <RouterProvider router={router} />
     </BrandProvider>
   </BootErrorBoundary>,

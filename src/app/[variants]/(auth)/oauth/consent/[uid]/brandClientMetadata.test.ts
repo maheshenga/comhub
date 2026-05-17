@@ -8,6 +8,7 @@ describe('resolveBrandedClientMetadata', () => {
       brand: {
         authTitle: null,
         copyrightText: null,
+        defaultSkillName: null,
         faviconUrl: null,
         loadingText: null,
         logoUrl: '/brand/logo.png',
@@ -42,6 +43,7 @@ describe('resolveBrandedClientMetadata', () => {
         brand: {
           authTitle: null,
           copyrightText: null,
+          defaultSkillName: null,
           faviconUrl: null,
           loadingText: null,
           logoUrl: '/brand/logo.png',

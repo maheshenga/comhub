@@ -1,9 +1,9 @@
 import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { planCatalog } from '@/database/schemas';
+import { creditAccounts, planCatalog, userPlanSnapshots } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
@@ -54,8 +54,15 @@ const PlanInputSchema = z.object({
   pptMonthlyQuota: z.number().min(0).nullable().optional(),
   purchaseUrl: z.string().max(2048).optional(),
   sortOrder: z.number().default(0),
+  storageQuotaMb: z.number().min(0).nullable().optional(),
+  vectorQuota: z.number().min(0).nullable().optional(),
   yearlyPrice: z.number().min(0),
 });
+
+const toStorageQuotaBytes = (storageQuotaMb?: null | number) =>
+  storageQuotaMb === null || storageQuotaMb === undefined
+    ? null
+    : Math.floor(storageQuotaMb * 1024 * 1024);
 
 export const adminPlansRouter = router({
   delete: adminProcedure
@@ -99,7 +106,15 @@ export const adminPlansRouter = router({
     }),
 
   upsert: adminProcedure.input(PlanInputSchema).mutation(async ({ ctx, input }) => {
-    const { pptCreditCost, pptEnabled, pptMonthlyQuota, purchaseUrl, ...planInput } = input;
+    const {
+      pptCreditCost,
+      pptEnabled,
+      pptMonthlyQuota,
+      purchaseUrl,
+      storageQuotaMb,
+      vectorQuota,
+      ...planInput
+    } = input;
     const existing = await ctx.serverDB.query.planCatalog.findFirst({
       where: eq(planCatalog.plan, planInput.plan),
     });
@@ -111,6 +126,8 @@ export const adminPlansRouter = router({
       pptCreditCost: pptCreditCost ?? 0,
       pptEnabled: pptEnabled === true,
       pptMonthlyQuota: pptMonthlyQuota ?? null,
+      storageQuotaMb: storageQuotaMb ?? null,
+      vectorQuota: vectorQuota ?? null,
       ...(normalizedPurchaseUrl ? { purchaseUrl: normalizedPurchaseUrl } : {}),
     };
     if (!normalizedPurchaseUrl) delete metadata.purchaseUrl;
@@ -123,6 +140,38 @@ export const adminPlansRouter = router({
     } else {
       await ctx.serverDB.insert(planCatalog).values({ ...planInput, metadata });
     }
+
+    const activeSnapshots = await ctx.serverDB.query.userPlanSnapshots.findMany({
+      columns: { userId: true },
+      where: and(
+        eq(userPlanSnapshots.plan, planInput.plan),
+        eq(userPlanSnapshots.status, 'active'),
+      ),
+    });
+    const activeUserIds = Array.from(
+      new Set(activeSnapshots.map((snapshot: { userId: string }) => snapshot.userId)),
+    );
+    if (activeUserIds.length > 0) {
+      const quotaUpdate = {
+        storageQuota: toStorageQuotaBytes(storageQuotaMb),
+        updatedAt: new Date(),
+        vectorQuota: vectorQuota ?? null,
+      };
+
+      await ctx.serverDB
+        .insert(creditAccounts)
+        .values(
+          activeUserIds.map((userId) => ({
+            ...quotaUpdate,
+            userId,
+          })),
+        )
+        .onConflictDoUpdate({
+          set: quotaUpdate,
+          target: creditAccounts.userId,
+        });
+    }
+
     await recordAdminAudit(ctx, {
       action: existing ? 'plan.update' : 'plan.create',
       payload: {
@@ -131,6 +180,8 @@ export const adminPlansRouter = router({
         pptEnabled: pptEnabled === true,
         pptMonthlyQuota: pptMonthlyQuota ?? null,
         purchaseUrl: normalizedPurchaseUrl,
+        storageQuotaMb: storageQuotaMb ?? null,
+        vectorQuota: vectorQuota ?? null,
       },
       resourceId: planInput.plan,
       resourceType: 'plan_catalog',

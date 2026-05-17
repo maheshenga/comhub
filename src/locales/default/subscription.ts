@@ -860,5 +860,6 @@ export default {
 
   // Error messages
   'response.StorageQuotaExceeded': '存储空间不足',
+  'response.VectorQuotaExceeded': '向量数据库条数不足',
   'response.InsufficientBudgetForModel.action': '去充值',
 };

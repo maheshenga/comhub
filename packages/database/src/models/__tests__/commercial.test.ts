@@ -72,6 +72,7 @@ const seedPlanCatalogEntry = async (
   overrides: Partial<(typeof DEFAULT_PLAN_CATALOG)[Plans]> & {
     features?: string[];
     isActive?: boolean;
+    metadata?: Record<string, unknown>;
   } = {},
 ) => {
   const base = DEFAULT_PLAN_CATALOG[plan];
@@ -454,6 +455,29 @@ describe('CommercialModel', () => {
         title: 'Subscription Credits',
         type: 'subscription_grant',
       });
+    });
+
+    it('should sync storage and vector quotas from plan metadata when activating a subscription', async () => {
+      await seedPlanCatalogEntry(Plans.Starter, {
+        metadata: {
+          storageQuotaMb: 512,
+          vectorQuota: 1200,
+        },
+      });
+
+      const request = await commercialModel.createSubscriptionChangeRequest({
+        cycle: 'monthly',
+        targetPlan: Plans.Starter,
+      });
+
+      await commercialModel.activateSubscriptionChangeRequest(request.id);
+
+      const account = await serverDB.query.creditAccounts.findFirst({
+        where: eq(creditAccounts.userId, userId),
+      });
+
+      expect(Number(account?.storageQuota)).toBe(512 * 1024 * 1024);
+      expect(Number(account?.vectorQuota)).toBe(1200);
     });
 
     it('should backfill active subscription credits only once', async () => {

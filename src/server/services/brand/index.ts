@@ -7,6 +7,7 @@ import { getServerDB } from '@/database/server';
 export interface ServerBrandConfig {
   authTitle: string | null;
   copyrightText: string | null;
+  defaultSkillName: string | null;
   faviconUrl: string | null;
   loadingText: string | null;
   logoUrl: string | null;
@@ -19,6 +20,7 @@ const KEYS = {
   authTitle: 'brand.authTitle',
   copyrightText: 'brand.copyrightText',
   favicon: 'brand.faviconUrl',
+  defaultSkillName: 'defaultSkill.name',
   loadingText: 'brand.loadingText',
   logo: 'brand.logoUrl',
   name: 'brand.name',
@@ -45,20 +47,31 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
   if (cached && Date.now() - cached.at < TTL_MS) return cached.data;
   try {
     const db = await getServerDB();
-    const [name, logoUrl, faviconUrl, primaryColor, slogan, loadingText, authTitle, copyrightText] =
-      await Promise.all([
-        readString(db, KEYS.name),
-        readString(db, KEYS.logo),
-        readString(db, KEYS.favicon),
-        readString(db, KEYS.primary),
-        readString(db, KEYS.slogan),
-        readString(db, KEYS.loadingText),
-        readString(db, KEYS.authTitle),
-        readString(db, KEYS.copyrightText),
-      ]);
+    const [
+      name,
+      logoUrl,
+      faviconUrl,
+      primaryColor,
+      slogan,
+      loadingText,
+      authTitle,
+      copyrightText,
+      defaultSkillName,
+    ] = await Promise.all([
+      readString(db, KEYS.name),
+      readString(db, KEYS.logo),
+      readString(db, KEYS.favicon),
+      readString(db, KEYS.primary),
+      readString(db, KEYS.slogan),
+      readString(db, KEYS.loadingText),
+      readString(db, KEYS.authTitle),
+      readString(db, KEYS.copyrightText),
+      readString(db, KEYS.defaultSkillName),
+    ]);
     const data: ServerBrandConfig = {
       authTitle: authTitle ?? DEFAULT_RUNTIME_BRAND.authTitle,
       copyrightText: copyrightText ?? DEFAULT_RUNTIME_BRAND.copyrightText,
+      defaultSkillName: defaultSkillName ?? name ?? DEFAULT_RUNTIME_BRAND.name,
       faviconUrl,
       loadingText: loadingText ?? DEFAULT_RUNTIME_BRAND.loadingText,
       logoUrl: logoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
@@ -72,6 +85,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
     const data: ServerBrandConfig = {
       authTitle: DEFAULT_RUNTIME_BRAND.authTitle,
       copyrightText: DEFAULT_RUNTIME_BRAND.copyrightText,
+      defaultSkillName: DEFAULT_RUNTIME_BRAND.name,
       faviconUrl: null,
       loadingText: DEFAULT_RUNTIME_BRAND.loadingText,
       logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,

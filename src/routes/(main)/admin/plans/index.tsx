@@ -41,6 +41,8 @@ type PlanRow = {
     pptEnabled?: boolean;
     pptMonthlyQuota?: null | number;
     purchaseUrl?: string;
+    storageQuotaMb?: null | number;
+    vectorQuota?: null | number;
   } | null;
   plan: string;
   sortOrder: number;
@@ -60,6 +62,8 @@ type PlanFormValues = {
   pptMonthlyQuota?: null | number;
   purchaseUrl?: string;
   sortOrder?: number;
+  storageQuotaMb?: null | number;
+  vectorQuota?: null | number;
   yearlyPrice?: number;
 };
 
@@ -103,6 +107,8 @@ const AdminPlansPage = memo(() => {
       pptEnabled: metadata?.pptEnabled === true,
       pptMonthlyQuota: metadata?.pptMonthlyQuota ?? null,
       purchaseUrl: metadata?.purchaseUrl ?? '',
+      storageQuotaMb: metadata?.storageQuotaMb ?? null,
+      vectorQuota: metadata?.vectorQuota ?? null,
     } as PlanFormValues);
   };
 
@@ -131,6 +137,14 @@ const AdminPlansPage = memo(() => {
             : Number(values.pptMonthlyQuota),
         purchaseUrl: values.purchaseUrl?.trim() || undefined,
         sortOrder: Number(values.sortOrder || 0),
+        storageQuotaMb:
+          values.storageQuotaMb === null || values.storageQuotaMb === undefined
+            ? null
+            : Number(values.storageQuotaMb),
+        vectorQuota:
+          values.vectorQuota === null || values.vectorQuota === undefined
+            ? null
+            : Number(values.vectorQuota),
         yearlyPrice: Number(values.yearlyPrice || 0),
       });
       message.success(t('admin.plans.saveSuccess', '套餐已保存'));
@@ -186,6 +200,27 @@ const AdminPlansPage = memo(() => {
       render: (metadata: PlanRow['metadata']) =>
         metadata?.purchaseUrl ? <Tag color="blue">已设置</Tag> : <Tag>未设置</Tag>,
       title: t('admin.plans.col.purchaseUrl', '购买链接'),
+    },
+    {
+      dataIndex: 'metadata',
+      key: 'quotas',
+      render: (metadata: PlanRow['metadata']) => (
+        <Flexbox gap={4}>
+          <Tag>
+            存储{' '}
+            {metadata?.storageQuotaMb === null || metadata?.storageQuotaMb === undefined
+              ? '不限'
+              : `${metadata.storageQuotaMb} MB`}
+          </Tag>
+          <Tag>
+            向量{' '}
+            {metadata?.vectorQuota === null || metadata?.vectorQuota === undefined
+              ? '不限'
+              : metadata.vectorQuota}
+          </Tag>
+        </Flexbox>
+      ),
+      title: t('admin.plans.col.quotas', '资源限制'),
     },
     {
       dataIndex: 'metadata',
@@ -346,6 +381,27 @@ const AdminPlansPage = memo(() => {
           >
             <Input placeholder="https://..." />
           </Form.Item>
+          <Flexbox horizontal gap={12}>
+            <Form.Item
+              extra={t('admin.plans.field.storageQuotaHint', '留空表示不限；0 表示禁止上传。')}
+              label={t('admin.plans.field.storageQuotaMb', '存储空间上限 MB')}
+              name="storageQuotaMb"
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              extra={t(
+                'admin.plans.field.vectorQuotaHint',
+                '留空表示不限；按 embeddings 记录条数计算。',
+              )}
+              label={t('admin.plans.field.vectorQuota', '向量条数上限')}
+              name="vectorQuota"
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+          </Flexbox>
           <Flexbox horizontal gap={12}>
             <Form.Item
               label={t('admin.plans.field.pptEnabled', '允许 PPT 创作')}

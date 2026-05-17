@@ -1,6 +1,7 @@
 import { Plans } from '@lobechat/types';
 import { and, desc, eq, lt } from 'drizzle-orm';
 
+import { CommercialModel } from '@/database/models/commercial';
 import { userPlanSnapshots } from '@/database/schemas';
 import type { LobeChatDatabase, Transaction } from '@/database/type';
 
@@ -25,7 +26,10 @@ export const syncExpiredSubscriptionsToFree = async (
       where: and(eq(userPlanSnapshots.userId, userId), eq(userPlanSnapshots.status, 'active')),
     });
 
-    if (activeSnapshot) continue;
+    if (activeSnapshot) {
+      await new CommercialModel(db as LobeChatDatabase, userId).syncActivePlanResourceQuotas(db);
+      continue;
+    }
 
     const [created] = await db
       .insert(userPlanSnapshots)
@@ -44,6 +48,8 @@ export const syncExpiredSubscriptionsToFree = async (
       .returning({ id: userPlanSnapshots.id });
 
     if (created) freeSnapshotsCreated += 1;
+
+    await new CommercialModel(db as LobeChatDatabase, userId).syncActivePlanResourceQuotas(db);
   }
 
   return {

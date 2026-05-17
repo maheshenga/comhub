@@ -23,6 +23,10 @@ const ERROR_CONFIGS: Partial<Record<ErrorType, AlertProps>> = {
     message: '存储空间不足，请清理文件或升级套餐',
     type: 'warning',
   },
+  VectorQuotaExceeded: {
+    message: '向量数据库条数不足，请清理文件或升级套餐',
+    type: 'warning',
+  },
 };
 
 export default function useBusinessErrorAlertConfig(errorType?: ErrorType): AlertProps | undefined {

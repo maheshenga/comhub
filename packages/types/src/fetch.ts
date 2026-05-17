@@ -8,6 +8,7 @@ export const ChatErrorType = {
   SubscriptionPlanLimit: 'SubscriptionPlanLimit', // Subscription user limit exceeded
   InsufficientBudgetForModel: 'InsufficientBudgetForModel', // Has credits but not enough for estimated model cost
   StorageQuotaExceeded: 'StorageQuotaExceeded', // Storage quota limit exceeded
+  VectorQuotaExceeded: 'VectorQuotaExceeded', // Vector database quota limit exceeded
   SubscriptionKeyMismatch: 'SubscriptionKeyMismatch', // Subscription key mismatch
 
   SupervisorDecisionFailed: 'SupervisorDecisionFailed', // Supervisor decision failed

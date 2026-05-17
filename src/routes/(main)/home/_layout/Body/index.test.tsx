@@ -14,6 +14,10 @@ interface MockGlobalState {
 
 const mocks = vi.hoisted(() => ({
   globalState: undefined as unknown as MockGlobalState,
+  navLayout: {
+    bottomMenuItems: [] as Array<{ hidden?: boolean; key: string; title: string; url: string }>,
+    topNavItems: [] as Array<{ hidden?: boolean; key: string; title: string; url: string }>,
+  },
   updateSystemStatus: vi.fn(),
 }));
 
@@ -58,7 +62,7 @@ vi.mock('@/hooks/useActiveTabKey', () => ({
 }));
 
 vi.mock('@/hooks/useNavLayout', () => ({
-  useNavLayout: () => ({ bottomMenuItems: [], topNavItems: [] }),
+  useNavLayout: () => mocks.navLayout,
 }));
 
 vi.mock('@/utils/navigation', () => ({
@@ -96,6 +100,7 @@ beforeEach(() => {
     },
     updateSystemStatus: mocks.updateSystemStatus,
   };
+  mocks.navLayout = { bottomMenuItems: [], topNavItems: [] };
 });
 
 afterEach(() => {
@@ -120,5 +125,18 @@ describe('Home sidebar body', () => {
     fireEvent.click(screen.getByRole('button', { name: 'collapse recents' }));
 
     expect(mocks.updateSystemStatus).toHaveBeenCalledWith({ sidebarExpandedKeys: ['agent'] });
+  });
+
+  it('renders enabled PPT and expert plaza entries when sidebar order contains them', () => {
+    mocks.globalState.status.sidebarItems = ['ppt', 'experts', 'recents', 'agent'];
+    mocks.navLayout.bottomMenuItems = [
+      { key: 'ppt', title: 'PPT', url: '/ppt' },
+      { key: 'experts', title: '专家广场', url: '/experts' },
+    ];
+
+    render(<Body />);
+
+    expect(screen.getByText('PPT')).toBeInTheDocument();
+    expect(screen.getByText('专家广场')).toBeInTheDocument();
   });
 });

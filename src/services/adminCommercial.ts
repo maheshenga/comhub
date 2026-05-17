@@ -207,6 +207,8 @@ class AdminCommercialService {
     pptMonthlyQuota?: null | number;
     purchaseUrl?: string;
     sortOrder?: number;
+    storageQuotaMb?: null | number;
+    vectorQuota?: null | number;
     yearlyPrice: number;
   }) => lambdaClient.admin.plans.upsert.mutate(params);
   deletePlan = async (plan: string) => lambdaClient.admin.plans.delete.mutate({ plan });

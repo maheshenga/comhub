@@ -21,9 +21,19 @@ const getDownloadButton = (runtime: any) => {
 const getUpstreamTaskId = (data: any) =>
   data?.id || data?.taskId || data?.pptId || data?.pptInfo?.id;
 
+const getDocmeeErrorCode = (error: any) =>
+  error?.code ||
+  error?.data?.code ||
+  error?.data?.message ||
+  error?.message ||
+  'PPT_UPSTREAM_TOKEN_FAILED';
+
 const PptWorkspace = memo(() => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const uiRef = useRef<{ destroy?: () => void } | null>(null);
+  const uiRef = useRef<{
+    destroy?: () => void;
+    on?: (eventName: string, callback: (message?: any) => void) => void;
+  } | null>(null);
   const [errorCode, setErrorCode] = useState<string>();
   const [retryNonce, setRetryNonce] = useState(0);
   const {
@@ -38,6 +48,7 @@ const PptWorkspace = memo(() => {
       return;
 
     let disposed = false;
+    let mountTimeout: number | undefined;
 
     const mount = async () => {
       try {
@@ -46,7 +57,9 @@ const PptWorkspace = memo(() => {
         if (disposed || !containerRef.current || !token?.token) return;
 
         const { DocmeeUI } = await import('@docmee/sdk-ui');
-        uiRef.current = new DocmeeUI({
+        if (disposed || !containerRef.current) return;
+
+        const ui = new DocmeeUI({
           DOMAIN: runtime.baseUrl,
           container: containerRef.current,
           creatorVersion: runtime.creatorVersion,
@@ -71,8 +84,29 @@ const PptWorkspace = memo(() => {
           page: runtime.creatorVersion === 'v2' ? 'creator-v2' : 'creator',
           token: token.token,
         });
+        uiRef.current = ui;
+
+        let mounted = false;
+        mountTimeout = window.setTimeout(() => {
+          if (!disposed && !mounted) setErrorCode('PPT_UPSTREAM_TOKEN_FAILED');
+        }, 15_000);
+
+        ui.on?.('mounted', () => {
+          mounted = true;
+          window.clearTimeout(mountTimeout);
+        });
+        ui.on?.('invalid-token', () => {
+          mounted = true;
+          window.clearTimeout(mountTimeout);
+          if (!disposed) setErrorCode('PPT_UPSTREAM_TOKEN_FAILED');
+        });
+        ui.on?.('error', (message: any) => {
+          mounted = true;
+          window.clearTimeout(mountTimeout);
+          if (!disposed) setErrorCode(getDocmeeErrorCode(message));
+        });
       } catch (error: any) {
-        setErrorCode(error?.message || 'PPT_UPSTREAM_TOKEN_FAILED');
+        if (!disposed) setErrorCode(getDocmeeErrorCode(error));
       }
     };
 
@@ -80,6 +114,7 @@ const PptWorkspace = memo(() => {
 
     return () => {
       disposed = true;
+      if (mountTimeout) window.clearTimeout(mountTimeout);
       uiRef.current?.destroy?.();
       uiRef.current = null;
     };

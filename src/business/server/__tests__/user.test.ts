@@ -8,6 +8,7 @@ import {
   appSettings,
   creditAccounts,
   creditLedgerEntries,
+  planCatalog,
   userPlanSnapshots,
   users,
 } from '@/database/schemas';
@@ -27,6 +28,7 @@ afterEach(async () => {
   await serverDB.delete(creditLedgerEntries).where(eq(creditLedgerEntries.userId, userId));
   await serverDB.delete(creditAccounts).where(eq(creditAccounts.userId, userId));
   await serverDB.delete(appSettings);
+  await serverDB.delete(planCatalog);
   await serverDB.delete(users).where(eq(users.id, userId));
 });
 
@@ -50,6 +52,30 @@ describe('initNewUserForBusiness', () => {
       userId,
     });
     expect(snapshot?.startedAt).toEqual(createdAt);
+  });
+
+  it('applies free-plan storage and vector quotas to the new user credit account', async () => {
+    await serverDB.insert(planCatalog).values({
+      currency: 'CNY',
+      displayName: '免费套餐',
+      features: [],
+      isActive: true,
+      metadata: { storageQuotaMb: 128, vectorQuota: 300 },
+      monthlyCredits: 0,
+      monthlyPrice: 0,
+      plan: Plans.Free,
+      sortOrder: 0,
+      yearlyPrice: 0,
+    });
+
+    await initNewUserForBusiness(serverDB, userId, new Date('2026-05-09T00:00:00.000Z'));
+
+    const account = await serverDB.query.creditAccounts.findFirst({
+      where: eq(creditAccounts.userId, userId),
+    });
+
+    expect(Number(account?.storageQuota)).toBe(128 * 1024 * 1024);
+    expect(Number(account?.vectorQuota)).toBe(300);
   });
 
   it('does not replace an existing active plan snapshot', async () => {

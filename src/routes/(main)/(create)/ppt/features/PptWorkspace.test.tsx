@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PptWorkspace from './PptWorkspace';
@@ -19,18 +19,27 @@ vi.mock('react-router-dom', async (importOriginal) => ({
 }));
 
 const docmeeConstructor = vi.fn();
+const docmeeEventHandlers = new Map<string, Array<(message?: any) => void>>();
 
 vi.mock('@docmee/sdk-ui', () => ({
   DocmeeUI: function MockDocmeeUI(options: any) {
     docmeeConstructor(options);
 
-    return { destroy: vi.fn() };
+    return {
+      destroy: vi.fn(),
+      on: vi.fn((eventName: string, callback: (message?: any) => void) => {
+        const handlers = docmeeEventHandlers.get(eventName) ?? [];
+        handlers.push(callback);
+        docmeeEventHandlers.set(eventName, handlers);
+      }),
+    };
   },
 }));
 
 describe('PptWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    docmeeEventHandlers.clear();
     serviceMocks.createPptToken.mockResolvedValue({ sessionId: 's1', token: 'token-1' });
     serviceMocks.getPptRuntime.mockResolvedValue({
       allowPdfExport: true,
@@ -67,5 +76,32 @@ describe('PptWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }));
 
     await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
+  });
+
+  it('shows an error state when Docmee reports an invalid token', async () => {
+    render(<PptWorkspace />);
+
+    await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
+
+    act(() => {
+      docmeeEventHandlers.get('invalid-token')?.[0]?.({ type: 'invalid-token' });
+    });
+
+    expect(await screen.findByText('服务连接失败')).toBeInTheDocument();
+  });
+
+  it('shows an error state when Docmee emits a runtime error', async () => {
+    render(<PptWorkspace />);
+
+    await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
+
+    act(() => {
+      docmeeEventHandlers.get('error')?.[0]?.({
+        data: { message: 'iframe failed' },
+        type: 'error',
+      });
+    });
+
+    expect(await screen.findByText('PPT 创作加载失败')).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 
 import type { NewEmbeddingsItem } from '../schemas';
 import { embeddings } from '../schemas';
@@ -56,6 +56,19 @@ export class EmbeddingModel {
       })
       .from(embeddings)
       .where(eq(embeddings.userId, this.userId));
+
+    return result[0].count;
+  };
+
+  countByChunkIds = async (chunkIds: string[]): Promise<number> => {
+    if (chunkIds.length === 0) return 0;
+
+    const result = await this.db
+      .select({
+        count: count(),
+      })
+      .from(embeddings)
+      .where(and(eq(embeddings.userId, this.userId), inArray(embeddings.chunkId, chunkIds)));
 
     return result[0].count;
   };

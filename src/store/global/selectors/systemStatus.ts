@@ -56,7 +56,9 @@ export const DEFAULT_SIDEBAR_ITEMS: string[] = [
   'recents',
   'agent',
   'image',
+  'ppt',
   'community',
+  'experts',
   'resource',
   'memory',
 ];

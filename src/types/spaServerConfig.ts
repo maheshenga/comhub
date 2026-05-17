@@ -1,4 +1,5 @@
 import type { IFeatureFlags } from '@/config/featureFlags';
+import type { BrandConfig } from '@/features/Brand';
 import type { GlobalServerConfig } from '@/types/serverConfig';
 
 export interface AnalyticsConfig {
@@ -24,8 +25,13 @@ export interface SPAClientEnv {
   s3FilePath?: string;
 }
 
+export type SPABrandConfig = Partial<{
+  [K in keyof BrandConfig]: BrandConfig[K] | null;
+}>;
+
 export interface SPAServerConfig {
   analyticsConfig: AnalyticsConfig;
+  brand?: SPABrandConfig;
   clientEnv: SPAClientEnv;
   config: GlobalServerConfig;
   featureFlags: Partial<IFeatureFlags>;

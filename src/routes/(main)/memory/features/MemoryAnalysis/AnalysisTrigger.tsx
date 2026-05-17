@@ -11,6 +11,7 @@ import { useMemoryAnalysisAsyncTask } from '@/routes/(main)/memory/features/Memo
 import { memoryExtractionService } from '@/services/userMemory/extraction';
 
 import DateRangeModal from './DateRangeModal';
+import { getMemoryAnalysisErrorMessage } from './errorMessage';
 
 interface Props {
   footerNote: string;
@@ -41,7 +42,7 @@ const AnalysisTrigger = memo<Props>(({ footerNote, range, onRangeChange, iconOnl
       setOpen(false);
     } catch (error) {
       console.error(error);
-      message.error(t('analysis.toast.failed'));
+      message.error(getMemoryAnalysisErrorMessage(error, t('analysis.toast.failed')));
     } finally {
       setSubmitting(false);
     }

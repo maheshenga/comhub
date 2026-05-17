@@ -108,6 +108,7 @@ export const creditAccounts = pgTable(
 
     storageUsed: amountNumeric('storage_used').notNull().default(0),
     storageQuota: amountNumeric('storage_quota'),
+    vectorQuota: amountNumeric('vector_quota'),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),

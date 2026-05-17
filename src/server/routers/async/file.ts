@@ -5,6 +5,7 @@ import { chunk } from 'es-toolkit/compat';
 import pMap from 'p-map';
 import { z } from 'zod';
 
+import { assertVectorQuota } from '@/business/server/resourceQuota';
 import { checkEmbeddingUsage } from '@/business/server/trpc-middlewares/async';
 import { serverDBEnv } from '@/config/db';
 import { DEFAULT_FILE_EMBEDDING_MODEL_ITEM } from '@/const/settings/knowledge';
@@ -89,6 +90,15 @@ export const fileRouter = router({
           const CONCURRENCY = fileEnv.EMBEDDING_CONCURRENCY;
 
           const chunks = await ctx.chunkModel.getChunksTextByFileId(input.fileId);
+          const existingEmbeddings = await ctx.embeddingModel.countByChunkIds(
+            chunks.map((item) => item.id),
+          );
+          await assertVectorQuota({
+            currentUsage: await ctx.embeddingModel.countUsage(),
+            db: ctx.serverDB,
+            incomingItems: Math.max(0, chunks.length - existingEmbeddings),
+            userId: ctx.userId,
+          });
           const requestArray = chunk(chunks, CHUNK_SIZE);
           try {
             await pMap(

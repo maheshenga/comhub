@@ -269,6 +269,27 @@ const createEmptyCreditBreakdown = (): CreditBreakdown => ({
 const isCreditSourceType = (value: unknown): value is CreditSourceType =>
   typeof value === 'string' && CREDIT_SOURCE_PRIORITY.includes(value as CreditSourceType);
 
+const normalizeNonNegativeQuota = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+
+  const quota = Number(value);
+  if (!Number.isFinite(quota) || quota < 0) return null;
+
+  return Math.floor(quota);
+};
+
+const normalizePlanResourceQuotas = (metadata?: Record<string, unknown> | null) => {
+  const storageQuotaBytes = normalizeNonNegativeQuota(metadata?.storageQuotaBytes);
+  const storageQuotaMb = normalizeNonNegativeQuota(metadata?.storageQuotaMb);
+
+  return {
+    storageQuota:
+      storageQuotaBytes ??
+      (storageQuotaMb === null ? null : Math.floor(storageQuotaMb * 1024 * 1024)),
+    vectorQuota: normalizeNonNegativeQuota(metadata?.vectorQuota),
+  };
+};
+
 export class CommercialModel {
   private readonly db: LobeChatDatabase;
   private readonly userId: string;
@@ -280,6 +301,19 @@ export class CommercialModel {
 
   ensureCreditAccount = async (db: LobeChatDatabase | Transaction = this.db) => {
     return db.insert(creditAccounts).values({ userId: this.userId }).onConflictDoNothing();
+  };
+
+  syncActivePlanResourceQuotas = async (db: LobeChatDatabase | Transaction = this.db) => {
+    const activeSnapshot = await db.query.userPlanSnapshots.findFirst({
+      orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+      where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
+    });
+
+    if (!activeSnapshot) return null;
+
+    await this.syncPlanResourceQuotasForSnapshot(activeSnapshot.plan, db);
+
+    return activeSnapshot.plan;
   };
 
   private ensureCreditAccountForUser = async (
@@ -716,8 +750,12 @@ export class CommercialModel {
     > | null;
     tx: Transaction;
   }) => {
+    if (!snapshot) return 0;
+
+    await this.syncPlanResourceQuotasForSnapshot(snapshot.plan, tx);
+
     const duePeriods = this.listDueSubscriptionGrantPeriods(snapshot);
-    if (!snapshot || duePeriods.length === 0) return 0;
+    if (duePeriods.length === 0) return 0;
 
     // Batch-fetch existing referenceIds to avoid N+1 queries
     const existingEntries = await tx
@@ -767,6 +805,29 @@ export class CommercialModel {
     return granted;
   };
 
+  private syncPlanResourceQuotasForSnapshot = async (
+    plan: Plans,
+    db: LobeChatDatabase | Transaction = this.db,
+  ) => {
+    await this.ensureCreditAccount(db);
+
+    const catalog = await db.query.planCatalog.findFirst({
+      where: eq(planCatalog.plan, plan as string),
+    });
+    const quotas = normalizePlanResourceQuotas(
+      catalog?.metadata && typeof catalog.metadata === 'object' ? catalog.metadata : null,
+    );
+
+    await db
+      .update(creditAccounts)
+      .set({
+        storageQuota: quotas.storageQuota,
+        updatedAt: new Date(),
+        vectorQuota: quotas.vectorQuota,
+      })
+      .where(eq(creditAccounts.userId, this.userId));
+  };
+
   private syncExpiredPlanSnapshots = async (db: LobeChatDatabase | Transaction = this.db) => {
     const now = new Date();
 
@@ -781,7 +842,12 @@ export class CommercialModel {
         ),
       );
 
-    return this.ensureUnlimitedFreePlanSnapshot(db, now);
+    const snapshot = await this.ensureUnlimitedFreePlanSnapshot(db, now);
+    if (snapshot) {
+      await this.syncPlanResourceQuotasForSnapshot(snapshot.plan, db);
+    }
+
+    return snapshot;
   };
 
   private ensureUnlimitedFreePlanSnapshot = async (

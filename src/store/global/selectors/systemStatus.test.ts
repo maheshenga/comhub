@@ -125,7 +125,7 @@ describe('systemStatusSelectors', () => {
       expect(systemStatusSelectors.sidebarItems(initialState)).toEqual(DEFAULT_SIDEBAR_ITEMS);
     });
 
-    it('should return stored items when set', () => {
+    it('should preserve stored item order while appending newly known keys', () => {
       const custom = [
         'agent',
         'recents',
@@ -139,7 +139,7 @@ describe('systemStatusSelectors', () => {
       const s: GlobalState = merge(initialState, {
         status: { sidebarItems: custom },
       });
-      expect(systemStatusSelectors.sidebarItems(s)).toEqual(custom);
+      expect(systemStatusSelectors.sidebarItems(s)).toEqual([...custom, 'ppt', 'experts']);
     });
 
     it('should append missing known keys to the end', () => {
@@ -152,6 +152,8 @@ describe('systemStatusSelectors', () => {
       // every known key is present
       expect(items).toContain('pages');
       expect(items).toContain('community');
+      expect(items).toContain('ppt');
+      expect(items).toContain('experts');
       expect(items).toContain('resource');
       expect(items).toContain('memory');
     });
@@ -168,7 +170,9 @@ describe('systemStatusSelectors', () => {
         'agent',
         'recents',
         'image',
+        'ppt',
         'community',
+        'experts',
         'resource',
         'memory',
       ]);

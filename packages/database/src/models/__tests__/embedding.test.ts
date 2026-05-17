@@ -291,4 +291,31 @@ describe('EmbeddingModel', () => {
       expect(count).toBe(1);
     });
   });
+
+  describe('countByChunkIds', () => {
+    it('should count existing embeddings for selected chunks and current user only', async () => {
+      const [chunk1, chunk2] = await serverDB
+        .insert(chunks)
+        .values([
+          { text: 'Test chunk 1', userId },
+          { text: 'Test chunk 2', userId },
+        ])
+        .returning();
+
+      const [otherUserChunk] = await serverDB
+        .insert(chunks)
+        .values([{ text: 'Other user chunk', userId: otherUserId }])
+        .returning();
+
+      await serverDB.insert(embeddings).values([
+        { chunkId: chunk1.id, embeddings: designThinkingQuery, userId },
+        { chunkId: chunk2.id, embeddings: designThinkingQuery, userId },
+        { chunkId: otherUserChunk.id, embeddings: designThinkingQuery, userId: otherUserId },
+      ]);
+
+      const count = await embeddingModel.countByChunkIds([chunk1.id, chunk2.id, otherUserChunk.id]);
+
+      expect(count).toBe(2);
+    });
+  });
 });

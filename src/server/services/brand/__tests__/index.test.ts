@@ -40,6 +40,7 @@ describe('getServerBrand', () => {
       const map: Record<string, string> = {
         'brand.authTitle': 'Welcome to Acme',
         'brand.copyrightText': '2026 Acme',
+        'defaultSkill.name': 'Acme Skill',
         'brand.faviconUrl': 'https://x/favicon.ico',
         'brand.loadingText': 'Loading Acme',
         'brand.logoUrl': 'https://x/logo.svg',
@@ -54,6 +55,7 @@ describe('getServerBrand', () => {
     expect(out).toEqual({
       authTitle: 'Welcome to Acme',
       copyrightText: '2026 Acme',
+      defaultSkillName: 'Acme Skill',
       faviconUrl: 'https://x/favicon.ico',
       loadingText: 'Loading Acme',
       logoUrl: 'https://x/logo.svg',
@@ -69,6 +71,7 @@ describe('getServerBrand', () => {
     expect(out).toEqual({
       authTitle: 'Default auth title',
       copyrightText: '2026 Default. All rights reserved.',
+      defaultSkillName: 'Default Brand',
       faviconUrl: null,
       loadingText: 'Loading',
       logoUrl: '/images/brand/qingyou-ai-logo.png',
@@ -83,8 +86,8 @@ describe('getServerBrand', () => {
     await getServerBrand();
     await getServerBrand();
     await getServerBrand();
-    // Each call queries 8 keys; only the first call should hit the DB.
-    expect(findFirstMock).toHaveBeenCalledTimes(8);
+    // Each call queries 9 keys; only the first call should hit the DB.
+    expect(findFirstMock).toHaveBeenCalledTimes(9);
   });
 
   it('invalidate forces a fresh fetch', async () => {
@@ -92,7 +95,7 @@ describe('getServerBrand', () => {
     await getServerBrand();
     invalidateServerBrand();
     await getServerBrand();
-    expect(findFirstMock).toHaveBeenCalledTimes(16);
+    expect(findFirstMock).toHaveBeenCalledTimes(18);
   });
 
   it('falls back to the default runtime brand on database errors', async () => {
@@ -101,6 +104,7 @@ describe('getServerBrand', () => {
     expect(out).toEqual({
       authTitle: 'Default auth title',
       copyrightText: '2026 Default. All rights reserved.',
+      defaultSkillName: 'Default Brand',
       faviconUrl: null,
       loadingText: 'Loading',
       logoUrl: '/images/brand/qingyou-ai-logo.png',

@@ -180,8 +180,11 @@ async function buildClientEnv(): Promise<SPAClientEnv> {
   };
 }
 
-async function buildSeoMeta(locale: string): Promise<string> {
-  const [{ t }, brand] = await Promise.all([translation('metadata', locale), getServerBrand()]);
+async function buildSeoMeta(
+  locale: string,
+  brand: Awaited<ReturnType<typeof getServerBrand>>,
+): Promise<string> {
+  const { t } = await translation('metadata', locale);
   const appName = brand.name?.trim() || BRANDING_NAME;
   const title = t('chat.title', { appName });
   const description = t('chat.description', { appName });
@@ -220,12 +223,14 @@ export async function GET(
   const { locale, isMobile } = RouteVariants.deserializeVariants(variants);
 
   const serverConfig = await getServerGlobalConfig();
+  const brand = await getServerBrand();
   const featureFlags = getServerFeatureFlagsValue();
   const analyticsConfig = buildAnalyticsConfig();
   const clientEnv = await buildClientEnv();
 
   const spaConfig: SPAServerConfig = {
     analyticsConfig,
+    brand,
     clientEnv,
     config: serverConfig,
     featureFlags,
@@ -239,11 +244,10 @@ export async function GET(
     `window.__SERVER_CONFIG__ = ${serializeForHtml(spaConfig)};`,
   );
 
-  const seoMeta = await buildSeoMeta(locale);
+  const seoMeta = await buildSeoMeta(locale, brand);
   html = html.replace('<!--SEO_META-->', seoMeta);
   html = html.replace('<!--ANALYTICS_SCRIPTS-->', '');
 
-  const brand = await getServerBrand();
   const appName = brand.name?.trim() || BRANDING_NAME;
   const loadingText = getBrandLoadingText(
     { loadingText: brand.loadingText, name: appName, slogan: brand.slogan },

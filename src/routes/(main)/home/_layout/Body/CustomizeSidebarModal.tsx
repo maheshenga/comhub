@@ -53,7 +53,9 @@ const ALL_SIDEBAR_ITEMS: SidebarItemConfig[] = [
   { id: 'recents', labelKey: 'recents' },
   { alwaysVisible: true, id: 'agent', labelKey: 'navPanel.agent' },
   { id: 'image', labelKey: 'tab.generation', routeId: 'image' },
+  { id: 'ppt', labelKey: 'tab.ppt', routeId: 'ppt' },
   { id: 'community', labelKey: 'tab.community', routeId: 'community' },
+  { id: 'experts', labelKey: 'tab.experts', routeId: 'experts' },
   { id: 'resource', labelKey: 'tab.resource', routeId: 'resource' },
   { id: 'memory', labelKey: 'tab.memory', routeId: 'memory' },
 ];

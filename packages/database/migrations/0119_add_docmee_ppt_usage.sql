@@ -14,13 +14,13 @@ CREATE TABLE IF NOT EXISTS "ppt_usage_records" (
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz DEFAULT now() NOT NULL,
   "completed_at" timestamptz
-);
+);--> statement-breakpoint
 
 CREATE INDEX IF NOT EXISTS "ppt_usage_records_user_created_at_idx"
-  ON "ppt_usage_records" ("user_id", "created_at");
+  ON "ppt_usage_records" ("user_id", "created_at");--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS "ppt_usage_records_user_session_idx"
-  ON "ppt_usage_records" ("user_id", "session_id");
+  ON "ppt_usage_records" ("user_id", "session_id");--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS "ppt_usage_records_user_upstream_task_idx"
   ON "ppt_usage_records" ("user_id", "upstream_task_id")
