@@ -1,6 +1,5 @@
 'use client';
 
-import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import {
   DropdownMenuPopup,
   DropdownMenuPortal,
@@ -82,8 +81,7 @@ const GenerationMultipleProvidersItem = memo<GenerationMultipleProvidersItemProp
                   </Flexbox>
                   {item.data.providers.map((p) => {
                     const pKey = menuKey(p.id, item.data.model.id);
-                    const isProviderActive =
-                      isActive ? activeKey === pKey : p.id === BRANDING_PROVIDER;
+                    const isProviderActive = isActive ? activeKey === pKey : p.id === 'lobehub';
                     return (
                       <Flexbox
                         horizontal

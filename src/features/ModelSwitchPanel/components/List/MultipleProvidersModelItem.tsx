@@ -1,4 +1,3 @@
-import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import {
   DropdownMenuGroup,
   DropdownMenuGroupLabel,
@@ -105,8 +104,7 @@ export const MultipleProvidersModelItem = memo<MultipleProvidersModelItemProps>(
                 </DropdownMenuGroupLabel>
                 {data.providers.map((p) => {
                   const key = menuKey(p.id, data.model.id);
-                  const isProviderActive =
-                    isActive ? activeKey === key : p.id === BRANDING_PROVIDER;
+                  const isProviderActive = isActive ? activeKey === key : p.id === 'lobehub';
                   const providerRestricted = isModelRestricted?.(data.model.id, p.id);
 
                   return (

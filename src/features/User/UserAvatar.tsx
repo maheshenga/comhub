@@ -1,5 +1,6 @@
 'use client';
 
+import { BRANDING_NAME } from '@lobechat/business-const';
 import { type AvatarProps } from '@lobehub/ui';
 import { Avatar } from '@lobehub/ui';
 import { createStaticStyles, cssVar } from 'antd-style';
@@ -7,7 +8,6 @@ import { useMemo } from 'react';
 
 import { DEFAULT_USER_AVATAR_URL } from '@/const/meta';
 import { isDesktop } from '@/const/version';
-import { useBrandName } from '@/features/Brand';
 import { useElectronStore } from '@/store/electron';
 import { electronSyncSelectors } from '@/store/electron/selectors';
 import { useUserStore } from '@/store/user';
@@ -66,7 +66,6 @@ const UserAvatar = ({
 
   const isSignedIn = useUserStore(authSelectors.isLogin);
   const remoteServerUrl = useElectronStore(electronSyncSelectors.remoteServerUrl);
-  const brandingName = useBrandName();
 
   // Process avatar URL for desktop environment
   const avatarUrl = useMemo(() => {
@@ -83,7 +82,7 @@ const UserAvatar = ({
 
   return (
     <Avatar
-      alt={isSignedIn ? nickName || username || 'User' : brandingName}
+      alt={isSignedIn ? nickName || username || 'User' : BRANDING_NAME}
       avatar={avatarUrl || nickName || username}
       background={background}
       className={clickable ? styles.clickable : className}

@@ -47,10 +47,9 @@ const SettingsContent = ({ mobile, activeTab }: SettingsContentProps) => {
         SettingsTabs.Stats,
         SettingsTabs.Usage,
         SettingsTabs.Security,
-        SettingsTabs.Plans,
-        SettingsTabs.Credits,
-        SettingsTabs.Billing,
-        SettingsTabs.Referral,
+        ...(enableBusinessFeatures
+          ? [SettingsTabs.Plans, SettingsTabs.Credits, SettingsTabs.Billing, SettingsTabs.Referral]
+          : []),
       ].includes(tab as any)
     ) {
       componentProps.mobile = mobile;

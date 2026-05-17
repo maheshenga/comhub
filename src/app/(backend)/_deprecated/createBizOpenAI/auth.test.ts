@@ -12,8 +12,8 @@ describe('checkAuth', () => {
     expect(auth).toBe(true);
   });
 
-  it('should reject with no params', () => {
+  it('should pass with no params', () => {
     const { auth } = checkAuth({});
-    expect(auth).toBe(false);
+    expect(auth).toBe(true);
   });
 });

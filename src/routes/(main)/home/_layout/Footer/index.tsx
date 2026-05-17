@@ -9,7 +9,6 @@ import { DiscordIcon, GithubIcon } from '@lobehub/ui/icons';
 import {
   Book,
   CircleHelp,
-  ExternalLink,
   Feather,
   FileClockIcon,
   FlaskConical,
@@ -28,11 +27,10 @@ import HighlightNotification from '@/components/HighlightNotification';
 import { DOCUMENTS_REFER_URL, GITHUB } from '@/const/url';
 import Billboard from '@/features/Billboard';
 import { useBillboardMenuItems } from '@/features/Billboard/MenuItems';
+import { useActiveNavKey } from '@/features/NavPanel';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
 import { useFeedbackModal } from '@/hooks/useFeedbackModal';
 import { useNavLayout } from '@/hooks/useNavLayout';
-import { useClientDataSWR } from '@/libs/swr';
-import { adminCommercialService } from '@/services/adminCommercial';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors/systemStatus';
 import { useServerConfigStore } from '@/store/serverConfig';
@@ -69,6 +67,8 @@ const Footer = memo(() => {
   const navigate = useNavigate();
   const { analytics } = useAnalytics();
   const { footer } = useNavLayout();
+  const activeNavKey = useActiveNavKey();
+  const isHomeSidebar = activeNavKey === 'home';
   const billboardMenuItems = useBillboardMenuItems();
   const enableAgentOnboarding = useServerConfigStore((s) => s.featureFlags.enableAgentOnboarding);
   const isMobile = useServerConfigStore((s) => !!s.isMobile);
@@ -259,30 +259,8 @@ const Footer = memo(() => {
     t,
   ]);
 
-  const { data: serverHelpMenuItems } = useClientDataSWR(
-    'public-help-menu',
-    () => adminCommercialService.getPublicHelpMenu(),
-    { revalidateOnFocus: false },
-  );
-
-  const helpMenuItems: MenuProps['items'] = useMemo(() => {
-    const configuredItems = (serverHelpMenuItems ?? []) as Array<{ label: string; url?: string }>;
-
-    if (configuredItems.length > 0) {
-      return configuredItems.map((item, i) => ({
-        icon: <Icon icon={ExternalLink} />,
-        key: `help-custom-${i}`,
-        label: item.url ? (
-          <a href={item.url} rel="noopener noreferrer" target="_blank">
-            {item.label}
-          </a>
-        ) : (
-          <span>{item.label}</span>
-        ),
-      }));
-    }
-
-    return [
+  const helpMenuItems: MenuProps['items'] = useMemo(
+    () => [
       ...(footer.showSettingsEntry && !isDevMode
         ? [
             {
@@ -360,23 +338,24 @@ const Footer = memo(() => {
             },
           ]
         : []),
-      ...(billboardMenuItems && billboardMenuItems.length > 0
+      ...(isHomeSidebar && billboardMenuItems && billboardMenuItems.length > 0
         ? [{ type: 'divider' as const }, ...billboardMenuItems]
         : []),
-    ];
-  }, [
-    serverHelpMenuItems,
-    footer.showSettingsEntry,
-    footer.layout,
-    footer.hideGitHub,
-    footer.showEvalEntry,
-    handleOpenFeedbackModal,
-    handleOpenProductHuntCard,
-    isDevMode,
-    shouldShowProductHuntMenuEntry,
-    t,
-    billboardMenuItems,
-  ]);
+    ],
+    [
+      footer.showSettingsEntry,
+      footer.layout,
+      footer.hideGitHub,
+      footer.showEvalEntry,
+      handleOpenFeedbackModal,
+      handleOpenProductHuntCard,
+      isDevMode,
+      shouldShowProductHuntMenuEntry,
+      t,
+      billboardMenuItems,
+      isHomeSidebar,
+    ],
+  );
 
   return (
     <>
@@ -438,7 +417,7 @@ const Footer = memo(() => {
           onClose={activePromotion.onClose}
         />
       )}
-      <Billboard />
+      {isHomeSidebar && <Billboard />}
     </>
   );
 });

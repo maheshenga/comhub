@@ -31,6 +31,7 @@ export enum ChatSettingsTabs {
   Opening = 'opening',
   Plugin = 'plugin',
   Prompt = 'prompt',
+  SelfIteration = 'selfIteration',
   TTS = 'tts',
 }
 
@@ -39,6 +40,8 @@ export enum GroupSettingsTabs {
   Members = 'members',
   Settings = 'settings',
 }
+
+export type WorkingSidebarTab = 'files' | 'params' | 'resources' | 'review';
 
 export enum SettingsTabs {
   About = 'about',
@@ -227,12 +230,9 @@ export interface SystemStatus {
   showVideoPanel?: boolean;
   showVideoTopicPanel?: boolean;
   /**
-   * Expanded accordion sections on the home sidebar.
-   */
-  sidebarExpandedKeys?: string[];
-  /**
    * Flat ordered list of sidebar items.
    */
+  sidebarExpandedKeys?: string[];
   sidebarItems?: string[];
   /**
    * Legacy accordion-only ordering (recents/agent) from the pre-rework sidebar.
@@ -273,7 +273,8 @@ export interface SystemStatus {
   videoPanelWidth: number;
   videoTopicPanelWidth?: number;
   videoTopicViewMode?: 'grid' | 'list';
-  workingSidebarTab?: 'resources' | 'review';
+  workingSidebarRevealRequest?: { nonce: number; path: string };
+  workingSidebarTab?: WorkingSidebarTab;
   zenMode?: boolean;
 }
 
@@ -370,7 +371,7 @@ export const INITIAL_STATUS = {
   showImageTopicPanel: true,
   showLeftPanel: true,
   showPageAgentPanel: true,
-  showRightPanel: true,
+  showRightPanel: false,
   showSystemRole: false,
   showTaskAgentPanel: false,
   showVideoPanel: true,

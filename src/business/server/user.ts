@@ -7,6 +7,14 @@ import { creditAccounts, creditLedgerEntries, userPlanSnapshots } from '@/databa
 import type { Transaction } from '@/database/type';
 import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
 
+export interface OnUserActivityForBusinessParams {
+  currentTime: Date;
+  db: LobeChatDatabase;
+  previousLastActiveAt: Date;
+  userCreatedAt: Date;
+  userId: string;
+}
+
 export async function getReferralStatus(
   db: LobeChatDatabase,
   userId: string,
@@ -77,6 +85,15 @@ export async function initNewUserForBusiness(
       userId,
     });
   });
+}
+
+export async function onUserActivityForBusiness({
+  db,
+  userId,
+}: OnUserActivityForBusinessParams): Promise<void> {
+  const model = new CommercialModel(db, userId);
+  await model.ensureCreditAccount();
+  await model.syncActivePlanResourceQuotas();
 }
 
 async function ensureDefaultFreePlanSnapshot(

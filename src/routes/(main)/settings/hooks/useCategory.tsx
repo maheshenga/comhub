@@ -17,8 +17,8 @@ import {
   KeyIcon,
   KeyRound,
   Map,
+  MessageCircleIcon,
   PaletteIcon,
-  ShieldCheck,
   Sparkles,
   TerminalSquare,
 } from 'lucide-react';
@@ -66,8 +66,6 @@ export const useCategory = () => {
     userProfileSelectors.userAvatar(s),
     userProfileSelectors.nickName(s),
   ]);
-  const user = useUserStore(userProfileSelectors.userProfile);
-  const isAdmin = (user as any)?.role === 'admin';
   const remoteServerUrl = useElectronStore(electronSyncSelectors.remoteServerUrl);
   const isDevMode = useUserStore((s) => userGeneralSettingsSelectors.config(s).isDevMode);
 
@@ -118,19 +116,21 @@ export const useCategory = () => {
     });
 
     // Subscription group
-    const subscriptionItems: CategoryItem[] = [
-      { icon: Map, key: SettingsTabs.Plans, label: tSubscription('tab.plans') },
-      { icon: ChartColumnBigIcon, key: SettingsTabs.Usage, label: t('tab.usage') },
-      { icon: Coins, key: SettingsTabs.Credits, label: tSubscription('tab.credits') },
-      { icon: CreditCard, key: SettingsTabs.Billing, label: tSubscription('tab.billing') },
-      { icon: Gift, key: SettingsTabs.Referral, label: tSubscription('tab.referral') },
-    ];
+    if (enableBusinessFeatures) {
+      const subscriptionItems: CategoryItem[] = [
+        { icon: Map, key: SettingsTabs.Plans, label: tSubscription('tab.plans') },
+        { icon: ChartColumnBigIcon, key: SettingsTabs.Usage, label: t('tab.usage') },
+        { icon: Coins, key: SettingsTabs.Credits, label: tSubscription('tab.credits') },
+        { icon: CreditCard, key: SettingsTabs.Billing, label: tSubscription('tab.billing') },
+        { icon: Gift, key: SettingsTabs.Referral, label: tSubscription('tab.referral') },
+      ];
 
-    groups.push({
-      items: subscriptionItems,
-      key: SettingsGroupKey.Subscription,
-      title: t('group.subscription'),
-    });
+      groups.push({
+        items: subscriptionItems,
+        key: SettingsGroupKey.Subscription,
+        title: t('group.subscription'),
+      });
+    }
 
     // Agent group
     const agentItems: CategoryItem[] = [
@@ -164,6 +164,11 @@ export const useCategory = () => {
         key: SettingsTabs.APIKey,
         label: tAuth('tab.apikey'),
       },
+      {
+        icon: MessageCircleIcon,
+        key: SettingsTabs.Messenger,
+        label: t('tab.messenger'),
+      },
     ].filter(Boolean) as CategoryItem[];
 
     groups.push({
@@ -174,11 +179,6 @@ export const useCategory = () => {
 
     // System group
     const systemItems: CategoryItem[] = [
-      isAdmin && {
-        icon: ShieldCheck,
-        key: SettingsTabs.Admin,
-        label: tSubscription('admin.console', '后台管理'),
-      },
       isDesktop && {
         icon: EthernetPort,
         key: SettingsTabs.Proxy,
@@ -227,7 +227,6 @@ export const useCategory = () => {
     mobile,
     showApiKeyManage,
     isDevMode,
-    isAdmin,
     avatarUrl,
     username,
   ]);

@@ -55,9 +55,6 @@ bun.lockb
 
 # Build outputs
 dist/
-dist-deploy/
-deploy-extract-*/
-/app/
 public/_spa/
 public/spa/
 es/
@@ -116,9 +113,6 @@ vertex-ai-key.json
 .mcp.json
 CLAUDE.local.md
 .agent/
-.codex-run/
-.omc/
-.omx/
 
 # MCP tools
 .serena/**

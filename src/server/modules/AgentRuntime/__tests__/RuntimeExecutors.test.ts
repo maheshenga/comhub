@@ -196,29 +196,6 @@ describe('RuntimeExecutors', () => {
       );
     });
 
-    it('should initialize model runtime with the selected chat model for admin-managed routing', async () => {
-      const executors = createRuntimeExecutors(ctx);
-      const state = createMockState();
-
-      await executors.call_llm!(
-        {
-          payload: {
-            messages: [{ content: 'Hello', role: 'user' }],
-            model: 'deepseek-chat',
-            provider: 'newapi',
-            tools: [],
-          },
-          type: 'call_llm',
-        },
-        state,
-      );
-
-      expect(initModelRuntimeFromDB).toHaveBeenCalledWith(ctx.serverDB, ctx.userId, 'newapi', {
-        model: 'deepseek-chat',
-        modelType: 'chat',
-      });
-    });
-
     it('should pass parentId from payload.parentMessageId to messageModel.create', async () => {
       const executors = createRuntimeExecutors(ctx);
       const state = createMockState();
@@ -441,39 +418,6 @@ describe('RuntimeExecutors', () => {
       // The id must match the same message that nextContext exposes as
       // parentMessageId, so request_human_approve sees a single source of truth.
       expect((result.nextContext?.payload as any).parentMessageId).toBe('persisted-assistant-id');
-    });
-
-    it('should pass assistant message id as billing metadata to ModelRuntime', async () => {
-      const mockChat = vi.fn().mockResolvedValue(new Response('done'));
-      vi.mocked(initModelRuntimeFromDB).mockResolvedValueOnce({ chat: mockChat } as any);
-      mockMessageModel.create.mockResolvedValueOnce({ id: 'billing-assistant-id' });
-
-      const executors = createRuntimeExecutors(ctx);
-      const state = createMockState();
-
-      await executors.call_llm!(
-        {
-          payload: {
-            messages: [{ content: 'Hello', role: 'user' }],
-            model: 'gpt-4',
-            provider: 'openai',
-            tools: [],
-          },
-          type: 'call_llm' as const,
-        },
-        state,
-      );
-
-      expect(mockChat).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.objectContaining({
-          metadata: expect.objectContaining({
-            assistantMessageId: 'billing-assistant-id',
-            messageId: 'billing-assistant-id',
-            operationId: 'op-123',
-          }),
-        }),
-      );
     });
 
     it('should execute compress_context and return compression_result', async () => {

@@ -6,7 +6,6 @@ import isEqual from 'fast-deep-equal';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useDefaultSkillName } from '@/features/Brand';
 import {
   createBuiltinAgentSkillDetailModal,
   createBuiltinSkillDetailModal,
@@ -44,7 +43,6 @@ const getBuiltinToolsOnly = (s: ToolStoreState): LobeToolMeta[] => {
 
 export const LobeHubList = memo<LobeHubListProps>(({ keywords }) => {
   const { t } = useTranslation('setting');
-  const defaultSkillName = useDefaultSkillName();
   const isLobehubSkillEnabled = useServerConfigStore(serverConfigSelectors.enableLobehubSkill);
   const isKlavisEnabled = useServerConfigStore(serverConfigSelectors.enableKlavis);
   const allLobehubSkillServers = useToolStore(lobehubSkillStoreSelectors.getServers, isEqual);
@@ -113,9 +111,7 @@ export const LobeHubList = memo<LobeHubListProps>(({ keywords }) => {
 
     return items.filter((item) => {
       if (item.type === 'builtinAgentSkill') {
-        const displayName =
-          item.skill.identifier === 'lobehub' ? defaultSkillName : item.skill.name;
-        const name = displayName.toLowerCase();
+        const name = item.skill.name.toLowerCase();
         const identifier = item.skill.identifier.toLowerCase();
         return name.includes(lowerKeywords) || identifier.includes(lowerKeywords);
       }
@@ -127,14 +123,7 @@ export const LobeHubList = memo<LobeHubListProps>(({ keywords }) => {
       const label = item.type === 'lobehub' ? item.provider.label : item.serverType.label;
       return label.toLowerCase().includes(lowerKeywords);
     });
-  }, [
-    keywords,
-    isLobehubSkillEnabled,
-    isKlavisEnabled,
-    builtinTools,
-    builtinSkills,
-    defaultSkillName,
-  ]);
+  }, [keywords, isLobehubSkillEnabled, isKlavisEnabled, builtinTools, builtinSkills]);
 
   const hasSearchKeywords = Boolean(keywords && keywords.trim());
 
@@ -145,12 +134,8 @@ export const LobeHubList = memo<LobeHubListProps>(({ keywords }) => {
       <div className={gridStyles.grid}>
         {filteredItems.map((item) => {
           if (item.type === 'builtinAgentSkill') {
-            const fallbackTitle =
-              item.skill.identifier === 'lobehub' ? defaultSkillName : item.skill.name;
             const localizedTitle = t(`tools.builtins.${item.skill.identifier}.title`, {
-              brandName: fallbackTitle,
-              defaultSkillName: fallbackTitle,
-              defaultValue: fallbackTitle,
+              defaultValue: item.skill.name,
             });
             const localizedDescription = t(`tools.builtins.${item.skill.identifier}.description`, {
               defaultValue: item.skill.description,

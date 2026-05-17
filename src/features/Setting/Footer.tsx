@@ -1,5 +1,6 @@
 'use client';
 
+import { BRANDING_NAME } from '@lobechat/business-const';
 import { Center, Flexbox, Icon } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { MessageSquareHeart } from 'lucide-react';
@@ -10,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import GuideModal from '@/components/GuideModal';
 import GuideVideo from '@/components/GuideVideo';
 import { GITHUB, GITHUB_ISSUES } from '@/const/url';
-import { useBrandName } from '@/features/Brand';
 import { useServerConfigStore } from '@/store/serverConfig';
 import { isOnServerSide } from '@/utils/env';
 
@@ -25,7 +25,6 @@ export const LayoutSettingsFooterClassName = 'settings-layout-footer';
 
 const Footer = memo<PropsWithChildren>(() => {
   const { t } = useTranslation('common');
-  const brandingName = useBrandName();
   const [openStar, setOpenStar] = useState(false);
   const [openFeedback, setOpenFeedback] = useState(false);
 
@@ -92,7 +91,7 @@ const Footer = memo<PropsWithChildren>(() => {
       />
       <GuideModal
         cancelText={t('footer.later')}
-        desc={t('footer.feedback.desc', { appName: brandingName })}
+        desc={t('footer.feedback.desc', { appName: BRANDING_NAME })}
         okText={t('footer.feedback.action')}
         open={openFeedback}
         title={t('footer.feedback.title')}

@@ -9,10 +9,6 @@ import { type AiProviderDetailItem, type AiProviderRuntimeState } from '@/types/
 
 import { aiProviderRouter } from '../aiProvider';
 
-vi.mock('@/business/server/planModelRules', () => ({
-  isModelAllowedByPlanRules: vi.fn(() => true),
-  resolvePlanModelRules: vi.fn(() => null),
-}));
 vi.mock('@/server/globalConfig');
 vi.mock('@/server/modules/KeyVaultsEncrypt');
 vi.mock('@/database/repositories/aiInfra');
@@ -22,7 +18,6 @@ vi.mock('@/database/models/user');
 describe('aiProviderRouter', () => {
   const mockUserId = 'test-user-id';
   const mockProviderId = 'test-provider-id';
-  const mockServerDB = { query: {} };
   const mockEncrypt = vi.fn();
   const mockDecrypt = vi.fn();
 
@@ -60,7 +55,6 @@ describe('aiProviderRouter', () => {
   });
 
   const createMockContext = () => ({
-    serverDB: mockServerDB,
     userId: mockUserId,
   });
 
@@ -118,34 +112,6 @@ describe('aiProviderRouter', () => {
   });
 
   describe('getAiProviderRuntimeState', () => {
-    it('should resolve server provider config with request database so DB-managed NewAPI models are available', async () => {
-      const mockGetState = vi.fn().mockResolvedValue(mockRuntimeState);
-      vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = mockGetState;
-      vi.mocked(getServerGlobalConfig).mockResolvedValue({
-        aiProvider: {
-          newapi: {
-            enabled: true,
-            serverModelLists: [{ enabled: true, id: 'deepseek-chat', type: 'chat' }],
-          },
-        },
-      } as any);
-
-      const caller = aiProviderRouter.createCaller(createMockContext());
-      await caller.getAiProviderRuntimeState({});
-
-      const resolvedDb = vi.mocked(getServerGlobalConfig).mock.calls.at(-1)?.[0];
-      expect(resolvedDb).toBeDefined();
-      expect(AiInfraRepos).toHaveBeenCalledWith(
-        resolvedDb,
-        mockUserId,
-        expect.objectContaining({
-          newapi: expect.objectContaining({
-            serverModelLists: [expect.objectContaining({ id: 'deepseek-chat' })],
-          }),
-        }),
-      );
-    });
-
     it('should get AI provider runtime state', async () => {
       const mockGetState = vi.fn().mockResolvedValue(mockRuntimeState);
       vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = mockGetState;

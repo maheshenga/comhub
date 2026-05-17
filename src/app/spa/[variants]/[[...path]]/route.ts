@@ -169,6 +169,14 @@ function buildAnalyticsConfig(): AnalyticsConfig {
   return config;
 }
 
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
 async function buildClientEnv(): Promise<SPAClientEnv> {
   const s3Config = await getServerFileS3Config();
 
@@ -197,7 +205,7 @@ async function buildSeoMeta(
     `<meta property="og:type" content="website" />`,
     `<meta property="og:url" content="${OFFICIAL_URL}" />`,
     `<meta property="og:image" content="${OG_URL}" />`,
-    `<meta property="og:site_name" content="${appName}" />`,
+    `<meta property="og:site_name" content="${BRANDING_NAME}" />`,
     `<meta property="og:locale" content="${locale}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${title}" />`,
@@ -206,14 +214,6 @@ async function buildSeoMeta(
     `<meta name="twitter:site" content="${isCustomORG ? `@${ORG_NAME}` : '@lobehub'}" />`,
   ].join('\n    ');
 }
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 
 export async function GET(
   _request: Request,

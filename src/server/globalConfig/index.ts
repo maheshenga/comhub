@@ -61,6 +61,9 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
       enabledKey: 'ENABLED_AZURE_OPENAI',
       withDeploymentName: true,
     },
+    azureai: {
+      withDeploymentName: true,
+    },
     bedrock: {
       enabledKey: 'ENABLED_AWS_BEDROCK',
       modelListKey: 'AWS_BEDROCK_MODEL_LIST',
@@ -71,6 +74,9 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     giteeai: {
       enabledKey: 'ENABLED_GITEE_AI',
       modelListKey: 'GITEE_AI_MODEL_LIST',
+    },
+    kimicodingplan: {
+      withDeploymentName: true,
     },
     lmstudio: {
       fetchOnClient: isDesktop ? false : undefined,
@@ -85,6 +91,9 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     qwen: {
       withDeploymentName: true,
     },
+    spark: {
+      withDeploymentName: true,
+    },
     tencentcloud: {
       enabledKey: 'ENABLED_TENCENT_CLOUD',
       modelListKey: 'TENCENT_CLOUD_MODEL_LIST',
@@ -92,9 +101,12 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     volcengine: {
       withDeploymentName: true,
     },
+    volcenginecodingplan: {
+      withDeploymentName: true,
+    },
   });
 
-  if (ENABLE_BUSINESS_FEATURES && BRANDING_PROVIDER === 'newapi') {
+  if (ENABLE_BUSINESS_FEATURES && (BRANDING_PROVIDER as string) === 'newapi') {
     const instanceModels = await getAllEnabledModels(db);
     const managedNewApiModelIds = Array.from(new Set(instanceModels.map((m) => m.id)));
 

@@ -5,8 +5,6 @@ import { type SegmentedOptions } from 'antd/es/segmented';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useBrandName } from '@/features/Brand';
-
 import Search from './Search';
 import AddSkillButton from './SkillList/AddSkillButton';
 import CustomList from './SkillList/Custom';
@@ -23,13 +21,12 @@ export enum SkillStoreTab {
 
 export const SkillStoreContent = () => {
   const { t } = useTranslation('setting');
-  const brandName = useBrandName();
   const [activeTab, setActiveTab] = useState<SkillStoreTab>(SkillStoreTab.LobeHub);
   const [lobehubKeywords, setLobehubKeywords] = useState('');
   const [skillKeywords, setSkillKeywords] = useState('');
 
   const options: SegmentedOptions = [
-    { label: brandName, value: SkillStoreTab.LobeHub },
+    { label: t('skillStore.tabs.lobehub'), value: SkillStoreTab.LobeHub },
     { label: 'Skills', value: SkillStoreTab.Skills },
     { label: t('skillStore.tabs.mcp'), value: SkillStoreTab.MCP },
     { label: t('skillStore.tabs.custom'), value: SkillStoreTab.Custom },

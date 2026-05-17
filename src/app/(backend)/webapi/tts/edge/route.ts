@@ -1,10 +1,9 @@
 import { type EdgeSpeechPayload } from '@lobehub/tts';
 import { EdgeSpeechTTS } from '@lobehub/tts';
 
-import { checkAuth } from '@/app/(backend)/middleware/auth';
 import { createSpeechResponse } from '@/server/utils/createSpeechResponse';
 
-const handler = async (req: Request) => {
+export const POST = async (req: Request) => {
   const payload = (await req.json()) as EdgeSpeechPayload;
 
   return createSpeechResponse(() => EdgeSpeechTTS.createRequest({ payload }), {
@@ -15,5 +14,3 @@ const handler = async (req: Request) => {
     },
   });
 };
-
-export const POST = checkAuth(handler);

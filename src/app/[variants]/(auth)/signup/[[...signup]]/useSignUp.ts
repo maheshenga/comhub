@@ -32,13 +32,8 @@ export const useSignUp = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const {
-    getCaptchaTokenOnError,
-    getFetchOptions,
-    preSocialSignupCheck,
-    businessElement,
-    phoneEnabled,
-  } = useBusinessSignup(form);
+  const { getCaptchaTokenOnError, getFetchOptions, preSocialSignupCheck, businessElement } =
+    useBusinessSignup(form);
   const enableEmailVerification = useAuthServerConfigStore(
     (s) => s.serverConfig.enableEmailVerification || false,
   );
@@ -64,7 +59,6 @@ export const useSignUp = () => {
           fetchOptions: nextFetchOptions,
           name: username,
           password: values.password,
-          ...(phoneEnabled && values.phone?.trim() ? { phone: values.phone.trim() } : {}),
         });
 
       let { error } = await submit(fetchOptions);
@@ -114,5 +108,5 @@ export const useSignUp = () => {
     }
   };
 
-  return { businessElement, loading, onSubmit: handleSignUp, phoneEnabled };
+  return { businessElement, loading, onSubmit: handleSignUp };
 };

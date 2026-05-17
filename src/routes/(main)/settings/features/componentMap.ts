@@ -7,9 +7,6 @@ import { SettingsTabs } from '@/store/global/initialState';
 const loading = (debugId: string) => () => createElement(Loading, { debugId });
 
 export const componentMap = {
-  [SettingsTabs.Admin]: dynamic(() => import('../admin'), {
-    loading: loading('Settings > Admin'),
-  }),
   [SettingsTabs.Advanced]: dynamic(() => import('../advanced'), {
     loading: loading('Settings > Advanced'),
   }),

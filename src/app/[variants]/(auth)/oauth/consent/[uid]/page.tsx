@@ -2,10 +2,8 @@ import { notFound } from 'next/navigation';
 
 import { authEnv } from '@/envs/auth';
 import { defaultClients } from '@/libs/oidc-provider/config';
-import { getServerBrand } from '@/server/services/brand';
 import { OIDCService } from '@/server/services/oidc';
 
-import { resolveBrandedClientMetadata } from './brandClientMetadata';
 import ConsentClientError from './ClientError';
 import Consent from './Consent';
 import Login from './Login';
@@ -41,17 +39,11 @@ const InteractionPage = async (props: { params: Promise<{ uid: string }> }) => {
 
     const clientDetail = await oidcService.getClientMetadata(clientId);
 
-    const brand = await getServerBrand();
-    const clientMetadata = resolveBrandedClientMetadata({
-      brand,
-      clientId,
-      metadata: {
-        clientName: clientDetail?.client_name,
-        isFirstParty: defaultClients.map((c) => c.client_id).includes(clientId),
-        logo: clientDetail?.logo_uri,
-      },
-    });
-
+    const clientMetadata = {
+      clientName: clientDetail?.client_name,
+      isFirstParty: defaultClients.map((c) => c.client_id).includes(clientId),
+      logo: clientDetail?.logo_uri,
+    };
     // Render client component regardless of login or consent type
     if (details.prompt.name === 'login')
       return <Login clientMetadata={clientMetadata} uid={params.uid} />;

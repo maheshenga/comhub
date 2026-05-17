@@ -1,14 +1,14 @@
 export default {
   'authorize.cancel': 'Not Now',
-  'authorize.confirm': 'Authorize',
-  'authorize.description':
-    'Authorize {{appName}} to access community resources. You can add resources without creating a community profile.',
+  'authorize.confirm': 'Create Your Profile',
+  'authorize.description': 'Your community profile is separate from your {{appName}} user account.',
   'authorize.footer.agreement':
     'By continuing, you confirm that you have read and agree to the <terms>Terms and Conditions</terms> and <privacy>Privacy Policy</privacy>.',
   'authorize.footer.privacy': 'Privacy Policy',
   'authorize.footer.terms': 'Terms of Service',
-  'authorize.subtitle': 'Authorize community access to continue.',
-  'authorize.title': 'Community Authorization',
+  'authorize.subtitle':
+    'Create a community profile to submit and manage listings within the community.',
+  'authorize.title': 'Create Community Profile',
   'callback.buttons.close': 'Close Window',
   'claimResources.claim': 'Claim Selected',
   'claimResources.description': 'We found resources linked to your account that you can claim:',

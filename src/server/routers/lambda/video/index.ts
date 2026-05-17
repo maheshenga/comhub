@@ -14,7 +14,6 @@ import { after } from 'next/server';
 import { z } from 'zod';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
-import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { chargeBeforeGenerate } from '@/business/server/video-generation/chargeBeforeGenerate';
 import { getVideoFreeQuota } from '@/business/server/video-generation/getVideoFreeQuota';
@@ -150,14 +149,12 @@ export const videoRouter = router({
     }
 
     // Step 0: Pre-charge (atomic budget deduction to prevent concurrent abuse)
-    await assertPlanModelAllowed({ db: ctx.serverDB, model, modelType: 'video', userId });
     const { errorBatch, prechargeResult } = await chargeBeforeGenerate({
       generationTopicId,
       model,
       params,
       provider,
       userId,
-      db: ctx.serverDB,
     });
     if (errorBatch) return errorBatch;
 
@@ -228,10 +225,7 @@ export const videoRouter = router({
 
     // Step 2: Call model runtime to submit video generation task
     try {
-      const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
-        model: resolvedModelId,
-        modelType: 'video',
-      });
+      const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider);
 
       const callbackBaseUrl = process.env.WEBHOOK_PROXY_URL || appEnv.APP_URL;
       const callbackUrl = `${callbackBaseUrl}/api/webhooks/video/${provider}?token=${webhookToken}`;
@@ -305,6 +299,7 @@ export const videoRouter = router({
       const providerContentPolicyMessage = await getProviderContentPolicyErrorMessage({
         error: e,
         provider,
+        trigger: RequestTrigger.Video,
         userId,
       });
       await asyncTaskModel.update(asyncTaskId, {
@@ -351,10 +346,10 @@ export const videoRouter = router({
     };
   }),
 
-  getVideoFreeQuota: videoProcedure
+  getVideoFreeQuota: authedProcedure
     .input(z.object({ model: z.string() }))
     .query(async ({ ctx, input }) => {
-      return getVideoFreeQuota(ctx.userId, input.model, ctx.serverDB);
+      return getVideoFreeQuota(ctx.userId, input.model);
     }),
 });
 

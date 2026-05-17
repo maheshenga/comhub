@@ -321,6 +321,8 @@ export class ConversationLifecycleActionImpl {
       message,
       selectedTools,
     });
+    const requestTrigger = (metadata as Pick<MessageMetadata, 'trigger'> | undefined)?.trigger;
+    const requestMetadata = requestTrigger ? { trigger: requestTrigger } : undefined;
 
     const hasFile = !!fileIdList && fileIdList.length > 0;
 
@@ -654,6 +656,7 @@ export class ConversationLifecycleActionImpl {
           context: operationContext,
           fileIds: fileIdList,
           message,
+          metadata: requestMetadata,
           parentOperationId: operationId,
         });
 
@@ -874,9 +877,7 @@ export class ConversationLifecycleActionImpl {
     // Dev-only fast path: fall back to slicing the first user message instead of calling
     // the LLM. Keeps chat logs uncluttered while still giving the topic a usable title.
     // Only honored in non-production builds so a misconfigured prod env can't disable it.
-    const shouldSliceTopicTitle =
-      process.env.NODE_ENV !== 'production' &&
-      process.env.NEXT_PUBLIC_DEV_DISABLE_AUTO_TOPIC === '1';
+    const shouldSliceTopicTitle = __DEV__ && process.env.NEXT_PUBLIC_DEV_DISABLE_AUTO_TOPIC === '1';
 
     const applyTopicTitle = async (topicId: string, messages: UIChatMessage[]) => {
       if (!shouldSliceTopicTitle) {
@@ -1015,6 +1016,7 @@ export class ConversationLifecycleActionImpl {
           await executeClientAgent({
             context: execContext,
             initialContext: mergedAgentRuntimeInitialContext,
+            metadata: requestMetadata,
             messages: displayMessages,
             parentMessageId: data.assistantMessageId,
             parentMessageType: 'assistant',

@@ -1,11 +1,13 @@
 import { TRPCError } from '@trpc/server';
 
+import type { Transaction } from '@/database/type';
 import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
 
 export interface BusinessFileUploadCheckParams {
   actualSize: number;
   clientIp?: string;
   inputSize: number;
+  transaction?: Transaction;
   url: string;
   userId: string;
 }

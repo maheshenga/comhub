@@ -50,16 +50,16 @@ export default class RemoteServerConfigCtr extends ControllerModule {
   private readonly encryptedTokensKey = 'encryptedTokens';
 
   /**
-   * Normalize config: force cloud mode only.
-   * comhub locks the desktop app to the official cloud server (OFFICIAL_CLOUD_SERVER).
-   * Legacy 'local' or user-set 'selfHost' configs are migrated to 'cloud'.
+   * Normalize legacy config that used local storageMode.
+   * Local mode has been removed; fall back to cloud.
    */
   private normalizeConfig = (config: DataSyncConfig): DataSyncConfig => {
-    if (config.storageMode === 'cloud' && !config.remoteServerUrl) return config;
+    // Use type assertion to handle legacy 'local' value from stored data
+    if ((config.storageMode as string) !== 'local') return config;
 
     const nextConfig: DataSyncConfig = {
       ...config,
-      remoteServerUrl: undefined,
+      remoteServerUrl: config.remoteServerUrl || OFFICIAL_CLOUD_SERVER,
       storageMode: 'cloud',
     };
 

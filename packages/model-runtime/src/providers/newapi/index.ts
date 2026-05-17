@@ -26,95 +26,23 @@ export interface NewAPIPricing {
   supported_endpoint_types?: string[];
 }
 
-/**
- * Detect if running in browser environment
- */
-const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
-
-const normalizeBaseUrls = (value?: string) =>
-  Array.from(
-    new Set(
-      (value || '')
-        .split(/[\r\n,;；，]+/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .map((item) => item.replace(/\/+$/, '').replace(/\/v\d+[a-z]*\/?$/, '')),
-    ),
-  );
-
-const buildRouterOptions = (
-  options: Record<string, any>,
-  mapBaseURL: (baseURL: string) => string,
-) => {
-  const baseURLs = normalizeBaseUrls(options.baseURL);
-
-  if (baseURLs.length === 0) {
-    const fallbackBaseURL = options.baseURL?.replace(/\/v\d+[a-z]*\/?$/, '') || '';
-
-    return [
-      {
-        ...options,
-        baseURL: mapBaseURL(fallbackBaseURL),
-      },
-    ];
-  }
-
-  return baseURLs.map((baseURL, index) => ({
-    ...options,
-    baseURL: mapBaseURL(baseURL),
-    id: `channel-${index + 1}`,
-    remark: baseURL,
-  }));
-};
-
-/**
- * Parse a pricing API HTTP response into a `NewAPIPricing[] | null`.
- * Shared between browser and server branches to avoid duplicated logic.
- */
-const parsePricingResponse = async (res: Response): Promise<NewAPIPricing[] | null> => {
-  if (!res.ok) {
-    return null;
-  }
-
-  try {
-    const body = await res.json();
-    return body?.success && body?.data ? (body.data as NewAPIPricing[]) : null;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Fetch pricing information with CORS bypass for client-side requests
- * In browser environment, use /webapi/proxy to avoid CORS errors
- */
 const fetchPricing = async (
   pricingUrl: string,
   apiKey: string,
 ): Promise<NewAPIPricing[] | null> => {
   try {
-    if (isBrowser()) {
-      // In browser environment, use the proxy endpoint to avoid CORS
-      // The proxy endpoint expects the URL as the request body
-      const proxyResponse = await fetch('/webapi/proxy', {
-        body: pricingUrl,
-        method: 'POST',
-      });
+    const res = await fetch(pricingUrl, {
+      headers: {
+        Accept: 'application/json; charset=utf-8',
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
 
-      return await parsePricingResponse(proxyResponse);
-    } else {
-      // In server environment, fetch directly with proper encoding headers
-      const pricingResponse = await fetch(pricingUrl, {
-        headers: {
-          Accept: 'application/json; charset=utf-8',
-          Authorization: `Bearer ${apiKey}`,
-        },
-      });
+    if (!res.ok) return null;
 
-      return await parsePricingResponse(pricingResponse);
-    }
-  } catch (error) {
-    console.debug('Failed to fetch NewAPI pricing info:', error);
+    const body = await res.json();
+    return body?.success && body?.data ? (body.data as NewAPIPricing[]) : null;
+  } catch {
     return null;
   }
 };
@@ -230,40 +158,49 @@ export const params = {
 
     return processMultiProviderModelList([...enrichedModelList, ...additionalModels], 'newapi');
   },
-  optionSelectionStrategy: 'roundRobin',
   routers: (options) => {
+    const userBaseURL = options.baseURL?.replace(/\/v\d+[a-z]*\/?$/, '') || '';
+
     return [
       {
         apiType: 'anthropic',
         models: LOBE_DEFAULT_MODEL_LIST.map((m) => m.id).filter(
           (id) => detectModelProvider(id) === 'anthropic',
         ),
-        options: buildRouterOptions(options, (baseURL) => baseURL),
+        options: {
+          ...options,
+          baseURL: userBaseURL,
+        },
       },
       {
         apiType: 'google',
         models: LOBE_DEFAULT_MODEL_LIST.map((m) => m.id).filter(
           (id) => detectModelProvider(id) === 'google',
         ),
-        options: buildRouterOptions(options, (baseURL) => baseURL),
+        options: {
+          ...options,
+          baseURL: userBaseURL,
+        },
       },
       {
         apiType: 'xai',
         models: LOBE_DEFAULT_MODEL_LIST.map((m) => m.id).filter(
           (id) => detectModelProvider(id) === 'xai',
         ),
-        options: buildRouterOptions(options, (baseURL) => urlJoin(baseURL, '/v1')),
+        options: {
+          ...options,
+          baseURL: urlJoin(userBaseURL, '/v1'),
+        },
       },
       {
         apiType: 'openai',
-        options: buildRouterOptions(options, (baseURL) => urlJoin(baseURL, '/v1')).map(
-          (option) => ({
-            ...option,
-            chatCompletion: {
-              useResponseModels: [...Array.from(responsesAPIModels), /gpt-\d(?!\d)/, /^o\d/],
-            },
-          }),
-        ),
+        options: {
+          ...options,
+          baseURL: urlJoin(userBaseURL, '/v1'),
+          chatCompletion: {
+            useResponseModels: [...Array.from(responsesAPIModels), /gpt-\d(?!\d)/, /^o\d/],
+          },
+        },
       },
     ];
   },

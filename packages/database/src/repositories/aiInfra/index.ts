@@ -418,9 +418,8 @@ export class AiInfraRepos {
       if (builtinType) m.type = builtinType;
     }
 
-    // Branding provider may be fully DB-backed (e.g. NewAPI router), so only prune
-    // residual models when we actually have a builtin allowlist to compare against.
-    if (providerId === BRANDING_PROVIDER && defaultModels.length > 0) {
+    // Filter out DB residual models that are no longer in the builtin list for branding provider
+    if (providerId === BRANDING_PROVIDER) {
       const builtinIds = new Set(defaultModels.map((m) => m.id));
       mergedModel = mergedModel.filter((m) => builtinIds.has(m.id));
     }

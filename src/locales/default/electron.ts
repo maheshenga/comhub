@@ -104,7 +104,7 @@ export default {
   'sync.inLocalStorage': 'Currently using local storage',
   'sync.isIniting': 'Initializing...',
   'sync.lobehubCloud.description': 'Officially provided cloud version',
-  'sync.lobehubCloud.title': '{{brandName}}',
+  'sync.lobehubCloud.title': 'LobeHub Cloud',
   'sync.local.description': 'Uses a local database, fully available offline',
   'sync.local.title': 'Local Database',
   'sync.mode.cloudSync': 'Cloud Sync',

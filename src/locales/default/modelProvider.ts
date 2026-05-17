@@ -267,6 +267,8 @@ export default {
     'For GPT-5.2 series; controls reasoning intensity.',
   'providerModels.item.modelConfig.extendParams.options.grok4_20ReasoningEffort.hint':
     'For Grok 4.20 series; controls reasoning intensity. Low/Medium uses 4 agents, High/XHigh uses 16 agents.',
+  'providerModels.item.modelConfig.extendParams.options.grok4_3ReasoningEffort.hint':
+    'For Grok 4.3 series; controls reasoning intensity.',
   'providerModels.item.modelConfig.extendParams.options.hy3ReasoningEffort.hint':
     'For Hy3 models; controls reasoning intensity. no_think (ultra-fast response), low (quick reasoning), and high (deep reasoning)—to accommodate varying latency and depth requirements, from high-frequency interactions to complex engineering tasks.',
   'providerModels.item.modelConfig.extendParams.options.deepseekV4ReasoningEffort.hint':
@@ -279,8 +281,6 @@ export default {
     'For Gemini 3 image generation models; controls resolution of generated images.',
   'providerModels.item.modelConfig.extendParams.options.imageResolution2.hint':
     'For Gemini 3.1 Flash Image models; controls resolution of generated images (supports 512px).',
-  'providerModels.item.modelConfig.extendParams.options.async.hint':
-    'For OpenAI-compatible image models that return task IDs; send requests with async=true and poll the task result.',
   'providerModels.item.modelConfig.extendParams.options.opus47Effort.hint':
     'For Claude Opus 4.7; controls effort level (low/medium/high/xhigh/max).',
   'providerModels.item.modelConfig.extendParams.options.reasoningBudgetToken.hint':

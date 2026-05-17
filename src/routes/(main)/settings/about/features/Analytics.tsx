@@ -1,5 +1,6 @@
 'use client';
 
+import { BRANDING_NAME } from '@lobechat/business-const';
 import { type FormGroupItemType } from '@lobehub/ui';
 import { Form } from '@lobehub/ui';
 import { Switch } from 'antd';
@@ -7,13 +8,11 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { FORM_STYLE } from '@/const/layoutTokens';
-import { useBrandName } from '@/features/Brand';
 import { useUserStore } from '@/store/user';
 import { userGeneralSettingsSelectors } from '@/store/user/selectors';
 
 const Analytics = memo(() => {
   const { t } = useTranslation('setting');
-  const brandName = useBrandName();
   const checked = useUserStore(userGeneralSettingsSelectors.telemetry);
   const updateGeneralConfig = useUserStore((s) => s.updateGeneralConfig);
 
@@ -28,7 +27,7 @@ const Analytics = memo(() => {
             }}
           />
         ),
-        desc: t('analytics.telemetry.desc', { appName: brandName }),
+        desc: t('analytics.telemetry.desc', { appName: BRANDING_NAME }),
         label: t('analytics.telemetry.title'),
         minWidth: undefined,
         valuePropName: 'checked',

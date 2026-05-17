@@ -10,7 +10,6 @@ import {
 } from '@/store/image/slices/generationConfig/initialState';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
-import { settingsSelectors } from '@/store/user/slices/settings/selectors';
 
 const checkModelEnabled = (
   enabledImageModelList: ReturnType<typeof aiProviderSelectors.enabledImageModelList>,
@@ -43,7 +42,6 @@ export const useFetchAiImageConfig = () => {
   }));
   const isInitializedImageConfig = useImageStore((s) => s.isInit);
   const initializeImageConfig = useImageStore((s) => s.initializeImageConfig);
-  const defaultImageSettings = useUserStore(settingsSelectors.currentImageSettings);
 
   const enabledImageModelList = useAiInfraStore(aiProviderSelectors.enabledImageModelList);
 
@@ -58,23 +56,7 @@ export const useFetchAiImageConfig = () => {
       return { model: lastSelectedImageModel, provider: lastSelectedImageProvider };
     }
 
-    // 2. Try backend default image model from admin settings
-    if (
-      defaultImageSettings.defaultModel &&
-      defaultImageSettings.defaultProvider &&
-      checkModelEnabled(
-        enabledImageModelList,
-        defaultImageSettings.defaultProvider,
-        defaultImageSettings.defaultModel,
-      )
-    ) {
-      return {
-        model: defaultImageSettings.defaultModel,
-        provider: defaultImageSettings.defaultProvider,
-      };
-    }
-
-    // 3. Try built-in default model from any enabled provider (prefer default provider first)
+    // 2. Try default model from any enabled provider (prefer default provider first)
     if (
       checkModelEnabled(enabledImageModelList, DEFAULT_AI_IMAGE_PROVIDER, DEFAULT_AI_IMAGE_MODEL)
     ) {
@@ -87,7 +69,7 @@ export const useFetchAiImageConfig = () => {
       return { model: DEFAULT_AI_IMAGE_MODEL, provider: providerWithDefaultModel.id };
     }
 
-    // 4. Fallback to first enabled model
+    // 3. Fallback to first enabled model
     const firstProvider = enabledImageModelList[0];
     const firstModel = firstProvider?.children[0];
     if (firstProvider && firstModel) {
@@ -96,13 +78,7 @@ export const useFetchAiImageConfig = () => {
 
     // No enabled models
     return { model: undefined, provider: undefined };
-  }, [
-    lastSelectedImageModel,
-    lastSelectedImageProvider,
-    enabledImageModelList,
-    defaultImageSettings.defaultModel,
-    defaultImageSettings.defaultProvider,
-  ]);
+  }, [lastSelectedImageModel, lastSelectedImageProvider, enabledImageModelList]);
 
   useEffect(() => {
     if (!isInitializedImageConfig && isReadyForInit) {

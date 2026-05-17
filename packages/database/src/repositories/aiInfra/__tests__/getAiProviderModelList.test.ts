@@ -1,4 +1,3 @@
-import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import type { AiProviderModelListItem } from 'model-bank';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -78,24 +77,6 @@ describe('AiInfraRepos', () => {
           id: 'gpt-4',
         }),
       );
-    });
-
-    it('should keep DB-backed branding provider models when builtin allowlist is empty', async () => {
-      const mockUserModels = [
-        { enabled: true, id: 'router-model-1', type: 'chat' },
-      ] as AiProviderModelListItem[];
-
-      vi.spyOn(repo.aiModelModel, 'getModelListByProviderId').mockResolvedValue(mockUserModels);
-      vi.spyOn(repo as any, 'fetchBuiltinModels').mockResolvedValue([]);
-
-      const result = await repo.getAiProviderModelList(BRANDING_PROVIDER);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        enabled: true,
-        id: 'router-model-1',
-        type: 'chat',
-      });
     });
 
     it('should use builtin models', async () => {

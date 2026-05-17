@@ -2,7 +2,6 @@
 
 import { memo } from 'react';
 
-import { useCommercialEntitlementFocusRefresh } from '@/business/client/useCommercialEntitlementFocusRefresh';
 import { useAiInfraStore } from '@/store/aiInfra';
 import { useElectronStore } from '@/store/electron';
 import { electronSyncSelectors } from '@/store/electron/selectors';
@@ -19,7 +18,6 @@ const DeferredStoreInitialization = memo<DeferredStoreInitializationProps>(({ is
 
   useInitAiProviderKeyVaults(isLogin, isSyncActive);
   useFetchPersona(isLogin);
-  useCommercialEntitlementFocusRefresh(isLogin);
 
   return null;
 });

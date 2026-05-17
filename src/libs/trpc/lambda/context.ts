@@ -18,17 +18,6 @@ const log = debug('lobe-trpc:lambda:context');
 const LOBE_CHAT_API_KEY_HEADER = 'X-API-Key';
 
 const extractClientIp = (request: NextRequest): string | undefined => {
-  // Only honor proxy headers when the deployment explicitly trusts a reverse proxy.
-  // Set TRUST_PROXY_HEADERS=1 (or any truthy value) on the server to enable.
-  // Skipping this check would let arbitrary clients spoof their `ipAddress` in
-  // admin audit logs.
-  const trustProxy =
-    process.env.TRUST_PROXY_HEADERS === '1' ||
-    process.env.TRUST_PROXY_HEADERS === 'true' ||
-    process.env.NODE_ENV === 'production';
-
-  if (!trustProxy) return undefined;
-
   const forwardedFor = request.headers.get('x-forwarded-for');
   if (forwardedFor) {
     const ip = forwardedFor.split(',')[0]?.trim();

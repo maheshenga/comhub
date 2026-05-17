@@ -274,10 +274,7 @@ export const imageRouter = router({
           );
 
           // Read user's provider config from database
-          const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
-            model: resolvedModelId,
-            modelType: 'image',
-          });
+          const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider);
 
           // Check if operation has been cancelled
           checkAbortSignal(signal);
@@ -287,7 +284,14 @@ export const imageRouter = router({
               model: resolvedModelId,
               params: params as unknown as RuntimeImageGenParams,
             },
-            { metadata: { trigger: RequestTrigger.Image } },
+            {
+              metadata: {
+                generationBatchId,
+                generationId,
+                taskId,
+                trigger: RequestTrigger.Image,
+              },
+            },
           );
 
           if (!response) {
@@ -410,7 +414,6 @@ export const imageRouter = router({
               modelUsage,
               provider,
               userId: ctx.userId,
-              db: ctx.serverDB,
             });
           }
 
@@ -449,6 +452,7 @@ export const imageRouter = router({
         const providerContentPolicyMessage = await getProviderContentPolicyErrorMessage({
           error,
           provider,
+          trigger: RequestTrigger.Image,
           userId: ctx.userId,
         });
         const { errorType, errorMessage } = categorizeError(

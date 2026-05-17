@@ -372,39 +372,6 @@ describe('AgentService', () => {
       expect(result?.model).toBe('user-preferred-model');
       expect(result?.provider).toBe('user-provider');
     });
-
-    it('should let server managed model/provider override user default agent config', async () => {
-      const mockAgent = {
-        id: 'agent-1',
-      };
-      const serverDefaultConfig = {
-        model: 'admin-model',
-        provider: 'newapi',
-        systemRole: 'server role',
-      };
-      const userDefaultConfig = {
-        model: 'user-preferred-model',
-        provider: 'openai',
-        systemRole: 'user role',
-      };
-
-      const mockAgentModel = {
-        getAgentConfig: vi.fn().mockResolvedValue(mockAgent),
-      };
-
-      (AgentModel as any).mockImplementation(() => mockAgentModel);
-      (parseAgentConfig as any).mockReturnValue(serverDefaultConfig);
-      mockUserModel.getUserSettingsDefaultAgentConfig.mockResolvedValueOnce({
-        config: userDefaultConfig,
-      });
-
-      const newService = new AgentService(mockDb, mockUserId);
-      const result = await newService.getAgentConfig('agent-1');
-
-      expect(result?.model).toBe('admin-model');
-      expect(result?.provider).toBe('newapi');
-      expect(result?.systemRole).toBe('user role');
-    });
   });
 
   describe('getAgentConfigById', () => {
