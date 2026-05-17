@@ -1,4 +1,5 @@
 import createDebug from 'debug';
+import { ModelProvider } from 'model-bank';
 
 import type {
   CreateVideoPayload,
@@ -32,40 +33,6 @@ interface OpenAIVideoStatusResponse {
   width?: number;
 }
 
-interface OpenAICompatibleVideoError extends Error {
-  status?: number;
-}
-
-interface OpenAIV2VideoTaskResponse {
-  data?: {
-    error?: string;
-    output?: string;
-    usage?: {
-      completion_tokens?: number;
-      total_tokens?: number;
-    };
-  };
-  error?: {
-    message?: string;
-  };
-  id?: string;
-  status?: string;
-  task_id?: string;
-}
-
-const createVideoError = (message: string, status?: number): OpenAICompatibleVideoError => {
-  const error = new Error(message) as OpenAICompatibleVideoError;
-  error.status = status;
-  return error;
-};
-
-const normalizeBaseURL = (baseURL: string) => baseURL.replace(/\/$/, '');
-
-const toV2BaseURL = (baseURL: string) => {
-  const normalized = normalizeBaseURL(baseURL || 'https://api.openai.com/v1');
-  return normalized.endsWith('/v1') ? normalized.slice(0, -3) : normalized;
-};
-
 /**
  * Query the status of a video generation task
  * Compatible with OpenAI Sora API
@@ -74,7 +41,7 @@ export async function queryOpenAICompatibleVideoStatus(
   inferenceId: string,
   options: { apiKey: string; baseURL: string },
 ): Promise<OpenAIVideoStatusResponse> {
-  const statusUrl = `${normalizeBaseURL(options.baseURL)}/videos/${inferenceId}`;
+  const statusUrl = `${options.baseURL}/videos/${inferenceId}`;
 
   log('Querying video status for: %s', inferenceId);
 
@@ -88,70 +55,13 @@ export async function queryOpenAICompatibleVideoStatus(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw createVideoError(
-      `OpenAI-compatible video status API error: ${response.status} ${errorText}`,
-      response.status,
-    );
+    throw new Error(`OpenAI-compatible video status API error: ${response.status} ${errorText}`);
   }
 
   const data = (await response.json()) as OpenAIVideoStatusResponse;
   log('Video status response: %O', data);
 
   return data;
-}
-
-async function queryOpenAIV2VideoGenerationStatus(
-  inferenceId: string,
-  options: { apiKey: string; baseURL: string },
-): Promise<OpenAIV2VideoTaskResponse> {
-  const statusUrl = `${toV2BaseURL(options.baseURL)}/v2/videos/generations/${inferenceId}`;
-
-  const response = await fetch(statusUrl, {
-    headers: {
-      'Authorization': `Bearer ${options.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    method: 'GET',
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw createVideoError(
-      `OpenAI-compatible video v2 status API error: ${response.status} ${errorText}`,
-      response.status,
-    );
-  }
-
-  return (await response.json()) as OpenAIV2VideoTaskResponse;
-}
-
-function parseOpenAIV2VideoStatus(response: OpenAIV2VideoTaskResponse): PollVideoStatusResult {
-  const status = response.status?.toLowerCase();
-
-  if (['success', 'succeeded', 'completed'].includes(status || '')) {
-    const videoUrl = response.data?.output;
-    if (!videoUrl) return { error: 'Task succeeded but no video URL found', status: 'failed' };
-
-    return {
-      status: 'success',
-      ...(response.data?.usage && {
-        usage: {
-          completionTokens: response.data.usage.completion_tokens ?? 0,
-          totalTokens: response.data.usage.total_tokens ?? 0,
-        },
-      }),
-      videoUrl,
-    };
-  }
-
-  if (['failed', 'failure', 'error'].includes(status || '')) {
-    return {
-      error: response.data?.error || response.error?.message || 'Video generation failed',
-      status: 'failed',
-    };
-  }
-
-  return { status: 'pending' };
 }
 
 /**
@@ -162,18 +72,7 @@ export async function pollOpenAICompatibleVideoStatus(
   inferenceId: string,
   options: { apiKey: string; baseURL: string },
 ): Promise<PollVideoStatusResult> {
-  let response: OpenAIVideoStatusResponse;
-  try {
-    response = await queryOpenAICompatibleVideoStatus(inferenceId, options);
-  } catch (error) {
-    if ((error as OpenAICompatibleVideoError).status === 404) {
-      return parseOpenAIV2VideoStatus(
-        await queryOpenAIV2VideoGenerationStatus(inferenceId, options),
-      );
-    }
-
-    throw error;
-  }
+  const response = await queryOpenAICompatibleVideoStatus(inferenceId, options);
 
   if (response.status === 'completed') {
     // Some providers return the download URL directly in the url field
@@ -217,7 +116,7 @@ export async function pollOpenAICompatibleVideoStatus(
  *   model: string,
  *   prompt: string,
  *   seconds?: string,      // OpenAI Sora format (string type)
- *   input_reference?: string | object,  // For image-to-video
+ *   input_reference?: string | { image_url: string } | { file_id: string },  // For image-to-video
  * }
  *
  * Creates a video generation task and returns immediately with inferenceId.
@@ -232,7 +131,7 @@ export async function createOpenAICompatibleVideo(
 
   log('Creating video with OpenAI-compatible API - model: %s, params: %O', model, params);
 
-  const baseURL = normalizeBaseURL(options.baseURL || 'https://api.openai.com/v1');
+  const baseURL = options.baseURL || 'https://api.openai.com/v1';
 
   // Build request body compatible with OpenAI Sora
   const body: Record<string, unknown> = {
@@ -252,62 +151,27 @@ export async function createOpenAICompatibleVideo(
 
   // Image-to-video support
   if (imageUrl) {
-    body['input_reference'] = imageUrl;
+    // OpenAI JSON requests reject bare strings, for example:
+    // `input_reference: "https://example.com/image.jpg"`.
+    body['input_reference'] =
+      options.provider === ModelProvider.OpenAI ? { image_url: imageUrl } : imageUrl;
   }
 
   log('OpenAI-compatible video API request body: %O', body);
 
-  const requestOptions = {
+  const response = await fetch(`${baseURL}/videos`, {
     body: JSON.stringify(body),
     headers: {
       'Authorization': `Bearer ${options.apiKey}`,
       'Content-Type': 'application/json',
     },
     method: 'POST',
-  };
-
-  const response = await fetch(`${baseURL}/videos`, requestOptions);
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
     log('OpenAI-compatible video API error: %s %s', response.status, errorText);
-
-    if (response.status !== 404) {
-      throw createVideoError(
-        `OpenAI-compatible video API error: ${response.status} ${errorText}`,
-        response.status,
-      );
-    }
-
-    const fallbackBody = {
-      model,
-      prompt,
-      ...(duration !== undefined && duration !== null ? { duration } : {}),
-      ...(imageUrl ? { image: imageUrl } : {}),
-      ...(params.resolution ? { resolution: params.resolution } : {}),
-      ...(size ? { size } : {}),
-    };
-
-    const fallbackResponse = await fetch(`${toV2BaseURL(baseURL)}/v2/videos/generations`, {
-      ...requestOptions,
-      body: JSON.stringify(fallbackBody),
-    });
-
-    if (!fallbackResponse.ok) {
-      const fallbackErrorText = await fallbackResponse.text();
-      throw createVideoError(
-        `OpenAI-compatible video v2 API error: ${fallbackResponse.status} ${fallbackErrorText}`,
-        fallbackResponse.status,
-      );
-    }
-
-    const fallbackData = (await fallbackResponse.json()) as OpenAIV2VideoTaskResponse;
-    const inferenceId = fallbackData.task_id ?? fallbackData.id;
-    if (!inferenceId) {
-      throw new Error('Invalid response: missing task_id');
-    }
-
-    return { inferenceId };
+    throw new Error(`OpenAI-compatible video API error: ${response.status} ${errorText}`);
   }
 
   const data = await response.json();

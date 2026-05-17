@@ -1,4 +1,5 @@
 import type { AgentStreamEvent } from '@lobechat/agent-gateway-client';
+import { RequestTrigger } from '@lobechat/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { aiAgentService } from '@/services/aiAgent';
@@ -488,11 +489,11 @@ describe('GatewayActionImpl', () => {
       );
     });
 
-    it('should forward task manager default assignee and current task context', async () => {
+    it('should forward metadata trigger to execAgentTask', async () => {
       const { action } = createExecuteTestAction();
 
       vi.mocked(aiAgentService.execAgentTask).mockResolvedValue({
-        agentId: 'agent-task',
+        agentId: 'agent-1',
         assistantMessageId: 'ast-1',
         autoStarted: true,
         createdAt: new Date().toISOString(),
@@ -507,23 +508,15 @@ describe('GatewayActionImpl', () => {
       });
 
       await action.executeGatewayAgent({
-        context: {
-          agentId: 'agent-task',
-          defaultTaskAssigneeAgentId: 'agt_inbox',
-          scope: 'task',
-          topicId: 'topic-1',
-          viewedTask: { taskId: 'T-1', type: 'detail' },
-        },
-        message: 'Assign this task',
+        context: { agentId: 'agent-1', topicId: 'topic-1', threadId: null, scope: 'main' },
+        message: 'Hello',
+        metadata: { trigger: RequestTrigger.Onboarding },
       });
 
       expect(aiAgentService.execAgentTask).toHaveBeenCalledWith(
         expect.objectContaining({
-          appContext: expect.objectContaining({
-            defaultTaskAssigneeAgentId: 'agt_inbox',
-            scope: 'task',
-            taskId: 'T-1',
-          }),
+          prompt: 'Hello',
+          trigger: 'onboarding',
         }),
         expect.anything(),
       );
@@ -566,6 +559,7 @@ describe('GatewayActionImpl', () => {
             taskId: 'T-1',
           }),
         }),
+        expect.anything(),
       );
     });
 

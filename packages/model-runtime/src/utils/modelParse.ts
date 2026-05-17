@@ -441,26 +441,6 @@ const mergeSettings = (
   return Object.keys(merged).length > 0 ? merged : undefined;
 };
 
-const mergeImageParameters = (
-  modelParameters: { [key: string]: any } | undefined,
-  knownParameters: { [key: string]: any } | undefined,
-  settings?: AiModelSettings,
-) => {
-  const parameters = modelParameters ?? knownParameters;
-  if (!parameters) return undefined;
-
-  if (!settings?.extendParams?.includes('async')) return parameters;
-
-  return {
-    ...parameters,
-    async: parameters.async ?? {
-      default: true,
-      description: 'Use asynchronous image task polling',
-      type: 'boolean',
-    },
-  };
-};
-
 /**
  * Get the local configuration of the model provider
  * @param provider Model provider
@@ -541,10 +521,6 @@ const processModelCard = (
   }
 
   const mergedSettings = mergeSettings(model.settings, knownModel?.settings, options);
-  const imageParameters =
-    modelType === 'image'
-      ? mergeImageParameters(model.parameters, knownModel?.parameters, mergedSettings)
-      : undefined;
 
   const formatPricing = (pricing?: {
     cachedInput?: number;
@@ -633,7 +609,7 @@ const processModelCard = (
     type: modelType,
     // current, only image model use the parameters field
     ...(modelType === 'image' && {
-      parameters: imageParameters,
+      parameters: model.parameters ?? knownModel?.parameters,
     }),
     ...(mergedSettings ? { settings: mergedSettings } : {}),
     video:

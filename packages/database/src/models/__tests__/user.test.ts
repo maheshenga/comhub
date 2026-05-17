@@ -1,5 +1,5 @@
 import type { UserPreference } from '@lobechat/types';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -72,14 +72,6 @@ describe('UserModel', () => {
       expect(result.settings.general).toEqual({ fontSize: 14 });
       expect(result.settings.tts).toEqual({ voice: 'default' });
       expect(result.settings.notification).toEqual({ inbox: { enabled: false } });
-    });
-
-    it('should return the user role', async () => {
-      await serverDB.update(users).set({ role: 'admin' }).where(eq(users.id, userId));
-
-      const result = await userModel.getUserState(mockDecryptor);
-
-      expect((result as any).role).toBe('admin');
     });
 
     it('should throw UserNotFoundError for non-existent user', async () => {
@@ -208,6 +200,52 @@ describe('UserModel', () => {
       });
 
       expect(updated?.username).toBe('myuser');
+    });
+  });
+
+  describe('advanceLastActiveAt', () => {
+    it('should advance lastActiveAt and return the previous activity state', async () => {
+      const previousLastActiveAt = new Date('2026-03-01T00:00:00.000Z');
+      const currentTime = new Date('2026-05-01T00:00:00.000Z');
+
+      await serverDB
+        .update(users)
+        .set({ lastActiveAt: previousLastActiveAt })
+        .where(eq(users.id, userId));
+
+      await expect(userModel.advanceLastActiveAt(currentTime)).resolves.toMatchObject({
+        previousLastActiveAt,
+      });
+
+      const updated = await serverDB.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+
+      expect(updated?.lastActiveAt.getTime()).toBe(currentTime.getTime());
+    });
+
+    it('should advance lastActiveAt when the previous DB value has microsecond precision', async () => {
+      const currentTime = new Date('2026-05-01T00:00:00.000Z');
+
+      await serverDB.execute(sql`
+        UPDATE ${users}
+        SET last_active_at = '2026-03-01T00:00:00.123456Z'::timestamptz
+        WHERE id = ${userId}
+      `);
+
+      const user = await UserModel.findById(serverDB, userId);
+
+      expect(user?.lastActiveAt.getTime()).toBe(new Date('2026-03-01T00:00:00.123Z').getTime());
+
+      await expect(userModel.advanceLastActiveAt(currentTime)).resolves.toMatchObject({
+        previousLastActiveAt: new Date('2026-03-01T00:00:00.123Z'),
+      });
+
+      const updated = await serverDB.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+
+      expect(updated?.lastActiveAt.getTime()).toBe(currentTime.getTime());
     });
   });
 

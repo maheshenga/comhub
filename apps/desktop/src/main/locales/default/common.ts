@@ -17,7 +17,7 @@ const common = {
   'actions.search': 'Search',
   'actions.submit': 'Submit',
   'app.description': 'Where Agents Collaborate',
-  'app.name': '玄果AI',
+  'app.name': 'LobeHub',
   'status.error': 'Error',
   'status.info': 'Information',
   'status.loading': 'Loading',

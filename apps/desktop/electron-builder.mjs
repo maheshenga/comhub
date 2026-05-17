@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 
 import {
+  copyExternalRuntimeModulesToSource,
+  getExternalRuntimeModulesFilesConfig,
+} from './external-runtime-deps.config.mjs';
+import {
   copyNativeModules,
   copyNativeModulesToSource,
   getAsarUnpackPatterns,
@@ -81,9 +85,9 @@ if (!hasAppleCertificate) {
 
 // 根据版本类型确定协议 scheme
 const getProtocolScheme = () => {
-  if (isCanary) return 'comhub-canary';
-  if (isNightly) return 'comhub-nightly';
-  return 'comhub';
+  if (isCanary) return 'lobehub-canary';
+  if (isNightly) return 'lobehub-nightly';
+  return 'lobehub';
 };
 
 const protocolScheme = getProtocolScheme();
@@ -106,30 +110,30 @@ const config = {
    */
   beforePack: async () => {
     await copyNativeModulesToSource();
+    await copyExternalRuntimeModulesToSource();
 
     console.info('📦 Downloading agent-browser binary...');
     execSync('node scripts/download-agent-browser.mjs', { stdio: 'inherit', cwd: __dirname });
 
-    // Skip CLI build if bun is not available (placeholder file used instead)
-    try {
-      execSync('bun --version', { stdio: 'ignore' });
-      console.info('📦 Building CLI for embedding...');
-      execSync('npm run build:cli', { stdio: 'inherit', cwd: __dirname });
-      const cliSrc = path.resolve(__dirname, '../cli/dist/index.js');
-      const cliDest = path.resolve(__dirname, 'resources/bin/lobe-cli.js');
-      await fs.copyFile(cliSrc, cliDest);
+    // Build and copy CLI bundle for embedding
+    console.info('📦 Building CLI for embedding...');
+    execSync('npm run build:cli', { stdio: 'inherit', cwd: __dirname });
+    const cliSrc = path.resolve(__dirname, '../cli/dist/index.js');
+    const cliDest = path.resolve(__dirname, 'resources/bin/lobe-cli.js');
+    await fs.copyFile(cliSrc, cliDest);
 
-      const cliPkg = JSON.parse(
-        await fs.readFile(path.resolve(__dirname, '../cli/package.json'), 'utf8'),
-      );
-      await fs.writeFile(
-        path.resolve(__dirname, 'resources/cli-package.json'),
-        JSON.stringify({ name: cliPkg.name, type: 'module', version: cliPkg.version }),
-      );
-      console.info('✅ CLI bundle copied to resources/bin/lobe-cli.js');
-    } catch {
-      console.info('⏭️  bun not found, skipping CLI build (using placeholder)');
-    }
+    // Write a minimal package.json next to the CLI bundle so that
+    // createRequire('../package.json') resolves correctly in the packaged app.
+    // The CLI script lives at Resources/bin/lobe-cli.js, so '../package.json'
+    // resolves to Resources/package.json.
+    const cliPkg = JSON.parse(
+      await fs.readFile(path.resolve(__dirname, '../cli/package.json'), 'utf8'),
+    );
+    await fs.writeFile(
+      path.resolve(__dirname, 'resources/cli-package.json'),
+      JSON.stringify({ name: cliPkg.name, type: 'module', version: cliPkg.version }),
+    );
+    console.info('✅ CLI bundle copied to resources/bin/lobe-cli.js');
   },
   /**
    * AfterPack hook for post-processing:
@@ -209,8 +213,7 @@ const config = {
       console.info(`⏭️  Skipping Assets.car (not found or copy failed)`);
     }
   },
-  appId: 'com.comhub.comhub-desktop',
-  productName: '玄果AI',
+  appId: 'com.lobehub.lobehub-desktop',
   appImage: {
     artifactName: '${productName}-${version}.${ext}',
   },
@@ -253,6 +256,8 @@ const config = {
     '!node_modules',
     // Then explicitly include native modules using object form (handles pnpm symlinks)
     ...getNativeModulesFilesConfig(),
+    // Include non-native runtime modules that are intentionally externalized from Vite.
+    ...getExternalRuntimeModulesFilesConfig(),
   ],
   generateUpdatesFilesForAllChannels: true,
   linux: {
@@ -268,7 +273,7 @@ const config = {
       CFBundleIconName: 'AppIcon',
       CFBundleURLTypes: [
         {
-          CFBundleURLName: 'ComHub Protocol',
+          CFBundleURLName: 'LobeHub Protocol',
           CFBundleURLSchemes: [protocolScheme],
         },
       ],
@@ -292,7 +297,7 @@ const config = {
       { arch: [arch === 'arm64' ? 'arm64' : 'x64'], target: 'zip' },
     ],
   },
-  npmRebuild: false,
+  npmRebuild: true,
   nsis: {
     allowToChangeInstallationDirectory: true,
     artifactName: '${productName}-${version}-setup.${ext}',
@@ -300,13 +305,13 @@ const config = {
     installerHeader: './build/nsis-header.bmp',
     installerSidebar: './build/nsis-sidebar.bmp',
     oneClick: false,
-    shortcutName: '玄果AI',
-    uninstallDisplayName: '玄果AI',
+    shortcutName: '${productName}',
+    uninstallDisplayName: '${productName}',
     uninstallerSidebar: './build/nsis-sidebar.bmp',
   },
   protocols: [
     {
-      name: 'ComHub Protocol',
+      name: 'LobeHub Protocol',
       schemes: [protocolScheme],
     },
   ],
@@ -325,7 +330,7 @@ const config = {
   ],
 
   win: {
-    executableName: '玄果AI',
+    executableName: 'LobeHub',
   },
 };
 

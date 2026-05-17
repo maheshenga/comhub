@@ -14,7 +14,6 @@ import { briefRuntime } from './brief';
 import { calculatorRuntime } from './calculator';
 import { cloudSandboxRuntime } from './cloudSandbox';
 import { credsRuntime } from './creds';
-import { gtdRuntime } from './gtd';
 import { knowledgeBaseRuntime } from './knowledgeBase';
 import { lobeAgentRuntime } from './lobeAgent';
 import { localSystemRuntime } from './localSystem';
@@ -22,7 +21,7 @@ import { memoryRuntime } from './memory';
 import { messageRuntime } from './message';
 import { notebookRuntime } from './notebook';
 import { remoteDeviceRuntime } from './remoteDevice';
-import { selfIterationIntentRuntime } from './selfIterationIntent';
+import { selfFeedbackIntentRuntime } from './selfFeedbackIntent';
 import { skillManagementRuntime } from './skillManagement';
 import { skillsRuntime } from './skills';
 import { skillStoreRuntime } from './skillStore';
@@ -68,11 +67,10 @@ registerRuntimes([
   topicReferenceRuntime,
   userInteractionRuntime,
   credsRuntime,
-  gtdRuntime,
   knowledgeBaseRuntime,
   webOnboardingRuntime,
   lobeAgentRuntime,
-  selfIterationIntentRuntime,
+  selfFeedbackIntentRuntime,
 ]);
 
 // ==================== Registry API ====================

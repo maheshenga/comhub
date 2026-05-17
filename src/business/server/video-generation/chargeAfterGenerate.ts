@@ -1,18 +1,7 @@
-import { getModelPricing } from '@lobechat/model-runtime';
-
-import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
-import {
-  resolveGenerationPricingMultiplier,
-  resolveVideoChargeCredits,
-} from '@/business/server/generationBilling';
-import { CommercialModel } from '@/database/models/commercial';
-import { getServerDB } from '@/database/server';
-import { type LobeChatDatabase } from '@/database/type';
-
 interface ChargeParams {
   computePriceParams?: { generateAudio?: boolean; resolution?: string };
-  db?: LobeChatDatabase;
   isError?: boolean;
+  /** Total time from task submission to webhook callback (ms) */
   latency?: number;
   metadata: {
     asyncTaskId: string;
@@ -27,53 +16,5 @@ interface ChargeParams {
   userId: string;
 }
 
-export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
-  const { computePriceParams, isError, metadata, model, prechargeResult, provider, usage, userId } =
-    params;
-
-  if (!prechargeResult || Object.keys(prechargeResult).length === 0) return;
-
-  if (isError) {
-    return;
-  }
-
-  const db = params.db ?? (await getServerDB());
-  const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
-  if (!shouldCharge) return;
-
-  const pricing = await getModelPricing(model ?? metadata.modelId, provider);
-  const baseCredits = resolveVideoChargeCredits({
-    computePriceParams,
-    prechargeResult,
-    pricing,
-    usage,
-  });
-  const multiplier = await resolveGenerationPricingMultiplier({
-    db,
-    model: model ?? metadata.modelId,
-    provider,
-  });
-  const effectiveCredits = Math.ceil(baseCredits * multiplier);
-
-  if (effectiveCredits <= 0) return;
-
-  const commercialModel = new CommercialModel(db, userId);
-
-  await commercialModel.postCharge({
-    credits: effectiveCredits,
-    metadata: {
-      asyncTaskId: metadata.asyncTaskId,
-      batchId: metadata.generationBatchId,
-      computePriceParams: params.computePriceParams,
-      latency: params.latency,
-      usage: params.usage,
-    },
-    model: model ?? metadata.modelId,
-    provider,
-    referenceId: metadata.generationBatchId,
-    referenceType: 'video_generation',
-    source: 'video',
-    title: 'Video Generation',
-    userId,
-  });
-}
+// eslint-disable-next-line unused-imports/no-unused-vars
+export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {}

@@ -19,6 +19,12 @@ const mockOptions: CreateVideoOptions = {
   provider: 'openai',
 };
 
+const mockVllmOptions: CreateVideoOptions = {
+  apiKey: 'test-api-key',
+  baseURL: 'http://localhost:8000/v1',
+  provider: 'vllm',
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -95,7 +101,7 @@ describe('createOpenAICompatibleVideo', () => {
       expect(body.size).toBe('1920x1080');
     });
 
-    it('should include imageUrl as input_reference', async () => {
+    it('should include imageUrl as JSON input_reference object', async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         json: async () => ({ id: 'video-task-img' }),
@@ -112,50 +118,27 @@ describe('createOpenAICompatibleVideo', () => {
       await createOpenAICompatibleVideo(payload, mockOptions);
 
       const body = JSON.parse((global.fetch as any).mock.calls[0][1].body);
-      expect(body.input_reference).toBe('https://example.com/image.jpg');
+      expect(body.input_reference).toEqual({ image_url: 'https://example.com/image.jpg' });
     });
 
-    it('should fall back to v2 video generations when OpenAI videos endpoint is unavailable', async () => {
-      global.fetch = vi
-        .fn()
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 404,
-          text: async () => '<!doctype html>Not Found',
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ task_id: 'cgt-20250831141439-sqmgf' }),
-        });
+    it('should preserve string input_reference for non-OpenAI compatible providers', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'video-task-vllm-img' }),
+      });
 
       const payload: CreateVideoPayload = {
-        model: 'doubao-seedance-1-0-lite-t2v-250428',
+        model: 'vllm-omni',
         params: {
-          prompt: 'dance',
-          duration: 5,
-          resolution: '720p',
+          prompt: 'Continue this scene',
+          imageUrl: 'https://example.com/image.jpg',
         },
       };
 
-      const result = await createOpenAICompatibleVideo(payload, {
-        ...mockOptions,
-        baseURL: 'https://ai.t8star.org/v1',
-      });
+      await createOpenAICompatibleVideo(payload, mockVllmOptions);
 
-      expect(fetch).toHaveBeenNthCalledWith(
-        2,
-        'https://ai.t8star.org/v2/videos/generations',
-        expect.objectContaining({
-          body: JSON.stringify({
-            model: 'doubao-seedance-1-0-lite-t2v-250428',
-            prompt: 'dance',
-            duration: 5,
-            resolution: '720p',
-          }),
-          method: 'POST',
-        }),
-      );
-      expect(result).toEqual({ inferenceId: 'cgt-20250831141439-sqmgf' });
+      const body = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+      expect(body.input_reference).toBe('https://example.com/image.jpg');
     });
   });
 
@@ -279,69 +262,19 @@ describe('pollOpenAICompatibleVideoStatus', () => {
     expect(result).toEqual({ status: 'pending' });
   });
 
-  it('should fall back to v2 generation task status and parse data.output video url', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        text: async () => 'Task not found',
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          task_id: 'cgt-20250831141439-sqmgf',
-          status: 'SUCCESS',
-          data: {
-            output: 'https://cdn.example.com/video.mp4',
-            usage: {
-              completion_tokens: 49005,
-              total_tokens: 49005,
-            },
-          },
-        }),
-      });
-
-    const result = await pollOpenAICompatibleVideoStatus('cgt-20250831141439-sqmgf', {
-      apiKey: 'test-key',
-      baseURL: 'https://ai.t8star.org/v1',
-    });
-
-    expect(fetch).toHaveBeenNthCalledWith(
-      2,
-      'https://ai.t8star.org/v2/videos/generations/cgt-20250831141439-sqmgf',
-      expect.any(Object),
-    );
-    expect(result).toEqual({
-      status: 'success',
-      usage: {
-        completionTokens: 49005,
-        totalTokens: 49005,
-      },
-      videoUrl: 'https://cdn.example.com/video.mp4',
-    });
-  });
-
   it('should throw on HTTP error', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        text: async () => 'Task not found',
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        text: async () => 'Gateway error',
-      });
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: async () => 'Task not found',
+    });
 
     await expect(
       pollOpenAICompatibleVideoStatus('invalid-task', {
         apiKey: 'test-key',
         baseURL: 'https://api.openai.com/v1',
       }),
-    ).rejects.toThrow('OpenAI-compatible video v2 status API error: 500 Gateway error');
+    ).rejects.toThrow('OpenAI-compatible video status API error: 404 Task not found');
   });
 });
 

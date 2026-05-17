@@ -1,8 +1,8 @@
+import { RequestTrigger } from '@lobechat/types';
 import debug from 'debug';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
 import { trackProviderContentPolicyViolation } from '@/business/server/trackProviderContentPolicyViolation';
-import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationModel } from '@/database/models/generation';
 import type { LobeChatDatabase } from '@/database/type';
@@ -37,7 +37,6 @@ export async function processBackgroundVideoPolling(
     asyncTaskId,
     generationBatchId,
     generationId,
-    generationTopicId,
     inferenceId,
     model,
     provider,
@@ -56,10 +55,7 @@ export async function processBackgroundVideoPolling(
     const videoService = new VideoGenerationService(db, userId);
     const generationModel = new GenerationModel(db, userId);
 
-    const modelRuntime = await initModelRuntimeFromDB(db, userId, provider, {
-      model,
-      modelType: 'video',
-    });
+    const modelRuntime = await initModelRuntimeFromDB(db, userId, provider);
     const pollResult = await pollUntilCompletion(modelRuntime, inferenceId);
 
     if (!pollResult) {
@@ -107,32 +103,6 @@ export async function processBackgroundVideoPolling(
       status: AsyncTaskStatus.Success,
     });
 
-    if (params.prechargeResult) {
-      try {
-        await chargeAfterGenerate({
-          computePriceParams: {
-            generateAudio: (batch?.config as any)?.generateAudio,
-            resolution: (batch?.config as any)?.resolution,
-          },
-          latency: duration,
-          metadata: {
-            asyncTaskId,
-            generationBatchId,
-            modelId: model,
-            topicId: generationTopicId,
-          },
-          model,
-          prechargeResult: params.prechargeResult,
-          provider,
-          usage: pollResult.usage,
-          userId,
-          db,
-        });
-      } catch (chargeError) {
-        log('Failed to charge video generation after polling success: %O', chargeError);
-      }
-    }
-
     log('Video processing completed successfully for task: %s', asyncTaskId);
   } catch (error) {
     log('Background video polling error for task: %s', asyncTaskId, error);
@@ -141,6 +111,7 @@ export async function processBackgroundVideoPolling(
     const providerContentPolicyMessage = await getProviderContentPolicyErrorMessage({
       error,
       provider,
+      trigger: RequestTrigger.Video,
       userId,
     });
     if (providerContentPolicyMessage) {
@@ -173,11 +144,7 @@ export async function processBackgroundVideoPolling(
 async function pollUntilCompletion(
   modelRuntime: any,
   inferenceId: string,
-): Promise<{
-  headers?: Record<string, string>;
-  usage?: { completionTokens: number; totalTokens: number };
-  videoUrl: string;
-} | null> {
+): Promise<{ headers?: Record<string, string>; videoUrl: string } | null> {
   const maxRetries = 120;
   const pollingInterval = 5000;
 
@@ -189,7 +156,7 @@ async function pollUntilCompletion(
 
       if (result.status === 'success') {
         log('Video generation succeeded for task: %s', inferenceId);
-        return { headers: result.headers, usage: result.usage, videoUrl: result.videoUrl };
+        return { headers: result.headers, videoUrl: result.videoUrl };
       }
 
       if (result.status === 'failed') {

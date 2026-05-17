@@ -4,7 +4,6 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 
 import BootErrorBoundary from '@/components/BootErrorBoundary';
-import { BrandProvider } from '@/features/Brand';
 import { createAppRouter } from '@/utils/router';
 
 import { desktopRoutes } from './router/desktopRouter.config';
@@ -19,8 +18,6 @@ const router = createAppRouter(desktopRoutes, { basename });
 
 createRoot(document.getElementById('root')!).render(
   <BootErrorBoundary>
-    <BrandProvider>
-      <RouterProvider router={router} />
-    </BrandProvider>
+    <RouterProvider router={router} />
   </BootErrorBoundary>,
 );

@@ -8,8 +8,6 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
-import { useBrandName } from '@/features/Brand';
-import { replaceLegacyBrandTokens } from '@/features/Brand/brandText';
 import { getPlatformIcon } from '@/routes/(main)/agent/channel/const';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors/builtinAgentSelectors';
@@ -17,12 +15,20 @@ import { useGlobalStore } from '@/store/global';
 
 // Bump this id when the banner content changes so dismissing the old
 // variant does not hide the new one.
-export const BOT_INTEGRATION_BANNER_ID = 'bot-integration-v1';
+export const BOT_INTEGRATION_BANNER_ID = 'bot-integration-v2';
 
 const ICON_SIZE = 16;
 const AVATAR_SIZE = 24;
 
-const BANNER_PLATFORM_NAMES = ['Discord', 'Slack', 'Telegram', 'Lark', 'WeChat', 'QQ'] as const;
+const BANNER_PLATFORM_NAMES = [
+  'Discord',
+  'Slack',
+  'Telegram',
+  'Line',
+  'Lark',
+  'WeChat',
+  'QQ',
+] as const;
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   avatar: css`
@@ -77,7 +83,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 const BotIntegrationBanner = memo(() => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
-  const brandName = useBrandName();
 
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
   const updateSystemStatus = useGlobalStore((s) => s.updateSystemStatus);
@@ -114,7 +119,6 @@ const BotIntegrationBanner = memo(() => {
     },
     [updateSystemStatus],
   );
-  const title = replaceLegacyBrandTokens(t('botIntegrationBanner.title', { brandName }), brandName);
 
   return (
     <div
@@ -122,9 +126,9 @@ const BotIntegrationBanner = memo(() => {
       data-testid="bot-integration-banner"
       onClick={handleNavigateToChannels}
     >
-      <Flexbox horizontal align="center" gap={4}>
+      <Flexbox horizontal align="center" gap={8}>
         <Icon className={styles.icon} icon={RadioTowerIcon} size={18} />
-        <span className={styles.text}>{title}</span>
+        <span className={styles.text}>{t('botIntegrationBanner.title')}</span>
       </Flexbox>
       <Flexbox horizontal align="center" gap={8}>
         {platformIcons.length > 0 && (

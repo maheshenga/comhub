@@ -190,10 +190,6 @@ export class FeedbackDomainJudgeAgentService {
       this.db,
       this.userId,
       this.modelConfig.provider,
-      {
-        model: this.modelConfig.model,
-        modelType: 'chat',
-      },
     );
 
     log('judgeDomains model=%s provider=%s', this.modelConfig.model, this.modelConfig.provider);

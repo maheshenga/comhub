@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AsyncTaskModel } from '@/database/models/asyncTask';
-import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { FileService } from '@/server/services/file';
 import { AsyncTaskStatus } from '@/types/asyncTask';
 
@@ -16,14 +15,7 @@ const {
   mockTransaction,
 } = vi.hoisted(() => {
   const mockTransaction = vi.fn();
-  const mockServerDB = {
-    query: {
-      userPlanSnapshots: {
-        findFirst: vi.fn().mockResolvedValue(null),
-      },
-    },
-    transaction: mockTransaction,
-  };
+  const mockServerDB = { transaction: mockTransaction };
   const mockCreateVideo = vi.fn();
   const mockAfter = vi.fn((cb: () => void) => cb());
   const mockProcessBackgroundVideoPolling = vi.fn().mockResolvedValue(undefined);
@@ -162,10 +154,6 @@ describe('videoRouter', () => {
       expect(mockUpdate).toHaveBeenCalledWith('async-1', {
         inferenceId: 'inf-1',
         status: AsyncTaskStatus.Processing,
-      });
-      expect(initModelRuntimeFromDB).toHaveBeenCalledWith(mockServerDB, 'test-user', 'volcengine', {
-        model: 'test-model',
-        modelType: 'video',
       });
       // Webhook: should NOT trigger background polling
       expect(mockAfter).not.toHaveBeenCalled();

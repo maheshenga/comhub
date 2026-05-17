@@ -10,7 +10,6 @@ const mockSearchParamsGet = vi.hoisted(() => vi.fn().mockReturnValue(null));
 const mockMessageError = vi.hoisted(() => vi.fn());
 const mockSignUpEmail = vi.hoisted(() => vi.fn());
 const mockGetCaptchaTokenOnError = vi.hoisted(() => vi.fn());
-const mockPhoneEnabled = vi.hoisted(() => ({ value: false }));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
@@ -35,7 +34,6 @@ vi.mock('@/business/client/hooks/useBusinessSignup', () => ({
     businessElement: null,
     getCaptchaTokenOnError: mockGetCaptchaTokenOnError,
     getFetchOptions: async () => undefined,
-    phoneEnabled: mockPhoneEnabled.value,
     preSocialSignupCheck: async () => true,
   }),
 }));
@@ -59,7 +57,6 @@ describe('useSignUp', () => {
     mockSearchParamsGet.mockReturnValue(null);
     mockGetCaptchaTokenOnError.mockResolvedValue(undefined);
     mockEnableEmailVerification = false;
-    mockPhoneEnabled.value = false;
   });
 
   afterEach(() => {
@@ -155,21 +152,6 @@ describe('useSignUp', () => {
       });
 
       expect(mockSignUpEmail).toHaveBeenCalledWith(expect.objectContaining({ name: 'john.doe' }));
-    });
-
-    it('should pass phone to sign up when the admin phone field is enabled', async () => {
-      mockPhoneEnabled.value = true;
-      mockSignUpEmail.mockResolvedValue({ error: null });
-
-      const { result } = renderHook(() => useSignUp());
-
-      await act(async () => {
-        await result.current.onSubmit({ ...validValues, phone: '13800138000' });
-      });
-
-      expect(mockSignUpEmail).toHaveBeenCalledWith(
-        expect.objectContaining({ phone: '13800138000' }),
-      );
     });
 
     it('should show error for duplicate email', async () => {

@@ -66,10 +66,6 @@ describe('POST handler', () => {
         expect.anything(),
         'test-user-id',
         'test-provider',
-        {
-          model: 'test-model',
-          modelType: 'chat',
-        },
       );
     });
 
@@ -107,39 +103,6 @@ describe('POST handler', () => {
       expect(mockRuntime.chat).toHaveBeenCalledWith(mockChatPayload, {
         user: 'test-user-id',
         signal: expect.anything(),
-      });
-    });
-
-    it('should pass billing metadata from chat headers to ModelRuntime hooks', async () => {
-      const mockParams = Promise.resolve({ provider: 'test-provider' });
-      const mockChatPayload = { message: 'Hello, world!' };
-      request = new Request(new URL('https://test.com'), {
-        body: JSON.stringify(mockChatPayload),
-        headers: {
-          'x-assistant-message-id': 'assistant-message-1',
-          'x-operation-id': 'operation-1',
-        },
-        method: 'POST',
-      });
-
-      const mockChatResponse: any = { success: true, message: 'Reply from agent' };
-      const mockRuntime: LobeRuntimeAI = {
-        baseURL: 'abc',
-        chat: vi.fn().mockResolvedValue(mockChatResponse),
-      };
-
-      vi.mocked(initModelRuntimeFromDB).mockResolvedValue(new ModelRuntime(mockRuntime));
-
-      await POST(request as unknown as Request, { params: mockParams });
-
-      expect(mockRuntime.chat).toHaveBeenCalledWith(mockChatPayload, {
-        metadata: {
-          assistantMessageId: 'assistant-message-1',
-          messageId: 'assistant-message-1',
-          operationId: 'operation-1',
-        },
-        signal: expect.anything(),
-        user: 'test-user-id',
       });
     });
 

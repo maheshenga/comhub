@@ -4,7 +4,12 @@ import {
   buildMappedBusinessModelFields,
   resolveBusinessModelMapping,
 } from '@lobechat/business-model-runtime';
-import { AsyncTaskError, AsyncTaskErrorType, AsyncTaskStatus } from '@lobechat/types';
+import {
+  AsyncTaskError,
+  AsyncTaskErrorType,
+  AsyncTaskStatus,
+  RequestTrigger,
+} from '@lobechat/types';
 import debug from 'debug';
 import { z } from 'zod';
 
@@ -54,11 +59,7 @@ async function pollUntilCompletion(
   modelRuntime: any,
   inferenceId: string,
   signal: AbortSignal,
-): Promise<{
-  headers?: Record<string, string>;
-  usage?: { completionTokens: number; totalTokens: number };
-  videoUrl: string;
-} | null> {
+): Promise<{ headers?: Record<string, string>; videoUrl: string } | null> {
   const maxRetries = 120;
   const pollingInterval = 5000;
 
@@ -72,7 +73,7 @@ async function pollUntilCompletion(
 
       if (result.status === 'success') {
         log('Video generation succeeded for inferenceId: %s', inferenceId);
-        return { headers: result.headers, usage: result.usage, videoUrl: result.videoUrl };
+        return { headers: result.headers, videoUrl: result.videoUrl };
       }
 
       if (result.status === 'failed') {
@@ -154,10 +155,7 @@ export const videoRouter = router({
         const videoService = ctx.videoService;
 
         log('Initializing agent runtime for provider: %s', provider);
-        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
-          model: resolvedModelId,
-          modelType: 'video',
-        });
+        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider);
 
         checkAbortSignal(signal);
 
@@ -233,9 +231,8 @@ export const videoRouter = router({
               model: resolvedModelId,
               prechargeResult,
               provider,
-              usage: pollResult.usage,
+              usage: undefined,
               userId: ctx.userId,
-              db: ctx.serverDB,
             });
             log('Charge completed successfully for asyncTask: %s', asyncTaskId);
           } catch (chargeError) {
@@ -275,6 +272,7 @@ export const videoRouter = router({
       const providerContentPolicyMessage = await getProviderContentPolicyErrorMessage({
         error,
         provider,
+        trigger: RequestTrigger.Video,
         userId: ctx.userId,
       });
 
@@ -310,7 +308,6 @@ export const videoRouter = router({
             prechargeResult,
             provider,
             userId: ctx.userId,
-            db: ctx.serverDB,
           });
           log('Precharge refunded successfully for asyncTask: %s', asyncTaskId);
         } catch (refundError) {

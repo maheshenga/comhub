@@ -1,6 +1,5 @@
 'use client';
 
-import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import { ProviderIcon } from '@lobehub/icons';
 import { Button, DropdownMenu, Icon } from '@lobehub/ui';
 import { Dropdown } from 'antd';
@@ -24,9 +23,9 @@ const styles = createStaticStyles(({ css }) => ({
 const ChatWithModel = memo(() => {
   const { t } = useTranslation('discover');
   const { providers = [] } = useDetailContext();
-  const includeBrandingProvider = providers.some((item) => item.id === BRANDING_PROVIDER);
+  const includeLobeHub = providers.some((item) => item.id === 'lobehub');
   const navigate = useNavigate();
-  const list = providers.filter((provider) => provider.id !== BRANDING_PROVIDER);
+  const list = providers.filter((provider) => provider.id !== 'lobehub');
 
   const items = list.map((item) => ({
     icon: <ProviderIcon provider={item.id} size={20} type={'avatar'} />,
@@ -38,11 +37,11 @@ const ChatWithModel = memo(() => {
     ),
   }));
 
-  const handleBrandingProviderChat = () => {
+  const handleLobeHubChat = () => {
     navigate('/agent');
   };
 
-  if (includeBrandingProvider)
+  if (includeLobeHub)
     return (
       <Dropdown.Button
         className={styles.button}
@@ -54,7 +53,7 @@ const ChatWithModel = memo(() => {
         menu={{
           items,
         }}
-        onClick={handleBrandingProviderChat}
+        onClick={handleLobeHubChat}
       >
         {t('models.chat')}
       </Dropdown.Button>

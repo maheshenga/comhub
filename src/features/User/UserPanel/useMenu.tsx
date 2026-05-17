@@ -15,8 +15,6 @@ import { OFFICIAL_URL } from '@/const/url';
 import DataImporter from '@/features/DataImporter';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import { usePlatform } from '@/hooks/usePlatform';
-import { useClientDataSWR } from '@/libs/swr';
-import { adminCommercialService } from '@/services/adminCommercial';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
@@ -65,15 +63,6 @@ export const useMenu = () => {
     return DOWNLOAD_URL.default;
   }, [isIOS, isAndroid]);
 
-  const { data: desktopUpdateConfig } = useClientDataSWR(
-    'public-desktop-update',
-    () => adminCommercialService.getPublicDesktopUpdate(),
-    { revalidateOnFocus: false },
-  );
-
-  const resolvedDownloadUrl = desktopUpdateConfig?.downloadUrl || downloadUrl;
-  const resolvedDownloadLabel = desktopUpdateConfig?.downloadLabel;
-
   const settings: MenuProps['items'] = [
     {
       extra: isDesktop ? (
@@ -105,8 +94,8 @@ export const useMenu = () => {
       icon: <Icon icon={Download} />,
       key: 'get-desktop-app',
       label: (
-        <a href={resolvedDownloadUrl} rel="noopener noreferrer" target="_blank">
-          {resolvedDownloadLabel || t('getDesktopApp')}
+        <a href={downloadUrl} rel="noopener noreferrer" target="_blank">
+          {t('getDesktopApp')}
         </a>
       ),
     },

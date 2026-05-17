@@ -8,7 +8,6 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import FeatureList from '@/components/FeatureList';
 import { DATABASE_SELF_HOSTING_URL, OFFICIAL_URL } from '@/const/url';
-import { useBrandName } from '@/features/Brand';
 
 const BLOCK_SIZE = 100;
 const ICON_SIZE = { size: 72, strokeWidth: 1.5 };
@@ -65,7 +64,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
 const NotSupportClient = () => {
   const { t } = useTranslation('image');
-  const brandName = useBrandName();
 
   const features = [
     {
@@ -132,7 +130,6 @@ const NotSupportClient = () => {
           <Trans
             i18nKey={'notSupportGuide.desc'}
             ns={'image'}
-            values={{ brandName }}
             components={[
               <span key="0" />,
               <a href={DATABASE_SELF_HOSTING_URL} key="1" rel="noreferrer" target="_blank" />,

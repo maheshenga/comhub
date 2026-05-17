@@ -34,11 +34,6 @@ export interface GlobalMemoryConfig {
   userMemory?: GlobalMemoryExtractionConfig;
 }
 
-export interface GlobalGenerationModelConfig {
-  defaultModel?: string;
-  defaultProvider?: string;
-}
-
 export interface VisualUnderstandingConfig {
   model: string;
   provider: string;
@@ -85,9 +80,7 @@ export interface GlobalServerConfig {
   telemetry: {
     langfuse?: boolean;
   };
-  video?: GlobalGenerationModelConfig;
   visualUnderstanding?: VisualUnderstandingConfig;
-  video?: GlobalGenerationModelConfig;
 }
 
 export interface GlobalBillboardItemLocaleFields {

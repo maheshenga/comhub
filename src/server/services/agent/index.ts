@@ -5,7 +5,6 @@ import { type LobeChatDatabase } from '@lobechat/database';
 import { type AgentItem, type LobeAgentConfig } from '@lobechat/types';
 import { cleanObject, merge } from '@lobechat/utils';
 import debug from 'debug';
-import { pick } from 'es-toolkit/compat';
 import { type PartialDeep } from 'type-fest';
 
 import { AgentModel } from '@/database/models/agent';
@@ -19,10 +18,7 @@ import {
   RedisKeyNamespace,
   RedisKeys,
 } from '@/libs/redis';
-import {
-  getResolvedServerDefaultAgentConfig,
-  getServerDefaultAgentConfig,
-} from '@/server/globalConfig';
+import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 
 import { type UpdateAgentResult } from './type';
 
@@ -60,7 +56,7 @@ export class AgentService {
 
   async createInbox() {
     const sessionModel = new SessionModel(this.db, this.userId);
-    const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(this.db);
+    const defaultAgentConfig = getServerDefaultAgentConfig();
     await sessionModel.createInbox(defaultAgentConfig);
   }
 
@@ -78,17 +74,12 @@ export class AgentService {
    */
   async getBuiltinAgent(slug: string) {
     // Fetch agent and defaultAgentConfig in parallel
-    const [agent, defaultAgentConfig, serverDefaultAgentConfig] = await Promise.all([
+    const [agent, defaultAgentConfig] = await Promise.all([
       this.agentModel.getBuiltinAgent(slug),
       this.userModel.getUserSettingsDefaultAgentConfig(),
-      getResolvedServerDefaultAgentConfig(this.db),
     ]);
 
-    const mergedConfig = this.mergeDefaultConfig(
-      agent,
-      defaultAgentConfig,
-      serverDefaultAgentConfig,
-    );
+    const mergedConfig = this.mergeDefaultConfig(agent, defaultAgentConfig);
     if (!mergedConfig) return null;
 
     // Use builtin avatar as fallback only when DB has no custom avatar
@@ -106,22 +97,17 @@ export class AgentService {
    *
    * The returned agent config is merged with:
    * 1. DEFAULT_AGENT_CONFIG (hardcoded defaults)
-   * 2. User's defaultAgentConfig (from user settings)
-   * 3. Server's managed default agent config (from env/admin settings)
+   * 2. Server's globalDefaultAgentConfig (from environment variable DEFAULT_AGENT_CONFIG)
+   * 3. User's defaultAgentConfig (from user settings)
    * 4. The actual agent config from database
    */
   async getAgentConfig(idOrSlug: string): Promise<AgentConfigWithId | null> {
-    const [agent, defaultAgentConfig, serverDefaultAgentConfig] = await Promise.all([
+    const [agent, defaultAgentConfig] = await Promise.all([
       this.agentModel.getAgentConfig(idOrSlug),
       this.userModel.getUserSettingsDefaultAgentConfig(),
-      getResolvedServerDefaultAgentConfig(this.db),
     ]);
 
-    return this.mergeDefaultConfig(
-      agent,
-      defaultAgentConfig,
-      serverDefaultAgentConfig,
-    ) as AgentConfigWithId | null;
+    return this.mergeDefaultConfig(agent, defaultAgentConfig) as AgentConfigWithId | null;
   }
 
   /**
@@ -129,20 +115,19 @@ export class AgentService {
    *
    * The returned agent config is merged with:
    * 1. DEFAULT_AGENT_CONFIG (hardcoded defaults)
-   * 2. User's defaultAgentConfig (from user settings)
-   * 3. Server's managed default agent config (from env/admin settings)
+   * 2. Server's globalDefaultAgentConfig (from environment variable DEFAULT_AGENT_CONFIG)
+   * 3. User's defaultAgentConfig (from user settings)
    * 4. The actual agent config from database
    * 5. AI-generated welcome data from Redis (if available)
    */
   async getAgentConfigById(agentId: string) {
-    const [agent, defaultAgentConfig, welcomeData, serverDefaultAgentConfig] = await Promise.all([
+    const [agent, defaultAgentConfig, welcomeData] = await Promise.all([
       this.agentModel.getAgentConfigById(agentId),
       this.userModel.getUserSettingsDefaultAgentConfig(),
       this.getAgentWelcomeFromRedis(agentId),
-      getResolvedServerDefaultAgentConfig(this.db),
     ]);
 
-    const config = this.mergeDefaultConfig(agent, defaultAgentConfig, serverDefaultAgentConfig);
+    const config = this.mergeDefaultConfig(agent, defaultAgentConfig);
     if (!config) return null;
 
     // Merge AI-generated welcome data if available
@@ -184,30 +169,25 @@ export class AgentService {
    *
    * Merge order (later values override earlier):
    * 1. DEFAULT_AGENT_CONFIG - hardcoded defaults
-   * 2. userDefaultAgentConfig - from user settings (defaultAgent.config)
-   * 3. serverDefaultAgentConfig - from env/admin settings
+   * 2. serverDefaultAgentConfig - from environment variable
+   * 3. userDefaultAgentConfig - from user settings (defaultAgent.config)
    * 4. agent - actual agent config from database
    */
   private mergeDefaultConfig(
     agent: any,
     defaultAgentConfig: Awaited<ReturnType<UserModel['getUserSettingsDefaultAgentConfig']>>,
-    serverDefaultAgentConfig = getServerDefaultAgentConfig(),
   ): LobeAgentConfig | null {
     if (!agent) return null;
 
     const userDefaultAgentConfig =
       (defaultAgentConfig as { config?: PartialDeep<LobeAgentConfig> })?.config || {};
 
-    // Admin-managed API settings should control the default model/provider,
-    // while user defaults still own other default-agent fields.
+    // Merge configs in order: DEFAULT -> server -> user -> agent
+    const serverDefaultAgentConfig = getServerDefaultAgentConfig();
     const baseConfig = merge(DEFAULT_AGENT_CONFIG, serverDefaultAgentConfig);
     const withUserConfig = merge(baseConfig, userDefaultAgentConfig);
-    const withManagedModel = merge(
-      withUserConfig,
-      pick(serverDefaultAgentConfig, ['model', 'provider']),
-    );
 
-    return merge(withManagedModel, cleanObject(agent));
+    return merge(withUserConfig, cleanObject(agent));
   }
 
   /**

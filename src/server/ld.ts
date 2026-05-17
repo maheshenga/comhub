@@ -1,4 +1,4 @@
-import { BRANDING_EMAIL, BRANDING_NAME, BRANDING_PROVIDER, SOCIAL_URL } from '@lobechat/business-const';
+import { BRANDING_EMAIL, BRANDING_NAME, SOCIAL_URL } from '@lobechat/business-const';
 import { isString } from 'es-toolkit/compat';
 import qs from 'query-string';
 import urlJoin from 'url-join';
@@ -117,8 +117,8 @@ export class Ld {
       '@type': 'Organization',
     };
     if (!ids || ids.length === 0) return defaultAuthor;
-    if (ids.length === 1 && ids[0] === BRANDING_PROVIDER) return defaultAuthor;
-    const personId = ids.find((id) => id !== BRANDING_PROVIDER);
+    if (ids.length === 1 && ids[0] === 'lobehub') return defaultAuthor;
+    const personId = ids.find((id) => id !== 'lobehub');
     if (!personId) return defaultAuthor;
     const person = (AUTHOR_LIST as any)?.[personId];
     if (!person) return defaultAuthor;

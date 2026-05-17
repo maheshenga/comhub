@@ -1,14 +1,12 @@
 'use client';
 
 import { Button, Icon, Text } from '@lobehub/ui';
-import { Form, Input } from 'antd';
-import { Lock, Mail, Phone } from 'lucide-react';
+import { Form, Input, type InputRef } from 'antd';
+import { Lock, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-
-import { useBrand } from '@/features/Brand';
 
 import { AuthCard } from '../../../../../features/AuthCard';
 import { trackLoginOrSignupClicked } from '../../../../../features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
@@ -17,15 +15,22 @@ import { useSignUp } from './useSignUp';
 
 const BetterAuthSignUpForm = () => {
   const [form] = Form.useForm<SignUpFormValues>();
-  const { loading, onSubmit, businessElement, phoneEnabled } = useSignUp();
-  const brand = useBrand();
+  const { loading, onSubmit, businessElement } = useSignUp();
 
   const { t } = useTranslation('auth');
   const searchParams = useSearchParams();
 
+  const emailInputRef = useRef<InputRef>(null);
+  const passwordInputRef = useRef<InputRef>(null);
+
   useEffect(() => {
     const email = searchParams.get('email');
-    if (email) form.setFieldsValue({ email });
+    if (email) {
+      form.setFieldsValue({ email });
+      passwordInputRef.current?.focus();
+    } else {
+      emailInputRef.current?.focus();
+    }
   }, [searchParams, form]);
 
   const footer = (
@@ -49,7 +54,7 @@ const BetterAuthSignUpForm = () => {
     <AuthCard
       footer={footer}
       subtitle={t('betterAuth.signup.subtitle')}
-      title={brand.authTitle || t('betterAuth.signup.title')}
+      title={t('betterAuth.signup.title')}
     >
       <Form form={form} layout="vertical" onFinish={onSubmit}>
         <Form.Item
@@ -61,6 +66,7 @@ const BetterAuthSignUpForm = () => {
         >
           <Input
             placeholder={t('betterAuth.signup.emailPlaceholder')}
+            ref={emailInputRef}
             size="large"
             prefix={
               <Icon
@@ -72,30 +78,6 @@ const BetterAuthSignUpForm = () => {
             }
           />
         </Form.Item>
-        {phoneEnabled && (
-          <Form.Item
-            name="phone"
-            rules={[
-              {
-                message: t('betterAuth.errors.phoneInvalid', '请输入有效的手机号'),
-                pattern: /^[+\d][\d\s-]{5,24}$/,
-              },
-            ]}
-          >
-            <Input
-              placeholder={t('betterAuth.signup.phonePlaceholder', '手机号（选填）')}
-              size="large"
-              prefix={
-                <Icon
-                  icon={Phone}
-                  style={{
-                    marginInline: 6,
-                  }}
-                />
-              }
-            />
-          </Form.Item>
-        )}
         <Form.Item
           name="password"
           rules={[
@@ -115,6 +97,7 @@ const BetterAuthSignUpForm = () => {
         >
           <Input.Password
             placeholder={t('betterAuth.signup.passwordPlaceholder')}
+            ref={passwordInputRef}
             size="large"
             prefix={
               <Icon

@@ -27,7 +27,7 @@ export class UserService {
   async initUser(user: CreatedUser) {
     if (ENABLE_BUSINESS_FEATURES) {
       try {
-        await initNewUserForBusiness(this.db, user.id, user.createdAt);
+        await initNewUserForBusiness(user.id, user.createdAt);
       } catch (error) {
         console.error(error);
         console.error('Failed to init new user for business');

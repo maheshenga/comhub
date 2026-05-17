@@ -41,17 +41,6 @@ Specifics:
 - Code blocks, file paths, and quoted strings always stay in their original form regardless of surrounding language.
 - This applies equally to **updates** — when editing an existing issue (description **and titles**), preserve the language of the conversation that triggered the edit; don't switch the issue language mid-refactor.
 
-## Language
-
-Issue titles, descriptions, and comments **MUST follow the language of the current conversation**, not default to English.
-
-- Conversation in 中文 → issue body in 中文；technical terms (file paths, identifiers, library names, commands, error messages) stay in English.
-- Conversation in English → issue body in English.
-- Code blocks, file paths, and quoted strings always stay in their original form regardless of surrounding language.
-- This applies equally to **updates** — when editing an existing issue (description **and titles**), preserve the language of the conversation that triggered the edit; do not switch the issue language during a refactor (Chinese → English or vice versa).
-
-Rationale: the issue is a continuation of the conversation. Forcing English when the discussion is in Chinese creates translation friction for the collaborator who came from that thread.
-
 ## Creating Sub-issue Trees
 
 When breaking a parent issue into a tree of sub-issues (e.g., task decomposition for LOBE-xxx), follow these rules — they work around real limitations of the Linear MCP tools.

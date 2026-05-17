@@ -5,7 +5,6 @@ import { type ReactNode } from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useBrandName } from '@/features/Brand';
 import { useToolStore } from '@/store/tool';
 import { builtinToolSelectors } from '@/store/tool/selectors';
 
@@ -19,7 +18,6 @@ interface BuiltinDetailProviderProps {
 
 export const BuiltinDetailProvider = ({ children, identifier }: BuiltinDetailProviderProps) => {
   const { t } = useTranslation(['setting']);
-  const brandName = useBrandName();
 
   // Use allMetaList to show details for all builtin tools (including not installed ones)
   const builtinTools = useToolStore(builtinToolSelectors.allMetaList, isEqual);
@@ -57,8 +55,9 @@ export const BuiltinDetailProvider = ({ children, identifier }: BuiltinDetailPro
   const localizedReadme = t(`tools.builtins.${identifier}.readme`, {
     defaultValue: manifest.meta.readme || '',
   });
+
   const value: DetailContextValue = {
-    author: brandName,
+    author: 'LobeHub',
     authorUrl: 'https://lobehub.com',
     config: null as any, // Builtin tools don't have provider config
     description: meta?.description || '',

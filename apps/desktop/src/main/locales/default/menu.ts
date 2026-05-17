@@ -65,7 +65,7 @@ const menu = {
   'history.home': 'Home',
   'history.title': 'Go',
   'macOS.about': 'About {{appName}}',
-  'macOS.devTools': 'ComHub Developer Tools',
+  'macOS.devTools': 'LobeHub Developer Tools',
   'macOS.hide': 'Hide {{appName}}',
   'macOS.hideOthers': 'Hide Others',
   'macOS.preferences': 'Preferences...',

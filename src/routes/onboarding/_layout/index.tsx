@@ -10,7 +10,6 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { ProductLogo } from '@/components/Branding';
-import { useBrandName } from '@/features/Brand';
 import LangButton from '@/features/User/UserPanel/LangButton';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
 import { useIsDark } from '@/hooks/useIsDark';
@@ -22,7 +21,6 @@ import { styles } from './style';
 const OnBoardingContainer: FC<PropsWithChildren> = ({ children }) => {
   const isDarkMode = useIsDark();
   const theme = useTheme();
-  const brandName = useBrandName();
   const { t } = useTranslation(['onboarding', 'common']);
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -68,12 +66,7 @@ const OnBoardingContainer: FC<PropsWithChildren> = ({ children }) => {
           padding={16}
           width={'100%'}
         >
-          <Flexbox horizontal align="center" gap={8}>
-            <ProductLogo color={theme.colorText} size={28} />
-            <Text fontSize={18} weight={600}>
-              {brandName}
-            </Text>
-          </Flexbox>
+          <ProductLogo color={theme.colorText} size={28} type={'text'} />
           <Flexbox horizontal align={'center'} gap={16}>
             <Flexbox horizontal align={'center'}>
               <LangButton placement={'bottomRight'} size={18} />

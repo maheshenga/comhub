@@ -1,17 +1,7 @@
-import { getModelPricing } from '@lobechat/model-runtime';
-
-import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
-import {
-  estimateVideoCharge,
-  resolveGenerationPricingMultiplier,
-} from '@/business/server/generationBilling';
-import { CommercialModel } from '@/database/models/commercial';
 import type { NewGeneration, NewGenerationBatch } from '@/database/schemas';
-import { type LobeChatDatabase } from '@/database/type';
 import type { CreateVideoServicePayload } from '@/server/routers/lambda/video';
 
 interface ChargeParams {
-  db?: LobeChatDatabase;
   generationTopicId: string;
   model: string;
   params: CreateVideoServicePayload['params'];
@@ -29,27 +19,12 @@ interface ErrorBatch {
 
 interface ChargeBeforeResult {
   errorBatch?: ErrorBatch;
-  prechargeResult?: { costDetail?: any; estimatedCredits: number };
+  prechargeResult?: Record<string, unknown>;
 }
 
-export async function chargeBeforeGenerate(params: ChargeParams): Promise<ChargeBeforeResult> {
-  const { provider, userId, db, model, params: generationParams } = params;
-
-  const shouldCharge = await shouldChargeCommercialUsage({ db: db!, provider, userId });
-  if (!shouldCharge) return {};
-
-  const pricing = await getModelPricing(model, provider);
-  const { estimatedCredits, totalCost } = estimateVideoCharge(pricing, generationParams);
-  const multiplier = await resolveGenerationPricingMultiplier({ db, model, provider });
-  const adjustedCredits = Math.ceil(estimatedCredits * multiplier);
-
-  const commercialModel = new CommercialModel(db!, userId);
-  await commercialModel.preCharge(adjustedCredits, db!);
-
-  return {
-    prechargeResult: {
-      costDetail: { totalCost, totalCredits: adjustedCredits },
-      estimatedCredits: adjustedCredits,
-    },
-  };
+export async function chargeBeforeGenerate(
+  // eslint-disable-next-line unused-imports/no-unused-vars
+  params: ChargeParams,
+): Promise<ChargeBeforeResult> {
+  return {};
 }

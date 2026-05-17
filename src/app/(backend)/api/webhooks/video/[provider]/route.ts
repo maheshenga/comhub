@@ -24,7 +24,6 @@ import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationModel } from '@/database/models/generation';
 import { generationBatches } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
-import type { LobeChatDatabase } from '@/database/type';
 import { VideoGenerationService } from '@/server/services/generation/video';
 import { sanitizeFileName } from '@/utils/sanitizeFileName';
 
@@ -54,7 +53,6 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
   let asyncTaskId: string | undefined;
   let asyncTaskUserId: string | undefined;
   let asyncTaskMetadata: VideoGenerationTaskMetadata | undefined;
-  let db: LobeChatDatabase | undefined;
 
   try {
     const runtime = ModelRuntime.initializeWithProvider(provider, {
@@ -77,7 +75,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
 
     log('Webhook parse result: %O', result);
 
-    db = await getServerDB();
+    const db = await getServerDB();
 
     // Find asyncTask by inferenceId
     const asyncTask = await AsyncTaskModel.findByInferenceId(db, result.inferenceId);
@@ -175,7 +173,6 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
           prechargeResult: metadata?.precharge as any,
           provider,
           userId: asyncTask.userId,
-          db,
         });
       } catch (refundError) {
         console.error('[video-webhook] Failed to refund precharge on error:', refundError);
@@ -250,7 +247,6 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
         provider,
         usage: result.usage,
         userId: asyncTask.userId,
-        db,
       });
     } catch (chargeError) {
       console.error('[video-webhook] Failed to charge after generate:', chargeError);
@@ -275,7 +271,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
     }
 
     // Refund precharge on unexpected failure
-    if (db && asyncTaskUserId && asyncTaskMetadata?.precharge) {
+    if (asyncTaskUserId && asyncTaskMetadata?.precharge) {
       try {
         await chargeAfterGenerate({
           isError: true,
@@ -284,7 +280,6 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
           prechargeResult: asyncTaskMetadata.precharge as any,
           provider,
           userId: asyncTaskUserId,
-          db,
         });
       } catch (refundError) {
         console.error('[video-webhook] Failed to refund precharge on failure:', refundError);

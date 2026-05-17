@@ -3,8 +3,8 @@
 import type { RouteObject } from 'react-router-dom';
 
 import {
+  BusinessDesktopRoutesWithMainLayout,
   BusinessDesktopRoutesWithoutMainLayout,
-  BusinessDesktopRoutesWithSettingsLayout,
 } from '@/business/client/BusinessDesktopRoutes';
 import DesktopOnboarding from '@/routes/(desktop)/desktop-onboarding';
 // Layouts — sync import (Electron local, no network overhead)
@@ -81,8 +81,6 @@ import AllTasksPage from '@/routes/(main)/tasks';
 import ShareTopicPage from '@/routes/share/t/[id]';
 import ShareTopicLayout from '@/routes/share/t/[id]/_layout';
 import { ErrorBoundary, redirectElement } from '@/utils/router';
-
-const isDev = process.env.NODE_ENV === 'development';
 
 // Desktop router configuration — all sync imports for Electron local build
 export const desktopRoutes: RouteObject[] = [
@@ -328,7 +326,6 @@ export const desktopRoutes: RouteObject[] = [
             element: <ProviderLayout />,
             path: 'provider',
           },
-          ...BusinessDesktopRoutesWithSettingsLayout,
           // Other settings tabs
           {
             element: <SettingsTabPage />,
@@ -404,6 +401,8 @@ export const desktopRoutes: RouteObject[] = [
         errorElement: <ErrorBoundary />,
         path: 'image',
       },
+
+      ...BusinessDesktopRoutesWithMainLayout,
 
       // Eval routes
       {
@@ -526,7 +525,7 @@ export const desktopRoutes: RouteObject[] = [
   },
 
   // Devtools route (outside main layout, dev-only)
-  ...(isDev
+  ...(__DEV__
     ? [
         {
           children: [

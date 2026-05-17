@@ -13,29 +13,6 @@ const { currentImageSettingsMock } = vi.hoisted(() => ({
   currentImageSettingsMock: vi.fn(() => ({
     defaultImageNum: 4,
   })),
-  updateSystemStatusMock: vi.fn(),
-}));
-
-vi.mock('@/store/global', () => ({
-  useGlobalStore: {
-    getState: vi.fn(() => ({
-      updateSystemStatus: updateSystemStatusMock,
-    })),
-  },
-}));
-
-vi.mock('@/store/global/selectors', () => ({
-  systemStatusSelectors: {},
-}));
-
-vi.mock('@/store/global/selectors/systemStatus', () => ({
-  systemStatusSelectors: {},
-}));
-
-vi.mock('@/store/user', () => ({
-  useUserStore: {
-    getState: vi.fn(() => ({ isSignedIn: false })),
-  },
 }));
 
 vi.mock('@/store/user/slices/settings/selectors', () => ({
@@ -79,17 +56,6 @@ const testImageModels: AIImageModelCard[] = [
     } as ModelParamsSchema,
     releasedAt: '2024-01-01',
   },
-  {
-    id: 'async-image-model',
-    displayName: 'Async Image Model',
-    type: 'image',
-    parameters: {
-      prompt: { default: '' },
-      async: { default: true, type: 'boolean' },
-      size: { default: '1024x1024', enum: ['1024x1024'] },
-    } as ModelParamsSchema,
-    releasedAt: '2024-01-01',
-  },
 ];
 
 const mockProviders = [
@@ -107,11 +73,6 @@ const mockProviders = [
     id: 'single-image-provider',
     name: 'Single Image Provider',
     children: [testImageModels[2]],
-  },
-  {
-    id: 'async-image-provider',
-    name: 'Async Image Provider',
-    children: [testImageModels[3]],
   },
 ];
 
@@ -300,6 +261,7 @@ describe('GenerationConfigAction', () => {
     });
 
     it('should convert imageUrl to imageUrls array when switching to multi-image model', () => {
+      const { result } = renderHook(() => useImageStore());
       const singleImageSchema: ModelParamsSchema = {
         prompt: { default: '' },
         imageUrl: { default: '' },
@@ -356,20 +318,6 @@ describe('GenerationConfigAction', () => {
 
       expect(result.current.parameters?.imageUrls).toEqual(['from-single-model.png']);
       expect(result.current.parameters?.prompt).toBe('keep this prompt');
-    });
-
-    it('should apply async default parameters for async image models', () => {
-      const { result } = renderHook(() => useImageStore());
-
-      act(() => {
-        result.current.setModelAndProviderOnSelect('async-image-model', 'async-image-provider');
-      });
-
-      expect(result.current.parameters).toMatchObject({
-        async: true,
-        prompt: 'initial prompt',
-        size: '1024x1024',
-      });
     });
   });
 
@@ -450,12 +398,10 @@ describe('GenerationConfigAction', () => {
     it('should update width without affecting height when aspect ratio is unlocked', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: createTestParameters(),
-          parametersSchema: createTestSchema(),
-          isAspectRatioLocked: false,
-        });
+      useImageStore.setState({
+        parameters: createTestParameters(),
+        parametersSchema: createTestSchema(),
+        isAspectRatioLocked: false,
       });
 
       act(() => {
@@ -471,13 +417,11 @@ describe('GenerationConfigAction', () => {
     it('should update both dimensions when aspect ratio is locked', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: createTestParameters(),
-          parametersSchema: createTestSchema(),
-          isAspectRatioLocked: true,
-          activeAspectRatio: '1:1',
-        });
+      useImageStore.setState({
+        parameters: createTestParameters(),
+        parametersSchema: createTestSchema(),
+        isAspectRatioLocked: true,
+        activeAspectRatio: '1:1',
       });
 
       act(() => {
@@ -493,15 +437,13 @@ describe('GenerationConfigAction', () => {
     it('should clamp dimensions to schema bounds when aspect ratio is locked', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: createTestParameters(),
-          parametersSchema: createTestSchema({
-            height: { default: 512, min: 256, max: 1024 },
-          }),
-          isAspectRatioLocked: true,
-          activeAspectRatio: '1:1',
-        });
+      useImageStore.setState({
+        parameters: createTestParameters(),
+        parametersSchema: createTestSchema({
+          height: { default: 512, min: 256, max: 1024 },
+        }),
+        isAspectRatioLocked: true,
+        activeAspectRatio: '1:1',
       });
 
       act(() => {
@@ -517,13 +459,11 @@ describe('GenerationConfigAction', () => {
     it('should update height with proportional width adjustment when locked', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: createTestParameters(),
-          parametersSchema: createTestSchema(),
-          isAspectRatioLocked: true,
-          activeAspectRatio: '2:1',
-        });
+      useImageStore.setState({
+        parameters: createTestParameters(),
+        parametersSchema: createTestSchema(),
+        isAspectRatioLocked: true,
+        activeAspectRatio: '2:1',
       });
 
       act(() => {
@@ -539,9 +479,7 @@ describe('GenerationConfigAction', () => {
     it('should toggle aspect ratio lock state', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({ isAspectRatioLocked: false });
-      });
+      useImageStore.setState({ isAspectRatioLocked: false });
 
       act(() => {
         result.current.toggleAspectRatioLock();
@@ -559,13 +497,11 @@ describe('GenerationConfigAction', () => {
     it('should adjust dimensions when locking with mismatched ratio', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: createTestParameters({ width: 1024, height: 512 }), // 2:1 ratio
-          parametersSchema: createTestSchema(),
-          isAspectRatioLocked: false,
-          activeAspectRatio: '1:1', // Target 1:1 ratio
-        });
+      useImageStore.setState({
+        parameters: createTestParameters({ width: 1024, height: 512 }), // 2:1 ratio
+        parametersSchema: createTestSchema(),
+        isAspectRatioLocked: false,
+        activeAspectRatio: '1:1', // Target 1:1 ratio
       });
 
       act(() => {
@@ -584,11 +520,9 @@ describe('GenerationConfigAction', () => {
     it('should update active aspect ratio', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: createTestParameters(),
-          parametersSchema: createTestSchema(),
-        });
+      useImageStore.setState({
+        parameters: createTestParameters(),
+        parametersSchema: createTestSchema(),
       });
 
       act(() => {
@@ -601,11 +535,9 @@ describe('GenerationConfigAction', () => {
     it('should calculate dimensions for width/height-based models', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: createTestParameters(),
-          parametersSchema: createTestSchema(),
-        });
+      useImageStore.setState({
+        parameters: createTestParameters(),
+        parametersSchema: createTestSchema(),
       });
 
       act(() => {
@@ -622,13 +554,11 @@ describe('GenerationConfigAction', () => {
     it('should update aspectRatio parameter for models with native support', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: { aspectRatio: '1:1', prompt: '' },
-          parametersSchema: createTestSchema({
-            aspectRatio: { default: '1:1', enum: ['1:1', '16:9', '4:3'] },
-          }),
-        });
+      useImageStore.setState({
+        parameters: { aspectRatio: '1:1', prompt: '' },
+        parametersSchema: createTestSchema({
+          aspectRatio: { default: '1:1', enum: ['1:1', '16:9', '4:3'] },
+        }),
       });
 
       act(() => {
@@ -642,11 +572,9 @@ describe('GenerationConfigAction', () => {
     it('should handle missing parameters or schema gracefully', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          parameters: undefined,
-          parametersSchema: undefined,
-        });
+      useImageStore.setState({
+        parameters: undefined,
+        parametersSchema: undefined,
       });
 
       expect(() => {
@@ -681,12 +609,10 @@ describe('GenerationConfigAction', () => {
       currentImageSettingsMock.mockReturnValueOnce({ defaultImageNum: 6 });
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({
-          isInit: false,
-          model: '',
-          provider: '',
-        });
+      useImageStore.setState({
+        isInit: false,
+        model: '',
+        provider: '',
       });
 
       act(() => {
@@ -703,9 +629,7 @@ describe('GenerationConfigAction', () => {
     it('should handle initialization without remembered preferences', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({ isInit: false });
-      });
+      useImageStore.setState({ isInit: false });
 
       act(() => {
         result.current.initializeImageConfig(false);
@@ -718,9 +642,7 @@ describe('GenerationConfigAction', () => {
     it('should handle initialization errors gracefully', () => {
       const { result } = renderHook(() => useImageStore());
 
-      act(() => {
-        useImageStore.setState({ isInit: false });
-      });
+      useImageStore.setState({ isInit: false });
 
       act(() => {
         result.current.initializeImageConfig(true, 'invalid-model', 'invalid-provider');

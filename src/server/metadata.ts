@@ -7,12 +7,11 @@ import { OG_URL } from '@/const/url';
 import { isCustomORG } from '@/const/version';
 import { type Locales } from '@/locales/resources';
 import { locales } from '@/locales/resources';
-import { getServerBrand } from '@/server/services/brand';
 import { getCanonicalUrl } from '@/server/utils/url';
 import { formatDescLength, formatTitleLength } from '@/utils/genOG';
 
 export class Meta {
-  public async generate({
+  public generate({
     description = 'LobeChat offers you the best ChatGPT, OLLaMA, Gemini, Claude WebUI user experience',
     title,
     image = OG_URL,
@@ -32,13 +31,11 @@ export class Meta {
     title: string;
     type?: 'website' | 'article';
     url: string;
-  }): Promise<Metadata> {
-    const brand = await getServerBrand();
-    const brandName = brand.name?.trim() || BRANDING_NAME;
+  }): Metadata {
     const formatedTitle = formatTitleLength(title, 21);
 
     const formatedDescription = formatDescLength(description, tags);
-    const siteTitle = title.includes(brandName) ? title : title + ` · ${brandName}`;
+    const siteTitle = title.includes(BRANDING_NAME) ? title : title + ` · ${BRANDING_NAME}`;
     return {
       alternates: {
         canonical:
@@ -49,7 +46,6 @@ export class Meta {
       description: formatedDescription,
       openGraph: this.genOpenGraph({
         alternate,
-        brandName,
         description,
         image,
         locale,
@@ -104,7 +100,6 @@ export class Meta {
   private genOpenGraph({
     alternate,
     locale = DEFAULT_LANG,
-    brandName,
     description,
     title,
     image,
@@ -112,7 +107,6 @@ export class Meta {
     type = 'website',
   }: {
     alternate?: boolean;
-    brandName: string;
     description: string;
     image: string;
     locale: Locales;
@@ -129,7 +123,7 @@ export class Meta {
         },
       ],
       locale,
-      siteName: brandName,
+      siteName: BRANDING_NAME,
       title,
       type,
       url,

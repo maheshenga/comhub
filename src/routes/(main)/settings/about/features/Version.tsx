@@ -1,3 +1,4 @@
+import { BRANDING_NAME } from '@lobechat/business-const';
 import {
   getElectronIpc,
   type UpdaterState,
@@ -11,7 +12,6 @@ import { useTranslation } from 'react-i18next';
 import { ProductLogo } from '@/components/Branding';
 import { CHANGELOG_URL, MANUAL_UPGRADE_URL, OFFICIAL_SITE } from '@/const/url';
 import { CURRENT_VERSION } from '@/const/version';
-import { useBrandName } from '@/features/Brand';
 import { useNewVersion } from '@/features/User/UserPanel/useNewVersion';
 import { autoUpdateService } from '@/services/electron/autoUpdate';
 import { useGlobalStore } from '@/store/global';
@@ -26,7 +26,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
 const Version = memo<{ mobile?: boolean }>(({ mobile }) => {
   const hasNewVersion = useNewVersion();
-  const brandName = useBrandName();
   const [latestVersion, serverVersion, useCheckServerVersion] = useGlobalStore((s) => [
     s.latestVersion,
     s.serverVersion,
@@ -134,7 +133,7 @@ const Version = memo<{ mobile?: boolean }>(({ mobile }) => {
           </Block>
         </a>
         <Flexbox align={'flex-start'} gap={6}>
-          <div style={{ fontSize: 18, fontWeight: 'bolder' }}>{brandName}</div>
+          <div style={{ fontSize: 18, fontWeight: 'bolder' }}>{BRANDING_NAME}</div>
           <Flexbox gap={6} horizontal={!mobile}>
             <Tag>v{APP_VERSION}</Tag>
 

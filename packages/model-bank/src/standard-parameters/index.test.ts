@@ -13,7 +13,6 @@ describe('meta-schema', () => {
         steps: { default: 20, min: 1, max: 50 },
         promptExtend: { default: false },
         watermark: { default: false },
-        async: { default: false },
         seed: { default: null, min: 0 },
         webSearch: { default: true },
         cfg: { default: 7.5, min: 1, max: 20, step: 0.5 },
@@ -40,7 +39,6 @@ describe('meta-schema', () => {
         width: { default: 1024, min: 512, max: 2048 },
         promptExtend: { default: 'standard', enum: ['standard', 'fast'] },
         watermark: {},
-        async: {},
         seed: {},
         webSearch: {},
       };
@@ -51,7 +49,6 @@ describe('meta-schema', () => {
       expect(result.width?.step).toBe(1);
       expect(result.promptExtend?.default).toBe('standard');
       expect(result.watermark?.default).toBe(false);
-      expect(result.async?.default).toBe(false);
       expect(result.seed?.default).toBeNull();
       expect(result.seed?.min).toBe(0);
       expect(result.webSearch?.default).toBe(true);
@@ -162,7 +159,6 @@ describe('meta-schema', () => {
         seed: { default: 12345 },
         promptExtend: { default: 'fast', enum: ['standard', 'fast'] },
         watermark: { default: true },
-        async: { default: true },
         webSearch: { default: false },
         cfg: { default: 7.5, min: 1, max: 20, step: 0.5 },
         aspectRatio: { default: '16:9', enum: ['1:1', '16:9', '4:3'] },
@@ -177,7 +173,6 @@ describe('meta-schema', () => {
       expect(typeof result.seed).toBe('number');
       expect(typeof result.promptExtend).toBe('string');
       expect(typeof result.watermark).toBe('boolean');
-      expect(typeof result.async).toBe('boolean');
       expect(typeof result.webSearch).toBe('boolean');
       expect(typeof result.cfg).toBe('number');
       expect(typeof result.aspectRatio).toBe('string');
@@ -209,13 +204,11 @@ describe('meta-schema', () => {
         steps: 20,
         seed: null,
         cfg: 7.5,
-        async: true,
       };
 
       expect(params.prompt).toBe('test');
       expect(params.width).toBe(1024);
       expect(params.seed).toBeNull();
-      expect(params.async).toBe(true);
     });
 
     it('should require prompt but make other parameters optional', () => {

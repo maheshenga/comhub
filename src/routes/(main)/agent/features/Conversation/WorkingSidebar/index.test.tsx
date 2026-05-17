@@ -1,22 +1,6 @@
-/* eslint-disable import-x/first */
 import { render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-vi.hoisted(() => {
-  const storage = new Map<string, string>();
-  const localStorageMock = {
-    clear: () => storage.clear(),
-    getItem: (key: string) => storage.get(key) ?? null,
-    removeItem: (key: string) => storage.delete(key),
-    setItem: (key: string, value: string) => storage.set(key, value),
-  };
-
-  Object.defineProperty(globalThis, 'localStorage', {
-    configurable: true,
-    value: localStorageMock,
-  });
-});
 
 import * as swr from '@/libs/swr';
 import { useGlobalStore } from '@/store/global';
@@ -46,12 +30,14 @@ vi.mock('./Review', () => ({
   ),
 }));
 
-vi.mock('@/features/ChatInput/RuntimeConfig/useRepoType', () => ({
-  useRepoType: (path?: string) => (path ? mocks.repoType : undefined),
+vi.mock('./Files', () => ({
+  default: ({ workingDirectory }: { workingDirectory: string }) => (
+    <div data-testid="files-panel">{workingDirectory}</div>
+  ),
 }));
 
-vi.mock('@/features/AgentDocumentsExplorer', () => ({
-  DocumentExplorerTree: () => <div data-testid="document-explorer-tree" />,
+vi.mock('@/features/ChatInput/RuntimeConfig/useRepoType', () => ({
+  useRepoType: (path?: string) => (path ? mocks.repoType : undefined),
 }));
 
 vi.mock('@lobehub/ui', () => ({
@@ -174,6 +160,12 @@ vi.mock('@/store/agent/selectors', () => ({
       (agentId: string) =>
       (state: { agentWorkingDirectoryById?: Record<string, string | undefined> }) =>
         state.agentWorkingDirectoryById?.[agentId],
+  },
+  agentSelectors: {
+    isCurrentAgentHeterogeneous: (_state: Record<string, unknown>) => false,
+  },
+  chatConfigByIdSelectors: {
+    isLocalSystemEnabledById: (_agentId: string) => (_state: Record<string, unknown>) => true,
   },
 }));
 

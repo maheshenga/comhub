@@ -14,8 +14,6 @@ import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { operationSelectors } from '@/store/chat/selectors';
-import { useUserStore } from '@/store/user';
-import { settingsSelectors } from '@/store/user/selectors';
 import { prefetchRoute } from '@/utils/router';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -53,17 +51,16 @@ interface InboxItemProps {
 const InboxItem = memo<InboxItemProps>(({ className, style }) => {
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
   const inboxMeta = useAgentStore(agentSelectors.getAgentMetaById(inboxAgentId!));
-  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
 
   const isLoading = useChatStore(
     inboxAgentId ? operationSelectors.isAgentRunning(inboxAgentId) : () => false,
   );
   const prefetchAgent = usePrefetchAgent();
-  const inboxAgentTitle = inboxMeta.title || defaultAgentMeta.title || '青柚助手';
-  const inboxAgentAvatar = inboxMeta.avatar || defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR;
+  const inboxAgentTitle = inboxMeta.title || 'Lobe AI';
+  const inboxAgentAvatar = inboxMeta.avatar || DEFAULT_INBOX_AVATAR;
   const inboxUrl = SESSION_CHAT_URL(inboxAgentId, false);
 
-  // Prefetch agent layout chunk and data eagerly since the default assistant is commonly clicked
+  // Prefetch agent layout chunk and data eagerly since Lobe AI is almost always clicked
   prefetchRoute(inboxUrl);
   prefetchAgent(inboxAgentId!);
 

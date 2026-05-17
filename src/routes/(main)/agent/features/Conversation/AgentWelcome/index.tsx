@@ -10,7 +10,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useUserStore } from '@/store/user';
-import { settingsSelectors, userGeneralSettingsSelectors } from '@/store/user/selectors';
+import { userGeneralSettingsSelectors } from '@/store/user/selectors';
 
 import OpeningQuestions from './OpeningQuestions';
 import ToolAuthAlert from './ToolAuthAlert';
@@ -21,7 +21,6 @@ const InboxWelcome = memo(() => {
   const isInbox = useAgentStore(builtinAgentSelectors.isInboxAgent);
   const openingQuestions = useAgentStore(agentSelectors.openingQuestions, isEqual);
   const fontSize = useUserStore(userGeneralSettingsSelectors.fontSize);
-  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
   const meta = useAgentStore(agentSelectors.currentAgentMeta, isEqual);
 
   const agentSystemRoleMsg = t('agentDefaultMessageWithSystemRole', {
@@ -35,7 +34,7 @@ const InboxWelcome = memo(() => {
     return agentSystemRoleMsg;
   }, [openingMessage, agentSystemRoleMsg, meta.description]);
 
-  const inboxTitle = meta.title || defaultAgentMeta.title || '青柚助手';
+  const inboxTitle = meta.title || 'Lobe AI';
   const displayTitle = isInbox ? inboxTitle : meta.title || t('defaultSession', { ns: 'common' });
 
   return (
@@ -49,14 +48,10 @@ const InboxWelcome = memo(() => {
         }}
       >
         <Avatar
+          avatar={isInbox ? meta.avatar || DEFAULT_INBOX_AVATAR : meta.avatar || DEFAULT_AVATAR}
           background={meta.backgroundColor}
           shape={'square'}
           size={78}
-          avatar={
-            isInbox
-              ? meta.avatar || defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR
-              : meta.avatar || DEFAULT_AVATAR
-          }
         />
         <Text fontSize={32} weight={'bold'}>
           {displayTitle}

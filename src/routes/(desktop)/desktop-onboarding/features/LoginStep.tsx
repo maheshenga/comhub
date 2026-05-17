@@ -12,7 +12,6 @@ import urlJoin from 'url-join';
 
 import { OFFICIAL_SITE } from '@/const/url';
 import { isDesktop } from '@/const/version';
-import { useBrandName } from '@/features/Brand';
 import UserInfo from '@/features/User/UserInfo';
 import { useIMECompositionEvent } from '@/hooks/useIMECompositionEvent';
 import { remoteServerService } from '@/services/electron/remoteServer';
@@ -62,13 +61,13 @@ interface LoginStepProps {
 
 const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
   const { t } = useTranslation('desktop-onboarding');
-  const brandName = useBrandName();
   const [endpoint, setEndpoint] = useState('');
   const [cloudLoginStatus, setCloudLoginStatus] = useState<LoginStatus>('idle');
   const [authProgress, setAuthProgress] = useState<AuthorizationProgress | null>(null);
   const [selfhostLoginStatus, setSelfhostLoginStatus] = useState<LoginStatus>('idle');
+  const [pendingLoginMethod, setPendingLoginMethod] = useState<LoginMethod | null>(null);
+  const [isSuccessDismissed, setIsSuccessDismissed] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const [showEndpoint, setShowEndpoint] = useState(false);
   const [hasLegacyLocalDb, setHasLegacyLocalDb] = useState(false);
   const [localRemainingSeconds, setLocalRemainingSeconds] = useState<number | null>(null);
@@ -82,7 +81,6 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
     connectRemoteServer,
     refreshServerConfig,
     clearRemoteServerSyncError,
-    disconnectRemoteServer,
   ] = useElectronStore((s) => [
     s.dataSyncConfig,
     s.isConnectingServer,
@@ -91,7 +89,6 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
     s.connectRemoteServer,
     s.refreshServerConfig,
     s.clearRemoteServerSyncError,
-    s.disconnectRemoteServer,
   ]);
 
   useDataSyncConfig();
@@ -114,14 +111,34 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
 
   const isCloudAuthed = !!dataSyncConfig?.active && dataSyncConfig.storageMode === 'cloud';
   const isSelfHostAuthed = !!dataSyncConfig?.active && dataSyncConfig.storageMode === 'selfHost';
+  const authorizedLoginMethod: LoginMethod | null = isCloudAuthed
+    ? 'cloud'
+    : isSelfHostAuthed
+      ? 'selfhost'
+      : null;
   const isSelfHostEndpointVerified =
     isSelfHostAuthed &&
     !!endpoint.trim() &&
     endpoint.trim() === (dataSyncConfig?.remoteServerUrl ?? '');
 
+  const statusSuccessLoginMethod: LoginMethod | null =
+    cloudLoginStatus === 'success' && selfhostLoginStatus === 'success'
+      ? (pendingLoginMethod ?? authorizedLoginMethod)
+      : cloudLoginStatus === 'success'
+        ? 'cloud'
+        : selfhostLoginStatus === 'success'
+          ? 'selfhost'
+          : null;
+  const hasLocalLoginResult = cloudLoginStatus !== 'idle' || selfhostLoginStatus !== 'idle';
+
+  const successLoginMethod = isSuccessDismissed
+    ? null
+    : (statusSuccessLoginMethod ??
+      (!hasLocalLoginResult && !pendingLoginMethod ? authorizedLoginMethod : null));
+
   // Determine if user can proceed (either method succeeding is sufficient)
   const canStart = () => {
-    return isCloudAuthed || cloudLoginStatus === 'success' || isSelfHostEndpointVerified;
+    return !!successLoginMethod;
   };
 
   // Handle cloud login
@@ -134,7 +151,10 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
 
     setRemoteError(null);
     clearRemoteServerSyncError();
+    setPendingLoginMethod('cloud');
+    setIsSuccessDismissed(false);
     setCloudLoginStatus('loading');
+    setSelfhostLoginStatus('idle');
     setDesktopAutoOidcFirstOpenHandled();
     await connectRemoteServer({
       remoteServerUrl: dataSyncConfig?.remoteServerUrl,
@@ -155,34 +175,41 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
 
     setRemoteError(null);
     clearRemoteServerSyncError();
+    setPendingLoginMethod('selfhost');
+    setIsSuccessDismissed(false);
+    setCloudLoginStatus('idle');
     setSelfhostLoginStatus('loading');
     await connectRemoteServer({ remoteServerUrl: url, storageMode: 'selfHost' });
   };
 
-  // Sign out (disconnect remote sync authorization) and return to login selection
-  const handleSignOut = async () => {
-    if (isSigningOut) return;
-
-    setIsSigningOut(true);
+  const handleBackToLoginMethods = (method: LoginMethod) => {
+    setIsSuccessDismissed(true);
+    setPendingLoginMethod(null);
+    setCloudLoginStatus('idle');
+    setSelfhostLoginStatus('idle');
+    setAuthProgress(null);
     setRemoteError(null);
     clearRemoteServerSyncError();
-
-    try {
-      await disconnectRemoteServer();
-      await refreshServerConfig();
-    } finally {
-      setCloudLoginStatus('idle');
-      setSelfhostLoginStatus('idle');
-      setEndpoint('');
-      setIsSigningOut(false);
-    }
+    setShowEndpoint(method === 'selfhost');
   };
 
   // Sync local UI status with real remote config
   useEffect(() => {
-    if (isCloudAuthed) setCloudLoginStatus('success');
-    if (isSelfHostEndpointVerified) setSelfhostLoginStatus('success');
-  }, [isCloudAuthed, isSelfHostEndpointVerified]);
+    if (isCloudAuthed) {
+      setCloudLoginStatus('success');
+      setSelfhostLoginStatus('idle');
+      setPendingLoginMethod(null);
+    } else if (isSelfHostAuthed) {
+      setSelfhostLoginStatus('success');
+      setCloudLoginStatus('idle');
+      setPendingLoginMethod(null);
+    }
+  }, [isCloudAuthed, isSelfHostAuthed]);
+
+  useEffect(() => {
+    if (!isSelfHostAuthed || endpoint.trim()) return;
+    setEndpoint(dataSyncConfig?.remoteServerUrl ?? '');
+  }, [dataSyncConfig?.remoteServerUrl, endpoint, isSelfHostAuthed]);
 
   // If user changes self-host endpoint after success, require re-authorization.
   useEffect(() => {
@@ -196,6 +223,7 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
     const message = remoteServerSyncError?.message;
     if (!message) return;
     setRemoteError(message);
+    setPendingLoginMethod(null);
     if (cloudLoginStatus === 'loading') setCloudLoginStatus('error');
     if (selfhostLoginStatus === 'loading') setSelfhostLoginStatus('error');
   }, [remoteServerSyncError?.message, cloudLoginStatus, selfhostLoginStatus]);
@@ -205,12 +233,22 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
     setRemoteError(null);
     clearRemoteServerSyncError();
     setAuthProgress(null);
+    setIsSuccessDismissed(false);
+    if (pendingLoginMethod === 'cloud') {
+      setCloudLoginStatus('success');
+      setSelfhostLoginStatus('idle');
+    } else if (pendingLoginMethod === 'selfhost') {
+      setSelfhostLoginStatus('success');
+      setCloudLoginStatus('idle');
+    }
+    setPendingLoginMethod(null);
     await refreshServerConfig();
   });
 
   useWatchBroadcast('authorizationFailed', ({ error }) => {
     setRemoteError(error);
     setAuthProgress(null);
+    setPendingLoginMethod(null);
     if (cloudLoginStatus === 'loading') setCloudLoginStatus('error');
     if (selfhostLoginStatus === 'loading') setSelfhostLoginStatus('error');
   });
@@ -220,6 +258,7 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
     if (progress.phase === 'cancelled') {
       setCloudLoginStatus('idle');
       setSelfhostLoginStatus('idle');
+      setPendingLoginMethod(null);
       setAuthProgress(null);
     }
   });
@@ -257,14 +296,19 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
 
     setCloudLoginStatus('idle');
     setSelfhostLoginStatus('idle');
+    setPendingLoginMethod(null);
     setAuthProgress(null);
     await remoteServerService.cancelAuthorization();
   };
 
-  // Render Cloud login content
-  const renderCloudContent = () => {
-    if (cloudLoginStatus === 'success') {
-      return (
+  const renderSuccessContent = (method: LoginMethod) => {
+    return (
+      <Center gap={32} style={{ height: '100%', minHeight: '100%' }}>
+        <Flexbox align={'flex-start'} justify={'flex-start'} style={{ width: '100%' }}>
+          <LobeMessage sentences={[t('screen5.title'), t('screen5.title2'), t('screen5.title3')]} />
+          <Text as={'p'}>{t('screen5.description')}</Text>
+        </Flexbox>
+
         <Flexbox gap={16} style={{ width: '100%' }}>
           <Alert
             description={t('authResult.success.desc')}
@@ -278,20 +322,27 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
               borderRadius: 8,
             }}
           />
+        </Flexbox>
+
+        <Flexbox horizontal justify={'space-between'} style={{ marginTop: 32 }}>
           <Button
-            block
-            disabled={isSigningOut || isConnectingServer}
-            icon={Cloud}
-            size={'large'}
-            type={'default'}
-            onClick={handleSignOut}
+            icon={Undo2Icon}
+            style={{ color: cssVar.colorTextDescription }}
+            type={'text'}
+            onClick={() => handleBackToLoginMethods(method)}
           >
-            {isSigningOut ? t('screen5.actions.signingOut') : t('screen5.actions.signOut')}
+            {t('back')}
+          </Button>
+          <Button type={'primary'} onClick={onNext}>
+            {t('screen5.navigation.next')}
           </Button>
         </Flexbox>
-      );
-    }
+      </Center>
+    );
+  };
 
+  // Render Cloud login content
+  const renderCloudContent = () => {
     if (cloudLoginStatus === 'error') {
       const errorMessage = remoteError?.toLowerCase().includes('timed out')
         ? t('screen5.errors.timedOut')
@@ -358,42 +409,13 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
         type={'primary'}
         onClick={handleCloudLogin}
       >
-        {t('screen5.actions.signInCloud', { brandName })}
+        {t('screen5.actions.signInCloud')}
       </Button>
     );
   };
 
   // Render Self-host login content
   const renderSelfhostContent = () => {
-    if (selfhostLoginStatus === 'success') {
-      return (
-        <Flexbox gap={16} style={{ width: '100%' }}>
-          <Alert
-            description={t('authResult.success.desc')}
-            style={{ width: '100%' }}
-            title={t('authResult.success.title')}
-            type={'success'}
-          />
-          <UserInfo
-            style={{
-              background: cssVar.colorFillSecondary,
-              borderRadius: 8,
-            }}
-          />
-          <Button
-            block
-            disabled={isSigningOut || isConnectingServer}
-            icon={Server}
-            size={'large'}
-            type={'default'}
-            onClick={handleSignOut}
-          >
-            {isSigningOut ? t('screen5.actions.signingOut') : t('screen5.actions.signOut')}
-          </Button>
-        </Flexbox>
-      );
-    }
-
     if (selfhostLoginStatus === 'error') {
       const errorMessage = remoteError?.toLowerCase().includes('timed out')
         ? t('screen5.errors.timedOut')
@@ -453,9 +475,7 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
 
     return (
       <Flexbox gap={16} style={{ width: '100%' }}>
-        <Text color={cssVar.colorTextSecondary}>
-          {t(loginMethodMetas.selfhost.descriptionKey, { brandName })}
-        </Text>
+        <Text color={cssVar.colorTextSecondary}>{t(loginMethodMetas.selfhost.descriptionKey)}</Text>
         <Input
           placeholder={t('screen5.selfhost.endpointPlaceholder')}
           prefix={<Icon icon={Server} style={{ marginRight: 4 }} />}
@@ -497,6 +517,8 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
     );
   };
 
+  if (successLoginMethod) return renderSuccessContent(successLoginMethod);
+
   return (
     <Center gap={32} style={{ height: '100%', minHeight: '100%' }}>
       <Flexbox align={'flex-start'} justify={'flex-start'} style={{ width: '100%' }}>
@@ -528,7 +550,7 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
               }}
               onClick={() => setShowEndpoint(true)}
             >
-              {t(loginMethodMetas.selfhost.descriptionKey, { brandName })}
+              {t(loginMethodMetas.selfhost.descriptionKey)}
             </Button>
           </Center>
         ) : (
