@@ -155,7 +155,10 @@ export const videoRouter = router({
         const videoService = ctx.videoService;
 
         log('Initializing agent runtime for provider: %s', provider);
-        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider);
+        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
+          model: resolvedModelId,
+          modelType: 'video',
+        });
 
         checkAbortSignal(signal);
 

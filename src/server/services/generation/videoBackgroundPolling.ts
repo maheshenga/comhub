@@ -1,3 +1,4 @@
+import { resolveBusinessModelMapping } from '@lobechat/business-model-runtime';
 import { RequestTrigger } from '@lobechat/types';
 import debug from 'debug';
 
@@ -55,7 +56,11 @@ export async function processBackgroundVideoPolling(
     const videoService = new VideoGenerationService(db, userId);
     const generationModel = new GenerationModel(db, userId);
 
-    const modelRuntime = await initModelRuntimeFromDB(db, userId, provider);
+    const { resolvedModelId } = await resolveBusinessModelMapping(provider, model);
+    const modelRuntime = await initModelRuntimeFromDB(db, userId, provider, {
+      model: resolvedModelId,
+      modelType: 'video',
+    });
     const pollResult = await pollUntilCompletion(modelRuntime, inferenceId);
 
     if (!pollResult) {

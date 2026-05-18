@@ -19,6 +19,7 @@ import {
   Map,
   MessageCircleIcon,
   PaletteIcon,
+  ShieldCheck,
   Sparkles,
   TerminalSquare,
 } from 'lucide-react';
@@ -62,9 +63,10 @@ export const useCategory = () => {
   const { t: tSubscription } = useTranslation('subscription');
   const mobile = useServerConfigStore((s) => s.isMobile);
   const { hideDocs, showApiKeyManage } = useServerConfigStore(featureFlagsSelectors);
-  const [avatar, username] = useUserStore((s) => [
+  const [avatar, username, user] = useUserStore((s) => [
     userProfileSelectors.userAvatar(s),
     userProfileSelectors.nickName(s),
+    userProfileSelectors.userProfile(s),
   ]);
   const remoteServerUrl = useElectronStore(electronSyncSelectors.remoteServerUrl);
   const isDevMode = useUserStore((s) => userGeneralSettingsSelectors.config(s).isDevMode);
@@ -77,6 +79,7 @@ export const useCategory = () => {
     return avatar;
   }, [avatar, remoteServerUrl]);
   const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
+  const isAdmin = (user as any)?.role === 'admin';
   const categoryGroups: CategoryGroup[] = useMemo(() => {
     const groups: CategoryGroup[] = [];
 
@@ -199,6 +202,11 @@ export const useCategory = () => {
         key: SettingsTabs.APIKey,
         label: tAuth('tab.apikey'),
       },
+      isAdmin && {
+        icon: ShieldCheck,
+        key: SettingsTabs.Admin,
+        label: tSubscription('admin.console', '后台管理'),
+      },
       {
         icon: EllipsisIcon,
         key: SettingsTabs.Advanced,
@@ -229,6 +237,7 @@ export const useCategory = () => {
     isDevMode,
     avatarUrl,
     username,
+    isAdmin,
   ]);
 
   return categoryGroups;

@@ -5,6 +5,7 @@ import type { RouteObject } from 'react-router-dom';
 import {
   BusinessDesktopRoutesWithMainLayout,
   BusinessDesktopRoutesWithoutMainLayout,
+  BusinessDesktopRoutesWithSettingsLayout,
 } from '@/business/client/BusinessDesktopRoutes';
 import DesktopOnboarding from '@/routes/(desktop)/desktop-onboarding';
 // Layouts — sync import (Electron local, no network overhead)
@@ -325,6 +326,7 @@ export const desktopRoutes: RouteObject[] = [
             element: redirectElement('/settings/profile'),
             index: true,
           },
+          ...BusinessDesktopRoutesWithSettingsLayout,
           // Provider routes with nested structure
           {
             children: [

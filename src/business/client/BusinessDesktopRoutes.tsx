@@ -96,6 +96,10 @@ const settingsAdminRoute: RouteObject = {
       path: 'model-billing-matrix',
     },
     {
+      element: dynamicElement(() => import('@/routes/(main)/admin/ppt'), 'Desktop > Admin > PPT'),
+      path: 'ppt',
+    },
+    {
       element: dynamicElement(
         () => import('@/routes/(main)/admin/subscriptions'),
         'Desktop > Admin > Subscriptions',
@@ -125,6 +129,20 @@ const settingsAdminRoute: RouteObject = {
     },
     {
       element: dynamicElement(
+        () => import('@/routes/(main)/admin/notifications'),
+        'Desktop > Admin > Notifications',
+      ),
+      path: 'notifications',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/expert-plaza'),
+        'Desktop > Admin > Expert Plaza',
+      ),
+      path: 'expert-plaza',
+    },
+    {
+      element: dynamicElement(
         () => import('@/routes/(main)/admin/stats'),
         'Desktop > Admin > Stats',
       ),
@@ -136,6 +154,34 @@ const settingsAdminRoute: RouteObject = {
         'Desktop > Admin > Audit',
       ),
       path: 'audit',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/system-defaults'),
+        'Desktop > Admin > System Defaults',
+      ),
+      path: 'system-defaults',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/topics'),
+        'Desktop > Admin > Topics',
+      ),
+      path: 'topics',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/files'),
+        'Desktop > Admin > Files',
+      ),
+      path: 'files',
+    },
+    {
+      element: dynamicElement(
+        () => import('@/routes/(main)/admin/documents'),
+        'Desktop > Admin > Documents',
+      ),
+      path: 'documents',
     },
     {
       element: dynamicElement(

@@ -225,7 +225,10 @@ export const videoRouter = router({
 
     // Step 2: Call model runtime to submit video generation task
     try {
-      const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider);
+      const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
+        model: resolvedModelId,
+        modelType: 'video',
+      });
 
       const callbackBaseUrl = process.env.WEBHOOK_PROXY_URL || appEnv.APP_URL;
       const callbackUrl = `${callbackBaseUrl}/api/webhooks/video/${provider}?token=${webhookToken}`;

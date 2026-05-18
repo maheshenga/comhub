@@ -145,12 +145,17 @@ describe('videoRouter', () => {
   describe('createVideo - async strategy routing', () => {
     it('should use webhook path when response contains useWebhook: true', async () => {
       const { mockUpdate } = setupMocks();
+      const { initModelRuntimeFromDB } = await import('@/server/modules/ModelRuntime');
       mockCreateVideo.mockResolvedValue({ inferenceId: 'inf-1', useWebhook: true });
 
       const caller = videoRouter.createCaller(mockCtx);
       const result = await caller.createVideo(defaultInput);
 
       expect(result.success).toBe(true);
+      expect(initModelRuntimeFromDB).toHaveBeenCalledWith(mockServerDB, 'test-user', 'volcengine', {
+        model: 'test-model',
+        modelType: 'video',
+      });
       expect(mockUpdate).toHaveBeenCalledWith('async-1', {
         inferenceId: 'inf-1',
         status: AsyncTaskStatus.Processing,

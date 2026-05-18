@@ -5,6 +5,7 @@ import { type RouteObject } from 'react-router-dom';
 import {
   BusinessDesktopRoutesWithMainLayout,
   BusinessDesktopRoutesWithoutMainLayout,
+  BusinessDesktopRoutesWithSettingsLayout,
 } from '@/business/client/BusinessDesktopRoutes';
 import { dynamicElement, dynamicLayout, ErrorBoundary, redirectElement } from '@/utils/router';
 
@@ -359,6 +360,7 @@ export const desktopRoutes: RouteObject[] = [
             element: redirectElement('/settings/profile'),
             index: true,
           },
+          ...BusinessDesktopRoutesWithSettingsLayout,
           // Provider routes with nested structure
           {
             children: [

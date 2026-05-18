@@ -61,4 +61,16 @@ describe('desktopRouter config sync', () => {
     expect(syncSource).not.toContain("from '@/routes/(main)/tasks/_layout'");
     expect(syncSource).not.toContain("from '@/routes/(main)/task/_layout'");
   });
+
+  it('mounts business settings routes before generic settings tab routes', async () => {
+    const [asyncSource, syncSource] = await readDesktopRouterSources();
+
+    for (const source of [asyncSource, syncSource]) {
+      expect(source).toContain('BusinessDesktopRoutesWithSettingsLayout');
+      expect(source.indexOf('...BusinessDesktopRoutesWithSettingsLayout')).toBeGreaterThan(-1);
+      expect(source.indexOf('...BusinessDesktopRoutesWithSettingsLayout')).toBeLessThan(
+        source.indexOf("path: ':tab'"),
+      );
+    }
+  });
 });

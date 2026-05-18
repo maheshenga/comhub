@@ -274,7 +274,10 @@ export const imageRouter = router({
           );
 
           // Read user's provider config from database
-          const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider);
+          const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
+            model: resolvedModelId,
+            modelType: 'image',
+          });
 
           // Check if operation has been cancelled
           checkAbortSignal(signal);

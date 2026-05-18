@@ -66,6 +66,7 @@ const MAX_TOP_UP_AMOUNT = 500;
 const CUSTOM_TOP_UP_UNIT_PRICE = 0.1;
 const TOP_UP_CURRENCY = 'USD';
 const TOP_UP_VALIDITY_MONTHS = 12;
+const ONLINE_PAYMENT_DISABLED_ERROR = 'ONLINE_PAYMENT_DISABLED_USE_REDEMPTION_CODE';
 const CREDIT_SOURCE_PRIORITY: CreditSourceType[] = ['subscription', 'referral', 'topup', 'other'];
 const PRICING_CREDIT_MULTIPLIER_KEY = 'pricing.creditMultiplier';
 const PRICING_MODEL_RULES_KEY = 'pricing.modelRules';
@@ -211,6 +212,12 @@ const isValidReferralCode = (value: string) => /^\d{7}$/.test(value);
 
 const generateReferralCodeValue = () =>
   String(Math.floor(Math.random() * 10_000_000)).padStart(REFERRAL_CODE_LENGTH, '0');
+
+const isRedemptionTopUpOrder = (order: {
+  provider?: string | null;
+  redemptionCodeId?: string | null;
+  source?: string | null;
+}) => order.source === 'redemption' || order.provider === 'redemption' || !!order.redemptionCodeId;
 
 const addMonths = (date: Date, months: number) => {
   const next = new Date(date);
@@ -383,15 +390,6 @@ export class CommercialModel {
     }
 
     return ledgerEntry.id;
-  };
-
-  private assertPaidPlanForTopUp = async () => {
-    const currentPlan = await this.getCurrentPlan();
-    const isPaidPlan = currentPlan !== Plans.Free;
-
-    if (!isPaidPlan) {
-      throw new Error('TOP_UP_REQUIRES_PAID_PLAN');
-    }
   };
 
   private createCustomTopUpPackage = (credits: number): TopUpPackageItem => {
@@ -1837,7 +1835,9 @@ export class CommercialModel {
   };
 
   createTopUpOrder = async (input: CreateTopUpOrderParams): Promise<TopUpOrderHistoryItem> => {
-    await this.assertPaidPlanForTopUp();
+    if (input.source !== 'redemption') {
+      throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
+    }
 
     let packageItem: TopUpPackageItem | undefined;
     if (input.packageId) {
@@ -1896,6 +1896,10 @@ export class CommercialModel {
       throw new Error('TOP_UP_ORDER_NOT_FOUND');
     }
 
+    if (!isRedemptionTopUpOrder(order)) {
+      throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
+    }
+
     if (order.status !== 'pending') {
       throw new Error('TOP_UP_ORDER_NOT_CANCELABLE');
     }
@@ -1921,6 +1925,10 @@ export class CommercialModel {
 
       if (!order) {
         throw new Error('TOP_UP_ORDER_NOT_FOUND');
+      }
+
+      if (!isRedemptionTopUpOrder(order)) {
+        throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
       }
 
       if (order.status !== 'pending') {
