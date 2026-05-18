@@ -14,7 +14,7 @@ const AdminLayout = () => {
   ]);
   const role = (user as any)?.role as string | undefined;
 
-  if (!user || !isUserStateInit) return null;
+  if (!isUserStateInit) return null;
   if (role !== 'admin') return <Navigate replace to="/" />;
 
   return (

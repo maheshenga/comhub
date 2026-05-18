@@ -52,7 +52,7 @@ describe('CommercialModel topUpOrders', () => {
       sortOrder: 0,
       validityMonths: 12,
     });
-    // Seed a paid plan so assertPaidPlanForTopUp passes
+    // Seed a paid plan so the online-payment guard is proven independent of subscription status.
     await seedActiveStarterPlan();
   });
 
@@ -76,15 +76,21 @@ describe('CommercialModel topUpOrders', () => {
       expect(order.redemptionCodeId).toBe('code-123');
     });
 
-    it('should create order with source=alipay without ONLINE_PAYMENT_ENABLED gate', async () => {
+    it('should reject online payment sources even for paid users', async () => {
       const model = new CommercialModel(serverDB, testUserId);
-      const order = await model.createTopUpOrder({
-        packageId: 'topup-test-pkg',
-        source: 'alipay',
+
+      await expect(
+        model.createTopUpOrder({
+          packageId: 'topup-test-pkg',
+          source: 'alipay',
+        }),
+      ).rejects.toThrow('ONLINE_PAYMENT_DISABLED_USE_REDEMPTION_CODE');
+
+      const orders = await serverDB.query.topUpOrders.findMany({
+        where: (order, { eq }) => eq(order.userId, testUserId),
       });
 
-      expect(order).toBeDefined();
-      expect(order.source).toBe('alipay');
+      expect(orders).toHaveLength(0);
     });
   });
 
