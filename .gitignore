@@ -151,3 +151,10 @@ docs/superpowers/
 
 # Kagura agent runtime
 .kagura/
+
+# Local deploy/runtime artifacts
+.codex-run/
+.omc/
+.omx/
+.playwright-cli/
+dist-deploy/
