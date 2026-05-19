@@ -1,6 +1,6 @@
 import { Plans } from '@lobechat/types';
 import type { TRPCError } from '@trpc/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
@@ -88,6 +88,10 @@ describe('admin settings default model validation', () => {
       expiredSnapshots: 0,
       freeSnapshotsCreated: 0,
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('rejects a NewAPI default chat model that is not enabled in the managed model catalog', async () => {
@@ -365,7 +369,37 @@ describe('admin settings default model validation', () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it('tests the saved S3 storage connection with resolved admin settings', async () => {
+  it('tests saved S3 storage with CORS, presigned upload, read, and delete checks', async () => {
+    const s3Mock = {
+      createPreSignedUrl: vi.fn().mockResolvedValue('https://admin-bucket.s3.example.com/upload'),
+      deleteFile: vi.fn().mockResolvedValue(undefined),
+      getFileContent: vi.fn().mockResolvedValue('comhub-s3-health-check'),
+      testConnection: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(S3).mockImplementation(() => s3Mock as any);
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: {
+            'access-control-allow-headers': 'content-type',
+            'access-control-allow-methods': 'GET, PUT, POST, DELETE, HEAD',
+            'access-control-allow-origin': 'http://localhost:3210',
+          },
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: {
+            'access-control-allow-origin': 'http://localhost:3210',
+          },
+          status: 200,
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
     const db = createDb({
       appSettingsMany: [
         { key: APP_SETTING_KEYS.storageS3AccessKeyId, value: 'admin-access-key' },
@@ -383,9 +417,29 @@ describe('admin settings default model validation', () => {
 
     expect(result).toMatchObject({
       bucket: 'admin-bucket',
+      checks: {
+        bucketAccess: { ok: true },
+        corsPreflight: {
+          allowHeaders: 'content-type',
+          allowMethods: 'GET, PUT, POST, DELETE, HEAD',
+          allowOrigin: 'http://localhost:3210',
+          ok: true,
+          status: 200,
+        },
+        objectDelete: { ok: true },
+        objectRead: {
+          bytes: 22,
+          ok: true,
+        },
+        presignedUpload: {
+          ok: true,
+          status: 200,
+        },
+      },
       endpoint: 'https://s3.example.com',
       filePath: 'admin-files',
       ok: true,
+      origin: 'http://localhost:3210',
     });
     expect(S3).toHaveBeenCalledWith(
       'admin-access-key',
@@ -398,6 +452,40 @@ describe('admin settings default model validation', () => {
         region: 'ap-southeast-1',
         setAcl: false,
       },
+    );
+    expect(s3Mock.testConnection).toHaveBeenCalledTimes(1);
+    expect(s3Mock.createPreSignedUrl).toHaveBeenCalledWith(
+      expect.stringMatching(/^admin-files\/admin-s3-health-check\/.+\.txt$/),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://admin-bucket.s3.example.com/upload',
+      expect.objectContaining({
+        headers: {
+          'Access-Control-Request-Headers': 'content-type',
+          'Access-Control-Request-Method': 'PUT',
+          'Origin': 'http://localhost:3210',
+        },
+        method: 'OPTIONS',
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://admin-bucket.s3.example.com/upload',
+      expect.objectContaining({
+        body: 'comhub-s3-health-check',
+        headers: {
+          'Content-Type': 'text/plain',
+          'Origin': 'http://localhost:3210',
+        },
+        method: 'PUT',
+      }),
+    );
+    expect(s3Mock.getFileContent).toHaveBeenCalledWith(
+      expect.stringMatching(/^admin-files\/admin-s3-health-check\/.+\.txt$/),
+    );
+    expect(s3Mock.deleteFile).toHaveBeenCalledWith(
+      expect.stringMatching(/^admin-files\/admin-s3-health-check\/.+\.txt$/),
     );
   });
 });

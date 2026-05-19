@@ -208,10 +208,13 @@ const AdminSettingsPage = memo(() => {
     setTestingS3(true);
     try {
       const result = await adminCommercialService.testS3Storage();
+      const checkSummary = result.checks
+        ? 'Bucket、CORS、预签名上传、读取、删除均通过'
+        : '连接正常';
       message.success(
         t(
           'admin.settings.storageS3.testSuccess',
-          `S3 连接正常：${result.bucket}（${result.filePath}）`,
+          `S3 测试通过：${result.bucket}（${result.filePath}），${checkSummary}`,
         ),
       );
     } catch (error) {

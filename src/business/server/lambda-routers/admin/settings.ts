@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, eq, lt } from 'drizzle-orm';
@@ -48,6 +50,49 @@ const maskApiKey = (key: string | null | undefined): string | null => {
 };
 
 const SETTING_KEYS = APP_SETTING_KEYS;
+const S3_HEALTH_CHECK_CONTENT = 'comhub-s3-health-check';
+const S3_HEALTH_CHECK_DIR = 'admin-s3-health-check';
+
+const getAppUrlFallback = () => {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL)
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.VERCEL_BRANCH_URL) return `https://${process.env.VERCEL_BRANCH_URL}`;
+
+  return process.env.NODE_ENV === 'development'
+    ? `http://localhost:${process.env.PORT || 3010}`
+    : `http://localhost:${process.env.PORT || 3210}`;
+};
+
+const getAppOriginForCorsTest = () => {
+  try {
+    return new URL(getAppUrlFallback()).origin;
+  } catch {
+    throw new Error('APP_URL must be a valid URL before testing S3 CORS');
+  }
+};
+
+const createS3HealthCheckKey = (filePath: string | undefined) => {
+  const prefix = normalizeS3FilePath(filePath || 'files') || 'files';
+
+  return `${prefix}/${S3_HEALTH_CHECK_DIR}/${Date.now()}-${randomUUID()}.txt`;
+};
+
+const readResponseSnippet = async (response: Response) => {
+  try {
+    return (await response.text()).slice(0, 500);
+  } catch {
+    return '';
+  }
+};
+
+const assertHttpOk = async (response: Response, code: string) => {
+  if (response.ok) return;
+
+  const body = await readResponseSnippet(response);
+  throw new Error(`${code}: ${response.status}${body ? ` ${body}` : ''}`);
+};
 
 const SENSITIVE_KEYS = new Set<string>([
   SETTING_KEYS.cronSecret,
@@ -1378,15 +1423,84 @@ export const adminSettingsRouter = router({
         region: config.region,
         setAcl: config.setAcl,
       });
-      await s3.testConnection();
 
-      return {
-        bucket: config.bucket,
-        endpoint: config.endpoint,
-        filePath: config.filePath,
-        ok: true,
-        publicDomain: config.publicDomain || null,
-      };
+      if (typeof fetch !== 'function') {
+        throw new Error('FETCH_NOT_AVAILABLE');
+      }
+
+      const origin = getAppOriginForCorsTest();
+      const healthCheckKey = createS3HealthCheckKey(config.filePath);
+      let deleted = false;
+
+      try {
+        await s3.testConnection();
+
+        const preSignedUrl = await s3.createPreSignedUrl(healthCheckKey);
+        const corsPreflight = await fetch(preSignedUrl, {
+          headers: {
+            'Access-Control-Request-Headers': 'content-type',
+            'Access-Control-Request-Method': 'PUT',
+            'Origin': origin,
+          },
+          method: 'OPTIONS',
+        });
+        await assertHttpOk(corsPreflight, 'S3_CORS_PREFLIGHT_FAILED');
+
+        const presignedUpload = await fetch(preSignedUrl, {
+          body: S3_HEALTH_CHECK_CONTENT,
+          headers: {
+            'Content-Type': 'text/plain',
+            'Origin': origin,
+          },
+          method: 'PUT',
+        });
+        await assertHttpOk(presignedUpload, 'S3_PRESIGNED_UPLOAD_FAILED');
+
+        const storedContent = await s3.getFileContent(healthCheckKey);
+        if (storedContent !== S3_HEALTH_CHECK_CONTENT) {
+          throw new Error('S3_OBJECT_READ_MISMATCH');
+        }
+
+        await s3.deleteFile(healthCheckKey);
+        deleted = true;
+
+        return {
+          bucket: config.bucket,
+          checks: {
+            bucketAccess: { ok: true },
+            corsPreflight: {
+              allowHeaders: corsPreflight.headers.get('access-control-allow-headers'),
+              allowMethods: corsPreflight.headers.get('access-control-allow-methods'),
+              allowOrigin: corsPreflight.headers.get('access-control-allow-origin'),
+              ok: true,
+              status: corsPreflight.status,
+            },
+            objectDelete: { ok: true },
+            objectRead: {
+              bytes: new TextEncoder().encode(storedContent).byteLength,
+              ok: true,
+            },
+            presignedUpload: {
+              allowOrigin: presignedUpload.headers.get('access-control-allow-origin'),
+              ok: true,
+              status: presignedUpload.status,
+            },
+          },
+          endpoint: config.endpoint,
+          filePath: config.filePath,
+          ok: true,
+          origin,
+          publicDomain: config.publicDomain || null,
+        };
+      } finally {
+        if (!deleted) {
+          try {
+            await s3.deleteFile(healthCheckKey);
+          } catch (cleanupError) {
+            console.error('S3 health check cleanup failed:', cleanupError);
+          }
+        }
+      }
     } catch (error) {
       throw new TRPCError({
         cause: error,
