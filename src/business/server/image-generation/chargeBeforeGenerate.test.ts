@@ -25,7 +25,10 @@ vi.mock('@/business/server/commercialBilling', () => ({
 }));
 
 vi.mock('@/server/services/appSettings', () => ({
-  APP_SETTING_KEYS: { pricingCreditMultiplier: 'pricing.creditMultiplier' },
+  APP_SETTING_KEYS: {
+    pricingCreditMultiplier: 'pricing.creditMultiplier',
+    pricingModelRules: 'pricing.modelRules',
+  },
   getAppSettingValue: mocks.getAppSettingValue,
 }));
 
@@ -69,5 +72,30 @@ describe('image chargeBeforeGenerate', () => {
 
     expect(mocks.getModelPricing).toHaveBeenCalledWith('gpt-image-2', 'newapi');
     expect(mocks.preCharge).toHaveBeenCalledWith(209_880, {});
+  });
+
+  it('checks image budget with NewAPI route metadata pricing', async () => {
+    mocks.getAppSettingValue.mockImplementation(async (key: string) =>
+      key === 'pricing.creditMultiplier'
+        ? 1
+        : [{ group: 'pro', model: 'gpt-image-2', multiplier: 2, provider: 'newapi' }],
+    );
+
+    await chargeBeforeGenerate({
+      configForDatabase: { prompt: 'draw a cat' },
+      db: {} as any,
+      generationParams: { prompt: 'draw a cat' },
+      generationTopicId: 'topic-1',
+      imageNum: 2,
+      model: 'gpt-image-2',
+      provider: 'newapi',
+      routeMetadata: {
+        groupKey: 'pro',
+        groupMultiplier: 1.5,
+      },
+      userId: 'user-1',
+    });
+
+    expect(mocks.preCharge).toHaveBeenCalledWith(318_000, {});
   });
 });

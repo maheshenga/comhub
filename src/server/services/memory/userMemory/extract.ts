@@ -69,6 +69,7 @@ import { getServerGlobalConfig } from '@/server/globalConfig';
 import { type MemoryAgentConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { parseMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
+import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { S3 } from '@/server/modules/S3';
 import {
   AsyncTaskError,
@@ -582,6 +583,19 @@ type RuntimeBundle = {
   gatekeeper: ModelRuntime;
   layerExtractor: ModelRuntime;
 };
+
+type MemoryRuntimeModelType = 'chat' | 'embedding';
+
+interface MemoryRuntimeTargets {
+  keyVaults: ProviderKeyVaultMap;
+  providers: {
+    embedding: string;
+    gatekeeper: string;
+    layerExtractor: string;
+  };
+}
+
+const ADMIN_MANAGED_AI_PROVIDER = 'newapi';
 
 export interface TopicExtractionJob {
   asyncTaskId?: string;
@@ -1431,10 +1445,10 @@ export class MemoryExtractionExecutor {
             userModel.getUserState(KeyVaultsGateKeeper.getUserKeyVaults),
             this.getAiProviderRuntimeState(job.userId),
           ]);
-          const keyVaults = await this.resolveRuntimeKeyVaults(aiProviderRuntimeState);
+          const runtimeTargets = await this.resolveRuntimeTargets(aiProviderRuntimeState);
           const language = userState.settings?.general?.responseLanguage;
 
-          const runtimes = await this.getRuntime(job.userId, keyVaults);
+          const runtimes = await this.getRuntime(job.userId, runtimeTargets);
 
           const conversations = await this.listConversationsForTopic(
             job.userId,
@@ -2209,9 +2223,9 @@ export class MemoryExtractionExecutor {
     return aiInfraRepos.getAiProviderRuntimeState(KeyVaultsGateKeeper.getUserKeyVaults);
   }
 
-  private async resolveRuntimeKeyVaults(
+  private async resolveRuntimeTargets(
     runtimeState: AiProviderRuntimeState,
-  ): Promise<ProviderKeyVaultMap> {
+  ): Promise<MemoryRuntimeTargets> {
     const normalizedRuntimeConfig = Object.fromEntries(
       Object.entries(runtimeState.runtimeConfig || {}).map(([providerId, config]) => [
         normalizeProvider(providerId),
@@ -2220,6 +2234,12 @@ export class MemoryExtractionExecutor {
     );
 
     const keyVaults: ProviderKeyVaultMap = {};
+    const appendKeyVaults = (providerId: string) => {
+      const runtime = normalizedRuntimeConfig[providerId];
+      if (runtime?.keyVaults) {
+        keyVaults[providerId] = runtime.keyVaults;
+      }
+    };
 
     const gatekeeperProvider = await AiInfraRepos.tryMatchingProviderFrom(runtimeState, {
       fallbackProvider: this.privateConfig.agentGateKeeper.provider,
@@ -2228,10 +2248,7 @@ export class MemoryExtractionExecutor {
       preferredModels: this.gatekeeperPreferredModels,
       preferredProviders: this.gatekeeperPreferredProviders,
     });
-    const gatekeeperRuntime = normalizedRuntimeConfig[gatekeeperProvider];
-    if (gatekeeperRuntime?.keyVaults) {
-      keyVaults[gatekeeperProvider] = gatekeeperRuntime.keyVaults;
-    }
+    appendKeyVaults(gatekeeperProvider);
 
     const embeddingProvider = await AiInfraRepos.tryMatchingProviderFrom(runtimeState, {
       fallbackProvider: this.privateConfig.embedding.provider,
@@ -2240,11 +2257,9 @@ export class MemoryExtractionExecutor {
       preferredModels: this.embeddingPreferredModels,
       preferredProviders: this.embeddingPreferredProviders,
     });
-    const embeddingRuntime = normalizedRuntimeConfig[embeddingProvider];
-    if (embeddingRuntime?.keyVaults) {
-      keyVaults[embeddingProvider] = embeddingRuntime.keyVaults;
-    }
+    appendKeyVaults(embeddingProvider);
 
+    const layerProviders: string[] = [];
     for (const model of Object.values(this.modelConfig.layerModels)) {
       if (!model) continue;
       const providerId = await AiInfraRepos.tryMatchingProviderFrom(runtimeState, {
@@ -2254,79 +2269,133 @@ export class MemoryExtractionExecutor {
         preferredModels: this.layerPreferredModels,
         preferredProviders: this.layerPreferredProviders,
       });
-      const runtime = normalizedRuntimeConfig[providerId];
-      if (runtime?.keyVaults) {
-        keyVaults[providerId] = runtime.keyVaults;
-      }
+      layerProviders.push(providerId);
+      appendKeyVaults(providerId);
     }
 
-    return keyVaults;
+    const layerExtractorProvider =
+      layerProviders[0] ||
+      normalizeProvider(this.privateConfig.agentLayerExtractor.provider || 'openai');
+
+    return {
+      keyVaults,
+      providers: {
+        embedding: embeddingProvider,
+        gatekeeper: gatekeeperProvider,
+        layerExtractor: layerExtractorProvider,
+      },
+    };
   }
 
-  private async getRuntime(
-    userId: string,
-    keyVaults?: ProviderKeyVaultMap,
-  ): Promise<RuntimeBundle> {
+  private async resolveRuntimeKeyVaults(
+    runtimeState: AiProviderRuntimeState,
+  ): Promise<ProviderKeyVaultMap> {
+    const targets = await this.resolveRuntimeTargets(runtimeState);
+
+    return targets.keyVaults;
+  }
+
+  private async initRuntimeFromTarget({
+    agent,
+    keyVaults,
+    model,
+    modelType,
+    preferredProviders,
+    targetProvider,
+    userId,
+  }: {
+    agent: MemoryAgentConfig;
+    keyVaults: ProviderKeyVaultMap;
+    model: string;
+    modelType: MemoryRuntimeModelType;
+    preferredProviders?: string[];
+    targetProvider: string;
+    userId: string;
+  }) {
+    const provider = normalizeProvider(targetProvider || agent.provider || 'openai');
+
+    if (provider === ADMIN_MANAGED_AI_PROVIDER) {
+      const db = await this.db;
+
+      return initModelRuntimeFromDB(db, userId, provider, { model, modelType });
+    }
+
+    const preferredProviderIds = Array.from(new Set([provider, ...(preferredProviders || [])]));
+    const hooks = getBusinessModelRuntimeHooks(userId, provider);
+
+    return resolveRuntimeAgentConfig(
+      { ...agent, provider },
+      keyVaults,
+      {
+        fallback: {
+          apiKey: agent.apiKey,
+          baseURL: agent.baseURL,
+        },
+        preferred: { providerIds: preferredProviderIds },
+        userId,
+      },
+      hooks,
+    );
+  }
+
+  private getRuntimeCacheKey(userId: string, targets: MemoryRuntimeTargets) {
+    return [
+      userId,
+      targets.providers.embedding,
+      targets.providers.gatekeeper,
+      targets.providers.layerExtractor,
+      this.modelConfig.embeddingsModel,
+      this.modelConfig.gateModel,
+      ...Object.values(this.modelConfig.layerModels).filter(Boolean),
+    ].join(':');
+  }
+
+  private async getRuntime(userId: string, targets: MemoryRuntimeTargets): Promise<RuntimeBundle> {
+    const cacheKey = this.getRuntimeCacheKey(userId, targets);
+
     // TODO: implement a better cache eviction strategy
     // TODO: make cache size configurable
-    if (this.runtimeCache.keys.length > 200) {
+    if (this.runtimeCache.size > 200) {
       this.runtimeCache.clear();
     }
 
-    const cached = this.runtimeCache.get(userId);
+    const cached = this.runtimeCache.get(cacheKey);
     if (cached) return cached;
 
-    const embeddingOptions: RuntimeResolveOptions = {
-      fallback: {
-        apiKey: this.privateConfig.embedding.apiKey,
-        baseURL: this.privateConfig.embedding.baseURL,
-      },
-      preferred: { providerIds: this.embeddingPreferredProviders },
-      userId,
-    };
-
-    const gatekeeperOptions: RuntimeResolveOptions = {
-      fallback: {
-        apiKey: this.privateConfig.agentGateKeeper.apiKey,
-        baseURL: this.privateConfig.agentGateKeeper.baseURL,
-      },
-      preferred: { providerIds: this.gatekeeperPreferredProviders },
-      userId,
-    };
-
-    const layerExtractorOptions: RuntimeResolveOptions = {
-      fallback: {
-        apiKey: this.privateConfig.agentLayerExtractor.apiKey,
-        baseURL: this.privateConfig.agentLayerExtractor.baseURL,
-      },
-      preferred: { providerIds: this.layerPreferredProviders },
-      userId,
-    };
-
-    const hooks = getBusinessModelRuntimeHooks(userId, 'lobehub');
-
     const runtimes: RuntimeBundle = {
-      embeddings: await resolveRuntimeAgentConfig(
-        { ...this.privateConfig.embedding },
-        keyVaults,
-        embeddingOptions,
-        hooks,
-      ),
-      gatekeeper: await resolveRuntimeAgentConfig(
-        { ...this.privateConfig.agentGateKeeper },
-        keyVaults,
-        gatekeeperOptions,
-        hooks,
-      ),
-      layerExtractor: await resolveRuntimeAgentConfig(
-        { ...this.privateConfig.agentLayerExtractor },
-        keyVaults,
-        layerExtractorOptions,
-        hooks,
-      ),
+      embeddings: await this.initRuntimeFromTarget({
+        agent: this.privateConfig.embedding,
+        keyVaults: targets.keyVaults,
+        model: this.modelConfig.embeddingsModel,
+        modelType: 'embedding',
+        preferredProviders: this.embeddingPreferredProviders,
+        targetProvider: targets.providers.embedding,
+        userId,
+      }),
+      gatekeeper: await this.initRuntimeFromTarget({
+        agent: this.privateConfig.agentGateKeeper,
+        keyVaults: targets.keyVaults,
+        model: this.modelConfig.gateModel,
+        modelType: 'chat',
+        preferredProviders: this.gatekeeperPreferredProviders,
+        targetProvider: targets.providers.gatekeeper,
+        userId,
+      }),
+      layerExtractor: await this.initRuntimeFromTarget({
+        agent: this.privateConfig.agentLayerExtractor,
+        keyVaults: targets.keyVaults,
+        model:
+          Object.values(this.modelConfig.layerModels).find((model): model is string =>
+            Boolean(model),
+          ) || this.privateConfig.agentLayerExtractor.model,
+        modelType: 'chat',
+        preferredProviders: this.layerPreferredProviders,
+        targetProvider: targets.providers.layerExtractor,
+        userId,
+      }),
     };
 
-    this.runtimeCache.set(userId, runtimes);
+    this.runtimeCache.set(cacheKey, runtimes);
 
     return runtimes;
   }
@@ -2362,10 +2431,10 @@ export class MemoryExtractionExecutor {
             userModel.getUserState(KeyVaultsGateKeeper.getUserKeyVaults),
             this.getAiProviderRuntimeState(params.userId),
           ]);
-          const keyVaults = await this.resolveRuntimeKeyVaults(aiProviderRuntimeState);
+          const runtimeTargets = await this.resolveRuntimeTargets(aiProviderRuntimeState);
           const language = params.language || userState.settings?.general?.responseLanguage;
 
-          const runtimes = await this.getRuntime(params.userId, keyVaults);
+          const runtimes = await this.getRuntime(params.userId, runtimeTargets);
           const contextProvider =
             params.contextProvider ||
             new BenchmarkLocomoContextProvider({

@@ -3,6 +3,9 @@ import {
   KLAVIS_SERVER_TYPES,
   LOBEHUB_SKILL_PROVIDERS,
   REQUEST_AGENT_ID_HEADER,
+  REQUEST_ASSISTANT_MESSAGE_ID_HEADER,
+  REQUEST_MESSAGE_ID_HEADER,
+  REQUEST_OPERATION_ID_HEADER,
   REQUEST_TOPIC_ID_HEADER,
   REQUEST_TRIGGER_HEADER,
 } from '@lobechat/const';
@@ -69,6 +72,15 @@ const providersWithDeploymentName = new Set<string>([
   ModelProvider.Volcengine,
   ModelProvider.VolcengineCodingPlan,
 ]);
+
+const getStringMetadataValue = (
+  metadata: FetchOptions['metadata'] | undefined,
+  key: 'messageId' | 'assistantMessageId' | 'operationId',
+) => {
+  const value = metadata?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+};
+
 interface GetChatCompletionPayload extends Partial<Omit<ChatStreamPayload, 'messages'>> {
   agentId?: string;
   groupId?: string;
@@ -358,6 +370,9 @@ class ChatService {
   getChatCompletion = async (params: Partial<ChatStreamPayload>, options?: FetchOptions) => {
     const { agentId, metadata, signal, responseAnimation, topicId } = options ?? {};
     const requestTrigger = metadata?.trigger;
+    const messageId = getStringMetadataValue(metadata, 'messageId');
+    const assistantMessageId = getStringMetadataValue(metadata, 'assistantMessageId');
+    const operationId = getStringMetadataValue(metadata, 'operationId');
 
     const { provider = ModelProvider.OpenAI, ...res } = params;
 
@@ -455,6 +470,9 @@ class ChatService {
         'Content-Type': 'application/json',
         ...traceHeader,
         ...(agentId && { [REQUEST_AGENT_ID_HEADER]: agentId }),
+        ...(messageId && { [REQUEST_MESSAGE_ID_HEADER]: messageId }),
+        ...(assistantMessageId && { [REQUEST_ASSISTANT_MESSAGE_ID_HEADER]: assistantMessageId }),
+        ...(operationId && { [REQUEST_OPERATION_ID_HEADER]: operationId }),
         ...(requestTrigger && { [REQUEST_TRIGGER_HEADER]: requestTrigger }),
         ...(topicId && { [REQUEST_TOPIC_ID_HEADER]: topicId }),
       },

@@ -91,6 +91,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
     const url = new URL(req.url);
     const token = url.searchParams.get('token');
     const metadata = asyncTask.metadata as VideoGenerationTaskMetadata | undefined;
+    const routeMetadata = (metadata as any)?.routeMetadata;
     const expectedToken = metadata?.webhookToken;
 
     if (!expectedToken || !token || !safeCompare(token, expectedToken)) {
@@ -166,6 +167,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
           metadata: {
             asyncTaskId: asyncTask.id,
             generationBatchId: generation.generationBatchId!,
+            ...(routeMetadata ? { routeMetadata } : {}),
             topicId: batch?.generationTopicId,
             ...mappedModelFields,
           },
@@ -239,6 +241,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
         metadata: {
           asyncTaskId: asyncTask.id,
           generationBatchId: generation.generationBatchId!,
+          ...(routeMetadata ? { routeMetadata } : {}),
           topicId: batch?.generationTopicId,
           ...mappedModelFields,
         },

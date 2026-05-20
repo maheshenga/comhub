@@ -140,6 +140,48 @@ describe('createOpenAICompatibleVideo', () => {
       const body = JSON.parse((global.fetch as any).mock.calls[0][1].body);
       expect(body.input_reference).toBe('https://example.com/image.jpg');
     });
+
+    it('should fall back to v2 video generation API when v1 videos endpoint is missing', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          text: async () => 'not found',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ task_id: 'v2-task-123' }),
+        });
+
+      const payload: CreateVideoPayload = {
+        model: 'jimeng-video',
+        params: {
+          duration: 5,
+          imageUrl: 'https://example.com/frame.jpg',
+          prompt: 'Animate this scene',
+          resolution: '1080p',
+          size: '1920x1080',
+        },
+      };
+
+      const result = await createOpenAICompatibleVideo(payload, mockVllmOptions);
+
+      expect(result).toEqual({ inferenceId: 'v2-task-123' });
+      expect(fetch).toHaveBeenNthCalledWith(
+        2,
+        'http://localhost:8000/v2/videos/generations',
+        expect.any(Object),
+      );
+      expect(JSON.parse((global.fetch as any).mock.calls[1][1].body)).toEqual({
+        duration: 5,
+        image: 'https://example.com/frame.jpg',
+        model: 'jimeng-video',
+        prompt: 'Animate this scene',
+        resolution: '1080p',
+        size: '1920x1080',
+      });
+    });
   });
 
   describe('Error scenarios', () => {
@@ -265,8 +307,8 @@ describe('pollOpenAICompatibleVideoStatus', () => {
   it('should throw on HTTP error', async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
-      status: 404,
-      text: async () => 'Task not found',
+      status: 500,
+      text: async () => 'Server error',
     });
 
     await expect(
@@ -274,7 +316,44 @@ describe('pollOpenAICompatibleVideoStatus', () => {
         apiKey: 'test-key',
         baseURL: 'https://api.openai.com/v1',
       }),
-    ).rejects.toThrow('OpenAI-compatible video status API error: 404 Task not found');
+    ).rejects.toThrow('OpenAI-compatible video status API error: 500 Server error');
+  });
+
+  it('should fall back to v2 status API when v1 status endpoint is missing', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => 'not found',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            output: 'https://cdn.example.com/v2-video.mp4',
+            usage: { completion_tokens: 10, total_tokens: 12 },
+          },
+          status: 'succeeded',
+          task_id: 'task-123',
+        }),
+      });
+
+    const result = await pollOpenAICompatibleVideoStatus('task-123', {
+      apiKey: 'test-key',
+      baseURL: 'http://localhost:8000/v1',
+    });
+
+    expect(result).toEqual({
+      status: 'success',
+      usage: { completionTokens: 10, totalTokens: 12 },
+      videoUrl: 'https://cdn.example.com/v2-video.mp4',
+    });
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/v2/videos/generations/task-123',
+      expect.any(Object),
+    );
   });
 });
 

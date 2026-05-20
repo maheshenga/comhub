@@ -236,8 +236,23 @@ export class DocmeePptService {
     }
   };
 
+  private assertCreditBalanceAvailable = async (amount: number) => {
+    if (!Number.isFinite(amount) || amount <= 0) return;
+
+    await this.ensureCreditAccount(this.db);
+    const [account] = await this.db
+      .select({ balance: creditAccounts.balance })
+      .from(creditAccounts)
+      .where(eq(creditAccounts.userId, this.userId));
+
+    if (!account || Number(account.balance) < amount) {
+      throw new DocmeePptError('PPT_QUOTA_EXHAUSTED');
+    }
+  };
+
   createToken = async () => {
     const { capability, dailyRemaining, plan, remaining, settings } = await this.assertAvailable();
+    await this.assertCreditBalanceAvailable(capability.creditCost);
     const sessionId = randomUUID();
     const docmeeUid = `comhub:${this.userId}`;
     const limit = Math.max(

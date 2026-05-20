@@ -1,12 +1,12 @@
 'use client';
 
-import { BRANDING_NAME } from '@lobechat/business-const';
 import { Flexbox } from '@lobehub/ui';
 import { createStaticStyles, useTheme } from 'antd-style';
 import { memo, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import DragUploadZone from '@/components/DragUploadZone';
+import { useBrandName } from '@/features/Brand';
 import { PageEditor } from '@/features/PageEditor';
 import dynamic from '@/libs/next/dynamic';
 import { useCurrentFolderId } from '@/routes/(main)/resource/features/hooks/useCurrentFolderId';
@@ -59,6 +59,7 @@ export type ResourceManagerMode = 'editor' | 'explorer' | 'page';
  */
 const ResourceManager = memo(() => {
   const theme = useTheme();
+  const brandName = useBrandName();
   const [, setSearchParams] = useSearchParams();
   const currentFolderId = useCurrentFolderId();
   const [mode, currentViewItemId, libraryId, setMode, setCurrentViewItemId] =
@@ -110,7 +111,7 @@ const ResourceManager = memo(() => {
       return prev;
     });
     // Reset document title to default
-    document.title = BRANDING_NAME;
+    document.title = brandName;
   };
 
   // Optimistic update handlers for page title and emoji

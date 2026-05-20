@@ -7,16 +7,23 @@ import { getTestDB } from '@/database/core/getTestDB';
 import { planCatalog, userPlanSnapshots, users } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 
-import { isModelAllowedByPlanRules, resolvePlanModelRules } from '../planModelRules';
+import {
+  assertPlanModelAllowed,
+  isModelAllowedByPlanRules,
+  resolvePlanModelRules,
+} from '../planModelRules';
 
 const serverDB: LobeChatDatabase = await getTestDB();
 const expiryUserId = 'plan-model-rules-expired-user';
+const deniedUserId = 'plan-model-rules-denied-user';
 
 afterEach(async () => {
   await serverDB.delete(userPlanSnapshots).where(eq(userPlanSnapshots.userId, expiryUserId));
+  await serverDB.delete(userPlanSnapshots).where(eq(userPlanSnapshots.userId, deniedUserId));
   await serverDB.delete(planCatalog).where(eq(planCatalog.plan, Plans.Free));
   await serverDB.delete(planCatalog).where(eq(planCatalog.plan, Plans.Starter));
   await serverDB.delete(users).where(eq(users.id, expiryUserId));
+  await serverDB.delete(users).where(eq(users.id, deniedUserId));
 });
 
 describe('plan model rules', () => {
@@ -84,6 +91,44 @@ describe('plan model rules', () => {
 
     expect(isModelAllowedByPlanRules(rules, 'gpt-4o', 'chat', 'pro')).toBe(false);
     expect(isModelAllowedByPlanRules(rules, 'gpt-4o', 'chat', 'vip')).toBe(true);
+  });
+
+  it('throws a readable Chinese error when the current plan denies a model', async () => {
+    await serverDB.insert(users).values([{ id: deniedUserId }]);
+    await serverDB.insert(planCatalog).values({
+      displayName: 'Free',
+      modelRules: { chat: { allowlist: ['free-chat'], mode: 'allowlist' } },
+      monthlyCredits: 0,
+      monthlyPrice: 0,
+      plan: Plans.Free,
+    });
+    await serverDB.insert(userPlanSnapshots).values({
+      cycle: 'monthly',
+      monthlyCredits: 0,
+      monthlyPrice: 0,
+      plan: Plans.Free,
+      provider: 'system_default',
+      startedAt: new Date('2024-01-01T00:00:00.000Z'),
+      status: 'active',
+      userId: deniedUserId,
+    });
+
+    await expect(
+      assertPlanModelAllowed({
+        db: serverDB,
+        model: 'gpt-4o',
+        modelType: 'chat',
+        userId: deniedUserId,
+      }),
+    ).rejects.toMatchObject({
+      error: {
+        message: '当前套餐未授权使用模型 gpt-4o，请升级套餐或选择其他模型。',
+        model: 'gpt-4o',
+        modelType: 'chat',
+        plan: Plans.Free,
+        reason: 'PLAN_MODEL_RULE_DENIED',
+      },
+    });
   });
 
   it('falls back to free plan rules when the latest active paid snapshot has expired', async () => {

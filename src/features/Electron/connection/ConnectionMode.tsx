@@ -7,6 +7,7 @@ import { Server } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useBrandName } from '@/features/Brand';
 import { useElectronStore } from '@/store/electron';
 import { electronSyncSelectors } from '@/store/electron/selectors';
 
@@ -80,6 +81,7 @@ interface ConnectionModeProps {
 const ConnectionMode = memo<ConnectionModeProps>(({ setWaiting }) => {
   const { t } = useTranslation(['electron', 'common']);
   const [urlError, setUrlError] = useState<string | undefined>();
+  const brandName = useBrandName();
 
   const connect = useElectronStore((s) => s.connectRemoteServer);
   const storageMode = useElectronStore(electronSyncSelectors.storageMode);
@@ -149,7 +151,7 @@ const ConnectionMode = memo<ConnectionModeProps>(({ setWaiting }) => {
             description={t('sync.lobehubCloud.description')}
             icon={LobeHub}
             isSelected={selectedOption === StorageModeEnum.Cloud}
-            label={t('sync.lobehubCloud.title')}
+            label={t('sync.lobehubCloud.title', { brandName })}
             value={StorageModeEnum.Cloud}
             onClick={handleSelectOption}
           />

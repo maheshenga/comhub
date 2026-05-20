@@ -14,6 +14,8 @@ import { after } from 'next/server';
 import { z } from 'zod';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
+import { assertModelPolicyAllowed } from '@/business/server/modelPolicy';
+import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { chargeBeforeGenerate } from '@/business/server/video-generation/chargeBeforeGenerate';
 import { getVideoFreeQuota } from '@/business/server/video-generation/getVideoFreeQuota';
@@ -32,6 +34,7 @@ import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { FileService } from '@/server/services/file';
 import { processBackgroundVideoPolling } from '@/server/services/generation/videoBackgroundPolling';
+import { resolveNewapiRouteMetadataForModel } from '@/server/services/newapiInstance';
 import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
 
 import { createVideoTaskSubmitError } from './error';
@@ -86,6 +89,14 @@ export const videoRouter = router({
         message: ChatErrorType.LobeHubModelDeprecated,
       });
     }
+    const routeMetadata =
+      provider === 'newapi'
+        ? await resolveNewapiRouteMetadataForModel(ctx.serverDB, {
+            modelId: resolvedModelId,
+            modelType: 'video',
+            userId,
+          })
+        : undefined;
 
     log('Starting video creation process, input: %O', input);
 
@@ -149,11 +160,26 @@ export const videoRouter = router({
     }
 
     // Step 0: Pre-charge (atomic budget deduction to prevent concurrent abuse)
+    await assertModelPolicyAllowed({
+      db: ctx.serverDB,
+      model,
+      provider,
+      usageType: 'video',
+    });
+    await assertPlanModelAllowed({
+      db: ctx.serverDB,
+      ...(routeMetadata?.groupKey ? { groupKey: routeMetadata.groupKey } : {}),
+      model,
+      modelType: 'video',
+      userId,
+    });
     const { errorBatch, prechargeResult } = await chargeBeforeGenerate({
+      db: ctx.serverDB,
       generationTopicId,
       model,
       params,
       provider,
+      routeMetadata,
       userId,
     });
     if (errorBatch) return errorBatch;
@@ -198,6 +224,7 @@ export const videoRouter = router({
         .values({
           metadata: {
             ...(prechargeResult ? { precharge: prechargeResult } : {}),
+            ...(routeMetadata ? { routeMetadata } : {}),
             webhookToken,
           },
           status: AsyncTaskStatus.Pending,
@@ -317,6 +344,7 @@ export const videoRouter = router({
             metadata: {
               asyncTaskId,
               generationBatchId: createdBatch.id,
+              ...(routeMetadata ? { routeMetadata } : {}),
               topicId: generationTopicId,
               ...buildMappedBusinessModelFields({
                 provider,
@@ -327,6 +355,7 @@ export const videoRouter = router({
             model: resolvedModelId,
             prechargeResult,
             provider,
+            db: ctx.serverDB,
             userId,
           });
         } catch (chargeError) {
@@ -349,10 +378,10 @@ export const videoRouter = router({
     };
   }),
 
-  getVideoFreeQuota: authedProcedure
+  getVideoFreeQuota: videoProcedure
     .input(z.object({ model: z.string() }))
     .query(async ({ ctx, input }) => {
-      return getVideoFreeQuota(ctx.userId, input.model);
+      return getVideoFreeQuota(ctx.userId, input.model, ctx.serverDB);
     }),
 });
 

@@ -554,6 +554,46 @@ describe('createOpenAICompatibleImage', () => {
       expect(mockClient.images.generate).toHaveBeenCalled();
       expect(mockClient.chat.completions.create).not.toHaveBeenCalled();
     });
+
+    it('should route async image task models to async task runner when options are provided', async () => {
+      vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ id: 'task-1' }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: [{ url: 'https://example.com/async-result.png' }],
+              status: 'succeeded',
+            }),
+            {
+              headers: { 'Content-Type': 'application/json' },
+              status: 200,
+            },
+          ),
+        );
+
+      const payload: CreateImagePayload = {
+        model: 'jimeng-image-async',
+        params: { prompt: 'Generate async image' },
+      };
+
+      const result = await createOpenAICompatibleImage(mockClient, payload, 'openai', {
+        apiKey: 'sk-test',
+        baseURL: 'https://api.example.com/v1',
+        initialInterval: 1,
+        maxInterval: 1,
+        maxRetries: 2,
+      });
+
+      expect(result).toEqual({ imageUrl: 'https://example.com/async-result.png' });
+      expect(mockClient.images.generate).not.toHaveBeenCalled();
+      expect(mockClient.images.edit).not.toHaveBeenCalled();
+      expect(mockClient.chat.completions.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('image mode - parameter mapping', () => {
@@ -584,6 +624,7 @@ describe('createOpenAICompatibleImage', () => {
       expect(result.imageUrl).toBe('data:image/png;base64,gptImage2Base64Result');
       expect(mockClient.images.generate).toHaveBeenCalledWith({
         model: 'gpt-image-2',
+        n: 1,
         prompt: 'Generate image with gpt-image-2',
         quality: 'auto',
         size: '1024x1024',
@@ -615,6 +656,7 @@ describe('createOpenAICompatibleImage', () => {
 
       expect(mockClient.images.generate).toHaveBeenCalledWith({
         model: 'gpt-image-2-2026-04-21',
+        n: 1,
         prompt: 'Generate image with gpt-image-2 snapshot',
         size: '1024x1024',
       });
@@ -660,7 +702,7 @@ describe('createOpenAICompatibleImage', () => {
       expect(editOptions.model).toBe('gpt-image-2');
       expect(editOptions.size).toBe('1024x1024');
       expect(editOptions.input_fidelity).toBeUndefined();
-      expect(editOptions.n).toBeUndefined();
+      expect(editOptions.n).toBe(1);
     });
 
     it('should map Nano Banana image parameters for compatible upstreams', async () => {

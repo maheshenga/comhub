@@ -9,8 +9,31 @@ import { type AiProviderDetailItem, type AiProviderRuntimeState } from '@/types/
 
 import { aiProviderRouter } from '../aiProvider';
 
+const planRuleMocks = vi.hoisted(() => ({
+  isModelAllowedByPlanRules: vi.fn<
+    (
+      rules: unknown,
+      modelId: string | null | undefined,
+      modelType: string,
+      groupKey?: string | null,
+    ) => boolean
+  >(() => true),
+  resolvePlanModelRules: vi.fn<() => Promise<unknown>>(async () => null),
+}));
+
+const runtimeMocks = vi.hoisted(() => ({
+  initModelRuntimeFromDB: vi.fn(),
+}));
+
+vi.mock('@/business/server/planModelRules', () => ({
+  isModelAllowedByPlanRules: planRuleMocks.isModelAllowedByPlanRules,
+  resolvePlanModelRules: planRuleMocks.resolvePlanModelRules,
+}));
 vi.mock('@/server/globalConfig');
 vi.mock('@/server/modules/KeyVaultsEncrypt');
+vi.mock('@/server/modules/ModelRuntime', () => ({
+  initModelRuntimeFromDB: runtimeMocks.initModelRuntimeFromDB,
+}));
 vi.mock('@/database/repositories/aiInfra');
 vi.mock('@/database/models/aiProvider');
 vi.mock('@/database/models/user');
@@ -18,6 +41,7 @@ vi.mock('@/database/models/user');
 describe('aiProviderRouter', () => {
   const mockUserId = 'test-user-id';
   const mockProviderId = 'test-provider-id';
+  const mockServerDB = { query: {} };
   const mockEncrypt = vi.fn();
   const mockDecrypt = vi.fn();
 
@@ -55,7 +79,36 @@ describe('aiProviderRouter', () => {
   });
 
   const createMockContext = () => ({
+    serverDB: mockServerDB,
     userId: mockUserId,
+  });
+
+  describe('checkProviderConnectivity', () => {
+    it('should initialize NewAPI runtime with the selected check model for model-aware routing', async () => {
+      const mockChat = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
+      const mockGetDetail = vi.fn().mockResolvedValue({
+        ...mockProviderDetail,
+        checkModel: 'gpt-4o-mini',
+      });
+      vi.mocked(AiInfraRepos).prototype.getAiProviderDetail = mockGetDetail;
+      runtimeMocks.initModelRuntimeFromDB.mockResolvedValue({ chat: mockChat });
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      const result = await caller.checkProviderConnectivity({ id: 'newapi' });
+
+      expect(result).toEqual({ model: 'gpt-4o-mini', ok: true });
+      const resolvedDb = runtimeMocks.initModelRuntimeFromDB.mock.calls.at(-1)?.[0];
+      expect(resolvedDb).toBeDefined();
+      expect(runtimeMocks.initModelRuntimeFromDB).toHaveBeenCalledWith(
+        resolvedDb,
+        mockUserId,
+        'newapi',
+        {
+          model: 'gpt-4o-mini',
+          modelType: 'chat',
+        },
+      );
+    });
   });
 
   describe('createAiProvider', () => {
@@ -112,6 +165,34 @@ describe('aiProviderRouter', () => {
   });
 
   describe('getAiProviderRuntimeState', () => {
+    it('should resolve server provider config with request database so DB-managed NewAPI models are available', async () => {
+      const mockGetState = vi.fn().mockResolvedValue(mockRuntimeState);
+      vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = mockGetState;
+      vi.mocked(getServerGlobalConfig).mockResolvedValue({
+        aiProvider: {
+          newapi: {
+            enabled: true,
+            serverModelLists: [{ enabled: true, id: 'deepseek-chat', type: 'chat' }],
+          },
+        },
+      } as any);
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      await caller.getAiProviderRuntimeState({});
+
+      const resolvedDb = vi.mocked(getServerGlobalConfig).mock.calls.at(-1)?.[0];
+      expect(resolvedDb).toBeDefined();
+      expect(AiInfraRepos).toHaveBeenCalledWith(
+        resolvedDb,
+        mockUserId,
+        expect.objectContaining({
+          newapi: expect.objectContaining({
+            serverModelLists: [expect.objectContaining({ id: 'deepseek-chat' })],
+          }),
+        }),
+      );
+    });
+
     it('should get AI provider runtime state', async () => {
       const mockGetState = vi.fn().mockResolvedValue(mockRuntimeState);
       vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = mockGetState;
@@ -121,6 +202,44 @@ describe('aiProviderRouter', () => {
 
       expect(result).toEqual(mockRuntimeState);
       expect(mockGetState).toHaveBeenCalledWith(KeyVaultsGateKeeper.getUserKeyVaults);
+    });
+
+    it('should filter enabled models and providers by current plan model rules', async () => {
+      const state: AiProviderRuntimeState = {
+        enabledAiModels: [
+          { enabled: true, id: 'free-chat', providerId: 'newapi', type: 'chat' } as any,
+          { enabled: true, id: 'pro-chat', providerId: 'newapi', type: 'chat' } as any,
+          { enabled: true, id: 'free-image', providerId: 'newapi', type: 'image' } as any,
+          { enabled: true, id: 'pro-video', providerId: 'newapi', type: 'video' } as any,
+        ],
+        enabledAiProviders: [{ id: 'newapi', name: 'NewAPI', source: 'builtin' }],
+        enabledChatAiProviders: [{ id: 'newapi', name: 'NewAPI', source: 'builtin' }],
+        enabledImageAiProviders: [{ id: 'newapi', name: 'NewAPI', source: 'builtin' }],
+        enabledVideoAiProviders: [{ id: 'newapi', name: 'NewAPI', source: 'builtin' }],
+        runtimeConfig: {},
+      } as any;
+      const rules = {
+        chat: { allowlist: ['free-chat'], mode: 'allowlist' },
+        image: { allowlist: ['free-image'], mode: 'allowlist' },
+        video: { allowlist: [], mode: 'allowlist' },
+      };
+      vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = vi
+        .fn()
+        .mockResolvedValue(state);
+      planRuleMocks.resolvePlanModelRules.mockResolvedValue(rules);
+      planRuleMocks.isModelAllowedByPlanRules.mockImplementation(
+        (_rules, modelId, modelType) =>
+          (modelType === 'chat' && modelId === 'free-chat') ||
+          (modelType === 'image' && modelId === 'free-image'),
+      );
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      const result = await caller.getAiProviderRuntimeState({});
+
+      expect(result.enabledAiModels.map((m) => m.id)).toEqual(['free-chat', 'free-image']);
+      expect(result.enabledChatAiProviders.map((p) => p.id)).toEqual(['newapi']);
+      expect(result.enabledImageAiProviders.map((p) => p.id)).toEqual(['newapi']);
+      expect(result.enabledVideoAiProviders).toEqual([]);
     });
   });
 

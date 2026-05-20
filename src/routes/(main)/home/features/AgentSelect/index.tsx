@@ -14,6 +14,8 @@ import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useGlobalStore } from '@/store/global';
 import { useHomeStore } from '@/store/home';
 import { homeAgentListSelectors } from '@/store/home/selectors';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 import AgentList from './AgentList';
 import { useResolvedHomeAgentId } from './useResolvedHomeAgentId';
@@ -44,6 +46,7 @@ const AgentSelect = memo(() => {
 
   const isLoading = useAgentStore(agentSelectors.isAgentConfigLoading);
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
   const updateSystemStatus = useGlobalStore((s) => s.updateSystemStatus);
 
   const { agentId: resolvedAgentId, isInbox: isInboxDisplay } = useResolvedHomeAgentId();
@@ -58,11 +61,16 @@ const AgentSelect = memo(() => {
 
   const displayMeta = isInboxDisplay ? inboxMeta : (sidebarItem ?? agentMapMeta);
 
-  const fallbackTitle = isInboxDisplay ? 'Lobe AI' : t('defaultSession', { ns: 'common' });
+  const fallbackTitle = isInboxDisplay
+    ? defaultAgentMeta.title || '青柚助手'
+    : t('defaultSession', { ns: 'common' });
   const displayTitle = displayMeta?.title || fallbackTitle;
+  const displayMetaAvatar =
+    typeof displayMeta?.avatar === 'string' ? displayMeta.avatar : undefined;
   const displayAvatar =
-    (typeof displayMeta?.avatar === 'string' ? displayMeta.avatar : undefined) ||
-    (isInboxDisplay ? DEFAULT_INBOX_AVATAR : DEFAULT_AVATAR);
+    isInboxDisplay && (!displayMetaAvatar || displayMetaAvatar === DEFAULT_INBOX_AVATAR)
+      ? defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR
+      : displayMetaAvatar || DEFAULT_AVATAR;
   const displayBackground = displayMeta?.backgroundColor || undefined;
 
   const handleSelect = (agentId: string) => {

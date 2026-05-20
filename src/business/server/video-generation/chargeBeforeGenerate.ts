@@ -5,7 +5,7 @@ import {
   estimateVideoCharge,
   resolveGenerationPricingMultiplier,
 } from '@/business/server/generationBilling';
-import { CommercialModel } from '@/database/models/commercial';
+import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
 import type { NewGeneration, NewGenerationBatch } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 import type { CreateVideoServicePayload } from '@/server/routers/lambda/video';
@@ -16,6 +16,7 @@ interface ChargeParams {
   model: string;
   params: CreateVideoServicePayload['params'];
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   userId: string;
 }
 
@@ -33,14 +34,19 @@ interface ChargeBeforeResult {
 }
 
 export async function chargeBeforeGenerate(params: ChargeParams): Promise<ChargeBeforeResult> {
-  const { provider, userId, db, model, params: generationParams } = params;
+  const { provider, userId, db, model, params: generationParams, routeMetadata } = params;
 
   const shouldCharge = await shouldChargeCommercialUsage({ db: db!, provider, userId });
   if (!shouldCharge) return {};
 
   const pricing = await getModelPricing(model, provider);
   const { estimatedCredits, totalCost } = estimateVideoCharge(pricing, generationParams);
-  const multiplier = await resolveGenerationPricingMultiplier({ db, model, provider });
+  const multiplier = await resolveGenerationPricingMultiplier({
+    db,
+    model,
+    provider,
+    routeMetadata,
+  });
   const adjustedCredits = Math.ceil(estimatedCredits * multiplier);
 
   const commercialModel = new CommercialModel(db!, userId);

@@ -1,6 +1,6 @@
 import { type BuiltinAgentSlug } from '@lobechat/builtin-agents';
 import { BUILTIN_AGENTS } from '@lobechat/builtin-agents';
-import { DEFAULT_AGENT_CONFIG } from '@lobechat/const';
+import { DEFAULT_AGENT_CONFIG, INBOX_SESSION_ID } from '@lobechat/const';
 import { type LobeChatDatabase } from '@lobechat/database';
 import { type AgentItem, type LobeAgentConfig } from '@lobechat/types';
 import { cleanObject, merge } from '@lobechat/utils';
@@ -19,6 +19,7 @@ import {
   RedisKeys,
 } from '@/libs/redis';
 import { getServerDefaultAgentConfig } from '@/server/globalConfig';
+import { getServerDefaultAgentSettingOverrides } from '@/server/services/appSettings';
 
 import { type UpdateAgentResult } from './type';
 
@@ -56,7 +57,10 @@ export class AgentService {
 
   async createInbox() {
     const sessionModel = new SessionModel(this.db, this.userId);
-    const defaultAgentConfig = getServerDefaultAgentConfig();
+    const defaultAgentConfig = merge(
+      getServerDefaultAgentConfig(),
+      await getServerDefaultAgentSettingOverrides(this.db),
+    );
     await sessionModel.createInbox(defaultAgentConfig);
   }
 
@@ -79,7 +83,7 @@ export class AgentService {
       this.userModel.getUserSettingsDefaultAgentConfig(),
     ]);
 
-    const mergedConfig = this.mergeDefaultConfig(agent, defaultAgentConfig);
+    const mergedConfig = await this.mergeDefaultConfig(agent, defaultAgentConfig);
     if (!mergedConfig) return null;
 
     // Use builtin avatar as fallback only when DB has no custom avatar
@@ -107,7 +111,7 @@ export class AgentService {
       this.userModel.getUserSettingsDefaultAgentConfig(),
     ]);
 
-    return this.mergeDefaultConfig(agent, defaultAgentConfig) as AgentConfigWithId | null;
+    return (await this.mergeDefaultConfig(agent, defaultAgentConfig)) as AgentConfigWithId | null;
   }
 
   /**
@@ -127,7 +131,7 @@ export class AgentService {
       this.getAgentWelcomeFromRedis(agentId),
     ]);
 
-    const config = this.mergeDefaultConfig(agent, defaultAgentConfig);
+    const config = await this.mergeDefaultConfig(agent, defaultAgentConfig);
     if (!config) return null;
 
     // Merge AI-generated welcome data if available
@@ -170,13 +174,18 @@ export class AgentService {
    * Merge order (later values override earlier):
    * 1. DEFAULT_AGENT_CONFIG - hardcoded defaults
    * 2. serverDefaultAgentConfig - from environment variable
-   * 3. userDefaultAgentConfig - from user settings (defaultAgent.config)
-   * 4. agent - actual agent config from database
+   * 3. adminDefaultAgentConfig - from backend app settings
+   * 4. userDefaultAgentConfig - from user settings (defaultAgent.config)
+   * 5. agent - actual agent config from database
+   *
+   * Inbox applies adminDefaultAgentConfig again at the end so the global
+   * assistant model/name/avatar set by administrators cannot be shadowed by
+   * stale persisted inbox rows.
    */
-  private mergeDefaultConfig(
+  private async mergeDefaultConfig(
     agent: any,
     defaultAgentConfig: Awaited<ReturnType<UserModel['getUserSettingsDefaultAgentConfig']>>,
-  ): LobeAgentConfig | null {
+  ): Promise<LobeAgentConfig | null> {
     if (!agent) return null;
 
     const userDefaultAgentConfig =
@@ -184,10 +193,15 @@ export class AgentService {
 
     // Merge configs in order: DEFAULT -> server -> user -> agent
     const serverDefaultAgentConfig = getServerDefaultAgentConfig();
+    const adminDefaultAgentConfig = await getServerDefaultAgentSettingOverrides(this.db);
     const baseConfig = merge(DEFAULT_AGENT_CONFIG, serverDefaultAgentConfig);
-    const withUserConfig = merge(baseConfig, userDefaultAgentConfig);
+    const withAdminConfig = merge(baseConfig, adminDefaultAgentConfig);
+    const withUserConfig = merge(withAdminConfig, userDefaultAgentConfig);
+    const mergedConfig = merge(withUserConfig, cleanObject(agent));
 
-    return merge(withUserConfig, cleanObject(agent));
+    return agent.slug === INBOX_SESSION_ID
+      ? merge(mergedConfig, adminDefaultAgentConfig)
+      : mergedConfig;
   }
 
   /**

@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { REQUEST_ASSISTANT_MESSAGE_ID_HEADER, REQUEST_OPERATION_ID_HEADER } from '@lobechat/const';
 import { type LobeRuntimeAI } from '@lobechat/model-runtime';
 import { ModelRuntime } from '@lobechat/model-runtime';
 import { ChatErrorType } from '@lobechat/types';
@@ -66,6 +67,10 @@ describe('POST handler', () => {
         expect.anything(),
         'test-user-id',
         'test-provider',
+        {
+          model: 'test-model',
+          modelType: 'chat',
+        },
       );
     });
 
@@ -101,6 +106,42 @@ describe('POST handler', () => {
 
       expect(response).toEqual(mockChatResponse);
       expect(mockRuntime.chat).toHaveBeenCalledWith(mockChatPayload, {
+        user: 'test-user-id',
+        signal: expect.anything(),
+      });
+    });
+
+    it('should pass billing metadata from request headers without mutating provider payload', async () => {
+      const mockParams = Promise.resolve({ provider: 'test-provider' });
+      const mockChatPayload = {
+        messages: [{ content: 'Hello', role: 'user' }],
+        model: 'gpt-4o-mini',
+      };
+      request = new Request(new URL('https://test.com'), {
+        method: 'POST',
+        body: JSON.stringify(mockChatPayload),
+        headers: {
+          [REQUEST_ASSISTANT_MESSAGE_ID_HEADER]: 'assistant-message-1',
+          [REQUEST_OPERATION_ID_HEADER]: 'operation-1',
+        },
+      });
+
+      const mockChatResponse: any = { success: true, message: 'Reply from agent' };
+      const mockRuntime: LobeRuntimeAI = {
+        baseURL: 'abc',
+        chat: vi.fn().mockResolvedValue(mockChatResponse),
+      };
+
+      vi.mocked(initModelRuntimeFromDB).mockResolvedValue(new ModelRuntime(mockRuntime));
+
+      const response = await POST(request as unknown as Request, { params: mockParams });
+
+      expect(response).toEqual(mockChatResponse);
+      expect(mockRuntime.chat).toHaveBeenCalledWith(mockChatPayload, {
+        metadata: {
+          assistantMessageId: 'assistant-message-1',
+          operationId: 'operation-1',
+        },
         user: 'test-user-id',
         signal: expect.anything(),
       });

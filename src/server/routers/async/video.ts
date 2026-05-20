@@ -20,6 +20,7 @@ import { GenerationModel } from '@/database/models/generation';
 import { asyncAuthedProcedure, asyncRouter as router } from '@/libs/trpc/async';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { VideoGenerationService } from '@/server/services/generation/video';
+import { resolveNewapiRouteMetadataForModel } from '@/server/services/newapiInstance';
 import { FileSource } from '@/types/files';
 import { sanitizeFileName } from '@/utils/sanitizeFileName';
 
@@ -59,7 +60,11 @@ async function pollUntilCompletion(
   modelRuntime: any,
   inferenceId: string,
   signal: AbortSignal,
-): Promise<{ headers?: Record<string, string>; videoUrl: string } | null> {
+): Promise<{
+  headers?: Record<string, string>;
+  usage?: { completionTokens: number; totalTokens: number };
+  videoUrl: string;
+} | null> {
   const maxRetries = 120;
   const pollingInterval = 5000;
 
@@ -73,7 +78,7 @@ async function pollUntilCompletion(
 
       if (result.status === 'success') {
         log('Video generation succeeded for inferenceId: %s', inferenceId);
-        return { headers: result.headers, videoUrl: result.videoUrl };
+        return { headers: result.headers, usage: result.usage, videoUrl: result.videoUrl };
       }
 
       if (result.status === 'failed') {
@@ -144,6 +149,14 @@ export const videoRouter = router({
     });
 
     const { resolvedModelId } = await resolveBusinessModelMapping(provider, model);
+    const routeMetadata =
+      provider === 'newapi'
+        ? await resolveNewapiRouteMetadataForModel(ctx.serverDB, {
+            modelId: resolvedModelId,
+            modelType: 'video',
+            userId: ctx.userId,
+          })
+        : undefined;
 
     const abortController = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -224,6 +237,7 @@ export const videoRouter = router({
               metadata: {
                 asyncTaskId,
                 generationBatchId,
+                ...(routeMetadata ? { routeMetadata } : {}),
                 topicId: generationTopicId,
                 ...buildMappedBusinessModelFields({
                   provider,
@@ -234,7 +248,8 @@ export const videoRouter = router({
               model: resolvedModelId,
               prechargeResult,
               provider,
-              usage: undefined,
+              usage: pollResult.usage,
+              db: ctx.serverDB,
               userId: ctx.userId,
             });
             log('Charge completed successfully for asyncTask: %s', asyncTaskId);
@@ -300,6 +315,7 @@ export const videoRouter = router({
             metadata: {
               asyncTaskId,
               generationBatchId,
+              ...(routeMetadata ? { routeMetadata } : {}),
               topicId: generationTopicId,
               ...buildMappedBusinessModelFields({
                 provider,
@@ -310,6 +326,7 @@ export const videoRouter = router({
             model: resolvedModelId,
             prechargeResult,
             provider,
+            db: ctx.serverDB,
             userId: ctx.userId,
           });
           log('Precharge refunded successfully for asyncTask: %s', asyncTaskId);

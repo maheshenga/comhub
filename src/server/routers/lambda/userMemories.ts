@@ -1,4 +1,3 @@
-import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import {
   DEFAULT_SEARCH_USER_MEMORY_TOP_K,
   DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM,
@@ -169,11 +168,10 @@ const getEmbeddingRuntime = async (serverDB: LobeChatDatabase, userId: string) =
     (await getResolvedServerDefaultFilesConfig(serverDB)).embeddingModel ||
     DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
   // Read user's provider config from database
-  const agentRuntime = await initModelRuntimeFromDB(
-    serverDB,
-    userId,
-    ENABLE_BUSINESS_FEATURES ? BRANDING_PROVIDER : provider,
-  );
+  const agentRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
+    model: embeddingModel,
+    modelType: 'embedding',
+  });
 
   return { agentRuntime, embeddingModel };
 };

@@ -5,7 +5,7 @@ import {
   resolveGenerationPricingMultiplier,
   resolveImageChargeCredits,
 } from '@/business/server/generationBilling';
-import { CommercialModel } from '@/database/models/commercial';
+import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
 import { type ModelPerformance, type ModelUsage } from '@/types/index';
 
@@ -16,6 +16,7 @@ interface ChargeParams {
     asyncTaskId: string;
     generationBatchId: string;
     modelId: string;
+    routeMetadata?: AiUsageRouteMetadata;
     topicId?: string;
   };
   metrics?: ModelPerformance;
@@ -45,6 +46,7 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
     db,
     model: metadata.modelId,
     provider,
+    routeMetadata: metadata.routeMetadata,
   });
   const credits = Math.ceil(baseCredits * multiplier);
 
@@ -57,10 +59,11 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
       batchId: metadata.generationBatchId,
       ...(metrics?.latency !== undefined ? { latency: metrics.latency } : {}),
       ...(modelUsage ? { modelUsage } : {}),
+      ...(metadata.routeMetadata ? { routeMetadata: metadata.routeMetadata } : {}),
     },
     model: metadata.modelId,
     provider,
-    referenceId: metadata.generationBatchId,
+    referenceId: metadata.asyncTaskId,
     referenceType: 'image_generation',
     source: 'image',
     title: 'Image Generation',

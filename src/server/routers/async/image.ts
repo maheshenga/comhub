@@ -27,6 +27,7 @@ import { GenerationBatchModel } from '@/database/models/generationBatch';
 import { asyncAuthedProcedure, asyncRouter as router } from '@/libs/trpc/async';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { GenerationService } from '@/server/services/generation';
+import { resolveNewapiRouteMetadataForModel } from '@/server/services/newapiInstance';
 import { sanitizeFileName } from '@/utils/sanitizeFileName';
 
 import { getContentPolicyErrorMessage } from './contentPolicyError';
@@ -272,6 +273,14 @@ export const imageRouter = router({
             provider,
             model,
           );
+          const routeMetadata =
+            provider === 'newapi'
+              ? await resolveNewapiRouteMetadataForModel(ctx.serverDB, {
+                  modelId: resolvedModelId,
+                  modelType: 'image',
+                  userId: ctx.userId,
+                })
+              : undefined;
 
           // Read user's provider config from database
           const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
@@ -408,6 +417,7 @@ export const imageRouter = router({
                 asyncTaskId: taskId,
                 generationBatchId,
                 topicId: generationTopicId,
+                ...(routeMetadata ? { routeMetadata } : {}),
                 ...buildMappedBusinessModelFields({
                   provider,
                   requestedModelId,
@@ -416,6 +426,7 @@ export const imageRouter = router({
               },
               modelUsage,
               provider,
+              db: ctx.serverDB,
               userId: ctx.userId,
             });
           }

@@ -175,7 +175,7 @@ export class AiInfraRepos {
   getUserEnabledProviderList = async () => {
     const list = await this.getAiProviderList();
     return list
-      .filter((item) => item.enabled)
+      .filter((item) => item.enabled && item.id !== BRANDING_PROVIDER)
       .sort((a, b) => a.sort! - b.sort!)
       .map(
         (item): EnabledProvider => ({
@@ -195,7 +195,9 @@ export class AiInfraRepos {
       this.getAiProviderList(),
       this.aiModelModel.getAllModels(),
     ]);
-    const enabledProviders = providers.filter((item) => (filterEnabled ? item.enabled : true));
+    const enabledProviders = providers.filter(
+      (item) => item.id !== BRANDING_PROVIDER && (filterEnabled ? item.enabled : true),
+    );
 
     const builtinModelList = await pMap(
       enabledProviders,
@@ -418,8 +420,8 @@ export class AiInfraRepos {
       if (builtinType) m.type = builtinType;
     }
 
-    // Filter out DB residual models that are no longer in the builtin list for branding provider
-    if (providerId === BRANDING_PROVIDER) {
+    // Branding provider may be DB-backed; prune only when there is a builtin allowlist.
+    if (providerId === BRANDING_PROVIDER && defaultModels.length > 0) {
       const builtinIds = new Set(defaultModels.map((m) => m.id));
       mergedModel = mergedModel.filter((m) => builtinIds.has(m.id));
     }

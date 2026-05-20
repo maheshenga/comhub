@@ -25,7 +25,10 @@ vi.mock('@/business/server/commercialBilling', () => ({
 }));
 
 vi.mock('@/server/services/appSettings', () => ({
-  APP_SETTING_KEYS: { pricingCreditMultiplier: 'pricing.creditMultiplier' },
+  APP_SETTING_KEYS: {
+    pricingCreditMultiplier: 'pricing.creditMultiplier',
+    pricingModelRules: 'pricing.modelRules',
+  },
   getAppSettingValue: mocks.getAppSettingValue,
 }));
 
@@ -69,5 +72,29 @@ describe('video chargeBeforeGenerate', () => {
     expect(mocks.preCharge).toHaveBeenCalledWith(577_500, {});
     expect(result.prechargeResult?.estimatedCredits).toBe(577_500);
     expect(result.prechargeResult?.costDetail?.totalCost).toBe(0.25);
+  });
+
+  it('checks video budget with NewAPI route metadata pricing', async () => {
+    mocks.getAppSettingValue.mockImplementation(async (key: string) =>
+      key === 'pricing.creditMultiplier'
+        ? 1
+        : [{ group: 'pro', model: 'veo3.1-fast', multiplier: 2, provider: 'newapi' }],
+    );
+
+    const result = await chargeBeforeGenerate({
+      db: {} as any,
+      generationTopicId: 'topic-1',
+      model: 'veo3.1-fast',
+      params: { prompt: 'make a video' },
+      provider: 'newapi',
+      routeMetadata: {
+        groupKey: 'pro',
+        groupMultiplier: 1.5,
+      },
+      userId: 'user-1',
+    });
+
+    expect(mocks.preCharge).toHaveBeenCalledWith(750_000, {});
+    expect(result.prechargeResult?.estimatedCredits).toBe(750_000);
   });
 });

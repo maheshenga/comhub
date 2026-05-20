@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AiModelModel } from '@/database/models/aiModel';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
+import { getServerGlobalConfig } from '@/server/globalConfig';
 
 import { aiModelRouter } from '../aiModel';
 
@@ -24,6 +25,7 @@ vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
 
 describe('aiModelRouter', () => {
   const mockCtx = {
+    serverDB: { query: {} },
     userId: 'test-user',
   };
 
@@ -94,6 +96,41 @@ describe('aiModelRouter', () => {
       limit: undefined,
       offset: undefined,
     });
+  });
+
+  it('should resolve server provider config with request database for DB-managed model lists', async () => {
+    const mockModelList = [{ id: 'newapi-chat', name: 'NewAPI Chat' }];
+    const mockGetList = vi.fn().mockResolvedValue(mockModelList);
+    vi.mocked(getServerGlobalConfig).mockResolvedValue({
+      aiProvider: {
+        newapi: {
+          enabled: true,
+          serverModelLists: [{ enabled: true, id: 'newapi-chat', type: 'chat' }],
+        },
+      },
+    } as any);
+    vi.mocked(AiInfraRepos).mockImplementation(
+      () =>
+        ({
+          getAiProviderModelList: mockGetList,
+        }) as any,
+    );
+
+    const caller = aiModelRouter.createCaller(mockCtx);
+    const result = await caller.getAiProviderModelList({ id: 'newapi' });
+
+    expect(result).toEqual(mockModelList);
+    const resolvedDb = vi.mocked(getServerGlobalConfig).mock.calls.at(-1)?.[0];
+    expect(resolvedDb).toBeDefined();
+    expect(AiInfraRepos).toHaveBeenCalledWith(
+      resolvedDb,
+      mockCtx.userId,
+      expect.objectContaining({
+        newapi: expect.objectContaining({
+          serverModelLists: [expect.objectContaining({ id: 'newapi-chat' })],
+        }),
+      }),
+    );
   });
 
   it('should remove ai model', async () => {

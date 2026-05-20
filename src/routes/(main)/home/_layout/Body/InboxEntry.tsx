@@ -12,6 +12,8 @@ import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { operationSelectors } from '@/store/chat/selectors';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 import { isModifierClick } from '@/utils/navigation';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -45,12 +47,16 @@ const InboxEntry = memo(() => {
   const navigate = useNavigate();
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
   const inboxMeta = useAgentStore(agentSelectors.getAgentMetaById(inboxAgentId!));
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
   const isLoading = useChatStore(
     inboxAgentId ? operationSelectors.isAgentRunning(inboxAgentId) : () => false,
   );
 
-  const title = inboxMeta.title || 'Lobe AI';
-  const avatar = inboxMeta.avatar || DEFAULT_INBOX_AVATAR;
+  const title = inboxMeta.title || defaultAgentMeta.title || '青柚助手';
+  const avatar =
+    inboxMeta.avatar && inboxMeta.avatar !== DEFAULT_INBOX_AVATAR
+      ? inboxMeta.avatar
+      : defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR;
   const url = SESSION_CHAT_URL(inboxAgentId, false);
 
   const avatarNode = <Avatar emojiScaleWithBackground avatar={avatar} shape={'square'} size={24} />;

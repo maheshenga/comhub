@@ -10,7 +10,7 @@ import {
 import type { ModelUsage } from '@lobechat/types';
 import type { Pricing } from 'model-bank';
 
-import { resolveAiUsagePricing } from '@/database/models/commercial';
+import { type AiUsageRouteMetadata, resolveAiUsagePricing } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
 import { APP_SETTING_KEYS, getAppSettingValue } from '@/server/services/appSettings';
 
@@ -38,10 +38,12 @@ export const resolveGenerationPricingMultiplier = async ({
   db,
   model,
   provider,
+  routeMetadata,
 }: {
   db?: LobeChatDatabase;
   model: string;
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
 }) => {
   if (!db) return 1;
 
@@ -57,8 +59,12 @@ export const resolveGenerationPricingMultiplier = async ({
     resolveAiUsagePricing({
       globalMultiplier:
         Number.isFinite(globalMultiplier) && globalMultiplier > 0 ? globalMultiplier : 1,
+      groupKey: routeMetadata?.groupKey,
+      groupMultiplier: routeMetadata?.groupMultiplier,
+      instanceId: routeMetadata?.instanceId,
       model,
       provider,
+      providerType: routeMetadata?.providerType,
       rules,
     }).multiplier ?? 1
   );
@@ -147,22 +153,39 @@ export const resolveVideoChargeCredits = ({
   pricing?: Pricing;
   usage?: { completionTokens: number; totalTokens: number };
 }): number => {
+  return resolveVideoChargeCreditResult({ computePriceParams, prechargeResult, pricing, usage })
+    .credits;
+};
+
+export type VideoChargeCreditSource = 'estimate' | 'precharge' | 'usage';
+
+export const resolveVideoChargeCreditResult = ({
+  computePriceParams,
+  prechargeResult,
+  pricing,
+  usage,
+}: {
+  computePriceParams?: VideoGenerationParams;
+  prechargeResult?: Record<string, unknown>;
+  pricing?: Pricing;
+  usage?: { completionTokens: number; totalTokens: number };
+}): { credits: number; source: VideoChargeCreditSource } => {
   if (pricing && usage?.completionTokens !== undefined) {
     const exactCost = computeVideoCost(pricing, usage.completionTokens, computePriceParams ?? {});
     if (exactCost) {
-      return exactCost.totalCredits;
+      return { credits: exactCost.totalCredits, source: 'usage' };
     }
   }
 
   const prechargeCredits = (prechargeResult as any)?.costDetail?.totalCredits;
   if (Number.isFinite(prechargeCredits)) {
-    return Number(prechargeCredits);
+    return { credits: Number(prechargeCredits), source: 'precharge' };
   }
 
   if (Number.isFinite((prechargeResult as any)?.estimatedCredits)) {
-    return Number((prechargeResult as any).estimatedCredits);
+    return { credits: Number((prechargeResult as any).estimatedCredits), source: 'precharge' };
   }
 
   const estimated = estimateVideoCharge(pricing, computePriceParams ?? {});
-  return estimated.estimatedCredits;
+  return { credits: estimated.estimatedCredits, source: 'estimate' };
 };

@@ -4,6 +4,7 @@ import isEqual from 'fast-deep-equal';
 import { type ReactNode, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useBrandName, useDefaultSkillName } from '@/features/Brand';
 import { useToolStore } from '@/store/tool';
 
 import { DetailContext, type DetailContextValue } from './DetailContext';
@@ -18,6 +19,8 @@ export const BuiltinAgentSkillDetailProvider = ({
   identifier,
 }: BuiltinAgentSkillDetailProviderProps) => {
   const { t } = useTranslation(['setting']);
+  const brandName = useBrandName();
+  const defaultSkillName = useDefaultSkillName();
 
   const builtinSkills = useToolStore((s) => s.builtinSkills, isEqual);
 
@@ -28,8 +31,11 @@ export const BuiltinAgentSkillDetailProvider = ({
 
   if (!skill) return null;
 
+  const fallbackTitle = identifier === 'lobehub' ? defaultSkillName : skill.name;
   const localizedTitle = t(`tools.builtins.${identifier}.title`, {
-    defaultValue: skill.name,
+    brandName: fallbackTitle,
+    defaultSkillName: fallbackTitle,
+    defaultValue: fallbackTitle,
   });
   const localizedDescription = t(`tools.builtins.${identifier}.description`, {
     defaultValue: skill.description,
@@ -39,7 +45,7 @@ export const BuiltinAgentSkillDetailProvider = ({
   });
 
   const value: DetailContextValue = {
-    author: 'LobeHub',
+    author: brandName,
     authorUrl: 'https://lobehub.com',
     config: null as any,
     description: skill.description,

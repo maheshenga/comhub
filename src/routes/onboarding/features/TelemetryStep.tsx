@@ -1,8 +1,7 @@
 'use client';
 
-import { BRANDING_NAME } from '@lobechat/business-const';
 import { type IconProps } from '@lobehub/ui';
-import { Block, Button, Flexbox, Icon, Text } from '@lobehub/ui';
+import { Avatar, Block, Button, Flexbox, Icon, Text } from '@lobehub/ui';
 import { TypewriterEffect } from '@lobehub/ui/awesome';
 import { LoadingDots } from '@lobehub/ui/chat';
 import { Steps, Switch } from 'antd';
@@ -11,9 +10,10 @@ import { BrainIcon, HeartHandshakeIcon, PencilRulerIcon, ShieldCheck } from 'luc
 import { memo, useCallback, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
-import { ProductLogo } from '@/components/Branding';
 import { PRIVACY_URL, TERMS_URL } from '@/const/url';
+import { useBrandName } from '@/features/Brand';
 import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 interface TelemetryStepProps {
   onNext: () => void;
@@ -25,7 +25,10 @@ const TelemetryStep = memo<TelemetryStepProps>(({ onNext }) => {
   const [check, setCheck] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
   const isNavigatingRef = useRef(false);
+  const brandName = useBrandName();
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
   const updateGeneralConfig = useUserStore((s) => s.updateGeneralConfig);
+  const assistantName = defaultAgentMeta.title || brandName;
 
   const handleChoice = useCallback(
     (enabled: boolean) => {
@@ -57,7 +60,7 @@ const TelemetryStep = memo<TelemetryStepProps>(({ onNext }) => {
 
   return (
     <Flexbox gap={16}>
-      <ProductLogo size={64} />
+      <Avatar avatar={defaultAgentMeta.avatar || assistantName} size={64} />
       <Flexbox style={{ marginBottom: 16 }}>
         <Text as={'h1'} fontSize={28} weight={'bold'}>
           <TypewriterEffect
@@ -70,7 +73,7 @@ const TelemetryStep = memo<TelemetryStepProps>(({ onNext }) => {
             pauseDuration={16_000}
             typingSpeed={64}
             sentences={[
-              t('telemetry.title', { name: 'Lobe AI' }),
+              t('telemetry.title', { name: assistantName }),
               t('telemetry.title2'),
               t('telemetry.title3'),
             ]}
@@ -125,12 +128,12 @@ const TelemetryStep = memo<TelemetryStepProps>(({ onNext }) => {
       />
       <Flexbox gap={8}>
         <Text as={'p'} color={cssVar.colorTextSecondary}>
-          {t('telemetry.rows.privacy.desc', { appName: BRANDING_NAME })}
+          {t('telemetry.rows.privacy.desc', { appName: brandName })}
         </Text>
         <Flexbox horizontal align="center" gap={8}>
           <Switch checked={check} size={'small'} onChange={(v) => setCheck(v)} />
           <Text fontSize={12} type={check ? undefined : 'secondary'}>
-            {t('telemetry.rows.privacy.title', { appName: BRANDING_NAME })}
+            {t('telemetry.rows.privacy.title', { appName: brandName })}
           </Text>
         </Flexbox>
       </Flexbox>

@@ -31,7 +31,14 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings }) => {
     if (dateStrings) {
       mutate();
     }
-  }, [dateStrings]);
+  }, [dateStrings, mutate]);
+
+  const typeLabels: Record<string, string> = {
+    chat: t('usage.type.chat', { defaultValue: '对话' }),
+    image: t('usage.type.image', { defaultValue: '图片' }),
+    ppt: t('usage.type.ppt', { defaultValue: 'PPT' }),
+    video: t('usage.type.video', { defaultValue: '视频' }),
+  };
 
   const columns: TableColumnType<any>[] = [
     {
@@ -62,16 +69,11 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings }) => {
     },
     {
       dataIndex: 'type',
-      filters: [
-        {
-          text: 'Chat',
-          value: 'chat',
-        },
-      ],
+      filters: Object.entries(typeLabels).map(([value, text]) => ({ text, value })),
       key: 'type',
-      onFilter: (value, record) => record.callType === value,
+      onFilter: (value, record) => record.type === value,
       render: (value) => {
-        return <Tag>{value}</Tag>;
+        return <Tag>{typeLabels[value] ?? value}</Tag>;
       },
       title: t('usage.table.type'),
     },

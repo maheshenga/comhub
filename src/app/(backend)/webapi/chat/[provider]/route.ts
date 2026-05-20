@@ -1,5 +1,9 @@
-import { type ChatCompletionErrorPayload } from '@lobechat/model-runtime';
-import { AGENT_RUNTIME_ERROR_SET } from '@lobechat/model-runtime';
+import {
+  REQUEST_ASSISTANT_MESSAGE_ID_HEADER,
+  REQUEST_MESSAGE_ID_HEADER,
+  REQUEST_OPERATION_ID_HEADER,
+} from '@lobechat/const';
+import { AGENT_RUNTIME_ERROR_SET, type ChatCompletionErrorPayload } from '@lobechat/model-runtime';
 import { ChatErrorType } from '@lobechat/types';
 
 import { checkAuth } from '@/app/(backend)/middleware/auth';
@@ -12,16 +16,35 @@ import { getTracePayload } from '@/utils/trace';
 // this enforce user to enable fluid compute
 export const maxDuration = 300;
 
+const getStringHeader = (req: Request, key: string) => {
+  const value = req.headers.get(key);
+  return value?.trim() || undefined;
+};
+
+const getRequestMetadata = (req: Request) => {
+  const metadata = {
+    messageId: getStringHeader(req, REQUEST_MESSAGE_ID_HEADER),
+    assistantMessageId: getStringHeader(req, REQUEST_ASSISTANT_MESSAGE_ID_HEADER),
+    operationId: getStringHeader(req, REQUEST_OPERATION_ID_HEADER),
+  };
+
+  const entries = Object.entries(metadata).filter(([, value]) => value);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+};
+
 export const POST = checkAuth(async (req: Request, { params, userId, serverDB }) => {
   const provider = (await params)!.provider!;
 
   try {
+    const data = (await req.json()) as ChatStreamPayload;
+
     // ============  1. init chat model   ============ //
-    const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider);
+    const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
+      model: data.model,
+      modelType: 'chat',
+    });
 
     // ============  2. create chat completion   ============ //
-
-    const data = (await req.json()) as ChatStreamPayload;
 
     const tracePayload = getTracePayload(req);
 
@@ -31,7 +54,10 @@ export const POST = checkAuth(async (req: Request, { params, userId, serverDB })
       traceOptions = createTraceOptions(data, { provider, trace: tracePayload });
     }
 
+    const metadata = getRequestMetadata(req);
+
     return await modelRuntime.chat(data, {
+      ...(metadata && { metadata }),
       user: userId,
       ...traceOptions,
       signal: req.signal,

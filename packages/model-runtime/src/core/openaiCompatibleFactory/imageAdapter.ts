@@ -24,8 +24,8 @@ const OPENAI_IMAGE_MODEL_ADAPTERS: Record<string, OpenAIImageModelAdapter> = {
   },
   'gpt-image-2': {
     defaultSize: '1024x1024',
-    omitParams: ['input_fidelity', 'n', 'response_format', 'style'],
-    supportedParams: ['image', 'model', 'prompt', 'quality', 'size'],
+    omitParams: ['input_fidelity', 'response_format', 'style'],
+    supportedParams: ['image', 'model', 'n', 'prompt', 'quality', 'size'],
   },
   'qwen-image-edit': {
     omitParams: ['input_fidelity', 'n', 'response_format', 'size', 'style'],

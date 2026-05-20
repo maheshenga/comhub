@@ -861,6 +861,13 @@
       "when": 1778389200000,
       "tag": "0121_add_vector_quota",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1778392800000,
+      "tag": "0122_add_generation_ledger_unique_dedup",
+      "breakpoints": true
     }
   ],
   "version": "6"

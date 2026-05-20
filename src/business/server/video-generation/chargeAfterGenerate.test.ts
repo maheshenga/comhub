@@ -26,7 +26,10 @@ vi.mock('@/business/server/commercialBilling', () => ({
 }));
 
 vi.mock('@/server/services/appSettings', () => ({
-  APP_SETTING_KEYS: { pricingCreditMultiplier: 'pricing.creditMultiplier' },
+  APP_SETTING_KEYS: {
+    pricingCreditMultiplier: 'pricing.creditMultiplier',
+    pricingModelRules: 'pricing.modelRules',
+  },
   getAppSettingValue: mocks.getAppSettingValue,
 }));
 
@@ -45,7 +48,9 @@ describe('video chargeAfterGenerate', () => {
     vi.clearAllMocks();
     mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
     mocks.postCharge.mockResolvedValue({ id: 'ledger-1' });
-    mocks.getAppSettingValue.mockResolvedValue(1.65);
+    mocks.getAppSettingValue.mockImplementation(async (key: string) =>
+      key === 'pricing.creditMultiplier' ? 1.65 : [],
+    );
     mocks.getModelPricing.mockResolvedValue({
       units: [
         {
@@ -78,8 +83,42 @@ describe('video chargeAfterGenerate', () => {
     expect(mocks.postCharge).toHaveBeenCalledWith(
       expect.objectContaining({
         credits: 173_250,
-        referenceId: 'batch-1',
+        referenceId: 'task-1',
         referenceType: 'video_generation',
+      }),
+    );
+  });
+
+  it('applies NewAPI route metadata to video pricing multiplier', async () => {
+    mocks.getAppSettingValue.mockImplementation(async (key: string) =>
+      key === 'pricing.creditMultiplier'
+        ? 1
+        : [{ group: 'pro', model: 'veo3.1-fast', multiplier: 2, provider: 'newapi' }],
+    );
+
+    await chargeAfterGenerate({
+      db: {} as any,
+      computePriceParams: { generateAudio: true, resolution: '720p' },
+      metadata: {
+        asyncTaskId: 'task-1',
+        generationBatchId: 'batch-1',
+        modelId: 'veo3.1-fast',
+        routeMetadata: {
+          groupKey: 'pro',
+          groupMultiplier: 1.5,
+          providerType: 'newapi',
+        },
+      },
+      model: 'veo3.1-fast',
+      prechargeResult: { estimatedCredits: CREDITS_PER_DOLLAR },
+      provider: 'newapi',
+      usage: { completionTokens: 500_000, totalTokens: 500_000 },
+      userId: 'user-1',
+    });
+
+    expect(mocks.postCharge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credits: 315_000,
       }),
     );
   });
@@ -100,7 +139,7 @@ describe('video chargeAfterGenerate', () => {
 
     expect(mocks.postCharge).toHaveBeenCalledWith(
       expect.objectContaining({
-        credits: 99_000,
+        credits: 60_000,
       }),
     );
   });

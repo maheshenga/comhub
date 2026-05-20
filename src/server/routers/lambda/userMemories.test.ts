@@ -372,7 +372,8 @@ describe('userMemories.retrieveMemory', () => {
         }) as any,
     );
 
-    vi.mocked(getServerDB).mockResolvedValue(makeServerDBMock() as any);
+    const dbStub = makeServerDBMock();
+    vi.mocked(getServerDB).mockResolvedValue(dbStub as any);
 
     const caller = userMemoriesRouter.createCaller(mockCtx as any);
 
@@ -381,6 +382,15 @@ describe('userMemories.retrieveMemory', () => {
       topK: { activities: 1, contexts: 1, experiences: 1, identities: 1, preferences: 1 },
     });
 
+    expect(vi.mocked(initModelRuntimeFromDB).mock.calls.at(-1)).toEqual([
+      dbStub,
+      'test-user',
+      'openai',
+      {
+        model: 'text-embedding-3-small',
+        modelType: 'embedding',
+      },
+    ]);
     expect(embeddingsMock).toHaveBeenCalledTimes(1);
     expect(embeddingsMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -611,7 +621,8 @@ describe('userMemories.toolAddActivityMemory', () => {
         }) as any,
     );
 
-    vi.mocked(getServerDB).mockResolvedValue(makeServerDBMock() as any);
+    const dbStub = makeServerDBMock();
+    vi.mocked(getServerDB).mockResolvedValue(dbStub as any);
 
     const caller = userMemoriesRouter.createCaller(mockCtx as any);
 
@@ -641,6 +652,15 @@ describe('userMemories.toolAddActivityMemory', () => {
 
     const result = await caller.toolAddActivityMemory(input as any);
 
+    expect(vi.mocked(initModelRuntimeFromDB).mock.calls.at(-1)).toEqual([
+      dbStub,
+      'test-user',
+      'openai',
+      {
+        model: 'text-embedding-3-small',
+        modelType: 'embedding',
+      },
+    ]);
     expect(createActivityMemory).toHaveBeenCalledTimes(1);
     expect(createActivityMemory).toHaveBeenCalledWith(
       expect.objectContaining({

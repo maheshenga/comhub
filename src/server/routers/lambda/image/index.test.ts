@@ -12,6 +12,8 @@ const {
   mockAsyncTaskModelUpdate,
   mockChargeBeforeGenerate,
   mockCreateAsyncCaller,
+  mockAssertModelPolicyAllowed,
+  mockAssertPlanModelAllowed,
   mockResolveBusinessModelMapping,
 } = vi.hoisted(() => ({
   mockServerDB: {
@@ -22,6 +24,8 @@ const {
   mockAsyncTaskModelUpdate: vi.fn(),
   mockChargeBeforeGenerate: vi.fn(),
   mockCreateAsyncCaller: vi.fn(),
+  mockAssertModelPolicyAllowed: vi.fn(),
+  mockAssertPlanModelAllowed: vi.fn(),
   mockResolveBusinessModelMapping: vi.fn(),
 }));
 
@@ -53,6 +57,14 @@ vi.mock('@/database/models/asyncTask', () => ({
 // Mock chargeBeforeGenerate
 vi.mock('@/business/server/image-generation/chargeBeforeGenerate', () => ({
   chargeBeforeGenerate: (params: any) => mockChargeBeforeGenerate(params),
+}));
+
+vi.mock('@/business/server/modelPolicy', () => ({
+  assertModelPolicyAllowed: (params: any) => mockAssertModelPolicyAllowed(params),
+}));
+
+vi.mock('@/business/server/planModelRules', () => ({
+  assertPlanModelAllowed: (params: any) => mockAssertPlanModelAllowed(params),
 }));
 
 vi.mock('@lobechat/business-model-runtime', async (importOriginal) => ({
@@ -342,6 +354,7 @@ describe('imageRouter', () => {
 
       expect(mockChargeBeforeGenerate).toHaveBeenCalledWith(
         expect.objectContaining({
+          db: mockServerDB,
           generationTopicId: 'topic-1',
           imageNum: 2,
           model: 'stable-diffusion',
@@ -349,6 +362,18 @@ describe('imageRouter', () => {
           userId: mockUserId,
         }),
       );
+      expect(mockAssertModelPolicyAllowed).toHaveBeenCalledWith({
+        db: mockServerDB,
+        model: 'stable-diffusion',
+        provider: 'test-provider',
+        usageType: 'image',
+      });
+      expect(mockAssertPlanModelAllowed).toHaveBeenCalledWith({
+        db: mockServerDB,
+        model: 'stable-diffusion',
+        modelType: 'image',
+        userId: mockUserId,
+      });
     });
 
     it('should trigger async image generation tasks', async () => {

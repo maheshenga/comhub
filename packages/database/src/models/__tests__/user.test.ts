@@ -56,6 +56,8 @@ describe('UserModel', () => {
 
   describe('getUserState', () => {
     it('should return user state with settings', async () => {
+      await serverDB.update(users).set({ role: 'admin' }).where(eq(users.id, userId));
+
       // Create user settings
       await serverDB.insert(userSettings).values({
         id: userId,
@@ -69,6 +71,7 @@ describe('UserModel', () => {
       expect(result.userId).toBe(userId);
       expect(result.email).toBe('test@example.com');
       expect(result.fullName).toBe('Test User');
+      expect(result.role).toBe('admin');
       expect(result.settings.general).toEqual({ fontSize: 14 });
       expect(result.settings.tts).toEqual({ voice: 'default' });
       expect(result.settings.notification).toEqual({ inbox: { enabled: false } });

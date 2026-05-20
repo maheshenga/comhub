@@ -5,7 +5,7 @@ import { Spin } from 'antd';
 import { createStaticStyles, cssVar, cx } from 'antd-style';
 import { Plus, X } from 'lucide-react';
 import type { ChangeEvent, CSSProperties } from 'react';
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import Image from '@/libs/next/Image';
 import { useFileStore } from '@/store/file';
@@ -149,6 +149,25 @@ const UploadCard = memo<UploadCardProps>(
     const uploadWithProgress = useFileStore((s) => s.uploadWithProgress);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+    const uploadPreviewRef = useRef<string | null>(null);
+
+    const updateUploadPreview = useCallback((nextPreview: string | null) => {
+      const currentPreview = uploadPreviewRef.current;
+      if (currentPreview && currentPreview !== nextPreview) {
+        URL.revokeObjectURL(currentPreview);
+      }
+
+      uploadPreviewRef.current = nextPreview;
+      setUploadPreview(nextPreview);
+    }, []);
+
+    useEffect(() => {
+      return () => {
+        if (uploadPreviewRef.current) {
+          URL.revokeObjectURL(uploadPreviewRef.current);
+        }
+      };
+    }, []);
 
     const handleFileSelect = useCallback(() => {
       inputRef.current?.click();
@@ -162,7 +181,7 @@ const UploadCard = memo<UploadCardProps>(
         if (maxFileSize && file.size > maxFileSize) return;
 
         const previewUrl = URL.createObjectURL(file);
-        setUploadPreview(previewUrl);
+        updateUploadPreview(previewUrl);
         setIsUploading(true);
 
         try {
@@ -177,14 +196,15 @@ const UploadCard = memo<UploadCardProps>(
               ? { dimensions: result.dimensions, url: result.url }
               : result.url;
             onUpload(data);
+            updateUploadPreview(null);
           }
+        } catch {
+          // Keep the local blob preview so the user can retry or remove it.
         } finally {
-          URL.revokeObjectURL(previewUrl);
-          setUploadPreview(null);
           setIsUploading(false);
         }
       },
-      [maxFileSize, uploadWithProgress, onUpload],
+      [maxFileSize, uploadWithProgress, onUpload, updateUploadPreview],
     );
 
     const showPreview = uploadPreview || imageUrl;
@@ -251,6 +271,7 @@ const UploadCard = memo<UploadCardProps>(
                 variant="outlined"
                 onClick={(e) => {
                   e.stopPropagation();
+                  updateUploadPreview(null);
                   onRemove();
                 }}
               />

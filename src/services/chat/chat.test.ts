@@ -1,6 +1,10 @@
 import { AgentBuilderIdentifier } from '@lobechat/builtin-tool-agent-builder';
 import { WebBrowsingManifest } from '@lobechat/builtin-tool-web-browsing';
-import { REQUEST_TRIGGER_HEADER } from '@lobechat/const';
+import {
+  REQUEST_ASSISTANT_MESSAGE_ID_HEADER,
+  REQUEST_OPERATION_ID_HEADER,
+  REQUEST_TRIGGER_HEADER,
+} from '@lobechat/const';
 import type { ChatStreamPayload, LobeTool, UIChatMessage } from '@lobechat/types';
 import { ChatErrorType, createVisualFileRef, RequestTrigger } from '@lobechat/types';
 import { act } from '@testing-library/react';
@@ -1719,6 +1723,35 @@ describe('ChatService', () => {
 
       const payload = JSON.parse(mockFetchSSE.mock.calls[0][1].body);
       expect(payload).not.toHaveProperty('requestTrigger');
+      expect(payload).not.toHaveProperty('metadata');
+    });
+
+    it('should send billing metadata as headers without adding it to the model payload', async () => {
+      const params: Partial<ChatStreamPayload> = {
+        messages: [],
+        model: 'test-model',
+      };
+
+      await chatService.getChatCompletion(params, {
+        metadata: {
+          assistantMessageId: 'assistant-message-1',
+          operationId: 'operation-1',
+        },
+      });
+
+      expect(mockFetchSSE).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            [REQUEST_ASSISTANT_MESSAGE_ID_HEADER]: 'assistant-message-1',
+            [REQUEST_OPERATION_ID_HEADER]: 'operation-1',
+          }),
+        }),
+      );
+
+      const payload = JSON.parse(mockFetchSSE.mock.calls[0][1].body);
+      expect(payload).not.toHaveProperty('assistantMessageId');
+      expect(payload).not.toHaveProperty('operationId');
       expect(payload).not.toHaveProperty('metadata');
     });
 

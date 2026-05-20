@@ -16,7 +16,11 @@ describe('UsageRecordService', () => {
     const mockOrderBy = vi.fn().mockResolvedValue(mockMessages);
     const mockWhere = vi.fn().mockReturnValue({ orderBy: mockOrderBy });
     const mockFrom = vi.fn().mockReturnValue({ where: mockWhere });
-    mockDb.select = vi.fn().mockReturnValue({ from: mockFrom });
+    const mockLedgerWhere = vi.fn().mockResolvedValue([]);
+    const mockLedgerFrom = vi.fn().mockReturnValue({ where: mockLedgerWhere });
+    mockDb.select = vi.fn().mockReturnValueOnce({ from: mockFrom }).mockReturnValue({
+      from: mockLedgerFrom,
+    });
   };
 
   beforeEach(() => {
@@ -132,6 +136,154 @@ describe('UsageRecordService', () => {
       const result = await service.findByMonth();
 
       expect(result).toHaveLength(0);
+    });
+
+    it('should use commercial ledger cost when assistant message metadata has no cost', async () => {
+      const mockMessages = [
+        {
+          id: 'msg-1',
+          userId,
+          role: 'assistant',
+          provider: 'newapi',
+          model: 'gpt-4o',
+          createdAt: new Date('2024-01-15'),
+          metadata: {
+            totalInputTokens: 1000,
+            totalOutputTokens: 500,
+          } as MessageMetadata,
+        },
+      ];
+      const mockLedgerRows = [
+        {
+          metadata: { chargedCredits: 120_000, usdCost: 0.12 },
+          referenceId: 'msg-1',
+        },
+      ];
+      const messagesOrderBy = vi.fn().mockResolvedValue(mockMessages);
+      const messagesWhere = vi.fn().mockReturnValue({ orderBy: messagesOrderBy });
+      const messagesFrom = vi.fn().mockReturnValue({ where: messagesWhere });
+      const ledgerWhere = vi.fn().mockResolvedValue(mockLedgerRows);
+      const ledgerFrom = vi.fn().mockReturnValue({ where: ledgerWhere });
+      const generationLedgerWhere = vi.fn().mockResolvedValue([]);
+      const generationLedgerFrom = vi.fn().mockReturnValue({ where: generationLedgerWhere });
+
+      mockDb.select = vi
+        .fn()
+        .mockReturnValueOnce({ from: messagesFrom })
+        .mockReturnValueOnce({ from: ledgerFrom })
+        .mockReturnValueOnce({ from: generationLedgerFrom });
+
+      const result = await service.findByMonth('2024-01');
+
+      expect(result[0].spend).toBe(0.12);
+    });
+
+    it('should include image, video, and PPT generation ledger usage records', async () => {
+      const messagesOrderBy = vi.fn().mockResolvedValue([]);
+      const messagesWhere = vi.fn().mockReturnValue({ orderBy: messagesOrderBy });
+      const messagesFrom = vi.fn().mockReturnValue({ where: messagesWhere });
+      const generationLedgerRows = [
+        {
+          amount: -250_000,
+          createdAt: new Date('2024-01-15T10:00:00Z'),
+          description: 'image usage: gpt-image-2',
+          id: 'ledger-image',
+          metadata: {
+            modelUsage: {
+              totalInputTokens: 11,
+              totalOutputTokens: 0,
+              totalTokens: 11,
+            },
+            routeMetadata: {
+              providerType: 'openai',
+            },
+          },
+          referenceId: 'image-task',
+          referenceType: 'image_generation',
+          title: 'Image Generation',
+          updatedAt: new Date('2024-01-15T10:00:00Z'),
+          userId,
+        },
+        {
+          amount: -1_000_000,
+          createdAt: new Date('2024-01-16T10:00:00Z'),
+          description: 'video usage: veo-3',
+          id: 'ledger-video',
+          metadata: {
+            routeMetadata: {
+              providerType: 'google',
+            },
+            usage: {
+              completionTokens: 88,
+              totalTokens: 120,
+            },
+          },
+          referenceId: 'video-task',
+          referenceType: 'video_generation',
+          title: 'Video Generation',
+          updatedAt: new Date('2024-01-16T10:00:00Z'),
+          userId,
+        },
+        {
+          amount: -500_000,
+          createdAt: new Date('2024-01-17T10:00:00Z'),
+          description: 'Docmee PPT generation',
+          id: 'ledger-ppt',
+          metadata: {
+            upstreamTaskId: 'ppt-upstream',
+          },
+          referenceId: 'ppt-session',
+          referenceType: 'ppt_generation',
+          title: 'PPT Generation',
+          updatedAt: new Date('2024-01-17T10:00:00Z'),
+          userId,
+        },
+      ];
+      const generationLedgerWhere = vi.fn().mockResolvedValue(generationLedgerRows);
+      const generationLedgerFrom = vi.fn().mockReturnValue({ where: generationLedgerWhere });
+
+      mockDb.select = vi
+        .fn()
+        .mockReturnValueOnce({ from: messagesFrom })
+        .mockReturnValueOnce({ from: generationLedgerFrom });
+
+      const result = await service.findByMonth('2024-01');
+
+      expect(result.map((record) => record.type)).toEqual(['ppt', 'video', 'image']);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'ledger-image',
+            model: 'gpt-image-2',
+            provider: 'openai',
+            spend: 0.25,
+            totalInputTokens: 11,
+            totalOutputTokens: 0,
+            totalTokens: 11,
+            type: 'image',
+          }),
+          expect.objectContaining({
+            id: 'ledger-video',
+            model: 'veo-3',
+            provider: 'google',
+            spend: 1,
+            totalInputTokens: 32,
+            totalOutputTokens: 88,
+            totalTokens: 120,
+            type: 'video',
+          }),
+          expect.objectContaining({
+            id: 'ledger-ppt',
+            model: 'ppt',
+            provider: 'docmee',
+            spend: 0.5,
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            totalTokens: 0,
+            type: 'ppt',
+          }),
+        ]),
+      );
     });
   });
 
@@ -304,6 +456,52 @@ describe('UsageRecordService', () => {
       // All days should be from January 2024
       result.forEach((log) => {
         expect(log.day).toMatch(/^2024-01/);
+      });
+    });
+
+    it('should include generation ledger usage in daily totals', async () => {
+      const messagesOrderBy = vi.fn().mockResolvedValue([]);
+      const messagesWhere = vi.fn().mockReturnValue({ orderBy: messagesOrderBy });
+      const messagesFrom = vi.fn().mockReturnValue({ where: messagesWhere });
+      const generationLedgerRows = [
+        {
+          amount: -250_000,
+          createdAt: new Date('2024-01-15T10:00:00Z'),
+          description: 'image usage: gpt-image-2',
+          id: 'ledger-image',
+          metadata: {
+            modelUsage: {
+              totalInputTokens: 11,
+              totalOutputTokens: 0,
+              totalTokens: 11,
+            },
+          },
+          referenceId: 'image-task',
+          referenceType: 'image_generation',
+          title: 'Image Generation',
+          updatedAt: new Date('2024-01-15T10:00:00Z'),
+          userId,
+        },
+      ];
+      const generationLedgerWhere = vi.fn().mockResolvedValue(generationLedgerRows);
+      const generationLedgerFrom = vi.fn().mockReturnValue({ where: generationLedgerWhere });
+
+      mockDb.select = vi
+        .fn()
+        .mockReturnValueOnce({ from: messagesFrom })
+        .mockReturnValueOnce({ from: generationLedgerFrom });
+
+      const result = await service.findAndGroupByDay('2024-01');
+      const dayLog = result.find((log) => log.day === '2024-01-15');
+
+      expect(dayLog).toMatchObject({
+        totalRequests: 1,
+        totalSpend: 0.25,
+        totalTokens: 11,
+      });
+      expect(dayLog?.records[0]).toMatchObject({
+        id: 'ledger-image',
+        type: 'image',
       });
     });
   });

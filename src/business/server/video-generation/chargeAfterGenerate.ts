@@ -3,9 +3,9 @@ import { getModelPricing } from '@lobechat/model-runtime';
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
 import {
   resolveGenerationPricingMultiplier,
-  resolveVideoChargeCredits,
+  resolveVideoChargeCreditResult,
 } from '@/business/server/generationBilling';
-import { CommercialModel } from '@/database/models/commercial';
+import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
 import { getServerDB } from '@/database/server';
 import { type LobeChatDatabase } from '@/database/type';
 
@@ -18,6 +18,7 @@ interface ChargeParams {
     asyncTaskId: string;
     generationBatchId: string;
     modelId: string;
+    routeMetadata?: AiUsageRouteMetadata;
     topicId?: string;
   };
   model: string;
@@ -42,7 +43,7 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
   if (!shouldCharge) return;
 
   const pricing = await getModelPricing(model ?? metadata.modelId, provider);
-  const baseCredits = resolveVideoChargeCredits({
+  const chargeResult = resolveVideoChargeCreditResult({
     computePriceParams,
     prechargeResult,
     pricing,
@@ -52,8 +53,12 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
     db,
     model: model ?? metadata.modelId,
     provider,
+    routeMetadata: metadata.routeMetadata,
   });
-  const effectiveCredits = Math.ceil(baseCredits * multiplier);
+  const effectiveCredits =
+    chargeResult.source === 'precharge'
+      ? chargeResult.credits
+      : Math.ceil(chargeResult.credits * multiplier);
 
   if (effectiveCredits <= 0) return;
 
@@ -66,11 +71,12 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
       batchId: metadata.generationBatchId,
       computePriceParams: params.computePriceParams,
       latency: params.latency,
+      ...(metadata.routeMetadata ? { routeMetadata: metadata.routeMetadata } : {}),
       usage: params.usage,
     },
     model: model ?? metadata.modelId,
     provider,
-    referenceId: metadata.generationBatchId,
+    referenceId: metadata.asyncTaskId,
     referenceType: 'video_generation',
     source: 'video',
     title: 'Video Generation',

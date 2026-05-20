@@ -105,6 +105,7 @@ describe('userRouter', () => {
       const mockState = {
         isOnboarded: true,
         preference: { telemetry: true },
+        role: 'admin',
         settings: {},
         userId: mockUserId,
       };
@@ -141,6 +142,7 @@ describe('userRouter', () => {
         hasConversation: true,
         canEnablePWAGuide: true,
         canEnableTrace: true,
+        role: 'admin',
         userId: mockUserId,
       });
     });
@@ -185,6 +187,7 @@ describe('userRouter', () => {
       expect(advanceLastActiveAt).toHaveBeenCalledWith(expect.any(Date));
       expect(onUserActivityForBusiness).toHaveBeenCalledWith({
         currentTime: expect.any(Date),
+        db: serverDB,
         previousLastActiveAt,
         userCreatedAt: createdAt,
         userId: mockUserId,

@@ -8,6 +8,7 @@ import { UserModel } from '@/database/models/user';
 import type * as RedisModule from '@/libs/redis';
 import { initializeRedisWithPrefix, isRedisEnabled, RedisKeys } from '@/libs/redis';
 import { parseAgentConfig } from '@/server/globalConfig/parseDefaultAgent';
+import { getServerDefaultAgentSettingOverrides } from '@/server/services/appSettings';
 
 import { AgentService } from './index';
 
@@ -22,6 +23,10 @@ vi.mock('@/envs/app', () => ({
 
 vi.mock('@/server/globalConfig/parseDefaultAgent', () => ({
   parseAgentConfig: vi.fn(),
+}));
+
+vi.mock('@/server/services/appSettings', () => ({
+  getServerDefaultAgentSettingOverrides: vi.fn(),
 }));
 
 vi.mock('@/database/models/session', () => ({
@@ -62,6 +67,7 @@ describe('AgentService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({});
     // Setup default UserModel mock
     (UserModel as any).mockImplementation(() => mockUserModel);
     service = new AgentService(mockDb, mockUserId);
@@ -97,6 +103,30 @@ describe('AgentService', () => {
       expect(SessionModel).toHaveBeenCalledWith(mockDb, mockUserId);
       expect(parseAgentConfig).toHaveBeenCalledWith('model=gpt-4;temperature=0.7');
       expect(mockSessionModel.createInbox).toHaveBeenCalledWith({});
+    });
+
+    it('should create inbox with backend default agent overrides', async () => {
+      const mockSessionModel = {
+        createInbox: vi.fn(),
+      };
+
+      (SessionModel as any).mockImplementation(() => mockSessionModel);
+      (parseAgentConfig as any).mockReturnValue({ model: 'env-model', provider: 'openai' });
+      vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({
+        model: 'admin-model',
+        provider: 'newapi',
+        title: 'Admin Assistant',
+      });
+
+      await service.createInbox();
+
+      expect(mockSessionModel.createInbox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'admin-model',
+          provider: 'newapi',
+          title: 'Admin Assistant',
+        }),
+      );
     });
   });
 
@@ -193,6 +223,37 @@ describe('AgentService', () => {
 
       // Avatar should be merged from BUILTIN_AGENTS definition
       expect((result as any)?.avatar).toBe('/avatars/lobe-ai.png');
+    });
+
+    it('should let backend default agent overrides win for the inbox assistant', async () => {
+      const mockAgent = {
+        id: 'agent-1',
+        slug: 'inbox',
+        model: 'old-model',
+        provider: 'old-provider',
+        title: 'Old Assistant',
+      };
+
+      const mockAgentModel = {
+        getBuiltinAgent: vi.fn().mockResolvedValue(mockAgent),
+      };
+
+      (AgentModel as any).mockImplementation(() => mockAgentModel);
+      (parseAgentConfig as any).mockReturnValue({ model: 'env-model', provider: 'openai' });
+      vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({
+        model: 'admin-model',
+        provider: 'newapi',
+        title: 'Admin Assistant',
+      });
+
+      const newService = new AgentService(mockDb, mockUserId);
+      const result = await newService.getBuiltinAgent('inbox');
+
+      expect(result).toMatchObject({
+        model: 'admin-model',
+        provider: 'newapi',
+        title: 'Admin Assistant',
+      });
     });
 
     it('should not include avatar for non-builtin agents', async () => {

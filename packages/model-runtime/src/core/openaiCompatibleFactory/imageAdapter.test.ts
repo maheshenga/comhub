@@ -15,6 +15,7 @@ describe('openai compatible image adapter', () => {
 
     expect(result).toEqual({
       model: 'gpt-image-2-2026-04-21',
+      n: 1,
       prompt: 'draw',
       size: '1024x1024',
     });

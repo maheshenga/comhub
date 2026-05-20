@@ -20,7 +20,7 @@ vi.mock('@lobechat/business-const', async (importOriginal) => {
 
   return {
     ...actual,
-    BRANDING_PROVIDER: 'newapi',
+    BRANDING_PROVIDER: 'lobehub',
     ENABLE_BUSINESS_FEATURES: true,
   };
 });
@@ -167,6 +167,16 @@ describe('getServerGlobalConfig business newapi model injection', () => {
 
     const result = await getServerGlobalConfig({} as any);
 
+    expect(mocks.genServerAiProvidersConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newapi: { enabled: true },
+      }),
+    );
+    expect(mocks.genServerAiProvidersConfig).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        lobehub: expect.anything(),
+      }),
+    );
     expect(result.aiProvider.newapi!.enabledModels).toEqual(['gpt-4o-mini', 'dall-e-3', 'tts-1']);
     expect(result.aiProvider.newapi!.serverModelLists).toEqual([
       expect.objectContaining({
@@ -231,8 +241,10 @@ describe('getServerGlobalConfig business newapi model injection', () => {
   it('merges backend default provider and model overrides into default agent config', async () => {
     mocks.parseAgentConfig.mockReturnValue({ model: 'env-model', provider: 'openai' });
     mocks.getServerDefaultAgentSettingOverrides.mockResolvedValue({
+      avatar: '/admin-avatar.svg',
       model: 'deepseek-chat',
       provider: 'newapi',
+      title: 'Admin Assistant',
     });
 
     const result = await getServerGlobalConfig({} as any);
@@ -240,6 +252,10 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     expect(result.defaultAgent?.config).toMatchObject({
       model: 'deepseek-chat',
       provider: 'newapi',
+    });
+    expect(result.defaultAgent?.meta).toMatchObject({
+      avatar: '/admin-avatar.svg',
+      title: 'Admin Assistant',
     });
   });
 

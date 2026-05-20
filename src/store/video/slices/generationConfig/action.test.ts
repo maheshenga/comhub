@@ -8,6 +8,11 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useVideoStore } from '@/store/video';
+import { type GlobalServerConfig } from '@/types/serverConfig';
+
+type ServerConfigStoreMockState = {
+  serverConfig: Pick<GlobalServerConfig, 'video'>;
+};
 
 const modelASchema: VideoModelParamsSchema = {
   prompt: { default: '' },
@@ -53,6 +58,13 @@ const mockProviders = [
   },
 ];
 
+const { getServerConfigStoreStateMock, updateSystemStatusMock } = vi.hoisted(() => ({
+  getServerConfigStoreStateMock: vi.fn<() => ServerConfigStoreMockState | undefined>(
+    () => undefined,
+  ),
+  updateSystemStatusMock: vi.fn(),
+}));
+
 vi.mock('@/store/aiInfra', () => ({
   aiProviderSelectors: {
     enabledVideoModelList: vi.fn(() => mockProviders),
@@ -60,10 +72,31 @@ vi.mock('@/store/aiInfra', () => ({
   getAiInfraStoreState: vi.fn(() => ({})),
 }));
 
+vi.mock('@/store/global', () => ({
+  useGlobalStore: {
+    getState: vi.fn(() => ({
+      updateSystemStatus: updateSystemStatusMock,
+    })),
+  },
+}));
+
+vi.mock('@/store/global/selectors', () => ({
+  systemStatusSelectors: {},
+}));
+
+vi.mock('@/store/global/selectors/systemStatus', () => ({
+  systemStatusSelectors: {},
+}));
+
+vi.mock('@/store/serverConfig', () => ({
+  getServerConfigStoreState: getServerConfigStoreStateMock,
+}));
+
 const modelBDefaultValues = extractVideoDefaultValues(modelBSchema);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getServerConfigStoreStateMock.mockReturnValue(undefined);
 
   useVideoStore.setState({
     isInit: true,
@@ -84,6 +117,32 @@ afterEach(() => {
 });
 
 describe('video generationConfig actions', () => {
+  it('should initialize with admin default video model when there is no remembered selection', () => {
+    getServerConfigStoreStateMock.mockReturnValue({
+      serverConfig: {
+        video: {
+          defaultModel: 'video-model-b',
+          defaultProvider: 'provider-b',
+        },
+      },
+    });
+    const { result } = renderHook(() => useVideoStore());
+
+    act(() => {
+      useVideoStore.setState({ isInit: false, model: '', provider: '' });
+    });
+
+    act(() => {
+      result.current.initializeVideoConfig(false);
+    });
+
+    expect(result.current.model).toBe('video-model-b');
+    expect(result.current.provider).toBe('provider-b');
+    expect(result.current.parameters).toEqual(modelBDefaultValues);
+    expect(result.current.parametersSchema).toEqual(modelBSchema);
+    expect(result.current.isInit).toBe(true);
+  });
+
   it('should preserve prompt and frame images when switching model', () => {
     const { result } = renderHook(() => useVideoStore());
 

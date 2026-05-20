@@ -1,6 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 
 import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
+import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 import { adminNewapiInstanceModels, adminNewapiInstances } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 
@@ -33,6 +34,23 @@ export interface ResolvedNewapiInstance {
   providerType: AdminModelApiProviderType;
   source: 'instance';
 }
+
+export const buildNewapiRouteMetadata = (
+  instance?: Partial<ResolvedNewapiInstance> | null,
+): AiUsageRouteMetadata | undefined => {
+  if (!instance) return undefined;
+
+  return {
+    ...(instance.groupKey ? { groupKey: instance.groupKey } : {}),
+    ...(instance.groupMultiplier === null || instance.groupMultiplier === undefined
+      ? {}
+      : { groupMultiplier: instance.groupMultiplier }),
+    ...(instance.groupName ? { groupName: instance.groupName } : {}),
+    ...(instance.instanceId ? { instanceId: instance.instanceId } : {}),
+    ...(instance.instanceName ? { instanceName: instance.instanceName } : {}),
+    ...(instance.providerType ? { providerType: instance.providerType } : {}),
+  };
+};
 
 const TTL_MS = 30_000;
 let cache: { at: number; rows: InstanceRowCache[] } | null = null;
@@ -207,6 +225,14 @@ export const resolveDefaultNewapiInstance = async (
   }
 
   return null;
+};
+
+export const resolveNewapiRouteMetadataForModel = async (
+  db: LobeChatDatabase,
+  params: ResolveNewapiInstancesParams,
+): Promise<AiUsageRouteMetadata | undefined> => {
+  const [primary] = await resolveNewapiInstancesForModel(db, params);
+  return buildNewapiRouteMetadata(primary);
 };
 
 export interface EnabledModelEntry {

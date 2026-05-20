@@ -1,4 +1,4 @@
-import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
+import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { merge } from '@lobechat/utils';
 import { type AiFullModelCard } from 'model-bank';
 import { gptImage1Schema, seedance15ProParams } from 'model-bank/lobehub';
@@ -44,15 +44,21 @@ const getGenericNewapiParameters = (type: string) => {
   return undefined;
 };
 
+const ADMIN_MANAGED_AI_PROVIDER = 'newapi';
+
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
+  const defaultAgentMeta = cleanObject({
+    avatar: defaultAgentConfig.avatar,
+    title: defaultAgentConfig.title,
+  });
   const generationModelConfig = await getServerDefaultGenerationModelSettingOverrides(db);
   const userDefaults = await getServerUserGlobalSettingsDefaults(db);
   const s3Config = await getServerFileS3Config(db);
   const aiProvider = await genServerAiProvidersConfig({
     ...(ENABLE_BUSINESS_FEATURES
       ? {
-          [BRANDING_PROVIDER]: {
+          [ADMIN_MANAGED_AI_PROVIDER]: {
             enabled: true,
           },
         }
@@ -106,7 +112,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     },
   });
 
-  if (ENABLE_BUSINESS_FEATURES && (BRANDING_PROVIDER as string) === 'newapi') {
+  if (ENABLE_BUSINESS_FEATURES) {
     const instanceModels = await getAllEnabledModels(db);
     const managedNewApiModelIds = Array.from(new Set(instanceModels.map((m) => m.id)));
 
@@ -123,8 +129,8 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
         };
       });
 
-      aiProvider[BRANDING_PROVIDER] = {
-        ...aiProvider[BRANDING_PROVIDER],
+      aiProvider[ADMIN_MANAGED_AI_PROVIDER] = {
+        ...aiProvider[ADMIN_MANAGED_AI_PROVIDER],
         enabledModels: managedNewApiModelIds,
         serverModelLists,
       };
@@ -135,6 +141,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     aiProvider,
     defaultAgent: {
       config: defaultAgentConfig,
+      ...(Object.keys(defaultAgentMeta).length > 0 ? { meta: defaultAgentMeta } : {}),
     },
     disableEmailPassword: authEnv.AUTH_DISABLE_EMAIL_PASSWORD,
     enableBusinessFeatures: ENABLE_BUSINESS_FEATURES,

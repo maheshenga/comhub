@@ -8,6 +8,8 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
+import { useBrandName } from '@/features/Brand';
+import { replaceLegacyBrandTokens } from '@/features/Brand/brandText';
 import { getPlatformIcon } from '@/routes/(main)/agent/channel/const';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors/builtinAgentSelectors';
@@ -83,6 +85,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 const BotIntegrationBanner = memo(() => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
+  const brandName = useBrandName();
 
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
   const updateSystemStatus = useGlobalStore((s) => s.updateSystemStatus);
@@ -119,6 +122,7 @@ const BotIntegrationBanner = memo(() => {
     },
     [updateSystemStatus],
   );
+  const title = replaceLegacyBrandTokens(t('botIntegrationBanner.title', { brandName }), brandName);
 
   return (
     <div
@@ -128,7 +132,7 @@ const BotIntegrationBanner = memo(() => {
     >
       <Flexbox horizontal align="center" gap={8}>
         <Icon className={styles.icon} icon={RadioTowerIcon} size={18} />
-        <span className={styles.text}>{t('botIntegrationBanner.title')}</span>
+        <span className={styles.text}>{title}</span>
       </Flexbox>
       <Flexbox horizontal align="center" gap={8}>
         {platformIcons.length > 0 && (

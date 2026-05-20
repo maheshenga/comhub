@@ -472,7 +472,12 @@ export const getServerDefaultModelSuggestions = async ({
   return Array.from(new Set([currentModel?.trim()].filter(Boolean) as string[]));
 };
 
-export type ServerModelPolicyUsageType = 'chat' | 'embeddings' | 'generate_object' | 'image';
+export type ServerModelPolicyUsageType =
+  | 'chat'
+  | 'embeddings'
+  | 'generate_object'
+  | 'image'
+  | 'video';
 
 export type ServerModelPolicyConfig = {
   allowlist: string[];

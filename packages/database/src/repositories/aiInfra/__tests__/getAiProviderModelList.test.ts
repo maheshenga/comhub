@@ -24,6 +24,30 @@ beforeEach(() => {
 });
 
 describe('AiInfraRepos', () => {
+  describe('runtime enabled providers and models', () => {
+    it('does not expose the LobeHub branding provider to user runtime lists', async () => {
+      const brandedRepo = new AiInfraRepos(serverDB, userId, {
+        lobehub: { enabled: true },
+        newapi: {
+          enabled: true,
+          serverModelLists: [{ enabled: true, id: 'admin-chat', type: 'chat' }],
+        },
+      });
+
+      vi.spyOn(brandedRepo.aiModelModel, 'getAllModels').mockResolvedValue([]);
+
+      const enabledProviders = await brandedRepo.getUserEnabledProviderList();
+      const enabledModels = await brandedRepo.getEnabledModels();
+
+      expect(enabledProviders.map((item) => item.id)).toContain('newapi');
+      expect(enabledProviders.map((item) => item.id)).not.toContain('lobehub');
+      expect(enabledModels).toContainEqual(
+        expect.objectContaining({ id: 'admin-chat', providerId: 'newapi' }),
+      );
+      expect(enabledModels.map((item) => item.providerId)).not.toContain('lobehub');
+    });
+  });
+
   describe('getAiProviderModelList', () => {
     it('should merge builtin and user models', async () => {
       const providerId = 'openai';
@@ -142,6 +166,24 @@ describe('AiInfraRepos', () => {
       const result = await repo.getAiProviderModelList(providerId, { limit: 1, offset: 0 });
 
       expect(result.map((i) => i.id)).toEqual(['deepseek-v4-pro']);
+    });
+
+    it('should keep DB-backed branding provider models when no builtin allowlist exists', async () => {
+      const providerId = 'lobehub';
+      const userModels = [
+        {
+          enabled: true,
+          id: 'admin-managed-chat',
+          type: 'chat',
+        },
+      ] as AiProviderModelListItem[];
+
+      vi.spyOn(repo.aiModelModel, 'getModelListByProviderId').mockResolvedValue(userModels);
+      vi.spyOn(repo as any, 'fetchBuiltinModels').mockResolvedValue([]);
+
+      const result = await repo.getAiProviderModelList(providerId);
+
+      expect(result.map((i) => i.id)).toEqual(['admin-managed-chat']);
     });
 
     it('should support enabled filter with pagination', async () => {

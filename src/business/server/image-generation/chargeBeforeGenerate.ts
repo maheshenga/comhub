@@ -5,7 +5,7 @@ import {
   estimateImageCharge,
   resolveGenerationPricingMultiplier,
 } from '@/business/server/generationBilling';
-import { CommercialModel } from '@/database/models/commercial';
+import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
 import { type NewGeneration, type NewGenerationBatch } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 import { type CreateImageServicePayload } from '@/server/routers/lambda/image';
@@ -19,6 +19,7 @@ interface ChargeParams {
   imageNum: number;
   model: string;
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   userId: string;
 }
 
@@ -33,14 +34,19 @@ type ChargeResult =
     };
 
 export async function chargeBeforeGenerate(params: ChargeParams): Promise<ChargeResult> {
-  const { imageNum, provider, userId, db, model, generationParams } = params;
+  const { imageNum, provider, userId, db, model, generationParams, routeMetadata } = params;
 
   const shouldCharge = await shouldChargeCommercialUsage({ db: db!, provider, userId });
   if (!shouldCharge) return undefined;
 
   const pricing = await getModelPricing(model, provider);
   const { estimatedCredits } = estimateImageCharge(pricing, generationParams, imageNum);
-  const multiplier = await resolveGenerationPricingMultiplier({ db, model, provider });
+  const multiplier = await resolveGenerationPricingMultiplier({
+    db,
+    model,
+    provider,
+    routeMetadata,
+  });
   const adjustedCredits = Math.ceil(estimatedCredits * multiplier);
 
   const commercialModel = new CommercialModel(db!, userId);

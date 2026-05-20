@@ -95,6 +95,35 @@ describe('DocmeePptService', () => {
     expect(db.update).toHaveBeenCalled();
   });
 
+  it('rejects token creation before calling upstream when credits are insufficient', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    const db = createDb({
+      query: {
+        appSettings: {
+          findMany: vi.fn().mockResolvedValue(enabledSettings),
+        },
+        planCatalog: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValue({ metadata: { pptCreditCost: 12, pptEnabled: true } }),
+        },
+        pptUsageRecords: { findMany: vi.fn().mockResolvedValue([]) },
+        userPlanSnapshots: { findFirst: vi.fn().mockResolvedValue({ plan: Plans.Starter }) },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn().mockResolvedValue([{ balance: 5 }]),
+        })),
+      })),
+    });
+    const service = new DocmeePptService({ db, userId: 'u1' });
+
+    await expect(service.createToken()).rejects.toMatchObject({
+      code: 'PPT_QUOTA_EXHAUSTED',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('keeps generated status when a generated PPT is downloaded', async () => {
     const updateSet = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
     const tx = createDb({

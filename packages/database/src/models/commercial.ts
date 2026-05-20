@@ -932,37 +932,70 @@ export class CommercialModel {
   ) => {
     const creditsAmount = params.credits;
 
-    await db.transaction(async (tx) => {
-      const [account] = await tx
-        .select()
+    return db.transaction(async (tx) => {
+      await this.ensureCreditAccount(tx);
+
+      const [accountBefore] = await tx
+        .select({ balance: creditAccounts.balance })
         .from(creditAccounts)
         .where(eq(creditAccounts.userId, params.userId))
-        .limit(1);
+        .for('update');
 
-      if (!account) throw new Error('CREDIT_ACCOUNT_NOT_FOUND');
+      if (!accountBefore) throw new Error('CREDIT_ACCOUNT_NOT_FOUND');
 
-      const newBalance = Number(account.balance) - creditsAmount;
-      const newDebited = Number(account.totalDebited) + creditsAmount;
+      if (params.referenceId) {
+        const existed = await tx.query.creditLedgerEntries.findFirst({
+          where: and(
+            eq(creditLedgerEntries.userId, params.userId),
+            eq(
+              creditLedgerEntries.referenceType,
+              params.referenceType ?? `${params.source}_generation`,
+            ),
+            eq(creditLedgerEntries.referenceId, params.referenceId),
+            eq(creditLedgerEntries.type, 'consume'),
+          ),
+        });
 
-      await tx
+        if (existed) return existed;
+      }
+
+      const [account] = await tx
         .update(creditAccounts)
         .set({
-          balance: newBalance,
-          totalDebited: newDebited,
+          balance: sql`${creditAccounts.balance} - ${creditsAmount}`,
+          totalDebited: sql`${creditAccounts.totalDebited} + ${creditsAmount}`,
+          updatedAt: new Date(),
         })
-        .where(eq(creditAccounts.userId, params.userId));
+        .where(
+          and(eq(creditAccounts.userId, params.userId), gte(creditAccounts.balance, creditsAmount)),
+        )
+        .returning({ balance: creditAccounts.balance });
 
-      await tx.insert(creditLedgerEntries).values({
-        amount: -creditsAmount,
-        balanceAfter: newBalance,
-        description: `${params.source} usage: ${params.model}`,
-        metadata: params.metadata ?? { source: params.source },
-        referenceId: params.referenceId,
-        referenceType: params.referenceType ?? `${params.source}_generation`,
-        title: params.title ?? `${params.source} Usage`,
-        type: 'consume',
-        userId: params.userId,
-      });
+      if (!account) {
+        throw new Error('COMMERCIAL_BALANCE_EXHAUSTED_ON_FINAL_CHARGE');
+      }
+
+      const [ledgerEntry] = await tx
+        .insert(creditLedgerEntries)
+        .values({
+          amount: -creditsAmount,
+          balanceAfter: account.balance,
+          description: `${params.source} usage: ${params.model}`,
+          metadata: {
+            ...params.metadata,
+            model: params.model,
+            provider: params.provider,
+            source: params.source,
+          },
+          referenceId: params.referenceId,
+          referenceType: params.referenceType ?? `${params.source}_generation`,
+          title: params.title ?? `${params.source} Usage`,
+          type: 'consume',
+          userId: params.userId,
+        })
+        .returning();
+
+      return ledgerEntry;
     });
   };
 
@@ -1043,6 +1076,14 @@ export class CommercialModel {
     await this.syncLatestSubscriptionCredits();
 
     return this.db.transaction(async (tx) => {
+      await this.ensureCreditAccount(tx);
+      const accountBefore = await tx
+        .select({ balance: creditAccounts.balance })
+        .from(creditAccounts)
+        .where(eq(creditAccounts.userId, this.userId))
+        .for('update')
+        .then((rows) => rows[0]);
+
       const existed = await tx.query.creditLedgerEntries.findFirst({
         where: and(
           eq(creditLedgerEntries.userId, this.userId),
@@ -1054,13 +1095,6 @@ export class CommercialModel {
 
       if (existed) return existed;
 
-      await this.ensureCreditAccount(tx);
-      const accountBefore = await tx
-        .select({ balance: creditAccounts.balance })
-        .from(creditAccounts)
-        .where(eq(creditAccounts.userId, this.userId))
-        .for('update')
-        .then((rows) => rows[0]);
       const breakdown = this.buildCreditBreakdownFromLedger({
         accountBalance: accountBefore?.balance ?? 0,
         ledgerEntries: await this.listCreditLedgerReplayEntries(tx),

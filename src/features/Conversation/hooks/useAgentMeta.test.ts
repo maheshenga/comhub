@@ -3,17 +3,27 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { useAgentStore } from '@/store/agent';
 
-import type * as ConversationStoreModule from '../store';
 import { useConversationStore } from '../store';
 import { useAgentMeta, useIsBuiltinAgent } from './useAgentMeta';
 
 vi.mock('zustand/traditional');
 
-// Mock the ConversationStore
-vi.mock('../store', async (importOriginal) => {
-  const actual = await importOriginal<typeof ConversationStoreModule>();
+const userStore = vi.hoisted(() => ({
+  state: {
+    defaultSettings: {},
+    settings: {},
+  } as any,
+}));
+
+vi.mock('@/store/user', () => ({
+  useUserStore: (selector: any) => selector(userStore.state),
+}));
+
+vi.mock('../store', () => {
   return {
-    ...actual,
+    contextSelectors: {
+      agentId: (s: any) => s.context.agentId,
+    },
     useConversationStore: vi.fn(),
   };
 });
@@ -87,10 +97,10 @@ describe('useAgentMeta', () => {
     expect(result.current.description).toBe('Inbox description');
   });
 
-  it('should fallback to Lobe AI title for builtin agent without custom title', () => {
+  it('should fallback to the admin-managed default assistant meta for builtin agent without custom title', () => {
     const mockInboxAgentId = 'inbox-agent-id';
     const mockMeta = {
-      avatar: '/icons/icon-lobe.png',
+      description: 'Inbox description',
     };
 
     vi.mocked(useConversationStore).mockImplementation((selector: any) => {
@@ -108,12 +118,24 @@ describe('useAgentMeta', () => {
           pageAgent: 'page-agent-id',
         },
       });
+      userStore.state = {
+        defaultSettings: {},
+        settings: {
+          defaultAgent: {
+            meta: {
+              avatar: '/brand/default-assistant.png',
+              title: 'XuanGuo Assistant',
+            },
+          },
+        },
+      };
     });
 
     const { result } = renderHook(() => useAgentMeta());
 
-    expect(result.current.avatar).toBe('/icons/icon-lobe.png');
-    expect(result.current.title).toBe('Lobe AI');
+    expect(result.current.avatar).toBe('/brand/default-assistant.png');
+    expect(result.current.title).toBe('XuanGuo Assistant');
+    expect(result.current.description).toBe('Inbox description');
   });
 
   it('should preserve custom title for page agent (builtin)', () => {

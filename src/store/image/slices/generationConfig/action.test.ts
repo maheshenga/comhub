@@ -8,9 +8,10 @@ import { extractDefaultValues, fluxSchnellParamsSchema } from 'model-bank';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useImageStore } from '@/store/image';
+import { type UserImageConfig } from '@/types/user/settings';
 
 const { currentImageSettingsMock, updateSystemStatusMock } = vi.hoisted(() => ({
-  currentImageSettingsMock: vi.fn(() => ({
+  currentImageSettingsMock: vi.fn<() => UserImageConfig>(() => ({
     defaultImageNum: 4,
   })),
   updateSystemStatusMock: vi.fn(),
@@ -713,6 +714,29 @@ describe('GenerationConfigAction', () => {
 
       expect(result.current.isInit).toBe(true);
       expect(result.current.imageNum).toBe(4);
+    });
+
+    it('should initialize with admin default image model when there is no remembered selection', () => {
+      currentImageSettingsMock.mockReturnValueOnce({
+        defaultImageNum: 3,
+        defaultModel: 'custom-model',
+        defaultProvider: 'custom-provider',
+      });
+      const { result } = renderHook(() => useImageStore());
+
+      act(() => {
+        useImageStore.setState({ isInit: false, model: '', provider: '' });
+      });
+
+      act(() => {
+        result.current.initializeImageConfig(false);
+      });
+
+      expect(result.current.model).toBe('custom-model');
+      expect(result.current.provider).toBe('custom-provider');
+      expect(result.current.parameters).toEqual(customModelDefaultValues);
+      expect(result.current.isInit).toBe(true);
+      expect(result.current.imageNum).toBe(3);
     });
 
     it('should handle initialization errors gracefully', () => {

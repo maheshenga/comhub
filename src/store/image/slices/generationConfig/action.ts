@@ -47,7 +47,17 @@ export function getModelAndDefaults(model: string, provider: string) {
   }
 
   const parametersSchema = activeModel.parameters as ModelParamsSchema;
-  const defaultValues = extractDefaultValues(parametersSchema);
+  const defaultValues = {
+    ...Object.fromEntries(
+      Object.entries(parametersSchema).flatMap(([key, schema]) => {
+        if (schema && typeof schema === 'object' && 'default' in schema) {
+          return [[key, (schema as { default?: unknown }).default]];
+        }
+        return [];
+      }),
+    ),
+    ...extractDefaultValues(parametersSchema),
+  } as RuntimeImageGenParams;
 
   return { defaultValues, activeModel, parametersSchema };
 }
@@ -334,7 +344,36 @@ export class GenerationConfigActionImpl {
   };
 
   _initializeDefaultImageConfig = (): void => {
-    const { defaultImageNum } = settingsSelectors.currentImageSettings(useUserStore.getState());
+    const { defaultImageNum, defaultModel, defaultProvider } =
+      settingsSelectors.currentImageSettings(useUserStore.getState());
+
+    if (defaultModel && defaultProvider) {
+      try {
+        const { defaultValues, parametersSchema, initialActiveRatio } = prepareModelConfigState(
+          defaultModel,
+          defaultProvider,
+        );
+
+        this.#set(
+          {
+            activeAspectRatio: initialActiveRatio,
+            imageNum: defaultImageNum,
+            isAspectRatioLocked: false,
+            isInit: true,
+            model: defaultModel,
+            parameters: defaultValues,
+            parametersSchema,
+            provider: defaultProvider,
+          },
+          false,
+          `initializeImageConfig/adminDefault/${defaultModel}/${defaultProvider}`,
+        );
+        return;
+      } catch {
+        // Fall back to the built-in initial model if the admin default is unavailable for this user.
+      }
+    }
+
     this.#set({ imageNum: defaultImageNum, isInit: true }, false, 'initializeImageConfig/default');
   };
 
@@ -344,10 +383,10 @@ export class GenerationConfigActionImpl {
     lastSelectedImageProvider?: string,
   ): void => {
     const { _initializeDefaultImageConfig } = this.#get();
-    const { defaultImageNum } = settingsSelectors.currentImageSettings(useUserStore.getState());
 
     if (isLogin && lastSelectedImageModel && lastSelectedImageProvider) {
       try {
+        const { defaultImageNum } = settingsSelectors.currentImageSettings(useUserStore.getState());
         const { defaultValues, parametersSchema, initialActiveRatio } = prepareModelConfigState(
           lastSelectedImageModel,
           lastSelectedImageProvider,

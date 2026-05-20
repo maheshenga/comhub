@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { type AiProviderRuntimeState } from '@lobechat/types';
 import { type EnabledAiModel } from 'model-bank';
 import { describe, expect, it, vi } from 'vitest';
@@ -5,6 +6,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { type MemoryExtractionPrivateConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 
 import { makeTaskErrorItem, MemoryExtractionExecutor } from '../extract';
+
+const mocks = vi.hoisted(() => ({
+  getServerDB: vi.fn(async () => ({ id: 'server-db' })),
+  initModelRuntimeFromDB: vi.fn(),
+}));
+
+vi.mock('@/database/server', () => ({
+  getServerDB: mocks.getServerDB,
+}));
+
+vi.mock('@/server/modules/ModelRuntime', () => ({
+  initModelRuntimeFromDB: mocks.initModelRuntimeFromDB,
+}));
 
 const createRuntimeState = (models: EnabledAiModel[], keyVaults: Record<string, any>) =>
   ({
@@ -58,6 +72,116 @@ const createExecutor = (privateOverrides?: Partial<MemoryExtractionPrivateConfig
 };
 
 describe('MemoryExtractionExecutor.resolveRuntimeKeyVaults', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps matched providers even when admin-managed providers do not have user key vaults', async () => {
+    const executor = createExecutor({
+      agentGateKeeper: { model: 'gate-2', provider: 'openai' },
+      agentLayerExtractor: {
+        contextLimit: 2048,
+        layers: {
+          activity: 'layer-1',
+          context: 'layer-1',
+          experience: 'layer-1',
+          identity: 'layer-1',
+          preference: 'layer-1',
+        },
+        model: 'layer-1',
+        provider: 'openai',
+      },
+      embedding: { model: 'embed-1', provider: 'openai' },
+    });
+
+    const runtimeState = createRuntimeState(
+      [
+        { abilities: {}, enabled: true, id: 'gate-2', type: 'chat', providerId: 'newapi' },
+        { abilities: {}, enabled: true, id: 'layer-1', type: 'chat', providerId: 'newapi' },
+        { abilities: {}, enabled: true, id: 'embed-1', type: 'embedding', providerId: 'newapi' },
+      ],
+      {},
+    );
+
+    const targets = await (executor as any).resolveRuntimeTargets(runtimeState);
+
+    expect(targets.providers).toEqual({
+      embedding: 'newapi',
+      gatekeeper: 'newapi',
+      layerExtractor: 'newapi',
+    });
+    expect(targets.keyVaults).toEqual({});
+  });
+
+  it('initializes admin-managed NewAPI memory runtimes from the database', async () => {
+    const executor = createExecutor({
+      agentGateKeeper: { model: 'gate-2', provider: 'openai' },
+      agentLayerExtractor: {
+        contextLimit: 2048,
+        layers: {
+          activity: 'layer-1',
+          context: 'layer-1',
+          experience: 'layer-1',
+          identity: 'layer-1',
+          preference: 'layer-1',
+        },
+        model: 'layer-1',
+        provider: 'openai',
+      },
+      embedding: { model: 'embed-1', provider: 'openai' },
+    });
+
+    const runtimeState = createRuntimeState(
+      [
+        { abilities: {}, enabled: true, id: 'gate-2', type: 'chat', providerId: 'newapi' },
+        { abilities: {}, enabled: true, id: 'layer-1', type: 'chat', providerId: 'newapi' },
+        { abilities: {}, enabled: true, id: 'embed-1', type: 'embedding', providerId: 'newapi' },
+      ],
+      {},
+    );
+    const runtime = { chat: vi.fn(), embeddings: vi.fn(), generateObject: vi.fn() };
+    mocks.initModelRuntimeFromDB.mockResolvedValue(runtime);
+
+    const targets = await (executor as any).resolveRuntimeTargets(runtimeState);
+    const bundle = await (executor as any).getRuntime('user-1', targets);
+
+    expect(bundle).toEqual({
+      embeddings: runtime,
+      gatekeeper: runtime,
+      layerExtractor: runtime,
+    });
+    expect(mocks.initModelRuntimeFromDB).toHaveBeenNthCalledWith(
+      1,
+      { id: 'server-db' },
+      'user-1',
+      'newapi',
+      {
+        model: 'embed-1',
+        modelType: 'embedding',
+      },
+    );
+    expect(mocks.initModelRuntimeFromDB).toHaveBeenNthCalledWith(
+      2,
+      { id: 'server-db' },
+      'user-1',
+      'newapi',
+      {
+        model: 'gate-2',
+        modelType: 'chat',
+      },
+    );
+    expect(mocks.initModelRuntimeFromDB).toHaveBeenNthCalledWith(
+      3,
+      { id: 'server-db' },
+      'user-1',
+      'newapi',
+      {
+        model: 'layer-1',
+        modelType: 'chat',
+      },
+    );
+  });
+
   it('prefers configured providers/models for gatekeeper, embedding, and layer extractors', async () => {
     const executor = createExecutor({
       embeddingPreferredProviders: ['provider-c', 'provider-a'],

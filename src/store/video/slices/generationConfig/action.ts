@@ -9,6 +9,7 @@ import {
 
 import { aiProviderSelectors, getAiInfraStoreState } from '@/store/aiInfra';
 import { useGlobalStore } from '@/store/global';
+import { getServerConfigStoreState } from '@/store/serverConfig';
 import { type StoreSetter } from '@/store/types';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
@@ -101,6 +102,33 @@ export class GenerationConfigActionImpl {
         this.#set({ isInit: true }, false, 'initializeVideoConfig/default');
       }
     } else {
+      const defaultModel = getServerConfigStoreState()?.serverConfig.video?.defaultModel;
+      const defaultProvider = getServerConfigStoreState()?.serverConfig.video?.defaultProvider;
+
+      if (defaultModel && defaultProvider) {
+        try {
+          const { defaultValues, parametersSchema } = getVideoModelAndDefaults(
+            defaultModel,
+            defaultProvider,
+          );
+
+          this.#set(
+            {
+              isInit: true,
+              model: defaultModel,
+              parameters: defaultValues,
+              parametersSchema,
+              provider: defaultProvider,
+            },
+            false,
+            `initializeVideoConfig/adminDefault/${defaultModel}/${defaultProvider}`,
+          );
+          return;
+        } catch {
+          // Fall back to the built-in initial model if the admin default is unavailable for this user.
+        }
+      }
+
       this.#set({ isInit: true }, false, 'initializeVideoConfig/default');
     }
   };

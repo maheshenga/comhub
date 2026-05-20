@@ -181,6 +181,16 @@ export const creditLedgerEntries = pgTable(
       .where(
         sql`${table.referenceType} = 'ppt_generation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
       ),
+    uniqueIndex('credit_ledger_entries_image_generation_unique_idx')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'image_generation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
+      ),
+    uniqueIndex('credit_ledger_entries_video_generation_unique_idx')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'video_generation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
+      ),
   ],
 );
 

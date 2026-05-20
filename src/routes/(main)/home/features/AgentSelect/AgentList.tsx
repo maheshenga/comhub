@@ -12,6 +12,8 @@ import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useHomeStore } from '@/store/home';
 import { homeAgentListSelectors } from '@/store/home/selectors';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   active: css`
@@ -50,6 +52,7 @@ const AgentList = memo<AgentListProps>(({ activeAgentId, onSelect }) => {
   const isInit = useHomeStore(homeAgentListSelectors.isAgentListInit);
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
   const inboxMeta = useAgentStore(agentSelectors.getAgentMetaById(inboxAgentId ?? ''));
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
   const allAgents = useHomeStore(homeAgentListSelectors.allAgents);
 
   // Flat list: inbox first, then all sidebar agents (pinned + grouped + ungrouped)
@@ -59,13 +62,16 @@ const AgentList = memo<AgentListProps>(({ activeAgentId, onSelect }) => {
     const out: AgentRow[] = [];
 
     if (inboxAgentId) {
+      const inboxAvatar =
+        typeof inboxMeta?.avatar === 'string' && inboxMeta.avatar !== DEFAULT_INBOX_AVATAR
+          ? inboxMeta.avatar
+          : defaultAgentMeta.avatar || DEFAULT_INBOX_AVATAR;
+
       out.push({
-        avatar:
-          (typeof inboxMeta?.avatar === 'string' ? inboxMeta.avatar : undefined) ??
-          DEFAULT_INBOX_AVATAR,
+        avatar: inboxAvatar,
         backgroundColor: inboxMeta?.backgroundColor || undefined,
         id: inboxAgentId,
-        title: inboxMeta?.title || 'Lobe AI',
+        title: inboxMeta?.title || defaultAgentMeta.title || '青柚助手',
       });
       seen.add(inboxAgentId);
     }
@@ -85,7 +91,7 @@ const AgentList = memo<AgentListProps>(({ activeAgentId, onSelect }) => {
     }
 
     return out;
-  }, [inboxAgentId, inboxMeta, allAgents, t]);
+  }, [inboxAgentId, inboxMeta, defaultAgentMeta, allAgents, t]);
 
   if (!isInit) return <SkeletonList rows={6} style={{ padding: 8 }} />;
 

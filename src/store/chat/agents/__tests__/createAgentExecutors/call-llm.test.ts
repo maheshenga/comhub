@@ -192,7 +192,39 @@ describe('call_llm executor', () => {
 
       expect(chatService.createAssistantMessageStream).toHaveBeenCalledWith(
         expect.objectContaining({
-          metadata: { trigger: RequestTrigger.Onboarding },
+          metadata: expect.objectContaining({ trigger: RequestTrigger.Onboarding }),
+        }),
+      );
+    });
+
+    it('should attach assistant message and operation identifiers for server-side billing', async () => {
+      const mockStore = createMockStore();
+      const context = createTestContext({ operationId: 'operation-1' });
+      const instruction = createCallLLMInstruction({
+        messages: [createUserMessage({ content: 'Hello' })],
+      });
+      const state = createInitialState({ operationId: 'operation-1' });
+
+      mockStreamResponse({ content: 'AI response' });
+      mockStore.dbMessagesMap[context.messageKey] = [];
+
+      await executeWithMockContext({
+        executor: 'call_llm',
+        instruction,
+        state,
+        mockStore,
+        context,
+      });
+
+      const assistantMessage = await vi.mocked(mockStore.optimisticCreateMessage).mock.results[0]
+        .value;
+
+      expect(chatService.createAssistantMessageStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            assistantMessageId: assistantMessage.id,
+            operationId: 'operation-1',
+          }),
         }),
       );
     });

@@ -26,7 +26,10 @@ vi.mock('@/business/server/commercialBilling', () => ({
 }));
 
 vi.mock('@/server/services/appSettings', () => ({
-  APP_SETTING_KEYS: { pricingCreditMultiplier: 'pricing.creditMultiplier' },
+  APP_SETTING_KEYS: {
+    pricingCreditMultiplier: 'pricing.creditMultiplier',
+    pricingModelRules: 'pricing.modelRules',
+  },
   getAppSettingValue: mocks.getAppSettingValue,
 }));
 
@@ -47,7 +50,9 @@ describe('image chargeAfterGenerate', () => {
     mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
     mocks.postCharge.mockResolvedValue({ id: 'ledger-1' });
     mocks.consumeCreditsForAiUsage.mockResolvedValue({ id: 'ledger-1' });
-    mocks.getAppSettingValue.mockResolvedValue(1.65);
+    mocks.getAppSettingValue.mockImplementation(async (key: string) =>
+      key === 'pricing.creditMultiplier' ? 1.65 : [],
+    );
     mocks.getModelPricing.mockResolvedValue({
       approximatePricePerImage: 0.053,
       units: [],
@@ -71,8 +76,42 @@ describe('image chargeAfterGenerate', () => {
     expect(mocks.postCharge).toHaveBeenCalledWith(
       expect.objectContaining({
         credits: 56_100,
-        referenceId: 'batch-1',
+        referenceId: 'task-1',
         referenceType: 'image_generation',
+      }),
+    );
+  });
+
+  it('applies NewAPI route metadata to image pricing multiplier', async () => {
+    mocks.getAppSettingValue.mockImplementation(async (key: string) =>
+      key === 'pricing.creditMultiplier'
+        ? 1
+        : [
+            { group: 'pro', model: 'gpt-image-2', multiplier: 2, provider: 'newapi' },
+            { model: 'gpt-image-2', multiplier: 1.2, provider: 'newapi' },
+          ],
+    );
+
+    await chargeAfterGenerate({
+      db: {} as any,
+      modelUsage: { cost: 0.034 },
+      metadata: {
+        asyncTaskId: 'task-1',
+        generationBatchId: 'batch-1',
+        modelId: 'gpt-image-2',
+        routeMetadata: {
+          groupKey: 'pro',
+          groupMultiplier: 1.5,
+          providerType: 'newapi',
+        },
+      },
+      provider: 'newapi',
+      userId: 'user-1',
+    });
+
+    expect(mocks.postCharge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credits: 102_000,
       }),
     );
   });

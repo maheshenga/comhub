@@ -479,7 +479,11 @@ export const createAgentExecutors = (context: {
           ...agentConfigData.params,
         },
         initialContext: runtimeContext?.initialContext,
-        metadata: context.metadata,
+        metadata: {
+          ...context.metadata,
+          assistantMessageId,
+          operationId: context.operationId,
+        },
         stepContext: runtimeContext?.stepContext,
         trace: {
           traceId,

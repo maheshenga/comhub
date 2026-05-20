@@ -10,6 +10,9 @@ export const OAUTH_AUTHORIZED = 'X-oauth-authorized';
 export const REQUEST_TRIGGER_HEADER = 'x-lobechat-request-trigger';
 export const REQUEST_AGENT_ID_HEADER = 'x-agent-id';
 export const REQUEST_TOPIC_ID_HEADER = 'x-topic-id';
+export const REQUEST_MESSAGE_ID_HEADER = 'x-message-id';
+export const REQUEST_ASSISTANT_MESSAGE_ID_HEADER = 'x-assistant-message-id';
+export const REQUEST_OPERATION_ID_HEADER = 'x-operation-id';
 
 /**
  * @deprecated

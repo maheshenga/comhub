@@ -8,6 +8,8 @@ import { isLobeHubModelAvailable } from 'model-bank/lobehub';
 import { z } from 'zod';
 
 import { chargeBeforeGenerate } from '@/business/server/image-generation/chargeBeforeGenerate';
+import { assertModelPolicyAllowed } from '@/business/server/modelPolicy';
+import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { type NewGeneration, type NewGenerationBatch } from '@/database/schemas';
 import { asyncTasks, generationBatches, generations } from '@/database/schemas';
@@ -15,6 +17,7 @@ import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { createAsyncCaller } from '@/server/routers/async/caller';
 import { FileService } from '@/server/services/file';
+import { resolveNewapiRouteMetadataForModel } from '@/server/services/newapiInstance';
 import {
   AsyncTaskError,
   AsyncTaskErrorType,
@@ -76,6 +79,14 @@ export const imageRouter = router({
         message: ChatErrorType.LobeHubModelDeprecated,
       });
     }
+    const routeMetadata =
+      provider === 'newapi'
+        ? await resolveNewapiRouteMetadataForModel(ctx.serverDB, {
+            modelId: resolvedModelId,
+            modelType: 'image',
+            userId,
+          })
+        : undefined;
 
     // Normalize reference image addresses, store S3 keys uniformly (avoid storing expiring presigned URLs in database)
     let configForDatabase = { ...params };
@@ -153,14 +164,30 @@ export const imageRouter = router({
     // Defensive check: ensure no full URLs enter the database
     validateNoUrlsInConfig(configForDatabase, 'configForDatabase');
 
+    await assertModelPolicyAllowed({
+      db: ctx.serverDB,
+      model,
+      provider,
+      usageType: 'image',
+    });
+    await assertPlanModelAllowed({
+      db: ctx.serverDB,
+      ...(routeMetadata?.groupKey ? { groupKey: routeMetadata.groupKey } : {}),
+      model,
+      modelType: 'image',
+      userId,
+    });
+
     const chargeResult = await chargeBeforeGenerate({
       clientIp: ctx.clientIp,
       configForDatabase,
+      db: ctx.serverDB,
       generationParams,
       generationTopicId,
       imageNum,
       model,
       provider,
+      routeMetadata,
       userId,
     });
     if (chargeResult) {

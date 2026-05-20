@@ -9,6 +9,8 @@ import { AsyncTaskStatus } from '@/types/asyncTask';
 const {
   mockAfter,
   mockCreateVideo,
+  mockAssertModelPolicyAllowed,
+  mockAssertPlanModelAllowed,
   mockProcessBackgroundVideoPolling,
   mockResolveBusinessModelMapping,
   mockServerDB,
@@ -18,10 +20,14 @@ const {
   const mockServerDB = { transaction: mockTransaction };
   const mockCreateVideo = vi.fn();
   const mockAfter = vi.fn((cb: () => void) => cb());
+  const mockAssertModelPolicyAllowed = vi.fn();
+  const mockAssertPlanModelAllowed = vi.fn();
   const mockProcessBackgroundVideoPolling = vi.fn().mockResolvedValue(undefined);
   const mockResolveBusinessModelMapping = vi.fn();
   return {
     mockAfter,
+    mockAssertModelPolicyAllowed,
+    mockAssertPlanModelAllowed,
     mockCreateVideo,
     mockProcessBackgroundVideoPolling,
     mockResolveBusinessModelMapping,
@@ -46,6 +52,12 @@ vi.mock('@/server/modules/ModelRuntime', () => ({
 }));
 vi.mock('@/business/server/video-generation/chargeBeforeGenerate', () => ({
   chargeBeforeGenerate: vi.fn().mockResolvedValue({ errorBatch: null, prechargeResult: null }),
+}));
+vi.mock('@/business/server/planModelRules', () => ({
+  assertPlanModelAllowed: (params: any) => mockAssertPlanModelAllowed(params),
+}));
+vi.mock('@/business/server/modelPolicy', () => ({
+  assertModelPolicyAllowed: (params: any) => mockAssertModelPolicyAllowed(params),
 }));
 vi.mock('@/business/server/video-generation/chargeAfterGenerate', () => ({
   chargeAfterGenerate: vi.fn().mockResolvedValue(undefined),
@@ -156,6 +168,28 @@ describe('videoRouter', () => {
         model: 'test-model',
         modelType: 'video',
       });
+      expect(mockAssertPlanModelAllowed).toHaveBeenCalledWith({
+        db: mockServerDB,
+        model: 'test-model',
+        modelType: 'video',
+        userId: 'test-user',
+      });
+      expect(mockAssertModelPolicyAllowed).toHaveBeenCalledWith({
+        db: mockServerDB,
+        model: 'test-model',
+        provider: 'volcengine',
+        usageType: 'video',
+      });
+      const { chargeBeforeGenerate } =
+        await import('@/business/server/video-generation/chargeBeforeGenerate');
+      expect(chargeBeforeGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          db: mockServerDB,
+          model: 'test-model',
+          provider: 'volcengine',
+          userId: 'test-user',
+        }),
+      );
       expect(mockUpdate).toHaveBeenCalledWith('async-1', {
         inferenceId: 'inf-1',
         status: AsyncTaskStatus.Processing,

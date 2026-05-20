@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import { ChatErrorType } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -313,17 +314,17 @@ describe('recordCommercialChatUsage', () => {
 
     await recordCommercialChatUsage({
       db: {} as any,
-      messageId: 'assistant-message-newapi-1',
+      messageId: 'assistant-message-branding-1',
       model: 'gpt-test',
-      provider: 'newapi',
+      provider: BRANDING_PROVIDER,
       usage: { cost: 0.25, totalTokens: 100 },
       userId: 'user-1',
     });
 
     expect(mocks.consumeCreditsForAiUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: 'newapi',
-        referenceId: 'assistant-message-newapi-1',
+        provider: BRANDING_PROVIDER,
+        referenceId: 'assistant-message-branding-1',
       }),
     );
   });

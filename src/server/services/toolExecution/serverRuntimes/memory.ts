@@ -3,7 +3,6 @@ import {
   MemoryExecutionRuntime,
   type MemoryRuntimeService,
 } from '@lobechat/builtin-tool-memory/executionRuntime';
-import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import {
   DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM,
   MEMORY_SEARCH_TOP_K_LIMITS,
@@ -42,7 +41,10 @@ import {
 } from '@/database/models/userMemory';
 import { userSettings } from '@/database/schemas';
 import { getResolvedServerDefaultFilesConfig } from '@/server/globalConfig';
-import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
+import {
+  initModelRuntimeFromDB,
+  initModelRuntimeWithUserPayload,
+} from '@/server/modules/ModelRuntime';
 import {
   emitToolOutcomeSafely,
   resolveToolOutcomeScope,
@@ -89,11 +91,10 @@ const getEmbeddingRuntime = async (serverDB: LobeChatDatabase, userId: string) =
     (await getResolvedServerDefaultFilesConfig(serverDB)).embeddingModel ||
     DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
 
-  const agentRuntime = await initModelRuntimeFromDB(
-    serverDB,
-    userId,
-    ENABLE_BUSINESS_FEATURES ? BRANDING_PROVIDER : provider,
-  );
+  const agentRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
+    model: embeddingModel,
+    modelType: 'embedding',
+  });
 
   return { agentRuntime, embeddingModel };
 };
@@ -201,14 +202,28 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
 
   searchMemory = async (params: SearchMemoryParams): Promise<SearchMemoryResult> => {
     const normalizedParams = normalizeSearchMemoryParams(params);
-    const { provider, model: embeddingModel } =
-      (await getResolvedServerDefaultFilesConfig(this.serverDB)).embeddingModel ||
-      DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
+    const { embeddingModel, modelRuntime } = this.memoryEmbeddingRuntime
+      ? {
+          embeddingModel: this.memoryEmbeddingRuntime.model,
+          modelRuntime: initModelRuntimeWithUserPayload(
+            this.memoryEmbeddingRuntime.provider,
+            this.memoryEmbeddingRuntime.payload,
+            { userId: this.userId },
+          ) as UserMemoryEmbeddingRuntime,
+        }
+      : await (async () => {
+          const { provider, model } =
+            (await getResolvedServerDefaultFilesConfig(this.serverDB)).embeddingModel ||
+            DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
 
-    const modelRuntime = await initModelRuntimeFromDB(this.serverDB, this.userId, provider, {
-      model: embeddingModel,
-      modelType: 'embedding',
-    });
+          return {
+            embeddingModel: model,
+            modelRuntime: await initModelRuntimeFromDB(this.serverDB, this.userId, provider, {
+              model,
+              modelType: 'embedding',
+            }),
+          };
+        })();
     const normalizedQueries = [
       ...new Set((normalizedParams.queries ?? []).map((query) => query.trim()).filter(Boolean)),
     ];

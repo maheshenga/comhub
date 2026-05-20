@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PREFERENCE } from '@/const/user';
 import { userService } from '@/services/user';
 import { useUserStore } from '@/store/user';
-import { userGeneralSettingsSelectors } from '@/store/user/selectors';
+import { settingsSelectors, userGeneralSettingsSelectors } from '@/store/user/selectors';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { type UserInitializationState, type UserPreference } from '@/types/user';
 import { withSWR } from '~test-utils';
@@ -82,6 +82,7 @@ describe('createCommonSlice', () => {
           general: { fontSize: 14, timezone: 'America/New_York' },
         },
         email: 'test@example.com',
+        role: 'admin',
       };
 
       vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
@@ -110,7 +111,49 @@ describe('createCommonSlice', () => {
         }),
       );
       expect(useUserStore.getState().user?.email).toEqual(mockUserState.email);
+      expect((useUserStore.getState().user as any)?.role).toBe('admin');
       expect(successCallback).toHaveBeenCalledWith(mockUserState);
+    });
+
+    it('should let server-managed default agent override existing user default agent settings', async () => {
+      const mockUserState: UserInitializationState = {
+        userId: 'user-id',
+        isOnboard: true,
+        onboarding: { finishedAt: '2024-01-01T00:00:00Z', version: 1 },
+        preference: {},
+        settings: {
+          defaultAgent: {
+            config: { model: 'old-user-model', provider: 'openai' },
+            meta: { avatar: 'old-avatar', title: 'Old Assistant' },
+          },
+          general: { responseLanguage: 'en-US', timezone: 'UTC' },
+        } as any,
+      };
+      const serverConfig = {
+        ...mockServerConfig,
+        defaultAgent: {
+          config: { model: 'admin-model', provider: 'newapi' },
+          meta: { avatar: '/admin-avatar.svg', title: 'Admin Assistant' },
+        },
+      } as GlobalServerConfig;
+
+      vi.spyOn(userService, 'getUserState').mockResolvedValueOnce(mockUserState);
+
+      renderHook(() => useUserStore().useInitUserState(true, serverConfig), {
+        wrapper: withSWR,
+      });
+
+      await waitFor(() => {
+        const state = useUserStore.getState() as any;
+        expect(settingsSelectors.defaultAgentConfig(state)).toMatchObject({
+          model: 'admin-model',
+          provider: 'newapi',
+        });
+        expect(settingsSelectors.defaultAgentMeta(state)).toMatchObject({
+          avatar: '/admin-avatar.svg',
+          title: 'Admin Assistant',
+        });
+      });
     });
 
     it('should call switch language when language is auto', async () => {

@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
 import { AiProviderModel } from '@/database/models/aiProvider';
 import { UserModel } from '@/database/models/user';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
@@ -20,7 +21,7 @@ import { type ProviderConfig } from '@/types/user/settings';
 const aiProviderProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
 
-  const { aiProvider } = await getServerGlobalConfig();
+  const { aiProvider } = await getServerGlobalConfig(ctx.serverDB);
 
   const gateKeeper = await KeyVaultsGateKeeper.initWithEnvKey();
   return opts.next({
@@ -58,7 +59,10 @@ export const aiProviderRouter = router({
       }
 
       try {
-        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.id);
+        const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.id, {
+          model,
+          modelType: 'chat',
+        });
 
         const response = await modelRuntime.chat({
           messages: [{ content: 'Hi', role: 'user' }],
@@ -117,7 +121,39 @@ export const aiProviderRouter = router({
   getAiProviderRuntimeState: aiProviderProcedure
     .input(z.object({ isLogin: z.boolean().optional() }))
     .query(async ({ ctx }): Promise<AiProviderRuntimeState> => {
-      return ctx.aiInfraRepos.getAiProviderRuntimeState(KeyVaultsGateKeeper.getUserKeyVaults);
+      const state = await ctx.aiInfraRepos.getAiProviderRuntimeState(
+        KeyVaultsGateKeeper.getUserKeyVaults,
+      );
+
+      const rules = await resolvePlanModelRules({ db: ctx.serverDB, userId: ctx.userId });
+      if (!rules) return state;
+
+      const enabledAiModels = state.enabledAiModels.filter((model) =>
+        isModelAllowedByPlanRules(
+          rules,
+          model.id,
+          model.type,
+          'groupKey' in model ? (model.groupKey as string | null | undefined) : undefined,
+        ),
+      );
+
+      const enabledChatAiProviders = state.enabledChatAiProviders.filter((provider) =>
+        enabledAiModels.some((model) => model.providerId === provider.id && model.type === 'chat'),
+      );
+      const enabledImageAiProviders = state.enabledImageAiProviders.filter((provider) =>
+        enabledAiModels.some((model) => model.providerId === provider.id && model.type === 'image'),
+      );
+      const enabledVideoAiProviders = state.enabledVideoAiProviders.filter((provider) =>
+        enabledAiModels.some((model) => model.providerId === provider.id && model.type === 'video'),
+      );
+
+      return {
+        ...state,
+        enabledAiModels,
+        enabledChatAiProviders,
+        enabledImageAiProviders,
+        enabledVideoAiProviders,
+      };
     }),
 
   removeAiProvider: aiProviderProcedure

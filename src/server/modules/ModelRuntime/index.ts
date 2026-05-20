@@ -16,11 +16,11 @@ import { ModelProvider } from 'model-bank';
 
 import { getBusinessModelRuntimeHooks } from '@/business/server/model-runtime';
 import { AiProviderModel } from '@/database/models/aiProvider';
-import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
 import { getLLMConfig } from '@/envs/llm';
 import {
   type AdminModelApiProviderType,
+  buildNewapiRouteMetadata,
   type NewapiModelType,
   resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel,
@@ -71,23 +71,6 @@ const resolveRuntimeProvider = (provider: string, sdkType?: string): string => {
   if (isBuiltin) return provider;
 
   return sdkType || 'openai';
-};
-
-const toNewapiRouteMetadata = (
-  instance?: Partial<NewapiFailoverInstance> | null,
-): AiUsageRouteMetadata | undefined => {
-  if (!instance) return undefined;
-
-  return {
-    ...(instance.groupKey ? { groupKey: instance.groupKey } : {}),
-    ...(instance.groupMultiplier === null || instance.groupMultiplier === undefined
-      ? {}
-      : { groupMultiplier: instance.groupMultiplier }),
-    ...(instance.groupName ? { groupName: instance.groupName } : {}),
-    ...(instance.instanceId ? { instanceId: instance.instanceId } : {}),
-    ...(instance.instanceName ? { instanceName: instance.instanceName } : {}),
-    ...(instance.providerType ? { providerType: instance.providerType } : {}),
-  };
 };
 
 const resolveAdminRuntimeProvider = (providerType?: AdminModelApiProviderType | null) => {
@@ -565,7 +548,7 @@ export const initModelRuntimeFromDB = async (
     const fallbackInstances = resolvedInstances.slice(1);
 
     // 4. Get business hooks (billing in cloud, undefined in OSS)
-    const hooks = getBusinessModelRuntimeHooks(userId, provider, toNewapiRouteMetadata(primary));
+    const hooks = getBusinessModelRuntimeHooks(userId, provider, buildNewapiRouteMetadata(primary));
 
     // 5. Initialize ModelRuntime with the payload and hooks
     const runtime = await initModelRuntimeWithUserPayload(
