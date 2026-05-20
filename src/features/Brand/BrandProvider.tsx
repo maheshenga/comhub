@@ -61,9 +61,9 @@ const fetchBrand = async (): Promise<BrandConfig> => {
   }
 };
 
-const applyDocumentBrand = (b: BrandConfig) => {
+const applyDocumentBrand = (b: BrandConfig, updateDocumentTitle: boolean) => {
   if (typeof document === 'undefined') return;
-  if (b.name) document.title = b.name;
+  if (updateDocumentTitle && b.name) document.title = b.name;
   if (b.faviconUrl) {
     let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
     if (!link) {
@@ -78,10 +78,11 @@ const applyDocumentBrand = (b: BrandConfig) => {
   }
 };
 
-export const BrandProvider: FC<{ children: ReactNode; initialBrand?: BrandInput }> = ({
-  children,
-  initialBrand,
-}) => {
+export const BrandProvider: FC<{
+  children: ReactNode;
+  initialBrand?: BrandInput;
+  updateDocumentTitle?: boolean;
+}> = ({ children, initialBrand, updateDocumentTitle = true }) => {
   const { i18n } = useTranslation();
   const { data } = useSWR<BrandConfig>('brand-config', fetchBrand, {
     dedupingInterval: 60_000,
@@ -93,7 +94,7 @@ export const BrandProvider: FC<{ children: ReactNode; initialBrand?: BrandInput 
   );
 
   useEffect(() => {
-    applyDocumentBrand(value);
+    applyDocumentBrand(value, updateDocumentTitle);
     i18n.options ??= {};
     i18n.options.interpolation = {
       ...i18n.options.interpolation,
@@ -103,7 +104,7 @@ export const BrandProvider: FC<{ children: ReactNode; initialBrand?: BrandInput 
         defaultSkillName: value.defaultSkillName,
       },
     };
-  }, [value, i18n]);
+  }, [value, i18n, updateDocumentTitle]);
 
   return <BrandContext value={value}>{children}</BrandContext>;
 };

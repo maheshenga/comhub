@@ -1,10 +1,10 @@
-import { BRANDING_NAME } from '@lobechat/business-const';
-
 interface LoadingBrandLike {
   loadingText?: null | string;
   name?: null | string;
   slogan?: null | string;
 }
+
+export const GENERIC_LOADING_TEXT = '加载中';
 
 const escapeHtml = (value: string) =>
   value
@@ -15,14 +15,10 @@ const escapeHtml = (value: string) =>
     .replaceAll("'", '&#39;');
 
 export const getBrandLoadingText = (
-  brand: LoadingBrandLike,
-  fallback: string = BRANDING_NAME,
+  _brand: LoadingBrandLike,
+  _fallback: string = GENERIC_LOADING_TEXT,
 ): string => {
-  const loadingText = brand.loadingText?.trim();
-  if (loadingText) return loadingText;
-
-  const name = brand.name?.trim();
-  return name || fallback;
+  return GENERIC_LOADING_TEXT;
 };
 
 export const buildStaticLoadingBrandHtml = (text: string) =>

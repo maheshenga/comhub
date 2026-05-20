@@ -31,9 +31,26 @@
   color: var(--brand-text-color);
 }
 
-.brand :global(.lobe-brand-loading) {
-  display: block;
-  color: inherit;
+@keyframes brand-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 999px;
+
+  animation: brand-loading-spin 0.8s linear infinite;
+}
+
+.brandText {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .debug {

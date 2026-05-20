@@ -1,8 +1,7 @@
-import { BrandLoading, LobeHubText } from '@lobehub/ui/brand';
+'use client';
 
-import { isCustomBranding } from '@/const/version';
+import { getBrandLoadingText } from '@/features/Brand/loadingBrand';
 
-import CircleLoading from '../CircleLoading';
 import styles from './index.module.css';
 
 interface BrandTextLoadingProps {
@@ -10,19 +9,14 @@ interface BrandTextLoadingProps {
 }
 
 const BrandTextLoading = ({ debugId }: BrandTextLoadingProps) => {
-  if (isCustomBranding)
-    return (
-      <div className={styles.container}>
-        <CircleLoading />
-      </div>
-    );
-
+  const loadingText = getBrandLoadingText({});
   const showDebug = process.env.NODE_ENV === 'development' && debugId;
 
   return (
     <div className={styles.container}>
-      <div aria-label="Loading" className={styles.brand} role="status">
-        <BrandLoading size={40} text={LobeHubText} />
+      <div aria-label={loadingText} className={styles.brand} role="status">
+        <span aria-hidden className={styles.spinner} />
+        <span className={styles.brandText}>{loadingText}</span>
       </div>
       {showDebug && (
         <div className={styles.debug}>

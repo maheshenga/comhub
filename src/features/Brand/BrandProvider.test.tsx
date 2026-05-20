@@ -68,6 +68,7 @@ describe('BrandProvider', () => {
   beforeEach(() => {
     i18n.options = undefined;
     document.body.innerHTML = '';
+    document.title = '';
     swrData = {
       authTitle: 'Runtime auth title',
       copyrightText: '2026 Runtime',
@@ -135,6 +136,21 @@ describe('BrandProvider', () => {
     await waitFor(() => {
       expect(document.title).toBe('Server Brand');
       expect(i18n.options?.interpolation?.defaultVariables?.brandName).toBe('Server Brand');
+    });
+  });
+
+  it('can preserve a route-specific document title while applying other brand effects', async () => {
+    document.title = '登录 · Runtime Brand';
+
+    render(
+      <BrandProvider updateDocumentTitle={false}>
+        <div>content</div>
+      </BrandProvider>,
+    );
+
+    await waitFor(() => {
+      expect(document.title).toBe('登录 · Runtime Brand');
+      expect(i18n.options?.interpolation?.defaultVariables?.brandName).toBe('Runtime Brand');
     });
   });
 
