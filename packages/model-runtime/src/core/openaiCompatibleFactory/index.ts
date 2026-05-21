@@ -78,6 +78,41 @@ export const CHAT_MODELS_BLOCK_LIST = [
   'dall-e',
 ];
 
+const stripJsonMarkdownFence = (text: string) => {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('```')) return text;
+
+  const firstLineEnd = trimmed.indexOf('\n');
+  if (firstLineEnd < 0) return text;
+
+  const language = trimmed.slice(3, firstLineEnd).trim().toLowerCase();
+  if (language && language !== 'json') return text;
+
+  const closingFenceStart = trimmed.lastIndexOf('```');
+  if (closingFenceStart <= firstLineEnd) return text;
+
+  const trailing = trimmed.slice(closingFenceStart + 3).trim();
+  if (trailing) return text;
+
+  return trimmed.slice(firstLineEnd + 1, closingFenceStart).trim();
+};
+
+const parseStructuredJson = (text?: string) => {
+  if (typeof text !== 'string') return undefined;
+
+  const candidates = [text, stripJsonMarkdownFence(text)];
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try the next candidate; callers log the original text once parsing fails.
+    }
+  }
+
+  return undefined;
+};
+
 type ConstructorOptions<T extends Record<string, any> = any> = ClientOptions & T;
 type OpenAIExtraParams = { prompt_cache_key?: string; safety_identifier?: string };
 type ResponseCreateParamsWithPromptCacheKey = (
@@ -882,15 +917,15 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
 
           const text = res.output_text;
           log('received structured output from Responses API, length: %d', text?.length || 0);
-          try {
-            const result = JSON.parse(text);
+          const result = parseStructuredJson(text);
+          if (result !== undefined) {
             log('successfully parsed JSON output');
             return result;
-          } catch (error) {
-            log('failed to parse JSON output: %O', error);
-            console.error('parse json error:', text);
-            return undefined;
           }
+
+          log('failed to parse JSON output');
+          console.error('parse json error:', text);
+          return undefined;
         }
 
         log('calling chat.completions.create for structured output');
@@ -912,15 +947,15 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
 
         log('received structured output from Chat Completions API, length: %d', text?.length || 0);
 
-        try {
-          const result = JSON.parse(text);
+        const result = parseStructuredJson(text);
+        if (result !== undefined) {
           log('successfully parsed JSON output');
           return result;
-        } catch (error) {
-          log('failed to parse JSON output: %O', error);
-          console.error('parse json error:', text);
-          return undefined;
         }
+
+        log('failed to parse JSON output');
+        console.error('parse json error:', text);
+        return undefined;
       } catch (error) {
         const handledError = this.handleError(error);
 

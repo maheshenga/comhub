@@ -2034,6 +2034,31 @@ describe('LobeOpenAICompatibleFactory', () => {
       expect(result).toEqual({ age: 30, name: 'John' });
     });
 
+    it('should parse fenced JSON from Responses API structured output', async () => {
+      const mockResponse = {
+        output_text: '```json\n{"name": "John", "age": 30}\n```',
+      };
+
+      vi.spyOn(instance['client'].responses, 'create').mockResolvedValue(mockResponse as any);
+
+      const payload = {
+        messages: [{ content: 'Generate a person object', role: 'user' as const }],
+        model: 'gpt-4o',
+        responseApi: true,
+        schema: {
+          name: 'person_extractor',
+          schema: {
+            properties: { age: { type: 'number' }, name: { type: 'string' } },
+            type: 'object' as const,
+          },
+        },
+      };
+
+      const result = await instance.generateObject(payload);
+
+      expect(result).toEqual({ age: 30, name: 'John' });
+    });
+
     it('should handle options correctly', async () => {
       const mockResponse = {
         output_text: '{"status": "success"}',
@@ -2402,6 +2427,36 @@ describe('LobeOpenAICompatibleFactory', () => {
           }),
           expect.anything(),
         );
+      });
+
+      it('should parse fenced JSON from chat completions structured output', async () => {
+        const mockResponse = {
+          choices: [
+            {
+              message: {
+                content: '```json\n{"status": "completed"}\n```',
+              },
+            },
+          ],
+        };
+
+        vi.spyOn(instance['client'].chat.completions, 'create').mockResolvedValue(
+          mockResponse as any,
+        );
+
+        const payload = {
+          messages: [{ content: 'Generate status', role: 'user' as const }],
+          model: 'gpt-4o',
+          responseApi: false,
+          schema: {
+            name: 'status_extractor',
+            schema: { properties: { status: { type: 'string' } }, type: 'object' as const },
+          },
+        };
+
+        const result = await instance.generateObject(payload);
+
+        expect(result).toEqual({ status: 'completed' });
       });
 
       it('should return undefined when JSON parsing fails with chat completions API', async () => {
