@@ -4,12 +4,11 @@ import { type FormInstance, type InputRef } from 'antd';
 import { Badge, Divider, Form } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { ChevronRight, Mail } from 'lucide-react';
-import { type ReactNode, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import AuthIcons from '@/components/AuthIcons';
 import { PRIVACY_URL, TERMS_URL } from '@/const/url';
-import { useBrand } from '@/features/Brand';
 
 import AuthCard from '../../../../features/AuthCard';
 
@@ -25,7 +24,6 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/;
 export const USERNAME_REGEX = /^\w+$/;
 
 export interface SignInEmailStepProps {
-  businessElement?: ReactNode;
   disableEmailPassword?: boolean;
   form: FormInstance<{ email: string }>;
   isSocialOnly: boolean;
@@ -40,7 +38,6 @@ export interface SignInEmailStepProps {
 }
 
 export const SignInEmailStep = ({
-  businessElement,
   disableEmailPassword,
   form,
   isSocialOnly,
@@ -54,9 +51,6 @@ export const SignInEmailStep = ({
   onSocialSignIn,
 }: SignInEmailStepProps) => {
   const { t } = useTranslation('auth');
-  const brand = useBrand();
-  const appName = brand.name?.trim() || BRANDING_NAME;
-  const authTitle = brand.authTitle?.trim() || t('signin.title');
   const emailInputRef = useRef<InputRef>(null);
 
   useEffect(() => {
@@ -108,7 +102,11 @@ export const SignInEmailStep = ({
   );
 
   return (
-    <AuthCard footer={footer} subtitle={t('signin.subtitle', { appName })} title={authTitle}>
+    <AuthCard
+      footer={footer}
+      subtitle={t('signin.subtitle', { appName: BRANDING_NAME })}
+      title={'Agent teammates that grow with you'}
+    >
       {!serverConfigInit && (
         <Flexbox gap={12}>
           <Skeleton.Button active block size="large" />
@@ -157,7 +155,6 @@ export const SignInEmailStep = ({
               button
             );
           })}
-          {businessElement}
           {!disableEmailPassword && divider}
         </Flexbox>
       )}

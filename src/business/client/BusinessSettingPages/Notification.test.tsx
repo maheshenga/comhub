@@ -87,7 +87,7 @@ describe('Notification', () => {
     );
   });
 
-  it('renders Chinese managed notification settings and announcement action on web', () => {
+  it('renders managed notification settings and announcement action on web', () => {
     mockIsDesktop.mockReturnValue(false);
     mockNotificationConfig.mockReturnValue({
       desktopEnabled: false,

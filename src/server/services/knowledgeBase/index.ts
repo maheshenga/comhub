@@ -14,7 +14,7 @@ import { DocumentModel } from '@/database/models/document';
 import { FileModel } from '@/database/models/file';
 import { type KnowledgeBaseDocumentHit, SearchRepo } from '@/database/repositories/search';
 import { knowledgeBaseFiles } from '@/database/schemas';
-import { getResolvedServerDefaultFilesConfig } from '@/server/globalConfig';
+import { getServerDefaultFilesConfig } from '@/server/globalConfig';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { DocumentService } from '@/server/services/document';
 
@@ -112,8 +112,7 @@ export class KnowledgeBaseSearchService {
     // Path 1: vector search over file chunks
     const vectorPath = async (): Promise<ChatSemanticSearchChunk[]> => {
       const { model, provider } =
-        (await getResolvedServerDefaultFilesConfig(this.serverDB)).embeddingModel ||
-        DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
+        getServerDefaultFilesConfig().embeddingModel || DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
       const modelRuntime = await initModelRuntimeFromDB(this.serverDB, this.userId, provider);
 
       // slice content to make sure in the context window limit

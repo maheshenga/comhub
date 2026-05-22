@@ -1,5 +1,6 @@
 'use client';
 
+import type { InterestAreaKey } from '@lobechat/const';
 import { normalizeInterestsForStorage, resolveInterestAreaKey } from '@lobechat/const';
 import { Block, Flexbox, Icon, Input, Text } from '@lobehub/ui';
 import { cssVar } from 'antd-style';
@@ -8,7 +9,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { fetchErrorNotification } from '@/components/Error/fetchErrorNotification';
-import { type ProfileInterestArea, useProfileInterestAreas } from '@/features/ProfileInterests';
+import { INTEREST_AREAS } from '@/routes/onboarding/config';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
@@ -19,16 +20,13 @@ const InterestsRow = () => {
   const { t: tOnboarding } = useTranslation('onboarding');
   const interests = useUserStore(userProfileSelectors.interests);
   const updateInterests = useUserStore((s) => s.updateInterests);
-  const configuredAreas = useProfileInterestAreas();
   const [customInput, setCustomInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
-  const [saving, setSaving] = useState(false);
   const normalizedInterests = useMemo(() => normalizeInterestsForStorage(interests), [interests]);
 
   const saveInterests = useCallback(
     async (updated: string[]) => {
       try {
-        setSaving(true);
         await updateInterests(updated);
       } catch (error) {
         console.error('Failed to update interests:', error);
@@ -36,34 +34,22 @@ const InterestsRow = () => {
           errorMessage: error instanceof Error ? error.message : String(error),
           status: 500,
         });
-      } finally {
-        setSaving(false);
       }
     },
     [updateInterests],
   );
 
-  const areaKeys = useMemo(
-    () => new Set(configuredAreas.map((area) => area.key)),
-    [configuredAreas],
-  );
-
-  const getAreaLabel = useCallback(
-    (area: ProfileInterestArea) =>
-      area.custom ? area.label : tOnboarding(`interests.area.${area.key}`),
-    [tOnboarding],
-  );
-
-  const getStoredInterestLabel = useCallback(
-    (interest: string) => {
-      const resolvedKey = resolveInterestAreaKey(interest);
-      return resolvedKey ? tOnboarding(`interests.area.${resolvedKey}`) : interest;
-    },
+  const areas = useMemo(
+    () =>
+      INTEREST_AREAS.map((area) => ({
+        ...area,
+        label: tOnboarding(`interests.area.${area.key}`),
+      })),
     [tOnboarding],
   );
 
   const toggleInterest = useCallback(
-    async (key: string) => {
+    async (key: InterestAreaKey) => {
       const updated = normalizedInterests.includes(key)
         ? normalizedInterests.filter((i) => i !== key)
         : [...normalizedInterests, key];
@@ -96,7 +82,7 @@ const InterestsRow = () => {
     <ProfileRow label={t('profile.interests')}>
       <Flexbox gap={12}>
         <Flexbox horizontal align="center" gap={8} wrap="wrap">
-          {configuredAreas.map((item) => {
+          {areas.map((item) => {
             const isSelected = normalizedInterests.includes(item.key);
             return (
               <Block
@@ -111,21 +97,20 @@ const InterestsRow = () => {
                     ? {
                         background: cssVar.colorFillSecondary,
                         borderColor: cssVar.colorFillSecondary,
-                        opacity: saving ? 0.6 : 1,
                       }
-                    : { opacity: saving ? 0.6 : 1 }
+                    : undefined
                 }
-                onClick={() => !saving && toggleInterest(item.key)}
+                onClick={() => toggleInterest(item.key)}
               >
                 <Icon color={cssVar.colorTextSecondary} icon={item.icon} size={14} />
                 <Text fontSize={13} weight={500}>
-                  {getAreaLabel(item)}
+                  {item.label}
                 </Text>
               </Block>
             );
           })}
           {normalizedInterests
-            .filter((i) => !areaKeys.has(i))
+            .filter((i) => !resolveInterestAreaKey(i))
             .map((interest) => (
               <Block
                 clickable
@@ -135,12 +120,11 @@ const InterestsRow = () => {
                 style={{
                   background: cssVar.colorFillSecondary,
                   borderColor: cssVar.colorFillSecondary,
-                  opacity: saving ? 0.6 : 1,
                 }}
-                onClick={() => !saving && removeCustomInterest(interest)}
+                onClick={() => removeCustomInterest(interest)}
               >
                 <Text fontSize={13} weight={500}>
-                  {getStoredInterestLabel(interest)}
+                  {interest}
                 </Text>
               </Block>
             ))}

@@ -117,7 +117,9 @@ export class ContextEngine {
           // Build a diagnostic message that includes the immediate cause so
           // dashboard viewers can triage without raw stack access.
           const causeSummary =
-            cause.message.length > 300 ? cause.message.slice(0, 300) + '…' : cause.message;
+            cause.message.length > 300
+              ? cause.message.slice(0, 300) + '…'
+              : cause.message;
 
           throw new PipelineError(
             `Processor [${processor.name}] execution failed: ${causeSummary}`,

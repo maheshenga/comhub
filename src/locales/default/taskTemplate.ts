@@ -13,7 +13,7 @@ export default {
   'action.dismiss.tooltip': 'Not interested',
   'action.refresh.button': 'Refresh',
   'schedule.daily': 'Every day at {{time}}',
-  'schedule.editableAfterCreateTooltip': 'Editable after creation',
+  'schedule.editableAfterCreateTooltip': 'You can adjust the schedule after creating the task.',
   'schedule.weekly': 'Every {{weekday}} at {{time}}',
   'card.templateTag': 'Template',
   'section.title': 'Try these scheduled tasks',

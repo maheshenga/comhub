@@ -80,7 +80,6 @@ const getStringMetadataValue = (
   const value = metadata?.[key];
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 };
-
 interface GetChatCompletionPayload extends Partial<Omit<ChatStreamPayload, 'messages'>> {
   agentId?: string;
   groupId?: string;

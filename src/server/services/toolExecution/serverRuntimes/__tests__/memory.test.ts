@@ -1,5 +1,5 @@
 import type { LobeChatDatabase } from '@lobechat/database';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ToolExecutionContext } from '../../types';
 
@@ -21,9 +21,6 @@ vi.mock('@/database/schemas', () => ({
 }));
 
 vi.mock('@/server/globalConfig', () => ({
-  getResolvedServerDefaultFilesConfig: vi.fn(() => ({
-    embeddingModel: { model: 'default-embedding-model', provider: 'default-provider' },
-  })),
   getServerDefaultFilesConfig: vi.fn(() => ({
     embeddingModel: { model: 'default-embedding-model', provider: 'default-provider' },
   })),
@@ -66,10 +63,6 @@ const createContext = (): ToolExecutionContext => ({
 });
 
 describe('memoryRuntime', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('uses server-owned embedding runtime for memory search', async () => {
     mocks.embeddings.mockResolvedValueOnce([[0.1, 0.2, 0.3]]);
     mocks.initModelRuntimeWithUserPayload.mockReturnValueOnce({
@@ -106,44 +99,6 @@ describe('memoryRuntime', () => {
     expect(mocks.searchMemory).toHaveBeenCalledWith(
       expect.objectContaining({ queries: ['renewal timeline'] }),
       [[0.1, 0.2, 0.3]],
-    );
-  });
-
-  it('uses embedding model type when falling back to the database runtime', async () => {
-    mocks.embeddings.mockResolvedValueOnce([[0.4, 0.5, 0.6]]);
-    mocks.initModelRuntimeFromDB.mockResolvedValueOnce({
-      embeddings: mocks.embeddings,
-    });
-    mocks.searchMemory.mockResolvedValueOnce({
-      activities: [],
-      contexts: [],
-      experiences: [],
-      identities: [],
-      preferences: [],
-    });
-
-    const context = createContext() as any;
-    delete context.memoryEmbeddingRuntime;
-
-    const runtime = await memoryRuntime.factory(context);
-
-    await runtime.searchUserMemory({ queries: ['fallback memory search'] });
-
-    expect(mocks.initModelRuntimeFromDB).toHaveBeenCalledWith(
-      context.serverDB,
-      'synthetic-user',
-      'default-provider',
-      {
-        model: 'default-embedding-model',
-        modelType: 'embedding',
-      },
-    );
-    expect(mocks.embeddings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: ['fallback memory search'],
-        model: 'default-embedding-model',
-      }),
-      expect.objectContaining({ user: 'synthetic-user' }),
     );
   });
 });

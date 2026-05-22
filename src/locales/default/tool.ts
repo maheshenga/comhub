@@ -37,7 +37,7 @@ export default {
   'agentMarketplace.inspector.pickCount_one': '{{count}} agent',
   'agentMarketplace.inspector.pickCount_other': '{{count}} agents',
   'agentMarketplace.picker.empty': 'No templates available.',
-  'agentMarketplace.render.alreadyInLibraryTag': 'In library',
+  'agentMarketplace.render.alreadyInLibraryTag': 'Already in library',
   'agentMarketplace.render.alreadyInLibrary_one': '{{count}} already in library',
   'agentMarketplace.render.alreadyInLibrary_other': '{{count}} already in library',
   'agentMarketplace.picker.failedToLoad': 'Failed to load templates. Please try again later.',

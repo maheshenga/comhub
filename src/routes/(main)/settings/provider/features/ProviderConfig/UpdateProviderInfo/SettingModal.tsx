@@ -40,7 +40,7 @@ const CreateNewProvider = memo<CreateNewProviderProps>(({ onClose, open, initial
         settings: normalizeProviderSettings({
           nextSettings: values.settings,
           previousSettings: initialValues.settings,
-        }) as unknown as UpdateAiProviderParams['settings'],
+        }) as UpdateAiProviderParams['settings'],
       };
 
       const nextSdkType = finalValues.settings?.sdkType;

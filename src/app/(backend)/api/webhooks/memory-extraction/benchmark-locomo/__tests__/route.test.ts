@@ -90,7 +90,10 @@ describe('benchmark LoCoMo memory extraction webhook', () => {
     const json = await response.json();
 
     expect(json.insertedParts).toBe(3);
-    expect(json.sourceIds).toEqual(['sample_conv-26_session_1', 'sample_conv-26_session_2']);
+    expect(json.sourceIds).toEqual([
+      'sample_conv-26_session_1',
+      'sample_conv-26_session_2',
+    ]);
     expect(json.results).toHaveLength(2);
     expect(json.results[0]).toMatchObject({
       insertedParts: 2,

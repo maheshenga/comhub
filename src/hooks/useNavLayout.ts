@@ -3,10 +3,6 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { getRouteById } from '@/config/routes';
-import { PUBLIC_EXPERT_PLAZA_SWR_KEY } from '@/const/adminCacheKeys';
-import { DEFAULT_EXPERT_PLAZA_CONFIG } from '@/const/expertPlaza';
-import { useClientDataSWR } from '@/libs/swr';
-import { adminCommercialService } from '@/services/adminCommercial';
 import { useGlobalStore } from '@/store/global';
 import { SidebarTabKey } from '@/store/global/initialState';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
@@ -40,9 +36,6 @@ export const useNavLayout = (): NavLayout => {
   const { t } = useTranslation('common');
   const toggleCommandMenu = useGlobalStore((s) => s.toggleCommandMenu);
   const { showMarket, hideGitHub } = useServerConfigStore(featureFlagsSelectors);
-  const { data: expertPlazaConfig } = useClientDataSWR(PUBLIC_EXPERT_PLAZA_SWR_KEY, () =>
-    adminCommercialService.getPublicExpertPlaza(),
-  );
 
   const topNavItems = useMemo(
     () =>
@@ -85,24 +78,11 @@ export const useNavLayout = (): NavLayout => {
           url: '/image',
         },
         {
-          icon: getRouteById('ppt')!.icon,
-          key: SidebarTabKey.Ppt,
-          title: t('tab.ppt'),
-          url: '/ppt',
-        },
-        {
           hidden: !showMarket,
           icon: getRouteById('community')!.icon,
           key: SidebarTabKey.Community,
           title: t('tab.community'),
           url: '/community',
-        },
-        {
-          hidden: !expertPlazaConfig?.enabled,
-          icon: getRouteById('experts')!.icon,
-          key: SidebarTabKey.Experts,
-          title: expertPlazaConfig?.name || DEFAULT_EXPERT_PLAZA_CONFIG.name,
-          url: '/experts',
         },
         {
           icon: getRouteById('resource')!.icon,
@@ -117,7 +97,7 @@ export const useNavLayout = (): NavLayout => {
           url: '/memory',
         },
       ] as NavItem[],
-    [expertPlazaConfig?.enabled, expertPlazaConfig?.name, t, showMarket],
+    [t, showMarket],
   );
 
   const footer = useMemo(

@@ -77,6 +77,12 @@ export default {
   'credits.autoTopUp.toggle': '开启自动充值',
   'credits.autoTopUp.upgradeHint': '订阅付费套餐后可开启自动充值',
   'credits.autoTopUp.validation.targetMustExceedThreshold': '目标余额必须大于触发阈值',
+  'credits.costEstimateHint.desc': '当预估模型费用达到阈值时，在发送前显示轻量提醒',
+  'credits.costEstimateHint.saveError': '费用预估提醒设置保存失败',
+  'credits.costEstimateHint.saveSuccess': '费用预估提醒设置已保存',
+  'credits.costEstimateHint.threshold': '提醒阈值',
+  'credits.costEstimateHint.title': '费用预估提醒',
+  'credits.costEstimateHint.validation.threshold': '阈值必须大于或等于 0',
   'credits.packages.expired': '已过期',
   'credits.packages.expiresIn': '{{days}} 天后过期',
   'credits.packages.expiresToday': '今天过期',
@@ -132,6 +138,9 @@ export default {
   'limitation.chat.success.desc':
     '你的 {{plan}} 订阅已升级成功。现在可以继续使用 AI 对话。当前套餐包含：',
   'limitation.chat.success.title': '升级成功',
+  'limitation.chat.budgetReady.action': '继续对话',
+  'limitation.chat.budgetReady.desc': '当前可用积分已足够覆盖本次对话。',
+  'limitation.chat.budgetReady.title': '积分已就绪',
   'limitation.chat.topupSuccess.action': '继续对话',
   'limitation.chat.topupSuccess.desc':
     '你的充值积分已生效。现在可以继续使用 AI 对话。当前套餐包含：',
@@ -141,6 +150,11 @@ export default {
   'limitation.expired.title': '算力积分已过期',
   'limitation.insufficientBudget.desc':
     '你的剩余积分不足以覆盖该模型的预估消耗。请充值积分或切换到成本更低的模型。',
+  'limitation.insufficientBudget.approximateDesc':
+    '本次请求预计需要约 {{amount}} 积分，请确保余额充足后再继续。',
+  'limitation.insufficientBudget.available': '可用积分',
+  'limitation.insufficientBudget.estimatedDesc': '本次请求预计需要 {{amount}} 积分。',
+  'limitation.insufficientBudget.exactDesc': '本次请求需要 {{amount}} 积分。',
   'limitation.insufficientBudget.retry': '重试',
   'limitation.insufficientBudget.title': '当前模型积分不足',
   'limitation.hobby.action': '已配置，继续对话',
@@ -153,6 +167,9 @@ export default {
   'limitation.image.success.desc':
     '你的 {{plan}} 订阅已升级成功。现在可以继续使用 AI 生图。当前套餐包含：',
   'limitation.image.success.title': '升级成功',
+  'limitation.image.budgetReady.action': '继续生成',
+  'limitation.image.budgetReady.desc': '当前可用积分已足够覆盖本次生成。',
+  'limitation.image.budgetReady.title': '积分已就绪',
   'limitation.image.topupSuccess.action': '继续生成',
   'limitation.image.topupSuccess.desc':
     '你的充值积分已生效。现在可以继续使用 AI 生图。当前套餐包含：',
@@ -161,6 +178,9 @@ export default {
   'limitation.video.success.desc':
     '你的 {{plan}} 订阅已升级成功。现在可以继续使用 AI 视频生成。当前套餐包含：',
   'limitation.video.success.title': '升级成功',
+  'limitation.video.budgetReady.action': '继续生成',
+  'limitation.video.budgetReady.desc': '当前可用积分已足够覆盖本次生成。',
+  'limitation.video.budgetReady.title': '积分已就绪',
   'limitation.video.topupSuccess.action': '继续生成',
   'limitation.video.topupSuccess.desc':
     '你的充值积分已生效。现在可以继续使用 AI 视频生成。当前套餐包含：',
@@ -173,6 +193,7 @@ export default {
   'limitation.limited.title': '算力积分已用尽',
   'limitation.limited.topup': '充值积分',
   'limitation.limited.upgrade': '升级到更高套餐',
+  'limitation.limited.upgradeToPlan': '升级到 {{plan}}',
   'limitation.providers.lock.addNew': '订阅后可创建自定义 AI 服务商',
   'limitation.providers.lock.enableProvider': '订阅后可启用该 AI 服务商',
   'limitation.providers.lock.menuItem': '订阅后可配置自定义 API 服务',
@@ -270,6 +291,7 @@ export default {
   'plans.llm.title': '模型服务',
   'plans.llm.tooltip': '享受云同步的同时，可添加私有模型 Provider API',
   'plans.message.count': '约 {{number}} 条消息',
+  'plans.message.advancedLLM': '高级模型',
   'plans.message.more': '更多模型请查看套餐对比',
   'plans.message.normalLLM': '标准模型',
   'plans.message.proLLM': '高级模型',

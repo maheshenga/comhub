@@ -3,9 +3,9 @@ export default {
   'advanceSettings': 'Advanced Settings',
   'alert.cloud.action': 'Try now',
   'alert.cloud.desc':
-    'All registered users get {{credit}} free computing credits per month—no setup needed. Includes global cloud sync and advanced web search.',
+    'All registered users get {{credit}} free credits per month—no setup needed. Includes global cloud sync and advanced web search.',
   'alert.cloud.descOnMobile':
-    'All registered users get {{credit}} free computing credits per month—no setup needed.',
+    'All registered users get {{credit}} free credits per month—no setup needed.',
   'alert.cloud.title': '{{name}} beta is live',
   'agentOnboardingPromo.actionLabel': 'Try it now',
   'agentOnboardingPromo.description':
@@ -46,8 +46,6 @@ export default {
   'checkForUpdates': 'Check for Updates',
   'downloadingUpdate': 'Downloading {{percent}}%',
   'restartToUpdate': 'Restart to Update',
-  'time.formatOtherYear': 'MMM D, YYYY',
-  'time.formatThisYear': 'MMM D',
   'clientDB.autoInit.title': 'Initializing PGlite Database',
   'clientDB.error.desc':
     'PGlite failed to initialize. Retry first. If it helps, open Self-serve fixes and follow the steps. Still stuck after a few tries? Use Report issue to send us the error details.',
@@ -542,6 +540,8 @@ export default {
   'telemetry.title': 'Help improve {{appName}}',
   'temp': 'Temporary',
   'terms': 'Terms of Service',
+  'time.formatOtherYear': 'MMM D, YYYY',
+  'time.formatThisYear': 'MMM D',
   'time.today': 'Today',
   'time.yesterday': 'Yesterday',
   'unknownError': 'Unknown error',

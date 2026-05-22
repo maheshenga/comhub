@@ -54,13 +54,6 @@ vi.mock('@/components/Error/fetchErrorNotification', () => ({
   },
 }));
 
-vi.mock('@/features/ProfileInterests', () => ({
-  useProfileInterestAreas: () => [
-    { key: 'writing', label: 'writing', icon: () => null },
-    { key: 'coding', label: 'coding', icon: () => null },
-  ],
-}));
-
 vi.mock('@/store/user', () => ({
   useUserStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({

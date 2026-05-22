@@ -1,7 +1,7 @@
 import { DEFAULT_IMAGE_CONFIG } from '@lobechat/const';
 import { type ModelParamsSchema, type RuntimeImageGenParams } from 'model-bank';
 import { extractDefaultValues, ModelProvider } from 'model-bank';
-import { nanoBanana2Parameters } from 'model-bank/lobehub';
+import { nanoBanana2Parameters } from 'model-bank/imageParameters';
 
 export const DEFAULT_AI_IMAGE_PROVIDER = ModelProvider.Google;
 export const DEFAULT_AI_IMAGE_MODEL = 'gemini-3.1-flash-image-preview:image';

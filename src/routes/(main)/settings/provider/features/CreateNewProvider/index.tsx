@@ -35,7 +35,7 @@ const CreateNewProvider = memo<CreateNewProviderProps>(({ onClose, open }) => {
         name: values.name || values.id,
         settings: normalizeProviderSettings({
           nextSettings: values.settings,
-        }) as unknown as CreateAiProviderParams['settings'],
+        }) as CreateAiProviderParams['settings'],
       };
 
       await createNewAiProvider(finalValues);

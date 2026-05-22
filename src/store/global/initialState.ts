@@ -24,10 +24,6 @@ export enum SidebarTabKey {
 }
 
 export enum ChatSettingsTabs {
-  Chat = 'chat',
-  Documents = 'documents',
-  Meta = 'meta',
-  Modal = 'modal',
   Opening = 'opening',
   Plugin = 'plugin',
   Prompt = 'prompt',
@@ -209,6 +205,11 @@ export interface SystemStatus {
     name: number;
     size: number;
   };
+  /**
+   * Visibility of the Agent profile right-side Agent Builder panel.
+   * Independent from `showRightPanel` so builder creation flows do not affect chat pages.
+   */
+  showAgentBuilderPanel?: boolean;
   showCommandMenu?: boolean;
   showFilePanel?: boolean;
   showHotkeyHelper?: boolean;
@@ -274,6 +275,11 @@ export interface SystemStatus {
   videoTopicPanelWidth?: number;
   videoTopicViewMode?: 'grid' | 'list';
   workingSidebarRevealRequest?: { nonce: number; path: string };
+  /**
+   * Active tab inside the agent chat right-side WorkingSidebar.
+   * Lifted to global so external triggers (e.g. the diff badge in the input bar)
+   * can switch the panel to "review" when revealing the right panel.
+   */
   workingSidebarTab?: WorkingSidebarTab;
   zenMode?: boolean;
 }
@@ -363,12 +369,12 @@ export const INITIAL_STATUS = {
     name: 574,
     size: 140,
   },
-  sidebarExpandedKeys: [...DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS],
   showCommandMenu: false,
   showFilePanel: true,
   showHotkeyHelper: false,
   showImagePanel: true,
   showImageTopicPanel: true,
+  showAgentBuilderPanel: false,
   showLeftPanel: true,
   showPageAgentPanel: true,
   showRightPanel: false,
@@ -376,6 +382,7 @@ export const INITIAL_STATUS = {
   showTaskAgentPanel: false,
   showVideoPanel: true,
   showVideoTopicPanel: true,
+  sidebarExpandedKeys: [...DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS],
   systemRoleExpandedMap: {},
   tokenDisplayFormatShort: true,
   topicPageSize: 20,

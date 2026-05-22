@@ -46,7 +46,7 @@ export interface DescriptionItem {
   value: ReactNode;
 }
 
-interface DescriptionsProps extends Omit<GridProps, 'children' | 'title' | 'wrap'> {
+interface DescriptionsProps extends Omit<GridProps, 'children' | 'wrap'> {
   bordered?: boolean;
   classNames?: {
     item?: string;
@@ -60,7 +60,6 @@ interface DescriptionsProps extends Omit<GridProps, 'children' | 'title' | 'wrap
     label?: CSSProperties;
     value?: CSSProperties;
   };
-  title?: ReactNode;
   wrap?: boolean;
 }
 

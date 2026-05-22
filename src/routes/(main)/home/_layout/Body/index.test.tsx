@@ -3,6 +3,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Body from './index';
 
+vi.hoisted(() => {
+  const storage = new Map<string, string>();
+
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      clear: () => storage.clear(),
+      getItem: (key: string) => storage.get(key) ?? null,
+      key: (index: number) => Array.from(storage.keys())[index] ?? null,
+      get length() {
+        return storage.size;
+      },
+      removeItem: (key: string) => {
+        storage.delete(key);
+      },
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
+    },
+  });
+});
+
 interface MockGlobalState {
   status: {
     hiddenSidebarSections?: string[];
@@ -38,7 +60,9 @@ vi.mock('@lobehub/ui', () => ({
   ),
   ActionIcon: () => <span />,
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  Flexbox: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Flexbox: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="sidebar-body">{children}</div>
+  ),
   Icon: () => <span />,
 }));
 
@@ -92,6 +116,10 @@ vi.mock('@/store/global', () => ({
 
 beforeEach(() => {
   mocks.updateSystemStatus.mockReset();
+  mocks.navLayout = {
+    bottomMenuItems: [],
+    topNavItems: [],
+  };
   mocks.globalState = {
     status: {
       hiddenSidebarSections: [],
@@ -100,7 +128,6 @@ beforeEach(() => {
     },
     updateSystemStatus: mocks.updateSystemStatus,
   };
-  mocks.navLayout = { bottomMenuItems: [], topNavItems: [] };
 });
 
 afterEach(() => {
@@ -138,5 +165,29 @@ describe('Home sidebar body', () => {
 
     expect(screen.getByText('PPT')).toBeInTheDocument();
     expect(screen.getByText('专家广场')).toBeInTheDocument();
+  });
+
+  it('keeps custom top ordering above the bottom spacer', () => {
+    mocks.navLayout = {
+      bottomMenuItems: [
+        { key: 'image', title: 'Image', url: '/image' },
+        { key: 'resource', title: 'Resource', url: '/resource' },
+      ],
+      topNavItems: [{ key: 'pages', title: 'Pages', url: '/page' }],
+    };
+    mocks.globalState.status.sidebarItems = ['image', 'pages', 'recents', 'agent', 'resource'];
+
+    render(<Body />);
+
+    const children = Array.from(screen.getByTestId('sidebar-body').children);
+    const spacerIndex = children.findIndex((child) =>
+      child.hasAttribute('data-sidebar-bottom-spacer'),
+    );
+
+    expect(spacerIndex).toBe(2);
+    expect(children[0]).toHaveTextContent('Pages');
+    expect(children[1]).toHaveAttribute('data-testid', 'sidebar-accordion');
+    expect(children[3]).toHaveTextContent('Image');
+    expect(children[4]).toHaveTextContent('Resource');
   });
 });

@@ -4,12 +4,40 @@ import anthropicChatModels from 'model-bank/anthropic';
 import azureChatModels from 'model-bank/azure';
 import deepseekChatModels from 'model-bank/deepseek';
 import googleChatModels from 'model-bank/google';
-import { lobehubChatModels } from 'model-bank/lobehub';
 import openaiChatModels from 'model-bank/openai';
 import vertexAiModels from 'model-bank/vertexai';
 import { describe, expect, it } from 'vitest';
 
 import { computeChatCost } from './computeChatCost';
+
+const hostedGemini3FlashPricing: Pricing = {
+  units: [
+    { name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'imageInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'videoInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'audioInput', rate: 1, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'textOutput', rate: 3, strategy: 'fixed', unit: 'millionTokens' },
+  ],
+};
+
+const hostedGeminiTieredProPricing: Pricing = {
+  units: [
+    { name: 'textInput', rate: 1.25, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'imageInput', rate: 1.25, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'videoInput', rate: 1.25, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'audioInput', rate: 1.25, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'textOutput', rate: 10, strategy: 'fixed', unit: 'millionTokens' },
+  ],
+};
+
+const hostedGemini31FlashImagePricing: Pricing = {
+  units: [
+    { name: 'textInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'imageInput', rate: 0.5, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'textOutput', rate: 3, strategy: 'fixed', unit: 'millionTokens' },
+    { name: 'imageOutput', rate: 60, strategy: 'fixed', unit: 'millionTokens' },
+  ],
+};
 
 describe('computeChatPricing', () => {
   describe('OpenAI', () => {
@@ -132,7 +160,7 @@ describe('computeChatPricing', () => {
     });
   });
 
-  describe('LobeHub-hosted DeepSeek', () => {
+  describe('Hosted DeepSeek pricing fixtures', () => {
     const usage: ModelTokensUsage = {
       inputCacheMissTokens: 1_000_000,
       inputCachedTokens: 1_000_000,
@@ -215,11 +243,10 @@ describe('computeChatPricing', () => {
         modelId: 'deepseek-reasoner',
       },
     ])(
-      'applies 10% hosted discount pricing for $modelId',
+      'applies hosted discount pricing for $modelId',
       ({ expectedCredits, expectedUnits, modelId }) => {
-        const pricing = lobehubChatModels.find((model) => model.id === modelId)?.pricing;
-        expect(pricing).toBeDefined();
-        expect(pricing?.units).toEqual(expectedUnits);
+        const pricing: Pricing = { units: expectedUnits as Pricing['units'] };
+        expect(pricing.units).toEqual(expectedUnits);
 
         const result = computeChatCost(pricing, usage);
         expect(result).toBeDefined();
@@ -364,7 +391,7 @@ describe('computeChatPricing', () => {
     });
 
     it('charges Gemini 3.1 Flash-Lite cached audio and cache writes across Google cards', () => {
-      const modelLists = [googleChatModels, lobehubChatModels, vertexAiModels];
+      const modelLists = [googleChatModels, vertexAiModels];
 
       for (const models of modelLists) {
         const pricing = models.find(
@@ -412,12 +439,7 @@ describe('computeChatPricing', () => {
       }
     });
 
-    it('charges multimodal input units for LobeHub-hosted Gemini 3 Flash', () => {
-      const pricing = lobehubChatModels.find(
-        (model: { id: string }) => model.id === 'gemini-3-flash-preview',
-      )?.pricing;
-      expect(pricing).toBeDefined();
-
+    it('charges multimodal input units for hosted Gemini 3 Flash', () => {
       const usage: ModelTokensUsage = {
         inputAudioTokens: 400,
         inputImageTokens: 200,
@@ -429,7 +451,7 @@ describe('computeChatPricing', () => {
         totalTokens: 1010,
       };
 
-      const result = computeChatCost(pricing, usage);
+      const result = computeChatCost(hostedGemini3FlashPricing, usage);
       expect(result).toBeDefined();
       expect(result?.issues).toHaveLength(0);
       expect(result?.totalCredits).toBe(730);
@@ -443,12 +465,7 @@ describe('computeChatPricing', () => {
       expect(breakdown.find((item) => item.unit.name === 'textOutput')?.credits).toBe(30);
     });
 
-    it('charges multimodal input units for LobeHub-hosted tiered Gemini Pro', () => {
-      const pricing = lobehubChatModels.find(
-        (model: { id: string }) => model.id === 'gemini-2.5-pro',
-      )?.pricing;
-      expect(pricing).toBeDefined();
-
+    it('charges multimodal input units for hosted tiered Gemini Pro', () => {
       const usage: ModelTokensUsage = {
         inputAudioTokens: 400,
         inputImageTokens: 200,
@@ -460,7 +477,7 @@ describe('computeChatPricing', () => {
         totalTokens: 1010,
       };
 
-      const result = computeChatCost(pricing, usage);
+      const result = computeChatCost(hostedGeminiTieredProPricing, usage);
       expect(result).toBeDefined();
       expect(result?.issues).toHaveLength(0);
       expect(result?.totalCredits).toBe(1350);
@@ -555,12 +572,7 @@ describe('computeChatPricing', () => {
       expect(totalCredits).toBe(577);
     });
 
-    it('charges image input at the official Gemini 3.1 Flash Image rate', () => {
-      const pricing = lobehubChatModels.find(
-        (model: { id: string }) => model.id === 'gemini-3.1-flash-image-preview',
-      )?.pricing;
-      expect(pricing).toBeDefined();
-
+    it('charges image input at the hosted Gemini 3.1 Flash Image rate', () => {
       const usage: ModelTokensUsage = {
         inputImageTokens: 200,
         inputTextTokens: 100,
@@ -571,7 +583,7 @@ describe('computeChatPricing', () => {
         totalTokens: 330,
       };
 
-      const result = computeChatCost(pricing, usage);
+      const result = computeChatCost(hostedGemini31FlashImagePricing, usage);
       expect(result).toBeDefined();
       expect(result?.issues).toHaveLength(0);
       expect(result?.totalCredits).toBe(1380);
