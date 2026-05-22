@@ -14,6 +14,15 @@ const mockSignInOauth2 = vi.hoisted(() => vi.fn());
 const mockSignInEmail = vi.hoisted(() => vi.fn());
 const mockSignInMagicLink = vi.hoisted(() => vi.fn());
 const mockRequestPasswordReset = vi.hoisted(() => vi.fn());
+const mockGetAdditionalData = vi.hoisted(() =>
+  vi.fn<() => Promise<Record<string, unknown>>>(async () => ({})),
+);
+const mockGetCaptchaTokenOnError = vi.hoisted(() =>
+  vi.fn<() => Promise<null | string | undefined>>(async () => undefined),
+);
+const mockGetFetchOptions = vi.hoisted(() =>
+  vi.fn<() => Promise<Record<string, unknown> | undefined>>(async () => undefined),
+);
 const mockLocalStorage = vi.hoisted(() => {
   const store = new Map<string, string>();
 
@@ -58,7 +67,10 @@ vi.mock('@lobechat/business-const', async (importOriginal) => ({
 
 vi.mock('@/business/client/hooks/useBusinessSignin', () => ({
   useBusinessSignin: () => ({
-    getAdditionalData: async () => ({}),
+    businessElement: null,
+    getAdditionalData: mockGetAdditionalData,
+    getCaptchaTokenOnError: mockGetCaptchaTokenOnError,
+    getFetchOptions: mockGetFetchOptions,
     preSocialSigninCheck: async () => true,
     ssoProviders: [],
   }),
@@ -109,6 +121,9 @@ describe('useSignIn', () => {
     vi.clearAllMocks();
     mockLocalStorage.clear();
     mockSearchParamsGet.mockReturnValue(null);
+    mockGetAdditionalData.mockResolvedValue({});
+    mockGetCaptchaTokenOnError.mockResolvedValue(undefined);
+    mockGetFetchOptions.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -358,10 +373,18 @@ describe('useSignIn', () => {
       expect(mockMessageError).toHaveBeenCalled();
     });
 
-    it('should not retry social sign in when captcha is returned unexpectedly', async () => {
-      mockSignInSocial.mockResolvedValue({
-        error: { code: 'CAPTCHA_REQUIRED', message: 'Missing CAPTCHA response', status: 400 },
-      });
+    it('should retry social sign in with captcha token when the provider requires it', async () => {
+      mockGetFetchOptions.mockResolvedValue({ headers: { 'x-existing': '1' } });
+      mockGetCaptchaTokenOnError.mockResolvedValue('captcha-token');
+      mockSignInSocial
+        .mockResolvedValueOnce({
+          error: { code: 'CAPTCHA_REQUIRED', message: 'Missing CAPTCHA response', status: 400 },
+        })
+        .mockResolvedValueOnce({
+          error: null,
+          redirect: true,
+          url: 'https://google.com/auth',
+        });
 
       const { result } = renderHook(() => useSignIn());
 
@@ -369,8 +392,17 @@ describe('useSignIn', () => {
         await result.current.handleSocialSignIn('google');
       });
 
-      expect(mockSignInSocial).toHaveBeenCalledTimes(1);
-      expect(mockMessageError).toHaveBeenCalled();
+      expect(mockSignInSocial).toHaveBeenCalledTimes(2);
+      expect(mockSignInSocial).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          fetchOptions: expect.objectContaining({
+            headers: expect.objectContaining({ 'x-captcha-response': 'captcha-token' }),
+          }),
+          provider: 'google',
+        }),
+      );
+      expect(mockMessageError).not.toHaveBeenCalled();
     });
 
     it('should save last auth provider to localStorage', async () => {

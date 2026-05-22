@@ -1,6 +1,6 @@
 import { createStaticStyles } from 'antd-style';
 
-export const styles = createStaticStyles(({ css, cssVar }) => ({
+export const styles = createStaticStyles(({ css }) => ({
   divider: css`
     height: 24px;
   `,
@@ -11,10 +11,10 @@ export const styles = createStaticStyles(({ css, cssVar }) => ({
 
     overflow: hidden;
 
-    border: 1px solid ${cssVar.colorBorderSecondary};
-    border-radius: ${cssVar.borderRadius};
+    border: 1px solid #262626;
+    border-radius: 8px;
 
-    background: ${cssVar.colorBgContainer};
+    background: #080808;
   `,
 
   // Inner container - light mode
@@ -23,10 +23,10 @@ export const styles = createStaticStyles(({ css, cssVar }) => ({
 
     overflow: hidden;
 
-    border: 1px solid ${cssVar.colorBorder};
-    border-radius: ${cssVar.borderRadius};
+    border: 1px solid #e3e3e3;
+    border-radius: 8px;
 
-    background: ${cssVar.colorBgContainer};
+    background: #fff;
   `,
 
   // Outer container

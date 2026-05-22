@@ -4,7 +4,7 @@ import { type FormInstance, type InputRef } from 'antd';
 import { Badge, Divider, Form } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { ChevronRight, Mail } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import AuthIcons from '@/components/AuthIcons';
@@ -25,6 +25,7 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/;
 export const USERNAME_REGEX = /^\w+$/;
 
 export interface SignInEmailStepProps {
+  businessElement?: ReactNode;
   disableEmailPassword?: boolean;
   form: FormInstance<{ email: string }>;
   isSocialOnly: boolean;
@@ -39,6 +40,7 @@ export interface SignInEmailStepProps {
 }
 
 export const SignInEmailStep = ({
+  businessElement,
   disableEmailPassword,
   form,
   isSocialOnly,
@@ -155,6 +157,7 @@ export const SignInEmailStep = ({
               button
             );
           })}
+          {businessElement}
           {!disableEmailPassword && divider}
         </Flexbox>
       )}
