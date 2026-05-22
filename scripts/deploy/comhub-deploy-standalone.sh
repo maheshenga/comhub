@@ -83,7 +83,12 @@ echo "== start node standalone =="
 PORT="$PORT" HOSTNAME="$APP_HOST" NODE_ENV=production nohup "$NODE" server.js > start.log 2>&1 &
 echo $! > app.pid
 sleep 5
-ss -ltnp | grep ":${PORT}"
+LISTENER_LINE=$(ss -ltnp | grep ":${PORT}")
+echo "$LISTENER_LINE"
+LISTENER_PID=$(echo "$LISTENER_LINE" | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -1)
+if [ -n "$LISTENER_PID" ]; then
+  echo "$LISTENER_PID" > app.pid
+fi
 curl -I --max-time 15 "http://127.0.0.1:${PORT}/" | head -20
 curl --max-time 15 "http://127.0.0.1:${PORT}/api/version" | head -c 500 || true
 echo "bind_host=$APP_HOST"
