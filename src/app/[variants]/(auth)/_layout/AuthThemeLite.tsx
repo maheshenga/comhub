@@ -1,6 +1,6 @@
 'use client';
 
-import 'antd/dist/reset.css';
+import 'antd/dist/antd.css';
 
 import { ConfigProvider, ThemeProvider } from '@lobehub/ui';
 import { App } from 'antd';
