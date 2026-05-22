@@ -36,16 +36,27 @@ const serializeForSpan = (value: unknown, limit = 4000) => {
 };
 
 const parseStructuredResult = <TOutput>(schema: z.ZodType<TOutput>, result: unknown): TOutput => {
-  try {
-    return schema.parse(result);
-  } catch (error) {
-    if (Array.isArray(result)) {
-      const wrapped = schema.safeParse({ memories: result });
-      if (wrapped.success) return wrapped.data;
+  const parsed = schema.safeParse(result);
+  if (parsed.success) return parsed.data;
+
+  if (Array.isArray(result)) {
+    if (result.length === 1) {
+      const singleWrapped = schema.safeParse(result[0]);
+      if (singleWrapped.success) return singleWrapped.data;
+
+      if (Array.isArray(result[0])) {
+        const nestedArrayWrapped = schema.safeParse({ memories: result[0] });
+        if (nestedArrayWrapped.success) return nestedArrayWrapped.data;
+      }
     }
 
-    throw error;
+    const bareArrayWrapped = schema.safeParse({ memories: result });
+    if (bareArrayWrapped.success) return bareArrayWrapped.data;
+
+    throw bareArrayWrapped.error;
   }
+
+  throw parsed.error;
 };
 
 export interface BaseMemoryExtractorConfig {

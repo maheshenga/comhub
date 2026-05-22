@@ -85,4 +85,20 @@ describe('PreferenceExtractor', () => {
 
     await expect(extractor.structuredCall(templateOptions)).resolves.toEqual({ memories: [] });
   });
+
+  it('unwraps a singleton array containing the memories result object', async () => {
+    const extractor = new PreferenceExtractor(extractorConfig);
+    const generateObjectMock = runtimeMock.generateObject as unknown as ReturnType<typeof vi.fn>;
+    generateObjectMock.mockResolvedValueOnce([{ memories: [] }]);
+
+    await expect(extractor.structuredCall(templateOptions)).resolves.toEqual({ memories: [] });
+  });
+
+  it('wraps a singleton nested array model response as the memories result', async () => {
+    const extractor = new PreferenceExtractor(extractorConfig);
+    const generateObjectMock = runtimeMock.generateObject as unknown as ReturnType<typeof vi.fn>;
+    generateObjectMock.mockResolvedValueOnce([[]]);
+
+    await expect(extractor.structuredCall(templateOptions)).resolves.toEqual({ memories: [] });
+  });
 });
