@@ -47,8 +47,8 @@ export NODE_OPTIONS=--max-old-space-size=8192
 export APP_URL=http://app.com
 export DATABASE_DRIVER=node
 export DATABASE_URL=postgres://postgres:password@localhost:5432/postgres
-export KEY_VAULTS_SECRET=use-for-build
-export AUTH_SECRET=use-for-build
+export KEY_VAULTS_SECRET=dXNlLWZvci1idWlsZC1rZXktMzItYnl0ZXMtMDAwMDA=
+export AUTH_SECRET=use-for-build-auth-secret-32-chars
 export DOCKER=true
 pnpm exec tsx scripts/dockerPrebuild.mts
 rm -rf src/app/desktop 'src/app/(backend)/trpc/desktop'
