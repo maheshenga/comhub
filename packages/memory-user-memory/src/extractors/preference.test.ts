@@ -77,4 +77,12 @@ describe('PreferenceExtractor', () => {
     expect(result).not.toBe('');
     expect(result).toBe(renderPlaceholderTemplate(preferencePrompt, expectedProps));
   });
+
+  it('wraps a bare array model response as the memories result', async () => {
+    const extractor = new PreferenceExtractor(extractorConfig);
+    const generateObjectMock = runtimeMock.generateObject as unknown as ReturnType<typeof vi.fn>;
+    generateObjectMock.mockResolvedValueOnce([]);
+
+    await expect(extractor.structuredCall(templateOptions)).resolves.toEqual({ memories: [] });
+  });
 });

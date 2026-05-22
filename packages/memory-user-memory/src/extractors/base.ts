@@ -35,6 +35,19 @@ const serializeForSpan = (value: unknown, limit = 4000) => {
   }
 };
 
+const parseStructuredResult = <TOutput>(schema: z.ZodType<TOutput>, result: unknown): TOutput => {
+  try {
+    return schema.parse(result);
+  } catch (error) {
+    if (Array.isArray(result)) {
+      const wrapped = schema.safeParse({ memories: result });
+      if (wrapped.success) return wrapped.data;
+    }
+
+    throw error;
+  }
+};
+
 export interface BaseMemoryExtractorConfig {
   agent: MemoryExtractionAgent;
   model: string;
@@ -175,7 +188,9 @@ export abstract class BaseMemoryExtractor<
               }
 
               const schema = this.getResultSchema();
-              const parsedResult = (schema ? schema.parse(result) : result) as TOutput;
+              const parsedResult = schema
+                ? parseStructuredResult(schema, result)
+                : (result as TOutput);
 
               span.setStatus({ code: SpanStatusCode.OK });
 
