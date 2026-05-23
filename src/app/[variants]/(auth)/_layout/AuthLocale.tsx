@@ -35,6 +35,11 @@ const AuthLocale = memo<AuthLocaleProps>(({ children, defaultLang }) => {
 
   const documentDir = isRtlLang(lang) ? 'rtl' : 'ltr';
 
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = documentDir;
+  }, [documentDir, lang]);
+
   return (
     <ConfigProvider
       direction={documentDir}

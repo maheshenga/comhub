@@ -2,7 +2,9 @@ import { eq } from 'drizzle-orm';
 
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { appSettings } from '@/database/schemas';
-import { getServerDB } from '@/database/server';
+import type { getServerDB } from '@/database/server';
+
+type ServerDB = Awaited<ReturnType<typeof getServerDB>>;
 
 export interface ServerBrandConfig {
   authTitle: string | null;
@@ -31,7 +33,7 @@ const KEYS = {
 let cached: { at: number; data: ServerBrandConfig } | null = null;
 const TTL_MS = 30_000;
 
-const readString = async (db: Awaited<ReturnType<typeof getServerDB>>, key: string) => {
+const readString = async (db: ServerDB, key: string) => {
   const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
   const v = row?.value;
   return typeof v === 'string' && v.trim() ? v : null;
@@ -46,6 +48,7 @@ const readString = async (db: Awaited<ReturnType<typeof getServerDB>>, key: stri
 export const getServerBrand = async (): Promise<ServerBrandConfig> => {
   if (cached && Date.now() - cached.at < TTL_MS) return cached.data;
   try {
+    const { getServerDB } = await import('@/database/server');
     const db = await getServerDB();
     const [
       name,

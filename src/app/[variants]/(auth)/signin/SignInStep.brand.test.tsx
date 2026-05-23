@@ -76,11 +76,11 @@ vi.mock('lucide-react', () => ({
 
 vi.mock('react-i18next', () => {
   return {
-    Trans: () => <span>服务条款与隐私政策</span>,
+    Trans: () => <span>terms and privacy</span>,
     useTranslation: () => ({
       t: (key: string, vars?: { appName?: string; defaultValue?: string }) => {
-        if (key === 'signin.subtitle') return `登录或注册 ${vars?.appName} 账号`;
-        if (key === 'betterAuth.signin.passwordStep.subtitle') return '输入密码继续';
+        if (key === 'signin.subtitle') return `Sign in or sign up for ${vars?.appName}`;
+        if (key === 'betterAuth.signin.passwordStep.subtitle') return 'Enter password to continue';
         return vars?.defaultValue ?? key;
       },
     }),
@@ -98,13 +98,13 @@ vi.mock('@/const/url', () => ({
 
 vi.mock('@/features/Brand', () => ({
   useBrand: () => ({
-    authTitle: '后台设置登录标题',
-    copyrightText: '© 2026 玄果AI',
-    defaultSkillName: '玄果助手',
+    authTitle: 'Admin auth title',
+    copyrightText: '2026 XuanGuo AI',
+    defaultSkillName: 'XuanGuo Assistant',
     faviconUrl: null,
-    loadingText: '后台加载文案不应出现在这里',
+    loadingText: 'Loading text should not appear here',
     logoUrl: null,
-    name: '玄果AI',
+    name: 'XuanGuo AI',
     primaryColor: null,
     slogan: null,
   }),
@@ -135,8 +135,8 @@ const form = {
   submit: vi.fn(),
 };
 
-describe('SignIn default copy', () => {
-  it('renders the upstream default title on the email step', () => {
+describe('SignIn runtime brand copy', () => {
+  it('renders admin configured title and brand name on the email step', () => {
     render(
       <SignInEmailStep
         serverConfigInit
@@ -151,15 +151,15 @@ describe('SignIn default copy', () => {
       />,
     );
 
+    expect(screen.getByRole('heading', { name: 'Admin auth title' })).toBeInTheDocument();
+    expect(screen.getByText('Sign in or sign up for XuanGuo AI')).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Agent teammates that grow with you' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('登录或注册 LobeHub 账号')).toBeInTheDocument();
-    expect(screen.queryByText('后台设置登录标题')).not.toBeInTheDocument();
-    expect(screen.queryByText('登录或注册 玄果AI 账号')).not.toBeInTheDocument();
+      screen.queryByRole('heading', { name: 'Agent teammates that grow with you' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Sign in or sign up for LobeHub')).not.toBeInTheDocument();
   });
 
-  it('renders the upstream default title on the password step', () => {
+  it('renders admin configured title on the password step', () => {
     render(
       <SignInPasswordStep
         email="user@example.com"
@@ -171,9 +171,9 @@ describe('SignIn default copy', () => {
       />,
     );
 
+    expect(screen.getByRole('heading', { name: 'Admin auth title' })).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Agent teammates that grow with you' }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('后台设置登录标题')).not.toBeInTheDocument();
+      screen.queryByRole('heading', { name: 'Agent teammates that grow with you' }),
+    ).not.toBeInTheDocument();
   });
 });
