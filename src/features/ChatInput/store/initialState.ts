@@ -48,6 +48,8 @@ export interface PublicState {
   agentId?: string;
   allowExpand?: boolean;
   contextWindowMessages?: ContextWindowMessage[];
+  disableMention?: boolean;
+  disableSlash?: boolean;
   draftKey?: string;
   expand?: boolean;
   feature?: ChatInputFeature;

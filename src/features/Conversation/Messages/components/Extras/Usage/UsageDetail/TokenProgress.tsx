@@ -10,6 +10,8 @@ export interface TokenProgressItem {
   value: number;
 }
 
+export { formatUsageValue };
+
 interface TokenProgressProps {
   data: TokenProgressItem[];
   showIcon?: boolean;

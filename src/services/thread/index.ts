@@ -28,7 +28,7 @@ export class ThreadService {
   };
 
   updateThread = async (id: string, data: Partial<ThreadItem>) => {
-    return lambdaClient.thread.updateThread.mutate({ id, value: data });
+    return lambdaClient.thread.updateThread.mutate({ id, value: data as any });
   };
 
   removeThread = async (id: string) => {

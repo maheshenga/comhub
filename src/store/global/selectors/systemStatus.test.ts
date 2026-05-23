@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { merge } from '@/utils/merge';
@@ -10,6 +12,13 @@ import {
   initialState,
 } from '../initialState';
 import { DEFAULT_SIDEBAR_ITEMS, reorderSidebarItems, systemStatusSelectors } from './systemStatus';
+
+vi.mock('@/utils/localStorage', () => ({
+  AsyncLocalStorage: class {
+    getFromLocalStorage = async () => ({});
+    saveToLocalStorage = async () => {};
+  },
+}));
 
 // Mock version constants
 vi.mock('@/const/version', () => ({

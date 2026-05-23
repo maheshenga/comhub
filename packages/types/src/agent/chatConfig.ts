@@ -25,6 +25,10 @@ export interface AgentSelfIterationChatConfig {
 }
 
 export interface LobeAgentChatConfig extends AgentMemoryChatConfig, AgentSelfIterationChatConfig {
+  /**
+   * Number of messages before automatically creating a topic.
+   */
+  autoCreateTopicThreshold?: number;
   codexMaxReasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
   /**
    * Model ID to use for generating compression summaries
@@ -52,6 +56,7 @@ export interface LobeAgentChatConfig extends AgentMemoryChatConfig, AgentSelfIte
    * Whether to auto-scroll during AI streaming output
    * undefined = use global setting
    */
+  enableAutoCreateTopic?: boolean;
   enableAutoScrollOnStreaming?: boolean;
   /**
    * Enable history message compression threshold
@@ -199,12 +204,14 @@ export const AgentChatConfigSchema = z
   .object({
     codexMaxReasoningEffort: z.enum(['low', 'medium', 'high', 'xhigh']).optional(),
     deepseekV4ReasoningEffort: z.enum(['none', 'high', 'max']).optional(),
+    autoCreateTopicThreshold: z.number().optional(),
     compressionModelId: z.string().optional(),
     disableContextCaching: z.boolean().optional(),
     effort: z.enum(['low', 'medium', 'high', 'max']).optional(),
     enableAdaptiveThinking: z.boolean().optional(),
     enableAgentMode: z.boolean().optional(),
     enableAutoScrollOnStreaming: z.boolean().optional(),
+    enableAutoCreateTopic: z.boolean().optional(),
     enableCompressHistory: z.boolean().optional(),
     enableContextCompression: z.boolean().optional(),
     enableFollowUpChips: z.boolean().optional(),

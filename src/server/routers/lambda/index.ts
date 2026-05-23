@@ -14,6 +14,7 @@ import { publicProcedure, router } from '@/libs/trpc/lambda';
 
 import { agentRouter } from './agent';
 import { agentBotProviderRouter } from './agentBotProvider';
+import { agentCronJobRouter } from './agentCronJob';
 import { agentDocumentRouter } from './agentDocument';
 import { agentEvalRouter } from './agentEval';
 import { agentEvalExternalRouter } from './agentEvalExternal';

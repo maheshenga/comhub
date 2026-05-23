@@ -69,8 +69,6 @@ export default {
     'Configure your Lobe AI Agent. It learns from every interaction, and the longer it runs, the better it gets to know you.',
   'agent.welcome': 'Start by choosing my name and avatar. You can change them any time.',
   'agent.welcome.suggestion.avatarHint': 'Use {{emoji}} as the avatar.',
-  'agent.welcome.suggestion.switch': 'Try another set',
-  'agent.welcome.suggestion.title': 'Need a starting point? Pick one and we can refine it later.',
   'agent.welcome.sentence.1': "...hm? I just woke up — my mind's a blank.",
   'agent.welcome.sentence.2': 'What kind of partner should I become?',
   'agent.input.preparing': 'Getting ready…',

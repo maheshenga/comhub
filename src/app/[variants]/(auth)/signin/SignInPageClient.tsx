@@ -10,7 +10,6 @@ import { useSignIn } from './useSignIn';
 
 const SignInPageClient = () => {
   const {
-    businessElement,
     disableEmailPassword,
     email,
     form,
@@ -32,7 +31,6 @@ const SignInPageClient = () => {
     <Suspense fallback={<Loading debugId={'Signin'} />}>
       {step === 'email' ? (
         <SignInEmailStep
-          businessElement={businessElement}
           disableEmailPassword={disableEmailPassword}
           form={form as any}
           isSocialOnly={isSocialOnly}

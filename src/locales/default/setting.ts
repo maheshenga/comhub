@@ -620,6 +620,12 @@ export default {
   'settingChat.compressThreshold.title': 'History Message Length Compression Threshold',
   'settingChat.enableAutoScrollOnStreaming.desc': 'Override global setting for this assistant',
   'settingChat.enableAutoScrollOnStreaming.title': 'Auto-scroll During AI Response',
+  'settingChat.enableAutoCreateTopic.desc':
+    'Automatically create a topic when the conversation reaches the configured message count',
+  'settingChat.enableAutoCreateTopic.title': 'Auto-create Topics',
+  'settingChat.autoCreateTopicThreshold.desc':
+    'Number of messages before automatically creating a topic',
+  'settingChat.autoCreateTopicThreshold.title': 'Auto-create Topic Threshold',
   'settingChat.enableCompressHistory.title': 'Enable Automatic Summary of Chat History',
   'settingChat.enableFollowUpChips.desc':
     'After each reply, show one-click follow-up reply chips below the message. Requires the global Follow-up model to be configured.',

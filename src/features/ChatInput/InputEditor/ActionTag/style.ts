@@ -36,9 +36,6 @@ export const styles = createStaticStyles(({ css, cssVar }) => ({
   projectSkillTag: css`
     ${colored(cssVar.colorSuccess, cssVar.borderRadius)}
   `,
-  projectSkillTag: css`
-    ${tagBase(cssVar.colorSuccess, cssVar.borderRadius)}
-  `,
   skillTag: css`
     ${colored(cssVar.colorSuccess, cssVar.borderRadius)}
   `,
