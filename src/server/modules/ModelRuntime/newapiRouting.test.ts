@@ -4,6 +4,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initModelRuntimeFromDB } from './index';
 
 const mocks = vi.hoisted(() => ({
+  buildNewapiRouteMetadata: vi.fn((instance?: any) =>
+    instance
+      ? {
+          ...(instance.groupKey ? { groupKey: instance.groupKey } : {}),
+          ...(instance.groupMultiplier === null || instance.groupMultiplier === undefined
+            ? {}
+            : { groupMultiplier: instance.groupMultiplier }),
+          ...(instance.groupName ? { groupName: instance.groupName } : {}),
+          ...(instance.instanceId ? { instanceId: instance.instanceId } : {}),
+          ...(instance.instanceName ? { instanceName: instance.instanceName } : {}),
+          ...(instance.providerType ? { providerType: instance.providerType } : {}),
+        }
+      : undefined,
+  ),
   getAiProviderById: vi.fn(),
   getBusinessModelRuntimeHooks: vi.fn(),
   initializeWithProvider: vi.fn(),
@@ -38,6 +52,7 @@ vi.mock('@/envs/llm', () => ({
 }));
 
 vi.mock('@/server/services/newapiInstance', () => ({
+  buildNewapiRouteMetadata: mocks.buildNewapiRouteMetadata,
   resolveDefaultNewapiInstance: mocks.resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel: mocks.resolveNewapiInstancesForModel,
 }));

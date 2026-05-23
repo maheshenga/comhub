@@ -220,6 +220,9 @@ describe('admin Chinese copy', () => {
     expect(expertPlazaAdminPage).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
     expect(expertPlazaPage).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
     expect(navLayout).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
+    expect(navLayout).toContain('SidebarTabKey.Ppt');
+    expect(navLayout).toContain('SidebarTabKey.Experts');
+    expect(navLayout).toContain('expertPlaza.enabled');
   });
 
   it('keeps the user detail drawer labels in Chinese for plan assignment and history tables', () => {

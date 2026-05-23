@@ -3,9 +3,17 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { getRouteById } from '@/config/routes';
+import { PUBLIC_EXPERT_PLAZA_SWR_KEY } from '@/const/adminCacheKeys';
+import { DEFAULT_EXPERT_PLAZA_CONFIG } from '@/const/expertPlaza';
+import { useClientDataSWR } from '@/libs/swr';
+import { adminCommercialService } from '@/services/adminCommercial';
 import { useGlobalStore } from '@/store/global';
 import { SidebarTabKey } from '@/store/global/initialState';
-import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
+import {
+  featureFlagsSelectors,
+  serverConfigSelectors,
+  useServerConfigStore,
+} from '@/store/serverConfig';
 
 export interface NavItem {
   hidden?: boolean;
@@ -36,6 +44,13 @@ export const useNavLayout = (): NavLayout => {
   const { t } = useTranslation('common');
   const toggleCommandMenu = useGlobalStore((s) => s.toggleCommandMenu);
   const { showMarket, hideGitHub } = useServerConfigStore(featureFlagsSelectors);
+  const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
+  const { data: expertPlazaConfig } = useClientDataSWR(
+    enableBusinessFeatures ? PUBLIC_EXPERT_PLAZA_SWR_KEY : null,
+    () => adminCommercialService.getPublicExpertPlaza(),
+    { revalidateOnFocus: false },
+  );
+  const expertPlaza = expertPlazaConfig ?? DEFAULT_EXPERT_PLAZA_CONFIG;
 
   const topNavItems = useMemo(
     () =>
@@ -78,11 +93,24 @@ export const useNavLayout = (): NavLayout => {
           url: '/image',
         },
         {
+          icon: getRouteById('ppt')!.icon,
+          key: SidebarTabKey.Ppt,
+          title: t('tab.ppt'),
+          url: '/ppt',
+        },
+        {
           hidden: !showMarket,
           icon: getRouteById('community')!.icon,
           key: SidebarTabKey.Community,
           title: t('tab.community'),
           url: '/community',
+        },
+        {
+          hidden: !enableBusinessFeatures || !expertPlaza.enabled,
+          icon: getRouteById('experts')!.icon,
+          key: SidebarTabKey.Experts,
+          title: expertPlaza.name || t('tab.experts'),
+          url: '/experts',
         },
         {
           icon: getRouteById('resource')!.icon,
@@ -97,7 +125,7 @@ export const useNavLayout = (): NavLayout => {
           url: '/memory',
         },
       ] as NavItem[],
-    [t, showMarket],
+    [t, showMarket, enableBusinessFeatures, expertPlaza.enabled, expertPlaza.name],
   );
 
   const footer = useMemo(
