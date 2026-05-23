@@ -16,11 +16,7 @@ import { isAiModelVisible } from 'model-bank';
 import { type SWRResponse } from 'swr';
 
 import { mutate, useClientDataSWR } from '@/libs/swr';
-import { aiProviderService } from '@/services/aiProvider';
-import { type AiInfraStore } from '@/store/aiInfra/store';
 import { type StoreSetter } from '@/store/types';
-import { useUserStore } from '@/store/user';
-import { authSelectors } from '@/store/user/selectors';
 import {
   type AiProviderDetailItem,
   type AiProviderListItem,
@@ -33,6 +29,8 @@ import {
   type UpdateAiProviderParams,
 } from '@/types/aiProvider';
 import { AiProviderSourceEnum } from '@/types/aiProvider';
+
+import type { AiInfraStore } from '../../store';
 
 export type ProviderModelListItem = {
   abilities: ModelAbilities;
@@ -239,6 +237,8 @@ type Setter = StoreSetter<AiInfraStore>;
 export const createAiProviderSlice = (set: Setter, get: () => AiInfraStore, _api?: unknown) =>
   new AiProviderActionImpl(set, get, _api);
 
+const getAiProviderService = async () => (await import('@/services/aiProvider')).aiProviderService;
+
 export class AiProviderActionImpl {
   readonly #get: () => AiInfraStore;
   readonly #set: Setter;
@@ -250,11 +250,13 @@ export class AiProviderActionImpl {
   }
 
   createNewAiProvider = async (params: CreateAiProviderParams): Promise<void> => {
+    const aiProviderService = await getAiProviderService();
     await aiProviderService.createAiProvider({ ...params, source: AiProviderSourceEnum.Custom });
     await this.#get().refreshAiProviderList();
   };
 
   deleteAiProvider = async (id: string): Promise<void> => {
+    const aiProviderService = await getAiProviderService();
     await aiProviderService.deleteAiProvider(id);
 
     await this.#get().refreshAiProviderList();
@@ -305,12 +307,14 @@ export class AiProviderActionImpl {
   };
 
   removeAiProvider = async (id: string): Promise<void> => {
+    const aiProviderService = await getAiProviderService();
     await aiProviderService.deleteAiProvider(id);
     await this.#get().refreshAiProviderList();
   };
 
   toggleProviderEnabled = async (id: string, enabled: boolean): Promise<void> => {
     this.#get().internal_toggleAiProviderLoading(id, true);
+    const aiProviderService = await getAiProviderService();
     await aiProviderService.toggleProviderEnabled(id, enabled);
 
     // Immediately update local aiProviderList to reflect the change
@@ -332,6 +336,7 @@ export class AiProviderActionImpl {
 
   updateAiProvider = async (id: string, value: UpdateAiProviderParams): Promise<void> => {
     this.#get().internal_toggleAiProviderLoading(id, true);
+    const aiProviderService = await getAiProviderService();
     await aiProviderService.updateAiProvider(id, value);
     await this.#get().refreshAiProviderList();
     await this.#get().refreshAiProviderDetail();
@@ -344,6 +349,7 @@ export class AiProviderActionImpl {
     value: UpdateAiProviderConfigParams,
   ): Promise<void> => {
     this.#get().internal_toggleAiProviderConfigUpdating(id, true);
+    const aiProviderService = await getAiProviderService();
     await aiProviderService.updateAiProviderConfig(id, value);
 
     // Immediately update local state for instant UI feedback
@@ -406,6 +412,7 @@ export class AiProviderActionImpl {
   };
 
   updateAiProviderSort = async (items: AiProviderSortMap[]): Promise<void> => {
+    const aiProviderService = await getAiProviderService();
     await aiProviderService.updateAiProviderOrder(items);
     await this.#get().refreshAiProviderList();
   };
@@ -413,7 +420,10 @@ export class AiProviderActionImpl {
   useFetchAiProviderItem = (id: string): SWRResponse<AiProviderDetailItem | undefined> => {
     return useClientDataSWR<AiProviderDetailItem | undefined>(
       [AiProviderSwrKey.fetchAiProviderItem, id],
-      () => aiProviderService.getAiProviderById(id),
+      async () => {
+        const aiProviderService = await getAiProviderService();
+        return aiProviderService.getAiProviderById(id);
+      },
       {
         onSuccess: (data) => {
           if (!data) return;
@@ -437,7 +447,10 @@ export class AiProviderActionImpl {
   }): SWRResponse<AiProviderListItem[]> => {
     return useClientDataSWR<AiProviderListItem[]>(
       opts?.enabled === false ? null : AiProviderSwrKey.fetchAiProviderList,
-      () => aiProviderService.getAiProviderList(),
+      async () => {
+        const aiProviderService = await getAiProviderService();
+        return aiProviderService.getAiProviderList();
+      },
       {
         fallbackData: [],
         onSuccess: (data) => {
@@ -462,10 +475,10 @@ export class AiProviderActionImpl {
   ): SWRResponse<AiProviderRuntimeStateWithBuiltinModels | undefined> => {
     void isSyncActive;
     const isLogin = isLoginOnInit;
-    const isAuthLoaded = useUserStore(authSelectors.isLoaded);
-    // Only fetch when auth is loaded and login status is explicitly defined (true or false)
-    // Prevents unnecessary requests when login state is null/undefined
-    const shouldFetch = isAuthLoaded && isLogin !== null && isLogin !== undefined;
+    // Only fetch when login status is explicitly defined (true or false).
+    // Keep this slice independent from user store at module init time; importing user store here
+    // creates an aiInfra -> user -> services -> aiInfra circular dependency.
+    const shouldFetch = isLogin !== null && isLogin !== undefined;
 
     return useClientDataSWR<AiProviderRuntimeStateWithBuiltinModels | undefined>(
       shouldFetch ? [AiProviderSwrKey.fetchAiProviderRuntimeState, isLogin] : null,
@@ -477,6 +490,7 @@ export class AiProviderActionImpl {
         const builtinAiModelList = await loadModels();
 
         if (isLogin) {
+          const aiProviderService = await getAiProviderService();
           const data = await aiProviderService.getAiProviderRuntimeState();
 
           // Build model lists with proper async handling

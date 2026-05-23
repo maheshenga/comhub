@@ -8,15 +8,17 @@ import {
 import { type SWRResponse } from 'swr';
 
 import { mutate, useClientDataSWR } from '@/libs/swr';
-import { aiModelService } from '@/services/aiModel';
-import { type AiInfraStore } from '@/store/aiInfra/store';
 import { type StoreSetter } from '@/store/types';
+
+import type { AiInfraStore } from '../../store';
 
 const FETCH_AI_PROVIDER_MODEL_LIST_KEY = 'FETCH_AI_PROVIDER_MODELS';
 
 type Setter = StoreSetter<AiInfraStore>;
 export const createAiModelSlice = (set: Setter, get: () => AiInfraStore, _api?: unknown) =>
   new AiModelActionImpl(set, get, _api);
+
+const getAiModelService = async () => (await import('@/services/aiModel')).aiModelService;
 
 export class AiModelActionImpl {
   readonly #get: () => AiInfraStore;
@@ -32,6 +34,7 @@ export class AiModelActionImpl {
     const { activeAiProvider } = this.#get();
     if (!activeAiProvider) return;
 
+    const aiModelService = await getAiModelService();
     await aiModelService.batchToggleAiModels(activeAiProvider, ids, enabled);
     await this.#get().refreshAiModelList();
   };
@@ -40,21 +43,25 @@ export class AiModelActionImpl {
     const { activeAiProvider: id } = this.#get();
     if (!id) return;
 
+    const aiModelService = await getAiModelService();
     await aiModelService.batchUpdateAiModels(id, models);
     await this.#get().refreshAiModelList();
   };
 
   clearModelsByProvider = async (provider: string): Promise<void> => {
+    const aiModelService = await getAiModelService();
     await aiModelService.clearModelsByProvider(provider);
     await this.#get().refreshAiModelList();
   };
 
   clearRemoteModels = async (provider: string): Promise<void> => {
+    const aiModelService = await getAiModelService();
     await aiModelService.clearRemoteModels(provider);
     await this.#get().refreshAiModelList();
   };
 
   createNewAiModel = async (data: CreateAiModelParams): Promise<void> => {
+    const aiModelService = await getAiModelService();
     await aiModelService.createAiModel(data);
     await this.#get().refreshAiModelList();
   };
@@ -105,6 +112,7 @@ export class AiModelActionImpl {
   };
 
   removeAiModel = async (id: string, providerId: string): Promise<void> => {
+    const aiModelService = await getAiModelService();
     await aiModelService.deleteAiModel({ id, providerId });
     await this.#get().refreshAiModelList();
   };
@@ -117,6 +125,7 @@ export class AiModelActionImpl {
 
     this.#get().internal_toggleAiModelLoading(params.id, true);
 
+    const aiModelService = await getAiModelService();
     await aiModelService.toggleModelEnabled({ ...params, providerId: activeAiProvider });
     await this.#get().refreshAiModelList();
 
@@ -128,11 +137,13 @@ export class AiModelActionImpl {
     providerId: string,
     data: Partial<AiProviderModelListItem>,
   ): Promise<void> => {
+    const aiModelService = await getAiModelService();
     await aiModelService.updateAiModel(id, providerId, data);
     await this.#get().refreshAiModelList();
   };
 
   updateAiModelsSort = async (id: string, items: AiModelSortMap[]): Promise<void> => {
+    const aiModelService = await getAiModelService();
     await aiModelService.updateAiModelOrder(id, items);
     await this.#get().refreshAiModelList();
   };
@@ -140,7 +151,10 @@ export class AiModelActionImpl {
   useFetchAiProviderModels = (id: string): SWRResponse<AiProviderModelListItem[]> => {
     return useClientDataSWR<AiProviderModelListItem[]>(
       [FETCH_AI_PROVIDER_MODEL_LIST_KEY, id],
-      ([, id]) => aiModelService.getAiProviderModelList(id as string),
+      async ([, id]) => {
+        const aiModelService = await getAiModelService();
+        return aiModelService.getAiProviderModelList(id as string);
+      },
       {
         onSuccess: (data) => {
           // no need to update list if the list have been init and data is the same

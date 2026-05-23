@@ -135,8 +135,8 @@ const form = {
   submit: vi.fn(),
 };
 
-describe('SignIn brand copy', () => {
-  it('renders the admin configured auth title and brand name on the email step', () => {
+describe('SignIn default copy', () => {
+  it('renders the upstream default title on the email step', () => {
     render(
       <SignInEmailStep
         serverConfigInit
@@ -151,13 +151,15 @@ describe('SignIn brand copy', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: '后台设置登录标题' })).toBeInTheDocument();
-    expect(screen.getByText('登录或注册 玄果AI 账号')).toBeInTheDocument();
-    expect(screen.queryByText('Agent teammates that grow with you')).not.toBeInTheDocument();
-    expect(screen.queryByText('登录或注册 LobeHub 账号')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Agent teammates that grow with you' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('登录或注册 LobeHub 账号')).toBeInTheDocument();
+    expect(screen.queryByText('后台设置登录标题')).not.toBeInTheDocument();
+    expect(screen.queryByText('登录或注册 玄果AI 账号')).not.toBeInTheDocument();
   });
 
-  it('renders the admin configured auth title on the password step', () => {
+  it('renders the upstream default title on the password step', () => {
     render(
       <SignInPasswordStep
         email="user@example.com"
@@ -169,7 +171,9 @@ describe('SignIn brand copy', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: '后台设置登录标题' })).toBeInTheDocument();
-    expect(screen.queryByText('Agent teammates that grow with you')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Agent teammates that grow with you' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('后台设置登录标题')).not.toBeInTheDocument();
   });
 });
