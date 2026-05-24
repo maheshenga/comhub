@@ -136,7 +136,7 @@ const form = {
 };
 
 describe('SignIn runtime brand copy', () => {
-  it('renders admin configured title and brand name on the email step', () => {
+  it('renders the upstream title while keeping the configured brand name on the email step', () => {
     render(
       <SignInEmailStep
         serverConfigInit
@@ -151,15 +151,14 @@ describe('SignIn runtime brand copy', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Admin auth title' })).toBeInTheDocument();
-    expect(screen.getByText('Sign in or sign up for XuanGuo AI')).toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: 'Agent teammates that grow with you' }),
-    ).not.toBeInTheDocument();
+      screen.getByRole('heading', { name: 'Agent teammates that grow with you' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Sign in or sign up for XuanGuo AI')).toBeInTheDocument();
     expect(screen.queryByText('Sign in or sign up for LobeHub')).not.toBeInTheDocument();
   });
 
-  it('renders admin configured title on the password step', () => {
+  it('renders the upstream title on the password step', () => {
     render(
       <SignInPasswordStep
         email="user@example.com"
@@ -171,9 +170,6 @@ describe('SignIn runtime brand copy', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Admin auth title' })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: 'Agent teammates that grow with you' }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Agent teammates that grow with you' })).toBeInTheDocument();
   });
 });

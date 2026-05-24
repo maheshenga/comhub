@@ -15,6 +15,12 @@ vi.mock('@/business/client/BusinessAuthProvider', () => ({
   ),
 }));
 
+vi.mock('@/components/client/ClientOnly', () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="client-only">{children}</div>
+  ),
+}));
+
 vi.mock('./_layout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
 }));
@@ -26,12 +32,15 @@ vi.mock('./_layout/AuthGlobalProvider', () => ({
 }));
 
 describe('AuthLayout server render', () => {
-  it('keeps the auth page content in the initial server markup', async () => {
+  it('keeps the interactive auth content behind the client-only boundary', async () => {
     const element = await AuthLayout({
       children: <div>signin form</div>,
       params: Promise.resolve({ variants: 'zh-CN__0' }),
     } as any);
 
-    expect(renderToString(element)).toContain('signin form');
+    const markup = renderToString(element);
+
+    expect(markup).toContain('data-testid="client-only"');
+    expect(markup.indexOf('data-testid="client-only"')).toBeLessThan(markup.indexOf('signin form'));
   });
 });

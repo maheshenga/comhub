@@ -49,10 +49,16 @@ vi.mock('@/libs/better-auth/utils/client', () => ({
   normalizeProviderId: (p: string) => p,
 }));
 
-vi.mock('@lobechat/business-const', () => ({
-  BRANDING_NAME: 'LobeHub',
-  ENABLE_BUSINESS_FEATURES: false,
-}));
+vi.mock('@lobechat/business-const', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@lobechat/business-const')>();
+
+  return {
+    ...actual,
+    BRANDING_LOGO_URL: null,
+    BRANDING_NAME: 'LobeHub',
+    ENABLE_BUSINESS_FEATURES: false,
+  };
+});
 
 vi.mock('@/business/client/hooks/useBusinessSignin', () => ({
   useBusinessSignin: () => ({

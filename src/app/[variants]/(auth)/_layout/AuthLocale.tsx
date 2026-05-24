@@ -2,6 +2,7 @@
 
 import { ConfigProvider } from 'antd';
 import { memo, type PropsWithChildren, useEffect, useState } from 'react';
+import { I18nextProvider } from 'react-i18next';
 import { isRtlLang } from 'rtl-detect';
 
 import { isOnServerSide } from '@/utils/env';
@@ -41,18 +42,20 @@ const AuthLocale = memo<AuthLocaleProps>(({ children, defaultLang }) => {
   }, [documentDir, lang]);
 
   return (
-    <ConfigProvider
-      direction={documentDir}
-      theme={{
-        components: {
-          Button: {
-            contentFontSizeSM: 12,
+    <I18nextProvider i18n={i18n.instance}>
+      <ConfigProvider
+        direction={documentDir}
+        theme={{
+          components: {
+            Button: {
+              contentFontSizeSM: 12,
+            },
           },
-        },
-      }}
-    >
-      {children}
-    </ConfigProvider>
+        }}
+      >
+        {children}
+      </ConfigProvider>
+    </I18nextProvider>
   );
 });
 
