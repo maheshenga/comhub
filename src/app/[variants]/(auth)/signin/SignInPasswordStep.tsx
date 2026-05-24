@@ -6,8 +6,6 @@ import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useBrand } from '@/features/Brand';
-
 import AuthCard from '../../../../features/AuthCard';
 
 export interface SignInPasswordStepProps {
@@ -28,7 +26,6 @@ export const SignInPasswordStep = ({
   onSubmit,
 }: SignInPasswordStepProps) => {
   const { t } = useTranslation('auth');
-  const brand = useBrand();
   const passwordInputRef = useRef<InputRef>(null);
 
   useEffect(() => {

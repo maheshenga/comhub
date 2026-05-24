@@ -106,10 +106,6 @@ export const createAuthI18n = (lang?: string) => {
         initAsync,
         interpolation: { escapeValue: false },
         keySeparator: false,
-        react: {
-          bindI18nStore: 'added',
-          useSuspense: false,
-        },
         lng: lang,
       });
     },

@@ -1,14 +1,12 @@
 import { type ReactNode } from 'react';
 
 import { appEnv } from '@/envs/app';
-import { BrandProvider } from '@/features/Brand';
 import AnalyticsRSCProvider from '@/layout/AnalyticsRSCProvider';
 import AuthProvider from '@/layout/AuthProvider';
 import NextThemeProvider from '@/layout/GlobalProvider/NextThemeProvider';
 import StyleRegistry from '@/layout/GlobalProvider/StyleRegistry';
 import { getServerFeatureFlagsStateFromRuntimeConfig } from '@/server/featureFlags';
 import { getServerAuthConfig } from '@/server/globalConfig/getServerAuthConfig';
-import { getServerBrand } from '@/server/services/brand';
 import { RouteVariants } from '@/utils/server/routeVariants';
 
 import AuthLocale from './AuthLocale';
@@ -23,10 +21,7 @@ interface AuthGlobalProviderProps {
 const AuthGlobalProvider = async ({ children, variants }: AuthGlobalProviderProps) => {
   const { locale, isMobile } = RouteVariants.deserializeVariants(variants);
   const serverConfig = getServerAuthConfig();
-  const [featureFlags, brand] = await Promise.all([
-    getServerFeatureFlagsStateFromRuntimeConfig(),
-    getServerBrand(),
-  ]);
+  const featureFlags = await getServerFeatureFlagsStateFromRuntimeConfig();
 
   return (
     <StyleRegistry>
@@ -40,9 +35,7 @@ const AuthGlobalProvider = async ({ children, variants }: AuthGlobalProviderProp
               serverConfig={serverConfig}
             >
               <AnalyticsRSCProvider>
-                <BrandProvider initialBrand={brand} updateDocumentTitle={false}>
-                  <AuthProvider>{children}</AuthProvider>
-                </BrandProvider>
+                <AuthProvider>{children}</AuthProvider>
               </AnalyticsRSCProvider>
             </AuthServerConfigProvider>
           </AuthThemeLite>

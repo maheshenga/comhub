@@ -8,7 +8,6 @@ import Link from 'next/link';
 import { type FC, type PropsWithChildren } from 'react';
 
 import { ProductLogo } from '@/components/Branding';
-import { useBrand } from '@/features/Brand';
 import { useIsDark } from '@/hooks/useIsDark';
 
 import AuthLangButton from './AuthLangButton';
@@ -17,9 +16,6 @@ import { styles } from './style';
 
 const AuthContainer: FC<PropsWithChildren> = ({ children }) => {
   const isDarkMode = useIsDark();
-  const brand = useBrand();
-  const copyrightText = brand.copyrightText?.trim() || COPYRIGHT_FULL;
-
   return (
     <Flexbox className={styles.outerContainer} height={'100%'} padding={8} width={'100%'}>
       <Flexbox
@@ -35,7 +31,7 @@ const AuthContainer: FC<PropsWithChildren> = ({ children }) => {
           padding={16}
           width={'100%'}
         >
-          <Link aria-label={brand.name} href={'/'} style={{ display: 'inline-flex' }}>
+          <Link aria-label={'LobeHub'} href={'/'} style={{ display: 'inline-flex' }}>
             <ProductLogo size={40} />
           </Link>
           <Flexbox horizontal align={'center'}>
@@ -49,7 +45,7 @@ const AuthContainer: FC<PropsWithChildren> = ({ children }) => {
         </Center>
         <Center padding={24}>
           <Text align={'center'} type={'secondary'}>
-            {copyrightText}
+            {COPYRIGHT_FULL}
           </Text>
         </Center>
       </Flexbox>
