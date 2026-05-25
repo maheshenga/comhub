@@ -33,6 +33,28 @@ stop_pid() {
   done
 
   kill -9 "$pid" 2>/dev/null || true
+  for _ in $(seq 1 5); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+}
+
+stop_port_listeners() {
+  local pids
+
+  for _ in $(seq 1 5); do
+    pids=$(ss -ltnp 2>/dev/null | awk -v port=":${PORT}" '$4 ~ port {print $0}' | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true)
+    if [ -z "$pids" ]; then
+      return 0
+    fi
+
+    for pid in $pids; do
+      stop_pid "$pid"
+    done
+    sleep 1
+  done
 }
 
 if [ -s "$APP_DIR/app.pid" ]; then
@@ -42,10 +64,7 @@ fi
 pkill -f "${APP_DIR}/.*server\\.js" 2>/dev/null || true
 pkill -f "${APP_DIR}/.*startServer\\.js" 2>/dev/null || true
 
-PORT_PIDS=$(ss -ltnp 2>/dev/null | awk -v port=":${PORT}" '$4 ~ port {print $0}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)
-for pid in $PORT_PIDS; do
-  stop_pid "$pid"
-done
+stop_port_listeners
 
 sleep 1
 if ss -ltnp | grep ":${PORT}"; then
