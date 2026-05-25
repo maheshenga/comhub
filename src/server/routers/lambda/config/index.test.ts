@@ -7,8 +7,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCallerFactory } from '@/libs/trpc/lambda';
 import { type AuthContext } from '@/libs/trpc/lambda/context';
 import { createContextInner } from '@/libs/trpc/lambda/context';
+import * as globalConfig from '@/server/globalConfig';
 
 import { configRouter } from './index';
+
+const configMocks = vi.hoisted(() => ({
+  getServerDB: vi.fn(),
+}));
+
+vi.mock('@/database/core/db-adaptor', () => ({
+  getServerDB: configMocks.getServerDB,
+}));
 
 const createCaller = createCallerFactory(configRouter);
 let ctx: AuthContext;
@@ -16,12 +25,23 @@ let router: ReturnType<typeof createCaller>;
 
 beforeEach(async () => {
   vi.resetAllMocks();
+  configMocks.getServerDB.mockRejectedValue(new Error('test db unavailable'));
   ctx = await createContextInner();
   router = createCaller(ctx);
 });
 
 describe('configRouter', () => {
   describe('getGlobalConfig', () => {
+    it('passes the server database into global config when it is available', async () => {
+      const serverDB = { id: 'server-db' };
+      configMocks.getServerDB.mockResolvedValue(serverDB);
+      const getServerGlobalConfigSpy = vi.spyOn(globalConfig, 'getServerGlobalConfig');
+
+      await router.getGlobalConfig();
+
+      expect(getServerGlobalConfigSpy).toHaveBeenCalledWith(serverDB);
+    });
+
     describe('Model Provider env', () => {
       describe('OPENAI_MODEL_LIST', () => {
         it('custom deletion, addition, and renaming of models', async () => {
@@ -147,13 +167,13 @@ describe('configRouter', () => {
         });
       });
 
-      it('should enable the default DeepSeek provider without a server API key', async () => {
+      it('keeps the default DeepSeek provider disabled in business mode', async () => {
         const originalApiKey = process.env.DEEPSEEK_API_KEY;
         delete process.env.DEEPSEEK_API_KEY;
 
         const response = await router.getGlobalConfig();
 
-        expect(response.serverConfig.aiProvider?.deepseek?.enabled).toBe(true);
+        expect(response.serverConfig.aiProvider?.deepseek?.enabled).toBe(false);
 
         if (originalApiKey === undefined) {
           delete process.env.DEEPSEEK_API_KEY;

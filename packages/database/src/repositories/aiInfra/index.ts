@@ -279,7 +279,7 @@ export class AiInfraRepos {
     const [result, enabledAiProviders, allModels] = await Promise.all([
       this.aiProviderModel.getAiProviderRuntimeConfig(decryptor),
       this.getUserEnabledProviderList(),
-      this.getEnabledModels(false),
+      this.getEnabledModels(true),
     ]);
 
     const runtimeConfig = result;

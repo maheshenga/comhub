@@ -24,6 +24,7 @@ const dangerousLocalDevProxyRoute = '/_dangerous_local_dev_proxy';
 
 export function defineConfig() {
   const backendApiEndpoints = ['/api', '/trpc', '/webapi', '/oidc'];
+  const comhubDefaultPublicLocale: Locales = 'zh-CN';
 
   const defaultMiddleware = (request: NextRequest) => {
     const url = new URL(request.url);
@@ -44,7 +45,9 @@ export function defineConfig() {
     const explicitlyLocale = (url.searchParams.get('hl') || undefined) as Locales | undefined;
 
     // if it's a new user, there's no cookie, So we need to use the fallback language parsed by accept-language
-    const browserLanguage = parseBrowserLanguage(request.headers);
+    // ComHub defaults public entry shells to Chinese while still honoring ?hl=
+    // and a user's explicit LOBE_LOCALE cookie from the language switcher.
+    const browserLanguage = parseBrowserLanguage(request.headers, comhubDefaultPublicLocale);
 
     const locale =
       explicitlyLocale ||

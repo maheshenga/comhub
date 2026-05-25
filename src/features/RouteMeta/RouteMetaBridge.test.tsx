@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import RouteMetaBridge from './RouteMetaBridge';
 
 const mocks = vi.hoisted(() => {
+  const defaultBrandName = 'LobeHub';
   interface MockMatch {
     data: unknown;
     handle: unknown;
@@ -26,6 +27,8 @@ const mocks = vi.hoisted(() => {
   };
 
   return {
+    brandName: defaultBrandName,
+    defaultBrandName,
     getSnapshot: () => store.matches,
     setCurrentRouteMeta: vi.fn(),
     setMatches: store.setMatches,
@@ -40,6 +43,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/const/version', () => ({
   isDesktop: true,
+}));
+
+vi.mock('@/features/Brand/BrandProvider', () => ({
+  useBrand: () => ({ name: mocks.brandName }),
 }));
 
 vi.mock('@/store/electron', () => ({
@@ -70,8 +77,32 @@ describe('RouteMetaBridge', () => {
   afterEach(() => {
     cleanup();
     document.title = '';
+    mocks.brandName = mocks.defaultBrandName;
     mocks.setMatches([]);
     mocks.setCurrentRouteMeta.mockReset();
+  });
+
+  it('uses the runtime brand name in the document title', async () => {
+    mocks.brandName = 'XuanGuo AI';
+    mocks.setMatches([
+      {
+        data: undefined,
+        handle: {
+          meta: {
+            titleKey: 'navigation.home',
+          },
+        },
+        id: 'routes/home',
+        params: {},
+        pathname: '/',
+      },
+    ]);
+
+    render(<RouteMetaBridge />);
+
+    await waitFor(() => {
+      expect(document.title).toBe('translated:navigation.home · XuanGuo AI');
+    });
   });
 
   it('clears dynamic meta when the matched route has no route meta handle', async () => {

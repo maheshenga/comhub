@@ -1,11 +1,11 @@
 'use client';
 
-import { BRANDING_NAME } from '@lobechat/business-const';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useMatches } from 'react-router-dom';
 
 import { isDesktop } from '@/const/version';
+import { useBrand } from '@/features/Brand/BrandProvider';
 import {
   type DynamicRouteMeta,
   getRouteMetaFromHandle,
@@ -45,6 +45,7 @@ type Translate = (key: string) => string;
 
 const RouteMetaBridge = memo(() => {
   const { t } = useTranslation('electron');
+  const { name: brandName } = useBrand();
   const location = useLocation();
   const setCurrentRouteMeta = useElectronStore((s) => s.setCurrentRouteMeta);
   const matched = useMatchedRouteMeta();
@@ -73,8 +74,8 @@ const RouteMetaBridge = memo(() => {
   }, [matchedKey, setCurrentRouteMeta]);
 
   useEffect(() => {
-    document.title = title ? `${title} · ${BRANDING_NAME}` : BRANDING_NAME;
-  }, [title]);
+    document.title = title ? `${title} · ${brandName}` : brandName;
+  }, [brandName, title]);
 
   if (!matched) return null;
 

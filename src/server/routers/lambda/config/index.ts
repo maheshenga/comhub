@@ -2,6 +2,7 @@ import { EdgeConfig } from '@lobechat/edge-config';
 import debug from 'debug';
 
 import { businessConfigEndpoints } from '@/business/server/lambda-routers/config';
+import { getServerDB } from '@/database/core/db-adaptor';
 import { publicProcedure, router } from '@/libs/trpc/lambda';
 import { getServerFeatureFlagsStateFromRuntimeConfig } from '@/server/featureFlags';
 import { getServerDefaultAgentConfig, getServerGlobalConfig } from '@/server/globalConfig';
@@ -54,6 +55,15 @@ const getActiveBillboard = async (): Promise<GlobalBillboard | null> => {
   }
 };
 
+const getOptionalServerDB = async () => {
+  try {
+    return await getServerDB();
+  } catch (err) {
+    log('[GlobalConfig] Failed to initialize server database, falling back to env config:', err);
+    return undefined;
+  }
+};
+
 export const configRouter = router({
   getDefaultAgentConfig: publicProcedure.query(async () => {
     return getServerDefaultAgentConfig();
@@ -62,8 +72,10 @@ export const configRouter = router({
   getGlobalConfig: publicProcedure.query(async ({ ctx }): Promise<GlobalRuntimeConfig> => {
     log('[GlobalConfig] Starting global config retrieval for user:', ctx.userId || 'anonymous');
 
+    const serverDB = await getOptionalServerDB();
+
     const [serverConfig, serverFeatureFlags, billboard] = await Promise.all([
-      getServerGlobalConfig(),
+      getServerGlobalConfig(serverDB),
       getServerFeatureFlagsStateFromRuntimeConfig(ctx.userId || undefined),
       getActiveBillboard(),
     ]);

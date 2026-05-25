@@ -235,6 +235,39 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     ]);
   });
 
+  it('disables non-admin built-in providers in business mode even when generated config enables them', async () => {
+    mocks.genServerAiProvidersConfig.mockResolvedValue({
+      anthropic: {
+        enabled: true,
+        serverModelLists: [{ enabled: true, id: 'claude-sonnet-4-6', type: 'chat' }],
+      },
+      google: {
+        enabled: true,
+        serverModelLists: [{ enabled: true, id: 'gemini-3.1-pro-preview', type: 'chat' }],
+      },
+      lobehub: {
+        enabled: true,
+        serverModelLists: [{ enabled: true, id: 'lobehub-chat', type: 'chat' }],
+      },
+      newapi: {
+        enabled: true,
+        serverModelLists: [{ enabled: true, id: 'admin-chat', type: 'chat' }],
+      },
+      openai: {
+        enabled: true,
+        serverModelLists: [{ enabled: true, id: 'gpt-5.4-mini', type: 'chat' }],
+      },
+    });
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.aiProvider.newapi!.enabled).toBe(true);
+    expect(result.aiProvider.anthropic!.enabled).toBe(false);
+    expect(result.aiProvider.google!.enabled).toBe(false);
+    expect(result.aiProvider.lobehub!.enabled).toBe(false);
+    expect(result.aiProvider.openai!.enabled).toBe(false);
+  });
+
   it('keeps the generated provider config unchanged when no global newapi model IDs are configured', async () => {
     const result = await getServerGlobalConfig({} as any);
 

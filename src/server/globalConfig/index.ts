@@ -111,6 +111,15 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   });
 
   if (ENABLE_BUSINESS_FEATURES) {
+    // ComHub business mode: the backend admin provider center is the authority.
+    // Keep upstream/env built-in providers visible to admins, but prevent them from
+    // becoming user runtime providers unless we explicitly opt them in here.
+    for (const [providerId, providerConfig] of Object.entries(aiProvider)) {
+      if (providerId !== ADMIN_MANAGED_AI_PROVIDER) {
+        aiProvider[providerId] = { ...providerConfig, enabled: false };
+      }
+    }
+
     const instanceModels = await getAllEnabledModels(db);
     const managedNewApiModelIds = Array.from(new Set(instanceModels.map((m) => m.id)));
 

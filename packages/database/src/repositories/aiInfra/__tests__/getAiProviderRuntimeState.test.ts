@@ -1,8 +1,7 @@
 import type { AiProviderRuntimeConfig, EnabledProvider } from '@lobechat/types';
 import type { EnabledAiModel } from 'model-bank';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getTestDB } from '../../../core/getTestDB';
 import type { LobeChatDatabase } from '../../../type';
 import { AiInfraRepos } from '../index';
 
@@ -15,12 +14,9 @@ const mockProviderConfigs = {
 let serverDB: LobeChatDatabase;
 let repo: AiInfraRepos;
 
-beforeAll(async () => {
-  serverDB = await getTestDB();
-}, 30000);
-
 beforeEach(() => {
   vi.clearAllMocks();
+  serverDB = {} as LobeChatDatabase;
   repo = new AiInfraRepos(serverDB, userId, mockProviderConfigs);
 });
 
@@ -43,6 +39,7 @@ describe('AiInfraRepos', () => {
 
       const result = await repo.getAiProviderRuntimeState();
 
+      expect(repo.getEnabledModels).toHaveBeenCalledWith(true);
       expect(result).toMatchObject({
         enabledAiProviders: mockEnabledProviders,
         enabledAiModels: mockEnabledModels,
