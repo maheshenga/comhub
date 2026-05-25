@@ -110,6 +110,9 @@ const BRAND_KEYS = [
   SETTING_KEYS.brandFaviconUrl,
   SETTING_KEYS.brandPrimaryColor,
   SETTING_KEYS.brandSlogan,
+  SETTING_KEYS.homeMessengerEnabled,
+  SETTING_KEYS.homeMessengerBannerTitle,
+  SETTING_KEYS.communityForkAndChatLabel,
   SETTING_KEYS.defaultSkillName,
 ] as const;
 
@@ -596,6 +599,9 @@ export const adminSettingsRouter = router({
       authTitle,
       copyrightText,
       defaultSkillName,
+      homeMessengerEnabled,
+      homeMessengerBannerTitle,
+      communityForkAndChatLabel,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.brandName),
       readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
@@ -606,6 +612,9 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultSkillName),
+      readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerBannerTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.communityForkAndChatLabel),
     ]);
     const brandName = typeof name === 'string' ? name : DEFAULT_RUNTIME_BRAND.name;
     return {
@@ -622,6 +631,11 @@ export const adminSettingsRouter = router({
           ? defaultSkillName
           : brandName,
       faviconUrl: typeof favicon === 'string' ? favicon : null,
+      homeMessengerEnabled: toBoolean(homeMessengerEnabled, true),
+      homeMessengerBannerTitle:
+        typeof homeMessengerBannerTitle === 'string' && homeMessengerBannerTitle.trim()
+          ? homeMessengerBannerTitle
+          : null,
       loadingText:
         typeof loadingText === 'string' && loadingText.trim()
           ? loadingText
@@ -629,6 +643,10 @@ export const adminSettingsRouter = router({
       logoUrl: typeof logo === 'string' ? logo : DEFAULT_RUNTIME_BRAND.logoUrl,
       name: brandName,
       primaryColor: typeof primary === 'string' ? primary : DEFAULT_RUNTIME_BRAND.primaryColor,
+      communityForkAndChatLabel:
+        typeof communityForkAndChatLabel === 'string' && communityForkAndChatLabel.trim()
+          ? communityForkAndChatLabel
+          : null,
       slogan:
         typeof slogan === 'string' && slogan.trim() ? slogan : DEFAULT_RUNTIME_BRAND.authTitle,
     };
@@ -736,6 +754,9 @@ export const adminSettingsRouter = router({
       brandLoadingText,
       brandAuthTitle,
       brandCopyrightText,
+      homeMessengerEnabled,
+      homeMessengerBannerTitle,
+      communityForkAndChatLabel,
       defaultAgentModel,
       defaultAgentName,
       defaultAgentAvatar,
@@ -808,6 +829,9 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingText),
       readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
+      readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerBannerTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.communityForkAndChatLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentModel),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentName),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentAvatar),
@@ -898,6 +922,8 @@ export const adminSettingsRouter = router({
         typeof brandCopyrightText === 'string'
           ? brandCopyrightText
           : DEFAULT_RUNTIME_BRAND.copyrightText,
+      communityForkAndChatLabel:
+        typeof communityForkAndChatLabel === 'string' ? communityForkAndChatLabel : '',
       brandLogoUrl: typeof brandLogo === 'string' ? brandLogo : DEFAULT_RUNTIME_BRAND.logoUrl,
       brandName: typeof brandName === 'string' ? brandName : DEFAULT_RUNTIME_BRAND.name,
       brandPrimaryColor:
@@ -910,6 +936,9 @@ export const adminSettingsRouter = router({
         typeof brandLoadingText === 'string' && brandLoadingText.trim()
           ? brandLoadingText
           : DEFAULT_RUNTIME_BRAND.loadingText,
+      homeMessengerBannerTitle:
+        typeof homeMessengerBannerTitle === 'string' ? homeMessengerBannerTitle : '',
+      homeMessengerEnabled: toBoolean(homeMessengerEnabled, true),
       cronAuditRetentionDays: typeof auditDays === 'number' ? auditDays : 365,
       cronPendingOrderExpiryDays: typeof pendingDays === 'number' ? pendingDays : 7,
       cronSecretConfigured: Boolean(dbCronSecret ?? process.env.CRON_SECRET),

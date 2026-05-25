@@ -21,12 +21,14 @@ export class Meta {
     alternate,
     locale = DEFAULT_LANG,
     canonical,
+    siteName = BRANDING_NAME,
   }: {
     alternate?: boolean;
     canonical?: string;
     description?: string;
     image?: string;
     locale?: Locales;
+    siteName?: string;
     tags?: string[];
     title: string;
     type?: 'website' | 'article';
@@ -35,7 +37,7 @@ export class Meta {
     const formatedTitle = formatTitleLength(title, 21);
 
     const formatedDescription = formatDescLength(description, tags);
-    const siteTitle = title.includes(BRANDING_NAME) ? title : title + ` · ${BRANDING_NAME}`;
+    const siteTitle = title.includes(siteName) ? title : title + ` · ${siteName}`;
     return {
       alternates: {
         canonical:
@@ -49,6 +51,7 @@ export class Meta {
         description,
         image,
         locale,
+        siteName,
         title: siteTitle,
         type,
         url,
@@ -103,6 +106,7 @@ export class Meta {
     description,
     title,
     image,
+    siteName = BRANDING_NAME,
     url,
     type = 'website',
   }: {
@@ -110,6 +114,7 @@ export class Meta {
     description: string;
     image: string;
     locale: Locales;
+    siteName?: string;
     title: string;
     type?: 'website' | 'article';
     url: string;
@@ -123,7 +128,7 @@ export class Meta {
         },
       ],
       locale,
-      siteName: BRANDING_NAME,
+      siteName,
       title,
       type,
       url,

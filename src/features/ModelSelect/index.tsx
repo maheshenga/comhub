@@ -102,18 +102,20 @@ const ModelSelect = memo<ModelSelectProps>(
         })
         .filter(Boolean) as SelectProps['options'];
     }, [enabledList, requiredAbilities, showAbility]);
+    const selectedValue =
+      value?.provider && value?.model ? `${value.provider}/${value.model}` : undefined;
 
     return (
       <TooltipGroup>
         <Select
           className={styles.select}
-          defaultValue={`${value?.provider}/${value?.model}`}
+          defaultValue={selectedValue}
           loading={loading}
           options={options}
           popupClassName={styles.popup}
           popupMatchSelectWidth={popupWidth === undefined ? false : popupWidth}
           size={size}
-          value={`${value?.provider}/${value?.model}`}
+          value={selectedValue}
           variant={variant}
           optionRender={(option) => (
             <ModelItemRender

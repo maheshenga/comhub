@@ -63,6 +63,24 @@ describe('Metadata', () => {
         }),
       });
     });
+
+    it('should use a runtime site name when provided', () => {
+      const result = meta.generate({
+        siteName: '玄果AI',
+        title: '登录',
+        url: 'https://example.com/signin',
+      });
+
+      expect(result).toMatchObject({
+        openGraph: expect.objectContaining({
+          siteName: '玄果AI',
+          title: '登录 · 玄果AI',
+        }),
+        twitter: expect.objectContaining({
+          title: '登录 · 玄果AI',
+        }),
+      });
+    });
   });
 
   describe('genAlternateLocales', () => {

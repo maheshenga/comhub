@@ -2,8 +2,8 @@ import { Flexbox } from '@lobehub/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import DragUploadZone, { useUploadFiles } from '@/components/DragUploadZone';
-import { type ActionKeys } from '@/features/ChatInput';
-import { ChatInputProvider, DesktopChatInput } from '@/features/ChatInput';
+import { useBrand } from '@/features/Brand';
+import { type ActionKeys, ChatInputProvider, DesktopChatInput } from '@/features/ChatInput';
 import { useHomeDailyBrief } from '@/hooks/useHomeDailyBrief';
 import { useInitAgentConfig } from '@/hooks/useInitAgentConfig';
 import { useAgentStore } from '@/store/agent';
@@ -14,6 +14,7 @@ import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
 import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 
+import { type BannerKind, getHomeInputBannerCandidates } from './bannerCandidates';
 import BotIntegrationBanner, { BOT_INTEGRATION_BANNER_ID } from './BotIntegrationBanner';
 import { stripMarkdownLinks } from './hintFormat';
 import MessengerBanner, { MESSENGER_BANNER_ID } from './MessengerBanner';
@@ -23,8 +24,6 @@ import { useSend } from './useSend';
 
 const leftActions: ActionKeys[] = ['agentMode', 'plus'];
 const rightActions: ActionKeys[] = ['modelLabel'];
-
-type BannerKind = 'skill' | 'botIntegration' | 'messenger';
 
 const InputArea = () => {
   const { loading, send, agentId } = useSend();
@@ -43,6 +42,7 @@ const InputArea = () => {
   const isLobehubSkillEnabled = useServerConfigStore(serverConfigSelectors.enableLobehubSkill);
   const isKlavisEnabled = useServerConfigStore(serverConfigSelectors.enableKlavis);
   const serverConfigInit = useServerConfigStore((s) => s.serverConfigInit);
+  const isMessengerEnabled = useBrand().homeMessengerEnabled;
   const isSkillBannerDismissed = useGlobalStore(
     systemStatusSelectors.isBannerDismissed(SKILL_INSTALL_BANNER_ID),
   );
@@ -66,12 +66,14 @@ const InputArea = () => {
     if (hasPickedRef.current) return;
     if (!serverConfigInit || !inboxAgentId) return;
 
-    const candidates: BannerKind[] = [];
-    if ((isLobehubSkillEnabled || isKlavisEnabled) && !isSkillBannerDismissed) {
-      candidates.push('skill');
-    }
-    if (!isBotIntegrationBannerDismissed) candidates.push('botIntegration');
-    if (!isMessengerBannerDismissed) candidates.push('messenger');
+    const candidates = getHomeInputBannerCandidates({
+      isBotIntegrationBannerDismissed,
+      isKlavisEnabled,
+      isLobehubSkillEnabled,
+      isMessengerBannerDismissed,
+      isMessengerEnabled,
+      isSkillBannerDismissed,
+    });
     if (candidates.length === 0) return;
 
     hasPickedRef.current = true;
@@ -82,6 +84,7 @@ const InputArea = () => {
     isKlavisEnabled,
     isLobehubSkillEnabled,
     isMessengerBannerDismissed,
+    isMessengerEnabled,
     isSkillBannerDismissed,
     serverConfigInit,
   ]);

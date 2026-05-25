@@ -8,6 +8,8 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
+import { useBrand, useBrandName } from '@/features/Brand';
+import { replaceLegacyBrandTokens } from '@/features/Brand/brandText';
 import { getPlatformIcon } from '@/routes/(main)/agent/channel/const';
 import { useGlobalStore } from '@/store/global';
 
@@ -74,6 +76,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 const MessengerBanner = memo(() => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
+  const brand = useBrand();
+  const brandName = useBrandName();
 
   const updateSystemStatus = useGlobalStore((s) => s.updateSystemStatus);
 
@@ -108,6 +112,10 @@ const MessengerBanner = memo(() => {
     },
     [updateSystemStatus],
   );
+  const title = replaceLegacyBrandTokens(
+    brand.homeMessengerBannerTitle || t('messengerBanner.title', { brandName }),
+    brandName,
+  );
 
   return (
     <div
@@ -117,7 +125,7 @@ const MessengerBanner = memo(() => {
     >
       <Flexbox horizontal align="center" gap={8}>
         <Icon className={styles.icon} icon={MessageCircleIcon} size={18} />
-        <span className={styles.text}>{t('messengerBanner.title')}</span>
+        <span className={styles.text}>{title}</span>
       </Flexbox>
       <Flexbox horizontal align="center" gap={8}>
         {platformIcons.length > 0 && (

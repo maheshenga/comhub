@@ -55,6 +55,14 @@ export interface MarketAuthState {
   status: 'loading' | 'authenticated' | 'unauthenticated';
 }
 
+export interface MarketSignInOptions {
+  /**
+   * ComHub community fork flow only needs authentication; it should not block
+   * users with the upstream community profile setup modal.
+   */
+  skipProfileSetup?: boolean;
+}
+
 export interface MarketAuthContextType extends MarketAuthState {
   /**
    * Check for claimable resources and show modal if any found
@@ -74,7 +82,7 @@ export interface MarketAuthContextType extends MarketAuthState {
   handleUnauthorized: () => Promise<boolean>;
   openProfileSetup: (onSuccess?: (profile: MarketUserProfile) => void) => void;
   refreshToken: () => Promise<boolean>;
-  signIn: () => Promise<number | null>;
+  signIn: (options?: MarketSignInOptions) => Promise<number | null>;
   signOut: () => Promise<void>;
 }
 

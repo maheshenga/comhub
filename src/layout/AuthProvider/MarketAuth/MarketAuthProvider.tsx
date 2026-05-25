@@ -22,6 +22,7 @@ import ProfileSetupModal from './ProfileSetupModal';
 import {
   type MarketAuthContextType,
   type MarketAuthSession,
+  type MarketSignInOptions,
   type MarketUserInfo,
   type MarketUserProfile,
   type OIDCConfig,
@@ -147,6 +148,7 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   const [pendingSignInReject, setPendingSignInReject] = useState<((_reason?: any) => void) | null>(
     null,
   );
+  const [pendingSignInOptions, setPendingSignInOptions] = useState<MarketSignInOptions>({});
   const [pendingProfileSuccessCallback, setPendingProfileSuccessCallback] = useState<
     ((_profile: MarketUserProfile) => void) | null
   >(null);
@@ -155,6 +157,12 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   const [pendingClaimSuccessCallback, setPendingClaimSuccessCallback] = useState<
     (() => void) | null
   >(null);
+
+  const clearPendingSignIn = useCallback(() => {
+    setPendingSignInResolve(null);
+    setPendingSignInReject(null);
+    setPendingSignInOptions({});
+  }, []);
 
   // Subscribe to user store init state; when isUserStateInit is true, settings data is fully loaded
   const isUserStateInit = useUserStore((s) => s.isUserStateInit);
@@ -363,7 +371,7 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
       // Check if user needs to set up profile (first-time login)
       if (userInfo?.sub) {
         const needsSetup = await checkNeedsProfileSetup(userInfo.sub);
-        if (needsSetup) {
+        if (needsSetup && !pendingSignInOptions.skipProfileSetup) {
           // Wait for next tick to ensure session state is updated before opening modal
           // This prevents the edge case where accessToken is null when modal opens
           setTimeout(() => {
@@ -391,10 +399,11 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   /**
    * Sign-in method (shows confirmation dialog first)
    */
-  const signIn = useCallback(async (): Promise<number | null> => {
+  const signIn = useCallback(async (options: MarketSignInOptions = {}): Promise<number | null> => {
     return new Promise<number | null>((resolve, reject) => {
       setPendingSignInResolve(() => resolve);
       setPendingSignInReject(() => reject);
+      setPendingSignInOptions(options);
       setShowConfirmModal(true);
     });
   }, []);
@@ -407,12 +416,13 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
 
     // If in trustedClient mode, open ProfileSetupModal directly to complete profile
     if (enableMarketTrustedClient) {
-      setIsFirstTimeSetup(true);
-      setShowProfileSetupModal(true);
+      if (!pendingSignInOptions.skipProfileSetup) {
+        setIsFirstTimeSetup(true);
+        setShowProfileSetupModal(true);
+      }
       if (pendingSignInResolve) {
         pendingSignInResolve(session?.userInfo?.accountId ?? null);
-        setPendingSignInResolve(null);
-        setPendingSignInReject(null);
+        clearPendingSignIn();
       }
       return;
     }
@@ -422,14 +432,12 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
       const result = await handleActualSignIn();
       if (pendingSignInResolve) {
         pendingSignInResolve(result);
-        setPendingSignInResolve(null);
-        setPendingSignInReject(null);
+        clearPendingSignIn();
       }
     } catch (error) {
       if (pendingSignInReject) {
         pendingSignInReject(error);
-        setPendingSignInResolve(null);
-        setPendingSignInReject(null);
+        clearPendingSignIn();
       }
     }
   };
@@ -441,8 +449,7 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
     setShowConfirmModal(false);
     if (pendingSignInReject) {
       pendingSignInReject(new Error('User cancelled authorization'));
-      setPendingSignInResolve(null);
-      setPendingSignInReject(null);
+      clearPendingSignIn();
     }
   };
 

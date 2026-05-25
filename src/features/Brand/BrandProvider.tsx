@@ -10,9 +10,12 @@ import { lambdaClient } from '@/libs/trpc/client';
 
 export interface BrandConfig {
   authTitle: string;
+  communityForkAndChatLabel: string | null;
   copyrightText: string;
   defaultSkillName: string;
   faviconUrl: string | null;
+  homeMessengerBannerTitle: string | null;
+  homeMessengerEnabled: boolean;
   loadingText: string | null;
   logoUrl: string | null;
   name: string;
@@ -24,9 +27,12 @@ type BrandInput = Partial<{ [K in keyof BrandConfig]: BrandConfig[K] | null }>;
 
 const DEFAULT_BRAND: BrandConfig = {
   authTitle: DEFAULT_RUNTIME_BRAND.authTitle,
+  communityForkAndChatLabel: null,
   copyrightText: DEFAULT_RUNTIME_BRAND.copyrightText,
   defaultSkillName: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
   faviconUrl: null,
+  homeMessengerEnabled: true,
+  homeMessengerBannerTitle: null,
   loadingText: DEFAULT_RUNTIME_BRAND.loadingText,
   logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
   name: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
@@ -38,6 +44,9 @@ const BrandContext = createContext<BrandConfig>(DEFAULT_BRAND);
 
 const normalizeBrand = (brand?: BrandInput | null): BrandConfig => ({
   authTitle: (brand?.authTitle && brand.authTitle.trim()) || DEFAULT_BRAND.authTitle,
+  communityForkAndChatLabel:
+    (brand?.communityForkAndChatLabel && brand.communityForkAndChatLabel.trim()) ||
+    DEFAULT_BRAND.communityForkAndChatLabel,
   copyrightText:
     (brand?.copyrightText && brand.copyrightText.trim()) || DEFAULT_BRAND.copyrightText,
   defaultSkillName:
@@ -45,6 +54,13 @@ const normalizeBrand = (brand?: BrandInput | null): BrandConfig => ({
     (brand?.name && brand.name.trim()) ||
     DEFAULT_BRAND.defaultSkillName,
   faviconUrl: brand?.faviconUrl ?? DEFAULT_BRAND.faviconUrl,
+  homeMessengerEnabled:
+    typeof brand?.homeMessengerEnabled === 'boolean'
+      ? brand.homeMessengerEnabled
+      : DEFAULT_BRAND.homeMessengerEnabled,
+  homeMessengerBannerTitle:
+    (brand?.homeMessengerBannerTitle && brand.homeMessengerBannerTitle.trim()) ||
+    DEFAULT_BRAND.homeMessengerBannerTitle,
   loadingText: (brand?.loadingText && brand.loadingText.trim()) || DEFAULT_BRAND.loadingText,
   logoUrl: brand?.logoUrl ?? DEFAULT_BRAND.logoUrl,
   name: (brand?.name && brand.name.trim()) || DEFAULT_BRAND.name,

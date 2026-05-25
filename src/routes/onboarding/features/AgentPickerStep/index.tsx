@@ -12,6 +12,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import { LOCAL_ONBOARDING_AGENT_TEMPLATES } from '@/const/onboardingAgentTemplates';
 import { useOnboardingAgentTemplates } from '@/hooks/useOnboardingAgentTemplates';
 import { installMarketplaceAgents } from '@/services/installMarketplaceAgents';
 import {
@@ -49,9 +50,12 @@ const AgentPickerStep = memo<AgentPickerStepProps>(({ onBack }) => {
 
   const { data: allTemplates = EMPTY_TEMPLATES, error, isLoading } = useOnboardingAgentTemplates();
 
+  const resolvedTemplates =
+    allTemplates.length > 0 ? allTemplates : LOCAL_ONBOARDING_AGENT_TEMPLATES;
+
   const orderedTemplates = useMemo(
-    () => getTemplatesByCategoryPriority(allTemplates, categoryHints),
-    [allTemplates, categoryHints],
+    () => getTemplatesByCategoryPriority(resolvedTemplates, categoryHints),
+    [resolvedTemplates, categoryHints],
   );
 
   const availableCategories = useMemo(() => {
@@ -126,7 +130,7 @@ const AgentPickerStep = memo<AgentPickerStepProps>(({ onBack }) => {
     onBack();
   }, [onBack]);
 
-  const showLoading = isLoading && allTemplates.length === 0;
+  const showLoading = isLoading && allTemplates.length === 0 && resolvedTemplates.length === 0;
   const showEmpty = !isLoading && visibleTemplates.length === 0;
 
   return (

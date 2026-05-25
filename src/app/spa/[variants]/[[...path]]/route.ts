@@ -205,7 +205,7 @@ async function buildSeoMeta(
     `<meta property="og:type" content="website" />`,
     `<meta property="og:url" content="${OFFICIAL_URL}" />`,
     `<meta property="og:image" content="${OG_URL}" />`,
-    `<meta property="og:site_name" content="${BRANDING_NAME}" />`,
+    `<meta property="og:site_name" content="${appName}" />`,
     `<meta property="og:locale" content="${locale}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${title}" />`,

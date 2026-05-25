@@ -35,6 +35,7 @@ export const SETTING_KEYS = {
   brandName: 'brand.name',
   brandPrimaryColor: 'brand.primaryColor',
   brandSlogan: 'brand.slogan',
+  communityForkAndChatLabel: 'community.forkAndChat.label',
   cronAuditRetentionDays: 'cron.auditRetentionDays',
   cronPendingOrderExpiryDays: 'cron.pendingOrderExpiryDays',
   cronSecret: 'cron.secret',
@@ -50,6 +51,8 @@ export const SETTING_KEYS = {
   desktopDownloadLabel: 'desktop.download.label',
   desktopDownloadUrl: 'desktop.download.url',
   helpMenuItems: 'help.menu.items',
+  homeMessengerEnabled: 'home.messenger.enabled',
+  homeMessengerBannerTitle: 'home.messengerBanner.title',
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
   notificationDesktopEnabled: 'notification.desktop.enabled',
   notificationEmailEnabled: 'notification.email.enabled',
@@ -104,6 +107,7 @@ export type AdminSettingsData = {
   brandName?: string | null;
   brandPrimaryColor?: string | null;
   brandSlogan?: string | null;
+  communityForkAndChatLabel?: string | null;
   aboutLinks?: unknown;
   cronAuditRetentionDays?: number | null;
   cronPendingOrderExpiryDays?: number | null;
@@ -121,6 +125,8 @@ export type AdminSettingsData = {
   desktopDownloadUrl?: string | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
   helpMenuItems?: unknown;
+  homeMessengerBannerTitle?: string | null;
+  homeMessengerEnabled?: boolean | null;
   memoryUserMemoryTriggerMode?: MemoryUserMemoryTriggerMode | string | null;
   memoryUserMemoryTriggerModeEnv?: string | null;
   qstashTokenConfigured?: boolean | null;
@@ -164,6 +170,7 @@ export type AdminSettingsFormValues = {
   brandName: string;
   brandPrimaryColor: string;
   brandSlogan: string;
+  communityForkAndChatLabel: string;
   aboutLinks: AboutLinksConfig;
   cronAuditRetentionDays: number;
   cronPendingOrderExpiryDays: number;
@@ -180,6 +187,8 @@ export type AdminSettingsFormValues = {
   desktopDownloadLabel: string;
   desktopDownloadUrl: string;
   helpMenuItems: HelpMenuItem[];
+  homeMessengerBannerTitle: string;
+  homeMessengerEnabled: boolean;
   memoryUserMemoryTriggerMode: MemoryUserMemoryTriggerMode;
   profileInterestAreas: ConfiguredInterestArea[];
   ordersEnabled: boolean;
@@ -279,6 +288,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   brandName: data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
   brandPrimaryColor: data?.brandPrimaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
   brandSlogan: data?.brandSlogan ?? DEFAULT_RUNTIME_BRAND.authTitle,
+  communityForkAndChatLabel: data?.communityForkAndChatLabel ?? '',
   aboutLinks: normalizeAboutLinksConfig(data?.aboutLinks ?? DEFAULT_ABOUT_LINKS),
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
@@ -295,6 +305,8 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   desktopDownloadLabel: data?.desktopDownloadLabel ?? '',
   desktopDownloadUrl: data?.desktopDownloadUrl ?? '',
   helpMenuItems: normalizeHelpMenuItems(data?.helpMenuItems),
+  homeMessengerBannerTitle: data?.homeMessengerBannerTitle ?? '',
+  homeMessengerEnabled: data?.homeMessengerEnabled ?? true,
   memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
     data?.memoryUserMemoryTriggerMode,
   ),
@@ -326,6 +338,7 @@ export const normalizeFormValues = (
   brandName: normalizeText(values.brandName),
   brandPrimaryColor: normalizeText(values.brandPrimaryColor),
   brandSlogan: normalizeText(values.brandSlogan),
+  communityForkAndChatLabel: normalizeText(values.communityForkAndChatLabel),
   aboutLinks: normalizeAboutLinksConfig(values.aboutLinks),
   cronAuditRetentionDays:
     typeof values.cronAuditRetentionDays === 'number' ? values.cronAuditRetentionDays : 365,
@@ -344,6 +357,9 @@ export const normalizeFormValues = (
   desktopDownloadLabel: normalizeText(values.desktopDownloadLabel),
   desktopDownloadUrl: normalizeText(values.desktopDownloadUrl),
   helpMenuItems: normalizeHelpMenuItems(values.helpMenuItems),
+  homeMessengerBannerTitle: normalizeText(values.homeMessengerBannerTitle),
+  homeMessengerEnabled:
+    typeof values.homeMessengerEnabled === 'boolean' ? values.homeMessengerEnabled : true,
   memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
     values.memoryUserMemoryTriggerMode,
   ),
@@ -409,6 +425,9 @@ export const buildSettingUpdates = (
     'brandFaviconUrl',
     'brandPrimaryColor',
     'brandSlogan',
+    'homeMessengerBannerTitle',
+    'homeMessengerEnabled',
+    'communityForkAndChatLabel',
     'desktopDownloadUrl',
     'desktopDownloadLabel',
     'memoryUserMemoryTriggerMode',
@@ -435,6 +454,7 @@ export const buildSettingUpdates = (
     brandName: SETTING_KEYS.brandName,
     brandPrimaryColor: SETTING_KEYS.brandPrimaryColor,
     brandSlogan: SETTING_KEYS.brandSlogan,
+    communityForkAndChatLabel: SETTING_KEYS.communityForkAndChatLabel,
     cronAuditRetentionDays: SETTING_KEYS.cronAuditRetentionDays,
     cronPendingOrderExpiryDays: SETTING_KEYS.cronPendingOrderExpiryDays,
     cronSecret: SETTING_KEYS.cronSecret,
@@ -450,6 +470,8 @@ export const buildSettingUpdates = (
     desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
     desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
     helpMenuItems: SETTING_KEYS.helpMenuItems,
+    homeMessengerEnabled: SETTING_KEYS.homeMessengerEnabled,
+    homeMessengerBannerTitle: SETTING_KEYS.homeMessengerBannerTitle,
     memoryUserMemoryTriggerMode: SETTING_KEYS.memoryUserMemoryTriggerMode,
     profileInterestAreas: SETTING_KEYS.profileInterestAreas,
     ordersEnabled: SETTING_KEYS.ordersManagementEnabled,
@@ -513,6 +535,9 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     SETTING_KEYS.brandName,
     SETTING_KEYS.brandPrimaryColor,
     SETTING_KEYS.brandSlogan,
+    SETTING_KEYS.homeMessengerBannerTitle,
+    SETTING_KEYS.homeMessengerEnabled,
+    SETTING_KEYS.communityForkAndChatLabel,
     SETTING_KEYS.defaultSkillName,
   ]);
   const needsBrandRefresh = updates.some((update) => brandKeys.has(update.key as any));

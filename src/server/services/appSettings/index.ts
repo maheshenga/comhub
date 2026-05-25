@@ -20,6 +20,8 @@ export const APP_SETTING_KEYS = {
   brandName: 'brand.name',
   brandPrimaryColor: 'brand.primaryColor',
   brandSlogan: 'brand.slogan',
+  // ComHub runtime UI copy: keep these backend-controlled during upstream sync.
+  communityForkAndChatLabel: 'community.forkAndChat.label',
   communityCreatorRewardBannerEnabled: 'community.creatorRewardBanner.enabled',
   communityFeaturedAssistantPageSize: 'community.featuredAssistant.pageSize',
   communityFeaturedAssistantTitle: 'community.featuredAssistant.title',
@@ -77,6 +79,8 @@ export const APP_SETTING_KEYS = {
   expertPlazaDescription: 'expertPlaza.description',
   expertPlazaEnabled: 'expertPlaza.enabled',
   expertPlazaName: 'expertPlaza.name',
+  homeMessengerEnabled: 'home.messenger.enabled',
+  homeMessengerBannerTitle: 'home.messengerBanner.title',
   helpMenuItems: 'help.menu.items',
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
   notificationDesktopEnabled: 'notification.desktop.enabled',

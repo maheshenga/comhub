@@ -1,5 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.hoisted(() => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      clear: vi.fn(() => storage.clear()),
+      getItem: vi.fn((key: string) => storage.get(key) ?? null),
+      removeItem: vi.fn((key: string) => storage.delete(key)),
+      setItem: vi.fn((key: string, value: string) => storage.set(key, value)),
+    },
+  });
+});
+
 import { agentService } from '@/services/agent';
 import { discoverService } from '@/services/discover';
 import { marketApiService } from '@/services/marketApi';
@@ -7,6 +20,18 @@ import { useAgentStore } from '@/store/agent';
 import { useHomeStore } from '@/store/home';
 
 import { installMarketplaceAgents } from './installMarketplaceAgents';
+
+vi.mock('@/store/agent', () => ({
+  useAgentStore: {
+    getState: vi.fn(),
+  },
+}));
+
+vi.mock('@/store/home', () => ({
+  useHomeStore: {
+    getState: vi.fn(),
+  },
+}));
 
 describe('installMarketplaceAgents', () => {
   const createAgent = vi.fn();
@@ -135,5 +160,35 @@ describe('installMarketplaceAgents', () => {
     expect(items.map((i) => i.sourceIdentifier)).toEqual(['src-a']);
     expect(result.skippedAgentIds).toEqual(['src-b', 'src-c']);
     expect(result.installedAgentIds).toEqual(['agent-src-a']);
+  });
+
+  it('installs local onboarding fallback agents without marketplace fetch or fork', async () => {
+    const sourceId = 'comhub-local-onboarding-writer';
+
+    vi.spyOn(agentService, 'getAgentByForkedFromIdentifier').mockResolvedValue(null);
+    const detailSpy = vi.spyOn(discoverService, 'getAssistantDetail');
+    const forkSpy = vi.spyOn(marketApiService, 'forkAgent');
+    createAgent.mockImplementation(async ({ config }: any) => ({
+      agentId: `agent-${config.params.forkedFromIdentifier}`,
+    }));
+
+    const result = await installMarketplaceAgents([sourceId]);
+
+    expect(detailSpy).not.toHaveBeenCalled();
+    expect(forkSpy).not.toHaveBeenCalled();
+    expect(createAgent).toHaveBeenCalledWith({
+      config: expect.objectContaining({
+        marketIdentifier: sourceId,
+        params: expect.objectContaining({ forkedFromIdentifier: sourceId }),
+        title: '通用写作助手',
+      }),
+    });
+    expect(result.installedAgentIds).toEqual([`agent-${sourceId}`]);
+    expect(result.summaries[0]).toMatchObject({
+      skipped: false,
+      templateId: sourceId,
+      title: '通用写作助手',
+    });
+    expect(refreshAgentList).toHaveBeenCalledTimes(1);
   });
 });

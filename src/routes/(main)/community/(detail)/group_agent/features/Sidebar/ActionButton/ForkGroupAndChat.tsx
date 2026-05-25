@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import urlJoin from 'url-join';
 
+import { useBrand } from '@/features/Brand';
 import { useMarketAuth } from '@/layout/AuthProvider/MarketAuth';
 import { chatGroupService } from '@/services/chatGroup';
 import { discoverService } from '@/services/discover';
@@ -46,6 +47,7 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
   const [isLoading, setIsLoading] = useState(false);
   const { message } = App.useApp();
   const { t } = useTranslation('discover');
+  const brand = useBrand();
   const navigate = useNavigate();
   const loadGroups = useAgentGroupStore((s) => s.loadGroups);
   const { isAuthenticated, signIn } = useMarketAuth();
@@ -62,7 +64,7 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
     // Check if user is authenticated
     if (!isAuthenticated) {
       try {
-        await signIn();
+        await signIn({ skipProfileSetup: true });
       } catch {
         return;
       }
@@ -215,7 +217,7 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
       type={'primary'}
       onClick={handleForkAndChat}
     >
-      {t('fork.forkAndChat')}
+      {brand.communityForkAndChatLabel || t('fork.forkAndChat')}
     </Button>
   );
 });

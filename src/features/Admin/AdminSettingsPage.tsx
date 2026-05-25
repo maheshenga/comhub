@@ -465,6 +465,37 @@ const AdminSettingsPage = memo(() => {
                     <Input placeholder="© 2026 玄果 AI. All rights reserved." />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.homeMessengerEnabled', '启用首页聊天平台入口')}
+                    name="homeMessengerEnabled"
+                    valuePropName="checked"
+                    extra={t(
+                      'admin.settings.homeMessengerEnabled.help',
+                      '关闭后首页聊天框下方不会再随机显示聊天平台入口；/settings/messenger 功能页仍保留。',
+                    )}
+                  >
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.homeMessengerBannerTitle', '首页聊天平台文案')}
+                    name="homeMessengerBannerTitle"
+                    extra={t(
+                      'admin.settings.homeMessengerBannerTitle.help',
+                      '控制首页聊天框下方“聊天平台”入口文字，留空时使用系统默认文案。',
+                    )}
+                  >
+                    <Input placeholder="在你喜爱的聊天应用中，与 {{brandName}} 畅聊" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.communityForkAndChatLabel', '社区派生按钮文字')}
+                    name="communityForkAndChatLabel"
+                    extra={t(
+                      'admin.settings.communityForkAndChatLabel.help',
+                      '控制社区详情页派生按钮文字，留空时使用系统默认文案。',
+                    )}
+                  >
+                    <Input placeholder="派生并聊天" />
+                  </Form.Item>
+                  <Form.Item
                     label={t('admin.settings.brandLogoUrl', 'Logo 地址（URL）')}
                     name="brandLogoUrl"
                     extra={t(

@@ -74,9 +74,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
       enabledKey: 'ENABLED_AWS_BEDROCK',
       modelListKey: 'AWS_BEDROCK_MODEL_LIST',
     },
-    deepseek: {
-      enabled: true,
-    },
+    deepseek: ENABLE_BUSINESS_FEATURES ? {} : { enabled: true },
     giteeai: {
       enabledKey: 'ENABLED_GITEE_AI',
       modelListKey: 'GITEE_AI_MODEL_LIST',

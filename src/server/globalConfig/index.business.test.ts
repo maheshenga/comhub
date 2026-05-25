@@ -173,6 +173,11 @@ describe('getServerGlobalConfig business newapi model injection', () => {
       }),
     );
     expect(mocks.genServerAiProvidersConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deepseek: {},
+      }),
+    );
+    expect(mocks.genServerAiProvidersConfig).toHaveBeenCalledWith(
       expect.not.objectContaining({
         lobehub: expect.anything(),
       }),

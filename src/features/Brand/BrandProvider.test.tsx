@@ -35,8 +35,11 @@ vi.mock('react-i18next', () => ({
 let swrData:
   | {
       authTitle: string;
+      communityForkAndChatLabel?: null | string;
       copyrightText: string;
       faviconUrl: null;
+      homeMessengerEnabled?: boolean;
+      homeMessengerBannerTitle?: null | string;
       loadingText: null | string;
       logoUrl: null;
       name: string;
@@ -71,8 +74,11 @@ describe('BrandProvider', () => {
     document.title = '';
     swrData = {
       authTitle: 'Runtime auth title',
+      communityForkAndChatLabel: 'Runtime fork',
       copyrightText: '2026 Runtime',
       faviconUrl: null,
+      homeMessengerEnabled: false,
+      homeMessengerBannerTitle: 'Runtime messenger',
       loadingText: 'Runtime loading',
       logoUrl: null,
       name: 'Runtime Brand',
@@ -120,8 +126,11 @@ describe('BrandProvider', () => {
       <BrandProvider
         initialBrand={{
           authTitle: 'Server auth title',
+          communityForkAndChatLabel: null,
           copyrightText: '2026 Server',
           faviconUrl: null,
+          homeMessengerEnabled: true,
+          homeMessengerBannerTitle: null,
           loadingText: null,
           logoUrl: null,
           name: 'Server Brand',

@@ -91,6 +91,8 @@ describe('SPA route brand boot config', () => {
     expect(html).toContain('"brand":{"authTitle":"登录页文案不作为加载文案"');
     expect(html).toContain('"name":"玄果AI"');
     expect(html).toContain('<title>玄果AI chat.title</title>');
+    expect(html).toContain('<meta property="og:site_name" content="玄果AI" />');
+    expect(html).not.toContain('<meta property="og:site_name" content="LobeHub" />');
     expect(html).not.toContain('<svg><title>LobeHub</title></svg>');
 
     const loadingBrandHtml = html.match(/<div id="loading-brand"[\s\S]*?<\/div>/)?.[0] ?? '';

@@ -6,6 +6,8 @@ import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useBrand } from '@/features/Brand';
+
 import AuthCard from '../../../../features/AuthCard';
 
 export interface SignInPasswordStepProps {
@@ -26,6 +28,7 @@ export const SignInPasswordStep = ({
   onSubmit,
 }: SignInPasswordStepProps) => {
   const { t } = useTranslation('auth');
+  const brand = useBrand();
   const passwordInputRef = useRef<InputRef>(null);
 
   useEffect(() => {
@@ -35,7 +38,7 @@ export const SignInPasswordStep = ({
   return (
     <AuthCard
       subtitle={t('betterAuth.signin.passwordStep.subtitle')}
-      title={'Agent teammates that grow with you'}
+      title={brand.authTitle || t('signin.title')}
       footer={
         <>
           <Text fontSize={13} type={'secondary'}>

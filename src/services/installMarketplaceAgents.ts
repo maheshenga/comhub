@@ -1,6 +1,7 @@
 import type { InstallMarketplaceAgentSummary } from '@lobechat/builtin-tool-web-onboarding/agentMarketplace';
 import { customAlphabet } from 'nanoid/non-secure';
 
+import { getLocalOnboardingAgentTemplate } from '@/const/onboardingAgentTemplates';
 import { agentService } from '@/services/agent';
 import { discoverService } from '@/services/discover';
 import { marketApiService } from '@/services/marketApi';
@@ -42,11 +43,37 @@ export const installMarketplaceAgents = async (
     sourceAgentIds.map((id) => agentService.getAgentByForkedFromIdentifier(id)),
   );
   const skippedAgentIds: string[] = [];
+  const localSourceIds: string[] = [];
   const pendingSourceIds: string[] = [];
   sourceAgentIds.forEach((id, i) => {
     if (existing[i]) skippedAgentIds.push(id);
+    else if (getLocalOnboardingAgentTemplate(id)) localSourceIds.push(id);
     else pendingSourceIds.push(id);
   });
+
+  const localInstallResults = await Promise.allSettled(
+    localSourceIds.map(async (sourceId) => {
+      const template = getLocalOnboardingAgentTemplate(sourceId)!;
+      // ComHub onboarding fallback templates are local so signup can continue
+      // even when the upstream marketplace template service is unavailable.
+      const result = await createAgent({
+        config: {
+          ...template.config,
+          avatar: template.avatar,
+          description: template.description,
+          marketIdentifier: sourceId,
+          params: {
+            ...template.config.params,
+            forkedFromIdentifier: sourceId,
+          },
+          tags: template.tags,
+          title: template.title,
+        },
+      });
+
+      return { agentId: result.agentId, sourceId };
+    }),
+  );
 
   // 2. Parallel fetch market detail for pending ids (best-effort per item)
   const detailResults = await Promise.allSettled(
@@ -131,6 +158,13 @@ export const installMarketplaceAgents = async (
 
   // 6. Build summaries — preserve the original per-source ordering
   const installedBySource = new Map<string, string>();
+  localInstallResults.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      installedBySource.set(r.value.sourceId, r.value.agentId);
+    } else {
+      console.warn('Failed to install local onboarding agent:', localSourceIds[i], r.reason);
+    }
+  });
   installResults.forEach((r, i) => {
     if (r.status === 'fulfilled') {
       installedBySource.set(r.value.sourceId, r.value.agentId);
@@ -145,6 +179,18 @@ export const installMarketplaceAgents = async (
   const summaries: InstallMarketplaceAgentSummary[] = sourceAgentIds.map((sourceId) => {
     if (skippedAgentIds.includes(sourceId)) {
       return { skipped: true, templateId: sourceId };
+    }
+    const localTemplate = getLocalOnboardingAgentTemplate(sourceId);
+    if (localTemplate) {
+      return {
+        avatar: localTemplate.avatar,
+        category: localTemplate.category,
+        description: localTemplate.description,
+        installedAgentId: installedBySource.get(sourceId),
+        skipped: false,
+        templateId: sourceId,
+        title: localTemplate.title,
+      };
     }
     const detail = detailBySource.get(sourceId);
     return {

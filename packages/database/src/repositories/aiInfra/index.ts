@@ -1,4 +1,4 @@
-import { BRANDING_PROVIDER } from '@lobechat/business-const';
+import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { loadModels } from '@lobechat/business-model-bank/model-config';
 import type {
   AiProviderDetailItem,
@@ -147,6 +147,7 @@ export class AiInfraRepos {
    */
   getAiProviderList = async () => {
     const userProviders = await this.aiProviderModel.getAiProviderList();
+    const isProviderEnabledByServer = (id: string) => Boolean(this.providerConfigs[id]?.enabled);
 
     // 1. First create a mapping based on DEFAULT_MODEL_PROVIDER_LIST id order
     const orderMap = new Map(DEFAULT_MODEL_PROVIDER_LIST.map((item, index) => [item.id, index]));
@@ -154,14 +155,25 @@ export class AiInfraRepos {
     const builtinProviders = DEFAULT_MODEL_PROVIDER_LIST.map((item) => ({
       description: item.description,
       enabled:
-        userProviders.some((provider) => provider.id === item.id && provider.enabled) ||
-        this.providerConfigs[item.id]?.enabled,
+        isProviderEnabledByServer(item.id) ||
+        (!ENABLE_BUSINESS_FEATURES &&
+          userProviders.some((provider) => provider.id === item.id && provider.enabled)),
       id: item.id,
       name: item.name,
       source: 'builtin',
     })) as AiProviderListItem[];
 
-    const mergedProviders = mergeArrayById(builtinProviders, userProviders);
+    // ComHub business mode is admin-managed: user toggles must not resurrect
+    // built-in providers that are not enabled in backend AI service settings.
+    const normalizedUserProviders = ENABLE_BUSINESS_FEATURES
+      ? userProviders.map((provider) =>
+          provider.source === 'builtin' || orderMap.has(provider.id)
+            ? { ...provider, enabled: isProviderEnabledByServer(provider.id) }
+            : { ...provider, enabled: false },
+        )
+      : userProviders;
+
+    const mergedProviders = mergeArrayById(builtinProviders, normalizedUserProviders);
 
     // 3. Sort based on orderMap
     return mergedProviders.sort((a, b) => {

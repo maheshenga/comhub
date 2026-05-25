@@ -192,6 +192,39 @@ describe('adminSettingsForm', () => {
     ]);
   });
 
+  it('includes home messenger controls and community fork copy in brand setting updates', () => {
+    const initial = buildFormValues({
+      communityForkAndChatLabel: '',
+      homeMessengerEnabled: true,
+      homeMessengerBannerTitle: '',
+    });
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          communityForkAndChatLabel: '立即派生',
+          homeMessengerEnabled: false,
+          homeMessengerBannerTitle: '在聊天平台中，与 {{brandName}} 畅聊',
+        },
+        initial,
+      ),
+    ).toEqual([
+      {
+        key: SETTING_KEYS.homeMessengerBannerTitle,
+        value: '在聊天平台中，与 {{brandName}} 畅聊',
+      },
+      { key: SETTING_KEYS.homeMessengerEnabled, value: false },
+      { key: SETTING_KEYS.communityForkAndChatLabel, value: '立即派生' },
+    ]);
+
+    expect(
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.homeMessengerBannerTitle, value: '在聊天平台中，与 {{brandName}} 畅聊' },
+      ]),
+    ).toEqual(['brand-config']);
+  });
+
   it('keeps loading copy separate from login and slogan copy', () => {
     const initial = buildFormValues({
       brandAuthTitle: 'Login page copy',

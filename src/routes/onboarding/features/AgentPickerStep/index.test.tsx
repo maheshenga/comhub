@@ -97,6 +97,16 @@ describe('AgentPickerStep', () => {
     expect(screen.getByText('Copywriter')).toBeInTheDocument();
   });
 
+  it('renders local fallback agent cards when marketplace templates are unavailable', () => {
+    swrReturn = { data: [], error: new Error('market unavailable'), isLoading: false };
+
+    render(<AgentPickerStep onBack={vi.fn()} />);
+
+    expect(screen.getByText('通用写作助手')).toBeInTheDocument();
+    expect(screen.getByText('业务分析助手')).toBeInTheDocument();
+    expect(screen.queryByText('agentMarketplace.picker.failedToLoad')).not.toBeInTheDocument();
+  });
+
   it('installs the selected agents then finishes onboarding on Continue', async () => {
     render(<AgentPickerStep onBack={vi.fn()} />);
 

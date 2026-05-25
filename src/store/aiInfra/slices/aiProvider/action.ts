@@ -3,6 +3,7 @@ import {
   resolveImageSinglePrice,
   resolveVideoSinglePrice,
 } from '@lobechat/model-runtime';
+import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { uniqBy } from 'es-toolkit/compat';
 import type {
   AiFullModelCard,
@@ -510,9 +511,11 @@ export class AiProviderActionImpl {
           };
         }
 
-        const enabledAiProviders: EnabledProvider[] = DEFAULT_MODEL_PROVIDER_LIST.filter(
-          (provider) => provider.enabled,
-        ).map((item) => ({ id: item.id, name: item.name, source: AiProviderSourceEnum.Builtin }));
+        const enabledAiProviders: EnabledProvider[] = (
+          ENABLE_BUSINESS_FEATURES ? [] : DEFAULT_MODEL_PROVIDER_LIST
+        )
+          .filter((provider) => provider.enabled)
+          .map((item) => ({ id: item.id, name: item.name, source: AiProviderSourceEnum.Builtin }));
 
         const enabledChatAiProviders = enabledAiProviders.filter((provider) => {
           return builtinAiModelList.some(
