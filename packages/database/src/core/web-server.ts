@@ -1,13 +1,53 @@
 import { neonConfig, Pool as NeonPool } from '@neondatabase/serverless';
 import { drizzle as neonDrizzle } from 'drizzle-orm/neon-serverless';
 import { drizzle as nodeDrizzle } from 'drizzle-orm/node-postgres';
-import { Pool as NodePool } from 'pg';
+import { Pool as NodePool, type PoolConfig } from 'pg';
 import ws from 'ws';
 
 import { serverDBEnv } from '@/config/db';
 
 import * as schema from '../schemas';
 import type { LobeChatDatabase } from '../type';
+
+type NodePostgresPoolEnv = Pick<
+  typeof serverDBEnv,
+  | 'DATABASE_APPLICATION_NAME'
+  | 'DATABASE_CONNECTION_TIMEOUT_MS'
+  | 'DATABASE_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS'
+  | 'DATABASE_IDLE_TIMEOUT_MS'
+  | 'DATABASE_MAX_LIFETIME_SECONDS'
+  | 'DATABASE_POOL_MAX'
+  | 'DATABASE_STATEMENT_TIMEOUT_MS'
+>;
+
+const DEFAULT_NODE_POOL_CONFIG = {
+  applicationName: 'comhub-web',
+  connectionTimeoutMillis: 10_000,
+  idleInTransactionSessionTimeoutMillis: 30_000,
+  idleTimeoutMillis: 30_000,
+  max: 20,
+  maxLifetimeSeconds: 600,
+  statementTimeoutMillis: 120_000,
+};
+
+export const getNodePostgresPoolConfig = (
+  connectionString: string,
+  env: NodePostgresPoolEnv = serverDBEnv,
+): PoolConfig => ({
+  application_name: env.DATABASE_APPLICATION_NAME || DEFAULT_NODE_POOL_CONFIG.applicationName,
+  connectionString,
+  connectionTimeoutMillis:
+    env.DATABASE_CONNECTION_TIMEOUT_MS ?? DEFAULT_NODE_POOL_CONFIG.connectionTimeoutMillis,
+  idleTimeoutMillis: env.DATABASE_IDLE_TIMEOUT_MS ?? DEFAULT_NODE_POOL_CONFIG.idleTimeoutMillis,
+  idle_in_transaction_session_timeout:
+    env.DATABASE_IDLE_IN_TRANSACTION_SESSION_TIMEOUT_MS ??
+    DEFAULT_NODE_POOL_CONFIG.idleInTransactionSessionTimeoutMillis,
+  max: env.DATABASE_POOL_MAX ?? DEFAULT_NODE_POOL_CONFIG.max,
+  maxLifetimeSeconds:
+    env.DATABASE_MAX_LIFETIME_SECONDS ?? DEFAULT_NODE_POOL_CONFIG.maxLifetimeSeconds,
+  statement_timeout:
+    env.DATABASE_STATEMENT_TIMEOUT_MS ?? DEFAULT_NODE_POOL_CONFIG.statementTimeoutMillis,
+});
 
 export const getDBInstance = (): LobeChatDatabase => {
   // In test environment, return a mock instance to avoid initialization errors
@@ -29,7 +69,7 @@ If you don't have it, please run \`openssl rand -base64 32\` to create one.
   }
 
   if (serverDBEnv.DATABASE_DRIVER === 'node') {
-    const client = new NodePool({ connectionString });
+    const client = new NodePool(getNodePostgresPoolConfig(connectionString));
     // pg.Pool emits 'error' on idle clients when the backend connection drops.
     // Without a listener Node escalates it to uncaughtException and exits the process.
     // See: https://node-postgres.com/apis/pool#error

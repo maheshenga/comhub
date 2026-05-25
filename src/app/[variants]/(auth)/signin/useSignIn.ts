@@ -29,6 +29,29 @@ interface ResolvedEmailResult {
   identifierType: 'email' | 'username';
 }
 
+export const normalizeAuthCallbackUrl = (
+  callbackUrl: null | string,
+  origin: string = globalThis.location?.origin,
+) => {
+  if (!callbackUrl) return '/';
+  if (callbackUrl.startsWith('/')) return callbackUrl.startsWith('//') ? '/' : callbackUrl;
+
+  if (!origin) return '/';
+
+  try {
+    const url = new URL(callbackUrl, origin);
+
+    if (url.origin !== origin) return '/';
+
+    return `${url.pathname}${url.search}${url.hash}` || '/';
+  } catch {
+    return '/';
+  }
+};
+
+const isEmailVerificationError = (error: any) =>
+  error?.status === 403 && error?.code !== 'INVALID_CALLBACKURL';
+
 export const useSignIn = () => {
   const { t } = useTranslation('auth');
   const router = useRouter();
@@ -59,6 +82,8 @@ export const useSignIn = () => {
     if (emailParam) form.setFieldValue('email', emailParam);
   }, [searchParams, form]);
 
+  const getCallbackUrl = () => normalizeAuthCallbackUrl(searchParams.get('callbackUrl'));
+
   const handleSendMagicLink = async (targetEmail?: string) => {
     try {
       const emailValue =
@@ -69,7 +94,7 @@ export const useSignIn = () => {
           .catch(() => null));
       if (!emailValue) return;
 
-      const callbackUrl = searchParams.get('callbackUrl') || '/';
+      const callbackUrl = getCallbackUrl();
       const { error } = await signIn.magicLink({ callbackURL: callbackUrl, email: emailValue });
       if (error) {
         message.error(error.message || t('betterAuth.signin.magicLinkError'));
@@ -139,7 +164,7 @@ export const useSignIn = () => {
           message.error(t('betterAuth.errors.usernameNotRegistered'));
           return;
         }
-        const callbackUrl = searchParams.get('callbackUrl') || '/';
+        const callbackUrl = getCallbackUrl();
         router.push(
           `/signup?email=${encodeURIComponent(targetEmail)}&callbackUrl=${encodeURIComponent(callbackUrl)}`,
         );
@@ -172,13 +197,13 @@ export const useSignIn = () => {
     await trackLoginOrSignupClicked({ spm: 'signin.password_step.submit' });
 
     try {
-      const callbackUrl = searchParams.get('callbackUrl') || '/';
+      const callbackUrl = getCallbackUrl();
       const result = await signIn.email(
         { callbackURL: callbackUrl, email, password: values.password },
         {
           onError: (ctx) => {
             console.error('Sign in error:', ctx.error);
-            if (ctx.error.status === 403) {
+            if (isEmailVerificationError(ctx.error)) {
               router.push(
                 `/verify-email?email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`,
               );
@@ -188,7 +213,7 @@ export const useSignIn = () => {
         },
       );
 
-      if (result.error && result.error.status !== 403) {
+      if (result.error && !isEmailVerificationError(result.error)) {
         message.error(result.error.message || t('betterAuth.signin.error'));
       }
     } catch (error) {
@@ -219,7 +244,7 @@ export const useSignIn = () => {
         // Ignore localStorage errors (e.g., quota exceeded, private mode)
       }
 
-      const callbackUrl = searchParams.get('callbackUrl') || '/';
+      const callbackUrl = getCallbackUrl();
       const additionalData = await getAdditionalData();
       const signInWithAdditionalData = async () =>
         isBuiltinProvider(normalizedProvider)
@@ -253,7 +278,7 @@ export const useSignIn = () => {
 
   const handleGoToSignup = () => {
     const currentEmail = form.getFieldValue('email');
-    const callbackUrl = searchParams.get('callbackUrl') || '/';
+    const callbackUrl = getCallbackUrl();
     const params = new URLSearchParams();
     if (currentEmail) params.set('email', currentEmail);
     params.set('callbackUrl', callbackUrl);

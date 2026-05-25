@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ── import under test ──────────────────────────────────────────
-import { useSignIn } from './useSignIn';
+import { normalizeAuthCallbackUrl, useSignIn } from './useSignIn';
 
 // ── hoisted mocks ──────────────────────────────────────────────
 const mockPush = vi.hoisted(() => vi.fn());
@@ -49,10 +49,16 @@ vi.mock('@/libs/better-auth/utils/client', () => ({
   normalizeProviderId: (p: string) => p,
 }));
 
-vi.mock('@lobechat/business-const', () => ({
-  BRANDING_NAME: 'LobeHub',
-  ENABLE_BUSINESS_FEATURES: false,
-}));
+vi.mock('@lobechat/business-const', async () => {
+  const actual: any = await vi.importActual('@lobechat/business-const');
+
+  return {
+    ...actual,
+    BRANDING_NAME: 'LobeHub',
+    BRANDING_LOGO_URL: '',
+    ENABLE_BUSINESS_FEATURES: false,
+  };
+});
 
 vi.mock('@/business/client/hooks/useBusinessSignin', () => ({
   useBusinessSignin: () => ({
@@ -111,6 +117,29 @@ describe('useSignIn', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('normalizeAuthCallbackUrl', () => {
+    it('keeps same-origin paths and absolute URLs as local paths', () => {
+      expect(
+        normalizeAuthCallbackUrl('/settings/plans?tab=pro', 'https://chat.qingyouai.com'),
+      ).toBe('/settings/plans?tab=pro');
+      expect(
+        normalizeAuthCallbackUrl(
+          'https://chat.qingyouai.com/settings/plans#current',
+          'https://chat.qingyouai.com',
+        ),
+      ).toBe('/settings/plans#current');
+    });
+
+    it('rejects stale IP and protocol-relative callback URLs', () => {
+      expect(normalizeAuthCallbackUrl('http://47.120.31.65/', 'https://chat.qingyouai.com')).toBe(
+        '/',
+      );
+      expect(normalizeAuthCallbackUrl('//evil.example/path', 'https://chat.qingyouai.com')).toBe(
+        '/',
+      );
+    });
   });
 
   describe('initial state', () => {
@@ -292,6 +321,66 @@ describe('useSignIn', () => {
       expect(mockPush).toHaveBeenCalledWith(
         expect.stringContaining('/verify-email?email=user%40example.com'),
       );
+    });
+
+    it('should sanitize stale external callbackUrl before email sign in', async () => {
+      mockSearchParamsGet.mockImplementation((key: string) =>
+        key === 'callbackUrl' ? 'http://47.120.31.65/' : null,
+      );
+      mockSignInEmail.mockImplementation(async (_data: any, opts: any) => {
+        opts.onSuccess();
+        return { error: null };
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => ({ exists: true, hasPassword: true }),
+        ok: true,
+      });
+
+      const { result } = renderHook(() => useSignIn());
+
+      await act(async () => {
+        await result.current.handleCheckUser({ email: 'user@example.com' });
+      });
+
+      await act(async () => {
+        await result.current.handleSignIn({ password: 'password' });
+      });
+
+      expect(mockSignInEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ callbackURL: '/' }),
+        expect.any(Object),
+      );
+      expect(mockPush).toHaveBeenCalledWith('/');
+    });
+
+    it('should not treat invalid callback errors as verify-email errors', async () => {
+      mockSignInEmail.mockImplementation(async (_data: any, opts: any) => {
+        opts.onError({
+          error: { code: 'INVALID_CALLBACKURL', message: 'Invalid callbackURL', status: 403 },
+        });
+        return {
+          error: { code: 'INVALID_CALLBACKURL', message: 'Invalid callbackURL', status: 403 },
+        };
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => ({ exists: true, hasPassword: true }),
+        ok: true,
+      });
+
+      const { result } = renderHook(() => useSignIn());
+
+      await act(async () => {
+        await result.current.handleCheckUser({ email: 'user@example.com' });
+      });
+
+      await act(async () => {
+        await result.current.handleSignIn({ password: 'password' });
+      });
+
+      expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining('/verify-email'));
+      expect(mockMessageError).toHaveBeenCalledWith('Invalid callbackURL');
     });
   });
 
