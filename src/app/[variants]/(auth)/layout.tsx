@@ -16,16 +16,17 @@ const AuthLayout = async ({ children, params }: PropsWithChildren<DynamicLayoutP
 
   return (
     <AuthGlobalProvider variants={variants}>
-      {/* ComHub: auth pages are outside the SPA shell, so inject the admin brand here. */}
-      <BrandProvider initialBrand={brand} updateDocumentTitle={false}>
-        <ClientOnly>
+      <ClientOnly>
+        {/* ComHub: keep ClientOnly as the direct auth client boundary; moving BrandProvider
+            outside it can leave production auth pages as an empty client shell. */}
+        <BrandProvider initialBrand={brand} updateDocumentTitle={false}>
           <NuqsAdapter>
             <BusinessAuthProvider>
               <AuthContainer>{children}</AuthContainer>
             </BusinessAuthProvider>
           </NuqsAdapter>
-        </ClientOnly>
-      </BrandProvider>
+        </BrandProvider>
+      </ClientOnly>
     </AuthGlobalProvider>
   );
 };
