@@ -69,5 +69,6 @@ COMHUB_IMAGE='ghcr.io/maheshenga/comhub:sha-xxxx' \
 
 - 不要把服务器密码写进 workflow。
 - 如果 Actions 在推送 GHCR 时提示 `permission_denied: write_package`，优先在 GHCR package 的权限设置中给 `maheshenga/comhub` 仓库 Actions 写入权限；或者添加 `COMHUB_GHCR_TOKEN` 专用 Secret。
+- Workflow 会打印 `Using custom COMHUB_GHCR_TOKEN: true/false`，用于确认 Actions 是否实际读到了专用 Token；不会打印 Token 内容。
 - 如果 GHCR package 是 private，需要确保生产服务器具备拉取 GHCR 镜像的凭据。
 - 后续上游同步后，保留这个 workflow 和本文档。
