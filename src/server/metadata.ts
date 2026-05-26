@@ -4,6 +4,7 @@ import qs from 'query-string';
 
 import { DEFAULT_LANG } from '@/const/locale';
 import { OG_URL } from '@/const/url';
+import { appEnv } from '@/envs/app';
 import { isCustomORG } from '@/const/version';
 import { type Locales } from '@/locales/resources';
 import { locales } from '@/locales/resources';
@@ -46,6 +47,7 @@ export class Meta {
         languages: alternate ? this.genAlternateLocales(locale, url) : undefined,
       },
       description: formatedDescription,
+      metadataBase: new URL(appEnv.APP_URL),
       openGraph: this.genOpenGraph({
         alternate,
         description,
