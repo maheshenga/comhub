@@ -94,6 +94,45 @@ describe('AiInfraRepos', () => {
       );
     });
 
+    it('should preserve admin pricing overrides when merging builtin models', async () => {
+      const mockProviders = [
+        { enabled: true, id: 'newapi', name: 'NewAPI', sort: 1, source: 'builtin' as const },
+      ];
+      const pricing = {
+        units: [{ name: 'textInput', rate: 0.8, strategy: 'fixed', unit: 'millionTokens' }],
+      };
+
+      vi.spyOn(repo, 'getAiProviderList').mockResolvedValue(mockProviders);
+      vi.spyOn(repo.aiModelModel, 'getAllModels').mockResolvedValue([
+        {
+          abilities: {},
+          enabled: true,
+          id: 'gpt-test',
+          pricing,
+          providerId: 'newapi',
+          type: 'chat' as const,
+        } as EnabledAiModel & { pricing: typeof pricing },
+      ]);
+      vi.spyOn(repo as any, 'fetchBuiltinModels').mockResolvedValue([
+        {
+          displayName: 'GPT Test',
+          enabled: true,
+          id: 'gpt-test',
+          type: 'chat' as const,
+        },
+      ]);
+
+      const result = await repo.getEnabledModels();
+
+      expect(result).toContainEqual(
+        expect.objectContaining({
+          id: 'gpt-test',
+          pricing,
+          providerId: 'newapi',
+        }),
+      );
+    });
+
     it('should handle case when user model not found', async () => {
       const mockProviders = [
         { enabled: true, id: 'openai', name: 'OpenAI', sort: 1, source: 'builtin' as const },

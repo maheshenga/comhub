@@ -244,4 +244,59 @@ describe('NewAPI instance resolver', () => {
       }),
     ]);
   });
+
+  it('returns pricing converted from stored NewAPI metadata', async () => {
+    const db = createDb([
+      {
+        displayName: 'GPT-4o Mini',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        metadata: {
+          completionRatio: 2,
+          modelRatio: 0.15,
+          pricingAvailable: true,
+          quotaType: 0,
+        },
+        modelId: 'gpt-4o-mini',
+        modelType: 'chat',
+        providerType: 'newapi',
+      },
+      {
+        displayName: 'GPT Image',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        metadata: {
+          modelPrice: 0.03,
+          pricingAvailable: true,
+          quotaType: 1,
+        },
+        modelId: 'gpt-image-2',
+        modelType: 'image',
+        providerType: 'newapi',
+      },
+    ]);
+
+    await expect(getAllEnabledModels(db)).resolves.toEqual([
+      expect.objectContaining({
+        id: 'gpt-4o-mini',
+        pricing: {
+          units: [
+            { name: 'textInput', rate: 0.3, strategy: 'fixed', unit: 'millionTokens' },
+            { name: 'textOutput', rate: 0.6, strategy: 'fixed', unit: 'millionTokens' },
+          ],
+        },
+      }),
+      expect.objectContaining({
+        id: 'gpt-image-2',
+        pricing: {
+          approximatePricePerImage: 0.03,
+          units: [{ name: 'imageGeneration', rate: 0.03, strategy: 'fixed', unit: 'image' }],
+        },
+      }),
+    ]);
+  });
 });

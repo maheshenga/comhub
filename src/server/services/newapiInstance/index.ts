@@ -1,4 +1,5 @@
 import { and, asc, eq } from 'drizzle-orm';
+import type { Pricing } from 'model-bank';
 
 import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';
@@ -242,9 +243,60 @@ export interface EnabledModelEntry {
   id: string;
   instanceId?: string | null;
   instanceName?: string | null;
+  pricing?: Pricing;
   providerType?: AdminModelApiProviderType | null;
   type: NewapiModelType;
 }
+
+const toPositiveNumber = (value: unknown) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : undefined;
+};
+
+export const resolveNewapiModelPricingFromMetadata = (
+  metadata: Record<string, unknown> | null | undefined,
+  modelType: NewapiModelType,
+): Pricing | undefined => {
+  const quotaType = Number(metadata?.quotaType);
+  const modelPrice = toPositiveNumber(metadata?.modelPrice);
+  const modelRatio = toPositiveNumber(metadata?.modelRatio);
+  const completionRatio = toPositiveNumber(metadata?.completionRatio) ?? 1;
+
+  if (quotaType === 0) {
+    const inputRate = modelPrice ? modelPrice * 2 : modelRatio ? modelRatio * 2 : undefined;
+    if (!inputRate) return undefined;
+
+    return {
+      units: [
+        { name: 'textInput', rate: inputRate, strategy: 'fixed', unit: 'millionTokens' },
+        {
+          name: 'textOutput',
+          rate: inputRate * completionRatio,
+          strategy: 'fixed',
+          unit: 'millionTokens',
+        },
+      ],
+    };
+  }
+
+  if (quotaType === 1 && modelPrice) {
+    if (modelType === 'image') {
+      return {
+        approximatePricePerImage: modelPrice,
+        units: [{ name: 'imageGeneration', rate: modelPrice, strategy: 'fixed', unit: 'image' }],
+      };
+    }
+
+    if (modelType === 'video') {
+      return {
+        approximatePricePerVideo: modelPrice,
+        units: [],
+      };
+    }
+  }
+
+  return undefined;
+};
 
 /**
  * Read all enabled models across all enabled instances with their types and
@@ -263,6 +315,7 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
         groupName: adminNewapiInstances.groupName,
         instanceId: adminNewapiInstances.id,
         instanceName: adminNewapiInstances.name,
+        metadata: adminNewapiInstanceModels.metadata,
         providerType: adminNewapiInstances.providerType,
       })
       .from(adminNewapiInstanceModels)
@@ -288,6 +341,10 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
           id: row.modelId,
           instanceId: row.instanceId,
           instanceName: row.instanceName,
+          pricing: resolveNewapiModelPricingFromMetadata(
+            row.metadata as Record<string, unknown> | null | undefined,
+            row.modelType as NewapiModelType,
+          ),
           providerType: row.providerType,
           type: row.modelType as NewapiModelType,
         });

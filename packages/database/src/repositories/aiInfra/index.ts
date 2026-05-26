@@ -10,7 +10,6 @@ import type {
 import { isEmpty } from 'es-toolkit/compat';
 import type { AIChatModelCard, AiProviderModelListItem, EnabledAiModel } from 'model-bank';
 import { AiModelSourceEnum, isAiModelVisible } from 'model-bank';
-import * as modelBank from 'model-bank';
 import { DEFAULT_MODEL_PROVIDER_LIST } from 'model-bank/modelProviders';
 import pMap from 'p-map';
 
@@ -19,6 +18,8 @@ import { merge, mergeArrayById } from '@/utils/merge';
 import { AiModelModel } from '../../models/aiModel';
 import { AiProviderModel } from '../../models/aiProvider';
 import type { LobeChatDatabase } from '../../type';
+
+type RuntimeAiModel = EnabledAiModel & Partial<AiProviderModelListItem>;
 
 type DecryptUserKeyVaults = (encryptKeyVaultsStr: string | null) => Promise<any>;
 
@@ -209,6 +210,7 @@ export class AiInfraRepos {
       this.getAiProviderList(),
       this.aiModelModel.getAllModels(),
     ]);
+    const runtimeModels = allModels as RuntimeAiModel[];
     const enabledProviders = providers.filter(
       (item) => item.id !== BRANDING_PROVIDER && (filterEnabled ? item.enabled : true),
     );
@@ -219,7 +221,9 @@ export class AiInfraRepos {
         const aiModels = await this.fetchBuiltinModels(provider.id);
         return (aiModels || [])
           .map<EnabledAiModel & { enabled?: boolean | null }>((item) => {
-            const user = allModels.find((m) => m.id === item.id && m.providerId === provider.id);
+            const user = runtimeModels.find(
+              (m) => m.id === item.id && m.providerId === provider.id,
+            );
 
             // User hasn't modified local model
             if (!user)
@@ -240,6 +244,8 @@ export class AiInfraRepos {
               displayName: user?.displayName || item.displayName,
               enabled: typeof user.enabled === 'boolean' ? user.enabled : item.enabled,
               id: item.id,
+              parameters: !isEmpty(user.parameters) ? user.parameters : item.parameters,
+              pricing: !isEmpty(user.pricing) ? user.pricing : item.pricing,
               providerId: provider.id,
               settings: isEmpty(user.settings)
                 ? item.settings

@@ -96,6 +96,30 @@ describe('estimateCommercialChatCredits', () => {
     expect(result).toBe(502);
   });
 
+  it('should resolve provider model card with the request database for admin-managed models', async () => {
+    const serverDB = { id: 'request-db' } as any;
+    mocks.getAiProviderModelList.mockResolvedValue([
+      {
+        id: 'gpt-test',
+        pricing: {
+          units: [{ name: 'textInput', rate: 0.5, strategy: 'fixed' }],
+        },
+      },
+    ]);
+
+    await estimateCommercialChatCredits({
+      db: serverDB,
+      payload: {
+        messages: [{ content: 'Hello world', role: 'user' }],
+        model: 'gpt-test',
+      },
+      provider: 'openai',
+      userId: 'user-1',
+    });
+
+    expect(mocks.getServerGlobalConfig).toHaveBeenCalledWith(serverDB);
+  });
+
   it('should return undefined when model pricing is unavailable', async () => {
     mocks.getAiProviderModelList.mockResolvedValue([{ id: 'gpt-test' }]);
 

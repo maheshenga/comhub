@@ -123,7 +123,7 @@ const getProviderModelCard = async ({
   provider: string;
   userId: string;
 }) => {
-  const { aiProvider } = await getServerGlobalConfig();
+  const { aiProvider } = await getServerGlobalConfig(db);
   const aiInfraRepos = new AiInfraRepos(db, userId, aiProvider as Record<string, ProviderConfig>);
   const models = await aiInfraRepos.getAiProviderModelList(provider, { type: 'chat' });
 

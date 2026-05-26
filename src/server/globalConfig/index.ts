@@ -132,6 +132,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
           enabled: true,
           id: m.id,
           ...(parameters ? { parameters } : {}),
+          ...(m.pricing ? { pricing: m.pricing } : {}),
           type: m.type,
         };
       });

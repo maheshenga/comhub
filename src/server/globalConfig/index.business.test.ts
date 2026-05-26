@@ -222,6 +222,25 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     );
   });
 
+  it('injects admin-managed model pricing into server model lists', async () => {
+    const pricing = {
+      approximatePricePerImage: 0.03,
+      units: [{ name: 'imageGeneration', rate: 0.03, strategy: 'fixed', unit: 'image' }],
+    };
+    mocks.getAllEnabledModels.mockResolvedValue([
+      { displayName: 'GPT Image', id: 'gpt-image-2', pricing, type: 'image' },
+    ]);
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.aiProvider.newapi!.serverModelLists).toEqual([
+      expect.objectContaining({
+        id: 'gpt-image-2',
+        pricing,
+      }),
+    ]);
+  });
+
   it('uses only enabled NewAPI instance models for provider injection', async () => {
     mocks.getAllEnabledModels.mockResolvedValue([
       { id: 'gpt-4o-mini', type: 'chat', displayName: null },

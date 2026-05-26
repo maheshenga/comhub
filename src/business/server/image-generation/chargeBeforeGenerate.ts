@@ -1,10 +1,9 @@
-import { getModelPricing } from '@lobechat/model-runtime';
-
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
 import {
   estimateImageCharge,
   resolveGenerationPricingMultiplier,
 } from '@/business/server/generationBilling';
+import { getServerModelPricing } from '@/business/server/serverModelPricing';
 import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
 import { type NewGeneration, type NewGenerationBatch } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
@@ -39,7 +38,7 @@ export async function chargeBeforeGenerate(params: ChargeParams): Promise<Charge
   const shouldCharge = await shouldChargeCommercialUsage({ db: db!, provider, userId });
   if (!shouldCharge) return undefined;
 
-  const pricing = await getModelPricing(model, provider);
+  const pricing = await getServerModelPricing({ db, model, provider, type: 'image', userId });
   const { estimatedCredits } = estimateImageCharge(pricing, generationParams, imageNum);
   const multiplier = await resolveGenerationPricingMultiplier({
     db,

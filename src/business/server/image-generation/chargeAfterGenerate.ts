@@ -1,10 +1,9 @@
-import { getModelPricing } from '@lobechat/model-runtime';
-
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
 import {
   resolveGenerationPricingMultiplier,
   resolveImageChargeCredits,
 } from '@/business/server/generationBilling';
+import { getServerModelPricing } from '@/business/server/serverModelPricing';
 import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
 import { type ModelPerformance, type ModelUsage } from '@/types/index';
@@ -37,7 +36,13 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
     return;
   }
 
-  const pricing = await getModelPricing(metadata.modelId, provider);
+  const pricing = await getServerModelPricing({
+    db,
+    model: metadata.modelId,
+    provider,
+    type: 'image',
+    userId,
+  });
   const baseCredits = resolveImageChargeCredits({
     modelUsage,
     pricing,

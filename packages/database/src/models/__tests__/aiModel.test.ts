@@ -204,6 +204,32 @@ describe('AiModelModel', () => {
       const models = await aiProviderModel.getAllModels();
       expect(models).toHaveLength(2);
     });
+
+    it('should include pricing metadata for runtime model lists', async () => {
+      const pricing = {
+        units: [{ name: 'textInput', rate: 0.8, strategy: 'fixed', unit: 'millionTokens' }],
+      };
+
+      await serverDB.insert(aiModels).values([
+        {
+          enabled: true,
+          id: 'priced-model',
+          pricing,
+          providerId: 'newapi',
+          source: 'remote',
+          type: 'chat',
+          userId,
+        },
+      ]);
+
+      const models = await aiProviderModel.getAllModels();
+
+      expect(models.find((model) => model.id === 'priced-model')).toMatchObject({
+        id: 'priced-model',
+        pricing,
+        providerId: 'newapi',
+      });
+    });
   });
 
   describe('toggleModelEnabled', () => {

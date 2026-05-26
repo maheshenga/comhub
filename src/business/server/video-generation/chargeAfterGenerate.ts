@@ -1,10 +1,9 @@
-import { getModelPricing } from '@lobechat/model-runtime';
-
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
 import {
   resolveGenerationPricingMultiplier,
   resolveVideoChargeCreditResult,
 } from '@/business/server/generationBilling';
+import { getServerModelPricing } from '@/business/server/serverModelPricing';
 import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
 import { getServerDB } from '@/database/server';
 import { type LobeChatDatabase } from '@/database/type';
@@ -42,7 +41,14 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
   const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
   if (!shouldCharge) return;
 
-  const pricing = await getModelPricing(model ?? metadata.modelId, provider);
+  const resolvedModel = model ?? metadata.modelId;
+  const pricing = await getServerModelPricing({
+    db,
+    model: resolvedModel,
+    provider,
+    type: 'video',
+    userId,
+  });
   const chargeResult = resolveVideoChargeCreditResult({
     computePriceParams,
     prechargeResult,
@@ -51,7 +57,7 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
   });
   const multiplier = await resolveGenerationPricingMultiplier({
     db,
-    model: model ?? metadata.modelId,
+    model: resolvedModel,
     provider,
     routeMetadata: metadata.routeMetadata,
   });
@@ -74,7 +80,7 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
       ...(metadata.routeMetadata ? { routeMetadata: metadata.routeMetadata } : {}),
       usage: params.usage,
     },
-    model: model ?? metadata.modelId,
+    model: resolvedModel,
     provider,
     referenceId: metadata.asyncTaskId,
     referenceType: 'video_generation',
