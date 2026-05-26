@@ -31,18 +31,20 @@ ghcr.io/maheshenga/comhub:latest
 
 在 `maheshenga/comhub` 仓库的 `Settings -> Secrets and variables -> Actions` 添加：
 
-| 名称                     | 说明                               |
-| ------------------------ | ---------------------------------- |
-| `COMHUB_SSH_HOST`        | 生产服务器 IP，例如 `47.120.31.65` |
-| `COMHUB_SSH_PORT`        | SSH 端口，默认可填 `22`            |
-| `COMHUB_SSH_USER`        | SSH 用户，默认可填 `root`          |
-| `COMHUB_SSH_PRIVATE_KEY` | 只用于部署的 SSH 私钥              |
+| 名称                     | 说明                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| `COMHUB_GHCR_TOKEN`      | 可选。GHCR 专用 Token，需有 `write:packages` 权限；当默认 `GITHUB_TOKEN` 无法推送包时使用 |
+| `COMHUB_SSH_HOST`        | 生产服务器 IP，例如 `47.120.31.65`                                                        |
+| `COMHUB_SSH_PORT`        | SSH 端口，默认可填 `22`                                                                   |
+| `COMHUB_SSH_USER`        | SSH 用户，默认可填 `root`                                                                 |
+| `COMHUB_SSH_PRIVATE_KEY` | 只用于部署的 SSH 私钥                                                                     |
 
 可选变量：
 
-| 名称                | 默认值                | 说明           |
-| ------------------- | --------------------- | -------------- |
-| `COMHUB_DEPLOY_DIR` | `/www/compose/comhub` | 服务器部署目录 |
+| 名称                   | 默认值                | 说明                                                    |
+| ---------------------- | --------------------- | ------------------------------------------------------- |
+| `COMHUB_DEPLOY_DIR`    | `/www/compose/comhub` | 服务器部署目录                                          |
+| `COMHUB_GHCR_USERNAME` | 当前 Actions 触发用户 | GHCR 登录用户名，使用专用 Token 时建议填 Token 所属账号 |
 
 ## 服务器 deploy.sh 合约
 
