@@ -1,0 +1,118 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import {
+  APP_SETTING_KEYS,
+  getServerDefaultAgentSettingOverrides,
+  getServerDefaultModelSuggestions,
+  getServerFileS3Config,
+  invalidateServerAppSettings,
+  normalizeModelIdList,
+  serializeModelIdList,
+} from './index';
+
+describe('appSettings model helpers', () => {
+  beforeEach(() => {
+    invalidateServerAppSettings();
+  });
+
+  it('normalizes and dedupes model IDs from mixed separators', () => {
+    expect(normalizeModelIdList('gpt-4o-mini\n gpt-4.1 ;gpt-4o-mini，claude-3.7-sonnet')).toEqual([
+      'gpt-4o-mini',
+      'gpt-4.1',
+      'claude-3.7-sonnet',
+    ]);
+    expect(serializeModelIdList(['gpt-4o-mini', 'gpt-4.1', 'gpt-4o-mini'])).toBe(
+      'gpt-4o-mini\ngpt-4.1',
+    );
+  });
+
+  it('returns the current model as a default model suggestion', async () => {
+    const result = await getServerDefaultModelSuggestions({
+      currentModel: 'claude-3.7-sonnet',
+    });
+
+    expect(result).toEqual(['claude-3.7-sonnet']);
+  });
+
+  it('returns an empty list when the current model is not set', async () => {
+    const result = await getServerDefaultModelSuggestions({
+      currentModel: '',
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns default assistant identity overrides from app settings', async () => {
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            { key: APP_SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' },
+            { key: APP_SETTING_KEYS.defaultAgentProvider, value: 'newapi' },
+            { key: APP_SETTING_KEYS.defaultAgentName, value: '青柚助手' },
+            { key: APP_SETTING_KEYS.defaultAgentAvatar, value: '/images/brand/logo.svg' },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerDefaultAgentSettingOverrides(db)).resolves.toEqual({
+      avatar: '/images/brand/logo.svg',
+      model: 'deepseek-chat',
+      provider: 'newapi',
+      title: '青柚助手',
+    });
+  });
+
+  it('resolves S3 file storage config from admin settings before environment fallback', async () => {
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            { key: APP_SETTING_KEYS.storageS3AccessKeyId, value: 'admin-access-key' },
+            { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: 'admin-secret-key' },
+            { key: APP_SETTING_KEYS.storageS3Endpoint, value: 'https://admin-s3.example.com' },
+            { key: APP_SETTING_KEYS.storageS3Bucket, value: 'admin-bucket' },
+            { key: APP_SETTING_KEYS.storageS3Region, value: 'ap-southeast-1' },
+            { key: APP_SETTING_KEYS.storageS3PublicDomain, value: 'https://cdn.example.com' },
+            { key: APP_SETTING_KEYS.storageS3FilePath, value: '/admin-files/' },
+            { key: APP_SETTING_KEYS.storageS3EnablePathStyle, value: true },
+            { key: APP_SETTING_KEYS.storageS3SetAcl, value: false },
+            { key: APP_SETTING_KEYS.storageS3PreviewUrlExpireIn, value: 1800 },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerFileS3Config(db)).resolves.toEqual({
+      accessKeyId: 'admin-access-key',
+      bucket: 'admin-bucket',
+      enablePathStyle: true,
+      endpoint: 'https://admin-s3.example.com',
+      filePath: 'admin-files',
+      previewUrlExpireIn: 1800,
+      publicDomain: 'https://cdn.example.com',
+      region: 'ap-southeast-1',
+      secretAccessKey: 'admin-secret-key',
+      setAcl: false,
+    });
+  });
+
+  it('does not share cached app settings between explicit database instances', async () => {
+    const createDb = (model: string) =>
+      ({
+        query: {
+          appSettings: {
+            findMany: async () => [{ key: APP_SETTING_KEYS.defaultAgentModel, value: model }],
+          },
+        },
+      }) as any;
+
+    await expect(getServerDefaultAgentSettingOverrides(createDb('first-model'))).resolves.toEqual({
+      model: 'first-model',
+    });
+    await expect(getServerDefaultAgentSettingOverrides(createDb('second-model'))).resolves.toEqual({
+      model: 'second-model',
+    });
+  });
+});

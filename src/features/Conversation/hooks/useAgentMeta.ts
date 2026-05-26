@@ -1,0 +1,65 @@
+import { type MetaData } from '@lobechat/types';
+import { useMemo } from 'react';
+
+import { DEFAULT_INBOX_AVATAR } from '@/const/meta';
+import { useAgentStore } from '@/store/agent';
+import { agentSelectors } from '@/store/agent/selectors';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
+
+import { contextSelectors, useConversationStore } from '../store';
+
+const DEFAULT_ASSISTANT_TITLE = '青柚助手';
+
+/**
+ * Hook to get agent meta data for a specific agent or the current conversation.
+ * Handles special cases for builtin agents (inbox, page agent, agent builder)
+ * by showing the configured default assistant title instead of the agent's own meta.
+ * Avatar is now returned from the backend (merged from builtin-agents package).
+ *
+ * @param messageAgentId - Optional agent ID from the message. If provided, uses this agent's meta.
+ *                         Falls back to the current conversation's agent if not provided.
+ */
+export const useAgentMeta = (messageAgentId?: string | null): MetaData => {
+  const contextAgentId = useConversationStore(contextSelectors.agentId);
+  // Use message's agentId if provided, otherwise fallback to context agentId
+  const agentId = messageAgentId || contextAgentId;
+  const agentMeta = useAgentStore(agentSelectors.getAgentMetaById(agentId));
+  const builtinAgentIdMap = useAgentStore((s) => s.builtinAgentIdMap);
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
+
+  return useMemo(() => {
+    // Check if the current agent is a builtin agent
+    const builtinAgentIds = Object.values(builtinAgentIdMap);
+    const isBuiltinAgent = builtinAgentIds.includes(agentId);
+
+    if (isBuiltinAgent) {
+      const avatar =
+        agentMeta.avatar && agentMeta.avatar !== DEFAULT_INBOX_AVATAR
+          ? agentMeta.avatar
+          : defaultAgentMeta.avatar || agentMeta.avatar;
+
+      // Use DB-stored title if customized, otherwise fallback to the admin-managed default.
+      return {
+        ...agentMeta,
+        avatar,
+        title: agentMeta.title || defaultAgentMeta.title || DEFAULT_ASSISTANT_TITLE,
+      };
+    }
+
+    return agentMeta;
+  }, [agentId, agentMeta, builtinAgentIdMap, defaultAgentMeta]);
+};
+
+/**
+ * Hook to check if the current agent is a builtin agent
+ */
+export const useIsBuiltinAgent = (): boolean => {
+  const agentId = useConversationStore(contextSelectors.agentId);
+  const builtinAgentIdMap = useAgentStore((s) => s.builtinAgentIdMap);
+
+  return useMemo(() => {
+    const builtinAgentIds = Object.values(builtinAgentIdMap);
+    return builtinAgentIds.includes(agentId);
+  }, [agentId, builtinAgentIdMap]);
+};

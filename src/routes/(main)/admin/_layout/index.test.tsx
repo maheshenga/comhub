@@ -1,0 +1,102 @@
+import { act, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import AdminLayout from './index';
+
+const userStoreMock = vi.hoisted(() => {
+  const initialState = {
+    isUserStateInit: false,
+    user: undefined,
+  };
+  const state: Record<string, any> = { ...initialState };
+  const useUserStore = ((selector?: (value: typeof state) => any) =>
+    typeof selector === 'function' ? selector(state) : state) as any;
+
+  useUserStore.setState = (patch: Record<string, any>) => {
+    Object.assign(state, patch);
+  };
+  useUserStore.reset = () => {
+    Object.assign(state, initialState);
+  };
+
+  return { useUserStore };
+});
+
+vi.mock('react-router-dom', () => ({
+  Navigate: ({ replace, to }: { replace?: boolean; to: string }) => (
+    <div data-replace={String(Boolean(replace))} data-testid="navigate" data-to={to} />
+  ),
+  Outlet: () => <div data-testid="admin-outlet" />,
+}));
+
+vi.mock('@/features/Admin', () => ({
+  AdminSidebar: () => <div data-testid="admin-sidebar" />,
+}));
+
+vi.mock('@/store/user', () => ({
+  useUserStore: userStoreMock.useUserStore,
+}));
+
+vi.mock('@/store/user/selectors', () => ({
+  userProfileSelectors: {
+    userProfile: (state: { user?: unknown }) => state.user,
+  },
+}));
+
+afterEach(() => {
+  act(() => {
+    userStoreMock.useUserStore.reset();
+  });
+});
+
+describe('AdminLayout', () => {
+  it('renders nothing while the user state is still loading', () => {
+    const { container } = render(<AdminLayout />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('redirects initialized visitors without a user away from admin routes', () => {
+    act(() => {
+      userStoreMock.useUserStore.setState({
+        isUserStateInit: true,
+        user: undefined,
+      });
+    });
+
+    render(<AdminLayout />);
+
+    expect(screen.getByTestId('navigate')).toHaveAttribute('data-to', '/');
+    expect(screen.getByTestId('navigate')).toHaveAttribute('data-replace', 'true');
+    expect(screen.queryByTestId('admin-sidebar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('admin-outlet')).not.toBeInTheDocument();
+  });
+
+  it('redirects initialized non-admin users away from admin routes', () => {
+    act(() => {
+      userStoreMock.useUserStore.setState({
+        isUserStateInit: true,
+        user: { id: 'user-1', role: 'user', username: 'user' },
+      });
+    });
+
+    render(<AdminLayout />);
+
+    expect(screen.getByTestId('navigate')).toHaveAttribute('data-to', '/');
+  });
+
+  it('renders the admin shell and nested route for admin users', () => {
+    act(() => {
+      userStoreMock.useUserStore.setState({
+        isUserStateInit: true,
+        user: { id: 'admin-1', role: 'admin', username: 'admin' },
+      });
+    });
+
+    render(<AdminLayout />);
+
+    expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId('admin-outlet')).toBeInTheDocument();
+    expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
+  });
+});
