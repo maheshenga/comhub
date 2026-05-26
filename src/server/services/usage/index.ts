@@ -12,14 +12,16 @@ import { formatDate } from '@/utils/format';
 
 const log = debug('lobe-usage:service');
 
-const GENERATION_LEDGER_REFERENCE_TYPES = [
+const BILLABLE_LEDGER_REFERENCE_TYPES = [
   'image_generation',
-  'video_generation',
+  'model_runtime_embeddings',
+  'model_runtime_generate_object',
   'ppt_generation',
+  'video_generation',
 ] as const;
 
-type GenerationLedgerReferenceType = (typeof GENERATION_LEDGER_REFERENCE_TYPES)[number];
-type GenerationUsageType = 'image' | 'video' | 'ppt';
+type BillableLedgerReferenceType = (typeof BILLABLE_LEDGER_REFERENCE_TYPES)[number];
+type BillableLedgerUsageType = 'embedding' | 'image' | 'ppt' | 'structured_output' | 'video';
 type UnknownRecord = Record<string, unknown>;
 
 export class UsageRecordService {
@@ -87,7 +89,7 @@ export class UsageRecordService {
       } as UsageRecordItem;
     });
 
-    const generationSpends = await this.findGenerationLedgerUsage(startAt, endAt);
+    const generationSpends = await this.findBillableLedgerUsage(startAt, endAt);
 
     return [...chatSpends, ...generationSpends].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -130,7 +132,7 @@ export class UsageRecordService {
     return ledgerSpendMap;
   };
 
-  private findGenerationLedgerUsage = async (
+  private findBillableLedgerUsage = async (
     startAt: string,
     endAt: string,
   ): Promise<UsageRecordItem[]> => {
@@ -152,33 +154,33 @@ export class UsageRecordService {
         genWhere([
           eq(creditLedgerEntries.userId, this.userId),
           eq(creditLedgerEntries.type, 'consume'),
-          inArray(creditLedgerEntries.referenceType, [...GENERATION_LEDGER_REFERENCE_TYPES]),
+          inArray(creditLedgerEntries.referenceType, [...BILLABLE_LEDGER_REFERENCE_TYPES]),
           genRangeWhere([startAt, endAt], creditLedgerEntries.createdAt, (date) => date.toDate()),
         ]),
       );
 
     return ledgerRows.map((row) =>
-      this.mapGenerationLedgerUsage({
+      this.mapBillableLedgerUsage({
         ...row,
-        referenceType: row.referenceType as GenerationLedgerReferenceType,
+        referenceType: row.referenceType as BillableLedgerReferenceType,
       }),
     );
   };
 
-  private mapGenerationLedgerUsage = (row: {
+  private mapBillableLedgerUsage = (row: {
     amount: number;
     createdAt: Date;
     description: string | null;
     id: string;
     metadata: UnknownRecord | null;
     referenceId: string | null;
-    referenceType: GenerationLedgerReferenceType;
+    referenceType: BillableLedgerReferenceType;
     title: string | null;
     updatedAt: Date;
     userId: string;
   }): UsageRecordItem => {
     const metadata = row.metadata ?? {};
-    const type = this.resolveGenerationUsageType(row.referenceType);
+    const type = this.resolveBillableLedgerUsageType(row.referenceType);
     const tokenUsage = this.resolveGenerationTokenUsage(type, metadata);
 
     return {
@@ -199,12 +201,18 @@ export class UsageRecordService {
     };
   };
 
-  private resolveGenerationUsageType = (
-    referenceType: GenerationLedgerReferenceType,
-  ): GenerationUsageType => {
+  private resolveBillableLedgerUsageType = (
+    referenceType: BillableLedgerReferenceType,
+  ): BillableLedgerUsageType => {
     switch (referenceType) {
       case 'image_generation': {
         return 'image';
+      }
+      case 'model_runtime_embeddings': {
+        return 'embedding';
+      }
+      case 'model_runtime_generate_object': {
+        return 'structured_output';
       }
       case 'video_generation': {
         return 'video';
@@ -216,7 +224,7 @@ export class UsageRecordService {
   };
 
   private resolveGenerationProvider = (
-    type: GenerationUsageType,
+    type: BillableLedgerUsageType,
     metadata: UnknownRecord,
   ): string => {
     if (type === 'ppt') return 'docmee';
@@ -231,7 +239,7 @@ export class UsageRecordService {
   };
 
   private resolveGenerationModel = (
-    type: GenerationUsageType,
+    type: BillableLedgerUsageType,
     metadata: UnknownRecord,
     description: string | null,
     title: string | null,
@@ -247,15 +255,14 @@ export class UsageRecordService {
   };
 
   private resolveGenerationTokenUsage = (
-    type: GenerationUsageType,
+    type: BillableLedgerUsageType,
     metadata: UnknownRecord,
   ): Pick<UsageRecordItem, 'totalInputTokens' | 'totalOutputTokens' | 'totalTokens'> => {
     if (type === 'ppt') {
       return { totalInputTokens: 0, totalOutputTokens: 0, totalTokens: 0 };
     }
 
-    const usage =
-      this.asRecord(metadata.modelUsage) ?? this.asRecord(metadata.usage) ?? ({} as UnknownRecord);
+    const usage = this.asRecord(metadata.modelUsage) ?? this.asRecord(metadata.usage) ?? metadata;
     const totalOutputTokens =
       this.firstNumber(usage, ['totalOutputTokens', 'outputTokens', 'completionTokens']) ?? 0;
     const explicitInputTokens =

@@ -178,7 +178,7 @@ describe('UsageRecordService', () => {
       expect(result[0].spend).toBe(0.12);
     });
 
-    it('should include image, video, and PPT generation ledger usage records', async () => {
+    it('should include billable ledger usage records', async () => {
       const messagesOrderBy = vi.fn().mockResolvedValue([]);
       const messagesWhere = vi.fn().mockReturnValue({ orderBy: messagesOrderBy });
       const messagesFrom = vi.fn().mockReturnValue({ where: messagesWhere });
@@ -238,6 +238,42 @@ describe('UsageRecordService', () => {
           updatedAt: new Date('2024-01-17T10:00:00Z'),
           userId,
         },
+        {
+          amount: -1,
+          createdAt: new Date('2024-01-18T10:00:00Z'),
+          description: 'AI Embeddings Usage',
+          id: 'ledger-embedding',
+          metadata: {
+            model: 'text-embedding-3-small',
+            provider: 'newapi',
+            totalInputTokens: 12,
+            totalOutputTokens: 0,
+            totalTokens: 12,
+          },
+          referenceId: 'embeddings:1',
+          referenceType: 'model_runtime_embeddings',
+          title: 'AI Embeddings Usage',
+          updatedAt: new Date('2024-01-18T10:00:00Z'),
+          userId,
+        },
+        {
+          amount: -10_000,
+          createdAt: new Date('2024-01-19T10:00:00Z'),
+          description: 'AI Structured Output Usage',
+          id: 'ledger-structured',
+          metadata: {
+            model: 'gpt-4o-mini',
+            provider: 'newapi',
+            totalInputTokens: 20,
+            totalOutputTokens: 10,
+            totalTokens: 30,
+          },
+          referenceId: 'generate_object:1',
+          referenceType: 'model_runtime_generate_object',
+          title: 'AI Structured Output Usage',
+          updatedAt: new Date('2024-01-19T10:00:00Z'),
+          userId,
+        },
       ];
       const generationLedgerWhere = vi.fn().mockResolvedValue(generationLedgerRows);
       const generationLedgerFrom = vi.fn().mockReturnValue({ where: generationLedgerWhere });
@@ -249,7 +285,13 @@ describe('UsageRecordService', () => {
 
       const result = await service.findByMonth('2024-01');
 
-      expect(result.map((record) => record.type)).toEqual(['ppt', 'video', 'image']);
+      expect(result.map((record) => record.type)).toEqual([
+        'structured_output',
+        'embedding',
+        'ppt',
+        'video',
+        'image',
+      ]);
       expect(result).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -281,6 +323,26 @@ describe('UsageRecordService', () => {
             totalOutputTokens: 0,
             totalTokens: 0,
             type: 'ppt',
+          }),
+          expect.objectContaining({
+            id: 'ledger-embedding',
+            model: 'text-embedding-3-small',
+            provider: 'newapi',
+            spend: 0.000_001,
+            totalInputTokens: 12,
+            totalOutputTokens: 0,
+            totalTokens: 12,
+            type: 'embedding',
+          }),
+          expect.objectContaining({
+            id: 'ledger-structured',
+            model: 'gpt-4o-mini',
+            provider: 'newapi',
+            spend: 0.01,
+            totalInputTokens: 20,
+            totalOutputTokens: 10,
+            totalTokens: 30,
+            type: 'structured_output',
           }),
         ]),
       );

@@ -35,8 +35,10 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings }) => {
 
   const typeLabels: Record<string, string> = {
     chat: t('usage.type.chat', { defaultValue: '对话' }),
+    embedding: t('usage.type.embedding', { defaultValue: '嵌入' }),
     image: t('usage.type.image', { defaultValue: '图片' }),
     ppt: t('usage.type.ppt', { defaultValue: 'PPT' }),
+    structured_output: t('usage.type.structuredOutput', { defaultValue: '结构化输出' }),
     video: t('usage.type.video', { defaultValue: '视频' }),
   };
 
