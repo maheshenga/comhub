@@ -61,6 +61,16 @@ jobs:
           username: ${{ vars.COMHUB_GHCR_USERNAME || github.repository_owner }}
           password: ${{ secrets.COMHUB_GHCR_TOKEN || github.token }}
 
+      - name: Report GHCR credential source
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ vars.COMHUB_GHCR_USERNAME || github.repository_owner }}
+          HAS_CUSTOM_GHCR_TOKEN: ${{ secrets.COMHUB_GHCR_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          echo "GHCR username: ${GHCR_USERNAME}"
+          echo "Using custom COMHUB_GHCR_TOKEN: ${HAS_CUSTOM_GHCR_TOKEN}"
+
       - name: Resolve image tags
         id: image
         shell: bash
