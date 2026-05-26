@@ -1,0 +1,132 @@
+name: ComHub Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy to production after the image is pushed'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      image_tag:
+        description: 'Optional extra image tag, for example 20260527-001'
+        required: false
+        type: string
+      use_cn_mirror:
+        description: 'Use China npm/apt mirrors during Docker build'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: comhub-production-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  NODEJS_VERSION: '22'
+
+jobs:
+  build:
+    name: Build and Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_ref: ${{ steps.image.outputs.image_ref }}
+      image_tag: ${{ steps.image.outputs.image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image tags
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha_tag="sha-${GITHUB_SHA::12}"
+          manual_tag="${{ inputs.image_tag || '' }}"
+
+          tags="${IMAGE_NAME}:${sha_tag}"
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            tags="${tags}"$'\n'"${IMAGE_NAME}:latest"
+          fi
+          if [ -n "${manual_tag}" ]; then
+            tags="${tags}"$'\n'"${IMAGE_NAME}:${manual_tag}"
+          fi
+
+          {
+            echo "image_tag=${sha_tag}"
+            echo "image_ref=${IMAGE_NAME}:${sha_tag}"
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
+          build-args: |
+            NODEJS_VERSION=${{ env.NODEJS_VERSION }}
+            USE_CN_MIRROR=${{ inputs.use_cn_mirror || 'false' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy Production
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == 'true' }}
+    environment: production
+    steps:
+      - name: Install SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.COMHUB_SSH_PRIVATE_KEY }}" > ~/.ssh/comhub_deploy_key
+          chmod 600 ~/.ssh/comhub_deploy_key
+          ssh-keyscan -p "${{ secrets.COMHUB_SSH_PORT || '22' }}" "${{ secrets.COMHUB_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Run remote blue-green deploy
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
+          SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
+          DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
+          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/comhub_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_DIR' && COMHUB_IMAGE='$IMAGE_REF' COMHUB_IMAGE_TAG='$IMAGE_TAG' ./deploy.sh '$IMAGE_REF'"
