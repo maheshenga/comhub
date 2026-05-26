@@ -58,7 +58,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ vars.COMHUB_GHCR_USERNAME || github.actor }}
+          username: ${{ vars.COMHUB_GHCR_USERNAME || github.repository_owner }}
           password: ${{ secrets.COMHUB_GHCR_TOKEN || github.token }}
 
       - name: Resolve image tags

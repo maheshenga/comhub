@@ -44,7 +44,7 @@ ghcr.io/maheshenga/comhub:latest
 | 名称                   | 默认值                | 说明                                                    |
 | ---------------------- | --------------------- | ------------------------------------------------------- |
 | `COMHUB_DEPLOY_DIR`    | `/www/compose/comhub` | 服务器部署目录                                          |
-| `COMHUB_GHCR_USERNAME` | 当前 Actions 触发用户 | GHCR 登录用户名，使用专用 Token 时建议填 Token 所属账号 |
+| `COMHUB_GHCR_USERNAME` | 仓库 owner            | GHCR 登录用户名，使用专用 Token 时建议填 Token 所属账号 |
 
 ## 服务器 deploy.sh 合约
 
@@ -68,5 +68,6 @@ COMHUB_IMAGE='ghcr.io/maheshenga/comhub:sha-xxxx' \
 ## 注意
 
 - 不要把服务器密码写进 workflow。
+- 如果 Actions 在推送 GHCR 时提示 `permission_denied: write_package`，优先在 GHCR package 的权限设置中给 `maheshenga/comhub` 仓库 Actions 写入权限；或者添加 `COMHUB_GHCR_TOKEN` 专用 Secret。
 - 如果 GHCR package 是 private，需要确保生产服务器具备拉取 GHCR 镜像的凭据。
 - 后续上游同步后，保留这个 workflow 和本文档。
