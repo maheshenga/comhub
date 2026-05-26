@@ -18,6 +18,7 @@ describe('Metadata', () => {
       expect(result).toMatchObject({
         title: 'Test Title',
         description: expect.any(String),
+        metadataBase: new URL('http://localhost:3210'),
         openGraph: expect.objectContaining({
           title: `Test Title · ${BRANDING_NAME}`,
           description: expect.any(String),
