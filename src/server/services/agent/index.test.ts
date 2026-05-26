@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { DEFAULT_AGENT_CONFIG } from '@lobechat/const';
+import { DEFAULT_AGENT_CONFIG, INBOX_SESSION_ID } from '@lobechat/const';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentModel } from '@/database/models/agent';
@@ -228,7 +228,7 @@ describe('AgentService', () => {
     it('should let backend default agent overrides win for the inbox assistant', async () => {
       const mockAgent = {
         id: 'agent-1',
-        slug: 'inbox',
+        slug: INBOX_SESSION_ID,
         model: 'old-model',
         provider: 'old-provider',
         title: 'Old Assistant',
@@ -251,6 +251,42 @@ describe('AgentService', () => {
 
       expect(result).toMatchObject({
         model: 'admin-model',
+        provider: 'newapi',
+        title: 'Admin Assistant',
+      });
+    });
+
+    it('should preserve a user-updated inbox model while keeping backend assistant branding', async () => {
+      const mockAgent = {
+        avatar: '/old-avatar.png',
+        createdAt: new Date('2026-05-01T00:00:00.000Z'),
+        id: 'agent-1',
+        model: 'user-selected-model',
+        provider: 'newapi',
+        slug: INBOX_SESSION_ID,
+        title: 'Old Assistant',
+        updatedAt: new Date('2026-05-25T00:00:00.000Z'),
+      };
+
+      const mockAgentModel = {
+        getBuiltinAgent: vi.fn().mockResolvedValue(mockAgent),
+      };
+
+      (AgentModel as any).mockImplementation(() => mockAgentModel);
+      (parseAgentConfig as any).mockReturnValue({ model: 'env-model', provider: 'openai' });
+      vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({
+        avatar: '/admin-avatar.png',
+        model: 'admin-model',
+        provider: 'admin-provider',
+        title: 'Admin Assistant',
+      });
+
+      const newService = new AgentService(mockDb, mockUserId);
+      const result = await newService.getBuiltinAgent(INBOX_SESSION_ID);
+
+      expect(result).toMatchObject({
+        avatar: '/admin-avatar.png',
+        model: 'user-selected-model',
         provider: 'newapi',
         title: 'Admin Assistant',
       });
@@ -503,6 +539,42 @@ describe('AgentService', () => {
       // Agent config should override server default
       expect(result?.model).toBe('claude-3');
       expect(result?.provider).toBe('anthropic');
+    });
+
+    it('should not reset a manually updated inbox model during agent hydration', async () => {
+      const mockAgent = {
+        avatar: '/old-avatar.png',
+        createdAt: new Date('2026-05-01T00:00:00.000Z'),
+        id: 'agent-1',
+        model: 'gpt-5.1',
+        provider: 'newapi',
+        slug: INBOX_SESSION_ID,
+        title: 'Old Assistant',
+        updatedAt: new Date('2026-05-25T18:31:56.559Z'),
+      };
+
+      const mockAgentModel = {
+        getAgentConfigById: vi.fn().mockResolvedValue(mockAgent),
+      };
+
+      (AgentModel as any).mockImplementation(() => mockAgentModel);
+      (parseAgentConfig as any).mockReturnValue({ model: 'env-model', provider: 'openai' });
+      vi.mocked(getServerDefaultAgentSettingOverrides).mockResolvedValue({
+        avatar: '/admin-avatar.png',
+        model: 'gpt-5.4-mini',
+        provider: 'newapi',
+        title: 'Admin Assistant',
+      });
+
+      const newService = new AgentService(mockDb, mockUserId);
+      const result = await newService.getAgentConfigById('agent-1');
+
+      expect(result).toMatchObject({
+        avatar: '/admin-avatar.png',
+        model: 'gpt-5.1',
+        provider: 'newapi',
+        title: 'Admin Assistant',
+      });
     });
 
     describe('Redis welcome data integration', () => {

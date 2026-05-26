@@ -36,6 +36,20 @@ interface AgentWelcomeData {
   welcomeMessage: string;
 }
 
+const hasRuntimeModelSelection = (agent: any) => !!agent?.model || !!agent?.provider;
+
+const hasBeenUpdatedAfterCreate = (agent: any) => {
+  const createdAt = agent?.createdAt ? new Date(agent.createdAt).getTime() : Number.NaN;
+  const updatedAt = agent?.updatedAt ? new Date(agent.updatedAt).getTime() : Number.NaN;
+
+  return Number.isFinite(createdAt) && Number.isFinite(updatedAt) && updatedAt > createdAt;
+};
+
+const omitRuntimeModelOverride = (config: PartialDeep<LobeAgentConfig>) => {
+  const { model: _model, provider: _provider, ...rest } = config;
+  return rest;
+};
+
 /**
  * Agent Service
  *
@@ -178,9 +192,11 @@ export class AgentService {
    * 4. userDefaultAgentConfig - from user settings (defaultAgent.config)
    * 5. agent - actual agent config from database
    *
-   * Inbox applies adminDefaultAgentConfig again at the end so the global
-   * assistant model/name/avatar set by administrators cannot be shadowed by
-   * stale persisted inbox rows.
+   * Inbox applies adminDefaultAgentConfig again at the end so global assistant
+   * name/avatar settings cannot be shadowed by stale persisted inbox rows.
+   * ComHub keeps a user-updated inbox model/provider intact; otherwise the
+   * model selector saves to DB but the next hydrate resets chat sends to the
+   * backend default model.
    */
   private async mergeDefaultConfig(
     agent: any,
@@ -199,9 +215,15 @@ export class AgentService {
     const withUserConfig = merge(withAdminConfig, userDefaultAgentConfig);
     const mergedConfig = merge(withUserConfig, cleanObject(agent));
 
-    return agent.slug === INBOX_SESSION_ID
-      ? merge(mergedConfig, adminDefaultAgentConfig)
-      : mergedConfig;
+    if (agent.slug !== INBOX_SESSION_ID) return mergedConfig;
+
+    const shouldPreserveInboxRuntimeSelection =
+      hasRuntimeModelSelection(agent) && hasBeenUpdatedAfterCreate(agent);
+    const inboxAdminConfig = shouldPreserveInboxRuntimeSelection
+      ? omitRuntimeModelOverride(adminDefaultAgentConfig)
+      : adminDefaultAgentConfig;
+
+    return merge(mergedConfig, inboxAdminConfig);
   }
 
   /**
