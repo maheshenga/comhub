@@ -156,5 +156,7 @@ docs/superpowers/
 .codex-run/
 .omc/
 .omx/
+.codegraph/
 .playwright-cli/
 dist-deploy/
+output/
