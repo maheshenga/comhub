@@ -88,6 +88,9 @@ describe('adminSettingsForm', () => {
       pricingMultiplier: 1,
       profileInterestAreas: [],
       referralRewardCredits: 0,
+      sidebarGenerationLabel: '生成',
+      sidebarMemberLabel: '会员',
+      sidebarMemberUrl: '/settings/plans',
     };
 
     expect(
@@ -221,6 +224,36 @@ describe('adminSettingsForm', () => {
     expect(
       getAdminSettingsRefreshKeys([
         { key: SETTING_KEYS.homeMessengerBannerTitle, value: '在聊天平台中，与 {{brandName}} 畅聊' },
+      ]),
+    ).toEqual(['brand-config']);
+  });
+
+  it('includes sidebar member and generation labels in brand setting updates', () => {
+    const initial = buildFormValues({
+      sidebarGenerationLabel: '生成',
+      sidebarMemberLabel: '会员',
+      sidebarMemberUrl: '/settings/plans',
+    });
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          sidebarGenerationLabel: '创作',
+          sidebarMemberLabel: '会员中心',
+          sidebarMemberUrl: '/settings/plans?tab=vip',
+        },
+        initial,
+      ),
+    ).toEqual([
+      { key: SETTING_KEYS.sidebarMemberLabel, value: '会员中心' },
+      { key: SETTING_KEYS.sidebarMemberUrl, value: '/settings/plans?tab=vip' },
+      { key: SETTING_KEYS.sidebarGenerationLabel, value: '创作' },
+    ]);
+
+    expect(
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.sidebarMemberLabel, value: '会员中心' },
       ]),
     ).toEqual(['brand-config']);
   });

@@ -113,6 +113,9 @@ const BRAND_KEYS = [
   SETTING_KEYS.homeMessengerEnabled,
   SETTING_KEYS.homeMessengerBannerTitle,
   SETTING_KEYS.communityForkAndChatLabel,
+  SETTING_KEYS.sidebarMemberLabel,
+  SETTING_KEYS.sidebarMemberUrl,
+  SETTING_KEYS.sidebarGenerationLabel,
   SETTING_KEYS.defaultSkillName,
 ] as const;
 
@@ -602,6 +605,9 @@ export const adminSettingsRouter = router({
       homeMessengerEnabled,
       homeMessengerBannerTitle,
       communityForkAndChatLabel,
+      sidebarMemberLabel,
+      sidebarMemberUrl,
+      sidebarGenerationLabel,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.brandName),
       readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
@@ -615,6 +621,9 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerBannerTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.communityForkAndChatLabel),
+      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberLabel),
+      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.sidebarGenerationLabel),
     ]);
     const brandName = typeof name === 'string' ? name : DEFAULT_RUNTIME_BRAND.name;
     return {
@@ -647,6 +656,18 @@ export const adminSettingsRouter = router({
         typeof communityForkAndChatLabel === 'string' && communityForkAndChatLabel.trim()
           ? communityForkAndChatLabel
           : null,
+      sidebarGenerationLabel:
+        typeof sidebarGenerationLabel === 'string' && sidebarGenerationLabel.trim()
+          ? sidebarGenerationLabel
+          : '生成',
+      sidebarMemberLabel:
+        typeof sidebarMemberLabel === 'string' && sidebarMemberLabel.trim()
+          ? sidebarMemberLabel
+          : '会员',
+      sidebarMemberUrl:
+        typeof sidebarMemberUrl === 'string' && sidebarMemberUrl.trim()
+          ? sidebarMemberUrl
+          : '/settings/plans',
       slogan:
         typeof slogan === 'string' && slogan.trim() ? slogan : DEFAULT_RUNTIME_BRAND.authTitle,
     };
@@ -816,6 +837,9 @@ export const adminSettingsRouter = router({
       storageS3EnablePathStyle,
       storageS3SetAcl,
       storageS3PreviewUrlExpireIn,
+      sidebarMemberLabel,
+      sidebarMemberUrl,
+      sidebarGenerationLabel,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.referralRewardCredits),
       readSetting(ctx.serverDB, SETTING_KEYS.cronSecret),
@@ -891,6 +915,9 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3EnablePathStyle),
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3SetAcl),
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3PreviewUrlExpireIn),
+      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberLabel),
+      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.sidebarGenerationLabel),
     ]);
 
     const dbCronSecret = typeof cronSecret === 'string' ? cronSecret : null;
@@ -939,6 +966,9 @@ export const adminSettingsRouter = router({
       homeMessengerBannerTitle:
         typeof homeMessengerBannerTitle === 'string' ? homeMessengerBannerTitle : '',
       homeMessengerEnabled: toBoolean(homeMessengerEnabled, true),
+      sidebarGenerationLabel: toString(sidebarGenerationLabel, '生成') || '生成',
+      sidebarMemberLabel: toString(sidebarMemberLabel, '会员') || '会员',
+      sidebarMemberUrl: toString(sidebarMemberUrl, '/settings/plans') || '/settings/plans',
       cronAuditRetentionDays: typeof auditDays === 'number' ? auditDays : 365,
       cronPendingOrderExpiryDays: typeof pendingDays === 'number' ? pendingDays : 7,
       cronSecretConfigured: Boolean(dbCronSecret ?? process.env.CRON_SECRET),

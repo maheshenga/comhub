@@ -496,6 +496,36 @@ const AdminSettingsPage = memo(() => {
                     <Input placeholder="派生并聊天" />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.sidebarMemberLabel', '侧栏会员按钮名称')}
+                    name="sidebarMemberLabel"
+                    extra={t(
+                      'admin.settings.sidebarMemberLabel.help',
+                      '显示在侧栏首页下方的会员入口，留空时显示“会员”。',
+                    )}
+                  >
+                    <Input placeholder="会员" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.sidebarMemberUrl', '侧栏会员按钮链接')}
+                    name="sidebarMemberUrl"
+                    extra={t(
+                      'admin.settings.sidebarMemberUrl.help',
+                      '会员入口点击后打开的站内或外部链接，默认 /settings/plans。',
+                    )}
+                  >
+                    <Input placeholder="/settings/plans" />
+                  </Form.Item>
+                  <Form.Item
+                    label={t('admin.settings.sidebarGenerationLabel', '侧栏生成按钮名称')}
+                    name="sidebarGenerationLabel"
+                    extra={t(
+                      'admin.settings.sidebarGenerationLabel.help',
+                      '控制侧栏 /image 生成入口显示名称，留空时显示“生成”。',
+                    )}
+                  >
+                    <Input placeholder="生成" />
+                  </Form.Item>
+                  <Form.Item
                     label={t('admin.settings.brandLogoUrl', 'Logo 地址（URL）')}
                     name="brandLogoUrl"
                     extra={t(

@@ -44,6 +44,9 @@ let swrData:
       logoUrl: null;
       name: string;
       primaryColor: null;
+      sidebarGenerationLabel?: null | string;
+      sidebarMemberLabel?: null | string;
+      sidebarMemberUrl?: null | string;
       slogan: null;
       defaultSkillName?: string;
     }
@@ -83,6 +86,9 @@ describe('BrandProvider', () => {
       logoUrl: null,
       name: 'Runtime Brand',
       primaryColor: null,
+      sidebarGenerationLabel: 'Runtime Generate',
+      sidebarMemberLabel: 'Runtime Plans',
+      sidebarMemberUrl: '/runtime-plans',
       slogan: null,
       defaultSkillName: 'Runtime Skill',
     };
@@ -135,6 +141,9 @@ describe('BrandProvider', () => {
           logoUrl: null,
           name: 'Server Brand',
           primaryColor: null,
+          sidebarGenerationLabel: null,
+          sidebarMemberLabel: null,
+          sidebarMemberUrl: null,
           slogan: null,
         }}
       >

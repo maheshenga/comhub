@@ -9,3 +9,6 @@ export const isModifierClick = (e: { ctrlKey: boolean; metaKey: boolean }): bool
   if (isDesktop) return false;
   return e.metaKey || e.ctrlKey;
 };
+
+export const isExternalUrl = (url?: string): boolean =>
+  !!url && (url.startsWith('http://') || url.startsWith('https://'));

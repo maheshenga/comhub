@@ -20,6 +20,9 @@ export interface BrandConfig {
   logoUrl: string | null;
   name: string;
   primaryColor: string | null;
+  sidebarGenerationLabel: string | null;
+  sidebarMemberLabel: string | null;
+  sidebarMemberUrl: string | null;
   slogan: string | null;
 }
 
@@ -37,6 +40,9 @@ const DEFAULT_BRAND: BrandConfig = {
   logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
   name: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
   primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
+  sidebarGenerationLabel: '生成',
+  sidebarMemberLabel: '会员',
+  sidebarMemberUrl: '/settings/plans',
   slogan: DEFAULT_RUNTIME_BRAND.authTitle,
 };
 
@@ -65,6 +71,14 @@ const normalizeBrand = (brand?: BrandInput | null): BrandConfig => ({
   logoUrl: brand?.logoUrl ?? DEFAULT_BRAND.logoUrl,
   name: (brand?.name && brand.name.trim()) || DEFAULT_BRAND.name,
   primaryColor: brand?.primaryColor ?? DEFAULT_BRAND.primaryColor,
+  sidebarGenerationLabel:
+    (brand?.sidebarGenerationLabel && brand.sidebarGenerationLabel.trim()) ||
+    DEFAULT_BRAND.sidebarGenerationLabel,
+  sidebarMemberLabel:
+    (brand?.sidebarMemberLabel && brand.sidebarMemberLabel.trim()) ||
+    DEFAULT_BRAND.sidebarMemberLabel,
+  sidebarMemberUrl:
+    (brand?.sidebarMemberUrl && brand.sidebarMemberUrl.trim()) || DEFAULT_BRAND.sidebarMemberUrl,
   slogan: (brand?.slogan && brand.slogan.trim()) || DEFAULT_BRAND.slogan,
 });
 

@@ -10,10 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import urlJoin from 'url-join';
 
 import { useBrand } from '@/features/Brand';
-import { useMarketAuth } from '@/layout/AuthProvider/MarketAuth';
 import { chatGroupService } from '@/services/chatGroup';
 import { discoverService } from '@/services/discover';
-import { marketApiService } from '@/services/marketApi';
 import { useAgentGroupStore } from '@/store/agentGroup';
 
 import { useDetailContext } from '../../DetailProvider';
@@ -50,7 +48,6 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
   const brand = useBrand();
   const navigate = useNavigate();
   const loadGroups = useAgentGroupStore((s) => s.loadGroups);
-  const { isAuthenticated, signIn } = useMarketAuth();
 
   const meta = {
     avatar,
@@ -61,15 +58,6 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
   };
 
   const handleForkAndChat = async () => {
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      try {
-        await signIn({ skipProfileSetup: true });
-      } catch {
-        return;
-      }
-    }
-
     try {
       setIsLoading(true);
 
@@ -93,15 +81,7 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
       // Generate a unique identifier for the forked group
       const newIdentifier = generateMarketIdentifier();
 
-      // Step 2: Fork the group via Market API
-      const forkResult = await marketApiService.forkAgentGroup(identifier!, {
-        identifier: newIdentifier,
-        name: title,
-        status: 'published',
-        visibility: 'public',
-      });
-
-      // Step 3: Find supervisor from memberAgents
+      // Step 2: Find supervisor from memberAgents
       const supervisorMember = memberAgents.find((member: any) => {
         const agent = member.agent || member;
         const role = member.role || agent.role;
@@ -137,7 +117,8 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
         );
       }
 
-      // Step 4: Prepare group config
+      // Step 3: Prepare group config. ComHub keeps this local so users do not
+      // need to create an upstream community profile before chatting.
       const groupConfig = {
         config: {
           ...config,
@@ -147,10 +128,10 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
         content: config.systemRole || supervisorConfig?.systemRole,
         ...meta,
         // Store marketIdentifier at top-level (same as agents)
-        marketIdentifier: forkResult.group.identifier,
+        marketIdentifier: newIdentifier,
       };
 
-      // Step 5: Prepare member agents from market data
+      // Step 4: Prepare member agents from market data
       // Filter out supervisor role as it will be created separately using supervisorConfig
       const members = memberAgents
         .filter((member: any) => {
@@ -179,7 +160,7 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
           };
         });
 
-      // Step 6: Create group with all members in one request
+      // Step 5: Create group with all members in one request
       const result = await chatGroupService.createGroupWithMembers(
         groupConfig,
         members,
@@ -189,16 +170,16 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
       // Refresh group list
       await loadGroups();
 
-      // Step 7: Report fork event (using 'add' event type)
+      // Step 6: Report fork event (using 'add' event type)
       discoverService.reportAgentEvent({
         event: 'add',
-        identifier: forkResult.group.identifier,
+        identifier: newIdentifier,
         source: location.pathname,
       });
 
       message.success(t('fork.success'));
 
-      // Step 8: Navigate to chat
+      // Step 7: Navigate to chat
       navigate(urlJoin('/group', result.groupId));
     } catch (error: any) {
       console.error('Fork group failed:', error);

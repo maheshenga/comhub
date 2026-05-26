@@ -9,10 +9,10 @@ import { type NavItemProps } from '@/features/NavPanel/components/NavItem';
 import NavItem from '@/features/NavPanel/components/NavItem';
 import { useActiveTabKey } from '@/hooks/useActiveTabKey';
 import { useNavLayout } from '@/hooks/useNavLayout';
-import { isModifierClick } from '@/utils/navigation';
+import { isExternalUrl, isModifierClick } from '@/utils/navigation';
 
 /** Keys that are rendered in the header; all others are managed by Body via sidebarSectionOrder */
-const HEADER_KEYS = new Set(['home', 'search']);
+const HEADER_KEYS = new Set(['home', 'member', 'search']);
 
 const Nav = memo(() => {
   const tab = useActiveTabKey();
@@ -45,6 +45,19 @@ const Nav = memo(() => {
           );
 
           if (!item.url) return <div key={item.key}>{navItem}</div>;
+          if (isExternalUrl(item.url)) {
+            return (
+              <a
+                href={item.url}
+                key={item.key}
+                rel="noreferrer"
+                target="_blank"
+                onClick={() => item?.onClick?.()}
+              >
+                {navItem}
+              </a>
+            );
+          }
 
           return (
             <Link

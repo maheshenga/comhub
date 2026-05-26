@@ -49,6 +49,9 @@ describe('getServerBrand', () => {
         'brand.logoUrl': 'https://x/logo.svg',
         'brand.name': 'Acme',
         'brand.primaryColor': '#ff00aa',
+        'sidebar.generation.label': 'Create',
+        'sidebar.member.label': 'Plans',
+        'sidebar.member.url': '/plans',
         'brand.slogan': 'Better than ever',
       };
       return k in map ? { value: map[k] } : null;
@@ -67,6 +70,9 @@ describe('getServerBrand', () => {
       logoUrl: 'https://x/logo.svg',
       name: 'Acme',
       primaryColor: '#ff00aa',
+      sidebarGenerationLabel: 'Create',
+      sidebarMemberLabel: 'Plans',
+      sidebarMemberUrl: '/plans',
       slogan: 'Better than ever',
     });
   });
@@ -86,6 +92,9 @@ describe('getServerBrand', () => {
       logoUrl: '/images/brand/qingyou-ai-logo.png',
       name: 'Default Brand',
       primaryColor: '#12b981',
+      sidebarGenerationLabel: null,
+      sidebarMemberLabel: null,
+      sidebarMemberUrl: null,
       slogan: 'Default auth title',
     });
   });
@@ -95,8 +104,8 @@ describe('getServerBrand', () => {
     await getServerBrand();
     await getServerBrand();
     await getServerBrand();
-    // Each call queries 12 keys; only the first call should hit the DB.
-    expect(findFirstMock).toHaveBeenCalledTimes(12);
+    // Each call queries 15 keys; only the first call should hit the DB.
+    expect(findFirstMock).toHaveBeenCalledTimes(15);
   });
 
   it('invalidate forces a fresh fetch', async () => {
@@ -104,7 +113,7 @@ describe('getServerBrand', () => {
     await getServerBrand();
     invalidateServerBrand();
     await getServerBrand();
-    expect(findFirstMock).toHaveBeenCalledTimes(24);
+    expect(findFirstMock).toHaveBeenCalledTimes(30);
   });
 
   it('falls back to the default runtime brand on database errors', async () => {
@@ -122,6 +131,9 @@ describe('getServerBrand', () => {
       logoUrl: '/images/brand/qingyou-ai-logo.png',
       name: 'Default Brand',
       primaryColor: '#12b981',
+      sidebarGenerationLabel: null,
+      sidebarMemberLabel: null,
+      sidebarMemberUrl: null,
       slogan: 'Default auth title',
     });
   });

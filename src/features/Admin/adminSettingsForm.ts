@@ -67,6 +67,9 @@ export const SETTING_KEYS = {
   pricingCreditMultiplier: 'pricing.creditMultiplier',
   pricingModelRules: 'pricing.modelRules',
   referralRewardCredits: 'referral.rewardCredits',
+  sidebarGenerationLabel: 'sidebar.generation.label',
+  sidebarMemberLabel: 'sidebar.member.label',
+  sidebarMemberUrl: 'sidebar.member.url',
   storageS3AccessKeyId: 'storage.s3.accessKeyId',
   storageS3Bucket: 'storage.s3.bucket',
   storageS3EnablePathStyle: 'storage.s3.enablePathStyle',
@@ -148,6 +151,9 @@ export type AdminSettingsData = {
   pricingModelRules?: unknown[] | null;
   profileInterestAreas?: unknown;
   referralRewardCredits?: number | null;
+  sidebarGenerationLabel?: string | null;
+  sidebarMemberLabel?: string | null;
+  sidebarMemberUrl?: string | null;
   storageS3AccessKeyId?: string | null;
   storageS3Bucket?: string | null;
   storageS3EnablePathStyle?: boolean | null;
@@ -194,6 +200,9 @@ export type AdminSettingsFormValues = {
   ordersEnabled: boolean;
   pricingMultiplier: number;
   referralRewardCredits: number;
+  sidebarGenerationLabel: string;
+  sidebarMemberLabel: string;
+  sidebarMemberUrl: string;
   storageS3AccessKeyId: string;
   storageS3Bucket: string;
   storageS3EnablePathStyle: boolean;
@@ -314,6 +323,9 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   ordersEnabled: data?.ordersManagementEnabled ?? true,
   pricingMultiplier: data?.pricingCreditMultiplier ?? 1,
   referralRewardCredits: data?.referralRewardCredits ?? 0,
+  sidebarGenerationLabel: data?.sidebarGenerationLabel ?? '生成',
+  sidebarMemberLabel: data?.sidebarMemberLabel ?? '会员',
+  sidebarMemberUrl: data?.sidebarMemberUrl ?? '/settings/plans',
   storageS3AccessKeyId: data?.storageS3AccessKeyId ?? '',
   storageS3Bucket: data?.storageS3Bucket ?? '',
   storageS3EnablePathStyle: data?.storageS3EnablePathStyle ?? false,
@@ -368,6 +380,9 @@ export const normalizeFormValues = (
   pricingMultiplier: typeof values.pricingMultiplier === 'number' ? values.pricingMultiplier : 1,
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
+  sidebarGenerationLabel: normalizeText(values.sidebarGenerationLabel) || '生成',
+  sidebarMemberLabel: normalizeText(values.sidebarMemberLabel) || '会员',
+  sidebarMemberUrl: normalizeText(values.sidebarMemberUrl) || '/settings/plans',
   storageS3AccessKeyId: normalizeText(values.storageS3AccessKeyId),
   storageS3Bucket: normalizeText(values.storageS3Bucket),
   storageS3EnablePathStyle:
@@ -428,6 +443,9 @@ export const buildSettingUpdates = (
     'homeMessengerBannerTitle',
     'homeMessengerEnabled',
     'communityForkAndChatLabel',
+    'sidebarMemberLabel',
+    'sidebarMemberUrl',
+    'sidebarGenerationLabel',
     'desktopDownloadUrl',
     'desktopDownloadLabel',
     'memoryUserMemoryTriggerMode',
@@ -477,6 +495,9 @@ export const buildSettingUpdates = (
     ordersEnabled: SETTING_KEYS.ordersManagementEnabled,
     pricingMultiplier: SETTING_KEYS.pricingCreditMultiplier,
     referralRewardCredits: SETTING_KEYS.referralRewardCredits,
+    sidebarGenerationLabel: SETTING_KEYS.sidebarGenerationLabel,
+    sidebarMemberLabel: SETTING_KEYS.sidebarMemberLabel,
+    sidebarMemberUrl: SETTING_KEYS.sidebarMemberUrl,
     storageS3AccessKeyId: SETTING_KEYS.storageS3AccessKeyId,
     storageS3Bucket: SETTING_KEYS.storageS3Bucket,
     storageS3EnablePathStyle: SETTING_KEYS.storageS3EnablePathStyle,
@@ -538,6 +559,9 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     SETTING_KEYS.homeMessengerBannerTitle,
     SETTING_KEYS.homeMessengerEnabled,
     SETTING_KEYS.communityForkAndChatLabel,
+    SETTING_KEYS.sidebarGenerationLabel,
+    SETTING_KEYS.sidebarMemberLabel,
+    SETTING_KEYS.sidebarMemberUrl,
     SETTING_KEYS.defaultSkillName,
   ]);
   const needsBrandRefresh = updates.some((update) => brandKeys.has(update.key as any));

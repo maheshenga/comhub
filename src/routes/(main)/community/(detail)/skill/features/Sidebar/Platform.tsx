@@ -21,6 +21,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
+import { useBrand } from '@/features/Brand';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
@@ -55,7 +56,7 @@ interface PlatformProps {
   mobile?: boolean;
 }
 
-const genInstallCommand = (identifier?: string, platform?: PlatformType) => {
+const genInstallCommand = (identifier?: string, platform?: PlatformType, brandName = 'LobeHub') => {
   const id = identifier || '<skill-identifier>';
 
   const agentMap: Record<PlatformType, string> = {
@@ -78,7 +79,7 @@ const genInstallCommand = (identifier?: string, platform?: PlatformType) => {
       return `npx -y @lobehub/market-cli skills install ${id} --agent ${agentMap[platform]}`;
     }
     default: {
-      return `# Recommended for LobeHub users:
+      return `# Recommended for ${brandName} users:
 # Open the marketplace page and install with one click:
 # https://lobechat.com/community/skills/${id}`;
     }
@@ -117,6 +118,7 @@ const Platform = memo<PlatformProps>(
   ({ lite, identifier, mobile, expandCodeByDefault, downloadUrl }) => {
     const { t } = useTranslation('discover');
     const navigate = useNavigate();
+    const brand = useBrand();
     const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
     const sendMessage = useChatStore((s) => s.sendMessage);
     const [active, setActive] = useState<PlatformType>(PlatformType.Claude);
@@ -154,8 +156,8 @@ const Platform = memo<PlatformProps>(
       switch (active) {
         case PlatformType.LobeHub: {
           return {
-            platform: 'LobeHub',
-            steps: t('skills.details.sidebar.platform.steps.lobehub'),
+            platform: brand.name,
+            steps: t('skills.details.sidebar.platform.steps.lobehub', { brandName: brand.name }),
           };
         }
         case PlatformType.Claude: {
@@ -189,22 +191,22 @@ const Platform = memo<PlatformProps>(
           };
         }
       }
-    }, [active, t]);
+    }, [active, brand.name, t]);
 
-    const command = genInstallCommand(identifier, active);
+    const command = genInstallCommand(identifier, active, brand.name);
 
-    const agentPrompt = `Curl https://lobehub.com/skills/${identifier}/skill.md, then follow the instructions to set up LobeHub Skills Marketplace and install the skill. Once installed, read the SKILL.md file in the installed directory and follow its instructions to complete the task.`;
+    const agentPrompt = `Curl https://lobehub.com/skills/${identifier}/skill.md, then follow the instructions to set up ${brand.name} Skills Marketplace and install the skill. Once installed, read the SKILL.md file in the installed directory and follow its instructions to complete the task.`;
 
     const handleUseOnLobeAI = useCallback(() => {
       if (!inboxAgentId) return;
 
-      // Send message to LobeAI
+      // Send the install prompt into the user's inbox assistant.
       sendMessage({
         context: { agentId: inboxAgentId },
         message: agentPrompt,
       });
 
-      // Navigate to LobeAI chat session
+      // Navigate to the inbox assistant chat session.
       navigate(SESSION_CHAT_URL(inboxAgentId, mobile));
     }, [agentPrompt, inboxAgentId, mobile, navigate, sendMessage]);
 
@@ -259,7 +261,10 @@ const Platform = memo<PlatformProps>(
                 type={'primary'}
                 onClick={handleUseOnLobeAI}
               >
-                {t('skills.details.sidebar.agent.useOnLobeAI')}
+                {t('skills.details.sidebar.agent.useOnLobeAI', {
+                  defaultValue: `在 ${brand.name} 使用`,
+                  brandName: brand.name,
+                })}
               </Button>
             </Flexbox>
           </Flexbox>
@@ -314,7 +319,9 @@ const Platform = memo<PlatformProps>(
               variant={lite ? 'borderless' : 'outlined'}
             >
               {genLayout(identifier, active, {
-                lobehub: t('skills.details.sidebar.platform.layout.lobehub'),
+                lobehub: t('skills.details.sidebar.platform.layout.lobehub', {
+                  brandName: brand.name,
+                }),
                 resourcesHint: t('skills.details.sidebar.platform.layout.resourcesHint'),
               })}
             </Highlighter>

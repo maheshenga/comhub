@@ -1,10 +1,11 @@
-import { HomeIcon, SearchIcon } from 'lucide-react';
+import { CrownIcon, HomeIcon, SearchIcon } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { getRouteById } from '@/config/routes';
 import { PUBLIC_EXPERT_PLAZA_SWR_KEY } from '@/const/adminCacheKeys';
 import { DEFAULT_EXPERT_PLAZA_CONFIG } from '@/const/expertPlaza';
+import { useBrand } from '@/features/Brand';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useGlobalStore } from '@/store/global';
@@ -42,6 +43,7 @@ export interface NavLayout {
 
 export const useNavLayout = (): NavLayout => {
   const { t } = useTranslation('common');
+  const brand = useBrand();
   const toggleCommandMenu = useGlobalStore((s) => s.toggleCommandMenu);
   const { showMarket, hideGitHub } = useServerConfigStore(featureFlagsSelectors);
   const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
@@ -56,16 +58,22 @@ export const useNavLayout = (): NavLayout => {
     () =>
       [
         {
-          icon: SearchIcon,
-          key: 'search',
-          onClick: () => toggleCommandMenu(true),
-          title: t('tab.search'),
-        },
-        {
           icon: HomeIcon,
           key: SidebarTabKey.Home,
           title: t('tab.home'),
           url: '/',
+        },
+        {
+          icon: CrownIcon,
+          key: SidebarTabKey.Member,
+          title: brand.sidebarMemberLabel || '会员',
+          url: brand.sidebarMemberUrl || '/settings/plans',
+        },
+        {
+          icon: SearchIcon,
+          key: 'search',
+          onClick: () => toggleCommandMenu(true),
+          title: t('tab.search'),
         },
         {
           icon: getRouteById('tasks')!.icon,
@@ -80,7 +88,7 @@ export const useNavLayout = (): NavLayout => {
           url: '/page',
         },
       ] as NavItem[],
-    [t, toggleCommandMenu],
+    [brand.sidebarMemberLabel, brand.sidebarMemberUrl, t, toggleCommandMenu],
   );
 
   const bottomMenuItems = useMemo(
@@ -89,7 +97,7 @@ export const useNavLayout = (): NavLayout => {
         {
           icon: getRouteById('image')!.icon,
           key: SidebarTabKey.Image,
-          title: t('tab.generation'),
+          title: brand.sidebarGenerationLabel || t('tab.generation'),
           url: '/image',
         },
         {
@@ -125,7 +133,14 @@ export const useNavLayout = (): NavLayout => {
           url: '/memory',
         },
       ] as NavItem[],
-    [t, showMarket, enableBusinessFeatures, expertPlaza.enabled, expertPlaza.name],
+    [
+      brand.sidebarGenerationLabel,
+      t,
+      showMarket,
+      enableBusinessFeatures,
+      expertPlaza.enabled,
+      expertPlaza.name,
+    ],
   );
 
   const footer = useMemo(

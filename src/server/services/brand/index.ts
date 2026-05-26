@@ -18,6 +18,9 @@ export interface ServerBrandConfig {
   logoUrl: string | null;
   name: string | null;
   primaryColor: string | null;
+  sidebarGenerationLabel: string | null;
+  sidebarMemberLabel: string | null;
+  sidebarMemberUrl: string | null;
   slogan: string | null;
 }
 
@@ -33,6 +36,9 @@ const KEYS = {
   logo: 'brand.logoUrl',
   name: 'brand.name',
   primary: 'brand.primaryColor',
+  sidebarGenerationLabel: 'sidebar.generation.label',
+  sidebarMemberLabel: 'sidebar.member.label',
+  sidebarMemberUrl: 'sidebar.member.url',
   slogan: 'brand.slogan',
 } as const;
 
@@ -75,6 +81,9 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       homeMessengerEnabled,
       homeMessengerBannerTitle,
       communityForkAndChatLabel,
+      sidebarMemberLabel,
+      sidebarMemberUrl,
+      sidebarGenerationLabel,
     ] = await Promise.all([
       readString(db, KEYS.name),
       readString(db, KEYS.logo),
@@ -88,6 +97,9 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       readBoolean(db, KEYS.homeMessengerEnabled, true),
       readString(db, KEYS.homeMessengerBannerTitle),
       readString(db, KEYS.communityForkAndChatLabel),
+      readString(db, KEYS.sidebarMemberLabel),
+      readString(db, KEYS.sidebarMemberUrl),
+      readString(db, KEYS.sidebarGenerationLabel),
     ]);
     const data: ServerBrandConfig = {
       authTitle: authTitle ?? DEFAULT_RUNTIME_BRAND.authTitle,
@@ -101,6 +113,9 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       logoUrl: logoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
       name: name ?? DEFAULT_RUNTIME_BRAND.name,
       primaryColor: primaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
+      sidebarGenerationLabel,
+      sidebarMemberLabel,
+      sidebarMemberUrl,
       slogan: slogan ?? DEFAULT_RUNTIME_BRAND.authTitle,
     };
     cached = { at: Date.now(), data };
@@ -118,6 +133,9 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
       name: DEFAULT_RUNTIME_BRAND.name,
       primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
+      sidebarGenerationLabel: null,
+      sidebarMemberLabel: null,
+      sidebarMemberUrl: null,
       slogan: DEFAULT_RUNTIME_BRAND.authTitle,
     };
     cached = { at: Date.now(), data };

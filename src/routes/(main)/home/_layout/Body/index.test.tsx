@@ -90,6 +90,7 @@ vi.mock('@/hooks/useNavLayout', () => ({
 }));
 
 vi.mock('@/utils/navigation', () => ({
+  isExternalUrl: (url?: string) => !!url?.startsWith('https://'),
   isModifierClick: () => false,
 }));
 
@@ -189,5 +190,18 @@ describe('Home sidebar body', () => {
     expect(children[1]).toHaveAttribute('data-testid', 'sidebar-accordion');
     expect(children[3]).toHaveTextContent('Image');
     expect(children[4]).toHaveTextContent('Resource');
+  });
+
+  it('renders external nav URLs as native links', () => {
+    mocks.navLayout.bottomMenuItems = [
+      { key: 'external', title: 'External Plans', url: 'https://pay.example.com' },
+    ];
+    mocks.globalState.status.sidebarItems = ['external'];
+
+    render(<Body />);
+
+    const link = screen.getByRole('link', { name: /External Plans/ });
+    expect(link).toHaveAttribute('href', 'https://pay.example.com');
+    expect(link).toHaveAttribute('target', '_blank');
   });
 });

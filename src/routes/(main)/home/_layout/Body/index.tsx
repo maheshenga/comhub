@@ -15,7 +15,7 @@ import { useNavLayout } from '@/hooks/useNavLayout';
 import Recents from '@/routes/(main)/home/features/Recents';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
-import { isModifierClick } from '@/utils/navigation';
+import { isExternalUrl, isModifierClick } from '@/utils/navigation';
 
 import Agent from './Agent';
 import { openCustomizeSidebarModal } from './CustomizeSidebarModal';
@@ -33,7 +33,7 @@ const ACCORDION_KEYS = new Set<string>([GroupKey.Recents, GroupKey.Agent]);
 
 /** Keys rendered in the header — must be excluded from the body to avoid duplicates
  * when migrating users whose persisted sidebarItems still include them. */
-const HEADER_KEYS = new Set<string>(['home', 'search']);
+const HEADER_KEYS = new Set<string>(['home', 'member', 'search']);
 
 const accordionComponents: Record<string, (key: string) => ReactElement> = {
   [GroupKey.Agent]: (key) => <Agent itemKey={key} key={key} />,
@@ -120,6 +120,27 @@ const Body = memo(() => {
     (key: string) => {
       const navItem = navLinkItems.get(key);
       if (!navItem || navItem.hidden) return null;
+      const item = (
+        <NavItem
+          active={tab === key}
+          contextMenuItems={getContextMenuItems(key)}
+          icon={navItem.icon}
+          title={navItem.title}
+          actions={
+            <DropdownMenu items={getContextMenuItems(key)} nativeButton={false}>
+              <ActionIcon icon={MoreHorizontalIcon} size={'small'} style={{ flex: 'none' }} />
+            </DropdownMenu>
+          }
+        />
+      );
+      if (isExternalUrl(navItem.url)) {
+        return (
+          <a href={navItem.url} key={key} rel="noreferrer" target="_blank">
+            {item}
+          </a>
+        );
+      }
+
       return (
         <Link
           key={key}
@@ -130,17 +151,7 @@ const Body = memo(() => {
             navigate(navItem.url!);
           }}
         >
-          <NavItem
-            active={tab === key}
-            contextMenuItems={getContextMenuItems(key)}
-            icon={navItem.icon}
-            title={navItem.title}
-            actions={
-              <DropdownMenu items={getContextMenuItems(key)} nativeButton={false}>
-                <ActionIcon icon={MoreHorizontalIcon} size={'small'} style={{ flex: 'none' }} />
-              </DropdownMenu>
-            }
-          />
+          {item}
         </Link>
       );
     },

@@ -201,6 +201,8 @@ describe('admin Chinese copy', () => {
     expect(contentPages).toContain('用户文稿管理');
     expect(expertPlazaPage).toContain('专家广场配置已保存');
     expect(systemDefaultsPage).toContain('服务模型默认设置 JSON');
+    expect(systemDefaultsPage).toContain('默认助手模型');
+    expect(systemDefaultsPage).toContain('提示词改写模型');
     expect(systemDefaultsPage).toContain('默认禁用的内置技能/工具');
   });
 
