@@ -21,13 +21,14 @@ on:
       use_cn_mirror:
         description: 'Use China npm/apt mirrors during Docker build'
         required: true
-        default: 'false'
+        default: 'true'
         type: choice
         options:
           - 'false'
           - 'true'
 
 permissions:
+  actions: write
   contents: read
   packages: write
 
@@ -95,7 +96,7 @@ jobs:
           tags: ${{ steps.image.outputs.tags }}
           build-args: |
             NODEJS_VERSION=${{ env.NODEJS_VERSION }}
-            USE_CN_MIRROR=${{ inputs.use_cn_mirror || 'false' }}
+            USE_CN_MIRROR=${{ inputs.use_cn_mirror || 'true' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
