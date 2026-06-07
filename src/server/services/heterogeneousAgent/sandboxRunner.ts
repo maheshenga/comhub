@@ -2,11 +2,16 @@ import debug from 'debug';
 
 import { appEnv } from '@/envs/app';
 import type { MarketService } from '@/server/services/market';
+import { createSandboxService } from '@/server/services/sandbox';
 
 const log = debug('lobe-server:hetero-sandbox-runner');
 
 export interface SandboxRunParams {
   agentType: 'claude-code' | 'codex';
+  /** Initial assistant placeholder message id — injected as LOBEHUB_ASSISTANT_MESSAGE_ID so
+   * the CLI can pass it through the heteroIngest payload, removing the need for the server
+   * to re-read topic.metadata.runningOperation on every cold Lambda start. */
+  assistantMessageId: string;
   cwd?: string;
   /** GitHub OAuth token for cloning private repos. */
   githubToken?: string;
@@ -92,8 +97,8 @@ function buildRepoSetupScript(repos: string[], githubToken?: string): string | n
 /**
  * Launches `lh hetero exec` inside the cloud sandbox via `runCommand`.
  *
- * Uses the same MarketService path as ServerSandboxService.callTool —
- * `marketService.getSDK().plugins.runBuildInTool('runCommand', params, ctx)`.
+ * Uses the configured sandbox provider so cloud, third-party, and self-hosted
+ * sandboxes share the same launch path.
  *
  * The sandbox container already has `lh` (the LobeHub CLI) installed.
  * The operation-scoped JWT is injected as `LOBEHUB_JWT` so the CLI can
@@ -105,6 +110,7 @@ function buildRepoSetupScript(repos: string[], githubToken?: string): string | n
 export async function spawnHeteroSandbox(params: SandboxRunParams): Promise<void> {
   const {
     agentType,
+    assistantMessageId,
     githubToken,
     jwt,
     marketService,
@@ -166,6 +172,7 @@ export async function spawnHeteroSandbox(params: SandboxRunParams): Promise<void
   const envVars = [
     `LOBEHUB_JWT=${JSON.stringify(jwt)}`,
     `LOBEHUB_SERVER=${JSON.stringify(serverUrl)}`,
+    `LOBEHUB_ASSISTANT_MESSAGE_ID=${JSON.stringify(assistantMessageId)}`,
     // Inject GitHub token so CC can authenticate git operations and GitHub API
     // calls inside the sandbox (e.g. gh CLI, git push, API requests).
     ...(githubToken ? [`GITHUB_TOKEN=${JSON.stringify(githubToken)}`] : []),
@@ -186,7 +193,14 @@ export async function spawnHeteroSandbox(params: SandboxRunParams): Promise<void
     topicId,
   );
 
-  await marketService
-    .getSDK()
-    .plugins.runBuildInTool('runCommand', { command: shellCommand } as any, { topicId, userId });
+  const sandboxService = createSandboxService({ marketService, topicId, userId });
+  const result = await sandboxService.callTool('runCommand', {
+    background: true,
+    command: shellCommand,
+    timeout: 600_000,
+  });
+
+  if (!result.success) {
+    throw new Error(result.error?.message || 'Failed to spawn heterogeneous sandbox');
+  }
 }

@@ -1,12 +1,13 @@
 import { isDesktop } from '@lobechat/const';
 import { type MenuProps } from '@lobehub/ui';
 import { ActionIcon, DropdownMenu, Flexbox, Text } from '@lobehub/ui';
+import { confirmModal } from '@lobehub/ui/base-ui';
 import { ArrowRight, Plus, Unlink } from 'lucide-react';
 import { type CSSProperties } from 'react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { modal, notification } from '@/components/AntdStaticMethods';
+import { notification } from '@/components/AntdStaticMethods';
 import AuthIcons from '@/components/AuthIcons';
 import { linkSocial, oauth2, unlinkAccount } from '@/libs/better-auth/auth-client';
 import { isBuiltinProvider, normalizeProviderId } from '@/libs/better-auth/utils/client';
@@ -55,7 +56,7 @@ export const SSOProvidersList = memo(() => {
       });
       return;
     }
-    modal.confirm({
+    confirmModal({
       content: t('profile.sso.unlink.description', { provider }),
       okButtonProps: {
         danger: true,

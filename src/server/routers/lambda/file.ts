@@ -1,3 +1,8 @@
+import {
+  CUSTOM_DOCUMENT_FILE_TYPE,
+  CUSTOM_FOLDER_FILE_TYPE,
+  DERIVED_DOCUMENT_SOURCE_TYPE,
+} from '@lobechat/const';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
@@ -10,7 +15,6 @@ import { ChunkModel } from '@/database/models/chunk';
 import { DocumentModel } from '@/database/models/document';
 import { FileModel } from '@/database/models/file';
 import { KnowledgeRepo } from '@/database/repositories/knowledge';
-import { appEnv } from '@/envs/app';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { DocumentService } from '@/server/services/document';
@@ -18,12 +22,6 @@ import { FileService } from '@/server/services/file';
 import { AsyncTaskStatus, AsyncTaskType, type IAsyncTaskError } from '@/types/asyncTask';
 import type { FileListItem, KnowledgeItemStatus } from '@/types/files';
 import { QueryFileListSchema, UploadFileSchema } from '@/types/files';
-
-/**
- * Generate file proxy URL
- * Returns a unified proxy URL format: ${APP_URL}/f/:id
- */
-const getFileProxyUrl = (fileId: string): string => `${appEnv.APP_URL}/f/${fileId}`;
 
 const filterKnowledgeItems = <
   T extends {
@@ -35,7 +33,13 @@ const filterKnowledgeItems = <
   knowledgeBaseId?: string,
 ) => {
   return !knowledgeBaseId
-    ? items.filter((item) => !(item.sourceType === 'document' && item.fileType === 'custom/folder'))
+    ? items.filter(
+        (item) =>
+          !(
+            item.sourceType === DERIVED_DOCUMENT_SOURCE_TYPE &&
+            item.fileType === CUSTOM_FOLDER_FILE_TYPE
+          ),
+      )
     : items;
 };
 
@@ -244,7 +248,7 @@ export const fileRouter = router({
         );
       });
 
-      return { id, url: getFileProxyUrl(id) };
+      return { id, url: await ctx.fileService.getFileAccessUrl({ id, url: input.url }) };
     }),
   findById: fileProcedure
     .input(
@@ -270,7 +274,7 @@ export const fileRouter = router({
         size: item.size,
         source: item.source,
         updatedAt: item.updatedAt,
-        url: getFileProxyUrl(item.id),
+        url: await ctx.fileService.getFileAccessUrl(item),
         userId: item.userId,
       };
     }),
@@ -304,7 +308,7 @@ export const fileRouter = router({
         size: item.size,
         sourceType: 'file' as const,
         updatedAt: item.updatedAt,
-        url: getFileProxyUrl(item.id),
+        url: await ctx.fileService.getFileAccessUrl(item),
       };
     }),
 
@@ -318,7 +322,7 @@ export const fileRouter = router({
       const fileItem = {
         ...item,
         sourceType: 'file' as const,
-        url: getFileProxyUrl(item.id),
+        url: await ctx.fileService.getFileAccessUrl(item),
         ...status,
       } as FileListItem;
       resultFiles.push(fileItem);
@@ -375,7 +379,7 @@ export const fileRouter = router({
         resultItems.push({
           ...item,
           editorData: null,
-          url: getFileProxyUrl(item.fileId || item.id),
+          url: await ctx.fileService.getFileAccessUrl(item),
           ...status,
         } as FileListItem);
       } else {
@@ -448,7 +452,7 @@ export const fileRouter = router({
         const filteredItems = filterKnowledgeItems(itemsToProcess, input.knowledgeBaseId);
 
         for (const item of filteredItems) {
-          if (item.sourceType === 'document') {
+          if (item.sourceType === DERIVED_DOCUMENT_SOURCE_TYPE) {
             documentIds.push(item.documentId ?? item.id);
             continue;
           }
@@ -490,7 +494,7 @@ export const fileRouter = router({
       // Query recent items and filter for files only (exclude documents/pages)
       const allItems = await ctx.knowledgeRepo.queryRecent(limit * 3); // Query more to ensure we have enough files after filtering
       const fileItems = allItems
-        .filter((item) => item.sourceType === 'file' && item.fileType !== 'custom/document')
+        .filter((item) => item.sourceType === 'file' && item.fileType !== CUSTOM_DOCUMENT_FILE_TYPE)
         .slice(0, limit);
 
       if (fileItems.length === 0) return [];
@@ -536,7 +540,7 @@ export const fileRouter = router({
           embeddingStatus: embeddingTask?.status as AsyncTaskStatus,
           finishEmbedding: embeddingTask?.status === AsyncTaskStatus.Success,
           sourceType: 'file' as const,
-          url: getFileProxyUrl(item.fileId || item.id),
+          url: await ctx.fileService.getFileAccessUrl(item),
         } as FileListItem);
       }
 
@@ -550,7 +554,11 @@ export const fileRouter = router({
       // Query recent items and filter for pages (documents) only, exclude folders
       const allItems = await ctx.knowledgeRepo.queryRecent(limit * 3); // Query more to ensure we have enough pages after filtering
       return allItems
-        .filter((item) => item.sourceType === 'document' && item.fileType !== 'custom/folder')
+        .filter(
+          (item) =>
+            item.sourceType === DERIVED_DOCUMENT_SOURCE_TYPE &&
+            item.fileType !== CUSTOM_FOLDER_FILE_TYPE,
+        )
         .slice(0, limit);
     }),
 

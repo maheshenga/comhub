@@ -20,12 +20,15 @@ const mocks = vi.hoisted(() => ({
   ),
   getAiProviderById: vi.fn(),
   getBusinessModelRuntimeHooks: vi.fn(),
+  createLLMGenerationTracingHook: vi.fn(),
   initializeWithProvider: vi.fn(),
+  mergeModelRuntimeHooks: vi.fn((...hooks: any[]) => Object.assign({}, ...hooks.filter(Boolean))),
   resolveDefaultNewapiInstance: vi.fn(),
   resolveNewapiInstancesForModel: vi.fn(),
 }));
 
 vi.mock('@lobechat/model-runtime', () => ({
+  mergeModelRuntimeHooks: mocks.mergeModelRuntimeHooks,
   ModelRuntime: {
     initializeWithProvider: mocks.initializeWithProvider,
   },
@@ -51,6 +54,10 @@ vi.mock('@/envs/llm', () => ({
   getLLMConfig: vi.fn(() => ({})),
 }));
 
+vi.mock('@/server/services/llmGenerationTracing/hook', () => ({
+  createLLMGenerationTracingHook: mocks.createLLMGenerationTracingHook,
+}));
+
 vi.mock('@/server/services/newapiInstance', () => ({
   buildNewapiRouteMetadata: mocks.buildNewapiRouteMetadata,
   resolveDefaultNewapiInstance: mocks.resolveDefaultNewapiInstance,
@@ -74,6 +81,7 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     vi.clearAllMocks();
     mocks.getAiProviderById.mockResolvedValue({ keyVaults: {} });
     mocks.getBusinessModelRuntimeHooks.mockReturnValue({ beforeChat: vi.fn() });
+    mocks.createLLMGenerationTracingHook.mockReturnValue({ afterChat: vi.fn() });
     mocks.initializeWithProvider.mockReturnValue({ chat: vi.fn() });
   });
 
@@ -111,6 +119,11 @@ describe('initModelRuntimeFromDB newapi routing', () => {
       instanceName: 'NewAPI Pro',
       providerType: 'newapi',
     });
+    expect(mocks.createLLMGenerationTracingHook).toHaveBeenCalledWith('user-1', 'newapi');
+    expect(mocks.mergeModelRuntimeHooks).toHaveBeenCalledWith(
+      expect.objectContaining({ beforeChat: expect.any(Function) }),
+      expect.objectContaining({ afterChat: expect.any(Function) }),
+    );
     expect(mocks.initializeWithProvider).toHaveBeenCalledWith(
       'newapi',
       expect.objectContaining({

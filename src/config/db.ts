@@ -12,6 +12,7 @@ export const getServerDBConfig = () => {
       DATABASE_IDLE_TIMEOUT_MS: process.env.DATABASE_IDLE_TIMEOUT_MS,
       DATABASE_MAX_LIFETIME_SECONDS: process.env.DATABASE_MAX_LIFETIME_SECONDS,
       DATABASE_POOL_MAX: process.env.DATABASE_POOL_MAX,
+      DATABASE_STATEMENT_TIMEOUT: process.env.DATABASE_STATEMENT_TIMEOUT,
       DATABASE_STATEMENT_TIMEOUT_MS: process.env.DATABASE_STATEMENT_TIMEOUT_MS,
       DATABASE_TEST_URL: process.env.DATABASE_TEST_URL,
       DATABASE_URL: process.env.DATABASE_URL,
@@ -32,6 +33,10 @@ export const getServerDBConfig = () => {
       DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
       DATABASE_MAX_LIFETIME_SECONDS: z.coerce.number().int().positive().optional(),
       DATABASE_POOL_MAX: z.coerce.number().int().positive().optional(),
+      // Server-side timeout (in milliseconds) for Neon/serverless connections.
+      // Node PostgreSQL pools use DATABASE_STATEMENT_TIMEOUT_MS so deployments can
+      // keep existing ComHub pool settings unchanged.
+      DATABASE_STATEMENT_TIMEOUT: z.coerce.number().int().positive().optional(),
       DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
       DATABASE_TEST_URL: z.string().optional(),
       DATABASE_URL: z.string().optional(),

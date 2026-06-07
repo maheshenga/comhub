@@ -25,8 +25,10 @@ vi.mock('../impls', () => ({
     getFileContent: vi.fn(),
     getFileByteArray: vi.fn(),
     getFileMetadata: vi.fn(),
+    createPreSignedUpload: vi.fn(),
     createPreSignedUrl: vi.fn(),
     createPreSignedUrlForPreview: vi.fn(),
+    createCachedPreSignedUrlForPreview: vi.fn(),
     uploadContent: vi.fn(),
     getFullFileUrl: vi.fn(),
     getKeyFromFullUrl: vi.fn(),
@@ -206,6 +208,20 @@ describe('FileService', () => {
     expect(result).toBe(expectedUrl);
   });
 
+  it('should delegate createPreSignedUpload to implementation', async () => {
+    const testKey = 'test-key';
+    const expectedUpload = {
+      headers: { 'x-amz-acl': 'public-read' },
+      url: 'https://example.com/signed-url',
+    };
+    vi.mocked(service['impl'].createPreSignedUpload).mockResolvedValue(expectedUpload);
+
+    const result = await service.createPreSignedUpload(testKey);
+
+    expect(service['impl'].createPreSignedUpload).toHaveBeenCalledWith(testKey);
+    expect(result).toBe(expectedUpload);
+  });
+
   it('should delegate createPreSignedUrlForPreview to implementation', async () => {
     const testKey = 'test-key';
     const expiresIn = 3600;
@@ -215,6 +231,21 @@ describe('FileService', () => {
     const result = await service.createPreSignedUrlForPreview(testKey, expiresIn);
 
     expect(service['impl'].createPreSignedUrlForPreview).toHaveBeenCalledWith(testKey, expiresIn);
+    expect(result).toBe(expectedUrl);
+  });
+
+  it('should delegate createCachedPreSignedUrlForPreview to implementation', async () => {
+    const testUrl = 'https://example.com/path/to/file.jpg';
+    const expiresIn = 300;
+    const expectedUrl = 'https://example.com/presigned-preview-url';
+    vi.mocked(service['impl'].createCachedPreSignedUrlForPreview).mockResolvedValue(expectedUrl);
+
+    const result = await service.createCachedPreSignedUrlForPreview(testUrl, expiresIn);
+
+    expect(service['impl'].createCachedPreSignedUrlForPreview).toHaveBeenCalledWith(
+      testUrl,
+      expiresIn,
+    );
     expect(result).toBe(expectedUrl);
   });
 

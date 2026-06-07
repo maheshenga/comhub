@@ -4,9 +4,11 @@
 import { accountDeletionRouter } from '@/business/server/lambda-routers/accountDeletion';
 import { adminRouter } from '@/business/server/lambda-routers/admin';
 import { redemptionRouter } from '@/business/server/lambda-routers/admin/redemption';
+import { pageShareRouter } from '@/business/server/lambda-routers/pageShare';
 import { paymentRouter } from '@/business/server/lambda-routers/payment';
 import { referralRouter } from '@/business/server/lambda-routers/referral';
 import { spendRouter } from '@/business/server/lambda-routers/spend';
+import { storageOverageRouter } from '@/business/server/lambda-routers/storageOverage';
 import { subscriptionRouter } from '@/business/server/lambda-routers/subscription';
 import { taskTemplateRouter } from '@/business/server/lambda-routers/taskTemplate';
 import { topUpRouter } from '@/business/server/lambda-routers/topUp';
@@ -33,6 +35,7 @@ import { changelogRouter } from './changelog';
 import { chunkRouter } from './chunk';
 import { comfyuiRouter } from './comfyui';
 import { configRouter } from './config';
+import { connectorRouter } from './connector';
 import { deviceRouter } from './device';
 import { docmeeRouter } from './docmee';
 import { documentRouter } from './document';
@@ -48,6 +51,7 @@ import { importerRouter } from './importer';
 import { klavisRouter } from './klavis';
 import { knowledgeRouter } from './knowledge';
 import { knowledgeBaseRouter } from './knowledgeBase';
+import { llmGenerationTracingRouter } from './llmGenerationTracing';
 import { marketRouter } from './market';
 import { messageRouter } from './message';
 import { messengerRouter } from './messenger';
@@ -55,6 +59,7 @@ import { notebookRouter } from './notebook';
 import { notificationRouter } from './notification';
 import { oauthDeviceFlowRouter } from './oauthDeviceFlow';
 import { pluginRouter } from './plugin';
+import { pushTokenRouter } from './pushToken';
 import { ragEvalRouter } from './ragEval';
 import { recentRouter } from './recent';
 import { searchRouter } from './search';
@@ -94,6 +99,7 @@ export const lambdaRouter = router({
   chunk: chunkRouter,
   comfyui: comfyuiRouter,
   config: configRouter,
+  connector: connectorRouter,
   device: deviceRouter,
   document: documentRouter,
   docmee: docmeeRouter,
@@ -111,6 +117,7 @@ export const lambdaRouter = router({
   klavis: klavisRouter,
   knowledge: knowledgeRouter,
   knowledgeBase: knowledgeBaseRouter,
+  llmGenerationTracing: llmGenerationTracingRouter,
   market: marketRouter,
   message: messageRouter,
   messenger: messengerRouter,
@@ -118,6 +125,7 @@ export const lambdaRouter = router({
   notification: notificationRouter,
   oauthDeviceFlow: oauthDeviceFlowRouter,
   plugin: pluginRouter,
+  pushToken: pushTokenRouter,
   ragEval: ragEvalRouter,
   recent: recentRouter,
   search: searchRouter,
@@ -135,10 +143,12 @@ export const lambdaRouter = router({
   webBrowsing: webBrowsingRouter,
   accountDeletion: accountDeletionRouter,
   admin: adminRouter,
+  pageShare: pageShareRouter,
   payment: paymentRouter,
   redemption: redemptionRouter,
   referral: referralRouter,
   spend: spendRouter,
+  storageOverage: storageOverageRouter,
   subscription: subscriptionRouter,
   taskTemplate: taskTemplateRouter,
   topUp: topUpRouter,

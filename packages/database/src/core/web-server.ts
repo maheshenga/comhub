@@ -68,6 +68,16 @@ If you don't have it, please run \`openssl rand -base64 32\` to create one.
     throw new Error(`You are try to use database, but "DATABASE_URL" is not set correctly`);
   }
 
+  // Keep NeonPool server-side statement timeouts optional, matching upstream behavior.
+  // NodePool uses getNodePostgresPoolConfig so ComHub production keeps stricter defaults.
+  const statementTimeout = serverDBEnv.DATABASE_STATEMENT_TIMEOUT;
+  const neonTimeoutConfig = statementTimeout
+    ? {
+        idle_in_transaction_session_timeout: statementTimeout,
+        statement_timeout: statementTimeout,
+      }
+    : {};
+
   if (serverDBEnv.DATABASE_DRIVER === 'node') {
     const client = new NodePool(getNodePostgresPoolConfig(connectionString));
     // pg.Pool emits 'error' on idle clients when the backend connection drops.
@@ -88,7 +98,7 @@ If you don't have it, please run \`openssl rand -base64 32\` to create one.
     neonConfig.webSocketConstructor = ws;
   }
 
-  const client = new NeonPool({ connectionString });
+  const client = new NeonPool({ connectionString, ...neonTimeoutConfig });
   // NeonPool runs over WebSocket; transient drops surface as 'error' on the pool.
   // Without a listener Node escalates it to uncaughtException — on Vercel this killed
   // the entire Lambda 1800+ times in 5 minutes (see LOBE-8704).

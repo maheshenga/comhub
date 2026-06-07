@@ -1,5 +1,6 @@
 // @vitest-environment node
 import type { AgentStreamEvent } from '@lobechat/agent-gateway-client';
+import { ThreadStatus } from '@lobechat/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -133,6 +134,7 @@ const createHarness = (params: {
       threads.set(thread.id, thread);
       return thread;
     }),
+    findById: vi.fn(async (id: string) => threads.get(id) ?? null),
     update: vi.fn(async (id: string, patch: Partial<FakeThread>) => {
       const existing = threads.get(id);
       if (!existing) return;
@@ -234,7 +236,54 @@ describe('HeterogeneousPersistenceHandler', () => {
           operationId: 'op-1',
           topicId: 'topic-1',
         }),
-      ).rejects.toThrow(/No matching runningOperation/);
+      ).rejects.toThrow(/Stale hetero operation/);
+    });
+
+    it('rejects seeded assistant ids once runningOperation has been cleared', async () => {
+      const h = createHarness({
+        assistantMessageId: 'asst-1',
+        operationId: 'op-1',
+        topicId: 'topic-1',
+      });
+      h.topicModel.findById.mockResolvedValueOnce({
+        agentId: null,
+        id: 'topic-1',
+        metadata: {} as any,
+      });
+
+      await expect(
+        h.handler.ingest({
+          assistantMessageId: 'asst-1',
+          events: [buildEvent('stream_chunk', 0, { chunkType: 'text', content: 'x' })],
+          operationId: 'op-1',
+          topicId: 'topic-1',
+        }),
+      ).rejects.toThrow(/no active runningOperation/);
+    });
+
+    it('validates seeded assistant ids belong to the current topic', async () => {
+      const h = createHarness({
+        assistantMessageId: 'asst-1',
+        operationId: 'op-1',
+        topicId: 'topic-1',
+      });
+
+      h.messages.set('asst-other-topic', {
+        agentId: null,
+        content: '',
+        id: 'asst-other-topic',
+        role: 'assistant',
+        topicId: 'topic-2',
+      });
+
+      await expect(
+        h.handler.ingest({
+          assistantMessageId: 'asst-other-topic',
+          events: [buildEvent('stream_chunk', 0, { chunkType: 'text', content: 'x' })],
+          operationId: 'op-1',
+          topicId: 'topic-1',
+        }),
+      ).rejects.toThrow(/does not belong to topic topic-1/);
     });
 
     it('rejects mid-flight topic mismatch on the same operationId', async () => {
@@ -261,6 +310,49 @@ describe('HeterogeneousPersistenceHandler', () => {
   });
 
   describe('idempotency', () => {
+    it('replaces text with the latest full snapshot and ignores older snapshot seq values', async () => {
+      const h = createHarness({
+        assistantMessageId: 'asst-1',
+        operationId: 'op-1',
+        topicId: 'topic-1',
+      });
+
+      await h.handler.ingest({
+        events: [
+          buildEvent('stream_chunk', 0, {
+            chunkType: 'text',
+            content: 'hello world',
+            snapshotMode: 'replace',
+            snapshotSeq: 2,
+          }),
+        ],
+        operationId: 'op-1',
+        topicId: 'topic-1',
+      });
+
+      await h.handler.ingest({
+        events: [
+          buildEvent(
+            'stream_chunk',
+            0,
+            {
+              chunkType: 'text',
+              content: 'hello',
+              snapshotMode: 'replace',
+              snapshotSeq: 1,
+            },
+            1_700_000_000_999,
+          ),
+        ],
+        operationId: 'op-1',
+        topicId: 'topic-1',
+      });
+
+      const asst = h.messages.get('asst-1')!;
+      expect(asst.content).toBe('hello world');
+      expect(asst.metadata?.heteroTextSnapshotSeq).toBe(2);
+    });
+
     it('drops events with the same (stepIndex, type, timestamp, dataFingerprint) key', async () => {
       const h = createHarness({
         assistantMessageId: 'asst-1',
@@ -347,7 +439,7 @@ describe('HeterogeneousPersistenceHandler', () => {
 
       const evt = buildEvent('step_complete', 0, {
         phase: 'turn_metadata',
-        usage: { inputTokens: 1 },
+        usage: { totalInputTokens: 1, totalOutputTokens: 0, totalTokens: 1 },
       });
 
       // First attempt: handler throws.
@@ -361,7 +453,9 @@ describe('HeterogeneousPersistenceHandler', () => {
       await h.handler.ingest({ events: [evt], operationId: 'op-1', topicId: 'topic-1' });
 
       const asst = h.messages.get('asst-1')!;
-      expect(asst.metadata).toEqual({ usage: { inputTokens: 1 } });
+      expect(asst.metadata).toEqual({
+        usage: { totalInputTokens: 1, totalOutputTokens: 0, totalTokens: 1 },
+      });
     });
   });
 
@@ -614,7 +708,7 @@ describe('HeterogeneousPersistenceHandler', () => {
             model: 'claude-sonnet-4-6',
             phase: 'turn_metadata',
             provider: 'claude-code',
-            usage: { inputTokens: 10, outputTokens: 5 },
+            usage: { totalInputTokens: 10, totalOutputTokens: 5, totalTokens: 15 },
           }),
         ],
         operationId: 'op-1',
@@ -625,7 +719,7 @@ describe('HeterogeneousPersistenceHandler', () => {
       // carry model/provider so a replica picking up the next step boundary
       // can read them back from DB even if it never drained this event.
       expect(h.messageModel.update).toHaveBeenCalledWith('asst-init', {
-        metadata: { usage: { inputTokens: 10, outputTokens: 5 } },
+        metadata: { usage: { totalInputTokens: 10, totalOutputTokens: 5, totalTokens: 15 } },
         model: 'claude-sonnet-4-6',
         provider: 'claude-code',
       });
@@ -834,6 +928,72 @@ describe('HeterogeneousPersistenceHandler', () => {
       // Thread status updated
       const thread = h.threads.get(threadId)!;
       expect(thread.status).toBeDefined();
+    });
+
+    it('writes subagent usage + model onto the in-thread assistant, and finalize only flips status', async () => {
+      const h = createHarness({
+        assistantMessageId: 'asst-1',
+        operationId: 'op-1',
+        topicId: 'topic-1',
+      });
+
+      const subagentCtx = {
+        parentToolCallId: 'tc-spawn-1',
+        spawnMetadata: { prompt: 'p', subagentType: 'Explore' },
+        subagentMessageId: 'sub-1',
+      };
+
+      await h.handler.ingest({
+        events: [
+          buildEvent('stream_chunk', 0, {
+            chunkType: 'text',
+            content: 'working',
+            subagent: subagentCtx,
+          }),
+          buildEvent('stream_chunk', 1, {
+            chunkType: 'tools_calling',
+            subagent: subagentCtx,
+            toolsCalling: [
+              {
+                apiName: 'Bash',
+                arguments: '{}',
+                id: 'tc-child',
+                identifier: 'bash',
+                type: 'default',
+              },
+            ],
+          }),
+          // Subagent turn_metadata carries the authoritative per-turn usage + model.
+          buildEvent('step_complete', 2, {
+            model: 'claude-opus-4-8',
+            phase: 'turn_metadata',
+            provider: 'claude-code',
+            subagent: subagentCtx,
+            usage: { totalInputTokens: 10, totalOutputTokens: 5, totalTokens: 15 },
+          }),
+          buildEvent('tool_result', 3, { content: 'final', toolCallId: 'tc-spawn-1' }),
+        ],
+        operationId: 'op-1',
+        topicId: 'topic-1',
+      });
+
+      const threadId = [...h.threads.keys()][0];
+      const thread = h.threads.get(threadId)!;
+      // Metrics are NOT denormalized onto metadata — derived on read instead.
+      expect(thread.metadata?.totalTokens).toBeUndefined();
+      expect(thread.metadata?.totalToolCalls).toBeUndefined();
+      // Create-time peer fields untouched; finalize only flips status.
+      expect(thread.metadata?.sourceToolCallId).toBe('tc-spawn-1');
+      expect(thread.metadata?.subagentType).toBe('Explore');
+      expect(thread.status).toBe(ThreadStatus.Active);
+
+      // The in-thread assistant got usage + model written — the rows the
+      // read-time aggregation later sums over.
+      const threadAssts = [...h.messages.values()].filter(
+        (m) => m.threadId === threadId && m.role === 'assistant',
+      );
+      const withUsage = threadAssts.find((m) => m.metadata?.usage?.totalTokens === 15);
+      expect(withUsage?.model).toBe('claude-opus-4-8');
     });
   });
 

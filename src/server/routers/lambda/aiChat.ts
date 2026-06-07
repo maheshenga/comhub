@@ -1,6 +1,11 @@
+import { randomUUID } from 'node:crypto';
+
+import { getErrorCodeSpec } from '@lobechat/model-runtime';
 import type { CreateMessageParams, SendMessageServerResponse } from '@lobechat/types';
 import { AiSendMessageServerSchema, RequestTrigger, StructureOutputSchema } from '@lobechat/types';
 import { createTimingHelpers, createTimingRequestId } from '@lobechat/utils';
+import { TRPCError } from '@trpc/server';
+import { getStatusKeyFromCode } from '@trpc/server/unstable-core-do-not-import';
 import debug from 'debug';
 import { z } from 'zod';
 
@@ -11,9 +16,9 @@ import { ThreadModel } from '@/database/models/thread';
 import { TopicModel } from '@/database/models/topic';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { resolveContext } from '@/server/routers/lambda/_helpers/resolveContext';
 import { AiChatService } from '@/server/services/aiChat';
+import { AiGenerationService } from '@/server/services/aiGeneration';
 import { FileService } from '@/server/services/file';
 import { archiveToolResultIfNeeded } from '@/server/services/toolExecution/archiveToolResult';
 
@@ -22,6 +27,38 @@ const { createPrefixedTimingContext, logTiming, runTimedStage } = createTimingHe
   'lobe-server:chat:lobehub:timing',
 );
 
+type TRPCErrorCode = ConstructorParameters<typeof TRPCError>[0]['code'];
+type TRPCStatusCode = Parameters<typeof getStatusKeyFromCode>[0];
+
+const getRuntimeErrorType = (error: unknown): string | undefined => {
+  if (!error || typeof error !== 'object') return;
+
+  const errorType = (error as { errorType?: unknown }).errorType;
+  return typeof errorType === 'string' ? errorType : undefined;
+};
+
+const getTRPCErrorCodeFromStatus = (status: number): TRPCErrorCode => {
+  const code = getStatusKeyFromCode(status as TRPCStatusCode) as TRPCErrorCode;
+  if (code !== 'INTERNAL_SERVER_ERROR' || status === 500) return code;
+
+  if (status >= 500) return 'INTERNAL_SERVER_ERROR';
+  if (status >= 400) return 'BAD_REQUEST';
+
+  return 'INTERNAL_SERVER_ERROR';
+};
+
+const createRuntimeTRPCError = (error: unknown): TRPCError | undefined => {
+  const errorType = getRuntimeErrorType(error);
+  const spec = getErrorCodeSpec(errorType);
+  if (!errorType || !spec) return;
+
+  return new TRPCError({
+    cause: error,
+    code: getTRPCErrorCodeFromStatus(spec.httpStatus),
+    message: errorType,
+  });
+};
+
 const aiChatProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
 
@@ -29,6 +66,7 @@ const aiChatProcedure = authedProcedure.use(serverDatabase).use(async (opts) => 
     ctx: {
       agentModel: new AgentModel(ctx.serverDB, ctx.userId),
       aiChatService: new AiChatService(ctx.serverDB, ctx.userId),
+      aiGenerationService: new AiGenerationService(ctx.serverDB, ctx.userId),
       fileService: new FileService(ctx.serverDB, ctx.userId),
       messageModel: new MessageModel(ctx.serverDB, ctx.userId),
       threadModel: new ThreadModel(ctx.serverDB, ctx.userId),
@@ -43,23 +81,41 @@ export const aiChatRouter = router({
     log('messages count: %d', input.messages.length);
     log('schema: %O', input.schema);
 
-    log('initializing model runtime from DB with provider: %s', input.provider);
-    // Read user's provider config from database
-    const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, input.provider);
+    // Pre-allocate the tracing row id so we can return it to the client even
+    // though the actual `service.record()` call happens in Next's `after()`
+    // (after the response has been sent). Honour the caller-supplied id when
+    // one was passed via `tracing.tracingId` — the schema already validates
+    // it as UUID, so a malformed value never reaches here.
+    const tracingId = input.tracing?.tracingId ?? randomUUID();
 
-    log('calling generateObject');
-    const result = await modelRuntime.generateObject(
-      {
-        messages: input.messages,
-        model: input.model,
-        schema: input.schema,
-        tools: input.tools,
-      },
-      { metadata: { trigger: RequestTrigger.Chat } },
-    );
+    // Always stamp a trigger on metadata so cross-cutting hooks (timing,
+    // routing) and the tracing registry have a fallback when the caller
+    // forgets to set one. `tracing` carries the structured tracing config
+    // (scenario / promptVersion / schemaName / inputHint / ...).
+    let data: unknown;
+    try {
+      data = await ctx.aiGenerationService.generateObject(
+        {
+          messages: input.messages,
+          model: input.model,
+          provider: input.provider,
+          schema: input.schema,
+          tools: input.tools,
+        },
+        {
+          metadata: { trigger: RequestTrigger.Chat, ...input.metadata },
+          tracing: { ...input.tracing, tracingId },
+        },
+      );
+    } catch (error) {
+      const runtimeTRPCError = createRuntimeTRPCError(error);
+      if (runtimeTRPCError) throw runtimeTRPCError;
 
-    log('generateObject completed, result: %O', result);
-    return result;
+      throw error;
+    }
+
+    log('generateObject completed, result: %O', data);
+    return { data, tracingId };
   }),
 
   sendMessageInServer: aiChatProcedure
