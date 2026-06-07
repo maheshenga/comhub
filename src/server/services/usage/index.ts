@@ -45,6 +45,7 @@ export class UsageRecordService {
         provider: messages.provider,
         role: messages.role,
         updatedAt: messages.createdAt,
+        usage: messages.usage,
         userId: messages.userId,
       })
       .from(messages)
@@ -60,16 +61,29 @@ export class UsageRecordService {
     const messageIdsWithoutCost = spends
       .filter((spend) => {
         const metadata = spend.metadata as MessageMetadata | null;
-        return typeof metadata?.cost !== 'number' || metadata.cost <= 0;
+        const usage = spend.usage ?? metadata?.usage;
+        const hasUsageCost = typeof usage?.cost === 'number' && usage.cost > 0;
+        const hasMetadataCost = typeof metadata?.cost === 'number' && metadata.cost > 0;
+
+        return !hasUsageCost && !hasMetadataCost;
       })
       .map((spend) => spend.id);
     const ledgerSpendMap = await this.findAssistantMessageLedgerSpend(messageIdsWithoutCost);
 
     const chatSpends = spends.map((spend) => {
-      const metadata = spend.metadata as MessageMetadata;
+      const metadata = spend.metadata as MessageMetadata | null;
+      // Prefer the dedicated `usage` column, then the canonical nested
+      // `metadata.usage` / `metadata.performance` shapes, falling back to the
+      // deprecated flat fields for messages written before the migration.
+      const usage = spend.usage ?? metadata?.usage;
+      const performance = metadata?.performance;
+      const usageCost =
+        typeof usage?.cost === 'number' && usage.cost > 0 ? usage.cost : undefined;
       const metadataCost =
         typeof metadata?.cost === 'number' && metadata.cost > 0 ? metadata.cost : undefined;
       const ledgerCost = ledgerSpendMap.get(spend.id);
+      const totalInputTokens = usage?.totalInputTokens ?? metadata?.totalInputTokens ?? 0;
+      const totalOutputTokens = usage?.totalOutputTokens ?? metadata?.totalOutputTokens ?? 0;
 
       return {
         createdAt: spend.createdAt,
@@ -77,12 +91,12 @@ export class UsageRecordService {
         metadata: spend.metadata,
         model: spend.model,
         provider: spend.provider,
-        spend: metadataCost ?? ledgerCost ?? metadata?.cost ?? 0,
-        totalInputTokens: metadata?.totalInputTokens || 0,
-        totalOutputTokens: metadata?.totalOutputTokens || 0,
-        totalTokens: (metadata?.totalInputTokens || 0) + (metadata?.totalOutputTokens || 0),
-        tps: metadata?.tps || 0,
-        ttft: metadata?.ttft || 0,
+        spend: usageCost ?? metadataCost ?? ledgerCost ?? usage?.cost ?? metadata?.cost ?? 0,
+        totalInputTokens,
+        totalOutputTokens,
+        totalTokens: totalInputTokens + totalOutputTokens,
+        tps: performance?.tps ?? metadata?.tps ?? 0,
+        ttft: performance?.ttft ?? metadata?.ttft ?? 0,
         type: 'chat',
         updatedAt: spend.createdAt,
         userId: spend.userId,

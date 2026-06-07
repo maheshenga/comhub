@@ -63,6 +63,10 @@ vi.mock('@/server/modules/S3', () => ({
     getFileMetadata: vi.fn().mockResolvedValue({ contentLength: 1024, contentType: 'image/png' }),
     deleteFile: vi.fn().mockResolvedValue({}),
     deleteFiles: vi.fn().mockResolvedValue({}),
+    createPreSignedUpload: vi.fn().mockResolvedValue({
+      headers: { 'x-amz-acl': 'public-read' },
+      url: 'https://upload.example.com/test.jpg',
+    }),
     createPreSignedUrl: vi.fn().mockResolvedValue('https://upload.example.com/test.jpg'),
     uploadContent: vi.fn().mockResolvedValue({}),
     uploadMedia: vi.fn().mockResolvedValue({}),
@@ -265,6 +269,30 @@ describe('S3StaticFileImpl', () => {
     });
   });
 
+  describe('createCachedPreSignedUrlForPreview', () => {
+    it('should return empty string for null or undefined input', async () => {
+      expect(await fileService.createCachedPreSignedUrlForPreview(null)).toBe('');
+      expect(await fileService.createCachedPreSignedUrlForPreview(undefined)).toBe('');
+    });
+
+    it('should always return a cached presigned preview URL even when public URLs are available', async () => {
+      const fullUrl = 'https://s3.example.com/bucket/path/to/proxy-only-file.jpg';
+      const createPreSignedUrlForPreview = fileService['s3'].createPreSignedUrlForPreview;
+
+      vi.spyOn(fileService, 'getKeyFromFullUrl').mockResolvedValue('path/to/proxy-only-file.jpg');
+
+      await expect(fileService.createCachedPreSignedUrlForPreview(fullUrl, 300)).resolves.toBe(
+        'https://presigned.example.com/test.jpg',
+      );
+      await expect(fileService.createCachedPreSignedUrlForPreview(fullUrl, 300)).resolves.toBe(
+        'https://presigned.example.com/test.jpg',
+      );
+
+      expect(fileService.getKeyFromFullUrl).toHaveBeenCalledWith(fullUrl);
+      expect(createPreSignedUrlForPreview).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('getFileContent', () => {
     it('应该返回文件内容', async () => {
       expect(await fileService.getFileContent('test.txt')).toBe('file content');
@@ -297,6 +325,18 @@ describe('S3StaticFileImpl', () => {
     it('应该调用S3的createPreSignedUrl方法', async () => {
       const result = await fileService.createPreSignedUrl('test.jpg');
       expect(result).toBe('https://upload.example.com/test.jpg');
+    });
+  });
+
+  describe('createPreSignedUpload', () => {
+    it('should call S3 createPreSignedUpload and return upload headers', async () => {
+      const result = await fileService.createPreSignedUpload('test.jpg');
+
+      expect(fileService['s3'].createPreSignedUpload).toHaveBeenCalledWith('test.jpg');
+      expect(result).toEqual({
+        headers: { 'x-amz-acl': 'public-read' },
+        url: 'https://upload.example.com/test.jpg',
+      });
     });
   });
 

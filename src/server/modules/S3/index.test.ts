@@ -516,6 +516,53 @@ describe('FileS3', () => {
     });
   });
 
+  describe('createPreSignedUpload', () => {
+    it('should return upload headers required by the signed PUT request', async () => {
+      const s3 = new FileS3();
+
+      const result = await s3.createPreSignedUpload('upload-file.txt');
+
+      expect(PutObjectCommand).toHaveBeenCalledWith({
+        ACL: 'public-read',
+        Bucket: 'test-bucket',
+        Key: 'upload-file.txt',
+      });
+      expect(result).toEqual({
+        headers: { 'x-amz-acl': 'public-read' },
+        url: 'https://presigned-url.example.com',
+      });
+    });
+
+    it('should use admin-managed S3 config for presigned upload descriptors', async () => {
+      vi.mocked(getServerFileS3Config).mockResolvedValueOnce({
+        accessKeyId: 'admin-access-key',
+        bucket: 'admin-bucket',
+        enablePathStyle: true,
+        endpoint: 'https://admin-s3.example.com',
+        filePath: 'admin-files',
+        previewUrlExpireIn: 1800,
+        publicDomain: 'https://cdn.example.com',
+        region: 'ap-southeast-1',
+        secretAccessKey: 'admin-secret-key',
+        setAcl: false,
+      });
+
+      const s3 = new FileS3();
+
+      const result = await s3.createPreSignedUpload('upload-file.txt');
+
+      expect(PutObjectCommand).toHaveBeenCalledWith({
+        ACL: undefined,
+        Bucket: 'admin-bucket',
+        Key: 'upload-file.txt',
+      });
+      expect(result).toEqual({
+        headers: undefined,
+        url: 'https://presigned-url.example.com',
+      });
+    });
+  });
+
   describe('createPreSignedUrlForPreview', () => {
     it('should create presigned URL for preview with default expiration', async () => {
       const s3 = new FileS3();

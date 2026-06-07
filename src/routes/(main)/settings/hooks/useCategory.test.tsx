@@ -2,10 +2,58 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsTabs } from '@/store/global/initialState';
-import { ServerConfigStoreProvider } from '@/store/serverConfig/Provider';
 import { useUserStore } from '@/store/user';
 
 import { useCategory } from './useCategory';
+
+const userStoreMock = vi.hoisted(() => {
+  const initialState = {
+    enableExecutionDeviceSwitcher: false,
+    isSignedIn: false,
+    settings: {
+      general: {
+        isDevMode: false,
+      },
+    },
+    user: undefined as any,
+  };
+  let state: typeof initialState = { ...initialState };
+  const useStore = ((selector: (state: typeof initialState) => unknown) => selector(state)) as any;
+
+  useStore.getState = () => state;
+  useStore.setState = (patch: Partial<typeof state>, replace?: boolean) => {
+    state = replace ? ({ ...patch } as typeof state) : { ...state, ...patch };
+  };
+
+  return { initialState, useStore };
+});
+
+const serverConfigMock = vi.hoisted(() => {
+  const initialState = {
+    enableBusinessFeatures: true,
+    featureFlags: {
+      hideDocs: false,
+      showApiKeyManage: false,
+      showProvider: true,
+    },
+    isMobile: false,
+  };
+  let state: typeof initialState = {
+    ...initialState,
+    featureFlags: { ...initialState.featureFlags },
+  };
+  const useStore = ((selector: (state: typeof initialState) => unknown) => selector(state)) as any;
+
+  return {
+    reset: () => {
+      state = { ...initialState, featureFlags: { ...initialState.featureFlags } };
+    },
+    setShowProvider: (showProvider: boolean) => {
+      state = { ...state, featureFlags: { ...state.featureFlags, showProvider } };
+    },
+    useStore,
+  };
+});
 
 const localStorageMock = vi.hoisted(() => {
   const store = new Map<string, string>();
@@ -35,9 +83,55 @@ const localStorageMock = vi.hoisted(() => {
   return storage;
 });
 
-const wrapper: React.JSXElementConstructor<{ children: React.ReactNode }> = ({ children }) => (
-  <ServerConfigStoreProvider>{children}</ServerConfigStoreProvider>
-);
+vi.mock('@/store/user', () => ({
+  useUserStore: userStoreMock.useStore,
+}));
+
+vi.mock('@/store/user/selectors', () => ({
+  labPreferSelectors: {
+    enableExecutionDeviceSwitcher: (s: typeof userStoreMock.initialState) =>
+      Boolean(s.enableExecutionDeviceSwitcher),
+  },
+}));
+
+vi.mock('@/store/user/slices/auth/selectors', () => ({
+  userProfileSelectors: {
+    nickName: (s: typeof userStoreMock.initialState) => s.user?.username,
+    userAvatar: (s: typeof userStoreMock.initialState) => s.user?.avatar,
+    userProfile: (s: typeof userStoreMock.initialState) => s.user,
+  },
+}));
+
+vi.mock('@/store/user/slices/settings/selectors', () => ({
+  userGeneralSettingsSelectors: {
+    config: (s: typeof userStoreMock.initialState) => s.settings.general,
+  },
+}));
+
+vi.mock('@/store/electron', () => ({
+  useElectronStore: (selector: (state: { remoteServerUrl?: string }) => unknown) =>
+    selector({ remoteServerUrl: undefined }),
+}));
+
+vi.mock('@/store/electron/selectors', () => ({
+  electronSyncSelectors: {
+    remoteServerUrl: (s: { remoteServerUrl?: string }) => s.remoteServerUrl,
+  },
+}));
+
+vi.mock('@/store/serverConfig', () => ({
+  featureFlagsSelectors: (s: {
+    featureFlags: {
+      hideDocs: boolean;
+      showApiKeyManage: boolean;
+      showProvider: boolean;
+    };
+  }) => s.featureFlags,
+  serverConfigSelectors: {
+    enableBusinessFeatures: (s: { enableBusinessFeatures: boolean }) => s.enableBusinessFeatures,
+  },
+  useServerConfigStore: serverConfigMock.useStore,
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -48,14 +142,32 @@ vi.mock('react-i18next', () => ({
 const hasAdminItem = (groups: ReturnType<typeof useCategory>) =>
   groups.some((group) => group.items.some((item) => item.key === SettingsTabs.Admin));
 
+const getItemKeys = (showProvider = true) => {
+  serverConfigMock.setShowProvider(showProvider);
+  const { result } = renderHook(() => useCategory());
+
+  return result.current.flatMap((group) => group.items.map((item) => item.key));
+};
+
+const initialUserStoreState = useUserStore.getState();
+
 afterEach(() => {
   localStorageMock.clear();
+  serverConfigMock.reset();
   act(() => {
-    useUserStore.setState({ isSignedIn: false, user: undefined });
+    useUserStore.setState(initialUserStoreState, true);
   });
 });
 
 describe('settings useCategory', () => {
+  it('keeps Provider visible when provider settings are enabled', () => {
+    expect(getItemKeys()).toContain(SettingsTabs.Provider);
+  });
+
+  it('hides Provider when provider settings are disabled', () => {
+    expect(getItemKeys(false)).not.toContain(SettingsTabs.Provider);
+  });
+
   it('hides admin settings entry for non-admin users', () => {
     act(() => {
       useUserStore.setState({
@@ -64,7 +176,7 @@ describe('settings useCategory', () => {
       });
     });
 
-    const { result } = renderHook(() => useCategory(), { wrapper });
+    const { result } = renderHook(() => useCategory());
 
     expect(hasAdminItem(result.current)).toBe(false);
   });
@@ -77,7 +189,7 @@ describe('settings useCategory', () => {
       });
     });
 
-    const { result } = renderHook(() => useCategory(), { wrapper });
+    const { result } = renderHook(() => useCategory());
 
     expect(hasAdminItem(result.current)).toBe(true);
   });

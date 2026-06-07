@@ -19,7 +19,6 @@ import {
 import { taskRouteMeta, tasksRouteMeta } from '@/features/AgentTasks/routeMeta';
 import { pageRouteMeta } from '@/features/Pages/routeMeta';
 import { agentRouteMeta } from '@/routes/(main)/agent/features/routeMeta';
-import { agentTopicPageRouteMeta } from '@/routes/(main)/agent/features/topicPageRouteMeta';
 import { groupRouteMeta } from '@/routes/(main)/group/features/routeMeta';
 import { settingsRouteMeta } from '@/routes/(main)/settings/features/routeMeta';
 import { routeMeta } from '@/spa/router/routeMeta';
@@ -48,34 +47,8 @@ export const desktopRoutes: RouteObject[] = [
                     index: true,
                   },
                   {
-                    children: [
-                      {
-                        element: agentChatElement,
-                        handle: { meta: agentRouteMeta },
-                        index: true,
-                      },
-                      {
-                        children: [
-                          {
-                            element: dynamicElement(
-                              () => import('@/routes/(main)/agent/[topicId]/page'),
-                              'Desktop > Chat > Topic > Page > Redirect',
-                            ),
-                            handle: { meta: agentTopicPageRouteMeta },
-                            index: true,
-                          },
-                          {
-                            element: dynamicElement(
-                              () => import('@/routes/(main)/agent/[topicId]/page/[docId]'),
-                              'Desktop > Chat > Topic > Page > Doc',
-                            ),
-                            handle: { meta: agentTopicPageRouteMeta },
-                            path: ':docId',
-                          },
-                        ],
-                        path: 'page',
-                      },
-                    ],
+                    element: agentChatElement,
+                    handle: { meta: agentRouteMeta },
                     path: ':topicId',
                   },
                 ],
@@ -83,13 +56,6 @@ export const desktopRoutes: RouteObject[] = [
                   () => import('@/routes/(main)/agent/(chat)/_layout'),
                   'Desktop > Chat > ChatLayout',
                 ),
-              },
-              {
-                element: dynamicElement(
-                  () => import('@/routes/(main)/agent/page'),
-                  'Desktop > Chat > Invalid Page Redirect',
-                ),
-                path: 'page',
               },
               {
                 element: dynamicElement(
@@ -104,6 +70,13 @@ export const desktopRoutes: RouteObject[] = [
                   'Desktop > Chat > Channel',
                 ),
                 path: 'channel',
+              },
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/agent/topics'),
+                  'Desktop > Chat > Topics',
+                ),
+                path: 'topics',
               },
               {
                 element: dynamicElement(
@@ -771,6 +744,17 @@ export const desktopRoutes: RouteObject[] = [
       'Desktop > Share > Topic > Layout',
     ),
     path: '/share/t',
+  },
+
+  // Share page route (outside main layout)
+  {
+    children: [
+      {
+        element: dynamicElement(() => import('@/routes/share/page/[id]'), 'Desktop > Share > Page'),
+        path: ':id',
+      },
+    ],
+    path: '/share/page',
   },
 
   // Devtools route (outside main layout, dev-only)

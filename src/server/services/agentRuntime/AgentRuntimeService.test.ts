@@ -5,6 +5,8 @@ import { getModelPropertyWithFallback } from '@lobechat/model-runtime';
 import type * as ModelBankModule from 'model-bank';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AgentOperationModel } from '@/database/models/agentOperation';
+
 import { AgentRuntimeService } from './AgentRuntimeService';
 import { hookDispatcher } from './hooks';
 import {
@@ -15,6 +17,12 @@ import {
 
 vi.mock('@lobechat/model-runtime', () => ({
   getModelPropertyWithFallback: vi.fn(),
+  // `llmErrorClassification.ts` reads these at module-load time; an empty
+  // spec map is fine here because this suite never exercises the runtime
+  // retry classifier path.
+  ERROR_CODE_SPECS: {},
+  getErrorCodeSpec: () => undefined,
+  refineErrorCode: () => undefined,
 }));
 
 // Mock trusted client to avoid server-side env access
@@ -94,6 +102,14 @@ vi.mock('@lobechat/agent-runtime', () => ({
   AgentRuntime: vi.fn().mockImplementation((_agent, _options) => ({
     step: vi.fn(),
   })),
+  // Mirror the real status predicates (packages/agent-runtime/src/utils/status.ts)
+  // so completion-lifecycle / getOperationStatus paths don't crash on the mock.
+  isBlockedStatus: (status: string) =>
+    status === 'waiting_for_human' ||
+    status === 'waiting_for_async_tool' ||
+    status === 'interrupted',
+  isParkedStatus: (status: string) =>
+    status === 'waiting_for_human' || status === 'waiting_for_async_tool',
 }));
 
 vi.mock('@/server/services/queue', () => ({
@@ -1476,6 +1492,137 @@ describe('AgentRuntimeService', () => {
 
       expect(result).toBe(false);
       expect(mockCoordinator.saveAgentState).not.toHaveBeenCalled();
+    });
+  });
+
+  // Stream events at step / operation boundaries should carry the canonical
+  // UIChatMessage[] snapshot so the client can use the pushed payload as
+  // Source of Truth instead of refetching from DB.
+  describe('queryUiMessages', () => {
+    const stubMessageService = (svc: any, queryMessages: ReturnType<typeof vi.fn>) => {
+      svc.messageServiceInstance = { queryMessages };
+    };
+
+    it('returns messageService.queryMessages result when agentId + topicId are present', async () => {
+      const stubMessages = [{ id: 'msg_x', role: 'user' }];
+      const queryMessages = vi.fn().mockResolvedValue(stubMessages);
+      stubMessageService(service, queryMessages);
+
+      const result = await service.queryUiMessages({
+        metadata: { agentId: 'agt_1', topicId: 'tpc_1' },
+      } as any);
+
+      expect(queryMessages).toHaveBeenCalledWith({ agentId: 'agt_1', topicId: 'tpc_1' });
+      expect(result).toEqual(stubMessages);
+    });
+
+    it('returns undefined when agentId or topicId is missing (skips empty-array push)', async () => {
+      const queryMessages = vi.fn();
+      stubMessageService(service, queryMessages);
+
+      const noAgent = await service.queryUiMessages({
+        metadata: { topicId: 'tpc_1' },
+      } as any);
+      const noTopic = await service.queryUiMessages({
+        metadata: { agentId: 'agt_1' },
+      } as any);
+      const noMeta = await service.queryUiMessages({} as any);
+
+      expect(noAgent).toBeUndefined();
+      expect(noTopic).toBeUndefined();
+      expect(noMeta).toBeUndefined();
+      expect(queryMessages).not.toHaveBeenCalled();
+    });
+
+    it('returns undefined and never throws when DB query fails (stream events must not fail the step)', async () => {
+      const queryMessages = vi.fn().mockRejectedValue(new Error('db down'));
+      stubMessageService(service, queryMessages);
+
+      const result = await service.queryUiMessages({
+        metadata: { agentId: 'agt_1', topicId: 'tpc_1' },
+      } as any);
+
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('tryResumeParentFromAsyncTool', () => {
+    const parentOpId = 'parent-op-async';
+
+    const fulfilledPlugin = { id: 'msg-tc1', state: { status: 'completed' }, toolCallId: 'tc1' };
+
+    const stubFulfilled = () => {
+      mockCoordinator.loadAgentState.mockResolvedValue({
+        pendingToolsCalling: [{ id: 'tc1' }],
+        status: 'waiting_for_async_tool',
+        stepCount: 3,
+      });
+      (service as any).serverDB.query = {
+        messagePlugins: { findFirst: vi.fn().mockResolvedValue(fulfilledPlugin) },
+      };
+      (service as any).messageModel.findById = vi.fn().mockResolvedValue({ content: 'answer' });
+    };
+
+    it('wins the CAS and schedules the resume step when all pending tools are fulfilled', async () => {
+      stubFulfilled();
+      const casSpy = vi
+        .spyOn(AgentOperationModel.prototype, 'tryResumeFromAsyncTool')
+        .mockResolvedValue(true);
+
+      const won = await service.tryResumeParentFromAsyncTool({ parentOperationId: parentOpId });
+
+      expect(won).toBe(true);
+      expect(casSpy).toHaveBeenCalledWith(parentOpId);
+      expect(mockQueueService.scheduleMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operationId: parentOpId,
+          payload: { resumeAsyncTool: true },
+          priority: 'high',
+          stepIndex: 3,
+        }),
+      );
+    });
+
+    it('holds (no CAS, no schedule) when a pending tool is not yet fulfilled', async () => {
+      mockCoordinator.loadAgentState.mockResolvedValue({
+        pendingToolsCalling: [{ id: 'tc1' }],
+        status: 'waiting_for_async_tool',
+        stepCount: 1,
+      });
+      (service as any).serverDB.query = {
+        messagePlugins: { findFirst: vi.fn().mockResolvedValue(null) },
+      };
+      const casSpy = vi.spyOn(AgentOperationModel.prototype, 'tryResumeFromAsyncTool');
+
+      const won = await service.tryResumeParentFromAsyncTool({ parentOperationId: parentOpId });
+
+      expect(won).toBe(false);
+      expect(casSpy).not.toHaveBeenCalled();
+      expect(mockQueueService.scheduleMessage).not.toHaveBeenCalled();
+    });
+
+    it('does not schedule when it loses the CAS to a concurrent sibling', async () => {
+      stubFulfilled();
+      vi.spyOn(AgentOperationModel.prototype, 'tryResumeFromAsyncTool').mockResolvedValue(false);
+
+      const won = await service.tryResumeParentFromAsyncTool({ parentOperationId: parentOpId });
+
+      expect(won).toBe(false);
+      expect(mockQueueService.scheduleMessage).not.toHaveBeenCalled();
+    });
+
+    it('skips when the parent is no longer parked', async () => {
+      mockCoordinator.loadAgentState.mockResolvedValue({
+        pendingToolsCalling: [],
+        status: 'running',
+        stepCount: 1,
+      });
+      const casSpy = vi.spyOn(AgentOperationModel.prototype, 'tryResumeFromAsyncTool');
+
+      const won = await service.tryResumeParentFromAsyncTool({ parentOperationId: parentOpId });
+
+      expect(won).toBe(false);
+      expect(casSpy).not.toHaveBeenCalled();
     });
   });
 });

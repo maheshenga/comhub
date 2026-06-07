@@ -1,5 +1,9 @@
 import { type GoogleGenAIOptions } from '@google/genai';
-import { ModelRuntime, type ModelRuntimeHooks } from '@lobechat/model-runtime';
+import {
+  mergeModelRuntimeHooks,
+  ModelRuntime,
+  type ModelRuntimeHooks,
+} from '@lobechat/model-runtime';
 import { LobeVertexAI } from '@lobechat/model-runtime/vertexai';
 import {
   type AWSBedrockKeyVault,
@@ -18,6 +22,7 @@ import { getBusinessModelRuntimeHooks } from '@/business/server/model-runtime';
 import { AiProviderModel } from '@/database/models/aiProvider';
 import { type LobeChatDatabase } from '@/database/type';
 import { getLLMConfig } from '@/envs/llm';
+import { createLLMGenerationTracingHook } from '@/server/services/llmGenerationTracing/hook';
 import {
   type AdminModelApiProviderType,
   buildNewapiRouteMetadata,
@@ -29,7 +34,7 @@ import {
 import { KeyVaultsGateKeeper } from '../KeyVaultsEncrypt';
 import apiKeyManager from './apiKeyManager';
 
-export { createTraceOptions } from './trace';
+export * from './trace';
 
 export interface NewapiFailoverInstance {
   apiKey: string;
@@ -547,8 +552,16 @@ export const initModelRuntimeFromDB = async (
     // Store fallback instances for failover (exclude primary which is already set)
     const fallbackInstances = resolvedInstances.slice(1);
 
-    // 4. Get business hooks (billing in cloud, undefined in OSS)
-    const hooks = getBusinessModelRuntimeHooks(userId, provider, buildNewapiRouteMetadata(primary));
+    // 4. Compose business billing hooks with llm_generation_tracing. The tracing
+    // hook is no-op when unconfigured, while business hooks receive NewAPI route
+    // metadata for group-aware billing.
+    const businessHooks = getBusinessModelRuntimeHooks(
+      userId,
+      provider,
+      buildNewapiRouteMetadata(primary),
+    );
+    const tracingHooks = createLLMGenerationTracingHook(userId, provider);
+    const hooks = mergeModelRuntimeHooks(businessHooks, tracingHooks);
 
     // 5. Initialize ModelRuntime with the payload and hooks
     const runtime = await initModelRuntimeWithUserPayload(
@@ -568,6 +581,8 @@ export const initModelRuntimeFromDB = async (
   }
 
   // Non-NewAPI providers: standard path
-  const hooks = getBusinessModelRuntimeHooks(userId, provider);
+  const businessHooks = getBusinessModelRuntimeHooks(userId, provider);
+  const tracingHooks = createLLMGenerationTracingHook(userId, provider);
+  const hooks = mergeModelRuntimeHooks(businessHooks, tracingHooks);
   return initModelRuntimeWithUserPayload(provider, payload, { userId }, hooks);
 };

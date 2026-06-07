@@ -25,6 +25,7 @@ export enum SidebarTabKey {
 }
 
 export enum ChatSettingsTabs {
+  Connector = 'connector',
   Opening = 'opening',
   Plugin = 'plugin',
   Prompt = 'prompt',
@@ -55,6 +56,7 @@ export enum SettingsTabs {
   Common = 'common',
   Credits = 'credits',
   Creds = 'creds',
+  Devices = 'devices',
   Hotkey = 'hotkey',
   /** @deprecated Use ServiceModel instead */
   Image = 'image',

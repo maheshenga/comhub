@@ -29,6 +29,7 @@ import { genServerAiProvidersConfig } from './genServerAiProviderConfig';
 import { parseAgentConfig } from './parseDefaultAgent';
 import { parseFilesConfig } from './parseFilesConfig';
 import { getPublicMemoryExtractionConfig } from './parseMemoryExtractionConfig';
+import { ADMIN_MANAGED_AI_PROVIDER, getProviderSpecificConfig } from './providerSpecificConfig';
 
 /**
  * Get Better-Auth SSO providers list
@@ -44,8 +45,6 @@ const getGenericNewapiParameters = (type: string) => {
   return undefined;
 };
 
-const ADMIN_MANAGED_AI_PROVIDER = 'newapi';
-
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
   const defaultAgentMeta = cleanObject({
@@ -55,65 +54,18 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const generationModelConfig = await getServerDefaultGenerationModelSettingOverrides(db);
   const userDefaults = await getServerUserGlobalSettingsDefaults(db);
   const s3Config = await getServerFileS3Config(db);
-  const aiProvider = await genServerAiProvidersConfig({
-    ...(ENABLE_BUSINESS_FEATURES
-      ? {
-          [ADMIN_MANAGED_AI_PROVIDER]: {
-            enabled: true,
-          },
-        }
-      : {}),
-    azure: {
-      enabledKey: 'ENABLED_AZURE_OPENAI',
-      withDeploymentName: true,
-    },
-    azureai: {
-      withDeploymentName: true,
-    },
-    bedrock: {
-      enabledKey: 'ENABLED_AWS_BEDROCK',
-      modelListKey: 'AWS_BEDROCK_MODEL_LIST',
-    },
-    deepseek: ENABLE_BUSINESS_FEATURES ? {} : { enabled: true },
-    giteeai: {
-      enabledKey: 'ENABLED_GITEE_AI',
-      modelListKey: 'GITEE_AI_MODEL_LIST',
-    },
-    kimicodingplan: {
-      withDeploymentName: true,
-    },
-    lmstudio: {
-      fetchOnClient: isDesktop ? false : undefined,
-    },
-    ollama: {
-      enabled: isDesktop ? true : undefined,
-      fetchOnClient: isDesktop ? false : !process.env.OLLAMA_PROXY_URL,
-    },
-    ollamacloud: {
-      enabledKey: 'ENABLED_OLLAMA_CLOUD',
-    },
-    qwen: {
-      withDeploymentName: true,
-    },
-    spark: {
-      withDeploymentName: true,
-    },
-    tencentcloud: {
-      enabledKey: 'ENABLED_TENCENT_CLOUD',
-      modelListKey: 'TENCENT_CLOUD_MODEL_LIST',
-    },
-    volcengine: {
-      withDeploymentName: true,
-    },
-    volcenginecodingplan: {
-      withDeploymentName: true,
-    },
-  });
+  const aiProvider = await genServerAiProvidersConfig(
+    getProviderSpecificConfig({
+      enableBusinessFeatures: ENABLE_BUSINESS_FEATURES,
+      isDesktop,
+      ollamaProxyUrl: process.env.OLLAMA_PROXY_URL,
+    }),
+  );
 
   if (ENABLE_BUSINESS_FEATURES) {
-    // ComHub business mode: the backend admin provider center is the authority.
-    // Keep upstream/env built-in providers visible to admins, but prevent them from
-    // becoming user runtime providers unless we explicitly opt them in here.
+    // ComHub business mode: backend admin provider settings are authoritative.
+    // Upstream/env built-in providers may still exist in generated config, but
+    // users must not see or call them unless ComHub explicitly opts them in.
     for (const [providerId, providerConfig] of Object.entries(aiProvider)) {
       if (providerId !== ADMIN_MANAGED_AI_PROVIDER) {
         aiProvider[providerId] = { ...providerConfig, enabled: false };
