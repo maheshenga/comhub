@@ -6,6 +6,7 @@ import { createAgentToolsEngine, createToolsEngine, getEnabledTools } from './in
 // Mock the store and helper dependencies
 vi.mock('@/store/tool', () => ({
   getToolStoreState: () => ({
+    connectors: [],
     builtinTools: [
       {
         identifier: 'search',
@@ -104,8 +105,8 @@ vi.mock('@/store/tool/selectors', () => ({
     getInstalledPluginById: (id: string) => mockGetInstalledPluginById(id),
     installedPluginManifestList: () => mockInstalledPluginManifestList(),
   },
-  klavisStoreSelectors: {
-    klavisAsLobeTools: () => [],
+  composioStoreSelectors: {
+    composioAsLobeTools: () => [],
   },
   lobehubSkillStoreSelectors: {
     lobehubSkillAsLobeTools: () => [],

@@ -13,6 +13,7 @@ import FileIcon from '@/components/FileIcon';
 import RepoIcon from '@/components/LibIcon';
 import TipGuide from '@/components/TipGuide';
 import { openAttachKnowledgeModal } from '@/features/LibraryModal';
+import { usePermission } from '@/hooks/usePermission';
 import { useVisualMediaUploadAbility } from '@/hooks/useVisualMediaUploadAbility';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors } from '@/store/agent/selectors';
@@ -75,7 +76,21 @@ const FileUpload = memo(() => {
     s.toggleKnowledgeBase,
   ]);
 
+  // Viewer doesn't have `file:upload` permission — backend would 403.
+  // Render the disabled paperclip with a tooltip so the entry stays visible
+  // (per disabled-not-hidden UX rule), but block the dropdown which would
+  // otherwise let users trigger the upload anyway.
+  const { allowed: canUpload, reason } = usePermission('create_content');
+
   if (!enableKnowledgeBase) return null;
+
+  if (!canUpload) {
+    return (
+      <Tooltip title={reason}>
+        <Action disabled icon={Paperclip} showTooltip={false} title={t('upload.action.tooltip')} />
+      </Tooltip>
+    );
+  }
 
   const uploadItems: ActionDropdownMenuItems = [
     {
@@ -91,7 +106,7 @@ const FileUpload = memo(() => {
           beforeUpload={async (file) => {
             setDropdownOpen(false);
             editor?.focus();
-            await upload([file]);
+            await upload([file], agentId);
 
             return false;
           }}
@@ -125,6 +140,7 @@ const FileUpload = memo(() => {
               message.error(
                 t('upload.validation.videoSizeExceeded', {
                   actualSize: validation.actualSize,
+                  maxSize: validation.maxSize,
                 }),
               );
               return false;
@@ -132,7 +148,7 @@ const FileUpload = memo(() => {
 
             setDropdownOpen(false);
             editor?.focus();
-            await upload([file]);
+            await upload([file], agentId);
 
             return false;
           }}
@@ -163,6 +179,7 @@ const FileUpload = memo(() => {
               message.error(
                 t('upload.validation.videoSizeExceeded', {
                   actualSize: validation.actualSize,
+                  maxSize: validation.maxSize,
                 }),
               );
               return false;
@@ -170,7 +187,7 @@ const FileUpload = memo(() => {
 
             setDropdownOpen(false);
             editor?.focus();
-            await upload([file]);
+            await upload([file], agentId);
 
             return false;
           }}

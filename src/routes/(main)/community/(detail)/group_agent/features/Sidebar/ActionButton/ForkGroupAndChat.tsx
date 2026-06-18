@@ -6,10 +6,11 @@ import { createStaticStyles } from 'antd-style';
 import { customAlphabet } from 'nanoid/non-secure';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import urlJoin from 'url-join';
 
 import { useBrand } from '@/features/Brand';
+import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { usePermission } from '@/hooks/usePermission';
 import { chatGroupService } from '@/services/chatGroup';
 import { discoverService } from '@/services/discover';
 import { useAgentGroupStore } from '@/store/agentGroup';
@@ -46,8 +47,9 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
   const { message } = App.useApp();
   const { t } = useTranslation('discover');
   const brand = useBrand();
-  const navigate = useNavigate();
+  const navigate = useWorkspaceAwareNavigate();
   const loadGroups = useAgentGroupStore((s) => s.loadGroups);
+  const { allowed: canCreate } = usePermission('create_content');
 
   const meta = {
     avatar,
@@ -58,6 +60,8 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
   };
 
   const handleForkAndChat = async () => {
+    if (!canCreate) return;
+
     try {
       setIsLoading(true);
 
@@ -193,6 +197,7 @@ const ForkGroupAndChat = memo<{ mobile?: boolean }>(() => {
     <Button
       block
       className={styles.buttonGroup}
+      disabled={!canCreate}
       loading={isLoading}
       size={'large'}
       type={'primary'}

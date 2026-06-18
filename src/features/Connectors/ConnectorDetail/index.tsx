@@ -1,6 +1,7 @@
+import { confirmModal } from '@lobehub/ui/base-ui';
 import { Button } from 'antd';
-import { RefreshCwIcon } from 'lucide-react';
-import { memo, useCallback } from 'react';
+import { PencilIcon, RefreshCwIcon, Trash2 } from 'lucide-react';
+import { memo, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ConnectorToolPermission } from '@/database/schemas';
@@ -8,14 +9,17 @@ import { ConnectorSourceType } from '@/database/schemas';
 import { useToolStore } from '@/store/tool';
 import { connectorSelectors } from '@/store/tool/slices/connector';
 
+import CustomConnectorModal from '../CustomConnectorModal';
 import ToolPermissionGroup from './ToolPermissionGroup';
 
 interface ConnectorDetailProps {
   connectorId: string;
+  onDelete?: () => void;
 }
 
-const ConnectorDetail = memo<ConnectorDetailProps>(({ connectorId }) => {
+const ConnectorDetail = memo<ConnectorDetailProps>(({ connectorId, onDelete }) => {
   const { t } = useTranslation('tool');
+  const [customModalOpen, setCustomModalOpen] = useState(false);
 
   const connector = useToolStore(connectorSelectors.connectorById(connectorId));
   const { readTools, createTools, updateTools, deleteTools } = useToolStore(
@@ -28,9 +32,15 @@ const ConnectorDetail = memo<ConnectorDetailProps>(({ connectorId }) => {
   const syncPluginTools = useToolStore((s) => s.syncPluginTools);
   const resetConnectorPermissions = useToolStore((s) => s.resetConnectorPermissions);
   const disconnectConnector = useToolStore((s) => s.disconnectConnector);
+  const deleteConnector = useToolStore((s) => s.deleteConnector);
+  const uninstallBuiltinTool = useToolStore((s) => s.uninstallBuiltinTool);
+  const uninstallMCPPlugin = useToolStore((s) => s.uninstallMCPPlugin);
+  const fetchConnectors = useToolStore((s) => s.fetchConnectors);
   const updateToolPermission = useToolStore((s) => s.updateToolPermission);
 
   const isMcpConnector = connector?.sourceType === ConnectorSourceType.custom;
+  const isBuiltin = connector?.sourceType === ConnectorSourceType.builtin;
+  const isMarketplace = connector?.sourceType === ConnectorSourceType.marketplace;
 
   const handleSync = useCallback(async () => {
     if (!connector) return;
@@ -42,6 +52,23 @@ const ConnectorDetail = memo<ConnectorDetailProps>(({ connectorId }) => {
       await syncConnectorTools(connectorId);
     }
   }, [connector, connectorId, syncBuiltinTool, syncPluginTools, syncConnectorTools]);
+
+  const handleUninstall = () => {
+    if (!connector) return;
+    confirmModal({
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        if (isBuiltin) {
+          await uninstallBuiltinTool(connector.identifier);
+        } else if (isMarketplace) {
+          await uninstallMCPPlugin(connector.identifier);
+        }
+        await deleteConnector(connectorId);
+        onDelete?.();
+      },
+      title: t('connector.uninstallConfirm', 'Uninstall this tool?'),
+    });
+  };
 
   if (!connector) return null;
 
@@ -88,9 +115,50 @@ const ConnectorDetail = memo<ConnectorDetailProps>(({ connectorId }) => {
           >
             {syncLabel}
           </Button>
+          {/* Edit button for custom MCP connectors — only http type has a server URL to edit */}
+          {isMcpConnector && connector?.mcpConnectionType === 'http' && (
+            <Button
+              icon={<PencilIcon size={14} />}
+              size="small"
+              onClick={() => setCustomModalOpen(true)}
+            >
+              {t('connector.edit', 'Edit')}
+            </Button>
+          )}
+          {/* Disconnect / Delete for custom MCP connectors */}
           {isMcpConnector && (
-            <Button danger size="small" onClick={() => disconnectConnector(connectorId)}>
-              {t('connector.disconnect', 'Disconnect')}
+            <>
+              <Button danger size="small" onClick={() => disconnectConnector(connectorId)}>
+                {t('connector.disconnect', 'Disconnect')}
+              </Button>
+              <Button
+                danger
+                icon={<Trash2 size={14} />}
+                size="small"
+                onClick={() => {
+                  confirmModal({
+                    okButtonProps: { danger: true },
+                    onOk: async () => {
+                      await deleteConnector(connectorId);
+                      onDelete?.();
+                    },
+                    title: t('connector.deleteConfirm', 'Delete this connector?'),
+                  });
+                }}
+              >
+                {t('connector.delete', 'Delete')}
+              </Button>
+            </>
+          )}
+          {/* Uninstall for builtin and marketplace tools */}
+          {(isBuiltin || isMarketplace) && (
+            <Button
+              danger
+              icon={<Trash2 size={14} />}
+              size="small"
+              onClick={handleUninstall}
+            >
+              {t('connector.uninstall', 'Uninstall')}
             </Button>
           )}
         </div>
@@ -141,6 +209,18 @@ const ConnectorDetail = memo<ConnectorDetailProps>(({ connectorId }) => {
         <div style={{ color: 'var(--lobe-colors-neutral-500)', fontSize: 14 }}>
           {t('connector.noTools', 'No tool permissions to configure.')}
         </div>
+      )}
+
+      {/* Edit modal — only http connectors have a server URL to edit */}
+      {isMcpConnector && connector?.mcpConnectionType === 'http' && (
+        <CustomConnectorModal
+          connectorId={connectorId}
+          open={customModalOpen}
+          onClose={() => setCustomModalOpen(false)}
+          onEditSuccess={() => {
+            fetchConnectors();
+          }}
+        />
       )}
     </div>
   );

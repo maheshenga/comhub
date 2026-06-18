@@ -40,8 +40,8 @@ const alias = {
   '@/utils/env': resolve(__dirname, './packages/utils/src/env.ts'),
   '@/utils/markdownToTxt': resolve(__dirname, './src/utils/markdownToTxt'),
   '@/utils/sanitizeFileName': resolve(__dirname, './src/utils/sanitizeFileName'),
-  '@/libs/trpc/client/lambda': resolve(__dirname, './src/libs/trpc/client/lambda.ts'),
-  '@/libs/trpc/client': resolve(__dirname, './src/libs/trpc/client/index.ts'),
+  '@/libs/trpc/client/lambda': resolve(__dirname, './packages/trpc/src/client/lambda.ts'),
+  '@/libs/trpc/client': resolve(__dirname, './packages/trpc/src/client/index.ts'),
   '@/locales/default/subscription': resolve(__dirname, './src/locales/default/subscription.ts'),
   '@/store/user/selectors': resolve(__dirname, './src/store/user/selectors.ts'),
   '@/store/user/slices/auth/selectors': resolve(
@@ -54,6 +54,10 @@ const alias = {
   ),
   '@/store/user/store': resolve(__dirname, './src/store/user/store.ts'),
   '@/store/user': resolve(__dirname, './src/store/user/index.ts'),
+  // Workspace store lives in the cloud repo; submodule-only tests get a stub
+  // that reports no active workspace so workspace-aware nav helpers behave
+  // like plain react-router.
+  '@/store/workspace': resolve(__dirname, './tests/mocks/storeWorkspace.ts'),
   '~test-utils': resolve(__dirname, './tests/utils.tsx'),
   'lru_map': resolve(__dirname, './tests/mocks/lru_map'),
 };

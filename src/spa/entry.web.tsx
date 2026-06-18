@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router-dom';
 
 import BootErrorBoundary from '@/components/BootErrorBoundary';
 import { BrandProvider } from '@/features/Brand';
+import NextThemeProvider from '@/layout/GlobalProvider/NextThemeProvider';
 import { createAppRouter } from '@/utils/router';
 
 import { desktopRoutes } from './router/desktopRouter.config';
@@ -19,8 +20,10 @@ const router = createAppRouter(desktopRoutes, { basename });
 
 createRoot(document.getElementById('root')!).render(
   <BootErrorBoundary>
-    <BrandProvider initialBrand={window.__SERVER_CONFIG__?.brand}>
-      <RouterProvider router={router} />
-    </BrandProvider>
+    <NextThemeProvider>
+      <BrandProvider initialBrand={window.__SERVER_CONFIG__?.brand}>
+        <RouterProvider router={router} />
+      </BrandProvider>
+    </NextThemeProvider>
   </BootErrorBoundary>,
 );

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { type DeviceControlDeps, executeDeviceRpc as runDeviceRpc } from '@lobechat/device-control';
 import type {
   AgentRunRequestMessage,
   GatewayMcpStdioParams,
@@ -13,7 +14,6 @@ import type {
   GetCommandOutputParams,
   GlobFilesParams,
   GrepContentParams,
-  InitWorkspaceParams,
   KillCommandParams,
   ListLocalFileParams,
   LocalReadFileParams,
@@ -28,6 +28,7 @@ import { type ILocalSystemService, LocalSystemExecutionRuntime } from '@lobechat
 
 import GatewayConnectionService from '@/services/gatewayConnectionSrv';
 import ImessageBridgeService from '@/services/imessageBridgeSrv';
+import { createLogger } from '@/utils/logger';
 
 import HeterogeneousAgentCtr from './HeterogeneousAgentCtr';
 import { ControllerModule, IpcMethod } from './index';
@@ -35,7 +36,8 @@ import LocalFileCtr from './LocalFileCtr';
 import McpCtr from './McpCtr';
 import RemoteServerConfigCtr from './RemoteServerConfigCtr';
 import ShellCommandCtr from './ShellCommandCtr';
-import WorkspaceCtr from './WorkspaceCtr';
+
+const logger = createLogger('controllers:GatewayConnectionCtr');
 
 /**
  * Inject the lh-notify protocol into the first turn of a new hetero-agent session.
@@ -164,10 +166,6 @@ export default class GatewayConnectionCtr extends ControllerModule {
     return this.app.getController(LocalFileCtr);
   }
 
-  private get workspaceCtr() {
-    return this.app.getController(WorkspaceCtr);
-  }
-
   private get shellCommandCtr() {
     return this.app.getController(ShellCommandCtr);
   }
@@ -294,6 +292,7 @@ export default class GatewayConnectionCtr extends ControllerModule {
       this.heterogeneousAgentCtr.spawnLhHeteroExec({
         agentType: request.agentType,
         cwd: request.cwd,
+        imageList: request.imageList,
         jwt: request.jwt,
         operationId: request.operationId,
         prompt: request.prompt,
@@ -346,20 +345,32 @@ export default class GatewayConnectionCtr extends ControllerModule {
   }
 
   /**
+   * Platform-specific handlers the shared `@lobechat/device-control` dispatcher
+   * delegates to. Git + workspace-scan methods run inside device-control over
+   * `@lobechat/local-file-shell`; only file preview / index (and preview
+   * approval) are desktop-specific and routed back to the controllers here.
+   */
+  private get deviceControlDeps(): DeviceControlDeps {
+    return {
+      approveProjectRoot: async (root) => {
+        try {
+          await this.app.localFileProtocolManager.approveIndexedProjectRoot(root);
+        } catch (error) {
+          logger.error(`Failed to approve project preview root ${root}:`, error);
+        }
+      },
+      getLocalFilePreview: (params) => this.localFileCtr.getLocalFilePreview(params),
+      getProjectFileIndex: (params) => this.localFileCtr.getProjectFileIndex(params),
+    };
+  }
+
+  /**
    * Dispatch a generic server-internal device RPC (not an agent tool call) by
-   * method name. Currently only `initWorkspace` (scan the bound project root for
-   * skills + AGENTS.md); add new server-only device methods here.
+   * method name. The dispatch logic lives in `@lobechat/device-control` so the
+   * desktop main process and the CLI daemon share one device RPC surface.
    */
   private async executeDeviceRpc(method: string, params: unknown): Promise<unknown> {
-    switch (method) {
-      case 'initWorkspace': {
-        return this.workspaceCtr.initWorkspace(params as InitWorkspaceParams);
-      }
-
-      default: {
-        throw new Error(`Unknown device RPC method: ${method}`);
-      }
-    }
+    return runDeviceRpc(method, params, this.deviceControlDeps);
   }
 
   private async executeToolCall(

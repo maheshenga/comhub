@@ -3,10 +3,11 @@
 import { Flexbox, Tag } from '@lobehub/ui';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
 
 import { type NavItemProps } from '@/features/NavPanel/components/NavItem';
 import NavItem from '@/features/NavPanel/components/NavItem';
+import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useActiveTabKey } from '@/hooks/useActiveTabKey';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import { isExternalUrl, isModifierClick } from '@/utils/navigation';
@@ -16,7 +17,7 @@ const HEADER_KEYS = new Set(['home', 'member', 'search']);
 
 const Nav = memo(() => {
   const tab = useActiveTabKey();
-  const navigate = useNavigate();
+  const navigate = useWorkspaceAwareNavigate();
   const { t } = useTranslation('common');
   const { topNavItems: items } = useNavLayout();
 
@@ -60,7 +61,7 @@ const Nav = memo(() => {
           }
 
           return (
-            <Link
+            <WorkspaceLink
               key={item.key}
               to={item.url}
               onClick={(e) => {
@@ -73,7 +74,7 @@ const Nav = memo(() => {
               }}
             >
               {navItem}
-            </Link>
+            </WorkspaceLink>
           );
         })}
     </Flexbox>

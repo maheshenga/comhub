@@ -2,6 +2,7 @@ import { CrownIcon, HomeIcon, SearchIcon } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspaceSlug';
 import { getRouteById } from '@/config/routes';
 import { PUBLIC_EXPERT_PLAZA_SWR_KEY } from '@/const/adminCacheKeys';
 import { DEFAULT_EXPERT_PLAZA_CONFIG } from '@/const/expertPlaza';
@@ -47,6 +48,7 @@ export const useNavLayout = (): NavLayout => {
   const toggleCommandMenu = useGlobalStore((s) => s.toggleCommandMenu);
   const { showMarket, hideGitHub } = useServerConfigStore(featureFlagsSelectors);
   const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
+  const activeWorkspaceSlug = useActiveWorkspaceSlug();
   const { data: expertPlazaConfig } = useClientDataSWR(
     enableBusinessFeatures ? PUBLIC_EXPERT_PLAZA_SWR_KEY : null,
     () => adminCommercialService.getPublicExpertPlaza(),
@@ -127,6 +129,7 @@ export const useNavLayout = (): NavLayout => {
           url: '/resource',
         },
         {
+          hidden: !!activeWorkspaceSlug,
           icon: getRouteById('memory')!.icon,
           key: SidebarTabKey.Memory,
           title: t('tab.memory'),
@@ -137,6 +140,7 @@ export const useNavLayout = (): NavLayout => {
       brand.sidebarGenerationLabel,
       t,
       showMarket,
+      activeWorkspaceSlug,
       enableBusinessFeatures,
       expertPlaza.enabled,
       expertPlaza.name,
@@ -156,7 +160,9 @@ export const useNavLayout = (): NavLayout => {
   const userPanel = useMemo(
     () => ({
       showDataImporter: false,
-      showMemory: true,
+      // Memory now appears in the sidebar by default; drop the duplicate entry
+      // from the user dropdown to keep that menu focused on account / settings.
+      showMemory: false,
     }),
     [],
   );

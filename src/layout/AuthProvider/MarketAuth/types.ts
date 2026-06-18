@@ -1,3 +1,5 @@
+import type { MarketAuthScene } from './scenes';
+
 export interface MarketUserInfo {
   accountId: number;
   clientId: string;
@@ -77,12 +79,17 @@ export interface MarketAuthContextType extends MarketAuthState {
   /**
    * Handle unauthorized (401) error from Market API
    * Attempts to refresh token first, then triggers signIn if refresh fails
+   * @param scene - capability that triggered the auth, controls the modal copy
    * @returns true if successfully re-authenticated, false if user cancelled or failed
    */
-  handleUnauthorized: () => Promise<boolean>;
+  handleUnauthorized: (scene?: MarketAuthScene) => Promise<boolean>;
   openProfileSetup: (onSuccess?: (profile: MarketUserProfile) => void) => void;
   refreshToken: () => Promise<boolean>;
-  signIn: (options?: MarketSignInOptions) => Promise<number | null>;
+  /**
+   * Sign in to the Market.
+   * @param sceneOrOptions - capability scene or ComHub flow options.
+   */
+  signIn: (sceneOrOptions?: MarketAuthScene | MarketSignInOptions) => Promise<number | null>;
   signOut: () => Promise<void>;
 }
 

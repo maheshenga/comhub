@@ -1,10 +1,10 @@
 'use client';
 
 import {
-  getKlavisServerByServerIdentifier,
+  COMPOSIO_APP_TYPES,
+  type ComposioAppType,
+  getComposioAppByIdentifier,
   getLobehubSkillProviderById,
-  KLAVIS_SERVER_TYPES,
-  type KlavisServerType,
   LOBEHUB_SKILL_PROVIDERS,
   type LobehubSkillProviderType,
   RECOMMENDED_SKILLS,
@@ -17,27 +17,27 @@ import { createStaticStyles } from 'antd-style';
 import isEqual from 'fast-deep-equal';
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import type React from 'react';
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import AddSkillButton from '@/features/SkillStore/SkillList/AddSkillButton';
 import { useFetchInstalledPlugins } from '@/hooks/useFetchInstalledPlugins';
 import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useToolStore } from '@/store/tool';
 import {
   agentSkillsSelectors,
   builtinToolSelectors,
-  klavisStoreSelectors,
+  composioStoreSelectors,
   lobehubSkillStoreSelectors,
   pluginSelectors,
 } from '@/store/tool/selectors';
-import { KlavisServerStatus } from '@/store/tool/slices/klavisStore';
+import { ComposioServerStatus } from '@/store/tool/slices/composioStore';
+import { connectorSelectors } from '@/store/tool/slices/connector';
 import { LobehubSkillStatus } from '@/store/tool/slices/lobehubSkillStore/types';
 import { type LobeToolType } from '@/types/tool/tool';
 
 import AgentSkillItem from './AgentSkillItem';
 import BuiltinSkillItem from './BuiltinSkillItem';
-import KlavisSkillItem from './KlavisSkillItem';
+import ComposioSkillItem from './ComposioSkillItem';
 import LobehubSkillItem from './LobehubSkillItem';
 import McpSkillItem from './McpSkillItem';
 import type { ToolDetailType } from './SkillDetail';
@@ -81,24 +81,28 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 export type SkillViewMode = 'connector' | 'skill';
 
 interface SkillListProps {
+  onDeleteSelected?: () => void;
   onSelect?: (identifier: string, type: ToolDetailType) => void;
   selectedIdentifier?: string;
   viewMode?: SkillViewMode;
 }
 
 const SkillList = memo<SkillListProps>(
-  ({ onSelect, selectedIdentifier, viewMode = 'connector' }) => {
+  ({ onSelect, onDeleteSelected, selectedIdentifier, viewMode = 'connector' }) => {
     const { t } = useTranslation('setting');
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
     const isLobehubSkillEnabled = useServerConfigStore(serverConfigSelectors.enableLobehubSkill);
-    const isKlavisEnabled = useServerConfigStore(serverConfigSelectors.enableKlavis);
+    const isComposioEnabled = useServerConfigStore(serverConfigSelectors.enableComposio);
     const allLobehubSkillServers = useToolStore(lobehubSkillStoreSelectors.getServers, isEqual);
-    const allKlavisServers = useToolStore(klavisStoreSelectors.getServers, isEqual);
+    const allComposioServers = useToolStore(composioStoreSelectors.getServers, isEqual);
     const installedPluginList = useToolStore(pluginSelectors.installedPluginMetaList, isEqual);
     const marketAgentSkills = useToolStore(agentSkillsSelectors.getMarketAgentSkills, isEqual);
     const userAgentSkills = useToolStore(agentSkillsSelectors.getUserAgentSkills, isEqual);
     const builtinSkills = useToolStore((s) => s.builtinSkills, isEqual);
+    const customConnectors = useToolStore(connectorSelectors.customConnectors, isEqual);
+    const isConnectorsInit = useToolStore((s) => s.isConnectorsInit);
+    const fetchConnectors = useToolStore((s) => s.fetchConnectors);
     const allBuiltinTools = useToolStore((s) => s.builtinTools, isEqual);
     const uninstalledBuiltinTools = useToolStore(
       builtinToolSelectors.uninstalledBuiltinTools,
@@ -107,28 +111,34 @@ const SkillList = memo<SkillListProps>(
 
     const [
       useFetchLobehubSkillConnections,
-      useFetchUserKlavisServers,
+      useFetchUserComposioConnections,
       useFetchAgentSkills,
       useFetchUninstalledBuiltinTools,
     ] = useToolStore((s) => [
       s.useFetchLobehubSkillConnections,
-      s.useFetchUserKlavisServers,
+      s.useFetchUserComposioConnections,
       s.useFetchAgentSkills,
       s.useFetchUninstalledBuiltinTools,
     ]);
 
     useFetchInstalledPlugins();
     useFetchLobehubSkillConnections(isLobehubSkillEnabled);
-    useFetchUserKlavisServers(isKlavisEnabled);
+    useFetchUserComposioConnections(isComposioEnabled);
     useFetchAgentSkills(true);
     useFetchUninstalledBuiltinTools(true);
+
+    // Load custom connectors (new connector store) so user-added OAuth MCP
+    // connectors appear in the Connectors tab list.
+    useEffect(() => {
+      if (!isConnectorsInit) fetchConnectors();
+    }, [isConnectorsInit, fetchConnectors]);
 
     const getLobehubSkillServerByProvider = (providerId: string) => {
       return allLobehubSkillServers.find((server) => server.identifier === providerId);
     };
 
-    const getKlavisServerByIdentifier = (identifier: string) => {
-      return allKlavisServers.find((server) => server.identifier === identifier);
+    const getComposioServerByIdentifier = (identifier: string) => {
+      return allComposioServers.find((server) => server.identifier === identifier);
     };
 
     const getBuiltinToolByIdentifier = (identifier: string) => {
@@ -140,7 +150,7 @@ const SkillList = memo<SkillListProps>(
     };
 
     // Separate skills into three categories:
-    // 1. Integrations (Builtin, LobeHub and Klavis skills)
+    // 1. Integrations (Builtin, LobeHub and Composio skills)
     // 2. Community MCP Tools (type === 'plugin')
     // 3. Custom MCP Tools (type === 'customPlugin')
     const { integrations, communityMCPs, customMCPs } = useMemo(() => {
@@ -148,7 +158,7 @@ const SkillList = memo<SkillListProps>(
         | { builtinAgentSkill: BuiltinSkill; type: 'builtinAgent' }
         | { builtinTool: LobeBuiltinTool; type: 'builtin' }
         | { provider: LobehubSkillProviderType; type: 'lobehub' }
-        | { serverType: KlavisServerType; type: 'klavis' };
+        | { serverType: ComposioAppType; type: 'composio' };
 
       let integrationItems: IntegrationItem[] = [];
 
@@ -159,7 +169,7 @@ const SkillList = memo<SkillListProps>(
 
       const addedBuiltinIds = new Set<string>();
       const addedLobehubIds = new Set<string>();
-      const addedKlavisIds = new Set<string>();
+      const addedComposioIds = new Set<string>();
 
       // If RECOMMENDED_SKILLS is configured, use it to build the list
       if (RECOMMENDED_SKILLS.length > 0) {
@@ -176,11 +186,11 @@ const SkillList = memo<SkillListProps>(
               integrationItems.push({ provider, type: 'lobehub' });
               addedLobehubIds.add(skill.id);
             }
-          } else if (skill.type === RecommendedSkillType.Klavis && isKlavisEnabled) {
-            const serverType = getKlavisServerByServerIdentifier(skill.id);
+          } else if (skill.type === RecommendedSkillType.Composio && isComposioEnabled) {
+            const serverType = getComposioAppByIdentifier(skill.id);
             if (serverType) {
-              integrationItems.push({ serverType, type: 'klavis' });
-              addedKlavisIds.add(skill.id);
+              integrationItems.push({ serverType, type: 'composio' });
+              addedComposioIds.add(skill.id);
             }
           }
         }
@@ -211,16 +221,16 @@ const SkillList = memo<SkillListProps>(
           }
         }
 
-        // Also add connected Klavis skills that are not in RECOMMENDED_SKILLS
-        if (isKlavisEnabled) {
-          for (const server of allKlavisServers) {
+        // Also add connected Composio skills that are not in RECOMMENDED_SKILLS
+        if (isComposioEnabled) {
+          for (const server of allComposioServers) {
             if (
-              server.status === KlavisServerStatus.CONNECTED &&
-              !addedKlavisIds.has(server.identifier)
+              server.status === ComposioServerStatus.ACTIVE &&
+              !addedComposioIds.has(server.identifier)
             ) {
-              const serverType = getKlavisServerByServerIdentifier(server.identifier);
+              const serverType = getComposioAppByIdentifier(server.identifier);
               if (serverType) {
-                integrationItems.push({ serverType, type: 'klavis' });
+                integrationItems.push({ serverType, type: 'composio' });
               }
             }
           }
@@ -240,21 +250,21 @@ const SkillList = memo<SkillListProps>(
           }
         }
 
-        // Add klavis skills
-        if (isKlavisEnabled) {
-          for (const serverType of KLAVIS_SERVER_TYPES) {
-            integrationItems.push({ serverType, type: 'klavis' });
+        // Add composio skills
+        if (isComposioEnabled) {
+          for (const serverType of COMPOSIO_APP_TYPES) {
+            integrationItems.push({ serverType, type: 'composio' });
           }
         }
 
-        // Filter integrations: show all builtin and lobehub skills, but only connected klavis
+        // Filter integrations: show all builtin and lobehub skills, but only connected composio
         integrationItems = integrationItems.filter((item) => {
           if (item.type === 'builtinAgent' || item.type === 'builtin' || item.type === 'lobehub') {
             return true;
           }
           return (
-            getKlavisServerByIdentifier(item.serverType.identifier)?.status ===
-            KlavisServerStatus.CONNECTED
+            getComposioServerByIdentifier(item.serverType.identifier)?.status ===
+            ComposioServerStatus.ACTIVE
           );
         });
       }
@@ -274,10 +284,10 @@ const SkillList = memo<SkillListProps>(
               LobehubSkillStatus.CONNECTED
             );
           }
-          case 'klavis': {
+          case 'composio': {
             return (
-              getKlavisServerByIdentifier(item.serverType.identifier)?.status ===
-              KlavisServerStatus.CONNECTED
+              getComposioServerByIdentifier(item.serverType.identifier)?.status ===
+              ComposioServerStatus.ACTIVE
             );
           }
         }
@@ -303,9 +313,9 @@ const SkillList = memo<SkillListProps>(
     }, [
       installedPluginList,
       isLobehubSkillEnabled,
-      isKlavisEnabled,
+      isComposioEnabled,
       allLobehubSkillServers,
-      allKlavisServers,
+      allComposioServers,
       allBuiltinTools,
       uninstalledBuiltinTools,
       builtinSkills,
@@ -323,7 +333,6 @@ const SkillList = memo<SkillListProps>(
       return (
         <Center className={styles.container} paddingBlock={48}>
           <Empty description={t('tab.skillDesc')} icon={SkillsIcon} title={t('tab.skillEmpty')} />
-          <AddSkillButton />
         </Center>
       );
     }
@@ -378,11 +387,25 @@ const SkillList = memo<SkillListProps>(
         />
       ));
 
+    // Custom connectors from the connector store (user-added OAuth MCP servers)
+    const renderCustomConnectors = () =>
+      customConnectors.map((c) => (
+        <McpSkillItem
+          identifier={c.identifier}
+          isSelected={selectedIdentifier === c.identifier}
+          key={c.id}
+          runtimeType="mcp"
+          title={c.name || c.identifier}
+          type={'customPlugin' as LobeToolType}
+          onSelect={onSelect ? () => onSelect(c.identifier, 'mcp-connector') : undefined}
+        />
+      ));
+
     // Split integrations into builtin tools vs builtin skills
     const builtinToolItems = integrations.filter((i) => i.type === 'builtin');
     const builtinSkillItems = integrations.filter((i) => i.type === 'builtinAgent');
     const communitySkillItems = integrations.filter(
-      (i) => i.type === 'lobehub' || i.type === 'klavis',
+      (i) => i.type === 'lobehub' || i.type === 'composio',
     );
 
     const toggleSection = (key: string) => {
@@ -413,13 +436,16 @@ const SkillList = memo<SkillListProps>(
     // Skills tab: prompt/agent-based skills (show description/content)
     const hasBuiltinTools = builtinToolItems.length > 0 && isConnectorView;
     const hasBuiltinSkills = builtinSkillItems.length > 0 && !isConnectorView;
-    const hasCommunitySkills =
-      !isConnectorView && (communitySkillItems.length > 0 || marketAgentSkills.length > 0);
+    // Skills tab only shows agent-based community skills; Lobehub/Composio OAuth
+    // connectors live exclusively in the Connectors view (hasCommunityConnectors).
+    const hasCommunitySkills = !isConnectorView && marketAgentSkills.length > 0;
     const hasCommunityTools = communityMCPs.length > 0 && isConnectorView;
-    // In connector view: custom MCPs. In skill view: user agent skills
-    const hasCustomConnectors = customMCPs.length > 0 && isConnectorView;
+    // In connector view: custom MCPs (old plugins) + custom connectors (new store).
+    // In skill view: user agent skills
+    const hasCustomConnectors =
+      isConnectorView && (customMCPs.length > 0 || customConnectors.length > 0);
     const hasCustomSkills = userAgentSkills.length > 0 && !isConnectorView;
-    // Lobehub/Klavis OAuth skills go in Connectors tab (they provide tools)
+    // Lobehub/Composio OAuth skills go in Connectors tab (they provide tools)
     const hasCommunityConnectors = communitySkillItems.length > 0 && isConnectorView;
 
     return (
@@ -469,7 +495,7 @@ const SkillList = memo<SkillListProps>(
             }),
           )}
 
-        {/* Connector view: Lobehub/Klavis OAuth connectors */}
+        {/* Connector view: Lobehub/Composio OAuth connectors */}
         {hasCommunityConnectors &&
           renderSection(
             'communityConnectors',
@@ -482,6 +508,7 @@ const SkillList = memo<SkillListProps>(
                     key={item.provider.id}
                     provider={item.provider}
                     server={getLobehubSkillServerByProvider(item.provider.id)}
+                    onDelete={onDeleteSelected}
                     onSelect={
                       onSelect ? () => onSelect(item.provider.id, 'lobehub-connector') : undefined
                     }
@@ -489,11 +516,12 @@ const SkillList = memo<SkillListProps>(
                 );
               }
               return (
-                <KlavisSkillItem
+                <ComposioSkillItem
                   isSelected={selectedIdentifier === item.serverType.identifier}
                   key={item.serverType.identifier}
-                  server={getKlavisServerByIdentifier(item.serverType.identifier)}
+                  server={getComposioServerByIdentifier(item.serverType.identifier)}
                   serverType={item.serverType}
+                  onDelete={onDeleteSelected}
                   onSelect={
                     onSelect ? () => onSelect(item.serverType.identifier, 'plugin') : undefined
                   }
@@ -502,40 +530,12 @@ const SkillList = memo<SkillListProps>(
             }),
           )}
 
-        {/* Skill view: community skills */}
+        {/* Skill view: community agent skills only (OAuth connectors are in the Connectors view) */}
         {hasCommunitySkills &&
           renderSection(
             'communitySkills',
             t('skillGroup.communitySkills', '社区 Skill'),
-            <>
-              {communitySkillItems.map((item) => {
-                if (item.type === 'lobehub') {
-                  return (
-                    <LobehubSkillItem
-                      isSelected={selectedIdentifier === item.provider.id}
-                      key={item.provider.id}
-                      provider={item.provider}
-                      server={getLobehubSkillServerByProvider(item.provider.id)}
-                      onSelect={
-                        onSelect ? () => onSelect(item.provider.id, 'lobehub-connector') : undefined
-                      }
-                    />
-                  );
-                }
-                return (
-                  <KlavisSkillItem
-                    isSelected={selectedIdentifier === item.serverType.identifier}
-                    key={item.serverType.identifier}
-                    server={getKlavisServerByIdentifier(item.serverType.identifier)}
-                    serverType={item.serverType}
-                    onSelect={
-                      onSelect ? () => onSelect(item.serverType.identifier, 'plugin') : undefined
-                    }
-                  />
-                );
-              })}
-              {renderMarketAgentSkills()}
-            </>,
+            renderMarketAgentSkills(),
           )}
 
         {hasCommunityTools &&
@@ -549,7 +549,10 @@ const SkillList = memo<SkillListProps>(
           renderSection(
             'customConnectors',
             t('skillGroup.customConnectors', '自定义 Connectors'),
-            renderCustomMCPs(),
+            <>
+              {renderCustomConnectors()}
+              {renderCustomMCPs()}
+            </>,
           )}
 
         {hasCustomSkills &&
@@ -559,9 +562,6 @@ const SkillList = memo<SkillListProps>(
             renderUserAgentSkills(),
           )}
 
-        <div style={{ marginTop: 8 }}>
-          <AddSkillButton />
-        </div>
       </div>
     );
   },

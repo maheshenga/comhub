@@ -8,12 +8,10 @@ import {
 import { type SWRResponse } from 'swr';
 
 import { mutate, useClientDataSWR } from '@/libs/swr';
+import { aiModelKeys } from '@/libs/swr/keys';
+import { aiModelService } from '@/services/aiModel';
+import { type AiInfraStore } from '@/store/aiInfra/store';
 import { type StoreSetter } from '@/store/types';
-
-import type { AiInfraStore } from '../../store';
-
-const FETCH_AI_PROVIDER_MODEL_LIST_KEY = 'FETCH_AI_PROVIDER_MODELS';
-
 type Setter = StoreSetter<AiInfraStore>;
 export const createAiModelSlice = (set: Setter, get: () => AiInfraStore, _api?: unknown) =>
   new AiModelActionImpl(set, get, _api);
@@ -106,7 +104,7 @@ export class AiModelActionImpl {
   };
 
   refreshAiModelList = async (): Promise<void> => {
-    await mutate([FETCH_AI_PROVIDER_MODEL_LIST_KEY, this.#get().activeAiProvider]);
+    await mutate(aiModelKeys.list(this.#get().activeAiProvider));
     // make refresh provide runtime state async, not block
     this.#get().refreshAiProviderRuntimeState();
   };
@@ -150,11 +148,8 @@ export class AiModelActionImpl {
 
   useFetchAiProviderModels = (id: string): SWRResponse<AiProviderModelListItem[]> => {
     return useClientDataSWR<AiProviderModelListItem[]>(
-      [FETCH_AI_PROVIDER_MODEL_LIST_KEY, id],
-      async ([, id]) => {
-        const aiModelService = await getAiModelService();
-        return aiModelService.getAiProviderModelList(id as string);
-      },
+      aiModelKeys.list(id),
+      ([, id]) => aiModelService.getAiProviderModelList(id as string),
       {
         onSuccess: (data) => {
           // no need to update list if the list have been init and data is the same

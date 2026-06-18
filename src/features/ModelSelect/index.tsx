@@ -35,7 +35,10 @@ interface ModelOption {
   value: string;
 }
 
-interface ModelSelectProps extends Pick<SelectProps, 'loading' | 'size' | 'style' | 'variant'> {
+interface ModelSelectProps extends Pick<
+  SelectProps,
+  'disabled' | 'loading' | 'size' | 'style' | 'variant'
+> {
   defaultValue?: { model: string; provider?: string };
   initialWidth?: boolean;
   onChange?: (props: { model: string; provider: string }) => void;
@@ -52,6 +55,7 @@ const ModelSelect = memo<ModelSelectProps>(
     showAbility = true,
     requiredAbilities,
     loading,
+    disabled,
     size,
     style,
     variant,
@@ -110,6 +114,7 @@ const ModelSelect = memo<ModelSelectProps>(
         <Select
           className={styles.select}
           defaultValue={selectedValue}
+          disabled={disabled}
           loading={loading}
           options={options}
           popupClassName={styles.popup}

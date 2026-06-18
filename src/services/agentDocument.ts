@@ -58,6 +58,7 @@ class AgentDocumentService {
 
   listDocuments = async (params: {
     agentId: string;
+    includeArchivedToolResults?: boolean;
     scope?: 'agent' | 'currentTopic';
     sourceType?: 'all' | 'file' | 'web';
     topicId?: string;
@@ -292,3 +293,7 @@ export const resolveAgentDocumentsContext = async (params: {
 };
 
 export const agentDocumentService = new AgentDocumentService();
+
+export type AgentDocumentListItem = Awaited<
+  ReturnType<typeof agentDocumentService.listDocuments>
+>[number];

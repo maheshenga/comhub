@@ -5,9 +5,10 @@ import { Avatar, Icon } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { Loader2 } from 'lucide-react';
 import { memo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 
 import NavItem from '@/features/NavPanel/components/NavItem';
+import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
@@ -44,7 +45,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 }));
 
 const InboxEntry = memo(() => {
-  const navigate = useNavigate();
+  const navigate = useWorkspaceAwareNavigate();
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
   const inboxMeta = useAgentStore(agentSelectors.getAgentMetaById(inboxAgentId!));
   const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
@@ -62,7 +63,7 @@ const InboxEntry = memo(() => {
   const avatarNode = <Avatar emojiScaleWithBackground avatar={avatar} shape={'square'} size={24} />;
 
   return (
-    <Link
+    <WorkspaceLink
       aria-label={title}
       to={url}
       onClick={(e) => {
@@ -86,7 +87,7 @@ const InboxEntry = memo(() => {
           )
         }
       />
-    </Link>
+    </WorkspaceLink>
   );
 });
 

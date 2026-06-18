@@ -40,7 +40,7 @@ const InputArea = () => {
   );
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
   const isLobehubSkillEnabled = useServerConfigStore(serverConfigSelectors.enableLobehubSkill);
-  const isKlavisEnabled = useServerConfigStore(serverConfigSelectors.enableKlavis);
+  const isComposioEnabled = useServerConfigStore(serverConfigSelectors.enableComposio);
   const serverConfigInit = useServerConfigStore((s) => s.serverConfigInit);
   const isMessengerEnabled = useBrand().homeMessengerEnabled;
   const isSkillBannerDismissed = useGlobalStore(
@@ -68,7 +68,7 @@ const InputArea = () => {
 
     const candidates = getHomeInputBannerCandidates({
       isBotIntegrationBannerDismissed,
-      isKlavisEnabled,
+      isComposioEnabled,
       isLobehubSkillEnabled,
       isMessengerBannerDismissed,
       isMessengerEnabled,
@@ -81,7 +81,7 @@ const InputArea = () => {
   }, [
     inboxAgentId,
     isBotIntegrationBannerDismissed,
-    isKlavisEnabled,
+    isComposioEnabled,
     isLobehubSkillEnabled,
     isMessengerBannerDismissed,
     isMessengerEnabled,
@@ -103,7 +103,7 @@ const InputArea = () => {
   const provider = useAgentStore((s) =>
     agentByIdSelectors.getAgentModelProviderById(resolvedAgentId)(s),
   );
-  const { handleUploadFiles } = useUploadFiles({ model, provider });
+  const { handleUploadFiles } = useUploadFiles({ agentId: resolvedAgentId, model, provider });
 
   // A slot to insert content above the chat input
   // Override some default behavior of the chat input
@@ -162,8 +162,9 @@ const InputArea = () => {
             <DesktopChatInput
               dropdownPlacement="bottomLeft"
               inputContainerProps={inputContainerProps}
+              isConfigLoading={isAgentConfigLoading}
               placeholder={dailyHint}
-              showRuntimeConfig={false}
+              showControlBar={false}
             />
           </ChatInputProvider>
         </DragUploadZone>

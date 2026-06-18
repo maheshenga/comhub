@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment node
+ */
 import { NextRequest } from 'next/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -8,7 +11,7 @@ import { defineConfig } from './define-config';
 vi.mock('@/auth', () => ({
   auth: {
     api: {
-      getSession: vi.fn(),
+      getSession: vi.fn().mockResolvedValue(null),
     },
   },
 }));
@@ -51,12 +54,12 @@ const getRewriteUrl = async (path: string, headers?: HeadersInit) => {
 };
 
 describe('defineConfig middleware locale routing', () => {
-  it('defaults public entry routes to zh-CN without a locale cookie', async () => {
+  it('defaults public auth routes to zh-CN without a locale cookie', async () => {
     const rewrite = await getRewriteUrl('/signin', {
       'accept-language': 'en-US,en;q=0.9',
     });
 
-    expect(rewrite.pathname).toBe('/zh-CN__0/signin');
+    expect(rewrite.pathname).toBe('/spa-auth/zh-CN/signin');
   });
 
   it('respects an explicit locale cookie from the language switcher', async () => {
@@ -64,7 +67,7 @@ describe('defineConfig middleware locale routing', () => {
       Cookie: `${LOBE_LOCALE_COOKIE}=en-US`,
     });
 
-    expect(rewrite.pathname).toBe('/en-US__0/signin');
+    expect(rewrite.pathname).toBe('/spa-auth/en-US/signin');
   });
 
   it('keeps query-string locale as the highest priority', async () => {
@@ -72,6 +75,22 @@ describe('defineConfig middleware locale routing', () => {
       Cookie: `${LOBE_LOCALE_COOKIE}=en-US`,
     });
 
-    expect(rewrite.pathname).toBe('/ja-JP__0/signin');
+    expect(rewrite.pathname).toBe('/spa-auth/ja-JP/signin');
+  });
+});
+
+describe('defineConfig locale path-traversal hardening', () => {
+  it('falls back to en-US for a traversal locale (plain)', async () => {
+    const rewrite = await getRewriteUrl('/signin?hl=../../api/dev/x');
+
+    expect(rewrite.pathname.startsWith('/spa-auth/')).toBe(true);
+    expect(rewrite.pathname).toBe('/spa-auth/en-US/signin');
+  });
+
+  it('falls back to en-US for a traversal locale (percent-encoded)', async () => {
+    const rewrite = await getRewriteUrl('/signin?hl=..%2F..%2Fapi%2Fdev%2Fx');
+
+    expect(rewrite.pathname.startsWith('/spa-auth/')).toBe(true);
+    expect(rewrite.pathname).toBe('/spa-auth/en-US/signin');
   });
 });
