@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { CommercialModel } from '@/database/models/commercial';
 import { redemptionCodes, topUpOrders, users } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
@@ -105,11 +105,18 @@ export const adminOrdersRouter = router({
       return { ...order, redemptionCode };
     }),
 
-  settle: adminProcedure
-    .input(z.object({ orderId: z.string().min(1) }))
+  settle: adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite)
+    .input(z.object({ orderId: z.string().min(1), reason: z.string().trim().min(1).max(500) }))
     .mutation(async ({ ctx, input }) => {
       const [order] = await ctx.serverDB
-        .select({ userId: topUpOrders.userId })
+        .select({
+          amount: topUpOrders.amount,
+          credits: topUpOrders.credits,
+          currency: topUpOrders.currency,
+          provider: topUpOrders.provider,
+          source: topUpOrders.source,
+          userId: topUpOrders.userId,
+        })
         .from(topUpOrders)
         .where(eq(topUpOrders.id, input.orderId))
         .limit(1);
@@ -123,7 +130,15 @@ export const adminOrdersRouter = router({
 
       await recordAdminAudit(ctx, {
         action: 'order.settle',
-        payload: { status: result.status },
+        payload: {
+          amount: Number(order.amount),
+          credits: Number(order.credits),
+          currency: order.currency,
+          provider: order.provider,
+          reason: input.reason,
+          source: order.source,
+          status: result.status,
+        },
         resourceId: input.orderId,
         resourceType: 'top_up_order',
         targetUserId: order.userId,

@@ -1,28 +1,54 @@
-import { and, count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { adminAuditLogs } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 
+const auditFilterInput = z.object({
+  action: z.string().optional(),
+  actorUserId: z.string().optional(),
+  from: z.coerce.date().optional(),
+  resourceId: z.string().optional(),
+  resourceType: z.string().optional(),
+  targetUserId: z.string().optional(),
+  to: z.coerce.date().optional(),
+});
+
+type AuditFilterInput = z.infer<typeof auditFilterInput>;
+
+const buildAuditWhere = ({
+  action,
+  actorUserId,
+  from,
+  resourceId,
+  resourceType,
+  targetUserId,
+  to,
+}: AuditFilterInput) => {
+  const conditions = [
+    action ? eq(adminAuditLogs.action, action) : undefined,
+    actorUserId ? eq(adminAuditLogs.actorUserId, actorUserId) : undefined,
+    targetUserId ? eq(adminAuditLogs.targetUserId, targetUserId) : undefined,
+    resourceType ? eq(adminAuditLogs.resourceType, resourceType) : undefined,
+    resourceId ? eq(adminAuditLogs.resourceId, resourceId) : undefined,
+    from ? gte(adminAuditLogs.createdAt, from) : undefined,
+    to ? lte(adminAuditLogs.createdAt, to) : undefined,
+  ].filter(Boolean);
+
+  return conditions.length > 0 ? and(...conditions) : undefined;
+};
+
 export const adminAuditRouter = router({
   list: adminProcedure
     .input(
-      z.object({
-        action: z.string().optional(),
-        actorUserId: z.string().optional(),
+      auditFilterInput.extend({
         cursor: z.number().int().min(0).default(0),
         limit: z.number().int().min(1).max(100).default(50),
-        targetUserId: z.string().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const { action, actorUserId, cursor, limit, targetUserId } = input;
-      const conditions = [
-        action ? eq(adminAuditLogs.action, action) : undefined,
-        actorUserId ? eq(adminAuditLogs.actorUserId, actorUserId) : undefined,
-        targetUserId ? eq(adminAuditLogs.targetUserId, targetUserId) : undefined,
-      ].filter(Boolean);
-      const where = conditions.length > 0 ? and(...conditions) : undefined;
+      const { cursor, limit } = input;
+      const where = buildAuditWhere(input);
 
       const [items, [{ value: total }]] = await Promise.all([
         ctx.serverDB.query.adminAuditLogs.findMany({
@@ -43,21 +69,13 @@ export const adminAuditRouter = router({
 
   exportAll: adminProcedure
     .input(
-      z.object({
-        action: z.string().optional(),
-        actorUserId: z.string().optional(),
+      auditFilterInput.extend({
         limit: z.number().int().min(1).max(10_000).default(5000),
-        targetUserId: z.string().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const { action, actorUserId, limit, targetUserId } = input;
-      const conditions = [
-        action ? eq(adminAuditLogs.action, action) : undefined,
-        actorUserId ? eq(adminAuditLogs.actorUserId, actorUserId) : undefined,
-        targetUserId ? eq(adminAuditLogs.targetUserId, targetUserId) : undefined,
-      ].filter(Boolean);
-      const where = conditions.length > 0 ? and(...conditions) : undefined;
+      const { limit } = input;
+      const where = buildAuditWhere(input);
 
       const items = await ctx.serverDB.query.adminAuditLogs.findMany({
         limit,
