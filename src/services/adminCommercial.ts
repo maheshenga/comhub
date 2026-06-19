@@ -14,6 +14,22 @@ type NewapiModelType =
 
 type AdminModelApiProviderType = 'newapi' | 'openai-compatible' | 'openai' | 'deepseek' | 'aliyun';
 
+type AdminAuditQueryParams = {
+  action?: string;
+  actorUserId?: string;
+  from?: Date | string;
+  resourceId?: string;
+  resourceType?: string;
+  targetUserId?: string;
+  to?: Date | string;
+};
+
+const normalizeAdminAuditQueryParams = <T extends AdminAuditQueryParams>(params: T) => ({
+  ...params,
+  from: typeof params.from === 'string' ? new Date(params.from) : params.from,
+  to: typeof params.to === 'string' ? new Date(params.to) : params.to,
+});
+
 class AdminCommercialService {
   // Users
   listUsers = async (params: {
@@ -188,7 +204,8 @@ class AdminCommercialService {
   getOrderDetail = async (orderId: string) =>
     lambdaClient.admin.orders.getDetail.query({ orderId });
 
-  settleOrder = async (orderId: string) => lambdaClient.admin.orders.settle.mutate({ orderId });
+  settleOrder = async (params: { orderId: string; reason: string }) =>
+    lambdaClient.admin.orders.settle.mutate(params);
 
   getReferralStats = async () => lambdaClient.admin.referral.getReferralStats.query();
 
@@ -243,20 +260,18 @@ class AdminCommercialService {
   getStatsRedemptionOverview = async () => lambdaClient.admin.stats.redemptionOverview.query();
 
   // Audit log
-  listAudit = async (params: {
-    action?: string;
-    actorUserId?: string;
-    cursor?: number;
-    limit?: number;
-    targetUserId?: string;
-  }) => lambdaClient.admin.audit.list.query(params);
+  listAudit = async (
+    params: AdminAuditQueryParams & {
+      cursor?: number;
+      limit?: number;
+    },
+  ) => lambdaClient.admin.audit.list.query(normalizeAdminAuditQueryParams(params));
 
-  exportAudit = async (params: {
-    action?: string;
-    actorUserId?: string;
-    limit?: number;
-    targetUserId?: string;
-  }) => lambdaClient.admin.audit.exportAll.query(params);
+  exportAudit = async (
+    params: AdminAuditQueryParams & {
+      limit?: number;
+    },
+  ) => lambdaClient.admin.audit.exportAll.query(normalizeAdminAuditQueryParams(params));
 
   // Subscription Change Requests
   listChangeRequests = async (params: {
@@ -380,8 +395,10 @@ class AdminCommercialService {
   bulkDisableRedemptionCodes = async (ids: string[]) =>
     lambdaClient.admin.redemption.bulkDisable.mutate({ ids });
 
-  bulkDeleteRedemptionCodes = async (ids: string[]) =>
-    lambdaClient.admin.redemption.bulkDelete.mutate({ ids });
+  bulkDeleteRedemptionCodes = async (params: { ids: string[]; reason?: string } | string[]) =>
+    lambdaClient.admin.redemption.bulkDelete.mutate(
+      Array.isArray(params) ? { ids: params } : params,
+    );
 
   // NewAPI Providers (multi-instance)
   listNewapiInstances = async () => lambdaClient.admin.newapiProviders.listInstances.query();
@@ -431,8 +448,10 @@ class AdminCommercialService {
     id: string;
   }) => lambdaClient.admin.newapiProviders.updateInstance.mutate(params);
 
-  deleteNewapiInstance = async (id: string) =>
-    lambdaClient.admin.newapiProviders.deleteInstance.mutate({ id });
+  deleteNewapiInstance = async (params: { id: string; reason?: string } | string) =>
+    lambdaClient.admin.newapiProviders.deleteInstance.mutate(
+      typeof params === 'string' ? { id: params } : params,
+    );
 
   toggleNewapiInstance = async (params: { enabled: boolean; id: string }) =>
     lambdaClient.admin.newapiProviders.toggleInstanceEnabled.mutate(params);

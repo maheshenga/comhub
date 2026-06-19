@@ -15,7 +15,6 @@ const BackButton = memo<ActionIconProps & { to?: string }>(({ to = '/', onClick,
   const resolvedTo = buildWorkspaceAwarePath(to, activeSlug);
 
   return (
-    // @ts-expect-error
     <Link to={resolvedTo} onClick={onClick}>
       <ActionIcon
         icon={ChevronLeftIcon}

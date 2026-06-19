@@ -2,6 +2,10 @@
   "name": "@lobechat/business-server",
   "version": "0.0.0",
   "private": true,
+  "scripts": {
+    "test": "vitest",
+    "test:coverage": "vitest --coverage --silent='passed-only'"
+  },
   "exports": {
     "./*": "./src/*.ts"
   },

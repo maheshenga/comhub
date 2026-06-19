@@ -420,7 +420,7 @@ const CustomizeSidebarContent = memo(() => {
         hiddenSidebarSections: hiddenSections,
         sidebarItems: mergeAvailableSidebarItems(storeItems, items, sortableItemIds),
         ...(shouldResetExpandedKeys
-          ? { sidebarExpandedKeys: DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS }
+          ? { sidebarExpandedKeys: [...DEFAULT_HOME_SIDEBAR_EXPANDED_KEYS] }
           : {}),
       },
       'customizeSidebar',

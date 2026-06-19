@@ -71,7 +71,7 @@ describe('admin commercial flow pages', () => {
 
   it('lets admin configure public recommendation section titles', () => {
     const appSettings = readRepoFile('src/server/services/appSettings/index.ts');
-    const settingsRouter = readRepoFile('src/business/server/lambda-routers/admin/settings.ts');
+    const settingsRouter = readRepoFile('packages/business-server/src/lambda-routers/admin/settings.ts');
     const adminRecommendations = readRepoFile('src/features/Admin/AdminRecommendationsPage.tsx');
     const publicRecommendations = readRepoFile('src/features/CommunityRecommendations/index.tsx');
 
@@ -145,7 +145,7 @@ describe('admin commercial flow pages', () => {
   });
 
   it('uses the provider-neutral admin route for service provider management', () => {
-    const desktopRoutes = readRepoFile('src/business/client/BusinessDesktopRoutes.tsx');
+    const desktopRouteRegistry = readRepoFile('src/business/client/adminSettingsRouteRegistry.ts');
 
     expect(existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/providers/index.tsx'))).toBe(
       true,
@@ -153,8 +153,173 @@ describe('admin commercial flow pages', () => {
     expect(
       existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/newapi-providers/index.tsx')),
     ).toBe(false);
-    expect(desktopRoutes).toContain("() => import('@/routes/(main)/admin/providers')");
-    expect(desktopRoutes).toContain("path: 'providers'");
-    expect(desktopRoutes).not.toContain('newapi-providers');
+    expect(desktopRouteRegistry).toContain("import('@/routes/(main)/admin/providers')");
+    expect(desktopRouteRegistry).toContain("segment: 'providers'");
+    expect(desktopRouteRegistry).not.toContain('newapi-providers');
+  });
+
+  it('wires centralized dangerous action confirmations into high-risk admin surfaces', () => {
+    const creditsPage = readRepoFile('src/routes/(main)/admin/credits/index.tsx');
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
+    const usersPage = readRepoFile('src/routes/(main)/admin/users/index.tsx');
+    const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
+    const contentPages = readRepoFile('src/features/Admin/AdminContentPages.tsx');
+    const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
+
+    expect(creditsPage).toContain('AdminDangerousActionButton');
+    expect(creditsPage).toContain('actionId="credits.adjust"');
+
+    expect(providersPage).toContain('AdminDangerousActionButton');
+    expect(providersPage).toContain('actionId="newapiProvider.deleteInstance"');
+
+    expect(usersPage).toContain('AdminDangerousActionButton');
+    expect(usersPage).toContain('actionId="user.resetAllToFreePlan"');
+    expect(usersPage).toContain('actionId="credits.adjust"');
+
+    expect(userDetailDrawer).toContain('AdminDangerousActionButton');
+    expect(userDetailDrawer).toContain('actionId="credits.adjust"');
+
+    for (const actionId of [
+      'content.deleteTopic',
+      'content.deleteFile',
+      'content.deleteDocument',
+    ]) {
+      expect(contentPages).toContain(`actionId="${actionId}"`);
+    }
+
+    expect(ordersPage).toContain('actionId="order.expire"');
+    expect(ordersPage).toContain('actionId="order.cancel"');
+    expect(ordersPage).toContain('actionId="order.settle"');
+    expect(ordersPage).toContain('adminCommercialService.settleOrder');
+
+    expect(redemptionPage).toContain('AdminBulkActionFlow');
+    expect(redemptionPage).toContain('actionId="redemption.bulkDisable"');
+    expect(redemptionPage).toContain('actionId="redemption.bulkDelete"');
+  });
+
+  it('localizes centralized dangerous action confirmation microcopy', () => {
+    const dangerousButton = readRepoFile('src/features/Admin/AdminDangerousActionButton.tsx');
+    const enSubscription = readRepoFile('locales/en-US/subscription.json');
+    const zhSubscription = readRepoFile('locales/zh-CN/subscription.json');
+
+    expect(dangerousButton).toContain("useTranslation('subscription')");
+    expect(dangerousButton).toContain('admin.dangerousAction.typedConfirm');
+    expect(dangerousButton).toContain('admin.dangerousAction.reasonPlaceholder');
+    expect(dangerousButton).toContain('admin.dangerousAction.errors.');
+    expect(dangerousButton).not.toContain("setError(result.errors.join(', '))");
+    expect(dangerousButton).not.toContain('placeholder="Reason"');
+    expect(dangerousButton).not.toContain('Type <Typography.Text code>');
+
+    for (const locale of [enSubscription, zhSubscription]) {
+      for (const key of [
+        'admin.dangerousAction.typedConfirm',
+        'admin.dangerousAction.reasonPlaceholder',
+        'admin.dangerousAction.errors.confirmation_required',
+        'admin.dangerousAction.errors.confirmation_text_mismatch',
+        'admin.dangerousAction.errors.reason_required',
+        'admin.dangerousAction.errors.unknown_action',
+        'admin.bulkAction.cancel',
+        'admin.bulkAction.confirm',
+        'admin.bulkAction.close',
+        'admin.bulkAction.progress',
+        'admin.bulkAction.done',
+        'admin.bulkAction.error',
+        'admin.bulkAction.errorFallback',
+      ]) {
+        expect(locale).toContain(`"${key}"`);
+      }
+    }
+  });
+
+  it('uses a modal state machine for redemption bulk operations', () => {
+    const bulkActionFlow = readRepoFile('src/features/Admin/AdminBulkActionFlow.tsx');
+    const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
+
+    expect(bulkActionFlow).toContain("type AdminBulkActionFlowStep = 'confirm' | 'progress' | 'done' | 'error'");
+    expect(bulkActionFlow).toContain("closable={step !== 'progress'}");
+    expect(bulkActionFlow).toContain("maskClosable={step !== 'progress'}");
+    expect(bulkActionFlow).toContain('NeuralNetworkLoading');
+    expect(bulkActionFlow).toContain('validateAdminDangerousActionConfirmation');
+
+    expect(redemptionPage).toContain('AdminBulkActionFlow');
+    expect(redemptionPage).toContain('actionId="redemption.bulkDisable"');
+    expect(redemptionPage).toContain('actionId="redemption.bulkDelete"');
+    expect(redemptionPage).toContain('summary={formatBulkDisableResult}');
+    expect(redemptionPage).toContain('summary={formatBulkDeleteResult}');
+    expect(redemptionPage).not.toContain('message.success(\n        t(\'admin.redemption.bulkDisableDone\'');
+    expect(redemptionPage).not.toContain('message.success(\n        t(\'admin.redemption.bulkDeleteDone\'');
+  });
+
+  it('uses a modal state machine for change request bulk operations', () => {
+    const changeRequestsPage = readRepoFile('src/features/Admin/AdminChangeRequestsPage.tsx');
+    const bulkActionFlow = readRepoFile('src/features/Admin/AdminBulkActionFlow.tsx');
+
+    expect(changeRequestsPage).toContain('AdminBulkActionFlow');
+    expect(changeRequestsPage).toContain('actionId="subscription.changeRequest.bulkApprove"');
+    expect(changeRequestsPage).toContain('actionId="subscription.changeRequest.bulkReject"');
+    expect(changeRequestsPage).toContain('summary={formatBulkApproveChangeRequestResult}');
+    expect(changeRequestsPage).toContain('summary={formatBulkRejectChangeRequestResult}');
+    expect(changeRequestsPage).toContain("progressDescription={t(");
+    expect(changeRequestsPage).toContain("'admin.changeRequests.bulkApproveProgress'");
+    expect(changeRequestsPage).toContain("'admin.changeRequests.bulkRejectProgress'");
+    expect(changeRequestsPage).not.toContain('bulkRunning');
+    expect(changeRequestsPage).not.toContain('bulkRejectOpen');
+    expect(changeRequestsPage).not.toContain("t('admin.changeRequests.bulkApproveDone'");
+    expect(changeRequestsPage).not.toContain("t('admin.changeRequests.bulkRejectDone'");
+
+    expect(bulkActionFlow).toContain('reasonOptional?: boolean');
+    expect(bulkActionFlow).toContain('requirement?.requiresReason || reasonOptional');
+    expect(changeRequestsPage).toContain('reasonOptional');
+    expect(changeRequestsPage).toContain('onRun={({ reason }) => handleBulkReject(reason)}');
+  });
+
+  it('keeps all selected-row admin bulk mutations on the shared state machine', () => {
+    const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
+    const changeRequestsPage = readRepoFile('src/features/Admin/AdminChangeRequestsPage.tsx');
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+
+    for (const page of [redemptionPage, changeRequestsPage]) {
+      expect(page).toContain('rowSelection={{');
+      expect(page).toContain('selectedIds');
+      expect(page).toContain('AdminBulkActionFlow');
+      expect(page).not.toContain('bulkRunning');
+      expect(page).not.toContain('confirmLoading={bulkRunning}');
+    }
+
+    expect(providersPage).toContain('bulkText');
+    expect(providersPage).toContain('admin.providers.models.bulkAddHint');
+    expect(providersPage).not.toContain('rowSelection={{');
+  });
+
+  it('adds an order detail drawer for P2 operations review', () => {
+    const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+
+    expect(ordersPage).toContain('orderDetailId');
+    expect(ordersPage).toContain('adminCommercialService.getOrderDetail(orderDetailId');
+    expect(ordersPage).toContain("t('admin.orders.viewDetail'");
+    expect(ordersPage).toContain("t('admin.orders.detail.redemptionCode'");
+    expect(ordersPage).toContain("t('admin.orders.detail.auditHint'");
+    expect(service).toContain('getOrderDetail = async (orderId: string)');
+  });
+
+  it('deep links order details into filtered audit logs', () => {
+    const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
+    const auditPage = readRepoFile('src/routes/(main)/admin/audit/index.tsx');
+
+    expect(ordersPage).toContain("import { Link } from 'react-router-dom'");
+    expect(ordersPage).toContain('const buildOrderAuditUrl = (orderId: string) => {');
+    expect(ordersPage).toContain("searchParams.set('resourceType', 'top_up_order')");
+    expect(ordersPage).toContain("searchParams.set('resourceId', orderId)");
+    expect(ordersPage).toContain('to={buildOrderAuditUrl(orderDetail.id)}');
+    expect(ordersPage).toContain("t('admin.orders.detail.viewAudit'");
+
+    expect(auditPage).toContain("import { useSearchParams } from 'react-router-dom'");
+    expect(auditPage).toContain('const [searchParams] = useSearchParams();');
+    expect(auditPage).toContain('const [resourceTypeFilter, setResourceTypeFilter] = useState(');
+    expect(auditPage).toContain("searchParams.get('resourceType') ?? ''");
+    expect(auditPage).toContain('const [resourceIdFilter, setResourceIdFilter] = useState(');
+    expect(auditPage).toContain("searchParams.get('resourceId') ?? ''");
   });
 });

@@ -42,7 +42,10 @@ const alias = {
   '@/utils/sanitizeFileName': resolve(__dirname, './src/utils/sanitizeFileName'),
   '@/libs/trpc/client/lambda': resolve(__dirname, './packages/trpc/src/client/lambda.ts'),
   '@/libs/trpc/client': resolve(__dirname, './packages/trpc/src/client/index.ts'),
-  '@/locales/default/subscription': resolve(__dirname, './src/locales/default/subscription.ts'),
+  '@/locales/default/subscription': resolve(
+    __dirname,
+    './packages/locales/src/default/subscription.ts',
+  ),
   '@/store/user/selectors': resolve(__dirname, './src/store/user/selectors.ts'),
   '@/store/user/slices/auth/selectors': resolve(
     __dirname,

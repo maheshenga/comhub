@@ -115,7 +115,18 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.orders.actionSuccess']).toBe('订单已更新');
     expect(subscription['admin.orders.cancel']).toBe('取消订单');
     expect(subscription['admin.orders.col.amount']).toBe('金额');
+    expect(subscription['admin.orders.detail.title']).toBe('订单详情');
+    expect(subscription['admin.orders.detail.redemptionCode']).toBe('关联兑换码');
+    expect(subscription['admin.orders.detail.auditHint']).toBe(
+      '如需追踪后台操作，请在审计日志中按订单 ID 检索。',
+    );
+    expect(subscription['admin.orders.detail.viewAudit']).toBe('查看审计日志');
     expect(subscription['admin.orders.loadMore']).toBe('加载更多');
+    expect(subscription['admin.orders.settle']).toBe('手动结算');
+    expect(subscription['admin.orders.settleConfirm']).toBe('确认手动结算这个待支付订单？');
+    expect(subscription['admin.orders.settleConfirmDescription']).toBe(
+      '该操作会将订单标记为已支付并发放积分，请核对以下信息。',
+    );
 
     expect(subscription['admin.operations.bannerSection']).toBe('社区横幅');
     expect(subscription['admin.operations.featuredSection']).toBe('精选模块');
@@ -175,6 +186,22 @@ describe('admin Chinese copy', () => {
 
     expect(redemptionPage).not.toContain("'Batch ID'");
     expect(redemptionPage).toContain("t('admin.redemption.filter.batch', '批次 ID')");
+  });
+
+  it('includes default Chinese copy for redemption bulk action flow', () => {
+    expect(subscription['admin.bulkAction.count']).toBe('将处理 {{count}} 个项目。');
+    expect(subscription['admin.bulkAction.progress']).toBe('正在执行批量操作，请勿关闭页面。');
+    expect(subscription['admin.bulkAction.done']).toBe('批量操作已完成');
+    expect(subscription['admin.redemption.bulkDisableProgress']).toBe('正在停用选中的兑换码，请勿关闭页面。');
+    expect(subscription['admin.redemption.bulkDeleteProgress']).toBe(
+      '正在删除选中的未兑换兑换码，请勿关闭页面。',
+    );
+    expect(subscription['admin.changeRequests.bulkApproveProgress']).toBe(
+      '正在通过选中的套餐变更请求，请勿关闭页面。',
+    );
+    expect(subscription['admin.changeRequests.bulkRejectProgress']).toBe(
+      '正在拒绝选中的套餐变更请求，请勿关闭页面。',
+    );
   });
 
   it('includes default Chinese copy for assigning user plans from the user list', () => {
