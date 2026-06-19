@@ -88,6 +88,8 @@ class DiscoverService {
     source?: AssistantMarketSource;
     version?: string;
   }): Promise<DiscoverAssistantDetail | undefined> => {
+    await this.safeInjectMPToken();
+
     const locale = globalHelpers.getCurrentLanguage();
     return lambdaClient.market.getAssistantDetail.query({
       identifier: params.identifier,
@@ -148,6 +150,8 @@ class DiscoverService {
     locale?: string;
     version?: string;
   }): Promise<DiscoverMcpDetail> => {
+    await this.safeInjectMPToken();
+
     const locale = globalHelpers.getCurrentLanguage();
     return lambdaClient.market.getMcpDetail.query({
       ...params,
@@ -547,6 +551,8 @@ class DiscoverService {
     locale?: string;
     version?: string;
   }): Promise<DiscoverSkillDetail> => {
+    await this.safeInjectMPToken();
+
     const locale = globalHelpers.getCurrentLanguage();
     return lambdaClient.market.skill.getSkillDetail.query({
       ...params,
@@ -595,6 +601,8 @@ class DiscoverService {
     locale?: string;
     version?: string;
   }): Promise<any> => {
+    await this.safeInjectMPToken();
+
     const locale = globalHelpers.getCurrentLanguage();
     return lambdaClient.market.getGroupAgentDetail.query({
       identifier: params.identifier,

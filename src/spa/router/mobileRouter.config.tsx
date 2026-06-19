@@ -120,6 +120,17 @@ export const sharedMainAreaChildren: RouteObject[] = [
             ],
           },
           {
+            children: [
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/community/(list)/skill'),
+                  'Mobile > Discover > List > Skill',
+                ),
+                path: 'skill',
+              },
+            ],
+          },
+          {
             element: dynamicElement(
               () =>
                 import('@/routes/(main)/community/(detail)/workspace').then(
@@ -151,6 +162,16 @@ export const sharedMainAreaChildren: RouteObject[] = [
           {
             element: dynamicElement(
               () =>
+                import('@/routes/(main)/community/(detail)/group_agent').then(
+                  (m) => m.MobileGroupAgentPage,
+                ),
+              'Mobile > Discover > Detail > Group Agent',
+            ),
+            path: 'group_agent/:slug',
+          },
+          {
+            element: dynamicElement(
+              () =>
                 import('@/routes/(main)/community/(detail)/model').then((m) => m.MobileModelPage),
               'Mobile > Discover > Detail > Model',
             ),
@@ -172,6 +193,14 @@ export const sharedMainAreaChildren: RouteObject[] = [
               'Mobile > Discover > Detail > MCP',
             ),
             path: 'mcp/:slug',
+          },
+          {
+            element: dynamicElement(
+              () =>
+                import('@/routes/(main)/community/(detail)/skill').then((m) => m.MobileSkillPage),
+              'Mobile > Discover > Detail > Skill',
+            ),
+            path: 'skill/:slug',
           },
           {
             element: dynamicElement(
