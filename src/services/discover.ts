@@ -555,6 +555,8 @@ class DiscoverService {
   };
 
   getSkillList = async (params: SkillQueryParams = {}): Promise<SkillListResponse> => {
+    await this.safeInjectMPToken();
+
     const locale = globalHelpers.getCurrentLanguage();
     return lambdaClient.market.skill.getSkillList.query({
       ...params,

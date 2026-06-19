@@ -3,7 +3,7 @@ import debug from 'debug';
 import { z } from 'zod';
 
 import { publicProcedure, router } from '@/libs/trpc/lambda';
-import { marketUserInfo, serverDatabase } from '@/libs/trpc/lambda/middleware';
+import { marketPublicUserInfo, serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { MarketService } from '@/server/services/market';
 import { SkillSorts } from '@/types/discover';
 
@@ -12,7 +12,7 @@ const log = debug('lambda-router:market:skill');
 // Public procedure with optional user info for trusted client token
 const marketProcedure = publicProcedure
   .use(serverDatabase)
-  .use(marketUserInfo)
+  .use(marketPublicUserInfo)
   .use(async ({ ctx, next }) => {
     return next({
       ctx: {
