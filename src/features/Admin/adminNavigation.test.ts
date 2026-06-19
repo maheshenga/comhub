@@ -100,6 +100,15 @@ describe('adminNavigation', () => {
     );
   });
 
+  it('normalizes legacy root admin URLs before selecting the sidebar item', () => {
+    expect(getAdminSelectedKey('/admin')).toBe(ADMIN_BASE_PATH);
+    expect(getAdminSelectedKey('/admin/users')).toBe(`${ADMIN_BASE_PATH}/users`);
+    expect(getAdminSelectedKey('/admin/pricing')).toBe(
+      `${ADMIN_BASE_PATH}/model-billing-matrix`,
+    );
+    expect(getAdminOpenKeys('/admin/pricing')).toEqual(['model-billing']);
+  });
+
   it('selects the nearest admin item for nested URLs and opens its module', () => {
     expect(getAdminSelectedKey('/settings/admin')).toBe(ADMIN_BASE_PATH);
     expect(getAdminSelectedKey('/settings/admin/users/abc')).toBe(`${ADMIN_BASE_PATH}/users`);

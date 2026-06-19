@@ -251,12 +251,21 @@ const ADMIN_NAV_ALIASES: Record<string, string> = {
   [`${ADMIN_BASE_PATH}/topup`]: `${ADMIN_BASE_PATH}/orders`,
 };
 
+export const normalizeAdminPath = (pathname: string) => {
+  const cleanPath = pathname.replace(/\/+$/, '') || ADMIN_BASE_PATH;
+
+  if (cleanPath === '/admin') return ADMIN_BASE_PATH;
+  if (cleanPath.startsWith('/admin/')) return `${ADMIN_BASE_PATH}${cleanPath.slice('/admin'.length)}`;
+
+  return cleanPath;
+};
+
 const allAdminItems = ADMIN_NAV_GROUPS.flatMap((group) =>
   group.items.map((item) => ({ ...item, groupKey: group.key })),
 ).sort((a, b) => b.path.length - a.path.length);
 
 export const getAdminSelectedKey = (pathname: string) => {
-  const cleanPath = pathname.replace(/\/+$/, '') || ADMIN_BASE_PATH;
+  const cleanPath = normalizeAdminPath(pathname);
   const alias = Object.entries(ADMIN_NAV_ALIASES).find(
     ([from]) => cleanPath === from || cleanPath.startsWith(`${from}/`),
   )?.[1];
