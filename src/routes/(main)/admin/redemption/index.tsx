@@ -10,7 +10,6 @@ import {
   InputNumber,
   message,
   Modal,
-  Popconfirm,
   Select,
   Space,
   Tag,
@@ -19,6 +18,7 @@ import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
+import AdminBulkActionFlow from '@/features/Admin/AdminBulkActionFlow';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -52,7 +52,6 @@ const AdminRedemptionPage = memo(() => {
   const [codeQuery, setCodeQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [bulkRunning, setBulkRunning] = useState(false);
 
   const [genOpen, setGenOpen] = useState(false);
   const [genResult, setGenResult] = useState<{ batchId: string; codes: string[] } | null>(null);
@@ -101,38 +100,43 @@ const AdminRedemptionPage = memo(() => {
     [packagesData?.items],
   );
 
-  const handleBulkDisable = async () => {
-    if (selectedIds.length === 0) return;
-    setBulkRunning(true);
-    try {
-      const r = await adminCommercialService.bulkDisableRedemptionCodes(selectedIds);
-      message.success(
-        t('admin.redemption.bulkDisableDone', `已停用 ${r.disabled}/${r.requested} 个`),
-      );
-      setSelectedIds([]);
-      await mutate();
-    } catch {
-      message.error(t('admin.redemption.actionFailed', '操作失败'));
-    } finally {
-      setBulkRunning(false);
-    }
+  const handleBulkDisable = async () => adminCommercialService.bulkDisableRedemptionCodes(selectedIds);
+
+  const handleBulkDelete = async (reason?: null | string) =>
+    adminCommercialService.bulkDeleteRedemptionCodes({
+      ids: selectedIds,
+      reason: reason?.trim(),
+    });
+
+  const finishBulkAction = async () => {
+    setSelectedIds([]);
+    await mutate();
   };
 
-  const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return;
-    setBulkRunning(true);
-    try {
-      const r = await adminCommercialService.bulkDeleteRedemptionCodes(selectedIds);
-      message.success(
-        t('admin.redemption.bulkDeleteDone', `已删除 ${r.deleted}/${r.requested} 个`),
-      );
-      setSelectedIds([]);
-      await mutate();
-    } catch {
-      message.error(t('admin.redemption.actionFailed', '操作失败'));
-    } finally {
-      setBulkRunning(false);
-    }
+  const formatBulkDisableResult = (value: unknown) => {
+    const result = value as { disabled: number; requested: number };
+
+    return {
+      requested: result.requested,
+      succeeded: result.disabled,
+      title: t(
+        'admin.redemption.bulkDisableDone',
+        `已停用 ${result.disabled}/${result.requested} 个`,
+      ),
+    };
+  };
+
+  const formatBulkDeleteResult = (value: unknown) => {
+    const result = value as { deleted: number; requested: number };
+
+    return {
+      requested: result.requested,
+      succeeded: result.deleted,
+      title: t(
+        'admin.redemption.bulkDeleteDone',
+        `已删除 ${result.deleted}/${result.requested} 个`,
+      ),
+    };
   };
 
   const handleGenerate = async () => {
@@ -331,28 +335,42 @@ const AdminRedemptionPage = memo(() => {
           </Button>
           {selectedIds.length > 0 && (
             <>
-              <Popconfirm
-                title={t(
+              <AdminBulkActionFlow
+                actionId="redemption.bulkDisable"
+                count={selectedIds.length}
+                danger
+                confirmTitle={t(
                   'admin.redemption.confirmBulkDisable',
                   `确认停用 ${selectedIds.length} 个兑换码？`,
                 )}
-                onConfirm={handleBulkDisable}
+                progressDescription={t(
+                  'admin.redemption.bulkDisableProgress',
+                  '正在停用选中的兑换码，请勿关闭页面。',
+                )}
+                summary={formatBulkDisableResult}
+                onRun={handleBulkDisable}
+                onSuccess={finishBulkAction}
               >
-                <Button danger loading={bulkRunning}>
-                  {t('admin.redemption.bulkDisable', `停用 ${selectedIds.length} 个`)}
-                </Button>
-              </Popconfirm>
-              <Popconfirm
-                title={t(
+                {t('admin.redemption.bulkDisable', `停用 ${selectedIds.length} 个`)}
+              </AdminBulkActionFlow>
+              <AdminBulkActionFlow
+                actionId="redemption.bulkDelete"
+                count={selectedIds.length}
+                danger
+                confirmTitle={t(
                   'admin.redemption.confirmBulkDelete',
                   `确认删除 ${selectedIds.length} 个未兑换兑换码？`,
                 )}
-                onConfirm={handleBulkDelete}
+                progressDescription={t(
+                  'admin.redemption.bulkDeleteProgress',
+                  '正在删除选中的未兑换兑换码，请勿关闭页面。',
+                )}
+                summary={formatBulkDeleteResult}
+                onRun={({ reason }) => handleBulkDelete(reason)}
+                onSuccess={finishBulkAction}
               >
-                <Button danger loading={bulkRunning}>
-                  {t('admin.redemption.bulkDelete', `删除 ${selectedIds.length} 个`)}
-                </Button>
-              </Popconfirm>
+                {t('admin.redemption.bulkDelete', `删除 ${selectedIds.length} 个`)}
+              </AdminBulkActionFlow>
               <Button onClick={() => setSelectedIds([])}>
                 {t('admin.redemption.clearSel', '清空选择')}
               </Button>

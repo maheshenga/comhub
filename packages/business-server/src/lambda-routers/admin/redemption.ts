@@ -293,7 +293,12 @@ export const adminRedemptionRouter = router({
    * the ledger trail.
    */
   bulkDelete: adminProcedure
-    .input(z.object({ ids: z.array(z.string().min(1)).min(1).max(500) }))
+    .input(
+      z.object({
+        ids: z.array(z.string().min(1)).min(1).max(500),
+        reason: z.string().trim().min(1).max(500).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const deleted = await ctx.serverDB
         .delete(redemptionCodes)
@@ -302,7 +307,7 @@ export const adminRedemptionRouter = router({
 
       await recordAdminAudit(ctx, {
         action: 'redemption.bulkDelete',
-        payload: { deleted: deleted.length, requested: input.ids.length },
+        payload: { deleted: deleted.length, reason: input.reason, requested: input.ids.length },
         resourceType: 'redemption_code',
       });
       return { deleted: deleted.length, requested: input.ids.length };
