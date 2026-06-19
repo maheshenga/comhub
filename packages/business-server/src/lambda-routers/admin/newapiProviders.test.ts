@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
 
+import { recordAdminAudit } from './audit';
 import { adminNewapiProvidersRouter } from './newapiProviders';
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -204,6 +205,36 @@ describe('adminNewapiProvidersRouter', () => {
         enabled: true,
         modelId: 'flux-pro',
         modelType: 'image',
+      }),
+    );
+  });
+
+  it('records the admin supplied reason when deleting an instance', async () => {
+    const deleteWhere = vi.fn(() => ({
+      returning: vi.fn().mockResolvedValue([{ id: instanceId }]),
+    }));
+    const db = {
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+    await caller.deleteInstance({
+      id: instanceId,
+      reason: 'provider retired after outage',
+    } as any);
+
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'newapiInstance.delete',
+        payload: { reason: 'provider retired after outage' },
+        resourceId: instanceId,
       }),
     );
   });

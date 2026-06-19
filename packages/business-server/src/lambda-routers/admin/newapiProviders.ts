@@ -81,8 +81,9 @@ export const adminNewapiProvidersRouter = router({
   }),
 
   deleteInstance: adminProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ id: z.string().uuid(), reason: z.string().max(500).optional() }))
     .mutation(async ({ ctx, input }) => {
+      const reason = input.reason?.trim();
       const result = await ctx.serverDB
         .delete(adminNewapiInstances)
         .where(eq(adminNewapiInstances.id, input.id))
@@ -93,6 +94,7 @@ export const adminNewapiProvidersRouter = router({
 
       await recordAdminAudit(ctx, {
         action: 'newapiInstance.delete',
+        payload: reason ? { reason } : undefined,
         resourceId: input.id,
         resourceType: 'admin_newapi_instances',
       });

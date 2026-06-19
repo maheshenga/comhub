@@ -31,6 +31,7 @@ import {
   buildProviderInstancePayload,
   getDefaultBaseUrlForAdminProviderType,
 } from './adminProviderInstanceForm';
+import AdminDangerousActionButton from './AdminDangerousActionButton';
 
 type ModelType =
   | 'chat'
@@ -533,8 +534,8 @@ const AdminProvidersPage = memo(() => {
     await mutate(INSTANCES_KEY);
   };
 
-  const handleDelete = async (row: InstanceRow) => {
-    await adminCommercialService.deleteNewapiInstance(row.id);
+  const handleDelete = async (row: InstanceRow, reason?: string | null) => {
+    await adminCommercialService.deleteNewapiInstance({ id: row.id, reason: reason?.trim() });
     message.success(t('admin.providers.deleteSuccess', '实例已删除'));
     await mutate(INSTANCES_KEY);
   };
@@ -702,16 +703,18 @@ const AdminProvidersPage = memo(() => {
           <Button size="small" onClick={() => setEditing(row)}>
             {t('admin.providers.action.edit', '编辑')}
           </Button>
-          <Popconfirm
-            okButtonProps={{ danger: true }}
-            okText={t('admin.providers.action.delete', '删除')}
-            title={t('admin.providers.confirmDelete', '删除这个实例及其全部模型？')}
-            onConfirm={() => handleDelete(row)}
+          <AdminDangerousActionButton
+            actionId="newapiProvider.deleteInstance"
+            danger
+            size="small"
+            confirmDescription={t(
+              'admin.providers.confirmDelete',
+              '删除这个实例及其全部模型？',
+            )}
+            onConfirm={({ reason }) => handleDelete(row, reason)}
           >
-            <Button danger size="small">
-              {t('admin.providers.action.delete', '删除')}
-            </Button>
-          </Popconfirm>
+            {t('admin.providers.action.delete', '删除')}
+          </AdminDangerousActionButton>
         </Flexbox>
       ),
       title: t('admin.providers.col.actions', '操作'),

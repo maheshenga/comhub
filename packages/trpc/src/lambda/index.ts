@@ -11,10 +11,13 @@
 import { openTelemetry } from '../middleware/openTelemetry';
 import { userAuth } from '../middleware/userAuth';
 import { trpc } from './init';
+import type { AdminCapability } from './middleware/adminPermissions';
 import { heteroOperationAuth } from './middleware/heteroOperationAuth';
 import { oidcAuth } from './middleware/oidcAuth';
-import { requireSuperAdmin } from './middleware/requireSuperAdmin';
+import { requireAdminCapability, requireSuperAdmin } from './middleware/requireSuperAdmin';
 import { serverDatabase } from './middleware/serverDatabase';
+
+export { ADMIN_CAPABILITIES } from './middleware/adminPermissions';
 
 /**
  * Create a router
@@ -34,6 +37,9 @@ export const publicProcedure = baseProcedure;
 export const authedProcedure = baseProcedure.use(oidcAuth).use(userAuth);
 
 export const adminProcedure = authedProcedure.use(serverDatabase).use(requireSuperAdmin);
+
+export const adminCapabilityProcedure = (capability: AdminCapability) =>
+  authedProcedure.use(serverDatabase).use(requireAdminCapability(capability));
 
 // procedure for hetero-agent ingest/finish endpoints — requires a `hetero-operation` JWT
 export const heteroAuthedProcedure = baseProcedure.use(heteroOperationAuth).use(userAuth);

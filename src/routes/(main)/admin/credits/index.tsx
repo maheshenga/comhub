@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import { formatCredits } from '@/business/client/BusinessSettingPages/shared';
 import InlineTable from '@/components/InlineTable';
+import AdminDangerousActionButton from '@/features/Admin/AdminDangerousActionButton';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -29,7 +30,7 @@ const AdminCreditsPage = memo(() => {
   const [drawerUser, setDrawerUser] = useState<string | null>(null);
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [recharging, setRecharging] = useState(false);
-  const [form] = Form.useForm<{ amount: number; reason: string; userId: string }>();
+  const [form] = Form.useForm<{ amount: number; userId: string }>();
 
   const swrKey = useMemo(
     () => ['admin-credit-accounts', sort, order, negativeOnly, cursor] as const,
@@ -91,13 +92,19 @@ const AdminCreditsPage = memo(() => {
     }
   };
 
-  const handleRecharge = async () => {
+  const handleRecharge = async (reason?: null | string) => {
+    const normalizedReason = reason?.trim();
+    if (!normalizedReason) {
+      message.warning(t('admin.adjustCredits.invalid', '请填写调整数量和原因'));
+      return;
+    }
+
     setRecharging(true);
     try {
       const values = await form.validateFields();
       await adminCommercialService.adjustCredits({
         amount: values.amount,
-        reason: values.reason,
+        reason: normalizedReason,
         userId: values.userId.trim(),
       });
       message.success(t('admin.credits.rechargeSuccess', '积分已充值'));
@@ -218,11 +225,23 @@ const AdminCreditsPage = memo(() => {
       <AdminUserDetailDrawer userId={drawerUser} onClose={() => setDrawerUser(null)} />
 
       <Modal
-        confirmLoading={recharging}
+        footer={[
+          <Button key="cancel" onClick={() => setRechargeOpen(false)}>
+            {t('cancel', '取消')}
+          </Button>,
+          <AdminDangerousActionButton
+            key="confirm"
+            actionId="credits.adjust"
+            loading={recharging}
+            type="primary"
+            onConfirm={({ reason }) => handleRecharge(reason)}
+          >
+            {t('admin.credits.recharge', '充值积分')}
+          </AdminDangerousActionButton>,
+        ]}
         open={rechargeOpen}
         title={t('admin.credits.recharge', '充值积分')}
         onCancel={() => setRechargeOpen(false)}
-        onOk={handleRecharge}
       >
         <Form form={form} layout="vertical">
           <Form.Item
@@ -238,14 +257,6 @@ const AdminCreditsPage = memo(() => {
             rules={[{ required: true }]}
           >
             <InputNumber min={1} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            initialValue="后台手动充值"
-            label={t('admin.adjustCredits.reason', '原因')}
-            name="reason"
-            rules={[{ required: true }]}
-          >
-            <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>
