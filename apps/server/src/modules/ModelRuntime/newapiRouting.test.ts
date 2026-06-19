@@ -183,4 +183,93 @@ describe('initModelRuntimeFromDB newapi routing', () => {
       undefined,
     );
   });
+
+  it('should preserve billing and tracing hooks when retrying on a fallback instance', async () => {
+    const db = { id: 'db' } as any;
+    const primaryChat = vi.fn().mockRejectedValue({ statusCode: 503 });
+    const fallbackChat = vi.fn().mockResolvedValue({ text: 'ok' });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mocks.getBusinessModelRuntimeHooks.mockImplementation(
+      (_userId, _provider, routeMetadata) => ({
+        beforeChat: vi.fn(),
+        routeMetadata,
+      }),
+    );
+    mocks.createLLMGenerationTracingHook.mockReturnValue({ afterChat: vi.fn() });
+    mocks.initializeWithProvider
+      .mockReturnValueOnce({ chat: primaryChat })
+      .mockReturnValueOnce({ chat: fallbackChat });
+    mocks.resolveNewapiInstancesForModel.mockResolvedValue([
+      {
+        apiKey: 'sk-primary',
+        baseUrl: 'https://primary.example.com/v1',
+        groupKey: 'primary',
+        instanceId: 'instance-primary',
+        instanceName: 'Primary',
+        priority: 1,
+        providerType: 'newapi',
+        source: 'instance' as const,
+      },
+      {
+        apiKey: 'sk-fallback',
+        baseUrl: 'https://fallback.example.com/v1',
+        groupKey: 'fallback',
+        groupMultiplier: 2,
+        groupName: 'Fallback Group',
+        instanceId: 'instance-fallback',
+        instanceName: 'Fallback',
+        priority: 2,
+        providerType: 'deepseek',
+        source: 'instance' as const,
+      },
+    ]);
+
+    const runtime = await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
+      model: 'gpt-test',
+      modelType: 'chat',
+      workspaceId: 'workspace-1',
+    });
+
+    await expect(
+      runtime.chat({ messages: [{ content: 'hello', role: 'user' }], model: 'gpt-test' } as any, {
+        metadata: { assistantMessageId: 'assistant-message-1' },
+      }),
+    ).resolves.toEqual({ text: 'ok' });
+
+    expect(fallbackChat).toHaveBeenCalledTimes(1);
+    expect(mocks.getBusinessModelRuntimeHooks).toHaveBeenLastCalledWith(
+      'user-1',
+      'newapi',
+      {
+        groupKey: 'fallback',
+        groupMultiplier: 2,
+        groupName: 'Fallback Group',
+        instanceId: 'instance-fallback',
+        instanceName: 'Fallback',
+        providerType: 'deepseek',
+      },
+      'workspace-1',
+    );
+    expect(mocks.createLLMGenerationTracingHook).toHaveBeenLastCalledWith(
+      'user-1',
+      'newapi',
+      'workspace-1',
+    );
+    expect(mocks.initializeWithProvider).toHaveBeenLastCalledWith(
+      'deepseek',
+      expect.objectContaining({
+        apiKey: 'sk-fallback',
+        baseURL: 'https://fallback.example.com/v1',
+        userId: 'user-1',
+      }),
+      expect.objectContaining({
+        afterChat: expect.any(Function),
+        beforeChat: expect.any(Function),
+        routeMetadata: expect.objectContaining({ instanceId: 'instance-fallback' }),
+      }),
+    );
+
+    warnSpy.mockRestore();
+  });
 });

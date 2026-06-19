@@ -254,6 +254,24 @@ describe('imageRouter', () => {
       await expect(availabilityOptions!.getUserEmail!()).resolves.toBe('user@example.com');
       expect(mockFindUserById).toHaveBeenCalledWith(mockServerDB, mockUserId);
       expect(mockCreateAsyncCaller).toHaveBeenCalledWith({ userId: mockUserId });
+      expect(mockAssertModelPolicyAllowed).toHaveBeenCalledWith({
+        db: mockServerDB,
+        model: 'gpt-image-1',
+        provider: 'lobehub',
+        usageType: 'image',
+      });
+      expect(mockAssertPlanModelAllowed).toHaveBeenCalledWith({
+        db: mockServerDB,
+        model: 'gpt-image-1',
+        modelType: 'image',
+        userId: mockUserId,
+      });
+      expect(mockChargeBeforeGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gpt-image-1',
+          provider: 'lobehub',
+        }),
+      );
     });
 
     it('should reject unavailable lobehub image models before creating async tasks', async () => {
@@ -431,6 +449,20 @@ describe('imageRouter', () => {
         modelType: 'image',
         userId: mockUserId,
       });
+    });
+
+    it('should reject disallowed image models before pre-charge and task creation', async () => {
+      mockAssertModelPolicyAllowed.mockRejectedValueOnce(new Error('image model blocked'));
+
+      const ctx = createMockCtx();
+      const input = createDefaultInput();
+
+      const caller = imageRouter.createCaller(ctx);
+      await expect(caller.createImage(input)).rejects.toThrow('image model blocked');
+
+      expect(mockChargeBeforeGenerate).not.toHaveBeenCalled();
+      expect(mockServerDB.transaction).not.toHaveBeenCalled();
+      expect(mockCreateAsyncCaller).not.toHaveBeenCalled();
     });
 
     it('should trigger async image generation tasks', async () => {

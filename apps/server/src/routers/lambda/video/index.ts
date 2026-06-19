@@ -14,6 +14,8 @@ import { after } from 'next/server';
 import { z } from 'zod';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
+import { assertModelPolicyAllowed } from '@/business/server/modelPolicy';
+import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
@@ -101,6 +103,19 @@ export const videoRouter = router({
         });
       }
 
+      await assertModelPolicyAllowed({
+        db: serverDB,
+        model: resolvedModelId,
+        provider,
+        usageType: 'video',
+      });
+      await assertPlanModelAllowed({
+        db: serverDB,
+        model: resolvedModelId,
+        modelType: 'video',
+        userId,
+      });
+
       log('Starting video creation process, input: %O', input);
 
       // Normalize image URLs to S3 keys for database storage
@@ -164,8 +179,9 @@ export const videoRouter = router({
 
       // Step 0: Pre-charge (atomic budget deduction to prevent concurrent abuse)
       const { errorBatch, prechargeResult } = await chargeBeforeGenerate({
+        db: serverDB,
         generationTopicId,
-        model,
+        model: resolvedModelId,
         params,
         provider,
         userId,
@@ -243,7 +259,11 @@ export const videoRouter = router({
 
       // Step 2: Call model runtime to submit video generation task
       try {
-        const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, wsId);
+        const modelRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
+          model: resolvedModelId,
+          modelType: 'video',
+          ...(wsId ? { workspaceId: wsId } : {}),
+        });
 
         const callbackBaseUrl = process.env.WEBHOOK_PROXY_URL || appEnv.APP_URL;
         const callbackUrl = `${callbackBaseUrl}/api/webhooks/video/${provider}?token=${webhookToken}`;

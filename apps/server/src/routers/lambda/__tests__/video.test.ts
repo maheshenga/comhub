@@ -37,6 +37,7 @@ const {
     mockCreateVideo,
     mockFindUserById,
     mockIsLobeHubModelAvailable,
+    mockLoadModels,
     mockProcessBackgroundVideoPolling,
     mockResolveBusinessModelMapping,
     mockServerDB,
@@ -252,6 +253,26 @@ describe('videoRouter', () => {
         expect.objectContaining({ model: 'dreamina-seedance-2-0-260128' }),
         expect.any(Object),
       );
+      expect(mockAssertModelPolicyAllowed).toHaveBeenCalledWith({
+        db: mockServerDB,
+        model: 'dreamina-seedance-2-0-260128',
+        provider: 'lobehub',
+        usageType: 'video',
+      });
+      expect(mockAssertPlanModelAllowed).toHaveBeenCalledWith({
+        db: mockServerDB,
+        model: 'dreamina-seedance-2-0-260128',
+        modelType: 'video',
+        userId: mockCtx.userId,
+      });
+      const { chargeBeforeGenerate } =
+        await import('@/business/server/video-generation/chargeBeforeGenerate');
+      expect(chargeBeforeGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'dreamina-seedance-2-0-260128',
+          provider: 'lobehub',
+        }),
+      );
     });
 
     it('should reject unavailable lobehub video models before creating async tasks', async () => {
@@ -357,6 +378,20 @@ describe('videoRouter', () => {
 
       expect(result).toEqual({ error: 'insufficient_balance' });
       // Should not proceed to createVideo
+      expect(mockCreateVideo).not.toHaveBeenCalled();
+    });
+
+    it('should reject disallowed video models before pre-charge and task creation', async () => {
+      setupMocks();
+      mockAssertModelPolicyAllowed.mockRejectedValueOnce(new Error('video model blocked'));
+
+      const caller = videoRouter.createCaller(mockCtx);
+      await expect(caller.createVideo(defaultInput)).rejects.toThrow('video model blocked');
+
+      const { chargeBeforeGenerate } =
+        await import('@/business/server/video-generation/chargeBeforeGenerate');
+      expect(chargeBeforeGenerate).not.toHaveBeenCalled();
+      expect(mockTransaction).not.toHaveBeenCalled();
       expect(mockCreateVideo).not.toHaveBeenCalled();
     });
   });

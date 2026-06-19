@@ -27,6 +27,7 @@ import {
   type AdminModelApiProviderType,
   buildNewapiRouteMetadata,
   type NewapiModelType,
+  type ResolvedNewapiInstance,
   resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel,
 } from '@/server/services/newapiInstance';
@@ -35,19 +36,6 @@ import { KeyVaultsGateKeeper } from '../KeyVaultsEncrypt';
 import apiKeyManager from './apiKeyManager';
 
 export * from './trace';
-
-export interface NewapiFailoverInstance {
-  apiKey: string;
-  baseUrl: string;
-  groupKey?: string | null;
-  groupMultiplier?: number | null;
-  groupName?: string | null;
-  instanceId: string;
-  instanceName: string;
-  priority: number;
-  providerType?: AdminModelApiProviderType | null;
-  source: 'instance';
-}
 
 export interface InitModelRuntimeFromDBOptions {
   model?: string | null;
@@ -409,8 +397,10 @@ const buildVertexOptions = (
 const wrapNewapiRuntimeWithFailover = (
   runtime: ModelRuntime,
   payload: ClientSecretPayload,
-  failoverInstances: NewapiFailoverInstance[],
+  failoverInstances: ResolvedNewapiInstance[],
   userId: string,
+  provider: string,
+  workspaceId?: string,
 ): ModelRuntime => {
   const originalChat = runtime.chat.bind(runtime);
 
@@ -426,8 +416,8 @@ const wrapNewapiRuntimeWithFailover = (
 
       if (!is5xx && !isNetwork) throw primaryError;
 
-      // Try fallback instances in order — skip billing hooks to avoid double-charge
-      // (the primary instance already triggered beforeChat deduction)
+      // Try fallback instances in order. The final successful runtime still needs
+      // billing/tracing hooks; ledger writes are idempotent by billing reference.
       for (const instance of failoverInstances) {
         try {
           const fallbackPayload = {
@@ -437,11 +427,19 @@ const wrapNewapiRuntimeWithFailover = (
           };
           const fallbackRuntimeProvider = resolveAdminRuntimeProvider(instance.providerType);
           fallbackPayload.runtimeProvider = fallbackRuntimeProvider;
+          const fallbackBusinessHooks = getBusinessModelRuntimeHooks(
+            userId,
+            provider,
+            buildNewapiRouteMetadata(instance),
+            workspaceId,
+          );
+          const fallbackTracingHooks = createLLMGenerationTracingHook(userId, provider, workspaceId);
+          const fallbackHooks = mergeModelRuntimeHooks(fallbackBusinessHooks, fallbackTracingHooks);
           const fallbackRuntime = await initModelRuntimeWithUserPayload(
             fallbackRuntimeProvider,
             fallbackPayload,
             { userId },
-            undefined,
+            fallbackHooks,
           );
           console.warn(
             `[newapi-failover] primary failed (${statusCode}), retrying on instance "${instance.instanceName}" (priority ${instance.priority})`,
@@ -593,7 +591,14 @@ export const initModelRuntimeFromDB = async (
     // 6. Wire up NewAPI failover: if the primary instance returns a retriable
     //    error (5xx / network), automatically retry with the next fallback instance.
     if (fallbackInstances.length > 0) {
-      return wrapNewapiRuntimeWithFailover(runtime, payload, fallbackInstances, userId);
+      return wrapNewapiRuntimeWithFailover(
+        runtime,
+        payload,
+        fallbackInstances,
+        userId,
+        provider,
+        workspaceId,
+      );
     }
 
     return runtime;

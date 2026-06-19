@@ -7,6 +7,8 @@
 export const LOCAL_FILE_PROTOCOL_SCHEME = 'localfile';
 export const LOCAL_FILE_PROTOCOL_HOST = 'file';
 
+export const withElectronProtocolIfElectron = (url: string) => url;
+
 /**
  * Build a `localfile://file/<abs-path>` URL from an absolute filesystem path.
  *

@@ -8,6 +8,8 @@ import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { chargeBeforeGenerate } from '@/business/server/image-generation/chargeBeforeGenerate';
+import { assertModelPolicyAllowed } from '@/business/server/modelPolicy';
+import { assertPlanModelAllowed } from '@/business/server/planModelRules';
 import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
@@ -91,6 +93,19 @@ export const imageRouter = router({
         });
       }
 
+      await assertModelPolicyAllowed({
+        db: serverDB,
+        model: resolvedModelId,
+        provider,
+        usageType: 'image',
+      });
+      await assertPlanModelAllowed({
+        db: serverDB,
+        model: resolvedModelId,
+        modelType: 'image',
+        userId,
+      });
+
       // Normalize reference image addresses, store S3 keys uniformly (avoid storing expiring presigned URLs in database)
       let configForDatabase = { ...params };
       // 1) Process multiple images in imageUrls
@@ -170,10 +185,11 @@ export const imageRouter = router({
       const chargeResult = await chargeBeforeGenerate({
         clientIp: ctx.clientIp,
         configForDatabase,
+        db: serverDB,
         generationParams,
         generationTopicId,
         imageNum,
-        model,
+        model: resolvedModelId,
         provider,
         userId,
         workspaceId: wsId,
