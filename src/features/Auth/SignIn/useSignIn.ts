@@ -219,7 +219,7 @@ export const useSignIn = () => {
               );
             }
           },
-          // callbackUrl targets the main app, outside this auth SPA â€?full page load required
+          // callbackUrl targets the main app, outside this auth SPA - full page load required
           onSuccess: () => {
             window.location.href = sanitizeRedirectPath(callbackUrl);
           },

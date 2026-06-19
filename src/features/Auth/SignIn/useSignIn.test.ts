@@ -464,7 +464,7 @@ describe('useSignIn', () => {
         await result.current.handleSocialSignIn('google');
       });
 
-      // Should not show error toast â€?this is the critical regression test
+      // Should not show error toast - this is the critical regression test
       expect(mockMessageError).not.toHaveBeenCalled();
     });
 
