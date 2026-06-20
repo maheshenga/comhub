@@ -7,12 +7,12 @@ describe('loadingBrand', () => {
     expect(
       getBrandLoadingText({
         loadingText: 'Loading ComHub',
-        name: 'Qingyou AI',
+        name: 'Xuangguo AI',
         slogan: 'Login page copy',
       }),
     ).toBe('加载中');
-    expect(getBrandLoadingText({ name: 'Qingyou AI', slogan: 'Login page copy' })).toBe('加载中');
-    expect(getBrandLoadingText({ loadingText: '   ', name: 'Qingyou AI' })).toBe('加载中');
+    expect(getBrandLoadingText({ name: 'Xuangguo AI', slogan: 'Login page copy' })).toBe('加载中');
+    expect(getBrandLoadingText({ loadingText: '   ', name: 'Xuangguo AI' })).toBe('加载中');
   });
 
   it('renders static loading as escaped text instead of a brand logo image', () => {

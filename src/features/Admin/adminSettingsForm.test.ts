@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
+
 import {
   buildFormValues,
   buildModelOptions,
@@ -57,10 +59,10 @@ describe('adminSettingsForm', () => {
       ...buildFormValues(),
       brandFaviconUrl: '',
       brandAuthTitle: 'Agent teammates that grow with you',
-      brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
+      brandCopyrightText: '© 2026 玄果 AI. All rights reserved.',
       brandLogoUrl: '/logo.png',
       brandLoadingText: 'Loading',
-      brandName: '青柚 AI',
+      brandName: '玄果 AI',
       brandPrimaryColor: '#1677ff',
       brandSlogan: '',
       aboutLinks: {
@@ -71,9 +73,9 @@ describe('adminSettingsForm', () => {
       cronAuditRetentionDays: 365,
       cronPendingOrderExpiryDays: 7,
       cronSecret: '',
-      defaultAgentAvatar: '/avatars/qingyou-ai.png',
+      defaultAgentAvatar: '/avatars/xuangguo-ai.png',
       defaultAgentModel: 'gpt-4o-mini',
-      defaultAgentName: '青柚助手',
+      defaultAgentName: DEFAULT_COMHUB_AGENT_NAME,
       defaultAgentProvider: 'newapi',
       defaultImageModel: 'flux-pro',
       defaultImageProvider: 'newapi',
@@ -134,24 +136,24 @@ describe('adminSettingsForm', () => {
 
   it('includes default assistant name and avatar in form values and updates', () => {
     const initial = buildFormValues({
-      defaultAgentAvatar: '/images/brand/qingyou-ai-logo.png',
-      defaultAgentName: '青柚助手',
+      defaultAgentAvatar: DEFAULT_COMHUB_AGENT_AVATAR,
+      defaultAgentName: DEFAULT_COMHUB_AGENT_NAME,
     });
 
-    expect(initial.defaultAgentName).toBe('青柚助手');
-    expect(initial.defaultAgentAvatar).toBe('/images/brand/qingyou-ai-logo.png');
+    expect(initial.defaultAgentName).toBe(DEFAULT_COMHUB_AGENT_NAME);
+    expect(initial.defaultAgentAvatar).toBe(DEFAULT_COMHUB_AGENT_AVATAR);
 
     expect(
       buildSettingUpdates(
         {
           ...initial,
           defaultAgentAvatar: '/images/brand/logo.svg',
-          defaultAgentName: '青柚 AI 助手',
+          defaultAgentName: '玄果 AI 助手',
         },
         initial,
       ),
     ).toEqual([
-      { key: SETTING_KEYS.defaultAgentName, value: '青柚 AI 助手' },
+      { key: SETTING_KEYS.defaultAgentName, value: '玄果 AI 助手' },
       { key: SETTING_KEYS.defaultAgentAvatar, value: '/images/brand/logo.svg' },
     ]);
   });
@@ -177,7 +179,7 @@ describe('adminSettingsForm', () => {
   it('includes login page title and copyright in brand setting updates', () => {
     const initial = buildFormValues({
       brandAuthTitle: 'Agent teammates that grow with you',
-      brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
+      brandCopyrightText: '© 2026 玄果 AI. All rights reserved.',
     });
 
     expect(
@@ -185,13 +187,13 @@ describe('adminSettingsForm', () => {
         {
           ...initial,
           brandAuthTitle: '与团队一起成长的 AI 助手',
-          brandCopyrightText: '© 2026 Qingyou AI',
+          brandCopyrightText: '© 2026 Xuangguo AI',
         },
         initial,
       ),
     ).toEqual([
       { key: SETTING_KEYS.brandAuthTitle, value: '与团队一起成长的 AI 助手' },
-      { key: SETTING_KEYS.brandCopyrightText, value: '© 2026 Qingyou AI' },
+      { key: SETTING_KEYS.brandCopyrightText, value: '© 2026 Xuangguo AI' },
     ]);
   });
 
@@ -288,11 +290,13 @@ describe('adminSettingsForm', () => {
     ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
 
     expect(
-      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.defaultAgentName, value: '青柚助手' }]),
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.defaultAgentName, value: DEFAULT_COMHUB_AGENT_NAME },
+      ]),
     ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
 
     expect(
-      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.brandName, value: '青柚 AI' }]),
+      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.brandName, value: '玄果 AI' }]),
     ).toEqual(['brand-config']);
   });
 
@@ -428,7 +432,7 @@ describe('adminSettingsForm', () => {
           ...initial,
           aboutLinks: {
             ...initial.aboutLinks,
-            contact: [{ id: 'officialSite', label: '青柚官网', url: 'https://chat.qingyouai.com' }],
+            contact: [{ id: 'officialSite', label: '玄果官网', url: 'https://xuangguo.example.com' }],
           },
         },
         initial,
@@ -439,7 +443,7 @@ describe('adminSettingsForm', () => {
         value: {
           ...initial.aboutLinks,
           contact: [
-            { id: 'officialSite', label: '青柚官网', url: 'https://chat.qingyouai.com' },
+            { id: 'officialSite', label: '玄果官网', url: 'https://xuangguo.example.com' },
             ...initial.aboutLinks.contact.slice(1),
           ],
         },

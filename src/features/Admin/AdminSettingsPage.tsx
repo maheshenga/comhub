@@ -21,6 +21,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
+import { DEFAULT_COMHUB_AGENT_AVATAR } from '@/const/defaultAgent';
 import {
   SETTINGS_DEFAULT_MODEL_NOTICE,
   SETTINGS_SUBTITLE,
@@ -583,7 +584,7 @@ const AdminSettingsPage = memo(() => {
                       '支持图片 URL、站内路径或 emoji。留空时使用默认头像。',
                     )}
                   >
-                    <Input placeholder="/images/brand/qingyou-ai-logo.png" />
+                    <Input placeholder={DEFAULT_COMHUB_AGENT_AVATAR} />
                   </Form.Item>
                   <Form.Item
                     label={t('admin.settings.defaultSkillName', '默认技能名称')}

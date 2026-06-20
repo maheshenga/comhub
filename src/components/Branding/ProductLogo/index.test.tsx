@@ -32,4 +32,13 @@ describe('ProductLogo', () => {
     );
     expect(screen.queryByTestId('lobehub-logo')).not.toBeInTheDocument();
   });
+
+  it('treats an empty runtime logo as unset so the auth shell can use the upstream fallback', () => {
+    mocks.brand.logoUrl = '';
+
+    render(<ProductLogo size={32} />);
+
+    expect(screen.getByTestId('lobehub-logo')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Runtime Brand' })).not.toBeInTheDocument();
+  });
 });

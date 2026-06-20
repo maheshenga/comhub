@@ -5,6 +5,7 @@ import isEqual from 'fast-deep-equal';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { contextSelectors, useConversationStore } from '@/features/Conversation/store';
 import { useAgentStore } from '@/store/agent';
@@ -31,7 +32,7 @@ const AgentInfo = memo(() => {
   const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
 
   const displayTitle = isInbox
-    ? meta.title || defaultAgentMeta.title || '青柚助手'
+    ? meta.title || defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME
     : meta.title || t('defaultSession', { ns: 'common' });
 
   const message = useMemo(() => {

@@ -16,7 +16,7 @@ vi.mock('@/const/brand', () => ({
     authTitle: 'Default auth title',
     copyrightText: '2026 Default. All rights reserved.',
     loadingText: 'Loading',
-    logoUrl: '/images/brand/qingyou-ai-logo.png',
+    logoUrl: null,
     name: 'Default Brand',
     primaryColor: '#12b981',
   },
@@ -89,7 +89,7 @@ describe('getServerBrand', () => {
       homeMessengerEnabled: true,
       homeMessengerBannerTitle: null,
       loadingText: 'Loading',
-      logoUrl: '/images/brand/qingyou-ai-logo.png',
+      logoUrl: null,
       name: 'Default Brand',
       primaryColor: '#12b981',
       sidebarGenerationLabel: null,
@@ -97,6 +97,22 @@ describe('getServerBrand', () => {
       sidebarMemberUrl: null,
       slogan: 'Default auth title',
     });
+  });
+
+  it('preserves an empty configured logo as unset instead of restoring the legacy default logo', async () => {
+    findFirstMock.mockImplementation(async (args: any) => {
+      const k = args.where.b;
+      const map: Record<string, string> = {
+        'brand.logoUrl': '',
+        'brand.name': 'Runtime Brand',
+      };
+      return k in map ? { value: map[k] } : null;
+    });
+
+    const out = await getServerBrand();
+
+    expect(out.logoUrl).toBe('');
+    expect(out.name).toBe('Runtime Brand');
   });
 
   it('caches the result for the configured TTL', async () => {
@@ -128,7 +144,7 @@ describe('getServerBrand', () => {
       homeMessengerEnabled: true,
       homeMessengerBannerTitle: null,
       loadingText: 'Loading',
-      logoUrl: '/images/brand/qingyou-ai-logo.png',
+      logoUrl: null,
       name: 'Default Brand',
       primaryColor: '#12b981',
       sidebarGenerationLabel: null,

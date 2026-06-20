@@ -5,7 +5,7 @@ import SkillSourceTag from './index';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => (key === 'skillStore.tabs.lobehub' ? '青柚AI' : key),
+    t: (key: string) => (key === 'skillStore.tabs.lobehub' ? '玄果AI' : key),
   }),
 }));
 

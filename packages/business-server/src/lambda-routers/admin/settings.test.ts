@@ -2,6 +2,7 @@ import { Plans } from '@lobechat/types';
 import type { TRPCError } from '@trpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
@@ -268,6 +269,18 @@ describe('admin settings default model validation', () => {
     } satisfies Partial<TRPCError>);
 
     expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('returns ComHub assistant defaults when no default assistant setting exists', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([]);
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const settings = await caller.getAll();
+
+    expect(settings.defaultAgentAvatar).toBe(DEFAULT_COMHUB_AGENT_AVATAR);
+    expect(settings.defaultAgentName).toBe(DEFAULT_COMHUB_AGENT_NAME);
   });
 
   it('cleans archived notifications during maintenance using the configured retention days', async () => {

@@ -12,7 +12,7 @@ import { type Locales } from '@/locales/resources';
 import { parseBrowserLanguage } from '@/utils/locale';
 import { DEFAULT_LANG, locales, RouteVariants } from '@/utils/server/routeVariants';
 
-import { authSpaRoutes, nextjsOnlyRoutes } from '../nextjsOnlyRoutes';
+import { nextjsOnlyRoutes } from '../nextjsOnlyRoutes';
 import { createRouteMatcher } from './createRouteMatcher';
 
 // Create debug logger instances
@@ -22,7 +22,7 @@ const logBetterAuth = debug('middleware:better-auth');
 // Dev-only debug proxy route should bypass all middleware rewrites.
 const dangerousLocalDevProxyRoute = '/_dangerous_local_dev_proxy';
 
-// The locale is embedded raw into rewrite paths (/spa-auth/${locale}, /spa/${route}).
+// The locale is embedded raw into rewrite paths (/${locale}, /spa/${route}).
 // An unvalidated value (e.g. ?hl=../../api/dev) would let the URL parser collapse the
 // traversal and rewrite to a confused internal target, so allowlist it before use.
 const toSafeLocale = (locale: string): Locales =>
@@ -127,20 +127,6 @@ export function defineConfig() {
     ) {
       logDefault('Skipping rewrite for dangerous local dev proxy route: %s', url.pathname);
       return NextResponse.next();
-    }
-
-    const isAuthSpaRoute = authSpaRoutes.some((r) => url.pathname.startsWith(r));
-
-    // Auth SPA routes: rewrite to /spa-auth/[locale]/[[...path]] catch-all
-    if (isAuthSpaRoute) {
-      const authSpaPath = `/spa-auth/${safeLocale}${url.pathname}`;
-      logDefault('Auth SPA route, rewriting to: %s', authSpaPath);
-      url.pathname = authSpaPath;
-
-      const response = NextResponse.rewrite(url);
-      persistLocaleCookie(response, request, explicitlyLocale);
-
-      return response;
     }
 
     const isNextjsRoute = nextjsOnlyRoutes.some((r) => url.pathname.startsWith(r));

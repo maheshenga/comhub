@@ -2,6 +2,7 @@ export * from './agentDocument';
 export * from './bot';
 export * from './composio';
 export * from './currency';
+export * from './defaultAgent';
 export * from './desktop';
 export * from './desktopGlobalShortcuts';
 export * from './discover';

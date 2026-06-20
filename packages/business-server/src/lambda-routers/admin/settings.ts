@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { normalizeAboutLinksConfig } from '@/const/aboutLinks';
 import { normalizeAvatarPresets } from '@/const/avatarPresets';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import {
   DEFAULT_EXPERT_PLAZA_CONFIG,
   normalizeExpertPlazaCards,
@@ -973,9 +974,9 @@ export const adminSettingsRouter = router({
       cronPendingOrderExpiryDays: typeof pendingDays === 'number' ? pendingDays : 7,
       cronSecretConfigured: Boolean(dbCronSecret ?? process.env.CRON_SECRET),
       cronSecretMasked: maskApiKey(dbCronSecret ?? process.env.CRON_SECRET),
-      defaultAgentAvatar: currentDefaultAvatar || '/images/brand/qingyou-ai-logo.png',
+      defaultAgentAvatar: currentDefaultAvatar || DEFAULT_COMHUB_AGENT_AVATAR,
       defaultAgentModel: currentDefaultModel || '',
-      defaultAgentName: currentDefaultName || '青柚助手',
+      defaultAgentName: currentDefaultName || DEFAULT_COMHUB_AGENT_NAME,
       defaultAgentProvider: currentDefaultProvider || '',
       defaultImageModel: typeof defaultImageModel === 'string' ? defaultImageModel : '',
       defaultImageProvider: typeof defaultImageProvider === 'string' ? defaultImageProvider : '',

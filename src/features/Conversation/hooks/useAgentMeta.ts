@@ -1,6 +1,7 @@
 import { type MetaData } from '@lobechat/types';
 import { useMemo } from 'react';
 
+import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors } from '@/store/agent/selectors';
@@ -8,8 +9,6 @@ import { useUserStore } from '@/store/user';
 import { settingsSelectors } from '@/store/user/selectors';
 
 import { contextSelectors, useConversationStore } from '../store';
-
-const DEFAULT_ASSISTANT_TITLE = '青柚助手';
 
 /**
  * Hook to get agent meta data for a specific agent or the current conversation.
@@ -43,7 +42,7 @@ export const useAgentMeta = (messageAgentId?: string | null): MetaData => {
       return {
         ...agentMeta,
         avatar,
-        title: agentMeta.title || defaultAgentMeta.title || DEFAULT_ASSISTANT_TITLE,
+        title: agentMeta.title || defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME,
       };
     }
 

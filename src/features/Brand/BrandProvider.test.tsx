@@ -10,10 +10,10 @@ vi.mock('@lobechat/business-const', () => ({
 vi.mock('@/const/brand', () => ({
   DEFAULT_RUNTIME_BRAND: {
     authTitle: 'Agent teammates that grow with you',
-    copyrightText: '2026 Qingyou AI. All rights reserved.',
+    copyrightText: '2026 玄果 AI. All rights reserved.',
     loadingText: 'Loading',
-    logoUrl: '/images/brand/qingyou-ai-logo.png',
-    name: 'Qingyou AI',
+    logoUrl: null,
+    name: '玄果AI',
     primaryColor: '#12b981',
   },
 }));
@@ -41,7 +41,7 @@ let swrData:
       homeMessengerEnabled?: boolean;
       homeMessengerBannerTitle?: null | string;
       loadingText: null | string;
-      logoUrl: null;
+      logoUrl: null | string;
       name: string;
       primaryColor: null;
       sidebarGenerationLabel?: null | string;
@@ -92,6 +92,25 @@ describe('BrandProvider', () => {
       slogan: null,
       defaultSkillName: 'Runtime Skill',
     };
+  });
+
+  it('does not replace an explicitly empty runtime logo with the legacy default logo', async () => {
+    swrData = {
+      ...swrData!,
+      logoUrl: '',
+    };
+
+    render(
+      <BrandProvider>
+        <div>content</div>
+      </BrandProvider>,
+    );
+
+    await waitFor(() => {
+      expect(document.title).toBe('Runtime Brand');
+    });
+
+    expect(i18n.options?.interpolation?.defaultVariables?.brandName).toBe('Runtime Brand');
   });
 
   it('initializes i18n interpolation options when they are missing during SPA boot', async () => {

@@ -6,6 +6,7 @@ import { ChevronsUpDownIcon } from 'lucide-react';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { useFetchAgentList } from '@/hooks/useFetchAgentList';
 import { agentService } from '@/services/agent';
@@ -62,7 +63,7 @@ const AgentSelect = memo(() => {
   const displayMeta = isInboxDisplay ? inboxMeta : (sidebarItem ?? agentMapMeta);
 
   const fallbackTitle = isInboxDisplay
-    ? defaultAgentMeta.title || '青柚助手'
+    ? defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME
     : t('defaultSession', { ns: 'common' });
   const displayTitle = displayMeta?.title || fallbackTitle;
   const displayMetaAvatar =

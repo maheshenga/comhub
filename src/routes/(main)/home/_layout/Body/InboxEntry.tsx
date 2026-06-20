@@ -6,6 +6,7 @@ import { createStaticStyles } from 'antd-style';
 import { Loader2 } from 'lucide-react';
 import { memo } from 'react';
 
+import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import NavItem from '@/features/NavPanel/components/NavItem';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
@@ -53,7 +54,7 @@ const InboxEntry = memo(() => {
     inboxAgentId ? operationSelectors.isAgentRunning(inboxAgentId) : () => false,
   );
 
-  const title = inboxMeta.title || defaultAgentMeta.title || '青柚助手';
+  const title = inboxMeta.title || defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME;
   const avatar =
     inboxMeta.avatar && inboxMeta.avatar !== DEFAULT_INBOX_AVATAR
       ? inboxMeta.avatar

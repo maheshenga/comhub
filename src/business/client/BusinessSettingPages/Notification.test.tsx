@@ -94,7 +94,7 @@ describe('Notification', () => {
       emailEnabled: true,
       inboxEnabled: true,
       system: {
-        actionUrl: 'https://chat.qingyouai.com/status',
+        actionUrl: 'https://xuangguo.example.com/status',
         content: '今晚 23:00 进行服务升级。',
         enabled: true,
         title: '系统维护通知',
@@ -110,7 +110,7 @@ describe('Notification', () => {
     expect(screen.getByText('系统维护通知')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '查看详情' })).toHaveAttribute(
       'href',
-      'https://chat.qingyouai.com/status',
+      'https://xuangguo.example.com/status',
     );
   });
 });

@@ -10,6 +10,7 @@ import {
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import {
   type ConfiguredInterestArea,
   normalizeConfiguredInterestAreas,
@@ -292,7 +293,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   brandFaviconUrl: data?.brandFaviconUrl ?? '',
   brandAuthTitle: data?.brandAuthTitle ?? DEFAULT_RUNTIME_BRAND.authTitle,
   brandCopyrightText: data?.brandCopyrightText ?? DEFAULT_RUNTIME_BRAND.copyrightText,
-  brandLogoUrl: data?.brandLogoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
+  brandLogoUrl: data?.brandLogoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl ?? '',
   brandLoadingText: data?.brandLoadingText ?? DEFAULT_RUNTIME_BRAND.loadingText,
   brandName: data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
   brandPrimaryColor: data?.brandPrimaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
@@ -302,9 +303,9 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
   cronSecret: '',
-  defaultAgentAvatar: data?.defaultAgentAvatar ?? '/images/brand/qingyou-ai-logo.png',
+  defaultAgentAvatar: data?.defaultAgentAvatar ?? DEFAULT_COMHUB_AGENT_AVATAR,
   defaultAgentModel: data?.defaultAgentModel ?? '',
-  defaultAgentName: data?.defaultAgentName ?? '青柚助手',
+  defaultAgentName: data?.defaultAgentName ?? DEFAULT_COMHUB_AGENT_NAME,
   defaultAgentProvider: data?.defaultAgentProvider ?? '',
   defaultImageModel: data?.defaultImageModel ?? '',
   defaultImageProvider: data?.defaultImageProvider ?? '',
