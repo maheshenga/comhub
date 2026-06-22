@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - upgrade/upstream-v2.2.6-comhub-merge
   workflow_dispatch:
     inputs:
       deploy:
