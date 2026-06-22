@@ -1,5 +1,4 @@
-import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
-import { form } from 'motion/react-m';
+import { Form } from 'antd';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +8,7 @@ import { useBusinessSignup } from '@/business/client/hooks/useBusinessSignup';
 import { message } from '@/components/AntdStaticMethods';
 import { trackLoginOrSignupClicked } from '@/features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
 import { signUp } from '@/libs/better-auth/auth-client';
+import { buildOnboardingRedirectUrl } from '@/utils/onboardingRedirect';
 
 import { useAuthServerConfigStore } from '../../_layout/AuthServerConfigProvider';
 import type { AuthFetchOptions } from '../../utils/authFetchOptions';
@@ -31,11 +31,15 @@ export const useSignUp = () => {
   const { t } = useTranslation(['auth', 'authError']);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [form] = Form.useForm<SignUpFormValues>();
   const [loading, setLoading] = useState(false);
   const { getCaptchaTokenOnError, getFetchOptions, preSocialSignupCheck, businessElement } =
     useBusinessSignup(form);
   const enableEmailVerification = useAuthServerConfigStore(
     (s) => s.serverConfig.enableEmailVerification || false,
+  );
+  const enableBusinessFeatures = useAuthServerConfigStore(
+    (s) => s.serverConfig.enableBusinessFeatures || false,
   );
 
   const handleSignUp = async (values: SignUpFormValues) => {
@@ -43,18 +47,19 @@ export const useSignUp = () => {
     await trackLoginOrSignupClicked({ spm: 'signup.submit.click' });
 
     try {
-      if (ENABLE_BUSINESS_FEATURES && !(await preSocialSignupCheck(values))) {
+      if (enableBusinessFeatures && !(await preSocialSignupCheck(values))) {
         setLoading(false);
         return;
       }
 
       const callbackUrl = searchParams.get('callbackUrl') || '/';
+      const redirectUrl = buildOnboardingRedirectUrl(callbackUrl);
       const username = values.email.split('@')[0];
       const fetchOptions = await getFetchOptions();
 
       const submit = async (nextFetchOptions?: AuthFetchOptions) =>
         signUp.email({
-          callbackURL: callbackUrl,
+          callbackURL: redirectUrl,
           email: values.email,
           fetchOptions: nextFetchOptions,
           name: username,
@@ -96,10 +101,10 @@ export const useSignUp = () => {
 
       if (enableEmailVerification) {
         router.push(
-          `/verify-email?email=${encodeURIComponent(values.email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`,
+          `/verify-email?email=${encodeURIComponent(values.email)}&callbackUrl=${encodeURIComponent(redirectUrl)}`,
         );
       } else {
-        router.push(callbackUrl);
+        window.location.href = redirectUrl;
       }
     } catch {
       message.error(t('betterAuth.signup.error'));
@@ -108,5 +113,5 @@ export const useSignUp = () => {
     }
   };
 
-  return { businessElement, loading, onSubmit: handleSignUp };
+  return { businessElement, form, loading, onSubmit: handleSignUp };
 };

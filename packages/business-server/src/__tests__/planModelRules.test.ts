@@ -93,6 +93,18 @@ describe('plan model rules', () => {
     expect(isModelAllowedByPlanRules(rules, 'gpt-4o', 'chat', 'vip')).toBe(true);
   });
 
+  it('applies legacy stt plan rules to normalized asr model types', () => {
+    const rules = {
+      stt: {
+        allowlist: ['whisper-1'],
+        mode: 'allowlist' as const,
+      },
+    };
+
+    expect(isModelAllowedByPlanRules(rules, 'whisper-1', 'asr')).toBe(true);
+    expect(isModelAllowedByPlanRules(rules, 'gpt-4o-transcribe', 'asr')).toBe(false);
+  });
+
   it('throws a readable Chinese error when the current plan denies a model', async () => {
     await serverDB.insert(users).values([{ id: deniedUserId }]);
     await serverDB.insert(planCatalog).values({

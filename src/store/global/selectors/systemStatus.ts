@@ -257,12 +257,11 @@ const sidebarItems = (s: GlobalState): string[] => {
 const showSystemRole = (s: GlobalState) => s.status.showSystemRole;
 const mobileShowTopic = (s: GlobalState) => s.status.mobileShowTopic;
 const mobileShowPortal = (s: GlobalState) => s.status.mobileShowPortal;
-const showAgentBuilderPanel = (s: GlobalState) =>
-  !s.status.zenMode && s.status.showAgentBuilderPanel;
-const showRightPanel = (s: GlobalState) => !s.status.zenMode && s.status.showRightPanel;
-const showLeftPanel = (s: GlobalState) => !s.status.zenMode && s.status.showLeftPanel;
-const showPageAgentPanel = (s: GlobalState) => !s.status.zenMode && s.status.showPageAgentPanel;
-const showTaskAgentPanel = (s: GlobalState) => !s.status.zenMode && s.status.showTaskAgentPanel;
+const showAgentBuilderPanel = (s: GlobalState) => s.status.showAgentBuilderPanel;
+const showRightPanel = (s: GlobalState) => s.status.showRightPanel;
+const showLeftPanel = (s: GlobalState) => s.status.showLeftPanel;
+const showPageAgentPanel = (s: GlobalState) => s.status.showPageAgentPanel;
+const showTaskAgentPanel = (s: GlobalState) => s.status.showTaskAgentPanel;
 const showFilePanel = (s: GlobalState) => s.status.showFilePanel;
 const showImagePanel = (s: GlobalState) => s.status.showImagePanel;
 const showImageTopicPanel = (s: GlobalState) => s.status.showImageTopicPanel;
@@ -276,8 +275,6 @@ const modelSwitchPanelGroupMode = (s: GlobalState) =>
 const modelSwitchPanelWidth = (s: GlobalState) => s.status.modelSwitchPanelWidth || 460;
 const pageAgentPanelWidth = (s: GlobalState) => s.status.pageAgentPanelWidth || 360;
 
-const showChatHeader = (s: GlobalState) => !s.status.zenMode;
-const inZenMode = (s: GlobalState) => s.status.zenMode;
 const leftPanelWidth = (s: GlobalState): number => {
   return normalizeNavPanelWidth(s.status.leftPanelWidth);
 };
@@ -342,7 +339,6 @@ export const systemStatusSelectors = {
   imagePanelWidth,
   imageTopicViewMode,
   imageTopicPanelWidth,
-  inZenMode,
   isBannerDismissed,
   isNotificationRead,
   isShowCredit,
@@ -366,7 +362,6 @@ export const systemStatusSelectors = {
   sidebarItems,
   sessionGroupKeys,
   showAgentBuilderPanel,
-  showChatHeader,
   showFilePanel,
   showImagePanel,
   showImageTopicPanel,

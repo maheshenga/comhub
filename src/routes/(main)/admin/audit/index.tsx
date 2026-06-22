@@ -5,7 +5,7 @@ import { Button, DatePicker, Descriptions, Empty, Input, message, Modal, Tag } f
 import { type Dayjs } from 'dayjs';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';

@@ -179,6 +179,27 @@ describe('NewAPI instance resolver', () => {
     expect(routes.map((route) => route.instanceId)).toEqual(['chat-1']);
   });
 
+  it('routes normalized asr requests to legacy stt model rows and usage scopes', async () => {
+    const db = createDb([
+      {
+        apiKey: 'sk-asr',
+        baseUrl: 'https://asr.example.com',
+        groupKey: 'basic',
+        id: 'asr-1',
+        name: 'ASR',
+        priority: 0,
+        usageScope: ['stt'],
+      },
+    ]);
+
+    const routes = await resolveNewapiInstancesForModel(db, {
+      modelId: 'whisper-1',
+      modelType: 'asr',
+    });
+
+    expect(routes.map((route) => route.instanceId)).toEqual(['asr-1']);
+  });
+
   it('prefers default group for default instance resolution', async () => {
     const db = createDb([
       {

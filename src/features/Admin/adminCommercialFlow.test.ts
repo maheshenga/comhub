@@ -308,14 +308,14 @@ describe('admin commercial flow pages', () => {
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
     const auditPage = readRepoFile('src/routes/(main)/admin/audit/index.tsx');
 
-    expect(ordersPage).toContain("import { Link } from 'react-router-dom'");
+    expect(ordersPage).toContain("import { Link } from 'react-router'");
     expect(ordersPage).toContain('const buildOrderAuditUrl = (orderId: string) => {');
     expect(ordersPage).toContain("searchParams.set('resourceType', 'top_up_order')");
     expect(ordersPage).toContain("searchParams.set('resourceId', orderId)");
     expect(ordersPage).toContain('to={buildOrderAuditUrl(orderDetail.id)}');
     expect(ordersPage).toContain("t('admin.orders.detail.viewAudit'");
 
-    expect(auditPage).toContain("import { useSearchParams } from 'react-router-dom'");
+    expect(auditPage).toContain("import { useSearchParams } from 'react-router'");
     expect(auditPage).toContain('const [searchParams] = useSearchParams();');
     expect(auditPage).toContain('const [resourceTypeFilter, setResourceTypeFilter] = useState(');
     expect(auditPage).toContain("searchParams.get('resourceType') ?? ''");

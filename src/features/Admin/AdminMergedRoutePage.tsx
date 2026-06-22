@@ -3,7 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Space, Typography } from 'antd';
 import { memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 const { Text, Title } = Typography;
 

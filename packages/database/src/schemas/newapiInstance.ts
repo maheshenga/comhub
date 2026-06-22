@@ -16,11 +16,24 @@ export type NewapiModelType =
   | 'chat'
   | 'embedding'
   | 'tts'
+  | 'asr'
   | 'stt'
   | 'image'
   | 'video'
   | 'text2music'
   | 'realtime';
+
+export const NEWAPI_MODEL_TYPES = [
+  'chat',
+  'embedding',
+  'tts',
+  'asr',
+  'stt',
+  'image',
+  'video',
+  'text2music',
+  'realtime',
+] as const satisfies NewapiModelType[];
 
 export type AdminNewapiProviderType =
   | 'newapi'

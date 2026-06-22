@@ -5,7 +5,7 @@ import { Empty, Segmented, Tag, Typography } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { ArrowUpRight, Star } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import Loading from '@/components/Loading/BrandTextLoading';
 import { PUBLIC_EXPERT_PLAZA_SWR_KEY } from '@/const/adminCacheKeys';

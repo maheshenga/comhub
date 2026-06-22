@@ -6,6 +6,7 @@ import {
   type AdminNewapiInstanceItem,
   adminNewapiInstanceModels,
   adminNewapiInstances,
+  NEWAPI_MODEL_TYPES,
 } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
@@ -23,16 +24,7 @@ const maskApiKey = (key: string | null | undefined): string | null => {
   return `${key.slice(0, 4)}****${key.slice(-4)}`;
 };
 
-const NewapiModelTypeSchema = z.enum([
-  'chat',
-  'embedding',
-  'tts',
-  'stt',
-  'image',
-  'video',
-  'text2music',
-  'realtime',
-]);
+const NewapiModelTypeSchema = z.enum(NEWAPI_MODEL_TYPES);
 
 const ProviderTypeSchema = z
   .enum(['newapi', 'openai-compatible', 'openai', 'deepseek', 'aliyun'])
@@ -322,7 +314,7 @@ export const adminNewapiProvidersRouter = router({
       z.object({
         instanceId: z.string().uuid(),
         modelType: z
-          .enum(['chat', 'embedding', 'tts', 'stt', 'image', 'video', 'text2music', 'realtime'])
+          .enum(NEWAPI_MODEL_TYPES)
           .optional(),
       }),
     )
@@ -349,16 +341,7 @@ export const adminNewapiProvidersRouter = router({
       z.object({
         instanceId: z.string().uuid(),
         modelId: z.string().min(1),
-        modelType: z.enum([
-          'chat',
-          'embedding',
-          'tts',
-          'stt',
-          'image',
-          'video',
-          'text2music',
-          'realtime',
-        ]),
+        modelType: z.enum(NEWAPI_MODEL_TYPES),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -387,16 +370,7 @@ export const adminNewapiProvidersRouter = router({
       z.object({
         instanceId: z.string().uuid(),
         modelId: z.string().min(1),
-        modelType: z.enum([
-          'chat',
-          'embedding',
-          'tts',
-          'stt',
-          'image',
-          'video',
-          'text2music',
-          'realtime',
-        ]),
+        modelType: z.enum(NEWAPI_MODEL_TYPES),
         data: z.object({
           displayName: z.string().optional(),
           enabled: z.boolean().optional(),
@@ -426,7 +400,7 @@ export const adminNewapiProvidersRouter = router({
       z
         .object({
           modelType: z
-            .enum(['chat', 'embedding', 'tts', 'stt', 'image', 'video', 'text2music', 'realtime'])
+            .enum(NEWAPI_MODEL_TYPES)
             .optional(),
         })
         .optional(),

@@ -2,7 +2,7 @@ import { Icon } from '@lobehub/ui';
 import { type ItemType } from 'antd/es/menu/interface';
 import { ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';

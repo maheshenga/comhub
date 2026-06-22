@@ -933,4 +933,12 @@ export default {
   'qa.workspace.list.plans.q': 'What is the difference between {{hobby}} and {{pro}}?',
   'qa.workspace.list.seats.a': 'Pro workspace owners can adjust the seat count from the Billing tab; each additional seat is billed monthly. Seat limits adjust automatically when downgrading to {{hobby}}.',
   'qa.workspace.list.seats.q': 'How do I add or manage seats?',
+  'plansModal.creditLimit.desc': 'Upgrade your plan to unlock more monthly credits and keep working without interruption.',
+  'plansModal.creditLimit.title': 'You’re out of credits',
+  'plansModal.default.desc': 'Unlock more capacity and advanced features.',
+  'plansModal.default.title': 'Upgrade your plan',
+  'plansModal.fileStorageLimit.desc': 'Your file storage is full. Upgrade to keep uploading and managing files.',
+  'plansModal.fileStorageLimit.title': 'Storage limit reached',
+  'plansModal.modelAccess.desc': 'This model is available on paid plans. Upgrade to use the full model lineup.',
+  'plansModal.modelAccess.title': 'Unlock all models',
 };

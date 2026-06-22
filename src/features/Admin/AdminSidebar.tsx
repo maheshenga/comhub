@@ -28,7 +28,7 @@ import {
   Users,
 } from 'lucide-react';
 import { memo, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import {
   ADMIN_NAV_GROUPS,

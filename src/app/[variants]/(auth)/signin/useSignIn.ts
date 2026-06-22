@@ -1,4 +1,3 @@
-import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { Form } from 'antd';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -11,6 +10,7 @@ import { message } from '@/components/AntdStaticMethods';
 import { trackLoginOrSignupClicked } from '@/features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
 import { requestPasswordReset, signIn } from '@/libs/better-auth/auth-client';
 import { isBuiltinProvider, normalizeProviderId } from '@/libs/better-auth/utils/client';
+import { buildOnboardingRedirectUrl, sanitizeRedirectPath } from '@/utils/onboardingRedirect';
 
 import { useAuthServerConfigStore } from '../_layout/AuthServerConfigProvider';
 import { EMAIL_REGEX, USERNAME_REGEX } from './SignInEmailStep';
@@ -36,6 +36,9 @@ export const useSignIn = () => {
   const enableMagicLink = useAuthServerConfigStore((s) => s.serverConfig.enableMagicLink || false);
   const disableEmailPassword = useAuthServerConfigStore(
     (s) => s.serverConfig.disableEmailPassword || false,
+  );
+  const enableBusinessFeatures = useAuthServerConfigStore(
+    (s) => s.serverConfig.enableBusinessFeatures || false,
   );
   const [form] = Form.useForm<SignInFormValues>();
   const [loading, setLoading] = useState(false);
@@ -70,7 +73,11 @@ export const useSignIn = () => {
       if (!emailValue) return;
 
       const callbackUrl = searchParams.get('callbackUrl') || '/';
-      const { error } = await signIn.magicLink({ callbackURL: callbackUrl, email: emailValue });
+      const { error } = await signIn.magicLink({
+        callbackURL: callbackUrl,
+        email: emailValue,
+        newUserCallbackURL: buildOnboardingRedirectUrl(callbackUrl),
+      });
       if (error) {
         message.error(error.message || t('betterAuth.signin.magicLinkError'));
         return;
@@ -140,9 +147,14 @@ export const useSignIn = () => {
           return;
         }
         const callbackUrl = searchParams.get('callbackUrl') || '/';
-        router.push(
-          `/signup?email=${encodeURIComponent(targetEmail)}&callbackUrl=${encodeURIComponent(callbackUrl)}`,
-        );
+        const signupParams = new URLSearchParams();
+        signupParams.set('email', targetEmail);
+        signupParams.set('callbackUrl', callbackUrl);
+        const utmSource = searchParams.get('utm_source');
+        if (utmSource) signupParams.set('utm_source', utmSource);
+        const referral = searchParams.get('referral');
+        if (referral) signupParams.set('referral', referral);
+        router.push(`/signup?${signupParams.toString()}`);
         return;
       }
 
@@ -184,7 +196,9 @@ export const useSignIn = () => {
               );
             }
           },
-          onSuccess: () => router.push(callbackUrl),
+          onSuccess: () => {
+            window.location.href = sanitizeRedirectPath(callbackUrl);
+          },
         },
       );
 
@@ -208,7 +222,7 @@ export const useSignIn = () => {
     });
 
     try {
-      if (ENABLE_BUSINESS_FEATURES && !(await preSocialSigninCheck())) {
+      if (enableBusinessFeatures && !(await preSocialSigninCheck())) {
         setSocialLoading(null);
         return;
       }
@@ -220,17 +234,20 @@ export const useSignIn = () => {
       }
 
       const callbackUrl = searchParams.get('callbackUrl') || '/';
+      const newUserCallbackURL = buildOnboardingRedirectUrl(callbackUrl);
       const additionalData = await getAdditionalData();
       const signInWithAdditionalData = async () =>
         isBuiltinProvider(normalizedProvider)
           ? await signIn.social({
               additionalData,
               callbackURL: callbackUrl,
+              newUserCallbackURL,
               provider: normalizedProvider,
             })
           : await signIn.oauth2({
               additionalData,
               callbackURL: callbackUrl,
+              newUserCallbackURL,
               providerId: normalizedProvider,
             });
 
@@ -257,6 +274,10 @@ export const useSignIn = () => {
     const params = new URLSearchParams();
     if (currentEmail) params.set('email', currentEmail);
     params.set('callbackUrl', callbackUrl);
+    const utmSource = searchParams.get('utm_source');
+    if (utmSource) params.set('utm_source', utmSource);
+    const referral = searchParams.get('referral');
+    if (referral) params.set('referral', referral);
     void trackLoginOrSignupClicked({ spm: 'signin.go_to_signup.click' }).finally(() => {
       router.push(`/signup?${params.toString()}`);
     });
@@ -274,7 +295,7 @@ export const useSignIn = () => {
     }
   };
 
-  const resolvedProviders = ENABLE_BUSINESS_FEATURES ? ssoProviders : oAuthSSOProviders;
+  const resolvedProviders = enableBusinessFeatures ? ssoProviders : oAuthSSOProviders;
   const sortedProviders = lastAuthProvider
     ? [...resolvedProviders].sort((a, b) => {
         if (a === lastAuthProvider) return -1;
@@ -297,7 +318,7 @@ export const useSignIn = () => {
     lastAuthProvider,
     loading,
     oAuthSSOProviders: sortedProviders,
-    serverConfigInit: ENABLE_BUSINESS_FEATURES ? true : serverConfigInit,
+    serverConfigInit: enableBusinessFeatures ? true : serverConfigInit,
     socialLoading,
     step,
   };

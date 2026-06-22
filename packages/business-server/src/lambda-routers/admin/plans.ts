@@ -3,21 +3,12 @@ import { TRPCError } from '@trpc/server';
 import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { creditAccounts, planCatalog, userPlanSnapshots } from '@/database/schemas';
+import { creditAccounts, NEWAPI_MODEL_TYPES, planCatalog, userPlanSnapshots } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
-const ModelTypeEnum = z.enum([
-  'chat',
-  'embedding',
-  'tts',
-  'stt',
-  'image',
-  'video',
-  'text2music',
-  'realtime',
-]);
+const ModelTypeEnum = z.enum(NEWAPI_MODEL_TYPES);
 
 const PlanModelRuleSchema = z.object({
   allowlist: z.array(z.string()).optional(),

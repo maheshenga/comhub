@@ -10,6 +10,7 @@ const mockSearchParamsGet = vi.hoisted(() => vi.fn().mockReturnValue(null));
 const mockMessageError = vi.hoisted(() => vi.fn());
 const mockSignUpEmail = vi.hoisted(() => vi.fn());
 const mockGetCaptchaTokenOnError = vi.hoisted(() => vi.fn());
+const mockPreSocialSignupCheck = vi.hoisted(() => vi.fn(async () => true));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
@@ -24,9 +25,10 @@ vi.mock('@/libs/better-auth/auth-client', () => ({
   signUp: { email: mockSignUpEmail },
 }));
 
-vi.mock('@lobechat/business-const', () => ({
+vi.mock('@lobechat/business-const', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@lobechat/business-const')>()),
   BRANDING_NAME: 'LobeHub',
-  ENABLE_BUSINESS_FEATURES: false,
+  ORG_NAME: 'LobeHub',
 }));
 
 vi.mock('@/business/client/hooks/useBusinessSignup', () => ({
@@ -34,32 +36,46 @@ vi.mock('@/business/client/hooks/useBusinessSignup', () => ({
     businessElement: null,
     getCaptchaTokenOnError: mockGetCaptchaTokenOnError,
     getFetchOptions: async () => undefined,
-    preSocialSignupCheck: async () => true,
+    preSocialSignupCheck: mockPreSocialSignupCheck,
   }),
 }));
 
-// motion/react-m exports `form` as a motion HTML element — mock the whole module
-vi.mock('motion/react-m', () => ({ form: {} }));
 
 let mockEnableEmailVerification = false;
+let mockEnableBusinessFeatures = false;
 vi.mock('../../_layout/AuthServerConfigProvider', () => ({
   useAuthServerConfigStore: (selector: (s: any) => any) =>
     selector({
       serverConfig: {
+        enableBusinessFeatures: mockEnableBusinessFeatures,
         enableEmailVerification: mockEnableEmailVerification,
       },
     }),
 }));
+
+const originalLocation = window.location;
 
 describe('useSignUp', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParamsGet.mockReturnValue(null);
     mockGetCaptchaTokenOnError.mockResolvedValue(undefined);
+    mockPreSocialSignupCheck.mockResolvedValue(true);
+    mockEnableBusinessFeatures = false;
     mockEnableEmailVerification = false;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, href: '' },
+      writable: true,
+    });
   });
 
   afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+      writable: true,
+    });
     vi.restoreAllMocks();
   });
 
@@ -97,7 +113,21 @@ describe('useSignUp', () => {
       );
     });
 
-    it('should redirect to callbackUrl on success', async () => {
+    it('should stop sign up when business pre-check rejects', async () => {
+      mockEnableBusinessFeatures = true;
+      mockPreSocialSignupCheck.mockResolvedValue(false);
+
+      const { result } = renderHook(() => useSignUp());
+
+      await act(async () => {
+        await result.current.onSubmit(validValues);
+      });
+
+      expect(mockPreSocialSignupCheck).toHaveBeenCalledWith(validValues);
+      expect(mockSignUpEmail).not.toHaveBeenCalled();
+    });
+
+    it('should redirect to onboarding on success', async () => {
       mockSignUpEmail.mockResolvedValue({ error: null });
 
       const { result } = renderHook(() => useSignUp());
@@ -106,10 +136,10 @@ describe('useSignUp', () => {
         await result.current.onSubmit(validValues);
       });
 
-      expect(mockPush).toHaveBeenCalledWith('/');
+      expect(window.location.href).toBe('/onboarding');
     });
 
-    it('should use callbackUrl from search params', async () => {
+    it('should thread callbackUrl from search params through onboarding', async () => {
       mockSearchParamsGet.mockImplementation((key: string) =>
         key === 'callbackUrl' ? '/dashboard' : null,
       );
@@ -122,9 +152,9 @@ describe('useSignUp', () => {
       });
 
       expect(mockSignUpEmail).toHaveBeenCalledWith(
-        expect.objectContaining({ callbackURL: '/dashboard' }),
+        expect.objectContaining({ callbackURL: '/onboarding?callbackUrl=%2Fdashboard' }),
       );
-      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+      expect(window.location.href).toBe('/onboarding?callbackUrl=%2Fdashboard');
     });
 
     it('should redirect to verify-email when email verification is enabled', async () => {
@@ -170,6 +200,7 @@ describe('useSignUp', () => {
 
       expect(mockMessageError).toHaveBeenCalled();
       expect(mockPush).not.toHaveBeenCalled();
+      expect(window.location.href).toBe('');
     });
 
     it('should show error for invalid email', async () => {
@@ -185,6 +216,7 @@ describe('useSignUp', () => {
 
       expect(mockMessageError).toHaveBeenCalled();
       expect(mockPush).not.toHaveBeenCalled();
+      expect(window.location.href).toBe('');
     });
 
     it('should show translated error for known error codes', async () => {
@@ -200,6 +232,7 @@ describe('useSignUp', () => {
 
       expect(mockMessageError).toHaveBeenCalled();
       expect(mockPush).not.toHaveBeenCalled();
+      expect(window.location.href).toBe('');
     });
 
     it('should retry sign up with captcha token when captcha is required', async () => {
@@ -223,7 +256,7 @@ describe('useSignUp', () => {
         }),
       );
       expect(mockMessageError).not.toHaveBeenCalled();
-      expect(mockPush).toHaveBeenCalledWith('/');
+      expect(window.location.href).toBe('/onboarding');
     });
 
     it('should stop sign up when captcha modal is cancelled', async () => {
@@ -241,6 +274,7 @@ describe('useSignUp', () => {
       expect(mockSignUpEmail).toHaveBeenCalledTimes(1);
       expect(mockMessageError).not.toHaveBeenCalled();
       expect(mockPush).not.toHaveBeenCalled();
+      expect(window.location.href).toBe('');
     });
 
     it('should show generic error on unexpected exception', async () => {

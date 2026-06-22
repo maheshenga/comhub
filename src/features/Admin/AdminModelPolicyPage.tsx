@@ -4,7 +4,7 @@ import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Divider, Form, Input, message, Radio, Switch } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import {

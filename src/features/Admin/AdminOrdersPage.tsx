@@ -4,7 +4,7 @@ import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Descriptions, Drawer, Input, message, Select, Space, Tabs, Tag } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';

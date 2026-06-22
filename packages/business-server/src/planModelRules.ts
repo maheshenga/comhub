@@ -1,6 +1,7 @@
 import { AgentRuntimeError } from '@lobechat/model-runtime';
 import { ChatErrorType, Plans } from '@lobechat/types';
 import { and, desc, eq, lt } from 'drizzle-orm';
+import { normalizeAiModelType } from 'model-bank';
 
 import { planCatalog, userPlanSnapshots } from '@/database/schemas';
 import { type PlanModelRules } from '@/database/schemas';
@@ -10,6 +11,7 @@ export type PlanModelRuleType =
   | 'chat'
   | 'embedding'
   | 'tts'
+  | 'asr'
   | 'stt'
   | 'image'
   | 'video'
@@ -58,6 +60,14 @@ const matchesEntryWithoutGroupContext = (entry: string, model: string) => {
   }
 
   return wildcardMatch(normalized, model.toLowerCase());
+};
+
+const getRuleForModelType = (rules: PlanModelRules, modelType: PlanModelRuleType) => {
+  const normalizedModelType = normalizeAiModelType(modelType) as PlanModelRuleType;
+  return {
+    normalizedModelType,
+    rule: rules[normalizedModelType] ?? (normalizedModelType === 'asr' ? rules.stt : undefined),
+  };
 };
 
 const ensureActivePlanSnapshot = async (db: LobeChatDatabase, userId: string) => {
@@ -138,7 +148,7 @@ export const assertPlanModelAllowed = async ({
   const rules = catalog?.modelRules as PlanModelRules | undefined | null;
   if (!rules) return;
 
-  const rule = rules[modelType];
+  const { normalizedModelType, rule } = getRuleForModelType(rules, modelType);
   if (!rule) return;
 
   const matchedAllowlist = (rule.allowlist ?? []).some((e) => matchesEntry(e, trimmed, groupKey));
@@ -152,7 +162,7 @@ export const assertPlanModelAllowed = async ({
   throw AgentRuntimeError.createError(ChatErrorType.Forbidden, {
     message: `当前套餐未授权使用模型 ${trimmed}，请升级套餐或选择其他模型。`,
     model: trimmed,
-    modelType,
+    modelType: normalizedModelType,
     plan: snapshot.plan,
     reason: 'PLAN_MODEL_RULE_DENIED',
   });
@@ -194,7 +204,7 @@ export const isModelAllowedByPlanRules = (
   const trimmed = modelId?.trim();
   if (!trimmed) return true;
   if (!rules) return true;
-  const rule = rules[modelType];
+  const { rule } = getRuleForModelType(rules, modelType);
   if (!rule) return true;
 
   const hasGroupContext = typeof groupKey === 'string' && groupKey.trim().length > 0;

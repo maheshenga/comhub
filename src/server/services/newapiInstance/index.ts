@@ -1,5 +1,6 @@
-import { and, asc, eq } from 'drizzle-orm';
-import type { Pricing } from 'model-bank';
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import type { AiModelType, Pricing } from 'model-bank';
+import { normalizeAiModelType } from 'model-bank';
 
 import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';
@@ -10,11 +11,20 @@ export type NewapiModelType =
   | 'chat'
   | 'embedding'
   | 'tts'
+  | 'asr'
   | 'stt'
   | 'image'
   | 'video'
   | 'text2music'
   | 'realtime';
+
+const getCompatibleNewapiModelTypes = (modelType: NewapiModelType): NewapiModelType[] => {
+  const normalized = normalizeAiModelType(modelType) as AiModelType | NewapiModelType;
+  return normalized === 'asr' ? ['asr', 'stt'] : [modelType];
+};
+
+export const toAiModelType = (modelType: NewapiModelType): AiModelType =>
+  normalizeAiModelType(modelType) as AiModelType;
 
 export type AdminModelApiProviderType =
   | 'newapi'
@@ -138,7 +148,11 @@ const toResolvedInstance = (row: NewapiRouteRow): ResolvedNewapiInstance => ({
 const usageScopeAllows = (
   usageScope: NewapiModelType[] | null | undefined,
   modelType: NewapiModelType,
-) => !Array.isArray(usageScope) || usageScope.length === 0 || usageScope.includes(modelType);
+) => {
+  if (!Array.isArray(usageScope) || usageScope.length === 0) return true;
+  const compatibleTypes = getCompatibleNewapiModelTypes(modelType);
+  return usageScope.some((type) => compatibleTypes.includes(type));
+};
 
 /**
  * Resolve the NewAPI instances that can serve a given model.
@@ -157,6 +171,7 @@ export const resolveNewapiInstancesForModel = async (
       ? rawParams
       : { modelId: rawParams, modelType: legacyModelType };
   const modelType = params.modelType ?? 'chat';
+  const compatibleModelTypes = getCompatibleNewapiModelTypes(modelType);
   const preferredGroupKey = params.preferredGroupKey?.trim();
   const trimmedModel = params.modelId?.trim();
 
@@ -184,7 +199,7 @@ export const resolveNewapiInstancesForModel = async (
           eq(adminNewapiInstances.enabled, true),
           eq(adminNewapiInstanceModels.enabled, true),
           eq(adminNewapiInstanceModels.modelId, trimmedModel),
-          eq(adminNewapiInstanceModels.modelType, modelType),
+          inArray(adminNewapiInstanceModels.modelType, compatibleModelTypes),
         ),
       )
       .orderBy(asc(adminNewapiInstances.priority));
@@ -199,7 +214,7 @@ export const resolveNewapiInstancesForModel = async (
         if (preferredGroupKey && groupKey !== preferredGroupKey) return false;
         if (!usageScopeAllows(row.usageScope, modelType)) return false;
 
-        return isModelAllowedByPlanRules(rules, trimmedModel, modelType, groupKey);
+        return isModelAllowedByPlanRules(rules, trimmedModel, toAiModelType(modelType), groupKey);
       });
 
       const selectedGroupKey = preferredGroupKey || allowedRows[0]?.groupKey || 'default';
@@ -346,7 +361,7 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
             row.modelType as NewapiModelType,
           ),
           providerType: row.providerType,
-          type: row.modelType as NewapiModelType,
+          type: toAiModelType(row.modelType as NewapiModelType),
         });
       }
     }

@@ -10,7 +10,7 @@ import dayjs from 'dayjs';
 import { Trash2 } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import useSWR from 'swr';
 
 import AutoSaveHint from '@/components/Editor/AutoSaveHint';

@@ -22,7 +22,7 @@ const userStoreMock = vi.hoisted(() => {
   return { useUserStore };
 });
 
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   Navigate: ({ replace, to }: { replace?: boolean; to: string }) => (
     <div data-replace={String(Boolean(replace))} data-testid="navigate" data-to={to} />
   ),

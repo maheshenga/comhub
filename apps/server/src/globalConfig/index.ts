@@ -21,7 +21,7 @@ import {
   getServerUserGlobalSettingsDefaults,
   getServerVectorSettingOverrides,
 } from '@/server/services/appSettings';
-import { getAllEnabledModels } from '@/server/services/newapiInstance';
+import { getAllEnabledModels, toAiModelType } from '@/server/services/newapiInstance';
 import { type GlobalServerConfig } from '@/types/serverConfig';
 import { cleanObject } from '@/utils/object';
 
@@ -77,7 +77,8 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
 
     if (managedNewApiModelIds.length > 0) {
       const serverModelLists: AiFullModelCard[] = instanceModels.map((m) => {
-        const parameters = getGenericNewapiParameters(m.type);
+        const modelType = toAiModelType(m.type);
+        const parameters = getGenericNewapiParameters(modelType);
 
         return {
           displayName: m.displayName || m.id,
@@ -85,7 +86,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
           id: m.id,
           ...(parameters ? { parameters } : {}),
           ...(m.pricing ? { pricing: m.pricing } : {}),
-          type: m.type,
+          type: modelType,
         };
       });
 

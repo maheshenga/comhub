@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { useTranslation } from 'react-i18next';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router';
 
 import { AdminSidebar } from '@/features/Admin';
 import AdminAuditPage from '@/routes/(main)/admin/audit';

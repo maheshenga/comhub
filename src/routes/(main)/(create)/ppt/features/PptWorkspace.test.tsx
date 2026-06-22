@@ -13,7 +13,7 @@ vi.mock('@/services/docmee', () => ({
   docmeeService: serviceMocks,
 }));
 
-vi.mock('react-router-dom', async (importOriginal) => ({
+vi.mock('react-router', async (importOriginal) => ({
   ...((await importOriginal()) as object),
   useNavigate: () => vi.fn(),
 }));

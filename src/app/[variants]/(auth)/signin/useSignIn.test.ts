@@ -14,6 +14,11 @@ const mockSignInOauth2 = vi.hoisted(() => vi.fn());
 const mockSignInEmail = vi.hoisted(() => vi.fn());
 const mockSignInMagicLink = vi.hoisted(() => vi.fn());
 const mockRequestPasswordReset = vi.hoisted(() => vi.fn());
+const mockBusinessSignin = vi.hoisted(() => ({
+  getAdditionalData: vi.fn(async () => ({})),
+  preSocialSigninCheck: vi.fn(async () => true),
+  ssoProviders: [] as string[],
+}));
 const mockLocalStorage = vi.hoisted(() => {
   const store = new Map<string, string>();
 
@@ -49,24 +54,27 @@ vi.mock('@/libs/better-auth/utils/client', () => ({
   normalizeProviderId: (p: string) => p,
 }));
 
-vi.mock('@lobechat/business-const', () => ({
+vi.mock('@lobechat/business-const', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@lobechat/business-const')>()),
   BRANDING_NAME: 'LobeHub',
-  ENABLE_BUSINESS_FEATURES: false,
+  ORG_NAME: 'LobeHub',
 }));
 
 vi.mock('@/business/client/hooks/useBusinessSignin', () => ({
   useBusinessSignin: () => ({
-    getAdditionalData: async () => ({}),
-    preSocialSigninCheck: async () => true,
-    ssoProviders: [],
+    getAdditionalData: mockBusinessSignin.getAdditionalData,
+    preSocialSigninCheck: mockBusinessSignin.preSocialSigninCheck,
+    ssoProviders: mockBusinessSignin.ssoProviders,
   }),
 }));
 
+let mockEnableBusinessFeatures = false;
 vi.mock('../_layout/AuthServerConfigProvider', () => ({
   useAuthServerConfigStore: (selector: (s: any) => any) =>
     selector({
       serverConfig: {
         disableEmailPassword: false,
+        enableBusinessFeatures: mockEnableBusinessFeatures,
         enableMagicLink: false,
         oAuthSSOProviders: ['google', 'github'],
       },
@@ -102,14 +110,30 @@ const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 vi.stubGlobal('localStorage', mockLocalStorage);
 
+const originalLocation = window.location;
+
 describe('useSignIn', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockLocalStorage.clear();
     mockSearchParamsGet.mockReturnValue(null);
+    mockEnableBusinessFeatures = false;
+    mockBusinessSignin.ssoProviders = [];
+    mockBusinessSignin.getAdditionalData.mockResolvedValue({});
+    mockBusinessSignin.preSocialSigninCheck.mockResolvedValue(true);
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, href: '' },
+      writable: true,
+    });
   });
 
   afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+      writable: true,
+    });
     vi.restoreAllMocks();
   });
 
@@ -242,8 +266,37 @@ describe('useSignIn', () => {
         }),
         expect.any(Object),
       );
-      expect(mockPush).toHaveBeenCalledWith('/');
+      expect(window.location.href).toBe('/');
     });
+
+    it.each(['javascript:alert(1)', 'https://evil.com', '//evil.com'])(
+      'should fall back to "/" instead of redirecting to hostile callbackUrl %s',
+      async (hostileUrl) => {
+        mockSearchParamsGet.mockImplementation((key: string) =>
+          key === 'callbackUrl' ? hostileUrl : null,
+        );
+        mockSignInEmail.mockImplementation(async (_data: any, opts: any) => {
+          opts.onSuccess();
+          return { error: null };
+        });
+        mockFetch.mockResolvedValueOnce({
+          json: async () => ({ exists: true, hasPassword: true }),
+          ok: true,
+        });
+
+        const { result } = renderHook(() => useSignIn());
+
+        await act(async () => {
+          await result.current.handleCheckUser({ email: 'user@example.com' });
+        });
+
+        await act(async () => {
+          await result.current.handleSignIn({ password: 'password123' });
+        });
+
+        expect(window.location.href).toBe('/');
+      },
+    );
 
     it('should show error on sign in failure', async () => {
       mockSignInEmail.mockResolvedValue({
@@ -306,7 +359,7 @@ describe('useSignIn', () => {
       });
 
       expect(mockSignInSocial).toHaveBeenCalledWith(
-        expect.objectContaining({ provider: 'google' }),
+        expect.objectContaining({ newUserCallbackURL: '/onboarding', provider: 'google' }),
       );
       expect(mockMessageError).not.toHaveBeenCalled();
     });
@@ -321,7 +374,7 @@ describe('useSignIn', () => {
       });
 
       expect(mockSignInOauth2).toHaveBeenCalledWith(
-        expect.objectContaining({ providerId: 'custom-oidc' }),
+        expect.objectContaining({ newUserCallbackURL: '/onboarding', providerId: 'custom-oidc' }),
       );
     });
 
@@ -381,6 +434,20 @@ describe('useSignIn', () => {
       });
 
       expect(localStorage.getItem('lobehub:auth:last-provider:v1')).toBe('google');
+    });
+
+    it('should stop social sign in when business pre-check rejects', async () => {
+      mockEnableBusinessFeatures = true;
+      mockBusinessSignin.preSocialSigninCheck.mockResolvedValue(false);
+
+      const { result } = renderHook(() => useSignIn());
+
+      await act(async () => {
+        await result.current.handleSocialSignIn('google');
+      });
+
+      expect(mockBusinessSignin.preSocialSigninCheck).toHaveBeenCalled();
+      expect(mockSignInSocial).not.toHaveBeenCalled();
     });
   });
 
@@ -457,6 +524,15 @@ describe('useSignIn', () => {
       expect(result.current.oAuthSSOProviders[0]).toBe('github');
 
       localStorage.removeItem('lobehub:auth:last-provider:v1');
+    });
+
+    it('should use business SSO providers when business features are enabled by server config', () => {
+      mockEnableBusinessFeatures = true;
+      mockBusinessSignin.ssoProviders = ['saml'];
+
+      const { result } = renderHook(() => useSignIn());
+
+      expect(result.current.oAuthSSOProviders).toEqual(['saml']);
     });
   });
 });
