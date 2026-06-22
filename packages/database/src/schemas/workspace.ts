@@ -1,4 +1,13 @@
-import { index, jsonb, pgTable, primaryKey, text, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 import { createNanoId } from '../utils/idGenerator';
 import { createdAt, timestamptz, updatedAt } from './_helpers';
@@ -23,6 +32,9 @@ export const workspaces = pgTable(
       .references(() => users.id, { onDelete: 'cascade' })
       .notNull(),
     settings: jsonb('settings').default({}),
+    frozen: boolean('frozen').default(false),
+    frozenReason: text('frozen_reason'),
+    frozenAt: timestamptz('frozen_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
