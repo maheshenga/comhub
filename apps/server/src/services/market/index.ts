@@ -1,5 +1,11 @@
 import { type LobeToolManifest } from '@lobechat/context-engine';
-import { MarketSDK, type OrgRef, orgRefToPathSegment } from '@lobehub/market-sdk';
+import {
+  MarketSDK,
+  type MarketSkillDetail,
+  type MarketSkillListResponse,
+  type OrgRef,
+  orgRefToPathSegment,
+} from '@lobehub/market-sdk';
 import debug from 'debug';
 import { type NextRequest } from 'next/server';
 
@@ -11,6 +17,43 @@ const log = debug('lobe-server:market-service');
 const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.com';
 
 // ============================== Helper Functions ==============================
+
+const MARKET_SKILL_AUTH_ERROR_CODES = new Set(['invalid_token', 'unauthorized']);
+
+const isMarketAuthError = (error: unknown) => {
+  const err = error as {
+    code?: string;
+    errorBody?: { error?: { code?: string } | string };
+    status?: number;
+  };
+  const bodyError = err.errorBody?.error;
+  const bodyCode = typeof bodyError === 'string' ? bodyError : bodyError?.code;
+
+  return err.status === 401 || MARKET_SKILL_AUTH_ERROR_CODES.has(err.code || bodyCode || '');
+};
+
+const appendDefinedSearchParams = (url: URL, params: Record<string, unknown>) => {
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    url.searchParams.set(key, String(value));
+  }
+};
+
+const fetchPublicMarketJson = async <T>(path: string, params: Record<string, unknown> = {}) => {
+  const url = new URL(path, MARKET_BASE_URL);
+  appendDefinedSearchParams(url, params);
+
+  const response = await fetch(url.toString(), { method: 'GET' });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.message || `Market public endpoint failed with status ${response.status}`,
+    );
+  }
+
+  return response.json() as Promise<T>;
+};
 
 /**
  * Extract access token from Authorization header
@@ -421,27 +464,49 @@ export class MarketService {
       | 'stars'
       | 'updatedAt'
       | 'watchers';
-  }) {
+  }): Promise<MarketSkillListResponse> {
     log('searchSkill: %O', params);
 
-    const result = await this.market.marketSkills.getSkillList(params);
+    try {
+      const result = await this.market.marketSkills.getSkillList(params);
 
-    log('searchSkill response: %O', result);
+      log('searchSkill response: %O', result);
 
-    return result;
+      return result;
+    } catch (error) {
+      if (!isMarketAuthError(error)) throw error;
+
+      log('searchSkill SDK auth failed, falling back to public sitemap: %O', error);
+
+      return fetchPublicMarketJson<MarketSkillListResponse>('/api/v1/skills/sitemap', params);
+    }
   }
 
   /**
    * Get skill detail from market
    */
-  async getSkillDetail(identifier: string, options?: { locale?: string; version?: string }) {
+  async getSkillDetail(
+    identifier: string,
+    options?: { locale?: string; version?: string },
+  ): Promise<MarketSkillDetail> {
     log('getSkillDetail: %s, options: %O', identifier, options);
 
-    const result = await this.market.marketSkills.getSkillDetail(identifier, options);
+    try {
+      const result = await this.market.marketSkills.getSkillDetail(identifier, options);
 
-    log('getSkillDetail response: %O', result);
+      log('getSkillDetail response: %O', result);
 
-    return result;
+      return result;
+    } catch (error) {
+      if (!isMarketAuthError(error)) throw error;
+
+      log('getSkillDetail SDK auth failed, falling back to public detail: %O', error);
+
+      return fetchPublicMarketJson<MarketSkillDetail>(
+        `/api/v1/skills/${encodeURIComponent(identifier)}`,
+        options,
+      );
+    }
   }
 
   /**

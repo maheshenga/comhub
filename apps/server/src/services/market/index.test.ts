@@ -469,6 +469,116 @@ describe('MarketService', () => {
     });
   });
 
+  describe('searchSkill', () => {
+    beforeEach(() => {
+      vi.stubGlobal('fetch', vi.fn());
+    });
+
+    it('should return the SDK skill list when Market SDK succeeds', async () => {
+      const service = new MarketService();
+      const sdkResult = {
+        currentPage: 2,
+        items: [{ identifier: 'sdk-skill', name: 'SDK Skill' }],
+        pageSize: 10,
+        totalCount: 1,
+        totalPages: 1,
+      };
+      (service as any).market.marketSkills.getSkillList = vi.fn().mockResolvedValue(sdkResult);
+
+      const result = await service.searchSkill({ page: 2, pageSize: 10 });
+
+      expect(result).toBe(sdkResult);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to the public skill sitemap when the SDK skill list rejects M2M auth', async () => {
+      const service = new MarketService();
+      (service as any).market.marketSkills.getSkillList = vi.fn().mockRejectedValue({
+        code: 'invalid_token',
+        errorBody: { error: { code: 'invalid_token' } },
+        status: 401,
+      });
+      const fallbackResult = {
+        currentPage: 1,
+        items: [{ identifier: 'public-skill', name: 'Public Skill' }],
+        pageSize: 2,
+        totalCount: 1,
+        totalPages: 1,
+      };
+      vi.mocked(fetch).mockResolvedValue({
+        json: vi.fn().mockResolvedValue(fallbackResult),
+        ok: true,
+      } as any);
+
+      const result = await service.searchSkill({
+        category: 'git-github',
+        locale: 'zh-CN',
+        order: 'desc',
+        page: 1,
+        pageSize: 2,
+        q: 'github',
+        sort: 'updatedAt',
+      });
+
+      expect(result).toEqual(fallbackResult);
+      expect(fetch).toHaveBeenCalledWith(
+        'https://market.lobehub.com/api/v1/skills/sitemap?category=git-github&locale=zh-CN&order=desc&page=1&pageSize=2&q=github&sort=updatedAt',
+        { method: 'GET' },
+      );
+    });
+
+    it('should keep throwing non-auth SDK skill list errors', async () => {
+      const service = new MarketService();
+      const error = new Error('Market is down');
+      (service as any).market.marketSkills.getSkillList = vi.fn().mockRejectedValue(error);
+
+      await expect(service.searchSkill({ page: 1 })).rejects.toBe(error);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getSkillDetail', () => {
+    beforeEach(() => {
+      vi.stubGlobal('fetch', vi.fn());
+    });
+
+    it('should return the SDK skill detail when Market SDK succeeds', async () => {
+      const service = new MarketService();
+      const sdkResult = { identifier: 'sdk-skill', name: 'SDK Skill' };
+      (service as any).market.marketSkills.getSkillDetail = vi.fn().mockResolvedValue(sdkResult);
+
+      const result = await service.getSkillDetail('sdk-skill', { locale: 'en-US' });
+
+      expect(result).toBe(sdkResult);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to the public skill detail endpoint when the SDK rejects M2M auth', async () => {
+      const service = new MarketService();
+      (service as any).market.marketSkills.getSkillDetail = vi.fn().mockRejectedValue({
+        code: 'invalid_token',
+        errorBody: { error: { code: 'invalid_token' } },
+        status: 401,
+      });
+      const fallbackResult = { identifier: 'public-skill', name: 'Public Skill' };
+      vi.mocked(fetch).mockResolvedValue({
+        json: vi.fn().mockResolvedValue(fallbackResult),
+        ok: true,
+      } as any);
+
+      const result = await service.getSkillDetail('owner/repo skill', {
+        locale: 'zh-CN',
+        version: '1.0.0',
+      });
+
+      expect(result).toEqual(fallbackResult);
+      expect(fetch).toHaveBeenCalledWith(
+        'https://market.lobehub.com/api/v1/skills/owner%2Frepo%20skill?locale=zh-CN&version=1.0.0',
+        { method: 'GET' },
+      );
+    });
+  });
+
   describe('getSDK', () => {
     it('should return the underlying MarketSDK instance', () => {
       const service = new MarketService();
