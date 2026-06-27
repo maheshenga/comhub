@@ -49,8 +49,9 @@ export type AdminNewapiProviderType =
  * NewAPI deployment. Requests route across enabled instances in ascending
  * `priority` order with failover to the next instance on 5xx / network errors.
  *
- * api_key is stored as plaintext for the initial admin-managed gateway flow;
- * it is masked when returned to admin clients and never exposed to end-users.
+ * api_key stores an encrypted admin secret for newly written rows. Legacy
+ * plaintext rows are still supported by the server-side compatibility reader
+ * and are masked when returned to admin clients.
  */
 export const adminNewapiInstances = pgTable(
   'admin_newapi_instances',

@@ -15,8 +15,10 @@ export type AdminNavIcon =
   | 'desktop'
   | 'documents'
   | 'expert-plaza'
+  | 'file-storage'
   | 'files'
   | 'growth'
+  | 'maintenance'
   | 'models'
   | 'notifications'
   | 'orders'
@@ -142,11 +144,11 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '模型与计费',
   },
   {
-    description: '品牌、登录页、默认助手、注册、推荐和公开运营内容',
+    description: '品牌、登录页、默认助手外观、注册、推荐和公开运营内容',
     icon: 'settings',
     items: [
       {
-        description: '配置品牌展示、默认助手、默认模型、关于页、帮助菜单、客户端入口和维护任务',
+        description: '配置品牌展示、登录页、默认助手外观、关于页和帮助菜单',
         icon: 'settings',
         label: '站点设置',
         path: `${ADMIN_BASE_PATH}/settings`,
@@ -164,7 +166,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/recommendations`,
       },
       {
-        description: '管理站内通知、桌面通知默认策略、邮件通道预留配置和通知保留时间',
+        description: '管理站内通知、桌面通知默认策略、邮件通道预留配置和系统公告',
         icon: 'notifications',
         label: '通知管理',
         path: `${ADMIN_BASE_PATH}/notifications`,
@@ -212,7 +214,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '内容治理',
   },
   {
-    description: '桌面端更新、数据看板、审计日志和系统运维',
+    description: '桌面端更新、文件存储、数据看板、审计日志和系统运维',
     icon: 'stats',
     items: [
       {
@@ -228,10 +230,22 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/audit`,
       },
       {
+        description: '配置 S3 兼容文件存储、CDN、上传路径和预签名 URL',
+        icon: 'file-storage',
+        label: '文件存储',
+        path: `${ADMIN_BASE_PATH}/file-storage`,
+      },
+      {
         description: '配置向量检索、用户服务模型默认值、默认技能和头像预设',
         icon: 'system-defaults',
         label: '系统默认值',
         path: `${ADMIN_BASE_PATH}/system-defaults`,
+      },
+      {
+        description: '配置 Cron 密钥、数据保留策略、记忆任务执行方式和手动维护',
+        icon: 'maintenance',
+        label: '系统维护',
+        path: `${ADMIN_BASE_PATH}/maintenance`,
       },
       {
         description: '配置桌面端下载、发布版本和自动更新',
@@ -255,7 +269,8 @@ export const normalizeAdminPath = (pathname: string) => {
   const cleanPath = pathname.replace(/\/+$/, '') || ADMIN_BASE_PATH;
 
   if (cleanPath === '/admin') return ADMIN_BASE_PATH;
-  if (cleanPath.startsWith('/admin/')) return `${ADMIN_BASE_PATH}${cleanPath.slice('/admin'.length)}`;
+  if (cleanPath.startsWith('/admin/'))
+    return `${ADMIN_BASE_PATH}${cleanPath.slice('/admin'.length)}`;
 
   return cleanPath;
 };

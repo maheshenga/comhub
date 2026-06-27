@@ -124,9 +124,19 @@ export const ADMIN_SETTINGS_ROUTE_REGISTRY = [
     segment: 'audit',
   },
   {
+    debugId: 'Desktop > Admin > File Storage',
+    importPage: () => import('@/routes/(main)/admin/file-storage'),
+    segment: 'file-storage',
+  },
+  {
     debugId: 'Desktop > Admin > System Defaults',
     importPage: () => import('@/routes/(main)/admin/system-defaults'),
     segment: 'system-defaults',
+  },
+  {
+    debugId: 'Desktop > Admin > Maintenance',
+    importPage: () => import('@/routes/(main)/admin/maintenance'),
+    segment: 'maintenance',
   },
   {
     debugId: 'Desktop > Admin > Topics',

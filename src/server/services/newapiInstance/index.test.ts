@@ -5,6 +5,7 @@ import { resolvePlanModelRules } from '@/business/server/planModelRules';
 
 import {
   getAllEnabledModels,
+  invalidateNewapiInstancesCache,
   resolveDefaultNewapiInstance,
   resolveNewapiInstancesForModel,
 } from './index';
@@ -20,7 +21,22 @@ vi.mock('@/business/server/planModelRules', async () => {
   };
 });
 
+vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
+  KeyVaultsGateKeeper: {
+    initWithEnvKey: vi.fn().mockResolvedValue({
+      decrypt: vi.fn(async (value: string) => ({
+        plaintext: value === 'bad-cipher' ? '' : value.replace(/^enc:/, ''),
+        wasAuthentic: value !== 'bad-cipher',
+      })),
+      encrypt: vi.fn(async (value: string) => `enc:${value}`),
+    }),
+  },
+}));
+
 const createDb = (rows: any[]) => {
+  const updateSet = vi.fn(() => ({
+    where: vi.fn().mockResolvedValue(undefined),
+  }));
   const chain: any = {
     from: vi.fn(() => chain),
     innerJoin: vi.fn(() => chain),
@@ -28,14 +44,22 @@ const createDb = (rows: any[]) => {
     where: vi.fn(() => chain),
   };
 
-  return {
+  const db = {
     select: vi.fn(() => chain),
   } as any;
+
+  db.update = vi.fn(() => ({
+    set: updateSet,
+  }));
+  db.updateSet = updateSet;
+
+  return db;
 };
 
 describe('NewAPI instance resolver', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateNewapiInstancesCache();
     vi.mocked(resolvePlanModelRules).mockResolvedValue(null);
   });
 
@@ -109,6 +133,90 @@ describe('NewAPI instance resolver', () => {
         groupMultiplier: 2,
         providerType: 'aliyun',
       }),
+    );
+  });
+
+  it('decrypts encrypted api keys for resolved routes', async () => {
+    const db = createDb([
+      {
+        apiKey: 'kv:enc:sk-encrypted',
+        baseUrl: 'https://pro.example.com',
+        groupKey: 'pro',
+        id: 'pro-1',
+        name: 'Pro 1',
+        priority: 0,
+        providerType: 'newapi',
+        usageScope: ['chat'],
+      },
+    ]);
+
+    const routes = await resolveNewapiInstancesForModel(db, {
+      modelId: 'gpt-4o',
+      modelType: 'chat',
+    });
+
+    expect(routes[0]).toEqual(expect.objectContaining({ apiKey: 'sk-encrypted' }));
+  });
+
+  it('skips invalid encrypted api keys while keeping healthy routes available', async () => {
+    const db = createDb([
+      {
+        apiKey: 'kv:bad-cipher',
+        baseUrl: 'https://bad.example.com',
+        groupKey: 'pro',
+        id: 'bad-1',
+        name: 'Bad 1',
+        priority: 0,
+        providerType: 'newapi',
+        usageScope: ['chat'],
+      },
+      {
+        apiKey: 'kv:enc:sk-good',
+        baseUrl: 'https://good.example.com',
+        groupKey: 'pro',
+        id: 'good-1',
+        name: 'Good 1',
+        priority: 1,
+        providerType: 'newapi',
+        usageScope: ['chat'],
+      },
+    ]);
+
+    const routes = await resolveNewapiInstancesForModel(db, {
+      modelId: 'gpt-4o',
+      modelType: 'chat',
+      preferredGroupKey: 'pro',
+    });
+
+    expect(routes).toEqual([
+      expect.objectContaining({
+        apiKey: 'sk-good',
+        instanceId: 'good-1',
+      }),
+    ]);
+  });
+
+  it('backfills legacy plaintext api keys during runtime resolution', async () => {
+    const db = createDb([
+      {
+        apiKey: 'sk-legacy',
+        baseUrl: 'https://legacy.example.com',
+        groupKey: 'default',
+        id: 'legacy-1',
+        name: 'Legacy 1',
+        priority: 0,
+        providerType: 'newapi',
+        usageScope: ['chat'],
+      },
+    ]);
+
+    await resolveNewapiInstancesForModel(db, {
+      modelId: 'gpt-4o',
+      modelType: 'chat',
+    });
+
+    expect(db.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'kv:enc:sk-legacy' }),
     );
   });
 

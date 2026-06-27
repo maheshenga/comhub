@@ -54,7 +54,7 @@ describe('adminSettingsForm', () => {
     ]);
   });
 
-  it('builds app setting updates only for changed values', () => {
+  it('builds site setting updates only for changed site basics', () => {
     const initial = {
       ...buildFormValues(),
       brandFaviconUrl: '',
@@ -99,14 +99,14 @@ describe('adminSettingsForm', () => {
       buildSettingUpdates(
         {
           ...initial,
-          defaultAgentModel: 'deepseek-chat',
+          brandName: 'ComHub',
         },
         initial,
       ),
-    ).toEqual([{ key: SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' }]);
+    ).toEqual([{ key: SETTING_KEYS.brandName, value: 'ComHub' }]);
   });
 
-  it('includes default image and video models in form values and updates', () => {
+  it('keeps default image and video model values readable without saving them from site settings', () => {
     const initial = buildFormValues({
       defaultImageModel: 'flux-pro',
       defaultImageProvider: 'newapi',
@@ -128,10 +128,7 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([
-      { key: SETTING_KEYS.defaultImageModel, value: 'flux-kontext' },
-      { key: SETTING_KEYS.defaultVideoModel, value: 'kling-v2' },
-    ]);
+    ).toEqual([]);
   });
 
   it('includes default assistant name and avatar in form values and updates', () => {
@@ -225,7 +222,10 @@ describe('adminSettingsForm', () => {
 
     expect(
       getAdminSettingsRefreshKeys([
-        { key: SETTING_KEYS.homeMessengerBannerTitle, value: '在聊天平台中，与 {{brandName}} 畅聊' },
+        {
+          key: SETTING_KEYS.homeMessengerBannerTitle,
+          value: '在聊天平台中，与 {{brandName}} 畅聊',
+        },
       ]),
     ).toEqual(['brand-config']);
   });
@@ -254,9 +254,7 @@ describe('adminSettingsForm', () => {
     ]);
 
     expect(
-      getAdminSettingsRefreshKeys([
-        { key: SETTING_KEYS.sidebarMemberLabel, value: '会员中心' },
-      ]),
+      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.sidebarMemberLabel, value: '会员中心' }]),
     ).toEqual(['brand-config']);
   });
 
@@ -308,7 +306,7 @@ describe('adminSettingsForm', () => {
     expect(SETTING_KEYS.profileInterestAreas).toBe('profile.interestAreas');
   });
 
-  it('includes memory trigger mode in system maintenance settings', () => {
+  it('keeps memory trigger mode readable without saving it from site settings', () => {
     const initial = buildFormValues({
       memoryUserMemoryTriggerMode: 'auto',
     });
@@ -323,10 +321,10 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([{ key: SETTING_KEYS.memoryUserMemoryTriggerMode, value: 'direct' }]);
+    ).toEqual([]);
   });
 
-  it('includes global billing controls in site setting updates', () => {
+  it('keeps global billing controls readable without saving them from site settings', () => {
     const initial = buildFormValues({
       ordersManagementEnabled: true,
       pricingCreditMultiplier: 1,
@@ -344,13 +342,10 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([
-      { key: SETTING_KEYS.pricingCreditMultiplier, value: 1.35 },
-      { key: SETTING_KEYS.ordersManagementEnabled, value: false },
-    ]);
+    ).toEqual([]);
   });
 
-  it('includes S3 storage settings in site setting updates while keeping the secret write-only', () => {
+  it('keeps S3 storage settings readable without saving them from site settings', () => {
     const initial = buildFormValues({
       storageS3AccessKeyId: 'env-access-key',
       storageS3Bucket: 'env-bucket',
@@ -384,21 +379,10 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([
-      { key: SETTING_KEYS.storageS3AccessKeyId, value: 'admin-access-key' },
-      { key: SETTING_KEYS.storageS3SecretAccessKey, value: 'new-secret' },
-      { key: SETTING_KEYS.storageS3Endpoint, value: 'https://admin-s3.example.com' },
-      { key: SETTING_KEYS.storageS3FilePath, value: 'admin-files' },
-      { key: SETTING_KEYS.storageS3Bucket, value: 'admin-bucket' },
-      { key: SETTING_KEYS.storageS3Region, value: 'ap-southeast-1' },
-      { key: SETTING_KEYS.storageS3PublicDomain, value: 'https://cdn.example.com' },
-      { key: SETTING_KEYS.storageS3EnablePathStyle, value: true },
-      { key: SETTING_KEYS.storageS3SetAcl, value: false },
-      { key: SETTING_KEYS.storageS3PreviewUrlExpireIn, value: 1800 },
-    ]);
+    ).toEqual([]);
   });
 
-  it('allows rotating only the S3 secret without resending the masked current secret', () => {
+  it('does not rotate S3 secrets from site settings', () => {
     const initial = buildFormValues({
       storageS3AccessKeyId: 'env-access-key',
       storageS3Bucket: 'env-bucket',
@@ -414,7 +398,7 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([{ key: SETTING_KEYS.storageS3SecretAccessKey, value: 'rotated-secret' }]);
+    ).toEqual([]);
   });
 
   it('saves about page links as one shared setting', () => {
@@ -432,7 +416,9 @@ describe('adminSettingsForm', () => {
           ...initial,
           aboutLinks: {
             ...initial.aboutLinks,
-            contact: [{ id: 'officialSite', label: '玄果官网', url: 'https://xuangguo.example.com' }],
+            contact: [
+              { id: 'officialSite', label: '玄果官网', url: 'https://xuangguo.example.com' },
+            ],
           },
         },
         initial,

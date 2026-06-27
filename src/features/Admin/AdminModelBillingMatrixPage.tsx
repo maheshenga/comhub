@@ -17,6 +17,7 @@ import {
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Card } from '@/components/antd-compat/Card';
 import {
   MATRIX_ACCESS_SAVE_LABEL,
   MATRIX_DISCARD_LABEL,
@@ -77,8 +78,25 @@ type EnabledModelItem = {
   providerType?: string | null;
 };
 
+type BillingBasisValues = {
+  ordersEnabled: boolean;
+  pricingMultiplier: number;
+};
+
 const toFiniteNumber = (value: number | string | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+const buildBillingBasisValues = (settings?: {
+  ordersManagementEnabled?: boolean | null;
+  pricingCreditMultiplier?: number | null;
+}): BillingBasisValues => ({
+  ordersEnabled: settings?.ordersManagementEnabled ?? true,
+  pricingMultiplier:
+    typeof settings?.pricingCreditMultiplier === 'number' &&
+    Number.isFinite(settings.pricingCreditMultiplier)
+      ? settings.pricingCreditMultiplier
+      : 1,
+});
 
 const getDefaultModelErrorMessage = (error: any) => {
   if (error?.message === 'DEFAULT_MODEL_NOT_ENABLED') {
@@ -94,6 +112,8 @@ const getDefaultModelErrorMessage = (error: any) => {
 
 const AdminModelBillingMatrixPage = memo(() => {
   const { t } = useTranslation('subscription');
+  const [billingBasisOverride, setBillingBasisOverride] = useState<BillingBasisValues | null>(null);
+  const [savingBillingBasis, setSavingBillingBasis] = useState(false);
   const [rowsOverride, setRowsOverride] = useState<MatrixRow[] | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -160,6 +180,8 @@ const AdminModelBillingMatrixPage = memo(() => {
 
   const rows = rowsOverride ?? baseRows;
   const loading = modelsLoading || plansLoading || settingsLoading;
+  const billingBasisInitial = useMemo(() => buildBillingBasisValues(settings), [settings]);
+  const billingBasis = billingBasisOverride ?? billingBasisInitial;
   const defaultModelHealth = useMemo(
     () =>
       getDefaultModelHealth(rows, {
@@ -198,6 +220,43 @@ const AdminModelBillingMatrixPage = memo(() => {
     setRowsOverride((current) =>
       (current ?? baseRows).map((row) => (row.key === rowKey ? { ...row, ...patch } : row)),
     );
+  };
+
+  const updateBillingBasis = (patch: Partial<BillingBasisValues>) => {
+    setBillingBasisOverride((current) => ({
+      ...billingBasisInitial,
+      ...current,
+      ...patch,
+    }));
+  };
+
+  const handleSaveBillingBasis = async () => {
+    const updates = [
+      ...(billingBasis.pricingMultiplier !== billingBasisInitial.pricingMultiplier
+        ? [{ key: SETTING_KEYS.pricingCreditMultiplier, value: billingBasis.pricingMultiplier }]
+        : []),
+      ...(billingBasis.ordersEnabled !== billingBasisInitial.ordersEnabled
+        ? [{ key: SETTING_KEYS.ordersManagementEnabled, value: billingBasis.ordersEnabled }]
+        : []),
+    ];
+
+    if (updates.length === 0) {
+      message.info(t('admin.modelBillingMatrix.billingBasisNoChanges', '没有需要保存的变更'));
+      return;
+    }
+
+    setSavingBillingBasis(true);
+
+    try {
+      await adminCommercialService.setAppSettingsBatch({ updates });
+      await mutate(ADMIN_SETTINGS_SWR_KEY);
+      setBillingBasisOverride(null);
+      message.success(t('admin.modelBillingMatrix.billingBasisSaved', '全局计费设置已保存'));
+    } catch {
+      message.error(t('admin.modelBillingMatrix.billingBasisSaveFailed', '保存全局计费设置失败'));
+    } finally {
+      setSavingBillingBasis(false);
+    }
   };
 
   const handleSetDefault = async (target: MatrixRow) => {
@@ -414,6 +473,67 @@ const AdminModelBillingMatrixPage = memo(() => {
       </Flexbox>
 
       <Alert showIcon message={t('admin.modelBillingMatrix.notice', MATRIX_NOTICE)} type="info" />
+
+      <Card title={t('admin.modelBillingMatrix.billingBasisSection', '全局计费基线')}>
+        <Flexbox gap={16}>
+          <Text type="secondary">
+            {t(
+              'admin.modelBillingMatrix.billingBasisDescription',
+              '这里维护订单入口和全局积分倍率；单模型倍率、每美元积分和套餐开放范围继续在下方矩阵维护。',
+            )}
+          </Text>
+
+          <Space wrap align="start" size={24}>
+            <Flexbox gap={8} style={{ minWidth: 220 }}>
+              <Text strong>{t('admin.modelBillingMatrix.globalMultiplier', '全局积分倍率')}</Text>
+              <InputNumber
+                max={100}
+                min={0}
+                precision={4}
+                step={0.1}
+                style={{ width: 180 }}
+                value={billingBasis.pricingMultiplier}
+                onChange={(next: number | null) =>
+                  updateBillingBasis({ pricingMultiplier: toFiniteNumber(next) ?? 1 })
+                }
+              />
+              <Text type="secondary">
+                {t(
+                  'admin.modelBillingMatrix.globalMultiplierHelp',
+                  '用于生成计费的默认倍率，单模型倍率会覆盖该值。',
+                )}
+              </Text>
+            </Flexbox>
+
+            <Flexbox gap={8} style={{ minWidth: 220 }}>
+              <Text strong>{t('admin.modelBillingMatrix.ordersEnabled', '订单管理')}</Text>
+              <Switch
+                checked={billingBasis.ordersEnabled}
+                checkedChildren={t('admin.modelBillingMatrix.enabled', '启用')}
+                unCheckedChildren={t('admin.modelBillingMatrix.disabled', '停用')}
+                onChange={(checked) => updateBillingBasis({ ordersEnabled: checked })}
+              />
+              <Text type="secondary">
+                {t(
+                  'admin.modelBillingMatrix.ordersEnabledHelp',
+                  '控制前台订单与充值相关能力是否开放。',
+                )}
+              </Text>
+            </Flexbox>
+          </Space>
+
+          <Space wrap>
+            <Button loading={savingBillingBasis} type="primary" onClick={handleSaveBillingBasis}>
+              {t('admin.modelBillingMatrix.saveBillingBasis', '保存全局计费设置')}
+            </Button>
+            {billingBasisOverride && (
+              <Button disabled={savingBillingBasis} onClick={() => setBillingBasisOverride(null)}>
+                {MATRIX_DISCARD_LABEL}
+              </Button>
+            )}
+          </Space>
+        </Flexbox>
+      </Card>
 
       <Alert
         showIcon

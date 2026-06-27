@@ -56,6 +56,7 @@ const MODEL_TYPES: ModelType[] = [
 
 interface InstanceRow {
   apiKey: string | null;
+  apiKeyStatus?: 'invalid' | 'ok';
   baseUrl: string;
   description: string | null;
   enabled: boolean;
@@ -166,20 +167,25 @@ const InstanceFormModal = memo<{
       afterOpenChange={(visible: boolean) => {
         if (visible) {
           form.setFieldsValue(
-            initial ?? {
-              apiKey: '',
-              baseUrl: '',
-              description: '',
-              enabled: true,
-              fetchOnClient: false,
-              groupKey: 'default',
-              groupMultiplier: undefined,
-              groupName: '',
-              name: '',
-              priority: 0,
-              providerType: 'newapi',
-              usageScope: [],
-            },
+            initial
+              ? {
+                  ...initial,
+                  apiKey: initial.apiKeyStatus === 'invalid' ? '' : initial.apiKey,
+                }
+              : {
+                  apiKey: '',
+                  baseUrl: '',
+                  description: '',
+                  enabled: true,
+                  fetchOnClient: false,
+                  groupKey: 'default',
+                  groupMultiplier: undefined,
+                  groupName: '',
+                  name: '',
+                  priority: 0,
+                  providerType: 'newapi',
+                  usageScope: [],
+                },
           );
         }
       }}
@@ -197,7 +203,10 @@ const InstanceFormModal = memo<{
           name="providerType"
           extra={
             providerType === 'newapi'
-              ? t('admin.providers.field.providerTypeNewapiHint', 'AI 服务商网关支持同步模型和价格。')
+              ? t(
+                  'admin.providers.field.providerTypeNewapiHint',
+                  'AI 服务商网关支持同步模型和价格。',
+                )
               : t(
                   'admin.providers.field.providerTypeOpenaiHint',
                   'OpenAI 兼容、Claude 和 OpenCode Go 格式支持同步模型；价格需要在计费矩阵中配置。',
@@ -233,12 +242,17 @@ const InstanceFormModal = memo<{
           name="apiKey"
           rules={isEdit ? [] : [{ required: true }]}
           extra={
-            isEdit
+            isEdit && initial?.apiKeyStatus === 'invalid'
               ? t(
-                  'admin.providers.field.apiKeyEditHint',
-                  '留空表示保持现有密钥不变；填写新密钥会替换当前密钥。',
+                  'admin.providers.field.apiKeyInvalidHint',
+                  '当前密钥无法解密，请填写新的 API Key 后保存。',
                 )
-              : undefined
+              : isEdit
+                ? t(
+                    'admin.providers.field.apiKeyEditHint',
+                    '留空表示保持现有密钥不变；填写新密钥会替换当前密钥。',
+                  )
+                : undefined
           }
         >
           <Input.Password placeholder="sk-..." />
@@ -264,6 +278,7 @@ const InstanceFormModal = memo<{
           </Form.Item>
           <Form.Item
             label={t('admin.providers.field.fetchOnClient', '客户端拉取')}
+            hidden
             name="fetchOnClient"
             valuePropName="checked"
           >
@@ -623,7 +638,12 @@ const AdminProvidersPage = memo(() => {
     {
       dataIndex: 'apiKey',
       key: 'apiKey',
-      render: (v: string | null) => <code style={{ fontSize: 12 }}>{v ?? '-'}</code>,
+      render: (v: string | null, row: InstanceRow) =>
+        row.apiKeyStatus === 'invalid' ? (
+          <Tag color="red">{t('admin.providers.col.apiKeyInvalid', '密钥无效，需重置')}</Tag>
+        ) : (
+          <code style={{ fontSize: 12 }}>{v ?? '-'}</code>
+        ),
       title: t('admin.providers.col.apiKey', 'API 密钥'),
       width: 160,
     },
@@ -676,6 +696,7 @@ const AdminProvidersPage = memo(() => {
     },
     {
       dataIndex: 'fetchOnClient',
+      hidden: true,
       key: 'fetchOnClient',
       render: (v: boolean) =>
         v ? <Tag color="blue">客户端（Client）</Tag> : <Tag color="default">服务端（Server）</Tag>,
@@ -712,10 +733,7 @@ const AdminProvidersPage = memo(() => {
             actionId="newapiProvider.deleteInstance"
             danger
             size="small"
-            confirmDescription={t(
-              'admin.providers.confirmDelete',
-              '删除这个实例及其全部模型？',
-            )}
+            confirmDescription={t('admin.providers.confirmDelete', '删除这个实例及其全部模型？')}
             onConfirm={({ reason }) => handleDelete(row, reason)}
           >
             {t('admin.providers.action.delete', '删除')}

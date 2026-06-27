@@ -10,6 +10,8 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 const SETTING_KEYS = {
+  desktopDownloadLabel: 'desktop.download.label',
+  desktopDownloadUrl: 'desktop.download.url',
   desktopOssAccessKeyId: 'desktop.oss.accessKeyId',
   desktopOssAccessKeySecret: 'desktop.oss.accessKeySecret',
   desktopOssBucket: 'desktop.oss.bucket',
@@ -28,6 +30,8 @@ type FormValues = {
   channel: string;
   checkInterval: number;
   currentVersion: string;
+  downloadLabel: string;
+  downloadUrl: string;
   ossAccessKeyId: string;
   ossAccessKeySecret: string;
   ossBucket: string;
@@ -50,6 +54,8 @@ const AdminDesktopUpdatePage = memo(() => {
     channel: data?.desktopUpdateConfig?.channel || 'stable',
     checkInterval: data?.desktopUpdateConfig?.checkInterval || 60,
     currentVersion: data?.desktopUpdateConfig?.currentVersion || '',
+    downloadLabel: data?.desktopDownloadLabel || '',
+    downloadUrl: data?.desktopDownloadUrl || '',
     ossAccessKeyId: data?.desktopOssConfig?.accessKeyId || '',
     ossAccessKeySecret: '',
     ossBucket: data?.desktopOssConfig?.bucket || '',
@@ -66,6 +72,8 @@ const AdminDesktopUpdatePage = memo(() => {
       channel: data.desktopUpdateConfig?.channel || 'stable',
       checkInterval: data.desktopUpdateConfig?.checkInterval || 60,
       currentVersion: data.desktopUpdateConfig?.currentVersion || '',
+      downloadLabel: data.desktopDownloadLabel || '',
+      downloadUrl: data.desktopDownloadUrl || '',
       ossAccessKeyId: data.desktopOssConfig?.accessKeyId || '',
       ossAccessKeySecret: '',
       ossBucket: data.desktopOssConfig?.bucket || '',
@@ -103,6 +111,15 @@ const AdminDesktopUpdatePage = memo(() => {
         updates.push({
           key: SETTING_KEYS.desktopUpdateReleaseNotes,
           value: values.releaseNotes.trim(),
+        });
+      }
+      if (values.downloadUrl !== initialValues.downloadUrl) {
+        updates.push({ key: SETTING_KEYS.desktopDownloadUrl, value: values.downloadUrl.trim() });
+      }
+      if (values.downloadLabel !== initialValues.downloadLabel) {
+        updates.push({
+          key: SETTING_KEYS.desktopDownloadLabel,
+          value: values.downloadLabel.trim(),
         });
       }
       if (values.ossBucket !== initialValues.ossBucket) {
@@ -216,6 +233,27 @@ const AdminDesktopUpdatePage = memo(() => {
           )}
         >
           <Input.TextArea placeholder={'## 更新内容\n- 新功能 A\n- 修复问题 B'} rows={6} />
+        </Form.Item>
+
+        <Divider plain>{t('admin.desktopUpdate.downloadSection', '客户端下载入口')}</Divider>
+
+        <Form.Item
+          extra={t(
+            'admin.desktopUpdate.downloadUrl.help',
+            '用于覆盖用户面板中的桌面客户端下载链接。留空则使用内置地址。',
+          )}
+          label={t('admin.desktopUpdate.downloadUrl', '桌面客户端下载地址（URL）')}
+          name="downloadUrl"
+        >
+          <Input placeholder="https://example.com/download" />
+        </Form.Item>
+
+        <Form.Item
+          extra={t('admin.desktopUpdate.downloadLabel.help', '显示在客户端下载入口的按钮文案。')}
+          label={t('admin.desktopUpdate.downloadLabel', '下载按钮文案')}
+          name="downloadLabel"
+        >
+          <Input placeholder="下载桌面端应用" />
         </Form.Item>
 
         <Divider plain>{t('admin.desktopUpdate.ossSection', '阿里云对象存储（OSS）')}</Divider>

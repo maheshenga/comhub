@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
+import debug from 'debug';
 import type { AiModelType, Pricing } from 'model-bank';
 import { normalizeAiModelType } from 'model-bank';
 
@@ -6,6 +7,13 @@ import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/ser
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 import { adminNewapiInstanceModels, adminNewapiInstances } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
+
+import {
+  maybeBackfillPlaintextAdminProviderApiKey,
+  tryDecryptAdminProviderApiKey,
+} from './credentials';
+
+const log = debug('newapi-instance:runtime');
 
 export type NewapiModelType =
   | 'chat'
@@ -82,6 +90,33 @@ interface InstanceRowCache {
   usageScope?: NewapiModelType[] | null;
 }
 
+const decryptRuntimeRows = async <T extends { apiKey: string; id: string }>(
+  db: LobeChatDatabase,
+  rows: T[],
+): Promise<Array<T & { apiKey: string }>> => {
+  const decryptedRows: Array<T & { apiKey: string }> = [];
+
+  for (const row of rows) {
+    const result = await tryDecryptAdminProviderApiKey(row.apiKey);
+    if (!result.ok) {
+      log('skipped instance %s with invalid API key: %s', row.id, result.error.message);
+      continue;
+    }
+
+    await maybeBackfillPlaintextAdminProviderApiKey(db, {
+      apiKey: row.apiKey,
+      instanceId: row.id,
+    });
+
+    decryptedRows.push({
+      ...row,
+      apiKey: result.apiKey,
+    });
+  }
+
+  return decryptedRows;
+};
+
 const readEnabledInstances = async (db: LobeChatDatabase): Promise<InstanceRowCache[]> => {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.rows;
   try {
@@ -102,8 +137,9 @@ const readEnabledInstances = async (db: LobeChatDatabase): Promise<InstanceRowCa
       .from(adminNewapiInstances)
       .where(eq(adminNewapiInstances.enabled, true))
       .orderBy(asc(adminNewapiInstances.priority));
-    cache = { at: Date.now(), rows };
-    return rows;
+    const decryptedRows = await decryptRuntimeRows(db, rows);
+    cache = { at: Date.now(), rows: decryptedRows };
+    return decryptedRows;
   } catch {
     cache = { at: Date.now(), rows: [] };
     return [];
@@ -207,11 +243,12 @@ export const resolveNewapiInstancesForModel = async (
       .orderBy(asc(adminNewapiInstances.priority));
 
     if (rows.length > 0) {
+      const decryptedRows = await decryptRuntimeRows(db, rows);
       const rules = params.userId
         ? await resolvePlanModelRules({ db, userId: params.userId })
         : null;
 
-      const allowedRows = rows.filter((row) => {
+      const allowedRows = decryptedRows.filter((row) => {
         const groupKey = row.groupKey || 'default';
         if (preferredGroupKey && groupKey !== preferredGroupKey) return false;
         if (!usageScopeAllows(row.usageScope, modelType)) return false;

@@ -15,6 +15,11 @@ import {
   fetchNewapiPricing,
   normalizeNewapiSyncRows,
 } from '@/server/services/newapiInstance/catalog';
+import {
+  encryptAdminProviderApiKey,
+  maybeBackfillPlaintextAdminProviderApiKey,
+  tryDecryptAdminProviderApiKey,
+} from '@/server/services/newapiInstance/credentials';
 
 import { recordAdminAudit } from './audit';
 
@@ -61,13 +66,62 @@ const buildPricingSyncWarnings = (providerType: string | null | undefined, prici
     ? ['Pricing endpoint unavailable or empty']
     : [];
 
+const INVALID_API_KEY_MESSAGE = 'Instance API key is invalid. Please reset it before retrying.';
+
+const normalizeInstanceInput = async <T extends { apiKey?: string; fetchOnClient?: boolean }>(
+  input: T,
+) => {
+  const data = { ...input, fetchOnClient: false };
+  if (!data.apiKey) return data;
+
+  return {
+    ...data,
+    apiKey: await encryptAdminProviderApiKey(data.apiKey),
+  };
+};
+
+const decryptInstance = async <T extends { apiKey: string | null; id: string }>(
+  db: any,
+  instance: T,
+) => {
+  const result = await tryDecryptAdminProviderApiKey(instance.apiKey);
+  if (!result.ok) {
+    return {
+      ...instance,
+      apiKey: '',
+      apiKeyStatus: 'invalid' as const,
+    };
+  }
+
+  await maybeBackfillPlaintextAdminProviderApiKey(db, {
+    apiKey: instance.apiKey ?? '',
+    instanceId: instance.id,
+  });
+
+  return {
+    ...instance,
+    apiKey: result.apiKey,
+    apiKeyStatus: 'ok' as const,
+  };
+};
+
+const assertInstanceApiKeyReady = <T extends { apiKeyStatus?: 'invalid' | 'ok' }>(instance: T) => {
+  if (instance.apiKeyStatus === 'invalid') {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: INVALID_API_KEY_MESSAGE,
+    });
+  }
+};
+
 export const adminNewapiProvidersRouter = router({
   // ─── Instance CRUD ─────────────────────────────────────────────────────────
 
   createInstance: adminProcedure.input(InstanceInputSchema).mutation(async ({ ctx, input }) => {
+    const data = await normalizeInstanceInput(input);
     const [row] = await ctx.serverDB
       .insert(adminNewapiInstances)
-      .values(input)
+      .values(data)
       .returning({ id: adminNewapiInstances.id });
 
     await recordAdminAudit(ctx, {
@@ -109,10 +163,12 @@ export const adminNewapiProvidersRouter = router({
         where: eq(adminNewapiInstances.id, input.id),
       });
       if (!instance) throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+      const decrypted = await decryptInstance(ctx.serverDB, instance);
 
       return {
         ...instance,
-        apiKey: maskApiKey(instance.apiKey),
+        apiKey: decrypted.apiKeyStatus === 'invalid' ? null : maskApiKey(decrypted.apiKey),
+        apiKeyStatus: decrypted.apiKeyStatus,
       };
     }),
 
@@ -120,10 +176,13 @@ export const adminNewapiProvidersRouter = router({
     const items = await ctx.serverDB.query.adminNewapiInstances.findMany({
       orderBy: asc(adminNewapiInstances.priority),
     });
+    const decryptedItems = await Promise.all(
+      items.map((i: AdminNewapiInstanceItem) => decryptInstance(ctx.serverDB, i)),
+    );
     return {
-      items: items.map((i: AdminNewapiInstanceItem) => ({
+      items: decryptedItems.map((i) => ({
         ...i,
-        apiKey: maskApiKey(i.apiKey),
+        apiKey: i.apiKeyStatus === 'invalid' ? null : maskApiKey(i.apiKey),
       })),
     };
   }),
@@ -136,9 +195,10 @@ export const adminNewapiProvidersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const data = await normalizeInstanceInput(input.data);
       const result = await ctx.serverDB
         .update(adminNewapiInstances)
-        .set({ ...input.data, updatedAt: new Date() })
+        .set({ ...data, updatedAt: new Date() })
         .where(eq(adminNewapiInstances.id, input.id))
         .returning({ id: adminNewapiInstances.id });
 
@@ -182,15 +242,17 @@ export const adminNewapiProvidersRouter = router({
         where: eq(adminNewapiInstances.id, input.id),
       });
       if (!instance) throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+      const decryptedInstance = await decryptInstance(ctx.serverDB, instance);
+      assertInstanceApiKeyReady(decryptedInstance);
 
       const [models, pricing, existingRows] = await Promise.all([
         fetchNewapiModels({
-          apiKey: instance.apiKey,
+          apiKey: decryptedInstance.apiKey,
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
         }),
         fetchNewapiPricing({
-          apiKey: instance.apiKey,
+          apiKey: decryptedInstance.apiKey,
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
         }),
@@ -252,15 +314,26 @@ export const adminNewapiProvidersRouter = router({
         where: eq(adminNewapiInstances.id, input.id),
       });
       if (!instance) throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+      const decryptedInstance = await decryptInstance(ctx.serverDB, instance);
+
+      if (decryptedInstance.apiKeyStatus === 'invalid') {
+        return {
+          error: INVALID_API_KEY_MESSAGE,
+          modelsCount: 0,
+          ok: false,
+          pricingCount: 0,
+          warnings: [],
+        };
+      }
 
       try {
         const models = await fetchNewapiModels({
-          apiKey: instance.apiKey,
+          apiKey: decryptedInstance.apiKey,
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
         });
         const pricing = await fetchNewapiPricing({
-          apiKey: instance.apiKey,
+          apiKey: decryptedInstance.apiKey,
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
         });

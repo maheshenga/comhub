@@ -415,24 +415,10 @@ export const buildSettingUpdates = (
   const initial = normalizeFormValues(initialValues);
   const updates: SettingUpdate[] = [];
 
-  if (current.cronSecret) updates.push({ key: SETTING_KEYS.cronSecret, value: current.cronSecret });
-  const storageS3SecretUpdate = current.storageS3SecretAccessKey
-    ? { key: SETTING_KEYS.storageS3SecretAccessKey, value: current.storageS3SecretAccessKey }
-    : undefined;
-
   const keys: Array<keyof AdminSettingsFormValues> = [
-    'defaultAgentModel',
-    'defaultAgentProvider',
     'defaultAgentName',
     'defaultAgentAvatar',
-    'defaultImageModel',
-    'defaultImageProvider',
-    'defaultVideoModel',
-    'defaultVideoProvider',
     'defaultSkillName',
-    'referralRewardCredits',
-    'cronAuditRetentionDays',
-    'cronPendingOrderExpiryDays',
     'brandName',
     'brandLoadingText',
     'brandAuthTitle',
@@ -447,20 +433,6 @@ export const buildSettingUpdates = (
     'sidebarMemberLabel',
     'sidebarMemberUrl',
     'sidebarGenerationLabel',
-    'desktopDownloadUrl',
-    'desktopDownloadLabel',
-    'memoryUserMemoryTriggerMode',
-    'pricingMultiplier',
-    'ordersEnabled',
-    'storageS3AccessKeyId',
-    'storageS3Endpoint',
-    'storageS3FilePath',
-    'storageS3Bucket',
-    'storageS3Region',
-    'storageS3PublicDomain',
-    'storageS3EnablePathStyle',
-    'storageS3SetAcl',
-    'storageS3PreviewUrlExpireIn',
   ];
 
   const keyMap: Record<keyof AdminSettingsFormValues, string> = {
@@ -514,9 +486,6 @@ export const buildSettingUpdates = (
 
   for (const key of keys) {
     if (current[key] !== initial[key]) updates.push({ key: keyMap[key], value: current[key] });
-    if (key === 'storageS3AccessKeyId' && storageS3SecretUpdate) {
-      updates.push(storageS3SecretUpdate);
-    }
   }
 
   if (JSON.stringify(current.helpMenuItems) !== JSON.stringify(initial.helpMenuItems)) {

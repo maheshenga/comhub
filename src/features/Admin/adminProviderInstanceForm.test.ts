@@ -60,7 +60,7 @@ describe('buildProviderInstancePayload', () => {
       baseUrl: 'https://newapi.example.com',
       description: 'primary',
       enabled: false,
-      fetchOnClient: true,
+      fetchOnClient: false,
       groupKey: 'default',
       name: 'Default Gateway',
       priority: 0,

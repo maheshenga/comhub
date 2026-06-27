@@ -96,8 +96,16 @@ vi.mock('@/routes/(main)/admin/files', () => ({
   default: () => <div data-testid="admin-files" />,
 }));
 
+vi.mock('@/routes/(main)/admin/file-storage', () => ({
+  default: () => <div data-testid="admin-file-storage" />,
+}));
+
 vi.mock('@/routes/(main)/admin/documents', () => ({
   default: () => <div data-testid="admin-documents" />,
+}));
+
+vi.mock('@/routes/(main)/admin/maintenance', () => ({
+  default: () => <div data-testid="admin-maintenance" />,
 }));
 
 vi.mock('@/routes/(main)/admin/model-billing-matrix', () => ({
@@ -295,7 +303,9 @@ describe('SettingsAdminPage', () => {
       ['/settings/admin/topics', 'admin-topics'],
       ['/settings/admin/files', 'admin-files'],
       ['/settings/admin/documents', 'admin-documents'],
+      ['/settings/admin/file-storage', 'admin-file-storage'],
       ['/settings/admin/system-defaults', 'admin-system-defaults'],
+      ['/settings/admin/maintenance', 'admin-maintenance'],
     ] as const) {
       act(() => {
         locationMock.pathname = pathname;

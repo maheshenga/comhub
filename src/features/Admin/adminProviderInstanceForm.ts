@@ -43,10 +43,10 @@ export const ADMIN_MODEL_API_PROVIDER_TYPES: AdminModelApiProviderType[] = [
 ];
 
 const DEFAULT_BASE_URL_BY_PROVIDER_TYPE: Partial<Record<AdminModelApiProviderType, string>> = {
-  aliyun: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  claude: 'https://api.anthropic.com',
-  deepseek: 'https://api.deepseek.com/v1',
-  openai: 'https://api.openai.com/v1',
+  'aliyun': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  'claude': 'https://api.anthropic.com',
+  'deepseek': 'https://api.deepseek.com/v1',
+  'openai': 'https://api.openai.com/v1',
   'opencode-go': 'https://opencode.ai/zen/go/v1',
 };
 
@@ -71,7 +71,7 @@ export const buildProviderInstancePayload = (
     baseUrl: values.baseUrl,
     description: cleanText(values.description),
     enabled: !!values.enabled,
-    fetchOnClient: !!values.fetchOnClient,
+    fetchOnClient: false,
     groupKey: cleanText(values.groupKey) ?? 'default',
     groupName: cleanText(values.groupName),
     name: values.name,
