@@ -117,6 +117,10 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
   };
 
+  setAppSettingsBatch = async (params: { updates: Array<{ key: string; value: unknown }> }) => {
+    return lambdaClient.admin.settings.setAppSettingsBatch.mutate(params as any);
+  };
+
   testS3Storage = async () => {
     return lambdaClient.admin.settings.testS3Storage.mutate();
   };

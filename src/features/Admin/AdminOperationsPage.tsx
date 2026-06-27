@@ -83,72 +83,74 @@ const AdminOperationsPage = memo(() => {
     setSubmitting(true);
     try {
       const values = await form.validateFields();
-      await Promise.all([
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.creatorRewardBannerEnabled,
-          value: values.creatorRewardBannerEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredAssistantsEnabled,
-          value: values.featuredAssistantsEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredAssistantPageSize,
-          value: values.featuredAssistantPageSize,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredAssistantTitle,
-          value: values.featuredAssistantTitle,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredMcpsEnabled,
-          value: values.featuredMcpsEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredMcpPageSize,
-          value: values.featuredMcpPageSize,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredMcpTitle,
-          value: values.featuredMcpTitle,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredSkillsEnabled,
-          value: values.featuredSkillsEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredSkillPageSize,
-          value: values.featuredSkillPageSize,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredSkillTitle,
-          value: values.featuredSkillTitle,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredSkillCategory,
-          value: values.featuredSkillCategory,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.featuredSkillSort,
-          value: values.featuredSkillSort || SkillSorts.InstallCount,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.announcementEnabled,
-          value: values.announcementEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.announcementTitle,
-          value: values.announcementTitle,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.announcementContent,
-          value: values.announcementContent,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.announcementType,
-          value: values.announcementType,
-        }),
-      ]);
+      await adminCommercialService.setAppSettingsBatch({
+        updates: [
+          {
+            key: SETTING_KEYS.creatorRewardBannerEnabled,
+            value: values.creatorRewardBannerEnabled,
+          },
+          {
+            key: SETTING_KEYS.featuredAssistantsEnabled,
+            value: values.featuredAssistantsEnabled,
+          },
+          {
+            key: SETTING_KEYS.featuredAssistantPageSize,
+            value: values.featuredAssistantPageSize,
+          },
+          {
+            key: SETTING_KEYS.featuredAssistantTitle,
+            value: values.featuredAssistantTitle,
+          },
+          {
+            key: SETTING_KEYS.featuredMcpsEnabled,
+            value: values.featuredMcpsEnabled,
+          },
+          {
+            key: SETTING_KEYS.featuredMcpPageSize,
+            value: values.featuredMcpPageSize,
+          },
+          {
+            key: SETTING_KEYS.featuredMcpTitle,
+            value: values.featuredMcpTitle,
+          },
+          {
+            key: SETTING_KEYS.featuredSkillsEnabled,
+            value: values.featuredSkillsEnabled,
+          },
+          {
+            key: SETTING_KEYS.featuredSkillPageSize,
+            value: values.featuredSkillPageSize,
+          },
+          {
+            key: SETTING_KEYS.featuredSkillTitle,
+            value: values.featuredSkillTitle,
+          },
+          {
+            key: SETTING_KEYS.featuredSkillCategory,
+            value: values.featuredSkillCategory,
+          },
+          {
+            key: SETTING_KEYS.featuredSkillSort,
+            value: values.featuredSkillSort || SkillSorts.InstallCount,
+          },
+          {
+            key: SETTING_KEYS.announcementEnabled,
+            value: values.announcementEnabled,
+          },
+          {
+            key: SETTING_KEYS.announcementTitle,
+            value: values.announcementTitle,
+          },
+          {
+            key: SETTING_KEYS.announcementContent,
+            value: values.announcementContent,
+          },
+          {
+            key: SETTING_KEYS.announcementType,
+            value: values.announcementType,
+          },
+        ],
+      });
       message.success(t('admin.operations.saveSuccess', '运营配置已保存'));
       await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {

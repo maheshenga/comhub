@@ -17,8 +17,10 @@ const instanceId = '00000000-0000-4000-8000-000000000001';
 
 const createDbMock = ({
   existingRows = [],
+  providerType = 'newapi',
 }: {
   existingRows?: Array<{ enabled: boolean; modelId: string; modelType: string }>;
+  providerType?: string;
 } = {}) => {
   const inserted = { rows: [] as any[], value: undefined as any };
 
@@ -44,7 +46,7 @@ const createDbMock = ({
           groupMultiplier: null,
           id: instanceId,
           name: 'Default',
-          providerType: 'newapi',
+          providerType,
           usageScope: null,
         }),
         findMany: vi.fn().mockResolvedValue([
@@ -207,6 +209,29 @@ describe('adminNewapiProvidersRouter', () => {
         modelType: 'image',
       }),
     );
+  });
+
+  it('does not warn about pricing when the service provider format has no pricing sync', async () => {
+    const { db } = createDbMock({ providerType: 'openai-compatible' });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ data: [{ id: 'gpt-4o-mini', object: 'model' }] }),
+      ok: true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.syncInstanceModels({ id: instanceId });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        pricingCount: 0,
+        warnings: [],
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('records the admin supplied reason when deleting an instance', async () => {

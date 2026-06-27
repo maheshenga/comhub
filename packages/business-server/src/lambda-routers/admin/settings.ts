@@ -21,7 +21,7 @@ import {
   planCatalog,
   topUpOrders,
 } from '@/database/schemas';
-import { type LobeChatDatabase } from '@/database/type';
+import { type LobeChatDatabase, type Transaction } from '@/database/type';
 import { adminProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
@@ -328,8 +328,372 @@ const normalizeProfileInterestAreas = (value: unknown) => {
 type AppSettingDraft = Record<string, unknown>;
 type DefaultModelType = 'chat' | 'image' | 'video';
 
+const WRITABLE_SETTING_KEYS = [
+  SETTING_KEYS.defaultAgentModel,
+  SETTING_KEYS.defaultAgentName,
+  SETTING_KEYS.defaultAgentAvatar,
+  SETTING_KEYS.defaultAgentProvider,
+  SETTING_KEYS.defaultImageModel,
+  SETTING_KEYS.defaultImageProvider,
+  SETTING_KEYS.defaultSkillName,
+  SETTING_KEYS.defaultVideoModel,
+  SETTING_KEYS.defaultVideoProvider,
+  SETTING_KEYS.referralRewardCredits,
+  SETTING_KEYS.cronSecret,
+  SETTING_KEYS.cronAuditRetentionDays,
+  SETTING_KEYS.cronPendingOrderExpiryDays,
+  ...RECOMMENDATION_KEYS,
+  ...PRICING_KEYS,
+  ...OPERATIONS_KEYS,
+  ...GROWTH_KEYS,
+  ...PROFILE_KEYS,
+  SETTING_KEYS.profileAvatarPresets,
+  ...MEMORY_KEYS,
+  ...VECTOR_KEYS,
+  ...USER_GLOBAL_KEYS,
+  ...EXPERT_PLAZA_KEYS,
+  ...NOTIFICATION_KEYS,
+  ...STORAGE_KEYS,
+  ...MODEL_POLICY_KEYS,
+  ...BRAND_KEYS,
+  ...DESKTOP_UPDATE_KEYS,
+  SETTING_KEYS.desktopDownloadUrl,
+  SETTING_KEYS.desktopDownloadLabel,
+  SETTING_KEYS.helpMenuItems,
+  SETTING_KEYS.aboutLinks,
+] as const;
+
+type SettingUpdateInput = { key: (typeof WRITABLE_SETTING_KEYS)[number]; value?: unknown };
+type NormalizedSettingUpdate = SettingUpdateInput & {
+  hasValue: boolean;
+  isSensitive: boolean;
+};
+
+const appSettingUpdateInputSchema = z.object({
+  key: z.enum(WRITABLE_SETTING_KEYS),
+  value: z.unknown(),
+});
+
 const settingDraftString = (settings: AppSettingDraft, key: string) =>
   typeof settings[key] === 'string' ? (settings[key] as string).trim() : '';
+
+const getDefaultModelValidationTarget = (key: string) => {
+  if (key === SETTING_KEYS.defaultImageModel || key === SETTING_KEYS.defaultImageProvider) {
+    return {
+      modelKey: SETTING_KEYS.defaultImageModel,
+      modelType: 'image' as const,
+      providerKey: SETTING_KEYS.defaultImageProvider,
+    };
+  }
+
+  if (key === SETTING_KEYS.defaultVideoModel || key === SETTING_KEYS.defaultVideoProvider) {
+    return {
+      modelKey: SETTING_KEYS.defaultVideoModel,
+      modelType: 'video' as const,
+      providerKey: SETTING_KEYS.defaultVideoProvider,
+    };
+  }
+
+  if (key === SETTING_KEYS.defaultAgentModel || key === SETTING_KEYS.defaultAgentProvider) {
+    return {
+      modelKey: SETTING_KEYS.defaultAgentModel,
+      modelType: 'chat' as const,
+      providerKey: SETTING_KEYS.defaultAgentProvider,
+    };
+  }
+};
+
+const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSettingUpdate => {
+  // Coerce setting values before persistence so public runtime readers can stay simple.
+  let value: unknown = input.value;
+  if (input.key === SETTING_KEYS.cronAuditRetentionDays) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) throw new Error('cronAuditRetentionDays must be a number');
+    value = Math.max(7, Math.min(3650, Math.round(n)));
+  } else if (input.key === SETTING_KEYS.cronPendingOrderExpiryDays) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) throw new Error('cronPendingOrderExpiryDays must be a number');
+    value = Math.max(1, Math.min(365, Math.round(n)));
+  } else if (input.key === SETTING_KEYS.referralRewardCredits) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) throw new Error('referralRewardCredits must be a number');
+    value = Math.max(0, Math.round(n));
+  } else if (input.key === SETTING_KEYS.defaultAgentModel) {
+    value = typeof value === 'string' ? value.trim() : '';
+  } else if (input.key === SETTING_KEYS.defaultAgentName) {
+    value = typeof value === 'string' ? value.trim() : '';
+  } else if (input.key === SETTING_KEYS.defaultAgentAvatar) {
+    value = typeof value === 'string' ? value.trim() : '';
+  } else if (input.key === SETTING_KEYS.defaultAgentProvider) {
+    value = typeof value === 'string' ? value.trim() : '';
+  } else if (
+    input.key === SETTING_KEYS.defaultImageModel ||
+    input.key === SETTING_KEYS.defaultImageProvider ||
+    input.key === SETTING_KEYS.defaultVideoModel ||
+    input.key === SETTING_KEYS.defaultVideoProvider
+  ) {
+    value = typeof value === 'string' ? value.trim() : '';
+  } else if (input.key === SETTING_KEYS.defaultSkillName) {
+    value = typeof value === 'string' ? value.trim() : '';
+  } else if (input.key === SETTING_KEYS.pricingCreditMultiplier) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) throw new Error('pricingCreditMultiplier must be a number');
+    value = Math.max(0, Math.min(100, n));
+  } else if (input.key === SETTING_KEYS.pricingModelRules) {
+    value = Array.isArray(value) ? value : [];
+  } else if (input.key === SETTING_KEYS.ordersManagementEnabled) {
+    value = Boolean(value);
+  } else if ((OPERATIONS_KEYS as readonly string[]).includes(input.key)) {
+    if (
+      [
+        SETTING_KEYS.communityCreatorRewardBannerEnabled,
+        SETTING_KEYS.communityFeaturedAssistantsEnabled,
+        SETTING_KEYS.communityFeaturedMcpsEnabled,
+        SETTING_KEYS.communityFeaturedSkillsEnabled,
+        SETTING_KEYS.communityHomeAnnouncementEnabled,
+      ].includes(input.key as any)
+    ) {
+      value = Boolean(value);
+    } else if (
+      [
+        SETTING_KEYS.communityFeaturedAssistantPageSize,
+        SETTING_KEYS.communityFeaturedMcpPageSize,
+        SETTING_KEYS.communityFeaturedSkillPageSize,
+      ].includes(input.key as any)
+    ) {
+      value = toBoundedInt(value, 12, 1, 24);
+    } else {
+      value = toString(value);
+    }
+  } else if ((GROWTH_KEYS as readonly string[]).includes(input.key)) {
+    if (
+      [SETTING_KEYS.authSignupEnabled, SETTING_KEYS.onboardingInitialCreditsEnabled].includes(
+        input.key as any,
+      ) ||
+      input.key === SETTING_KEYS.authSignupPhoneEnabled
+    ) {
+      value = Boolean(value);
+    } else if (
+      [
+        SETTING_KEYS.onboardingInitialCredits,
+        SETTING_KEYS.uploadMaxInputSizeMb,
+        SETTING_KEYS.uploadMaxActualSizeMb,
+      ].includes(input.key as any)
+    ) {
+      value = toBoundedInt(value, 0, 0, 10_000_000_000);
+    } else {
+      value = toString(value);
+    }
+  } else if (input.key === SETTING_KEYS.profileInterestAreas) {
+    value = normalizeProfileInterestAreas(value);
+  } else if (input.key === SETTING_KEYS.profileAvatarPresets) {
+    value = normalizeAvatarPresets(value);
+  } else if (input.key === SETTING_KEYS.memoryUserMemoryTriggerMode) {
+    value = normalizeMemoryUserMemoryTriggerMode(value);
+  } else if ((VECTOR_KEYS as readonly string[]).includes(input.key)) {
+    value = toString(value);
+  } else if (input.key === SETTING_KEYS.userGlobalSettingsDefaults) {
+    value = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } else if ((EXPERT_PLAZA_KEYS as readonly string[]).includes(input.key)) {
+    if (input.key === SETTING_KEYS.expertPlazaEnabled) {
+      value = Boolean(value);
+    } else if (input.key === SETTING_KEYS.expertPlazaCards) {
+      value = normalizeExpertPlazaCards(value);
+    } else if (input.key === SETTING_KEYS.expertPlazaCategories) {
+      value = toStringList(value);
+    } else {
+      value = toString(value);
+    }
+  } else if ((NOTIFICATION_KEYS as readonly string[]).includes(input.key)) {
+    if (
+      [
+        SETTING_KEYS.notificationInboxEnabled,
+        SETTING_KEYS.notificationDesktopEnabled,
+        SETTING_KEYS.notificationEmailEnabled,
+        SETTING_KEYS.notificationSystemEnabled,
+      ].includes(input.key as any)
+    ) {
+      value = Boolean(value);
+    } else if (input.key === SETTING_KEYS.notificationRetentionDays) {
+      value = toBoundedInt(value, 90, 1, 3650);
+    } else {
+      value = toString(value);
+    }
+  } else if ((STORAGE_KEYS as readonly string[]).includes(input.key)) {
+    if (
+      [SETTING_KEYS.storageS3EnablePathStyle, SETTING_KEYS.storageS3SetAcl].includes(
+        input.key as any,
+      )
+    ) {
+      value = Boolean(value);
+    } else if (input.key === SETTING_KEYS.storageS3PreviewUrlExpireIn) {
+      value = toBoundedInt(value, 7200, 60, 604_800);
+    } else if (input.key === SETTING_KEYS.storageS3FilePath) {
+      value = normalizeS3FilePath(value) || '';
+    } else if (
+      [SETTING_KEYS.storageS3Endpoint, SETTING_KEYS.storageS3PublicDomain].includes(
+        input.key as any,
+      )
+    ) {
+      value = toOptionalUrlString(value, input.key);
+    } else {
+      value = toString(value);
+    }
+  } else if ((MODEL_POLICY_KEYS as readonly string[]).includes(input.key)) {
+    if (
+      [
+        SETTING_KEYS.modelPolicyEnabled,
+        SETTING_KEYS.modelPolicyApplyToEmbeddings,
+        SETTING_KEYS.modelPolicyApplyToGenerateObject,
+      ].includes(input.key as any)
+    ) {
+      value = Boolean(value);
+    } else if (
+      [SETTING_KEYS.modelPolicyAllowlist, SETTING_KEYS.modelPolicyBlocklist].includes(
+        input.key as any,
+      )
+    ) {
+      value = toStringList(value);
+    } else if (input.key === SETTING_KEYS.modelPolicyMode) {
+      value = value === 'allowlist' || value === 'blocklist' ? value : 'blocklist';
+    } else {
+      value = toString(value);
+    }
+  } else if ((RECOMMENDATION_KEYS as readonly string[]).includes(input.key)) {
+    if (
+      [
+        SETTING_KEYS.recommendationSectionEnabled,
+        SETTING_KEYS.recommendationAssistantsEnabled,
+        SETTING_KEYS.recommendationMcpsEnabled,
+        SETTING_KEYS.recommendationSkillsEnabled,
+        SETTING_KEYS.recommendationGeneralSkillsEnabled,
+        SETTING_KEYS.recommendationHotSkillsEnabled,
+      ].includes(input.key as any)
+    ) {
+      value = Boolean(value);
+    } else if (input.key === SETTING_KEYS.recommendationHotSkillSort) {
+      value = typeof value === 'string' && value.trim() ? value.trim() : 'installCount';
+    } else if (
+      [
+        SETTING_KEYS.recommendationAssistantTitle,
+        SETTING_KEYS.recommendationMcpTitle,
+        SETTING_KEYS.recommendationSkillTitle,
+        SETTING_KEYS.recommendationGeneralSkillTitle,
+        SETTING_KEYS.recommendationHotSkillTitle,
+      ].includes(input.key as any)
+    ) {
+      value = toString(value);
+    } else {
+      value = toStringList(value);
+    }
+  } else if ((BRAND_KEYS as readonly string[]).includes(input.key)) {
+    value = toString(value);
+  } else if (input.key === SETTING_KEYS.helpMenuItems) {
+    if (!Array.isArray(value)) {
+      value = [];
+    } else {
+      value = value
+        .filter((item: any) => item && typeof item === 'object' && typeof item.label === 'string')
+        .map((item: any) => ({
+          label: String(item.label).trim(),
+          ...(typeof item.url === 'string' && item.url.trim() ? { url: item.url.trim() } : {}),
+        }));
+    }
+  } else if (input.key === SETTING_KEYS.aboutLinks) {
+    value = normalizeAboutLinksConfig(value);
+  } else if (input.key === SETTING_KEYS.desktopDownloadUrl) {
+    value = toString(value);
+  } else if (input.key === SETTING_KEYS.desktopDownloadLabel) {
+    value = toString(value);
+  } else if ((DESKTOP_UPDATE_KEYS as readonly string[]).includes(input.key)) {
+    if (input.key === SETTING_KEYS.desktopUpdateAutoCheck) {
+      value = Boolean(value);
+    } else if (input.key === SETTING_KEYS.desktopUpdateCheckInterval) {
+      value = toBoundedInt(value, 60, 1, 1440);
+    } else if (input.key === SETTING_KEYS.desktopUpdateChannel) {
+      value = value === 'canary' ? 'canary' : 'stable';
+    } else {
+      value = toString(value);
+    }
+  }
+
+  return {
+    hasValue: value !== null && value !== undefined && value !== '',
+    isSensitive: SENSITIVE_KEYS.has(input.key),
+    key: input.key,
+    value,
+  };
+};
+
+const upsertAppSetting = async (
+  db: LobeChatDatabase | Transaction,
+  update: NormalizedSettingUpdate,
+) => {
+  await db
+    .insert(appSettings)
+    .values({ key: update.key, value: update.value as any })
+    .onConflictDoUpdate({
+      set: { updatedAt: new Date(), value: update.value as any },
+      target: appSettings.key,
+    });
+};
+
+const validateDefaultModelUpdates = async (
+  db: LobeChatDatabase,
+  updates: NormalizedSettingUpdate[],
+) => {
+  const targets = new Map<
+    string,
+    NonNullable<ReturnType<typeof getDefaultModelValidationTarget>>
+  >();
+
+  for (const update of updates) {
+    const target = getDefaultModelValidationTarget(update.key);
+    if (target) targets.set(target.modelType, target);
+  }
+
+  for (const target of targets.values()) {
+    const [currentModel, currentProvider] = await Promise.all([
+      readSetting(db, target.modelKey),
+      readSetting(db, target.providerKey),
+    ]);
+    const draft: AppSettingDraft = {
+      [target.modelKey]: toString(currentModel),
+      [target.providerKey]: toString(currentProvider),
+    };
+
+    for (const update of updates) {
+      if (update.key === target.modelKey || update.key === target.providerKey) {
+        draft[update.key] = update.value;
+      }
+    }
+
+    await validateDefaultAgentModelUsability(db, draft, target);
+  }
+};
+
+const invalidateAppSettingsCaches = (updates: NormalizedSettingUpdate[]) => {
+  if (updates.some((update) => (BRAND_KEYS as readonly string[]).includes(update.key))) {
+    invalidateServerBrand();
+  }
+  if (updates.some((update) => (STORAGE_KEYS as readonly string[]).includes(update.key))) {
+    invalidateFileS3RuntimeCache();
+  }
+
+  invalidateServerAppSettings();
+};
+
+const buildSettingAuditPayload = (update: NormalizedSettingUpdate) => ({
+  hasValue: update.hasValue,
+  key: update.key,
+  ...(update.isSensitive ? { sensitive: true } : { value: update.value }),
+});
+
+const buildSingleSettingAuditPayload = (update: NormalizedSettingUpdate) => ({
+  hasValue: update.hasValue,
+  key: update.key,
+  ...(update.isSensitive ? {} : { value: update.value }),
+});
 
 export const validateDefaultAgentModelUsability = async (
   db: LobeChatDatabase,
@@ -1132,337 +1496,52 @@ export const adminSettingsRouter = router({
     }),
 
   setAppSetting: adminProcedure
-    .input(
-      z.object({
-        key: z.enum([
-          SETTING_KEYS.defaultAgentModel,
-          SETTING_KEYS.defaultAgentName,
-          SETTING_KEYS.defaultAgentAvatar,
-          SETTING_KEYS.defaultAgentProvider,
-          SETTING_KEYS.defaultImageModel,
-          SETTING_KEYS.defaultImageProvider,
-          SETTING_KEYS.defaultSkillName,
-          SETTING_KEYS.defaultVideoModel,
-          SETTING_KEYS.defaultVideoProvider,
-          SETTING_KEYS.referralRewardCredits,
-          SETTING_KEYS.cronSecret,
-          SETTING_KEYS.cronAuditRetentionDays,
-          SETTING_KEYS.cronPendingOrderExpiryDays,
-          ...RECOMMENDATION_KEYS,
-          ...PRICING_KEYS,
-          ...OPERATIONS_KEYS,
-          ...GROWTH_KEYS,
-          ...PROFILE_KEYS,
-          SETTING_KEYS.profileAvatarPresets,
-          ...MEMORY_KEYS,
-          ...VECTOR_KEYS,
-          ...USER_GLOBAL_KEYS,
-          ...EXPERT_PLAZA_KEYS,
-          ...NOTIFICATION_KEYS,
-          ...STORAGE_KEYS,
-          ...MODEL_POLICY_KEYS,
-          ...BRAND_KEYS,
-          ...DESKTOP_UPDATE_KEYS,
-          SETTING_KEYS.desktopDownloadUrl,
-          SETTING_KEYS.desktopDownloadLabel,
-          SETTING_KEYS.helpMenuItems,
-          SETTING_KEYS.aboutLinks,
-        ]),
-        value: z.unknown(),
-      }),
-    )
+    .input(appSettingUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      // Coerce numeric keys to bounded integers to keep DB clean.
-      let value: unknown = input.value;
-      if (input.key === SETTING_KEYS.cronAuditRetentionDays) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) throw new Error('cronAuditRetentionDays must be a number');
-        value = Math.max(7, Math.min(3650, Math.round(n)));
-      } else if (input.key === SETTING_KEYS.cronPendingOrderExpiryDays) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) throw new Error('cronPendingOrderExpiryDays must be a number');
-        value = Math.max(1, Math.min(365, Math.round(n)));
-      } else if (input.key === SETTING_KEYS.referralRewardCredits) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) throw new Error('referralRewardCredits must be a number');
-        value = Math.max(0, Math.round(n));
-      } else if (input.key === SETTING_KEYS.defaultAgentModel) {
-        value = typeof value === 'string' ? value.trim() : '';
-      } else if (input.key === SETTING_KEYS.defaultAgentName) {
-        value = typeof value === 'string' ? value.trim() : '';
-      } else if (input.key === SETTING_KEYS.defaultAgentAvatar) {
-        value = typeof value === 'string' ? value.trim() : '';
-      } else if (input.key === SETTING_KEYS.defaultAgentProvider) {
-        value = typeof value === 'string' ? value.trim() : '';
-      } else if (
-        input.key === SETTING_KEYS.defaultImageModel ||
-        input.key === SETTING_KEYS.defaultImageProvider ||
-        input.key === SETTING_KEYS.defaultVideoModel ||
-        input.key === SETTING_KEYS.defaultVideoProvider
-      ) {
-        value = typeof value === 'string' ? value.trim() : '';
-      } else if (input.key === SETTING_KEYS.defaultSkillName) {
-        value = typeof value === 'string' ? value.trim() : '';
-      } else if (input.key === SETTING_KEYS.pricingCreditMultiplier) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) throw new Error('pricingCreditMultiplier must be a number');
-        value = Math.max(0, Math.min(100, n));
-      } else if (input.key === SETTING_KEYS.pricingModelRules) {
-        value = Array.isArray(value) ? value : [];
-      } else if (input.key === SETTING_KEYS.ordersManagementEnabled) {
-        value = Boolean(value);
-      } else if ((OPERATIONS_KEYS as readonly string[]).includes(input.key)) {
-        if (
-          [
-            SETTING_KEYS.communityCreatorRewardBannerEnabled,
-            SETTING_KEYS.communityFeaturedAssistantsEnabled,
-            SETTING_KEYS.communityFeaturedMcpsEnabled,
-            SETTING_KEYS.communityFeaturedSkillsEnabled,
-            SETTING_KEYS.communityHomeAnnouncementEnabled,
-          ].includes(input.key as any)
-        ) {
-          value = Boolean(value);
-        } else if (
-          [
-            SETTING_KEYS.communityFeaturedAssistantPageSize,
-            SETTING_KEYS.communityFeaturedMcpPageSize,
-            SETTING_KEYS.communityFeaturedSkillPageSize,
-          ].includes(input.key as any)
-        ) {
-          value = toBoundedInt(value, 12, 1, 24);
-        } else {
-          value = toString(value);
-        }
-      } else if ((GROWTH_KEYS as readonly string[]).includes(input.key)) {
-        if (
-          [SETTING_KEYS.authSignupEnabled, SETTING_KEYS.onboardingInitialCreditsEnabled].includes(
-            input.key as any,
-          ) ||
-          input.key === SETTING_KEYS.authSignupPhoneEnabled
-        ) {
-          value = Boolean(value);
-        } else if (
-          [
-            SETTING_KEYS.onboardingInitialCredits,
-            SETTING_KEYS.uploadMaxInputSizeMb,
-            SETTING_KEYS.uploadMaxActualSizeMb,
-          ].includes(input.key as any)
-        ) {
-          value = toBoundedInt(value, 0, 0, 10_000_000_000);
-        } else {
-          value = toString(value);
-        }
-      } else if (input.key === SETTING_KEYS.profileInterestAreas) {
-        value = normalizeProfileInterestAreas(value);
-      } else if (input.key === SETTING_KEYS.profileAvatarPresets) {
-        value = normalizeAvatarPresets(value);
-      } else if (input.key === SETTING_KEYS.memoryUserMemoryTriggerMode) {
-        value = normalizeMemoryUserMemoryTriggerMode(value);
-      } else if ((VECTOR_KEYS as readonly string[]).includes(input.key)) {
-        value = toString(value);
-      } else if (input.key === SETTING_KEYS.userGlobalSettingsDefaults) {
-        value = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-      } else if ((EXPERT_PLAZA_KEYS as readonly string[]).includes(input.key)) {
-        if (input.key === SETTING_KEYS.expertPlazaEnabled) {
-          value = Boolean(value);
-        } else if (input.key === SETTING_KEYS.expertPlazaCards) {
-          value = normalizeExpertPlazaCards(value);
-        } else if (input.key === SETTING_KEYS.expertPlazaCategories) {
-          value = toStringList(value);
-        } else {
-          value = toString(value);
-        }
-      } else if ((NOTIFICATION_KEYS as readonly string[]).includes(input.key)) {
-        if (
-          [
-            SETTING_KEYS.notificationInboxEnabled,
-            SETTING_KEYS.notificationDesktopEnabled,
-            SETTING_KEYS.notificationEmailEnabled,
-            SETTING_KEYS.notificationSystemEnabled,
-          ].includes(input.key as any)
-        ) {
-          value = Boolean(value);
-        } else if (input.key === SETTING_KEYS.notificationRetentionDays) {
-          value = toBoundedInt(value, 90, 1, 3650);
-        } else {
-          value = toString(value);
-        }
-      } else if ((STORAGE_KEYS as readonly string[]).includes(input.key)) {
-        if (
-          [SETTING_KEYS.storageS3EnablePathStyle, SETTING_KEYS.storageS3SetAcl].includes(
-            input.key as any,
-          )
-        ) {
-          value = Boolean(value);
-        } else if (input.key === SETTING_KEYS.storageS3PreviewUrlExpireIn) {
-          value = toBoundedInt(value, 7200, 60, 604_800);
-        } else if (input.key === SETTING_KEYS.storageS3FilePath) {
-          value = normalizeS3FilePath(value) || '';
-        } else if (
-          [SETTING_KEYS.storageS3Endpoint, SETTING_KEYS.storageS3PublicDomain].includes(
-            input.key as any,
-          )
-        ) {
-          value = toOptionalUrlString(value, input.key);
-        } else {
-          value = toString(value);
-        }
-      } else if ((MODEL_POLICY_KEYS as readonly string[]).includes(input.key)) {
-        if (
-          [
-            SETTING_KEYS.modelPolicyEnabled,
-            SETTING_KEYS.modelPolicyApplyToEmbeddings,
-            SETTING_KEYS.modelPolicyApplyToGenerateObject,
-          ].includes(input.key as any)
-        ) {
-          value = Boolean(value);
-        } else if (
-          [SETTING_KEYS.modelPolicyAllowlist, SETTING_KEYS.modelPolicyBlocklist].includes(
-            input.key as any,
-          )
-        ) {
-          value = toStringList(value);
-        } else if (input.key === SETTING_KEYS.modelPolicyMode) {
-          value = value === 'allowlist' || value === 'blocklist' ? value : 'blocklist';
-        } else {
-          value = toString(value);
-        }
-      } else if ((RECOMMENDATION_KEYS as readonly string[]).includes(input.key)) {
-        if (
-          [
-            SETTING_KEYS.recommendationSectionEnabled,
-            SETTING_KEYS.recommendationAssistantsEnabled,
-            SETTING_KEYS.recommendationMcpsEnabled,
-            SETTING_KEYS.recommendationSkillsEnabled,
-            SETTING_KEYS.recommendationGeneralSkillsEnabled,
-            SETTING_KEYS.recommendationHotSkillsEnabled,
-          ].includes(input.key as any)
-        ) {
-          value = Boolean(value);
-        } else if (input.key === SETTING_KEYS.recommendationHotSkillSort) {
-          value = typeof value === 'string' && value.trim() ? value.trim() : 'installCount';
-        } else if (
-          [
-            SETTING_KEYS.recommendationAssistantTitle,
-            SETTING_KEYS.recommendationMcpTitle,
-            SETTING_KEYS.recommendationSkillTitle,
-            SETTING_KEYS.recommendationGeneralSkillTitle,
-            SETTING_KEYS.recommendationHotSkillTitle,
-          ].includes(input.key as any)
-        ) {
-          value = toString(value);
-        } else {
-          value = toStringList(value);
-        }
-      } else if ((BRAND_KEYS as readonly string[]).includes(input.key)) {
-        value = toString(value);
-      } else if (input.key === SETTING_KEYS.helpMenuItems) {
-        if (!Array.isArray(value)) {
-          value = [];
-        } else {
-          value = value
-            .filter(
-              (item: any) => item && typeof item === 'object' && typeof item.label === 'string',
-            )
-            .map((item: any) => ({
-              label: String(item.label).trim(),
-              ...(typeof item.url === 'string' && item.url.trim() ? { url: item.url.trim() } : {}),
-            }));
-        }
-      } else if (input.key === SETTING_KEYS.aboutLinks) {
-        value = normalizeAboutLinksConfig(value);
-      } else if (input.key === SETTING_KEYS.desktopDownloadUrl) {
-        value = toString(value);
-      } else if (input.key === SETTING_KEYS.desktopDownloadLabel) {
-        value = toString(value);
-      } else if ((DESKTOP_UPDATE_KEYS as readonly string[]).includes(input.key)) {
-        if (input.key === SETTING_KEYS.desktopUpdateAutoCheck) {
-          value = Boolean(value);
-        } else if (input.key === SETTING_KEYS.desktopUpdateCheckInterval) {
-          value = toBoundedInt(value, 60, 1, 1440);
-        } else if (input.key === SETTING_KEYS.desktopUpdateChannel) {
-          value = value === 'canary' ? 'canary' : 'stable';
-        } else {
-          value = toString(value);
-        }
-      }
+      const update = normalizeAppSettingUpdate(input);
+      await validateDefaultModelUpdates(ctx.serverDB, [update]);
+      await upsertAppSetting(ctx.serverDB, update);
 
-      if (
-        input.key === SETTING_KEYS.defaultAgentModel ||
-        input.key === SETTING_KEYS.defaultAgentProvider ||
-        input.key === SETTING_KEYS.defaultImageModel ||
-        input.key === SETTING_KEYS.defaultImageProvider ||
-        input.key === SETTING_KEYS.defaultVideoModel ||
-        input.key === SETTING_KEYS.defaultVideoProvider
-      ) {
-        const target =
-          input.key === SETTING_KEYS.defaultImageModel ||
-          input.key === SETTING_KEYS.defaultImageProvider
-            ? {
-                modelKey: SETTING_KEYS.defaultImageModel,
-                modelType: 'image' as const,
-                providerKey: SETTING_KEYS.defaultImageProvider,
-              }
-            : input.key === SETTING_KEYS.defaultVideoModel ||
-                input.key === SETTING_KEYS.defaultVideoProvider
-              ? {
-                  modelKey: SETTING_KEYS.defaultVideoModel,
-                  modelType: 'video' as const,
-                  providerKey: SETTING_KEYS.defaultVideoProvider,
-                }
-              : {
-                  modelKey: SETTING_KEYS.defaultAgentModel,
-                  modelType: 'chat' as const,
-                  providerKey: SETTING_KEYS.defaultAgentProvider,
-                };
-        const [currentModel, currentProvider] = await Promise.all([
-          readSetting(ctx.serverDB, target.modelKey),
-          readSetting(ctx.serverDB, target.providerKey),
-        ]);
-
-        await validateDefaultAgentModelUsability(
-          ctx.serverDB,
-          {
-            [target.modelKey]: toString(currentModel),
-            [target.providerKey]: toString(currentProvider),
-            [input.key]: value,
-          },
-          target,
-        );
-      }
-
-      await ctx.serverDB
-        .insert(appSettings)
-        .values({ key: input.key, value: value as any })
-        .onConflictDoUpdate({
-          set: { updatedAt: new Date(), value: value as any },
-          target: appSettings.key,
-        });
-
-      const isSensitive = SENSITIVE_KEYS.has(input.key);
       await recordAdminAudit(ctx, {
         action: 'settings.set',
-        payload: {
-          hasValue: value !== null && value !== undefined && value !== '',
-          key: input.key,
-          ...(isSensitive ? {} : { value }),
-        },
+        payload: buildSingleSettingAuditPayload(update),
         resourceId: input.key,
         resourceType: 'app_setting',
       });
 
-      // Invalidate the in-memory brand cache so the next SSR pickup picks up
-      // the change without waiting for the TTL to expire.
-      if ((BRAND_KEYS as readonly string[]).includes(input.key)) {
-        invalidateServerBrand();
-      }
-      if ((STORAGE_KEYS as readonly string[]).includes(input.key)) {
-        invalidateFileS3RuntimeCache();
-      }
-
-      invalidateServerAppSettings();
+      invalidateAppSettingsCaches([update]);
 
       return { ok: true };
+    }),
+
+  setAppSettingsBatch: adminProcedure
+    .input(
+      z.object({
+        updates: z.array(appSettingUpdateInputSchema).min(1).max(100),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updates = input.updates.map(normalizeAppSettingUpdate);
+      await validateDefaultModelUpdates(ctx.serverDB, updates);
+
+      await ctx.serverDB.transaction(async (tx: Transaction) => {
+        for (const update of updates) {
+          await upsertAppSetting(tx, update);
+        }
+      });
+
+      await recordAdminAudit(ctx, {
+        action: 'settings.batchSet',
+        payload: {
+          count: updates.length,
+          settings: updates.map(buildSettingAuditPayload),
+        },
+        resourceType: 'app_setting',
+      });
+
+      invalidateAppSettingsCaches(updates);
+
+      return { count: updates.length, ok: true };
     }),
 
   testS3Storage: adminProcedure.mutation(async ({ ctx }) => {

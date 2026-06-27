@@ -83,7 +83,7 @@ const AdminNotificationsPage = memo(() => {
 
     setSubmitting(true);
     try {
-      await Promise.all(updates.map((update) => adminCommercialService.setAppSetting(update)));
+      await adminCommercialService.setAppSettingsBatch({ updates });
       await mutate(ADMIN_SETTINGS_SWR_KEY);
       await mutate('public-notification-config');
       message.success(t('admin.notifications.saveSuccess', '通知设置已保存'));

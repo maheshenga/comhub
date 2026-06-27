@@ -133,7 +133,7 @@ const AdminDesktopUpdatePage = memo(() => {
       }
 
       setSubmitting(true);
-      await Promise.all(updates.map((u) => adminCommercialService.setAppSetting(u)));
+      await adminCommercialService.setAppSettingsBatch({ updates });
       message.success(t('admin.desktopUpdate.saveSuccess', '桌面端更新设置已保存'));
       await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {

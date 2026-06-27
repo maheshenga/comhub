@@ -231,8 +231,7 @@ const AdminModelBillingMatrixPage = memo(() => {
           target.modelType === 'image' || target.modelType === 'video' ? target.modelType : 'chat',
         provider: target.provider,
       });
-      await adminCommercialService.setAppSetting(updates[1]);
-      await adminCommercialService.setAppSetting(updates[0]);
+      await adminCommercialService.setAppSettingsBatch({ updates });
       await mutate(ADMIN_SETTINGS_SWR_KEY);
       await Promise.all(getAdminSettingsRefreshKeys(updates).map((key) => mutate(key)));
       setRowsOverride((current) =>

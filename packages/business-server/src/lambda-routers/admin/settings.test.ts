@@ -363,6 +363,66 @@ describe('admin settings default model validation', () => {
     );
   });
 
+  it('saves multiple app settings in one transaction with one redacted audit entry', async () => {
+    const tx = createDb();
+    const db = {
+      ...createDb(),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(tx),
+      ),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.setAppSettingsBatch({
+      updates: [
+        {
+          key: APP_SETTING_KEYS.storageS3Endpoint,
+          value: 'https://s3.example.com',
+        },
+        {
+          key: APP_SETTING_KEYS.storageS3SecretAccessKey,
+          value: 'admin-secret-key',
+        },
+      ],
+    });
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(tx.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.storageS3Endpoint,
+      value: 'https://s3.example.com',
+    });
+    expect(tx.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.storageS3SecretAccessKey,
+      value: 'admin-secret-key',
+    });
+    expect(invalidateFileS3RuntimeCache).toHaveBeenCalledTimes(1);
+    expect(recordAdminAudit).toHaveBeenCalledTimes(1);
+
+    const auditEntry = vi.mocked(recordAdminAudit).mock.calls[0]?.[1] as any;
+    expect(auditEntry).toMatchObject({
+      action: 'settings.batchSet',
+      payload: {
+        count: 2,
+        settings: expect.arrayContaining([
+          {
+            hasValue: true,
+            key: APP_SETTING_KEYS.storageS3Endpoint,
+            value: 'https://s3.example.com',
+          },
+          {
+            hasValue: true,
+            key: APP_SETTING_KEYS.storageS3SecretAccessKey,
+            sensitive: true,
+          },
+        ]),
+      },
+      resourceType: 'app_setting',
+    });
+    expect(JSON.stringify(auditEntry.payload)).not.toContain('admin-secret-key');
+  });
+
   it('rejects invalid S3 endpoint URLs before saving', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);

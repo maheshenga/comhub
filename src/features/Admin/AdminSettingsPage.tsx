@@ -150,7 +150,7 @@ const AdminSettingsPage = memo(() => {
         });
       }
 
-      await Promise.all(updates.map((update) => adminCommercialService.setAppSetting(update)));
+      await adminCommercialService.setAppSettingsBatch({ updates });
       form.setFieldValue('cronSecret', '');
       form.setFieldValue('storageS3SecretAccessKey', '');
       await mutate(ADMIN_SETTINGS_SWR_KEY);

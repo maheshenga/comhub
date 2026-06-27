@@ -53,6 +53,14 @@ const ModelInputSchema = z.object({
   sortOrder: z.number().int().default(0),
 });
 
+const supportsPricingSync = (providerType?: string | null) =>
+  !providerType || providerType === 'newapi';
+
+const buildPricingSyncWarnings = (providerType: string | null | undefined, pricingCount: number) =>
+  supportsPricingSync(providerType) && pricingCount === 0
+    ? ['Pricing endpoint unavailable or empty']
+    : [];
+
 export const adminNewapiProvidersRouter = router({
   // ─── Instance CRUD ─────────────────────────────────────────────────────────
 
@@ -233,7 +241,7 @@ export const adminNewapiProvidersRouter = router({
         modelsCount: models.length,
         ok: true,
         pricingCount: pricing.length,
-        warnings: pricing.length === 0 ? ['Pricing endpoint unavailable or empty'] : [],
+        warnings: buildPricingSyncWarnings(instance.providerType, pricing.length),
       };
     }),
 
@@ -261,7 +269,7 @@ export const adminNewapiProvidersRouter = router({
           modelsCount: models.length,
           ok: true,
           pricingCount: pricing.length,
-          warnings: pricing.length === 0 ? ['Pricing endpoint unavailable or empty'] : [],
+          warnings: buildPricingSyncWarnings(instance.providerType, pricing.length),
         };
       } catch (error) {
         return {
@@ -318,9 +326,7 @@ export const adminNewapiProvidersRouter = router({
     .input(
       z.object({
         instanceId: z.string().uuid(),
-        modelType: z
-          .enum(NEWAPI_MODEL_TYPES)
-          .optional(),
+        modelType: z.enum(NEWAPI_MODEL_TYPES).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -404,9 +410,7 @@ export const adminNewapiProvidersRouter = router({
     .input(
       z
         .object({
-          modelType: z
-            .enum(NEWAPI_MODEL_TYPES)
-            .optional(),
+          modelType: z.enum(NEWAPI_MODEL_TYPES).optional(),
         })
         .optional(),
     )

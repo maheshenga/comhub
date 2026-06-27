@@ -234,36 +234,38 @@ const AdminSystemDefaultsPage = memo(() => {
         },
       };
 
-      await Promise.all([
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorEmbeddingProvider,
-          value: values.vectorEmbeddingProvider,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorEmbeddingModel,
-          value: values.vectorEmbeddingModel,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorRerankerProvider,
-          value: values.vectorRerankerProvider,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorRerankerModel,
-          value: values.vectorRerankerModel,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorQueryMode,
-          value: values.vectorQueryMode,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.userGlobalSettingsDefaults,
-          value: mergedUserGlobalSettings,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.avatarPresets,
-          value: values.avatarPresets ?? [],
-        }),
-      ]);
+      await adminCommercialService.setAppSettingsBatch({
+        updates: [
+          {
+            key: SETTING_KEYS.vectorEmbeddingProvider,
+            value: values.vectorEmbeddingProvider,
+          },
+          {
+            key: SETTING_KEYS.vectorEmbeddingModel,
+            value: values.vectorEmbeddingModel,
+          },
+          {
+            key: SETTING_KEYS.vectorRerankerProvider,
+            value: values.vectorRerankerProvider,
+          },
+          {
+            key: SETTING_KEYS.vectorRerankerModel,
+            value: values.vectorRerankerModel,
+          },
+          {
+            key: SETTING_KEYS.vectorQueryMode,
+            value: values.vectorQueryMode,
+          },
+          {
+            key: SETTING_KEYS.userGlobalSettingsDefaults,
+            value: mergedUserGlobalSettings,
+          },
+          {
+            key: SETTING_KEYS.avatarPresets,
+            value: values.avatarPresets ?? [],
+          },
+        ],
+      });
 
       await mutate(ADMIN_SETTINGS_SWR_KEY);
       await mutate(RUNTIME_CONFIG_SWR_KEY);

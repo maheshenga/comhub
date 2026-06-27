@@ -54,36 +54,38 @@ const AdminGrowthPage = memo(() => {
     setSubmitting(true);
     try {
       const values = await form.validateFields();
-      await Promise.all([
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.signupEnabled,
-          value: values.signupEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.signupDisabledMessage,
-          value: values.signupDisabledMessage,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.signupPhoneEnabled,
-          value: values.signupPhoneEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.initialCreditsEnabled,
-          value: values.initialCreditsEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.initialCredits,
-          value: values.initialCredits,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.uploadMaxInputSizeMb,
-          value: values.uploadMaxInputSizeMb,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.uploadMaxActualSizeMb,
-          value: values.uploadMaxActualSizeMb,
-        }),
-      ]);
+      await adminCommercialService.setAppSettingsBatch({
+        updates: [
+          {
+            key: SETTING_KEYS.signupEnabled,
+            value: values.signupEnabled,
+          },
+          {
+            key: SETTING_KEYS.signupDisabledMessage,
+            value: values.signupDisabledMessage,
+          },
+          {
+            key: SETTING_KEYS.signupPhoneEnabled,
+            value: values.signupPhoneEnabled,
+          },
+          {
+            key: SETTING_KEYS.initialCreditsEnabled,
+            value: values.initialCreditsEnabled,
+          },
+          {
+            key: SETTING_KEYS.initialCredits,
+            value: values.initialCredits,
+          },
+          {
+            key: SETTING_KEYS.uploadMaxInputSizeMb,
+            value: values.uploadMaxInputSizeMb,
+          },
+          {
+            key: SETTING_KEYS.uploadMaxActualSizeMb,
+            value: values.uploadMaxActualSizeMb,
+          },
+        ],
+      });
       message.success(t('admin.growth.saveSuccess', '增长配置已保存'));
       await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
