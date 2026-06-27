@@ -27,21 +27,27 @@ export type AdminModelApiProviderType =
   | 'newapi'
   | 'openai-compatible'
   | 'openai'
+  | 'claude'
   | 'deepseek'
-  | 'aliyun';
+  | 'aliyun'
+  | 'opencode-go';
 
 export const ADMIN_MODEL_API_PROVIDER_TYPES: AdminModelApiProviderType[] = [
   'newapi',
   'openai-compatible',
   'openai',
+  'claude',
   'deepseek',
   'aliyun',
+  'opencode-go',
 ];
 
 const DEFAULT_BASE_URL_BY_PROVIDER_TYPE: Partial<Record<AdminModelApiProviderType, string>> = {
   aliyun: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  claude: 'https://api.anthropic.com',
   deepseek: 'https://api.deepseek.com/v1',
   openai: 'https://api.openai.com/v1',
+  'opencode-go': 'https://opencode.ai/zen/go/v1',
 };
 
 export const getDefaultBaseUrlForAdminProviderType = (providerType?: AdminModelApiProviderType) =>

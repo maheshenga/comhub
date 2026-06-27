@@ -39,8 +39,10 @@ export type AdminNewapiProviderType =
   | 'newapi'
   | 'openai-compatible'
   | 'openai'
+  | 'claude'
   | 'deepseek'
-  | 'aliyun';
+  | 'aliyun'
+  | 'opencode-go';
 
 /**
  * Admin-managed NewAPI gateway instances. Each row represents a single upstream

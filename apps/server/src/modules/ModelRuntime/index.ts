@@ -78,11 +78,17 @@ const resolveAdminRuntimeProvider = (providerType?: AdminModelApiProviderType | 
     case 'openai-compatible': {
       return ModelProvider.OpenAI;
     }
+    case 'claude': {
+      return ModelProvider.Anthropic;
+    }
     case 'deepseek': {
       return ModelProvider.DeepSeek;
     }
     case 'aliyun': {
       return ModelProvider.Qwen;
+    }
+    case 'opencode-go': {
+      return ModelProvider.OpenCodeCodingPlan;
     }
     case 'newapi':
     default: {

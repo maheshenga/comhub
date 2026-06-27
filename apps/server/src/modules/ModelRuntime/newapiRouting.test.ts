@@ -184,6 +184,63 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     );
   });
 
+  it('should initialize Claude and OpenCode Go admin provider formats with matching runtimes', async () => {
+    const db = { id: 'db' } as any;
+    mocks.resolveNewapiInstancesForModel.mockResolvedValueOnce([
+      {
+        apiKey: 'sk-claude',
+        baseUrl: 'https://api.anthropic.com',
+        groupKey: 'default',
+        instanceId: 'instance-claude',
+        instanceName: 'Claude',
+        priority: 1,
+        providerType: 'claude',
+        source: 'instance' as const,
+      },
+    ]);
+
+    await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
+      model: 'claude-sonnet-4-5',
+      modelType: 'chat',
+    });
+
+    expect(mocks.initializeWithProvider).toHaveBeenLastCalledWith(
+      'anthropic',
+      expect.objectContaining({
+        apiKey: 'sk-claude',
+        baseURL: 'https://api.anthropic.com',
+      }),
+      expect.anything(),
+    );
+
+    mocks.resolveNewapiInstancesForModel.mockResolvedValueOnce([
+      {
+        apiKey: 'sk-opencode',
+        baseUrl: 'https://opencode.ai/zen/go/v1',
+        groupKey: 'default',
+        instanceId: 'instance-opencode',
+        instanceName: 'OpenCode Go',
+        priority: 1,
+        providerType: 'opencode-go',
+        source: 'instance' as const,
+      },
+    ]);
+
+    await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
+      model: 'qwen3-coder-plus',
+      modelType: 'chat',
+    });
+
+    expect(mocks.initializeWithProvider).toHaveBeenLastCalledWith(
+      'opencodecodingplan',
+      expect.objectContaining({
+        apiKey: 'sk-opencode',
+        baseURL: 'https://opencode.ai/zen/go/v1',
+      }),
+      expect.anything(),
+    );
+  });
+
   it('should preserve billing and tracing hooks when retrying on a fallback instance', async () => {
     const db = { id: 'db' } as any;
     const primaryChat = vi.fn().mockRejectedValue({ statusCode: 503 });

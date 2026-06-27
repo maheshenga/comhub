@@ -12,7 +12,14 @@ type NewapiModelType =
   | 'text2music'
   | 'realtime';
 
-type AdminModelApiProviderType = 'newapi' | 'openai-compatible' | 'openai' | 'deepseek' | 'aliyun';
+type AdminModelApiProviderType =
+  | 'newapi'
+  | 'openai-compatible'
+  | 'openai'
+  | 'claude'
+  | 'deepseek'
+  | 'aliyun'
+  | 'opencode-go';
 
 type AdminAuditQueryParams = {
   action?: string;

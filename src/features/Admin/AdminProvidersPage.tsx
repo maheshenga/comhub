@@ -84,10 +84,12 @@ const modelsKey = (instanceId: string, modelType?: ModelType) =>
 
 const PROVIDER_TYPE_LABELS: Record<AdminModelApiProviderType, string> = {
   'aliyun': '阿里云 DashScope',
+  'claude': 'Claude / Anthropic',
   'deepseek': 'DeepSeek',
-  'newapi': 'NewAPI',
+  'newapi': 'AI 服务商',
   'openai': 'OpenAI',
-  'openai-compatible': 'OpenAI 兼容',
+  'openai-compatible': '兼容 OpenAI 格式',
+  'opencode-go': 'OpenCode Go',
 };
 
 const splitToList = (text: string): string[] =>
@@ -192,10 +194,10 @@ const InstanceFormModal = memo<{
           name="providerType"
           extra={
             providerType === 'newapi'
-              ? t('admin.providers.field.providerTypeNewapiHint', '该类型支持同步模型和价格。')
+              ? t('admin.providers.field.providerTypeNewapiHint', 'AI 服务商网关支持同步模型和价格。')
               : t(
                   'admin.providers.field.providerTypeOpenaiHint',
-                  'OpenAI 兼容服务商支持同步模型，价格需要在计费矩阵中配置。',
+                  'OpenAI 兼容、Claude 和 OpenCode Go 格式支持同步模型；价格需要在计费矩阵中配置。',
                 )
           }
         >

@@ -27,7 +27,7 @@ const maskApiKey = (key: string | null | undefined): string | null => {
 const NewapiModelTypeSchema = z.enum(NEWAPI_MODEL_TYPES);
 
 const ProviderTypeSchema = z
-  .enum(['newapi', 'openai-compatible', 'openai', 'deepseek', 'aliyun'])
+  .enum(['newapi', 'openai-compatible', 'openai', 'claude', 'deepseek', 'aliyun', 'opencode-go'])
   .default('newapi');
 
 const InstanceInputSchema = z.object({
@@ -176,7 +176,11 @@ export const adminNewapiProvidersRouter = router({
       if (!instance) throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
 
       const [models, pricing, existingRows] = await Promise.all([
-        fetchNewapiModels({ apiKey: instance.apiKey, baseUrl: instance.baseUrl }),
+        fetchNewapiModels({
+          apiKey: instance.apiKey,
+          baseUrl: instance.baseUrl,
+          providerType: instance.providerType,
+        }),
         fetchNewapiPricing({
           apiKey: instance.apiKey,
           baseUrl: instance.baseUrl,
@@ -245,6 +249,7 @@ export const adminNewapiProvidersRouter = router({
         const models = await fetchNewapiModels({
           apiKey: instance.apiKey,
           baseUrl: instance.baseUrl,
+          providerType: instance.providerType,
         });
         const pricing = await fetchNewapiPricing({
           apiKey: instance.apiKey,

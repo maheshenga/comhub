@@ -30,8 +30,10 @@ export type AdminModelApiProviderType =
   | 'newapi'
   | 'openai-compatible'
   | 'openai'
+  | 'claude'
   | 'deepseek'
-  | 'aliyun';
+  | 'aliyun'
+  | 'opencode-go';
 
 export interface ResolvedNewapiInstance {
   apiKey: string;

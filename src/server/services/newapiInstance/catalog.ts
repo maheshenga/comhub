@@ -6,8 +6,10 @@ export type AdminModelApiProviderType =
   | 'newapi'
   | 'openai-compatible'
   | 'openai'
+  | 'claude'
   | 'deepseek'
-  | 'aliyun';
+  | 'aliyun'
+  | 'opencode-go';
 
 export interface NewapiRemoteModel {
   created?: number;
@@ -55,6 +57,30 @@ const normalizeNewapiRoot = (baseUrl: string) =>
 const normalizeNewapiApiBase = (baseUrl: string) => {
   const trimmed = baseUrl.replace(/\/+$/, '');
   return /\/v\d+[a-z]*$/i.test(trimmed) ? trimmed : urlJoin(trimmed, '/v1');
+};
+
+const isClaudeApiProvider = (providerType?: AdminModelApiProviderType | string | null) =>
+  providerType === 'claude';
+
+const buildModelListHeaders = ({
+  apiKey,
+  providerType,
+}: {
+  apiKey: string;
+  providerType?: AdminModelApiProviderType | string | null;
+}): Record<string, string> => {
+  if (isClaudeApiProvider(providerType)) {
+    return {
+      Accept: 'application/json',
+      'anthropic-version': '2023-06-01',
+      'x-api-key': apiKey,
+    };
+  }
+
+  return {
+    Accept: 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  };
 };
 
 export const classifyNewapiModelType = (
@@ -154,32 +180,31 @@ export const normalizeNewapiSyncRows = ({
 export const fetchNewapiModels = async ({
   apiKey,
   baseUrl,
+  providerType,
 }: {
   apiKey: string;
   baseUrl: string;
+  providerType?: AdminModelApiProviderType | string | null;
 }): Promise<NewapiRemoteModel[]> => {
   const response = await fetch(urlJoin(normalizeNewapiApiBase(baseUrl), '/models'), {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: buildModelListHeaders({ apiKey, providerType }),
   });
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`NewAPI models request failed: ${response.status} ${text}`);
+    throw new Error(`AI provider models request failed: ${response.status} ${text}`);
   }
 
   const contentType = response.headers?.get('content-type') ?? '';
   if (contentType && !contentType.toLowerCase().includes('application/json')) {
-    throw new Error('模型列表接口返回的不是 JSON，请检查 NewAPI Base URL 是否填写为 API 地址。');
+    throw new Error('模型列表接口返回的不是 JSON，请检查 AI 服务商基础地址是否填写为 API 地址。');
   }
 
   let body: { data?: unknown };
   try {
     body = await response.json();
   } catch {
-    throw new Error('模型列表接口返回的不是 JSON，请检查 NewAPI Base URL 是否填写为 API 地址。');
+    throw new Error('模型列表接口返回的不是 JSON，请检查 AI 服务商基础地址是否填写为 API 地址。');
   }
 
   return Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : [];

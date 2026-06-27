@@ -224,10 +224,10 @@ describe('aiProviderRouter', () => {
           { enabled: true, id: 'free-image', providerId: 'newapi', type: 'image' } as any,
           { enabled: true, id: 'pro-video', providerId: 'newapi', type: 'video' } as any,
         ],
-        enabledAiProviders: [{ id: 'newapi', name: 'NewAPI', source: 'builtin' }],
-        enabledChatAiProviders: [{ id: 'newapi', name: 'NewAPI', source: 'builtin' }],
-        enabledImageAiProviders: [{ id: 'newapi', name: 'NewAPI', source: 'builtin' }],
-        enabledVideoAiProviders: [{ id: 'newapi', name: 'NewAPI', source: 'builtin' }],
+        enabledAiProviders: [{ id: 'newapi', name: 'AI Provider', source: 'builtin' }],
+        enabledChatAiProviders: [{ id: 'newapi', name: 'AI Provider', source: 'builtin' }],
+        enabledImageAiProviders: [{ id: 'newapi', name: 'AI Provider', source: 'builtin' }],
+        enabledVideoAiProviders: [{ id: 'newapi', name: 'AI Provider', source: 'builtin' }],
         runtimeConfig: {},
       } as any;
       const rules = {

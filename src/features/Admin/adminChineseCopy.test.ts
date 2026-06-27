@@ -169,7 +169,7 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.providers.empty']).toBe('暂未配置服务商实例');
     expect(subscription['admin.providers.field.providerType']).toBe('服务商类型');
     expect(subscription['admin.providers.field.providerTypeNewapiHint']).toBe(
-      '该类型支持同步模型和价格。',
+      'AI 服务商网关支持同步模型和价格。',
     );
     expect(subscription['admin.providers.models.bulkAddHint']).toBe(
       '可批量添加模型 ID，使用换行或逗号分隔。',
