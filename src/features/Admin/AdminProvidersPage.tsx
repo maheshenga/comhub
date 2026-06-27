@@ -131,9 +131,12 @@ const InstanceFormModal = memo<{
       setSubmitting(true);
       const payload = buildProviderInstancePayload(values, { isEdit });
       if (isEdit && initial) {
-        await adminCommercialService.updateNewapiInstance({ data: payload as any, id: initial.id });
+        await adminCommercialService.updateAiProviderInstance({
+          data: payload as any,
+          id: initial.id,
+        });
       } else {
-        await adminCommercialService.createNewapiInstance(payload as any);
+        await adminCommercialService.createAiProviderInstance(payload as any);
       }
       message.success(t('admin.providers.saveSuccess', '已保存'));
       await mutate(INSTANCES_KEY);
@@ -327,7 +330,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
     const { t } = useTranslation('subscription');
     const swrKey = modelsKey(instanceId, modelType);
     const { data, isLoading } = useClientDataSWR(swrKey, () =>
-      adminCommercialService.listNewapiInstanceModels({ instanceId, modelType }),
+      adminCommercialService.listAiProviderInstanceModels({ instanceId, modelType }),
     );
     const items = (data?.items ?? []) as ModelRow[];
 
@@ -339,7 +342,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       if (ids.length === 0) return;
       setAdding(true);
       try {
-        await adminCommercialService.addNewapiInstanceModels({
+        await adminCommercialService.addAiProviderInstanceModels({
           instanceId,
           models: ids.map((id, i) => ({
             enabled: true,
@@ -359,7 +362,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
     };
 
     const handleToggle = async (row: ModelRow) => {
-      await adminCommercialService.updateNewapiInstanceModel({
+      await adminCommercialService.updateAiProviderInstanceModel({
         data: { enabled: !row.enabled },
         instanceId,
         modelId: row.modelId,
@@ -369,7 +372,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
     };
 
     const handleRename = async (row: ModelRow, displayName: string) => {
-      await adminCommercialService.updateNewapiInstanceModel({
+      await adminCommercialService.updateAiProviderInstanceModel({
         data: { displayName: displayName || undefined },
         instanceId,
         modelId: row.modelId,
@@ -379,7 +382,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
     };
 
     const handleDelete = async (row: ModelRow) => {
-      await adminCommercialService.removeNewapiInstanceModel({
+      await adminCommercialService.removeAiProviderInstanceModel({
         instanceId,
         modelId: row.modelId,
         modelType: row.modelType,
@@ -520,7 +523,7 @@ ModelsDrawer.displayName = 'ModelsDrawer';
 const AdminProvidersPage = memo(() => {
   const { t } = useTranslation('subscription');
   const { data, isLoading } = useClientDataSWR(INSTANCES_KEY, () =>
-    adminCommercialService.listNewapiInstances(),
+    adminCommercialService.listAiProviderInstances(),
   );
 
   const [editing, setEditing] = useState<InstanceRow | null>(null);
@@ -532,12 +535,12 @@ const AdminProvidersPage = memo(() => {
   const items = (data?.items ?? []) as InstanceRow[];
 
   const handleToggle = async (row: InstanceRow) => {
-    await adminCommercialService.toggleNewapiInstance({ enabled: !row.enabled, id: row.id });
+    await adminCommercialService.toggleAiProviderInstance({ enabled: !row.enabled, id: row.id });
     await mutate(INSTANCES_KEY);
   };
 
   const handleDelete = async (row: InstanceRow, reason?: string | null) => {
-    await adminCommercialService.deleteNewapiInstance({ id: row.id, reason: reason?.trim() });
+    await adminCommercialService.deleteAiProviderInstance({ id: row.id, reason: reason?.trim() });
     message.success(t('admin.providers.deleteSuccess', '实例已删除'));
     await mutate(INSTANCES_KEY);
   };
@@ -545,7 +548,7 @@ const AdminProvidersPage = memo(() => {
   const handleTestConnection = async (row: InstanceRow) => {
     setTestingId(row.id);
     try {
-      const result = await adminCommercialService.testNewapiInstanceConnection(row.id);
+      const result = await adminCommercialService.testAiProviderInstanceConnection(row.id);
       if (result.ok) {
         message.success(
           t(
@@ -572,7 +575,7 @@ const AdminProvidersPage = memo(() => {
   const handleSyncModels = async (row: InstanceRow) => {
     setSyncingId(row.id);
     try {
-      const result = await adminCommercialService.syncNewapiInstanceModels(row.id);
+      const result = await adminCommercialService.syncAiProviderInstanceModels(row.id);
       message.success(
         t('admin.providers.sync.success', '同步完成：导入 {{count}} 个模型，新模型默认未启用', {
           count: result.importedCount,

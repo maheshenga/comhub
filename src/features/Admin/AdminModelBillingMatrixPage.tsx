@@ -98,7 +98,7 @@ const AdminModelBillingMatrixPage = memo(() => {
   const [saving, setSaving] = useState(false);
 
   const { data: modelData, isLoading: modelsLoading } = useClientDataSWR(MATRIX_KEY, () =>
-    adminCommercialService.listAllEnabledNewapiModels(),
+    adminCommercialService.listAllEnabledAiProviderModels(),
   );
   const { data: planData, isLoading: plansLoading } = useClientDataSWR(PLANS_KEY, () =>
     adminCommercialService.listPlans(),

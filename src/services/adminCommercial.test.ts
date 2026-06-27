@@ -34,7 +34,38 @@ describe('adminCommercialService NewAPI helpers', () => {
     vi.unstubAllGlobals();
   });
 
-  it('calls the NewAPI connection test endpoint', async () => {
+  it('calls the AI provider connection test endpoint', async () => {
+    vi.mocked(lambdaClient.admin.newapiProviders.testInstanceConnection.query).mockResolvedValue({
+      modelsCount: 1,
+      ok: true,
+      pricingCount: 0,
+      warnings: [],
+    });
+
+    await adminCommercialService.testAiProviderInstanceConnection('instance-1');
+
+    expect(lambdaClient.admin.newapiProviders.testInstanceConnection.query).toHaveBeenCalledWith({
+      id: 'instance-1',
+    });
+  });
+
+  it('calls the AI provider model sync endpoint', async () => {
+    vi.mocked(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).mockResolvedValue({
+      importedCount: 1,
+      modelsCount: 1,
+      ok: true,
+      pricingCount: 0,
+      warnings: [],
+    });
+
+    await adminCommercialService.syncAiProviderInstanceModels('instance-1');
+
+    expect(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).toHaveBeenCalledWith({
+      id: 'instance-1',
+    });
+  });
+
+  it('keeps legacy NewAPI helper aliases for compatibility', async () => {
     vi.mocked(lambdaClient.admin.newapiProviders.testInstanceConnection.query).mockResolvedValue({
       modelsCount: 1,
       ok: true,
@@ -45,22 +76,6 @@ describe('adminCommercialService NewAPI helpers', () => {
     await adminCommercialService.testNewapiInstanceConnection('instance-1');
 
     expect(lambdaClient.admin.newapiProviders.testInstanceConnection.query).toHaveBeenCalledWith({
-      id: 'instance-1',
-    });
-  });
-
-  it('calls the NewAPI model sync endpoint', async () => {
-    vi.mocked(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).mockResolvedValue({
-      importedCount: 1,
-      modelsCount: 1,
-      ok: true,
-      pricingCount: 0,
-      warnings: [],
-    });
-
-    await adminCommercialService.syncNewapiInstanceModels('instance-1');
-
-    expect(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).toHaveBeenCalledWith({
       id: 'instance-1',
     });
   });

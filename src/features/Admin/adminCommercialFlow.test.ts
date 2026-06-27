@@ -129,6 +129,53 @@ describe('admin commercial flow pages', () => {
     expect(providersPage).not.toContain('admin.newapi.');
   });
 
+  it('uses AI service provider service helpers as the provider page primary API', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+
+    for (const method of [
+      'listAiProviderInstances',
+      'createAiProviderInstance',
+      'updateAiProviderInstance',
+      'deleteAiProviderInstance',
+      'toggleAiProviderInstance',
+      'testAiProviderInstanceConnection',
+      'syncAiProviderInstanceModels',
+      'listAiProviderInstanceModels',
+      'addAiProviderInstanceModels',
+      'removeAiProviderInstanceModel',
+      'updateAiProviderInstanceModel',
+    ]) {
+      expect(service).toContain(method);
+      expect(providersPage).toContain(`adminCommercialService.${method}`);
+    }
+
+    for (const legacyMethod of [
+      'listNewapiInstances',
+      'createNewapiInstance',
+      'updateNewapiInstance',
+      'deleteNewapiInstance',
+      'toggleNewapiInstance',
+      'testNewapiInstanceConnection',
+      'syncNewapiInstanceModels',
+      'listNewapiInstanceModels',
+      'addNewapiInstanceModels',
+      'removeNewapiInstanceModel',
+      'updateNewapiInstanceModel',
+    ]) {
+      expect(providersPage).not.toContain(`adminCommercialService.${legacyMethod}`);
+    }
+  });
+
+  it('uses AI service provider model helpers in shared model billing surfaces', () => {
+    const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+
+    expect(service).toContain('listAllEnabledAiProviderModels');
+    expect(matrixPage).toContain('adminCommercialService.listAllEnabledAiProviderModels');
+    expect(matrixPage).not.toContain('adminCommercialService.listAllEnabledNewapiModels');
+  });
+
   it('uses provider-neutral file names for the admin provider page', () => {
     expect(existsSync(path.resolve(repoRoot, 'src/features/Admin/AdminProvidersPage.tsx'))).toBe(
       true,

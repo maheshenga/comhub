@@ -2,7 +2,7 @@ import type { Plans } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
 
-type NewapiModelType =
+type AiProviderModelType =
   | 'chat'
   | 'embedding'
   | 'tts'
@@ -11,6 +11,8 @@ type NewapiModelType =
   | 'video'
   | 'text2music'
   | 'realtime';
+
+type NewapiModelType = AiProviderModelType;
 
 type AdminModelApiProviderType =
   | 'newapi'
@@ -411,22 +413,19 @@ class AdminCommercialService {
       Array.isArray(params) ? { ids: params } : params,
     );
 
-  // NewAPI Providers (multi-instance)
-  listNewapiInstances = async () => lambdaClient.admin.newapiProviders.listInstances.query();
+  // AI service providers (TRPC route keeps its historical newapiProviders name for compatibility).
+  listAiProviderInstances = async () => lambdaClient.admin.newapiProviders.listInstances.query();
+
+  listNewapiInstances = this.listAiProviderInstances;
+
+  listAllEnabledAiProviderModels = async (params?: { modelType?: AiProviderModelType }) =>
+    lambdaClient.admin.newapiProviders.getAllEnabledModels.query(params);
 
   listAllEnabledNewapiModels = async (params?: {
-    modelType?:
-      | 'chat'
-      | 'embedding'
-      | 'tts'
-      | 'stt'
-      | 'image'
-      | 'video'
-      | 'text2music'
-      | 'realtime';
-  }) => lambdaClient.admin.newapiProviders.getAllEnabledModels.query(params);
+    modelType?: NewapiModelType;
+  }) => this.listAllEnabledAiProviderModels(params);
 
-  createNewapiInstance = async (params: {
+  createAiProviderInstance = async (params: {
     apiKey: string;
     baseUrl: string;
     description?: string;
@@ -438,10 +437,12 @@ class AdminCommercialService {
     name: string;
     priority?: number;
     providerType?: AdminModelApiProviderType;
-    usageScope?: NewapiModelType[];
+    usageScope?: AiProviderModelType[];
   }) => lambdaClient.admin.newapiProviders.createInstance.mutate(params);
 
-  updateNewapiInstance = async (params: {
+  createNewapiInstance = this.createAiProviderInstance;
+
+  updateAiProviderInstance = async (params: {
     data: {
       apiKey?: string;
       baseUrl?: string;
@@ -454,69 +455,71 @@ class AdminCommercialService {
       name?: string;
       priority?: number;
       providerType?: AdminModelApiProviderType;
-      usageScope?: NewapiModelType[];
+      usageScope?: AiProviderModelType[];
     };
     id: string;
   }) => lambdaClient.admin.newapiProviders.updateInstance.mutate(params);
 
-  deleteNewapiInstance = async (params: { id: string; reason?: string } | string) =>
+  updateNewapiInstance = this.updateAiProviderInstance;
+
+  deleteAiProviderInstance = async (params: { id: string; reason?: string } | string) =>
     lambdaClient.admin.newapiProviders.deleteInstance.mutate(
       typeof params === 'string' ? { id: params } : params,
     );
 
-  toggleNewapiInstance = async (params: { enabled: boolean; id: string }) =>
+  deleteNewapiInstance = this.deleteAiProviderInstance;
+
+  toggleAiProviderInstance = async (params: { enabled: boolean; id: string }) =>
     lambdaClient.admin.newapiProviders.toggleInstanceEnabled.mutate(params);
 
-  testNewapiInstanceConnection = async (id: string) =>
+  toggleNewapiInstance = this.toggleAiProviderInstance;
+
+  testAiProviderInstanceConnection = async (id: string) =>
     lambdaClient.admin.newapiProviders.testInstanceConnection.query({ id });
 
-  syncNewapiInstanceModels = async (id: string) =>
+  testNewapiInstanceConnection = this.testAiProviderInstanceConnection;
+
+  syncAiProviderInstanceModels = async (id: string) =>
     lambdaClient.admin.newapiProviders.syncInstanceModels.mutate({ id });
 
-  listNewapiInstanceModels = async (params: {
+  syncNewapiInstanceModels = this.syncAiProviderInstanceModels;
+
+  listAiProviderInstanceModels = async (params: {
     instanceId: string;
-    modelType?:
-      | 'chat'
-      | 'embedding'
-      | 'tts'
-      | 'stt'
-      | 'image'
-      | 'video'
-      | 'text2music'
-      | 'realtime';
+    modelType?: AiProviderModelType;
   }) => lambdaClient.admin.newapiProviders.listModels.query(params);
 
-  addNewapiInstanceModels = async (params: {
+  listNewapiInstanceModels = this.listAiProviderInstanceModels;
+
+  addAiProviderInstanceModels = async (params: {
     instanceId: string;
     models: Array<{
       displayName?: string;
       enabled?: boolean;
       modelId: string;
-      modelType:
-        | 'chat'
-        | 'embedding'
-        | 'tts'
-        | 'stt'
-        | 'image'
-        | 'video'
-        | 'text2music'
-        | 'realtime';
+      modelType: AiProviderModelType;
       sortOrder?: number;
     }>;
   }) => lambdaClient.admin.newapiProviders.addModels.mutate(params);
 
-  removeNewapiInstanceModel = async (params: {
+  addNewapiInstanceModels = this.addAiProviderInstanceModels;
+
+  removeAiProviderInstanceModel = async (params: {
     instanceId: string;
     modelId: string;
-    modelType: 'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
+    modelType: AiProviderModelType;
   }) => lambdaClient.admin.newapiProviders.removeModel.mutate(params);
 
-  updateNewapiInstanceModel = async (params: {
+  removeNewapiInstanceModel = this.removeAiProviderInstanceModel;
+
+  updateAiProviderInstanceModel = async (params: {
     data: { displayName?: string; enabled?: boolean; sortOrder?: number };
     instanceId: string;
     modelId: string;
-    modelType: 'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
+    modelType: AiProviderModelType;
   }) => lambdaClient.admin.newapiProviders.updateModel.mutate(params);
+
+  updateNewapiInstanceModel = this.updateAiProviderInstanceModel;
 
   // Plan model rules (per-type allowlist/blocklist)
   setPlanModelRules = async (params: {
