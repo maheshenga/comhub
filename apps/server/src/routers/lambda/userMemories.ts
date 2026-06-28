@@ -43,7 +43,7 @@ import {
 } from '@/database/schemas';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { getResolvedServerDefaultFilesConfig } from '@/server/globalConfig';
+import { getResolvedMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import type { UserMemoryEmbeddingRuntime } from '@/server/services/memory/userMemory/embedding';
 import { embedUserMemoryTexts } from '@/server/services/memory/userMemory/embedding';
@@ -120,9 +120,11 @@ const searchUserMemories = async (
   input: z.infer<typeof searchMemorySchema>,
 ): Promise<SearchMemoryResult> => {
   const normalizedInput = normalizeSearchMemoryParams(input);
-  const { provider, model: embeddingModel } =
-    (await getResolvedServerDefaultFilesConfig(ctx.serverDB)).embeddingModel ||
-    DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
+  const memoryConfig = await getResolvedMemoryExtractionConfig(ctx.serverDB);
+  const embeddingConfig = memoryConfig.embedding;
+  const provider = embeddingConfig.provider || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM.provider;
+  const embeddingModel = embeddingConfig.model || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM.model;
+  const embeddingContextLimit = embeddingConfig.contextLimit;
   const modelRuntime = await initModelRuntimeFromDB(ctx.serverDB, ctx.userId, provider, {
     model: embeddingModel,
     modelType: 'embedding',
@@ -135,6 +137,7 @@ const searchUserMemories = async (
     normalizedQueries.length > 0
       ? (
           await embedUserMemoryTexts({
+            embeddingContextLimit,
             input: normalizedQueries,
             model: embeddingModel,
             runtime: modelRuntime,
@@ -165,27 +168,31 @@ const searchUserMemories = async (
 };
 
 const getEmbeddingRuntime = async (serverDB: LobeChatDatabase, userId: string) => {
-  const { provider, model: embeddingModel } =
-    (await getResolvedServerDefaultFilesConfig(serverDB)).embeddingModel ||
-    DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
+  const memoryConfig = await getResolvedMemoryExtractionConfig(serverDB);
+  const embeddingConfig = memoryConfig.embedding;
+  const provider = embeddingConfig.provider || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM.provider;
+  const embeddingModel = embeddingConfig.model || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM.model;
+  const embeddingContextLimit = embeddingConfig.contextLimit;
   // Read user's provider config from database
   const agentRuntime = await initModelRuntimeFromDB(serverDB, userId, provider, {
     model: embeddingModel,
     modelType: 'embedding',
   });
 
-  return { agentRuntime, embeddingModel };
+  return { agentRuntime, embeddingContextLimit, embeddingModel };
 };
 
 const createEmbedder = (
   agentRuntime: UserMemoryEmbeddingRuntime,
   embeddingModel: string,
+  embeddingContextLimit: number | undefined,
   userId: string,
 ) => {
   return async (value?: string | null): Promise<number[] | undefined> => {
     if (!value || value.trim().length === 0) return undefined;
 
     const [embedding] = await embedUserMemoryTexts({
+      embeddingContextLimit,
       input: [value],
       model: embeddingModel,
       runtime: agentRuntime,
@@ -463,7 +470,7 @@ export const userMemoriesRouter = router({
     .mutation(async ({ ctx, input }) => {
       try {
         const options = input ?? {};
-        const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+        const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
           ctx.serverDB,
           ctx.userId,
         );
@@ -475,6 +482,7 @@ export const userMemoriesRouter = router({
           if (texts.length === 0) return [];
 
           const response = await embedUserMemoryTexts({
+            embeddingContextLimit,
             input: texts,
             model: embeddingModel,
             runtime: agentRuntime,
@@ -977,11 +985,11 @@ export const userMemoriesRouter = router({
     .input(ActivityMemoryItemSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+        const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
           ctx.serverDB,
           ctx.userId,
         );
-        const embed = createEmbedder(agentRuntime, embeddingModel, ctx.userId);
+        const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, ctx.userId);
 
         const summaryEmbedding = await embed(input.summary);
         const detailsEmbedding = await embed(input.details);
@@ -1039,11 +1047,11 @@ export const userMemoriesRouter = router({
     .input(ContextMemoryItemSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+        const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
           ctx.serverDB,
           ctx.userId,
         );
-        const embed = createEmbedder(agentRuntime, embeddingModel, ctx.userId);
+        const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, ctx.userId);
 
         const summaryEmbedding = await embed(input.summary);
         const detailsEmbedding = await embed(input.details);
@@ -1094,11 +1102,11 @@ export const userMemoriesRouter = router({
     .input(ExperienceMemoryItemSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+        const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
           ctx.serverDB,
           ctx.userId,
         );
-        const embed = createEmbedder(agentRuntime, embeddingModel, ctx.userId);
+        const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, ctx.userId);
 
         const summaryEmbedding = await embed(input.summary);
         const detailsEmbedding = await embed(input.details);
@@ -1150,11 +1158,11 @@ export const userMemoriesRouter = router({
     .input(AddIdentityActionSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+        const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
           ctx.serverDB,
           ctx.userId,
         );
-        const embed = createEmbedder(agentRuntime, embeddingModel, ctx.userId);
+        const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, ctx.userId);
 
         const summaryEmbedding = await embed(input.summary);
         const detailsEmbedding = await embed(input.details);
@@ -1218,11 +1226,11 @@ export const userMemoriesRouter = router({
     .input(PreferenceMemoryItemSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+        const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
           ctx.serverDB,
           ctx.userId,
         );
-        const embed = createEmbedder(agentRuntime, embeddingModel, ctx.userId);
+        const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, ctx.userId);
 
         const summaryEmbedding = await embed(input.summary);
         const detailsEmbedding = await embed(input.details);
@@ -1311,11 +1319,11 @@ export const userMemoriesRouter = router({
     .input(UpdateIdentityActionSchema)
     .mutation(async ({ input, ctx }) => {
       try {
-        const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+        const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
           ctx.serverDB,
           ctx.userId,
         );
-        const embed = createEmbedder(agentRuntime, embeddingModel, ctx.userId);
+        const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, ctx.userId);
 
         let summaryVector1024: number[] | null | undefined;
         if (input.set.summary !== undefined) {

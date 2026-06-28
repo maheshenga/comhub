@@ -2,7 +2,18 @@
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Avatar, Flexbox } from '@lobehub/ui';
-import { Alert, Button, Form, Input, message, Select, Space, Switch, Typography } from 'antd';
+import {
+  Alert,
+  AutoComplete,
+  Button,
+  Form,
+  Input,
+  message,
+  Select,
+  Space,
+  Switch,
+  Typography,
+} from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -21,6 +32,14 @@ const { Text, Title } = Typography;
 
 const SETTING_KEYS = {
   avatarPresets: 'profile.avatarPresets',
+  memoryUserMemoryEmbeddingModel: 'memory.userMemory.embedding.model',
+  memoryUserMemoryEmbeddingProvider: 'memory.userMemory.embedding.provider',
+  memoryUserMemoryGatekeeperModel: 'memory.userMemory.gatekeeper.model',
+  memoryUserMemoryGatekeeperProvider: 'memory.userMemory.gatekeeper.provider',
+  memoryUserMemoryLayerExtractorModel: 'memory.userMemory.layerExtractor.model',
+  memoryUserMemoryLayerExtractorProvider: 'memory.userMemory.layerExtractor.provider',
+  memoryUserMemoryPersonaWriterModel: 'memory.userMemory.personaWriter.model',
+  memoryUserMemoryPersonaWriterProvider: 'memory.userMemory.personaWriter.provider',
   userGlobalSettingsDefaults: 'user.globalSettings.defaults',
   vectorEmbeddingModel: 'vector.embedding.model',
   vectorEmbeddingProvider: 'vector.embedding.provider',
@@ -33,6 +52,14 @@ type FormValues = {
   avatarPresets: AvatarPreset[];
   disabledBuiltinToolsText: string;
   languageModelDefaultsJson: string;
+  memoryEmbeddingModel: string;
+  memoryEmbeddingProvider: string;
+  memoryGatekeeperModel: string;
+  memoryGatekeeperProvider: string;
+  memoryLayerExtractorModel: string;
+  memoryLayerExtractorProvider: string;
+  memoryPersonaWriterModel: string;
+  memoryPersonaWriterProvider: string;
   serviceModelAgentMeta: string;
   serviceModelDefaultAgent: string;
   serviceModelFollowUpAction: string;
@@ -90,6 +117,28 @@ const parseModelValue = (value?: string) => {
   return provider && model ? { model, provider } : null;
 };
 
+const findModelOption = (
+  options: Array<{ model: string; provider: string; value: string }>,
+  value?: string,
+) => options.find((option) => option.value === value || option.model === value);
+
+const normalizeMemoryModelFields = (
+  modelValue: string | undefined,
+  providerValue: string | undefined,
+  options: Array<{ model: string; provider: string; value: string }>,
+) => {
+  const model = typeof modelValue === 'string' ? modelValue.trim() : '';
+  const provider = typeof providerValue === 'string' ? providerValue.trim() : '';
+  const selected =
+    options.find((option) => option.value === model) ??
+    options.find((option) => option.model === model && (!provider || option.provider === provider));
+
+  return {
+    model: selected?.value === model ? selected.model : model,
+    provider: provider || selected?.provider || '',
+  };
+};
+
 const applyModelValue = (target: Record<string, any>, key: string, value?: string) => {
   const current =
     target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])
@@ -121,10 +170,29 @@ const AdminSystemDefaultsPage = memo(() => {
     adminCommercialService.getAllSettings(),
   );
   const modelOptions = useMemo(() => buildModelOptions({ ...data, modelType: 'chat' }), [data]);
+  const embeddingModelOptions = useMemo(
+    () => buildModelOptions({ ...data, modelType: 'embedding' }),
+    [data],
+  );
+  const applySelectedModelProvider = (
+    modelField: keyof FormValues,
+    providerField: keyof FormValues,
+    options: Array<{ model: string; provider: string; value: string }>,
+    selectedValue?: string,
+  ) => {
+    const selected = findModelOption(options, selectedValue ?? form.getFieldValue(modelField));
+    if (!selected) return;
+
+    form.setFieldsValue({
+      [modelField]: selected.model,
+      [providerField]: selected.provider,
+    } as Partial<FormValues>);
+  };
 
   useEffect(() => {
     if (!data) return;
 
+    const memoryExtractionConfig = (data as any).memoryExtractionConfig ?? {};
     const vectorConfig = (data as any).vectorConfig ?? {};
     const userDefaults = (data as any).userGlobalSettingsDefaults ?? {};
     const systemAgent = userDefaults.systemAgent ?? {};
@@ -134,6 +202,14 @@ const AdminSystemDefaultsPage = memo(() => {
         ? userDefaults.tool.uninstalledBuiltinTools.join('\n')
         : '',
       languageModelDefaultsJson: jsonStringify(userDefaults?.languageModel ?? {}),
+      memoryEmbeddingModel: memoryExtractionConfig.embeddingModel ?? '',
+      memoryEmbeddingProvider: memoryExtractionConfig.embeddingProvider ?? '',
+      memoryGatekeeperModel: memoryExtractionConfig.gatekeeperModel ?? '',
+      memoryGatekeeperProvider: memoryExtractionConfig.gatekeeperProvider ?? '',
+      memoryLayerExtractorModel: memoryExtractionConfig.layerExtractorModel ?? '',
+      memoryLayerExtractorProvider: memoryExtractionConfig.layerExtractorProvider ?? '',
+      memoryPersonaWriterModel: memoryExtractionConfig.personaWriterModel ?? '',
+      memoryPersonaWriterProvider: memoryExtractionConfig.personaWriterProvider ?? '',
       serviceModelAgentMeta: toModelValue(systemAgent.agentMeta),
       serviceModelDefaultAgent: toModelValue(userDefaults?.defaultAgent?.config),
       serviceModelFollowUpAction: toModelValue(systemAgent.followUpAction),
@@ -164,6 +240,26 @@ const AdminSystemDefaultsPage = memo(() => {
       const languageModelDefaults = parseJsonObject(values.languageModelDefaultsJson);
       const disabledBuiltinTools = splitTextList(values.disabledBuiltinToolsText);
       const defaultAgentModel = parseModelValue(values.serviceModelDefaultAgent);
+      const memoryGatekeeper = normalizeMemoryModelFields(
+        values.memoryGatekeeperModel,
+        values.memoryGatekeeperProvider,
+        modelOptions,
+      );
+      const memoryLayerExtractor = normalizeMemoryModelFields(
+        values.memoryLayerExtractorModel,
+        values.memoryLayerExtractorProvider,
+        modelOptions,
+      );
+      const memoryPersonaWriter = normalizeMemoryModelFields(
+        values.memoryPersonaWriterModel,
+        values.memoryPersonaWriterProvider,
+        modelOptions,
+      );
+      const memoryEmbedding = normalizeMemoryModelFields(
+        values.memoryEmbeddingModel,
+        values.memoryEmbeddingProvider,
+        embeddingModelOptions,
+      );
       const systemAgent = {
         ...((userGlobalSettings as any).systemAgent &&
         typeof (userGlobalSettings as any).systemAgent === 'object' &&
@@ -257,6 +353,38 @@ const AdminSystemDefaultsPage = memo(() => {
             value: values.vectorQueryMode,
           },
           {
+            key: SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+            value: memoryGatekeeper.provider,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+            value: memoryGatekeeper.model,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+            value: memoryLayerExtractor.provider,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+            value: memoryLayerExtractor.model,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+            value: memoryPersonaWriter.provider,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+            value: memoryPersonaWriter.model,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+            value: memoryEmbedding.provider,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+            value: memoryEmbedding.model,
+          },
+          {
             key: SETTING_KEYS.userGlobalSettingsDefaults,
             value: mergedUserGlobalSettings,
           },
@@ -345,6 +473,131 @@ const AdminSystemDefaultsPage = memo(() => {
                 ]}
               />
             </Form.Item>
+          </Card>
+
+          <Card title="记忆分析模型设置">
+            <Alert
+              showIcon
+              message="控制用户记忆判定、分层提取、画像生成与记忆向量检索模型。留空时沿用环境变量或系统默认值；更换记忆 Embedding 模型后，需要重建已有记忆向量。"
+              style={{ marginBottom: 16 }}
+              type="info"
+            />
+            <Flexbox horizontal gap={12}>
+              <Form.Item
+                extra="判断聊天内容是否需要写入长期记忆。选择候选模型时会自动填充供应商。"
+                label="记忆判定模型"
+                name="memoryGatekeeperModel"
+                style={{ flex: 1 }}
+              >
+                <AutoComplete
+                  allowClear
+                  options={modelOptions}
+                  placeholder="选择聊天模型"
+                  onSelect={(value) =>
+                    applySelectedModelProvider(
+                      'memoryGatekeeperModel',
+                      'memoryGatekeeperProvider',
+                      modelOptions,
+                      value,
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item
+                label="记忆判定供应商"
+                name="memoryGatekeeperProvider"
+                style={{ width: 220 }}
+              >
+                <Input placeholder="newapi" />
+              </Form.Item>
+            </Flexbox>
+            <Flexbox horizontal gap={12}>
+              <Form.Item
+                extra="提取 activity、context、experience、identity、preference 等记忆层。"
+                label="分层提取模型"
+                name="memoryLayerExtractorModel"
+                style={{ flex: 1 }}
+              >
+                <AutoComplete
+                  allowClear
+                  options={modelOptions}
+                  placeholder="选择聊天模型"
+                  onSelect={(value) =>
+                    applySelectedModelProvider(
+                      'memoryLayerExtractorModel',
+                      'memoryLayerExtractorProvider',
+                      modelOptions,
+                      value,
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item
+                label="分层提取供应商"
+                name="memoryLayerExtractorProvider"
+                style={{ width: 220 }}
+              >
+                <Input placeholder="newapi" />
+              </Form.Item>
+            </Flexbox>
+            <Flexbox horizontal gap={12}>
+              <Form.Item
+                extra="根据长期记忆生成和更新用户画像文档。"
+                label="用户画像写入模型"
+                name="memoryPersonaWriterModel"
+                style={{ flex: 1 }}
+              >
+                <AutoComplete
+                  allowClear
+                  options={modelOptions}
+                  placeholder="选择聊天模型"
+                  onSelect={(value) =>
+                    applySelectedModelProvider(
+                      'memoryPersonaWriterModel',
+                      'memoryPersonaWriterProvider',
+                      modelOptions,
+                      value,
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item
+                label="用户画像供应商"
+                name="memoryPersonaWriterProvider"
+                style={{ width: 220 }}
+              >
+                <Input placeholder="newapi" />
+              </Form.Item>
+            </Flexbox>
+            <Flexbox horizontal gap={12}>
+              <Form.Item
+                extra="用于写入和搜索用户记忆向量。当前数据库向量列固定为 1024 维。"
+                label="记忆 Embedding 模型"
+                name="memoryEmbeddingModel"
+                style={{ flex: 1 }}
+              >
+                <AutoComplete
+                  allowClear
+                  options={embeddingModelOptions}
+                  placeholder="选择 Embedding 模型"
+                  onSelect={(value) =>
+                    applySelectedModelProvider(
+                      'memoryEmbeddingModel',
+                      'memoryEmbeddingProvider',
+                      embeddingModelOptions,
+                      value,
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item
+                label="记忆 Embedding 供应商"
+                name="memoryEmbeddingProvider"
+                style={{ width: 220 }}
+              >
+                <Input placeholder="siliconflow / newapi" />
+              </Form.Item>
+            </Flexbox>
           </Card>
 
           <Card title="用户全局默认设置">

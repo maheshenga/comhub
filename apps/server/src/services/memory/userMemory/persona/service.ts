@@ -19,7 +19,7 @@ import { UserPersonaModel } from '@/database/models/userMemory/persona';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
 import { type LobeChatDatabase } from '@/database/type';
 import { type MemoryAgentConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
-import { parseMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
+import { getResolvedMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import {
   type ProviderKeyVaultMap,
@@ -58,38 +58,37 @@ const resolvePositiveInteger = (value?: number) => {
 const normalizeProvider = (provider: string) => provider.toLowerCase();
 
 export class UserPersonaService {
-  private readonly preferredLanguage?: string;
   private readonly db: LobeChatDatabase;
-  private readonly agentConfig: MemoryAgentConfig;
+  private readonly agentConfig: Promise<MemoryAgentConfig>;
 
   constructor(db: LobeChatDatabase) {
-    const { agentPersonaWriter } = parseMemoryExtractionConfig();
-
     this.db = db;
-    this.preferredLanguage = agentPersonaWriter.language;
-    this.agentConfig = agentPersonaWriter;
+    this.agentConfig = getResolvedMemoryExtractionConfig(db).then(
+      (config) => config.agentPersonaWriter,
+    );
   }
 
   private async resolveAgentConfig(userId: string): Promise<MemoryAgentConfig> {
+    const baseAgentConfig = await this.agentConfig;
     const userModel = new UserModel(this.db, userId);
     const settings = await userModel.getUserSettings();
     const userMemoryPersonaWriter = (
       settings?.systemAgent as Partial<UserServiceModelConfig> | undefined
     )?.userMemoryPersonaWriter;
-    const provider = userMemoryPersonaWriter?.provider || this.agentConfig.provider;
+    const provider = userMemoryPersonaWriter?.provider || baseAgentConfig.provider;
     const shouldInheritCredentials =
       !userMemoryPersonaWriter?.provider ||
       normalizeProvider(userMemoryPersonaWriter.provider) ===
-        normalizeProvider(this.agentConfig.provider || 'openai');
+        normalizeProvider(baseAgentConfig.provider || 'openai');
 
     return {
-      apiKey: shouldInheritCredentials ? this.agentConfig.apiKey : undefined,
-      baseURL: shouldInheritCredentials ? this.agentConfig.baseURL : undefined,
+      apiKey: shouldInheritCredentials ? baseAgentConfig.apiKey : undefined,
+      baseURL: shouldInheritCredentials ? baseAgentConfig.baseURL : undefined,
       contextLimit:
         resolvePositiveInteger(userMemoryPersonaWriter?.contextLimit) ??
-        this.agentConfig.contextLimit,
-      language: this.agentConfig.language,
-      model: userMemoryPersonaWriter?.model || this.agentConfig.model,
+        baseAgentConfig.contextLimit,
+      language: baseAgentConfig.language,
+      model: userMemoryPersonaWriter?.model || baseAgentConfig.model,
       provider,
     };
   }
@@ -145,7 +144,7 @@ export class UserPersonaService {
 
     const agentResult = await extractor.toolCall({
       existingPersona: existingPersonaBaseline || undefined,
-      language: payload.language || this.preferredLanguage,
+      language: payload.language || agentConfig.language,
       personaNotes: payload.personaNotes,
       recentEvents: payload.recentEvents,
       retrievedMemories: payload.retrievedMemories,
@@ -173,7 +172,7 @@ export class UserPersonaService {
 export const buildUserPersonaJobInput = async (db: LobeChatDatabase, userId: string) => {
   const personaModel = new UserPersonaModel(db, userId);
   const latestPersona = await personaModel.getLatestPersonaDocument();
-  const { agentPersonaWriter } = parseMemoryExtractionConfig();
+  const { agentPersonaWriter } = await getResolvedMemoryExtractionConfig(db);
   const userModel = new UserModel(db, userId);
   const settings = await userModel.getUserSettings();
   const userMemoryPersonaWriter = (

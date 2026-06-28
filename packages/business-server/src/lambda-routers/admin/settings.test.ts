@@ -451,6 +451,103 @@ describe('admin settings default model validation', () => {
     expect(JSON.stringify(auditEntry.payload)).not.toContain('admin-secret-key');
   });
 
+  it('saves memory analysis model settings in a batch', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      { displayName: 'GPT 5.5', id: 'gpt-5.5', type: 'chat' },
+      { displayName: 'GPT 5.5 Mini', id: 'gpt-5.5-mini', type: 'chat' },
+    ]);
+    const tx = createDb();
+    const db = {
+      ...createDb(),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(tx),
+      ),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.setAppSettingsBatch({
+      updates: [
+        {
+          key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+          value: 'newapi',
+        },
+        {
+          key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+          value: 'gpt-5.5',
+        },
+        {
+          key: APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+          value: 'newapi',
+        },
+        {
+          key: APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+          value: 'gpt-5.5-mini',
+        },
+        {
+          key: APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+          value: 'opencodego',
+        },
+        {
+          key: APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+          value: 'claude-sonnet-4',
+        },
+        {
+          key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+          value: 'siliconflow',
+        },
+        {
+          key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+          value: 'BAAI/bge-m3',
+        },
+      ],
+    });
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(tx.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+      value: 'newapi',
+    });
+    expect(tx.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+      value: 'BAAI/bge-m3',
+    });
+    expect(recordAdminAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a NewAPI memory embedding model when the enabled route is not embedding type', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      { displayName: 'GPT Chat', id: 'gpt-5.5', type: 'chat' },
+    ]);
+    const db = createDb({
+      appSettings: [null, null],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSettingsBatch({
+        updates: [
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+            value: 'newapi',
+          },
+          {
+            key: APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+            value: 'gpt-5.5',
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'DEFAULT_MODEL_TYPE_MISMATCH',
+    } satisfies Partial<TRPCError>);
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid S3 endpoint URLs before saving', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);

@@ -29,7 +29,7 @@ vi.mock('@/database/repositories/aiInfra', () => {
 });
 
 vi.mock('@/server/globalConfig/parseMemoryExtractionConfig', () => ({
-  parseMemoryExtractionConfig: () => ({
+  getResolvedMemoryExtractionConfig: async () => ({
     agentLayerExtractor: {
       apiKey: 'test-key',
       baseURL: 'https://example.com',
@@ -174,7 +174,7 @@ describe('UserPersonaService', () => {
           baseURL: undefined,
         },
       }),
-      undefined,
+      expect.any(Object),
     );
   });
 });

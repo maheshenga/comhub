@@ -28,7 +28,7 @@ import { cleanObject } from '@/utils/object';
 import { genServerAiProvidersConfig } from './genServerAiProviderConfig';
 import { parseAgentConfig } from './parseDefaultAgent';
 import { parseFilesConfig } from './parseFilesConfig';
-import { getPublicMemoryExtractionConfig } from './parseMemoryExtractionConfig';
+import { getResolvedPublicMemoryExtractionConfig } from './parseMemoryExtractionConfig';
 import { ADMIN_MANAGED_AI_PROVIDER, getProviderSpecificConfig } from './providerSpecificConfig';
 
 /**
@@ -159,7 +159,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
       defaultProvider: generationModelConfig.video?.provider,
     }),
     memory: {
-      userMemory: cleanObject(getPublicMemoryExtractionConfig()),
+      userMemory: cleanObject(await getResolvedPublicMemoryExtractionConfig(db)),
     },
     oAuthSSOProviders: getBetterAuthSSOProviders(),
     systemAgent: parseSystemAgent(appEnv.SYSTEM_AGENT),

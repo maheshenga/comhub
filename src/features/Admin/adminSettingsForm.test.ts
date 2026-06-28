@@ -299,6 +299,20 @@ describe('adminSettingsForm', () => {
     ).toEqual(['brand-config']);
   });
 
+  it('refreshes runtime config and user state when memory analysis models change', () => {
+    expect(
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.memoryUserMemoryGatekeeperModel, value: 'gpt-5.5' },
+      ]),
+    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
+
+    expect(
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.memoryUserMemoryEmbeddingProvider, value: 'siliconflow' },
+      ]),
+    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
+  });
+
   it('shares the pricing model rules setting key with matrix-style admin pages', () => {
     expect(SETTING_KEYS.pricingModelRules).toBe('pricing.modelRules');
   });

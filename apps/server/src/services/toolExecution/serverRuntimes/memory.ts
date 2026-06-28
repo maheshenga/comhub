@@ -41,7 +41,7 @@ import {
   UserMemoryModel,
 } from '@/database/models/userMemory';
 import { userSettings } from '@/database/schemas';
-import { getServerDefaultFilesConfig } from '@/server/globalConfig';
+import { getResolvedMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import {
   initModelRuntimeFromDB,
   initModelRuntimeWithUserPayload,
@@ -92,8 +92,11 @@ const getEmbeddingRuntime = async (
   userId: string,
   workspaceId?: string,
 ) => {
-  const { provider, model: embeddingModel } =
-    getServerDefaultFilesConfig().embeddingModel || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
+  const memoryConfig = await getResolvedMemoryExtractionConfig(serverDB);
+  const embeddingConfig = memoryConfig.embedding;
+  const provider = embeddingConfig.provider || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM.provider;
+  const embeddingModel = embeddingConfig.model || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM.model;
+  const embeddingContextLimit = embeddingConfig.contextLimit;
 
   const agentRuntime = await initModelRuntimeFromDB(
     serverDB,
@@ -102,18 +105,20 @@ const getEmbeddingRuntime = async (
     workspaceId,
   );
 
-  return { agentRuntime, embeddingModel };
+  return { agentRuntime, embeddingContextLimit, embeddingModel };
 };
 
 const createEmbedder = (
   agentRuntime: UserMemoryEmbeddingRuntime,
   embeddingModel: string,
+  embeddingContextLimit: number | undefined,
   userId: string,
 ) => {
   return async (value?: string | null): Promise<number[] | undefined> => {
     if (!value || value.trim().length === 0) return undefined;
 
     const [embedding] = await embedUserMemoryTexts({
+      embeddingContextLimit,
       input: [value],
       model: embeddingModel,
       runtime: agentRuntime,
@@ -211,9 +216,14 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
 
   searchMemory = async (params: SearchMemoryParams): Promise<SearchMemoryResult> => {
     const normalizedParams = normalizeSearchMemoryParams(params);
-    const defaultEmbeddingConfig =
-      getServerDefaultFilesConfig().embeddingModel || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM;
-    const embeddingModel = this.memoryEmbeddingRuntime?.model ?? defaultEmbeddingConfig.model;
+    const defaultEmbeddingConfig = (await getResolvedMemoryExtractionConfig(this.serverDB)).embedding;
+    const defaultEmbeddingProvider =
+      defaultEmbeddingConfig.provider || DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM.provider;
+    const embeddingModel =
+      this.memoryEmbeddingRuntime?.model ||
+      defaultEmbeddingConfig.model ||
+      DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM.model;
+    const embeddingContextLimit = defaultEmbeddingConfig.contextLimit;
     const modelRuntime = this.memoryEmbeddingRuntime
       ? initModelRuntimeWithUserPayload(
           this.memoryEmbeddingRuntime.provider,
@@ -223,7 +233,7 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
       : await initModelRuntimeFromDB(
           this.serverDB,
           this.userId,
-          defaultEmbeddingConfig.provider,
+          defaultEmbeddingProvider,
           this.workspaceId,
         );
     const normalizedQueries = [
@@ -234,6 +244,7 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
       normalizedQueries.length > 0
         ? (
             await embedUserMemoryTexts({
+              embeddingContextLimit,
               input: normalizedQueries,
               model: embeddingModel,
               runtime: modelRuntime,
@@ -273,12 +284,12 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
     input: z.infer<typeof ContextMemoryItemSchema>,
   ): Promise<AddContextMemoryResult> => {
     try {
-      const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+      const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
         this.serverDB,
         this.userId,
         this.workspaceId,
       );
-      const embed = createEmbedder(agentRuntime, embeddingModel, this.userId);
+      const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, this.userId);
 
       const summaryEmbedding = await embed(input.summary);
       const detailsEmbedding = await embed(input.details);
@@ -345,12 +356,12 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
     input: z.infer<typeof ActivityMemoryItemSchema>,
   ): Promise<AddActivityMemoryResult> => {
     try {
-      const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+      const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
         this.serverDB,
         this.userId,
         this.workspaceId,
       );
-      const embed = createEmbedder(agentRuntime, embeddingModel, this.userId);
+      const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, this.userId);
 
       const summaryEmbedding = await embed(input.summary);
       const detailsEmbedding = await embed(input.details);
@@ -424,12 +435,12 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
     input: z.infer<typeof ExperienceMemoryItemSchema>,
   ): Promise<AddExperienceMemoryResult> => {
     try {
-      const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+      const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
         this.serverDB,
         this.userId,
         this.workspaceId,
       );
-      const embed = createEmbedder(agentRuntime, embeddingModel, this.userId);
+      const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, this.userId);
 
       const summaryEmbedding = await embed(input.summary);
       const detailsEmbedding = await embed(input.details);
@@ -497,12 +508,12 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
     input: z.infer<typeof AddIdentityActionSchema>,
   ): Promise<AddIdentityMemoryResult> => {
     try {
-      const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+      const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
         this.serverDB,
         this.userId,
         this.workspaceId,
       );
-      const embed = createEmbedder(agentRuntime, embeddingModel, this.userId);
+      const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, this.userId);
 
       const summaryEmbedding = await embed(input.summary);
       const detailsEmbedding = await embed(input.details);
@@ -582,12 +593,12 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
     input: z.infer<typeof PreferenceMemoryItemSchema>,
   ): Promise<AddPreferenceMemoryResult> => {
     try {
-      const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+      const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
         this.serverDB,
         this.userId,
         this.workspaceId,
       );
-      const embed = createEmbedder(agentRuntime, embeddingModel, this.userId);
+      const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, this.userId);
 
       const summaryEmbedding = await embed(input.summary);
       const detailsEmbedding = await embed(input.details);
@@ -659,12 +670,12 @@ class MemoryServerRuntimeService implements MemoryRuntimeService {
     input: z.infer<typeof UpdateIdentityActionSchema>,
   ): Promise<UpdateIdentityMemoryResult> => {
     try {
-      const { agentRuntime, embeddingModel } = await getEmbeddingRuntime(
+      const { agentRuntime, embeddingContextLimit, embeddingModel } = await getEmbeddingRuntime(
         this.serverDB,
         this.userId,
         this.workspaceId,
       );
-      const embed = createEmbedder(agentRuntime, embeddingModel, this.userId);
+      const embed = createEmbedder(agentRuntime, embeddingModel, embeddingContextLimit, this.userId);
 
       let summaryVector1024: number[] | null | undefined;
       if (input.set.summary !== undefined) {

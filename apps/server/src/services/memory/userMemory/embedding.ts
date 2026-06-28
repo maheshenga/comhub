@@ -2,7 +2,7 @@ import { DEFAULT_USER_MEMORY_EMBEDDING_DIMENSIONS } from '@lobechat/const';
 import type { ModelRuntime } from '@lobechat/model-runtime';
 import { RequestTrigger } from '@lobechat/types';
 
-import { parseMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
+import { getResolvedMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { trimBasedOnBatchProbe } from '@/utils/chunkers';
 import { encodeAsync } from '@/utils/tokenizer';
 
@@ -23,6 +23,11 @@ export interface EmbedUserMemoryTextsParams {
    * @default DEFAULT_USER_MEMORY_EMBEDDING_DIMENSIONS
    */
   dimensions?: number;
+  /**
+   * Optional already-resolved token limit. Pass this when the caller already resolved
+   * memory config to avoid another app-settings read.
+   */
+  embeddingContextLimit?: number;
   /**
    * User memory texts to embed. Empty values keep their output slot as `undefined`.
    */
@@ -63,9 +68,9 @@ export interface EmbedUserMemoryTextsParams {
 export const embedUserMemoryTexts = async (
   params: EmbedUserMemoryTextsParams,
 ): Promise<Array<number[] | undefined>> => {
-  const { embedding } = parseMemoryExtractionConfig();
   // TODO: Prefer model-bank capability metadata for the embedding input window when available.
-  const tokenLimit = embedding.contextLimit;
+  const tokenLimit =
+    params.embeddingContextLimit ?? (await getResolvedMemoryExtractionConfig()).embedding.contextLimit;
   const requests: Array<{ index: number; text: string }> = [];
 
   for (const [index, value] of params.input.entries()) {

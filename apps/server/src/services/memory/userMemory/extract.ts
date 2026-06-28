@@ -69,7 +69,7 @@ import { getServerDB } from '@/database/server';
 import { buildWorkspaceWhere } from '@/database/utils/workspace';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { type MemoryAgentConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
-import { parseMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
+import { getResolvedMemoryExtractionConfig } from '@/server/globalConfig/parseMemoryExtractionConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { S3 } from '@/server/modules/S3';
@@ -665,7 +665,7 @@ export interface UserPaginationResult {
   ids: string[];
 }
 
-type MemoryExtractionConfig = ReturnType<typeof parseMemoryExtractionConfig>;
+type MemoryExtractionConfig = Awaited<ReturnType<typeof getResolvedMemoryExtractionConfig>>;
 type ServerConfig = Awaited<ReturnType<typeof getServerGlobalConfig>>;
 
 export class MemoryExtractionExecutor {
@@ -709,9 +709,10 @@ export class MemoryExtractionExecutor {
   }
 
   static async create() {
+    const db = await getServerDB();
     const [serverConfig, privateConfig] = await Promise.all([
-      getServerGlobalConfig(),
-      Promise.resolve(parseMemoryExtractionConfig()),
+      getServerGlobalConfig(db),
+      getResolvedMemoryExtractionConfig(db),
     ]);
 
     return new MemoryExtractionExecutor(serverConfig, privateConfig);

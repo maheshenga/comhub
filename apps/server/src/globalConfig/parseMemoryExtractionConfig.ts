@@ -1,6 +1,8 @@
 import { DEFAULT_MINI_PROVIDER } from '@lobechat/business-const';
 import { DEFAULT_MINI_MODEL, DEFAULT_USER_MEMORY_EMBEDDING_MODEL_ITEM } from '@lobechat/const';
 
+import { type LobeChatDatabase } from '@/database/type';
+import { getServerMemoryExtractionSettingOverrides } from '@/server/services/appSettings';
 import {
   type GlobalMemoryExtractionConfig,
   type GlobalMemoryLayer,
@@ -320,8 +322,80 @@ export const parseMemoryExtractionConfig = (): MemoryExtractionPrivateConfig => 
   };
 };
 
+const applyAgentOverride = <T extends MemoryAgentConfig>(
+  agent: T,
+  override?: { model?: string; provider?: string },
+): T => ({
+  ...agent,
+  ...(override?.model ? { model: override.model } : {}),
+  ...(override?.provider ? { provider: override.provider } : {}),
+});
+
+const overrideLayerModels = (
+  agent: MemoryLayerExtractorConfig,
+  override?: { model?: string; provider?: string },
+): MemoryLayerExtractorConfig => {
+  const nextAgent = applyAgentOverride(agent, override);
+
+  if (!override?.model) return nextAgent;
+
+  return {
+    ...nextAgent,
+    layers: MEMORY_LAYERS.reduce<Record<GlobalMemoryLayer, string>>(
+      (acc, layer) => {
+        acc[layer] = override.model!;
+
+        return acc;
+      },
+      {} as Record<GlobalMemoryLayer, string>,
+    ),
+  };
+};
+
+export const getResolvedMemoryExtractionConfig = async (
+  db?: LobeChatDatabase,
+): Promise<MemoryExtractionPrivateConfig> => {
+  const config = parseMemoryExtractionConfig();
+  const overrides = await getServerMemoryExtractionSettingOverrides(db);
+
+  const agentGateKeeper = applyAgentOverride(config.agentGateKeeper, overrides.gatekeeper);
+  const agentLayerExtractor = overrideLayerModels(
+    config.agentLayerExtractor,
+    overrides.layerExtractor,
+  );
+  const agentPersonaWriter = applyAgentOverride(
+    config.agentPersonaWriter,
+    overrides.personaWriter,
+  );
+  const embedding = applyAgentOverride(config.embedding, overrides.embedding);
+
+  return {
+    ...config,
+    agentGateKeeper,
+    agentLayerExtractor,
+    agentPersonaWriter,
+    embedding,
+  };
+};
+
 export const getPublicMemoryExtractionConfig = (): GlobalMemoryExtractionConfig => {
   const privateConfig = parseMemoryExtractionConfig();
+
+  return {
+    agentGateKeeper: sanitizeAgent(privateConfig.agentGateKeeper)!,
+    agentLayerExtractor: {
+      ...sanitizeAgent(privateConfig.agentLayerExtractor),
+      layers: privateConfig.agentLayerExtractor.layers,
+    },
+    concurrency: privateConfig.concurrency,
+    embedding: sanitizeAgent(privateConfig.embedding),
+  };
+};
+
+export const getResolvedPublicMemoryExtractionConfig = async (
+  db?: LobeChatDatabase,
+): Promise<GlobalMemoryExtractionConfig> => {
+  const privateConfig = await getResolvedMemoryExtractionConfig(db);
 
   return {
     agentGateKeeper: sanitizeAgent(privateConfig.agentGateKeeper)!,

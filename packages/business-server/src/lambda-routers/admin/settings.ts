@@ -178,7 +178,17 @@ const GROWTH_KEYS = [
 
 const PROFILE_KEYS = [SETTING_KEYS.profileInterestAreas] as const;
 
-const MEMORY_KEYS = [SETTING_KEYS.memoryUserMemoryTriggerMode] as const;
+const MEMORY_KEYS = [
+  SETTING_KEYS.memoryUserMemoryTriggerMode,
+  SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+  SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+  SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+  SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+  SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+  SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+  SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+  SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+] as const;
 
 const VECTOR_KEYS = [
   SETTING_KEYS.vectorEmbeddingProvider,
@@ -332,7 +342,12 @@ const normalizeProfileInterestAreas = (value: unknown) => {
 };
 
 type AppSettingDraft = Record<string, unknown>;
-type DefaultModelType = 'chat' | 'image' | 'video';
+type DefaultModelType = 'chat' | 'embedding' | 'image' | 'video';
+type ModelValidationTarget = {
+  modelKey: string;
+  modelType: DefaultModelType;
+  providerKey: string;
+};
 
 const WRITABLE_SETTING_KEYS = [
   SETTING_KEYS.defaultAgentModel,
@@ -383,7 +398,7 @@ const appSettingUpdateInputSchema = z.object({
 const settingDraftString = (settings: AppSettingDraft, key: string) =>
   typeof settings[key] === 'string' ? (settings[key] as string).trim() : '';
 
-const getDefaultModelValidationTarget = (key: string) => {
+const getDefaultModelValidationTarget = (key: string): ModelValidationTarget | undefined => {
   if (key === SETTING_KEYS.defaultImageModel || key === SETTING_KEYS.defaultImageProvider) {
     return {
       modelKey: SETTING_KEYS.defaultImageModel,
@@ -405,6 +420,54 @@ const getDefaultModelValidationTarget = (key: string) => {
       modelKey: SETTING_KEYS.defaultAgentModel,
       modelType: 'chat' as const,
       providerKey: SETTING_KEYS.defaultAgentProvider,
+    };
+  }
+};
+
+const getMemoryExtractionModelValidationTarget = (
+  key: string,
+): ModelValidationTarget | undefined => {
+  if (
+    key === SETTING_KEYS.memoryUserMemoryGatekeeperModel ||
+    key === SETTING_KEYS.memoryUserMemoryGatekeeperProvider
+  ) {
+    return {
+      modelKey: SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+      modelType: 'chat' as const,
+      providerKey: SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+    };
+  }
+
+  if (
+    key === SETTING_KEYS.memoryUserMemoryLayerExtractorModel ||
+    key === SETTING_KEYS.memoryUserMemoryLayerExtractorProvider
+  ) {
+    return {
+      modelKey: SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+      modelType: 'chat' as const,
+      providerKey: SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+    };
+  }
+
+  if (
+    key === SETTING_KEYS.memoryUserMemoryPersonaWriterModel ||
+    key === SETTING_KEYS.memoryUserMemoryPersonaWriterProvider
+  ) {
+    return {
+      modelKey: SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+      modelType: 'chat' as const,
+      providerKey: SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+    };
+  }
+
+  if (
+    key === SETTING_KEYS.memoryUserMemoryEmbeddingModel ||
+    key === SETTING_KEYS.memoryUserMemoryEmbeddingProvider
+  ) {
+    return {
+      modelKey: SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+      modelType: 'embedding' as const,
+      providerKey: SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
     };
   }
 };
@@ -507,6 +570,8 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
     value = normalizeAvatarPresets(value);
   } else if (input.key === SETTING_KEYS.memoryUserMemoryTriggerMode) {
     value = normalizeMemoryUserMemoryTriggerMode(value);
+  } else if ((MEMORY_KEYS as readonly string[]).includes(input.key)) {
+    value = toString(value);
   } else if ((VECTOR_KEYS as readonly string[]).includes(input.key)) {
     value = toString(value);
   } else if (input.key === SETTING_KEYS.userGlobalSettingsDefaults) {
@@ -659,14 +724,13 @@ const validateDefaultModelUpdates = async (
   db: LobeChatDatabase,
   updates: NormalizedSettingUpdate[],
 ) => {
-  const targets = new Map<
-    string,
-    NonNullable<ReturnType<typeof getDefaultModelValidationTarget>>
-  >();
+  const targets = new Map<string, ModelValidationTarget>();
 
   for (const update of updates) {
-    const target = getDefaultModelValidationTarget(update.key);
-    if (target) targets.set(target.modelType, target);
+    const target =
+      getDefaultModelValidationTarget(update.key) ??
+      getMemoryExtractionModelValidationTarget(update.key);
+    if (target) targets.set(`${target.providerKey}:${target.modelKey}`, target);
   }
 
   for (const target of targets.values()) {
@@ -1194,6 +1258,14 @@ export const adminSettingsRouter = router({
       profileInterestAreas,
       avatarPresets,
       memoryUserMemoryTriggerMode,
+      memoryUserMemoryGatekeeperProvider,
+      memoryUserMemoryGatekeeperModel,
+      memoryUserMemoryLayerExtractorProvider,
+      memoryUserMemoryLayerExtractorModel,
+      memoryUserMemoryPersonaWriterProvider,
+      memoryUserMemoryPersonaWriterModel,
+      memoryUserMemoryEmbeddingProvider,
+      memoryUserMemoryEmbeddingModel,
       vectorEmbeddingProvider,
       vectorEmbeddingModel,
       vectorRerankerProvider,
@@ -1272,6 +1344,14 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.profileInterestAreas),
       readSetting(ctx.serverDB, SETTING_KEYS.profileAvatarPresets),
       readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryTriggerMode),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryGatekeeperProvider),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryGatekeeperModel),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryLayerExtractorProvider),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryLayerExtractorModel),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryPersonaWriterProvider),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryPersonaWriterModel),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryEmbeddingProvider),
+      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryEmbeddingModel),
       readSetting(ctx.serverDB, SETTING_KEYS.vectorEmbeddingProvider),
       readSetting(ctx.serverDB, SETTING_KEYS.vectorEmbeddingModel),
       readSetting(ctx.serverDB, SETTING_KEYS.vectorRerankerProvider),
@@ -1422,6 +1502,16 @@ export const adminSettingsRouter = router({
       memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
         memoryUserMemoryTriggerMode,
       ),
+      memoryExtractionConfig: {
+        embeddingModel: toString(memoryUserMemoryEmbeddingModel),
+        embeddingProvider: toString(memoryUserMemoryEmbeddingProvider),
+        gatekeeperModel: toString(memoryUserMemoryGatekeeperModel),
+        gatekeeperProvider: toString(memoryUserMemoryGatekeeperProvider),
+        layerExtractorModel: toString(memoryUserMemoryLayerExtractorModel),
+        layerExtractorProvider: toString(memoryUserMemoryLayerExtractorProvider),
+        personaWriterModel: toString(memoryUserMemoryPersonaWriterModel),
+        personaWriterProvider: toString(memoryUserMemoryPersonaWriterProvider),
+      },
       vectorConfig: {
         dimensions: 1024,
         embeddingModel: toString(vectorEmbeddingModel),

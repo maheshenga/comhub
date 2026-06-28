@@ -82,6 +82,14 @@ export const APP_SETTING_KEYS = {
   homeMessengerEnabled: 'home.messenger.enabled',
   homeMessengerBannerTitle: 'home.messengerBanner.title',
   helpMenuItems: 'help.menu.items',
+  memoryUserMemoryEmbeddingModel: 'memory.userMemory.embedding.model',
+  memoryUserMemoryEmbeddingProvider: 'memory.userMemory.embedding.provider',
+  memoryUserMemoryGatekeeperModel: 'memory.userMemory.gatekeeper.model',
+  memoryUserMemoryGatekeeperProvider: 'memory.userMemory.gatekeeper.provider',
+  memoryUserMemoryLayerExtractorModel: 'memory.userMemory.layerExtractor.model',
+  memoryUserMemoryLayerExtractorProvider: 'memory.userMemory.layerExtractor.provider',
+  memoryUserMemoryPersonaWriterModel: 'memory.userMemory.personaWriter.model',
+  memoryUserMemoryPersonaWriterProvider: 'memory.userMemory.personaWriter.provider',
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
   notificationDesktopEnabled: 'notification.desktop.enabled',
   notificationEmailEnabled: 'notification.email.enabled',
@@ -164,6 +172,14 @@ const CACHED_KEYS = [
   APP_SETTING_KEYS.modelPolicyDeniedMessage,
   APP_SETTING_KEYS.modelPolicyEnabled,
   APP_SETTING_KEYS.modelPolicyMode,
+  APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+  APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+  APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+  APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+  APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+  APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+  APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+  APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
   APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
   APP_SETTING_KEYS.notificationInboxEnabled,
   APP_SETTING_KEYS.pricingCreditMultiplier,
@@ -458,6 +474,69 @@ export const getServerVectorSettingOverrides = async (
           },
         }
       : {}),
+  };
+};
+
+export type ServerMemoryExtractionModelSettingOverrides = {
+  embedding?: { model?: string; provider?: string };
+  gatekeeper?: { model?: string; provider?: string };
+  layerExtractor?: { model?: string; provider?: string };
+  personaWriter?: { model?: string; provider?: string };
+};
+
+const toModelSetting = (provider: string | null, model: string | null) =>
+  provider || model
+    ? {
+        ...(provider ? { provider } : {}),
+        ...(model ? { model } : {}),
+      }
+    : undefined;
+
+export const getServerMemoryExtractionSettingOverrides = async (
+  db?: LobeChatDatabase,
+): Promise<ServerMemoryExtractionModelSettingOverrides> => {
+  const [
+    rawGatekeeperProvider,
+    rawGatekeeperModel,
+    rawLayerExtractorProvider,
+    rawLayerExtractorModel,
+    rawPersonaWriterProvider,
+    rawPersonaWriterModel,
+    rawEmbeddingProvider,
+    rawEmbeddingModel,
+  ] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel, db),
+  ]);
+
+  const gatekeeper = toModelSetting(
+    normalizeString(rawGatekeeperProvider),
+    normalizeString(rawGatekeeperModel),
+  );
+  const layerExtractor = toModelSetting(
+    normalizeString(rawLayerExtractorProvider),
+    normalizeString(rawLayerExtractorModel),
+  );
+  const personaWriter = toModelSetting(
+    normalizeString(rawPersonaWriterProvider),
+    normalizeString(rawPersonaWriterModel),
+  );
+  const embedding = toModelSetting(
+    normalizeString(rawEmbeddingProvider),
+    normalizeString(rawEmbeddingModel),
+  );
+
+  return {
+    ...(gatekeeper ? { gatekeeper } : {}),
+    ...(layerExtractor ? { layerExtractor } : {}),
+    ...(personaWriter ? { personaWriter } : {}),
+    ...(embedding ? { embedding } : {}),
   };
 };
 
