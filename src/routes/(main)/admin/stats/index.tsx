@@ -53,7 +53,11 @@ const AdminStatsPage = memo(() => {
       (revenue ?? []).map((r) => ({
         label: r.month.slice(2),
         segments: [
-          { color: '#1677ff', name: 'subscription', value: Number(r.subscription) },
+          {
+            color: '#1677ff',
+            name: 'subscriptionSnapshotAmount',
+            value: Number(r.subscriptionSnapshotAmount ?? r.subscription),
+          },
           { color: '#faad14', name: 'topup', value: Number(r.topup) },
         ],
       })),
@@ -93,8 +97,16 @@ const AdminStatsPage = memo(() => {
           <Card>
             <Statistic
               prefix="$"
-              title={t('admin.stats.revenue', '近 30 天收入')}
+              title={t('admin.stats.revenue', '近 30 天实收充值收入')}
               value={overview?.revenueLast30dUsd ?? 0}
+            />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card>
+            <Statistic
+              title={t('admin.stats.subscriptionSnapshotAmount', '近 30 天订阅快照估算')}
+              value={overview?.subscriptionSnapshotAmountLast30d ?? 0}
             />
           </Card>
         </Col>
@@ -144,7 +156,7 @@ const AdminStatsPage = memo(() => {
         )}
       </Card>
 
-      <Card title={t('admin.stats.revenueByMonth', '最近 6 个月收入')}>
+      <Card title={t('admin.stats.revenueByMonth', '最近 6 个月实收收入与订阅快照估算')}>
         {revenue ? (
           revenueStacked.length === 0 ? (
             <div style={{ color: '#888' }}>{t('admin.stats.noData', '暂无数据')}</div>
@@ -162,7 +174,7 @@ const AdminStatsPage = memo(() => {
                       width: 12,
                     }}
                   />
-                  <span>{t('admin.stats.subscription', '订阅')}</span>
+                  <span>{t('admin.stats.subscriptionSnapshot', '订阅快照估算')}</span>
                 </Flexbox>
                 <Flexbox horizontal align="center" gap={6}>
                   <span

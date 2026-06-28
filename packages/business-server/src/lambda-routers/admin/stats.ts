@@ -19,7 +19,7 @@ export const adminStatsRouter = router({
       [{ value: mau }],
       [{ value: activeSubscriptions }],
       [{ value: topUpRevenue }],
-      [{ value: subscriptionRevenue }],
+      [{ value: subscriptionSnapshotAmount }],
     ] = await Promise.all([
       ctx.serverDB.select({ value: count() }).from(users),
       ctx.serverDB.select({ value: count() }).from(users).where(gte(users.lastActiveAt, oneDayAgo)),
@@ -50,13 +50,14 @@ export const adminStatsRouter = router({
         ),
     ]);
 
-    const revenueLast30dUsd = Number(topUpRevenue ?? 0) + Number(subscriptionRevenue ?? 0);
+    const revenueLast30dUsd = Number(topUpRevenue ?? 0);
 
     return {
       activeSubscriptions,
       dau,
       mau,
       revenueLast30dUsd,
+      subscriptionSnapshotAmountLast30d: Number(subscriptionSnapshotAmount ?? 0),
       totalUsers,
     };
   }),
@@ -125,13 +126,30 @@ export const adminStatsRouter = router({
       .groupBy(sql`date_trunc('month', ${userPlanSnapshots.startedAt})`)
       .orderBy(sql`date_trunc('month', ${userPlanSnapshots.startedAt})`);
 
-    const map = new Map<string, { month: string; subscription: number; topup: number }>();
+    const map = new Map<
+      string,
+      { month: string; subscription: number; subscriptionSnapshotAmount: number; topup: number }
+    >();
     for (const r of topUpRows)
-      map.set(r.month, { month: r.month, subscription: 0, topup: Number(r.amount) });
+      map.set(r.month, {
+        month: r.month,
+        subscription: 0,
+        subscriptionSnapshotAmount: 0,
+        topup: Number(r.amount),
+      });
     for (const r of subRows) {
       const existing = map.get(r.month);
-      if (existing) existing.subscription = Number(r.amount);
-      else map.set(r.month, { month: r.month, subscription: Number(r.amount), topup: 0 });
+      const amount = Number(r.amount);
+      if (existing) {
+        existing.subscription = amount;
+        existing.subscriptionSnapshotAmount = amount;
+      } else
+        map.set(r.month, {
+          month: r.month,
+          subscription: amount,
+          subscriptionSnapshotAmount: amount,
+          topup: 0,
+        });
     }
 
     return Array.from(map.values()).sort((a, b) => a.month.localeCompare(b.month));

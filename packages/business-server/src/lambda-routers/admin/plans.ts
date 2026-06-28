@@ -37,8 +37,10 @@ const PlanInputSchema = z.object({
   features: z.array(z.string()).default([]),
   isActive: z.boolean().default(true),
   modelRules: PlanModelRulesSchema,
+  lifetimePrice: z.number().min(0).nullable().optional(),
   monthlyCredits: z.number().min(0),
   monthlyPrice: z.number().min(0),
+  oneTimePrice: z.number().min(0).nullable().optional(),
   plan: z.nativeEnum(Plans),
   pptCreditCost: z.number().min(0).optional(),
   pptEnabled: z.boolean().optional(),
@@ -98,9 +100,11 @@ export const adminPlansRouter = router({
 
   upsert: adminProcedure.input(PlanInputSchema).mutation(async ({ ctx, input }) => {
     const {
+      lifetimePrice,
       pptCreditCost,
       pptEnabled,
       pptMonthlyQuota,
+      oneTimePrice,
       purchaseUrl,
       storageQuotaMb,
       vectorQuota,
@@ -111,9 +115,13 @@ export const adminPlansRouter = router({
     });
     const normalizedPurchaseUrl = normalizePurchaseUrl(purchaseUrl);
     const previousMetadata =
-      existing?.metadata && typeof existing.metadata === 'object' ? existing.metadata : {};
+      existing?.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+        ? existing.metadata
+        : {};
     const metadata = {
       ...previousMetadata,
+      ...(lifetimePrice === undefined ? {} : { lifetimePrice }),
+      ...(oneTimePrice === undefined ? {} : { oneTimePrice }),
       pptCreditCost: pptCreditCost ?? 0,
       pptEnabled: pptEnabled === true,
       pptMonthlyQuota: pptMonthlyQuota ?? null,
@@ -167,6 +175,8 @@ export const adminPlansRouter = router({
       action: existing ? 'plan.update' : 'plan.create',
       payload: {
         ...planInput,
+        ...(lifetimePrice === undefined ? {} : { lifetimePrice }),
+        ...(oneTimePrice === undefined ? {} : { oneTimePrice }),
         pptCreditCost: pptCreditCost ?? 0,
         pptEnabled: pptEnabled === true,
         pptMonthlyQuota: pptMonthlyQuota ?? null,

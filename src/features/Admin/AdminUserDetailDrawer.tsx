@@ -21,6 +21,8 @@ import { mutate as swrMutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminAssignPlanModal from './AdminAssignPlanModal';
+import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
+import { isFiniteAdminSubscriptionCycle } from './adminSubscriptionCycles';
 import AdminDangerousActionButton from './AdminDangerousActionButton';
 
 interface AdminUserDetailDrawerProps {
@@ -44,7 +46,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
   const [adjusting, setAdjusting] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignPlan, setAssignPlan] = useState<string>();
-  const [assignCycle, setAssignCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [assignCycle, setAssignCycle] = useState<AdminSubscriptionCycle>('monthly');
   const [assignDurationMonths, setAssignDurationMonths] = useState<number | null>(1);
   const [assignReason, setAssignReason] = useState('');
   const [assigning, setAssigning] = useState(false);
@@ -74,7 +76,10 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
   };
 
   const handleAssignPlan = async () => {
-    if (!userId || !assignPlan || !assignDurationMonths || !assignReason.trim()) {
+    const durationMonths = isFiniteAdminSubscriptionCycle(assignCycle)
+      ? Math.round(assignDurationMonths ?? 0)
+      : 1;
+    if (!userId || !assignPlan || durationMonths < 1 || !assignReason.trim()) {
       message.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
       return;
     }
@@ -83,7 +88,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
     try {
       await adminCommercialService.assignUserPlan({
         cycle: assignCycle,
-        durationMonths: Math.round(assignDurationMonths),
+        durationMonths,
         plan: assignPlan,
         reason: assignReason.trim(),
         userId,
@@ -196,7 +201,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
               <Descriptions.Item label={t('admin.userDetail.monthlyCredits', '每月积分')}>
                 {data.subscription.monthlyCredits}
               </Descriptions.Item>
-              <Descriptions.Item label={t('admin.userDetail.monthlyPrice', '月付价格')}>
+              <Descriptions.Item label={t('admin.userDetail.cycleAmount', '周期金额')}>
                 {data.subscription.monthlyPrice} {data.subscription.currency}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.userDetail.renewsAt', '续费时间')}>

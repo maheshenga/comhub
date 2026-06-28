@@ -12,12 +12,13 @@ import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
+const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const;
 
 export const adminSubscriptionsRouter = router({
   assignPlan: adminProcedure
     .input(
       z.object({
-        cycle: z.enum(['monthly', 'yearly']),
+        cycle: z.enum(SUBSCRIPTION_CYCLES),
         durationMonths: z.number().int().min(1).max(120),
         plan: z.string().min(1),
         reason: z.string().min(1).max(500),
@@ -28,47 +29,17 @@ export const adminSubscriptionsRouter = router({
       const model = new CommercialModel(ctx.serverDB, input.userId);
       const assignedAt = Date.now();
       const adminSubscriptionId = `admin-${ctx.userId}-${assignedAt}`;
-      const request = await ctx.serverDB.transaction(async (tx: Transaction) => {
-        const changeRequest = await model.grantPlanFromRedemptionCode({
-          code: `ADMIN-${Date.now()}`,
+      const request = await ctx.serverDB.transaction((tx: Transaction) =>
+        model.grantPlanManually({
+          assignedByUserId: ctx.userId,
           cycle: input.cycle,
           durationMonths: input.durationMonths,
-          redemptionCodeId: adminSubscriptionId,
+          manualGrantId: adminSubscriptionId,
+          reason: input.reason,
           targetPlan: input.plan as Plans,
           tx,
-        });
-
-        const latestSnapshot = await tx.query.userPlanSnapshots.findFirst({
-          orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
-          where: and(
-            eq(userPlanSnapshots.userId, input.userId),
-            eq(userPlanSnapshots.status, 'active'),
-          ),
-        });
-
-        if (latestSnapshot) {
-          const previousMetadata =
-            latestSnapshot.metadata && typeof latestSnapshot.metadata === 'object'
-              ? latestSnapshot.metadata
-              : undefined;
-          await tx
-            .update(userPlanSnapshots)
-            .set({
-              externalSubscriptionId: adminSubscriptionId,
-              metadata: {
-                ...previousMetadata,
-                adminReason: input.reason,
-                assignedByUserId: ctx.userId,
-                source: 'admin_manual',
-              },
-              provider: 'admin_manual',
-              updatedAt: new Date(),
-            })
-            .where(eq(userPlanSnapshots.id, latestSnapshot.id));
-        }
-
-        return changeRequest;
-      });
+        }),
+      );
 
       await recordAdminAudit(ctx, {
         action: 'subscription.assignPlan',
@@ -89,7 +60,7 @@ export const adminSubscriptionsRouter = router({
   forceChange: adminProcedure
     .input(
       z.object({
-        cycle: z.enum(['monthly', 'yearly']),
+        cycle: z.enum(SUBSCRIPTION_CYCLES),
         plan: z.string().min(1),
         reason: z.string().max(500),
         userId: z.string().min(1),

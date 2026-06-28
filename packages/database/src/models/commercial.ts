@@ -71,6 +71,16 @@ const CREDIT_SOURCE_PRIORITY: CreditSourceType[] = ['subscription', 'referral', 
 const PRICING_CREDIT_MULTIPLIER_KEY = 'pricing.creditMultiplier';
 const PRICING_MODEL_RULES_KEY = 'pricing.modelRules';
 
+const getPlanMetadataNumber = (metadata: unknown, key: string) => {
+  const raw =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)[key]
+      : null;
+  const value = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : 0;
+
+  return Number.isFinite(value) && value > 0 ? value : 0;
+};
+
 type AiUsagePricingRule = {
   creditsPerDollar?: number;
   group?: string;
@@ -1476,8 +1486,10 @@ export class CommercialModel {
     const dbRow = await this.getRequiredPlanCatalogEntry(plan, db);
     const preset = {
       currency: dbRow.currency,
+      lifetimePrice: getPlanMetadataNumber(dbRow.metadata, 'lifetimePrice'),
       monthlyCredits: Number(dbRow.monthlyCredits),
       monthlyPrice: Number(dbRow.monthlyPrice),
+      oneTimePrice: getPlanMetadataNumber(dbRow.metadata, 'oneTimePrice'),
       yearlyPrice: Number(dbRow.yearlyPrice),
     };
 
@@ -1492,20 +1504,28 @@ export class CommercialModel {
         };
       }
       case 'one_time': {
+        const cyclePrice =
+          preset.oneTimePrice > 0 ? preset.oneTimePrice : Number((preset.monthlyPrice * 12).toFixed(2));
+
         return {
           currency: preset.currency,
           endsAt: addYears(startedAt, 1),
           monthlyCredits: preset.monthlyCredits,
-          monthlyPrice: Number((preset.monthlyPrice * 12).toFixed(2)),
+          monthlyPrice: cyclePrice,
           renewsAt: null,
         };
       }
       case 'lifetime': {
+        const cyclePrice =
+          preset.lifetimePrice > 0
+            ? preset.lifetimePrice
+            : Number((preset.monthlyPrice * 24).toFixed(2));
+
         return {
           currency: preset.currency,
           endsAt: null,
           monthlyCredits: preset.monthlyCredits,
-          monthlyPrice: Number((preset.monthlyPrice * 24).toFixed(2)),
+          monthlyPrice: cyclePrice,
           renewsAt: null,
         };
       }
@@ -1704,18 +1724,20 @@ export class CommercialModel {
     });
   };
 
-  grantPlanFromRedemptionCode = async ({
-    code,
+  private grantPlanWithSnapshot = async ({
     cycle,
     durationMonths,
-    redemptionCodeId,
+    externalSubscriptionId,
+    metadata,
+    provider,
     targetPlan,
     tx,
   }: {
-    code: string;
     cycle: SubscriptionCycleType;
     durationMonths?: number | null;
-    redemptionCodeId: string;
+    externalSubscriptionId: string;
+    metadata: (request: SubscriptionChangeRequestItem) => Record<string, unknown>;
+    provider: string;
     targetPlan: Plans;
     tx: Transaction;
   }): Promise<SubscriptionChangeRequestItem> => {
@@ -1799,18 +1821,12 @@ export class CommercialModel {
         currency: previewSnapshot.currency,
         cycle,
         endsAt,
-        externalSubscriptionId: `redemption-${redemptionCodeId}`,
-        metadata: {
-          activatedFromChangeRequestId: request.id,
-          durationMonths: durationMonths ?? this.getDefaultPlanDurationMonths(cycle),
-          previewMode: true,
-          redemptionCode: code,
-          redemptionCodeId,
-        },
+        externalSubscriptionId,
+        metadata: metadata(request),
         monthlyCredits: previewSnapshot.monthlyCredits,
         monthlyPrice: previewSnapshot.monthlyPrice,
         plan: targetPlan,
-        provider: 'redemption_code',
+        provider,
         renewsAt,
         startedAt: activatedAt,
         status: 'active',
@@ -1844,6 +1860,72 @@ export class CommercialModel {
     }
 
     return updatedRequest;
+  };
+
+  grantPlanFromRedemptionCode = async ({
+    code,
+    cycle,
+    durationMonths,
+    redemptionCodeId,
+    targetPlan,
+    tx,
+  }: {
+    code: string;
+    cycle: SubscriptionCycleType;
+    durationMonths?: number | null;
+    redemptionCodeId: string;
+    targetPlan: Plans;
+    tx: Transaction;
+  }): Promise<SubscriptionChangeRequestItem> => {
+    return this.grantPlanWithSnapshot({
+      cycle,
+      durationMonths,
+      externalSubscriptionId: `redemption-${redemptionCodeId}`,
+      metadata: (request) => ({
+        activatedFromChangeRequestId: request.id,
+        durationMonths: durationMonths ?? this.getDefaultPlanDurationMonths(cycle),
+        redemptionCode: code,
+        redemptionCodeId,
+      }),
+      provider: 'redemption_code',
+      targetPlan,
+      tx,
+    });
+  };
+
+  grantPlanManually = async ({
+    assignedByUserId,
+    cycle,
+    durationMonths,
+    manualGrantId,
+    reason,
+    targetPlan,
+    tx,
+  }: {
+    assignedByUserId: string;
+    cycle: SubscriptionCycleType;
+    durationMonths?: number | null;
+    manualGrantId: string;
+    reason: string;
+    targetPlan: Plans;
+    tx: Transaction;
+  }): Promise<SubscriptionChangeRequestItem> => {
+    return this.grantPlanWithSnapshot({
+      cycle,
+      durationMonths,
+      externalSubscriptionId: manualGrantId,
+      metadata: (request) => ({
+        activatedFromChangeRequestId: request.id,
+        adminReason: reason,
+        assignedByUserId,
+        durationMonths: durationMonths ?? this.getDefaultPlanDurationMonths(cycle),
+        manualGrantId,
+        source: 'admin_manual',
+      }),
+      provider: 'admin_manual',
+      targetPlan,
+      tx,
+    });
   };
 
   listSubscriptionChangeRequests = async (

@@ -27,6 +27,7 @@ const createDb = () => {
   return {
     __mocks: {
       onConflictDoUpdate,
+      set,
       values,
     },
     insert,
@@ -61,8 +62,10 @@ describe('adminPlansRouter', () => {
       displayName: '专业版',
       features: [],
       isActive: true,
+      lifetimePrice: 9800,
       monthlyCredits: 5000,
       monthlyPrice: 500,
+      oneTimePrice: 4680,
       plan: Plans.Premium,
       sortOrder: 3,
       storageQuotaMb: 512,
@@ -90,6 +93,16 @@ describe('adminPlansRouter', () => {
       expect.objectContaining({
         set: expect.objectContaining({
           storageQuota: 512 * 1024 * 1024,
+          vectorQuota: 1200,
+        }),
+      }),
+    );
+    expect(db.__mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          lifetimePrice: 9800,
+          oneTimePrice: 4680,
+          storageQuotaMb: 512,
           vectorQuota: 1200,
         }),
       }),

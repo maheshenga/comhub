@@ -15,9 +15,20 @@ import {
 
 import { resolvePlanModelRules } from '../planModelRules';
 
+const getPlanMetadata = (metadata: unknown) =>
+  metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? (metadata as Record<string, unknown>)
+    : null;
+
+const getPlanMetadataNumber = (metadata: unknown, key: string) => {
+  const raw = getPlanMetadata(metadata)?.[key];
+  const amount = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : 0;
+
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
 const getPlanPurchaseUrl = (metadata: unknown) => {
-  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
-  const raw = (metadata as Record<string, unknown>).purchaseUrl;
+  const raw = getPlanMetadata(metadata)?.purchaseUrl;
   const purchaseUrl = typeof raw === 'string' ? raw.trim() : '';
   if (!purchaseUrl) return null;
 
@@ -73,9 +84,11 @@ export const subscriptionRouter = router({
       currency: r.currency,
       displayName: r.displayName,
       features: (r.features ?? []) as string[],
+      lifetimePrice: getPlanMetadataNumber(r.metadata, 'lifetimePrice'),
       modelRules: r.modelRules as PlanModelRules | null,
       monthlyCredits: Number(r.monthlyCredits),
       monthlyPrice: Number(r.monthlyPrice),
+      oneTimePrice: getPlanMetadataNumber(r.metadata, 'oneTimePrice'),
       plan: r.plan,
       purchaseUrl: getPlanPurchaseUrl(r.metadata),
       sortOrder: Number(r.sortOrder),

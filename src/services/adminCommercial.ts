@@ -1,6 +1,7 @@
 import type { Plans } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
+import type { SubscriptionCycleType } from '@/types/business';
 
 type AiProviderModelType =
   | 'chat'
@@ -94,7 +95,7 @@ class AdminCommercialService {
   };
 
   forceChangePlan = async (params: {
-    cycle: 'monthly' | 'yearly';
+    cycle: SubscriptionCycleType;
     plan: string;
     reason: string;
     userId: string;
@@ -103,7 +104,7 @@ class AdminCommercialService {
   };
 
   assignUserPlan = async (params: {
-    cycle: 'monthly' | 'yearly';
+    cycle: SubscriptionCycleType;
     durationMonths: number;
     plan: string;
     reason: string;
@@ -229,8 +230,10 @@ class AdminCommercialService {
     displayName: string;
     features?: string[];
     isActive?: boolean;
+    lifetimePrice?: null | number;
     monthlyCredits: number;
     monthlyPrice: number;
+    oneTimePrice?: null | number;
     plan: Plans;
     pptCreditCost?: number;
     pptEnabled?: boolean;

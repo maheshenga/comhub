@@ -68,46 +68,33 @@ const Billing = memo<{ mobile?: boolean }>(() => {
         dataIndex: 'id',
         key: 'id',
         render: (value: string) => value.slice(0, 8),
-        title: '订单编号',
+        title: '变更编号',
       },
       {
         dataIndex: 'status',
         key: 'status',
         render: (value: SubscriptionChangeRequestStatusType) => t(`billing.changeStatus.${value}`),
-        title: '交易状态',
-      },
-      {
-        dataIndex: 'amount',
-        key: 'amount',
-        render: (value: number | undefined, record) => {
-          const amount = value ?? subscriptionSummary?.monthlyPrice;
-          const currency =
-            (record as SubscriptionChangeRequestItem & { currency?: string }).currency ||
-            subscriptionSummary?.currency;
-
-          return Number.isFinite(amount) ? formatCurrencyAmount(Number(amount), currency) : '--';
-        },
-        title: '金额',
+        title: '变更状态',
       },
       {
         dataIndex: 'createdAt',
         key: 'createdAt',
         render: (value) => formatBusinessDate(value),
-        title: '付款日期',
+        title: '提交时间',
       },
     ],
-    [subscriptionSummary?.currency, subscriptionSummary?.monthlyPrice, t],
+    [t],
   );
 
   return (
     <>
       <SettingHeader title={'账单'} />
       <div className={subscriptionPageStyles.pageStack}>
-        <FormGroup collapsible={false} gap={16} title={'账单摘要'} variant={'filled'}>
+        <FormGroup collapsible={false} gap={16} title={'订阅摘要'} variant={'filled'}>
           <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
             <div className={subscriptionPageStyles.cardGrid}>
               <div>
-                <div>您的下次付款</div>
+                <div>当前周期金额</div>
                 <div className={subscriptionPageStyles.tileValue}>
                   {formatCurrencyAmount(
                     subscriptionSummary?.monthlyPrice ?? 0,
@@ -115,9 +102,9 @@ const Billing = memo<{ mobile?: boolean }>(() => {
                   )}
                 </div>
                 <div className={subscriptionPageStyles.caption}>
-                  此金额仅包含订阅服务费用。
+                  此金额来自当前套餐快照，真实支付记录以后续订单/发票为准。
                   <Button size={'small'} type={'link'} onClick={handleViewBillingHistory}>
-                    查看本月使用情况
+                    查看变更记录
                   </Button>
                 </div>
               </div>
@@ -182,14 +169,14 @@ const Billing = memo<{ mobile?: boolean }>(() => {
           />
         </FormGroup>
         <div ref={historyRef}>
-          <FormGroup collapsible={false} gap={16} title={'账单历史'} variant={'filled'}>
+          <FormGroup collapsible={false} gap={16} title={'套餐变更记录'} variant={'filled'}>
             <InlineTable
               columns={changeRequestColumns as any}
               dataSource={changeRequests}
               loading={isChangeRequestsLoading}
               rowKey={(record) => record.id}
               locale={{
-                emptyText: <Empty description={hasBillingHistory ? undefined : '暂无账单'} />,
+                emptyText: <Empty description={hasBillingHistory ? undefined : '暂无套餐变更记录'} />,
               }}
             />
           </FormGroup>

@@ -16,7 +16,11 @@ import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 
 import { getPlanPurchaseUrl } from './planPurchase';
-import { formatPlanCurrencyAmount, getVisiblePaidPlans } from './plansDisplay';
+import {
+  getPlanYearlyDiscountPercent,
+  getVisiblePaidPlans,
+  resolvePlanCyclePrice,
+} from './plansDisplay';
 import {
   formatCredits,
   getSubscriptionCycleTranslationKey,
@@ -66,7 +70,7 @@ const FEATURE_GROUPS = [
   },
 ];
 
-type BillingCycle = 'yearly' | 'monthly' | 'one_time';
+type BillingCycle = 'yearly' | 'monthly' | 'one_time' | 'lifetime';
 type PlanCatalog = Awaited<ReturnType<typeof commercialService.listPlanCatalog>>;
 type PlanCatalogItem = PlanCatalog[number];
 
@@ -247,12 +251,6 @@ const getPlanKey = (plan: string): SubscriptionPlan | null =>
 const getCatalogPlan = (planCatalog: PlanCatalog | undefined, plan: SubscriptionPlan) =>
   planCatalog?.find((item) => item.plan === plan);
 
-const getDiscountPercent = (monthlyPrice: number, yearlyPrice: number) => {
-  if (monthlyPrice <= 0 || yearlyPrice <= 0) return 0;
-
-  return Math.max(0, Math.round((1 - yearlyPrice / (monthlyPrice * 12)) * 100));
-};
-
 const getRuleCount = (rule?: ModelRule) => {
   if (!rule) return 0;
 
@@ -322,32 +320,15 @@ const Plans = memo<{ mobile?: boolean }>(() => {
       : PLAN_FEATURES_FALLBACK[plan];
   };
 
-  const getPrice = (catalogPlan?: PlanCatalogItem) => {
-    if (!catalogPlan)
-      return { label: '--', unit: t(getSubscriptionCycleTranslationKey(billingCycle)) };
-
-    if (billingCycle === 'monthly') {
-      return {
-        label: formatPlanCurrencyAmount(catalogPlan.monthlyPrice, catalogPlan.currency),
-        unit: '人民币 / 月',
-      };
-    }
-
-    if (billingCycle === 'one_time') {
-      return {
-        label:
-          catalogPlan.yearlyPrice > 0
-            ? formatPlanCurrencyAmount(catalogPlan.yearlyPrice, catalogPlan.currency)
-            : '--',
-        unit: '人民币 / 一次性',
-      };
-    }
-
-    return {
-      label: formatPlanCurrencyAmount(catalogPlan.monthlyPrice, catalogPlan.currency),
-      unit: '人民币 / 月（按年）',
-    };
-  };
+  const maxYearlyDiscountPercent = useMemo(
+    () =>
+      (planCatalog ?? []).reduce(
+        (max, item) =>
+          Math.max(max, getPlanYearlyDiscountPercent(item.monthlyPrice, item.yearlyPrice)),
+        0,
+      ),
+    [planCatalog],
+  );
 
   const handleUpgradeClick = (catalogPlan?: PlanCatalogItem) => {
     const purchaseUrl = getPlanPurchaseUrl(catalogPlan);
@@ -402,15 +383,18 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                 label: (
                   <Flexbox horizontal align="center" gap={8}>
                     按年
-                    <Tag color="green" style={{ margin: 0 }}>
-                      最高优惠 37%
-                    </Tag>
+                    {maxYearlyDiscountPercent > 0 ? (
+                      <Tag color="green" style={{ margin: 0 }}>
+                        最高优惠 {maxYearlyDiscountPercent}%
+                      </Tag>
+                    ) : null}
                   </Flexbox>
                 ),
                 value: 'yearly',
               },
               { label: '按月', value: 'monthly' },
               { label: '一次性', value: 'one_time' },
+              { label: '终身', value: 'lifetime' },
             ]}
             onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
           />
@@ -439,12 +423,16 @@ const Plans = memo<{ mobile?: boolean }>(() => {
           <div className={styles.grid}>
             {visiblePlans.map((plan) => {
               const catalogPlan = getCatalogPlan(planCatalog, plan);
-              const price = getPrice(catalogPlan);
+              const price = catalogPlan
+                ? resolvePlanCyclePrice(catalogPlan, billingCycle)
+                  : {
+                      discountPercent: 0,
+                      label: '--',
+                      secondaryLabel: undefined,
+                      unit: t(getSubscriptionCycleTranslationKey(billingCycle)),
+                    };
               const monthlyCredits =
                 catalogPlan?.monthlyCredits ?? subscriptionSummary?.monthlyCredits ?? 0;
-              const discountPercent = catalogPlan
-                ? getDiscountPercent(catalogPlan.monthlyPrice, catalogPlan.yearlyPrice)
-                : 0;
               const isCurrent = plan === currentPlan;
               const isPending = pendingChangeRequest?.toPlan === plan;
               const isPopular = plan === SubscriptionPlan.Premium;
@@ -481,15 +469,10 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                           <span className={styles.priceUnit}>/ {price.unit}</span>
                         </div>
                         <div className={styles.yearlyLine}>
-                          {catalogPlan?.yearlyPrice
-                            ? `${formatPlanCurrencyAmount(
-                                catalogPlan.yearlyPrice,
-                                catalogPlan.currency,
-                              )} / 人民币 / 年`
-                            : '--'}
-                          {billingCycle === 'yearly' && discountPercent > 0 ? (
+                          {price.secondaryLabel ?? '--'}
+                          {billingCycle === 'yearly' && price.discountPercent > 0 ? (
                             <Tag color="green" style={{ margin: 0 }}>
-                              优惠 {discountPercent}%
+                              优惠 {price.discountPercent}%
                             </Tag>
                           ) : null}
                         </div>

@@ -84,7 +84,7 @@ const AdminOverviewPage = memo(() => {
         </Col>
         <Col lg={6} md={12} xs={24}>
           <Card>
-            <Statistic prefix="$" title="近 30 天收入" value={overview?.revenueLast30dUsd ?? 0} />
+            <Statistic prefix="$" title="近 30 天实收充值收入" value={overview?.revenueLast30dUsd ?? 0} />
           </Card>
         </Col>
       </Row>

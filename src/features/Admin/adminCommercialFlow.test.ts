@@ -51,6 +51,25 @@ describe('admin commercial flow pages', () => {
     expect(userDetailDrawer).toContain('<AdminAssignPlanModal');
   });
 
+  it('keeps admin subscription cycle controls aligned with backend validation', () => {
+    const assignPlanModal = readRepoFile('src/features/Admin/AdminAssignPlanModal.tsx');
+    const subscriptionsPage = readRepoFile('src/features/Admin/AdminSubscriptionsPage.tsx');
+    const subscriptionsRouter = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/subscriptions.ts',
+    );
+    const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
+    const usersPage = readRepoFile('src/routes/(main)/admin/users/index.tsx');
+
+    expect(assignPlanModal).toContain('ADMIN_SUBSCRIPTION_CYCLES.map');
+    expect(assignPlanModal).toContain('isFiniteAdminSubscriptionCycle(cycle)');
+    expect(subscriptionsPage).toContain('ADMIN_SUBSCRIPTION_CYCLES.map');
+    expect(subscriptionsRouter).toContain(
+      "const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const",
+    );
+    expect(userDetailDrawer).toContain('isFiniteAdminSubscriptionCycle(assignCycle)');
+    expect(usersPage).toContain('isFiniteAdminSubscriptionCycle(assignCycle)');
+  });
+
   it('does not keep the removed standalone pricing settings helper', () => {
     expect(existsSync(path.resolve(repoRoot, 'src/features/Admin/adminPricingSettings.ts'))).toBe(
       false,

@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 import InlineTable from '@/components/InlineTable';
 import { AdminDangerousActionButton, AdminUserDetailDrawer } from '@/features/Admin';
 import AdminAssignPlanModal from '@/features/Admin/AdminAssignPlanModal';
+import type { AdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
+import { isFiniteAdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -61,7 +63,7 @@ const AdminUsersPage = memo(() => {
   const [adjustAmount, setAdjustAmount] = useState<number>(0);
   const [assignTarget, setAssignTarget] = useState<string | null>(null);
   const [assignPlan, setAssignPlan] = useState<string>();
-  const [assignCycle, setAssignCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [assignCycle, setAssignCycle] = useState<AdminSubscriptionCycle>('monthly');
   const [assignDurationMonths, setAssignDurationMonths] = useState<number>(1);
   const [assignReason, setAssignReason] = useState('');
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
@@ -199,7 +201,10 @@ const AdminUsersPage = memo(() => {
   };
 
   const handleAssignPlan = async () => {
-    if (!assignTarget || !assignPlan || !assignDurationMonths || !assignReason.trim()) {
+    const durationMonths = isFiniteAdminSubscriptionCycle(assignCycle)
+      ? Math.round(assignDurationMonths)
+      : 1;
+    if (!assignTarget || !assignPlan || durationMonths < 1 || !assignReason.trim()) {
       message.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
       return;
     }
@@ -208,7 +213,7 @@ const AdminUsersPage = memo(() => {
     try {
       await adminCommercialService.assignUserPlan({
         cycle: assignCycle,
-        durationMonths: Math.round(assignDurationMonths),
+        durationMonths,
         plan: assignPlan,
         reason: assignReason.trim(),
         userId: assignTarget,
@@ -223,7 +228,6 @@ const AdminUsersPage = memo(() => {
       setActionLoading(null);
     }
   };
-
   const handleResetAllToFreePlan = async (reason?: string | null) => {
     setActionLoading('reset-all-free-preview');
 
