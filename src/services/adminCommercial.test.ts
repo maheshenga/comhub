@@ -11,6 +11,7 @@ vi.mock('@/libs/trpc/client', () => ({
         validateDefaultAgentSettings: { mutate: vi.fn() },
       },
       newapiProviders: {
+        getModelCatalogDiagnostics: { query: vi.fn() },
         syncInstanceModels: { mutate: vi.fn() },
         testInstanceConnection: { query: vi.fn() },
       },
@@ -63,6 +64,23 @@ describe('adminCommercialService NewAPI helpers', () => {
     expect(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).toHaveBeenCalledWith({
       id: 'instance-1',
     });
+  });
+
+  it('calls the AI provider model catalog diagnostics endpoint', async () => {
+    vi.mocked(lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query).mockResolvedValue(
+      {
+        catalog: [],
+        health: { hiddenByPlanCount: 0, modelTypeCount: 0, totalCount: 0, visibleCount: 0 },
+        hiddenByReason: {},
+        risks: [],
+      },
+    );
+
+    await adminCommercialService.getAiProviderModelCatalogDiagnostics();
+
+    expect(
+      lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query,
+    ).toHaveBeenCalledWith();
   });
 
   it('keeps legacy NewAPI helper aliases for compatibility', async () => {

@@ -23,7 +23,9 @@ export type AdminPlanModelRulesSummary = {
 export const getPlanModelRulesSummaryInfo = (
   rules?: AdminPlanModelRules | null,
 ): AdminPlanModelRulesSummary => {
-  const configuredRules = Object.values(rules ?? {}).filter(Boolean);
+  const configuredRules = Object.values(rules ?? {}).filter(
+    (rule): rule is AdminPlanModelRule => Boolean(rule),
+  );
   const allowlistRules = configuredRules.filter((rule) => rule.mode === 'allowlist');
   const blocklistRules = configuredRules.filter((rule) => rule.mode === 'blocklist');
   const configuredTypeCount = configuredRules.length;

@@ -10,6 +10,7 @@ import {
 } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
+import { getModelCatalogDiagnostics } from '@/server/services/modelCatalog/diagnostics';
 import {
   fetchNewapiModels,
   fetchNewapiPricing,
@@ -354,6 +355,22 @@ export const adminNewapiProvidersRouter = router({
         };
       }
     }),
+
+  getModelCatalogDiagnostics: adminProcedure.query(async ({ ctx }) => {
+    const { AiInfraRepos } = await import('@/database/repositories/aiInfra');
+    const { getServerGlobalConfig } = await import('@/server/globalConfig');
+    const { resolvePlanModelRules } = await import('@/business/server/planModelRules');
+    const { KeyVaultsGateKeeper } = await import('@/server/modules/KeyVaultsEncrypt');
+
+    const { aiProvider } = await getServerGlobalConfig(ctx.serverDB);
+    const aiInfraRepos = new AiInfraRepos(ctx.serverDB, ctx.userId, aiProvider as any);
+    const [state, planRules] = await Promise.all([
+      aiInfraRepos.getAiProviderRuntimeState(KeyVaultsGateKeeper.getUserKeyVaults),
+      resolvePlanModelRules({ db: ctx.serverDB, userId: ctx.userId }),
+    ]);
+
+    return getModelCatalogDiagnostics({ planRules, state });
+  }),
 
   addModels: adminProcedure
     .input(

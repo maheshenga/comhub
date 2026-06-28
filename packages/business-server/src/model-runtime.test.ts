@@ -6,6 +6,7 @@ import { getBusinessModelRuntimeHooks } from './model-runtime';
 const mocks = vi.hoisted(() => ({
   assertCommercialChatBudget: vi.fn(),
   assertCommercialMinimumBudget: vi.fn(),
+  assertModelPolicyAllowed: vi.fn(),
   assertPlanModelAllowed: vi.fn(),
   getServerDB: vi.fn(),
   recordCommercialAiUsage: vi.fn(),
@@ -25,6 +26,10 @@ vi.mock('./commercialBilling', () => ({
 
 vi.mock('./planModelRules', () => ({
   assertPlanModelAllowed: mocks.assertPlanModelAllowed,
+}));
+
+vi.mock('./modelPolicy', () => ({
+  assertModelPolicyAllowed: mocks.assertModelPolicyAllowed,
 }));
 
 describe('getBusinessModelRuntimeHooks', () => {
@@ -101,6 +106,74 @@ describe('getBusinessModelRuntimeHooks', () => {
       db: { id: 'db' },
       model: 'embedding-test',
       modelType: 'embedding',
+      userId: 'user-1',
+    });
+  });
+
+  it('should check policy, plan rules, and minimum budget before image generation starts', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi', {
+      groupKey: 'image-pro',
+      groupName: 'Image Pro',
+      instanceId: 'instance-image',
+      instanceName: 'Image Provider',
+    });
+
+    await hooks?.beforeCreateImage?.({
+      model: 'image-test',
+      params: { height: 1024, prompt: 'hello', width: 1024 },
+    } as any);
+
+    expect(mocks.assertModelPolicyAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'image-test',
+      provider: 'newapi',
+      usageType: 'image',
+    });
+    expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      groupKey: 'image-pro',
+      model: 'image-test',
+      modelType: 'image',
+      userId: 'user-1',
+    });
+    expect(mocks.assertCommercialMinimumBudget).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'image-test',
+      provider: 'newapi',
+      userId: 'user-1',
+    });
+  });
+
+  it('should check policy, plan rules, and minimum budget before video generation starts', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi', {
+      groupKey: 'video-pro',
+      groupName: 'Video Pro',
+      instanceId: 'instance-video',
+      instanceName: 'Video Provider',
+    });
+
+    await hooks?.beforeCreateVideo?.({
+      model: 'video-test',
+      params: { prompt: 'hello' },
+    } as any);
+
+    expect(mocks.assertModelPolicyAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'video-test',
+      provider: 'newapi',
+      usageType: 'video',
+    });
+    expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      groupKey: 'video-pro',
+      model: 'video-test',
+      modelType: 'video',
+      userId: 'user-1',
+    });
+    expect(mocks.assertCommercialMinimumBudget).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'video-test',
+      provider: 'newapi',
       userId: 'user-1',
     });
   });

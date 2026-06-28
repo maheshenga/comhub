@@ -533,7 +533,13 @@ describe('ModelRuntime', () => {
 
   describe('hooks', () => {
     const createMockRuntime = (hooks?: ModelRuntimeHooks) => {
-      const mockRuntimeAI = { chat: vi.fn(), embeddings: vi.fn(), generateObject: vi.fn() } as any;
+      const mockRuntimeAI = {
+        chat: vi.fn(),
+        createImage: vi.fn(),
+        createVideo: vi.fn(),
+        embeddings: vi.fn(),
+        generateObject: vi.fn(),
+      } as any;
       return { runtime: new ModelRuntime(mockRuntimeAI, hooks), mockRuntimeAI };
     };
 
@@ -549,6 +555,16 @@ describe('ModelRuntime', () => {
       schema: { name: 'test', schema: { type: 'object' as const, properties: {} } },
     };
 
+    const imagePayload: CreateImagePayload = {
+      model: 'dall-e-3',
+      params: { height: 1024, prompt: 'image', width: 1024 },
+    };
+
+    const videoPayload: CreateVideoPayload = {
+      model: 'sora-1',
+      params: { prompt: 'video' } as any,
+    };
+
     describe('chat hooks', () => {
       it('beforeChat is called before runtime.chat', async () => {
         const beforeChat = vi.fn();
@@ -557,8 +573,22 @@ describe('ModelRuntime', () => {
 
         await runtime.chat(chatPayload);
 
-        expect(beforeChat).toHaveBeenCalledWith(chatPayload, undefined);
+        expect(beforeChat).toHaveBeenCalledWith(chatPayload, {});
         expect(mockRuntimeAI.chat).toHaveBeenCalled();
+      });
+
+      it('forwards beforeChat option mutations to runtime.chat', async () => {
+        const beforeChat: ModelRuntimeHooks['beforeChat'] = async (_payload, options) => {
+          if (options) options.metadata = { plan: 'premium', scope: 'personal' };
+        };
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeChat });
+        mockRuntimeAI.chat.mockResolvedValue(new Response(''));
+
+        await runtime.chat(chatPayload);
+
+        expect(mockRuntimeAI.chat.mock.calls[0][1]).toMatchObject({
+          metadata: { plan: 'premium', scope: 'personal' },
+        });
       });
 
       it('beforeChat throwing aborts chat call', async () => {
@@ -649,8 +679,25 @@ describe('ModelRuntime', () => {
 
         await runtime.generateObject(genObjPayload);
 
-        expect(beforeGenerateObject).toHaveBeenCalledWith(genObjPayload, undefined);
+        expect(beforeGenerateObject).toHaveBeenCalledWith(genObjPayload, {});
         expect(mockRuntimeAI.generateObject).toHaveBeenCalled();
+      });
+
+      it('forwards beforeGenerateObject option mutations to runtime.generateObject', async () => {
+        const beforeGenerateObject: ModelRuntimeHooks['beforeGenerateObject'] = async (
+          _payload,
+          options,
+        ) => {
+          if (options) options.metadata = { checked: true };
+        };
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeGenerateObject });
+        mockRuntimeAI.generateObject.mockResolvedValue({ result: 'ok' });
+
+        await runtime.generateObject(genObjPayload);
+
+        expect(mockRuntimeAI.generateObject.mock.calls[0][1]).toMatchObject({
+          metadata: { checked: true },
+        });
       });
 
       it('beforeGenerateObject throwing aborts generateObject call', async () => {
@@ -832,6 +879,17 @@ describe('ModelRuntime', () => {
     describe('embeddings hooks', () => {
       const embeddingsPayload = { model: 'text-embedding-ada-002', input: 'hello' };
 
+      it('beforeEmbeddings is called with a mutable options object when no options are passed', async () => {
+        const beforeEmbeddings = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeEmbeddings });
+        mockRuntimeAI.embeddings.mockResolvedValue([[0.1]]);
+
+        await runtime.embeddings(embeddingsPayload);
+
+        expect(beforeEmbeddings).toHaveBeenCalledWith(embeddingsPayload, {});
+        expect(mockRuntimeAI.embeddings).toHaveBeenCalledWith(embeddingsPayload, {});
+      });
+
       it('beforeEmbeddings throwing triggers onEmbeddingsError before re-throwing', async () => {
         const budgetError = { errorType: 'FreePlanLimit', error: { message: 'Budget exceeded' } };
         const beforeEmbeddings = vi.fn().mockRejectedValue(budgetError);
@@ -847,6 +905,50 @@ describe('ModelRuntime', () => {
           options: undefined,
           payload: embeddingsPayload,
         });
+      });
+    });
+
+    describe('image and video hooks', () => {
+      it('beforeCreateImage is called before runtime.createImage with mutable options', async () => {
+        const beforeCreateImage = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeCreateImage });
+        const imageResponse = { imageUrl: 'https://example.com/image.png' };
+        mockRuntimeAI.createImage.mockResolvedValue(imageResponse);
+
+        const result = await runtime.createImage(imagePayload);
+
+        expect(beforeCreateImage).toHaveBeenCalledWith(imagePayload, {});
+        expect(mockRuntimeAI.createImage).toHaveBeenCalledWith(imagePayload, {});
+        expect(result).toBe(imageResponse);
+      });
+
+      it('beforeCreateImage throwing aborts createImage call', async () => {
+        const beforeCreateImage = vi.fn().mockRejectedValue(new Error('image denied'));
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeCreateImage });
+
+        await expect(runtime.createImage(imagePayload)).rejects.toThrow('image denied');
+        expect(mockRuntimeAI.createImage).not.toHaveBeenCalled();
+      });
+
+      it('beforeCreateVideo is called before runtime.createVideo with mutable options', async () => {
+        const beforeCreateVideo = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeCreateVideo });
+        const videoResponse = { inferenceId: 'video-job-1' };
+        mockRuntimeAI.createVideo.mockResolvedValue(videoResponse);
+
+        const result = await runtime.createVideo(videoPayload);
+
+        expect(beforeCreateVideo).toHaveBeenCalledWith(videoPayload, {});
+        expect(mockRuntimeAI.createVideo).toHaveBeenCalledWith(videoPayload, {});
+        expect(result).toBe(videoResponse);
+      });
+
+      it('beforeCreateVideo throwing aborts createVideo call', async () => {
+        const beforeCreateVideo = vi.fn().mockRejectedValue(new Error('video denied'));
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeCreateVideo });
+
+        await expect(runtime.createVideo(videoPayload)).rejects.toThrow('video denied');
+        expect(mockRuntimeAI.createVideo).not.toHaveBeenCalled();
       });
     });
   });

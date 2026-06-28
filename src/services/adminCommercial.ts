@@ -421,6 +421,9 @@ class AdminCommercialService {
   listAllEnabledAiProviderModels = async (params?: { modelType?: AiProviderModelType }) =>
     lambdaClient.admin.newapiProviders.getAllEnabledModels.query(params);
 
+  getAiProviderModelCatalogDiagnostics = async () =>
+    lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query();
+
   listAllEnabledNewapiModels = async (params?: {
     modelType?: NewapiModelType;
   }) => this.listAllEnabledAiProviderModels(params);

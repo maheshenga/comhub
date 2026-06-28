@@ -38,7 +38,9 @@ const resolveCommercialBillingReferenceId = (metadata?: Record<string, unknown>)
 const shouldSkipCommercialBilling = (metadata?: Record<string, unknown>) =>
   metadata?.skipCommercialBilling === true;
 
-const createEphemeralBillingReferenceId = (usageType: 'embeddings' | 'generate_object') =>
+const createEphemeralBillingReferenceId = (
+  usageType: 'embeddings' | 'generate_object' | 'image' | 'video',
+) =>
   `${usageType}:${
     globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
   }`;
@@ -101,6 +103,42 @@ export function getBusinessModelRuntimeHooks(
         userId,
       });
       await assertCommercialChatBudget({ db, payload: payload as any, provider, userId });
+    },
+    beforeCreateImage: async (payload) => {
+      const db = await getServerDB();
+      const groupKey = routeMetadata?.groupKey ?? undefined;
+      await assertModelPolicyAllowed({
+        db,
+        model: payload.model,
+        provider,
+        usageType: 'image',
+      });
+      await assertPlanModelAllowed({
+        db,
+        ...(groupKey ? { groupKey } : {}),
+        model: payload.model,
+        modelType: 'image',
+        userId,
+      });
+      await assertCommercialMinimumBudget({ db, model: payload.model, provider, userId });
+    },
+    beforeCreateVideo: async (payload) => {
+      const db = await getServerDB();
+      const groupKey = routeMetadata?.groupKey ?? undefined;
+      await assertModelPolicyAllowed({
+        db,
+        model: payload.model,
+        provider,
+        usageType: 'video',
+      });
+      await assertPlanModelAllowed({
+        db,
+        ...(groupKey ? { groupKey } : {}),
+        model: payload.model,
+        modelType: 'video',
+        userId,
+      });
+      await assertCommercialMinimumBudget({ db, model: payload.model, provider, userId });
     },
     onChatFinal: async (data, { options, payload }) => {
       const metadata = options?.metadata;

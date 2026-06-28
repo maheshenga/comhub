@@ -2,7 +2,7 @@ import { isOfficialProvider, OFFICIAL_PROVIDER_DISABLE_ERROR } from '@lobechat/b
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
+import { resolvePlanModelRules } from '@/business/server/planModelRules';
 import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
 import { wsCompatProcedure } from '@/business/server/trpc-middlewares/workspaceAuth';
 import { AiProviderModel } from '@/database/models/aiProvider';
@@ -13,6 +13,7 @@ import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
+import { resolveVisibleAiProviderRuntimeState } from '@/server/services/modelCatalog/visibleModels';
 import { type AiProviderDetailItem, type AiProviderRuntimeState } from '@/types/aiProvider';
 import {
   CreateAiProviderSchema,
@@ -20,10 +21,6 @@ import {
   UpdateAiProviderSchema,
 } from '@/types/aiProvider';
 import { type ProviderConfig } from '@/types/user/settings';
-
-type RuntimeModelWithRoute = AiProviderRuntimeState['enabledAiModels'][number] & {
-  groupKey?: string | null;
-};
 
 const aiProviderProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
@@ -137,34 +134,7 @@ export const aiProviderRouter = router({
       );
 
       const rules = await resolvePlanModelRules({ db: ctx.serverDB, userId: ctx.userId });
-      if (!rules) return state;
-
-      const enabledAiModels = state.enabledAiModels.filter((model) =>
-        isModelAllowedByPlanRules(
-          rules,
-          model.id,
-          model.type,
-          (model as RuntimeModelWithRoute).groupKey,
-        ),
-      );
-
-      const enabledChatAiProviders = state.enabledChatAiProviders.filter((provider) =>
-        enabledAiModels.some((model) => model.providerId === provider.id && model.type === 'chat'),
-      );
-      const enabledImageAiProviders = state.enabledImageAiProviders.filter((provider) =>
-        enabledAiModels.some((model) => model.providerId === provider.id && model.type === 'image'),
-      );
-      const enabledVideoAiProviders = state.enabledVideoAiProviders.filter((provider) =>
-        enabledAiModels.some((model) => model.providerId === provider.id && model.type === 'video'),
-      );
-
-      return {
-        ...state,
-        enabledAiModels,
-        enabledChatAiProviders,
-        enabledImageAiProviders,
-        enabledVideoAiProviders,
-      };
+      return resolveVisibleAiProviderRuntimeState({ planRules: rules, state });
     }),
 
   removeAiProvider: aiProviderProcedure
