@@ -119,6 +119,9 @@ describe('buildProviderInstancePayload', () => {
     expect(getDefaultBaseUrlForAdminProviderType('opencode-go')).toBe(
       'https://opencode.ai/zen/go/v1',
     );
+    expect(getDefaultBaseUrlForAdminProviderType('siliconflow')).toBe(
+      'https://api.siliconflow.cn/v1',
+    );
     expect(getDefaultBaseUrlForAdminProviderType('openai-compatible')).toBeUndefined();
   });
 });

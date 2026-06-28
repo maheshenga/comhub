@@ -1,6 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import {
   Alert,
   Button,
@@ -118,9 +119,10 @@ const buildBillingBasisValues = (settings?: {
   ordersEnabled: settings?.ordersManagementEnabled ?? true,
   pricingMultiplier:
     typeof settings?.pricingCreditMultiplier === 'number' &&
-    Number.isFinite(settings.pricingCreditMultiplier)
+    Number.isFinite(settings.pricingCreditMultiplier) &&
+    settings.pricingCreditMultiplier > 0
       ? settings.pricingCreditMultiplier
-      : 1,
+      : DEFAULT_PRICING_CREDIT_MULTIPLIER,
 });
 
 const getDefaultModelErrorMessage = (error: any) => {
@@ -487,7 +489,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       key: 'pricingMultiplier',
       render: (value: number | undefined, row) => (
         <InputNumber
-          min={0}
+          min={0.0001}
           placeholder="默认"
           precision={4}
           size="small"
@@ -628,13 +630,15 @@ const AdminModelBillingMatrixPage = memo(() => {
               <Text strong>{t('admin.modelBillingMatrix.globalMultiplier', '全局积分倍率')}</Text>
               <InputNumber
                 max={100}
-                min={0}
+                min={0.0001}
                 precision={4}
                 step={0.1}
                 style={{ width: 180 }}
                 value={billingBasis.pricingMultiplier}
                 onChange={(next: number | null) =>
-                  updateBillingBasis({ pricingMultiplier: toFiniteNumber(next) ?? 1 })
+                  updateBillingBasis({
+                    pricingMultiplier: toFiniteNumber(next) ?? DEFAULT_PRICING_CREDIT_MULTIPLIER,
+                  })
                 }
               />
               <Text type="secondary">

@@ -22,7 +22,8 @@ type AdminModelApiProviderType =
   | 'claude'
   | 'deepseek'
   | 'aliyun'
-  | 'opencode-go';
+  | 'opencode-go'
+  | 'siliconflow';
 
 type AdminAuditQueryParams = {
   action?: string;
@@ -490,6 +491,9 @@ class AdminCommercialService {
 
   syncNewapiInstanceModels = this.syncAiProviderInstanceModels;
 
+  refreshAiProviderRuntimeCache = async () =>
+    lambdaClient.admin.newapiProviders.refreshRuntimeCache.mutate();
+
   listAiProviderInstanceModels = async (params: {
     instanceId: string;
     modelType?: AiProviderModelType;
@@ -519,7 +523,12 @@ class AdminCommercialService {
   removeNewapiInstanceModel = this.removeAiProviderInstanceModel;
 
   updateAiProviderInstanceModel = async (params: {
-    data: { displayName?: string; enabled?: boolean; sortOrder?: number };
+    data: {
+      displayName?: string;
+      enabled?: boolean;
+      metadata?: Record<string, unknown> | null;
+      sortOrder?: number;
+    };
     instanceId: string;
     modelId: string;
     modelType: AiProviderModelType;

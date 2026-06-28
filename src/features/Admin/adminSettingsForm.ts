@@ -1,3 +1,5 @@
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+
 import {
   type AboutLinksConfig,
   DEFAULT_ABOUT_LINKS,
@@ -322,7 +324,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   ),
   profileInterestAreas: normalizeConfiguredInterestAreas(data?.profileInterestAreas),
   ordersEnabled: data?.ordersManagementEnabled ?? true,
-  pricingMultiplier: data?.pricingCreditMultiplier ?? 1,
+  pricingMultiplier: data?.pricingCreditMultiplier ?? DEFAULT_PRICING_CREDIT_MULTIPLIER,
   referralRewardCredits: data?.referralRewardCredits ?? 0,
   sidebarGenerationLabel: data?.sidebarGenerationLabel ?? '生成',
   sidebarMemberLabel: data?.sidebarMemberLabel ?? '会员',
@@ -378,7 +380,10 @@ export const normalizeFormValues = (
   ),
   profileInterestAreas: normalizeConfiguredInterestAreas(values.profileInterestAreas),
   ordersEnabled: typeof values.ordersEnabled === 'boolean' ? values.ordersEnabled : true,
-  pricingMultiplier: typeof values.pricingMultiplier === 'number' ? values.pricingMultiplier : 1,
+  pricingMultiplier:
+    typeof values.pricingMultiplier === 'number' && values.pricingMultiplier > 0
+      ? values.pricingMultiplier
+      : DEFAULT_PRICING_CREDIT_MULTIPLIER,
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
   sidebarGenerationLabel: normalizeText(values.sidebarGenerationLabel) || '生成',

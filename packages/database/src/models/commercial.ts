@@ -1,4 +1,4 @@
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import { CREDITS_PER_DOLLAR, DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import type {
   AutoTopUpSetting,
   CommercialOverview,
@@ -160,7 +160,9 @@ export const resolveAiUsagePricing = ({
     creditsPerDollar: matchedRule?.creditsPerDollar,
     matchedRule,
     multiplier:
-      (Number.isFinite(globalMultiplier) ? Number(globalMultiplier) : 1) *
+      (Number.isFinite(globalMultiplier) && Number(globalMultiplier) > 0
+        ? Number(globalMultiplier)
+        : DEFAULT_PRICING_CREDIT_MULTIPLIER) *
       (Number.isFinite(matchedRule?.multiplier) ? Number(matchedRule?.multiplier) : 1) *
       (Number.isFinite(groupMultiplier) && Number(groupMultiplier) > 0
         ? Number(groupMultiplier)
@@ -468,7 +470,11 @@ export class CommercialModel {
         where: inArray(appSettings.key, [PRICING_CREDIT_MULTIPLIER_KEY, PRICING_MODEL_RULES_KEY]),
       });
       const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-      const globalMultiplier = Number(settings[PRICING_CREDIT_MULTIPLIER_KEY] ?? 1);
+      const configuredGlobalMultiplier = Number(settings[PRICING_CREDIT_MULTIPLIER_KEY]);
+      const globalMultiplier =
+        Number.isFinite(configuredGlobalMultiplier) && configuredGlobalMultiplier > 0
+          ? configuredGlobalMultiplier
+          : DEFAULT_PRICING_CREDIT_MULTIPLIER;
       const rules = Array.isArray(settings[PRICING_MODEL_RULES_KEY])
         ? (settings[PRICING_MODEL_RULES_KEY] as AiUsagePricingRule[])
         : [];
@@ -484,7 +490,11 @@ export class CommercialModel {
         rules,
       });
     } catch {
-      return { creditsPerDollar: undefined, matchedRule: undefined, multiplier: 1 };
+      return {
+        creditsPerDollar: undefined,
+        matchedRule: undefined,
+        multiplier: DEFAULT_PRICING_CREDIT_MULTIPLIER,
+      };
     }
   };
 

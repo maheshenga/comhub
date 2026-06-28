@@ -1,4 +1,4 @@
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import { CREDITS_PER_DOLLAR, DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import {
   computeImageCost,
   computeVideoCost,
@@ -45,7 +45,7 @@ export const resolveGenerationPricingMultiplier = async ({
   provider: string;
   routeMetadata?: AiUsageRouteMetadata;
 }) => {
-  if (!db) return 1;
+  if (!db) return DEFAULT_PRICING_CREDIT_MULTIPLIER;
 
   const [globalMultiplierValue, modelRulesValue] = await Promise.all([
     getAppSettingValue(APP_SETTING_KEYS.pricingCreditMultiplier, db),
@@ -58,7 +58,9 @@ export const resolveGenerationPricingMultiplier = async ({
   return (
     resolveAiUsagePricing({
       globalMultiplier:
-        Number.isFinite(globalMultiplier) && globalMultiplier > 0 ? globalMultiplier : 1,
+        Number.isFinite(globalMultiplier) && globalMultiplier > 0
+          ? globalMultiplier
+          : DEFAULT_PRICING_CREDIT_MULTIPLIER,
       groupKey: routeMetadata?.groupKey,
       groupMultiplier: routeMetadata?.groupMultiplier,
       instanceId: routeMetadata?.instanceId,

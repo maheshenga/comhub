@@ -33,7 +33,16 @@ const maskApiKey = (key: string | null | undefined): string | null => {
 const NewapiModelTypeSchema = z.enum(NEWAPI_MODEL_TYPES);
 
 const ProviderTypeSchema = z
-  .enum(['newapi', 'openai-compatible', 'openai', 'claude', 'deepseek', 'aliyun', 'opencode-go'])
+  .enum([
+    'newapi',
+    'openai-compatible',
+    'openai',
+    'claude',
+    'deepseek',
+    'aliyun',
+    'opencode-go',
+    'siliconflow',
+  ])
   .default('newapi');
 
 const InstanceInputSchema = z.object({
@@ -58,6 +67,23 @@ const ModelInputSchema = z.object({
   modelType: NewapiModelTypeSchema,
   sortOrder: z.number().int().default(0),
 });
+
+const ModelMetadataSchema = z
+  .object({
+    manualPricing: z
+      .object({
+        imageRate: z.number().positive().optional(),
+        inputCostRate: z.number().positive().optional(),
+        inputRate: z.number().positive().optional(),
+        marginMultiplier: z.number().positive().optional(),
+        outputCostRate: z.number().positive().optional(),
+        outputRate: z.number().positive().optional(),
+        source: z.string().optional(),
+        videoRate: z.number().positive().optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
 
 const supportsPricingSync = (providerType?: string | null) =>
   !providerType || providerType === 'newapi';
@@ -372,6 +398,18 @@ export const adminNewapiProvidersRouter = router({
     return getModelCatalogDiagnostics({ planRules, state });
   }),
 
+  refreshRuntimeCache: adminProcedure.mutation(async ({ ctx }) => {
+    invalidateNewapiInstancesCache();
+
+    await recordAdminAudit(ctx, {
+      action: 'newapiInstanceModels.refreshRuntimeCache',
+      payload: { source: 'admin' },
+      resourceType: 'admin_newapi_instance_models',
+    });
+
+    return { refreshedAt: new Date().toISOString() };
+  }),
+
   addModels: adminProcedure
     .input(
       z.object({
@@ -475,6 +513,7 @@ export const adminNewapiProvidersRouter = router({
         data: z.object({
           displayName: z.string().optional(),
           enabled: z.boolean().optional(),
+          metadata: ModelMetadataSchema.nullish(),
           sortOrder: z.number().int().optional(),
         }),
       }),
@@ -490,6 +529,17 @@ export const adminNewapiProvidersRouter = router({
             eq(adminNewapiInstanceModels.modelType, input.modelType),
           ),
         );
+
+      await recordAdminAudit(ctx, {
+        action: 'newapiInstanceModels.update',
+        payload: {
+          fields: Object.keys(input.data),
+          modelId: input.modelId,
+          modelType: input.modelType,
+        },
+        resourceId: input.instanceId,
+        resourceType: 'admin_newapi_instance_models',
+      });
       invalidateNewapiInstancesCache();
       return { ok: true };
     }),

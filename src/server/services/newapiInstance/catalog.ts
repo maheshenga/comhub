@@ -9,7 +9,8 @@ export type AdminModelApiProviderType =
   | 'claude'
   | 'deepseek'
   | 'aliyun'
-  | 'opencode-go';
+  | 'opencode-go'
+  | 'siliconflow';
 
 export interface NewapiRemoteModel {
   created?: number;

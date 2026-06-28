@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, eq, lt } from 'drizzle-orm';
@@ -269,6 +270,11 @@ const toNumber = (value: unknown, fallback: number) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+const toPositiveNumber = (value: unknown, fallback: number) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
 const toBoundedInt = (value: unknown, fallback: number, min: number, max: number) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -437,8 +443,19 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
     value = typeof value === 'string' ? value.trim() : '';
   } else if (input.key === SETTING_KEYS.pricingCreditMultiplier) {
     const n = Number(value);
-    if (!Number.isFinite(n)) throw new Error('pricingCreditMultiplier must be a number');
-    value = Math.max(0, Math.min(100, n));
+    if (!Number.isFinite(n)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'pricingCreditMultiplier must be a number',
+      });
+    }
+    if (n <= 0) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'pricingCreditMultiplier must be greater than 0',
+      });
+    }
+    value = Math.min(100, n);
   } else if (input.key === SETTING_KEYS.pricingModelRules) {
     value = Array.isArray(value) ? value : [];
   } else if (input.key === SETTING_KEYS.ordersManagementEnabled) {
@@ -1367,7 +1384,10 @@ export const adminSettingsRouter = router({
           '支付网关尚未接入，用户自助支付会返回 PAYMENT_GATEWAY_NOT_CONFIGURED。当前可使用后台手动结算订单。',
         provider: null,
       },
-      pricingCreditMultiplier: toNumber(pricingCreditMultiplier, 1),
+      pricingCreditMultiplier: toPositiveNumber(
+        pricingCreditMultiplier,
+        DEFAULT_PRICING_CREDIT_MULTIPLIER,
+      ),
       pricingModelRules: Array.isArray(pricingModelRules) ? pricingModelRules : [],
       operationsConfig,
       growthConfig,

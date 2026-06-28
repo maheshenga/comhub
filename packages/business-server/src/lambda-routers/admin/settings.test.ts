@@ -2,8 +2,11 @@ import { Plans } from '@lobechat/types';
 import type { TRPCError } from '@trpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { getServerDB } from '@/database/core/db-adaptor';
+import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
@@ -25,6 +28,10 @@ vi.mock('@/server/modules/S3', () => ({
   S3: vi.fn().mockImplementation(() => ({
     testConnection: vi.fn().mockResolvedValue(undefined),
   })),
+}));
+
+vi.mock('@/server/globalConfig', () => ({
+  getResolvedServerDefaultAgentConfig: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('./audit', () => ({
@@ -79,6 +86,7 @@ const createDb = ({
 describe('admin settings default model validation', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(getResolvedServerDefaultAgentConfig).mockResolvedValue({});
     vi.mocked(S3).mockImplementation(
       () =>
         ({
@@ -281,6 +289,26 @@ describe('admin settings default model validation', () => {
 
     expect(settings.defaultAgentAvatar).toBe(DEFAULT_COMHUB_AGENT_AVATAR);
     expect(settings.defaultAgentName).toBe(DEFAULT_COMHUB_AGENT_NAME);
+    expect(settings.pricingCreditMultiplier).toBe(DEFAULT_PRICING_CREDIT_MULTIPLIER);
+  });
+
+  it('rejects non-positive global pricing multipliers', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSetting({
+        key: APP_SETTING_KEYS.pricingCreditMultiplier,
+        value: 0,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'pricingCreditMultiplier must be greater than 0',
+    } satisfies Partial<TRPCError>);
+
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it('cleans archived notifications during maintenance using the configured retention days', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 
 import {
   buildFormValues,
@@ -87,7 +88,7 @@ describe('adminSettingsForm', () => {
       helpMenuItems: [],
       memoryUserMemoryTriggerMode: 'auto' as const,
       ordersEnabled: true,
-      pricingMultiplier: 1,
+      pricingMultiplier: DEFAULT_PRICING_CREDIT_MULTIPLIER,
       profileInterestAreas: [],
       referralRewardCredits: 0,
       sidebarGenerationLabel: '生成',
@@ -343,6 +344,18 @@ describe('adminSettingsForm', () => {
         initial,
       ),
     ).toEqual([]);
+  });
+
+  it('defaults global pricing multiplier to the configured 35 percent margin', () => {
+    const initial = buildFormValues();
+
+    expect(initial.pricingMultiplier).toBe(DEFAULT_PRICING_CREDIT_MULTIPLIER);
+  });
+
+  it('normalizes non-positive global pricing multiplier to the configured 35 percent margin', () => {
+    const initial = buildFormValues();
+
+    expect(buildSettingUpdates({ ...initial, pricingMultiplier: 0 }, initial)).toEqual([]);
   });
 
   it('keeps S3 storage settings readable without saving them from site settings', () => {

@@ -1,4 +1,4 @@
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import { CREDITS_PER_DOLLAR, DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import type { Pricing } from 'model-bank';
 import { describe, expect, it } from 'vitest';
 
@@ -6,6 +6,7 @@ import {
   estimateImageCharge,
   estimateVideoCharge,
   resolveImageChargeCredits,
+  resolveGenerationPricingMultiplier,
   resolveVideoChargeCredits,
 } from './generationBilling';
 
@@ -97,5 +98,14 @@ describe('generationBilling', () => {
     });
 
     expect(credits).toBe(60_000);
+  });
+
+  it('uses the default 35 percent pricing multiplier when settings are unavailable', async () => {
+    await expect(
+      resolveGenerationPricingMultiplier({
+        model: 'gpt-image-2',
+        provider: 'newapi',
+      }),
+    ).resolves.toBe(DEFAULT_PRICING_CREDIT_MULTIPLIER);
   });
 });

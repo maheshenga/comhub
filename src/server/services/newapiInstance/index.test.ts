@@ -428,4 +428,43 @@ describe('NewAPI instance resolver', () => {
       }),
     ]);
   });
+
+  it('prefers manual official cost pricing over synced NewAPI pricing metadata', async () => {
+    const db = createDb([
+      {
+        displayName: 'Manual Cost Model',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        metadata: {
+          completionRatio: 10,
+          manualPricing: {
+            inputCostRate: 1.2,
+            marginMultiplier: 1.35,
+            outputCostRate: 3.4,
+            source: 'admin-manual',
+          },
+          modelRatio: 0.15,
+          pricingAvailable: true,
+          quotaType: 0,
+        },
+        modelId: 'manual-cost-model',
+        modelType: 'chat',
+        providerType: 'newapi',
+      },
+    ]);
+
+    await expect(getAllEnabledModels(db)).resolves.toEqual([
+      expect.objectContaining({
+        id: 'manual-cost-model',
+        pricing: {
+          units: [
+            { name: 'textInput', rate: 1.2, strategy: 'fixed', unit: 'millionTokens' },
+            { name: 'textOutput', rate: 3.4, strategy: 'fixed', unit: 'millionTokens' },
+          ],
+        },
+      }),
+    ]);
+  });
 });

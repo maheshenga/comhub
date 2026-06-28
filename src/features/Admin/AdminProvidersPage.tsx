@@ -1,6 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
+import { Flexbox, Icon } from '@lobehub/ui';
 import {
   Button,
   Drawer,
@@ -18,11 +18,13 @@ import {
   Tag,
   Tooltip,
 } from 'antd';
+import { RefreshCw } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { mutate, useClientDataSWR } from '@/libs/swr';
+import { serverConfigKeys } from '@/libs/swr/keys';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useAiInfraStore } from '@/store/aiInfra';
 
@@ -32,6 +34,10 @@ import {
   buildProviderInstancePayload,
   getDefaultBaseUrlForAdminProviderType,
 } from './adminProviderInstanceForm';
+import {
+  AiProviderModelPricingCell,
+  buildManualTokenPricingMetadata,
+} from './adminProviderModelPricing';
 import AdminDangerousActionButton from './AdminDangerousActionButton';
 
 type ModelType =
@@ -75,6 +81,7 @@ interface InstanceRow {
 interface ModelRow {
   displayName: string | null;
   enabled: boolean;
+  metadata?: Record<string, unknown> | null;
   modelId: string;
   modelType: ModelType;
   sortOrder: number;
@@ -92,6 +99,7 @@ const PROVIDER_TYPE_LABELS: Record<AdminModelApiProviderType, string> = {
   'openai': 'OpenAI',
   'openai-compatible': '兼容 OpenAI 格式',
   'opencode-go': 'OpenCode Go',
+  'siliconflow': 'SiliconFlow',
 };
 
 const splitToList = (text: string): string[] =>
@@ -433,6 +441,26 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       await refreshModels();
     };
 
+    const handleUpdateTokenPricing = async (
+      row: ModelRow,
+      inputCostRate?: number,
+      outputCostRate?: number,
+    ) => {
+      await adminCommercialService.updateAiProviderInstanceModel({
+        data: {
+          metadata: buildManualTokenPricingMetadata({
+            inputCostRate,
+            metadata: row.metadata,
+            outputCostRate,
+          }),
+        },
+        instanceId,
+        modelId: row.modelId,
+        modelType: row.modelType,
+      });
+      await refreshModels();
+    };
+
     const handleDelete = async (row: ModelRow) => {
       await adminCommercialService.removeAiProviderInstanceModel({
         instanceId,
@@ -464,6 +492,21 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         ),
         title: t('admin.providers.models.col.displayName', '显示名称'),
         width: 220,
+      },
+      {
+        key: 'pricing',
+        render: (_: unknown, r: ModelRow) => (
+          <AiProviderModelPricingCell
+            metadata={r.metadata}
+            modelType={r.modelType}
+            t={t}
+            onSave={(inputCostRate, outputCostRate) =>
+              handleUpdateTokenPricing(r, inputCostRate, outputCostRate)
+            }
+          />
+        ),
+        title: t('admin.providers.models.col.pricing', '官方成本价 / 1M tokens'),
+        width: 280,
       },
       {
         dataIndex: 'enabled',
@@ -573,7 +616,7 @@ const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>
       <Drawer
         destroyOnClose
         open={!!instance}
-        width={760}
+        width={980}
         title={
           instance
             ? t('admin.providers.drawer.title', '{{name}} 的模型', { name: instance.name })
@@ -604,6 +647,7 @@ const AdminProvidersPage = memo(() => {
   const [modelsTarget, setModelsTarget] = useState<InstanceRow | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [refreshingRuntimeCache, setRefreshingRuntimeCache] = useState(false);
 
   const items = (data?.items ?? []) as InstanceRow[];
 
@@ -664,6 +708,28 @@ const AdminProvidersPage = memo(() => {
       );
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  const handleRefreshRuntimeCache = async () => {
+    setRefreshingRuntimeCache(true);
+    try {
+      const result = await adminCommercialService.refreshAiProviderRuntimeCache();
+      await mutate(serverConfigKeys.get);
+      await Promise.all([refreshAiProviderRuntimeState(), mutate(INSTANCES_KEY)]);
+      message.success(
+        t('admin.providers.refreshRuntimeCache.success', '用户模型缓存已更新：{{time}}', {
+          time: new Date(result.refreshedAt).toLocaleString(),
+        }),
+      );
+    } catch (error) {
+      message.error(
+        t('admin.providers.refreshRuntimeCache.failed', '更新用户缓存失败：{{error}}', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    } finally {
+      setRefreshingRuntimeCache(false);
     }
   };
 
@@ -813,9 +879,18 @@ const AdminProvidersPage = memo(() => {
             '配置多个服务商上游实例，并按模型类型登记可用模型。运行时会优先使用匹配模型且优先级最高的实例，失败时按优先级切换到下一个实例。',
           )}
         </div>
-        <Button type="primary" onClick={() => setCreating(true)}>
-          {t('admin.providers.createInstance', '新建实例')}
-        </Button>
+        <Flexbox horizontal gap={8}>
+          <Button
+            icon={<Icon icon={RefreshCw} size={14} />}
+            loading={refreshingRuntimeCache}
+            onClick={handleRefreshRuntimeCache}
+          >
+            {t('admin.providers.refreshRuntimeCache.action', '更新用户缓存')}
+          </Button>
+          <Button type="primary" onClick={() => setCreating(true)}>
+            {t('admin.providers.createInstance', '新建实例')}
+          </Button>
+        </Flexbox>
       </Flexbox>
 
       {!isLoading && items.length === 0 ? (

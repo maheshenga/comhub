@@ -42,7 +42,8 @@ export type AdminNewapiProviderType =
   | 'claude'
   | 'deepseek'
   | 'aliyun'
-  | 'opencode-go';
+  | 'opencode-go'
+  | 'siliconflow';
 
 /**
  * Admin-managed NewAPI gateway instances. Each row represents a single upstream

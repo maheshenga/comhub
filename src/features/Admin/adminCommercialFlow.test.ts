@@ -199,6 +199,66 @@ describe('admin commercial flow pages', () => {
     expect(providersPage.match(/await refreshModels\(\);/g)?.length).toBeGreaterThanOrEqual(4);
   });
 
+  it('exposes an admin action to refresh user-facing AI provider cache', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+
+    expect(router).toContain('refreshRuntimeCache: adminProcedure.mutation');
+    expect(router).toContain('invalidateNewapiInstancesCache();');
+    expect(router).toContain("action: 'newapiInstanceModels.refreshRuntimeCache'");
+    expect(service).toContain('refreshAiProviderRuntimeCache');
+    expect(service).toContain('newapiProviders.refreshRuntimeCache.mutate()');
+    expect(providersPage).toContain('handleRefreshRuntimeCache');
+    expect(providersPage).toContain('adminCommercialService.refreshAiProviderRuntimeCache()');
+    expect(providersPage).toContain('mutate(serverConfigKeys.get)');
+    expect(providersPage).toContain('refreshAiProviderRuntimeState()');
+    expect(providersPage).toContain("t('admin.providers.refreshRuntimeCache.action'");
+  });
+
+  it('lets admins configure AI provider model official cost pricing', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const pricingCell = readRepoFile('src/features/Admin/adminProviderModelPricing.tsx');
+    const runtime = readRepoFile('src/server/services/newapiInstance/index.ts');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+
+    expect(providersPage).toContain('AiProviderModelPricingCell');
+    expect(providersPage).toContain('buildManualTokenPricingMetadata');
+    expect(pricingCell).toContain('DEFAULT_PRICING_CREDIT_MULTIPLIER');
+    expect(pricingCell).toContain('DEFAULT_PRICING_MARGIN_MULTIPLIER');
+    expect(pricingCell).toContain('TOKEN_PRICING_MODEL_TYPES');
+    expect(pricingCell).toContain('inputCostRate');
+    expect(pricingCell).toContain('outputCostRate');
+    expect(providersPage).toContain('官方成本价 / 1M tokens');
+    expect(pricingCell).toContain('计费价：输入 {{input}} / 输出 {{output}}');
+    expect(service).toContain('metadata?: Record<string, unknown> | null');
+    expect(router).toContain('ModelMetadataSchema');
+    expect(router).toContain("action: 'newapiInstanceModels.update'");
+    expect(runtime).toContain('resolveManualPricing');
+    expect(runtime).toContain('manualPricing.inputCostRate');
+    expect(runtime).toContain('manualPricing.outputCostRate');
+  });
+
+  it('keeps toapi as a NewAPI-compatible instance instead of a standalone provider type', () => {
+    const files = [
+      'packages/business-server/src/lambda-routers/admin/newapiProviders.ts',
+      'packages/database/src/schemas/newapiInstance.ts',
+      'src/features/Admin/AdminProvidersPage.tsx',
+      'src/features/Admin/adminProviderInstanceForm.ts',
+      'src/server/services/newapiInstance/catalog.ts',
+      'src/server/services/newapiInstance/index.ts',
+      'src/services/adminCommercial.ts',
+    ];
+
+    for (const file of files) {
+      const source = readRepoFile(file);
+      expect(source).toContain('siliconflow');
+      expect(source.toLowerCase()).not.toContain("'toapi'");
+      expect(source.toLowerCase()).not.toContain('"toapi"');
+    }
+  });
+
   it('uses AI service provider model helpers in shared model billing surfaces', () => {
     const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
     const service = readRepoFile('src/services/adminCommercial.ts');

@@ -179,6 +179,17 @@ describe('adminModelBillingMatrix', () => {
     ]);
   });
 
+  it('ignores non-positive pricing multipliers when serializing pricing rules', () => {
+    const rows = buildMatrixRows({
+      models,
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [],
+    }).map((row) => ({ ...row, pricingMultiplier: 0 }));
+
+    expect(buildPricingRulesFromRows(rows)).toEqual([]);
+  });
+
   it('serializes pricing rules with group keys', () => {
     const rows = buildMatrixRows({
       models: [

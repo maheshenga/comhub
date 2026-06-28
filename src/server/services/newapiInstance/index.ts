@@ -41,7 +41,8 @@ export type AdminModelApiProviderType =
   | 'claude'
   | 'deepseek'
   | 'aliyun'
-  | 'opencode-go';
+  | 'opencode-go'
+  | 'siliconflow';
 
 export interface ResolvedNewapiInstance {
   apiKey: string;
@@ -307,10 +308,80 @@ const toPositiveNumber = (value: unknown) => {
   return Number.isFinite(number) && number > 0 ? number : undefined;
 };
 
+const resolveManualPricing = (
+  metadata: Record<string, unknown> | null | undefined,
+): Pricing | undefined => {
+  const manualPricing =
+    metadata?.manualPricing && typeof metadata.manualPricing === 'object'
+      ? (metadata.manualPricing as Record<string, unknown>)
+      : undefined;
+  if (!manualPricing) return undefined;
+
+  const inputRate =
+    toPositiveNumber(manualPricing.inputRate) ?? toPositiveNumber(manualPricing.inputCostRate);
+  const outputRate =
+    toPositiveNumber(manualPricing.outputRate) ?? toPositiveNumber(manualPricing.outputCostRate);
+  const imageRate = toPositiveNumber(manualPricing.imageRate);
+  const videoRate = toPositiveNumber(manualPricing.videoRate);
+
+  if (inputRate || outputRate) {
+    return {
+      units: [
+        ...(inputRate
+          ? [
+              {
+                name: 'textInput' as const,
+                rate: inputRate,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+            ]
+          : []),
+        ...(outputRate
+          ? [
+              {
+                name: 'textOutput' as const,
+                rate: outputRate,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+            ]
+          : []),
+      ],
+    };
+  }
+
+  if (imageRate) {
+    return {
+      approximatePricePerImage: imageRate,
+      units: [
+        {
+          name: 'imageGeneration' as const,
+          rate: imageRate,
+          strategy: 'fixed' as const,
+          unit: 'image' as const,
+        },
+      ],
+    };
+  }
+
+  if (videoRate) {
+    return {
+      approximatePricePerVideo: videoRate,
+      units: [],
+    };
+  }
+
+  return undefined;
+};
+
 export const resolveNewapiModelPricingFromMetadata = (
   metadata: Record<string, unknown> | null | undefined,
   modelType: NewapiModelType,
 ): Pricing | undefined => {
+  const manualPricing = resolveManualPricing(metadata);
+  if (manualPricing) return manualPricing;
+
   const quotaType = Number(metadata?.quotaType);
   const modelPrice = toPositiveNumber(metadata?.modelPrice);
   const modelRatio = toPositiveNumber(metadata?.modelRatio);

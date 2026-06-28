@@ -30,7 +30,8 @@ export type AdminModelApiProviderType =
   | 'claude'
   | 'deepseek'
   | 'aliyun'
-  | 'opencode-go';
+  | 'opencode-go'
+  | 'siliconflow';
 
 export const ADMIN_MODEL_API_PROVIDER_TYPES: AdminModelApiProviderType[] = [
   'newapi',
@@ -40,6 +41,7 @@ export const ADMIN_MODEL_API_PROVIDER_TYPES: AdminModelApiProviderType[] = [
   'deepseek',
   'aliyun',
   'opencode-go',
+  'siliconflow',
 ];
 
 const DEFAULT_BASE_URL_BY_PROVIDER_TYPE: Partial<Record<AdminModelApiProviderType, string>> = {
@@ -48,6 +50,7 @@ const DEFAULT_BASE_URL_BY_PROVIDER_TYPE: Partial<Record<AdminModelApiProviderTyp
   'deepseek': 'https://api.deepseek.com/v1',
   'openai': 'https://api.openai.com/v1',
   'opencode-go': 'https://opencode.ai/zen/go/v1',
+  'siliconflow': 'https://api.siliconflow.cn/v1',
 };
 
 export const getDefaultBaseUrlForAdminProviderType = (providerType?: AdminModelApiProviderType) =>
