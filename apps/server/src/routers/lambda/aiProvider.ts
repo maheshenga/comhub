@@ -21,6 +21,10 @@ import {
 } from '@/types/aiProvider';
 import { type ProviderConfig } from '@/types/user/settings';
 
+type RuntimeModelWithRoute = AiProviderRuntimeState['enabledAiModels'][number] & {
+  groupKey?: string | null;
+};
+
 const aiProviderProcedure = wsCompatProcedure.use(serverDatabase).use(async (opts) => {
   const { ctx } = opts;
   const wsId = ctx.workspaceId ?? undefined;
@@ -140,7 +144,7 @@ export const aiProviderRouter = router({
           rules,
           model.id,
           model.type,
-          'groupKey' in model ? (model.groupKey as string | null | undefined) : undefined,
+          (model as RuntimeModelWithRoute).groupKey,
         ),
       );
 

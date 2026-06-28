@@ -6,6 +6,8 @@ import {
   buildPricingRulesFromRows,
   findFreePlanDefaultModelConflict,
   getDefaultModelHealth,
+  getMatrixConfigHealth,
+  getMatrixConfigHealthFocus,
   togglePlanAccess,
 } from './adminModelBillingMatrix';
 
@@ -423,6 +425,123 @@ describe('adminModelBillingMatrix', () => {
         provider: 'newapi',
         status: 'not_enabled',
       }),
+    });
+  });
+
+  it('summarizes matrix configuration health risks', () => {
+    const rows = buildMatrixRows({
+      defaultModel: 'deepseek-chat',
+      defaultProvider: 'newapi',
+      models,
+      plans,
+      planRulesByPlan: {
+        free: {
+          chat: { allowlist: ['deepseek-chat'], mode: 'allowlist' },
+          image: { allowlist: [], mode: 'allowlist' },
+        },
+        starter: {
+          chat: { allowlist: [], mode: 'allowlist' },
+          image: { allowlist: [], mode: 'allowlist' },
+        },
+      },
+      pricingRules: [{ model: 'deepseek-chat', multiplier: 0.8, provider: 'newapi' }],
+    });
+    const health = getMatrixConfigHealth({
+      defaultModelHealth: getDefaultModelHealth(rows, {
+        chat: { model: 'deepseek-chat', provider: 'newapi' },
+        image: { model: 'flux-kontext', provider: 'newapi' },
+        video: { model: 'veo-3', provider: 'newapi' },
+      }),
+      globalPricingMultiplier: 1,
+      plans,
+      rows,
+    });
+
+    expect(health.status).toBe('error');
+    expect(health.summary).toMatchObject({
+      blockedModelCount: 1,
+      defaultModelIssueCount: 2,
+      modelCount: 2,
+      planCount: 2,
+      plansWithoutAccessCount: 1,
+      pricingFallbackModelCount: 1,
+      pricingOverrideCount: 1,
+    });
+    expect(health.checks.map((check) => check.key)).toEqual([
+      'default-models',
+      'plans-without-models',
+      'blocked-models',
+      'pricing-fallbacks',
+    ]);
+  });
+
+  it('finds matrix rows and plans related to health checks', () => {
+    const rows = buildMatrixRows({
+      defaultModel: 'deepseek-chat',
+      defaultProvider: 'newapi',
+      models,
+      plans,
+      planRulesByPlan: {
+        free: {
+          chat: { allowlist: ['deepseek-chat'], mode: 'allowlist' },
+          image: { allowlist: [], mode: 'allowlist' },
+        },
+        starter: {
+          chat: { allowlist: [], mode: 'allowlist' },
+          image: { allowlist: [], mode: 'allowlist' },
+        },
+      },
+      pricingRules: [{ model: 'deepseek-chat', multiplier: 0.8, provider: 'newapi' }],
+    });
+    const defaultModelHealth = getDefaultModelHealth(rows, {
+      chat: { model: 'deepseek-chat', provider: 'newapi' },
+      image: { model: 'flux-kontext', provider: 'newapi' },
+      video: { model: 'veo-3', provider: 'newapi' },
+    });
+
+    expect(
+      getMatrixConfigHealthFocus({
+        checkKey: 'plans-without-models',
+        defaultModelHealth,
+        plans,
+        rows,
+      }),
+    ).toEqual({
+      planKeys: ['starter'],
+      rowKeys: ['newapi:chat:deepseek-chat', 'newapi:image:flux-kontext'],
+    });
+    expect(
+      getMatrixConfigHealthFocus({
+        checkKey: 'blocked-models',
+        defaultModelHealth,
+        plans,
+        rows,
+      }),
+    ).toEqual({
+      planKeys: ['free', 'starter'],
+      rowKeys: ['newapi:image:flux-kontext'],
+    });
+    expect(
+      getMatrixConfigHealthFocus({
+        checkKey: 'pricing-fallbacks',
+        defaultModelHealth,
+        plans,
+        rows,
+      }),
+    ).toEqual({
+      planKeys: [],
+      rowKeys: ['newapi:image:flux-kontext'],
+    });
+    expect(
+      getMatrixConfigHealthFocus({
+        checkKey: 'default-models',
+        defaultModelHealth,
+        plans,
+        rows,
+      }),
+    ).toEqual({
+      planKeys: ['free'],
+      rowKeys: ['newapi:image:flux-kontext'],
     });
   });
 });

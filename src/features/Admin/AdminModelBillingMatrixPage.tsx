@@ -31,6 +31,9 @@ import {
   buildPricingRulesFromRows,
   findFreePlanDefaultModelConflict,
   getDefaultModelHealth,
+  getMatrixConfigHealth,
+  getMatrixConfigHealthFocus,
+  type MatrixConfigHealthCheck,
   type MatrixModelType,
   type MatrixPlan,
   type MatrixPlanRules,
@@ -60,6 +63,19 @@ const DEFAULT_HEALTH_STATUS = {
   type_mismatch: { color: 'red', label: '类型不匹配' },
 } as const;
 
+const CONFIG_HEALTH_STATUS = {
+  error: { alertType: 'error', color: 'red', label: 'Error' },
+  ok: { alertType: 'success', color: 'green', label: 'OK' },
+  warning: { alertType: 'warning', color: 'orange', label: 'Warning' },
+} as const;
+
+const CONFIG_HEALTH_CHECK_STATUS = {
+  error: { color: 'red', label: 'Error' },
+  info: { color: 'blue', label: 'Info' },
+  ok: { color: 'green', label: 'OK' },
+  warning: { color: 'orange', label: 'Warning' },
+} as const;
+
 type PlanItem = {
   displayName?: string | null;
   modelRules?: MatrixPlanRules | null;
@@ -82,6 +98,15 @@ type BillingBasisValues = {
   ordersEnabled: boolean;
   pricingMultiplier: number;
 };
+
+const FILTERABLE_CONFIG_HEALTH_CHECKS = new Set([
+  'blocked-models',
+  'default-models',
+  'global-pricing-multiplier',
+  'healthy',
+  'plans-without-models',
+  'pricing-fallbacks',
+]);
 
 const toFiniteNumber = (value: number | string | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
@@ -113,6 +138,7 @@ const getDefaultModelErrorMessage = (error: any) => {
 const AdminModelBillingMatrixPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [billingBasisOverride, setBillingBasisOverride] = useState<BillingBasisValues | null>(null);
+  const [focusedHealthCheckKey, setFocusedHealthCheckKey] = useState<string | null>(null);
   const [savingBillingBasis, setSavingBillingBasis] = useState(false);
   const [rowsOverride, setRowsOverride] = useState<MatrixRow[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -203,6 +229,50 @@ const AdminModelBillingMatrixPage = memo(() => {
   const hasDefaultModelRisk = Object.values(defaultModelHealth).some(
     (item) => item.status !== 'ok',
   );
+  const configHealth = useMemo(
+    () =>
+      getMatrixConfigHealth({
+        defaultModelHealth,
+        globalPricingMultiplier: billingBasis.pricingMultiplier,
+        plans,
+        rows,
+      }),
+    [billingBasis.pricingMultiplier, defaultModelHealth, plans, rows],
+  );
+  const configHealthMeta = CONFIG_HEALTH_STATUS[configHealth.status];
+  const focusedHealthCheck = configHealth.checks.find(
+    (check) => check.key === focusedHealthCheckKey,
+  );
+  const focusedHealthCheckFocus = useMemo(
+    () =>
+      focusedHealthCheck
+        ? getMatrixConfigHealthFocus({
+            checkKey: focusedHealthCheck.key,
+            defaultModelHealth,
+            plans,
+            rows,
+          })
+        : null,
+    [defaultModelHealth, focusedHealthCheck, plans, rows],
+  );
+  const focusedRowKeySet = useMemo(
+    () => new Set(focusedHealthCheckFocus?.rowKeys ?? []),
+    [focusedHealthCheckFocus?.rowKeys],
+  );
+  const focusedPlanKeySet = useMemo(
+    () => new Set(focusedHealthCheckFocus?.planKeys ?? []),
+    [focusedHealthCheckFocus?.planKeys],
+  );
+  const displayRows = focusedHealthCheck
+    ? rows.filter((row) => focusedRowKeySet.has(row.key))
+    : rows;
+  const canFocusConfigHealthCheck = (check: MatrixConfigHealthCheck) =>
+    FILTERABLE_CONFIG_HEALTH_CHECKS.has(check.key);
+  const handleFocusConfigHealthCheck = (check: MatrixConfigHealthCheck) => {
+    if (!canFocusConfigHealthCheck(check)) return;
+
+    setFocusedHealthCheckKey((current) => (current === check.key ? null : check.key));
+  };
 
   const getDefaultModelHealthMessage = (health: (typeof defaultModelHealth)['chat']) => {
     if (health.status === 'ok') return '已启用，且免费套餐可用，新注册用户可直接使用。';
@@ -366,7 +436,12 @@ const AdminModelBillingMatrixPage = memo(() => {
         }
       />
     ),
-    title: plan.displayName,
+    title: (
+      <Space size={4}>
+        <span>{plan.displayName}</span>
+        {focusedPlanKeySet.has(plan.plan) ? <Tag color="orange">问题</Tag> : null}
+      </Space>
+    ),
     width: 104,
   }));
 
@@ -474,6 +549,71 @@ const AdminModelBillingMatrixPage = memo(() => {
 
       <Alert showIcon message={t('admin.modelBillingMatrix.notice', MATRIX_NOTICE)} type="info" />
 
+      <Card title={t('admin.modelBillingMatrix.configHealthSection', 'AI service health check')}>
+        <Flexbox gap={12}>
+          <Alert
+            showIcon
+            message={t(
+              'admin.modelBillingMatrix.configHealthTitle',
+              'Provider, model access, and billing configuration',
+            )}
+            type={configHealthMeta.alertType as 'error' | 'success' | 'warning'}
+            description={
+              <Flexbox gap={10}>
+                <Space wrap size={[8, 8]}>
+                  <Tag color={configHealthMeta.color}>{configHealthMeta.label}</Tag>
+                  <Tag>
+                    {t('admin.modelBillingMatrix.healthModels', 'Models')}:{' '}
+                    {configHealth.summary.modelCount}
+                  </Tag>
+                  <Tag>
+                    {t('admin.modelBillingMatrix.healthPlans', 'Plans')}:{' '}
+                    {configHealth.summary.planCount}
+                  </Tag>
+                  <Tag>
+                    {t('admin.modelBillingMatrix.healthDefaults', 'Defaults')}:{' '}
+                    {configHealth.summary.defaultModelOkCount}/
+                    {configHealth.summary.defaultModelTotal}
+                  </Tag>
+                  <Tag>
+                    {t('admin.modelBillingMatrix.healthPricingOverrides', 'Pricing overrides')}:{' '}
+                    {configHealth.summary.pricingOverrideCount}
+                  </Tag>
+                  <Tag>
+                    {t('admin.modelBillingMatrix.healthPricingFallbacks', 'Provider pricing')}:{' '}
+                    {configHealth.summary.pricingFallbackModelCount}
+                  </Tag>
+                </Space>
+
+                <Flexbox gap={6}>
+                  {configHealth.checks.map((check) => {
+                    const meta = CONFIG_HEALTH_CHECK_STATUS[check.severity];
+
+                    return (
+                      <Space wrap align="start" key={check.key} size={6}>
+                        <Tag color={meta.color}>{meta.label}</Tag>
+                        <Text>{check.title}</Text>
+                        {typeof check.count === 'number' ? <Tag>{check.count}</Tag> : null}
+                        {check.detail ? <Text type="secondary">{check.detail}</Text> : null}
+                        {canFocusConfigHealthCheck(check) ? (
+                          <Button
+                            size="small"
+                            type="link"
+                            onClick={() => handleFocusConfigHealthCheck(check)}
+                          >
+                            {focusedHealthCheckKey === check.key ? '取消定位' : '定位'}
+                          </Button>
+                        ) : null}
+                      </Space>
+                    );
+                  })}
+                </Flexbox>
+              </Flexbox>
+            }
+          />
+        </Flexbox>
+      </Card>
+
       <Card title={t('admin.modelBillingMatrix.billingBasisSection', '全局计费基线')}>
         <Flexbox gap={16}>
           <Text type="secondary">
@@ -573,9 +713,23 @@ const AdminModelBillingMatrixPage = memo(() => {
         )}
       </Space>
 
+      {focusedHealthCheck ? (
+        <Alert
+          showIcon
+          action={
+            <Button size="small" onClick={() => setFocusedHealthCheckKey(null)}>
+              显示全部
+            </Button>
+          }
+          message={`已定位：${focusedHealthCheck.title}`}
+          type="warning"
+          description={`当前显示 ${displayRows.length}/${rows.length} 个相关模型。`}
+        />
+      ) : null}
+
       <Table
         columns={columns}
-        dataSource={rows}
+        dataSource={displayRows}
         loading={loading}
         locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}
         pagination={false}

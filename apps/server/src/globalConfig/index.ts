@@ -45,6 +45,14 @@ const getGenericNewapiParameters = (type: string) => {
   return undefined;
 };
 
+type AdminManagedServerModelCard = AiFullModelCard & {
+  groupKey?: string | null;
+  groupName?: string | null;
+  instanceId?: string | null;
+  instanceName?: string | null;
+  providerType?: string | null;
+};
+
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
   const defaultAgentMeta = cleanObject({
@@ -76,16 +84,21 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     const managedNewApiModelIds = Array.from(new Set(instanceModels.map((m) => m.id)));
 
     if (managedNewApiModelIds.length > 0) {
-      const serverModelLists: AiFullModelCard[] = instanceModels.map((m) => {
+      const serverModelLists: AdminManagedServerModelCard[] = instanceModels.map((m) => {
         const modelType = toAiModelType(m.type);
         const parameters = getGenericNewapiParameters(modelType);
 
         return {
           displayName: m.displayName || m.id,
           enabled: true,
+          groupKey: m.groupKey,
+          groupName: m.groupName,
           id: m.id,
+          instanceId: m.instanceId,
+          instanceName: m.instanceName,
           ...(parameters ? { parameters } : {}),
           ...(m.pricing ? { pricing: m.pricing } : {}),
+          providerType: m.providerType,
           type: modelType,
         };
       });

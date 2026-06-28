@@ -253,6 +253,62 @@ describe('aiProviderRouter', () => {
       expect(result.enabledImageAiProviders.map((p) => p.id)).toEqual(['newapi']);
       expect(result.enabledVideoAiProviders).toEqual([]);
     });
+
+    it('passes admin provider group metadata into plan filtering', async () => {
+      const state: AiProviderRuntimeState = {
+        enabledAiModels: [
+          {
+            enabled: true,
+            groupKey: 'basic',
+            id: 'shared-chat',
+            providerId: 'newapi',
+            type: 'chat',
+          } as any,
+          {
+            enabled: true,
+            groupKey: 'pro',
+            id: 'shared-chat',
+            providerId: 'newapi',
+            type: 'chat',
+          } as any,
+        ],
+        enabledAiProviders: [{ id: 'newapi', name: 'AI Provider', source: 'builtin' }],
+        enabledChatAiProviders: [{ id: 'newapi', name: 'AI Provider', source: 'builtin' }],
+        enabledImageAiProviders: [],
+        enabledVideoAiProviders: [],
+        runtimeConfig: {},
+      } as any;
+      const rules = {
+        chat: { allowlist: ['pro:shared-chat'], mode: 'allowlist' },
+      };
+      vi.mocked(AiInfraRepos).prototype.getAiProviderRuntimeState = vi
+        .fn()
+        .mockResolvedValue(state);
+      planRuleMocks.resolvePlanModelRules.mockResolvedValue(rules);
+      planRuleMocks.isModelAllowedByPlanRules.mockImplementation(
+        (_rules, modelId, modelType, groupKey) =>
+          modelType === 'chat' && modelId === 'shared-chat' && groupKey === 'pro',
+      );
+
+      const caller = aiProviderRouter.createCaller(createMockContext());
+      const result = await caller.getAiProviderRuntimeState({});
+
+      expect(planRuleMocks.isModelAllowedByPlanRules).toHaveBeenCalledWith(
+        rules,
+        'shared-chat',
+        'chat',
+        'basic',
+      );
+      expect(planRuleMocks.isModelAllowedByPlanRules).toHaveBeenCalledWith(
+        rules,
+        'shared-chat',
+        'chat',
+        'pro',
+      );
+      expect(result.enabledAiModels).toEqual([
+        expect.objectContaining({ groupKey: 'pro', id: 'shared-chat' }),
+      ]);
+    });
   });
 
   describe('removeAiProvider', () => {

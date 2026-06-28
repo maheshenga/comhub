@@ -23,7 +23,7 @@ import InlineTable from '@/components/InlineTable';
 import {
   ADMIN_PLAN_MODEL_MATRIX_PATH,
   type AdminPlanModelRules,
-  getPlanModelRulesSummary,
+  getPlanModelRulesSummaryInfo,
 } from '@/features/Admin/adminPlanModelRules';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -244,7 +244,25 @@ const AdminPlansPage = memo(() => {
     {
       dataIndex: 'modelRules',
       key: 'modelRules',
-      render: (rules: AdminPlanModelRules | null) => getPlanModelRulesSummary(rules),
+      render: (rules: AdminPlanModelRules | null) => {
+        const summary = getPlanModelRulesSummaryInfo(rules);
+
+        return (
+          <Flexbox gap={4}>
+            <Tag color={summary.hasRules ? 'orange' : 'green'}>{summary.label}</Tag>
+            {summary.allowlistTypeCount > 0 ? (
+              <Tag>
+                白名单 {summary.allowlistTypeCount} 类 / {summary.allowlistEntryCount} 项
+              </Tag>
+            ) : null}
+            {summary.blocklistTypeCount > 0 ? (
+              <Tag>
+                黑名单 {summary.blocklistTypeCount} 类 / {summary.blocklistEntryCount} 项
+              </Tag>
+            ) : null}
+          </Flexbox>
+        );
+      },
       title: t('admin.plans.col.modelRules', '模型权限'),
     },
     {

@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+import { useAiInfraStore } from '@/store/aiInfra';
 
 import {
   ADMIN_MODEL_API_PROVIDER_TYPES,
@@ -343,6 +344,7 @@ InstanceFormModal.displayName = 'InstanceFormModal';
 const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
   ({ instanceId, modelType }) => {
     const { t } = useTranslation('subscription');
+    const refreshAiProviderRuntimeState = useAiInfraStore((s) => s.refreshAiProviderRuntimeState);
     const swrKey = modelsKey(instanceId, modelType);
     const { data, isLoading } = useClientDataSWR(swrKey, () =>
       adminCommercialService.listAiProviderInstanceModels({ instanceId, modelType }),
@@ -351,6 +353,12 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
 
     const [bulkText, setBulkText] = useState('');
     const [adding, setAdding] = useState(false);
+    const [batchUpdating, setBatchUpdating] = useState<'disable' | 'enable' | null>(null);
+
+    const refreshModels = async () => {
+      await mutate(swrKey);
+      await refreshAiProviderRuntimeState();
+    };
 
     const handleBulkAdd = async () => {
       const ids = splitToList(bulkText);
@@ -368,11 +376,40 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         });
         message.success(t('admin.providers.models.addSuccess', '模型已添加'));
         setBulkText('');
-        await mutate(swrKey);
+        await refreshModels();
       } catch {
         message.error(t('admin.providers.models.addFailed', '添加模型失败'));
       } finally {
         setAdding(false);
+      }
+    };
+
+    const handleBatchToggle = async (enabled: boolean) => {
+      const targetRows = items.filter((item) => item.enabled !== enabled);
+      if (targetRows.length === 0) return;
+
+      setBatchUpdating(enabled ? 'enable' : 'disable');
+      try {
+        await Promise.all(
+          targetRows.map((row) =>
+            adminCommercialService.updateAiProviderInstanceModel({
+              data: { enabled },
+              instanceId,
+              modelId: row.modelId,
+              modelType: row.modelType,
+            }),
+          ),
+        );
+        message.success(
+          enabled
+            ? t('admin.providers.models.enableAllSuccess', '已启用当前类型模型')
+            : t('admin.providers.models.disableAllSuccess', '已禁用当前类型模型'),
+        );
+        await refreshModels();
+      } catch {
+        message.error(t('admin.providers.models.batchToggleFailed', '批量更新模型失败'));
+      } finally {
+        setBatchUpdating(null);
       }
     };
 
@@ -383,7 +420,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         modelId: row.modelId,
         modelType: row.modelType,
       });
-      await mutate(swrKey);
+      await refreshModels();
     };
 
     const handleRename = async (row: ModelRow, displayName: string) => {
@@ -393,7 +430,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         modelId: row.modelId,
         modelType: row.modelType,
       });
-      await mutate(swrKey);
+      await refreshModels();
     };
 
     const handleDelete = async (row: ModelRow) => {
@@ -402,7 +439,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         modelId: row.modelId,
         modelType: row.modelType,
       });
-      await mutate(swrKey);
+      await refreshModels();
     };
 
     const columns = [
@@ -482,14 +519,34 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         {!isLoading && items.length === 0 ? (
           <Empty description={t('admin.providers.models.empty', '该类型暂无模型')} />
         ) : (
-          <Table
-            columns={columns as any}
-            dataSource={items}
-            loading={isLoading}
-            pagination={false}
-            rowKey={(r: ModelRow) => `${r.modelId}__${r.modelType}`}
-            size="small"
-          />
+          <Flexbox gap={8}>
+            <Flexbox horizontal gap={8} justify="flex-end">
+              <Button
+                disabled={!items.some((item) => !item.enabled)}
+                loading={batchUpdating === 'enable'}
+                size="small"
+                onClick={() => handleBatchToggle(true)}
+              >
+                {t('admin.providers.models.enableAll', '启用当前类型')}
+              </Button>
+              <Button
+                disabled={!items.some((item) => item.enabled)}
+                loading={batchUpdating === 'disable'}
+                size="small"
+                onClick={() => handleBatchToggle(false)}
+              >
+                {t('admin.providers.models.disableAll', '禁用当前类型')}
+              </Button>
+            </Flexbox>
+            <Table
+              columns={columns as any}
+              dataSource={items}
+              loading={isLoading}
+              pagination={false}
+              rowKey={(r: ModelRow) => `${r.modelId}__${r.modelType}`}
+              size="small"
+            />
+          </Flexbox>
         )}
       </Flexbox>
     );
@@ -537,6 +594,7 @@ ModelsDrawer.displayName = 'ModelsDrawer';
 
 const AdminProvidersPage = memo(() => {
   const { t } = useTranslation('subscription');
+  const refreshAiProviderRuntimeState = useAiInfraStore((s) => s.refreshAiProviderRuntimeState);
   const { data, isLoading } = useClientDataSWR(INSTANCES_KEY, () =>
     adminCommercialService.listAiProviderInstances(),
   );
@@ -597,6 +655,7 @@ const AdminProvidersPage = memo(() => {
         }),
       );
       await Promise.all(MODEL_TYPES.map((type) => mutate(modelsKey(row.id, type))));
+      await refreshAiProviderRuntimeState();
     } catch (error) {
       message.error(
         t('admin.providers.sync.failed', '同步失败：{{error}}', {

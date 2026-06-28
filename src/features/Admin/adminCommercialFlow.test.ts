@@ -71,7 +71,9 @@ describe('admin commercial flow pages', () => {
 
   it('lets admin configure public recommendation section titles', () => {
     const appSettings = readRepoFile('src/server/services/appSettings/index.ts');
-    const settingsRouter = readRepoFile('packages/business-server/src/lambda-routers/admin/settings.ts');
+    const settingsRouter = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/settings.ts',
+    );
     const adminRecommendations = readRepoFile('src/features/Admin/AdminRecommendationsPage.tsx');
     const publicRecommendations = readRepoFile('src/features/CommunityRecommendations/index.tsx');
 
@@ -118,8 +120,8 @@ describe('admin commercial flow pages', () => {
     expect(providersPage).not.toContain('NewAPI 支持同步模型和价格');
     expect(matrixPage).toContain('暂无已启用的服务商模型');
     expect(providersPage).toContain('配置多个服务商上游实例');
-    expect(settingsPage).toContain('使用服务商网关时填写对应供应商标识');
-    expect(settingsPage).toContain('选择或输入服务商标识');
+    expect(settingsPage).toContain('默认模型请到“模型与计费矩阵”');
+    expect(matrixPage).toContain('默认模型健康检查');
   });
 
   it('uses provider-neutral i18n keys for the admin provider page', () => {
@@ -167,6 +169,17 @@ describe('admin commercial flow pages', () => {
     }
   });
 
+  it('refreshes frontend provider runtime state after admin provider model changes', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+
+    expect(providersPage).toContain("import { useAiInfraStore } from '@/store/aiInfra'");
+    expect(providersPage).toContain('refreshAiProviderRuntimeState');
+    expect(providersPage).toContain('const handleBatchToggle = async (enabled: boolean)');
+    expect(providersPage).toContain("t('admin.providers.models.enableAll'");
+    expect(providersPage).toContain("t('admin.providers.models.disableAll'");
+    expect(providersPage.match(/await refreshModels\(\);/g)?.length).toBeGreaterThanOrEqual(4);
+  });
+
   it('uses AI service provider model helpers in shared model billing surfaces', () => {
     const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
     const service = readRepoFile('src/services/adminCommercial.ts');
@@ -174,6 +187,50 @@ describe('admin commercial flow pages', () => {
     expect(service).toContain('listAllEnabledAiProviderModels');
     expect(matrixPage).toContain('adminCommercialService.listAllEnabledAiProviderModels');
     expect(matrixPage).not.toContain('adminCommercialService.listAllEnabledNewapiModels');
+  });
+
+  it('surfaces AI service model access and billing health in the matrix page', () => {
+    const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
+    const matrixLogic = readRepoFile('src/features/Admin/adminModelBillingMatrix.ts');
+
+    expect(matrixLogic).toContain('getMatrixConfigHealth');
+    expect(matrixLogic).toContain('plans-without-models');
+    expect(matrixLogic).toContain('blocked-models');
+    expect(matrixLogic).toContain('pricing-fallbacks');
+    expect(matrixLogic).toContain('getMatrixConfigHealthFocus');
+    expect(matrixPage).toContain('AI service health check');
+    expect(matrixPage).toContain('configHealth.summary.modelCount');
+    expect(matrixPage).toContain('configHealth.checks.map');
+    expect(matrixPage).toContain('focusedHealthCheckKey');
+    expect(matrixPage).toContain('handleFocusConfigHealthCheck');
+    expect(matrixPage).toContain('显示全部');
+  });
+
+  it('keeps plan model access visible but editable only through the shared matrix', () => {
+    const plansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
+    const planRules = readRepoFile('src/features/Admin/adminPlanModelRules.ts');
+
+    expect(plansPage).toContain('getPlanModelRulesSummaryInfo');
+    expect(plansPage).toContain('ADMIN_PLAN_MODEL_MATRIX_PATH');
+    expect(plansPage).toContain('白名单 {summary.allowlistTypeCount}');
+    expect(plansPage).toContain('黑名单 {summary.blocklistTypeCount}');
+    expect(planRules).toContain('默认开放全部已启用模型');
+    expect(planRules).toContain('allowlistEntryCount');
+    expect(planRules).toContain('blocklistEntryCount');
+    expect(plansPage).not.toContain('setPlanModelRules');
+  });
+
+  it('keeps the public plans page aligned with dynamic matrix model billing', () => {
+    const publicPlansPage = readRepoFile('src/business/client/BusinessSettingPages/Plans.tsx');
+
+    expect(publicPlansPage).toContain('getModelAccessSummary');
+    expect(publicPlansPage).toContain('默认开放全部已启用模型');
+    expect(publicPlansPage).toContain('模型与计费矩阵');
+    expect(publicPlansPage).toContain('模型价格随后台配置动态生效');
+    expect(publicPlansPage).not.toContain('MODEL_MESSAGE_ESTIMATES');
+    expect(publicPlansPage).not.toContain('MODEL_PRICE_ROWS');
+    expect(publicPlansPage).not.toContain('DeepSeek V4 Pro');
+    expect(publicPlansPage).not.toContain('GPT-5.5');
   });
 
   it('uses provider-neutral file names for the admin provider page', () => {
@@ -283,7 +340,9 @@ describe('admin commercial flow pages', () => {
     const bulkActionFlow = readRepoFile('src/features/Admin/AdminBulkActionFlow.tsx');
     const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
 
-    expect(bulkActionFlow).toContain("type AdminBulkActionFlowStep = 'confirm' | 'progress' | 'done' | 'error'");
+    expect(bulkActionFlow).toContain(
+      "type AdminBulkActionFlowStep = 'confirm' | 'progress' | 'done' | 'error'",
+    );
     expect(bulkActionFlow).toContain("closable={step !== 'progress'}");
     expect(bulkActionFlow).toContain("maskClosable={step !== 'progress'}");
     expect(bulkActionFlow).toContain('NeuralNetworkLoading');
@@ -294,8 +353,12 @@ describe('admin commercial flow pages', () => {
     expect(redemptionPage).toContain('actionId="redemption.bulkDelete"');
     expect(redemptionPage).toContain('summary={formatBulkDisableResult}');
     expect(redemptionPage).toContain('summary={formatBulkDeleteResult}');
-    expect(redemptionPage).not.toContain('message.success(\n        t(\'admin.redemption.bulkDisableDone\'');
-    expect(redemptionPage).not.toContain('message.success(\n        t(\'admin.redemption.bulkDeleteDone\'');
+    expect(redemptionPage).not.toContain(
+      "message.success(\n        t('admin.redemption.bulkDisableDone'",
+    );
+    expect(redemptionPage).not.toContain(
+      "message.success(\n        t('admin.redemption.bulkDeleteDone'",
+    );
   });
 
   it('uses a modal state machine for change request bulk operations', () => {
@@ -307,7 +370,7 @@ describe('admin commercial flow pages', () => {
     expect(changeRequestsPage).toContain('actionId="subscription.changeRequest.bulkReject"');
     expect(changeRequestsPage).toContain('summary={formatBulkApproveChangeRequestResult}');
     expect(changeRequestsPage).toContain('summary={formatBulkRejectChangeRequestResult}');
-    expect(changeRequestsPage).toContain("progressDescription={t(");
+    expect(changeRequestsPage).toContain('progressDescription={t(');
     expect(changeRequestsPage).toContain("'admin.changeRequests.bulkApproveProgress'");
     expect(changeRequestsPage).toContain("'admin.changeRequests.bulkRejectProgress'");
     expect(changeRequestsPage).not.toContain('bulkRunning');

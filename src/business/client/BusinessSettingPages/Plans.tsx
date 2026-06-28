@@ -2,7 +2,7 @@
 
 import { Plans as SubscriptionPlan } from '@lobechat/types';
 import { Flexbox, Icon, Segmented } from '@lobehub/ui';
-import { Alert, Button, Empty, Input, message, Modal, Skeleton, Table, Tag, Tooltip } from 'antd';
+import { Alert, Button, Input, message, Modal, Skeleton, Tag, Tooltip } from 'antd';
 import { createStyles, cssVar } from 'antd-style';
 import { Check, ChevronRight, Info, LockKeyhole, Sparkles, Ticket } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
@@ -18,7 +18,6 @@ import { commercialService } from '@/services/commercial';
 import { getPlanPurchaseUrl } from './planPurchase';
 import { formatPlanCurrencyAmount, getVisiblePaidPlans } from './plansDisplay';
 import {
-  formatBusinessNumber,
   formatCredits,
   getSubscriptionCycleTranslationKey,
   subscriptionPageStyles,
@@ -65,22 +64,6 @@ const FEATURE_GROUPS = [
     items: ['精选智能体市场', '专属高级插件', '智能网页搜索'],
     title: '高级功能',
   },
-];
-
-const MODEL_MESSAGE_ESTIMATES = [
-  { divisor: 141, model: 'DeepSeek V4 Pro' },
-  { divisor: 16_666, model: 'Claude Sonnet 4.6' },
-  { divisor: 12_500, model: 'Gemini 3.1 Pro Preview' },
-  { divisor: 30_000, model: 'GPT-5.5' },
-];
-
-const MODEL_PRICE_ROWS = [
-  { input: '0.044M', model: 'DeepSeek V4 Pro (1M)', output: '0.087M' },
-  { input: '3M', model: 'Claude Sonnet 4.6 (1M)', output: '15M' },
-  { input: '2M', model: 'Gemini 3.1 Pro Preview (1M)', output: '12M' },
-  { input: '5M', model: 'GPT-5.5 (1M)', output: '30M' },
-  { input: '0.75M', model: 'GPT-5.4 mini (400K)', output: '4.5M' },
-  { input: '0.25M', model: 'GPT-5 mini (400K)', output: '2M' },
 ];
 
 type BillingCycle = 'yearly' | 'monthly' | 'one_time';
@@ -276,10 +259,27 @@ const getRuleCount = (rule?: ModelRule) => {
   return rule.mode === 'blocklist' ? rule.blocklist?.length || 0 : rule.allowlist?.length || 0;
 };
 
-const formatEstimatedMessages = (monthlyCredits: number, divisor: number) => {
-  if (monthlyCredits <= 0) return '约 0 条消息';
+const getModelAccessSummary = (rules: Record<string, ModelRule>) => {
+  const entries = Object.entries(rules).filter(([, rule]) => Boolean(rule));
+  const allowlistEntries = entries.filter(([, rule]) => rule?.mode !== 'blocklist');
+  const blocklistEntries = entries.filter(([, rule]) => rule?.mode === 'blocklist');
 
-  return `约 ${formatBusinessNumber(Math.max(1, Math.floor(monthlyCredits / divisor)))} 条消息`;
+  if (entries.length === 0) {
+    return {
+      entries,
+      label: '默认开放全部已启用模型',
+    };
+  }
+
+  return {
+    entries,
+    label: [
+      allowlistEntries.length > 0 ? `白名单 ${allowlistEntries.length} 类` : null,
+      blocklistEntries.length > 0 ? `黑名单 ${blocklistEntries.length} 类` : null,
+    ]
+      .filter(Boolean)
+      .join(' / '),
+  };
 };
 
 const Plans = memo<{ mobile?: boolean }>(() => {
@@ -449,9 +449,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
               const isPending = pendingChangeRequest?.toPlan === plan;
               const isPopular = plan === SubscriptionPlan.Premium;
               const modelRules = (catalogPlan?.modelRules || {}) as Record<string, ModelRule>;
-              const modelRuleEntries = Object.entries(modelRules).filter(([, rule]) =>
-                Boolean(rule),
-              );
+              const modelAccessSummary = getModelAccessSummary(modelRules);
 
               return (
                 <Card
@@ -537,16 +535,14 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                           <Icon className={styles.benefitIcon} icon={Check} size={15} />
                           <span>{formatCredits(monthlyCredits)} / 每月</span>
                         </div>
-                        {MODEL_MESSAGE_ESTIMATES.map((item) => (
-                          <div className={styles.benefit} key={item.model}>
-                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                            <span>
-                              {item.model}
-                              <br />
-                              {formatEstimatedMessages(monthlyCredits, item.divisor)}
-                            </span>
-                          </div>
-                        ))}
+                        <div className={styles.benefit}>
+                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                          <span>实际可用模型和消耗以后台“模型与计费矩阵”为准</span>
+                        </div>
+                        <div className={styles.benefit}>
+                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                          <span>模型倍率、每美元积分和套餐权限会随管理员配置实时生效</span>
+                        </div>
                       </Flexbox>
                       <Flexbox className={styles.featureGroup} gap={10}>
                         <div className={styles.sectionTitle}>后台配置权益</div>
@@ -580,9 +576,13 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                             <Icon icon={Info} size={14} />
                           </Tooltip>
                         </div>
-                        {modelRuleEntries.length > 0 ? (
+                        <div className={styles.benefit}>
+                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                          <span>{modelAccessSummary.label}</span>
+                        </div>
+                        {modelAccessSummary.entries.length > 0 ? (
                           <Flexbox horizontal gap={6} wrap="wrap">
-                            {modelRuleEntries.map(([type, rule]) => (
+                            {modelAccessSummary.entries.map(([type, rule]) => (
                               <Tag className={styles.modelTag} key={type}>
                                 {MODEL_TYPE_LABELS[type] || type}
                                 {' / '}
@@ -590,12 +590,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                               </Tag>
                             ))}
                           </Flexbox>
-                        ) : (
-                          <div className={styles.benefit}>
-                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                            <span>默认可用模型</span>
-                          </div>
-                        )}
+                        ) : null}
                       </Flexbox>
                     </Flexbox>
                   </Flexbox>
@@ -607,30 +602,18 @@ const Plans = memo<{ mobile?: boolean }>(() => {
         <Card className={styles.pricingCard} variant="borderless">
           <Flexbox gap={12}>
             <Flexbox gap={4}>
-              <h2 className={styles.title}>文本模型价格</h2>
+              <h2 className={styles.title}>模型计费说明</h2>
               <div className={subscriptionPageStyles.caption}>
-                平台使用算力积分衡量 AI 模型使用量。下表显示每百万 Token 的参考消耗。
+                平台使用算力积分衡量 AI
+                模型使用量。具体模型、倍率和可用套餐由后台“模型与计费矩阵”统一维护，新增 AI
+                服务商或模型后会按后台配置生效。
               </div>
             </Flexbox>
-            <Table
-              dataSource={MODEL_PRICE_ROWS}
-              locale={{ emptyText: <Empty description="暂无价格数据" /> }}
-              pagination={false}
-              rowKey="model"
-              size="small"
-              columns={[
-                { dataIndex: 'model', title: '模型' },
-                {
-                  dataIndex: 'input',
-                  render: (value: number) => `${value} 算力积分`,
-                  title: '输入 1M Tokens',
-                },
-                {
-                  dataIndex: 'output',
-                  render: (value: number) => `${value} 算力积分`,
-                  title: '输出 1M Tokens',
-                },
-              ]}
+            <Alert
+              showIcon
+              message="模型价格随后台配置动态生效"
+              type="info"
+              description="套餐页只展示用户可理解的权益摘要；具体模型计费、服务商分组、默认模型和套餐开放范围以管理员后台配置为准。"
             />
           </Flexbox>
         </Card>

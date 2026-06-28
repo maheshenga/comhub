@@ -29,6 +29,10 @@ vi.mock('@/config/klavis', () => ({
   klavisEnv: { KLAVIS_API_KEY: '' },
 }));
 
+vi.mock('@/config/composio', () => ({
+  composioEnv: { COMPOSIO_API_KEY: '' },
+}));
+
 vi.mock('@/const/version', () => ({
   isDesktop: false,
 }));
@@ -104,6 +108,7 @@ vi.mock('@/server/services/appSettings', () => ({
 
 vi.mock('@/server/services/newapiInstance', () => ({
   getAllEnabledModels: mocks.getAllEnabledModels,
+  toAiModelType: vi.fn((type: string) => (type === 'stt' ? 'asr' : type)),
 }));
 
 vi.mock('./genServerAiProviderConfig', () => ({
@@ -243,14 +248,33 @@ describe('getServerGlobalConfig business newapi model injection', () => {
 
   it('uses only enabled NewAPI instance models for provider injection', async () => {
     mocks.getAllEnabledModels.mockResolvedValue([
-      { id: 'gpt-4o-mini', type: 'chat', displayName: null },
+      {
+        displayName: null,
+        groupKey: 'pro',
+        groupName: 'Pro',
+        id: 'gpt-4o-mini',
+        instanceId: 'instance-pro',
+        instanceName: 'Pro Gateway',
+        providerType: 'deepseek',
+        type: 'chat',
+      },
     ]);
 
     const result = await getServerGlobalConfig({} as any);
 
     expect(result.aiProvider.newapi!.enabledModels).toEqual(['gpt-4o-mini']);
     expect(result.aiProvider.newapi!.serverModelLists).toEqual([
-      { displayName: 'gpt-4o-mini', enabled: true, id: 'gpt-4o-mini', type: 'chat' },
+      {
+        displayName: 'gpt-4o-mini',
+        enabled: true,
+        groupKey: 'pro',
+        groupName: 'Pro',
+        id: 'gpt-4o-mini',
+        instanceId: 'instance-pro',
+        instanceName: 'Pro Gateway',
+        providerType: 'deepseek',
+        type: 'chat',
+      },
     ]);
   });
 
