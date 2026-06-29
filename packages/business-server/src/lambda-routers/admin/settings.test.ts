@@ -13,7 +13,11 @@ import { getAllEnabledModels } from '@/server/services/newapiInstance';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
-import { adminSettingsRouter, validateDefaultAgentModelUsability } from './settings';
+import {
+  adminSettingsRouter,
+  buildUserGlobalSettingsSyncValues,
+  validateDefaultAgentModelUsability,
+} from './settings';
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
@@ -514,6 +518,95 @@ describe('admin settings default model validation', () => {
       value: 'BAAI/bge-m3',
     });
     expect(recordAdminAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('builds a safe user settings sync payload from global defaults', () => {
+    expect(
+      buildUserGlobalSettingsSyncValues({
+        defaultAgent: { config: { model: 'gpt-5.5', provider: 'newapi' } },
+        general: { language: 'zh-CN' },
+        keyVaults: { openai: { apiKey: 'must-not-sync' } },
+        languageModel: { newapi: { enabled: true } },
+        systemAgent: {
+          inputCompletion: {
+            enabled: true,
+            model: 'gpt-5.5-mini',
+            provider: 'newapi',
+          },
+        },
+      }),
+    ).toEqual({
+      defaultAgent: { config: { model: 'gpt-5.5', provider: 'newapi' } },
+      general: { language: 'zh-CN' },
+      languageModel: { newapi: { enabled: true } },
+      systemAgent: {
+        inputCompletion: {
+          enabled: true,
+          model: 'gpt-5.5-mini',
+          provider: 'newapi',
+        },
+      },
+    });
+  });
+
+  it('syncs saved user global defaults into all user settings rows', async () => {
+    const defaults = {
+      languageModel: { newapi: { enabled: true } },
+      systemAgent: {
+        inputCompletion: {
+          enabled: true,
+          model: 'gpt-5.5-mini',
+          provider: 'newapi',
+        },
+      },
+      tool: { uninstalledBuiltinTools: ['web-browsing'] },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const db = {
+      insert,
+      query: {
+        appSettings: {
+          findFirst: vi.fn().mockResolvedValue({ value: defaults }),
+        },
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn().mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]),
+      })),
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.syncUserGlobalSettingsDefaultsToUsers();
+
+    expect(result).toEqual({
+      ok: true,
+      syncedFields: ['languageModel', 'systemAgent', 'tool'],
+      syncedUsers: 2,
+    });
+    expect(values).toHaveBeenCalledWith([
+      { id: 'user-1', ...defaults },
+      { id: 'user-2', ...defaults },
+    ]);
+    expect(onConflictDoUpdate).toHaveBeenCalledWith({
+      set: defaults,
+      target: expect.anything(),
+    });
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'settings.syncUserDefaults',
+        payload: {
+          syncedFields: ['languageModel', 'systemAgent', 'tool'],
+          syncedUsers: 2,
+        },
+        resourceType: 'user_settings',
+      }),
+    );
   });
 
   it('rejects a NewAPI memory embedding model when the enabled route is not embedding type', async () => {

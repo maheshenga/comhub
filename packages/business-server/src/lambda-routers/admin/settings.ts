@@ -21,6 +21,8 @@ import {
   notifications,
   planCatalog,
   topUpOrders,
+  users,
+  userSettings,
 } from '@/database/schemas';
 import { type LobeChatDatabase, type Transaction } from '@/database/type';
 import { adminProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
@@ -199,6 +201,20 @@ const VECTOR_KEYS = [
 ] as const;
 
 const USER_GLOBAL_KEYS = [SETTING_KEYS.userGlobalSettingsDefaults] as const;
+const USER_SETTINGS_SYNC_BATCH_SIZE = 500;
+const USER_SETTINGS_SYNC_KEYS = [
+  'defaultAgent',
+  'general',
+  'hotkey',
+  'image',
+  'languageModel',
+  'market',
+  'memory',
+  'notification',
+  'systemAgent',
+  'tool',
+  'tts',
+] as const;
 
 const EXPERT_PLAZA_KEYS = [
   SETTING_KEYS.expertPlazaEnabled,
@@ -389,6 +405,7 @@ type NormalizedSettingUpdate = SettingUpdateInput & {
   hasValue: boolean;
   isSensitive: boolean;
 };
+type UserSettingsSyncValues = Partial<typeof userSettings.$inferInsert>;
 
 const appSettingUpdateInputSchema = z.object({
   key: z.enum(WRITABLE_SETTING_KEYS),
@@ -397,6 +414,22 @@ const appSettingUpdateInputSchema = z.object({
 
 const settingDraftString = (settings: AppSettingDraft, key: string) =>
   typeof settings[key] === 'string' ? (settings[key] as string).trim() : '';
+
+export const buildUserGlobalSettingsSyncValues = (defaults: unknown): UserSettingsSyncValues => {
+  if (!defaults || typeof defaults !== 'object' || Array.isArray(defaults)) return {};
+
+  const source = defaults as Record<string, unknown>;
+  const values: UserSettingsSyncValues = {};
+
+  // Do not sync keyVaults: those are per-user encrypted secrets, not platform defaults.
+  for (const key of USER_SETTINGS_SYNC_KEYS) {
+    if (Object.hasOwn(source, key) && source[key] !== undefined) {
+      values[key] = source[key] as never;
+    }
+  }
+
+  return values;
+};
 
 const getDefaultModelValidationTarget = (key: string): ModelValidationTarget | undefined => {
   if (key === SETTING_KEYS.defaultImageModel || key === SETTING_KEYS.defaultImageProvider) {
@@ -718,6 +751,35 @@ const upsertAppSetting = async (
       set: { updatedAt: new Date(), value: update.value as any },
       target: appSettings.key,
     });
+};
+
+export const syncUserGlobalSettingsDefaultsToUserSettings = async (
+  db: LobeChatDatabase,
+  defaults: unknown,
+) => {
+  const syncValues = buildUserGlobalSettingsSyncValues(defaults);
+  const syncedFields = Object.keys(syncValues).filter((key) => key !== 'id');
+
+  if (syncedFields.length === 0) return { syncedFields, syncedUsers: 0 };
+
+  const userRows = await db.select({ id: users.id }).from(users);
+  let syncedUsers = 0;
+
+  for (let index = 0; index < userRows.length; index += USER_SETTINGS_SYNC_BATCH_SIZE) {
+    const batch = userRows.slice(index, index + USER_SETTINGS_SYNC_BATCH_SIZE);
+    if (batch.length === 0) continue;
+
+    await db
+      .insert(userSettings)
+      .values(batch.map((user) => ({ id: user.id, ...syncValues })))
+      .onConflictDoUpdate({
+        set: syncValues,
+        target: userSettings.id,
+      });
+    syncedUsers += batch.length;
+  }
+
+  return { syncedFields, syncedUsers };
 };
 
 const validateDefaultModelUpdates = async (
@@ -1653,6 +1715,20 @@ export const adminSettingsRouter = router({
 
       return { count: updates.length, ok: true };
     }),
+
+  syncUserGlobalSettingsDefaultsToUsers: adminProcedure.mutation(async ({ ctx }) => {
+    const defaults = await readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults);
+    const result = await syncUserGlobalSettingsDefaultsToUserSettings(ctx.serverDB, defaults);
+
+    await recordAdminAudit(ctx, {
+      action: 'settings.syncUserDefaults',
+      payload: result,
+      resourceId: SETTING_KEYS.userGlobalSettingsDefaults,
+      resourceType: 'user_settings',
+    });
+
+    return { ok: true, ...result };
+  }),
 
   testS3Storage: adminProcedure.mutation(async ({ ctx }) => {
     const config = await getServerFileS3Config(ctx.serverDB);

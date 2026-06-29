@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   message,
+  Modal,
   Select,
   Space,
   Switch,
@@ -22,6 +23,7 @@ import {
   PROFILE_INTEREST_AREAS_SWR_KEY,
   PROFILE_OPTIONS_SWR_KEY,
   RUNTIME_CONFIG_SWR_KEY,
+  USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
 import { type AvatarPreset, DEFAULT_AVATAR_PRESETS } from '@/const/avatarPresets';
 import { buildModelOptions } from '@/features/Admin/adminSettingsForm';
@@ -166,6 +168,7 @@ const applyModelValue = (target: Record<string, any>, key: string, value?: strin
 const AdminSystemDefaultsPage = memo(() => {
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
   );
@@ -232,8 +235,9 @@ const AdminSystemDefaultsPage = memo(() => {
     });
   }, [data, form]);
 
-  const handleSave = async () => {
+  const handleSave = async ({ syncToUsers = false }: { syncToUsers?: boolean } = {}) => {
     setSubmitting(true);
+    if (syncToUsers) setSyncing(true);
     try {
       const values = await form.validateFields();
       const userGlobalSettings = parseJsonObject(values.userGlobalSettingsJson);
@@ -399,6 +403,14 @@ const AdminSystemDefaultsPage = memo(() => {
       await mutate(RUNTIME_CONFIG_SWR_KEY);
       await mutate(PROFILE_INTEREST_AREAS_SWR_KEY);
       await mutate(PROFILE_OPTIONS_SWR_KEY);
+      if (syncToUsers) {
+        const result = await adminCommercialService.syncUserGlobalSettingsDefaultsToUsers();
+        await mutate(USER_STATE_SWR_KEY);
+        message.success(
+          `全局默认设置已保存，并已同步 ${result.syncedUsers} 个用户的 ${result.syncedFields.length} 个设置分类`,
+        );
+        return;
+      }
       message.success('全局默认设置已保存');
     } catch (error) {
       message.error(
@@ -406,6 +418,7 @@ const AdminSystemDefaultsPage = memo(() => {
       );
     } finally {
       setSubmitting(false);
+      setSyncing(false);
     }
   };
 
@@ -784,9 +797,28 @@ const AdminSystemDefaultsPage = memo(() => {
             </Form.List>
           </Card>
 
-          <Button loading={submitting} type="primary" onClick={handleSave}>
-            保存设置
-          </Button>
+          <Flexbox horizontal gap={8} wrap="wrap">
+            <Button loading={submitting && !syncing} type="primary" onClick={() => handleSave()}>
+              保存设置
+            </Button>
+            <Button
+              danger
+              loading={syncing}
+              onClick={() => {
+                Modal.confirm({
+                  cancelText: '取消',
+                  content:
+                    '这会先保存当前后台默认值，然后覆盖同步到所有现有用户的对应设置分类。用户之后仍可自行修改；下次后台同步会再次覆盖。',
+                  okButtonProps: { danger: true },
+                  okText: '保存并同步',
+                  title: '同步后台默认值到用户设置？',
+                  onOk: () => handleSave({ syncToUsers: true }),
+                });
+              }}
+            >
+              保存并同步到用户设置
+            </Button>
+          </Flexbox>
         </Space>
       </Form>
     </Flexbox>
