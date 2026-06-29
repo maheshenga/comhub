@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import InputEditor from './index';
@@ -100,11 +101,14 @@ vi.mock('@lobehub/editor/react', () => {
 
   return {
     Editor,
-    FloatMenu: vi.fn(() => null),
     useEditorState: vi.fn(() => ({ isEmpty: true })),
   };
 });
-vi.mock('@lobehub/ui', () => ({ combineKeys: vi.fn(() => 'alt+enter') }));
+vi.mock('@lobehub/ui', () => ({
+  Block: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  combineKeys: vi.fn(() => 'alt+enter'),
+  Flexbox: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+}));
 vi.mock('fuse.js', () => ({
   default: class Fuse {
     search() {

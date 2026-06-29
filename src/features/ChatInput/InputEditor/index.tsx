@@ -10,12 +10,13 @@ import {
 import { isCommandPressed } from '@lobechat/utils';
 import type { IEditor } from '@lobehub/editor';
 import { INSERT_MENTION_COMMAND, ReactAutoCompletePlugin, ReactMathPlugin } from '@lobehub/editor';
-import { Editor, FloatMenu, useEditorState } from '@lobehub/editor/react';
-import { combineKeys } from '@lobehub/ui';
+import { Editor, useEditorState } from '@lobehub/editor/react';
+import { Block, combineKeys, Flexbox } from '@lobehub/ui';
 import { css, cx } from 'antd-style';
 import Fuse from 'fuse.js';
 import { KEY_ESCAPE_COMMAND } from 'lexical';
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useHotkeysContext } from 'react-hotkeys-hook';
 
 import { usePasteFile, useUploadFiles } from '@/components/DragUploadZone';
@@ -59,6 +60,46 @@ const className = cx(
   `,
   mentionFilledClassName,
 );
+
+const mathFloatMenuClassName = {
+  container: css`
+    position: relative;
+    overflow: hidden auto;
+  `,
+  rootTop: css`
+    position: absolute;
+    z-index: 9999;
+    inset-block-start: -8px;
+    inset-inline-start: 0;
+    transform: translateY(-100%);
+  `,
+};
+
+const MathFloatMenu = ({
+  children,
+  open,
+  parent,
+}: {
+  children: ReactNode;
+  open?: boolean;
+  parent?: HTMLElement | null;
+}) => {
+  if (!parent || !open) return null;
+
+  return createPortal(
+    <Flexbox className={cx(mathFloatMenuClassName.rootTop)} paddingInline={8} width="100%">
+      <Block
+        className={cx(mathFloatMenuClassName.container)}
+        shadow
+        style={{ maxHeight: 'min(50vh, 640px)' }}
+        variant="outlined"
+      >
+        {children}
+      </Block>
+    </Flexbox>,
+    parent,
+  );
+};
 
 const InputEditor = memo<{
   defaultRows?: number;
@@ -426,14 +467,16 @@ const InputEditor = memo<{
       ? CHAT_INPUT_EMBED_PLUGINS
       : createChatInputRichPlugins({
           linkPlugin: false,
-          mathPlugin: Editor.withProps(ReactMathPlugin, {
-            renderComp: expand
-              ? undefined
-              : (props) => (
-                  <FloatMenu {...props} getPopupContainer={() => (slashMenuRef as any)?.current} />
-                ),
-          }),
-        });
+            mathPlugin: Editor.withProps(ReactMathPlugin, {
+              renderComp: expand
+                ? undefined
+                : (props) => (
+                    <MathFloatMenu open={props.open} parent={(slashMenuRef as any)?.current}>
+                      {props.children}
+                    </MathFloatMenu>
+                  ),
+            }),
+          });
 
     const plugins = autoCompletePlugin ? [...basePlugins, autoCompletePlugin] : basePlugins;
 
