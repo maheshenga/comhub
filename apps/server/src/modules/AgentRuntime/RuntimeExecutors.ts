@@ -74,7 +74,6 @@ import { sanitizeToolCallArguments, serializePartsForStorage } from '@lobechat/u
 import debug from 'debug';
 import { type ExtendParamsType, ModelProvider } from 'model-bank';
 
-import { composioEnv } from '@/config/composio';
 import { type MessageModel, MessageModel as MessageModelClass } from '@/database/models/message';
 import { TopicModel } from '@/database/models/topic';
 import { UserModel } from '@/database/models/user';
@@ -98,6 +97,7 @@ import {
 import { FileService } from '@/server/services/file';
 import { MessageService } from '@/server/services/message';
 import { OnboardingService } from '@/server/services/onboarding';
+import { getServerComposioConfig } from '@/server/services/appSettings';
 import {
   type ServerAgentMemberRunner,
   type ServerSubAgentRunner,
@@ -1193,7 +1193,10 @@ export const createRuntimeExecutors = (
 
         // {{COMPOSIO_SERVICES_LIST}} — used by lobe-creds system role (Composio integrations section).
         let composioServicesListStr = '';
-        if (ctx.serverDB && ctx.userId && !!composioEnv.COMPOSIO_API_KEY) {
+        const composioConfig = ctx.serverDB
+          ? await getServerComposioConfig(ctx.serverDB)
+          : undefined;
+        if (ctx.serverDB && ctx.userId && composioConfig?.enabled && composioConfig.apiKey) {
           try {
             const { PluginModel } = await import('@/database/models/plugin');
             const pluginModel = new PluginModel(ctx.serverDB, ctx.userId, ctx.workspaceId);

@@ -32,6 +32,17 @@ export const getServerComposioApiKey = (): string | undefined => {
   return composioEnv.COMPOSIO_API_KEY;
 };
 
+export const getServerComposioEnabled = (): boolean | undefined => {
+  if (typeof window !== 'undefined') return undefined;
+
+  const value = process.env.COMPOSIO_ENABLED;
+  if (!value) return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+};
+
 /**
  * Resolve a pre-configured Composio auth config id for the given toolkit
  * identifier (e.g. 'gmail'). Returns undefined when no pin is configured, in

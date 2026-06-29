@@ -2,18 +2,34 @@ import { type ToolManifest } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { getServerComposioAuthConfigId } from '@/config/composio';
 import { PluginModel } from '@/database/models/plugin';
 import { getComposioClient } from '@/libs/composio';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
+import { getServerComposioConfig } from '@/server/services/appSettings';
 
-const composioProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
-  const client = getComposioClient();
+const composioPluginProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
   const pluginModel = new PluginModel(opts.ctx.serverDB, opts.ctx.userId);
 
   return opts.next({
-    ctx: { ...opts.ctx, composioClient: client, pluginModel },
+    ctx: { ...opts.ctx, pluginModel },
+  });
+});
+
+const composioProcedure = composioPluginProcedure.use(async (opts) => {
+  const config = await getServerComposioConfig(opts.ctx.serverDB);
+
+  if (!config.enabled || !config.apiKey) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: 'COMPOSIO_NOT_CONFIGURED',
+    });
+  }
+
+  const client = await getComposioClient(opts.ctx.serverDB);
+
+  return opts.next({
+    ctx: { ...opts.ctx, composioClient: client },
   });
 });
 
@@ -36,7 +52,17 @@ export const composioRouter = router({
       // created in the Composio dashboard), pinned per toolkit via env. Falls
       // back to discovering an existing config for this toolkit, and finally to
       // auto-creating a Composio-managed one.
-      let authConfigId = getServerComposioAuthConfigId(identifier);
+      const composioConfig = await getServerComposioConfig(ctx.serverDB);
+      let authConfigId: string | undefined;
+
+      if (composioConfig.authConfigIds) {
+        try {
+          const authConfigIds = JSON.parse(composioConfig.authConfigIds) as Record<string, string>;
+          authConfigId = authConfigIds[identifier];
+        } catch {
+          console.error('[Composio] composio.authConfigIds is not valid JSON');
+        }
+      }
       if (!authConfigId) {
         const authConfigs = await (ctx.composioClient.authConfigs as any).list();
         let authConfig = authConfigs?.items?.find(
@@ -140,7 +166,7 @@ export const composioRouter = router({
       return { success: true };
     }),
 
-  getComposioPlugins: composioProcedure.query(async ({ ctx }) => {
+  getComposioPlugins: composioPluginProcedure.query(async ({ ctx }) => {
     const allPlugins = await ctx.pluginModel.query();
     return allPlugins.filter((plugin) => plugin.customParams?.composio);
   }),

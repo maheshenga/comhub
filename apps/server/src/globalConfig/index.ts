@@ -3,7 +3,6 @@ import { merge } from '@lobechat/utils';
 import { type AiFullModelCard } from 'model-bank';
 import { gptImage1Schema, seedance15ProParams } from 'model-bank/lobehub';
 
-import { composioEnv } from '@/config/composio';
 import { isDesktop } from '@/const/version';
 import { type LobeChatDatabase } from '@/database/type';
 import { appEnv, getAppConfig } from '@/envs/app';
@@ -17,6 +16,7 @@ import { parseSystemAgent } from '@/server/globalConfig/parseSystemAgent';
 import {
   getServerDefaultAgentSettingOverrides,
   getServerDefaultGenerationModelSettingOverrides,
+  getServerComposioConfig,
   getServerFileS3Config,
   getServerUserGlobalSettingsDefaults,
   getServerVectorSettingOverrides,
@@ -61,6 +61,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   });
   const generationModelConfig = await getServerDefaultGenerationModelSettingOverrides(db);
   const userDefaults = await getServerUserGlobalSettingsDefaults(db);
+  const composioConfig = await getServerComposioConfig(db);
   const s3Config = await getServerFileS3Config(db);
   const aiProvider = await genServerAiProvidersConfig(
     getProviderSpecificConfig({
@@ -121,7 +122,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
     disableEmailPassword: authEnv.AUTH_DISABLE_EMAIL_PASSWORD,
     enableBusinessFeatures: ENABLE_BUSINESS_FEATURES,
     enableEmailVerification: authEnv.AUTH_EMAIL_VERIFICATION,
-    enableComposio: !!composioEnv.COMPOSIO_API_KEY,
+    enableComposio: composioConfig.enabled && Boolean(composioConfig.apiKey),
     enableGatewayMode:
       ENABLE_BUSINESS_FEATURES || (!!appEnv.ENABLE_AGENT_GATEWAY && !!appEnv.AGENT_GATEWAY_URL),
     enableLobehubSkill: !!(appEnv.MARKET_TRUSTED_CLIENT_SECRET && appEnv.MARKET_TRUSTED_CLIENT_ID),

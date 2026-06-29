@@ -34,6 +34,9 @@ const { Text, Title } = Typography;
 
 const SETTING_KEYS = {
   avatarPresets: 'profile.avatarPresets',
+  composioApiKey: 'composio.apiKey',
+  composioAuthConfigIds: 'composio.authConfigIds',
+  composioEnabled: 'composio.enabled',
   memoryUserMemoryEmbeddingModel: 'memory.userMemory.embedding.model',
   memoryUserMemoryEmbeddingProvider: 'memory.userMemory.embedding.provider',
   memoryUserMemoryGatekeeperModel: 'memory.userMemory.gatekeeper.model',
@@ -52,6 +55,10 @@ const SETTING_KEYS = {
 
 type FormValues = {
   avatarPresets: AvatarPreset[];
+  composioApiKey?: string;
+  composioAuthConfigIds?: string;
+  composioClearApiKey?: boolean;
+  composioEnabled?: boolean;
   disabledBuiltinToolsText: string;
   languageModelDefaultsJson: string;
   memoryEmbeddingModel: string;
@@ -197,10 +204,15 @@ const AdminSystemDefaultsPage = memo(() => {
 
     const memoryExtractionConfig = (data as any).memoryExtractionConfig ?? {};
     const vectorConfig = (data as any).vectorConfig ?? {};
+    const composioConfig = (data as any).composioConfig ?? {};
     const userDefaults = (data as any).userGlobalSettingsDefaults ?? {};
     const systemAgent = userDefaults.systemAgent ?? {};
     form.setFieldsValue({
       avatarPresets: (data as any).avatarPresets ?? DEFAULT_AVATAR_PRESETS,
+      composioApiKey: '',
+      composioAuthConfigIds: composioConfig.authConfigIds ?? '',
+      composioClearApiKey: false,
+      composioEnabled: composioConfig.enabled ?? false,
       disabledBuiltinToolsText: Array.isArray(userDefaults?.tool?.uninstalledBuiltinTools)
         ? userDefaults.tool.uninstalledBuiltinTools.join('\n')
         : '',
@@ -334,8 +346,23 @@ const AdminSystemDefaultsPage = memo(() => {
         },
       };
 
-      await adminCommercialService.setAppSettingsBatch({
-        updates: [
+      const updates = [
+        {
+          key: SETTING_KEYS.composioEnabled,
+          value: values.composioEnabled ?? false,
+        },
+        {
+          key: SETTING_KEYS.composioAuthConfigIds,
+          value: values.composioAuthConfigIds ?? '',
+        },
+        ...(values.composioClearApiKey || values.composioApiKey?.trim()
+          ? [
+              {
+                key: SETTING_KEYS.composioApiKey,
+                value: values.composioClearApiKey ? '' : values.composioApiKey?.trim(),
+              },
+            ]
+          : []),
           {
             key: SETTING_KEYS.vectorEmbeddingProvider,
             value: values.vectorEmbeddingProvider,
@@ -396,7 +423,10 @@ const AdminSystemDefaultsPage = memo(() => {
             key: SETTING_KEYS.avatarPresets,
             value: values.avatarPresets ?? [],
           },
-        ],
+      ];
+
+      await adminCommercialService.setAppSettingsBatch({
+        updates,
       });
 
       await mutate(ADMIN_SETTINGS_SWR_KEY);
@@ -611,6 +641,42 @@ const AdminSystemDefaultsPage = memo(() => {
                 <Input placeholder="siliconflow / newapi" />
               </Form.Item>
             </Flexbox>
+          </Card>
+
+          <Card title="Composio tool integration">
+            <Alert
+              showIcon
+              message="Configure the optional Composio connector used by AI tool integrations such as Gmail, Notion, GitHub and Slack. Leave API Key empty to keep the current key; enable Clear API Key to remove it."
+              style={{ marginBottom: 16 }}
+              type="info"
+            />
+            <Form.Item label="Enable Composio" name="composioEnabled" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              extra={(data as any)?.composioConfig?.apiKeyConfigured
+                ? `Current key: ${(data as any).composioConfig.apiKeyMasked || 'configured'}`
+                : 'No Composio API key is configured.'}
+              label="Project API Key"
+              name="composioApiKey"
+            >
+              <Input.Password autoComplete="new-password" placeholder="ak_..." />
+            </Form.Item>
+            <Form.Item
+              extra="Clear the saved API key on save. Keep this off when only changing other Composio settings."
+              label="Clear API Key"
+              name="composioClearApiKey"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              extra='Optional JSON map, for example {"gmail":"ac_xxx","github":"ac_xxx"}. Leave empty to let Composio create or discover auth configs.'
+              label="Auth Config IDs"
+              name="composioAuthConfigIds"
+            >
+              <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} placeholder='{"gmail":"ac_xxx"}' />
+            </Form.Item>
           </Card>
 
           <Card title="用户全局默认设置">

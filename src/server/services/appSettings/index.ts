@@ -38,6 +38,9 @@ export const APP_SETTING_KEYS = {
   communityHomeAnnouncementEnabled: 'community.homeAnnouncement.enabled',
   communityHomeAnnouncementTitle: 'community.homeAnnouncement.title',
   communityHomeAnnouncementType: 'community.homeAnnouncement.type',
+  composioApiKey: 'composio.apiKey',
+  composioAuthConfigIds: 'composio.authConfigIds',
+  composioEnabled: 'composio.enabled',
   cronAuditRetentionDays: 'cron.auditRetentionDays',
   cronPendingOrderExpiryDays: 'cron.pendingOrderExpiryDays',
   cronSecret: 'cron.secret',
@@ -156,6 +159,9 @@ export const APP_SETTING_KEYS = {
 } as const;
 
 const CACHED_KEYS = [
+  APP_SETTING_KEYS.composioApiKey,
+  APP_SETTING_KEYS.composioAuthConfigIds,
+  APP_SETTING_KEYS.composioEnabled,
   APP_SETTING_KEYS.defaultAgentAvatar,
   APP_SETTING_KEYS.defaultAgentModel,
   APP_SETTING_KEYS.defaultAgentName,
@@ -232,12 +238,48 @@ const normalizePositiveInt = (value: unknown, fallback: number, min: number, max
 
 const DEFAULT_S3_FILE_PATH = 'files';
 
+export type ServerComposioConfig = {
+  apiKey?: string;
+  authConfigIds?: string;
+  enabled: boolean;
+};
+
+const parseOptionalBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return undefined;
+
+  const normalized = value.trim().toLowerCase();
+
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+};
+
 export const normalizeS3FilePath = (value: unknown) => {
   const text = normalizeString(value);
 
   if (!text) return null;
 
   return text.replaceAll('\\', '/').replaceAll(/^\/+|\/+$/g, '') || null;
+};
+
+export const getServerComposioConfig = async (
+  db?: LobeChatDatabase,
+): Promise<ServerComposioConfig> => {
+  const [enabled, apiKey, authConfigIds] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.composioEnabled, db),
+    getAppSettingValue(APP_SETTING_KEYS.composioApiKey, db),
+    getAppSettingValue(APP_SETTING_KEYS.composioAuthConfigIds, db),
+  ]);
+
+  const resolvedApiKey = normalizeString(apiKey) ?? process.env.COMPOSIO_API_KEY;
+  const envEnabled = parseOptionalBoolean(process.env.COMPOSIO_ENABLED);
+  const dbEnabled = typeof enabled === 'boolean' ? enabled : undefined;
+
+  return {
+    apiKey: resolvedApiKey,
+    authConfigIds: normalizeString(authConfigIds) ?? process.env.COMPOSIO_AUTH_CONFIG_IDS,
+    enabled: dbEnabled ?? envEnabled ?? Boolean(resolvedApiKey),
+  };
 };
 
 export type ServerFileS3Config = {

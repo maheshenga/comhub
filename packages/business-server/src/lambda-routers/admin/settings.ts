@@ -99,6 +99,7 @@ const assertHttpOk = async (response: Response, code: string) => {
 };
 
 const SENSITIVE_KEYS = new Set<string>([
+  SETTING_KEYS.composioApiKey,
   SETTING_KEYS.cronSecret,
   SETTING_KEYS.desktopOssAccessKeySecret,
   SETTING_KEYS.docmeePptApiKey,
@@ -121,6 +122,12 @@ const BRAND_KEYS = [
   SETTING_KEYS.sidebarMemberUrl,
   SETTING_KEYS.sidebarGenerationLabel,
   SETTING_KEYS.defaultSkillName,
+] as const;
+
+const COMPOSIO_KEYS = [
+  SETTING_KEYS.composioEnabled,
+  SETTING_KEYS.composioApiKey,
+  SETTING_KEYS.composioAuthConfigIds,
 ] as const;
 
 const RECOMMENDATION_KEYS = [
@@ -379,6 +386,7 @@ const WRITABLE_SETTING_KEYS = [
   SETTING_KEYS.cronSecret,
   SETTING_KEYS.cronAuditRetentionDays,
   SETTING_KEYS.cronPendingOrderExpiryDays,
+  ...COMPOSIO_KEYS,
   ...RECOMMENDATION_KEYS,
   ...PRICING_KEYS,
   ...OPERATIONS_KEYS,
@@ -520,6 +528,27 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
     const n = Number(value);
     if (!Number.isFinite(n)) throw new Error('referralRewardCredits must be a number');
     value = Math.max(0, Math.round(n));
+  } else if (input.key === SETTING_KEYS.composioEnabled) {
+    value = Boolean(value);
+  } else if (input.key === SETTING_KEYS.composioApiKey) {
+    value = typeof value === 'string' ? value.trim() : '';
+  } else if (input.key === SETTING_KEYS.composioAuthConfigIds) {
+    const normalizedAuthConfigIds = toString(value);
+    value = normalizedAuthConfigIds;
+
+    if (normalizedAuthConfigIds) {
+      try {
+        const parsed = JSON.parse(normalizedAuthConfigIds);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('COMPOSIO_AUTH_CONFIG_IDS_MUST_BE_OBJECT');
+        }
+      } catch {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'composioAuthConfigIds must be a JSON object',
+        });
+      }
+    }
   } else if (input.key === SETTING_KEYS.defaultAgentModel) {
     value = typeof value === 'string' ? value.trim() : '';
   } else if (input.key === SETTING_KEYS.defaultAgentName) {
@@ -1317,6 +1346,9 @@ export const adminSettingsRouter = router({
       desktopDownloadLabel,
       helpMenuItems,
       aboutLinks,
+      composioEnabled,
+      composioApiKey,
+      composioAuthConfigIds,
       profileInterestAreas,
       avatarPresets,
       memoryUserMemoryTriggerMode,
@@ -1403,6 +1435,9 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems),
       readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks),
+      readSetting(ctx.serverDB, SETTING_KEYS.composioEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.composioApiKey),
+      readSetting(ctx.serverDB, SETTING_KEYS.composioAuthConfigIds),
       readSetting(ctx.serverDB, SETTING_KEYS.profileInterestAreas),
       readSetting(ctx.serverDB, SETTING_KEYS.profileAvatarPresets),
       readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryTriggerMode),
@@ -1445,6 +1480,7 @@ export const adminSettingsRouter = router({
     ]);
 
     const dbCronSecret = typeof cronSecret === 'string' ? cronSecret : null;
+    const dbComposioApiKey = typeof composioApiKey === 'string' ? composioApiKey : null;
     const dbS3Secret =
       typeof storageS3SecretAccessKey === 'string' ? storageS3SecretAccessKey : null;
 
@@ -1559,6 +1595,15 @@ export const adminSettingsRouter = router({
       desktopDownloadUrl: toString(desktopDownloadUrl) || null,
       helpMenuItems: Array.isArray(helpMenuItems) ? helpMenuItems : [],
       aboutLinks: normalizeAboutLinksConfig(aboutLinks),
+      composioConfig: {
+        apiKeyConfigured: Boolean(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
+        apiKeyMasked: maskApiKey(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
+        authConfigIds: toString(composioAuthConfigIds) || toString(process.env.COMPOSIO_AUTH_CONFIG_IDS),
+        enabled:
+          typeof composioEnabled === 'boolean'
+            ? composioEnabled
+            : Boolean(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
+      },
       profileInterestAreas: normalizeProfileInterestAreas(profileInterestAreas),
       avatarPresets: normalizeAvatarPresets(avatarPresets),
       memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(

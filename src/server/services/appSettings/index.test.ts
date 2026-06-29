@@ -4,6 +4,7 @@ import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 
 import {
   APP_SETTING_KEYS,
+  getServerComposioConfig,
   getServerDefaultAgentSettingOverrides,
   getServerDefaultModelSuggestions,
   getServerFileS3Config,
@@ -97,6 +98,26 @@ describe('appSettings model helpers', () => {
       region: 'ap-southeast-1',
       secretAccessKey: 'admin-secret-key',
       setAcl: false,
+    });
+  });
+
+  it('returns Composio config from app settings with env fallback', async () => {
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            { key: APP_SETTING_KEYS.composioEnabled, value: true },
+            { key: APP_SETTING_KEYS.composioApiKey, value: 'ak_admin' },
+            { key: APP_SETTING_KEYS.composioAuthConfigIds, value: '{"gmail":"ac_admin"}' },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerComposioConfig(db)).resolves.toEqual({
+      apiKey: 'ak_admin',
+      authConfigIds: '{"gmail":"ac_admin"}',
+      enabled: true,
     });
   });
 

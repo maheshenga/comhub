@@ -23,11 +23,13 @@ export interface ComposioServiceOptions {
 }
 
 export class ComposioService {
+  private db?: LobeChatDatabase;
   private pluginModel?: PluginModel;
   private userId?: string;
 
   constructor(options: ComposioServiceOptions = {}) {
     const { db, userId } = options;
+    this.db = db;
     this.userId = userId;
 
     if (db && userId) {
@@ -35,10 +37,9 @@ export class ComposioService {
     }
 
     log(
-      'ComposioService initialized: hasDB=%s, hasUserId=%s, isClientAvailable=%s',
+      'ComposioService initialized: hasDB=%s, hasUserId=%s',
       !!db,
       !!userId,
-      isComposioClientAvailable(),
     );
   }
 
@@ -47,7 +48,7 @@ export class ComposioService {
 
     log('executeComposioTool: %s/%s with args: %O', identifier, toolSlug, args);
 
-    if (!isComposioClientAvailable()) {
+    if (!(await isComposioClientAvailable(this.db))) {
       return {
         content: 'Composio service is not configured on server',
         error: { code: 'COMPOSIO_NOT_CONFIGURED', message: 'Composio API key not found' },
@@ -95,7 +96,7 @@ export class ComposioService {
         connectedAccountId,
       );
 
-      const composioClient = getComposioClient();
+      const composioClient = await getComposioClient(this.db);
       const result = await (composioClient.tools as any).execute(toolSlug, {
         arguments: args,
         connectedAccountId,

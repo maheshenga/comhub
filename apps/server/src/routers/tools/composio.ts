@@ -5,10 +5,20 @@ import { PluginModel } from '@/database/models/plugin';
 import { getComposioClient } from '@/libs/composio';
 import { authedProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
+import { getServerComposioConfig } from '@/server/services/appSettings';
 import { MCPService } from '@/server/services/mcp';
 
 const composioProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
-  const composioClient = getComposioClient();
+  const config = await getServerComposioConfig(opts.ctx.serverDB);
+
+  if (!config.enabled || !config.apiKey) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: 'COMPOSIO_NOT_CONFIGURED',
+    });
+  }
+
+  const composioClient = await getComposioClient(opts.ctx.serverDB);
   const pluginModel = new PluginModel(opts.ctx.serverDB, opts.ctx.userId);
   return opts.next({ ctx: { ...opts.ctx, composioClient, pluginModel } });
 });
@@ -64,27 +74,39 @@ export const composioToolsRouter = router({
       });
     }),
 
-  getActions: publicProcedure.input(z.object({ appSlug: z.string() })).query(async ({ input }) => {
-    const client = getComposioClient();
-    const response = await (client.tools as any).getRawComposioTools({
-      toolkits: [input.appSlug],
-    });
+  getActions: publicProcedure
+    .use(serverDatabase)
+    .input(z.object({ appSlug: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const config = await getServerComposioConfig(ctx.serverDB);
 
-    const items = response?.items || response || [];
-    const tools = Array.isArray(items)
-      ? items.map((tool: any) => ({
-          description: tool.description || '',
-          inputSchema: tool.inputParameters ||
-            tool.inputSchema || {
-              properties: {},
-              type: 'object',
-            },
-          name: tool.slug || tool.name || '',
-        }))
-      : [];
+      if (!config.enabled || !config.apiKey) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'COMPOSIO_NOT_CONFIGURED',
+        });
+      }
 
-    return { tools };
-  }),
+      const client = await getComposioClient(ctx.serverDB);
+      const response = await (client.tools as any).getRawComposioTools({
+        toolkits: [input.appSlug],
+      });
+
+      const items = response?.items || response || [];
+      const tools = Array.isArray(items)
+        ? items.map((tool: any) => ({
+            description: tool.description || '',
+            inputSchema: tool.inputParameters ||
+              tool.inputSchema || {
+                properties: {},
+                type: 'object',
+              },
+            name: tool.slug || tool.name || '',
+          }))
+        : [];
+
+      return { tools };
+    }),
 
   listActions: composioProcedure
     .input(z.object({ appSlug: z.string() }))
