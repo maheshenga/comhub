@@ -35,7 +35,13 @@ import {
   getDefaultBaseUrlForAdminProviderType,
 } from './adminProviderInstanceForm';
 import {
+  type AdminModelAbilities,
+  AiProviderModelAbilitiesCell,
+  buildManualAbilitiesMetadata,
+} from './adminProviderModelAbilities';
+import {
   AiProviderModelPricingCell,
+  buildManualMediaPricingMetadata,
   buildManualTokenPricingMetadata,
 } from './adminProviderModelPricing';
 import AdminDangerousActionButton from './AdminDangerousActionButton';
@@ -446,12 +452,34 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       inputCostRate?: number,
       outputCostRate?: number,
     ) => {
+      const metadata =
+        row.modelType === 'image' || row.modelType === 'video'
+          ? buildManualMediaPricingMetadata({
+              imageRate: row.modelType === 'image' ? inputCostRate : undefined,
+              metadata: row.metadata,
+              videoRate: row.modelType === 'video' ? outputCostRate : undefined,
+            })
+          : buildManualTokenPricingMetadata({
+              inputCostRate,
+              metadata: row.metadata,
+              outputCostRate,
+            });
+
+      await adminCommercialService.updateAiProviderInstanceModel({
+        data: { metadata },
+        instanceId,
+        modelId: row.modelId,
+        modelType: row.modelType,
+      });
+      await refreshModels();
+    };
+
+    const handleUpdateAbilities = async (row: ModelRow, abilities: AdminModelAbilities) => {
       await adminCommercialService.updateAiProviderInstanceModel({
         data: {
-          metadata: buildManualTokenPricingMetadata({
-            inputCostRate,
+          metadata: buildManualAbilitiesMetadata({
+            abilities,
             metadata: row.metadata,
-            outputCostRate,
           }),
         },
         instanceId,
@@ -505,8 +533,20 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
             }
           />
         ),
-        title: t('admin.providers.models.col.pricing', '官方成本价 / 1M tokens'),
+        title: t('admin.providers.models.col.pricing', '成本价'),
         width: 280,
+      },
+      {
+        key: 'abilities',
+        render: (_: unknown, r: ModelRow) => (
+          <AiProviderModelAbilitiesCell
+            metadata={r.metadata}
+            t={t}
+            onSave={(abilities) => handleUpdateAbilities(r, abilities)}
+          />
+        ),
+        title: t('admin.providers.models.col.abilities', '能力'),
+        width: 360,
       },
       {
         dataIndex: 'enabled',

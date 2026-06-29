@@ -457,12 +457,98 @@ describe('NewAPI instance resolver', () => {
 
     await expect(getAllEnabledModels(db)).resolves.toEqual([
       expect.objectContaining({
-        id: 'manual-cost-model',
+          id: 'manual-cost-model',
+          pricing: {
+            units: [
+              {
+                name: 'textInput',
+                originalRate: 1.2,
+                rate: 1.62,
+                strategy: 'fixed',
+                unit: 'millionTokens',
+              },
+              {
+                name: 'textOutput',
+                originalRate: 3.4,
+                rate: 4.59,
+                strategy: 'fixed',
+                unit: 'millionTokens',
+              },
+            ],
+          },
+        }),
+    ]);
+  });
+
+  it('returns admin manual abilities and media pricing for frontend model cards', async () => {
+    const db = createDb([
+      {
+        displayName: 'Vision Model',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        metadata: {
+          manualAbilities: {
+            functionCall: true,
+            reasoning: false,
+            vision: true,
+          },
+          manualPricing: {
+            imageRate: 0.05,
+            marginMultiplier: 1.35,
+            source: 'admin-manual',
+          },
+        },
+        modelId: 'vision-image-model',
+        modelType: 'image',
+        providerType: 'newapi',
+      },
+      {
+        displayName: 'Video Model',
+        groupKey: 'basic',
+        groupName: 'Basic',
+        instanceId: 'basic-1',
+        instanceName: 'Basic Gateway',
+        metadata: {
+          manualPricing: {
+            marginMultiplier: 1.35,
+            source: 'admin-manual',
+            videoRate: 0.8,
+          },
+        },
+        modelId: 'video-model',
+        modelType: 'video',
+        providerType: 'newapi',
+      },
+    ]);
+
+    await expect(getAllEnabledModels(db)).resolves.toEqual([
+      expect.objectContaining({
+        abilities: {
+          functionCall: true,
+          reasoning: false,
+          vision: true,
+        },
+        id: 'vision-image-model',
         pricing: {
+          approximatePricePerImage: 0.0675,
           units: [
-            { name: 'textInput', rate: 1.2, strategy: 'fixed', unit: 'millionTokens' },
-            { name: 'textOutput', rate: 3.4, strategy: 'fixed', unit: 'millionTokens' },
+            {
+              name: 'imageGeneration',
+              originalRate: 0.05,
+              rate: 0.0675,
+              strategy: 'fixed',
+              unit: 'image',
+            },
           ],
+        },
+      }),
+      expect.objectContaining({
+        id: 'video-model',
+        pricing: {
+          approximatePricePerVideo: 1.08,
+          units: [],
         },
       }),
     ]);

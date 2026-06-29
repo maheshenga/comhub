@@ -89,6 +89,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
         const parameters = getGenericNewapiParameters(modelType);
 
         return {
+          ...(m.abilities ? { abilities: m.abilities } : {}),
           displayName: m.displayName || m.id,
           enabled: true,
           groupKey: m.groupKey,

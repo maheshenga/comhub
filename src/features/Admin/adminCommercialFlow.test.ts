@@ -225,19 +225,46 @@ describe('admin commercial flow pages', () => {
 
     expect(providersPage).toContain('AiProviderModelPricingCell');
     expect(providersPage).toContain('buildManualTokenPricingMetadata');
+    expect(providersPage).toContain('buildManualMediaPricingMetadata');
     expect(pricingCell).toContain('DEFAULT_PRICING_CREDIT_MULTIPLIER');
     expect(pricingCell).toContain('DEFAULT_PRICING_MARGIN_MULTIPLIER');
     expect(pricingCell).toContain('TOKEN_PRICING_MODEL_TYPES');
+    expect(pricingCell).toContain('IMAGE_PRICING_MODEL_TYPES');
+    expect(pricingCell).toContain('VIDEO_PRICING_MODEL_TYPES');
     expect(pricingCell).toContain('inputCostRate');
     expect(pricingCell).toContain('outputCostRate');
-    expect(providersPage).toContain('官方成本价 / 1M tokens');
+    expect(pricingCell).toContain('imageRate');
+    expect(pricingCell).toContain('videoRate');
+    expect(providersPage).toContain("'成本价'");
     expect(pricingCell).toContain('计费价：输入 {{input}} / 输出 {{output}}');
+    expect(pricingCell).toContain('计费价：{{price}} / 张');
+    expect(pricingCell).toContain('计费价：{{price}} / 条');
     expect(service).toContain('metadata?: Record<string, unknown> | null');
     expect(router).toContain('ModelMetadataSchema');
     expect(router).toContain("action: 'newapiInstanceModels.update'");
     expect(runtime).toContain('resolveManualPricing');
     expect(runtime).toContain('manualPricing.inputCostRate');
     expect(runtime).toContain('manualPricing.outputCostRate');
+    expect(runtime).toContain('manualPricing.imageRate');
+    expect(runtime).toContain('manualPricing.videoRate');
+  });
+
+  it('lets admins configure AI provider model abilities for user-facing model cards', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const abilitiesCell = readRepoFile('src/features/Admin/adminProviderModelAbilities.tsx');
+    const runtime = readRepoFile('src/server/services/newapiInstance/index.ts');
+    const globalConfig = readRepoFile('apps/server/src/globalConfig/index.ts');
+
+    expect(providersPage).toContain('AiProviderModelAbilitiesCell');
+    expect(providersPage).toContain('buildManualAbilitiesMetadata');
+    expect(providersPage).toContain("t('admin.providers.models.col.abilities'");
+    expect(abilitiesCell).toContain('manualAbilities');
+    expect(abilitiesCell).toContain('functionCall');
+    expect(abilitiesCell).toContain('reasoning');
+    expect(abilitiesCell).toContain('vision');
+    expect(runtime).toContain('resolveManualAbilities');
+    expect(runtime).toContain('metadata?.manualAbilities');
+    expect(globalConfig).toContain("m.abilities ? { abilities: m.abilities } : {}");
   });
 
   it('keeps toapi as a NewAPI-compatible instance instead of a standalone provider type', () => {

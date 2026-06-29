@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import debug from 'debug';
-import type { AiModelType, Pricing } from 'model-bank';
+import type { AiModelType, ModelAbilities, Pricing } from 'model-bank';
 import { normalizeAiModelType } from 'model-bank';
 
 import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
@@ -292,6 +292,7 @@ export const resolveNewapiRouteMetadataForModel = async (
 };
 
 export interface EnabledModelEntry {
+  abilities?: ModelAbilities;
   displayName: string | null;
   groupKey?: string | null;
   groupName?: string | null;
@@ -303,13 +304,27 @@ export interface EnabledModelEntry {
   type: NewapiModelType;
 }
 
+const ABILITY_KEYS: Array<keyof ModelAbilities> = [
+  'vision',
+  'files',
+  'imageOutput',
+  'video',
+  'audio',
+  'functionCall',
+  'reasoning',
+  'search',
+];
+
 const toPositiveNumber = (value: unknown) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : undefined;
 };
 
+const toPositiveMultiplier = (value: unknown) => toPositiveNumber(value) ?? 1;
+
 const resolveManualPricing = (
   metadata: Record<string, unknown> | null | undefined,
+  modelType: NewapiModelType,
 ): Pricing | undefined => {
   const manualPricing =
     metadata?.manualPricing && typeof metadata.manualPricing === 'object'
@@ -323,6 +338,33 @@ const resolveManualPricing = (
     toPositiveNumber(manualPricing.outputRate) ?? toPositiveNumber(manualPricing.outputCostRate);
   const imageRate = toPositiveNumber(manualPricing.imageRate);
   const videoRate = toPositiveNumber(manualPricing.videoRate);
+  const marginMultiplier = toPositiveMultiplier(manualPricing.marginMultiplier);
+
+  if (modelType === 'image' && imageRate) {
+    const rate = imageRate * marginMultiplier;
+
+    return {
+      approximatePricePerImage: rate,
+      units: [
+        {
+          name: 'imageGeneration' as const,
+          originalRate: imageRate,
+          rate,
+          strategy: 'fixed' as const,
+          unit: 'image' as const,
+        },
+      ],
+    };
+  }
+
+  if (modelType === 'video' && videoRate) {
+    const rate = videoRate * marginMultiplier;
+
+    return {
+      approximatePricePerVideo: rate,
+      units: [],
+    };
+  }
 
   if (inputRate || outputRate) {
     return {
@@ -330,8 +372,9 @@ const resolveManualPricing = (
         ...(inputRate
           ? [
               {
+                originalRate: inputRate,
                 name: 'textInput' as const,
-                rate: inputRate,
+                rate: inputRate * marginMultiplier,
                 strategy: 'fixed' as const,
                 unit: 'millionTokens' as const,
               },
@@ -340,8 +383,9 @@ const resolveManualPricing = (
         ...(outputRate
           ? [
               {
+                originalRate: outputRate,
                 name: 'textOutput' as const,
-                rate: outputRate,
+                rate: outputRate * marginMultiplier,
                 strategy: 'fixed' as const,
                 unit: 'millionTokens' as const,
               },
@@ -352,12 +396,15 @@ const resolveManualPricing = (
   }
 
   if (imageRate) {
+    const rate = imageRate * marginMultiplier;
+
     return {
-      approximatePricePerImage: imageRate,
+      approximatePricePerImage: rate,
       units: [
         {
           name: 'imageGeneration' as const,
-          rate: imageRate,
+          originalRate: imageRate,
+          rate,
           strategy: 'fixed' as const,
           unit: 'image' as const,
         },
@@ -366,8 +413,10 @@ const resolveManualPricing = (
   }
 
   if (videoRate) {
+    const rate = videoRate * marginMultiplier;
+
     return {
-      approximatePricePerVideo: videoRate,
+      approximatePricePerVideo: rate,
       units: [],
     };
   }
@@ -375,11 +424,30 @@ const resolveManualPricing = (
   return undefined;
 };
 
+const resolveManualAbilities = (
+  metadata: Record<string, unknown> | null | undefined,
+): ModelAbilities | undefined => {
+  const manualAbilities =
+    metadata?.manualAbilities && typeof metadata.manualAbilities === 'object'
+      ? (metadata.manualAbilities as Record<string, unknown>)
+      : undefined;
+  if (!manualAbilities) return undefined;
+
+  const abilities = ABILITY_KEYS.reduce<ModelAbilities>((map, key) => {
+    if (typeof manualAbilities[key] === 'boolean') {
+      map[key] = manualAbilities[key] as boolean;
+    }
+    return map;
+  }, {});
+
+  return Object.keys(abilities).length > 0 ? abilities : undefined;
+};
+
 export const resolveNewapiModelPricingFromMetadata = (
   metadata: Record<string, unknown> | null | undefined,
   modelType: NewapiModelType,
 ): Pricing | undefined => {
-  const manualPricing = resolveManualPricing(metadata);
+  const manualPricing = resolveManualPricing(metadata, modelType);
   if (manualPricing) return manualPricing;
 
   const quotaType = Number(metadata?.quotaType);
@@ -460,6 +528,7 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
       if (!seen.has(key)) {
         seen.add(key);
         result.push({
+          abilities: resolveManualAbilities(row.metadata as Record<string, unknown> | null | undefined),
           displayName: row.displayName,
           groupKey: row.groupKey,
           groupName: row.groupName,
