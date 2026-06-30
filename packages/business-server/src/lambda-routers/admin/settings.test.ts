@@ -296,6 +296,32 @@ describe('admin settings default model validation', () => {
     expect(settings.pricingCreditMultiplier).toBe(DEFAULT_PRICING_CREDIT_MULTIPLIER);
   });
 
+  it('returns enabled managed models with their runtime provider ids', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      {
+        displayName: 'ToAPI Chat',
+        id: 'gpt-5.4-mini',
+        instanceId: 'toapi',
+        instanceName: 'toapi',
+        providerId: 'toapi',
+        providerType: 'newapi',
+        type: 'chat',
+      } as any,
+    ]);
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const settings = await caller.getAll();
+
+    expect(settings.enabledNewapiModels).toContainEqual(
+      expect.objectContaining({
+        modelId: 'gpt-5.4-mini',
+        provider: 'toapi',
+      }),
+    );
+  });
+
   it('rejects non-positive global pricing multipliers', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);
@@ -549,6 +575,51 @@ describe('admin settings default model validation', () => {
     });
   });
 
+  it('rejects enabled input completion defaults when the model is not enabled for its provider', async () => {
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      {
+        displayName: 'GPT 5.5 Mini',
+        id: 'gpt-5.5-mini',
+        providerId: 'newapi',
+        type: 'chat',
+      } as any,
+    ]);
+    const tx = createDb();
+    const db = {
+      ...createDb(),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(tx),
+      ),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSettingsBatch({
+        updates: [
+          {
+            key: APP_SETTING_KEYS.userGlobalSettingsDefaults,
+            value: {
+              systemAgent: {
+                inputCompletion: {
+                  enabled: true,
+                  model: 'gpt-5.4',
+                  provider: 'newapi',
+                },
+              },
+            },
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'INPUT_COMPLETION_MODEL_NOT_ENABLED',
+    } satisfies Partial<TRPCError>);
+
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
   it('syncs saved user global defaults into all user settings rows', async () => {
     const defaults = {
       languageModel: { newapi: { enabled: true } },
@@ -561,6 +632,14 @@ describe('admin settings default model validation', () => {
       },
       tool: { uninstalledBuiltinTools: ['web-browsing'] },
     };
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      {
+        displayName: 'GPT 5.5 Mini',
+        id: 'gpt-5.5-mini',
+        providerId: 'newapi',
+        type: 'chat',
+      } as any,
+    ]);
     const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
     const values = vi.fn(() => ({ onConflictDoUpdate }));
     const insert = vi.fn(() => ({ values }));
@@ -569,6 +648,9 @@ describe('admin settings default model validation', () => {
       query: {
         appSettings: {
           findFirst: vi.fn().mockResolvedValue({ value: defaults }),
+        },
+        planCatalog: {
+          findFirst: vi.fn().mockResolvedValue({ modelRules: null, plan: Plans.Free }),
         },
         users: {
           findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
@@ -607,6 +689,49 @@ describe('admin settings default model validation', () => {
         resourceType: 'user_settings',
       }),
     );
+  });
+
+  it('rejects syncing saved user defaults when enabled input completion model is unavailable', async () => {
+    const defaults = {
+      systemAgent: {
+        inputCompletion: {
+          enabled: true,
+          model: 'gpt-5.4',
+          provider: 'newapi',
+        },
+      },
+    };
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      { displayName: 'GPT 5.5 Mini', id: 'gpt-5.5-mini', providerId: 'newapi', type: 'chat' } as any,
+    ]);
+    const insert = vi.fn();
+    const db = {
+      insert,
+      query: {
+        appSettings: {
+          findFirst: vi.fn().mockResolvedValue({ value: defaults }),
+        },
+        planCatalog: {
+          findFirst: vi.fn().mockResolvedValue({ modelRules: null, plan: Plans.Free }),
+        },
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn().mockResolvedValue([{ id: 'user-1' }]),
+      })),
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(caller.syncUserGlobalSettingsDefaultsToUsers()).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'INPUT_COMPLETION_MODEL_NOT_ENABLED',
+    } satisfies Partial<TRPCError>);
+
+    expect(insert).not.toHaveBeenCalled();
   });
 
   it('rejects a NewAPI memory embedding model when the enabled route is not embedding type', async () => {

@@ -423,6 +423,16 @@ const appSettingUpdateInputSchema = z.object({
 const settingDraftString = (settings: AppSettingDraft, key: string) =>
   typeof settings[key] === 'string' ? (settings[key] as string).trim() : '';
 
+const getRecordValue = (value: unknown): Record<string, unknown> | undefined =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+
+const getNestedRecordValue = (
+  source: Record<string, unknown> | undefined,
+  key: string,
+): Record<string, unknown> | undefined => getRecordValue(source?.[key]);
+
 export const buildUserGlobalSettingsSyncValues = (defaults: unknown): UserSettingsSyncValues => {
   if (!defaults || typeof defaults !== 'object' || Array.isArray(defaults)) return {};
 
@@ -511,6 +521,21 @@ const getMemoryExtractionModelValidationTarget = (
       providerKey: SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
     };
   }
+};
+
+const readInputCompletionDefault = (
+  defaults: unknown,
+): { enabled: boolean; model: string; provider: string } | undefined => {
+  const userDefaults = getRecordValue(defaults);
+  const systemAgent = getNestedRecordValue(userDefaults, 'systemAgent');
+  const inputCompletion = getNestedRecordValue(systemAgent, 'inputCompletion');
+  if (!inputCompletion) return;
+
+  return {
+    enabled: inputCompletion.enabled === true,
+    model: toString(inputCompletion.model),
+    provider: toString(inputCompletion.provider),
+  };
 };
 
 const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSettingUpdate => {
@@ -842,6 +867,40 @@ const validateDefaultModelUpdates = async (
 
     await validateDefaultAgentModelUsability(db, draft, target);
   }
+
+  const userGlobalSettingsUpdate = updates.find(
+    (update) => update.key === SETTING_KEYS.userGlobalSettingsDefaults,
+  );
+  if (userGlobalSettingsUpdate) {
+    await validateUserGlobalSettingsDefaults(db, userGlobalSettingsUpdate.value);
+  }
+};
+
+const validateUserGlobalSettingsDefaults = async (db: LobeChatDatabase, defaults: unknown) => {
+  const inputCompletion = readInputCompletionDefault(defaults);
+  if (!inputCompletion?.enabled) return;
+
+  if (!inputCompletion.provider || !inputCompletion.model) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'INPUT_COMPLETION_MODEL_REQUIRED',
+    });
+  }
+
+  await validateDefaultAgentModelUsability(
+    db,
+    {
+      inputCompletionModel: inputCompletion.model,
+      inputCompletionProvider: inputCompletion.provider,
+    },
+    {
+      missingMessage: 'INPUT_COMPLETION_MODEL_NOT_ENABLED',
+      modelKey: 'inputCompletionModel',
+      modelType: 'chat',
+      providerKey: 'inputCompletionProvider',
+      typeMismatchMessage: 'INPUT_COMPLETION_MODEL_TYPE_MISMATCH',
+    },
+  );
 };
 
 const invalidateAppSettingsCaches = (updates: NormalizedSettingUpdate[]) => {
@@ -871,27 +930,39 @@ export const validateDefaultAgentModelUsability = async (
   db: LobeChatDatabase,
   settings: AppSettingDraft,
   options: {
+    missingMessage?: string;
     modelKey?: string;
     modelType?: DefaultModelType;
     providerKey?: string;
+    typeMismatchMessage?: string;
   } = {},
 ): Promise<void> => {
   const modelKey = options.modelKey ?? SETTING_KEYS.defaultAgentModel;
   const providerKey = options.providerKey ?? SETTING_KEYS.defaultAgentProvider;
   const modelType = options.modelType ?? 'chat';
+  const missingMessage = options.missingMessage ?? 'DEFAULT_MODEL_NOT_ENABLED';
+  const typeMismatchMessage = options.typeMismatchMessage ?? 'DEFAULT_MODEL_TYPE_MISMATCH';
   const provider = settingDraftString(settings, providerKey);
   const model = settingDraftString(settings, modelKey);
 
   if (!provider || !model) return;
 
-  if (provider === 'newapi') {
-    const enabledModels = await getAllEnabledModels(db);
-    const matchedRoutes = enabledModels.filter((item) => item.id === model);
+  const enabledModels = await getAllEnabledModels(db);
+  const providerMatchedRoutes = enabledModels.filter(
+    (item) =>
+      item.providerId === provider ||
+      item.instanceId === provider ||
+      item.providerType === provider ||
+      (provider === 'newapi' && !item.providerId),
+  );
+
+  if (providerMatchedRoutes.length > 0 || provider === 'newapi') {
+    const matchedRoutes = providerMatchedRoutes.filter((item) => item.id === model);
 
     if (matchedRoutes.length === 0) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
-        message: 'DEFAULT_MODEL_NOT_ENABLED',
+        message: missingMessage,
       });
     }
 
@@ -900,7 +971,7 @@ export const validateDefaultAgentModelUsability = async (
     if (typeMatchedRoutes.length === 0) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
-        message: 'DEFAULT_MODEL_TYPE_MISMATCH',
+        message: typeMismatchMessage,
       });
     }
 
@@ -1553,7 +1624,7 @@ export const adminSettingsRouter = router({
         instanceName: item.instanceName ?? item.groupName ?? null,
         modelId: item.id,
         modelType: item.type,
-        provider: 'newapi',
+        provider: item.providerId ?? item.instanceId ?? item.providerType ?? 'newapi',
       })),
       ordersManagementEnabled: toBoolean(ordersManagementEnabled, true),
       paymentGatewayStatus: {
@@ -1763,6 +1834,7 @@ export const adminSettingsRouter = router({
 
   syncUserGlobalSettingsDefaultsToUsers: adminProcedure.mutation(async ({ ctx }) => {
     const defaults = await readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults);
+    await validateUserGlobalSettingsDefaults(ctx.serverDB, defaults);
     const result = await syncUserGlobalSettingsDefaultsToUserSettings(ctx.serverDB, defaults);
 
     await recordAdminAudit(ctx, {

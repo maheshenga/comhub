@@ -57,6 +57,10 @@ export interface ResolvedNewapiInstance {
   source: 'instance';
 }
 
+export const getRuntimeProviderId = (
+  instance?: Pick<ResolvedNewapiInstance, 'instanceId' | 'providerType'> | null,
+) => instance?.instanceId || instance?.providerType || 'newapi';
+
 export const buildNewapiRouteMetadata = (
   instance?: Partial<ResolvedNewapiInstance> | null,
 ): AiUsageRouteMetadata | undefined => {
@@ -300,6 +304,7 @@ export interface EnabledModelEntry {
   instanceId?: string | null;
   instanceName?: string | null;
   pricing?: Pricing;
+  providerId?: string | null;
   providerType?: AdminModelApiProviderType | null;
   type: NewapiModelType;
 }
@@ -539,6 +544,10 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
             row.metadata as Record<string, unknown> | null | undefined,
             row.modelType as NewapiModelType,
           ),
+          providerId: getRuntimeProviderId({
+            instanceId: row.instanceId,
+            providerType: row.providerType,
+          }),
           providerType: row.providerType,
           type: toAiModelType(row.modelType as NewapiModelType),
         });
