@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/workflows/comhub-upstream-sync.yml'
+      - 'docs/development/comhub-upstream-sync-pipeline.md'
+      - 'docs/development/upstream-sync-reports/**'
+      - 'scripts/comhub-upstream-sync/**'
   workflow_dispatch:
     inputs:
       deploy:
