@@ -25,6 +25,7 @@ import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwar
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
+import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 
 import Title from '../../../../components/Title';
 import VsCodeIcon from './VsCodeIcon';
@@ -118,6 +119,7 @@ const Platform = memo<PlatformProps>(
   ({ lite, identifier, mobile, expandCodeByDefault, downloadUrl }) => {
     const { t } = useTranslation('discover');
     const brand = useBrand();
+    const customization = useServerConfigStore(serverConfigSelectors.customization);
     const navigate = useWorkspaceAwareNavigate();
     const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
     const sendMessage = useChatStore((s) => s.sendMessage);
@@ -261,10 +263,11 @@ const Platform = memo<PlatformProps>(
                 type={'primary'}
                 onClick={handleUseOnLobeAI}
               >
-                {t('skills.details.sidebar.agent.useOnLobeAI', {
-                  defaultValue: `在 ${brand.name} 使用`,
-                  brandName: brand.name,
-                })}
+                {customization?.skillUseButtonLabel ||
+                  t('skills.details.sidebar.agent.useOnLobeAI', {
+                    defaultValue: `在 ${brand.name} 使用`,
+                    brandName: brand.name,
+                  })}
               </Button>
             </Flexbox>
           </Flexbox>

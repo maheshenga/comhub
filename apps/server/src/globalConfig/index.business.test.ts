@@ -5,8 +5,10 @@ import { getServerGlobalConfig } from './index';
 
 const mocks = vi.hoisted(() => ({
   genServerAiProvidersConfig: vi.fn(),
+  getServerComposioConfig: vi.fn(),
   getServerDefaultAgentSettingOverrides: vi.fn(),
   getServerDefaultGenerationModelSettingOverrides: vi.fn(),
+  getServerPublicCustomizationConfig: vi.fn(),
   getServerFileS3Config: vi.fn(),
   getServerUserGlobalSettingsDefaults: vi.fn(),
   getAllEnabledModels: vi.fn(),
@@ -99,9 +101,11 @@ vi.mock('@/server/globalConfig/parseSystemAgent', () => ({
 }));
 
 vi.mock('@/server/services/appSettings', () => ({
+  getServerComposioConfig: mocks.getServerComposioConfig,
   getServerDefaultAgentSettingOverrides: mocks.getServerDefaultAgentSettingOverrides,
   getServerDefaultGenerationModelSettingOverrides:
     mocks.getServerDefaultGenerationModelSettingOverrides,
+  getServerPublicCustomizationConfig: mocks.getServerPublicCustomizationConfig,
   getServerFileS3Config: mocks.getServerFileS3Config,
   getServerUserGlobalSettingsDefaults: mocks.getServerUserGlobalSettingsDefaults,
 }));
@@ -124,7 +128,7 @@ vi.mock('./parseFilesConfig', () => ({
 }));
 
 vi.mock('./parseMemoryExtractionConfig', () => ({
-  getPublicMemoryExtractionConfig: vi.fn(() => undefined),
+  getResolvedPublicMemoryExtractionConfig: vi.fn(() => undefined),
 }));
 
 describe('getServerGlobalConfig business newapi model injection', () => {
@@ -142,8 +146,14 @@ describe('getServerGlobalConfig business newapi model injection', () => {
         serverModelLists: [{ id: 'gpt-4o', type: 'chat' }],
       },
     });
+    mocks.getServerComposioConfig.mockResolvedValue({
+      apiKey: '',
+      authConfigIds: '',
+      enabled: false,
+    });
     mocks.getServerDefaultAgentSettingOverrides.mockResolvedValue({});
     mocks.getServerDefaultGenerationModelSettingOverrides.mockResolvedValue({});
+    mocks.getServerPublicCustomizationConfig.mockResolvedValue({});
     mocks.getServerFileS3Config.mockResolvedValue({
       accessKeyId: '',
       bucket: '',
@@ -161,6 +171,20 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     mocks.parseAgentConfig.mockReturnValue({});
     mocks.parseSSOProviders.mockReturnValue([]);
     mocks.parseSystemAgent.mockReturnValue(undefined);
+  });
+
+  it('exposes backend controlled public customization config', async () => {
+    mocks.getServerPublicCustomizationConfig.mockResolvedValue({
+      helpMenuItems: [{ label: 'Docs', url: 'https://docs.example.com' }],
+      skillUseButtonLabel: 'Use in QingyouAI',
+    });
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.customization).toEqual({
+      helpMenuItems: [{ label: 'Docs', url: 'https://docs.example.com' }],
+      skillUseButtonLabel: 'Use in QingyouAI',
+    });
   });
 
   it('injects global newapi model IDs with all types into server provider config', async () => {

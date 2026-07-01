@@ -12,6 +12,7 @@ export const APP_SETTING_KEYS = {
   authSignupEnabled: 'auth.signup.enabled',
   authSignupPhoneEnabled: 'auth.signup.phoneEnabled',
   aboutLinks: 'about.links',
+  aboutLogoUrl: 'about.logoUrl',
   brandFaviconUrl: 'brand.faviconUrl',
   brandAuthTitle: 'brand.authTitle',
   brandCopyrightText: 'brand.copyrightText',
@@ -22,6 +23,7 @@ export const APP_SETTING_KEYS = {
   brandSlogan: 'brand.slogan',
   // ComHub runtime UI copy: keep these backend-controlled during upstream sync.
   communityForkAndChatLabel: 'community.forkAndChat.label',
+  communitySkillUseButtonLabel: 'community.skill.useButton.label',
   communityCreatorRewardBannerEnabled: 'community.creatorRewardBanner.enabled',
   communityFeaturedAssistantPageSize: 'community.featuredAssistant.pageSize',
   communityFeaturedAssistantTitle: 'community.featuredAssistant.title',
@@ -170,6 +172,8 @@ const CACHED_KEYS = [
   APP_SETTING_KEYS.defaultImageProvider,
   APP_SETTING_KEYS.defaultVideoModel,
   APP_SETTING_KEYS.defaultVideoProvider,
+  APP_SETTING_KEYS.communitySkillUseButtonLabel,
+  APP_SETTING_KEYS.helpMenuItems,
   APP_SETTING_KEYS.modelPolicyAllowlist,
   APP_SETTING_KEYS.modelPolicyApplyToEmbeddings,
   APP_SETTING_KEYS.modelPolicyApplyToGenerateObject,
@@ -279,6 +283,49 @@ export const getServerComposioConfig = async (
     apiKey: resolvedApiKey,
     authConfigIds: normalizeString(authConfigIds) ?? process.env.COMPOSIO_AUTH_CONFIG_IDS,
     enabled: dbEnabled ?? envEnabled ?? Boolean(resolvedApiKey),
+  };
+};
+
+export type PublicCustomizationConfig = {
+  helpMenuItems?: Array<{ label: string; url?: string }>;
+  skillUseButtonLabel?: string;
+};
+
+const normalizePublicHelpMenuItems = (items: unknown): PublicCustomizationConfig['helpMenuItems'] => {
+  if (!Array.isArray(items)) return undefined;
+
+  const normalized = items
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => {
+      const label = normalizeString(item.label);
+      const url = normalizeString(item.url);
+
+      if (!label) return undefined;
+
+      return {
+        label,
+        ...(url ? { url } : {}),
+      };
+    })
+    .filter((item): item is { label: string; url?: string } => Boolean(item));
+
+  return normalized.length > 0 ? normalized : undefined;
+};
+
+export const getServerPublicCustomizationConfig = async (
+  db?: LobeChatDatabase,
+): Promise<PublicCustomizationConfig> => {
+  const [rawSkillUseButtonLabel, rawHelpMenuItems] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.communitySkillUseButtonLabel, db),
+    getAppSettingValue(APP_SETTING_KEYS.helpMenuItems, db),
+  ]);
+
+  const skillUseButtonLabel = normalizeString(rawSkillUseButtonLabel);
+  const helpMenuItems = normalizePublicHelpMenuItems(rawHelpMenuItems);
+
+  return {
+    ...(helpMenuItems ? { helpMenuItems } : {}),
+    ...(skillUseButtonLabel ? { skillUseButtonLabel } : {}),
   };
 };
 

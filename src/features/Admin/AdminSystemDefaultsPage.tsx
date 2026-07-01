@@ -27,6 +27,7 @@ import {
 } from '@/const/adminCacheKeys';
 import { type AvatarPreset, DEFAULT_AVATAR_PRESETS } from '@/const/avatarPresets';
 import { buildModelOptions } from '@/features/Admin/adminSettingsForm';
+import ImageUrlUploadInput from '@/features/Admin/components/ImageUrlUploadInput';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -179,6 +180,10 @@ const AdminSystemDefaultsPage = memo(() => {
   const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
   );
+  const uploadPublicUrlPrefix =
+    typeof (data as any)?.storageS3PublicDomain === 'string'
+      ? (data as any).storageS3PublicDomain
+      : undefined;
   const modelOptions = useMemo(() => buildModelOptions({ ...data, modelType: 'chat' }), [data]);
   const embeddingModelOptions = useMemo(
     () => buildModelOptions({ ...data, modelType: 'embedding' }),
@@ -839,8 +844,9 @@ const AdminSystemDefaultsPage = memo(() => {
                         name={[name, 'value']}
                         rules={[{ message: '请填写头像地址', required: true }]}
                       >
-                        <Input
+                        <ImageUrlUploadInput
                           placeholder="/images/avatar-presets/avatar-1.svg"
+                          publicUrlPrefix={uploadPublicUrlPrefix}
                           style={{ flex: 2 }}
                         />
                       </Form.Item>

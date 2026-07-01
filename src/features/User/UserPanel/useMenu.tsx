@@ -13,10 +13,11 @@ import { type MenuProps } from '@/components/Menu';
 import { DEFAULT_DESKTOP_HOTKEY_CONFIG } from '@/const/desktop';
 import { OFFICIAL_URL } from '@/const/url';
 import DataImporter from '@/features/DataImporter';
+import { buildCustomHelpMenuItems } from '@/features/User/helpMenuItems';
 import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import { usePlatform } from '@/hooks/usePlatform';
-import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
+import { featureFlagsSelectors, serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
 
@@ -50,6 +51,7 @@ export const useMenu = () => {
   const hasNewVersion = useNewVersion();
   const { t } = useTranslation(['common', 'setting', 'auth']);
   const { showCloudPromotion, hideDocs } = useServerConfigStore(featureFlagsSelectors);
+  const customization = useServerConfigStore(serverConfigSelectors.customization);
   const [isLogin, isLoginWithAuth] = useUserStore((s) => [
     authSelectors.isLogin(s),
     authSelectors.isLoginWithAuth(s),
@@ -102,7 +104,10 @@ export const useMenu = () => {
     },
   ];
 
+  const customHelpItems = buildCustomHelpMenuItems(customization?.helpMenuItems);
+
   const helps: MenuProps['items'] = [
+    ...customHelpItems,
     showCloudPromotion && {
       icon: <Icon icon={Cloudy} />,
       key: 'cloud',

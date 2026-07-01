@@ -21,7 +21,7 @@ interface McpDetailPageProps {
 
 const McpDetailPage = memo<McpDetailPageProps>(({ mobile }) => {
   const params = useParams<{ slug: string }>();
-  const identifier = params.slug ?? '';
+  const identifier = decodeURIComponent(params.slug ?? '');
 
   const { version } = useQuery() as { version?: string };
   const useMcpDetail = useDiscoverStore((s) => s.useFetchMcpDetail);

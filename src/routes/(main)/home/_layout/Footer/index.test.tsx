@@ -32,6 +32,7 @@ interface RenderFooterOptions {
   agentFinished?: boolean;
   agentStarted?: boolean;
   classicFinished?: boolean;
+  customization?: Record<string, unknown>;
   desktop?: boolean;
   enabled?: boolean;
   mobile?: boolean;
@@ -67,6 +68,7 @@ const renderFooter = async ({
   agentFinished = false,
   agentStarted = false,
   classicFinished = true,
+  customization,
   desktop = false,
   enabled = true,
   mobile = false,
@@ -85,6 +87,7 @@ const renderFooter = async ({
   mockServerConfigState = {
     featureFlags: { enableAgentOnboarding: enabled },
     isMobile: mobile,
+    serverConfig: { customization },
     serverConfigInit,
   };
   mockUserState = {
@@ -152,6 +155,15 @@ const renderFooter = async ({
         </div>
       ) : null,
   }));
+  vi.doMock('@/features/Billboard', () => ({
+    default: () => null,
+  }));
+  vi.doMock('@/features/Billboard/MenuItems', () => ({
+    useBillboardMenuItems: () => [],
+  }));
+  vi.doMock('@/features/NavPanel', () => ({
+    useActiveNavKey: () => 'home',
+  }));
   vi.doMock('@/features/User/UserPanel/ThemeButton', () => ({
     default: () => null,
   }));
@@ -193,6 +205,12 @@ const renderFooter = async ({
   vi.doMock('@/store/user', () => ({
     useUserStore: selectFromUserStore,
   }));
+  vi.doMock('@/store/user/slices/settings/selectors', () => ({
+    userGeneralSettingsSelectors: {
+      config: (state: Record<string, unknown>) =>
+        ((state.settings as Record<string, unknown>)?.general as Record<string, unknown>) ?? {},
+    },
+  }));
 
   const { default: Footer } = await import('./index');
 
@@ -214,6 +232,9 @@ afterEach(() => {
   vi.doUnmock('@/components/ChangelogModal');
   vi.doUnmock('@/components/FeedbackModal');
   vi.doUnmock('@/components/HighlightNotification');
+  vi.doUnmock('@/features/Billboard');
+  vi.doUnmock('@/features/Billboard/MenuItems');
+  vi.doUnmock('@/features/NavPanel');
   vi.doUnmock('@/features/User/UserPanel/ThemeButton');
   vi.doUnmock('@/hooks/useNavLayout');
   vi.doUnmock('@/store/global');

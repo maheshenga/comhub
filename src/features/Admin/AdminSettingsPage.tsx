@@ -16,6 +16,7 @@ import {
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
 } from '@/features/Admin/adminSettingsForm';
+import ImageUrlUploadInput from '@/features/Admin/components/ImageUrlUploadInput';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -39,6 +40,8 @@ const AdminSettingsPage = memo(() => {
   const initialValues = useMemo(() => buildFormValues(data), [data]);
   const pendingUpdates = buildSettingUpdates(watchedValues ?? initialValues, initialValues);
   const hasPendingChanges = pendingUpdates.length > 0;
+  const uploadPublicUrlPrefix =
+    watchedValues?.storageS3PublicDomain || initialValues.storageS3PublicDomain || undefined;
 
   useEffect(() => {
     if (!data) return;
@@ -185,18 +188,41 @@ const AdminSettingsPage = memo(() => {
                   <Form.Item
                     extra={t(
                       'admin.settings.brandLogoUrl.help',
-                      '用于登录页右上角、站内品牌 Logo 和图标展示。',
+                      '用于登录页右上角、站内品牌 Logo 和图标展示。可填写 URL，也可上传图片后自动填入。',
                     )}
                     label={t('admin.settings.brandLogoUrl', 'Logo 地址（URL）')}
                     name="brandLogoUrl"
                   >
-                    <Input placeholder="https://.../logo.svg" />
+                    <ImageUrlUploadInput
+                      placeholder="https://.../logo.svg"
+                      publicUrlPrefix={uploadPublicUrlPrefix}
+                    />
                   </Form.Item>
                   <Form.Item
+                    extra={t(
+                      'admin.settings.brandFaviconUrl.help',
+                      '用于浏览器标签页和收藏夹图标。可填写 URL，也可上传图片后自动填入。',
+                    )}
                     label={t('admin.settings.brandFaviconUrl', '网站图标地址（Favicon URL）')}
                     name="brandFaviconUrl"
                   >
-                    <Input placeholder="https://.../favicon.ico" />
+                    <ImageUrlUploadInput
+                      placeholder="https://.../favicon.ico"
+                      publicUrlPrefix={uploadPublicUrlPrefix}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    extra={t(
+                      'admin.settings.aboutLogoUrl.help',
+                      '用于“关于”页面的 Logo。留空时使用站点 Logo；可填写 URL，也可上传图片后自动填入。',
+                    )}
+                    label={t('admin.settings.aboutLogoUrl', '关于页面 Logo 地址')}
+                    name="aboutLogoUrl"
+                  >
+                    <ImageUrlUploadInput
+                      placeholder="https://.../about-logo.svg"
+                      publicUrlPrefix={uploadPublicUrlPrefix}
+                    />
                   </Form.Item>
                   <Form.Item
                     extra={t(
@@ -244,7 +270,10 @@ const AdminSettingsPage = memo(() => {
                     label={t('admin.settings.defaultAgentAvatar', '助手头像代码')}
                     name="defaultAgentAvatar"
                   >
-                    <Input placeholder={DEFAULT_COMHUB_AGENT_AVATAR} />
+                    <ImageUrlUploadInput
+                      placeholder={DEFAULT_COMHUB_AGENT_AVATAR}
+                      publicUrlPrefix={uploadPublicUrlPrefix}
+                    />
                   </Form.Item>
                   <Form.Item
                     extra={t(
@@ -340,6 +369,16 @@ const AdminSettingsPage = memo(() => {
                     name="communityForkAndChatLabel"
                   >
                     <Input placeholder="派生并聊天" />
+                  </Form.Item>
+                  <Form.Item
+                    extra={t(
+                      'admin.settings.communitySkillUseButtonLabel.help',
+                      '控制 Skill 详情页“在 LobeAI 上使用”按钮文字，留空时使用当前品牌名生成默认文案。',
+                    )}
+                    label={t('admin.settings.communitySkillUseButtonLabel', 'Skill 使用按钮文字')}
+                    name="communitySkillUseButtonLabel"
+                  >
+                    <Input placeholder="在 QingyouAI 上使用" />
                   </Form.Item>
                   <Form.Item
                     extra={t(

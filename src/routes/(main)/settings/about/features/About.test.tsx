@@ -39,14 +39,20 @@ vi.mock('react-i18next', () => ({
 vi.mock('swr', () => ({
   default: () => ({
     data: {
-      contact: [{ id: 'officialSite', label: 'Runtime portal', url: 'https://chat.example.com' }],
-      information: [{ id: 'github', label: 'Runtime repo', url: 'https://git.example.com' }],
-      legal: [{ id: 'terms', label: 'Runtime terms', url: 'https://terms.example.com' }],
+      links: {
+        contact: [
+          { id: 'officialSite', label: 'Runtime portal', url: 'https://chat.example.com' },
+        ],
+        information: [{ id: 'github', label: 'Runtime repo', url: 'https://git.example.com' }],
+        legal: [{ id: 'terms', label: 'Runtime terms', url: 'https://terms.example.com' }],
+      },
+      logoUrl: '/about/logo.png',
     },
   }),
 }));
 
 vi.mock('@/features/Brand', () => ({
+  useBrand: () => ({ logoUrl: '/brand/logo.svg' }),
   useBrandName: () => 'Runtime Brand',
 }));
 
@@ -81,7 +87,9 @@ vi.mock('./ItemLink', () => ({
 }));
 
 vi.mock('./Version', () => ({
-  default: () => <div>Version block</div>,
+  default: ({ logoUrl }: { logoUrl?: string | null }) => (
+    <div>{logoUrl ? <img alt="Runtime Brand" src={logoUrl} /> : 'Version block'}</div>
+  ),
 }));
 
 describe('About', () => {
@@ -101,5 +109,6 @@ describe('About', () => {
       'href',
       'https://terms.example.com',
     );
+    expect(screen.getByAltText('Runtime Brand')).toHaveAttribute('src', '/about/logo.png');
   });
 });

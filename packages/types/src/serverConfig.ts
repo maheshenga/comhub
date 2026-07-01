@@ -40,6 +40,14 @@ export interface GlobalGenerationModelConfig {
   defaultProvider?: string;
 }
 
+export interface PublicCustomizationConfig {
+  helpMenuItems?: Array<{
+    label: string;
+    url?: string;
+  }>;
+  skillUseButtonLabel?: string;
+}
+
 export interface VisualUnderstandingConfig {
   model: string;
   provider: string;
@@ -65,6 +73,7 @@ export interface GlobalServerConfig {
    */
   agentGatewayUrl?: string;
   aiProvider: ServerLanguageModel;
+  customization?: PublicCustomizationConfig;
   defaultAgent?: PartialDeep<UserDefaultAgent>;
   disableEmailPassword?: boolean;
   enableBusinessFeatures?: boolean;

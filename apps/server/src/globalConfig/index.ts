@@ -14,10 +14,11 @@ import { toolsEnv } from '@/envs/tools';
 import { parseSSOProviders } from '@/libs/better-auth/utils/server';
 import { parseSystemAgent } from '@/server/globalConfig/parseSystemAgent';
 import {
+  getServerComposioConfig,
   getServerDefaultAgentSettingOverrides,
   getServerDefaultGenerationModelSettingOverrides,
-  getServerComposioConfig,
   getServerFileS3Config,
+  getServerPublicCustomizationConfig,
   getServerUserGlobalSettingsDefaults,
   getServerVectorSettingOverrides,
 } from '@/server/services/appSettings';
@@ -63,6 +64,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const userDefaults = await getServerUserGlobalSettingsDefaults(db);
   const composioConfig = await getServerComposioConfig(db);
   const s3Config = await getServerFileS3Config(db);
+  const customization = await getServerPublicCustomizationConfig(db);
   const aiProvider = await genServerAiProvidersConfig(
     getProviderSpecificConfig({
       enableBusinessFeatures: ENABLE_BUSINESS_FEATURES,
@@ -115,6 +117,7 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
 
   const config: GlobalServerConfig = {
     aiProvider,
+    customization,
     defaultAgent: {
       config: defaultAgentConfig,
       ...(Object.keys(defaultAgentMeta).length > 0 ? { meta: defaultAgentMeta } : {}),

@@ -24,7 +24,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
 }));
 
-const Version = memo<{ mobile?: boolean }>(({ mobile }) => {
+const Version = memo<{ logoUrl?: string | null; mobile?: boolean }>(({ logoUrl, mobile }) => {
   const hasNewVersion = useNewVersion();
   const brandName = useBrandName();
   const [latestVersion, serverVersion, useCheckServerVersion] = useGlobalStore((s) => [
@@ -130,7 +130,17 @@ const Version = memo<{ mobile?: boolean }>(({ mobile }) => {
             justify={'center'}
             width={64}
           >
-            <ProductLogo size={52} />
+            {logoUrl ? (
+              <img
+                alt={brandName}
+                height={52}
+                src={logoUrl}
+                style={{ objectFit: 'contain' }}
+                width={52}
+              />
+            ) : (
+              <ProductLogo size={52} />
+            )}
           </Block>
         </a>
         <Flexbox align={'flex-start'} gap={6}>

@@ -1,7 +1,7 @@
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
-import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 
 import {
   buildFormValues,
@@ -35,13 +35,13 @@ describe('adminSettingsForm', () => {
       }),
     ).toEqual([
       {
-        label: 'DeepSeek Chat（newapi / chat / 主网关）',
+        label: 'DeepSeek Chat（主网关 / chat）',
         model: 'deepseek-chat',
         provider: 'newapi',
         value: 'newapi:deepseek-chat',
       },
       {
-        label: 'flux-kontext（newapi / image / 图像网关）',
+        label: 'flux-kontext（图像网关 / image）',
         model: 'flux-kontext',
         provider: 'newapi',
         value: 'newapi:flux-kontext',
@@ -51,6 +51,29 @@ describe('adminSettingsForm', () => {
         model: 'manual-chat',
         provider: 'newapi',
         value: 'newapi:manual-chat',
+      },
+    ]);
+  });
+
+  it('uses managed provider display name in model option labels while preserving provider id', () => {
+    expect(
+      buildModelOptions({
+        enabledNewapiModels: [
+          {
+            displayName: 'Qwen Coder',
+            instanceName: 'OpenCode Go',
+            modelId: 'qwen3-coder',
+            modelType: 'chat',
+            provider: 'opencodego-1234567890',
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        label: 'Qwen Coder（OpenCode Go / chat）',
+        model: 'qwen3-coder',
+        provider: 'opencodego-1234567890',
+        value: 'opencodego-1234567890:qwen3-coder',
       },
     ]);
   });
@@ -66,6 +89,8 @@ describe('adminSettingsForm', () => {
       brandName: '玄果 AI',
       brandPrimaryColor: '#1677ff',
       brandSlogan: '',
+      aboutLogoUrl: '',
+      communitySkillUseButtonLabel: '',
       aboutLinks: {
         contact: [],
         information: [],
@@ -105,6 +130,31 @@ describe('adminSettingsForm', () => {
         initial,
       ),
     ).toEqual([{ key: SETTING_KEYS.brandName, value: 'ComHub' }]);
+  });
+
+  it('includes about page logo in brand setting updates', () => {
+    const initial = buildFormValues({
+      aboutLogoUrl: '',
+      brandLogoUrl: '/brand/logo.svg',
+    });
+
+    expect(initial.aboutLogoUrl).toBe('');
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          aboutLogoUrl: '/uploads/admin/about-logo.png',
+        },
+        initial,
+      ),
+    ).toEqual([{ key: SETTING_KEYS.aboutLogoUrl, value: '/uploads/admin/about-logo.png' }]);
+
+    expect(
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.aboutLogoUrl, value: '/uploads/admin/about-logo.png' },
+      ]),
+    ).toEqual(['brand-config']);
   });
 
   it('keeps default image and video model values readable without saving them from site settings', () => {
@@ -198,6 +248,7 @@ describe('adminSettingsForm', () => {
   it('includes home messenger controls and community fork copy in brand setting updates', () => {
     const initial = buildFormValues({
       communityForkAndChatLabel: '',
+      communitySkillUseButtonLabel: '',
       homeMessengerEnabled: true,
       homeMessengerBannerTitle: '',
     });
@@ -207,6 +258,7 @@ describe('adminSettingsForm', () => {
         {
           ...initial,
           communityForkAndChatLabel: '立即派生',
+          communitySkillUseButtonLabel: 'Use in ComHub',
           homeMessengerEnabled: false,
           homeMessengerBannerTitle: '在聊天平台中，与 {{brandName}} 畅聊',
         },
@@ -219,16 +271,14 @@ describe('adminSettingsForm', () => {
       },
       { key: SETTING_KEYS.homeMessengerEnabled, value: false },
       { key: SETTING_KEYS.communityForkAndChatLabel, value: '立即派生' },
+      { key: SETTING_KEYS.communitySkillUseButtonLabel, value: 'Use in ComHub' },
     ]);
 
     expect(
       getAdminSettingsRefreshKeys([
-        {
-          key: SETTING_KEYS.homeMessengerBannerTitle,
-          value: '在聊天平台中，与 {{brandName}} 畅聊',
-        },
+        { key: SETTING_KEYS.communitySkillUseButtonLabel, value: 'Use in ComHub' },
       ]),
-    ).toEqual(['brand-config']);
+    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState', 'brand-config']);
   });
 
   it('includes sidebar member and generation labels in brand setting updates', () => {

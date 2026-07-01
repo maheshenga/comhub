@@ -107,6 +107,7 @@ const SENSITIVE_KEYS = new Set<string>([
 ]);
 
 const BRAND_KEYS = [
+  SETTING_KEYS.aboutLogoUrl,
   SETTING_KEYS.brandAuthTitle,
   SETTING_KEYS.brandCopyrightText,
   SETTING_KEYS.brandLoadingText,
@@ -118,6 +119,7 @@ const BRAND_KEYS = [
   SETTING_KEYS.homeMessengerEnabled,
   SETTING_KEYS.homeMessengerBannerTitle,
   SETTING_KEYS.communityForkAndChatLabel,
+  SETTING_KEYS.communitySkillUseButtonLabel,
   SETTING_KEYS.sidebarMemberLabel,
   SETTING_KEYS.sidebarMemberUrl,
   SETTING_KEYS.sidebarGenerationLabel,
@@ -1345,8 +1347,16 @@ export const adminSettingsRouter = router({
   }),
 
   getPublicAboutLinks: publicDbProcedure.query(async ({ ctx }) => {
-    const raw = await readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks);
-    return normalizeAboutLinksConfig(raw);
+    const [links, logoUrl, brandLogoUrl] = await Promise.all([
+      readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks),
+      readSetting(ctx.serverDB, SETTING_KEYS.aboutLogoUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
+    ]);
+
+    return {
+      links: normalizeAboutLinksConfig(links),
+      logoUrl: toString(logoUrl) || toString(brandLogoUrl) || DEFAULT_RUNTIME_BRAND.logoUrl,
+    };
   }),
 
   getPublicDesktopUpdate: publicDbProcedure.query(async ({ ctx }) => {
@@ -1375,6 +1385,7 @@ export const adminSettingsRouter = router({
       cronSecret,
       auditDays,
       pendingDays,
+      aboutLogo,
       brandName,
       brandLogo,
       brandFavicon,
@@ -1386,6 +1397,7 @@ export const adminSettingsRouter = router({
       homeMessengerEnabled,
       homeMessengerBannerTitle,
       communityForkAndChatLabel,
+      communitySkillUseButtonLabel,
       defaultAgentModel,
       defaultAgentName,
       defaultAgentAvatar,
@@ -1464,6 +1476,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.cronSecret),
       readSetting(ctx.serverDB, SETTING_KEYS.cronAuditRetentionDays),
       readSetting(ctx.serverDB, SETTING_KEYS.cronPendingOrderExpiryDays),
+      readSetting(ctx.serverDB, SETTING_KEYS.aboutLogoUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandName),
       readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandFaviconUrl),
@@ -1475,6 +1488,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerBannerTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.communityForkAndChatLabel),
+      readSetting(ctx.serverDB, SETTING_KEYS.communitySkillUseButtonLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentModel),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentName),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentAvatar),
@@ -1573,6 +1587,7 @@ export const adminSettingsRouter = router({
     const enabledNewapiModels = await getAllEnabledModels(ctx.serverDB);
 
     return {
+      aboutLogoUrl: toString(aboutLogo),
       brandFaviconUrl: typeof brandFavicon === 'string' ? brandFavicon : '',
       brandAuthTitle:
         typeof brandAuthTitle === 'string' ? brandAuthTitle : DEFAULT_RUNTIME_BRAND.authTitle,
@@ -1582,6 +1597,8 @@ export const adminSettingsRouter = router({
           : DEFAULT_RUNTIME_BRAND.copyrightText,
       communityForkAndChatLabel:
         typeof communityForkAndChatLabel === 'string' ? communityForkAndChatLabel : '',
+      communitySkillUseButtonLabel:
+        typeof communitySkillUseButtonLabel === 'string' ? communitySkillUseButtonLabel : '',
       brandLogoUrl: typeof brandLogo === 'string' ? brandLogo : DEFAULT_RUNTIME_BRAND.logoUrl,
       brandName: typeof brandName === 'string' ? brandName : DEFAULT_RUNTIME_BRAND.name,
       brandPrimaryColor:

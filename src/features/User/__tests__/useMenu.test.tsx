@@ -1,14 +1,30 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ServerConfigStoreProvider } from '@/store/serverConfig/Provider';
+import { initServerConfigStore, Provider } from '@/store/serverConfig/store';
 import { useUserStore } from '@/store/user';
+import type { GlobalServerConfig } from '@/types/serverConfig';
 
 import { useMenu } from '../UserPanel/useMenu';
 
-const wrapper: React.JSXElementConstructor<{ children: React.ReactNode }> = ({ children }) => (
-  <ServerConfigStoreProvider>{children}</ServerConfigStoreProvider>
-);
+const createWrapper =
+  (
+    serverConfig: GlobalServerConfig = { aiProvider: {}, telemetry: {} },
+  ): React.JSXElementConstructor<{ children: React.ReactNode }> =>
+  ({ children }) => {
+    const store = initServerConfigStore({ serverConfig });
+
+    return <Provider createStore={() => store}>{children}</Provider>;
+  };
+
+const findMenuItem = (items: NonNullable<ReturnType<typeof useMenu>['mainItems']>, key: string) =>
+  items.find(
+    (item): item is { key: string; label: React.ReactNode } => {
+      if (!item || typeof item !== 'object') return false;
+
+      return 'key' in item && (item as { key?: unknown }).key === key && 'label' in item;
+    },
+  );
 
 // Mock dependencies
 vi.mock('next/link', () => ({
@@ -50,7 +66,7 @@ describe('useMenu', () => {
       useUserStore.setState({ isSignedIn: true });
     });
 
-    const { result } = renderHook(() => useMenu(), { wrapper });
+    const { result } = renderHook(() => useMenu(), { wrapper: createWrapper() });
 
     act(() => {
       const { mainItems, logoutItems } = result.current;
@@ -68,7 +84,7 @@ describe('useMenu', () => {
       useUserStore.setState({ isSignedIn: false });
     });
 
-    const { result } = renderHook(() => useMenu(), { wrapper });
+    const { result } = renderHook(() => useMenu(), { wrapper: createWrapper() });
 
     act(() => {
       const { mainItems, logoutItems } = result.current;
@@ -84,7 +100,7 @@ describe('useMenu', () => {
       useUserStore.setState({ isSignedIn: true });
     });
 
-    const { result } = renderHook(() => useMenu(), { wrapper });
+    const { result } = renderHook(() => useMenu(), { wrapper: createWrapper() });
 
     act(() => {
       const { mainItems } = result.current;
@@ -98,5 +114,30 @@ describe('useMenu', () => {
         expect(isDivider(prev) && isDivider(curr)).toBe(false);
       }
     });
+  });
+
+  it('shows admin configured help menu links from runtime customization', () => {
+    act(() => {
+      useUserStore.setState({ isSignedIn: true });
+    });
+
+    const { result } = renderHook(() => useMenu(), {
+      wrapper: createWrapper({
+        aiProvider: {},
+        customization: {
+          helpMenuItems: [{ label: 'Admin Docs', url: 'https://docs.example.com' }],
+        },
+        telemetry: {},
+      }),
+    });
+
+    const docsItem = findMenuItem(result.current.mainItems ?? [], 'custom-help-0');
+
+    expect(docsItem).toBeDefined();
+    render(<>{docsItem?.label}</>);
+
+    const link = screen.getByRole('link', { name: 'Admin Docs' });
+    expect(link).toHaveAttribute('href', 'https://docs.example.com');
+    expect(link).toHaveAttribute('target', '_blank');
   });
 });

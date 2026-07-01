@@ -13,7 +13,7 @@ import {
   DEFAULT_ABOUT_LINKS,
   normalizeAboutLinksConfig,
 } from '@/const/aboutLinks';
-import { useBrandName } from '@/features/Brand';
+import { useBrand, useBrandName } from '@/features/Brand';
 import { lambdaClient } from '@/libs/trpc/client';
 
 import AboutList from './AboutList';
@@ -39,11 +39,18 @@ const iconMap: Partial<Record<AboutLinkId, any>> = {
 
 const About = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t } = useTranslation('common');
+  const brand = useBrand();
   const brandingName = useBrandName();
   const { data } = useSWR('about-links', () =>
     lambdaClient.admin.settings.getPublicAboutLinks.query(),
   );
-  const aboutLinks = normalizeAboutLinksConfig(data ?? DEFAULT_ABOUT_LINKS);
+  const aboutLinks = normalizeAboutLinksConfig(
+    data && typeof data === 'object' && 'links' in data ? data.links : data ?? DEFAULT_ABOUT_LINKS,
+  );
+  const aboutLogoUrl =
+    data && typeof data === 'object' && 'logoUrl' in data && typeof data.logoUrl === 'string'
+      ? data.logoUrl
+      : brand.logoUrl;
 
   return (
     <Form.Group
@@ -55,7 +62,7 @@ const About = memo<{ mobile?: boolean }>(({ mobile }) => {
     >
       <Flexbox gap={20} paddingBlock={20} width={'100%'}>
         <div className={styles.title}>{t('version')}</div>
-        <Version mobile={mobile} />
+        <Version logoUrl={aboutLogoUrl} mobile={mobile} />
         <Divider style={{ marginBlock: 0 }} />
         <div className={styles.title}>{t('contact')}</div>
         <AboutList
