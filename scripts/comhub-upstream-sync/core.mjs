@@ -25,6 +25,8 @@ const UNMERGED_STATUS_CODES = new Set(['AA', 'AU', 'DD', 'DU', 'UA', 'UD', 'UU']
 
 /**
  * @typedef {{ name: string; sha?: string }} UpstreamTag
+ * @typedef {{ from: string; to: string }} RenamedMissingFile
+ * @typedef {{ migrationMetadataFiles: string[]; missingAddedFiles: string[]; renamedMissingFiles: RenamedMissingFile[]; staleModifiedFiles: string[] }} UpstreamFeatureAudit
  * @typedef {{ command: string; exitCode?: number; status: 'failed' | 'passed' | 'skipped' }} VerificationResult
  */
 
@@ -218,14 +220,113 @@ export const renderMarkdownReport = ({
 };
 
 /**
+ * @param {{
+ *   currentTreeOutput: string;
+ *   targetToHeadNameStatusOutput?: string;
+ *   upstreamAddedFiles?: string[];
+ *   upstreamModifiedRawDiffOutput?: string;
+ * }} options
+ * @returns {UpstreamFeatureAudit}
+ */
+export const buildUpstreamFeatureAudit = ({
+  currentTreeOutput,
+  targetToHeadNameStatusOutput = '',
+  upstreamAddedFiles = [],
+  upstreamModifiedRawDiffOutput = '',
+}) => {
+  const currentTree = parseLsTreeBlobs(currentTreeOutput);
+  const currentFiles = new Set(currentTree.keys());
+  const renameMap = parseNameStatusRenames(targetToHeadNameStatusOutput);
+  const migrationMetadataFiles = [];
+  const renamedMissingFiles = [];
+  const missingAddedFiles = [];
+
+  for (const rawFile of upstreamAddedFiles.map(normalizeRepoPath)) {
+    if (!rawFile || currentFiles.has(rawFile)) continue;
+
+    const renamedTo = renameMap.get(rawFile);
+    if (renamedTo && currentFiles.has(renamedTo)) {
+      renamedMissingFiles.push({ from: rawFile, to: renamedTo });
+      continue;
+    }
+
+    if (isMigrationMetadataFile(rawFile)) {
+      migrationMetadataFiles.push(rawFile);
+      continue;
+    }
+
+    missingAddedFiles.push(rawFile);
+  }
+
+  const staleModifiedFiles = parseRawModifiedDiff(upstreamModifiedRawDiffOutput)
+    .filter(({ oldBlob, path: filePath }) => currentTree.get(filePath) === oldBlob)
+    .map(({ path: filePath }) => filePath);
+
+  return {
+    migrationMetadataFiles: uniqueSorted(migrationMetadataFiles),
+    missingAddedFiles: uniqueSorted(missingAddedFiles),
+    renamedMissingFiles: renamedMissingFiles.sort((a, b) => a.from.localeCompare(b.from)),
+    staleModifiedFiles: uniqueSorted(staleModifiedFiles),
+  };
+};
+
+/**
+ * @param {{
+ *   audit: UpstreamFeatureAudit;
+ *   baseRef: string;
+ *   currentRef?: string;
+ *   generatedAt: string;
+ *   upstreamRef: string;
+ * }} options
+ * @returns {string}
+ */
+export const renderUpstreamFeatureAuditReport = ({
+  audit,
+  baseRef,
+  currentRef = 'HEAD',
+  generatedAt,
+  upstreamRef,
+}) => {
+  const migrationMetadataFiles = audit.migrationMetadataFiles || [];
+  const lines = [
+    '# ComHub Upstream Feature Audit',
+    '',
+    `- Generated at: ${generatedAt}`,
+    `- Base upstream ref: \`${baseRef}\``,
+    `- Target upstream ref: \`${upstreamRef}\``,
+    `- Current ref: \`${currentRef}\``,
+    `- Missing upstream-added files: ${audit.missingAddedFiles.length}`,
+    `- Upstream-modified files still matching base: ${audit.staleModifiedFiles.length}`,
+    `- Renamed or re-homed upstream files: ${audit.renamedMissingFiles.length}`,
+    `- Migration metadata files: ${migrationMetadataFiles.length}`,
+    '',
+    '## Missing Upstream-Added Files',
+    '',
+    ...renderList(audit.missingAddedFiles, 'No missing upstream-added files detected.'),
+    '',
+    '## Upstream-Modified Files Still Matching Base',
+    '',
+    ...renderList(audit.staleModifiedFiles, 'No stale upstream-modified files detected.'),
+    '',
+    '## Renamed or Re-Homed Upstream Files',
+    '',
+    ...renderRenameList(audit.renamedMissingFiles),
+    '',
+    '## Migration Metadata Files',
+    '',
+    ...renderList(migrationMetadataFiles, 'No missing migration metadata files detected.'),
+    '',
+  ];
+
+  return lines.join('\n');
+};
+
+/**
  * @param {string} value
  * @returns {string}
  */
 export const normalizeRepoPath = (value) =>
-  value
-    .replaceAll('\\', '/')
-    .replace(/^\.\//, '')
-    .replaceAll(/\/+$/g, '');
+  value.replaceAll('\\', '/').replace(/^\.\//, '').replaceAll(/\/+$/g, '');
 
 const isLikelyRepoPath = (value) =>
   REPO_ROOT_FILES.has(value) ||
@@ -247,7 +348,78 @@ const parsePorcelainPath = (value) => {
   return path;
 };
 
-const uniqueSorted = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+const parseLsTreeBlobs = (output) => {
+  const blobs = new Map();
+
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+
+    const tabIndex = line.indexOf('\t');
+    if (tabIndex < 0) continue;
+
+    const metadata = line.slice(0, tabIndex).trim().split(/\s+/);
+    if (metadata.length < 3) continue;
+
+    blobs.set(normalizeRepoPath(line.slice(tabIndex + 1)), metadata[2]);
+  }
+
+  return blobs;
+};
+
+const parseNameStatusRenames = (output) => {
+  const renames = new Map();
+
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+
+    const parts = line.split('\t');
+    if (parts.length >= 3 && parts[0].startsWith('R')) {
+      renames.set(normalizeRepoPath(parts[1]), normalizeRepoPath(parts[2]));
+      continue;
+    }
+
+    const arrowIndex = line.indexOf(' -> ');
+    if (parts[0]?.startsWith('R') && arrowIndex >= 0) {
+      const source = line.slice(parts[0].length, arrowIndex).trim();
+      const target = line.slice(arrowIndex + 4).trim();
+      renames.set(normalizeRepoPath(source), normalizeRepoPath(target));
+    }
+  }
+
+  return renames;
+};
+
+const parseRawModifiedDiff = (output) => {
+  const files = [];
+
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+
+    const tabIndex = line.indexOf('\t');
+    if (tabIndex < 0) continue;
+
+    const metadata = line.slice(0, tabIndex).trim().split(/\s+/);
+    if (metadata.length < 5) continue;
+
+    files.push({
+      oldBlob: metadata[2],
+      path: normalizeRepoPath(
+        line
+          .slice(tabIndex + 1)
+          .split('\t')
+          .at(-1),
+      ),
+    });
+  }
+
+  return files;
+};
+
+const isMigrationMetadataFile = (filePath) =>
+  /^packages\/database\/migrations\/meta\/\d+_snapshot\.json$/.test(filePath);
+
+const uniqueSorted = (values) =>
+  [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
 const parseTagVersion = (tagName) => {
   const match = tagName.match(/^v?(\d+)\.(\d+)\.(\d+)(?:-canary\.(\d+))?$/);
@@ -303,4 +475,10 @@ const renderVerification = (verification) => {
 
     return `- ${item.status}: \`${item.command}\`${detail}`;
   });
+};
+
+const renderRenameList = (items) => {
+  if (items.length === 0) return ['No renamed or re-homed upstream files detected.'];
+
+  return items.map((item) => `- \`${item.from}\` -> \`${item.to}\``);
 };

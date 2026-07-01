@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCandidateBranch,
+  buildUpstreamFeatureAudit,
   extractCustomizationFilePaths,
   findTouchedCustomizations,
   parseConflictFiles,
   parseLsRemoteTags,
+  renderUpstreamFeatureAuditReport,
   renderMarkdownReport,
   selectLatestUpstreamTag,
 } from './core.mjs';
@@ -129,5 +131,67 @@ R  old/file.ts -> new/file.ts
         upstreamRef: 'feature/provider runtime+pricing',
       }),
     ).toBe('upgrade/upstream-feature-provider-runtime-pricing-comhub-sync');
+  });
+
+  it('audits upstream feature gaps without treating migration renames as missing features', () => {
+    const audit = buildUpstreamFeatureAudit({
+      currentTreeOutput: `
+100644 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\tpackages/database/migrations/0129_workspace_device_and_ai_infra_surrogate_pk.sql
+100644 blob 1111111111111111111111111111111111111111\tsrc/features/old-provider.ts
+100644 blob 3333333333333333333333333333333333333333\tsrc/features/merged-provider.ts
+`,
+      targetToHeadNameStatusOutput: `
+R053\tpackages/database/migrations/0111_workspace_device_and_ai_infra_surrogate_pk.sql\tpackages/database/migrations/0129_workspace_device_and_ai_infra_surrogate_pk.sql
+D\t.github/workflows/mcp-submission-handler.yml
+`,
+      upstreamAddedFiles: [
+        '.github/workflows/mcp-submission-handler.yml',
+        'packages/database/migrations/0111_workspace_device_and_ai_infra_surrogate_pk.sql',
+        'packages/database/migrations/meta/0111_snapshot.json',
+      ],
+      upstreamModifiedRawDiffOutput: `
+:100644 100644 1111111111111111111111111111111111111111 2222222222222222222222222222222222222222 M\tsrc/features/old-provider.ts
+:100644 100644 0000000000000000000000000000000000000000 3333333333333333333333333333333333333333 M\tsrc/features/merged-provider.ts
+`,
+    });
+
+    expect(audit.missingAddedFiles).toEqual(['.github/workflows/mcp-submission-handler.yml']);
+    expect(audit.migrationMetadataFiles).toEqual([
+      'packages/database/migrations/meta/0111_snapshot.json',
+    ]);
+    expect(audit.renamedMissingFiles).toEqual([
+      {
+        from: 'packages/database/migrations/0111_workspace_device_and_ai_infra_surrogate_pk.sql',
+        to: 'packages/database/migrations/0129_workspace_device_and_ai_infra_surrogate_pk.sql',
+      },
+    ]);
+    expect(audit.staleModifiedFiles).toEqual(['src/features/old-provider.ts']);
+  });
+
+  it('renders an upstream feature audit report with actionable and informational sections', () => {
+    const report = renderUpstreamFeatureAuditReport({
+      audit: {
+        migrationMetadataFiles: ['packages/database/migrations/meta/0111_snapshot.json'],
+        missingAddedFiles: ['.github/workflows/mcp-submission-handler.yml'],
+        renamedMissingFiles: [
+          {
+            from: 'packages/database/migrations/0111_workspace_device_and_ai_infra_surrogate_pk.sql',
+            to: 'packages/database/migrations/0129_workspace_device_and_ai_infra_surrogate_pk.sql',
+          },
+        ],
+        staleModifiedFiles: [],
+      },
+      baseRef: 'v2.2.6',
+      currentRef: 'HEAD',
+      generatedAt: '2026-07-02T00:00:00.000Z',
+      upstreamRef: 'v2.2.9',
+    });
+
+    expect(report).toContain('Missing upstream-added files: 1');
+    expect(report).toContain('.github/workflows/mcp-submission-handler.yml');
+    expect(report).toContain('Migration metadata files: 1');
+    expect(report).toContain('packages/database/migrations/meta/0111_snapshot.json');
+    expect(report).toContain('Renamed or re-homed upstream files');
+    expect(report).toContain('0129_workspace_device_and_ai_infra_surrogate_pk.sql');
   });
 });
