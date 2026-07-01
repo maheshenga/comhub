@@ -657,7 +657,7 @@ export const fileRouter = router({
         id: z.string(),
         metadata: z.record(z.string(), z.any()).optional(),
         name: z.string().optional(),
-        parentId: z.string().nullable().optional(),
+        parentId: z.string().nullish(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

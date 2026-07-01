@@ -86,8 +86,8 @@ interface RouterInstance {
   runtime?: RuntimeClass;
 }
 
-// OpenAI SDK v6 widened apiKey to string | ApiKeySetter. LobeHub passes a plain
-// string here, so keep runtime options string-shaped for trim/assignment use.
+// OpenAI SDK v6 widened `apiKey` to `string | ApiKeySetter`; lobehub only ever
+// passes a plain string, so narrow it back to keep `.trim()` / string assignments valid.
 type LobeClientOptions = Omit<ClientOptions, 'apiKey'> & { apiKey?: string };
 type ConstructorOptions<T extends Record<string, any> = any> = LobeClientOptions & T;
 

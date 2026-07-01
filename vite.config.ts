@@ -18,12 +18,13 @@ import {
 import { vercelSkewProtection } from './plugins/vite/vercelSkewProtection';
 
 const isMobile = process.env.MOBILE === 'true';
+const isAuth = process.env.AUTH === 'true';
 const mode = process.env.NODE_ENV === 'production' ? 'production' : 'development';
 
 Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
 
 const isDev = process.env.NODE_ENV !== 'production';
-const platform = isMobile ? 'mobile' : 'web';
+const platform = isAuth ? 'auth' : isMobile ? 'mobile' : 'web';
 const enableViteDevTools = process.env.LOBE_VITE_DEVTOOLS === 'true';
 
 const resolveCommandExecutable = (cmd: string) => {
@@ -101,14 +102,17 @@ const openExternalBrowser = async (
 };
 
 export default defineConfig({
-  base: isDev ? '/' : process.env.VITE_CDN_BASE || '/_spa/',
+  base: isDev ? '/' : process.env.VITE_CDN_BASE || (isAuth ? '/_spa-auth/' : '/_spa/'),
   build: {
     modulePreload: sharedModulePreload,
-    outDir: isMobile ? 'dist/mobile' : 'dist/desktop',
+    outDir: isAuth ? 'dist/auth' : isMobile ? 'dist/mobile' : 'dist/desktop',
     reportCompressedSize: false,
     rolldownOptions: {
       ...(enableViteDevTools && { devtools: {} }),
-      input: path.resolve(__dirname, isMobile ? 'index.mobile.html' : 'index.html'),
+      input: path.resolve(
+        __dirname,
+        isAuth ? 'index.auth.html' : isMobile ? 'index.mobile.html' : 'index.html',
+      ),
       output: createSharedRolldownOutput({ strictExecutionOrder: true }),
     },
   },
@@ -380,7 +384,11 @@ export default defineConfig({
   server: {
     cors: true,
     host: true,
-    port: 9876,
+    port: isMobile
+      ? Number(process.env.MOBILE_SPA_PORT) || 3012
+      : isAuth
+        ? Number(process.env.AUTH_SPA_PORT) || 3013
+        : Number(process.env.SPA_PORT) || 9876,
     proxy: {
       '/api': `http://localhost:${process.env.PORT || 3010}`,
       '/oidc': `http://localhost:${process.env.PORT || 3010}`,

@@ -23,6 +23,7 @@ vi.mock('react-i18next', () => ({
         'userPanel.docs': 'Docs',
         'userPanel.feedback': 'Feedback',
         'userPanel.help': 'Help',
+        'userPanel.inviteFriend': 'Invite a friend',
         'userPanel.setting': 'Settings',
       })[key] || key,
   }),
@@ -31,10 +32,13 @@ vi.mock('react-i18next', () => ({
 interface RenderFooterOptions {
   agentFinished?: boolean;
   agentStarted?: boolean;
+  billboardItems?: unknown[];
   classicFinished?: boolean;
   customization?: Record<string, unknown>;
   desktop?: boolean;
+  enableBusinessFeatures?: boolean;
   enabled?: boolean;
+  homeSidebar?: boolean;
   mobile?: boolean;
   readSlugs?: string[];
   serverConfigInit?: boolean;
@@ -67,10 +71,13 @@ const createGlobalState = (readSlugs: string[] = []) => ({
 const renderFooter = async ({
   agentFinished = false,
   agentStarted = false,
+  billboardItems = [],
   classicFinished = true,
   customization,
   desktop = false,
   enabled = true,
+  enableBusinessFeatures = false,
+  homeSidebar = false,
   mobile = false,
   readSlugs = [],
   serverConfigInit = true,
@@ -85,6 +92,7 @@ const renderFooter = async ({
 
   mockGlobalState = createGlobalState(readSlugs);
   mockServerConfigState = {
+    enableBusinessFeatures,
     featureFlags: { enableAgentOnboarding: enabled },
     isMobile: mobile,
     serverConfig: { customization },
@@ -159,13 +167,18 @@ const renderFooter = async ({
     default: () => null,
   }));
   vi.doMock('@/features/Billboard/MenuItems', () => ({
-    useBillboardMenuItems: () => [],
+    useBillboardMenuItems: () => billboardItems,
   }));
   vi.doMock('@/features/NavPanel', () => ({
-    useActiveNavKey: () => 'home',
+    useActiveNavKey: () => (homeSidebar ? 'home' : 'discover'),
   }));
   vi.doMock('@/features/User/UserPanel/ThemeButton', () => ({
     default: () => null,
+  }));
+  vi.doMock('@/features/Workspace/WorkspaceLink', () => ({
+    default: ({ children, to }: { children: React.ReactNode; to: string }) => (
+      <a href={to}>{children}</a>
+    ),
   }));
   function createNavLayoutState() {
     return {
@@ -197,6 +210,9 @@ const renderFooter = async ({
     return selector(mockServerConfigState);
   }
   vi.doMock('@/store/serverConfig', () => ({
+    serverConfigSelectors: {
+      enableBusinessFeatures: (s: Record<string, unknown>) => !!s.enableBusinessFeatures,
+    },
     useServerConfigStore: selectFromServerConfigStore,
   }));
   function selectFromUserStore(selector: (state: Record<string, unknown>) => unknown) {
@@ -236,6 +252,7 @@ afterEach(() => {
   vi.doUnmock('@/features/Billboard/MenuItems');
   vi.doUnmock('@/features/NavPanel');
   vi.doUnmock('@/features/User/UserPanel/ThemeButton');
+  vi.doUnmock('@/features/Workspace/WorkspaceLink');
   vi.doUnmock('@/hooks/useNavLayout');
   vi.doUnmock('@/store/global');
   vi.doUnmock('@/store/serverConfig');
@@ -317,4 +334,62 @@ describe('Footer agent onboarding promotion', () => {
 
     expect(screen.queryByTestId('highlight-notification')).not.toBeInTheDocument();
   });
+});
+
+describe('Footer help menu tracking', () => {
+  it('tracks menu open with the visible item keys', async () => {
+    const user = userEvent.setup();
+    await renderFooter({ enableBusinessFeatures: true });
+
+    await user.click(screen.getByRole('button', { name: 'Help' }));
+
+    const openedCall = analyticsTrack.mock.calls.find(
+      ([event]) => event?.name === 'home_footer_menu_opened',
+    );
+    expect(openedCall).toBeTruthy();
+    expect((openedCall![0].properties.keys as string).split(',')).toContain('inviteFriend');
+  }, 20000);
+
+  it('tracks a unified click event when the invite friend entry is clicked', async () => {
+    const user = userEvent.setup();
+    await renderFooter({ enableBusinessFeatures: true });
+
+    await user.click(screen.getByRole('button', { name: 'Help' }));
+    await user.click(await screen.findByText('Invite a friend'));
+
+    expect(analyticsTrack).toHaveBeenCalledWith({
+      name: 'home_footer_menu_clicked',
+      properties: { key: 'inviteFriend', spm: 'homepage.footer.inviteFriend.clicked' },
+    });
+  }, 20000);
+
+  it('does not render the invite friend entry without business features', async () => {
+    const user = userEvent.setup();
+    await renderFooter({ enableBusinessFeatures: false });
+
+    await user.click(screen.getByRole('button', { name: 'Help' }));
+
+    expect(screen.queryByText('Invite a friend')).not.toBeInTheDocument();
+  }, 20000);
+
+  it('excludes billboard items from the opened keys to keep per-key CTR aligned', async () => {
+    const user = userEvent.setup();
+    await renderFooter({
+      billboardItems: [{ key: 'billboard-promo', label: 'Promo', onClick: vi.fn() }],
+      enableBusinessFeatures: true,
+      homeSidebar: true,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Help' }));
+
+    const openedCall = analyticsTrack.mock.calls.find(
+      ([event]) => event?.name === 'home_footer_menu_opened',
+    );
+    const keys = (openedCall![0].properties.keys as string).split(',');
+    // own items are tracked and reported as exposure...
+    expect(keys).toContain('inviteFriend');
+    // ...but billboard items (which emit their own billboard_* events) are not,
+    // so their CTR denominator never gets an orphaned exposure.
+    expect(keys).not.toContain('billboard-promo');
+  }, 20000);
 });

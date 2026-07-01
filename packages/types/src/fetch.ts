@@ -9,6 +9,9 @@ export const ChatErrorType = {
   InsufficientBudgetForModel: 'InsufficientBudgetForModel', // Has credits but not enough for estimated model cost
   StorageQuotaExceeded: 'StorageQuotaExceeded', // Storage quota limit exceeded
   VectorQuotaExceeded: 'VectorQuotaExceeded', // Vector database quota limit exceeded
+  WorkspaceFrozenByAdmin: 'WorkspaceFrozenByAdmin', // Workspace manually frozen by admin (reason is operator-written, safe to surface)
+  WorkspaceFrozenByRiskControl: 'WorkspaceFrozenByRiskControl', // Workspace auto-frozen by risk control (reason is engineer debug text, hide from user)
+  WorkspaceSubscriptionInactive: 'WorkspaceSubscriptionInactive', // Workspace's paid subscription has lapsed - view-only for non-primary members; spend blocked until renewed
   SubscriptionKeyMismatch: 'SubscriptionKeyMismatch', // Subscription key mismatch
 
   SupervisorDecisionFailed: 'SupervisorDecisionFailed', // Supervisor decision failed

@@ -46,7 +46,6 @@ const fetchPricing = async (
         if (useAuth && apiKey) {
           headers.Authorization = `Bearer ${apiKey}`;
         }
-
         return fetch(pricingUrl, { headers });
       };
 

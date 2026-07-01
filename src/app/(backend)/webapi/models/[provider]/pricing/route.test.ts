@@ -48,6 +48,7 @@ beforeEach(() => {
     method: 'GET',
   });
 
+  // Default: valid session
   vi.mocked(auth.api.getSession).mockResolvedValue({
     session: {} as any,
     user: { id: 'test-user-id' } as any,

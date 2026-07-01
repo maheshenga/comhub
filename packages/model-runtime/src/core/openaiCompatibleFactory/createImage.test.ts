@@ -9,6 +9,9 @@ import { createOpenAICompatibleImage } from './createImage';
 
 // Mock the console to avoid polluting test output
 vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.mock('@lobechat/business-model-bank/model-config', () => ({
+  loadModels: vi.fn().mockResolvedValue([]),
+}));
 
 // Polyfill File for Node environment
 if (typeof File === 'undefined') {
@@ -526,6 +529,45 @@ describe('createOpenAICompatibleImage', () => {
 
       expect(result.imageUrl).toBe('data:image/png;base64,chatModelResult');
       expect(mockClient.chat.completions.create).toHaveBeenCalled();
+      expect(mockClient.images.generate).not.toHaveBeenCalled();
+      expect(mockClient.images.edit).not.toHaveBeenCalled();
+    });
+
+    it('should route by logical image model while sending mapped model id', async () => {
+      const mockChatResponse = {
+        choices: [
+          {
+            message: {
+              images: [
+                {
+                  image_url: {
+                    url: 'data:image/png;base64,mappedChatModelResult',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      };
+
+      vi.mocked(mockClient.chat.completions.create).mockResolvedValue(mockChatResponse as any);
+
+      const payload: CreateImagePayload = {
+        model: 'logical-model:image',
+        params: {
+          prompt: 'Test mapped routing',
+        },
+      };
+
+      const result = await createOpenAICompatibleImage(mockClient, payload, 'test-provider', {
+        requestModel: 'upstream-model',
+        routingModel: 'logical-model:image',
+      });
+
+      expect(result.imageUrl).toBe('data:image/png;base64,mappedChatModelResult');
+      expect(mockClient.chat.completions.create).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'upstream-model' }),
+      );
       expect(mockClient.images.generate).not.toHaveBeenCalled();
       expect(mockClient.images.edit).not.toHaveBeenCalled();
     });

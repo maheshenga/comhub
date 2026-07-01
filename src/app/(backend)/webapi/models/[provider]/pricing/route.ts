@@ -25,6 +25,7 @@ export const GET = checkAuth(async (_req, { params, userId, serverDB }) => {
   }
 
   try {
+    // 1. Get user's provider configuration from database
     const aiProviderModel = new AiProviderModel(serverDB, userId);
     const providerConfig = await aiProviderModel.getAiProviderById(
       provider,
@@ -47,19 +48,20 @@ export const GET = checkAuth(async (_req, { params, userId, serverDB }) => {
       });
     }
 
+    // Remove trailing API version paths like /v1, /v1beta, etc.
     const cleanBaseURL = baseURL.replace(/\/v\d+[a-z]*\/?$/, '');
     const pricingUrl = `${cleanBaseURL}/api/pricing`;
-    const baseHeaders: Record<string, string> = {
+
+    const headers: Record<string, string> = {
       Accept: 'application/json; charset=utf-8',
     };
 
     const fetchWithAuth = async (useAuth: boolean) => {
-      const headers = { ...baseHeaders };
+      const currentHeaders = { ...headers };
       if (useAuth && apiKey) {
-        headers.Authorization = `Bearer ${apiKey}`;
+        currentHeaders.Authorization = `Bearer ${apiKey}`;
       }
-
-      return ssrfSafeFetch(pricingUrl, { headers });
+      return ssrfSafeFetch(pricingUrl, { headers: currentHeaders });
     };
 
     let res: Response;
@@ -81,11 +83,11 @@ export const GET = checkAuth(async (_req, { params, userId, serverDB }) => {
       });
     }
 
-    return NextResponse.json(await res.json());
+    const body = await res.json();
+    return NextResponse.json(body);
   } catch (e) {
     log(`Route: [${provider}] pricing error: %O`, e);
     const error = e instanceof Error ? { message: e.message, name: e.name } : e;
-
     return createErrorResponse(ChatErrorType.InternalServerError, { error });
   }
 });

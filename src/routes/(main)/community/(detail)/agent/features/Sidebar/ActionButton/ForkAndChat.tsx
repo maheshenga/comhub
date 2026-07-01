@@ -1,5 +1,6 @@
 'use client';
 
+import { AGENT_CHAT_URL } from '@lobechat/const';
 import { Button } from '@lobehub/ui';
 import { App } from 'antd';
 import { createStaticStyles } from 'antd-style';
@@ -7,7 +8,6 @@ import { customAlphabet } from 'nanoid/non-secure';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { SESSION_CHAT_URL } from '@/const/url';
 import { useBrand } from '@/features/Brand';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { usePermission } from '@/hooks/usePermission';
@@ -66,7 +66,7 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
       if (existingAgentId) {
         // User has already forked this agent, navigate to existing fork
         message.info(t('fork.alreadyForked'));
-        navigate(SESSION_CHAT_URL(existingAgentId, mobile));
+        navigate(AGENT_CHAT_URL(existingAgentId, mobile));
         return;
       }
 
@@ -105,7 +105,7 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
       message.success(t('fork.success'));
 
       // Step 5: Navigate to chat
-      navigate(SESSION_CHAT_URL(result!.agentId, mobile));
+      navigate(AGENT_CHAT_URL(result!.agentId, mobile));
     } catch (error: any) {
       console.error('Fork failed:', error);
       message.error(t('fork.failed'));

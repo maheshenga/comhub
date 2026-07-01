@@ -2,18 +2,27 @@
 
 import { type SlashOptions } from '@lobehub/editor';
 import { type ChatInputActionsProps } from '@lobehub/editor/react';
-import { Alert, Flexbox, type MenuProps } from '@lobehub/ui';
+import { Alert, Button, Flexbox, type MenuProps } from '@lobehub/ui';
 import { type ReactNode } from 'react';
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 
 import {
   getBusinessChatInputSendAreaPrefix,
   useBusinessChatInputCostEstimateAlert,
 } from '@/business/client/hooks/useBusinessChatInputSendAreaPrefix';
+import { useBusinessInputCompletionErrorAlert } from '@/business/client/hooks/useBusinessInputCompletionErrorAlert';
 import type { ActionKeys, ChatInputFeature } from '@/features/ChatInput';
 import { ChatInputProvider, DesktopChatInput } from '@/features/ChatInput';
-import { type SendButtonHandler, type SendButtonProps } from '@/features/ChatInput/store/initialState';
+import { selectors as chatInputSelectors, useChatInputStore } from '@/features/ChatInput/store';
+import {
+  type InputCompletionError,
+  type SendButtonHandler,
+  type SendButtonProps,
+} from '@/features/ChatInput/store/initialState';
+import { useAgentStore } from '@/store/agent';
+import { chatConfigByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { operationSelectors } from '@/store/chat/selectors';
 import { selectCurrentTurnTodosFromMessages } from '@/store/chat/slices/message/selectors/dbMessage';
@@ -26,18 +35,63 @@ import { dataSelectors, messageStateSelectors, useConversationStore } from '../s
 import TodoProgress from '../TodoProgress';
 import OpStatusTray from './OpStatusTray';
 import QueueTray from './QueueTray';
-import { getConversationChatInputUiState } from './utils';
+import {
+  getContextWindowMessages,
+  getConversationChatInputUiState,
+  toChatInputMessages,
+} from './utils';
 
 /** Max recent messages to feed into auto-complete context (≈10 conversation turns) */
 const MAX_CONTEXT_MESSAGES = 25;
 
-const toChatInputMessages = (messages: ReturnType<typeof dataSelectors.dbMessages>) =>
-  messages
-    .filter((m) => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
-    .map((m) => ({
-      content: typeof m.content === 'string' ? m.content : '',
-      role: m.role as 'user' | 'assistant' | 'system',
-    }));
+const InputCompletionErrorAlertContent = memo<{
+  inputCompletionError: InputCompletionError;
+}>(({ inputCompletionError }) => {
+  const { t } = useTranslation('chat');
+  const clearInputCompletionError = useChatInputStore((s) => s.clearInputCompletionError);
+  const businessAlert = useBusinessInputCompletionErrorAlert({
+    error: inputCompletionError,
+    onRetry: clearInputCompletionError,
+  });
+
+  const action = businessAlert.action ?? (
+    <Flexbox horizontal align={'center'} gap={8} wrap={'wrap'}>
+      <Button size={'small'} type={'primary'} onClick={clearInputCompletionError}>
+        {t('input.inputCompletionError.retry')}
+      </Button>
+      <Link to={'/settings/agent'}>
+        <Button size={'small'}>{t('input.inputCompletionError.settings')}</Button>
+      </Link>
+    </Flexbox>
+  );
+
+  return (
+    <>
+      <Flexbox paddingBlock={'0 6px'} paddingInline={12}>
+        <Alert
+          showIcon
+          action={action}
+          description={businessAlert.description ?? t('input.inputCompletionError.desc')}
+          title={t('input.inputCompletionError.title')}
+          type={'warning'}
+        />
+      </Flexbox>
+      {businessAlert.extra}
+    </>
+  );
+});
+
+InputCompletionErrorAlertContent.displayName = 'InputCompletionErrorAlertContent';
+
+const InputCompletionErrorAlert = memo(() => {
+  const inputCompletionError = useChatInputStore(chatInputSelectors.inputCompletionErrorVisible);
+
+  if (!inputCompletionError) return null;
+
+  return <InputCompletionErrorAlertContent inputCompletionError={inputCompletionError} />;
+});
+
+InputCompletionErrorAlert.displayName = 'InputCompletionErrorAlert';
 
 export interface ChatInputProps {
   /**
@@ -169,14 +223,8 @@ const ChatInput = memo<ChatInputProps>(
   }) => {
     const { t } = useTranslation('chat');
 
-    const dbMessages = useConversationStore(dataSelectors.dbMessages);
-    const contextWindowMessages = useMemo(() => toChatInputMessages(dbMessages), [dbMessages]);
-    const getMessages = useCallback(
-      () => contextWindowMessages.slice(-MAX_CONTEXT_MESSAGES),
-      [contextWindowMessages],
-    );
-
     // ConversationStore state
+    const dbMessages = useConversationStore(dataSelectors.dbMessages);
     const context = useConversationStore((s) => s.context);
     const draftKey = useMemo(() => messageMapKey(context), [context]);
     const [agentId, inputMessage, sendMessage, stopGenerating] = useConversationStore((s) => [
@@ -185,6 +233,23 @@ const ChatInput = memo<ChatInputProps>(
       s.sendMessage,
       s.stopGenerating,
     ]);
+    const [enableHistoryCount, historyCount] = useAgentStore((s) => [
+      chatConfigByIdSelectors.getEnableHistoryCountById(agentId || '')(s),
+      chatConfigByIdSelectors.getHistoryCountById(agentId || '')(s),
+    ]);
+    const chatInputMessages = useMemo(() => toChatInputMessages(dbMessages), [dbMessages]);
+    const contextWindowMessages = useMemo(
+      () =>
+        getContextWindowMessages(dbMessages, {
+          enableHistoryCount,
+          historyCount,
+        }),
+      [dbMessages, enableHistoryCount, historyCount],
+    );
+    const getMessages = useCallback(
+      () => chatInputMessages.slice(-MAX_CONTEXT_MESSAGES),
+      [chatInputMessages],
+    );
     const updateInputMessage = useConversationStore((s) => s.updateInputMessage);
     const setEditor = useConversationStore((s) => s.setEditor);
     const setChatInputOverlayHeight = useConversationStore((s) => s.setChatInputOverlayHeight);
@@ -331,6 +396,7 @@ const ChatInput = memo<ChatInputProps>(
               />
             </Flexbox>
           )}
+          <InputCompletionErrorAlert />
           {businessCostEstimateAlert}
           <Flexbox
             paddingInline={12}

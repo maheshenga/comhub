@@ -20,6 +20,17 @@ export const devices = pgTable(
     userId: text('user_id')
       .references(() => users.id, { onDelete: 'cascade' })
       .notNull(),
+    // `workspace_id` distinguishes the two kinds of device row:
+    //   - NULL          -> a PERSONAL device, identified by (userId, deviceId).
+    //   - <workspaceId> -> a device ENROLLED into that workspace (shared infra),
+    //     identified by (workspaceId, deviceId). `userId` then only records the
+    //     first enroller - it is NOT part of the identity, so two members
+    //     enrolling the same machine resolve to ONE row (see the partial unique
+    //     below) and the original enroller is preserved. The router uses this
+    //     `userId` to gate writes to "self-or-owner" (see
+    //     `canEditWorkspaceDevice`). The same physical machine produces a
+    //     distinct `deviceId` per principal (the hash mixes in userId /
+    //     `workspace:<id>`), so personal and workspace rows never collide.
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
 
     /** Machine-derived id (sha256 truncated to 32 chars; 64 leaves room for fallback randomUUID) */
@@ -47,6 +58,12 @@ export const devices = pgTable(
     uniqueIndex('devices_user_id_device_id_unique')
       .on(t.userId, t.deviceId)
       .where(sql`${t.workspaceId} IS NULL`),
+    /**
+     * One row per (workspace, machine) for enrolled devices, regardless of which
+     * member ran the enrollment. registerWorkspaceDevice() upserts on this target
+     * (partial - ON CONFLICT must repeat the `WHERE workspace_id IS NOT NULL`
+     * predicate).
+     */
     uniqueIndex('devices_workspace_id_device_id_unique')
       .on(t.workspaceId, t.deviceId)
       .where(sql`${t.workspaceId} IS NOT NULL`),

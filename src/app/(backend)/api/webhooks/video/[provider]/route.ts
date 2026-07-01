@@ -52,6 +52,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
   let asyncTaskModel: AsyncTaskModel | undefined;
   let asyncTaskId: string | undefined;
   let asyncTaskUserId: string | undefined;
+  let asyncTaskWorkspaceId: string | undefined;
   let asyncTaskMetadata: VideoGenerationTaskMetadata | undefined;
 
   try {
@@ -102,6 +103,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
 
     asyncTaskId = asyncTask.id;
     asyncTaskUserId = asyncTask.userId;
+    asyncTaskWorkspaceId = asyncTask.workspaceId ?? undefined;
     asyncTaskMetadata = metadata;
 
     log(
@@ -179,6 +181,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
           prechargeResult: metadata?.precharge as any,
           provider,
           userId: asyncTask.userId,
+          workspaceId: asyncTask.workspaceId ?? undefined,
         });
       } catch (refundError) {
         console.error('[video-webhook] Failed to refund precharge on error:', refundError);
@@ -258,6 +261,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
         provider,
         usage: result.usage,
         userId: asyncTask.userId,
+        workspaceId: asyncTask.workspaceId ?? undefined,
       });
     } catch (chargeError) {
       console.error('[video-webhook] Failed to charge after generate:', chargeError);
@@ -291,6 +295,7 @@ export const POST = async (req: Request, { params }: { params: Promise<{ provide
           prechargeResult: asyncTaskMetadata.precharge as any,
           provider,
           userId: asyncTaskUserId,
+          workspaceId: asyncTaskWorkspaceId,
         });
       } catch (refundError) {
         console.error('[video-webhook] Failed to refund precharge on failure:', refundError);

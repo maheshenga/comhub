@@ -1,11 +1,13 @@
 [
   {
     "children": {
-      "fixes": ["hide runtime-only model aliases."],
-      "features": ["set OSS default model to DeepSeek V4 Pro."]
+      "fixes": [
+        "drop legacy task template recommendations.",
+        "drop legacy task template recommendations."
+      ]
     },
-    "date": "2026-05-09",
-    "version": "2.1.57"
+    "date": "2026-06-22",
+    "version": "2.2.8"
   },
   {
     "children": {},
