@@ -233,7 +233,12 @@ class AgentService {
   /**
    * Count non-virtual agents with optional keyword filter, matching queryAgents conditions.
    */
-  countAgents = async (params?: { keyword?: string }) => {
+  countAgents = async (params?: {
+    endDate?: string;
+    keyword?: string;
+    range?: [string, string];
+    startDate?: string;
+  }) => {
     return lambdaClient.agent.countAgents.query(params);
   };
 

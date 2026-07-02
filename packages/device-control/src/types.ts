@@ -117,6 +117,21 @@ export interface ProjectFileIndexResult {
   totalCount: number;
 }
 
+export interface ProjectFileSearchParams extends ProjectFileIndexParams {
+  includeDirectories?: boolean;
+  limit?: number;
+  query: string;
+}
+
+export interface ProjectFileSearchResult {
+  entries: ProjectFileIndexEntry[];
+  indexedAt: string;
+  query: string;
+  root: string;
+  source: 'git' | 'glob';
+  totalCount: number;
+}
+
 /**
  * The subset of platform hooks the workspace-scan helpers need. Kept narrow so
  * the desktop's local-IPC `WorkspaceCtr` can reuse `initWorkspace` /

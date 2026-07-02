@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCandidateBranch,
   buildUpstreamFeatureAudit,
+  collectChangedFilesFromCommits,
   extractCustomizationFilePaths,
   findTouchedCustomizations,
   parseConflictFiles,
@@ -168,6 +169,46 @@ D\t.github/workflows/mcp-submission-handler.yml
     expect(audit.staleModifiedFiles).toEqual(['src/features/old-provider.ts']);
   });
 
+  it('aggregates changed files from GitHub commit file lists without compare API truncation', () => {
+    const changedFiles = collectChangedFilesFromCommits([
+      {
+        files: [
+          { filename: 'src/features/provider.ts', status: 'added' },
+          { filename: 'src/features/existing.ts', status: 'modified' },
+          {
+            filename: 'src/features/new-name.ts',
+            previous_filename: 'src/features/old-name.ts',
+            status: 'renamed',
+          },
+        ],
+      },
+      {
+        files: [
+          { filename: './src/features/provider.ts', status: 'modified' },
+          { filename: 'docs/removed.md', status: 'removed' },
+          { filename: 'packages/database/migrations/meta/0129_snapshot.json', status: 'added' },
+        ],
+      },
+    ]);
+
+    expect(changedFiles).toEqual({
+      addedFiles: [
+        'packages/database/migrations/meta/0129_snapshot.json',
+        'src/features/provider.ts',
+      ],
+      allFiles: [
+        'docs/removed.md',
+        'packages/database/migrations/meta/0129_snapshot.json',
+        'src/features/existing.ts',
+        'src/features/new-name.ts',
+        'src/features/old-name.ts',
+        'src/features/provider.ts',
+      ],
+      modifiedFiles: ['src/features/existing.ts', 'src/features/provider.ts'],
+      renamedFiles: [{ from: 'src/features/old-name.ts', to: 'src/features/new-name.ts' }],
+    });
+  });
+
   it('renders an upstream feature audit report with actionable and informational sections', () => {
     const report = renderUpstreamFeatureAuditReport({
       audit: {
@@ -182,12 +223,16 @@ D\t.github/workflows/mcp-submission-handler.yml
         staleModifiedFiles: [],
       },
       baseRef: 'v2.2.6',
+      changedFileCount: 437,
+      changedFileSource: 'commit-file aggregation',
       currentRef: 'HEAD',
       generatedAt: '2026-07-02T00:00:00.000Z',
       upstreamRef: 'v2.2.9',
     });
 
     expect(report).toContain('Missing upstream-added files: 1');
+    expect(report).toContain('Changed-file source: commit-file aggregation');
+    expect(report).toContain('Changed files considered: 437');
     expect(report).toContain('.github/workflows/mcp-submission-handler.yml');
     expect(report).toContain('Migration metadata files: 1');
     expect(report).toContain('packages/database/migrations/meta/0111_snapshot.json');

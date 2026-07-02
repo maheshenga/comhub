@@ -3,8 +3,8 @@ import { homedir, platform } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { IToolDetector, ToolStatus } from '@/core/infrastructure/ToolDetectorManager';
-import { createCommandDetector } from '@/core/infrastructure/ToolDetectorManager';
+import type { BinarySpec, BinaryStatus } from '@/core/infrastructure/BinaryManager';
+import { defineCommandBinary } from '@/core/infrastructure/BinaryManager';
 
 const execFilePromise = promisify(execFile);
 const execPromise = promisify(exec);
@@ -25,6 +25,8 @@ interface ResolvedCommand {
 }
 
 const isWindows = () => platform() === 'win32';
+const platformPath = () => (isWindows() ? path.win32 : path.posix);
+const platformPathDelimiter = () => (isWindows() ? ';' : ':');
 let shellPathPromise: Promise<string | undefined> | undefined;
 
 // Reject anything that could break out of the `cmd /c "<path>" --version`
@@ -50,7 +52,7 @@ const getLoginShellPath = async (): Promise<string | undefined> => {
   if (isWindows()) return undefined;
 
   const shell = process.env.SHELL;
-  if (!shell || !path.isAbsolute(shell)) return undefined;
+  if (!shell || !platformPath().isAbsolute(shell)) return undefined;
 
   try {
     const { stdout } = await execFilePromise(shell, ['-ilc', 'printf "%s" "$PATH"'], {
@@ -62,7 +64,7 @@ const getLoginShellPath = async (): Promise<string | undefined> => {
       .split(/\r?\n/)
       .map((line) => line.trim())
       .reverse()
-      .find((line) => line.includes(path.delimiter));
+      .find((line) => line.includes(platformPathDelimiter()));
   } catch {
     return undefined;
   }
@@ -74,9 +76,10 @@ const getCachedLoginShellPath = async (): Promise<string | undefined> => {
 };
 
 const mergePathValues = (...values: Array<string | undefined>): string | undefined => {
+  const delimiter = platformPathDelimiter();
   const seen = new Set<string>();
   const segments = values
-    .flatMap((value) => value?.split(path.delimiter) ?? [])
+    .flatMap((value) => value?.split(delimiter) ?? [])
     .map((segment) => segment.trim())
     .filter((segment) => {
       if (!segment || seen.has(segment)) return false;
@@ -84,7 +87,7 @@ const mergePathValues = (...values: Array<string | undefined>): string | undefin
       return true;
     });
 
-  return segments.length > 0 ? segments.join(path.delimiter) : undefined;
+  return segments.length > 0 ? segments.join(delimiter) : undefined;
 };
 
 const getCommandPathLines = async (
@@ -113,7 +116,8 @@ const resolveCommandPath = async (command: string): Promise<ResolvedCommand | un
   const trimmedCommand = command.trim();
   if (!trimmedCommand) return;
 
-  if (path.isAbsolute(trimmedCommand) || trimmedCommand.includes(path.sep)) {
+  const pathImpl = platformPath();
+  if (pathImpl.isAbsolute(trimmedCommand) || trimmedCommand.includes(pathImpl.sep)) {
     return { path: trimmedCommand };
   }
 
@@ -152,7 +156,7 @@ const resolveCommandPath = async (command: string): Promise<ResolvedCommand | un
 const detectValidatedCommand = async (
   command: string,
   options: Pick<ValidatedDetectorOptions, 'validateFlag' | 'validateKeywords'>,
-): Promise<ToolStatus> => {
+): Promise<BinaryStatus> => {
   const trimmedCommand = command.trim();
   if (!trimmedCommand) return { available: false };
   if (isWindows() && WINDOWS_SHELL_METAS.test(trimmedCommand)) return { available: false };
@@ -214,19 +218,39 @@ const HETEROGENEOUS_CLI_AGENT_OPTIONS = {
   Pick<ValidatedDetectorOptions, 'validateKeywords'>
 >;
 
+// The default (bare) command each agent type is shipped to run. The well-known
+// fallback locations below hold *this* binary, so they may only be probed when
+// the requested command is the default — never for a custom command.
+const DEFAULT_COMMAND: Record<HeterogeneousCliAgentType, string> = {
+  'claude-code': 'claude',
+  'codex': 'codex',
+};
+
 // Well-known absolute install locations probed when a bare command isn't on
-// PATH. The Codex desktop app bundles a fully functional CLI inside Codex.app
-// (sharing ~/.codex auth/config) but never symlinks it into PATH, so
-// `which codex` misses an otherwise working install.
+// PATH. This covers GUI-launched apps with a lean launchd PATH: Claude's
+// official installer can put `claude` under ~/.local/bin, while the Codex
+// desktop app bundles a functional CLI inside Codex.app without symlinking it.
 const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[] => {
-  if (platform() !== 'darwin') return [];
+  const pathImpl = platformPath();
 
   switch (agentType) {
-    case 'codex': {
-      const bundledCli = path.join('Codex.app', 'Contents', 'Resources', 'codex');
+    case 'claude-code': {
+      if (platform() !== 'darwin' && platform() !== 'linux') return [];
+
       return [
-        path.join('/Applications', bundledCli),
-        path.join(homedir(), 'Applications', bundledCli),
+        pathImpl.join(homedir(), '.local', 'bin', 'claude'),
+        pathImpl.join(homedir(), '.bun', 'bin', 'claude'),
+        pathImpl.join(homedir(), '.npm-global', 'bin', 'claude'),
+        pathImpl.join(homedir(), 'Library', 'pnpm', 'claude'),
+      ];
+    }
+    case 'codex': {
+      if (platform() !== 'darwin') return [];
+
+      const bundledCli = pathImpl.join('Codex.app', 'Contents', 'Resources', 'codex');
+      return [
+        pathImpl.join('/Applications', bundledCli),
+        pathImpl.join(homedir(), 'Applications', bundledCli),
       ];
     }
     default: {
@@ -238,17 +262,19 @@ const getWellKnownCommandPaths = (agentType: HeterogeneousCliAgentType): string[
 export const detectHeterogeneousCliCommand = async (
   agentType: HeterogeneousCliAgentType,
   command: string,
-): Promise<ToolStatus> => {
+): Promise<BinaryStatus> => {
   const validator = HETEROGENEOUS_CLI_AGENT_OPTIONS[agentType];
   if (!validator) return { available: false };
 
   const status = await detectValidatedCommand(command, validator);
   if (status.available) return status;
 
-  // A bare command missing from PATH may still live at a well-known install
-  // location (e.g. the Codex desktop app's bundled CLI). Don't second-guess
-  // an explicit user-configured path.
-  if (!command.trim().includes(path.sep)) {
+  // The default command missing from PATH may still live at a well-known install
+  // location (e.g. the Codex desktop app's bundled CLI). Only probe those for the
+  // default command: the well-known paths hold the *default* binary, so applying
+  // them to a custom command (e.g. `claude-beta`) would silently resolve it to
+  // stock `claude` instead of reporting the configured command as missing.
+  if (command.trim() === DEFAULT_COMMAND[agentType]) {
     for (const candidate of getWellKnownCommandPaths(agentType)) {
       const fallbackStatus = await detectValidatedCommand(candidate, validator);
       if (fallbackStatus.available) return fallbackStatus;
@@ -259,20 +285,20 @@ export const detectHeterogeneousCliCommand = async (
 };
 
 /**
- * Detector that resolves a command path via which/where, then validates
+ * Binary spec that resolves a command path via which/where, then validates
  * the binary by matching `--version` (or `--help`) output against a keyword
  * to avoid collisions with unrelated executables of the same name.
  */
-const createValidatedDetector = (
+const defineValidatedBinary = (
   options: ValidatedDetectorOptions & {
     candidates: string[];
   },
-): IToolDetector => {
+): BinarySpec => {
   const { candidates, description, name, priority, ...validation } = options;
 
   return {
     description,
-    async detect(): Promise<ToolStatus> {
+    async detect(): Promise<BinaryStatus> {
       for (const cmd of candidates) {
         const status = await detectValidatedCommand(cmd, validation);
         if (status.available) return status;
@@ -288,14 +314,17 @@ const createValidatedDetector = (
 /**
  * Claude Code CLI
  * @see https://docs.claude.com/en/docs/claude-code
+ *
+ * Goes through `detectHeterogeneousCliCommand` so Finder/launchd-started
+ * desktop builds can still discover user-local installs such as
+ * `~/.local/bin/claude` when that directory is absent from the inherited PATH.
  */
-export const claudeCodeDetector: IToolDetector = createValidatedDetector({
-  candidates: ['claude'],
+export const claudeCodeBinary: BinarySpec = {
   description: 'Claude Code - Anthropic official agentic coding CLI',
+  detect: () => detectHeterogeneousCliCommand('claude-code', 'claude'),
   name: 'claude',
   priority: 1,
-  validateKeywords: ['claude code'],
-});
+};
 
 /**
  * OpenAI Codex CLI
@@ -305,7 +334,7 @@ export const claudeCodeDetector: IToolDetector = createValidatedDetector({
  * fallback applies here too, keeping the manager path and the custom-command
  * path in sync.
  */
-export const codexDetector: IToolDetector = {
+export const codexBinary: BinarySpec = {
   description: 'Codex - OpenAI agentic coding CLI',
   detect: () => detectHeterogeneousCliCommand('codex', 'codex'),
   name: 'codex',
@@ -316,7 +345,7 @@ export const codexDetector: IToolDetector = {
  * Google Gemini CLI
  * @see https://github.com/google-gemini/gemini-cli
  */
-export const geminiCliDetector: IToolDetector = createValidatedDetector({
+export const geminiCliBinary: BinarySpec = defineValidatedBinary({
   candidates: ['gemini'],
   description: 'Gemini CLI - Google agentic coding CLI',
   name: 'gemini',
@@ -328,7 +357,7 @@ export const geminiCliDetector: IToolDetector = createValidatedDetector({
  * Qwen Code CLI
  * @see https://github.com/QwenLM/qwen-code
  */
-export const qwenCodeDetector: IToolDetector = createValidatedDetector({
+export const qwenCodeBinary: BinarySpec = defineValidatedBinary({
   candidates: ['qwen'],
   description: 'Qwen Code - Alibaba Qwen agentic coding CLI',
   name: 'qwen',
@@ -340,7 +369,7 @@ export const qwenCodeDetector: IToolDetector = createValidatedDetector({
  * Kimi CLI (Moonshot)
  * @see https://github.com/MoonshotAI/kimi-cli
  */
-export const kimiCliDetector: IToolDetector = createValidatedDetector({
+export const kimiCliBinary: BinarySpec = defineValidatedBinary({
   candidates: ['kimi'],
   description: 'Kimi CLI - Moonshot AI agentic coding CLI',
   name: 'kimi',
@@ -350,22 +379,22 @@ export const kimiCliDetector: IToolDetector = createValidatedDetector({
 
 /**
  * Aider - AI pair programming CLI
- * Generic command detector; name collision is unlikely.
+ * Generic command spec; name collision is unlikely.
  * @see https://github.com/Aider-AI/aider
  */
-export const aiderDetector: IToolDetector = createCommandDetector('aider', {
+export const aiderBinary: BinarySpec = defineCommandBinary('aider', {
   description: 'Aider - AI pair programming in your terminal',
   priority: 6,
 });
 
 /**
- * All CLI agent detectors
+ * All CLI agent binaries
  */
-export const cliAgentDetectors: IToolDetector[] = [
-  claudeCodeDetector,
-  codexDetector,
-  geminiCliDetector,
-  qwenCodeDetector,
-  kimiCliDetector,
-  aiderDetector,
+export const cliAgentBinaries: BinarySpec[] = [
+  claudeCodeBinary,
+  codexBinary,
+  geminiCliBinary,
+  qwenCodeBinary,
+  kimiCliBinary,
+  aiderBinary,
 ];

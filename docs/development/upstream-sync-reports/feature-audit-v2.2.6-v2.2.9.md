@@ -1,9 +1,10 @@
 # ComHub Upstream Feature Audit
 
-- Generated at: 2026-07-01T19:32:46.256Z
+- Generated at: 2026-07-02T01:52:05.841Z
 - Base upstream ref: `v2.2.6`
 - Target upstream ref: `v2.2.9`
 - Current ref: `HEAD`
+- Changed-file source: local git diff
 - Missing upstream-added files: 2
 - Upstream-modified files still matching base: 0
 - Renamed or re-homed upstream files: 1

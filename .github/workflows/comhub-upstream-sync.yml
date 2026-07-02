@@ -9,6 +9,11 @@ on:
         description: 'Optional upstream tag/branch, for example v2.2.9'
         required: false
         type: string
+      audit_base_ref:
+        description: 'Previous upstream tag/ref used by the feature audit'
+        required: true
+        default: v2.2.6
+        type: string
       channel:
         description: 'Upstream release channel to auto-detect when upstream_ref is empty'
         required: true
@@ -42,8 +47,10 @@ concurrency:
 env:
   NODE_VERSION: '22'
   PNPM_VERSION: '10.33.0'
+  COMHUB_AUDIT_BASE_REF: ${{ github.event.inputs.audit_base_ref || 'v2.2.6' }}
   COMHUB_UPSTREAM_BASE_BRANCH: ${{ github.event.inputs.base_branch || 'upgrade/upstream-v2.2.6-comhub-merge' }}
   COMHUB_UPSTREAM_CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
+  COMHUB_UPSTREAM_GITHUB_REPO: lobehub/lobehub
 
 jobs:
   sync:
@@ -97,12 +104,56 @@ jobs:
 
           node scripts/comhub-upstream-sync/run.mjs "${args[@]}"
 
+      - name: Collect upstream commit file lists
+        if: always() && steps.sync.outputs.upstream_ref != ''
+        continue-on-error: true
+        env:
+          COMHUB_AUDIT_UPSTREAM_REF: ${{ steps.sync.outputs.upstream_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p .tmp/comhub-upstream-sync
+          output=".tmp/comhub-upstream-sync/upstream-commit-files.json"
+
+          printf '[' > "${output}"
+          first=1
+          for sha in $(git rev-list --reverse "${COMHUB_AUDIT_BASE_REF}..${COMHUB_AUDIT_UPSTREAM_REF}"); do
+            if [ "${first}" -eq 0 ]; then
+              printf ',' >> "${output}"
+            fi
+            first=0
+
+            gh api "repos/${COMHUB_UPSTREAM_GITHUB_REPO}/commits/${sha}" \
+              --jq '{ sha: .sha, files: [(.files // [])[] | { filename, previous_filename, status }] }' \
+              >> "${output}"
+          done
+          printf ']' >> "${output}"
+
+          echo "COMHUB_AUDIT_CHANGED_FILES_JSON=${output}" >> "${GITHUB_ENV}"
+
+      - name: Run upstream feature audit
+        if: always() && steps.sync.outputs.upstream_ref != ''
+        env:
+          COMHUB_AUDIT_CURRENT_REF: HEAD
+          COMHUB_AUDIT_REPORT_PATH: .tmp/comhub-upstream-sync/feature-audit.md
+          COMHUB_AUDIT_UPSTREAM_REF: ${{ steps.sync.outputs.upstream_ref }}
+        run: node scripts/comhub-upstream-sync/audit.mjs
+
       - name: Upload sync report
         if: always() && steps.sync.outputs.report_path != ''
         uses: actions/upload-artifact@v4
         with:
           name: comhub-upstream-sync-report
           path: ${{ steps.sync.outputs.report_path }}
+
+      - name: Upload feature audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comhub-upstream-feature-audit
+          path: .tmp/comhub-upstream-sync/feature-audit.md
+          if-no-files-found: ignore
 
       - name: Comment summary
         if: always()
@@ -114,6 +165,7 @@ jobs:
             echo "- Candidate branch: \`${{ steps.sync.outputs.candidate_branch || 'not-created' }}\`"
             echo "- Merge status: \`${{ steps.sync.outputs.merge_status || 'failed-before-report' }}\`"
             echo "- Report: \`${{ steps.sync.outputs.report_path || 'not-written' }}\`"
+            echo "- Feature audit: \`comhub-upstream-feature-audit\` artifact"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Open upgrade PR

@@ -93,13 +93,24 @@ const mockLocalFileProtocolManager = {
   readPreviewFile: vi.fn(),
 };
 
+const mockAppStoragePath = '/mock/app/storage';
+const toPortablePath = (filePath: string) =>
+  filePath.replace(/\\/g, '/').replace(/^[A-Za-z]:/, '');
+const fileNameOf = (filePath: unknown) => path.basename(String(filePath));
+const skillCacheRoot = path.join(mockAppStoragePath, 'file-storage', 'skills');
+const skillExtractedDir = (zipHash: string) => path.join(skillCacheRoot, 'extracted', zipHash);
+const skillArchivePath = (zipHash: string) =>
+  path.join(skillCacheRoot, 'archives', `${zipHash}.zip`);
+const skillExtractedFilePath = (zipHash: string, ...segments: string[]) =>
+  path.resolve(skillExtractedDir(zipHash), ...segments);
+
 // Mock makeSureDirExist
 vi.mock('@/utils/file-system', () => ({
   makeSureDirExist: vi.fn(),
 }));
 
 const mockApp = {
-  appStoragePath: '/mock/app/storage',
+  appStoragePath: mockAppStoragePath,
   getService: vi.fn((ServiceClass: any) => {
     // Return different mock based on service class name
     if (ServiceClass?.name === 'ContentSearchService') {
@@ -108,7 +119,7 @@ const mockApp = {
     return mockSearchService;
   }),
   localFileProtocolManager: mockLocalFileProtocolManager,
-  toolDetectorManager: {
+  binaryManager: {
     getBestTool: vi.fn(() => null), // No external tools available, use Node.js fallback
   },
 } as unknown as App;
@@ -447,9 +458,10 @@ describe('LocalFileCtr', () => {
     it('should treat real temporary paths as safe', async () => {
       vi.mocked(mockFsPromises.access).mockResolvedValue(undefined);
       vi.mocked(mockFsPromises.realpath).mockImplementation(async (targetPath: string) => {
-        if (targetPath === '/tmp') return '/private/tmp';
-        if (targetPath === '/var/tmp') return '/private/var/tmp';
-        if (targetPath === '/tmp/out') return '/private/tmp/out';
+        const portableTargetPath = toPortablePath(targetPath);
+        if (portableTargetPath === '/tmp') return '/private/tmp';
+        if (portableTargetPath === '/var/tmp') return '/private/var/tmp';
+        if (portableTargetPath === '/tmp/out') return '/private/tmp/out';
         return targetPath;
       });
 
@@ -463,14 +475,15 @@ describe('LocalFileCtr', () => {
 
     it('should reject safe-path candidates whose real target escapes the temporary roots', async () => {
       vi.mocked(mockFsPromises.access).mockImplementation(async (targetPath: string) => {
-        if (targetPath === '/tmp/out/config') {
+        if (toPortablePath(targetPath) === '/tmp/out/config') {
           throw new Error('ENOENT');
         }
       });
       vi.mocked(mockFsPromises.realpath).mockImplementation(async (targetPath: string) => {
-        if (targetPath === '/tmp') return '/private/tmp';
-        if (targetPath === '/var/tmp') return '/private/var/tmp';
-        if (targetPath === '/tmp/out') return '/Users/me/.ssh';
+        const portableTargetPath = toPortablePath(targetPath);
+        if (portableTargetPath === '/tmp') return '/private/tmp';
+        if (portableTargetPath === '/var/tmp') return '/private/var/tmp';
+        if (portableTargetPath === '/tmp/out') return '/Users/me/.ssh';
         return targetPath;
       });
 
@@ -511,21 +524,21 @@ describe('LocalFileCtr', () => {
       });
 
       expect(result).toEqual({
-        extractedDir: '/mock/app/storage/file-storage/skills/extracted/zip-hash-123',
+        extractedDir: skillExtractedDir('zip-hash-123'),
         success: true,
-        zipPath: '/mock/app/storage/file-storage/skills/archives/zip-hash-123.zip',
+        zipPath: skillArchivePath('zip-hash-123'),
       });
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/demo-skill.zip');
       expect(mockFsPromises.writeFile).toHaveBeenCalledWith(
-        '/mock/app/storage/file-storage/skills/archives/zip-hash-123.zip',
+        skillArchivePath('zip-hash-123'),
         expect.any(Buffer),
       );
       expect(mockFsPromises.writeFile).toHaveBeenCalledWith(
-        '/mock/app/storage/file-storage/skills/extracted/zip-hash-123/SKILL.md',
+        skillExtractedFilePath('zip-hash-123', 'SKILL.md'),
         expect.any(Buffer),
       );
       expect(mockFsPromises.writeFile).toHaveBeenCalledWith(
-        '/mock/app/storage/file-storage/skills/extracted/zip-hash-123/docs/reference.txt',
+        skillExtractedFilePath('zip-hash-123', 'docs/reference.txt'),
         expect.any(Buffer),
       );
     });
@@ -539,9 +552,9 @@ describe('LocalFileCtr', () => {
       });
 
       expect(result).toEqual({
-        extractedDir: '/mock/app/storage/file-storage/skills/extracted/zip-hash-123',
+        extractedDir: skillExtractedDir('zip-hash-123'),
         success: true,
-        zipPath: '/mock/app/storage/file-storage/skills/archives/zip-hash-123.zip',
+        zipPath: skillArchivePath('zip-hash-123'),
       });
       expect(fetchMock).not.toHaveBeenCalled();
       expect(mockFsPromises.writeFile).not.toHaveBeenCalled();
@@ -559,7 +572,7 @@ describe('LocalFileCtr', () => {
       });
 
       expect(result).toEqual({
-        fullPath: '/mock/app/storage/file-storage/skills/extracted/zip-hash-123/docs/reference.txt',
+        fullPath: skillExtractedFilePath('zip-hash-123', 'docs/reference.txt'),
         success: true,
       });
       expect(fetchMock).not.toHaveBeenCalled();
@@ -590,8 +603,11 @@ describe('LocalFileCtr', () => {
         newName: 'new.txt',
       });
 
-      expect(result).toEqual({ success: true, newPath: '/test/new.txt' });
-      expect(mockFsPromises.rename).toHaveBeenCalledWith('/test/old.txt', '/test/new.txt');
+      expect(result).toEqual({ success: true, newPath: path.join('/test', 'new.txt') });
+      expect(mockFsPromises.rename).toHaveBeenCalledWith(
+        '/test/old.txt',
+        path.join('/test', 'new.txt'),
+      );
     });
 
     it('should skip rename when paths are identical', async () => {
@@ -600,7 +616,7 @@ describe('LocalFileCtr', () => {
         newName: 'file.txt',
       });
 
-      expect(result).toEqual({ success: true, newPath: '/test/file.txt' });
+      expect(result).toEqual({ success: true, newPath: path.join('/test', 'file.txt') });
       expect(mockFsPromises.rename).not.toHaveBeenCalled();
     });
 
@@ -709,8 +725,8 @@ describe('LocalFileCtr', () => {
       const result = await localFileCtr.getProjectFileIndex({ scope: '/workspace/project' });
 
       expect(result.source).toBe('git');
-      expect(result.root).toBe('/workspace/project');
-      expect(result.entries).toEqual(
+      expect(toPortablePath(result.root)).toBe('/workspace/project');
+      expect(result.entries.map((entry) => ({ ...entry, path: toPortablePath(entry.path) }))).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             isDirectory: true,
@@ -741,13 +757,18 @@ describe('LocalFileCtr', () => {
         total_files: 2,
       });
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath: string) => ({
-        isDirectory: () => filePath === '/workspace/project/src',
+        isDirectory: () => toPortablePath(filePath) === '/workspace/project/src',
       }));
 
       const result = await localFileCtr.getProjectFileIndex({ scope: '/workspace/project' });
 
+      expect(mockSearchService.glob).toHaveBeenCalledWith({
+        limit: 5000,
+        pattern: '**/*',
+        scope: path.resolve('/workspace/project'),
+      });
       expect(result.source).toBe('glob');
-      expect(result.entries).toEqual([
+      expect(result.entries.map((entry) => ({ ...entry, path: toPortablePath(entry.path) }))).toEqual([
         expect.objectContaining({
           isDirectory: true,
           path: '/workspace/project/src',
@@ -759,6 +780,7 @@ describe('LocalFileCtr', () => {
           relativePath: 'src/index.ts',
         }),
       ]);
+      expect(result.totalCount).toBe(result.entries.length);
     });
 
     it('should mark glob entries as files when stat fails', async () => {
@@ -774,13 +796,14 @@ describe('LocalFileCtr', () => {
       const result = await localFileCtr.getProjectFileIndex({ scope: '/workspace/project' });
 
       expect(result.source).toBe('glob');
-      expect(result.entries).toEqual([
+      expect(result.entries.map((entry) => ({ ...entry, path: toPortablePath(entry.path) }))).toEqual([
         expect.objectContaining({
           isDirectory: false,
           path: '/workspace/project/src/index.ts',
           relativePath: 'src/index.ts',
         }),
       ]);
+      expect(result.totalCount).toBe(1);
     });
   });
 
@@ -966,7 +989,7 @@ describe('LocalFileCtr', () => {
     it('should list directory contents successfully', async () => {
       vi.mocked(mockFsPromises.readdir).mockResolvedValue(['file1.txt', 'file2.txt', 'folder1']);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         if (name === 'folder1') {
           return {
             isDirectory: () => true,
@@ -1000,7 +1023,7 @@ describe('LocalFileCtr', () => {
         'folder1',
       ]);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         if (name === 'folder1') {
           return {
             isDirectory: () => true,
@@ -1033,7 +1056,7 @@ describe('LocalFileCtr', () => {
     it('should filter out $RECYCLE.BIN system folder', async () => {
       vi.mocked(mockFsPromises.readdir).mockResolvedValue(['file1.txt', '$RECYCLE.BIN', 'folder1']);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         const isDir = name === 'folder1' || name === '$RECYCLE.BIN';
         return {
           isDirectory: () => isDir,
@@ -1074,7 +1097,7 @@ describe('LocalFileCtr', () => {
     it('should sort by modifiedTime descending by default', async () => {
       vi.mocked(mockFsPromises.readdir).mockResolvedValue(['old.txt', 'new.txt', 'mid.txt']);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         const dates: Record<string, Date> = {
           'new.txt': new Date('2024-01-20'),
           'mid.txt': new Date('2024-01-15'),
@@ -1098,7 +1121,7 @@ describe('LocalFileCtr', () => {
     it('should sort by size ascending when specified', async () => {
       vi.mocked(mockFsPromises.readdir).mockResolvedValue(['large.txt', 'small.txt', 'medium.txt']);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         const sizes: Record<string, number> = {
           'large.txt': 10000,
           'medium.txt': 5000,
@@ -1172,7 +1195,7 @@ describe('LocalFileCtr', () => {
         'middle.txt',
       ]);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         const dates: Record<string, Date> = {
           'newest.txt': new Date('2024-03-01'),
           'middle.txt': new Date('2024-02-01'),
@@ -1203,7 +1226,7 @@ describe('LocalFileCtr', () => {
         'middle.txt',
       ]);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         const dates: Record<string, Date> = {
           'newest.txt': new Date('2024-03-01'),
           'middle.txt': new Date('2024-02-01'),
@@ -1249,7 +1272,7 @@ describe('LocalFileCtr', () => {
     it('should sort by size descending when specified', async () => {
       vi.mocked(mockFsPromises.readdir).mockResolvedValue(['small.txt', 'large.txt', 'medium.txt']);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         const sizes: Record<string, number> = {
           'large.txt': 10000,
           'medium.txt': 5000,
@@ -1276,7 +1299,7 @@ describe('LocalFileCtr', () => {
     it('should sort by modifiedTime ascending when specified', async () => {
       vi.mocked(mockFsPromises.readdir).mockResolvedValue(['old.txt', 'new.txt', 'mid.txt']);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         const dates: Record<string, Date> = {
           'new.txt': new Date('2024-01-20'),
           'mid.txt': new Date('2024-01-15'),
@@ -1322,7 +1345,7 @@ describe('LocalFileCtr', () => {
         'file5.txt',
       ]);
       vi.mocked(mockFsPromises.stat).mockImplementation(async (filePath) => {
-        const name = (filePath as string).split('/').pop();
+        const name = fileNameOf(filePath);
         const dates: Record<string, Date> = {
           'file1.txt': new Date('2024-01-01'),
           'file2.txt': new Date('2024-01-02'),
@@ -1390,7 +1413,7 @@ describe('LocalFileCtr', () => {
       expect(result.totalCount).toBe(1);
       expect(result.files[0]).toEqual({
         name: 'document.pdf',
-        path: '/test/document.pdf',
+        path: path.join('/test', 'document.pdf'),
         isDirectory: false,
         size: 2048,
         type: 'pdf',

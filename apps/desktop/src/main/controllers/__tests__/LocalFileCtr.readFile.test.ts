@@ -35,8 +35,8 @@ vi.mock('@/utils/file-system', () => ({ makeSureDirExist: vi.fn() }));
 
 const mockApp = {
   appStoragePath: '/mock/app/storage',
+  binaryManager: { getBestTool: vi.fn(() => null) },
   getService: vi.fn(),
-  toolDetectorManager: { getBestTool: vi.fn(() => null) },
 } as unknown as App;
 
 describe('LocalFileCtr — readFile / readFiles (real fs)', () => {

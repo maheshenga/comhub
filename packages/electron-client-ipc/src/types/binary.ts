@@ -1,23 +1,39 @@
 /**
- * Tool detection status
+ * Where a registered binary was resolved from.
  */
-export interface ToolStatus {
+export type BinarySource = 'system' | 'managed';
+
+/**
+ * Status of a registered binary
+ */
+export interface BinaryStatus {
   available: boolean;
   error?: string;
   lastChecked?: Date;
+  manageable?: boolean;
   path?: string;
+  resolvedPathEnv?: string;
+  source?: BinarySource;
   version?: string;
 }
 
 /**
- * Tool categories
+ * Binary categories
  */
-export type ToolCategory = 'content-search' | 'custom' | 'file-search' | 'system';
+export type BinaryCategory =
+  | 'content-search'
+  | 'ast-search'
+  | 'file-search'
+  | 'browser-automation'
+  | 'runtime-environment'
+  | 'cli-agents'
+  | 'system'
+  | 'custom';
 
 /**
- * Tool info for display
+ * Binary info for display
  */
-export interface ToolInfo {
+export interface BinaryInfo {
   description?: string;
   name: string;
   priority?: number;

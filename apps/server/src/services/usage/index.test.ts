@@ -1,10 +1,19 @@
 import dayjs from 'dayjs';
+import { type Pricing } from 'model-bank';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { type LobeChatDatabase } from '@/database/type';
 import { type MessageMetadata } from '@/types/message';
 
 import { UsageRecordService } from './index';
+
+const { getServerModelPricingMock } = vi.hoisted(() => ({
+  getServerModelPricingMock: vi.fn(),
+}));
+
+vi.mock('@/business/server/serverModelPricing', () => ({
+  getServerModelPricing: getServerModelPricingMock,
+}));
 
 describe('UsageRecordService', () => {
   let service: UsageRecordService;
@@ -24,6 +33,9 @@ describe('UsageRecordService', () => {
   };
 
   beforeEach(() => {
+    getServerModelPricingMock.mockReset();
+    getServerModelPricingMock.mockResolvedValue(undefined);
+
     // Create a fresh mock for each test
     const mockOrderBy = vi.fn();
     const mockWhere = vi.fn().mockReturnValue({ orderBy: mockOrderBy });
@@ -165,6 +177,14 @@ describe('UsageRecordService', () => {
       const result = await service.findByMonth();
 
       expect(result).toHaveLength(0);
+    });
+
+    it('forwards agentId to findByDateRange', async () => {
+      const spy = vi.spyOn(service, 'findByDateRange').mockResolvedValue([]);
+
+      await service.findByMonth('2024-01', 'agent-42');
+
+      expect(spy).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'agent-42');
     });
 
     it('should use commercial ledger cost when assistant message metadata has no cost', async () => {
@@ -550,6 +570,14 @@ describe('UsageRecordService', () => {
       });
     });
 
+    it('forwards agentId to findByDateRange', async () => {
+      const spy = vi.spyOn(service, 'findByDateRange').mockResolvedValue([]);
+
+      await service.findAndGroupByDay('2024-01', 'agent-99');
+
+      expect(spy).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'agent-99');
+    });
+
     it('should include generation ledger usage in daily totals', async () => {
       const messagesOrderBy = vi.fn().mockResolvedValue([]);
       const messagesWhere = vi.fn().mockReturnValue({ orderBy: messagesOrderBy });
@@ -593,6 +621,147 @@ describe('UsageRecordService', () => {
       expect(dayLog?.records[0]).toMatchObject({
         id: 'ledger-image',
         type: 'image',
+      });
+    });
+  });
+
+  describe('getAgentUsageStats', () => {
+    it('aggregates token, cost, bucket, and model stats for one agent', async () => {
+      const rows = [
+        {
+          createdAt: new Date('2024-01-01T10:00:00Z'),
+          id: 'msg-1',
+          metadata: {},
+          model: 'unknown-model',
+          provider: 'custom',
+          usage: {
+            cost: 0.3,
+            inputCachedTokens: 40,
+            inputCacheMissTokens: 60,
+            totalInputTokens: 100,
+            totalOutputTokens: 50,
+            totalTokens: 150,
+          },
+        },
+        {
+          createdAt: new Date('2024-01-02T10:00:00Z'),
+          id: 'msg-2',
+          metadata: {},
+          model: 'unknown-model',
+          provider: 'custom',
+          usage: {
+            cost: 0.2,
+            totalInputTokens: 20,
+            totalOutputTokens: 30,
+            totalTokens: 50,
+          },
+        },
+      ];
+      const orderBy = vi.fn().mockResolvedValue(rows);
+      const where = vi.fn().mockReturnValue({ orderBy });
+      const from = vi.fn().mockReturnValue({ where });
+      mockDb.select = vi.fn().mockReturnValue({ from });
+
+      const result = await service.getAgentUsageStats('agent-1', '2024-01-01', '2024-01-02');
+
+      expect(result.summary).toMatchObject({
+        cacheReadTokens: 40,
+        inputTokens: 120,
+        outputTokens: 80,
+        totalCost: 0.5,
+        totalRequests: 2,
+        totalTokens: 200,
+      });
+      expect(result.summary.cacheHitRate).toBeCloseTo(40 / 120, 6);
+      expect(result.buckets).toHaveLength(2);
+      expect(result.buckets.map((bucket) => bucket.totalCost)).toEqual([0.3, 0.2]);
+      expect(result.byModel).toEqual([
+        expect.objectContaining({
+          cost: 0.5,
+          id: 'custom/unknown-model',
+          requests: 2,
+          totalTokens: 200,
+        }),
+      ]);
+    });
+
+    it('uses server model pricing when agent message usage has no stored cost', async () => {
+      const pricing: Pricing = {
+        currency: 'USD',
+        units: [
+          { name: 'textInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+          { name: 'textOutput', rate: 4, strategy: 'fixed', unit: 'millionTokens' },
+        ],
+      };
+      getServerModelPricingMock.mockResolvedValue(pricing);
+      const rows = [
+        {
+          createdAt: new Date('2024-01-01T10:00:00Z'),
+          id: 'msg-priced',
+          metadata: {},
+          model: 'custom-profitable-model',
+          provider: 'custom-provider',
+          usage: {
+            totalInputTokens: 1_000_000,
+            totalOutputTokens: 500_000,
+            totalTokens: 1_500_000,
+          },
+        },
+      ];
+      setupQueryChainMock(rows);
+
+      const result = await service.getAgentUsageStats('agent-1', '2024-01-01', '2024-01-01');
+
+      expect(getServerModelPricingMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          db: mockDb,
+          model: 'custom-profitable-model',
+          provider: 'custom-provider',
+          userId,
+        }),
+      );
+      expect(result.summary.totalCost).toBe(4);
+      expect(result.byModel[0]).toMatchObject({
+        cost: 4,
+        id: 'custom-provider/custom-profitable-model',
+      });
+    });
+
+    it('uses commercial assistant-message ledger cost when usage has no cost', async () => {
+      const rows = [
+        {
+          createdAt: new Date('2024-01-01T10:00:00Z'),
+          id: 'msg-ledger',
+          metadata: { totalInputTokens: 10, totalOutputTokens: 5 } as MessageMetadata,
+          model: 'unknown-model',
+          provider: 'custom',
+          usage: undefined,
+        },
+      ];
+      const ledgerRows = [
+        {
+          amount: -420_000,
+          metadata: { usdCost: 0.42 },
+          referenceId: 'msg-ledger',
+        },
+      ];
+      const messagesOrderBy = vi.fn().mockResolvedValue(rows);
+      const messagesWhere = vi.fn().mockReturnValue({ orderBy: messagesOrderBy });
+      const messagesFrom = vi.fn().mockReturnValue({ where: messagesWhere });
+      const ledgerWhere = vi.fn().mockResolvedValue(ledgerRows);
+      const ledgerFrom = vi.fn().mockReturnValue({ where: ledgerWhere });
+      mockDb.select = vi
+        .fn()
+        .mockReturnValueOnce({ from: messagesFrom })
+        .mockReturnValueOnce({ from: ledgerFrom });
+
+      const result = await service.getAgentUsageStats('agent-1', '2024-01-01', '2024-01-01');
+
+      expect(result.summary.totalCost).toBe(0.42);
+      expect(result.byModel[0]).toMatchObject({
+        cost: 0.42,
+        id: 'custom/unknown-model',
+        requests: 1,
       });
     });
   });

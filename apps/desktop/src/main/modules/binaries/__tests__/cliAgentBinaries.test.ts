@@ -44,7 +44,7 @@ const callExec = (stdout: string, stderr = '') => {
   }) as any);
 };
 
-describe('cliAgentDetectors', () => {
+describe('cliAgentBinaries', () => {
   beforeEach(() => {
     execFileMock.mockReset();
     execMock.mockReset();
@@ -65,8 +65,8 @@ describe('cliAgentDetectors', () => {
       // 2) `cmd /c "...\\claude.cmd" --version` → keyword match
       callExec('1.2.3 (Claude Code)');
 
-      const { claudeCodeDetector } = await import('../cliAgentDetectors');
-      const status = await claudeCodeDetector.detect();
+      const { claudeCodeBinary } = await import('../cliAgentBinaries');
+      const status = await claudeCodeBinary.detect();
 
       expect(status.available).toBe(true);
       expect(status.path).toBe('C:\\Users\\Hanam\\AppData\\Roaming\\npm\\claude.cmd');
@@ -82,8 +82,8 @@ describe('cliAgentDetectors', () => {
     it('returns unavailable when `where` finds nothing', async () => {
       callExecFileError(new Error('not found'));
 
-      const { claudeCodeDetector } = await import('../cliAgentDetectors');
-      const status = await claudeCodeDetector.detect();
+      const { claudeCodeBinary } = await import('../cliAgentBinaries');
+      const status = await claudeCodeBinary.detect();
 
       expect(status.available).toBe(false);
       // We should NOT proceed to invoke anything after a failed resolve.
@@ -91,7 +91,7 @@ describe('cliAgentDetectors', () => {
     });
 
     it('rejects custom commands containing shell metacharacters', async () => {
-      const { detectHeterogeneousCliCommand } = await import('../cliAgentDetectors');
+      const { detectHeterogeneousCliCommand } = await import('../cliAgentBinaries');
       const status = await detectHeterogeneousCliCommand('claude-code', 'claude & calc.exe');
 
       expect(status.available).toBe(false);
@@ -103,8 +103,8 @@ describe('cliAgentDetectors', () => {
       callExecFile('C:\\some\\other\\claude.cmd\r\n');
       callExec('this is some other binary v1.0');
 
-      const { claudeCodeDetector } = await import('../cliAgentDetectors');
-      const status = await claudeCodeDetector.detect();
+      const { claudeCodeBinary } = await import('../cliAgentBinaries');
+      const status = await claudeCodeBinary.detect();
 
       expect(status.available).toBe(false);
     });
@@ -122,8 +122,8 @@ describe('cliAgentDetectors', () => {
       );
       callExec('codex 0.130.0');
 
-      const { codexDetector } = await import('../cliAgentDetectors');
-      const status = await codexDetector.detect();
+      const { codexBinary } = await import('../cliAgentBinaries');
+      const status = await codexBinary.detect();
 
       expect(status.available).toBe(true);
       expect(status.path).toBe('C:\\Users\\Hanam\\AppData\\Roaming\\npm\\codex.cmd');
@@ -136,8 +136,8 @@ describe('cliAgentDetectors', () => {
       callExecFile(['C:\\tools\\foo.exe', 'C:\\tools\\foo.cmd'].join('\r\n'));
       callExecFile('claude code 1.0.0');
 
-      const { claudeCodeDetector } = await import('../cliAgentDetectors');
-      const status = await claudeCodeDetector.detect();
+      const { claudeCodeBinary } = await import('../cliAgentBinaries');
+      const status = await claudeCodeBinary.detect();
 
       expect(status.available).toBe(true);
       expect(status.path).toBe('C:\\tools\\foo.exe');
@@ -155,8 +155,8 @@ describe('cliAgentDetectors', () => {
         ].join('\r\n'),
       );
 
-      const { claudeCodeDetector } = await import('../cliAgentDetectors');
-      const status = await claudeCodeDetector.detect();
+      const { claudeCodeBinary } = await import('../cliAgentBinaries');
+      const status = await claudeCodeBinary.detect();
 
       expect(status.available).toBe(false);
       // Must not attempt to invoke the unrunnable matches.
@@ -174,8 +174,8 @@ describe('cliAgentDetectors', () => {
       callExecFile('/usr/local/bin/claude\n');
       callExecFile('1.2.3 (Claude Code)');
 
-      const { claudeCodeDetector } = await import('../cliAgentDetectors');
-      const status = await claudeCodeDetector.detect();
+      const { claudeCodeBinary } = await import('../cliAgentBinaries');
+      const status = await claudeCodeBinary.detect();
 
       expect(status.available).toBe(true);
       expect(status.path).toBe('/usr/local/bin/claude');
@@ -183,6 +183,60 @@ describe('cliAgentDetectors', () => {
       expect(execFileMock).toHaveBeenCalledTimes(2);
       // Resolved on the inherited PATH — nothing extra to carry into spawn.
       expect(status.resolvedPathEnv).toBeUndefined();
+    });
+
+    it('falls back to a user-local Claude install when `claude` is not on PATH', async () => {
+      const originalPath = process.env.PATH;
+      const originalShell = process.env.SHELL;
+      process.env.PATH = '/usr/bin:/bin';
+      delete process.env.SHELL;
+
+      try {
+        callExecFileError(new Error('not found')); // which claude
+        callExecFile('2.1.196 (Claude Code)'); // ~/.local/bin/claude --version
+
+        const { claudeCodeBinary } = await import('../cliAgentBinaries');
+        const status = await claudeCodeBinary.detect();
+
+        expect(status.available).toBe(true);
+        expect(status.path).toBe(path.posix.join(os.homedir(), '.local', 'bin', 'claude'));
+        expect(status.version).toBe('2.1.196 (Claude Code)');
+
+        expect(execFileMock).toHaveBeenCalledTimes(2);
+        expect(execFileMock.mock.calls[0]![0]).toBe('which');
+        expect(execFileMock.mock.calls[1]![0]).toBe(
+          path.posix.join(os.homedir(), '.local', 'bin', 'claude'),
+        );
+      } finally {
+        process.env.PATH = originalPath;
+        if (originalShell === undefined) delete process.env.SHELL;
+        else process.env.SHELL = originalShell;
+      }
+    });
+
+    it('does not fall back to well-known Claude paths for a custom command', async () => {
+      const originalPath = process.env.PATH;
+      const originalShell = process.env.SHELL;
+      process.env.PATH = '/usr/bin:/bin';
+      delete process.env.SHELL;
+
+      try {
+        callExecFileError(new Error('not found')); // which claude-beta
+
+        const { detectHeterogeneousCliCommand } = await import('../cliAgentBinaries');
+        const status = await detectHeterogeneousCliCommand('claude-code', 'claude-beta');
+
+        expect(status.available).toBe(false);
+        // Only the custom command's own `which` runs — the ~/.local/bin/claude
+        // fallback must NOT, or a missing `claude-beta` would silently resolve
+        // to stock `claude` instead of reporting the configured command missing.
+        expect(execFileMock).toHaveBeenCalledTimes(1);
+        expect(execFileMock.mock.calls[0]![0]).toBe('which');
+      } finally {
+        process.env.PATH = originalPath;
+        if (originalShell === undefined) delete process.env.SHELL;
+        else process.env.SHELL = originalShell;
+      }
     });
 
     it('falls back to the Codex.app bundled CLI when `codex` is not on any PATH', async () => {
@@ -197,8 +251,8 @@ describe('cliAgentDetectors', () => {
         callExecFileError(new Error('not found')); // which codex
         callExecFile('codex-cli 0.138.0'); // bundled CLI --version
 
-        const { codexDetector } = await import('../cliAgentDetectors');
-        const status = await codexDetector.detect();
+        const { codexBinary } = await import('../cliAgentBinaries');
+        const status = await codexBinary.detect();
 
         expect(status.available).toBe(true);
         expect(status.path).toBe('/Applications/Codex.app/Contents/Resources/codex');
@@ -227,13 +281,20 @@ describe('cliAgentDetectors', () => {
         callExecFileError(new Error('ENOENT')); // /Applications candidate
         callExecFileError(new Error('ENOENT')); // ~/Applications candidate
 
-        const { codexDetector } = await import('../cliAgentDetectors');
-        const status = await codexDetector.detect();
+        const { codexBinary } = await import('../cliAgentBinaries');
+        const status = await codexBinary.detect();
 
         expect(status.available).toBe(false);
         expect(execFileMock).toHaveBeenCalledTimes(3);
         expect(execFileMock.mock.calls[2]![0]).toBe(
-          path.join(os.homedir(), 'Applications', 'Codex.app', 'Contents', 'Resources', 'codex'),
+          path.posix.join(
+            os.homedir(),
+            'Applications',
+            'Codex.app',
+            'Contents',
+            'Resources',
+            'codex',
+          ),
         );
       } finally {
         process.env.PATH = originalPath;
@@ -245,7 +306,7 @@ describe('cliAgentDetectors', () => {
     it('does not probe well-known locations for an explicit path-like command', async () => {
       callExecFileError(new Error('ENOENT')); // /custom/bin/codex --version
 
-      const { detectHeterogeneousCliCommand } = await import('../cliAgentDetectors');
+      const { detectHeterogeneousCliCommand } = await import('../cliAgentBinaries');
       const status = await detectHeterogeneousCliCommand('codex', '/custom/bin/codex');
 
       expect(status.available).toBe(false);
@@ -265,8 +326,8 @@ describe('cliAgentDetectors', () => {
         callExecFile('/Users/Hanam/.local/share/mise/shims/gemini\n');
         callExecFile('gemini 0.2.0');
 
-        const { geminiCliDetector } = await import('../cliAgentDetectors');
-        const status = await geminiCliDetector.detect();
+        const { geminiCliBinary } = await import('../cliAgentBinaries');
+        const status = await geminiCliBinary.detect();
 
         expect(status.available).toBe(true);
         expect(status.path).toBe('/Users/Hanam/.local/share/mise/shims/gemini');

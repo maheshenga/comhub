@@ -25,6 +25,10 @@ const UNMERGED_STATUS_CODES = new Set(['AA', 'AU', 'DD', 'DU', 'UA', 'UD', 'UU']
 
 /**
  * @typedef {{ name: string; sha?: string }} UpstreamTag
+ * @typedef {{ filename?: string; previous_filename?: string; status?: string }} GitHubCommitFile
+ * @typedef {{ files?: GitHubCommitFile[] }} GitHubCommitWithFiles
+ * @typedef {{ from: string; to: string }} RenamedFile
+ * @typedef {{ addedFiles: string[]; allFiles: string[]; modifiedFiles: string[]; renamedFiles: RenamedFile[] }} CommitChangedFiles
  * @typedef {{ from: string; to: string }} RenamedMissingFile
  * @typedef {{ migrationMetadataFiles: string[]; missingAddedFiles: string[]; renamedMissingFiles: RenamedMissingFile[]; staleModifiedFiles: string[] }} UpstreamFeatureAudit
  * @typedef {{ command: string; exitCode?: number; status: 'failed' | 'passed' | 'skipped' }} VerificationResult
@@ -153,6 +157,54 @@ export const findTouchedCustomizations = ({ changedFiles, customizationFiles }) 
 };
 
 /**
+ * @param {GitHubCommitWithFiles[]} commits
+ * @returns {CommitChangedFiles}
+ */
+export const collectChangedFilesFromCommits = (commits = []) => {
+  const addedFiles = [];
+  const allFiles = [];
+  const modifiedFiles = [];
+  const renamedFiles = [];
+
+  for (const commit of commits) {
+    const files = Array.isArray(commit?.files) ? commit.files : [];
+
+    for (const file of files) {
+      const filename = normalizeOptionalRepoPath(file?.filename);
+      if (!filename) continue;
+
+      const status = (file?.status || '').toLowerCase();
+      allFiles.push(filename);
+
+      if (status === 'added') {
+        addedFiles.push(filename);
+        continue;
+      }
+
+      if (status === 'modified' || status === 'changed') {
+        modifiedFiles.push(filename);
+        continue;
+      }
+
+      if (status === 'renamed') {
+        const previousFilename = normalizeOptionalRepoPath(file?.previous_filename);
+        if (!previousFilename) continue;
+
+        allFiles.push(previousFilename);
+        renamedFiles.push({ from: previousFilename, to: filename });
+      }
+    }
+  }
+
+  return {
+    addedFiles: uniqueSorted(addedFiles),
+    allFiles: uniqueSorted(allFiles),
+    modifiedFiles: uniqueSorted(modifiedFiles),
+    renamedFiles: uniqueSortedRenames(renamedFiles),
+  };
+};
+
+/**
  * @param {{
  *   baseBranch: string;
  *   candidateBranch: string;
@@ -274,6 +326,8 @@ export const buildUpstreamFeatureAudit = ({
  * @param {{
  *   audit: UpstreamFeatureAudit;
  *   baseRef: string;
+ *   changedFileCount?: number;
+ *   changedFileSource?: string;
  *   currentRef?: string;
  *   generatedAt: string;
  *   upstreamRef: string;
@@ -283,6 +337,8 @@ export const buildUpstreamFeatureAudit = ({
 export const renderUpstreamFeatureAuditReport = ({
   audit,
   baseRef,
+  changedFileCount,
+  changedFileSource = 'local git diff',
   currentRef = 'HEAD',
   generatedAt,
   upstreamRef,
@@ -295,6 +351,8 @@ export const renderUpstreamFeatureAuditReport = ({
     `- Base upstream ref: \`${baseRef}\``,
     `- Target upstream ref: \`${upstreamRef}\``,
     `- Current ref: \`${currentRef}\``,
+    `- Changed-file source: ${changedFileSource}`,
+    ...(Number.isFinite(changedFileCount) ? [`- Changed files considered: ${changedFileCount}`] : []),
     `- Missing upstream-added files: ${audit.missingAddedFiles.length}`,
     `- Upstream-modified files still matching base: ${audit.staleModifiedFiles.length}`,
     `- Renamed or re-homed upstream files: ${audit.renamedMissingFiles.length}`,
@@ -327,6 +385,12 @@ export const renderUpstreamFeatureAuditReport = ({
  */
 export const normalizeRepoPath = (value) =>
   value.replaceAll('\\', '/').replace(/^\.\//, '').replaceAll(/\/+$/g, '');
+
+const normalizeOptionalRepoPath = (value) => {
+  if (typeof value !== 'string') return '';
+
+  return normalizeRepoPath(value.trim());
+};
 
 const isLikelyRepoPath = (value) =>
   REPO_ROOT_FILES.has(value) ||
@@ -420,6 +484,20 @@ const isMigrationMetadataFile = (filePath) =>
 
 const uniqueSorted = (values) =>
   [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+
+const uniqueSortedRenames = (values) => {
+  const renames = new Map();
+
+  for (const value of values) {
+    if (!value.from || !value.to) continue;
+
+    renames.set(`${value.from}\0${value.to}`, value);
+  }
+
+  return [...renames.values()].sort(
+    (a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to),
+  );
+};
 
 const parseTagVersion = (tagName) => {
   const match = tagName.match(/^v?(\d+)\.(\d+)\.(\d+)(?:-canary\.(\d+))?$/);

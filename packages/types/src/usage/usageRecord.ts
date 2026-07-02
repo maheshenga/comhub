@@ -52,3 +52,41 @@ export type UsageLog = {
   totalSpend: number;
   totalTokens: number;
 };
+
+export type AgentUsageGranularity = 'day' | 'week';
+
+export interface AgentUsageBucket {
+  cacheWriteCost: number;
+  cacheWriteTokens: number;
+  date: number;
+  inputCost: number;
+  inputTokens: number;
+  label: string;
+  outputCost: number;
+  outputTokens: number;
+  totalCost: number;
+}
+
+export interface AgentUsageModelRow {
+  cost: number;
+  id: string;
+  model: string;
+  provider: string;
+  requests: number;
+  totalTokens: number;
+}
+
+export interface AgentUsageStats {
+  buckets: AgentUsageBucket[];
+  byModel: AgentUsageModelRow[];
+  summary: {
+    cacheHitRate: number;
+    cacheReadTokens: number;
+    cacheSavings: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalCost: number;
+    totalRequests: number;
+    totalTokens: number;
+  };
+}

@@ -24,8 +24,11 @@ flowchart TD
   F -- "Yes" --> H["Run verification"]
   H --> I{"Verification clean?"}
   I -- "No" --> J["Write failed verification report artifact"]
-  I -- "Yes" --> K["Push candidate branch and open PR"]
-  K --> L["Human review and manual deploy workflow"]
+  I -- "Yes" --> K["Push candidate branch"]
+  K --> L["Collect upstream commit file lists"]
+  L --> M["Run feature audit without compare API file cap"]
+  M --> N["Open or update PR"]
+  N --> O["Human review and manual deploy workflow"]
 ```
 
 ## GitHub Actions
@@ -41,11 +44,14 @@ Default schedule:
 Manual inputs:
 
 - `upstream_ref`: specific upstream tag or branch, for example `v2.2.9`.
+- `audit_base_ref`: previous upstream tag/ref used by the feature audit, for example `v2.2.6`.
 - `channel`: `stable` or `canary` when `upstream_ref` is empty.
 - `base_branch`: ComHub branch to upgrade from.
 - `open_pr`: whether to open or update a PR when the candidate is clean.
 
 The workflow never deploys production. Production deploy remains controlled by `.github/workflows/comhub-deploy.yml`.
+
+The feature audit deliberately avoids GitHub's compare API file list because that endpoint truncates file data on large comparisons. In CI, the workflow uses local `git rev-list` to enumerate upstream commits, calls the GitHub commit API once per commit, and passes the aggregated file list to `scripts/comhub-upstream-sync/audit.mjs`.
 
 ## Local Command
 
@@ -67,6 +73,23 @@ Useful flags:
 - `--skip-fetch`: use already available local refs without fetching upstream.
 
 The script refuses to run on a dirty worktree unless `--allow-dirty` is supplied. Use `--allow-dirty` only in disposable checkouts.
+
+Run the feature audit locally:
+
+```bash
+node scripts/comhub-upstream-sync/audit.mjs --base-ref v2.2.6 --upstream-ref v2.2.9
+```
+
+When a CI job already has per-commit file data from the GitHub commit API, pass it as either a JSON file path or inline JSON:
+
+```bash
+node scripts/comhub-upstream-sync/audit.mjs \
+  --base-ref v2.2.6 \
+  --upstream-ref v2.2.9 \
+  --changed-files-json .tmp/comhub-upstream-sync/upstream-commit-files.json
+```
+
+The JSON shape may be an array of commit objects or an object with a `commits` array. Each commit object should include a `files` array with GitHub commit API fields: `filename`, `status`, and optional `previous_filename`.
 
 ## Verification
 

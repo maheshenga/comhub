@@ -28,7 +28,7 @@ export const appBrowsers = {
     maximizable: false,
     minWidth: 400,
     parentIdentifier: 'app',
-    path: '/desktop/devtools',
+    path: '/devtools',
     titleBarStyle: 'hiddenInset',
     width: 1000,
   },

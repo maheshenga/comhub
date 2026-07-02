@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { buildUpstreamFeatureAudit, renderUpstreamFeatureAuditReport } from './core.mjs';
+import {
+  buildUpstreamFeatureAudit,
+  collectChangedFilesFromCommits,
+  renderUpstreamFeatureAuditReport,
+} from './core.mjs';
 
 const DEFAULT_REPORT_DIR = 'docs/development/upstream-sync-reports';
 
@@ -13,6 +17,10 @@ const root = process.cwd();
 const baseRef = options.baseRef || process.env.COMHUB_AUDIT_BASE_REF || 'v2.2.6';
 const upstreamRef = options.upstreamRef || process.env.COMHUB_AUDIT_UPSTREAM_REF || 'v2.2.9';
 const currentRef = options.currentRef || process.env.COMHUB_AUDIT_CURRENT_REF || 'HEAD';
+const changedFilesInput =
+  options.changedFilesJson ||
+  process.env.COMHUB_AUDIT_CHANGED_FILES_JSON ||
+  process.env.COMHUB_AUDIT_CHANGED_FILES_JSON_PATH;
 const reportPath = path.resolve(
   root,
   options.reportPath ||
@@ -22,20 +30,27 @@ const reportPath = path.resolve(
       `feature-audit-${sanitizeRef(baseRef)}-${sanitizeRef(upstreamRef)}.md`,
     ),
 );
+const changedFiles = readChangedFilesInput(changedFilesInput);
+const changedFileSource = changedFiles ? 'commit-file aggregation' : 'local git diff';
+const upstreamAddedFiles =
+  changedFiles?.addedFiles ||
+  git(['diff', '--name-only', '--diff-filter=A', baseRef, upstreamRef])
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
 const audit = buildUpstreamFeatureAudit({
   currentTreeOutput: git(['ls-tree', '-r', currentRef]),
   targetToHeadNameStatusOutput: git(['diff', '--name-status', upstreamRef, currentRef]),
-  upstreamAddedFiles: git(['diff', '--name-only', '--diff-filter=A', baseRef, upstreamRef])
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean),
+  upstreamAddedFiles,
   upstreamModifiedRawDiffOutput: git(['diff', '--raw', '--diff-filter=M', baseRef, upstreamRef]),
 });
 
 const report = renderUpstreamFeatureAuditReport({
   audit,
   baseRef,
+  changedFileCount: changedFiles?.allFiles.length,
+  changedFileSource,
   currentRef,
   generatedAt: new Date().toISOString(),
   upstreamRef,
@@ -65,6 +80,7 @@ function parseArgs(args) {
     };
 
     if (arg === '--base-ref') parsed.baseRef = next();
+    else if (arg === '--changed-files-json') parsed.changedFilesJson = next();
     else if (arg === '--current-ref') parsed.currentRef = next();
     else if (arg === '--report-path') parsed.reportPath = next();
     else if (arg === '--upstream-ref') parsed.upstreamRef = next();
@@ -72,6 +88,37 @@ function parseArgs(args) {
   }
 
   return parsed;
+}
+
+function readChangedFilesInput(input) {
+  if (!input) return;
+
+  const trimmed = input.trim();
+  if (!trimmed) return;
+
+  const payload = parseJson(trimmed.startsWith('{') || trimmed.startsWith('[') ? trimmed : readJsonFile(trimmed));
+  const commits = Array.isArray(payload) ? payload : payload?.commits;
+
+  if (!Array.isArray(commits)) {
+    throw new Error('Changed-files JSON must be an array of commit objects or an object with a commits array');
+  }
+
+  return collectChangedFilesFromCommits(commits);
+}
+
+function readJsonFile(filePath) {
+  const resolvedPath = path.resolve(root, filePath);
+  if (!existsSync(resolvedPath)) throw new Error(`Changed-files JSON was not found: ${filePath}`);
+
+  return readFileSync(resolvedPath, 'utf8');
+}
+
+function parseJson(value) {
+  try {
+    return JSON.parse(value.replace(/^\uFEFF/, ''));
+  } catch (error) {
+    throw new Error(`Invalid changed-files JSON: ${error.message}`);
+  }
 }
 
 function sanitizeRef(value) {

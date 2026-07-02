@@ -8,6 +8,8 @@ import type {
   ProjectFileIndexEntry,
   ProjectFileIndexParams,
   ProjectFileIndexResult,
+  ProjectFileSearchParams,
+  ProjectFileSearchResult,
 } from './types';
 
 const execFileAsync = promisify(execFile);
@@ -32,7 +34,9 @@ const collectProjectDirectories = (files: string[], root: string): ProjectFileIn
   const directories = new Set<string>();
   for (const filePath of files) {
     let current = path.dirname(filePath);
-    while (current && current !== root && current.startsWith(`${root}${path.sep}`)) {
+    while (current && current !== root) {
+      const relative = path.relative(root, current);
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) break;
       if (directories.has(current)) break;
       directories.add(current);
       current = path.dirname(current);
@@ -69,7 +73,7 @@ const buildEntries = (files: string[], root: string): ProjectFileIndexEntry[] =>
 export const defaultGetProjectFileIndex = async (
   params: ProjectFileIndexParams = {},
 ): Promise<ProjectFileIndexResult> => {
-  const requestedScope = params.scope || process.cwd();
+  const requestedScope = path.resolve(params.scope || process.cwd());
 
   try {
     const rootResult = await execFileAsync(
@@ -79,7 +83,9 @@ export const defaultGetProjectFileIndex = async (
     ).catch((error) => error);
     const exitCode = rootResult?.code ?? rootResult?.exitCode;
     const root =
-      rootResult?.stdout && !exitCode ? rootResult.stdout.trim() || requestedScope : requestedScope;
+      rootResult?.stdout && !exitCode
+        ? path.resolve(rootResult.stdout.trim() || requestedScope)
+        : requestedScope;
 
     if (rootResult?.stdout && !exitCode) {
       const [trackedResult, untrackedResult] = await Promise.all([
@@ -132,5 +138,49 @@ export const defaultGetProjectFileIndex = async (
     root: requestedScope,
     source: 'glob',
     totalCount: entries.length,
+  };
+};
+
+const DEFAULT_SEARCH_LIMIT = 50;
+
+const scoreProjectFileMatch = (entry: ProjectFileIndexEntry, query: string): number => {
+  const name = entry.name.toLowerCase();
+  const relativePath = entry.relativePath.toLowerCase();
+
+  if (name === query) return 0;
+  if (name.startsWith(query)) return 1;
+  if (name.includes(query)) return 2;
+  if (relativePath.startsWith(query)) return 3;
+  return 4;
+};
+
+export const defaultSearchProjectFiles = async (
+  params: ProjectFileSearchParams,
+): Promise<ProjectFileSearchResult> => {
+  const query = params.query.trim();
+  const normalizedQuery = query.toLowerCase();
+  const limit = Math.max(1, params.limit ?? DEFAULT_SEARCH_LIMIT);
+  const index = await defaultGetProjectFileIndex({ scope: params.scope });
+  const searchableEntries = params.includeDirectories
+    ? index.entries
+    : index.entries.filter((entry) => !entry.isDirectory);
+  const matches = normalizedQuery
+    ? searchableEntries.filter((entry) => entry.relativePath.toLowerCase().includes(normalizedQuery))
+    : searchableEntries;
+
+  matches.sort((a, b) => {
+    const scoreDiff = scoreProjectFileMatch(a, normalizedQuery) - scoreProjectFileMatch(b, normalizedQuery);
+    if (scoreDiff !== 0) return scoreDiff;
+
+    return a.relativePath.length - b.relativePath.length || a.relativePath.localeCompare(b.relativePath);
+  });
+
+  return {
+    entries: matches.slice(0, limit),
+    indexedAt: index.indexedAt,
+    query,
+    root: index.root,
+    source: index.source,
+    totalCount: matches.length,
   };
 };

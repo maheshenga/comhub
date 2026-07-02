@@ -10,6 +10,7 @@ import {
   KeyRound,
   Map,
   MonitorSmartphoneIcon,
+  ScrollText,
   Sparkles,
   Users,
 } from 'lucide-react';
@@ -145,6 +146,11 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
               icon: KeyIcon,
               key: WorkspaceSettingsTabs.APIKey,
               label: tAuth('tab.apikey'),
+            },
+            {
+              icon: ScrollText,
+              key: WorkspaceSettingsTabs.AuditLog,
+              label: t('workspaceSetting.tab.auditLog'),
             },
           ].filter(Boolean) as WorkspaceSettingCategoryItem[],
           key: WorkspaceSettingsGroupKey.Admin,

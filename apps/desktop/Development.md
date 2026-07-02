@@ -30,7 +30,7 @@ apps/desktop/src/main/
 │       ├── RendererProtocolManager.ts    // 渲染进程协议管理
 │       ├── BackendProxyProtocolManager.ts // 后端代理协议管理
 │       ├── StaticFileServerManager.ts    // 静态文件服务管理
-│       └── ToolDetectorManager.ts        // 工具检测器管理
+│       └── BinaryManager.ts             // 二进制工具管理
 ├── controllers/              // 控制器层，处理渲染进程调用
 │   ├── AuthCtr.ts            // 认证控制器
 │   ├── BrowserWindowsCtr.ts  // 浏览器窗口控制器
@@ -46,7 +46,7 @@ apps/desktop/src/main/
 │   ├── ShellCommandCtr.ts    // Shell 命令控制器
 │   ├── ShortcutCtr.ts        // 快捷键控制器
 │   ├── SystemCtr.ts          // 系统控制器
-│   ├── ToolDetectorCtr.ts    // 工具检测器控制器
+│   ├── BinaryCtr.ts          // 二进制工具控制器
 │   ├── TrayMenuCtr.ts        // 托盘菜单控制器
 │   ├── UpdaterCtr.ts         // 更新控制器
 │   ├── UploadFileCtr.ts      // 文件上传控制器
@@ -61,7 +61,7 @@ apps/desktop/src/main/
 │   ├── fileSearch/           // 文件搜索模块（Spotlight/mdfind/fd 等）
 │   ├── contentSearch/        // 内容搜索模块
 │   ├── networkProxy/         // 网络代理模块
-│   ├── toolDetectors/        // 工具检测器（fileSearch、contentSearch、astSearch）
+│   ├── binaries/             // 二进制工具定义（fileSearch、contentSearch、astSearch）
 │   └── updater/              // 更新模块
 ├── menus/                    // 菜单实现目录
 │   ├── index.ts              // 导出平台实现和接口

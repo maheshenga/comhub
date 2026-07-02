@@ -1,15 +1,26 @@
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import dayjs from 'dayjs';
 import debug from 'debug';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { type Pricing } from 'model-bank';
 
+import { getServerModelPricing } from '@/business/server/serverModelPricing';
 import { creditLedgerEntries, messages } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 import { genRangeWhere, genWhere } from '@/database/utils/genWhere';
 import { buildWorkspaceWhere } from '@/database/utils/workspace';
-import { type MessageMetadata } from '@/types/message';
-import { type UsageLog, type UsageRecordItem } from '@/types/usage/usageRecord';
+import { type MessageMetadata, type ModelUsage } from '@/types/message';
+import {
+  type AgentUsageBucket,
+  type AgentUsageGranularity,
+  type AgentUsageModelRow,
+  type AgentUsageStats,
+  type UsageLog,
+  type UsageRecordItem,
+} from '@/types/usage/usageRecord';
 import { formatDate } from '@/utils/format';
+
+import { computeMessageCostSplitWithPricing } from './cost';
 
 const log = debug('lobe-usage:service');
 
@@ -38,7 +49,11 @@ export class UsageRecordService {
   /**
    * @description Find usage records by date range.
    */
-  findByDateRange = async (startAt: string, endAt: string): Promise<UsageRecordItem[]> => {
+  findByDateRange = async (
+    startAt: string,
+    endAt: string,
+    agentId?: string,
+  ): Promise<UsageRecordItem[]> => {
     const spends = await this.db
       .select({
         createdAt: messages.createdAt,
@@ -59,6 +74,7 @@ export class UsageRecordService {
             { userId: messages.userId, workspaceId: messages.workspaceId },
           ),
           eq(messages.role, 'assistant'),
+          agentId ? eq(messages.agentId, agentId) : undefined,
           genRangeWhere([startAt, endAt], messages.createdAt, (date) => date.toDate()),
         ]),
       )
@@ -109,7 +125,7 @@ export class UsageRecordService {
       } as UsageRecordItem;
     });
 
-    const generationSpends = await this.findBillableLedgerUsage(startAt, endAt);
+    const generationSpends = agentId ? [] : await this.findBillableLedgerUsage(startAt, endAt);
 
     return [...chatSpends, ...generationSpends].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -335,7 +351,7 @@ export class UsageRecordService {
    * @param mo Month
    * @returns UsageRecordItem[]
    */
-  findByMonth = async (mo?: string): Promise<UsageRecordItem[]> => {
+  findByMonth = async (mo?: string, agentId?: string): Promise<UsageRecordItem[]> => {
     let startAt: string;
     let endAt: string;
     if (mo && dayjs(mo, 'YYYY-MM', true).isValid()) {
@@ -345,7 +361,7 @@ export class UsageRecordService {
       startAt = dayjs().startOf('month').format('YYYY-MM-DD');
       endAt = dayjs().endOf('month').format('YYYY-MM-DD');
     }
-    return this.findByDateRange(startAt, endAt);
+    return this.findByDateRange(startAt, endAt, agentId);
   };
 
   /**
@@ -422,7 +438,7 @@ export class UsageRecordService {
     return paddedUsageLogs;
   };
 
-  findAndGroupByDay = async (mo?: string): Promise<UsageLog[]> => {
+  findAndGroupByDay = async (mo?: string, agentId?: string): Promise<UsageLog[]> => {
     let startAt: string;
     let endAt: string;
     if (mo && dayjs(mo, 'YYYY-MM', true).isValid()) {
@@ -432,7 +448,7 @@ export class UsageRecordService {
       startAt = dayjs().startOf('month').format('YYYY-MM-DD');
       endAt = dayjs().endOf('month').format('YYYY-MM-DD');
     }
-    const spends = await this.findByDateRange(startAt, endAt);
+    const spends = await this.findByDateRange(startAt, endAt, agentId);
     return this.groupByDay(spends, startAt, endAt);
   };
 
@@ -440,8 +456,181 @@ export class UsageRecordService {
    * @description Find usage grouped by day for a custom date range (e.g. past 12 months).
    * Does not pad missing days for large ranges.
    */
-  findAndGroupByDateRange = async (startAt: string, endAt: string): Promise<UsageLog[]> => {
-    const spends = await this.findByDateRange(startAt, endAt);
+  findAndGroupByDateRange = async (
+    startAt: string,
+    endAt: string,
+    agentId?: string,
+  ): Promise<UsageLog[]> => {
+    const spends = await this.findByDateRange(startAt, endAt, agentId);
     return this.groupByDay(spends, startAt, endAt, false);
+  };
+
+  getAgentUsageStats = async (
+    agentId: string,
+    startAt: string,
+    endAt: string,
+    granularity: AgentUsageGranularity = 'day',
+  ): Promise<AgentUsageStats> => {
+    const rows = await this.db
+      .select({
+        createdAt: messages.createdAt,
+        id: messages.id,
+        metadata: messages.metadata,
+        model: messages.model,
+        provider: messages.provider,
+        usage: messages.usage,
+      })
+      .from(messages)
+      .where(
+        genWhere([
+          buildWorkspaceWhere(
+            { userId: this.userId, workspaceId: this.workspaceId },
+            { userId: messages.userId, workspaceId: messages.workspaceId },
+          ),
+          eq(messages.role, 'assistant'),
+          eq(messages.agentId, agentId),
+          genRangeWhere([startAt, endAt], messages.createdAt, (date) => date.toDate()),
+        ]),
+      )
+      .orderBy(asc(messages.createdAt));
+
+    const messageIdsWithoutCost = rows
+      .filter((row) => {
+        const metadata = row.metadata as MessageMetadata | null;
+        const usage = row.usage ?? metadata?.usage;
+        const hasUsageCost = typeof usage?.cost === 'number' && usage.cost > 0;
+        const hasMetadataCost = typeof metadata?.cost === 'number' && metadata.cost > 0;
+
+        return !hasUsageCost && !hasMetadataCost;
+      })
+      .map((row) => row.id);
+    const ledgerSpendMap = await this.findAssistantMessageLedgerSpend(messageIdsWithoutCost);
+    const pricingCache = new Map<string, Promise<Pricing | undefined>>();
+    const resolvePricing = (provider?: string | null, model?: string | null) => {
+      if (!provider || !model) return undefined;
+
+      const key = `${provider}/${model}`;
+      const cached = pricingCache.get(key);
+      if (cached) return cached;
+
+      const pricing = getServerModelPricing({
+        db: this.db,
+        model,
+        provider,
+        userId: this.userId,
+      });
+      pricingCache.set(key, pricing);
+
+      return pricing;
+    };
+
+    const bucketStart = (date: Date) =>
+      granularity === 'week' ? dayjs(date).startOf('week') : dayjs(date).startOf('day');
+
+    const buckets = new Map<string, AgentUsageBucket>();
+    const models = new Map<string, AgentUsageModelRow>();
+    const summary: AgentUsageStats['summary'] = {
+      cacheHitRate: 0,
+      cacheReadTokens: 0,
+      cacheSavings: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalCost: 0,
+      totalRequests: 0,
+      totalTokens: 0,
+    };
+    let cacheMissTokens = 0;
+
+    for (const row of rows) {
+      const metadata = row.metadata as MessageMetadata | null;
+      const usage = ((row.usage as ModelUsage | null) ?? metadata?.usage) || undefined;
+      const usageCost =
+        typeof usage?.cost === 'number' && usage.cost > 0 ? usage.cost : undefined;
+      const metadataCost =
+        typeof metadata?.cost === 'number' && metadata.cost > 0 ? metadata.cost : undefined;
+      const storedCost = usageCost ?? metadataCost ?? ledgerSpendMap.get(row.id) ?? 0;
+      const pricing = await resolvePricing(row.provider, row.model);
+      const split = computeMessageCostSplitWithPricing(usage, pricing, storedCost);
+
+      const start = bucketStart(row.createdAt);
+      const key = start.format('YYYY-MM-DD');
+      const bucket = buckets.get(key) ?? {
+        cacheWriteCost: 0,
+        cacheWriteTokens: 0,
+        date: start.valueOf(),
+        inputCost: 0,
+        inputTokens: 0,
+        label: start.format('M/D'),
+        outputCost: 0,
+        outputTokens: 0,
+        totalCost: 0,
+      };
+      bucket.inputCost += split.inputCost;
+      bucket.outputCost += split.outputCost;
+      bucket.cacheWriteCost += split.cacheWriteCost;
+      bucket.totalCost += split.totalCost;
+      bucket.inputTokens += split.inputTokens;
+      bucket.outputTokens += split.outputTokens;
+      bucket.cacheWriteTokens += split.cacheWriteTokens;
+      buckets.set(key, bucket);
+
+      const model = row.model || 'unknown';
+      const provider = row.provider || 'unknown';
+      const modelKey = `${provider}/${model}`;
+      const modelRow = models.get(modelKey) ?? {
+        cost: 0,
+        id: modelKey,
+        model,
+        provider,
+        requests: 0,
+        totalTokens: 0,
+      };
+      modelRow.cost += split.totalCost;
+      modelRow.totalTokens += split.totalTokens;
+      modelRow.requests += 1;
+      models.set(modelKey, modelRow);
+
+      summary.totalCost += split.totalCost;
+      summary.cacheSavings += split.cacheSavings;
+      summary.cacheReadTokens += split.cacheReadTokens;
+      summary.inputTokens += split.inputTokens;
+      summary.outputTokens += split.outputTokens;
+      summary.totalTokens += split.totalTokens;
+      summary.totalRequests += 1;
+      cacheMissTokens += split.cacheMissTokens;
+    }
+
+    const cacheBase = summary.cacheReadTokens + cacheMissTokens;
+    summary.cacheHitRate = cacheBase > 0 ? summary.cacheReadTokens / cacheBase : 0;
+
+    const step = granularity === 'week' ? 'week' : 'day';
+    const padded: AgentUsageBucket[] = [];
+    const end = dayjs(endAt);
+    for (
+      let cursor = bucketStart(dayjs(startAt).toDate());
+      cursor.isBefore(end) || cursor.isSame(end, step);
+      cursor = cursor.add(1, step)
+    ) {
+      const key = cursor.format('YYYY-MM-DD');
+      padded.push(
+        buckets.get(key) ?? {
+          cacheWriteCost: 0,
+          cacheWriteTokens: 0,
+          date: cursor.valueOf(),
+          inputCost: 0,
+          inputTokens: 0,
+          label: cursor.format('M/D'),
+          outputCost: 0,
+          outputTokens: 0,
+          totalCost: 0,
+        },
+      );
+    }
+
+    return {
+      buckets: padded,
+      byModel: [...models.values()].sort((a, b) => b.totalTokens - a.totalTokens),
+      summary,
+    };
   };
 }

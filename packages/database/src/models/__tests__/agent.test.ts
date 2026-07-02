@@ -1881,6 +1881,43 @@ describe('AgentModel', () => {
       expect(await agentModel.countAgents({ keyword: 'nonexistent' })).toBe(0);
     });
 
+    it('should apply date filters to agent creation time', async () => {
+      await serverDB.insert(agents).values([
+        {
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          id: 'count-agent-old',
+          title: 'Old Agent',
+          userId,
+          virtual: false,
+        },
+        {
+          createdAt: new Date('2026-02-01T00:00:00.000Z'),
+          id: 'count-agent-new',
+          title: 'New Agent',
+          userId,
+          virtual: false,
+        },
+        {
+          createdAt: new Date('2026-01-05T00:00:00.000Z'),
+          id: 'count-agent-other-user',
+          title: 'Other User Agent',
+          userId: userId2,
+          virtual: false,
+        },
+        {
+          createdAt: new Date('2026-01-10T00:00:00.000Z'),
+          id: 'count-agent-virtual',
+          title: 'Virtual Agent',
+          userId,
+          virtual: true,
+        },
+      ]);
+
+      expect(await agentModel.countAgents({ endDate: '2026-01-15' })).toBe(1);
+      expect(await agentModel.countAgents({ startDate: '2026-02-01' })).toBe(1);
+      expect(await agentModel.countAgents({ range: ['2026-01-15', '2026-02-15'] })).toBe(1);
+    });
+
     it('should only count agents for the current user', async () => {
       await agentModel.create({ title: 'User1 Agent', virtual: false });
       await agentModel2.create({ title: 'User2 Agent', virtual: false });
