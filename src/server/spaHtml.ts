@@ -7,6 +7,30 @@ export const VITE_DEV_ORIGIN = 'http://localhost:9876';
 const SERVER_CONFIG_PLACEHOLDER =
   /window\.__SERVER_CONFIG__\s*=\s*undefined;\s*\/\*\s*SERVER_CONFIG\s*\*\//;
 
+const escapeHtmlAttribute = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+
+const replaceSpaFaviconLinks = (html: string, faviconUrl?: string) => {
+  const url = faviconUrl?.trim();
+  if (!url) return html;
+
+  const escapedUrl = escapeHtmlAttribute(url);
+
+  return html
+    .replace(
+      /<link rel="icon" href="[^"]*" \/>/,
+      `<link rel="icon" href="${escapedUrl}" />`,
+    )
+    .replace(
+      /<link rel="shortcut icon" href="[^"]*" \/>/,
+      `<link rel="shortcut icon" href="${escapedUrl}" />`,
+    );
+};
+
 async function rewriteViteAssetUrls(html: string, origin = VITE_DEV_ORIGIN): Promise<string> {
   const { parseHTML } = await import('linkedom');
   const { document } = parseHTML(html);
@@ -135,7 +159,7 @@ export function buildAnalyticsConfig(options: { desktop?: boolean } = {}): Analy
 
 export function renderSpaHtml(
   template: string,
-  options: { loadingBrandHtml?: string; seoMeta: string; serverConfig: unknown },
+  options: { brandFaviconUrl?: string; seoMeta: string; serverConfig: unknown },
 ): Response {
   let html = template.replace(
     SERVER_CONFIG_PLACEHOLDER,
@@ -144,12 +168,7 @@ export function renderSpaHtml(
 
   html = html.replace('<!--SEO_META-->', options.seoMeta);
   html = html.replace('<!--ANALYTICS_SCRIPTS-->', '');
-  if (options.loadingBrandHtml) {
-    html = html.replace(
-      /<div id="loading-brand" aria-label="Loading" role="status">[\s\S]*?<\/div>\s*<\/div>/,
-      options.loadingBrandHtml,
-    );
-  }
+  html = replaceSpaFaviconLinks(html, options.brandFaviconUrl);
 
   return new Response(html, {
     headers: {

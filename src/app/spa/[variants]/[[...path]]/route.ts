@@ -7,7 +7,6 @@ import { isCustomORG, isDesktop } from '@/const/version';
 import { appEnv } from '@/envs/app';
 import { fileEnv } from '@/envs/file';
 import { pythonEnv } from '@/envs/python';
-import { buildStaticLoadingBrandHtml, getBrandLoadingText } from '@/features/Brand/loadingBrand';
 import { type Locales } from '@/locales/resources';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { getServerFileS3Config } from '@/server/services/appSettings';
@@ -43,14 +42,6 @@ async function getTemplate(isMobile: boolean): Promise<string> {
 
   return isMobile ? mobileHtmlTemplate : desktopHtmlTemplate;
 }
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 
 async function buildClientEnv(): Promise<SPAClientEnv> {
   const s3Config = await getServerFileS3Config();
@@ -114,15 +105,9 @@ export async function GET(
 
   const template = await getTemplate(isMobile);
   const seoMeta = await buildSeoMeta(locale, brand);
-  const appName = brand.name?.trim() || BRANDING_NAME;
-  const loadingText = getBrandLoadingText(
-    { loadingText: brand.loadingText, name: appName, slogan: brand.slogan },
-    appName,
-  );
-  const loadingBrandHtml = buildStaticLoadingBrandHtml(loadingText);
 
   return renderSpaHtml(template, {
-    loadingBrandHtml: `<div id="loading-brand" aria-label="${escapeHtml(loadingText)}" role="status">${loadingBrandHtml}</div>\n    </div>`,
+    brandFaviconUrl: brand.faviconUrl?.trim() || undefined,
     seoMeta,
     serverConfig: spaConfig,
   });

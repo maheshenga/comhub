@@ -35,6 +35,30 @@ describe('renderSpaHtml', () => {
 
     expect(await res.text()).not.toContain('</script>');
   });
+
+  it('replaces static SPA favicon links when a brand favicon is provided', async () => {
+    const template = [
+      '<html><head>',
+      '<link rel="icon" href="/_spa/favicon.ico" />',
+      '<link rel="shortcut icon" href="/_spa/favicon-32x32.ico" />',
+      '<script>window.__SERVER_CONFIG__ = undefined; /* SERVER_CONFIG */</script>',
+      '</head><body></body></html>',
+    ].join('\n');
+
+    const res = renderSpaHtml(template, {
+      brandFaviconUrl: 'https://cdn.example.com/favicon.ico',
+      seoMeta: '',
+      serverConfig: {},
+    });
+    const html = await res.text();
+
+    expect(html).toContain('<link rel="icon" href="https://cdn.example.com/favicon.ico" />');
+    expect(html).toContain(
+      '<link rel="shortcut icon" href="https://cdn.example.com/favicon.ico" />',
+    );
+    expect(html).not.toContain('/_spa/favicon.ico');
+    expect(html).not.toContain('/_spa/favicon-32x32.ico');
+  });
 });
 
 describe('buildAnalyticsConfig', () => {

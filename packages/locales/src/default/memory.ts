@@ -20,6 +20,8 @@ export default {
   'analysis.range.all': 'All conversations',
   'analysis.range.end': 'Today',
   'analysis.range.start': 'Beginning',
+  'analysis.status.completed': 'Processed {{completed}} conversations',
+  'analysis.status.completedTitle': 'Memory analysis completed',
   'analysis.status.errorTitle': 'Memory analysis request failed',
   'analysis.status.progress': 'Processed {{completed}} / {{total}} conversations',
   'analysis.status.progressUnknown': 'Processed {{completed}} conversations so far',

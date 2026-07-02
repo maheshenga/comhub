@@ -3,7 +3,7 @@
 import { AsyncTaskStatus } from '@lobechat/types';
 import { Alert, Flexbox, Icon, Text } from '@lobehub/ui';
 import { Progress } from 'antd';
-import { Loader2Icon, TriangleAlertIcon } from 'lucide-react';
+import { CheckCheckIcon, Loader2Icon, TriangleAlertIcon } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -22,8 +22,9 @@ export const MemoryAnalysisStatus = memo<StatusProps>(({ task }) => {
   const status = data?.status;
   const isRunning = status === AsyncTaskStatus.Pending || status === AsyncTaskStatus.Processing;
   const isError = status === AsyncTaskStatus.Error;
+  const isSuccess = status === AsyncTaskStatus.Success;
 
-  if (!data || (!isRunning && !isError)) return null;
+  if (!data || (!isRunning && !isError && !isSuccess)) return null;
 
   const { progress } = data.metadata;
   const percent =
@@ -31,12 +32,17 @@ export const MemoryAnalysisStatus = memo<StatusProps>(({ task }) => {
       ? Math.min(100, Math.round((progress.completedTopics / progress.totalTopics) * 100))
       : undefined;
 
-  const progressText = progress.totalTopics
-    ? t('analysis.status.progress', {
+  const progressText = isSuccess
+    ? t('analysis.status.completed', {
         completed: progress.completedTopics,
-        total: progress.totalTopics,
+        total: progress.totalTopics ?? progress.completedTopics,
       })
-    : t('analysis.status.progressUnknown', { completed: progress.completedTopics });
+    : progress.totalTopics
+      ? t('analysis.status.progress', {
+          completed: progress.completedTopics,
+          total: progress.totalTopics,
+        })
+      : t('analysis.status.progressUnknown', { completed: progress.completedTopics });
 
   const body = data.error?.body;
   const errorText =
@@ -48,17 +54,28 @@ export const MemoryAnalysisStatus = memo<StatusProps>(({ task }) => {
 
   return (
     <Alert
-      icon={<Icon icon={isError ? TriangleAlertIcon : Loader2Icon} spin={isRunning && !isError} />}
-      title={isError ? t('analysis.status.errorTitle') : t('analysis.status.title')}
-      type={isError ? 'error' : 'info'}
+      icon={
+        <Icon
+          icon={isError ? TriangleAlertIcon : isSuccess ? CheckCheckIcon : Loader2Icon}
+          spin={isRunning && !isError}
+        />
+      }
+      title={
+        isError
+          ? t('analysis.status.errorTitle')
+          : isSuccess
+            ? t('analysis.status.completedTitle')
+            : t('analysis.status.title')
+      }
+      type={isError ? 'error' : isSuccess ? 'success' : 'info'}
       variant={'borderless'}
       description={
         <Flexbox gap={12}>
           <Flexbox horizontal align="center" gap={12} wrap="wrap">
             <Progress
-              percent={percent ?? 30}
-              showInfo={Boolean(percent)}
-              status={isError ? 'exception' : 'active'}
+              percent={isSuccess ? 100 : (percent ?? 30)}
+              showInfo={isSuccess || Boolean(percent)}
+              status={isError ? 'exception' : isSuccess ? 'success' : 'active'}
               style={{ flex: 1, minWidth: 220 }}
             />
             <Text fontSize={13} type={isError ? 'danger' : 'secondary'}>

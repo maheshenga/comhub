@@ -13,6 +13,7 @@ import { useMemoryAnalysisAsyncTask } from '@/routes/(main)/memory/features/Memo
 import { memoryExtractionService } from '@/services/userMemory/extraction';
 
 import { getMemoryAnalysisErrorMessage } from './errorMessage';
+import { storeMemoryAnalysisTaskId } from './taskPersistence';
 
 const DateRangeContent = memo(() => {
   const { t } = useTranslation('memory');
@@ -50,6 +51,7 @@ const DateRangeContent = memo(() => {
         toDate: to ?? undefined,
       });
 
+      storeMemoryAnalysisTaskId(result.id);
       await refresh();
       message.success(result.deduped ? t('analysis.toast.deduped') : t('analysis.toast.started'));
       close();

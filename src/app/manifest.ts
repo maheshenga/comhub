@@ -1,5 +1,11 @@
 import { type MetadataRoute } from 'next';
 
+type ManifestIcon = {
+  purpose: 'any' | 'maskable';
+  sizes: string;
+  url: string;
+};
+
 const manifest = async (): Promise<MetadataRoute.Manifest> => {
   // Skip heavy module compilation in development
   if (process.env.NODE_ENV === 'development') {
@@ -21,41 +27,73 @@ const manifest = async (): Promise<MetadataRoute.Manifest> => {
     };
   }
 
-  const [{ BRANDING_LOGO_URL, BRANDING_NAME }, { kebabCase }, { manifestModule }] =
-    await Promise.all([
-      import('@lobechat/business-const'),
-      import('es-toolkit/compat'),
-      import('@/server/manifest'),
-    ]);
+  const [
+    { BRANDING_LOGO_URL, BRANDING_NAME },
+    { kebabCase },
+    { manifestModule },
+    { getServerBrand },
+  ] = await Promise.all([
+    import('@lobechat/business-const'),
+    import('es-toolkit/compat'),
+    import('@/server/manifest'),
+    import('@/server/services/brand'),
+  ]);
+  const brand = await getServerBrand();
+  const appName = brand.name?.trim() || BRANDING_NAME;
+  const brandIconUrl = brand.logoUrl?.trim() || brand.faviconUrl?.trim();
+  const icons: ManifestIcon[] = brandIconUrl
+    ? [
+        {
+          purpose: 'any',
+          sizes: '192x192',
+          url: brandIconUrl,
+        },
+        {
+          purpose: 'maskable',
+          sizes: '192x192',
+          url: brandIconUrl,
+        },
+        {
+          purpose: 'any',
+          sizes: '512x512',
+          url: brandIconUrl,
+        },
+        {
+          purpose: 'maskable',
+          sizes: '512x512',
+          url: brandIconUrl,
+        },
+      ]
+    : [
+        {
+          purpose: 'any',
+          sizes: '192x192',
+          url: '/icons/icon-192x192.png',
+        },
+        {
+          purpose: 'maskable',
+          sizes: '192x192',
+          url: '/icons/icon-192x192.maskable.png',
+        },
+        {
+          purpose: 'any',
+          sizes: '512x512',
+          url: '/icons/icon-512x512.png',
+        },
+        {
+          purpose: 'maskable',
+          sizes: '512x512',
+          url: '/icons/icon-512x512.maskable.png',
+        },
+      ];
 
   // @ts-expect-error - manifestModule.generate returns extended manifest with custom properties
   return manifestModule.generate({
-    description: `${BRANDING_NAME} is a work-and-lifestyle space to find, build, and collaborate with agent teams that grow with you.`,
-    icons: [
-      {
-        purpose: 'any',
-        sizes: '192x192',
-        url: '/icons/icon-192x192.png',
-      },
-      {
-        purpose: 'maskable',
-        sizes: '192x192',
-        url: '/icons/icon-192x192.maskable.png',
-      },
-      {
-        purpose: 'any',
-        sizes: '512x512',
-        url: '/icons/icon-512x512.png',
-      },
-      {
-        purpose: 'maskable',
-        sizes: '512x512',
-        url: '/icons/icon-512x512.maskable.png',
-      },
-    ],
-    id: kebabCase(BRANDING_NAME),
-    name: BRANDING_NAME,
-    screenshots: BRANDING_LOGO_URL
+    description: `${appName} is a work-and-lifestyle space to find, build, and collaborate with agent teams that grow with you.`,
+    icons,
+    id: kebabCase(appName),
+    name: appName,
+    screenshots: brandIconUrl || BRANDING_LOGO_URL
       ? []
       : [
           {

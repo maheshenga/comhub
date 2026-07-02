@@ -9,6 +9,7 @@ import { LobeAnalyticsProviderWrapper } from '@/components/Analytics/LobeAnalyti
 import { DragUploadProvider } from '@/components/DragUploadZone/DragUploadProvider';
 import { isDesktop } from '@/const/version';
 import AgentMockDevtools from '@/features/AgentMockDevtools';
+import { useBrand } from '@/features/Brand';
 import DevFeatureFlagPanel from '@/features/DevFeatureFlagPanel';
 import AuthProvider from '@/layout/AuthProvider';
 import { MarketAuthProvider } from '@/layout/AuthProvider/MarketAuth';
@@ -36,6 +37,7 @@ const ContextMenuHost = lazy(() =>
 
 const SPAGlobalProvider = memo<PropsWithChildren>(({ children }) => {
   const serverConfig: SPAServerConfig | undefined = window.__SERVER_CONFIG__;
+  const brand = useBrand();
 
   const locale = document.documentElement.lang || 'en-US';
   const isMobile =
@@ -55,7 +57,7 @@ const SPAGlobalProvider = memo<PropsWithChildren>(({ children }) => {
                 <StoreInitialization />
 
                 {isDesktop && <ServerVersionOutdatedAlert />}
-                <FaviconProvider>
+                <FaviconProvider defaultFaviconUrl={brand.faviconUrl}>
                   <DynamicFavicon />
                   <GroupWizardProvider>
                     <DragUploadProvider>

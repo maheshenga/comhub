@@ -19,10 +19,11 @@ const MemoryAnalysis = memo<Props>(({ iconOnly }) => {
     const status = data?.status;
     const isRunning = status === AsyncTaskStatus.Pending || status === AsyncTaskStatus.Processing;
     const isError = status === AsyncTaskStatus.Error;
+    const isSuccess = status === AsyncTaskStatus.Success;
 
     return {
       showAction: (!isRunning && (!isValidating || isError)) || !data || isError,
-      showStatus: Boolean(data && (isRunning || isError)),
+      showStatus: Boolean(data && (isRunning || isError || isSuccess)),
     };
   }, [data, isValidating]);
 
