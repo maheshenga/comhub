@@ -149,6 +149,9 @@ export const resolveCurrentPlan = (subscriptionPlan?: Plans, isFreePlan?: boolea
 
 const createReferralCode = () => String(Math.floor(1_000_000 + Math.random() * 9_000_000));
 
+export const buildReferralLink = (siteOrigin: string, referralCode: string) =>
+  `${siteOrigin.replace(/\/+$/, '')}/signin?referral=${encodeURIComponent(referralCode)}`;
+
 export const formatBusinessNumber = (value: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 
@@ -312,7 +315,7 @@ export const useBusinessSubscriptionProfile = () => {
   }, []);
 
   const referralLink = useMemo(
-    () => `${siteOrigin}/signup?ref=${referralCode}`,
+    () => buildReferralLink(siteOrigin, referralCode),
     [referralCode, siteOrigin],
   );
 

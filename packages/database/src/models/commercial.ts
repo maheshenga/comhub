@@ -13,6 +13,7 @@ import type {
   QueryCreditLedgerParams,
   ReferralHistoryItem,
   ReferralOverview,
+  ResourceUsageSummary,
   SubscriptionChangeRequestItem,
   SubscriptionChangeRequestReasonType,
   SubscriptionCycleType,
@@ -21,7 +22,7 @@ import type {
   TopUpPackageItem,
 } from '@lobechat/types';
 import { Plans } from '@lobechat/types';
-import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm';
 
 import {
   appSettings,
@@ -29,6 +30,8 @@ import {
   creditAccounts,
   creditLedgerEntries,
   defaultAutoTopUpSetting,
+  fileChunks,
+  files,
   planCatalog,
   referralProfiles,
   referralRelations,
@@ -1200,6 +1203,34 @@ export class CommercialModel {
       targetBalance: setting.targetBalance ?? defaultAutoTopUpSetting.targetBalance,
       threshold: setting.threshold ?? defaultAutoTopUpSetting.threshold,
       updatedAt: setting.updatedAt,
+    };
+  };
+
+  getResourceUsageSummary = async (): Promise<ResourceUsageSummary> => {
+    const [account, storageUsage, vectorUsage] = await Promise.all([
+      this.db.query.creditAccounts.findFirst({
+        columns: { storageQuota: true, vectorQuota: true },
+        where: eq(creditAccounts.userId, this.userId),
+      }),
+      this.db
+        .select({ totalSize: sum(files.size) })
+        .from(files)
+        .where(eq(files.userId, this.userId)),
+      this.db
+        .select({ total: count(fileChunks.chunkId) })
+        .from(fileChunks)
+        .where(eq(fileChunks.userId, this.userId)),
+    ]);
+
+    return {
+      storage: {
+        quota: account?.storageQuota == null ? null : Number(account.storageQuota),
+        used: Number(storageUsage[0]?.totalSize ?? 0),
+      },
+      vector: {
+        quota: account?.vectorQuota == null ? null : Number(account.vectorQuota),
+        used: Number(vectorUsage[0]?.total ?? 0),
+      },
     };
   };
 

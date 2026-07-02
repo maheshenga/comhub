@@ -106,6 +106,17 @@ export interface CreditAccountSummary {
   updatedAt?: Date | null;
 }
 
+export interface ResourceUsageSummary {
+  storage: {
+    quota?: null | number;
+    used: number;
+  };
+  vector: {
+    quota?: null | number;
+    used: number;
+  };
+}
+
 export interface AutoTopUpSetting {
   enabled: boolean;
   monthlyLimit?: number | null;

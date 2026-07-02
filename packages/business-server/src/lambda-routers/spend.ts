@@ -6,6 +6,7 @@ import {
   type CreditLedgerListResult,
   QueryCommercialListSchema,
   QueryCreditLedgerSchema,
+  UpdateAutoTopUpSettingSchema,
 } from '@/types/business';
 
 const commercialProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
@@ -23,6 +24,14 @@ export const spendRouter = router({
     return ctx.commercialModel.getCreditAccountSummary();
   }),
 
+  getAutoTopUpSetting: commercialProcedure.query(async ({ ctx }) => {
+    return ctx.commercialModel.getAutoTopUpSetting();
+  }),
+
+  getResourceUsageSummary: commercialProcedure.query(async ({ ctx }) => {
+    return ctx.commercialModel.getResourceUsageSummary();
+  }),
+
   listLedger: commercialProcedure
     .input(QueryCreditLedgerSchema)
     .query(async ({ ctx, input }): Promise<CreditLedgerListResult> => {
@@ -37,5 +46,11 @@ export const spendRouter = router({
     .input(QueryCommercialListSchema.default({}))
     .query(async ({ ctx, input }) => {
       return ctx.commercialModel.listTopUpOrders(input);
+    }),
+
+  updateAutoTopUpSetting: commercialProcedure
+    .input(UpdateAutoTopUpSettingSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.commercialModel.updateAutoTopUpSetting(input);
     }),
 });

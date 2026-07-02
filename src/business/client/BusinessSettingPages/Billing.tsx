@@ -4,24 +4,21 @@ import { Flexbox, FormGroup, Icon } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
 import { Alert, Button, Empty } from 'antd';
 import { Check, X } from 'lucide-react';
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import { Card } from '@/components/antd-compat/Card';
 import InlineTable from '@/components/InlineTable';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
-import {
-  type SubscriptionChangeRequestItem,
-  type SubscriptionChangeRequestStatusType,
-} from '@/types/business';
+import { type SubscriptionChangeRequestStatusType, type TopUpOrderStatusType } from '@/types/business';
 
-import RedemptionPanel from './RedemptionPanel';
+import { buildBillingHistoryItems, type BillingHistoryItem } from './billingDisplay';
 import {
   formatBusinessDate,
+  formatCredits,
   formatCurrencyAmount,
   getBillingStatusTranslationKey,
   getSubscriptionCycleTranslationKey,
@@ -44,10 +41,18 @@ const excludedBenefits = [
   '专属高级插件',
 ];
 
+const topUpStatusLabels: Record<TopUpOrderStatusType, string> = {
+  canceled: '已取消',
+  expired: '已过期',
+  failed: '失败',
+  paid: '已支付',
+  pending: '待支付',
+  refunded: '已退款',
+};
+
 const Billing = memo<{ mobile?: boolean }>(() => {
   const { t } = useTranslation('subscription');
   const { currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
-  const historyRef = useRef<HTMLDivElement>(null);
   const { data: pendingChangeRequest } = useClientDataSWR(
     ['business-subscription-change-request'],
     () => commercialService.getPendingSubscriptionChangeRequest(),
@@ -56,31 +61,66 @@ const Billing = memo<{ mobile?: boolean }>(() => {
     ['business-subscription-change-history'],
     () => commercialService.listSubscriptionChangeRequests({ limit: 20 }),
   );
-  const hasBillingHistory = changeRequests.length > 0;
+  const { data: topUpOrders = [], isLoading: isTopUpOrdersLoading } = useClientDataSWR(
+    ['business-billing-topup-orders'],
+    () => commercialService.listTopUpOrders({ limit: 20 }),
+  );
 
-  const handleViewBillingHistory = () => {
-    historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  const billingHistoryItems = useMemo(
+    () => buildBillingHistoryItems({ subscriptionChanges: changeRequests, topUpOrders }),
+    [changeRequests, topUpOrders],
+  );
+  const hasBillingHistory = billingHistoryItems.length > 0;
+  const isBillingHistoryLoading = isChangeRequestsLoading || isTopUpOrdersLoading;
 
-  const changeRequestColumns = useMemo<TableColumnType<SubscriptionChangeRequestItem>[]>(
+  const billingHistoryColumns = useMemo<TableColumnType<BillingHistoryItem>[]>(
     () => [
       {
-        dataIndex: 'id',
-        key: 'id',
-        render: (value: string) => value.slice(0, 8),
-        title: '变更编号',
+        dataIndex: 'rowKey',
+        key: 'rowKey',
+        render: (value: string) => value.split(':')[1]?.slice(0, 8) || value.slice(0, 8),
+        title: '订单编号',
+      },
+      {
+        dataIndex: 'title',
+        key: 'title',
+        render: (value, record) => (
+          <div>
+            <div>{value}</div>
+            <div className={subscriptionPageStyles.caption}>
+              {record.kind === 'topup' ? '积分包购买' : '套餐变更'}
+            </div>
+          </div>
+        ),
+        title: '项目',
       },
       {
         dataIndex: 'status',
         key: 'status',
-        render: (value: SubscriptionChangeRequestStatusType) => t(`billing.changeStatus.${value}`),
-        title: '变更状态',
+        render: (value, record) =>
+          record.kind === 'topup'
+            ? topUpStatusLabels[value as TopUpOrderStatusType]
+            : t(`billing.changeStatus.${value as SubscriptionChangeRequestStatusType}`),
+        title: '交易状态',
+      },
+      {
+        dataIndex: 'amount',
+        key: 'amount',
+        render: (value, record) =>
+          typeof value === 'number' ? formatCurrencyAmount(value, record.currency) : '--',
+        title: '金额',
+      },
+      {
+        dataIndex: 'credits',
+        key: 'credits',
+        render: (value) => (typeof value === 'number' ? formatCredits(value) : '--'),
+        title: '积分',
       },
       {
         dataIndex: 'createdAt',
         key: 'createdAt',
         render: (value) => formatBusinessDate(value),
-        title: '提交时间',
+        title: '付款日期',
       },
     ],
     [t],
@@ -90,11 +130,11 @@ const Billing = memo<{ mobile?: boolean }>(() => {
     <>
       <SettingHeader title={'账单'} />
       <div className={subscriptionPageStyles.pageStack}>
-        <FormGroup collapsible={false} gap={16} title={'订阅摘要'} variant={'filled'}>
+        <FormGroup collapsible={false} gap={16} title={'账单摘要'} variant={'filled'}>
           <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
             <div className={subscriptionPageStyles.cardGrid}>
               <div>
-                <div>当前周期金额</div>
+                <div>您的下次付款</div>
                 <div className={subscriptionPageStyles.tileValue}>
                   {formatCurrencyAmount(
                     subscriptionSummary?.monthlyPrice ?? 0,
@@ -102,9 +142,9 @@ const Billing = memo<{ mobile?: boolean }>(() => {
                   )}
                 </div>
                 <div className={subscriptionPageStyles.caption}>
-                  此金额来自当前套餐快照，真实支付记录以后续订单/发票为准。
-                  <Button size={'small'} type={'link'} onClick={handleViewBillingHistory}>
-                    查看变更记录
+                  此金额包含订阅费用和本期超额存储费用。
+                  <Button href="/settings/usage" size={'small'} type={'link'}>
+                    查看本月使用情况。
                   </Button>
                 </div>
               </div>
@@ -116,7 +156,7 @@ const Billing = memo<{ mobile?: boolean }>(() => {
                 <div className={subscriptionPageStyles.caption}>
                   订阅 ID：{subscriptionSummary?.externalSubscriptionId || '--'}
                 </div>
-                <Button size={'small'} type={'link'}>
+                <Button href="/settings/plans" size={'small'} type={'link'}>
                   升级计划
                 </Button>
               </div>
@@ -140,7 +180,9 @@ const Billing = memo<{ mobile?: boolean }>(() => {
             <Flexbox gap={16}>
               <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
                 <PlanIcon plan={currentPlan} type={'combine'} />
-                <Button type={'primary'}>升级</Button>
+                <Button href="/settings/plans" type={'primary'}>
+                  升级
+                </Button>
               </Flexbox>
               <div className={subscriptionPageStyles.cardGrid}>
                 <div>
@@ -161,26 +203,17 @@ const Billing = memo<{ mobile?: boolean }>(() => {
             </Flexbox>
           </Card>
         </FormGroup>
-        <FormGroup collapsible={false} gap={16} title={'兑换码'} variant={'filled'}>
-          <RedemptionPanel
-            onSuccess={() => {
-              void refreshCommercialEntitlementState();
+        <FormGroup collapsible={false} gap={16} title={'账单历史'} variant={'filled'}>
+          <InlineTable
+            columns={billingHistoryColumns as any}
+            dataSource={billingHistoryItems}
+            loading={isBillingHistoryLoading}
+            rowKey={(record) => record.rowKey}
+            locale={{
+              emptyText: <Empty description={hasBillingHistory ? undefined : '暂无账单记录'} />,
             }}
           />
         </FormGroup>
-        <div ref={historyRef}>
-          <FormGroup collapsible={false} gap={16} title={'套餐变更记录'} variant={'filled'}>
-            <InlineTable
-              columns={changeRequestColumns as any}
-              dataSource={changeRequests}
-              loading={isChangeRequestsLoading}
-              rowKey={(record) => record.id}
-              locale={{
-                emptyText: <Empty description={hasBillingHistory ? undefined : '暂无套餐变更记录'} />,
-              }}
-            />
-          </FormGroup>
-        </div>
       </div>
     </>
   );

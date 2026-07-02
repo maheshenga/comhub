@@ -2,7 +2,9 @@ import { Plans } from '@lobechat/types';
 import { describe, expect, it } from 'vitest';
 
 import {
+  OFFICIAL_PLAN_BILLING_CYCLES,
   formatPlanCurrencyAmount,
+  getPrimaryPaidPlans,
   getPlanYearlyDiscountPercent,
   getVisiblePaidPlans,
   resolvePlanCyclePrice,
@@ -17,6 +19,29 @@ describe('plans display helpers', () => {
     ]);
   });
 
+  it('exposes the official three billing cycles on the public plans page', () => {
+    expect(OFFICIAL_PLAN_BILLING_CYCLES).toEqual(['yearly', 'monthly', 'one_time']);
+  });
+
+  it('prefers the official three paid tiers when all custom tiers are configured', () => {
+    expect(
+      getPrimaryPaidPlans([
+        Plans.Free,
+        Plans.Hobby,
+        Plans.Starter,
+        Plans.Premium,
+        Plans.Ultimate,
+      ]),
+    ).toEqual([Plans.Starter, Plans.Premium, Plans.Ultimate]);
+  });
+
+  it('keeps configured paid plans when fewer than three official tiers are available', () => {
+    expect(getPrimaryPaidPlans([Plans.Free, Plans.Hobby, Plans.Premium])).toEqual([
+      Plans.Hobby,
+      Plans.Premium,
+    ]);
+  });
+
   it('formats prices with the catalog currency', () => {
     expect(formatPlanCurrencyAmount(29, 'USD')).toContain('29');
     expect(formatPlanCurrencyAmount(29, 'CNY')).toContain('¥');
@@ -27,7 +52,7 @@ describe('plans display helpers', () => {
     expect(getPlanYearlyDiscountPercent(0, 590)).toBe(0);
   });
 
-  it('resolves yearly prices as cycle totals with monthly equivalents', () => {
+  it('resolves yearly prices as monthly equivalents with annual secondary labels', () => {
     const price = resolvePlanCyclePrice(
       {
         currency: 'CNY',
@@ -38,9 +63,12 @@ describe('plans display helpers', () => {
     );
 
     expect(price.amount).toBe(590);
-    expect(price.unit).toBe('年');
+    expect(price.monthlyEquivalent).toBeCloseTo(49.17, 2);
+    expect(price.label).toContain('49.17');
+    expect(price.unit).toBe('每月 (按年)');
     expect(price.discountPercent).toBe(17);
-    expect(price.secondaryLabel).toContain('按年支付');
+    expect(price.secondaryLabel).toContain('590');
+    expect(price.secondaryLabel).toContain('每年');
   });
 
   it('resolves one-time prices from monthly catalog prices until dedicated prices exist', () => {

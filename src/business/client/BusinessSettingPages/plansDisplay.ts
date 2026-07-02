@@ -4,6 +4,8 @@ export const PLAN_DISPLAY_CURRENCY = 'CNY';
 
 export type PlanDisplayBillingCycle = 'lifetime' | 'monthly' | 'one_time' | 'yearly';
 
+export const OFFICIAL_PLAN_BILLING_CYCLES = ['yearly', 'monthly', 'one_time'] as const;
+
 export type PlanPriceCatalogLike = {
   currency?: null | string;
   lifetimePrice?: null | number;
@@ -26,6 +28,15 @@ export type PlanCyclePrice = {
 
 export const getVisiblePaidPlans = <T extends string>(plans: T[]) =>
   plans.filter((plan) => plan !== Plans.Free);
+
+const officialThreeTierPlans = [Plans.Starter, Plans.Premium, Plans.Ultimate] as const;
+
+export const getPrimaryPaidPlans = <T extends string>(plans: T[]) => {
+  const paidPlans = getVisiblePaidPlans(plans);
+  const officialPlans = officialThreeTierPlans.filter((plan) => paidPlans.includes(plan as T));
+
+  return officialPlans.length === officialThreeTierPlans.length ? officialPlans : paidPlans;
+};
 
 const normalizeCurrency = (currency?: null | string) =>
   (currency?.trim() || PLAN_DISPLAY_CURRENCY).toUpperCase();
@@ -85,15 +96,22 @@ export const resolvePlanCyclePrice = (
 
   switch (cycle) {
     case 'yearly': {
-      return build({
+      const monthlyEquivalent = yearlyPrice > 0 ? yearlyPrice / 12 : undefined;
+
+      return {
         amount: yearlyPrice,
-        ...(yearlyPrice > 0 ? { monthlyEquivalent: yearlyPrice / 12 } : {}),
+        currency,
+        cycle,
+        discountPercent,
+        isAvailable: yearlyPrice > 0,
+        label: monthlyEquivalent ? formatPlanCurrencyAmount(monthlyEquivalent, currency) : '--',
+        ...(monthlyEquivalent === undefined ? {} : { monthlyEquivalent }),
         secondaryLabel:
           yearlyPrice > 0
-            ? `${formatPlanCurrencyAmount(yearlyPrice / 12, currency)} / 月，按年支付`
+            ? `${formatPlanCurrencyAmount(yearlyPrice, currency)} / 每年`
             : '暂未配置年付价格',
-        unit: '年',
-      });
+        unit: '每月 (按年)',
+      };
     }
 
     case 'one_time': {

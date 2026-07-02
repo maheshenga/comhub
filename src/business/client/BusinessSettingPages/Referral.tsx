@@ -3,7 +3,7 @@
 import { FormGroup, Icon } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
 import { Button, Empty, Input, message } from 'antd';
-import { Copy, Pencil } from 'lucide-react';
+import { Copy, Gift, Pencil } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +18,7 @@ import {
   formatBusinessDate,
   formatBusinessNumber,
   formatCredits,
+  OverviewPanel,
   subscriptionPageStyles,
   SummaryTile,
   toDisplayCredits,
@@ -59,14 +60,15 @@ const Referral = memo<{ mobile?: boolean }>(() => {
 
   const effectiveReferralCode = referralOverview?.referralCode || editableCode;
   const effectiveReferralLink = referralLink.replace(
-    /ref=[^&]*/i,
-    `ref=${encodeURIComponent(effectiveReferralCode)}`,
+    /referral=[^&]*/i,
+    `referral=${encodeURIComponent(effectiveReferralCode)}`,
   );
   const effectiveReferralStatus = referralOverview?.currentReferralStatus || referralStatus;
   const hasBoundReferral = Boolean(effectiveReferralStatus);
   const canActivateReward =
     effectiveReferralStatus === 'registered' || effectiveReferralStatus === 'pending_reward';
   const rewardCredits = referralOverview?.rewardCreditsPerInvite ?? toRawCredits(100);
+  const rewardText = formatBusinessNumber(toDisplayCredits(rewardCredits));
 
   useEffect(() => {
     if (referralOverview?.referralCode) {
@@ -229,30 +231,25 @@ const Referral = memo<{ mobile?: boolean }>(() => {
     <>
       <SettingHeader title="推荐奖励" />
       <div className={subscriptionPageStyles.pageStack}>
-        <FormGroup collapsible={false} gap={16} title="推荐概览" variant="filled">
-          <div className={subscriptionPageStyles.cardGrid}>
-            <SummaryTile title="邀请总数" value={String(referralOverview?.totalInvites ?? 0)} />
-            <SummaryTile title="有效转化" value={String(referralOverview?.totalRewarded ?? 0)} />
-            <SummaryTile
-              title="累计奖励"
-              value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
-            />
-            <SummaryTile
-              title="可用余额"
-              value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
-            />
-          </div>
-          {canActivateReward ? (
-            <Button
-              loading={isActivatingReward}
-              type="primary"
-              onClick={() => void handleActivateReward()}
-            >
-              领取推荐奖励
-            </Button>
-          ) : null}
+        <OverviewPanel
+          title={
+            <>
+              邀请好友，双方各得 {rewardText}M 积分
+            </>
+          }
+          description={`把下方的推荐链接分享给好友，好友完成有效转化后，你和好友将各自获得 ${rewardText}M 积分。`}
+          extra={<Icon icon={Gift} size={28} />}
+        />
+        <FormGroup collapsible={false} gap={16} title="推荐链接" variant="filled">
+          <div className={subscriptionPageStyles.monoBlock}>{effectiveReferralLink}</div>
+          <Button
+            icon={<Icon icon={Copy} />}
+            onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
+          >
+            复制链接
+          </Button>
         </FormGroup>
-        <FormGroup collapsible={false} gap={16} title="我的推荐码" variant="filled">
+        <FormGroup collapsible={false} gap={16} title="我的专属推荐码" variant="filled">
           {isEditing ? (
             <Input
               maxLength={7}
@@ -292,14 +289,28 @@ const Referral = memo<{ mobile?: boolean }>(() => {
             )}
           </div>
         </FormGroup>
-        <FormGroup collapsible={false} gap={16} title="推荐链接" variant="filled">
-          <div className={subscriptionPageStyles.monoBlock}>{effectiveReferralLink}</div>
-          <Button
-            icon={<Icon icon={Copy} />}
-            onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
-          >
-            复制链接
-          </Button>
+        <FormGroup collapsible={false} gap={16} title="推荐概览" variant="filled">
+          <div className={subscriptionPageStyles.cardGrid}>
+            <SummaryTile title="邀请总数" value={String(referralOverview?.totalInvites ?? 0)} />
+            <SummaryTile title="有效转化" value={String(referralOverview?.totalRewarded ?? 0)} />
+            <SummaryTile
+              title="累计奖励"
+              value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
+            />
+            <SummaryTile
+              title="可用余额"
+              value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
+            />
+          </div>
+          {canActivateReward ? (
+            <Button
+              loading={isActivatingReward}
+              type="primary"
+              onClick={() => void handleActivateReward()}
+            >
+              领取推荐奖励
+            </Button>
+          ) : null}
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title="推荐记录" variant="filled">
           <InlineTable
@@ -316,10 +327,7 @@ const Referral = memo<{ mobile?: boolean }>(() => {
             <li>推荐码规则：系统默认生成随机 7 位数字，也可以手动改为未被占用的 7 位数字。</li>
             <li>有效邀请：被邀请人使用你的推荐码注册并完成一次有效操作。</li>
             <li>有效操作标准：在对话页发送一条消息，或在图片页生成一张图片。</li>
-            <li>
-              奖励：邀请人和被邀请人各获得 {formatBusinessNumber(toDisplayCredits(rewardCredits))}M
-              积分。
-            </li>
+            <li>奖励：邀请人和被邀请人各获得 {rewardText}M 积分。</li>
             <li>奖励处理：积分将在审核通过后发放，审核最多需要 6 小时。</li>
             <li>
               积分使用优先级：订阅积分 {'>'} 推荐积分 {'>'} 充值积分 {'>'} 其他积分。

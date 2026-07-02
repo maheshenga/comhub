@@ -3,7 +3,7 @@
 import { FormGroup, Icon, Segmented } from '@lobehub/ui';
 import { ProviderIcon } from '@lobehub/ui/icons';
 import { type DatePickerProps } from 'antd';
-import { DatePicker, Divider } from 'antd';
+import { DatePicker, Divider, Progress } from 'antd';
 import dayjs from 'dayjs';
 import { Brain } from 'lucide-react';
 import { memo, useState } from 'react';
@@ -15,9 +15,13 @@ import UsageCards from '@/routes/(main)/settings/stats/features/usage/UsageCards
 import UsageTable from '@/routes/(main)/settings/stats/features/usage/UsageTable';
 import UsageTrends from '@/routes/(main)/settings/stats/features/usage/UsageTrends';
 import { GroupBy } from '@/routes/(main)/settings/stats/types';
+import { commercialService } from '@/services/commercial';
 import { usageService } from '@/services/usage';
 import { type UsageLog } from '@/types/usage/usageRecord';
 
+import { Card } from '@/components/antd-compat/Card';
+
+import { buildResourceUsageTiles } from './resourceUsageDisplay';
 import {
   formatCredits,
   subscriptionPageStyles,
@@ -40,7 +44,11 @@ const Usage = memo<{ mobile?: boolean }>(() => {
   const { data, isLoading } = useClientDataSWR(['business-usage-stat', month], () =>
     usageService.findAndGroupByDay(month),
   );
+  const { data: resourceUsageSummary } = useClientDataSWR(['business-resource-usage-summary'], () =>
+    commercialService.getResourceUsageSummary(),
+  );
   const usageData = (data ?? []) as unknown as UsageLog[];
+  const resourceUsageTiles = buildResourceUsageTiles(resourceUsageSummary);
 
   const handleDateChange: DatePickerProps['onChange'] = (value) => {
     if (value && !Array.isArray(value)) setDateRange(value);
@@ -107,6 +115,18 @@ const Usage = memo<{ mobile?: boolean }>(() => {
               value={formatCredits(accountBreakdown?.referral.available ?? 0)}
             />
           </div>
+          <Divider style={{ marginBlock: 0 }} />
+          <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
+            <div className={subscriptionPageStyles.cardGrid}>
+              {resourceUsageTiles.map((item) => (
+                <div key={item.title}>
+                  <div>{item.title}</div>
+                  <Progress percent={item.percent} size={'small'} />
+                  <div className={subscriptionPageStyles.caption}>{item.caption}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
           <Divider style={{ marginBlock: 0 }} />
           <UsageCards data={usageData} groupBy={groupBy} isLoading={isLoading} />
           <Divider style={{ marginBlock: 0 }} />

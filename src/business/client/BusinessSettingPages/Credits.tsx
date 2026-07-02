@@ -1,10 +1,11 @@
 'use client';
 
 import { Flexbox, FormGroup, Icon, Segmented } from '@lobehub/ui';
+import { Switch } from '@lobehub/ui/base-ui';
 import { type TableColumnType } from 'antd';
 import { Button, Empty, InputNumber, message, Tag } from 'antd';
-import { Pencil, ShoppingCart } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { Pencil, Save, ShoppingCart } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
@@ -17,6 +18,12 @@ import { commercialService } from '@/services/commercial';
 import { type CreditLedgerEntryItem, type TopUpOrderHistoryItem } from '@/types/business';
 
 import RedemptionPanel from './RedemptionPanel';
+import {
+  buildAutoTopUpUpdateParams,
+  canSaveAutoTopUpForm,
+  createAutoTopUpFormState,
+  type AutoTopUpFormState,
+} from './creditsDisplay';
 import {
   formatBusinessDate,
   formatCredits,
@@ -48,10 +55,18 @@ const sourceLabels: Record<string, string> = {
 
 const Credits = memo<{ mobile?: boolean }>(() => {
   const { t } = useTranslation('subscription');
-  const { accountSummary, currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
+  const { accountSummary, currentPlan, isPaidPlan, subscriptionSummary } =
+    useBusinessSubscriptionProfile();
   const { data: ledgerResult, isLoading: isLedgerLoading } = useClientDataSWR(
     ['business-credit-ledger'],
     () => commercialService.listCreditLedger({ limit: 20 }),
+  );
+  const {
+    data: autoTopUpSetting,
+    isLoading: isAutoTopUpLoading,
+    mutate: mutateAutoTopUpSetting,
+  } = useClientDataSWR(['business-auto-topup-setting'], () =>
+    commercialService.getAutoTopUpSetting(),
   );
   const { data: topUpPackages = [] } = useClientDataSWR(['business-topup-packages'], () =>
     commercialService.getTopUpPackages(),
@@ -62,6 +77,10 @@ const Credits = memo<{ mobile?: boolean }>(() => {
   );
   const [selectedPackageId, setSelectedPackageId] = useState<string>();
   const [customCredits, setCustomCredits] = useState(50);
+  const [autoTopUpForm, setAutoTopUpForm] = useState<AutoTopUpFormState>(() =>
+    createAutoTopUpFormState(null),
+  );
+  const [isAutoTopUpSaving, setAutoTopUpSaving] = useState(false);
 
   const selectedPackage =
     topUpPackages.find((item) => item.id === selectedPackageId) || topUpPackages[0];
@@ -69,6 +88,14 @@ const Credits = memo<{ mobile?: boolean }>(() => {
   const effectiveAmount = selectedPackage?.amount ?? customCredits;
   const effectiveCurrency = selectedPackage?.currency ?? accountSummary?.currency ?? 'USD';
   const accountBreakdown = accountSummary?.breakdown;
+
+  useEffect(() => {
+    setAutoTopUpForm(createAutoTopUpFormState(autoTopUpSetting));
+  }, [autoTopUpSetting]);
+
+  const updateAutoTopUpForm = useCallback((patch: Partial<AutoTopUpFormState>) => {
+    setAutoTopUpForm((previous) => ({ ...previous, ...patch }));
+  }, []);
 
   const packageOptions = useMemo(
     () => [
@@ -204,6 +231,33 @@ const Credits = memo<{ mobile?: boolean }>(() => {
     message.info('当前前端未接入真实支付，管理员可通过后台或兑换码发放套餐与积分。');
   };
 
+  const handleSaveAutoTopUpSetting = async () => {
+    if (!canSaveAutoTopUpForm(autoTopUpForm)) {
+      message.warning('目标余额必须高于触发阈值');
+      return;
+    }
+
+    if (autoTopUpForm.enabled && !isPaidPlan) {
+      message.warning('自动充值仅支持付费套餐用户');
+      return;
+    }
+
+    setAutoTopUpSaving(true);
+    try {
+      await commercialService.updateAutoTopUpSetting(buildAutoTopUpUpdateParams(autoTopUpForm));
+      await mutateAutoTopUpSetting();
+      message.success('自动充值设置已更新');
+    } catch {
+      message.error('自动充值设置更新失败');
+    } finally {
+      setAutoTopUpSaving(false);
+    }
+  };
+
+  const autoTopUpControlsDisabled = !isPaidPlan || isAutoTopUpLoading || isAutoTopUpSaving;
+  const autoTopUpSaveDisabled =
+    !isPaidPlan || isAutoTopUpLoading || isAutoTopUpSaving || !canSaveAutoTopUpForm(autoTopUpForm);
+
   return (
     <>
       <SettingHeader title={'积分'} />
@@ -275,19 +329,118 @@ const Credits = memo<{ mobile?: boolean }>(() => {
                 type={'primary'}
                 onClick={handleSubscribeFirst}
               >
-                请先订阅
+                购买积分包
               </Button>
             </Flexbox>
           </Card>
         </FormGroup>
+        <FormGroup collapsible={false} gap={16} title={'成本估算警报'} variant={'filled'}>
+          <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
+            <div className={subscriptionPageStyles.cardGrid}>
+              <SummaryTile
+                caption={'余额低于该值时需要关注消耗速度'}
+                title={'触发阈值'}
+                value={formatCredits(toRawCredits(autoTopUpForm.thresholdM))}
+              />
+              <SummaryTile
+                caption={'自动充值启用后会补足到该余额'}
+                title={'目标余额'}
+                value={formatCredits(toRawCredits(autoTopUpForm.targetBalanceM))}
+              />
+              <SummaryTile
+                caption={'避免单月意外超额充值'}
+                title={'月度充值上限'}
+                value={
+                  autoTopUpForm.monthlyLimitM == null
+                    ? '不限制'
+                    : formatCredits(toRawCredits(autoTopUpForm.monthlyLimitM))
+                }
+              />
+            </div>
+          </Card>
+        </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'自动充值'} variant={'filled'}>
           <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
-            <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
-              <div>
-                <strong>订阅付费计划以启用自动充值</strong>
-                <div className={subscriptionPageStyles.caption}>确保你的积分不会用光。</div>
+            <Flexbox gap={16}>
+              <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
+                <div>
+                  <strong>{isPaidPlan ? '自动充值设置' : '订阅付费计划以启用自动充值'}</strong>
+                  <div className={subscriptionPageStyles.caption}>
+                    当余额低于触发阈值时，系统会按目标余额补足积分。设置保存后立即对当前用户生效。
+                  </div>
+                </div>
+                <Switch
+                  checked={autoTopUpForm.enabled}
+                  disabled={autoTopUpControlsDisabled}
+                  onChange={(enabled) => updateAutoTopUpForm({ enabled })}
+                />
+              </Flexbox>
+              <div className={subscriptionPageStyles.cardGrid}>
+                <Flexbox gap={8}>
+                  <span>触发阈值</span>
+                  <InputNumber
+                    addonAfter={'M'}
+                    disabled={autoTopUpControlsDisabled}
+                    min={1}
+                    value={autoTopUpForm.thresholdM}
+                    onChange={(value: number | null) =>
+                      updateAutoTopUpForm({ thresholdM: Number(value || 1) })
+                    }
+                  />
+                  <span className={subscriptionPageStyles.caption}>余额低于该值时触发。</span>
+                </Flexbox>
+                <Flexbox gap={8}>
+                  <span>目标余额</span>
+                  <InputNumber
+                    addonAfter={'M'}
+                    disabled={autoTopUpControlsDisabled}
+                    min={1}
+                    status={canSaveAutoTopUpForm(autoTopUpForm) ? undefined : 'error'}
+                    value={autoTopUpForm.targetBalanceM}
+                    onChange={(value: number | null) =>
+                      updateAutoTopUpForm({ targetBalanceM: Number(value || 1) })
+                    }
+                  />
+                  <span className={subscriptionPageStyles.caption}>必须高于触发阈值。</span>
+                </Flexbox>
+                <Flexbox gap={8}>
+                  <span>月度上限</span>
+                  <InputNumber
+                    addonAfter={'M'}
+                    disabled={autoTopUpControlsDisabled}
+                    min={0}
+                    placeholder={'不限制'}
+                    value={autoTopUpForm.monthlyLimitM}
+                    onChange={(value: number | null) =>
+                      updateAutoTopUpForm({
+                        monthlyLimitM: value == null || Number(value) <= 0 ? null : Number(value),
+                      })
+                    }
+                  />
+                  <span className={subscriptionPageStyles.caption}>留空或 0 表示不限制。</span>
+                </Flexbox>
               </div>
-              <Button onClick={handleSubscribeFirst}>升级</Button>
+              <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
+                <div className={subscriptionPageStyles.caption}>
+                  {!isPaidPlan
+                    ? '当前为免费套餐，只能查看默认配置。升级后可开启自动充值。'
+                    : '自动充值会复用后台套餐与积分账本规则，实际支付接入后可完成扣款闭环。'}
+                </div>
+                <Flexbox horizontal gap={8}>
+                  {!isPaidPlan ? (
+                    <Button href="/settings/plans">升级</Button>
+                  ) : null}
+                  <Button
+                    disabled={autoTopUpSaveDisabled}
+                    icon={<Icon icon={Save} />}
+                    loading={isAutoTopUpSaving}
+                    type={'primary'}
+                    onClick={handleSaveAutoTopUpSetting}
+                  >
+                    保存设置
+                  </Button>
+                </Flexbox>
+              </Flexbox>
             </Flexbox>
           </Card>
         </FormGroup>

@@ -4,7 +4,7 @@ import { Plans as SubscriptionPlan } from '@lobechat/types';
 import { Flexbox, Icon, Segmented } from '@lobehub/ui';
 import { Alert, Button, Input, message, Modal, Skeleton, Tag, Tooltip } from 'antd';
 import { createStyles, cssVar } from 'antd-style';
-import { Check, ChevronRight, Info, LockKeyhole, Sparkles, Ticket } from 'lucide-react';
+import { Check, ChevronRight, ExternalLink, Info, LockKeyhole, Sparkles, Ticket } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -17,8 +17,9 @@ import { commercialService } from '@/services/commercial';
 
 import { getPlanPurchaseUrl } from './planPurchase';
 import {
+  OFFICIAL_PLAN_BILLING_CYCLES,
+  getPrimaryPaidPlans,
   getPlanYearlyDiscountPercent,
-  getVisiblePaidPlans,
   resolvePlanCyclePrice,
 } from './plansDisplay';
 import {
@@ -70,7 +71,7 @@ const FEATURE_GROUPS = [
   },
 ];
 
-type BillingCycle = 'yearly' | 'monthly' | 'one_time' | 'lifetime';
+type BillingCycle = (typeof OFFICIAL_PLAN_BILLING_CYCLES)[number];
 type PlanCatalog = Awaited<ReturnType<typeof commercialService.listPlanCatalog>>;
 type PlanCatalogItem = PlanCatalog[number];
 
@@ -149,7 +150,7 @@ const useStyles = createStyles(({ css, cx, token }) => ({
 
     @media (width >= 1280px) {
       > .ant-card {
-        flex-basis: calc((100% - 36px) / 4);
+        flex-basis: calc((100% - 24px) / 3);
       }
     }
   `,
@@ -306,7 +307,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
       configuredPlans.includes(plan),
     );
 
-    return getVisiblePaidPlans(
+    return getPrimaryPaidPlans(
       orderedConfiguredPlans.length > 0 ? orderedConfiguredPlans : [...subscriptionPlanOrder],
     );
   }, [planCatalog]);
@@ -378,9 +379,9 @@ const Plans = memo<{ mobile?: boolean }>(() => {
           <Segmented
             value={billingCycle}
             variant="filled"
-            options={[
-              {
-                label: (
+            options={OFFICIAL_PLAN_BILLING_CYCLES.map((cycle) => ({
+              label:
+                cycle === 'yearly' ? (
                   <Flexbox horizontal align="center" gap={8}>
                     按年
                     {maxYearlyDiscountPercent > 0 ? (
@@ -389,13 +390,13 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                       </Tag>
                     ) : null}
                   </Flexbox>
+                ) : cycle === 'monthly' ? (
+                  '按月'
+                ) : (
+                  '一次性'
                 ),
-                value: 'yearly',
-              },
-              { label: '按月', value: 'monthly' },
-              { label: '一次性', value: 'one_time' },
-              { label: '终身', value: 'lifetime' },
-            ]}
+              value: cycle,
+            }))}
             onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
           />
         </div>
@@ -524,11 +525,11 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                         </div>
                         <div className={styles.benefit}>
                           <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>模型倍率、每美元积分和套餐权限会随管理员配置实时生效</span>
+                          <span>积分额度和套餐权限会随后台配置实时生效</span>
                         </div>
                       </Flexbox>
                       <Flexbox className={styles.featureGroup} gap={10}>
-                        <div className={styles.sectionTitle}>后台配置权益</div>
+                        <div className={styles.sectionTitle}>套餐权益</div>
                         {getPlanFeatures(plan).map((feature) => (
                           <div className={styles.benefit} key={feature}>
                             <Icon className={styles.benefitIcon} icon={Check} size={15} />
@@ -555,7 +556,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                       <Flexbox className={styles.featureGroup} gap={10}>
                         <div className={styles.sectionTitle}>
                           模型权限
-                          <Tooltip title="这里汇总后台 API 设置中每个套餐的模型 allowlist/blocklist 规则。">
+                          <Tooltip title="这里汇总后台模型与计费矩阵中每个套餐的模型开放规则。">
                             <Icon icon={Info} size={14} />
                           </Tooltip>
                         </div>
@@ -584,19 +585,38 @@ const Plans = memo<{ mobile?: boolean }>(() => {
         )}
         <Card className={styles.pricingCard} variant="borderless">
           <Flexbox gap={12}>
+            <Flexbox horizontal align="center" gap={12} justify="space-between" wrap="wrap">
+              <Flexbox gap={4}>
+                <h2 className={styles.title}>文本模型价格</h2>
+                <div className={subscriptionPageStyles.caption}>
+                  平台使用算力积分衡量 AI
+                  模型使用量。具体模型、倍率和可用套餐由后台“模型与计费矩阵”统一维护。
+                </div>
+              </Flexbox>
+              <Flexbox horizontal gap={8} wrap="wrap">
+                <Button
+                  href="https://lobehub.com/docs/usage/subscription/model-pricing"
+                  icon={<Icon icon={ExternalLink} />}
+                  target="_blank"
+                >
+                  查看价格文档
+                </Button>
+                <Button icon={<Icon icon={Ticket} />} onClick={() => setRedeemOpen(true)}>
+                  兑换激活码
+                </Button>
+              </Flexbox>
+            </Flexbox>
             <Flexbox gap={4}>
-              <h2 className={styles.title}>模型计费说明</h2>
+              <h2 className={styles.title}>套餐对比</h2>
               <div className={subscriptionPageStyles.caption}>
-                平台使用算力积分衡量 AI
-                模型使用量。具体模型、倍率和可用套餐由后台“模型与计费矩阵”统一维护，新增 AI
-                服务商或模型后会按后台配置生效。
+                套餐页展示用户可理解的权益摘要；具体模型计费、服务商分组、默认模型和套餐开放范围以管理员后台配置为准。
               </div>
             </Flexbox>
             <Alert
               showIcon
               message="模型价格随后台配置动态生效"
               type="info"
-              description="套餐页只展示用户可理解的权益摘要；具体模型计费、服务商分组、默认模型和套餐开放范围以管理员后台配置为准。"
+              description="新增 AI 服务商或模型后，先在后台模型与计费矩阵维护价格和套餐权限，再由用户端套餐、用量和积分页面读取统一结果。"
             />
           </Flexbox>
         </Card>
