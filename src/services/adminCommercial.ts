@@ -152,6 +152,10 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.getPublicHelpMenu.query();
   };
 
+  getPublicAboutPage = async () => {
+    return lambdaClient.admin.settings.getPublicAboutPage.query();
+  };
+
   getPublicDesktopUpdate = async () => {
     return lambdaClient.admin.settings.getPublicDesktopUpdate.query();
   };

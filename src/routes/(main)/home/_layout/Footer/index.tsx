@@ -17,12 +17,14 @@ import {
   Settings2,
   SettingsIcon,
 } from 'lucide-react';
+import useSWR from 'swr';
 import type { ReactNode } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 
 import ChangelogModal from '@/components/ChangelogModal';
+import { PUBLIC_HELP_MENU_SWR_KEY } from '@/const/adminCacheKeys';
 import HighlightNotification from '@/components/HighlightNotification';
 import { DOCUMENTS_REFER_URL, GITHUB } from '@/const/url';
 import Billboard from '@/features/Billboard';
@@ -34,9 +36,11 @@ import { useNavLayout } from '@/hooks/useNavLayout';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors/systemStatus';
 import { useServerConfigStore } from '@/store/serverConfig';
+import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
-import { userGeneralSettingsSelectors } from '@/store/user/slices/settings/selectors/general';
+import { userGeneralSettingsSelectors } from '@/store/user/selectors';
 
+import { createConfiguredHelpMenuItems } from './helpMenuItems';
 import { resolveFooterPromotionState } from './promotionPipeline';
 
 const AGENT_ONBOARDING_PROMO_SLUG = 'agent-onboarding-promo-v1';
@@ -84,6 +88,9 @@ const Footer = memo(() => {
   const [isChangelogModalOpen, setIsChangelogModalOpen] = useState(false);
   const [isProductHuntCardOpen, setIsProductHuntCardOpen] = useState(false);
 
+  const { data: configuredHelpMenuItems = [] } = useSWR(PUBLIC_HELP_MENU_SWR_KEY, () =>
+    adminCommercialService.getPublicHelpMenu(),
+  );
   const [isAgentOnboardingPromoRead, isProductHuntNotificationRead, updateSystemStatus] =
     useGlobalStore((s) => [
       systemStatusSelectors.isNotificationRead(AGENT_ONBOARDING_PROMO_SLUG)(s),
@@ -258,7 +265,7 @@ const Footer = memo(() => {
     t,
   ]);
 
-  const helpMenuItems: MenuProps['items'] = useMemo(
+  const defaultHelpMenuItems: MenuProps['items'] = useMemo(
     () => [
       ...(footer.showSettingsEntry && !isDevMode
         ? [
@@ -337,9 +344,6 @@ const Footer = memo(() => {
             },
           ]
         : []),
-      ...(isHomeSidebar && billboardMenuItems && billboardMenuItems.length > 0
-        ? [{ type: 'divider' as const }, ...billboardMenuItems]
-        : []),
     ],
     [
       footer.showSettingsEntry,
@@ -351,11 +355,32 @@ const Footer = memo(() => {
       isDevMode,
       shouldShowProductHuntMenuEntry,
       t,
-      billboardMenuItems,
-      isHomeSidebar,
     ],
   );
 
+  const configuredMenuItems: MenuProps['items'] = useMemo(
+    () =>
+      configuredHelpMenuItems.length > 0
+        ? createConfiguredHelpMenuItems(configuredHelpMenuItems, {
+            onChangelog: handleOpenChangelogModal,
+            onFeedback: handleOpenFeedbackModal,
+            onProductHunt: handleOpenProductHuntCard,
+          })
+        : [],
+    [configuredHelpMenuItems, handleOpenChangelogModal, handleOpenFeedbackModal, handleOpenProductHuntCard],
+  );
+
+  const helpMenuItems: MenuProps['items'] = useMemo(
+    () => [
+      ...(configuredMenuItems && configuredMenuItems.length > 0
+        ? configuredMenuItems
+        : defaultHelpMenuItems),
+      ...(isHomeSidebar && billboardMenuItems && billboardMenuItems.length > 0
+        ? [{ type: 'divider' as const }, ...billboardMenuItems]
+        : []),
+    ],
+    [billboardMenuItems, configuredMenuItems, defaultHelpMenuItems, isHomeSidebar],
+  );
   return (
     <>
       {footer.layout === 'expanded' ? (

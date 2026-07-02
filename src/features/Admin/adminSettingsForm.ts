@@ -1,15 +1,21 @@
 import {
   type AboutLinksConfig,
+  type AboutPageConfig,
   DEFAULT_ABOUT_LINKS,
   normalizeAboutLinksConfig,
+  normalizeAboutPageConfig,
 } from '@/const/aboutLinks';
 import {
   BRAND_CONFIG_SWR_KEY,
+  PUBLIC_ABOUT_LINKS_SWR_KEY,
+  PUBLIC_ABOUT_PAGE_SWR_KEY,
+  PUBLIC_HELP_MENU_SWR_KEY,
   PROFILE_INTEREST_AREAS_SWR_KEY,
   RUNTIME_CONFIG_SWR_KEY,
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import { type HelpMenuItem, normalizeHelpMenuItems } from '@/const/helpMenu';
 import { type NotificationEventDefaults } from '@/const/notificationPreferences';
 import {
   type ConfiguredInterestArea,
@@ -18,6 +24,9 @@ import {
 
 export {
   ADMIN_SETTINGS_SWR_KEY,
+  PUBLIC_ABOUT_LINKS_SWR_KEY,
+  PUBLIC_ABOUT_PAGE_SWR_KEY,
+  PUBLIC_HELP_MENU_SWR_KEY,
   BRAND_CONFIG_SWR_KEY,
   PROFILE_INTEREST_AREAS_SWR_KEY,
   PROFILE_OPTIONS_SWR_KEY,
@@ -28,6 +37,7 @@ export {
 
 export const SETTING_KEYS = {
   aboutLinks: 'about.links',
+  aboutPage: 'about.page',
   brandFaviconUrl: 'brand.faviconUrl',
   brandAuthTitle: 'brand.authTitle',
   brandCopyrightText: 'brand.copyrightText',
@@ -88,8 +98,6 @@ export const SETTING_KEYS = {
   storageS3SetAcl: 'storage.s3.setAcl',
 } as const;
 
-export type HelpMenuItem = { label: string; url?: string };
-
 export type MemoryUserMemoryTriggerMode = 'auto' | 'direct' | 'workflow';
 
 export type EnabledNewapiModelOption = {
@@ -119,6 +127,7 @@ export type AdminSettingsData = {
   brandSlogan?: string | null;
   communityForkAndChatLabel?: string | null;
   aboutLinks?: unknown;
+  aboutPage?: unknown;
   cronAuditRetentionDays?: number | null;
   cronPendingOrderExpiryDays?: number | null;
   defaultAgentAvatar?: string | null;
@@ -190,6 +199,7 @@ export type AdminSettingsFormValues = {
   brandSlogan: string;
   communityForkAndChatLabel: string;
   aboutLinks: AboutLinksConfig;
+  aboutPage: AboutPageConfig;
   cronAuditRetentionDays: number;
   cronPendingOrderExpiryDays: number;
   cronSecret: string;
@@ -309,17 +319,6 @@ export const resolveModelOptionValue = (
   return candidates.length === 1 ? candidates[0].value : directValue;
 };
 
-const normalizeHelpMenuItems = (items: unknown): HelpMenuItem[] =>
-  Array.isArray(items)
-    ? items
-        .filter((item): item is HelpMenuItem => Boolean(item) && typeof item === 'object')
-        .map((item: HelpMenuItem) => ({
-          label: normalizeText(item.label),
-          ...(normalizeText(item.url) ? { url: normalizeText(item.url) } : {}),
-        }))
-        .filter((item) => item.label)
-    : [];
-
 export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValues => ({
   brandFaviconUrl: data?.brandFaviconUrl ?? '',
   brandAuthTitle: data?.brandAuthTitle ?? DEFAULT_RUNTIME_BRAND.authTitle,
@@ -332,6 +331,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   brandSlogan: data?.brandSlogan ?? DEFAULT_RUNTIME_BRAND.authTitle,
   communityForkAndChatLabel: data?.communityForkAndChatLabel ?? '',
   aboutLinks: normalizeAboutLinksConfig(data?.aboutLinks ?? DEFAULT_ABOUT_LINKS),
+  aboutPage: normalizeAboutPageConfig(data?.aboutPage),
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
   cronSecret: '',
@@ -386,6 +386,7 @@ export const normalizeFormValues = (
   brandSlogan: normalizeText(values.brandSlogan),
   communityForkAndChatLabel: normalizeText(values.communityForkAndChatLabel),
   aboutLinks: normalizeAboutLinksConfig(values.aboutLinks),
+  aboutPage: normalizeAboutPageConfig(values.aboutPage),
   cronAuditRetentionDays:
     typeof values.cronAuditRetentionDays === 'number' ? values.cronAuditRetentionDays : 365,
   cronPendingOrderExpiryDays:
@@ -500,6 +501,7 @@ export const buildSettingUpdates = (
   const keyMap: Record<keyof AdminSettingsFormValues, string> = {
     brandFaviconUrl: SETTING_KEYS.brandFaviconUrl,
     aboutLinks: SETTING_KEYS.aboutLinks,
+    aboutPage: SETTING_KEYS.aboutPage,
     brandAuthTitle: SETTING_KEYS.brandAuthTitle,
     brandCopyrightText: SETTING_KEYS.brandCopyrightText,
     brandLogoUrl: SETTING_KEYS.brandLogoUrl,
@@ -568,6 +570,10 @@ export const buildSettingUpdates = (
     updates.push({ key: SETTING_KEYS.aboutLinks, value: current.aboutLinks });
   }
 
+  if (JSON.stringify(current.aboutPage) !== JSON.stringify(initial.aboutPage)) {
+    updates.push({ key: SETTING_KEYS.aboutPage, value: current.aboutPage });
+  }
+
   return updates;
 };
 
@@ -605,10 +611,16 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
   const needsProfileInterestRefresh = updates.some(
     (update) => update.key === SETTING_KEYS.profileInterestAreas,
   );
+  const needsHelpMenuRefresh = updates.some((update) => update.key === SETTING_KEYS.helpMenuItems);
+  const needsAboutLinksRefresh = updates.some((update) => update.key === SETTING_KEYS.aboutLinks);
+  const needsAboutPageRefresh = updates.some((update) => update.key === SETTING_KEYS.aboutPage);
 
   return [
     ...(needsRuntimeRefresh ? [RUNTIME_CONFIG_SWR_KEY, USER_STATE_SWR_KEY] : []),
     ...(needsBrandRefresh ? [BRAND_CONFIG_SWR_KEY] : []),
+    ...(needsHelpMenuRefresh ? [PUBLIC_HELP_MENU_SWR_KEY] : []),
+    ...(needsAboutLinksRefresh ? [PUBLIC_ABOUT_LINKS_SWR_KEY] : []),
+    ...(needsAboutPageRefresh ? [PUBLIC_ABOUT_PAGE_SWR_KEY] : []),
     ...(needsProfileInterestRefresh ? [PROFILE_INTEREST_AREAS_SWR_KEY] : []),
   ];
 };

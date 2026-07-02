@@ -35,6 +35,7 @@ import {
   normalizeText,
   SETTING_KEYS,
 } from '@/features/Admin/adminSettingsForm';
+import { HELP_MENU_ACTIONS, HELP_MENU_ICONS } from '@/const/helpMenu';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -58,6 +59,9 @@ const memoryTriggerModeOptions = [
     value: 'workflow',
   },
 ];
+
+const helpMenuActionOptions = HELP_MENU_ACTIONS.map((value) => ({ label: value, value }));
+const helpMenuIconOptions = HELP_MENU_ICONS.map((value) => ({ label: value, value }));
 
 const aboutLinkGroups = [
   { key: 'contact', title: '联系入口', titleKey: 'admin.settings.aboutLinks.contact' },
@@ -857,10 +861,37 @@ const AdminSettingsPage = memo(() => {
                     <Text type="secondary">
                       {t(
                         'admin.settings.aboutLinks.help',
-                        '用于 settings/about 页面。名称和链接都会按这里的配置显示；未填写时使用系统默认值。',
+                        'Configure settings/about links. Labels and URLs display from this page; blank values use defaults.',
                       )}
                     </Text>
                     {aboutLinkGroups.map(renderAboutLinkGroup)}
+                    <Text strong>{t('admin.settings.aboutPageVersion', 'About page version area')}</Text>
+                    <Form.Item
+                      label={t('admin.settings.aboutPageLogoLinkUrl', 'Logo link URL')}
+                      name={['aboutPage', 'logoLinkUrl']}
+                      extra={t(
+                        'admin.settings.aboutPageLogoLinkUrl.help',
+                        'Controls the settings/about version logo link. Blank values use the official site.',
+                      )}
+                    >
+                      <Input placeholder="https://example.com" />
+                    </Form.Item>
+                    <Form.Item
+                      label={t('admin.settings.aboutPageChangelogLabel', 'Changelog button label')}
+                      name={['aboutPage', 'changelogLabel']}
+                      extra={t(
+                        'admin.settings.aboutPageChangelogLabel.help',
+                        'Blank values use the default changelog translation.',
+                      )}
+                    >
+                      <Input placeholder={t('changelog', 'Changelog')} />
+                    </Form.Item>
+                    <Form.Item
+                      label={t('admin.settings.aboutPageChangelogUrl', 'Changelog URL')}
+                      name={['aboutPage', 'changelogUrl']}
+                    >
+                      <Input placeholder="https://example.com/changelog" />
+                    </Form.Item>
                     <Form.Item
                       label={t('admin.settings.helpMenuItems', '帮助菜单')}
                       extra={t(
@@ -872,14 +903,31 @@ const AdminSettingsPage = memo(() => {
                         {(fields, { add, remove }) => (
                           <Flexbox gap={8}>
                             {fields.map(({ key, name, ...restField }) => (
-                              <Flexbox horizontal align="center" gap={8} key={key}>
+                              <Flexbox horizontal align="center" gap={8} key={key} style={{ flexWrap: 'wrap' }}>
+                                <Form.Item {...restField} hidden name={[name, 'key']}>
+                                  <Input />
+                                </Form.Item>
                                 <Form.Item
                                   {...restField}
                                   noStyle
                                   name={[name, 'label']}
-                                  rules={[{ message: '请填写显示名称', required: true }]}
+                                  rules={[{ message: 'Please enter a display name', required: true }]}
                                 >
-                                  <Input placeholder="显示名称" style={{ flex: 1 }} />
+                                  <Input placeholder="Display name" style={{ flex: 1 }} />
+                                </Form.Item>
+                                <Form.Item {...restField} noStyle name={[name, 'icon']}>
+                                  <Select
+                                    options={helpMenuIconOptions}
+                                    placeholder="icon"
+                                    style={{ minWidth: 132 }}
+                                  />
+                                </Form.Item>
+                                <Form.Item {...restField} noStyle name={[name, 'action']}>
+                                  <Select
+                                    options={helpMenuActionOptions}
+                                    placeholder="action"
+                                    style={{ minWidth: 144 }}
+                                  />
                                 </Form.Item>
                                 <Form.Item {...restField} noStyle name={[name, 'url']}>
                                   <Input placeholder="https://..." style={{ flex: 1.5 }} />
@@ -894,7 +942,15 @@ const AdminSettingsPage = memo(() => {
                               block
                               icon={<PlusOutlined />}
                               type="dashed"
-                              onClick={() => add({ label: '', url: '' })}
+                              onClick={() =>
+                                add({
+                                  action: 'url',
+                                  enabled: true,
+                                  icon: 'help',
+                                  label: '',
+                                  url: '',
+                                })
+                              }
                             >
                               {t('admin.settings.helpMenuAdd', '添加菜单项')}
                             </Button>

@@ -7,13 +7,16 @@ import { Block, Button, Flexbox, Tag } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import useSWR from 'swr';
 
 import { ProductLogo } from '@/components/Branding';
 import { CHANGELOG_URL, MANUAL_UPGRADE_URL, OFFICIAL_SITE } from '@/const/url';
+import { PUBLIC_ABOUT_PAGE_SWR_KEY } from '@/const/adminCacheKeys';
 import { CURRENT_VERSION } from '@/const/version';
 import { useBrandName } from '@/features/Brand';
 import { useNewVersion } from '@/features/User/UserPanel/useNewVersion';
 import { autoUpdateService } from '@/services/electron/autoUpdate';
+import { adminCommercialService } from '@/services/adminCommercial';
 import { useGlobalStore } from '@/store/global';
 
 import { APP_VERSION } from './appVersion';
@@ -34,6 +37,9 @@ const Version = memo<{ mobile?: boolean }>(({ mobile }) => {
   ]);
   const { t } = useTranslation(['common', 'setting']);
 
+  const { data: aboutPage } = useSWR(PUBLIC_ABOUT_PAGE_SWR_KEY, () =>
+    adminCommercialService.getPublicAboutPage(),
+  );
   useCheckServerVersion();
 
   const showServerVersion = serverVersion && serverVersion !== CURRENT_VERSION;
@@ -112,6 +118,10 @@ const Version = memo<{ mobile?: boolean }>(({ mobile }) => {
     }
   };
 
+  const logoLinkUrl = aboutPage?.logoLinkUrl || OFFICIAL_SITE;
+  const changelogUrl = aboutPage?.changelogUrl || CHANGELOG_URL;
+  const changelogLabel = aboutPage?.changelogLabel || t('changelog');
+
   return (
     <Flexbox
       align={mobile ? 'stretch' : 'center'}
@@ -121,7 +131,7 @@ const Version = memo<{ mobile?: boolean }>(({ mobile }) => {
       width={'100%'}
     >
       <Flexbox horizontal align={'center'} flex={'none'} gap={16}>
-        <a href={OFFICIAL_SITE} rel="noreferrer" target="_blank">
+        <a href={logoLinkUrl} rel="noreferrer" target="_blank">
           <Block
             clickable
             align={'center'}
@@ -157,8 +167,8 @@ const Version = memo<{ mobile?: boolean }>(({ mobile }) => {
         </Flexbox>
       </Flexbox>
       <Flexbox horizontal flex={mobile ? 1 : undefined} gap={8}>
-        <a href={CHANGELOG_URL} rel="noreferrer" style={{ flex: 1 }} target="_blank">
-          <Button block={mobile}>{t('changelog')}</Button>
+        <a href={changelogUrl} rel="noreferrer" style={{ flex: 1 }} target="_blank">
+          <Button block={mobile}>{changelogLabel}</Button>
         </a>
         {renderUpdateButton()}
       </Flexbox>

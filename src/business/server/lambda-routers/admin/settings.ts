@@ -5,9 +5,10 @@ import { TRPCError } from '@trpc/server';
 import { and, eq, lt } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { normalizeAboutLinksConfig } from '@/const/aboutLinks';
+import { normalizeAboutLinksConfig, normalizeAboutPageConfig } from '@/const/aboutLinks';
 import { normalizeAvatarPresets } from '@/const/avatarPresets';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import {
   DEFAULT_EXPERT_PLAZA_CONFIG,
   normalizeExpertPlazaCards,
@@ -757,12 +758,17 @@ export const adminSettingsRouter = router({
 
   getPublicHelpMenu: publicDbProcedure.query(async ({ ctx }) => {
     const raw = await readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems);
-    return Array.isArray(raw) ? raw : [];
+    return normalizeHelpMenuItems(raw);
   }),
 
   getPublicAboutLinks: publicDbProcedure.query(async ({ ctx }) => {
     const raw = await readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks);
     return normalizeAboutLinksConfig(raw);
+  }),
+
+  getPublicAboutPage: publicDbProcedure.query(async ({ ctx }) => {
+    const raw = await readSetting(ctx.serverDB, SETTING_KEYS.aboutPage);
+    return normalizeAboutPageConfig(raw);
   }),
 
   getPublicDesktopUpdate: publicDbProcedure.query(async ({ ctx }) => {
@@ -835,6 +841,7 @@ export const adminSettingsRouter = router({
       helpMenuItems,
       aboutLinks,
       profileInterestAreas,
+      aboutPage,
       avatarPresets,
       memoryUserMemoryTriggerMode,
       vectorEmbeddingProvider,
@@ -918,6 +925,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems),
       readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks),
       readSetting(ctx.serverDB, SETTING_KEYS.profileInterestAreas),
+      readSetting(ctx.serverDB, SETTING_KEYS.aboutPage),
       readSetting(ctx.serverDB, SETTING_KEYS.profileAvatarPresets),
       readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryTriggerMode),
       readSetting(ctx.serverDB, SETTING_KEYS.vectorEmbeddingProvider),
@@ -1068,8 +1076,9 @@ export const adminSettingsRouter = router({
       },
       desktopDownloadLabel: toString(desktopDownloadLabel) || null,
       desktopDownloadUrl: toString(desktopDownloadUrl) || null,
-      helpMenuItems: Array.isArray(helpMenuItems) ? helpMenuItems : [],
+      helpMenuItems: normalizeHelpMenuItems(helpMenuItems),
       aboutLinks: normalizeAboutLinksConfig(aboutLinks),
+      aboutPage: normalizeAboutPageConfig(aboutPage),
       profileInterestAreas: normalizeProfileInterestAreas(profileInterestAreas),
       avatarPresets: normalizeAvatarPresets(avatarPresets),
       memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
@@ -1215,6 +1224,7 @@ export const adminSettingsRouter = router({
           SETTING_KEYS.desktopDownloadLabel,
           SETTING_KEYS.helpMenuItems,
           SETTING_KEYS.aboutLinks,
+          SETTING_KEYS.aboutPage,
         ]),
         value: z.unknown(),
       }),
@@ -1412,18 +1422,9 @@ export const adminSettingsRouter = router({
       } else if ((BRAND_KEYS as readonly string[]).includes(input.key)) {
         value = toString(value);
       } else if (input.key === SETTING_KEYS.helpMenuItems) {
-        if (!Array.isArray(value)) {
-          value = [];
-        } else {
-          value = value
-            .filter(
-              (item: any) => item && typeof item === 'object' && typeof item.label === 'string',
-            )
-            .map((item: any) => ({
-              label: String(item.label).trim(),
-              ...(typeof item.url === 'string' && item.url.trim() ? { url: item.url.trim() } : {}),
-            }));
-        }
+        value = normalizeHelpMenuItems(value);
+      } else if (input.key === SETTING_KEYS.aboutPage) {
+        value = normalizeAboutPageConfig(value);
       } else if (input.key === SETTING_KEYS.aboutLinks) {
         value = normalizeAboutLinksConfig(value);
       } else if (input.key === SETTING_KEYS.desktopDownloadUrl) {

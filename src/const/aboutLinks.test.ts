@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_ABOUT_LINKS, normalizeAboutLinksConfig } from './aboutLinks';
+import {
+  DEFAULT_ABOUT_LINKS,
+  DEFAULT_ABOUT_PAGE_CONFIG,
+  normalizeAboutLinksConfig,
+  normalizeAboutPageConfig,
+} from './aboutLinks';
 
 describe('aboutLinks', () => {
   it('keeps default groups when saved config is missing', () => {
@@ -39,5 +44,23 @@ describe('aboutLinks', () => {
     expect(links.contact[0]).toEqual(DEFAULT_ABOUT_LINKS.contact[0]);
     expect(links.information).toEqual(DEFAULT_ABOUT_LINKS.information);
     expect(links.legal).toEqual(DEFAULT_ABOUT_LINKS.legal);
+  });
+
+  it('normalizes about page version links and button copy', () => {
+    expect(
+      normalizeAboutPageConfig({
+        changelogLabel: ' Release notes ',
+        changelogUrl: ' https://example.com/changelog ',
+        logoLinkUrl: ' https://example.com ',
+      }),
+    ).toEqual({
+      changelogLabel: 'Release notes',
+      changelogUrl: 'https://example.com/changelog',
+      logoLinkUrl: 'https://example.com',
+    });
+
+    expect(normalizeAboutPageConfig({ changelogUrl: '', logoLinkUrl: '' })).toEqual(
+      DEFAULT_ABOUT_PAGE_CONFIG,
+    );
   });
 });

@@ -150,6 +150,15 @@ const renderFooter = async ({
   vi.doMock('@/features/User/UserPanel/ThemeButton', () => ({
     default: () => null,
   }));
+  vi.doMock('@/features/Billboard', () => ({
+    default: () => null,
+  }));
+  vi.doMock('@/features/Billboard/MenuItems', () => ({
+    useBillboardMenuItems: () => [],
+  }));
+  vi.doMock('@/features/NavPanel', () => ({
+    useActiveNavKey: () => 'home',
+  }));
   function createFeedbackModalApi() {
     return { open: vi.fn() };
   }
@@ -194,6 +203,17 @@ const renderFooter = async ({
   vi.doMock('@/store/user', () => ({
     useUserStore: selectFromUserStore,
   }));
+  vi.doMock('@/store/user/slices/settings/selectors/general', () => ({
+    userGeneralSettingsSelectors: {
+      config: (state: Record<string, unknown>) =>
+        ((state.settings as Record<string, unknown>)?.general as Record<string, unknown>) ?? {},
+    },
+  }));
+  vi.doMock('@/services/adminCommercial', () => ({
+    adminCommercialService: {
+      getPublicHelpMenu: vi.fn().mockResolvedValue([]),
+    },
+  }));
 
   const { default: Footer } = await import('./index');
 
@@ -215,11 +235,16 @@ afterEach(() => {
   vi.doUnmock('@/components/ChangelogModal');
   vi.doUnmock('@/components/HighlightNotification');
   vi.doUnmock('@/features/User/UserPanel/ThemeButton');
+  vi.doUnmock('@/features/Billboard');
+  vi.doUnmock('@/features/Billboard/MenuItems');
+  vi.doUnmock('@/features/NavPanel');
   vi.doUnmock('@/hooks/useFeedbackModal');
   vi.doUnmock('@/hooks/useNavLayout');
   vi.doUnmock('@/store/global');
   vi.doUnmock('@/store/serverConfig');
   vi.doUnmock('@/store/user');
+  vi.doUnmock('@/store/user/slices/settings/selectors/general');
+  vi.doUnmock('@/services/adminCommercial');
 });
 
 describe('Footer agent onboarding promotion', () => {

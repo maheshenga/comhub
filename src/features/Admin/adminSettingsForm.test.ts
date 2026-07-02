@@ -478,4 +478,82 @@ describe('adminSettingsForm', () => {
       },
     ]);
   });
+
+  it('preserves structured help menu settings for public navigation customization', () => {
+    const initial = buildFormValues({
+      helpMenuItems: [
+        {
+          action: 'url',
+          enabled: true,
+          icon: 'book',
+          key: 'docs',
+          label: ' Docs ',
+          url: ' https://docs.example.com ',
+        },
+        {
+          action: 'feedback',
+          enabled: false,
+          icon: 'feather',
+          key: 'feedback',
+          label: 'Hidden feedback',
+        },
+      ],
+    } as any);
+
+    expect(initial.helpMenuItems).toEqual([
+      {
+        action: 'url',
+        enabled: true,
+        icon: 'book',
+        key: 'docs',
+        label: 'Docs',
+        url: 'https://docs.example.com',
+      },
+    ]);
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          helpMenuItems: [
+            ...initial.helpMenuItems,
+            { action: 'changelog', enabled: true, icon: 'file-clock', key: 'updates', label: 'Updates' },
+          ],
+        },
+        initial,
+      ),
+    ).toEqual([
+      {
+        key: SETTING_KEYS.helpMenuItems,
+        value: [
+          ...initial.helpMenuItems,
+          { action: 'changelog', enabled: true, icon: 'file-clock', key: 'updates', label: 'Updates' },
+        ],
+      },
+    ]);
+
+    expect(getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.helpMenuItems, value: [] }])).toEqual([
+      'public-help-menu',
+    ]);
+  });
+
+  it('saves about page version settings as one public setting', () => {
+    const initial = buildFormValues({
+      aboutPage: {
+        changelogLabel: 'Changelog',
+        changelogUrl: 'https://old.example.com/changelog',
+        logoLinkUrl: 'https://old.example.com',
+      },
+    } as any) as any;
+
+    expect(initial.aboutPage).toEqual({
+      changelogLabel: 'Changelog',
+      changelogUrl: 'https://old.example.com/changelog',
+      logoLinkUrl: 'https://old.example.com',
+    });
+
+    expect(getAdminSettingsRefreshKeys([{ key: 'about.page', value: initial.aboutPage }])).toEqual([
+      'public-about-page',
+    ]);
+  });
 });

@@ -1,6 +1,6 @@
 import { BRANDING_EMAIL, SOCIAL_URL } from '@lobechat/business-const';
 
-import { BLOG, mailTo, OFFICIAL_SITE, PRIVACY_URL, TERMS_URL } from '@/const/url';
+import { BLOG, CHANGELOG_URL, mailTo, OFFICIAL_SITE, PRIVACY_URL, TERMS_URL } from '@/const/url';
 
 export type AboutLinkId =
   | 'officialSite'
@@ -26,6 +26,12 @@ export type AboutLinksConfig = {
   legal: AboutLinkItem[];
 };
 
+export type AboutPageConfig = {
+  changelogLabel: string;
+  changelogUrl: string;
+  logoLinkUrl: string;
+};
+
 export const DEFAULT_ABOUT_LINKS: AboutLinksConfig = {
   contact: [
     { id: 'officialSite', label: '官方网站', url: OFFICIAL_SITE },
@@ -43,6 +49,12 @@ export const DEFAULT_ABOUT_LINKS: AboutLinksConfig = {
     { id: 'terms', label: '服务条款', url: TERMS_URL },
     { id: 'privacy', label: '隐私政策', url: PRIVACY_URL },
   ],
+};
+
+export const DEFAULT_ABOUT_PAGE_CONFIG: AboutPageConfig = {
+  changelogLabel: '',
+  changelogUrl: CHANGELOG_URL,
+  logoLinkUrl: OFFICIAL_SITE,
 };
 
 const normalizeText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -72,5 +84,21 @@ export const normalizeAboutLinksConfig = (value: unknown): AboutLinksConfig => {
     contact: normalizeGroup(config.contact, DEFAULT_ABOUT_LINKS.contact),
     information: normalizeGroup(config.information, DEFAULT_ABOUT_LINKS.information),
     legal: normalizeGroup(config.legal, DEFAULT_ABOUT_LINKS.legal),
+  };
+};
+
+export const normalizeAboutPageConfig = (value: unknown): AboutPageConfig => {
+  const config =
+    value && typeof value === 'object'
+      ? (value as Partial<Record<keyof AboutPageConfig, unknown>>)
+      : {};
+  const changelogLabel = normalizeText(config.changelogLabel);
+  const changelogUrl = normalizeText(config.changelogUrl);
+  const logoLinkUrl = normalizeText(config.logoLinkUrl);
+
+  return {
+    changelogLabel,
+    changelogUrl: changelogUrl || DEFAULT_ABOUT_PAGE_CONFIG.changelogUrl,
+    logoLinkUrl: logoLinkUrl || DEFAULT_ABOUT_PAGE_CONFIG.logoLinkUrl,
   };
 };
