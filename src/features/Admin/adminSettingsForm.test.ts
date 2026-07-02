@@ -5,6 +5,7 @@ import {
   buildModelOptions,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
+  resolveModelOptionValue,
   SETTING_KEYS,
 } from './adminSettingsForm';
 
@@ -50,6 +51,24 @@ describe('adminSettingsForm', () => {
         value: 'newapi:manual-chat',
       },
     ]);
+  });
+
+  it('resolves a legacy provider id model value to the unique enabled model option', () => {
+    const options = buildModelOptions({
+      enabledNewapiModels: [
+        {
+          displayName: 'DeepSeek Chat',
+          instanceName: 'Primary Gateway',
+          modelId: 'deepseek-chat',
+          modelType: 'chat',
+          provider: 'newapi',
+        },
+      ],
+    });
+
+    expect(
+      resolveModelOptionValue({ model: 'deepseek-chat', provider: '1234567890' }, options),
+    ).toBe('newapi:deepseek-chat');
   });
 
   it('builds app setting updates only for changed values', () => {
@@ -224,7 +243,10 @@ describe('adminSettingsForm', () => {
 
     expect(
       getAdminSettingsRefreshKeys([
-        { key: SETTING_KEYS.homeMessengerBannerTitle, value: '在聊天平台中，与 {{brandName}} 畅聊' },
+        {
+          key: SETTING_KEYS.homeMessengerBannerTitle,
+          value: '在聊天平台中，与 {{brandName}} 畅聊',
+        },
       ]),
     ).toEqual(['brand-config']);
   });
@@ -253,9 +275,7 @@ describe('adminSettingsForm', () => {
     ]);
 
     expect(
-      getAdminSettingsRefreshKeys([
-        { key: SETTING_KEYS.sidebarMemberLabel, value: '会员中心' },
-      ]),
+      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.sidebarMemberLabel, value: '会员中心' }]),
     ).toEqual(['brand-config']);
   });
 

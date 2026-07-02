@@ -289,6 +289,26 @@ export const buildModelOptions = (data?: {
   return options;
 };
 
+const legacyProviderIdPattern =
+  /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+export const resolveModelOptionValue = (
+  value?: { model?: unknown; provider?: unknown } | null,
+  options: DefaultModelOption[] = [],
+) => {
+  const provider = normalizeText(value?.provider);
+  const model = normalizeText(value?.model);
+  if (!provider || !model) return '';
+
+  const directValue = `${provider}:${model}`;
+  if (options.some((option) => option.value === directValue)) return directValue;
+
+  if (!legacyProviderIdPattern.test(provider)) return directValue;
+
+  const candidates = options.filter((option) => option.model === model);
+  return candidates.length === 1 ? candidates[0].value : directValue;
+};
+
 const normalizeHelpMenuItems = (items: unknown): HelpMenuItem[] =>
   Array.isArray(items)
     ? items

@@ -13,7 +13,7 @@ import {
   RUNTIME_CONFIG_SWR_KEY,
 } from '@/const/adminCacheKeys';
 import { type AvatarPreset, DEFAULT_AVATAR_PRESETS } from '@/const/avatarPresets';
-import { buildModelOptions } from '@/features/Admin/adminSettingsForm';
+import { buildModelOptions, resolveModelOptionValue } from '@/features/Admin/adminSettingsForm';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -75,13 +75,6 @@ const parseJsonObject = (value: string) => {
   return parsed;
 };
 
-const toModelValue = (value?: { model?: unknown; provider?: unknown } | null) => {
-  const provider = typeof value?.provider === 'string' ? value.provider.trim() : '';
-  const model = typeof value?.model === 'string' ? value.model.trim() : '';
-
-  return provider && model ? `${provider}:${model}` : '';
-};
-
 const parseModelValue = (value?: string) => {
   if (!value) return null;
   const [provider, ...modelParts] = value.split(':');
@@ -134,19 +127,31 @@ const AdminSystemDefaultsPage = memo(() => {
         ? userDefaults.tool.uninstalledBuiltinTools.join('\n')
         : '',
       languageModelDefaultsJson: jsonStringify(userDefaults?.languageModel ?? {}),
-      serviceModelAgentMeta: toModelValue(systemAgent.agentMeta),
-      serviceModelDefaultAgent: toModelValue(userDefaults?.defaultAgent?.config),
-      serviceModelFollowUpAction: toModelValue(systemAgent.followUpAction),
+      serviceModelAgentMeta: resolveModelOptionValue(systemAgent.agentMeta, modelOptions),
+      serviceModelDefaultAgent: resolveModelOptionValue(
+        userDefaults?.defaultAgent?.config,
+        modelOptions,
+      ),
+      serviceModelFollowUpAction: resolveModelOptionValue(systemAgent.followUpAction, modelOptions),
       serviceModelFollowUpActionEnabled: systemAgent.followUpAction?.enabled ?? false,
-      serviceModelGenerationTopic: toModelValue(systemAgent.generationTopic),
-      serviceModelHistoryCompress: toModelValue(systemAgent.historyCompress),
-      serviceModelInputCompletion: toModelValue(systemAgent.inputCompletion),
+      serviceModelGenerationTopic: resolveModelOptionValue(
+        systemAgent.generationTopic,
+        modelOptions,
+      ),
+      serviceModelHistoryCompress: resolveModelOptionValue(
+        systemAgent.historyCompress,
+        modelOptions,
+      ),
+      serviceModelInputCompletion: resolveModelOptionValue(
+        systemAgent.inputCompletion,
+        modelOptions,
+      ),
       serviceModelInputCompletionEnabled: systemAgent.inputCompletion?.enabled ?? false,
-      serviceModelPromptRewrite: toModelValue(systemAgent.promptRewrite),
+      serviceModelPromptRewrite: resolveModelOptionValue(systemAgent.promptRewrite, modelOptions),
       serviceModelPromptRewriteEnabled: systemAgent.promptRewrite?.enabled ?? true,
-      serviceModelThread: toModelValue(systemAgent.thread),
-      serviceModelTopic: toModelValue(systemAgent.topic),
-      serviceModelTranslation: toModelValue(systemAgent.translation),
+      serviceModelThread: resolveModelOptionValue(systemAgent.thread, modelOptions),
+      serviceModelTopic: resolveModelOptionValue(systemAgent.topic, modelOptions),
+      serviceModelTranslation: resolveModelOptionValue(systemAgent.translation, modelOptions),
       userGlobalSettingsJson: jsonStringify(userDefaults),
       vectorEmbeddingModel: vectorConfig.embeddingModel ?? '',
       vectorEmbeddingProvider: vectorConfig.embeddingProvider ?? '',
@@ -154,7 +159,7 @@ const AdminSystemDefaultsPage = memo(() => {
       vectorRerankerModel: vectorConfig.rerankerModel ?? '',
       vectorRerankerProvider: vectorConfig.rerankerProvider ?? '',
     });
-  }, [data, form]);
+  }, [data, form, modelOptions]);
 
   const handleSave = async () => {
     setSubmitting(true);
