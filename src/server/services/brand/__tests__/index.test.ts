@@ -46,6 +46,7 @@ describe('getServerBrand', () => {
         'home.messenger.enabled': false,
         'home.messengerBanner.title': 'Chat with Acme everywhere',
         'brand.loadingText': 'Loading Acme',
+        'brand.loadingSvgUrl': '/branding/acme-loading.svg',
         'brand.logoUrl': 'https://x/logo.svg',
         'brand.name': 'Acme',
         'brand.primaryColor': '#ff00aa',
@@ -67,6 +68,7 @@ describe('getServerBrand', () => {
       homeMessengerEnabled: false,
       homeMessengerBannerTitle: 'Chat with Acme everywhere',
       loadingText: 'Loading Acme',
+      loadingSvgUrl: '/branding/acme-loading.svg',
       logoUrl: 'https://x/logo.svg',
       name: 'Acme',
       primaryColor: '#ff00aa',
@@ -89,6 +91,7 @@ describe('getServerBrand', () => {
       homeMessengerEnabled: true,
       homeMessengerBannerTitle: null,
       loadingText: 'Loading',
+      loadingSvgUrl: null,
       logoUrl: '/images/brand/qingyou-ai-logo.png',
       name: 'Default Brand',
       primaryColor: '#12b981',
@@ -104,8 +107,8 @@ describe('getServerBrand', () => {
     await getServerBrand();
     await getServerBrand();
     await getServerBrand();
-    // Each call queries 15 keys; only the first call should hit the DB.
-    expect(findFirstMock).toHaveBeenCalledTimes(15);
+    // Each call queries 16 keys; only the first call should hit the DB.
+    expect(findFirstMock).toHaveBeenCalledTimes(16);
   });
 
   it('invalidate forces a fresh fetch', async () => {
@@ -113,7 +116,7 @@ describe('getServerBrand', () => {
     await getServerBrand();
     invalidateServerBrand();
     await getServerBrand();
-    expect(findFirstMock).toHaveBeenCalledTimes(30);
+    expect(findFirstMock).toHaveBeenCalledTimes(32);
   });
 
   it('falls back to the default runtime brand on database errors', async () => {
@@ -128,6 +131,7 @@ describe('getServerBrand', () => {
       homeMessengerEnabled: true,
       homeMessengerBannerTitle: null,
       loadingText: 'Loading',
+      loadingSvgUrl: null,
       logoUrl: '/images/brand/qingyou-ai-logo.png',
       name: 'Default Brand',
       primaryColor: '#12b981',

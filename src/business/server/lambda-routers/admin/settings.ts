@@ -106,6 +106,7 @@ const BRAND_KEYS = [
   SETTING_KEYS.brandAuthTitle,
   SETTING_KEYS.brandCopyrightText,
   SETTING_KEYS.brandLoadingText,
+  SETTING_KEYS.brandLoadingSvgUrl,
   SETTING_KEYS.brandName,
   SETTING_KEYS.brandLogoUrl,
   SETTING_KEYS.brandFaviconUrl,
@@ -604,6 +605,7 @@ export const adminSettingsRouter = router({
       primary,
       slogan,
       loadingText,
+      loadingSvgUrl,
       authTitle,
       copyrightText,
       defaultSkillName,
@@ -620,6 +622,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.brandPrimaryColor),
       readSetting(ctx.serverDB, SETTING_KEYS.brandSlogan),
       readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingText),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingSvgUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultSkillName),
@@ -654,6 +657,8 @@ export const adminSettingsRouter = router({
         typeof loadingText === 'string' && loadingText.trim()
           ? loadingText
           : DEFAULT_RUNTIME_BRAND.loadingText,
+      loadingSvgUrl:
+        typeof loadingSvgUrl === 'string' && loadingSvgUrl.trim() ? loadingSvgUrl.trim() : null,
       logoUrl: typeof logo === 'string' ? logo : DEFAULT_RUNTIME_BRAND.logoUrl,
       name: brandName,
       primaryColor: typeof primary === 'string' ? primary : DEFAULT_RUNTIME_BRAND.primaryColor,
@@ -792,6 +797,7 @@ export const adminSettingsRouter = router({
       brandPrimary,
       brandSlogan,
       brandLoadingText,
+      brandLoadingSvgUrl,
       brandAuthTitle,
       brandCopyrightText,
       homeMessengerEnabled,
@@ -874,6 +880,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.brandPrimaryColor),
       readSetting(ctx.serverDB, SETTING_KEYS.brandSlogan),
       readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingText),
+      readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingSvgUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
       readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerEnabled),
@@ -990,6 +997,10 @@ export const adminSettingsRouter = router({
         typeof brandLoadingText === 'string' && brandLoadingText.trim()
           ? brandLoadingText
           : DEFAULT_RUNTIME_BRAND.loadingText,
+      brandLoadingSvgUrl:
+        typeof brandLoadingSvgUrl === 'string' && brandLoadingSvgUrl.trim()
+          ? brandLoadingSvgUrl.trim()
+          : '',
       homeMessengerBannerTitle:
         typeof homeMessengerBannerTitle === 'string' ? homeMessengerBannerTitle : '',
       homeMessengerEnabled: toBoolean(homeMessengerEnabled, true),

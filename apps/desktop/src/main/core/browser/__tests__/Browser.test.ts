@@ -215,6 +215,7 @@ describe('Browser', () => {
           data: {
             json: {
               loadingText: '你的商业大咖',
+              loadingSvgUrl: 'https://cdn.example.com/desktop-loading.svg',
               name: '玄果AI',
             },
           },
@@ -555,6 +556,7 @@ describe('Browser', () => {
       const html = getLastLoadedDataHtml();
       expect(html).toContain('玄果AI');
       expect(html).toContain('你的商业大咖');
+      expect(html).toContain('src="https://cdn.example.com/desktop-loading.svg"');
       expect(html).not.toContain('LobeHub');
     });
 

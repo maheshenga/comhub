@@ -1,5 +1,6 @@
 interface LoadingBrandLike {
   loadingText?: null | string;
+  loadingSvgUrl?: null | string;
   name?: null | string;
   slogan?: null | string;
 }
@@ -21,5 +22,13 @@ export const getBrandLoadingText = (
   return GENERIC_LOADING_TEXT;
 };
 
-export const buildStaticLoadingBrandHtml = (text: string) =>
-  `<span style="font-size:28px;font-weight:700;color:inherit">${escapeHtml(text)}</span>`;
+export const buildStaticLoadingBrandHtml = (text: string, loadingSvgUrl?: null | string) => {
+  const svgUrl = typeof loadingSvgUrl === 'string' ? loadingSvgUrl.trim() : '';
+  const safeText = escapeHtml(text);
+
+  if (svgUrl) {
+    return `<img alt="${safeText}" data-loading-svg="true" src="${escapeHtml(svgUrl)}" style="display:block;height:40px;max-width:240px;object-fit:contain" />`;
+  }
+
+  return `<span style="font-size:28px;font-weight:700;color:inherit">${safeText}</span>`;
+};

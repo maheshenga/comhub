@@ -7,6 +7,7 @@ const BRAND_REQUEST_TIMEOUT = 1200;
 
 type PublicBrandPayload = {
   loadingText?: unknown;
+  loadingSvgUrl?: unknown;
   name?: unknown;
 };
 
@@ -58,8 +59,12 @@ export const fetchPublicBrand = async (): Promise<PublicBrandPayload> => {
 export const buildSplashHtml = (brand: PublicBrandPayload) => {
   const brandName = normalizeText(brand.name) ?? FALLBACK_BRAND_NAME;
   const loadingText = normalizeText(brand.loadingText);
+  const loadingSvgUrl = normalizeText(brand.loadingSvgUrl);
   const safeBrandName = escapeHtml(brandName);
   const safeLoadingText = loadingText ? escapeHtml(loadingText) : '';
+  const loadingBrandHtml = loadingSvgUrl
+    ? `<img alt="${safeBrandName}" class="brand-loading-svg" src="${escapeHtml(loadingSvgUrl)}" />`
+    : `<div class="brand-name">${safeBrandName}</div>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -108,6 +113,13 @@ export const buildSplashHtml = (brand: PublicBrandPayload) => {
         line-height: 1.25;
       }
 
+      .brand-loading-svg {
+        display: block;
+        height: 40px;
+        max-width: 240px;
+        object-fit: contain;
+      }
+
       .brand-loading-text {
         margin-top: 12px;
         font-size: 15px;
@@ -119,7 +131,7 @@ export const buildSplashHtml = (brand: PublicBrandPayload) => {
   <body>
     <div class="drag-bar"></div>
     <main class="container" aria-label="${safeBrandName}">
-      <div class="brand-name">${safeBrandName}</div>
+      ${loadingBrandHtml}
       ${safeLoadingText ? `<div class="brand-loading-text">${safeLoadingText}</div>` : ''}
     </main>
   </body>

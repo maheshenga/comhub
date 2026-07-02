@@ -16,6 +16,7 @@ export const APP_SETTING_KEYS = {
   brandAuthTitle: 'brand.authTitle',
   brandCopyrightText: 'brand.copyrightText',
   brandLoadingText: 'brand.loadingText',
+  brandLoadingSvgUrl: 'brand.loadingSvgUrl',
   brandLogoUrl: 'brand.logoUrl',
   brandName: 'brand.name',
   brandPrimaryColor: 'brand.primaryColor',

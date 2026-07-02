@@ -445,6 +445,16 @@ const AdminSettingsPage = memo(() => {
                     />
                   </Form.Item>
                   <Form.Item
+                    label={t('admin.settings.brandLoadingSvgUrl', '加载页 SVG 地址')}
+                    name="brandLoadingSvgUrl"
+                    extra={t(
+                      'admin.settings.brandLoadingSvgUrl.help',
+                      '用于替换启动加载页的上游 SVG。支持站内路径（如 /images/loading.svg）或完整 HTTPS 地址；留空则使用默认加载样式。',
+                    )}
+                  >
+                    <Input placeholder="/images/brand/loading.svg" />
+                  </Form.Item>
+                  <Form.Item
                     label={t('admin.settings.brandAuthTitle', '登录页主文案')}
                     name="brandAuthTitle"
                     extra={t(

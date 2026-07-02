@@ -17,6 +17,7 @@ export interface BrandConfig {
   homeMessengerBannerTitle: string | null;
   homeMessengerEnabled: boolean;
   loadingText: string | null;
+  loadingSvgUrl: string | null;
   logoUrl: string | null;
   name: string;
   primaryColor: string | null;
@@ -37,6 +38,7 @@ const DEFAULT_BRAND: BrandConfig = {
   homeMessengerEnabled: true,
   homeMessengerBannerTitle: null,
   loadingText: DEFAULT_RUNTIME_BRAND.loadingText,
+  loadingSvgUrl: null,
   logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
   name: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
   primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
@@ -68,6 +70,7 @@ const normalizeBrand = (brand?: BrandInput | null): BrandConfig => ({
     (brand?.homeMessengerBannerTitle && brand.homeMessengerBannerTitle.trim()) ||
     DEFAULT_BRAND.homeMessengerBannerTitle,
   loadingText: (brand?.loadingText && brand.loadingText.trim()) || DEFAULT_BRAND.loadingText,
+  loadingSvgUrl: (brand?.loadingSvgUrl && brand.loadingSvgUrl.trim()) || DEFAULT_BRAND.loadingSvgUrl,
   logoUrl: brand?.logoUrl ?? DEFAULT_BRAND.logoUrl,
   name: (brand?.name && brand.name.trim()) || DEFAULT_BRAND.name,
   primaryColor: brand?.primaryColor ?? DEFAULT_BRAND.primaryColor,

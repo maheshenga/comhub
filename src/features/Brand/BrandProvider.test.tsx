@@ -41,6 +41,7 @@ let swrData:
       homeMessengerEnabled?: boolean;
       homeMessengerBannerTitle?: null | string;
       loadingText: null | string;
+      loadingSvgUrl?: null | string;
       logoUrl: null;
       name: string;
       primaryColor: null;
@@ -83,6 +84,7 @@ describe('BrandProvider', () => {
       homeMessengerEnabled: false,
       homeMessengerBannerTitle: 'Runtime messenger',
       loadingText: 'Runtime loading',
+      loadingSvgUrl: null,
       logoUrl: null,
       name: 'Runtime Brand',
       primaryColor: null,
@@ -138,6 +140,7 @@ describe('BrandProvider', () => {
           homeMessengerEnabled: true,
           homeMessengerBannerTitle: null,
           loadingText: null,
+          loadingSvgUrl: null,
           logoUrl: null,
           name: 'Server Brand',
           primaryColor: null,

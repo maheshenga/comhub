@@ -15,6 +15,7 @@ export interface ServerBrandConfig {
   homeMessengerEnabled: boolean;
   homeMessengerBannerTitle: string | null;
   loadingText: string | null;
+  loadingSvgUrl: string | null;
   logoUrl: string | null;
   name: string | null;
   primaryColor: string | null;
@@ -33,6 +34,7 @@ const KEYS = {
   homeMessengerEnabled: 'home.messenger.enabled',
   homeMessengerBannerTitle: 'home.messengerBanner.title',
   loadingText: 'brand.loadingText',
+  loadingSvgUrl: 'brand.loadingSvgUrl',
   logo: 'brand.logoUrl',
   name: 'brand.name',
   primary: 'brand.primaryColor',
@@ -75,6 +77,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       primaryColor,
       slogan,
       loadingText,
+      loadingSvgUrl,
       authTitle,
       copyrightText,
       defaultSkillName,
@@ -91,6 +94,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       readString(db, KEYS.primary),
       readString(db, KEYS.slogan),
       readString(db, KEYS.loadingText),
+      readString(db, KEYS.loadingSvgUrl),
       readString(db, KEYS.authTitle),
       readString(db, KEYS.copyrightText),
       readString(db, KEYS.defaultSkillName),
@@ -110,6 +114,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       homeMessengerEnabled,
       homeMessengerBannerTitle,
       loadingText: loadingText ?? DEFAULT_RUNTIME_BRAND.loadingText,
+      loadingSvgUrl,
       logoUrl: logoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
       name: name ?? DEFAULT_RUNTIME_BRAND.name,
       primaryColor: primaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
@@ -130,6 +135,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       homeMessengerEnabled: true,
       homeMessengerBannerTitle: null,
       loadingText: DEFAULT_RUNTIME_BRAND.loadingText,
+      loadingSvgUrl: null,
       logoUrl: DEFAULT_RUNTIME_BRAND.logoUrl,
       name: DEFAULT_RUNTIME_BRAND.name,
       primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,

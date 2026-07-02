@@ -253,11 +253,13 @@ export async function GET(
     { loadingText: brand.loadingText, name: appName, slogan: brand.slogan },
     appName,
   );
-  const loadingBrandHtml = buildStaticLoadingBrandHtml(loadingText);
-  html = html.replace(
-    /<div id="loading-brand" aria-label="Loading" role="status">[\s\S]*?<\/div>\s*<\/div>/,
-    `<div id="loading-brand" aria-label="${escapeHtml(loadingText)}" role="status">${loadingBrandHtml}</div>\n    </div>`,
-  );
+  if (brand.loadingSvgUrl?.trim()) {
+    const loadingBrandHtml = buildStaticLoadingBrandHtml(loadingText, brand.loadingSvgUrl);
+    html = html.replace(
+      /<div id="loading-brand" aria-label="Loading" role="status">[\s\S]*?<\/div>\s*<\/div>/,
+      `<div id="loading-brand" aria-label="${escapeHtml(loadingText)}" role="status">${loadingBrandHtml}</div>\n    </div>`,
+    );
+  }
 
   return new Response(html, {
     headers: {

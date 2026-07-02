@@ -363,6 +363,40 @@ describe('admin settings default model validation', () => {
     });
   });
 
+  it('returns public brand config with the configured loading SVG URL', async () => {
+    const db = createDb({
+      appSettings: [
+        { value: 'ComHub' },
+        { value: 'https://cdn.example.com/logo.svg' },
+        { value: 'https://cdn.example.com/favicon.ico' },
+        { value: '#12b981' },
+        { value: 'Slogan' },
+        { value: 'Loading ComHub' },
+        { value: '/branding/loading.svg' },
+        { value: 'Auth title' },
+        { value: 'Copyright' },
+        { value: 'ComHub Skill' },
+        { value: true },
+        { value: 'Messenger banner' },
+        { value: 'Fork and chat' },
+        { value: 'Plans' },
+        { value: '/settings/plans' },
+        { value: 'Generate' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.getPublicBrand();
+
+    expect(result).toMatchObject({
+      loadingSvgUrl: '/branding/loading.svg',
+      loadingText: 'Loading ComHub',
+      logoUrl: 'https://cdn.example.com/logo.svg',
+      name: 'ComHub',
+    });
+  });
+
   it('normalizes notification event defaults and announcement type before saving', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);

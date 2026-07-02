@@ -60,6 +60,7 @@ describe('adminSettingsForm', () => {
       brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
       brandLogoUrl: '/logo.png',
       brandLoadingText: 'Loading',
+      brandLoadingSvgUrl: '',
       brandName: '青柚 AI',
       brandPrimaryColor: '#1677ff',
       brandSlogan: '',
@@ -262,11 +263,13 @@ describe('adminSettingsForm', () => {
     const initial = buildFormValues({
       brandAuthTitle: 'Login page copy',
       brandLoadingText: 'Loading copy',
+      brandLoadingSvgUrl: '',
       brandSlogan: 'Legacy slogan',
     });
 
     expect(initial.brandAuthTitle).toBe('Login page copy');
     expect(initial.brandLoadingText).toBe('Loading copy');
+    expect(initial.brandLoadingSvgUrl).toBe('');
     expect(initial.brandSlogan).toBe('Legacy slogan');
 
     expect(
@@ -274,10 +277,14 @@ describe('adminSettingsForm', () => {
         {
           ...initial,
           brandLoadingText: 'Only this appears while loading',
+          brandLoadingSvgUrl: 'https://cdn.example.com/loading.svg',
         },
         initial,
       ),
-    ).toEqual([{ key: SETTING_KEYS.brandLoadingText, value: 'Only this appears while loading' }]);
+    ).toEqual([
+      { key: SETTING_KEYS.brandLoadingText, value: 'Only this appears while loading' },
+      { key: SETTING_KEYS.brandLoadingSvgUrl, value: 'https://cdn.example.com/loading.svg' },
+    ]);
   });
 
   it('refreshes runtime config and user state when default assistant config changes', () => {

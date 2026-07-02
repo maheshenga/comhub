@@ -21,4 +21,14 @@ describe('loadingBrand', () => {
     expect(html).toContain('加载中');
     expect(html).not.toContain('<img');
   });
+
+  it('renders a configured loading SVG URL as an image while escaping attributes', () => {
+    const html = buildStaticLoadingBrandHtml('Loading <ComHub>', '/branding/loading.svg?x="y"');
+
+    expect(html).toContain('<img');
+    expect(html).toContain('src="/branding/loading.svg?x=&quot;y&quot;"');
+    expect(html).toContain('alt="Loading &lt;ComHub&gt;"');
+    expect(html).toContain('data-loading-svg="true"');
+    expect(html).not.toContain('<script');
+  });
 });

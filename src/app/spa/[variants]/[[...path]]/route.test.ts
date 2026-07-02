@@ -74,6 +74,7 @@ describe('SPA route brand boot config', () => {
       defaultSkillName: '玄果助手',
       faviconUrl: null,
       loadingText: '正在进入玄果AI',
+      loadingSvgUrl: 'https://cdn.example.com/branding/loading.svg',
       logoUrl: null,
       name: '玄果AI',
       primaryColor: '#12b981',
@@ -97,8 +98,34 @@ describe('SPA route brand boot config', () => {
 
     const loadingBrandHtml = html.match(/<div id="loading-brand"[\s\S]*?<\/div>/)?.[0] ?? '';
     expect(loadingBrandHtml).toContain('加载中');
+    expect(loadingBrandHtml).toContain('src="https://cdn.example.com/branding/loading.svg"');
+    expect(loadingBrandHtml).toContain('data-loading-svg="true"');
     expect(loadingBrandHtml).not.toContain('正在进入玄果AI');
     expect(loadingBrandHtml).not.toContain('品牌口号不作为加载文案');
     expect(loadingBrandHtml).not.toContain('登录页文案不作为加载文案');
+  });
+
+  it('keeps the upstream loading SVG when no admin loading SVG URL is configured', async () => {
+    mockGetServerBrand.mockResolvedValueOnce({
+      authTitle: '登录页文案不作为加载文案',
+      copyrightText: 'Copyright',
+      defaultSkillName: '玄果助手',
+      faviconUrl: null,
+      loadingText: '正在进入玄果AI',
+      loadingSvgUrl: null,
+      logoUrl: null,
+      name: '玄果AI',
+      primaryColor: '#12b981',
+      slogan: '品牌口号不作为加载文案',
+    });
+
+    const { GET } = await import('./route');
+    const response = await GET(new Request('https://chat.example.com/'), {
+      params: Promise.resolve({ variants: 'zh-CN__0' }),
+    });
+    const html = await response.text();
+
+    expect(html).toContain('<svg><title>LobeHub</title></svg>');
+    expect(html).not.toContain('data-loading-svg="true"');
   });
 });

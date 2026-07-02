@@ -32,6 +32,7 @@ export const SETTING_KEYS = {
   brandAuthTitle: 'brand.authTitle',
   brandCopyrightText: 'brand.copyrightText',
   brandLoadingText: 'brand.loadingText',
+  brandLoadingSvgUrl: 'brand.loadingSvgUrl',
   brandLogoUrl: 'brand.logoUrl',
   brandName: 'brand.name',
   brandPrimaryColor: 'brand.primaryColor',
@@ -112,6 +113,7 @@ export type AdminSettingsData = {
   brandCopyrightText?: string | null;
   brandLogoUrl?: string | null;
   brandLoadingText?: string | null;
+  brandLoadingSvgUrl?: string | null;
   brandName?: string | null;
   brandPrimaryColor?: string | null;
   brandSlogan?: string | null;
@@ -182,6 +184,7 @@ export type AdminSettingsFormValues = {
   brandCopyrightText: string;
   brandLogoUrl: string;
   brandLoadingText: string;
+  brandLoadingSvgUrl: string;
   brandName: string;
   brandPrimaryColor: string;
   brandSlogan: string;
@@ -303,6 +306,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   brandCopyrightText: data?.brandCopyrightText ?? DEFAULT_RUNTIME_BRAND.copyrightText,
   brandLogoUrl: data?.brandLogoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
   brandLoadingText: data?.brandLoadingText ?? DEFAULT_RUNTIME_BRAND.loadingText,
+  brandLoadingSvgUrl: data?.brandLoadingSvgUrl ?? '',
   brandName: data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
   brandPrimaryColor: data?.brandPrimaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
   brandSlogan: data?.brandSlogan ?? DEFAULT_RUNTIME_BRAND.authTitle,
@@ -356,6 +360,7 @@ export const normalizeFormValues = (
   brandCopyrightText: normalizeText(values.brandCopyrightText),
   brandLogoUrl: normalizeText(values.brandLogoUrl),
   brandLoadingText: normalizeText(values.brandLoadingText),
+  brandLoadingSvgUrl: normalizeText(values.brandLoadingSvgUrl),
   brandName: normalizeText(values.brandName),
   brandPrimaryColor: normalizeText(values.brandPrimaryColor),
   brandSlogan: normalizeText(values.brandSlogan),
@@ -443,6 +448,7 @@ export const buildSettingUpdates = (
     'cronPendingOrderExpiryDays',
     'brandName',
     'brandLoadingText',
+    'brandLoadingSvgUrl',
     'brandAuthTitle',
     'brandCopyrightText',
     'brandLogoUrl',
@@ -478,6 +484,7 @@ export const buildSettingUpdates = (
     brandCopyrightText: SETTING_KEYS.brandCopyrightText,
     brandLogoUrl: SETTING_KEYS.brandLogoUrl,
     brandLoadingText: SETTING_KEYS.brandLoadingText,
+    brandLoadingSvgUrl: SETTING_KEYS.brandLoadingSvgUrl,
     brandName: SETTING_KEYS.brandName,
     brandPrimaryColor: SETTING_KEYS.brandPrimaryColor,
     brandSlogan: SETTING_KEYS.brandSlogan,
@@ -562,6 +569,7 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     SETTING_KEYS.brandFaviconUrl,
     SETTING_KEYS.brandLogoUrl,
     SETTING_KEYS.brandLoadingText,
+    SETTING_KEYS.brandLoadingSvgUrl,
     SETTING_KEYS.brandName,
     SETTING_KEYS.brandPrimaryColor,
     SETTING_KEYS.brandSlogan,
