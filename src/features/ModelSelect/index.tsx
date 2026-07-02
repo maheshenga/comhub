@@ -28,12 +28,51 @@ const styles = createStaticStyles(({ css }) => ({
 }));
 
 interface ModelOption {
-  abilities?: Record<string, boolean>;
+  abilities?: EnabledProviderWithModels['children'][number]['abilities'];
   id: string;
   label: ReactNode;
   provider: string;
   value: string;
 }
+
+const hasOptionValue = (options: SelectProps['options'] | undefined, value: string): boolean => {
+  return Boolean(
+    options?.some((option) => {
+      const item = option as ModelOption & { options?: SelectProps['options'] };
+
+      if (Array.isArray(item.options)) return hasOptionValue(item.options, value);
+
+      return item.value === value;
+    }),
+  );
+};
+
+const createSelectedModelFallbackOption = (
+  enabledList: EnabledProviderWithModels[],
+  value: ModelSelectProps['value'],
+  selectedValue: string | undefined,
+): ModelOption | undefined => {
+  if (!value?.provider || !value.model || !selectedValue) return;
+
+  const provider =
+    enabledList.find((item) => item.id === value.provider) ||
+    enabledList.find((item) => item.children.some((model) => model.id === value.model));
+  const model = provider?.children.find((item) => item.id === value.model);
+  const displayModel = model || {
+    abilities: {},
+    displayName: value.model,
+    id: value.model,
+  };
+
+  return {
+    ...displayModel,
+    label: (
+      <ModelItemRender {...displayModel} {...displayModel.abilities} showInfoTag={false} />
+    ),
+    provider: value.provider,
+    value: selectedValue,
+  };
+};
 
 interface ModelSelectProps extends Pick<
   SelectProps,
@@ -63,6 +102,8 @@ const ModelSelect = memo<ModelSelectProps>(
     popupWidth,
   }) => {
     const enabledList = useEnabledChatModels();
+    const selectedValue =
+      value?.provider && value?.model ? `${value.provider}/${value.model}` : undefined;
 
     const options = useMemo<SelectProps['options']>(() => {
       const getChatModels = (provider: EnabledProviderWithModels) => {
@@ -81,33 +122,39 @@ const ModelSelect = memo<ModelSelectProps>(
         }));
       };
 
-      if (enabledList.length === 1) {
-        const provider = enabledList[0];
+      const baseOptions = (() => {
+        if (enabledList.length === 1) {
+          const provider = enabledList[0];
 
-        return getChatModels(provider);
-      }
+          return getChatModels(provider);
+        }
 
-      return enabledList
-        .map((provider) => {
-          const opts = getChatModels(provider);
-          if (opts.length === 0) return undefined;
+        return enabledList
+          .map((provider) => {
+            const opts = getChatModels(provider);
+            if (opts.length === 0) return undefined;
 
-          return {
-            label: (
-              <ProviderItemRender
-                logo={provider.logo}
-                name={provider.name}
-                provider={provider.id}
-                source={provider.source}
-              />
-            ),
-            options: opts,
-          };
-        })
-        .filter(Boolean) as SelectProps['options'];
-    }, [enabledList, requiredAbilities, showAbility]);
-    const selectedValue =
-      value?.provider && value?.model ? `${value.provider}/${value.model}` : undefined;
+            return {
+              label: (
+                <ProviderItemRender
+                  logo={provider.logo}
+                  name={provider.name}
+                  provider={provider.id}
+                  source={provider.source}
+                />
+              ),
+              options: opts,
+            };
+          })
+          .filter(Boolean) as SelectProps['options'];
+      })();
+
+      const fallbackOption = createSelectedModelFallbackOption(enabledList, value, selectedValue);
+
+      if (!fallbackOption || hasOptionValue(baseOptions, fallbackOption.value)) return baseOptions;
+
+      return [fallbackOption, ...(baseOptions || [])];
+    }, [enabledList, requiredAbilities, selectedValue, showAbility, value]);
 
     return (
       <TooltipGroup>
