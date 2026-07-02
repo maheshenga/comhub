@@ -106,6 +106,7 @@ export type EnabledNewapiModelOption = {
   modelId: string;
   modelType: string;
   provider?: string | null;
+  providerType?: string | null;
 };
 
 export type DefaultModelOption = {
@@ -247,6 +248,9 @@ export const normalizeMemoryUserMemoryTriggerMode = (
 ): MemoryUserMemoryTriggerMode =>
   value === 'direct' || value === 'workflow' || value === 'auto' ? value : 'auto';
 
+const legacyProviderIdPattern =
+  /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
 export const buildModelOptions = (data?: {
   defaultModelSuggestions?: string[] | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
@@ -268,9 +272,12 @@ export const buildModelOptions = (data?: {
     const modelType = normalizeText(item.modelType) || 'chat';
     if (data?.modelType && modelType !== data.modelType) continue;
     const instanceName = normalizeText(item.instanceName);
+    const providerType = normalizeText(item.providerType);
+    const providerLabel =
+      providerType || (legacyProviderIdPattern.test(provider) ? 'newapi' : provider);
 
     options.push({
-      label: `${name}（${provider} / ${modelType}${instanceName ? ` / ${instanceName}` : ''}）`,
+      label: `${name}（${providerLabel} / ${modelType}${instanceName ? ` / ${instanceName}` : ''}）`,
       model,
       provider,
       value: key,
@@ -298,9 +305,6 @@ export const buildModelOptions = (data?: {
 
   return options;
 };
-
-const legacyProviderIdPattern =
-  /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 export const resolveModelOptionValue = (
   value?: { model?: unknown; provider?: unknown } | null,

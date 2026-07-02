@@ -71,6 +71,28 @@ describe('adminSettingsForm', () => {
     ).toBe('newapi:deepseek-chat');
   });
 
+  it('uses provider type and instance name instead of numeric provider ids in model option labels', () => {
+    const options = buildModelOptions({
+      enabledNewapiModels: [
+        {
+          displayName: 'OpenCode Chat',
+          instanceName: 'OpenCode Gateway',
+          modelId: 'opencode-chat',
+          modelType: 'chat',
+          provider: '1234567890',
+          providerType: 'opencodego',
+        },
+      ],
+    });
+
+    expect(options[0]).toMatchObject({
+      label: 'OpenCode Chat（opencodego / chat / OpenCode Gateway）',
+      provider: '1234567890',
+      value: '1234567890:opencode-chat',
+    });
+    expect(options[0].label).not.toContain('1234567890');
+  });
+
   it('builds app setting updates only for changed values', () => {
     const initial = {
       ...buildFormValues(),

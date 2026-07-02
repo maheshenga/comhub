@@ -1040,6 +1040,7 @@ export const adminSettingsRouter = router({
         modelId: item.id,
         modelType: item.type,
         provider: 'newapi',
+        providerType: item.providerType ?? null,
       })),
       ordersManagementEnabled: toBoolean(ordersManagementEnabled, true),
       paymentGatewayStatus: {
