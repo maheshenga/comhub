@@ -7,4 +7,5 @@ export interface NotificationChannelSettings {
 export interface NotificationSettings {
   email?: NotificationChannelSettings;
   inbox?: NotificationChannelSettings;
+  push?: NotificationChannelSettings;
 }

@@ -2,12 +2,30 @@ import { render, screen } from '@testing-library/react';
 
 import Notification from './Notification';
 
+type MockNotificationConfig = {
+  desktopEnabled: boolean;
+  emailEnabled: boolean;
+  eventDefaults?: unknown;
+  inboxEnabled: boolean;
+  pushEnabled: boolean;
+  system: {
+    actionLabel?: null | string;
+    actionUrl: null | string;
+    content: string;
+    enabled: boolean;
+    title: string;
+    type?: null | string;
+  };
+};
+
 const { mockIsDesktop, mockNotificationConfig } = vi.hoisted(() => ({
   mockIsDesktop: vi.fn(() => true),
-  mockNotificationConfig: vi.fn(() => ({
+  mockNotificationConfig: vi.fn<() => MockNotificationConfig>(() => ({
     desktopEnabled: true,
     emailEnabled: false,
+    eventDefaults: undefined,
     inboxEnabled: true,
+    pushEnabled: true,
     system: {
       actionUrl: null as string | null,
       content: '',
@@ -17,8 +35,7 @@ const { mockIsDesktop, mockNotificationConfig } = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock('@lobechat/const', async (importOriginal) => ({
-  ...(await importOriginal()),
+vi.mock('@lobechat/const', () => ({
   get isDesktop() {
     return mockIsDesktop();
   },
@@ -68,7 +85,9 @@ describe('Notification', () => {
     mockNotificationConfig.mockReturnValue({
       desktopEnabled: true,
       emailEnabled: false,
+      eventDefaults: undefined,
       inboxEnabled: true,
+      pushEnabled: true,
       system: {
         actionUrl: null as string | null,
         content: '',
@@ -92,12 +111,23 @@ describe('Notification', () => {
     mockNotificationConfig.mockReturnValue({
       desktopEnabled: false,
       emailEnabled: true,
+      eventDefaults: {
+        email: {
+          lowCredits: false,
+        },
+        push: {
+          videoGenerationCompleted: false,
+        },
+      },
       inboxEnabled: true,
+      pushEnabled: true,
       system: {
+        actionLabel: '查看状态',
         actionUrl: 'https://chat.qingyouai.com/status',
         content: '今晚 23:00 进行服务升级。',
         enabled: true,
         title: '系统维护通知',
+        type: 'info',
       },
     });
 
@@ -105,10 +135,14 @@ describe('Notification', () => {
 
     expect(screen.getByRole('heading', { name: '通知' })).toBeInTheDocument();
     expect(screen.getByText('站内通知')).toBeInTheDocument();
-    expect(screen.getByText('桌面通知')).toBeInTheDocument();
     expect(screen.getByText('邮件通知')).toBeInTheDocument();
+    expect(screen.getByText('移动推送通知')).toBeInTheDocument();
+    expect(screen.getByText('积分余额即将用尽')).toBeInTheDocument();
+    expect(screen.getByText('工作区邀请')).toBeInTheDocument();
     expect(screen.getByText('系统维护通知')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '查看详情' })).toHaveAttribute(
+    expect(screen.getByRole('switch', { name: '邮件通知：积分余额即将用尽' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: '移动推送通知：视频生成完成' })).not.toBeChecked();
+    expect(screen.getByRole('link', { name: '查看状态' })).toHaveAttribute(
       'href',
       'https://chat.qingyouai.com/status',
     );

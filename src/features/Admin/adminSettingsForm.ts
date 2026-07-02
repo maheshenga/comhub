@@ -10,6 +10,7 @@ import {
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import { type NotificationEventDefaults } from '@/const/notificationPreferences';
 import {
   type ConfiguredInterestArea,
   normalizeConfiguredInterestAreas,
@@ -56,12 +57,16 @@ export const SETTING_KEYS = {
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
   notificationDesktopEnabled: 'notification.desktop.enabled',
   notificationEmailEnabled: 'notification.email.enabled',
+  notificationEventDefaults: 'notification.eventDefaults',
   notificationInboxEnabled: 'notification.inbox.enabled',
+  notificationPushEnabled: 'notification.push.enabled',
   notificationRetentionDays: 'notification.retentionDays',
+  notificationSystemActionLabel: 'notification.system.actionLabel',
   notificationSystemActionUrl: 'notification.system.actionUrl',
   notificationSystemContent: 'notification.system.content',
   notificationSystemEnabled: 'notification.system.enabled',
   notificationSystemTitle: 'notification.system.title',
+  notificationSystemType: 'notification.system.type',
   profileInterestAreas: 'profile.interestAreas',
   ordersManagementEnabled: 'orders.management.enabled',
   pricingCreditMultiplier: 'pricing.creditMultiplier',
@@ -135,12 +140,16 @@ export type AdminSettingsData = {
   qstashTokenConfigured?: boolean | null;
   notificationDesktopEnabled?: boolean | null;
   notificationEmailEnabled?: boolean | null;
+  notificationEventDefaults?: NotificationEventDefaults | null;
   notificationInboxEnabled?: boolean | null;
+  notificationPushEnabled?: boolean | null;
   notificationRetentionDays?: number | null;
+  notificationSystemActionLabel?: string | null;
   notificationSystemActionUrl?: string | null;
   notificationSystemContent?: string | null;
   notificationSystemEnabled?: boolean | null;
   notificationSystemTitle?: string | null;
+  notificationSystemType?: string | null;
   ordersManagementEnabled?: boolean | null;
   paymentGatewayStatus?: {
     configured: boolean;

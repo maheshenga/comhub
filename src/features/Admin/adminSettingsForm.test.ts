@@ -304,6 +304,11 @@ describe('adminSettingsForm', () => {
     expect(SETTING_KEYS.profileInterestAreas).toBe('profile.interestAreas');
   });
 
+  it('shares notification preference keys with admin notification controls', () => {
+    expect(SETTING_KEYS.notificationPushEnabled).toBe('notification.push.enabled');
+    expect(SETTING_KEYS.notificationEventDefaults).toBe('notification.eventDefaults');
+  });
+
   it('includes memory trigger mode in system maintenance settings', () => {
     const initial = buildFormValues({
       memoryUserMemoryTriggerMode: 'auto',

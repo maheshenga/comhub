@@ -315,6 +315,90 @@ describe('admin settings default model validation', () => {
     expect(deleteMock).toHaveBeenCalledTimes(2);
   });
 
+  it('returns public notification config with channel defaults and system action metadata', async () => {
+    const db = createDb({
+      appSettings: [
+        { value: true },
+        { value: false },
+        { value: true },
+        { value: true },
+        {
+          value: {
+            email: { lowCredits: false },
+            push: { videoGenerationCompleted: false },
+            sms: { lowCredits: false },
+          },
+        },
+        { value: true },
+        { value: '系统维护通知' },
+        { value: '今晚 23:00 进行服务升级。' },
+        { value: '查看状态' },
+        { value: 'https://chat.qingyouai.com/status' },
+        { value: 'info' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.getPublicNotificationConfig();
+
+    expect(result).toMatchObject({
+      desktopEnabled: false,
+      emailEnabled: true,
+      eventDefaults: {
+        email: { lowCredits: false },
+        inbox: { workspaceInvitation: true },
+        push: { videoGenerationCompleted: false },
+      },
+      inboxEnabled: true,
+      pushEnabled: true,
+      system: {
+        actionLabel: '查看状态',
+        actionUrl: 'https://chat.qingyouai.com/status',
+        content: '今晚 23:00 进行服务升级。',
+        enabled: true,
+        title: '系统维护通知',
+        type: 'info',
+      },
+    });
+  });
+
+  it('normalizes notification event defaults and announcement type before saving', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.setAppSetting({
+      key: APP_SETTING_KEYS.notificationEventDefaults,
+      value: {
+        email: { lowCredits: false, unknown: false },
+        push: { videoGenerationCompleted: false },
+        sms: { lowCredits: false },
+      },
+    });
+    await caller.setAppSetting({
+      key: APP_SETTING_KEYS.notificationSystemType,
+      value: 'critical',
+    });
+
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.notificationEventDefaults,
+      value: expect.objectContaining({
+        email: expect.objectContaining({ imageGenerationCompleted: true, lowCredits: false }),
+        inbox: expect.objectContaining({ workspaceInvitation: true }),
+        push: expect.objectContaining({
+          imageGenerationCompleted: true,
+          videoGenerationCompleted: false,
+        }),
+      }),
+    });
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.notificationSystemType,
+      value: 'warning',
+    });
+  });
+
   it('allows admins to save S3 storage settings while keeping the secret out of audit payloads', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);

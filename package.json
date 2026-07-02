@@ -552,29 +552,5 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@lobehub/editor",
-      "ffmpeg-static"
-    ],
-    "overrides": {
-      "@react-pdf/image": "3.0.4",
-      "@types/react": "19.2.13",
-      "antd": "6.3.5",
-      "baseline-browser-mapping": "2.10.31",
-      "better-auth": "1.4.6",
-      "better-call": "1.1.8",
-      "drizzle-orm": "^0.45.1",
-      "fast-xml-parser": "5.4.2",
-      "lexical": "0.42.0",
-      "pdfjs-dist": "5.4.530",
-      "react": "19.2.5",
-      "react-dom": "19.2.5",
-      "stylelint-config-clean-order": "7.0.0"
-    },
-    "patchedDependencies": {
-      "@upstash/qstash": "patches/@upstash__qstash.patch"
-    }
   }
 }

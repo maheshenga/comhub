@@ -13,6 +13,7 @@ import {
   normalizeExpertPlazaCards,
   normalizeExpertPlazaConfig,
 } from '@/const/expertPlaza';
+import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 import {
   adminAuditLogs,
   appSettings,
@@ -200,11 +201,15 @@ const NOTIFICATION_KEYS = [
   SETTING_KEYS.notificationInboxEnabled,
   SETTING_KEYS.notificationDesktopEnabled,
   SETTING_KEYS.notificationEmailEnabled,
+  SETTING_KEYS.notificationPushEnabled,
+  SETTING_KEYS.notificationEventDefaults,
   SETTING_KEYS.notificationRetentionDays,
   SETTING_KEYS.notificationSystemEnabled,
   SETTING_KEYS.notificationSystemTitle,
   SETTING_KEYS.notificationSystemContent,
+  SETTING_KEYS.notificationSystemActionLabel,
   SETTING_KEYS.notificationSystemActionUrl,
+  SETTING_KEYS.notificationSystemType,
 ] as const;
 
 const STORAGE_KEYS = [
@@ -704,29 +709,43 @@ export const adminSettingsRouter = router({
       inboxEnabled,
       desktopEnabled,
       emailEnabled,
+      pushEnabled,
+      eventDefaults,
       systemEnabled,
       systemTitle,
       systemContent,
+      systemActionLabel,
       systemActionUrl,
+      systemType,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.notificationInboxEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationDesktopEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationEmailEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationPushEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationEventDefaults),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemContent),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemType),
     ]);
 
     return {
       desktopEnabled: toBoolean(desktopEnabled, true),
       emailEnabled: toBoolean(emailEnabled, false),
+      eventDefaults: normalizeNotificationEventDefaults(eventDefaults),
       inboxEnabled: toBoolean(inboxEnabled, true),
+      pushEnabled: toBoolean(pushEnabled, toBoolean(desktopEnabled, true)),
       system: {
+        actionLabel: toString(systemActionLabel),
         actionUrl: toString(systemActionUrl) || null,
         content: toString(systemContent),
         enabled: toBoolean(systemEnabled, false),
         title: toString(systemTitle),
+        type: ['success', 'info', 'warning', 'error'].includes(toString(systemType))
+          ? toString(systemType)
+          : 'warning',
       },
     };
   }),
@@ -822,11 +841,15 @@ export const adminSettingsRouter = router({
       notificationInboxEnabled,
       notificationDesktopEnabled,
       notificationEmailEnabled,
+      notificationPushEnabled,
+      notificationEventDefaults,
       notificationRetentionDays,
       notificationSystemEnabled,
       notificationSystemTitle,
       notificationSystemContent,
+      notificationSystemActionLabel,
       notificationSystemActionUrl,
+      notificationSystemType,
       storageS3AccessKeyId,
       storageS3SecretAccessKey,
       storageS3Endpoint,
@@ -900,11 +923,15 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.notificationInboxEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationDesktopEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationEmailEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationPushEnabled),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationEventDefaults),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationRetentionDays),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemContent),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemType),
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3AccessKeyId),
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3SecretAccessKey),
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3Endpoint),
@@ -1059,11 +1086,22 @@ export const adminSettingsRouter = router({
       notificationInboxEnabled: toBoolean(notificationInboxEnabled, true),
       notificationDesktopEnabled: toBoolean(notificationDesktopEnabled, true),
       notificationEmailEnabled: toBoolean(notificationEmailEnabled, false),
+      notificationPushEnabled: toBoolean(
+        notificationPushEnabled,
+        toBoolean(notificationDesktopEnabled, true),
+      ),
+      notificationEventDefaults: normalizeNotificationEventDefaults(notificationEventDefaults),
       notificationRetentionDays: toBoundedInt(notificationRetentionDays, 90, 1, 3650),
       notificationSystemEnabled: toBoolean(notificationSystemEnabled, false),
       notificationSystemTitle: toString(notificationSystemTitle),
       notificationSystemContent: toString(notificationSystemContent),
+      notificationSystemActionLabel: toString(notificationSystemActionLabel),
       notificationSystemActionUrl: toString(notificationSystemActionUrl),
+      notificationSystemType: ['success', 'info', 'warning', 'error'].includes(
+        toString(notificationSystemType),
+      )
+        ? toString(notificationSystemType)
+        : 'warning',
       storageS3AccessKeyId:
         toString(storageS3AccessKeyId) || toString(process.env.S3_ACCESS_KEY_ID),
       storageS3Bucket: toString(storageS3Bucket) || toString(process.env.S3_BUCKET),
@@ -1277,12 +1315,19 @@ export const adminSettingsRouter = router({
             SETTING_KEYS.notificationInboxEnabled,
             SETTING_KEYS.notificationDesktopEnabled,
             SETTING_KEYS.notificationEmailEnabled,
+            SETTING_KEYS.notificationPushEnabled,
             SETTING_KEYS.notificationSystemEnabled,
           ].includes(input.key as any)
         ) {
           value = Boolean(value);
+        } else if (input.key === SETTING_KEYS.notificationEventDefaults) {
+          value = normalizeNotificationEventDefaults(value);
         } else if (input.key === SETTING_KEYS.notificationRetentionDays) {
           value = toBoundedInt(value, 90, 1, 3650);
+        } else if (input.key === SETTING_KEYS.notificationSystemType) {
+          value = ['success', 'info', 'warning', 'error'].includes(toString(value))
+            ? toString(value)
+            : 'warning';
         } else {
           value = toString(value);
         }

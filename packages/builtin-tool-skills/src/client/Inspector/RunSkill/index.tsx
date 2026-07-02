@@ -4,13 +4,14 @@ import { AGENT_SKILLS_IDENTIFIER_PREFIX } from '@lobechat/const';
 import { type BuiltinInspectorProps } from '@lobechat/types';
 import { SkillsIcon } from '@lobehub/ui/icons';
 import { createStaticStyles, cx } from 'antd-style';
-import { type TFunction } from 'i18next';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { inspectorTextStyles, shinyTextStyles } from '@/styles';
 
 import type { ActivateSkillParams, ActivateSkillSource, ActivateSkillState } from '../../../types';
+
+type TranslatePluginLabel = (key: string) => string;
 
 /**
  * Resolve the inspector label. State-side `source` is the authority once the
@@ -23,7 +24,7 @@ import type { ActivateSkillParams, ActivateSkillSource, ActivateSkillState } fro
  * still validate the call site.
  */
 const resolveLabel = (
-  t: TFunction<'plugin'>,
+  t: TranslatePluginLabel,
   source: ActivateSkillSource | undefined,
   rawName: string | undefined,
 ): string => {

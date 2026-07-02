@@ -1,11 +1,18 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Form, Input, InputNumber, message, Switch, Typography } from 'antd';
+import { Alert, Button, Form, Input, InputNumber, message, Select, Switch, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_CHANNEL_EVENTS,
+  NOTIFICATION_EVENT_TITLES,
+  type NotificationEventDefaults,
+  normalizeNotificationEventDefaults,
+} from '@/const/notificationPreferences';
 import {
   ADMIN_SETTINGS_SWR_KEY,
   SETTING_KEYS,
@@ -19,23 +26,33 @@ const { Text, Title } = Typography;
 type NotificationSettingsForm = {
   desktopEnabled: boolean;
   emailEnabled: boolean;
+  eventDefaults: NotificationEventDefaults;
   inboxEnabled: boolean;
+  pushEnabled: boolean;
+  systemActionLabel: string;
   retentionDays: number;
   systemActionUrl: string;
   systemContent: string;
   systemEnabled: boolean;
   systemTitle: string;
+  systemType: 'error' | 'info' | 'success' | 'warning';
 };
 
 const buildInitialValues = (data: any): NotificationSettingsForm => ({
   desktopEnabled: data?.notificationDesktopEnabled ?? true,
   emailEnabled: data?.notificationEmailEnabled ?? false,
+  eventDefaults: normalizeNotificationEventDefaults(data?.notificationEventDefaults),
   inboxEnabled: data?.notificationInboxEnabled ?? true,
+  pushEnabled: data?.notificationPushEnabled ?? data?.notificationDesktopEnabled ?? true,
   retentionDays: data?.notificationRetentionDays ?? 90,
+  systemActionLabel: data?.notificationSystemActionLabel ?? '',
   systemActionUrl: data?.notificationSystemActionUrl ?? '',
   systemContent: data?.notificationSystemContent ?? '',
   systemEnabled: data?.notificationSystemEnabled ?? false,
   systemTitle: data?.notificationSystemTitle ?? '',
+  systemType: ['error', 'info', 'success', 'warning'].includes(data?.notificationSystemType)
+    ? data.notificationSystemType
+    : 'warning',
 });
 
 const buildUpdates = (
@@ -46,16 +63,27 @@ const buildUpdates = (
     ['inboxEnabled', SETTING_KEYS.notificationInboxEnabled],
     ['desktopEnabled', SETTING_KEYS.notificationDesktopEnabled],
     ['emailEnabled', SETTING_KEYS.notificationEmailEnabled],
+    ['pushEnabled', SETTING_KEYS.notificationPushEnabled],
     ['retentionDays', SETTING_KEYS.notificationRetentionDays],
     ['systemEnabled', SETTING_KEYS.notificationSystemEnabled],
     ['systemTitle', SETTING_KEYS.notificationSystemTitle],
     ['systemContent', SETTING_KEYS.notificationSystemContent],
+    ['systemActionLabel', SETTING_KEYS.notificationSystemActionLabel],
     ['systemActionUrl', SETTING_KEYS.notificationSystemActionUrl],
+    ['systemType', SETTING_KEYS.notificationSystemType],
   ];
 
-  return map
+  const updates = map
     .filter(([key]) => values[key] !== initial[key])
     .map(([key, settingKey]) => ({ key: settingKey, value: values[key] }));
+
+  const normalizedCurrent = normalizeNotificationEventDefaults(values.eventDefaults);
+  const normalizedInitial = normalizeNotificationEventDefaults(initial.eventDefaults);
+  if (JSON.stringify(normalizedCurrent) !== JSON.stringify(normalizedInitial)) {
+    updates.push({ key: SETTING_KEYS.notificationEventDefaults, value: normalizedCurrent });
+  }
+
+  return updates;
 };
 
 const AdminNotificationsPage = memo(() => {
@@ -113,52 +141,80 @@ const AdminNotificationsPage = memo(() => {
         type="info"
         message={t(
           'admin.notifications.analysis',
-          '当前 settings/notification 页面在桌面端仍是订阅通知嵌入页；网页端主要通过右上角通知收件箱展示站内通知。这里的“站内通知”开关会直接影响收件箱列表和未读数。',
+          '这里统一管理用户通知页展示的通道和事件默认开关。站内通知会影响收件箱入口；邮件和推送通道需要对应投递能力接入后才会实际发送。',
         )}
       />
 
       <Form disabled={isLoading} form={form} initialValues={initialValues} layout="vertical">
-        <Card>
-          <Form.Item
-            label={t('admin.notifications.inboxEnabled', '启用站内通知收件箱')}
-            name="inboxEnabled"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            label={t('admin.notifications.desktopEnabled', '默认启用桌面通知')}
-            name="desktopEnabled"
-            valuePropName="checked"
-            extra={t(
-              'admin.notifications.desktopEnabled.help',
-              '桌面端仍需要用户授予系统通知权限；该项作为平台默认策略记录。',
-            )}
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            label={t('admin.notifications.emailEnabled', '启用邮件通知通道')}
-            name="emailEnabled"
-            valuePropName="checked"
-            extra={t(
-              'admin.notifications.emailEnabled.help',
-              '当前邮件投递服务尚未接入时建议保持关闭，后续接入邮件服务后可直接复用该开关。',
-            )}
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            label={t('admin.notifications.retentionDays', '归档通知保留天数')}
-            name="retentionDays"
-            extra={t(
-              'admin.notifications.retentionDays.help',
-              '后台维护任务会按该天数删除已归档通知；未归档的收件箱通知不会被自动删除。',
-            )}
-          >
-            <InputNumber max={3650} min={1} style={{ width: 180 }} />
-          </Form.Item>
-        </Card>
+        <Flexbox gap={16}>
+          {NOTIFICATION_CHANNELS.map((channel) => {
+            const enabledField =
+              channel.key === 'email'
+                ? 'emailEnabled'
+                : channel.key === 'inbox'
+                  ? 'inboxEnabled'
+                  : 'pushEnabled';
+
+            return (
+              <Card key={channel.key} title={channel.title}>
+                <Form.Item
+                  label={t(`admin.notifications.${channel.key}.enabled`, `启用${channel.title}`)}
+                  name={enabledField}
+                  valuePropName="checked"
+                  extra={channel.description}
+                >
+                  <Switch />
+                </Form.Item>
+                <Flexbox gap={8}>
+                  <Text strong>{t('admin.notifications.events', '事件默认开关')}</Text>
+                  {NOTIFICATION_CHANNEL_EVENTS[channel.key].map((eventKey) => (
+                    <Flexbox
+                      horizontal
+                      align="center"
+                      justify="space-between"
+                      key={`${channel.key}-${eventKey}`}
+                    >
+                      <Text>{NOTIFICATION_EVENT_TITLES[eventKey]}</Text>
+                      <Form.Item
+                        noStyle
+                        name={['eventDefaults', channel.key, eventKey]}
+                        valuePropName="checked"
+                      >
+                        <Switch
+                          aria-label={`${channel.title}：${NOTIFICATION_EVENT_TITLES[eventKey]}`}
+                        />
+                      </Form.Item>
+                    </Flexbox>
+                  ))}
+                </Flexbox>
+              </Card>
+            );
+          })}
+
+          <Card>
+            <Form.Item
+              label={t('admin.notifications.desktopEnabled', '兼容：默认启用桌面通知')}
+              name="desktopEnabled"
+              valuePropName="checked"
+              extra={t(
+                'admin.notifications.desktopEnabled.help',
+                '保留给旧版桌面通知读取；新的用户通知页使用“移动推送通知”通道展示。',
+              )}
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.notifications.retentionDays', '归档通知保留天数')}
+              name="retentionDays"
+              extra={t(
+                'admin.notifications.retentionDays.help',
+                '后台维护任务会按该天数删除已归档通知；未归档的收件箱通知不会被自动删除。',
+              )}
+            >
+              <InputNumber max={3650} min={1} style={{ width: 180 }} />
+            </Form.Item>
+          </Card>
+        </Flexbox>
 
         <Card style={{ marginTop: 16 }}>
           <Form.Item
@@ -182,6 +238,22 @@ const AdminNotificationsPage = memo(() => {
             name="systemActionUrl"
           >
             <Input placeholder="https://..." />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.notifications.systemActionLabel', '公告按钮文案')}
+            name="systemActionLabel"
+          >
+            <Input placeholder="查看详情" />
+          </Form.Item>
+          <Form.Item label={t('admin.notifications.systemType', '公告类型')} name="systemType">
+            <Select
+              options={[
+                { label: '信息', value: 'info' },
+                { label: '成功', value: 'success' },
+                { label: '警告', value: 'warning' },
+                { label: '错误', value: 'error' },
+              ]}
+            />
           </Form.Item>
         </Card>
 

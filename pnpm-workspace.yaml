@@ -8,6 +8,7 @@ onlyBuiltDependencies:
   - '@google/genai'
   - '@lobehub/editor'
   - '@vercel/speed-insights'
+  - ffmpeg-static
 
 overrides:
   jose: ^6.1.3

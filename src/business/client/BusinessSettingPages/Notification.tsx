@@ -2,11 +2,12 @@
 
 import { isDesktop } from '@lobechat/const';
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, List, Tag, Typography } from 'antd';
+import { Alert, Button, Switch, Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
+import { buildNotificationPreferenceGroups } from '@/const/notificationPreferences';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -15,32 +16,20 @@ import { SubscriptionIframeWrapper } from './SubscriptionIframeWrapper';
 
 const { Text } = Typography;
 
+type SystemAlertType = 'error' | 'info' | 'success' | 'warning';
+
+const normalizeSystemAlertType = (type?: null | string): SystemAlertType =>
+  type === 'error' || type === 'info' || type === 'success' || type === 'warning'
+    ? type
+    : 'warning';
+
 const WebNotification = memo(() => {
   const { t } = useTranslation('setting');
   const { data } = useClientDataSWR('public-notification-config', () =>
     adminCommercialService.getPublicNotificationConfig(),
   );
 
-  const rows = [
-    {
-      desc: t('notification.inbox.desc'),
-      enabled: data?.inboxEnabled !== false,
-      title: t('notification.inbox.title'),
-    },
-    {
-      desc: t(
-        'notification.desktop.desc',
-        '桌面端在系统授权后，可在任务完成或模型回复结束时弹出系统通知。',
-      ),
-      enabled: data?.desktopEnabled !== false,
-      title: t('notification.desktop.title', '桌面通知'),
-    },
-    {
-      desc: t('notification.email.desc'),
-      enabled: data?.emailEnabled === true,
-      title: t('notification.email.title'),
-    },
-  ];
+  const groups = buildNotificationPreferenceGroups(data);
 
   return (
     <>
@@ -51,7 +40,7 @@ const WebNotification = memo(() => {
           type="info"
           message={t(
             'notification.adminManaged',
-            '通知渠道由管理员统一配置；个人侧当前用于查看各渠道状态和站内公告。',
+            '通知偏好由管理员统一配置；当前页面用于查看各通道默认策略和站内公告。',
           )}
         />
         {data?.system?.enabled && (data.system.title || data.system.content) ? (
@@ -59,35 +48,48 @@ const WebNotification = memo(() => {
             showIcon
             description={data.system.content}
             message={data.system.title || t('notification.system.title', '系统公告')}
-            type="warning"
+            type={normalizeSystemAlertType(data.system.type)}
             action={
               data.system.actionUrl ? (
                 <Button href={data.system.actionUrl} rel="noreferrer" size="small" target="_blank">
-                  {t('notification.system.action', '查看详情')}
+                  {data.system.actionLabel || t('notification.system.action', '查看详情')}
                 </Button>
               ) : undefined
             }
           />
         ) : null}
-        <Card>
-          <List
-            dataSource={rows}
-            renderItem={(item) => (
-              <List.Item
-                actions={[
-                  <Tag color={item.enabled ? 'success' : 'default'} key="status">
-                    {item.enabled ? t('notification.enabled') : t('disabled', '已关闭')}
-                  </Tag>,
-                ]}
-              >
-                <List.Item.Meta
-                  description={<Text type="secondary">{item.desc}</Text>}
-                  title={item.title}
-                />
-              </List.Item>
-            )}
-          />
-        </Card>
+        {groups.map((group) => (
+          <Card
+            key={group.key}
+            title={
+              <Flexbox horizontal align="center" justify="space-between">
+                <Flexbox gap={2}>
+                  <Text strong>{group.title}</Text>
+                  <Text type="secondary">{group.description}</Text>
+                </Flexbox>
+                <Switch aria-label={group.title} checked={group.enabled} disabled />
+              </Flexbox>
+            }
+          >
+            <Flexbox gap={12}>
+              {group.events.map((event) => (
+                <Flexbox
+                  horizontal
+                  align="center"
+                  justify="space-between"
+                  key={`${group.key}-${event.key}`}
+                >
+                  <Text>{event.title}</Text>
+                  <Switch
+                    aria-label={`${group.title}：${event.title}`}
+                    checked={group.enabled && event.enabled}
+                    disabled
+                  />
+                </Flexbox>
+              ))}
+            </Flexbox>
+          </Card>
+        ))}
       </Flexbox>
     </>
   );
