@@ -5,7 +5,7 @@ import { Flexbox, Icon, Segmented } from '@lobehub/ui';
 import { Alert, Button, Empty, Input, message, Modal, Skeleton, Table, Tag, Tooltip } from 'antd';
 import { createStyles, cssVar } from 'antd-style';
 import { Check, ChevronRight, Info, LockKeyhole, Sparkles, Ticket } from 'lucide-react';
-import { memo, useMemo, useState } from 'react';
+import { type ReactNode, memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
@@ -86,6 +86,7 @@ const MODEL_PRICE_ROWS = [
 type BillingCycle = 'yearly' | 'monthly' | 'one_time';
 type PlanCatalog = Awaited<ReturnType<typeof commercialService.listPlanCatalog>>;
 type PlanCatalogItem = PlanCatalog[number];
+type ComparisonRow = { feature: string; key: string } & Record<string, ReactNode>;
 
 const useStyles = createStyles(({ css, cx, token }) => ({
   action: css`
@@ -270,6 +271,16 @@ const getDiscountPercent = (monthlyPrice: number, yearlyPrice: number) => {
   return Math.max(0, Math.round((1 - yearlyPrice / (monthlyPrice * 12)) * 100));
 };
 
+const getYearlyDiscountLabel = (catalogPlan?: PlanCatalogItem) => {
+  if (!catalogPlan) return '';
+
+  if (catalogPlan.yearlyDiscountLabel) return catalogPlan.yearlyDiscountLabel;
+
+  const discountPercent = getDiscountPercent(catalogPlan.monthlyPrice, catalogPlan.yearlyPrice);
+
+  return discountPercent > 0 ? `优惠 ${discountPercent}%` : '';
+};
+
 const getRuleCount = (rule?: ModelRule) => {
   if (!rule) return 0;
 
@@ -280,6 +291,29 @@ const formatEstimatedMessages = (monthlyCredits: number, divisor: number) => {
   if (monthlyCredits <= 0) return '约 0 条消息';
 
   return `约 ${formatBusinessNumber(Math.max(1, Math.floor(monthlyCredits / divisor)))} 条消息`;
+};
+
+const formatNullableQuota = (value: null | number | undefined, unit = '') => {
+  if (value === null) return '不限';
+  if (value === undefined) return '--';
+
+  return `${formatBusinessNumber(value)}${unit}`;
+};
+
+const formatModelRulesSummary = (modelRules?: PlanCatalogItem['modelRules']) => {
+  const rules = (modelRules || {}) as Record<string, ModelRule>;
+  const entries = Object.entries(rules).filter(([, rule]) => Boolean(rule));
+
+  if (entries.length === 0) return '默认可用模型';
+
+  return entries
+    .map(([type, rule]) => {
+      const label = MODEL_TYPE_LABELS[type] || type;
+      const mode = rule?.mode === 'blocklist' ? '排除' : '可用';
+
+      return `${label}${mode} ${getRuleCount(rule)}`;
+    })
+    .join('；');
 };
 
 const Plans = memo<{ mobile?: boolean }>(() => {
@@ -312,6 +346,100 @@ const Plans = memo<{ mobile?: boolean }>(() => {
       orderedConfiguredPlans.length > 0 ? orderedConfiguredPlans : [...subscriptionPlanOrder],
     );
   }, [planCatalog]);
+
+  const yearlyCycleDiscountLabel = useMemo(
+    () =>
+      planCatalog?.find((item) => item.yearlyDiscountLabel)?.yearlyDiscountLabel || '最高优惠 37%',
+    [planCatalog],
+  );
+
+  const comparisonColumns = useMemo(
+    () => [
+      {
+        dataIndex: 'feature',
+        fixed: 'left' as const,
+        key: 'feature',
+        title: '能力',
+        width: 132,
+      },
+      ...visiblePlans.map((plan) => {
+        const catalogPlan = getCatalogPlan(planCatalog, plan);
+
+        return {
+          dataIndex: plan,
+          key: plan,
+          render: (value: ReactNode) => value || '--',
+          title: catalogPlan?.displayName || t(`plans.plan.${plan}.title`),
+          width: 168,
+        };
+      }),
+    ],
+    [planCatalog, t, visiblePlans],
+  );
+
+  const comparisonRows = useMemo<ComparisonRow[]>(
+    () =>
+      [
+        {
+          getValue: (catalogPlan?: PlanCatalogItem) =>
+            catalogPlan?.comparisonNote || catalogPlan?.badge || '--',
+          key: 'summary',
+          title: '套餐亮点',
+        },
+        {
+          getValue: (catalogPlan?: PlanCatalogItem) =>
+            formatCredits(catalogPlan?.monthlyCredits ?? subscriptionSummary?.monthlyCredits ?? 0),
+          key: 'credits',
+          title: '每月算力积分',
+        },
+        {
+          getValue: (catalogPlan?: PlanCatalogItem) =>
+            formatNullableQuota(catalogPlan?.storageQuotaMb, ' MB'),
+          key: 'storage',
+          title: '文件存储',
+        },
+        {
+          getValue: (catalogPlan?: PlanCatalogItem) =>
+            formatNullableQuota(catalogPlan?.vectorQuota),
+          key: 'vector',
+          title: '向量记录',
+        },
+        {
+          getValue: (catalogPlan?: PlanCatalogItem) => {
+            if (!catalogPlan?.pptEnabled) return '未启用';
+
+            const quota =
+              catalogPlan.pptMonthlyQuota === null
+                ? '不限次数'
+                : `${formatBusinessNumber(catalogPlan.pptMonthlyQuota ?? 0)} 次/月`;
+
+            return `${quota} · ${formatBusinessNumber(catalogPlan.pptCreditCost)} 积分/次`;
+          },
+          key: 'ppt',
+          title: 'PPT 创作',
+        },
+        {
+          getValue: (catalogPlan?: PlanCatalogItem) =>
+            formatModelRulesSummary(catalogPlan?.modelRules),
+          key: 'models',
+          title: '模型权限',
+        },
+        {
+          getValue: (catalogPlan?: PlanCatalogItem) => getYearlyDiscountLabel(catalogPlan) || '--',
+          key: 'discount',
+          title: '年付优惠',
+        },
+      ].map(({ getValue, key, title }) => {
+        const row: ComparisonRow = { feature: title, key };
+
+        for (const plan of visiblePlans) {
+          row[plan] = getValue(getCatalogPlan(planCatalog, plan));
+        }
+
+        return row;
+      }),
+    [planCatalog, subscriptionSummary?.monthlyCredits, visiblePlans],
+  );
 
   const getPlanFeatures = (plan: SubscriptionPlan) => {
     const catalogPlan = getCatalogPlan(planCatalog, plan);
@@ -402,9 +530,11 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                 label: (
                   <Flexbox horizontal align="center" gap={8}>
                     按年
-                    <Tag color="green" style={{ margin: 0 }}>
-                      最高优惠 37%
-                    </Tag>
+                    {yearlyCycleDiscountLabel ? (
+                      <Tag color="green" style={{ margin: 0 }}>
+                        {yearlyCycleDiscountLabel}
+                      </Tag>
+                    ) : null}
                   </Flexbox>
                 ),
                 value: 'yearly',
@@ -442,12 +572,11 @@ const Plans = memo<{ mobile?: boolean }>(() => {
               const price = getPrice(catalogPlan);
               const monthlyCredits =
                 catalogPlan?.monthlyCredits ?? subscriptionSummary?.monthlyCredits ?? 0;
-              const discountPercent = catalogPlan
-                ? getDiscountPercent(catalogPlan.monthlyPrice, catalogPlan.yearlyPrice)
-                : 0;
+              const yearlyDiscountLabel = getYearlyDiscountLabel(catalogPlan);
               const isCurrent = plan === currentPlan;
               const isPending = pendingChangeRequest?.toPlan === plan;
-              const isPopular = plan === SubscriptionPlan.Premium;
+              const planBadge =
+                catalogPlan?.badge || (plan === SubscriptionPlan.Premium ? '最受欢迎' : '');
               const modelRules = (catalogPlan?.modelRules || {}) as Record<string, ModelRule>;
               const modelRuleEntries = Object.entries(modelRules).filter(([, rule]) =>
                 Boolean(rule),
@@ -459,7 +588,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                   key={plan}
                   variant="borderless"
                 >
-                  {isPopular ? <div className={styles.popularRibbon}>最受欢迎</div> : null}
+                  {planBadge ? <div className={styles.popularRibbon}>{planBadge}</div> : null}
                   <Flexbox gap={20} height="100%" justify="space-between">
                     <Flexbox gap={18}>
                       <Flexbox className={styles.header} gap={14}>
@@ -489,9 +618,9 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                                 catalogPlan.currency,
                               )} / 人民币 / 年`
                             : '--'}
-                          {billingCycle === 'yearly' && discountPercent > 0 ? (
+                          {billingCycle === 'yearly' && yearlyDiscountLabel ? (
                             <Tag color="green" style={{ margin: 0 }}>
-                              优惠 {discountPercent}%
+                              {yearlyDiscountLabel}
                             </Tag>
                           ) : null}
                         </div>
@@ -604,6 +733,25 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             })}
           </div>
         )}
+        <Card className={styles.pricingCard} variant="borderless">
+          <Flexbox gap={12}>
+            <Flexbox gap={4}>
+              <h2 className={styles.title}>套餐对比</h2>
+              <div className={subscriptionPageStyles.caption}>
+                根据后台套餐配置汇总展示积分、资源额度、PPT 权益、模型权限和优惠信息。
+              </div>
+            </Flexbox>
+            <Table
+              columns={comparisonColumns as any}
+              dataSource={comparisonRows}
+              locale={{ emptyText: <Empty description="暂无套餐对比数据" /> }}
+              pagination={false}
+              rowKey="key"
+              scroll={{ x: Math.max(720, visiblePlans.length * 168 + 132) }}
+              size="small"
+            />
+          </Flexbox>
+        </Card>
         <Card className={styles.pricingCard} variant="borderless">
           <Flexbox gap={12}>
             <Flexbox gap={4}>

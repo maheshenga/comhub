@@ -1,5 +1,6 @@
 import { asc, desc, eq } from 'drizzle-orm';
 
+import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import { CommercialModel } from '@/database/models/commercial';
 import { planCatalog, userPlanSnapshots } from '@/database/schemas';
 import { type PlanModelRules } from '@/database/schemas';
@@ -78,6 +79,7 @@ export const subscriptionRouter = router({
       monthlyPrice: Number(r.monthlyPrice),
       plan: r.plan,
       purchaseUrl: getPlanPurchaseUrl(r.metadata),
+      ...normalizePlanCatalogPresentation(r.metadata),
       sortOrder: Number(r.sortOrder),
       yearlyPrice: Number(r.yearlyPrice),
     }));

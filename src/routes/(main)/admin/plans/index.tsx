@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import InlineTable from '@/components/InlineTable';
+import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import {
   ADMIN_PLAN_MODEL_MATRIX_PATH,
   type AdminPlanModelRules,
@@ -37,12 +38,15 @@ type PlanRow = {
   monthlyCredits: number;
   monthlyPrice: number;
   metadata?: {
+    badge?: string;
+    comparisonNote?: string;
     pptCreditCost?: number;
     pptEnabled?: boolean;
     pptMonthlyQuota?: null | number;
     purchaseUrl?: string;
     storageQuotaMb?: null | number;
     vectorQuota?: null | number;
+    yearlyDiscountLabel?: string;
   } | null;
   plan: string;
   sortOrder: number;
@@ -50,6 +54,8 @@ type PlanRow = {
 };
 
 type PlanFormValues = {
+  badge?: string;
+  comparisonNote?: string;
   currency?: string;
   displayName: string;
   features?: string;
@@ -64,6 +70,7 @@ type PlanFormValues = {
   sortOrder?: number;
   storageQuotaMb?: null | number;
   vectorQuota?: null | number;
+  yearlyDiscountLabel?: string;
   yearlyPrice?: number;
 };
 
@@ -99,9 +106,12 @@ const AdminPlansPage = memo(() => {
 
     setEditing(init);
     const metadata = init.metadata as PlanRow['metadata'];
+    const presentation = normalizePlanCatalogPresentation(metadata);
 
     form.setFieldsValue({
       ...init,
+      badge: presentation.badge,
+      comparisonNote: presentation.comparisonNote,
       features: (init.features ?? []).join('\n'),
       pptCreditCost: Number(metadata?.pptCreditCost ?? 0),
       pptEnabled: metadata?.pptEnabled === true,
@@ -109,6 +119,7 @@ const AdminPlansPage = memo(() => {
       purchaseUrl: metadata?.purchaseUrl ?? '',
       storageQuotaMb: metadata?.storageQuotaMb ?? null,
       vectorQuota: metadata?.vectorQuota ?? null,
+      yearlyDiscountLabel: presentation.yearlyDiscountLabel,
     } as PlanFormValues);
   };
 
@@ -122,6 +133,8 @@ const AdminPlansPage = memo(() => {
         .filter(Boolean);
 
       await adminCommercialService.upsertPlan({
+        badge: values.badge?.trim() || undefined,
+        comparisonNote: values.comparisonNote?.trim() || undefined,
         currency: values.currency || 'USD',
         displayName: values.displayName,
         features,
@@ -145,6 +158,7 @@ const AdminPlansPage = memo(() => {
           values.vectorQuota === null || values.vectorQuota === undefined
             ? null
             : Number(values.vectorQuota),
+        yearlyDiscountLabel: values.yearlyDiscountLabel?.trim() || undefined,
         yearlyPrice: Number(values.yearlyPrice || 0),
       });
       message.success(t('admin.plans.saveSuccess', '套餐已保存'));
@@ -193,6 +207,29 @@ const AdminPlansPage = memo(() => {
       key: 'yearlyPrice',
       render: (value: number, row: PlanRow) => `${value} ${row.currency}`,
       title: t('admin.plans.col.yearly', '年付'),
+    },
+    {
+      dataIndex: 'metadata',
+      key: 'presentation',
+      render: (metadata: PlanRow['metadata']) => {
+        const presentation = normalizePlanCatalogPresentation(metadata);
+
+        return (
+          <Flexbox horizontal gap={4} wrap="wrap">
+            {presentation.badge ? <Tag color="gold">{presentation.badge}</Tag> : null}
+            {presentation.yearlyDiscountLabel ? (
+              <Tag color="green">{presentation.yearlyDiscountLabel}</Tag>
+            ) : null}
+            {presentation.comparisonNote ? <Tag color="blue">对比说明</Tag> : null}
+            {!presentation.badge &&
+            !presentation.yearlyDiscountLabel &&
+            !presentation.comparisonNote ? (
+              <Tag>未设置</Tag>
+            ) : null}
+          </Flexbox>
+        );
+      },
+      title: t('admin.plans.col.presentation', '展示设置'),
     },
     {
       dataIndex: 'metadata',
@@ -380,6 +417,29 @@ const AdminPlansPage = memo(() => {
             )}
           >
             <Input placeholder="https://..." />
+          </Form.Item>
+          <Flexbox horizontal gap={12}>
+            <Form.Item
+              label={t('admin.plans.field.badge', '套餐徽标')}
+              name="badge"
+              style={{ flex: 1 }}
+            >
+              <Input placeholder={t('admin.plans.field.badgePlaceholder', '最受欢迎')} />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.plans.field.yearlyDiscountLabel', '年付优惠文案')}
+              name="yearlyDiscountLabel"
+              style={{ flex: 1 }}
+            >
+              <Input placeholder={t('admin.plans.field.yearlyDiscountPlaceholder', '优惠 20%')} />
+            </Form.Item>
+          </Flexbox>
+          <Form.Item
+            extra={t('admin.plans.field.comparisonNoteHint', '展示在用户端套餐对比表中。')}
+            label={t('admin.plans.field.comparisonNote', '套餐对比说明')}
+            name="comparisonNote"
+          >
+            <Input.TextArea rows={2} />
           </Form.Item>
           <Flexbox horizontal gap={12}>
             <Form.Item

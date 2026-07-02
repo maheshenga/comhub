@@ -199,6 +199,8 @@ class AdminCommercialService {
   // Plan catalog
   listPlans = async () => lambdaClient.admin.plans.list.query();
   upsertPlan = async (params: {
+    badge?: string;
+    comparisonNote?: string;
     currency?: string;
     displayName: string;
     features?: string[];
@@ -213,6 +215,7 @@ class AdminCommercialService {
     sortOrder?: number;
     storageQuotaMb?: null | number;
     vectorQuota?: null | number;
+    yearlyDiscountLabel?: string;
     yearlyPrice: number;
   }) => lambdaClient.admin.plans.upsert.mutate(params);
   deletePlan = async (plan: string) => lambdaClient.admin.plans.delete.mutate({ plan });
@@ -228,6 +231,10 @@ class AdminCommercialService {
     displayName: string;
     id: string;
     isActive?: boolean;
+    originalAmount?: number;
+    promotionEnabled?: boolean;
+    promotionLabel?: string;
+    promotionNote?: string;
     recommended?: boolean;
     sortOrder?: number;
     validityMonths?: number;

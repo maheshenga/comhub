@@ -200,7 +200,9 @@ export interface TopUpPackageItem {
   amount: number;
   credits: number;
   currency: string;
+  displayName?: string;
   id: string;
+  metadata?: Record<string, unknown> | null;
   recommended?: boolean;
   validityMonths: number;
 }

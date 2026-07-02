@@ -6,6 +6,7 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
+import { normalizeTopUpPackagePromotion } from '@/const/billingPresentation';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -16,6 +17,7 @@ type PackageRow = {
   displayName: string;
   id: string;
   isActive: boolean;
+  metadata?: Record<string, unknown> | null;
   recommended: boolean;
   sortOrder: number;
   validityMonths: number;
@@ -50,8 +52,15 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
       sortOrder: 0,
       validityMonths: 12,
     };
+    const promotion = normalizeTopUpPackagePromotion(init.metadata);
     setEditing(init);
-    form.setFieldsValue(init);
+    form.setFieldsValue({
+      ...init,
+      originalAmount: promotion.originalAmount,
+      promotionEnabled: promotion.enabled,
+      promotionLabel: promotion.label,
+      promotionNote: promotion.note,
+    });
   };
 
   const handleSave = async () => {
@@ -65,6 +74,13 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
         displayName: values.displayName,
         id: values.id,
         isActive: !!values.isActive,
+        originalAmount:
+          values.originalAmount === null || values.originalAmount === undefined
+            ? undefined
+            : Number(values.originalAmount),
+        promotionEnabled: values.promotionEnabled === true,
+        promotionLabel: values.promotionLabel?.trim() || undefined,
+        promotionNote: values.promotionNote?.trim() || undefined,
         recommended: !!values.recommended,
         sortOrder: Number(values.sortOrder || 0),
         validityMonths: Number(values.validityMonths || 12),
@@ -235,6 +251,40 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
               valuePropName="checked"
             >
               <Switch />
+            </Form.Item>
+          </Flexbox>
+          <Flexbox horizontal gap={12}>
+            <Form.Item
+              label={t('admin.topup.field.promotionEnabled', '启用促销')}
+              name="promotionEnabled"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.topup.field.originalAmount', '促销原价')}
+              name="originalAmount"
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+            </Form.Item>
+          </Flexbox>
+          <Flexbox horizontal gap={12}>
+            <Form.Item
+              label={t('admin.topup.field.promotionLabel', '促销标签')}
+              name="promotionLabel"
+              style={{ flex: 1 }}
+            >
+              <Input placeholder={t('admin.topup.field.promotionLabelPlaceholder', '限时优惠')} />
+            </Form.Item>
+            <Form.Item
+              label={t('admin.topup.field.promotionNote', '促销说明')}
+              name="promotionNote"
+              style={{ flex: 1 }}
+            >
+              <Input
+                placeholder={t('admin.topup.field.promotionNotePlaceholder', '有效期 6 个月')}
+              />
             </Form.Item>
           </Flexbox>
         </Form>

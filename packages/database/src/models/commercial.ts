@@ -1195,7 +1195,9 @@ export class CommercialModel {
       amount: Number(r.amount),
       credits: Number(r.credits),
       currency: r.currency,
+      displayName: r.displayName,
       id: r.id,
+      metadata: r.metadata ?? null,
       recommended: r.recommended || undefined,
       validityMonths: Number(r.validityMonths),
     }));

@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import { Card } from '@/components/antd-compat/Card';
 import InlineTable from '@/components/InlineTable';
+import { normalizeTopUpPackagePromotion } from '@/const/billingPresentation';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
@@ -64,16 +65,19 @@ const Credits = memo<{ mobile?: boolean }>(() => {
   const [customCredits, setCustomCredits] = useState(50);
 
   const selectedPackage =
-    topUpPackages.find((item) => item.id === selectedPackageId) || topUpPackages[0];
+    selectedPackageId === 'custom'
+      ? undefined
+      : topUpPackages.find((item) => item.id === selectedPackageId) || topUpPackages[0];
   const effectiveCredits = selectedPackage?.credits ?? toRawCredits(customCredits);
   const effectiveAmount = selectedPackage?.amount ?? customCredits;
   const effectiveCurrency = selectedPackage?.currency ?? accountSummary?.currency ?? 'USD';
   const accountBreakdown = accountSummary?.breakdown;
+  const selectedPromotion = normalizeTopUpPackagePromotion(selectedPackage?.metadata);
 
   const packageOptions = useMemo(
     () => [
       ...topUpPackages.map((item) => ({
-        label: formatCredits(item.credits),
+        label: item.displayName || formatCredits(item.credits),
         value: item.id,
       })),
       { icon: <Icon icon={Pencil} />, label: '自定义', value: 'custom' },
@@ -252,14 +256,30 @@ const Credits = memo<{ mobile?: boolean }>(() => {
                 />
               ) : null}
               <div className={subscriptionPageStyles.caption}>
-                {formatCurrencyAmount(
-                  effectiveAmount / Math.max(1, effectiveCredits / toRawCredits(1)),
-                  effectiveCurrency,
-                )}{' '}
-                / 每百万算力积分
-                {selectedPackage?.validityMonths
-                  ? `（有效期 ${selectedPackage.validityMonths} 个月）`
-                  : ''}
+                {selectedPromotion.enabled ? (
+                  <Flexbox horizontal align="center" gap={6} wrap="wrap">
+                    <Tag color="red" style={{ margin: 0 }}>
+                      {selectedPromotion.label || '限时优惠'}
+                    </Tag>
+                    {typeof selectedPromotion.originalAmount === 'number' ? (
+                      <span style={{ textDecoration: 'line-through' }}>
+                        原价{' '}
+                        {formatCurrencyAmount(selectedPromotion.originalAmount, effectiveCurrency)}
+                      </span>
+                    ) : null}
+                    {selectedPromotion.note ? <span>{selectedPromotion.note}</span> : null}
+                  </Flexbox>
+                ) : null}
+                <div>
+                  {formatCurrencyAmount(
+                    effectiveAmount / Math.max(1, effectiveCredits / toRawCredits(1)),
+                    effectiveCurrency,
+                  )}{' '}
+                  / 每百万算力积分
+                  {selectedPackage?.validityMonths
+                    ? `（有效期 ${selectedPackage.validityMonths} 个月）`
+                    : ''}
+                </div>
               </div>
               <div className={subscriptionPageStyles.metricRow}>
                 <span>总计</span>

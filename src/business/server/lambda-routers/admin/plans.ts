@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import { creditAccounts, planCatalog, userPlanSnapshots } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 
@@ -42,6 +43,8 @@ const normalizePurchaseUrl = (value: unknown) => {
 
 const PlanInputSchema = z.object({
   currency: z.string().max(16).default('USD'),
+  badge: z.string().max(80).optional(),
+  comparisonNote: z.string().max(240).optional(),
   displayName: z.string().min(1).max(200),
   features: z.array(z.string()).default([]),
   isActive: z.boolean().default(true),
@@ -56,6 +59,7 @@ const PlanInputSchema = z.object({
   sortOrder: z.number().default(0),
   storageQuotaMb: z.number().min(0).nullable().optional(),
   vectorQuota: z.number().min(0).nullable().optional(),
+  yearlyDiscountLabel: z.string().max(80).optional(),
   yearlyPrice: z.number().min(0),
 });
 
@@ -107,12 +111,15 @@ export const adminPlansRouter = router({
 
   upsert: adminProcedure.input(PlanInputSchema).mutation(async ({ ctx, input }) => {
     const {
+      badge,
+      comparisonNote,
       pptCreditCost,
       pptEnabled,
       pptMonthlyQuota,
       purchaseUrl,
       storageQuotaMb,
       vectorQuota,
+      yearlyDiscountLabel,
       ...planInput
     } = input;
     const existing = await ctx.serverDB.query.planCatalog.findFirst({
@@ -121,13 +128,20 @@ export const adminPlansRouter = router({
     const normalizedPurchaseUrl = normalizePurchaseUrl(purchaseUrl);
     const previousMetadata =
       existing?.metadata && typeof existing.metadata === 'object' ? existing.metadata : {};
+    const presentation = normalizePlanCatalogPresentation({
+      ...previousMetadata,
+      badge,
+      comparisonNote,
+      pptCreditCost,
+      pptEnabled,
+      pptMonthlyQuota,
+      storageQuotaMb,
+      vectorQuota,
+      yearlyDiscountLabel,
+    });
     const metadata = {
       ...previousMetadata,
-      pptCreditCost: pptCreditCost ?? 0,
-      pptEnabled: pptEnabled === true,
-      pptMonthlyQuota: pptMonthlyQuota ?? null,
-      storageQuotaMb: storageQuotaMb ?? null,
-      vectorQuota: vectorQuota ?? null,
+      ...presentation,
       ...(normalizedPurchaseUrl ? { purchaseUrl: normalizedPurchaseUrl } : {}),
     };
     if (!normalizedPurchaseUrl) delete metadata.purchaseUrl;

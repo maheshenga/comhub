@@ -2,6 +2,10 @@ import { TRPCError } from '@trpc/server';
 import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
+import {
+  normalizeTopUpPackagePromotion,
+  serializeTopUpPackagePromotion,
+} from '@/const/billingPresentation';
 import { topUpPackages } from '@/database/schemas';
 import { adminProcedure, router } from '@/libs/trpc/lambda';
 
@@ -14,6 +18,10 @@ const PackageInputSchema = z.object({
   displayName: z.string().min(1).max(200),
   id: z.string().min(1).max(64),
   isActive: z.boolean().default(true),
+  originalAmount: z.number().min(0).optional(),
+  promotionEnabled: z.boolean().optional(),
+  promotionLabel: z.string().max(120).optional(),
+  promotionNote: z.string().max(240).optional(),
   recommended: z.boolean().default(false),
   sortOrder: z.number().default(0),
   validityMonths: z.number().min(1).default(12),
@@ -60,22 +68,41 @@ export const adminTopUpPackagesRouter = router({
     }),
 
   upsert: adminProcedure.input(PackageInputSchema).mutation(async ({ ctx, input }) => {
+    const {
+      originalAmount,
+      promotionEnabled,
+      promotionLabel,
+      promotionNote,
+      ...packageInput
+    } = input;
     const existing = await ctx.serverDB.query.topUpPackages.findFirst({
-      where: eq(topUpPackages.id, input.id),
+      where: eq(topUpPackages.id, packageInput.id),
     });
+    const previousMetadata =
+      existing?.metadata && typeof existing.metadata === 'object' ? existing.metadata : {};
+    const promotion = normalizeTopUpPackagePromotion({
+      originalAmount,
+      promotionEnabled,
+      promotionLabel,
+      promotionNote,
+    });
+    const metadata = {
+      ...previousMetadata,
+      ...serializeTopUpPackagePromotion(promotion),
+    };
 
     if (existing) {
       await ctx.serverDB
         .update(topUpPackages)
-        .set({ ...input, updatedAt: new Date() })
-        .where(eq(topUpPackages.id, input.id));
+        .set({ ...packageInput, metadata, updatedAt: new Date() })
+        .where(eq(topUpPackages.id, packageInput.id));
     } else {
-      await ctx.serverDB.insert(topUpPackages).values(input);
+      await ctx.serverDB.insert(topUpPackages).values({ ...packageInput, metadata });
     }
     await recordAdminAudit(ctx, {
       action: existing ? 'topupPackage.update' : 'topupPackage.create',
-      payload: input,
-      resourceId: input.id,
+      payload: { ...packageInput, metadata },
+      resourceId: packageInput.id,
       resourceType: 'topup_package',
     });
     return { ok: true };

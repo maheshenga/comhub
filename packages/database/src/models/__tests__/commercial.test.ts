@@ -648,6 +648,12 @@ describe('CommercialModel', () => {
           displayName: 'A',
           id: 'pkg-a',
           isActive: true,
+          metadata: {
+            originalAmount: 70,
+            promotionEnabled: true,
+            promotionLabel: 'Limited offer',
+            promotionNote: 'Valid for 6 months',
+          },
           sortOrder: 1,
           validityMonths: 12,
         },
@@ -666,6 +672,10 @@ describe('CommercialModel', () => {
       const packages = await commercialModel.listTopUpPackages();
       expect(packages).toHaveLength(2);
       expect(packages[0].id).toBe('pkg-a');
+      expect(packages[0]).toMatchObject({
+        displayName: 'A',
+        metadata: { promotionEnabled: true, promotionLabel: 'Limited offer' },
+      });
       expect(packages[1].id).toBe('pkg-b');
     });
   });

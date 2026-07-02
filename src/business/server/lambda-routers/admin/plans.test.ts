@@ -27,6 +27,7 @@ const createDb = () => {
   return {
     __mocks: {
       onConflictDoUpdate,
+      set,
       values,
     },
     insert,
@@ -58,17 +59,32 @@ describe('adminPlansRouter', () => {
 
     await adminPlansRouter.createCaller({ userId: 'admin-user' } as any).upsert({
       currency: 'CNY',
-      displayName: '专业版',
+      displayName: 'Premium',
       features: [],
       isActive: true,
       monthlyCredits: 5000,
       monthlyPrice: 500,
       plan: Plans.Premium,
+      badge: 'Popular',
       sortOrder: 3,
       storageQuotaMb: 512,
       vectorQuota: 1200,
+      yearlyDiscountLabel: '优惠 20%',
+      comparisonNote: '包含高阶模型',
       yearlyPrice: 5000,
-    });
+    } as any);
+
+    expect(db.__mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          badge: 'Popular',
+          comparisonNote: '包含高阶模型',
+          storageQuotaMb: 512,
+          vectorQuota: 1200,
+          yearlyDiscountLabel: '优惠 20%',
+        }),
+      }),
+    );
 
     const quotaPayload = db.__mocks.values.mock.calls.find(([payload]: [unknown]) =>
       Array.isArray(payload),
