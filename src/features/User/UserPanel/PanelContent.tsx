@@ -1,7 +1,9 @@
 import { Flexbox } from '@lobehub/ui';
 import { type FC } from 'react';
 
-import BusinessPanelContent from '@/business/client/features/User/BusinessPanelContent';
+import BusinessPanelContent, {
+  BusinessPlanBadge,
+} from '@/business/client/features/User/BusinessPanelContent';
 import UserPanelWorkspaceSection from '@/business/client/features/User/UserPanelWorkspaceSection';
 import Menu from '@/components/Menu';
 import { isDesktop } from '@/const/version';
@@ -53,7 +55,10 @@ const PanelContent: FC<{ closePopover: () => void }> = ({ closePopover }) => {
     <Flexbox gap={2} style={{ minWidth: 300 }}>
       {isDesktop || isLoginWithAuth ? (
         <>
-          <UserInfo avatarProps={{ clickable: false }} />
+          <UserInfo
+            avatarProps={{ clickable: false }}
+            nameExtra={enableBusinessFeatures ? <BusinessPlanBadge /> : undefined}
+          />
           <WorkspaceLink style={{ color: 'inherit' }} to={'/settings/stats'}>
             <DataStatistics />
           </WorkspaceLink>

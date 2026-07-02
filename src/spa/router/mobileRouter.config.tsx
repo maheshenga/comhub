@@ -197,6 +197,13 @@ export const sharedMainAreaChildren: RouteObject[] = [
           },
           {
             element: dynamicElement(
+              () => import('@/routes/(main)/community/(detail)/mcp').then((m) => m.MobileMcpPage),
+              'Mobile > Discover > Detail > Plugin Alias',
+            ),
+            path: 'plugin/:slug',
+          },
+          {
+            element: dynamicElement(
               () =>
                 import('@/routes/(main)/community/(detail)/skill').then((m) => m.MobileSkillPage),
               'Mobile > Discover > Detail > Skill',
@@ -222,6 +229,16 @@ export const sharedMainAreaChildren: RouteObject[] = [
               'Mobile > Discover > Detail > Organization',
             ),
             path: 'org/:slug',
+          },
+          {
+            element: dynamicElement(
+              () =>
+                import('@/routes/(main)/community/(detail)/organization').then(
+                  (m) => m.MobileOrganizationDetailPage,
+                ),
+              'Mobile > Discover > Detail > Organization Alias',
+            ),
+            path: 'organization/:slug',
           },
         ],
         element: dynamicElement(

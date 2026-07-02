@@ -50,6 +50,7 @@ describe('getServerBrand', () => {
         'brand.name': 'Acme',
         'brand.primaryColor': '#ff00aa',
         'sidebar.generation.label': 'Create',
+        'sidebar.member.description': 'Unlock more capacity',
         'sidebar.member.label': 'Plans',
         'sidebar.member.url': '/plans',
         'brand.slogan': 'Better than ever',
@@ -71,6 +72,7 @@ describe('getServerBrand', () => {
       name: 'Acme',
       primaryColor: '#ff00aa',
       sidebarGenerationLabel: 'Create',
+      sidebarMemberDescription: 'Unlock more capacity',
       sidebarMemberLabel: 'Plans',
       sidebarMemberUrl: '/plans',
       slogan: 'Better than ever',
@@ -93,6 +95,7 @@ describe('getServerBrand', () => {
       name: 'Default Brand',
       primaryColor: '#12b981',
       sidebarGenerationLabel: null,
+      sidebarMemberDescription: null,
       sidebarMemberLabel: null,
       sidebarMemberUrl: null,
       slogan: 'Default auth title',
@@ -120,8 +123,8 @@ describe('getServerBrand', () => {
     await getServerBrand();
     await getServerBrand();
     await getServerBrand();
-    // Each call queries 15 keys; only the first call should hit the DB.
-    expect(findFirstMock).toHaveBeenCalledTimes(15);
+    // Each call queries 16 keys; only the first call should hit the DB.
+    expect(findFirstMock).toHaveBeenCalledTimes(16);
   });
 
   it('invalidate forces a fresh fetch', async () => {
@@ -129,7 +132,7 @@ describe('getServerBrand', () => {
     await getServerBrand();
     invalidateServerBrand();
     await getServerBrand();
-    expect(findFirstMock).toHaveBeenCalledTimes(30);
+    expect(findFirstMock).toHaveBeenCalledTimes(32);
   });
 
   it('falls back to the default runtime brand on database errors', async () => {
@@ -148,6 +151,7 @@ describe('getServerBrand', () => {
       name: 'Default Brand',
       primaryColor: '#12b981',
       sidebarGenerationLabel: null,
+      sidebarMemberDescription: null,
       sidebarMemberLabel: null,
       sidebarMemberUrl: null,
       slogan: 'Default auth title',

@@ -15,6 +15,13 @@ import { SubscriptionIframeWrapper } from './SubscriptionIframeWrapper';
 
 const { Text } = Typography;
 
+type SystemAlertType = 'error' | 'info' | 'success' | 'warning';
+
+const normalizeSystemAlertType = (type?: null | string): SystemAlertType =>
+  type === 'error' || type === 'info' || type === 'success' || type === 'warning'
+    ? type
+    : 'warning';
+
 const WebNotification = memo(() => {
   const { t } = useTranslation('setting');
   const { data } = useClientDataSWR('public-notification-config', () =>
@@ -59,11 +66,11 @@ const WebNotification = memo(() => {
             showIcon
             description={data.system.content}
             message={data.system.title || t('notification.system.title', '系统公告')}
-            type="warning"
+            type={normalizeSystemAlertType(data.system.type)}
             action={
               data.system.actionUrl ? (
                 <Button href={data.system.actionUrl} rel="noreferrer" size="small" target="_blank">
-                  {t('notification.system.action', '查看详情')}
+                  {data.system.actionLabel || t('notification.system.action', '查看详情')}
                 </Button>
               ) : undefined
             }

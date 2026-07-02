@@ -46,4 +46,14 @@ describe('mobileRouter community routes', () => {
     expect(source).toContain("(m) => m.MobileGroupAgentPage");
     expect(source).toContain("path: 'group_agent/:slug'");
   });
+
+  it('registers legacy organization and plugin detail aliases', async () => {
+    const source = await readFile(
+      path.join(process.cwd(), 'src/spa/router/mobileRouter.config.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain("path: 'organization/:slug'");
+    expect(source).toContain("path: 'plugin/:slug'");
+  });
 });

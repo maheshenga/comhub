@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Form, Input, message, Switch, Typography } from 'antd';
+import { Alert, Button, Form, Input, message, Select, Switch, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -20,20 +20,29 @@ type NotificationSettingsForm = {
   desktopEnabled: boolean;
   emailEnabled: boolean;
   inboxEnabled: boolean;
+  systemActionLabel: string;
   systemActionUrl: string;
   systemContent: string;
   systemEnabled: boolean;
   systemTitle: string;
+  systemType: 'error' | 'info' | 'success' | 'warning';
 };
+
+const normalizeSystemType = (value: unknown): NotificationSettingsForm['systemType'] =>
+  value === 'error' || value === 'info' || value === 'success' || value === 'warning'
+    ? value
+    : 'warning';
 
 const buildInitialValues = (data: any): NotificationSettingsForm => ({
   desktopEnabled: data?.notificationDesktopEnabled ?? true,
   emailEnabled: data?.notificationEmailEnabled ?? false,
   inboxEnabled: data?.notificationInboxEnabled ?? true,
+  systemActionLabel: data?.notificationSystemActionLabel ?? '',
   systemActionUrl: data?.notificationSystemActionUrl ?? '',
   systemContent: data?.notificationSystemContent ?? '',
   systemEnabled: data?.notificationSystemEnabled ?? false,
   systemTitle: data?.notificationSystemTitle ?? '',
+  systemType: normalizeSystemType(data?.notificationSystemType),
 });
 
 const buildUpdates = (
@@ -47,7 +56,9 @@ const buildUpdates = (
     ['systemEnabled', SETTING_KEYS.notificationSystemEnabled],
     ['systemTitle', SETTING_KEYS.notificationSystemTitle],
     ['systemContent', SETTING_KEYS.notificationSystemContent],
+    ['systemActionLabel', SETTING_KEYS.notificationSystemActionLabel],
     ['systemActionUrl', SETTING_KEYS.notificationSystemActionUrl],
+    ['systemType', SETTING_KEYS.notificationSystemType],
   ];
 
   return map
@@ -169,6 +180,25 @@ const AdminNotificationsPage = memo(() => {
             name="systemActionUrl"
           >
             <Input placeholder="https://..." />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.notifications.systemActionLabel', '公告按钮文案')}
+            name="systemActionLabel"
+          >
+            <Input placeholder="查看详情" />
+          </Form.Item>
+          <Form.Item
+            label={t('admin.notifications.systemType', '公告类型')}
+            name="systemType"
+          >
+            <Select
+              options={[
+                { label: t('admin.notifications.systemType.info', '信息'), value: 'info' },
+                { label: t('admin.notifications.systemType.success', '成功'), value: 'success' },
+                { label: t('admin.notifications.systemType.warning', '警告'), value: 'warning' },
+                { label: t('admin.notifications.systemType.error', '错误'), value: 'error' },
+              ]}
+            />
           </Form.Item>
         </Card>
 

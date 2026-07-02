@@ -402,6 +402,16 @@ const AdminSettingsPage = memo(() => {
                   </Form.Item>
                   <Form.Item
                     extra={t(
+                      'admin.settings.sidebarMemberDescription.help',
+                      '控制侧栏底部升级提示卡的副标题文案，留空时显示官方默认提示。',
+                    )}
+                    label={t('admin.settings.sidebarMemberDescription', '侧栏升级提示描述')}
+                    name="sidebarMemberDescription"
+                  >
+                    <Input placeholder="解锁更多容量与高级功能。" />
+                  </Form.Item>
+                  <Form.Item
+                    extra={t(
                       'admin.settings.sidebarGenerationLabel.help',
                       '控制侧栏 /image 生成入口显示名称，留空时显示“生成”。',
                     )}

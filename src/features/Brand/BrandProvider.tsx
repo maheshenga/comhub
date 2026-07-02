@@ -21,6 +21,7 @@ export interface BrandConfig {
   name: string;
   primaryColor: string | null;
   sidebarGenerationLabel: string | null;
+  sidebarMemberDescription: string | null;
   sidebarMemberLabel: string | null;
   sidebarMemberUrl: string | null;
   slogan: string | null;
@@ -41,6 +42,7 @@ const DEFAULT_BRAND: BrandConfig = {
   name: DEFAULT_RUNTIME_BRAND.name || BRANDING_NAME,
   primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
   sidebarGenerationLabel: '生成',
+  sidebarMemberDescription: '解锁更多容量与高级功能。',
   sidebarMemberLabel: '会员',
   sidebarMemberUrl: '/settings/plans',
   slogan: DEFAULT_RUNTIME_BRAND.authTitle,
@@ -74,6 +76,9 @@ const normalizeBrand = (brand?: BrandInput | null): BrandConfig => ({
   sidebarGenerationLabel:
     (brand?.sidebarGenerationLabel && brand.sidebarGenerationLabel.trim()) ||
     DEFAULT_BRAND.sidebarGenerationLabel,
+  sidebarMemberDescription:
+    (brand?.sidebarMemberDescription && brand.sidebarMemberDescription.trim()) ||
+    DEFAULT_BRAND.sidebarMemberDescription,
   sidebarMemberLabel:
     (brand?.sidebarMemberLabel && brand.sidebarMemberLabel.trim()) ||
     DEFAULT_BRAND.sidebarMemberLabel,

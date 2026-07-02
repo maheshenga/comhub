@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 
 import Notification from './Notification';
 
+type SystemAlertType = 'error' | 'info' | 'success' | 'warning';
+
 const { mockIsDesktop, mockNotificationConfig } = vi.hoisted(() => ({
   mockIsDesktop: vi.fn(() => true),
   mockNotificationConfig: vi.fn(() => ({
@@ -9,10 +11,12 @@ const { mockIsDesktop, mockNotificationConfig } = vi.hoisted(() => ({
     emailEnabled: false,
     inboxEnabled: true,
     system: {
+      actionLabel: null as string | null,
       actionUrl: null as string | null,
       content: '',
       enabled: false,
       title: '',
+      type: 'warning' as SystemAlertType,
     },
   })),
 }));
@@ -70,10 +74,12 @@ describe('Notification', () => {
       emailEnabled: false,
       inboxEnabled: true,
       system: {
+        actionLabel: null as string | null,
         actionUrl: null as string | null,
         content: '',
         enabled: false,
         title: '',
+        type: 'warning' as SystemAlertType,
       },
     });
   });
@@ -94,10 +100,12 @@ describe('Notification', () => {
       emailEnabled: true,
       inboxEnabled: true,
       system: {
+        actionLabel: '查看状态',
         actionUrl: 'https://xuangguo.example.com/status',
         content: '今晚 23:00 进行服务升级。',
         enabled: true,
         title: '系统维护通知',
+        type: 'info' as const,
       },
     });
 
@@ -108,7 +116,7 @@ describe('Notification', () => {
     expect(screen.getByText('桌面通知')).toBeInTheDocument();
     expect(screen.getByText('邮件通知')).toBeInTheDocument();
     expect(screen.getByText('系统维护通知')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '查看详情' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '查看状态' })).toHaveAttribute(
       'href',
       'https://xuangguo.example.com/status',
     );

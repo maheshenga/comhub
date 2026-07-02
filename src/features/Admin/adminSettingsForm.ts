@@ -71,16 +71,19 @@ export const SETTING_KEYS = {
   notificationEmailEnabled: 'notification.email.enabled',
   notificationInboxEnabled: 'notification.inbox.enabled',
   notificationRetentionDays: 'notification.retentionDays',
+  notificationSystemActionLabel: 'notification.system.actionLabel',
   notificationSystemActionUrl: 'notification.system.actionUrl',
   notificationSystemContent: 'notification.system.content',
   notificationSystemEnabled: 'notification.system.enabled',
   notificationSystemTitle: 'notification.system.title',
+  notificationSystemType: 'notification.system.type',
   profileInterestAreas: 'profile.interestAreas',
   ordersManagementEnabled: 'orders.management.enabled',
   pricingCreditMultiplier: 'pricing.creditMultiplier',
   pricingModelRules: 'pricing.modelRules',
   referralRewardCredits: 'referral.rewardCredits',
   sidebarGenerationLabel: 'sidebar.generation.label',
+  sidebarMemberDescription: 'sidebar.member.description',
   sidebarMemberLabel: 'sidebar.member.label',
   sidebarMemberUrl: 'sidebar.member.url',
   storageS3AccessKeyId: 'storage.s3.accessKeyId',
@@ -152,10 +155,12 @@ export type AdminSettingsData = {
   notificationEmailEnabled?: boolean | null;
   notificationInboxEnabled?: boolean | null;
   notificationRetentionDays?: number | null;
+  notificationSystemActionLabel?: string | null;
   notificationSystemActionUrl?: string | null;
   notificationSystemContent?: string | null;
   notificationSystemEnabled?: boolean | null;
   notificationSystemTitle?: string | null;
+  notificationSystemType?: string | null;
   ordersManagementEnabled?: boolean | null;
   paymentGatewayStatus?: {
     configured: boolean;
@@ -167,6 +172,7 @@ export type AdminSettingsData = {
   profileInterestAreas?: unknown;
   referralRewardCredits?: number | null;
   sidebarGenerationLabel?: string | null;
+  sidebarMemberDescription?: string | null;
   sidebarMemberLabel?: string | null;
   sidebarMemberUrl?: string | null;
   storageS3AccessKeyId?: string | null;
@@ -218,6 +224,7 @@ export type AdminSettingsFormValues = {
   pricingMultiplier: number;
   referralRewardCredits: number;
   sidebarGenerationLabel: string;
+  sidebarMemberDescription: string;
   sidebarMemberLabel: string;
   sidebarMemberUrl: string;
   storageS3AccessKeyId: string;
@@ -359,6 +366,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   pricingMultiplier: data?.pricingCreditMultiplier ?? DEFAULT_PRICING_CREDIT_MULTIPLIER,
   referralRewardCredits: data?.referralRewardCredits ?? 0,
   sidebarGenerationLabel: data?.sidebarGenerationLabel ?? '生成',
+  sidebarMemberDescription: data?.sidebarMemberDescription ?? '解锁更多容量与高级功能。',
   sidebarMemberLabel: data?.sidebarMemberLabel ?? '会员',
   sidebarMemberUrl: data?.sidebarMemberUrl ?? '/settings/plans',
   storageS3AccessKeyId: data?.storageS3AccessKeyId ?? '',
@@ -421,6 +429,8 @@ export const normalizeFormValues = (
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
   sidebarGenerationLabel: normalizeText(values.sidebarGenerationLabel) || '生成',
+  sidebarMemberDescription:
+    normalizeText(values.sidebarMemberDescription) || '解锁更多容量与高级功能。',
   sidebarMemberLabel: normalizeText(values.sidebarMemberLabel) || '会员',
   sidebarMemberUrl: normalizeText(values.sidebarMemberUrl) || '/settings/plans',
   storageS3AccessKeyId: normalizeText(values.storageS3AccessKeyId),
@@ -473,6 +483,7 @@ export const buildSettingUpdates = (
     'communitySkillUseButtonLabel',
     'sidebarMemberLabel',
     'sidebarMemberUrl',
+    'sidebarMemberDescription',
     'sidebarGenerationLabel',
   ];
 
@@ -512,6 +523,7 @@ export const buildSettingUpdates = (
     pricingMultiplier: SETTING_KEYS.pricingCreditMultiplier,
     referralRewardCredits: SETTING_KEYS.referralRewardCredits,
     sidebarGenerationLabel: SETTING_KEYS.sidebarGenerationLabel,
+    sidebarMemberDescription: SETTING_KEYS.sidebarMemberDescription,
     sidebarMemberLabel: SETTING_KEYS.sidebarMemberLabel,
     sidebarMemberUrl: SETTING_KEYS.sidebarMemberUrl,
     storageS3AccessKeyId: SETTING_KEYS.storageS3AccessKeyId,
@@ -585,6 +597,7 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     SETTING_KEYS.communityForkAndChatLabel,
     SETTING_KEYS.communitySkillUseButtonLabel,
     SETTING_KEYS.sidebarGenerationLabel,
+    SETTING_KEYS.sidebarMemberDescription,
     SETTING_KEYS.sidebarMemberLabel,
     SETTING_KEYS.sidebarMemberUrl,
     SETTING_KEYS.defaultSkillName,

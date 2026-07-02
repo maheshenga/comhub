@@ -42,6 +42,7 @@ describe('getServerBrand lazy database loading', () => {
       name: 'Default Brand',
       primaryColor: '#12b981',
       sidebarGenerationLabel: null,
+      sidebarMemberDescription: null,
       sidebarMemberLabel: null,
       sidebarMemberUrl: null,
       slogan: 'Default auth title',

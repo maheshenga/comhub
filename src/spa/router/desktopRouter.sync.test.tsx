@@ -163,4 +163,13 @@ describe('desktopRouter config sync', () => {
       );
     }
   });
+
+  it('keeps legacy community detail aliases registered in both desktop configs', async () => {
+    const [asyncSource, syncSource] = await readDesktopRouterSources();
+
+    for (const source of [asyncSource, syncSource]) {
+      expect(source).toContain("path: 'organization/:slug'");
+      expect(source).toContain("path: 'plugin/:slug'");
+    }
+  });
 });

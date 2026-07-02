@@ -1,7 +1,7 @@
 import { render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BrandProvider } from './BrandProvider';
+import { BrandProvider, useBrand } from './BrandProvider';
 
 vi.mock('@lobechat/business-const', () => ({
   BRANDING_NAME: 'LobeHub',
@@ -45,6 +45,7 @@ let swrData:
       name: string;
       primaryColor: null;
       sidebarGenerationLabel?: null | string;
+      sidebarMemberDescription?: null | string;
       sidebarMemberLabel?: null | string;
       sidebarMemberUrl?: null | string;
       slogan: null;
@@ -87,6 +88,7 @@ describe('BrandProvider', () => {
       name: 'Runtime Brand',
       primaryColor: null,
       sidebarGenerationLabel: 'Runtime Generate',
+      sidebarMemberDescription: 'Runtime upgrade benefits',
       sidebarMemberLabel: 'Runtime Plans',
       sidebarMemberUrl: '/runtime-plans',
       slogan: null,
@@ -161,6 +163,7 @@ describe('BrandProvider', () => {
           name: 'Server Brand',
           primaryColor: null,
           sidebarGenerationLabel: null,
+          sidebarMemberDescription: null,
           sidebarMemberLabel: null,
           sidebarMemberUrl: null,
           slogan: null,
@@ -200,6 +203,25 @@ describe('BrandProvider', () => {
 
     await waitFor(() => {
       expect(i18n.options?.interpolation?.defaultVariables?.defaultSkillName).toBe('Runtime Skill');
+    });
+  });
+
+  it('exposes the configured sidebar upgrade description through the brand context', async () => {
+    let description: null | string | undefined;
+    const Probe = () => {
+      const brand = useBrand();
+      description = brand.sidebarMemberDescription;
+      return null;
+    };
+
+    render(
+      <BrandProvider>
+        <Probe />
+      </BrandProvider>,
+    );
+
+    await waitFor(() => {
+      expect(description).toBe('Runtime upgrade benefits');
     });
   });
 });

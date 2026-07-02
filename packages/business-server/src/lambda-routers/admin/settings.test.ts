@@ -904,4 +904,37 @@ describe('admin settings default model validation', () => {
       expect.stringMatching(/^admin-files\/admin-s3-health-check\/.+\.txt$/),
     );
   });
+
+  it('exposes public notification action label and type', async () => {
+    const db = createDb({
+      appSettings: [
+        { value: true },
+        { value: false },
+        { value: true },
+        { value: true },
+        { value: '系统公告' },
+        { value: '今晚维护' },
+        { value: '查看状态' },
+        { value: 'https://status.example.com' },
+        { value: 'info' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(caller.getPublicNotificationConfig()).resolves.toMatchObject({
+      desktopEnabled: false,
+      emailEnabled: true,
+      inboxEnabled: true,
+      system: {
+        actionLabel: '查看状态',
+        actionUrl: 'https://status.example.com',
+        content: '今晚维护',
+        enabled: true,
+        title: '系统公告',
+        type: 'info',
+      },
+    });
+  });
 });

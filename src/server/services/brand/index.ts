@@ -19,6 +19,7 @@ export interface ServerBrandConfig {
   name: string | null;
   primaryColor: string | null;
   sidebarGenerationLabel: string | null;
+  sidebarMemberDescription: string | null;
   sidebarMemberLabel: string | null;
   sidebarMemberUrl: string | null;
   slogan: string | null;
@@ -37,6 +38,7 @@ const KEYS = {
   name: 'brand.name',
   primary: 'brand.primaryColor',
   sidebarGenerationLabel: 'sidebar.generation.label',
+  sidebarMemberDescription: 'sidebar.member.description',
   sidebarMemberLabel: 'sidebar.member.label',
   sidebarMemberUrl: 'sidebar.member.url',
   slogan: 'brand.slogan',
@@ -89,6 +91,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       communityForkAndChatLabel,
       sidebarMemberLabel,
       sidebarMemberUrl,
+      sidebarMemberDescription,
       sidebarGenerationLabel,
     ] = await Promise.all([
       readString(db, KEYS.name),
@@ -105,6 +108,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       readString(db, KEYS.communityForkAndChatLabel),
       readString(db, KEYS.sidebarMemberLabel),
       readString(db, KEYS.sidebarMemberUrl),
+      readString(db, KEYS.sidebarMemberDescription),
       readString(db, KEYS.sidebarGenerationLabel),
     ]);
     const data: ServerBrandConfig = {
@@ -120,6 +124,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       name: name ?? DEFAULT_RUNTIME_BRAND.name,
       primaryColor: primaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
       sidebarGenerationLabel,
+      sidebarMemberDescription,
       sidebarMemberLabel,
       sidebarMemberUrl,
       slogan: slogan ?? DEFAULT_RUNTIME_BRAND.authTitle,
@@ -140,6 +145,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       name: DEFAULT_RUNTIME_BRAND.name,
       primaryColor: DEFAULT_RUNTIME_BRAND.primaryColor,
       sidebarGenerationLabel: null,
+      sidebarMemberDescription: null,
       sidebarMemberLabel: null,
       sidebarMemberUrl: null,
       slogan: DEFAULT_RUNTIME_BRAND.authTitle,

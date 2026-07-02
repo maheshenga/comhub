@@ -366,12 +366,20 @@ export const sharedMainAreaChildren: RouteObject[] = [
             path: 'mcp/:slug',
           },
           {
+            element: <CommunityDetailMcpPage />,
+            path: 'plugin/:slug',
+          },
+          {
             element: <CommunityDetailUserPage />,
             path: 'user/:slug',
           },
           {
             element: <CommunityDetailOrganizationPage />,
             path: 'org/:slug',
+          },
+          {
+            element: <CommunityDetailOrganizationPage />,
+            path: 'organization/:slug',
           },
         ],
         element: <CommunityDetailLayout />,

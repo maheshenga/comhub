@@ -122,6 +122,7 @@ const BRAND_KEYS = [
   SETTING_KEYS.communitySkillUseButtonLabel,
   SETTING_KEYS.sidebarMemberLabel,
   SETTING_KEYS.sidebarMemberUrl,
+  SETTING_KEYS.sidebarMemberDescription,
   SETTING_KEYS.sidebarGenerationLabel,
   SETTING_KEYS.defaultSkillName,
 ] as const;
@@ -241,7 +242,9 @@ const NOTIFICATION_KEYS = [
   SETTING_KEYS.notificationSystemEnabled,
   SETTING_KEYS.notificationSystemTitle,
   SETTING_KEYS.notificationSystemContent,
+  SETTING_KEYS.notificationSystemActionLabel,
   SETTING_KEYS.notificationSystemActionUrl,
+  SETTING_KEYS.notificationSystemType,
 ] as const;
 
 const STORAGE_KEYS = [
@@ -319,6 +322,11 @@ const toBoundedInt = (value: unknown, fallback: number, min: number, max: number
 
 const toString = (value: unknown, fallback = '') =>
   typeof value === 'string' ? value.trim() : fallback;
+
+const toNotificationSystemType = (value: unknown) =>
+  value === 'success' || value === 'info' || value === 'warning' || value === 'error'
+    ? value
+    : 'warning';
 
 const toOptionalUrlString = (value: unknown, key: string) => {
   const text = toString(value);
@@ -687,6 +695,8 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
       value = Boolean(value);
     } else if (input.key === SETTING_KEYS.notificationRetentionDays) {
       value = toBoundedInt(value, 90, 1, 3650);
+    } else if (input.key === SETTING_KEYS.notificationSystemType) {
+      value = toNotificationSystemType(value);
     } else {
       value = toString(value);
     }
@@ -1217,6 +1227,7 @@ export const adminSettingsRouter = router({
       communityForkAndChatLabel,
       sidebarMemberLabel,
       sidebarMemberUrl,
+      sidebarMemberDescription,
       sidebarGenerationLabel,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.brandName),
@@ -1233,6 +1244,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.communityForkAndChatLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberDescription),
       readSetting(ctx.serverDB, SETTING_KEYS.sidebarGenerationLabel),
     ]);
     const brandName = typeof name === 'string' ? name : DEFAULT_RUNTIME_BRAND.name;
@@ -1278,6 +1290,10 @@ export const adminSettingsRouter = router({
         typeof sidebarMemberUrl === 'string' && sidebarMemberUrl.trim()
           ? sidebarMemberUrl
           : '/settings/plans',
+      sidebarMemberDescription:
+        typeof sidebarMemberDescription === 'string' && sidebarMemberDescription.trim()
+          ? sidebarMemberDescription
+          : '解锁更多容量与高级功能。',
       slogan:
         typeof slogan === 'string' && slogan.trim() ? slogan : DEFAULT_RUNTIME_BRAND.authTitle,
     };
@@ -1317,7 +1333,9 @@ export const adminSettingsRouter = router({
       systemEnabled,
       systemTitle,
       systemContent,
+      systemActionLabel,
       systemActionUrl,
+      systemType,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.notificationInboxEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationDesktopEnabled),
@@ -1325,7 +1343,9 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemContent),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemType),
     ]);
 
     return {
@@ -1333,10 +1353,12 @@ export const adminSettingsRouter = router({
       emailEnabled: toBoolean(emailEnabled, false),
       inboxEnabled: toBoolean(inboxEnabled, true),
       system: {
+        actionLabel: toString(systemActionLabel) || null,
         actionUrl: toString(systemActionUrl) || null,
         content: toString(systemContent),
         enabled: toBoolean(systemEnabled, false),
         title: toString(systemTitle),
+        type: toNotificationSystemType(systemType),
       },
     };
   }),
@@ -1457,7 +1479,9 @@ export const adminSettingsRouter = router({
       notificationSystemEnabled,
       notificationSystemTitle,
       notificationSystemContent,
+      notificationSystemActionLabel,
       notificationSystemActionUrl,
+      notificationSystemType,
       storageS3AccessKeyId,
       storageS3SecretAccessKey,
       storageS3Endpoint,
@@ -1470,6 +1494,7 @@ export const adminSettingsRouter = router({
       storageS3PreviewUrlExpireIn,
       sidebarMemberLabel,
       sidebarMemberUrl,
+      sidebarMemberDescription,
       sidebarGenerationLabel,
     ] = await Promise.all([
       readSetting(ctx.serverDB, SETTING_KEYS.referralRewardCredits),
@@ -1548,7 +1573,9 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemEnabled),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemTitle),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemContent),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemType),
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3AccessKeyId),
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3SecretAccessKey),
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3Endpoint),
@@ -1561,6 +1588,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.storageS3PreviewUrlExpireIn),
       readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberLabel),
       readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberDescription),
       readSetting(ctx.serverDB, SETTING_KEYS.sidebarGenerationLabel),
     ]);
 
@@ -1617,6 +1645,9 @@ export const adminSettingsRouter = router({
       sidebarGenerationLabel: toString(sidebarGenerationLabel, '生成') || '生成',
       sidebarMemberLabel: toString(sidebarMemberLabel, '会员') || '会员',
       sidebarMemberUrl: toString(sidebarMemberUrl, '/settings/plans') || '/settings/plans',
+      sidebarMemberDescription:
+        toString(sidebarMemberDescription, '解锁更多容量与高级功能。') ||
+        '解锁更多容量与高级功能。',
       cronAuditRetentionDays: typeof auditDays === 'number' ? auditDays : 365,
       cronPendingOrderExpiryDays: typeof pendingDays === 'number' ? pendingDays : 7,
       cronSecretConfigured: Boolean(dbCronSecret ?? process.env.CRON_SECRET),
@@ -1733,7 +1764,9 @@ export const adminSettingsRouter = router({
       notificationSystemEnabled: toBoolean(notificationSystemEnabled, false),
       notificationSystemTitle: toString(notificationSystemTitle),
       notificationSystemContent: toString(notificationSystemContent),
+      notificationSystemActionLabel: toString(notificationSystemActionLabel),
       notificationSystemActionUrl: toString(notificationSystemActionUrl),
+      notificationSystemType: toNotificationSystemType(notificationSystemType),
       storageS3AccessKeyId:
         toString(storageS3AccessKeyId) || toString(process.env.S3_ACCESS_KEY_ID),
       storageS3Bucket: toString(storageS3Bucket) || toString(process.env.S3_BUCKET),

@@ -365,6 +365,13 @@ export const sharedMainAreaChildren: RouteObject[] = [
           },
           {
             element: dynamicElement(
+              () => import('@/routes/(main)/community/(detail)/mcp'),
+              'Desktop > Discover > Detail > Plugin Alias',
+            ),
+            path: 'plugin/:slug',
+          },
+          {
+            element: dynamicElement(
               () => import('@/routes/(main)/community/(detail)/user'),
               'Desktop > Discover > Detail > User',
             ),
@@ -376,6 +383,13 @@ export const sharedMainAreaChildren: RouteObject[] = [
               'Desktop > Discover > Detail > Organization',
             ),
             path: 'org/:slug',
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/community/(detail)/organization'),
+              'Desktop > Discover > Detail > Organization Alias',
+            ),
+            path: 'organization/:slug',
           },
         ],
         element: dynamicElement(

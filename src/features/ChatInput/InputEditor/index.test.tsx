@@ -50,13 +50,17 @@ type AutoCompleteProps = {
   }) => Promise<string | null>;
 };
 
-const getAutoCompleteProps = async (): Promise<AutoCompleteProps> => {
+const queryAutoCompleteProps = async (): Promise<AutoCompleteProps | undefined> => {
   const { ReactAutoCompletePlugin } = await import('@lobehub/editor');
   const { Editor } = await import('@lobehub/editor/react');
   const autoCompleteCall = vi
     .mocked(Editor.withProps)
     .mock.calls.find(([plugin]) => plugin === ReactAutoCompletePlugin);
-  const autoCompleteProps = autoCompleteCall?.[1] as AutoCompleteProps | undefined;
+  return autoCompleteCall?.[1] as AutoCompleteProps | undefined;
+};
+
+const getAutoCompleteProps = async (): Promise<AutoCompleteProps> => {
+  const autoCompleteProps = await queryAutoCompleteProps();
 
   expect(autoCompleteProps).toBeDefined();
 
@@ -282,6 +286,21 @@ describe('ChatInput InputEditor', () => {
     ).resolves.toBeNull();
 
     expect(mocks.generateJSON).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips autocomplete without pausing when the suggestion model is incomplete', async () => {
+    permission.allowed = true;
+    mocks.inputCompletionConfig.enabled = true;
+    mocks.inputCompletionConfig.model = '';
+    mocks.inputCompletionConfig.provider = 'newapi';
+
+    render(<InputEditor />);
+
+    await expect(queryAutoCompleteProps()).resolves.toBeUndefined();
+
+    expect(mocks.chainInputCompletion).not.toHaveBeenCalled();
+    expect(mocks.generateJSON).not.toHaveBeenCalled();
+    expect(mocks.chatInputState.inputCompletionError).toBeUndefined();
   });
 
   it('keeps autocomplete paused when an older in-flight request resolves after a failure', async () => {

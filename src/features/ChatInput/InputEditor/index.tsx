@@ -233,11 +233,20 @@ const InputEditor = memo<{
 
   // --- Auto-completion ---
   const inputCompletionConfig = useUserStore(systemAgentSelectors.inputCompletion);
-  const isAutoCompleteEnabled = isInputCompletionEnabled && inputCompletionConfig.enabled;
+  const hasInputCompletionModel = Boolean(
+    inputCompletionConfig.model?.trim() && inputCompletionConfig.provider?.trim(),
+  );
+  const isAutoCompleteEnabled =
+    isInputCompletionEnabled && inputCompletionConfig.enabled && hasInputCompletionModel;
 
   useEffect(() => {
     storeApi.getState().clearInputCompletionError();
-  }, [inputCompletionConfig.model, inputCompletionConfig.provider, storeApi]);
+  }, [
+    inputCompletionConfig.enabled,
+    inputCompletionConfig.model,
+    inputCompletionConfig.provider,
+    storeApi,
+  ]);
 
   const getMessagesRef = useRef(storeApi.getState().getMessages);
   useEffect(() => {
@@ -278,6 +287,8 @@ const InputEditor = memo<{
       if (afterText.trim()) return null;
 
       const config = systemAgentSelectors.inputCompletion(useUserStore.getState());
+      if (!config.enabled || !config.model?.trim() || !config.provider?.trim()) return null;
+
       const context = getMessagesRef.current?.();
       const { messages, schema } = chainInputCompletion(input, afterText, context);
 

@@ -284,6 +284,7 @@ describe('adminSettingsForm', () => {
   it('includes sidebar member and generation labels in brand setting updates', () => {
     const initial = buildFormValues({
       sidebarGenerationLabel: '生成',
+      sidebarMemberDescription: '解锁更多容量与高级功能。',
       sidebarMemberLabel: '会员',
       sidebarMemberUrl: '/settings/plans',
     });
@@ -293,6 +294,7 @@ describe('adminSettingsForm', () => {
         {
           ...initial,
           sidebarGenerationLabel: '创作',
+          sidebarMemberDescription: '更多容量与团队功能',
           sidebarMemberLabel: '会员中心',
           sidebarMemberUrl: '/settings/plans?tab=vip',
         },
@@ -301,11 +303,14 @@ describe('adminSettingsForm', () => {
     ).toEqual([
       { key: SETTING_KEYS.sidebarMemberLabel, value: '会员中心' },
       { key: SETTING_KEYS.sidebarMemberUrl, value: '/settings/plans?tab=vip' },
+      { key: SETTING_KEYS.sidebarMemberDescription, value: '更多容量与团队功能' },
       { key: SETTING_KEYS.sidebarGenerationLabel, value: '创作' },
     ]);
 
     expect(
-      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.sidebarMemberLabel, value: '会员中心' }]),
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.sidebarMemberDescription, value: '更多容量与团队功能' },
+      ]),
     ).toEqual(['brand-config']);
   });
 
