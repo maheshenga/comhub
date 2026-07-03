@@ -56,6 +56,24 @@ describe('assertModelPolicyAllowed', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('allows provider aliases for admin-managed provider groups', async () => {
+    const db = createDb({
+      [APP_SETTING_KEYS.modelPolicyAllowlist]: ['newapi:gpt-*'],
+      [APP_SETTING_KEYS.modelPolicyEnabled]: true,
+      [APP_SETTING_KEYS.modelPolicyMode]: 'allowlist',
+    });
+
+    await expect(
+      assertModelPolicyAllowed({
+        db,
+        model: 'gpt-4o-mini',
+        provider: 'siliconflow-id',
+        providerAliases: ['newapi'],
+        usageType: 'chat',
+      } as any),
+    ).resolves.toBeUndefined();
+  });
+
   it('rejects matched blocklist entries with a runtime error payload', async () => {
     const db = createDb({
       [APP_SETTING_KEYS.modelPolicyBlocklist]: ['newapi:legacy-*'],

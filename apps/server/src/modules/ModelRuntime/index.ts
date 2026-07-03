@@ -29,6 +29,7 @@ import {
   type NewapiModelType,
   type ResolvedNewapiInstance,
   resolveDefaultNewapiInstance,
+  resolveNewapiInstanceByProviderId,
   resolveNewapiInstancesForModel,
 } from '@/server/services/newapiInstance';
 
@@ -551,17 +552,34 @@ export const initModelRuntimeFromDB = async (
   const keyVaults = (providerConfig?.keyVaults || {}) as ProviderKeyVaults;
   const payload = buildPayloadFromKeyVaults(keyVaults, runtimeProvider);
 
-  if (provider === ModelProvider.NewAPI) {
+  const adminManagedInstance =
+    provider === ModelProvider.NewAPI ? null : await resolveNewapiInstanceByProviderId(db, provider);
+  const isAdminManagedNewapiProvider = provider === ModelProvider.NewAPI || !!adminManagedInstance;
+
+  if (isAdminManagedNewapiProvider) {
     // Multi-instance routing: when a specific model is in flight, prefer the
     // highest-priority enabled instance that has it registered. Otherwise use
     // the default (lowest-priority enabled) instance.
-    const resolvedInstances = options?.model
-      ? await resolveNewapiInstancesForModel(db, {
-          modelId: options.model,
-          modelType: options.modelType ?? 'chat',
-          userId,
-        })
-      : await resolveDefaultNewapiInstance(db).then((r) => (r ? [r] : []));
+    let resolvedInstances: ResolvedNewapiInstance[];
+    if (adminManagedInstance && options?.model) {
+      resolvedInstances = await resolveNewapiInstancesForModel(db, {
+        modelId: options.model,
+        modelType: options.modelType ?? 'chat',
+        preferredInstanceId: adminManagedInstance.instanceId,
+        userId,
+      });
+    } else if (adminManagedInstance) {
+      resolvedInstances = [adminManagedInstance];
+    } else if (options?.model) {
+      resolvedInstances = await resolveNewapiInstancesForModel(db, {
+        modelId: options.model,
+        modelType: options.modelType ?? 'chat',
+        userId,
+      });
+    } else {
+      const defaultInstance = await resolveDefaultNewapiInstance(db);
+      resolvedInstances = defaultInstance ? [defaultInstance] : [];
+    }
 
     const primary = resolvedInstances[0];
     if (primary) {

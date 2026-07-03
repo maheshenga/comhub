@@ -1,6 +1,6 @@
 import { Icon } from '@lobehub/ui';
 import { type ItemType } from 'antd/es/menu/interface';
-import { ShieldCheck } from 'lucide-react';
+import { Crown, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
@@ -12,16 +12,25 @@ export default function useBusinessMenuItems(isSignin: boolean | undefined): Ite
   const user = useUserStore(userProfileSelectors.userProfile);
   const role = (user as any)?.role as string | undefined;
 
-  if (!isSignin || role !== 'admin') return [];
+  if (!isSignin) return [];
 
   return [
     {
       type: 'divider',
     },
     {
-      icon: <Icon icon={ShieldCheck} />,
-      key: 'admin-console',
-      label: <Link to="/settings/admin">{t('admin.console', 'Admin Console')}</Link>,
+      icon: <Icon icon={Crown} />,
+      key: 'upgrade-plan',
+      label: <Link to="/settings/plans">{t('tab.plans', 'Upgrade plan')}</Link>,
     },
+    ...(role === 'admin'
+      ? [
+          {
+            icon: <Icon icon={ShieldCheck} />,
+            key: 'admin-console',
+            label: <Link to="/settings/admin">{t('admin.console', 'Admin Console')}</Link>,
+          },
+        ]
+      : []),
   ].filter(Boolean) as ItemType[];
 }

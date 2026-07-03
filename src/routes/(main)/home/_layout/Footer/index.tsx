@@ -6,9 +6,11 @@ import { useAnalytics } from '@lobehub/analytics/react';
 import { type MenuProps } from '@lobehub/ui';
 import { ActionIcon, DropdownMenu, Flexbox, Icon } from '@lobehub/ui';
 import { DiscordIcon, GithubIcon } from '@lobehub/ui/icons';
+import { cssVar } from 'antd-style';
 import {
   Book,
   CircleHelp,
+  Crown,
   Feather,
   FileClockIcon,
   FlaskConical,
@@ -30,6 +32,7 @@ import HighlightNotification from '@/components/HighlightNotification';
 import { DOCUMENTS_REFER_URL, GITHUB } from '@/const/url';
 import Billboard from '@/features/Billboard';
 import { useBillboardMenuItems } from '@/features/Billboard/MenuItems';
+import { useBrand } from '@/features/Brand';
 import { useActiveNavKey } from '@/features/NavPanel';
 import { buildCustomHelpMenuItems } from '@/features/User/helpMenuItems';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
@@ -37,7 +40,7 @@ import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors/systemStatus';
-import { useServerConfigStore } from '@/store/serverConfig';
+import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userGeneralSettingsSelectors } from '@/store/user/slices/settings/selectors';
@@ -72,12 +75,14 @@ const Footer = memo(() => {
   const navigate = useNavigate();
   const { analytics } = useAnalytics();
   const { footer } = useNavLayout();
+  const brand = useBrand();
   const activeNavKey = useActiveNavKey();
   const isHomeSidebar = activeNavKey === 'home';
   const billboardMenuItems = useBillboardMenuItems();
   const enableAgentOnboarding = useServerConfigStore((s) => s.featureFlags.enableAgentOnboarding);
   const isMobile = useServerConfigStore((s) => !!s.isMobile);
   const serverConfigInit = useServerConfigStore((s) => s.serverConfigInit);
+  const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
   const customization = useServerConfigStore((s) => s.serverConfig.customization);
   const [agentOnboardingFinished, agentOnboardingStarted, classicOnboardingFinished, isDevMode] =
     useUserStore((s) => [
@@ -390,6 +395,28 @@ const Footer = memo(() => {
   );
   return (
     <>
+      {isHomeSidebar && enableBusinessFeatures && (
+        <WorkspaceLink
+          style={{ color: 'inherit', display: 'block', paddingInline: 8, textDecoration: 'none' }}
+          to={brand.sidebarMemberUrl || '/settings/plans'}
+        >
+          <Flexbox
+            gap={4}
+            padding={10}
+            style={{
+              border: `1px solid ${cssVar.colorBorderSecondary}`,
+              borderRadius: 8,
+              marginBlockEnd: 4,
+            }}
+          >
+            <Flexbox horizontal align="center" gap={6}>
+              <Icon icon={Crown} size={14} />
+              <strong style={{ fontSize: 13 }}>{brand.sidebarMemberLabel || '升级方案'}</strong>
+            </Flexbox>
+            <span style={{ fontSize: 12, opacity: 0.72 }}>解锁更多容量与高级功能。</span>
+          </Flexbox>
+        </WorkspaceLink>
+      )}
       {footer.layout === 'expanded' ? (
         <Flexbox horizontal align={'center'} gap={2} justify={'space-between'} padding={8}>
           <Flexbox horizontal align={'center'} flex={1} gap={2}>

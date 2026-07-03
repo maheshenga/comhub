@@ -11,6 +11,7 @@ type AssertModelPolicyAllowedParams = {
   db?: LobeChatDatabase;
   model?: string | null;
   provider?: string | null;
+  providerAliases?: string[];
   usageType: ServerModelPolicyUsageType;
 };
 
@@ -30,23 +31,25 @@ const wildcardMatch = (pattern: string, value: string) => {
 const matchesPolicyEntry = ({
   entry,
   model,
-  provider,
+  providers,
 }: {
   entry: string;
   model: string;
-  provider: string;
+  providers: string[];
 }) => {
   const normalizedEntry = normalizeToken(entry);
   if (!normalizedEntry) return false;
+  if (wildcardMatch(normalizedEntry, model)) return true;
 
-  const providerModel = provider ? `${provider}:${model}` : model;
-  const slashProviderModel = provider ? `${provider}/${model}` : model;
+  return providers.some((provider) => {
+    const providerModel = `${provider}:${model}`;
+    const slashProviderModel = `${provider}/${model}`;
 
-  return (
-    wildcardMatch(normalizedEntry, model) ||
-    wildcardMatch(normalizedEntry, providerModel) ||
-    wildcardMatch(normalizedEntry, slashProviderModel)
-  );
+    return (
+      wildcardMatch(normalizedEntry, providerModel) ||
+      wildcardMatch(normalizedEntry, slashProviderModel)
+    );
+  });
 };
 
 const shouldApplyPolicy = (
@@ -87,13 +90,16 @@ export const assertModelPolicyAllowed = async ({
   db,
   model,
   provider,
+  providerAliases,
   usageType,
 }: AssertModelPolicyAllowedParams) => {
   const config = await getServerModelPolicyConfig(db);
   if (!shouldApplyPolicy(usageType, config)) return;
 
   const normalizedModel = normalizeToken(model);
-  const normalizedProvider = normalizeToken(provider);
+  const normalizedProviders = Array.from(
+    new Set([provider, ...(providerAliases || [])].map(normalizeToken).filter(Boolean)),
+  );
 
   if (!normalizedModel) {
     throwModelPolicyDenied({
@@ -106,10 +112,10 @@ export const assertModelPolicyAllowed = async ({
   }
 
   const matchedAllowlist = config.allowlist.some((entry) =>
-    matchesPolicyEntry({ entry, model: normalizedModel, provider: normalizedProvider }),
+    matchesPolicyEntry({ entry, model: normalizedModel, providers: normalizedProviders }),
   );
   const matchedBlocklist = config.blocklist.some((entry) =>
-    matchesPolicyEntry({ entry, model: normalizedModel, provider: normalizedProvider }),
+    matchesPolicyEntry({ entry, model: normalizedModel, providers: normalizedProviders }),
   );
 
   if (config.mode === 'allowlist' && !matchedAllowlist) {

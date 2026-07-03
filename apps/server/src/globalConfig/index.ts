@@ -1,4 +1,5 @@
 import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
+import { type ProviderConfig } from '@lobechat/types';
 import { merge } from '@lobechat/utils';
 import { type AiFullModelCard } from 'model-bank';
 import { gptImage1Schema, seedance15ProParams } from 'model-bank/lobehub';
@@ -51,8 +52,18 @@ type AdminManagedServerModelCard = AiFullModelCard & {
   groupName?: string | null;
   instanceId?: string | null;
   instanceName?: string | null;
+  providerId?: string | null;
   providerType?: string | null;
 };
+
+type AdminManagedProviderConfig = ProviderConfig & {
+  logo?: string;
+  name?: string;
+  parentProviderId?: string;
+};
+
+const uniqueModelIds = (models: AdminManagedServerModelCard[]) =>
+  Array.from(new Set(models.map((m) => m.id)));
 
 export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const defaultAgentConfig = await getResolvedServerDefaultAgentConfig(db);
@@ -65,13 +76,13 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
   const composioConfig = await getServerComposioConfig(db);
   const s3Config = await getServerFileS3Config(db);
   const customization = await getServerPublicCustomizationConfig(db);
-  const aiProvider = await genServerAiProvidersConfig(
+  const aiProvider = (await genServerAiProvidersConfig(
     getProviderSpecificConfig({
       enableBusinessFeatures: ENABLE_BUSINESS_FEATURES,
       isDesktop,
       ollamaProxyUrl: process.env.OLLAMA_PROXY_URL,
     }),
-  );
+  )) as Record<string, AdminManagedProviderConfig>;
 
   if (ENABLE_BUSINESS_FEATURES) {
     // ComHub business mode: backend admin provider settings are authoritative.
@@ -102,16 +113,43 @@ export const getServerGlobalConfig = async (db?: LobeChatDatabase) => {
           instanceName: m.instanceName,
           ...(parameters ? { parameters } : {}),
           ...(m.pricing ? { pricing: m.pricing } : {}),
+          providerId: m.providerId,
           providerType: m.providerType,
           type: modelType,
         };
       });
 
+      const groupedProviderModels = new Map<string, AdminManagedServerModelCard[]>();
+      for (const model of serverModelLists) {
+        const providerId = model.providerId || ADMIN_MANAGED_AI_PROVIDER;
+        groupedProviderModels.set(providerId, [
+          ...(groupedProviderModels.get(providerId) ?? []),
+          model,
+        ]);
+      }
+      const virtualProviderIds = Array.from(groupedProviderModels.keys()).filter(
+        (providerId) => providerId !== ADMIN_MANAGED_AI_PROVIDER,
+      );
+
       aiProvider[ADMIN_MANAGED_AI_PROVIDER] = {
         ...aiProvider[ADMIN_MANAGED_AI_PROVIDER],
+        enabled: virtualProviderIds.length > 0 ? false : aiProvider[ADMIN_MANAGED_AI_PROVIDER]?.enabled,
         enabledModels: managedNewApiModelIds,
         serverModelLists,
       };
+
+      for (const providerId of virtualProviderIds) {
+        const models = groupedProviderModels.get(providerId) ?? [];
+        const first = models[0];
+
+        aiProvider[providerId] = {
+          enabled: true,
+          enabledModels: uniqueModelIds(models),
+          name: first?.instanceName || first?.groupName || providerId,
+          parentProviderId: ADMIN_MANAGED_AI_PROVIDER,
+          serverModelLists: models,
+        };
+      }
     }
   }
 

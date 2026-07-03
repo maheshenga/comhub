@@ -53,6 +53,42 @@ describe('AiInfraRepos', () => {
       );
       expect(enabledModels.map((item) => item.providerId)).not.toContain('lobehub');
     });
+
+    it('exposes admin AI service groups and preserves duplicate model ids across them', async () => {
+      const groupedRepo = new AiInfraRepos(serverDB, userId, {
+        newapi: { enabled: false },
+        'siliconflow-id': {
+          enabled: true,
+          name: 'SiliconFlow',
+          parentProviderId: 'newapi',
+          serverModelLists: [
+            { displayName: 'GPT-4o', enabled: true, id: 'gpt-4o', type: 'chat' },
+          ],
+        } as any,
+        'toapi-id': {
+          enabled: true,
+          name: 'ToAPI',
+          parentProviderId: 'newapi',
+          serverModelLists: [
+            { displayName: 'GPT-4o', enabled: true, id: 'gpt-4o', type: 'chat' },
+          ],
+        } as any,
+      });
+
+      vi.spyOn(groupedRepo.aiModelModel, 'getAllModels').mockResolvedValue([]);
+
+      const enabledProviders = await groupedRepo.getUserEnabledProviderList();
+      const enabledModels = await groupedRepo.getEnabledModels();
+
+      expect(enabledProviders).toEqual([
+        expect.objectContaining({ id: 'siliconflow-id', name: 'SiliconFlow' }),
+        expect.objectContaining({ id: 'toapi-id', name: 'ToAPI' }),
+      ]);
+      expect(enabledModels).toEqual([
+        expect.objectContaining({ id: 'gpt-4o', providerId: 'siliconflow-id' }),
+        expect.objectContaining({ id: 'gpt-4o', providerId: 'toapi-id' }),
+      ]);
+    });
   });
 
   describe('getAiProviderModelList', () => {

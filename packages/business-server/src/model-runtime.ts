@@ -53,12 +53,26 @@ export function getBusinessModelRuntimeHooks(
 ): ModelRuntimeHooks | undefined {
   const routeMetadata =
     typeof routeMetadataOrWorkspaceId === 'string' ? undefined : routeMetadataOrWorkspaceId;
+  const policyProviderAliases = Array.from(
+    new Set([routeMetadata?.providerType, routeMetadata ? 'newapi' : undefined].filter(Boolean)),
+  ).filter((alias): alias is string => typeof alias === 'string' && alias !== provider);
+  const policyParams = (
+    db: Awaited<ReturnType<typeof getServerDB>>,
+    model: string | undefined,
+    usageType: 'chat' | 'embeddings' | 'generate_object' | 'image' | 'video',
+  ) => ({
+    db,
+    model,
+    provider,
+    ...(policyProviderAliases.length > 0 ? { providerAliases: policyProviderAliases } : {}),
+    usageType,
+  });
 
   return {
     beforeChat: async (payload) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
-      await assertModelPolicyAllowed({ db, model: payload.model, provider, usageType: 'chat' });
+      await assertModelPolicyAllowed(policyParams(db, payload.model, 'chat'));
       await assertPlanModelAllowed({
         db,
         ...(groupKey ? { groupKey } : {}),
@@ -71,12 +85,7 @@ export function getBusinessModelRuntimeHooks(
     beforeEmbeddings: async (payload) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
-      await assertModelPolicyAllowed({
-        db,
-        model: payload.model,
-        provider,
-        usageType: 'embeddings',
-      });
+      await assertModelPolicyAllowed(policyParams(db, payload.model, 'embeddings'));
       await assertPlanModelAllowed({
         db,
         ...(groupKey ? { groupKey } : {}),
@@ -89,12 +98,7 @@ export function getBusinessModelRuntimeHooks(
     beforeGenerateObject: async (payload) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
-      await assertModelPolicyAllowed({
-        db,
-        model: payload.model,
-        provider,
-        usageType: 'generate_object',
-      });
+      await assertModelPolicyAllowed(policyParams(db, payload.model, 'generate_object'));
       await assertPlanModelAllowed({
         db,
         ...(groupKey ? { groupKey } : {}),
@@ -107,12 +111,7 @@ export function getBusinessModelRuntimeHooks(
     beforeCreateImage: async (payload) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
-      await assertModelPolicyAllowed({
-        db,
-        model: payload.model,
-        provider,
-        usageType: 'image',
-      });
+      await assertModelPolicyAllowed(policyParams(db, payload.model, 'image'));
       await assertPlanModelAllowed({
         db,
         ...(groupKey ? { groupKey } : {}),
@@ -125,12 +124,7 @@ export function getBusinessModelRuntimeHooks(
     beforeCreateVideo: async (payload) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
-      await assertModelPolicyAllowed({
-        db,
-        model: payload.model,
-        provider,
-        usageType: 'video',
-      });
+      await assertModelPolicyAllowed(policyParams(db, payload.model, 'video'));
       await assertPlanModelAllowed({
         db,
         ...(groupKey ? { groupKey } : {}),

@@ -20,6 +20,11 @@ import { AiProviderModel } from '../../models/aiProvider';
 import type { LobeChatDatabase } from '../../type';
 
 type RuntimeAiModel = EnabledAiModel & Partial<AiProviderModelListItem>;
+type ServerProviderConfig = ProviderConfig & {
+  logo?: string;
+  name?: string;
+  parentProviderId?: string;
+};
 
 type DecryptUserKeyVaults = (encryptKeyVaultsStr: string | null) => Promise<any>;
 
@@ -127,14 +132,14 @@ export class AiInfraRepos {
   private userId: string;
   private db: LobeChatDatabase;
   aiProviderModel: AiProviderModel;
-  private readonly providerConfigs: Record<string, ProviderConfig>;
+  private readonly providerConfigs: Record<string, ServerProviderConfig>;
   aiModelModel: AiModelModel;
   private modelBankModelsPromise?: ReturnType<typeof loadModels>;
 
   constructor(
     db: LobeChatDatabase,
     userId: string,
-    providerConfigs: Record<string, ProviderConfig>,
+    providerConfigs: Record<string, ServerProviderConfig>,
   ) {
     this.userId = userId;
     this.db = db;
@@ -149,6 +154,7 @@ export class AiInfraRepos {
   getAiProviderList = async () => {
     const userProviders = await this.aiProviderModel.getAiProviderList();
     const isProviderEnabledByServer = (id: string) => Boolean(this.providerConfigs[id]?.enabled);
+    const isServerManagedProvider = (id: string) => Boolean(this.providerConfigs[id]?.parentProviderId);
 
     // 1. First create a mapping based on DEFAULT_MODEL_PROVIDER_LIST id order
     const orderMap = new Map(DEFAULT_MODEL_PROVIDER_LIST.map((item, index) => [item.id, index]));
@@ -168,13 +174,36 @@ export class AiInfraRepos {
     // built-in providers that are not enabled in backend AI service settings.
     const normalizedUserProviders = ENABLE_BUSINESS_FEATURES
       ? userProviders.map((provider) =>
-          provider.source === 'builtin' || orderMap.has(provider.id)
-            ? { ...provider, enabled: isProviderEnabledByServer(provider.id) }
+          provider.source === 'builtin' || orderMap.has(provider.id) || isServerManagedProvider(provider.id)
+            ? {
+                ...provider,
+                enabled: isProviderEnabledByServer(provider.id),
+                name: this.providerConfigs[provider.id]?.name ?? provider.name,
+              }
             : { ...provider, enabled: false },
         )
       : userProviders;
 
-    const mergedProviders = mergeArrayById(builtinProviders, normalizedUserProviders);
+    const knownProviderIds = new Set([
+      ...builtinProviders.map((provider) => provider.id),
+      ...normalizedUserProviders.map((provider) => provider.id),
+    ]);
+    const serverManagedProviders = Object.entries(this.providerConfigs)
+      .filter(([id, config]) => config.enabled && config.parentProviderId && !knownProviderIds.has(id))
+      .map(
+        ([id, config]): AiProviderListItem => ({
+          enabled: true,
+          id,
+          logo: config.logo,
+          name: config.name || id,
+          source: 'builtin',
+        }),
+      );
+
+    const mergedProviders = [
+      ...mergeArrayById(builtinProviders, normalizedUserProviders),
+      ...serverManagedProviders,
+    ];
 
     // 3. Sort based on orderMap
     return mergedProviders.sort((a, b) => {
