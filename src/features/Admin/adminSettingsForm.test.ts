@@ -5,9 +5,11 @@ import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/
 
 import {
   buildFormValues,
+  buildSettingMaterializationUpdates,
   buildModelOptions,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
+  RECOMMENDED_HELP_MENU_ITEMS,
   resolveModelOptionValue,
   SETTING_KEYS,
 } from './adminSettingsForm';
@@ -616,6 +618,24 @@ describe('adminSettingsForm', () => {
     expect(getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.helpMenuItems, value: [] }])).toEqual([
       'public-help-menu',
     ]);
+  });
+
+  it('materializes site customization defaults for newly introduced admin settings', () => {
+    const values = buildFormValues({
+      brandLoadingText: 'Loading ComHub',
+      brandName: 'ComHub',
+      helpMenuItems: [],
+    } as any);
+
+    expect(buildSettingMaterializationUpdates(values)).toEqual(
+      expect.arrayContaining([
+        { key: SETTING_KEYS.brandName, value: 'ComHub' },
+        { key: SETTING_KEYS.brandLoadingText, value: 'Loading ComHub' },
+        { key: SETTING_KEYS.sidebarMemberLabel, value: '会员' },
+        { key: SETTING_KEYS.sidebarMemberUrl, value: '/settings/plans' },
+        { key: SETTING_KEYS.helpMenuItems, value: RECOMMENDED_HELP_MENU_ITEMS },
+      ]),
+    );
   });
 
   it('saves about page version settings as one public setting', () => {
