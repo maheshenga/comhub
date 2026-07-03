@@ -26,7 +26,12 @@ import {
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
 import { type AvatarPreset, DEFAULT_AVATAR_PRESETS } from '@/const/avatarPresets';
-import { buildModelOptions, resolveModelOptionValue } from '@/features/Admin/adminSettingsForm';
+import {
+  buildModelOptions,
+  type DefaultModelOption,
+  resolveModelOptionValue,
+  resolveModelProviderLabel,
+} from '@/features/Admin/adminSettingsForm';
 import ImageUrlUploadInput from '@/features/Admin/components/ImageUrlUploadInput';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -120,15 +125,33 @@ const parseModelValue = (value?: string) => {
   return provider && model ? { model, provider } : null;
 };
 
+const buildProviderOptions = (options: DefaultModelOption[]) =>
+  Array.from(
+    options
+      .reduce((result, option) => {
+        if (!option.provider) return result;
+
+        result.set(option.provider, {
+          label: resolveModelProviderLabel(
+            { model: option.model, provider: option.provider },
+            options,
+          ),
+          value: option.provider,
+        });
+        return result;
+      }, new Map<string, { label: string; value: string }>())
+      .values(),
+  );
+
 const findModelOption = (
-  options: Array<{ model: string; provider: string; value: string }>,
+  options: DefaultModelOption[],
   value?: string,
 ) => options.find((option) => option.value === value || option.model === value);
 
 const normalizeMemoryModelFields = (
   modelValue: string | undefined,
   providerValue: string | undefined,
-  options: Array<{ model: string; provider: string; value: string }>,
+  options: DefaultModelOption[],
 ) => {
   const model = typeof modelValue === 'string' ? modelValue.trim() : '';
   const provider = typeof providerValue === 'string' ? providerValue.trim() : '';
@@ -182,10 +205,15 @@ const AdminSystemDefaultsPage = memo(() => {
     () => buildModelOptions({ ...data, modelType: 'embedding' }),
     [data],
   );
+  const modelProviderOptions = useMemo(() => buildProviderOptions(modelOptions), [modelOptions]);
+  const embeddingProviderOptions = useMemo(
+    () => buildProviderOptions(embeddingModelOptions),
+    [embeddingModelOptions],
+  );
   const applySelectedModelProvider = (
     modelField: keyof FormValues,
     providerField: keyof FormValues,
-    options: Array<{ model: string; provider: string; value: string }>,
+    options: DefaultModelOption[],
     selectedValue?: string,
   ) => {
     const selected = findModelOption(options, selectedValue ?? form.getFieldValue(modelField));
@@ -561,7 +589,13 @@ const AdminSystemDefaultsPage = memo(() => {
                 name="memoryGatekeeperProvider"
                 style={{ width: 220 }}
               >
-                <Input placeholder="newapi" />
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  options={modelProviderOptions}
+                  placeholder="newapi"
+                />
               </Form.Item>
             </Flexbox>
             <Flexbox horizontal gap={12}>
@@ -590,7 +624,13 @@ const AdminSystemDefaultsPage = memo(() => {
                 name="memoryLayerExtractorProvider"
                 style={{ width: 220 }}
               >
-                <Input placeholder="newapi" />
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  options={modelProviderOptions}
+                  placeholder="newapi"
+                />
               </Form.Item>
             </Flexbox>
             <Flexbox horizontal gap={12}>
@@ -619,7 +659,13 @@ const AdminSystemDefaultsPage = memo(() => {
                 name="memoryPersonaWriterProvider"
                 style={{ width: 220 }}
               >
-                <Input placeholder="newapi" />
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  options={modelProviderOptions}
+                  placeholder="newapi"
+                />
               </Form.Item>
             </Flexbox>
             <Flexbox horizontal gap={12}>
@@ -648,7 +694,13 @@ const AdminSystemDefaultsPage = memo(() => {
                 name="memoryEmbeddingProvider"
                 style={{ width: 220 }}
               >
-                <Input placeholder="siliconflow / newapi" />
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  options={embeddingProviderOptions}
+                  placeholder="siliconflow / newapi"
+                />
               </Form.Item>
             </Flexbox>
           </Card>
