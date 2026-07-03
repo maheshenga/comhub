@@ -2,9 +2,8 @@ import { type MetadataRoute } from 'next';
 
 import { LAST_MODIFIED, Sitemap, SitemapType } from '@/server/sitemap';
 
-// Sitemap cache configuration - revalidate every 24 hours
-export const revalidate = 86_400; // 24 hours - content page cache
-export const dynamic = 'force-static';
+// Generate sitemap pages at request time to avoid baking thousands of XML bodies into Docker images.
+export const dynamic = 'force-dynamic';
 
 export const generateSitemapLink = (url: string) =>
   ['<sitemap>', `<loc>${url}</loc>`, `<lastmod>${LAST_MODIFIED}</lastmod>`, '</sitemap>'].join(
