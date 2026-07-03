@@ -302,6 +302,55 @@ describe('getServerGlobalConfig business newapi model injection', () => {
     ]);
   });
 
+  it('exposes admin AI services as separate user-facing provider groups', async () => {
+    mocks.getAllEnabledModels.mockResolvedValue([
+      {
+        displayName: 'GPT-4o',
+        groupKey: 'pro',
+        groupName: 'Pro',
+        id: 'gpt-4o',
+        instanceId: 'siliconflow-id',
+        instanceName: 'SiliconFlow',
+        providerId: 'siliconflow-id',
+        providerType: 'newapi',
+        type: 'chat',
+      },
+      {
+        displayName: 'GPT-4o',
+        groupKey: 'pro',
+        groupName: 'Pro',
+        id: 'gpt-4o',
+        instanceId: 'toapi-id',
+        instanceName: 'ToAPI',
+        providerId: 'toapi-id',
+        providerType: 'newapi',
+        type: 'chat',
+      },
+    ]);
+
+    const result = await getServerGlobalConfig({} as any);
+
+    expect(result.aiProvider.newapi!.enabled).toBe(false);
+    expect(result.aiProvider['siliconflow-id']).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        enabledModels: ['gpt-4o'],
+        name: 'SiliconFlow',
+        parentProviderId: 'newapi',
+        serverModelLists: [expect.objectContaining({ displayName: 'GPT-4o', id: 'gpt-4o' })],
+      }),
+    );
+    expect(result.aiProvider['toapi-id']).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        enabledModels: ['gpt-4o'],
+        name: 'ToAPI',
+        parentProviderId: 'newapi',
+        serverModelLists: [expect.objectContaining({ displayName: 'GPT-4o', id: 'gpt-4o' })],
+      }),
+    );
+  });
+
   it('disables non-admin built-in providers in business mode even when generated config enables them', async () => {
     mocks.genServerAiProvidersConfig.mockResolvedValue({
       anthropic: {

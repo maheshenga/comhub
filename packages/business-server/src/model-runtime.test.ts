@@ -67,6 +67,35 @@ describe('getBusinessModelRuntimeHooks', () => {
     });
   });
 
+  it('should pass root policy aliases for admin-managed virtual provider groups', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'siliconflow-id', {
+      groupKey: 'pro',
+      instanceId: 'siliconflow-id',
+      instanceName: 'SiliconFlow',
+      providerType: 'newapi',
+    });
+    const payload = {
+      messages: [{ content: 'hello', role: 'user' }],
+      model: 'gpt-test',
+    } as any;
+
+    await hooks?.beforeChat?.(payload);
+
+    expect(mocks.assertModelPolicyAllowed).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      model: 'gpt-test',
+      provider: 'siliconflow-id',
+      providerAliases: ['newapi'],
+      usageType: 'chat',
+    });
+    expect(mocks.assertCommercialChatBudget).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      payload,
+      provider: 'siliconflow-id',
+      userId: 'user-1',
+    });
+  });
+
   it('should check commercial budget before structured output starts', async () => {
     const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
     const payload = {

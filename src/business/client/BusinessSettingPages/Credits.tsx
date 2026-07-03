@@ -3,6 +3,7 @@
 import { Flexbox, FormGroup, Icon, Segmented } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
 import { Button, Empty, InputNumber, message, Tag } from 'antd';
+import { createStaticStyles, cssVar } from 'antd-style';
 import { Pencil, ShoppingCart } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,10 +27,60 @@ import {
   getCreditLedgerTypeTranslationKey,
   getCreditSourceTranslationKey,
   subscriptionPageStyles,
-  SummaryTile,
   toRawCredits,
   useBusinessSubscriptionProfile,
 } from './shared';
+
+const styles = createStaticStyles(({ css }) => ({
+  balanceGrid: css`
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(220px, 0.8fr);
+    gap: 12px;
+
+    @media (width <= 768px) {
+      grid-template-columns: 1fr;
+    }
+  `,
+  balancePanel: css`
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  `,
+  balanceStats: css`
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+
+    @media (width <= 560px) {
+      grid-template-columns: 1fr;
+    }
+  `,
+  bigValue: css`
+    margin-block-start: 4px;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: ${cssVar.colorText};
+  `,
+  purchaseMeta: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    color: ${cssVar.colorTextDescription};
+  `,
+  subscriptionBox: css`
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    padding: 14px;
+    border: 1px solid ${cssVar.colorBorderSecondary};
+    border-radius: 8px;
+
+    background: ${cssVar.colorFillQuaternary};
+  `,
+}));
 
 const orderStatusLabels: Record<string, string> = {
   canceled: '已取消',
@@ -214,24 +265,43 @@ const Credits = memo<{ mobile?: boolean }>(() => {
       <div className={subscriptionPageStyles.pageStack}>
         <FormGroup collapsible={false} gap={16} title={'余额'} variant={'filled'}>
           <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
-            <div className={subscriptionPageStyles.cardGrid}>
-              <SummaryTile
-                caption={formatBusinessDate(accountSummary?.updatedAt)}
-                title={'充值积分余额'}
-                value={formatCredits(accountSummary?.balance ?? 0)}
-              />
-              <SummaryTile
-                caption={'优先使用订阅积分，其次使用充值积分'}
-                title={'订阅积分'}
-                value={`${formatCredits(accountBreakdown?.subscription.available ?? 0)} / ${formatCredits(
-                  subscriptionSummary?.monthlyCredits ?? 0,
-                )}`}
-              />
-              <SummaryTile
-                caption={'当前订阅状态'}
-                title={'LobeChat Cloud Subscription'}
-                value={<PlanIcon plan={currentPlan} type={'combine'} />}
-              />
+            <div className={styles.balanceGrid}>
+              <div className={styles.balancePanel}>
+                <div className={styles.balanceStats}>
+                  <div>
+                    <div className={subscriptionPageStyles.caption}>充值积分余额</div>
+                    <div className={styles.bigValue}>
+                      {formatCredits(accountSummary?.balance ?? 0)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className={subscriptionPageStyles.caption}>订阅积分</div>
+                    <div className={styles.bigValue}>
+                      {formatCredits(accountBreakdown?.subscription?.available ?? 0)} /{' '}
+                      {formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}
+                    </div>
+                  </div>
+                </div>
+                <div className={subscriptionPageStyles.caption}>
+                  优先使用订阅积分，其次使用充值积分。更新时间：
+                  {formatBusinessDate(accountSummary?.updatedAt)}
+                </div>
+                <Flexbox horizontal gap={8} wrap="wrap">
+                  <Button href="#credit-ledger" size="small">
+                    查看使用情况
+                  </Button>
+                  <Button href="#topup-orders" size="small">
+                    充值记录
+                  </Button>
+                </Flexbox>
+              </div>
+              <div className={styles.subscriptionBox}>
+                <div className={subscriptionPageStyles.caption}>LOBEHUB CLOUD SUBSCRIPTION</div>
+                <PlanIcon plan={currentPlan} type={'combine'} />
+                <div className={subscriptionPageStyles.caption}>
+                  每月订阅积分 {formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}
+                </div>
+              </div>
             </div>
           </Card>
         </FormGroup>
@@ -255,7 +325,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
                   onChange={(value: number | null) => setCustomCredits(Number(value || 50))}
                 />
               ) : null}
-              <div className={subscriptionPageStyles.caption}>
+              <div className={styles.purchaseMeta}>
                 {selectedPromotion.enabled ? (
                   <Flexbox horizontal align="center" gap={6} wrap="wrap">
                     <Tag color="red" style={{ margin: 0 }}>
@@ -316,6 +386,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'我的积分包'} variant={'filled'}>
           <InlineTable
+            id="topup-orders"
             columns={orderColumns as any}
             dataSource={topUpOrders}
             loading={isOrdersLoading}
@@ -325,6 +396,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'积分使用详情'} variant={'filled'}>
           <InlineTable
+            id="credit-ledger"
             columns={ledgerColumns as any}
             dataSource={ledgerResult?.items || []}
             loading={isLedgerLoading}

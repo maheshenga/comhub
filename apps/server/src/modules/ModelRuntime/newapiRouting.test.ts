@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   initializeWithProvider: vi.fn(),
   mergeModelRuntimeHooks: vi.fn((...hooks: any[]) => Object.assign({}, ...hooks.filter(Boolean))),
   resolveDefaultNewapiInstance: vi.fn(),
+  resolveNewapiInstanceByProviderId: vi.fn(),
   resolveNewapiInstancesForModel: vi.fn(),
 }));
 
@@ -61,6 +62,7 @@ vi.mock('@/server/services/llmGenerationTracing/hook', () => ({
 vi.mock('@/server/services/newapiInstance', () => ({
   buildNewapiRouteMetadata: mocks.buildNewapiRouteMetadata,
   resolveDefaultNewapiInstance: mocks.resolveDefaultNewapiInstance,
+  resolveNewapiInstanceByProviderId: mocks.resolveNewapiInstanceByProviderId,
   resolveNewapiInstancesForModel: mocks.resolveNewapiInstancesForModel,
 }));
 
@@ -83,6 +85,7 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     mocks.getBusinessModelRuntimeHooks.mockReturnValue({ beforeChat: vi.fn() });
     mocks.createLLMGenerationTracingHook.mockReturnValue({ afterChat: vi.fn() });
     mocks.initializeWithProvider.mockReturnValue({ chat: vi.fn() });
+    mocks.resolveNewapiInstanceByProviderId.mockResolvedValue(null);
   });
 
   it('should resolve newapi route by user plan and pass primary route metadata into hooks', async () => {
@@ -139,6 +142,42 @@ describe('initModelRuntimeFromDB newapi routing', () => {
         apiKey: 'sk-pro',
         baseURL: 'https://newapi.example.com/v1',
         userId: 'user-1',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('routes admin virtual provider ids through their matching newapi instance', async () => {
+    const db = { id: 'db' } as any;
+    const primaryRoute = {
+      apiKey: 'sk-sf',
+      baseUrl: 'https://sf.example.com/v1',
+      groupKey: 'pro',
+      instanceId: 'siliconflow-id',
+      instanceName: 'SiliconFlow',
+      priority: 10,
+      providerType: 'newapi',
+      source: 'instance' as const,
+    };
+    mocks.resolveNewapiInstanceByProviderId.mockResolvedValue(primaryRoute);
+    mocks.resolveNewapiInstancesForModel.mockResolvedValue([primaryRoute]);
+
+    await initModelRuntimeFromDB(db, 'user-1', 'siliconflow-id', {
+      model: 'gpt-4o',
+      modelType: 'chat',
+    });
+
+    expect(mocks.resolveNewapiInstancesForModel).toHaveBeenCalledWith(db, {
+      modelId: 'gpt-4o',
+      modelType: 'chat',
+      preferredInstanceId: 'siliconflow-id',
+      userId: 'user-1',
+    });
+    expect(mocks.initializeWithProvider).toHaveBeenCalledWith(
+      'newapi',
+      expect.objectContaining({
+        apiKey: 'sk-sf',
+        baseURL: 'https://sf.example.com/v1',
       }),
       expect.anything(),
     );

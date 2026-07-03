@@ -159,6 +159,7 @@ interface ResolveNewapiInstancesParams {
   modelId?: string | null;
   modelType?: NewapiModelType;
   preferredGroupKey?: string | null;
+  preferredInstanceId?: string | null;
   userId?: string;
 }
 
@@ -216,6 +217,7 @@ export const resolveNewapiInstancesForModel = async (
   const modelType = params.modelType ?? 'chat';
   const compatibleModelTypes = getCompatibleNewapiModelTypes(modelType);
   const preferredGroupKey = params.preferredGroupKey?.trim();
+  const preferredInstanceId = params.preferredInstanceId?.trim();
   const trimmedModel = params.modelId?.trim();
 
   if (trimmedModel) {
@@ -255,6 +257,7 @@ export const resolveNewapiInstancesForModel = async (
 
       const allowedRows = decryptedRows.filter((row) => {
         const groupKey = row.groupKey || 'default';
+        if (preferredInstanceId && row.id !== preferredInstanceId) return false;
         if (preferredGroupKey && groupKey !== preferredGroupKey) return false;
         if (!usageScopeAllows(row.usageScope, modelType)) return false;
 
@@ -269,6 +272,14 @@ export const resolveNewapiInstancesForModel = async (
   }
 
   return [];
+};
+
+export const resolveNewapiInstanceByProviderId = async (
+  db: LobeChatDatabase,
+  providerId: string,
+): Promise<ResolvedNewapiInstance | null> => {
+  const row = (await readEnabledInstances(db)).find((item) => item.id === providerId);
+  return row ? toResolvedInstance(row) : null;
 };
 
 /**

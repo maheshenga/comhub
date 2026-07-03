@@ -55,15 +55,19 @@ export interface VisualUnderstandingConfig {
 
 export interface ServerModelProviderConfig {
   enabled?: boolean;
-  enabledModels?: string[];
+  enabledModels?: string[] | null;
   fetchOnClient?: boolean;
+  logo?: string;
+  name?: string;
+  parentProviderId?: string;
   /**
    * the model lists defined in server
    */
   serverModelLists?: ChatModelCard[];
 }
 
-export type ServerLanguageModel = Partial<Record<GlobalLLMProviderKey, ServerModelProviderConfig>>;
+export type ServerLanguageModel = Partial<Record<GlobalLLMProviderKey, ServerModelProviderConfig>> &
+  Record<string, ServerModelProviderConfig | undefined>;
 
 export interface GlobalServerConfig {
   /**

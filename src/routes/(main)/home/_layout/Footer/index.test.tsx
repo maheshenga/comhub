@@ -87,7 +87,7 @@ const renderFooter = async ({
   mockServerConfigState = {
     featureFlags: { enableAgentOnboarding: enabled },
     isMobile: mobile,
-    serverConfig: { customization },
+    serverConfig: { customization, enableBusinessFeatures: true },
     serverConfigInit,
   };
   mockUserState = {
@@ -161,6 +161,9 @@ const renderFooter = async ({
   vi.doMock('@/features/Billboard/MenuItems', () => ({
     useBillboardMenuItems: () => [],
   }));
+  vi.doMock('@/features/Brand', () => ({
+    useBrand: () => ({ sidebarMemberLabel: 'Upgrade plan', sidebarMemberUrl: '/settings/plans' }),
+  }));
   vi.doMock('@/features/NavPanel', () => ({
     useActiveNavKey: () => 'home',
   }));
@@ -197,6 +200,10 @@ const renderFooter = async ({
     return selector(mockServerConfigState);
   }
   vi.doMock('@/store/serverConfig', () => ({
+    serverConfigSelectors: {
+      enableBusinessFeatures: (state: Record<string, unknown>) =>
+        Boolean((state.serverConfig as Record<string, unknown>)?.enableBusinessFeatures),
+    },
     useServerConfigStore: selectFromServerConfigStore,
   }));
   function selectFromUserStore(selector: (state: Record<string, unknown>) => unknown) {
@@ -239,6 +246,7 @@ afterEach(() => {
   vi.doUnmock('@/components/HighlightNotification');
   vi.doUnmock('@/features/Billboard');
   vi.doUnmock('@/features/Billboard/MenuItems');
+  vi.doUnmock('@/features/Brand');
   vi.doUnmock('@/features/NavPanel');
   vi.doUnmock('@/features/User/UserPanel/ThemeButton');
   vi.doUnmock('@/hooks/useNavLayout');
@@ -323,5 +331,14 @@ describe('Footer agent onboarding promotion', () => {
     await renderFooter({ desktop: true });
 
     expect(screen.queryByTestId('highlight-notification')).not.toBeInTheDocument();
+  });
+
+  it('shows the configured membership CTA in the home sidebar footer', async () => {
+    await renderFooter({ enabled: false });
+
+    expect(screen.getByRole('link', { name: /Upgrade plan/ })).toHaveAttribute(
+      'href',
+      '/settings/plans',
+    );
   });
 });

@@ -2,7 +2,7 @@
 
 import { Plans as SubscriptionPlan } from '@lobechat/types';
 import { Flexbox, Icon, Segmented } from '@lobehub/ui';
-import { Alert, Button, Empty, Input, message, Modal, Skeleton, Table, Tag, Tooltip } from 'antd';
+import { Alert, Button, Collapse, Empty, Input, message, Modal, Skeleton, Table, Tag, Tooltip } from 'antd';
 import { createStyles, cssVar } from 'antd-style';
 import { Check, ChevronRight, Info, LockKeyhole, Sparkles, Ticket } from 'lucide-react';
 import { type ReactNode, memo, useMemo, useState } from 'react';
@@ -11,9 +11,11 @@ import { useTranslation } from 'react-i18next';
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import { Card } from '@/components/antd-compat/Card';
 import PlanIcon from '@/features/PlanIcon';
+import { DOCUMENTS_REFER_URL } from '@/const/url';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
+import { useServerConfigStore } from '@/store/serverConfig';
 
 import { getPlanPurchaseUrl } from './planPurchase';
 import {
@@ -318,6 +320,19 @@ const formatModelRulesSummary = (modelRules?: PlanCatalogItem['modelRules']) => 
     .join('；');
 };
 
+const findHelpMenuUrl = (
+  items: Array<{ label: string; url?: string }> | undefined,
+  matchers: string[],
+  fallback: string,
+) => {
+  const matched = items?.find((item) => {
+    const label = item.label.toLowerCase();
+    return matchers.some((matcher) => label.includes(matcher));
+  });
+
+  return matched?.url || fallback;
+};
+
 const Plans = memo<{ mobile?: boolean }>(() => {
   const { styles, cx } = useStyles();
   const { t } = useTranslation('subscription');
@@ -326,6 +341,9 @@ const Plans = memo<{ mobile?: boolean }>(() => {
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
+  const helpMenuItems = useServerConfigStore(
+    (s) => s.serverConfig.customization?.helpMenuItems,
+  );
 
   const { data: planCatalog, isLoading: isPlanCatalogLoading } = useClientDataSWR(
     ['business-plan-catalog'],
@@ -450,6 +468,14 @@ const Plans = memo<{ mobile?: boolean }>(() => {
         return row;
       }),
     [planCatalog, subscriptionSummary?.monthlyCredits, visiblePlans],
+  );
+
+  const faqLinks = useMemo(
+    () => ({
+      contact: findHelpMenuUrl(helpMenuItems, ['contact', '联系'], 'mailto:support@lobehub.com'),
+      docs: findHelpMenuUrl(helpMenuItems, ['doc', '文档'], DOCUMENTS_REFER_URL),
+    }),
+    [helpMenuItems],
   );
 
   const getPlanFeatures = (plan: SubscriptionPlan) => {
@@ -748,6 +774,49 @@ const Plans = memo<{ mobile?: boolean }>(() => {
               message="模型价格随后台配置动态生效"
               type="info"
               description="套餐页只展示用户可理解的权益摘要；具体模型计费、服务商分组、默认模型和套餐开放范围以管理员后台配置为准。"
+            />
+          </Flexbox>
+        </Card>
+        <Card className={styles.pricingCard} variant="borderless">
+          <Flexbox gap={12}>
+            <Flexbox gap={4}>
+              <h2 className={styles.title}>常见问题</h2>
+              <div className={subscriptionPageStyles.caption}>
+                如果您的问题未被解答，请查看{' '}
+                <a href={faqLinks.docs} rel="noopener noreferrer" target="_blank">
+                  产品文档
+                </a>{' '}
+                获取更多常见问题，或{' '}
+                <a href={faqLinks.contact} rel="noopener noreferrer" target="_blank">
+                  联系我们
+                </a>
+                。
+              </div>
+            </Flexbox>
+            <Collapse
+              ghost
+              items={[
+                {
+                  children: '可以。免费套餐可使用基础额度；升级后可获得更多积分、容量和高级模型权限。',
+                  key: 'free',
+                  label: '可以免费使用吗？',
+                },
+                {
+                  children: '积分用于衡量模型调用、生成与部分高级能力的消耗，具体扣费以后台模型与计费矩阵为准。',
+                  key: 'credits',
+                  label: '什么是积分？',
+                },
+                {
+                  children: '订阅积分会优先消耗，之后使用充值积分。积分不足时可以升级套餐、充值积分或使用兑换码。',
+                  key: 'topup',
+                  label: '积分用完怎么办？',
+                },
+                {
+                  children: '套餐价格、年付优惠、权益、模型权限和购买链接均由管理员在后台维护。',
+                  key: 'admin',
+                  label: '套餐权益由哪里配置？',
+                },
+              ]}
             />
           </Flexbox>
         </Card>

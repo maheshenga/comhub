@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { initServerConfigStore, Provider } from '@/store/serverConfig/store';
@@ -72,6 +72,7 @@ describe('useMenu', () => {
       const { mainItems, logoutItems } = result.current;
       // 'setting' is shown when logged in
       expect(mainItems?.some((item) => item?.key === 'setting')).toBe(true);
+      expect(mainItems?.some((item) => item?.key === 'upgrade-plan')).toBe(true);
       // 'memory' is gated behind the showMemory nav-layout flag (defaults off)
       expect(mainItems?.some((item) => item?.key === 'memory')).toBe(false);
       // 'logout' is shown when isLoginWithAuth is true
@@ -116,7 +117,7 @@ describe('useMenu', () => {
     });
   });
 
-  it('shows admin configured help menu links from runtime customization', () => {
+  it('does not show admin configured help menu links in the user panel', () => {
     act(() => {
       useUserStore.setState({ isSignedIn: true });
     });
@@ -133,11 +134,6 @@ describe('useMenu', () => {
 
     const docsItem = findMenuItem(result.current.mainItems ?? [], 'custom-help-0');
 
-    expect(docsItem).toBeDefined();
-    render(<>{docsItem?.label}</>);
-
-    const link = screen.getByRole('link', { name: 'Admin Docs' });
-    expect(link).toHaveAttribute('href', 'https://docs.example.com');
-    expect(link).toHaveAttribute('target', '_blank');
+    expect(docsItem).toBeUndefined();
   });
 });
