@@ -4,7 +4,7 @@ import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Divider, Form, Input, message, Radio, Switch } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import {
@@ -98,34 +98,36 @@ const AdminModelPolicyPage = memo(() => {
 
     try {
       const values = await form.validateFields();
-      await Promise.all([
-        adminCommercialService.setAppSetting({ key: SETTING_KEYS.enabled, value: values.enabled }),
-        adminCommercialService.setAppSetting({ key: SETTING_KEYS.mode, value: values.mode }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.allowlist,
-          value: normalizeListText(values.allowlistText),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.blocklist,
-          value: normalizeListText(values.blocklistText),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.deniedMessage,
-          value: values.deniedMessage,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.applyToEmbeddings,
-          value: values.applyToEmbeddings,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.applyToGenerateObject,
-          value: values.applyToGenerateObject,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.defaultModelFallback,
-          value: values.defaultModelFallback,
-        }),
-      ]);
+      await adminCommercialService.setAppSettingsBatch({
+        updates: [
+          { key: SETTING_KEYS.enabled, value: values.enabled },
+          { key: SETTING_KEYS.mode, value: values.mode },
+          {
+            key: SETTING_KEYS.allowlist,
+            value: normalizeListText(values.allowlistText),
+          },
+          {
+            key: SETTING_KEYS.blocklist,
+            value: normalizeListText(values.blocklistText),
+          },
+          {
+            key: SETTING_KEYS.deniedMessage,
+            value: values.deniedMessage,
+          },
+          {
+            key: SETTING_KEYS.applyToEmbeddings,
+            value: values.applyToEmbeddings,
+          },
+          {
+            key: SETTING_KEYS.applyToGenerateObject,
+            value: values.applyToGenerateObject,
+          },
+          {
+            key: SETTING_KEYS.defaultModelFallback,
+            value: values.defaultModelFallback,
+          },
+        ],
+      });
 
       message.success(t('admin.modelPolicy.saveSuccess', '全局模型策略已保存'));
       await mutate(ADMIN_SETTINGS_SWR_KEY);

@@ -3,10 +3,11 @@ import type { ModelProviderCard } from '@/types/llm';
 const NewAPI: ModelProviderCard = {
   chatModels: [],
   checkModel: 'gpt-4o-mini',
-  description: 'An open-source aggregation and routing platform for multiple AI services.',
+  description:
+    'Manage AI providers through provider gateways or compatible OpenAI, Claude, and OpenCode Go formats.',
   enabled: true,
   id: 'newapi',
-  name: 'New API',
+  name: 'AI Provider',
   settings: {
     proxyUrl: {
       placeholder: 'https://your.new-api-provider.com',

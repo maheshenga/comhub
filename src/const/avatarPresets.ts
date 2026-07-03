@@ -4,7 +4,7 @@ export type AvatarPreset = {
 };
 
 export const DEFAULT_AVATAR_PRESETS: AvatarPreset[] = [
-  { label: '青柚绿', value: '/images/avatar-presets/avatar-1.svg' },
+  { label: '玄果绿', value: '/images/avatar-presets/avatar-1.svg' },
   { label: '玄果紫', value: '/images/avatar-presets/avatar-2.svg' },
   { label: '晨光橙', value: '/images/avatar-presets/avatar-3.svg' },
   { label: '湖蓝', value: '/images/avatar-presets/avatar-4.svg' },

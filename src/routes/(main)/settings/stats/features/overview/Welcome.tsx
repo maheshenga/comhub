@@ -5,6 +5,7 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import { useBrandName } from '@/features/Brand/useBrandName';
 import { useClientDataSWR } from '@/libs/swr';
+import { statsKeys } from '@/libs/swr/keys';
 import { userService } from '@/services/user';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
@@ -27,7 +28,7 @@ const Welcome = memo<{ mobile?: boolean }>(({ mobile }) => {
     userProfileSelectors.username(s),
   ]);
 
-  const { data, isLoading } = useClientDataSWR('welcome', async () =>
+  const { data, isLoading } = useClientDataSWR(statsKeys.welcome(), async () =>
     userService.getUserRegistrationDuration(),
   );
 

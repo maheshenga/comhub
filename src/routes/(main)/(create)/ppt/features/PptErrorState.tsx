@@ -2,7 +2,7 @@
 
 import { Button, Result } from 'antd';
 import { memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 const copy: Record<string, { action?: string; description: string; title: string }> = {
   PPT_DISABLED: {

@@ -29,6 +29,14 @@ export type SPABrandConfig = Partial<{
   [K in keyof BrandConfig]: BrandConfig[K] | null;
 }>;
 
+export interface AuthSPAServerConfig {
+  analyticsConfig: AnalyticsConfig;
+  config: GlobalServerConfig;
+  enableOIDC: boolean;
+  featureFlags: Partial<IFeatureFlags>;
+  globalCDN?: boolean;
+}
+
 export interface SPAServerConfig {
   analyticsConfig: AnalyticsConfig;
   brand?: SPABrandConfig;

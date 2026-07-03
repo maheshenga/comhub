@@ -6,6 +6,7 @@ import { createStaticStyles, cssVar } from 'antd-style';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import SkeletonList from '@/features/NavPanel/components/SkeletonList';
 import { useAgentStore } from '@/store/agent';
@@ -71,7 +72,7 @@ const AgentList = memo<AgentListProps>(({ activeAgentId, onSelect }) => {
         avatar: inboxAvatar,
         backgroundColor: inboxMeta?.backgroundColor || undefined,
         id: inboxAgentId,
-        title: inboxMeta?.title || defaultAgentMeta.title || '青柚助手',
+        title: inboxMeta?.title || defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME,
       });
       seen.add(inboxAgentId);
     }

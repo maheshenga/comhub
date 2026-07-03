@@ -1,8 +1,9 @@
 import type { Plans } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
+import type { SubscriptionCycleType } from '@/types/business';
 
-type NewapiModelType =
+type AiProviderModelType =
   | 'chat'
   | 'embedding'
   | 'tts'
@@ -12,7 +13,33 @@ type NewapiModelType =
   | 'text2music'
   | 'realtime';
 
-type AdminModelApiProviderType = 'newapi' | 'openai-compatible' | 'openai' | 'deepseek' | 'aliyun';
+type NewapiModelType = AiProviderModelType;
+
+type AdminModelApiProviderType =
+  | 'newapi'
+  | 'openai-compatible'
+  | 'openai'
+  | 'claude'
+  | 'deepseek'
+  | 'aliyun'
+  | 'opencode-go'
+  | 'siliconflow';
+
+type AdminAuditQueryParams = {
+  action?: string;
+  actorUserId?: string;
+  from?: Date | string;
+  resourceId?: string;
+  resourceType?: string;
+  targetUserId?: string;
+  to?: Date | string;
+};
+
+const normalizeAdminAuditQueryParams = <T extends AdminAuditQueryParams>(params: T) => ({
+  ...params,
+  from: typeof params.from === 'string' ? new Date(params.from) : params.from,
+  to: typeof params.to === 'string' ? new Date(params.to) : params.to,
+});
 
 class AdminCommercialService {
   // Users
@@ -69,7 +96,7 @@ class AdminCommercialService {
   };
 
   forceChangePlan = async (params: {
-    cycle: 'monthly' | 'yearly';
+    cycle: SubscriptionCycleType;
     plan: string;
     reason: string;
     userId: string;
@@ -78,7 +105,7 @@ class AdminCommercialService {
   };
 
   assignUserPlan = async (params: {
-    cycle: 'monthly' | 'yearly';
+    cycle: SubscriptionCycleType;
     durationMonths: number;
     plan: string;
     reason: string;
@@ -92,6 +119,14 @@ class AdminCommercialService {
 
   setAppSetting = async (params: { key: string; value: unknown }) => {
     return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
+  };
+
+  setAppSettingsBatch = async (params: { updates: Array<{ key: string; value: unknown }> }) => {
+    return lambdaClient.admin.settings.setAppSettingsBatch.mutate(params as any);
+  };
+
+  syncUserGlobalSettingsDefaultsToUsers = async () => {
+    return lambdaClient.admin.settings.syncUserGlobalSettingsDefaultsToUsers.mutate();
   };
 
   testS3Storage = async () => {
@@ -192,7 +227,8 @@ class AdminCommercialService {
   getOrderDetail = async (orderId: string) =>
     lambdaClient.admin.orders.getDetail.query({ orderId });
 
-  settleOrder = async (orderId: string) => lambdaClient.admin.orders.settle.mutate({ orderId });
+  settleOrder = async (params: { orderId: string; reason: string }) =>
+    lambdaClient.admin.orders.settle.mutate(params);
 
   getReferralStats = async () => lambdaClient.admin.referral.getReferralStats.query();
 
@@ -205,8 +241,10 @@ class AdminCommercialService {
     displayName: string;
     features?: string[];
     isActive?: boolean;
+    lifetimePrice?: null | number;
     monthlyCredits: number;
     monthlyPrice: number;
+    oneTimePrice?: null | number;
     plan: Plans;
     pptCreditCost?: number;
     pptEnabled?: boolean;
@@ -254,20 +292,18 @@ class AdminCommercialService {
   getStatsRedemptionOverview = async () => lambdaClient.admin.stats.redemptionOverview.query();
 
   // Audit log
-  listAudit = async (params: {
-    action?: string;
-    actorUserId?: string;
-    cursor?: number;
-    limit?: number;
-    targetUserId?: string;
-  }) => lambdaClient.admin.audit.list.query(params);
+  listAudit = async (
+    params: AdminAuditQueryParams & {
+      cursor?: number;
+      limit?: number;
+    },
+  ) => lambdaClient.admin.audit.list.query(normalizeAdminAuditQueryParams(params));
 
-  exportAudit = async (params: {
-    action?: string;
-    actorUserId?: string;
-    limit?: number;
-    targetUserId?: string;
-  }) => lambdaClient.admin.audit.exportAll.query(params);
+  exportAudit = async (
+    params: AdminAuditQueryParams & {
+      limit?: number;
+    },
+  ) => lambdaClient.admin.audit.exportAll.query(normalizeAdminAuditQueryParams(params));
 
   // Subscription Change Requests
   listChangeRequests = async (params: {
@@ -391,25 +427,27 @@ class AdminCommercialService {
   bulkDisableRedemptionCodes = async (ids: string[]) =>
     lambdaClient.admin.redemption.bulkDisable.mutate({ ids });
 
-  bulkDeleteRedemptionCodes = async (ids: string[]) =>
-    lambdaClient.admin.redemption.bulkDelete.mutate({ ids });
+  bulkDeleteRedemptionCodes = async (params: { ids: string[]; reason?: string } | string[]) =>
+    lambdaClient.admin.redemption.bulkDelete.mutate(
+      Array.isArray(params) ? { ids: params } : params,
+    );
 
-  // NewAPI Providers (multi-instance)
-  listNewapiInstances = async () => lambdaClient.admin.newapiProviders.listInstances.query();
+  // AI service providers (TRPC route keeps its historical newapiProviders name for compatibility).
+  listAiProviderInstances = async () => lambdaClient.admin.newapiProviders.listInstances.query();
+
+  listNewapiInstances = this.listAiProviderInstances;
+
+  listAllEnabledAiProviderModels = async (params?: { modelType?: AiProviderModelType }) =>
+    lambdaClient.admin.newapiProviders.getAllEnabledModels.query(params);
+
+  getAiProviderModelCatalogDiagnostics = async () =>
+    lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query();
 
   listAllEnabledNewapiModels = async (params?: {
-    modelType?:
-      | 'chat'
-      | 'embedding'
-      | 'tts'
-      | 'stt'
-      | 'image'
-      | 'video'
-      | 'text2music'
-      | 'realtime';
-  }) => lambdaClient.admin.newapiProviders.getAllEnabledModels.query(params);
+    modelType?: NewapiModelType;
+  }) => this.listAllEnabledAiProviderModels(params);
 
-  createNewapiInstance = async (params: {
+  createAiProviderInstance = async (params: {
     apiKey: string;
     baseUrl: string;
     description?: string;
@@ -421,10 +459,12 @@ class AdminCommercialService {
     name: string;
     priority?: number;
     providerType?: AdminModelApiProviderType;
-    usageScope?: NewapiModelType[];
+    usageScope?: AiProviderModelType[];
   }) => lambdaClient.admin.newapiProviders.createInstance.mutate(params);
 
-  updateNewapiInstance = async (params: {
+  createNewapiInstance = this.createAiProviderInstance;
+
+  updateAiProviderInstance = async (params: {
     data: {
       apiKey?: string;
       baseUrl?: string;
@@ -437,67 +477,79 @@ class AdminCommercialService {
       name?: string;
       priority?: number;
       providerType?: AdminModelApiProviderType;
-      usageScope?: NewapiModelType[];
+      usageScope?: AiProviderModelType[];
     };
     id: string;
   }) => lambdaClient.admin.newapiProviders.updateInstance.mutate(params);
 
-  deleteNewapiInstance = async (id: string) =>
-    lambdaClient.admin.newapiProviders.deleteInstance.mutate({ id });
+  updateNewapiInstance = this.updateAiProviderInstance;
 
-  toggleNewapiInstance = async (params: { enabled: boolean; id: string }) =>
+  deleteAiProviderInstance = async (params: { id: string; reason?: string } | string) =>
+    lambdaClient.admin.newapiProviders.deleteInstance.mutate(
+      typeof params === 'string' ? { id: params } : params,
+    );
+
+  deleteNewapiInstance = this.deleteAiProviderInstance;
+
+  toggleAiProviderInstance = async (params: { enabled: boolean; id: string }) =>
     lambdaClient.admin.newapiProviders.toggleInstanceEnabled.mutate(params);
 
-  testNewapiInstanceConnection = async (id: string) =>
+  toggleNewapiInstance = this.toggleAiProviderInstance;
+
+  testAiProviderInstanceConnection = async (id: string) =>
     lambdaClient.admin.newapiProviders.testInstanceConnection.query({ id });
 
-  syncNewapiInstanceModels = async (id: string) =>
+  testNewapiInstanceConnection = this.testAiProviderInstanceConnection;
+
+  syncAiProviderInstanceModels = async (id: string) =>
     lambdaClient.admin.newapiProviders.syncInstanceModels.mutate({ id });
 
-  listNewapiInstanceModels = async (params: {
+  syncNewapiInstanceModels = this.syncAiProviderInstanceModels;
+
+  refreshAiProviderRuntimeCache = async () =>
+    lambdaClient.admin.newapiProviders.refreshRuntimeCache.mutate();
+
+  listAiProviderInstanceModels = async (params: {
     instanceId: string;
-    modelType?:
-      | 'chat'
-      | 'embedding'
-      | 'tts'
-      | 'stt'
-      | 'image'
-      | 'video'
-      | 'text2music'
-      | 'realtime';
+    modelType?: AiProviderModelType;
   }) => lambdaClient.admin.newapiProviders.listModels.query(params);
 
-  addNewapiInstanceModels = async (params: {
+  listNewapiInstanceModels = this.listAiProviderInstanceModels;
+
+  addAiProviderInstanceModels = async (params: {
     instanceId: string;
     models: Array<{
       displayName?: string;
       enabled?: boolean;
       modelId: string;
-      modelType:
-        | 'chat'
-        | 'embedding'
-        | 'tts'
-        | 'stt'
-        | 'image'
-        | 'video'
-        | 'text2music'
-        | 'realtime';
+      modelType: AiProviderModelType;
       sortOrder?: number;
     }>;
   }) => lambdaClient.admin.newapiProviders.addModels.mutate(params);
 
-  removeNewapiInstanceModel = async (params: {
+  addNewapiInstanceModels = this.addAiProviderInstanceModels;
+
+  removeAiProviderInstanceModel = async (params: {
     instanceId: string;
     modelId: string;
-    modelType: 'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
+    modelType: AiProviderModelType;
   }) => lambdaClient.admin.newapiProviders.removeModel.mutate(params);
 
-  updateNewapiInstanceModel = async (params: {
-    data: { displayName?: string; enabled?: boolean; sortOrder?: number };
+  removeNewapiInstanceModel = this.removeAiProviderInstanceModel;
+
+  updateAiProviderInstanceModel = async (params: {
+    data: {
+      displayName?: string;
+      enabled?: boolean;
+      metadata?: Record<string, unknown> | null;
+      sortOrder?: number;
+    };
     instanceId: string;
     modelId: string;
-    modelType: 'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
+    modelType: AiProviderModelType;
   }) => lambdaClient.admin.newapiProviders.updateModel.mutate(params);
+
+  updateNewapiInstanceModel = this.updateAiProviderInstanceModel;
 
   // Plan model rules (per-type allowlist/blocklist)
   setPlanModelRules = async (params: {

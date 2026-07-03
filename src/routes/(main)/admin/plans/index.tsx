@@ -17,14 +17,14 @@ import {
 } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
 import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import {
   ADMIN_PLAN_MODEL_MATRIX_PATH,
   type AdminPlanModelRules,
-  getPlanModelRulesSummary,
+  getPlanModelRulesSummaryInfo,
 } from '@/features/Admin/adminPlanModelRules';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -40,6 +40,8 @@ type PlanRow = {
   metadata?: {
     badge?: string;
     comparisonNote?: string;
+    lifetimePrice?: null | number;
+    oneTimePrice?: null | number;
     pptCreditCost?: number;
     pptEnabled?: boolean;
     pptMonthlyQuota?: null | number;
@@ -60,8 +62,10 @@ type PlanFormValues = {
   displayName: string;
   features?: string;
   isActive?: boolean;
+  lifetimePrice?: null | number;
   monthlyCredits?: number;
   monthlyPrice?: number;
+  oneTimePrice?: null | number;
   plan: Plans;
   pptCreditCost?: number;
   pptEnabled?: boolean;
@@ -113,6 +117,8 @@ const AdminPlansPage = memo(() => {
       badge: presentation.badge,
       comparisonNote: presentation.comparisonNote,
       features: (init.features ?? []).join('\n'),
+      lifetimePrice: metadata?.lifetimePrice ?? null,
+      oneTimePrice: metadata?.oneTimePrice ?? null,
       pptCreditCost: Number(metadata?.pptCreditCost ?? 0),
       pptEnabled: metadata?.pptEnabled === true,
       pptMonthlyQuota: metadata?.pptMonthlyQuota ?? null,
@@ -139,8 +145,16 @@ const AdminPlansPage = memo(() => {
         displayName: values.displayName,
         features,
         isActive: !!values.isActive,
+        lifetimePrice:
+          values.lifetimePrice === null || values.lifetimePrice === undefined
+            ? null
+            : Number(values.lifetimePrice),
         monthlyCredits: Number(values.monthlyCredits || 0),
         monthlyPrice: Number(values.monthlyPrice || 0),
+        oneTimePrice:
+          values.oneTimePrice === null || values.oneTimePrice === undefined
+            ? null
+            : Number(values.oneTimePrice),
         plan: values.plan,
         pptCreditCost: Number(values.pptCreditCost || 0),
         pptEnabled: values.pptEnabled === true,
@@ -281,7 +295,25 @@ const AdminPlansPage = memo(() => {
     {
       dataIndex: 'modelRules',
       key: 'modelRules',
-      render: (rules: AdminPlanModelRules | null) => getPlanModelRulesSummary(rules),
+      render: (rules: AdminPlanModelRules | null) => {
+        const summary = getPlanModelRulesSummaryInfo(rules);
+
+        return (
+          <Flexbox gap={4}>
+            <Tag color={summary.hasRules ? 'orange' : 'green'}>{summary.label}</Tag>
+            {summary.allowlistTypeCount > 0 ? (
+              <Tag>
+                白名单 {summary.allowlistTypeCount} 类 / {summary.allowlistEntryCount} 项
+              </Tag>
+            ) : null}
+            {summary.blocklistTypeCount > 0 ? (
+              <Tag>
+                黑名单 {summary.blocklistTypeCount} 类 / {summary.blocklistEntryCount} 项
+              </Tag>
+            ) : null}
+          </Flexbox>
+        );
+      },
       title: t('admin.plans.col.modelRules', '模型权限'),
     },
     {
@@ -396,6 +428,24 @@ const AdminPlansPage = memo(() => {
             <Form.Item
               label={t('admin.plans.field.yearly', '年付价格')}
               name="yearlyPrice"
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+            </Form.Item>
+          </Flexbox>
+          <Flexbox horizontal gap={12}>
+            <Form.Item
+              extra={t('admin.plans.field.oneTimeHint', '留空时按 12 个月月付价估算。')}
+              label={t('admin.plans.field.oneTime', '一次性价格')}
+              name="oneTimePrice"
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              extra={t('admin.plans.field.lifetimeHint', '留空时按 24 个月月付价估算。')}
+              label={t('admin.plans.field.lifetime', '终身价格')}
+              name="lifetimePrice"
               style={{ flex: 1 }}
             >
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />

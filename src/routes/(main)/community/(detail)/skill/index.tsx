@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { memo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 
 import { useQuery } from '@/hooks/useQuery';
 import { useDiscoverStore } from '@/store/discover';
@@ -20,7 +20,7 @@ interface SkillDetailPageProps {
 
 const SkillDetailPage = memo<SkillDetailPageProps>(({ mobile }) => {
   const params = useParams<{ slug: string }>();
-  const identifier = params.slug ?? '';
+  const identifier = decodeURIComponent(params.slug ?? '');
 
   const { version } = useQuery() as { version?: string };
   const useSkillDetail = useDiscoverStore((s) => s.useFetchSkillDetail);

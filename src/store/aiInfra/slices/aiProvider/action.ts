@@ -41,6 +41,7 @@ export type ProviderModelListItem = {
   description?: string;
   displayName: string;
   id: string;
+  knowledgeCutoff?: string;
   parameters?: ModelParamsSchema;
   pricePerImage?: number;
   pricePerVideo?: number;
@@ -79,8 +80,9 @@ const createProviderModelCollector = (
 };
 
 export const normalizeChatModel = async (model: EnabledAiModel): Promise<ProviderModelListItem> => {
-  const [description, pricing] = await Promise.all([
+  const [description, knowledgeCutoff, pricing] = await Promise.all([
     getModelProperty<string>(model, 'description'),
+    getModelProperty<string>(model, 'knowledgeCutoff'),
     getModelProperty<Pricing>(model, 'pricing'),
   ]);
 
@@ -91,6 +93,7 @@ export const normalizeChatModel = async (model: EnabledAiModel): Promise<Provide
     id: model.id,
     releasedAt: model.releasedAt,
     ...(description && { description }),
+    ...(knowledgeCutoff && { knowledgeCutoff }),
     ...(pricing && { pricing }),
   };
 };
@@ -442,10 +445,7 @@ export class AiProviderActionImpl {
     );
   };
 
-  useFetchAiProviderList = (opts?: {
-    enabled?: boolean;
-    suspense?: boolean;
-  }): SWRResponse<AiProviderListItem[]> => {
+  useFetchAiProviderList = (opts?: { enabled?: boolean }): SWRResponse<AiProviderListItem[]> => {
     return useClientDataSWR<AiProviderListItem[]>(
       opts?.enabled === false ? null : AiProviderSwrKey.fetchAiProviderList,
       async () => {

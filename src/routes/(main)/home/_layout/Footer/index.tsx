@@ -21,24 +21,26 @@ import useSWR from 'swr';
 import type { ReactNode } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
-import ChangelogModal from '@/components/ChangelogModal';
+import { openChangelogModal } from '@/components/ChangelogModal';
+import { openFeedbackModal } from '@/components/FeedbackModal';
 import { PUBLIC_HELP_MENU_SWR_KEY } from '@/const/adminCacheKeys';
 import HighlightNotification from '@/components/HighlightNotification';
 import { DOCUMENTS_REFER_URL, GITHUB } from '@/const/url';
 import Billboard from '@/features/Billboard';
 import { useBillboardMenuItems } from '@/features/Billboard/MenuItems';
 import { useActiveNavKey } from '@/features/NavPanel';
+import { buildCustomHelpMenuItems } from '@/features/User/helpMenuItems';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
-import { useFeedbackModal } from '@/hooks/useFeedbackModal';
+import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors/systemStatus';
 import { useServerConfigStore } from '@/store/serverConfig';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
-import { userGeneralSettingsSelectors } from '@/store/user/selectors';
+import { userGeneralSettingsSelectors } from '@/store/user/slices/settings/selectors';
 
 import { createConfiguredHelpMenuItems } from './helpMenuItems';
 import { resolveFooterPromotionState } from './promotionPipeline';
@@ -76,6 +78,7 @@ const Footer = memo(() => {
   const enableAgentOnboarding = useServerConfigStore((s) => s.featureFlags.enableAgentOnboarding);
   const isMobile = useServerConfigStore((s) => !!s.isMobile);
   const serverConfigInit = useServerConfigStore((s) => s.serverConfigInit);
+  const customization = useServerConfigStore((s) => s.serverConfig.customization);
   const [agentOnboardingFinished, agentOnboardingStarted, classicOnboardingFinished, isDevMode] =
     useUserStore((s) => [
       !!s.agentOnboarding?.finishedAt,
@@ -83,9 +86,7 @@ const Footer = memo(() => {
       !!s.onboarding?.finishedAt,
       userGeneralSettingsSelectors.config(s).isDevMode,
     ]);
-  const [shouldLoadChangelog, setShouldLoadChangelog] = useState(false);
   const [isAgentOnboardingCardOpen, setIsAgentOnboardingCardOpen] = useState(false);
-  const [isChangelogModalOpen, setIsChangelogModalOpen] = useState(false);
   const [isProductHuntCardOpen, setIsProductHuntCardOpen] = useState(false);
 
   const { data: configuredHelpMenuItems = [] } = useSWR(PUBLIC_HELP_MENU_SWR_KEY, () =>
@@ -176,20 +177,13 @@ const Footer = memo(() => {
     });
   }, [isWithinTimeWindow, shouldAutoShowProductHuntCard, trackPromotionEvent]);
 
-  const { open: openFeedbackModal } = useFeedbackModal();
-
-  const handleOpenChangelogModal = () => {
-    setShouldLoadChangelog(true);
-    setIsChangelogModalOpen(true);
-  };
-
-  const handleCloseChangelogModal = () => {
-    setIsChangelogModalOpen(false);
-  };
+  const handleOpenChangelogModal = useCallback(() => {
+    openChangelogModal();
+  }, []);
 
   const handleOpenFeedbackModal = useCallback(() => {
     openFeedbackModal();
-  }, [openFeedbackModal]);
+  }, []);
 
   const handleCloseAgentOnboardingCard = useCallback(() => {
     setIsAgentOnboardingCardOpen(false);
@@ -265,6 +259,12 @@ const Footer = memo(() => {
     t,
   ]);
 
+  const customHelpItems = useMemo(
+    () => buildCustomHelpMenuItems(customization?.helpMenuItems),
+    [customization?.helpMenuItems],
+  );
+  const hasCustomHelpItems = customHelpItems.length > 0;
+
   const defaultHelpMenuItems: MenuProps['items'] = useMemo(
     () => [
       ...(footer.showSettingsEntry && !isDevMode
@@ -272,68 +272,72 @@ const Footer = memo(() => {
             {
               icon: <Icon icon={Settings2} />,
               key: 'setting',
-              label: <Link to="/settings">{t('userPanel.setting')}</Link>,
+              label: <WorkspaceLink to="/settings">{t('userPanel.setting')}</WorkspaceLink>,
             },
             {
               type: 'divider' as const,
             },
           ]
         : []),
-      {
-        icon: <Icon icon={Book} />,
-        key: 'docs',
-        label: (
-          <a href={DOCUMENTS_REFER_URL} rel="noopener noreferrer" target="_blank">
-            {t('userPanel.docs')}
-          </a>
-        ),
-      },
-      {
-        icon: <Icon icon={Feather} />,
-        key: 'feedback',
-        label: t('userPanel.feedback'),
-        onClick: handleOpenFeedbackModal,
-      },
-      {
-        icon: <Icon icon={DiscordIcon} />,
-        key: 'discord',
-        label: (
-          <a href={SOCIAL_URL.discord} rel="noopener noreferrer" target="_blank">
-            {t('userPanel.discord')}
-          </a>
-        ),
-      },
-      {
-        type: 'divider',
-      },
-      {
-        icon: <Icon icon={FileClockIcon} />,
-        key: 'changelog',
-        label: t('changelog'),
-        onClick: handleOpenChangelogModal,
-      },
-      ...(footer.layout === 'compact' && !footer.hideGitHub
-        ? [
+      ...(hasCustomHelpItems
+        ? customHelpItems
+        : [
             {
-              icon: <Icon icon={GithubIcon} />,
-              key: 'github',
+              icon: <Icon icon={Book} />,
+              key: 'docs',
               label: (
-                <a href={GITHUB} rel="noopener noreferrer" target="_blank">
-                  GitHub
+                <a href={DOCUMENTS_REFER_URL} rel="noopener noreferrer" target="_blank">
+                  {t('userPanel.docs')}
                 </a>
               ),
             },
-          ]
-        : []),
-      ...(footer.showEvalEntry && footer.layout === 'compact'
-        ? [
             {
-              icon: <Icon icon={FlaskConical} />,
-              key: 'eval',
-              label: <Link to="/eval">Evaluation Lab</Link>,
+              icon: <Icon icon={Feather} />,
+              key: 'feedback',
+              label: t('userPanel.feedback'),
+              onClick: handleOpenFeedbackModal,
             },
-          ]
-        : []),
+            {
+              icon: <Icon icon={DiscordIcon} />,
+              key: 'discord',
+              label: (
+                <a href={SOCIAL_URL.discord} rel="noopener noreferrer" target="_blank">
+                  {t('userPanel.discord')}
+                </a>
+              ),
+            },
+            {
+              type: 'divider' as const,
+            },
+            {
+              icon: <Icon icon={FileClockIcon} />,
+              key: 'changelog',
+              label: t('changelog'),
+              onClick: handleOpenChangelogModal,
+            },
+            ...(footer.layout === 'compact' && !footer.hideGitHub
+              ? [
+                  {
+                    icon: <Icon icon={GithubIcon} />,
+                    key: 'github',
+                    label: (
+                      <a href={GITHUB} rel="noopener noreferrer" target="_blank">
+                        GitHub
+                      </a>
+                    ),
+                  },
+                ]
+              : []),
+            ...(footer.showEvalEntry && footer.layout === 'compact'
+              ? [
+                  {
+                    icon: <Icon icon={FlaskConical} />,
+                    key: 'eval',
+                    label: <WorkspaceLink to="/eval">Evaluation Lab</WorkspaceLink>,
+                  },
+                ]
+              : []),
+          ]),
       ...(shouldShowProductHuntMenuEntry
         ? [
             {
@@ -346,12 +350,15 @@ const Footer = memo(() => {
         : []),
     ],
     [
+      customHelpItems,
       footer.showSettingsEntry,
       footer.layout,
       footer.hideGitHub,
       footer.showEvalEntry,
+      handleOpenChangelogModal,
       handleOpenFeedbackModal,
       handleOpenProductHuntCard,
+      hasCustomHelpItems,
       isDevMode,
       shouldShowProductHuntMenuEntry,
       t,
@@ -399,9 +406,9 @@ const Footer = memo(() => {
                 <ActionIcon icon={GithubIcon} size={16} title={'GitHub'} />
               </a>
             )}
-            <Link to="/eval">
+            <WorkspaceLink to="/eval">
               <ActionIcon icon={FlaskConical} size={16} title="Evaluation Lab" />
-            </Link>
+            </WorkspaceLink>
           </Flexbox>
           <ThemeButton placement={'topCenter'} size={16} />
         </Flexbox>
@@ -411,22 +418,17 @@ const Footer = memo(() => {
             <ActionIcon aria-label={t('userPanel.help')} icon={CircleHelp} size={16} />
           </DropdownMenu>
           {isDevMode && (
-            <Link to="/settings">
+            <WorkspaceLink to="/settings">
               <ActionIcon
                 aria-label={t('userPanel.setting')}
                 icon={SettingsIcon}
                 size={16}
                 title={t('userPanel.setting')}
               />
-            </Link>
+            </WorkspaceLink>
           )}
         </Flexbox>
       )}
-      <ChangelogModal
-        open={isChangelogModalOpen}
-        shouldLoad={shouldLoadChangelog}
-        onClose={handleCloseChangelogModal}
-      />
       {activePromotion && (
         <HighlightNotification
           open

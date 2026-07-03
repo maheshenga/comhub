@@ -7,7 +7,6 @@ import {
   Empty,
   Input,
   message,
-  Popconfirm,
   Select,
   Space,
   Tag,
@@ -19,6 +18,8 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+import AdminDangerousActionButton from './AdminDangerousActionButton';
 
 const { Text, Title } = Typography;
 
@@ -219,14 +220,16 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
                   归档
                 </Button>
               ) : null}
-              <Popconfirm
-                title="确认删除这个话题？"
+              <AdminDangerousActionButton
+                actionId="content.deleteTopic"
+                danger
+                loading={actingId === row.topic.id}
+                size="small"
+                confirmTitle="确认删除这个话题？"
                 onConfirm={() => runAction(row.topic.id, 'delete-topic')}
               >
-                <Button danger loading={actingId === row.topic.id} size="small">
-                  删除
-                </Button>
-              </Popconfirm>
+                删除
+              </AdminDangerousActionButton>
             </Space>
           ),
           title: '操作',
@@ -282,14 +285,16 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
         {
           key: 'actions',
           render: (_: unknown, row: any) => (
-            <Popconfirm
-              title="确认删除这个文件记录？"
+            <AdminDangerousActionButton
+              actionId="content.deleteFile"
+              danger
+              loading={actingId === row.file.id}
+              size="small"
+              confirmTitle="确认删除这个文件记录？"
               onConfirm={() => runAction(row.file.id, 'delete-file')}
             >
-              <Button danger loading={actingId === row.file.id} size="small">
-                删除
-              </Button>
-            </Popconfirm>
+              删除
+            </AdminDangerousActionButton>
           ),
           title: '操作',
           width: 100,
@@ -342,14 +347,16 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
       {
         key: 'actions',
         render: (_: unknown, row: any) => (
-          <Popconfirm
-            title="确认删除这个文稿？"
+          <AdminDangerousActionButton
+            actionId="content.deleteDocument"
+            danger
+            loading={actingId === row.document.id}
+            size="small"
+            confirmTitle="确认删除这个文稿？"
             onConfirm={() => runAction(row.document.id, 'delete-document')}
           >
-            <Button danger loading={actingId === row.document.id} size="small">
-              删除
-            </Button>
-          </Popconfirm>
+            删除
+          </AdminDangerousActionButton>
         ),
         title: '操作',
         width: 100,

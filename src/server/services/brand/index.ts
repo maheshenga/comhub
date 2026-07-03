@@ -53,6 +53,12 @@ const readString = async (db: ServerDB, key: string) => {
   return typeof v === 'string' && v.trim() ? v : null;
 };
 
+const readOptionalString = async (db: ServerDB, key: string) => {
+  const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
+  const v = row?.value;
+  return typeof v === 'string' ? v : null;
+};
+
 const readBoolean = async (db: ServerDB, key: string, fallback: boolean) => {
   const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
   const v = row?.value;
@@ -89,7 +95,7 @@ export const getServerBrand = async (): Promise<ServerBrandConfig> => {
       sidebarGenerationLabel,
     ] = await Promise.all([
       readString(db, KEYS.name),
-      readString(db, KEYS.logo),
+      readOptionalString(db, KEYS.logo),
       readString(db, KEYS.favicon),
       readString(db, KEYS.primary),
       readString(db, KEYS.slogan),

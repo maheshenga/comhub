@@ -1,7 +1,7 @@
 import type * as LobechatConst from '@lobechat/const';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const analyticsTrack = vi.fn();
@@ -32,6 +32,7 @@ interface RenderFooterOptions {
   agentFinished?: boolean;
   agentStarted?: boolean;
   classicFinished?: boolean;
+  customization?: Record<string, unknown>;
   desktop?: boolean;
   enabled?: boolean;
   mobile?: boolean;
@@ -67,6 +68,7 @@ const renderFooter = async ({
   agentFinished = false,
   agentStarted = false,
   classicFinished = true,
+  customization,
   desktop = false,
   enabled = true,
   mobile = false,
@@ -85,6 +87,7 @@ const renderFooter = async ({
   mockServerConfigState = {
     featureFlags: { enableAgentOnboarding: enabled },
     isMobile: mobile,
+    serverConfig: { customization },
     serverConfigInit,
   };
   mockUserState = {
@@ -114,7 +117,12 @@ const renderFooter = async ({
     useAnalytics: createAnalyticsApi,
   }));
   vi.doMock('@/components/ChangelogModal', () => ({
-    default: () => null,
+    default: vi.fn(),
+    openChangelogModal: vi.fn(),
+  }));
+  vi.doMock('@/components/FeedbackModal', () => ({
+    default: vi.fn(),
+    openFeedbackModal: vi.fn(),
   }));
   vi.doMock('@/components/HighlightNotification', () => ({
     default: (props: {
@@ -147,9 +155,6 @@ const renderFooter = async ({
         </div>
       ) : null,
   }));
-  vi.doMock('@/features/User/UserPanel/ThemeButton', () => ({
-    default: () => null,
-  }));
   vi.doMock('@/features/Billboard', () => ({
     default: () => null,
   }));
@@ -159,11 +164,8 @@ const renderFooter = async ({
   vi.doMock('@/features/NavPanel', () => ({
     useActiveNavKey: () => 'home',
   }));
-  function createFeedbackModalApi() {
-    return { open: vi.fn() };
-  }
-  vi.doMock('@/hooks/useFeedbackModal', () => ({
-    useFeedbackModal: createFeedbackModalApi,
+  vi.doMock('@/features/User/UserPanel/ThemeButton', () => ({
+    default: () => null,
   }));
   function createNavLayoutState() {
     return {
@@ -203,7 +205,7 @@ const renderFooter = async ({
   vi.doMock('@/store/user', () => ({
     useUserStore: selectFromUserStore,
   }));
-  vi.doMock('@/store/user/slices/settings/selectors/general', () => ({
+  vi.doMock('@/store/user/slices/settings/selectors', () => ({
     userGeneralSettingsSelectors: {
       config: (state: Record<string, unknown>) =>
         ((state.settings as Record<string, unknown>)?.general as Record<string, unknown>) ?? {},
@@ -233,17 +235,17 @@ afterEach(() => {
   vi.doUnmock('@lobechat/const');
   vi.doUnmock('@lobehub/analytics/react');
   vi.doUnmock('@/components/ChangelogModal');
+  vi.doUnmock('@/components/FeedbackModal');
   vi.doUnmock('@/components/HighlightNotification');
-  vi.doUnmock('@/features/User/UserPanel/ThemeButton');
   vi.doUnmock('@/features/Billboard');
   vi.doUnmock('@/features/Billboard/MenuItems');
   vi.doUnmock('@/features/NavPanel');
-  vi.doUnmock('@/hooks/useFeedbackModal');
+  vi.doUnmock('@/features/User/UserPanel/ThemeButton');
   vi.doUnmock('@/hooks/useNavLayout');
   vi.doUnmock('@/store/global');
   vi.doUnmock('@/store/serverConfig');
   vi.doUnmock('@/store/user');
-  vi.doUnmock('@/store/user/slices/settings/selectors/general');
+  vi.doUnmock('@/store/user/slices/settings/selectors');
   vi.doUnmock('@/services/adminCommercial');
 });
 

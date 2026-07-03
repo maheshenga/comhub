@@ -70,6 +70,7 @@ describe('POST handler', () => {
         {
           model: 'test-model',
           modelType: 'chat',
+          workspaceId: undefined,
         },
       );
     });

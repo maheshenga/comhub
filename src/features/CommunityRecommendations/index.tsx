@@ -3,7 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { Button, Skeleton, Tag, Typography } from 'antd';
 import { memo, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { useClientDataSWR } from '@/libs/swr';
 import AssistantList from '@/routes/(main)/community/(list)/agent/features/List';

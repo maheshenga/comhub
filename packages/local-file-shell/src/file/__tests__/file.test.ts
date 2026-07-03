@@ -134,7 +134,7 @@ describe('file operations', () => {
 
     it('should truncate single very long lines to per-line cap', async () => {
       const filePath = path.join(tmpDir, 'long-line.txt');
-      // 27KB single line of base64-like text — the LOBE-8703 scenario.
+      // 27KB single line of base64-like text — the scenario.
       await writeFile(filePath, 'A'.repeat(27_000));
 
       const result = await readLocalFile({ path: filePath });
@@ -303,6 +303,39 @@ describe('file operations', () => {
       expect(result.success).toBe(true);
       expect(result.linesAdded).toBeGreaterThan(0);
       expect(result.linesDeleted).toBeGreaterThan(0);
+    });
+
+    it('should match a multi-line LF old_string against a CRLF file (Windows)', async () => {
+      const filePath = path.join(tmpDir, 'crlf.txt');
+      await writeFile(filePath, 'line1\r\nline2\r\nline3\r\n');
+
+      // LLM emits `\n` even though the file on disk uses `\r\n`.
+      const result = await editLocalFile({
+        file_path: filePath,
+        new_string: 'lineA\nlineB',
+        old_string: 'line1\nline2',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.replacements).toBe(1);
+      // Existing CRLF line-ending style is preserved.
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('lineA\r\nlineB\r\nline3\r\n');
+    });
+
+    it('should replace_all with an LF old_string against a CRLF file', async () => {
+      const filePath = path.join(tmpDir, 'crlf-all.txt');
+      await writeFile(filePath, 'a\r\nb\r\na\r\nb\r\n');
+
+      const result = await editLocalFile({
+        file_path: filePath,
+        new_string: 'x\ny',
+        old_string: 'a\nb',
+        replace_all: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.replacements).toBe(2);
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('x\r\ny\r\nx\r\ny\r\n');
     });
   });
 

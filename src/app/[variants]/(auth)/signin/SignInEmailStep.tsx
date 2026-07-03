@@ -8,7 +8,7 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import AuthIcons from '@/components/AuthIcons';
 import { PRIVACY_URL, TERMS_URL } from '@/const/url';
-import { useBrand, useBrandName } from '@/features/Brand';
+import { useBrand } from '@/features/Brand';
 
 import AuthCard from '../../../../features/AuthCard';
 
@@ -52,7 +52,6 @@ export const SignInEmailStep = ({
 }: SignInEmailStepProps) => {
   const { t } = useTranslation('auth');
   const brand = useBrand();
-  const brandName = useBrandName();
   const emailInputRef = useRef<InputRef>(null);
 
   useEffect(() => {
@@ -106,8 +105,8 @@ export const SignInEmailStep = ({
   return (
     <AuthCard
       footer={footer}
-      subtitle={t('signin.subtitle', { appName: brandName })}
-      title={brand.authTitle || t('signin.title')}
+      subtitle={t('signin.subtitle', { appName: brand.name })}
+      title={brand.authTitle}
     >
       {!serverConfigInit && (
         <Flexbox gap={12}>

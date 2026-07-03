@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { memo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 
 import { DetailProvider } from '@/features/MCPPluginDetail/DetailProvider';
 import Header from '@/features/MCPPluginDetail/Header';
@@ -21,7 +21,7 @@ interface McpDetailPageProps {
 
 const McpDetailPage = memo<McpDetailPageProps>(({ mobile }) => {
   const params = useParams<{ slug: string }>();
-  const identifier = params.slug ?? '';
+  const identifier = decodeURIComponent(params.slug ?? '');
 
   const { version } = useQuery() as { version?: string };
   const useMcpDetail = useDiscoverStore((s) => s.useFetchMcpDetail);

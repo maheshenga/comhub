@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
+
 import {
   APP_SETTING_KEYS,
+  getServerComposioConfig,
   getServerDefaultAgentSettingOverrides,
   getServerDefaultModelSuggestions,
   getServerFileS3Config,
@@ -49,7 +52,7 @@ describe('appSettings model helpers', () => {
           findMany: async () => [
             { key: APP_SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' },
             { key: APP_SETTING_KEYS.defaultAgentProvider, value: 'newapi' },
-            { key: APP_SETTING_KEYS.defaultAgentName, value: '青柚助手' },
+            { key: APP_SETTING_KEYS.defaultAgentName, value: DEFAULT_COMHUB_AGENT_NAME },
             { key: APP_SETTING_KEYS.defaultAgentAvatar, value: '/images/brand/logo.svg' },
           ],
         },
@@ -60,7 +63,7 @@ describe('appSettings model helpers', () => {
       avatar: '/images/brand/logo.svg',
       model: 'deepseek-chat',
       provider: 'newapi',
-      title: '青柚助手',
+      title: DEFAULT_COMHUB_AGENT_NAME,
     });
   });
 
@@ -95,6 +98,26 @@ describe('appSettings model helpers', () => {
       region: 'ap-southeast-1',
       secretAccessKey: 'admin-secret-key',
       setAcl: false,
+    });
+  });
+
+  it('returns Composio config from app settings with env fallback', async () => {
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            { key: APP_SETTING_KEYS.composioEnabled, value: true },
+            { key: APP_SETTING_KEYS.composioApiKey, value: 'ak_admin' },
+            { key: APP_SETTING_KEYS.composioAuthConfigIds, value: '{"gmail":"ac_admin"}' },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerComposioConfig(db)).resolves.toEqual({
+      apiKey: 'ak_admin',
+      authConfigIds: '{"gmail":"ac_admin"}',
+      enabled: true,
     });
   });
 

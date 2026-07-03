@@ -18,7 +18,7 @@ describe('selectRuntimeType', () => {
       expect(selectRuntimeType({ isGatewayMode: true }, opts)).toBe('gateway');
     });
 
-    it('routes local heterogeneousProvider to gateway on web — cloud sandbox is the only execution env', () => {
+    it('routes local heterogeneousProvider to gateway on web', () => {
       expect(
         selectRuntimeType({ heterogeneousProvider: heteroProvider, isGatewayMode: true }, opts),
       ).toBe('gateway');
@@ -74,6 +74,94 @@ describe('selectRuntimeType', () => {
     it('falls back to gateway/client when no hetero provider', () => {
       expect(selectRuntimeType({ isGatewayMode: true }, opts)).toBe('gateway');
       expect(selectRuntimeType({ isGatewayMode: false }, opts)).toBe('client');
+    });
+  });
+
+  describe('executionTarget routing for local CLI hetero', () => {
+    it('routes to gateway when executionTarget = device on desktop', () => {
+      expect(
+        selectRuntimeType(
+          {
+            executionTarget: 'device',
+            heterogeneousProvider: heteroProvider,
+            isGatewayMode: false,
+          },
+          { isDesktop: true },
+        ),
+      ).toBe('gateway');
+    });
+
+    it('routes to gateway even when the bound device IS this desktop (observability choice)', () => {
+      // `device` vs `local` on the same machine is a user-facing semantic
+      // choice, not a transport detail: gateway dispatch streams progress
+      // through the server so other clients (mobile/web) can follow the run,
+      // while `local` IPC is faster but desktop-session-only. NEVER collapse
+      // `device(currentDeviceId)` into the in-process path.
+      expect(
+        selectRuntimeType(
+          {
+            boundDeviceId: 'this-desktop-device-id',
+            executionTarget: 'device',
+            heterogeneousProvider: heteroProvider,
+            isGatewayMode: false,
+          },
+          { isDesktop: true },
+        ),
+      ).toBe('gateway');
+    });
+
+    it('routes to gateway when executionTarget = sandbox on desktop', () => {
+      expect(
+        selectRuntimeType(
+          {
+            executionTarget: 'sandbox',
+            heterogeneousProvider: heteroProvider,
+            isGatewayMode: false,
+          },
+          { isDesktop: true },
+        ),
+      ).toBe('gateway');
+    });
+
+    it('keeps hetero when executionTarget = local on desktop', () => {
+      expect(
+        selectRuntimeType(
+          {
+            executionTarget: 'local',
+            heterogeneousProvider: heteroProvider,
+            isGatewayMode: false,
+          },
+          { isDesktop: true },
+        ),
+      ).toBe('hetero');
+    });
+
+    it('falls back to gateway when executionTarget = local on web (sandbox or bound device)', () => {
+      expect(
+        selectRuntimeType(
+          {
+            executionTarget: 'local',
+            heterogeneousProvider: heteroProvider,
+            isGatewayMode: false,
+          },
+          { isDesktop: false },
+        ),
+      ).toBe('gateway');
+    });
+
+    it('preserves legacy default when executionTarget is unset (desktop → hetero, web → gateway)', () => {
+      expect(
+        selectRuntimeType(
+          { heterogeneousProvider: heteroProvider, isGatewayMode: false },
+          { isDesktop: true },
+        ),
+      ).toBe('hetero');
+      expect(
+        selectRuntimeType(
+          { heterogeneousProvider: heteroProvider, isGatewayMode: false },
+          { isDesktop: false },
+        ),
+      ).toBe('gateway');
     });
   });
 

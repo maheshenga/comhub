@@ -2,7 +2,19 @@
 
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Avatar, Flexbox } from '@lobehub/ui';
-import { Alert, Button, Form, Input, message, Select, Space, Switch, Typography } from 'antd';
+import {
+  Alert,
+  AutoComplete,
+  Button,
+  Form,
+  Input,
+  message,
+  Modal,
+  Select,
+  Space,
+  Switch,
+  Typography,
+} from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 
 import { Card } from '@/components/antd-compat/Card';
@@ -11,9 +23,11 @@ import {
   PROFILE_INTEREST_AREAS_SWR_KEY,
   PROFILE_OPTIONS_SWR_KEY,
   RUNTIME_CONFIG_SWR_KEY,
+  USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
 import { type AvatarPreset, DEFAULT_AVATAR_PRESETS } from '@/const/avatarPresets';
 import { buildModelOptions, resolveModelOptionValue } from '@/features/Admin/adminSettingsForm';
+import ImageUrlUploadInput from '@/features/Admin/components/ImageUrlUploadInput';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -21,6 +35,17 @@ const { Text, Title } = Typography;
 
 const SETTING_KEYS = {
   avatarPresets: 'profile.avatarPresets',
+  composioApiKey: 'composio.apiKey',
+  composioAuthConfigIds: 'composio.authConfigIds',
+  composioEnabled: 'composio.enabled',
+  memoryUserMemoryEmbeddingModel: 'memory.userMemory.embedding.model',
+  memoryUserMemoryEmbeddingProvider: 'memory.userMemory.embedding.provider',
+  memoryUserMemoryGatekeeperModel: 'memory.userMemory.gatekeeper.model',
+  memoryUserMemoryGatekeeperProvider: 'memory.userMemory.gatekeeper.provider',
+  memoryUserMemoryLayerExtractorModel: 'memory.userMemory.layerExtractor.model',
+  memoryUserMemoryLayerExtractorProvider: 'memory.userMemory.layerExtractor.provider',
+  memoryUserMemoryPersonaWriterModel: 'memory.userMemory.personaWriter.model',
+  memoryUserMemoryPersonaWriterProvider: 'memory.userMemory.personaWriter.provider',
   userGlobalSettingsDefaults: 'user.globalSettings.defaults',
   vectorEmbeddingModel: 'vector.embedding.model',
   vectorEmbeddingProvider: 'vector.embedding.provider',
@@ -31,8 +56,20 @@ const SETTING_KEYS = {
 
 type FormValues = {
   avatarPresets: AvatarPreset[];
+  composioApiKey?: string;
+  composioAuthConfigIds?: string;
+  composioClearApiKey?: boolean;
+  composioEnabled?: boolean;
   disabledBuiltinToolsText: string;
   languageModelDefaultsJson: string;
+  memoryEmbeddingModel: string;
+  memoryEmbeddingProvider: string;
+  memoryGatekeeperModel: string;
+  memoryGatekeeperProvider: string;
+  memoryLayerExtractorModel: string;
+  memoryLayerExtractorProvider: string;
+  memoryPersonaWriterModel: string;
+  memoryPersonaWriterProvider: string;
   serviceModelAgentMeta: string;
   serviceModelDefaultAgent: string;
   serviceModelFollowUpAction: string;
@@ -83,6 +120,28 @@ const parseModelValue = (value?: string) => {
   return provider && model ? { model, provider } : null;
 };
 
+const findModelOption = (
+  options: Array<{ model: string; provider: string; value: string }>,
+  value?: string,
+) => options.find((option) => option.value === value || option.model === value);
+
+const normalizeMemoryModelFields = (
+  modelValue: string | undefined,
+  providerValue: string | undefined,
+  options: Array<{ model: string; provider: string; value: string }>,
+) => {
+  const model = typeof modelValue === 'string' ? modelValue.trim() : '';
+  const provider = typeof providerValue === 'string' ? providerValue.trim() : '';
+  const selected =
+    options.find((option) => option.value === model) ??
+    options.find((option) => option.model === model && (!provider || option.provider === provider));
+
+  return {
+    model: selected?.value === model ? selected.model : model,
+    provider: provider || selected?.provider || '',
+  };
+};
+
 const applyModelValue = (target: Record<string, any>, key: string, value?: string) => {
   const current =
     target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])
@@ -110,23 +169,60 @@ const applyModelValue = (target: Record<string, any>, key: string, value?: strin
 const AdminSystemDefaultsPage = memo(() => {
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
   );
+  const uploadPublicUrlPrefix =
+    typeof (data as any)?.storageS3PublicDomain === 'string'
+      ? (data as any).storageS3PublicDomain
+      : undefined;
   const modelOptions = useMemo(() => buildModelOptions({ ...data, modelType: 'chat' }), [data]);
+  const embeddingModelOptions = useMemo(
+    () => buildModelOptions({ ...data, modelType: 'embedding' }),
+    [data],
+  );
+  const applySelectedModelProvider = (
+    modelField: keyof FormValues,
+    providerField: keyof FormValues,
+    options: Array<{ model: string; provider: string; value: string }>,
+    selectedValue?: string,
+  ) => {
+    const selected = findModelOption(options, selectedValue ?? form.getFieldValue(modelField));
+    if (!selected) return;
+
+    form.setFieldsValue({
+      [modelField]: selected.model,
+      [providerField]: selected.provider,
+    } as Partial<FormValues>);
+  };
 
   useEffect(() => {
     if (!data) return;
 
+    const memoryExtractionConfig = (data as any).memoryExtractionConfig ?? {};
     const vectorConfig = (data as any).vectorConfig ?? {};
+    const composioConfig = (data as any).composioConfig ?? {};
     const userDefaults = (data as any).userGlobalSettingsDefaults ?? {};
     const systemAgent = userDefaults.systemAgent ?? {};
     form.setFieldsValue({
       avatarPresets: (data as any).avatarPresets ?? DEFAULT_AVATAR_PRESETS,
+      composioApiKey: '',
+      composioAuthConfigIds: composioConfig.authConfigIds ?? '',
+      composioClearApiKey: false,
+      composioEnabled: composioConfig.enabled ?? false,
       disabledBuiltinToolsText: Array.isArray(userDefaults?.tool?.uninstalledBuiltinTools)
         ? userDefaults.tool.uninstalledBuiltinTools.join('\n')
         : '',
       languageModelDefaultsJson: jsonStringify(userDefaults?.languageModel ?? {}),
+      memoryEmbeddingModel: memoryExtractionConfig.embeddingModel ?? '',
+      memoryEmbeddingProvider: memoryExtractionConfig.embeddingProvider ?? '',
+      memoryGatekeeperModel: memoryExtractionConfig.gatekeeperModel ?? '',
+      memoryGatekeeperProvider: memoryExtractionConfig.gatekeeperProvider ?? '',
+      memoryLayerExtractorModel: memoryExtractionConfig.layerExtractorModel ?? '',
+      memoryLayerExtractorProvider: memoryExtractionConfig.layerExtractorProvider ?? '',
+      memoryPersonaWriterModel: memoryExtractionConfig.personaWriterModel ?? '',
+      memoryPersonaWriterProvider: memoryExtractionConfig.personaWriterProvider ?? '',
       serviceModelAgentMeta: resolveModelOptionValue(systemAgent.agentMeta, modelOptions),
       serviceModelDefaultAgent: resolveModelOptionValue(
         userDefaults?.defaultAgent?.config,
@@ -161,14 +257,35 @@ const AdminSystemDefaultsPage = memo(() => {
     });
   }, [data, form, modelOptions]);
 
-  const handleSave = async () => {
+  const handleSave = async ({ syncToUsers = false }: { syncToUsers?: boolean } = {}) => {
     setSubmitting(true);
+    if (syncToUsers) setSyncing(true);
     try {
       const values = await form.validateFields();
       const userGlobalSettings = parseJsonObject(values.userGlobalSettingsJson);
       const languageModelDefaults = parseJsonObject(values.languageModelDefaultsJson);
       const disabledBuiltinTools = splitTextList(values.disabledBuiltinToolsText);
       const defaultAgentModel = parseModelValue(values.serviceModelDefaultAgent);
+      const memoryGatekeeper = normalizeMemoryModelFields(
+        values.memoryGatekeeperModel,
+        values.memoryGatekeeperProvider,
+        modelOptions,
+      );
+      const memoryLayerExtractor = normalizeMemoryModelFields(
+        values.memoryLayerExtractorModel,
+        values.memoryLayerExtractorProvider,
+        modelOptions,
+      );
+      const memoryPersonaWriter = normalizeMemoryModelFields(
+        values.memoryPersonaWriterModel,
+        values.memoryPersonaWriterProvider,
+        modelOptions,
+      );
+      const memoryEmbedding = normalizeMemoryModelFields(
+        values.memoryEmbeddingModel,
+        values.memoryEmbeddingProvider,
+        embeddingModelOptions,
+      );
       const systemAgent = {
         ...((userGlobalSettings as any).systemAgent &&
         typeof (userGlobalSettings as any).systemAgent === 'object' &&
@@ -239,41 +356,101 @@ const AdminSystemDefaultsPage = memo(() => {
         },
       };
 
-      await Promise.all([
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorEmbeddingProvider,
-          value: values.vectorEmbeddingProvider,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorEmbeddingModel,
-          value: values.vectorEmbeddingModel,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorRerankerProvider,
-          value: values.vectorRerankerProvider,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorRerankerModel,
-          value: values.vectorRerankerModel,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.vectorQueryMode,
-          value: values.vectorQueryMode,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.userGlobalSettingsDefaults,
-          value: mergedUserGlobalSettings,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.avatarPresets,
-          value: values.avatarPresets ?? [],
-        }),
-      ]);
+      const updates = [
+        {
+          key: SETTING_KEYS.composioEnabled,
+          value: values.composioEnabled ?? false,
+        },
+        {
+          key: SETTING_KEYS.composioAuthConfigIds,
+          value: values.composioAuthConfigIds ?? '',
+        },
+        ...(values.composioClearApiKey || values.composioApiKey?.trim()
+          ? [
+              {
+                key: SETTING_KEYS.composioApiKey,
+                value: values.composioClearApiKey ? '' : values.composioApiKey?.trim(),
+              },
+            ]
+          : []),
+          {
+            key: SETTING_KEYS.vectorEmbeddingProvider,
+            value: values.vectorEmbeddingProvider,
+          },
+          {
+            key: SETTING_KEYS.vectorEmbeddingModel,
+            value: values.vectorEmbeddingModel,
+          },
+          {
+            key: SETTING_KEYS.vectorRerankerProvider,
+            value: values.vectorRerankerProvider,
+          },
+          {
+            key: SETTING_KEYS.vectorRerankerModel,
+            value: values.vectorRerankerModel,
+          },
+          {
+            key: SETTING_KEYS.vectorQueryMode,
+            value: values.vectorQueryMode,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+            value: memoryGatekeeper.provider,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+            value: memoryGatekeeper.model,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+            value: memoryLayerExtractor.provider,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+            value: memoryLayerExtractor.model,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+            value: memoryPersonaWriter.provider,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+            value: memoryPersonaWriter.model,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+            value: memoryEmbedding.provider,
+          },
+          {
+            key: SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+            value: memoryEmbedding.model,
+          },
+          {
+            key: SETTING_KEYS.userGlobalSettingsDefaults,
+            value: mergedUserGlobalSettings,
+          },
+          {
+            key: SETTING_KEYS.avatarPresets,
+            value: values.avatarPresets ?? [],
+          },
+      ];
+
+      await adminCommercialService.setAppSettingsBatch({
+        updates,
+      });
 
       await mutate(ADMIN_SETTINGS_SWR_KEY);
       await mutate(RUNTIME_CONFIG_SWR_KEY);
       await mutate(PROFILE_INTEREST_AREAS_SWR_KEY);
       await mutate(PROFILE_OPTIONS_SWR_KEY);
+      if (syncToUsers) {
+        const result = await adminCommercialService.syncUserGlobalSettingsDefaultsToUsers();
+        await mutate(USER_STATE_SWR_KEY);
+        message.success(
+          `全局默认设置已保存，并已同步 ${result.syncedUsers} 个用户的 ${result.syncedFields.length} 个设置分类`,
+        );
+        return;
+      }
       message.success('全局默认设置已保存');
     } catch (error) {
       message.error(
@@ -281,6 +458,7 @@ const AdminSystemDefaultsPage = memo(() => {
       );
     } finally {
       setSubmitting(false);
+      setSyncing(false);
     }
   };
 
@@ -347,6 +525,167 @@ const AdminSystemDefaultsPage = memo(() => {
                   { label: 'hybrid', value: 'hybrid' },
                 ]}
               />
+            </Form.Item>
+          </Card>
+
+          <Card title="记忆分析模型设置">
+            <Alert
+              showIcon
+              message="控制用户记忆判定、分层提取、画像生成与记忆向量检索模型。留空时沿用环境变量或系统默认值；更换记忆 Embedding 模型后，需要重建已有记忆向量。"
+              style={{ marginBottom: 16 }}
+              type="info"
+            />
+            <Flexbox horizontal gap={12}>
+              <Form.Item
+                extra="判断聊天内容是否需要写入长期记忆。选择候选模型时会自动填充供应商。"
+                label="记忆判定模型"
+                name="memoryGatekeeperModel"
+                style={{ flex: 1 }}
+              >
+                <AutoComplete
+                  allowClear
+                  options={modelOptions}
+                  placeholder="选择聊天模型"
+                  onSelect={(value) =>
+                    applySelectedModelProvider(
+                      'memoryGatekeeperModel',
+                      'memoryGatekeeperProvider',
+                      modelOptions,
+                      value,
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item
+                label="记忆判定供应商"
+                name="memoryGatekeeperProvider"
+                style={{ width: 220 }}
+              >
+                <Input placeholder="newapi" />
+              </Form.Item>
+            </Flexbox>
+            <Flexbox horizontal gap={12}>
+              <Form.Item
+                extra="提取 activity、context、experience、identity、preference 等记忆层。"
+                label="分层提取模型"
+                name="memoryLayerExtractorModel"
+                style={{ flex: 1 }}
+              >
+                <AutoComplete
+                  allowClear
+                  options={modelOptions}
+                  placeholder="选择聊天模型"
+                  onSelect={(value) =>
+                    applySelectedModelProvider(
+                      'memoryLayerExtractorModel',
+                      'memoryLayerExtractorProvider',
+                      modelOptions,
+                      value,
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item
+                label="分层提取供应商"
+                name="memoryLayerExtractorProvider"
+                style={{ width: 220 }}
+              >
+                <Input placeholder="newapi" />
+              </Form.Item>
+            </Flexbox>
+            <Flexbox horizontal gap={12}>
+              <Form.Item
+                extra="根据长期记忆生成和更新用户画像文档。"
+                label="用户画像写入模型"
+                name="memoryPersonaWriterModel"
+                style={{ flex: 1 }}
+              >
+                <AutoComplete
+                  allowClear
+                  options={modelOptions}
+                  placeholder="选择聊天模型"
+                  onSelect={(value) =>
+                    applySelectedModelProvider(
+                      'memoryPersonaWriterModel',
+                      'memoryPersonaWriterProvider',
+                      modelOptions,
+                      value,
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item
+                label="用户画像供应商"
+                name="memoryPersonaWriterProvider"
+                style={{ width: 220 }}
+              >
+                <Input placeholder="newapi" />
+              </Form.Item>
+            </Flexbox>
+            <Flexbox horizontal gap={12}>
+              <Form.Item
+                extra="用于写入和搜索用户记忆向量。当前数据库向量列固定为 1024 维。"
+                label="记忆 Embedding 模型"
+                name="memoryEmbeddingModel"
+                style={{ flex: 1 }}
+              >
+                <AutoComplete
+                  allowClear
+                  options={embeddingModelOptions}
+                  placeholder="选择 Embedding 模型"
+                  onSelect={(value) =>
+                    applySelectedModelProvider(
+                      'memoryEmbeddingModel',
+                      'memoryEmbeddingProvider',
+                      embeddingModelOptions,
+                      value,
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item
+                label="记忆 Embedding 供应商"
+                name="memoryEmbeddingProvider"
+                style={{ width: 220 }}
+              >
+                <Input placeholder="siliconflow / newapi" />
+              </Form.Item>
+            </Flexbox>
+          </Card>
+
+          <Card title="Composio tool integration">
+            <Alert
+              showIcon
+              message="Configure the optional Composio connector used by AI tool integrations such as Gmail, Notion, GitHub and Slack. Leave API Key empty to keep the current key; enable Clear API Key to remove it."
+              style={{ marginBottom: 16 }}
+              type="info"
+            />
+            <Form.Item label="Enable Composio" name="composioEnabled" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              extra={(data as any)?.composioConfig?.apiKeyConfigured
+                ? `Current key: ${(data as any).composioConfig.apiKeyMasked || 'configured'}`
+                : 'No Composio API key is configured.'}
+              label="Project API Key"
+              name="composioApiKey"
+            >
+              <Input.Password autoComplete="new-password" placeholder="ak_..." />
+            </Form.Item>
+            <Form.Item
+              extra="Clear the saved API key on save. Keep this off when only changing other Composio settings."
+              label="Clear API Key"
+              name="composioClearApiKey"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              extra='Optional JSON map, for example {"gmail":"ac_xxx","github":"ac_xxx"}. Leave empty to let Composio create or discover auth configs.'
+              label="Auth Config IDs"
+              name="composioAuthConfigIds"
+            >
+              <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} placeholder='{"gmail":"ac_xxx"}' />
             </Form.Item>
           </Card>
 
@@ -510,8 +849,9 @@ const AdminSystemDefaultsPage = memo(() => {
                         name={[name, 'value']}
                         rules={[{ message: '请填写头像地址', required: true }]}
                       >
-                        <Input
+                        <ImageUrlUploadInput
                           placeholder="/images/avatar-presets/avatar-1.svg"
+                          publicUrlPrefix={uploadPublicUrlPrefix}
                           style={{ flex: 2 }}
                         />
                       </Form.Item>
@@ -534,9 +874,28 @@ const AdminSystemDefaultsPage = memo(() => {
             </Form.List>
           </Card>
 
-          <Button loading={submitting} type="primary" onClick={handleSave}>
-            保存设置
-          </Button>
+          <Flexbox horizontal gap={8} wrap="wrap">
+            <Button loading={submitting && !syncing} type="primary" onClick={() => handleSave()}>
+              保存设置
+            </Button>
+            <Button
+              danger
+              loading={syncing}
+              onClick={() => {
+                Modal.confirm({
+                  cancelText: '取消',
+                  content:
+                    '这会先保存当前后台默认值，然后覆盖同步到所有现有用户的对应设置分类。用户之后仍可自行修改；下次后台同步会再次覆盖。',
+                  okButtonProps: { danger: true },
+                  okText: '保存并同步',
+                  title: '同步后台默认值到用户设置？',
+                  onOk: () => handleSave({ syncToUsers: true }),
+                });
+              }}
+            >
+              保存并同步到用户设置
+            </Button>
+          </Flexbox>
         </Space>
       </Form>
     </Flexbox>

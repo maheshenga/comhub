@@ -44,13 +44,21 @@ export const UserLabSchema = z.object({
    */
   enableAgentSelfIteration: z.boolean().optional(),
   /**
-   * enable server-side agent execution via Gateway WebSocket
+   * enable the floating chat panel in agent document preview
    */
-  enableGatewayMode: z.boolean().optional(),
+  enableAgentDocumentFloatingChatPanel: z.boolean().optional(),
+  /**
+   * enable the Fleet view (side-by-side running-task dashboard)
+   */
+  enableFleet: z.boolean().optional(),
   /**
    * enable multi-agent group chat mode
    */
   enableGroupChat: z.boolean().optional(),
+  /**
+   * enable the iMessage channel (BlueBubbles Desktop bridge)
+   */
+  enableImessage: z.boolean().optional(),
   /**
    * enable markdown rendering in chat input editor
    */
@@ -77,6 +85,12 @@ export interface UserPreference {
    * lab experimental features
    */
   lab?: UserLab;
+  /**
+   * Last active workspace id. Used on cloud to land the user back in the
+   * workspace they last used when they open `/` — `null` means personal
+   * context. Stored as id (not slug) so workspace renames don't invalidate it.
+   */
+  lastWorkspaceId?: string | null;
   /**
    * @deprecated Use settings.general.telemetry instead
    */
@@ -149,8 +163,9 @@ export const UserPreferenceSchema = z
     guide: UserGuideSchema.optional(),
     hideSyncAlert: z.boolean().optional(),
     lab: UserLabSchema.optional(),
+    lastWorkspaceId: z.string().nullable().optional(),
     telemetry: z.boolean().nullable(),
-    topicGroupMode: z.enum(['byTime', 'byProject', 'flat']).optional(),
+    topicGroupMode: z.enum(['byTime', 'byProject', 'flat', 'byStatus']).optional(),
     topicIncludeCompleted: z.boolean().optional(),
     topicSortBy: z.enum(['createdAt', 'updatedAt']).optional(),
     useCmdEnterToSend: z.boolean().optional(),

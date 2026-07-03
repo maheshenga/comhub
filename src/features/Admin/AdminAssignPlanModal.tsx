@@ -5,7 +5,14 @@ import { Input, InputNumber, Modal, Select } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-type AssignPlanCycle = 'monthly' | 'yearly';
+import {
+  ADMIN_SUBSCRIPTION_CYCLES,
+  type AdminSubscriptionCycle,
+  getAdminSubscriptionCycleLabel,
+  isFiniteAdminSubscriptionCycle,
+} from './adminSubscriptionCycles';
+
+type AssignPlanCycle = AdminSubscriptionCycle;
 
 export type AdminAssignPlanModalPlan = {
   displayName?: string | null;
@@ -48,6 +55,7 @@ const AdminAssignPlanModal = memo<AdminAssignPlanModalProps>(
     title,
   }) => {
     const { t } = useTranslation('subscription');
+    const isFiniteCycle = isFiniteAdminSubscriptionCycle(cycle);
 
     return (
       <Modal
@@ -80,21 +88,23 @@ const AdminAssignPlanModal = memo<AdminAssignPlanModalProps>(
             <Select<AssignPlanCycle>
               style={{ width: '100%' }}
               value={cycle}
-              options={[
-                { label: t('admin.assignPlan.monthly', '月付'), value: 'monthly' },
-                { label: t('admin.assignPlan.yearly', '年付'), value: 'yearly' },
-              ]}
+              options={ADMIN_SUBSCRIPTION_CYCLES.map((item) => ({
+                label: t(`admin.assignPlan.${item}`, getAdminSubscriptionCycleLabel(item)),
+                value: item,
+              }))}
               onChange={onCycleChange}
             />
           </Flexbox>
           <Flexbox gap={4}>
             <div>{t('admin.assignPlan.durationMonths', '使用时长（月）')}</div>
             <InputNumber
+              disabled={!isFiniteCycle}
               max={120}
               min={1}
               precision={0}
               style={{ width: '100%' }}
-              value={durationMonths}
+              value={isFiniteCycle ? durationMonths : null}
+              placeholder={t('admin.assignPlan.durationLifetime', '终身套餐无需填写')}
               onChange={(value: number | null) => onDurationMonthsChange(Number(value ?? 1))}
             />
           </Flexbox>

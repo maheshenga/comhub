@@ -9,6 +9,8 @@ import InlineTable from '@/components/InlineTable';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import AdminBulkActionFlow from './AdminBulkActionFlow';
+
 type StatusFilter = 'all' | 'pending' | 'completed' | 'canceled' | 'rejected';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -36,9 +38,6 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<{ id: string; reason: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [bulkRejectOpen, setBulkRejectOpen] = useState(false);
-  const [bulkReason, setBulkReason] = useState('');
-  const [bulkRunning, setBulkRunning] = useState(false);
 
   const swrKey = useMemo(
     () => ['admin-change-requests', status, userIdFilter, cursor] as const,
@@ -88,44 +87,51 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
   };
 
   const handleBulkApprove = async () => {
-    if (selectedIds.length === 0) return;
-    setBulkRunning(true);
-    try {
-      const result = await adminCommercialService.bulkApproveChangeRequests(selectedIds);
-      const ok = result.results.filter((item) => item.ok).length;
-      const fail = result.results.length - ok;
-      message.success(
-        t('admin.changeRequests.bulkApproveDone', `已通过 ${ok} 个，失败 ${fail} 个`),
-      );
-      setSelectedIds([]);
-      await mutate();
-    } catch {
-      message.error(t('admin.changeRequests.bulkFailed', '批量操作失败'));
-    } finally {
-      setBulkRunning(false);
-    }
+    return adminCommercialService.bulkApproveChangeRequests(selectedIds);
   };
 
-  const handleBulkReject = async () => {
-    if (selectedIds.length === 0) return;
-    setBulkRunning(true);
-    try {
-      const result = await adminCommercialService.bulkRejectChangeRequests({
-        reason: bulkReason || undefined,
-        requestIds: selectedIds,
-      });
-      const ok = result.results.filter((item) => item.ok).length;
-      const fail = result.results.length - ok;
-      message.success(t('admin.changeRequests.bulkRejectDone', `已拒绝 ${ok} 个，失败 ${fail} 个`));
-      setSelectedIds([]);
-      setBulkReason('');
-      setBulkRejectOpen(false);
-      await mutate();
-    } catch {
-      message.error(t('admin.changeRequests.bulkFailed', '批量操作失败'));
-    } finally {
-      setBulkRunning(false);
-    }
+  const handleBulkReject = async (reason?: null | string) => {
+    return adminCommercialService.bulkRejectChangeRequests({
+      reason: reason?.trim() || undefined,
+      requestIds: selectedIds,
+    });
+  };
+
+  const finishBulkAction = async () => {
+    setSelectedIds([]);
+    await mutate();
+  };
+
+  const formatBulkApproveChangeRequestResult = (value: unknown) => {
+    const result = value as { results: { ok: boolean; requestId: string }[] };
+    const succeeded = result.results.filter((item) => item.ok).length;
+    const failed = result.results.length - succeeded;
+
+    return {
+      failed,
+      requested: result.results.length,
+      succeeded,
+      title: t(
+        'admin.changeRequests.bulkApproveDone',
+        `已通过 ${succeeded} 个，失败 ${failed} 个`,
+      ),
+    };
+  };
+
+  const formatBulkRejectChangeRequestResult = (value: unknown) => {
+    const result = value as { results: { ok: boolean; requestId: string }[] };
+    const succeeded = result.results.filter((item) => item.ok).length;
+    const failed = result.results.length - succeeded;
+
+    return {
+      failed,
+      requested: result.results.length,
+      succeeded,
+      title: t(
+        'admin.changeRequests.bulkRejectDone',
+        `已拒绝 ${succeeded} 个，失败 ${failed} 个`,
+      ),
+    };
   };
 
   const columns = [
@@ -236,17 +242,45 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
         <>
           {selectedIds.length > 0 && (
             <Flexbox horizontal gap={8}>
-              <Button loading={bulkRunning} size="small" type="primary" onClick={handleBulkApprove}>
-                {t('admin.changeRequests.bulkApprove', `批量通过（${selectedIds.length}）`)}
-              </Button>
-              <Button
-                danger
-                loading={bulkRunning}
+              <AdminBulkActionFlow
+                actionId="subscription.changeRequest.bulkApprove"
+                count={selectedIds.length}
                 size="small"
-                onClick={() => setBulkRejectOpen(true)}
+                type="primary"
+                confirmTitle={t(
+                  'admin.changeRequests.confirmBulkApprove',
+                  `确认通过 ${selectedIds.length} 个套餐变更请求？`,
+                )}
+                progressDescription={t(
+                  'admin.changeRequests.bulkApproveProgress',
+                  '正在通过选中的套餐变更请求，请勿关闭页面。',
+                )}
+                summary={formatBulkApproveChangeRequestResult}
+                onRun={handleBulkApprove}
+                onSuccess={finishBulkAction}
+              >
+                {t('admin.changeRequests.bulkApprove', `批量通过（${selectedIds.length}）`)}
+              </AdminBulkActionFlow>
+              <AdminBulkActionFlow
+                actionId="subscription.changeRequest.bulkReject"
+                count={selectedIds.length}
+                danger
+                size="small"
+                confirmTitle={t(
+                  'admin.changeRequests.confirmBulkReject',
+                  `确认拒绝 ${selectedIds.length} 个套餐变更请求？`,
+                )}
+                progressDescription={t(
+                  'admin.changeRequests.bulkRejectProgress',
+                  '正在拒绝选中的套餐变更请求，请勿关闭页面。',
+                )}
+                reasonOptional
+                summary={formatBulkRejectChangeRequestResult}
+                onRun={({ reason }) => handleBulkReject(reason)}
+                onSuccess={finishBulkAction}
               >
                 {t('admin.changeRequests.bulkReject', `批量拒绝（${selectedIds.length}）`)}
-              </Button>
+              </AdminBulkActionFlow>
               <Button size="small" onClick={() => setSelectedIds([])}>
                 {t('admin.changeRequests.clearSel', '清空选择')}
               </Button>
@@ -294,25 +328,6 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
         </Flexbox>
       </Modal>
 
-      <Modal
-        confirmLoading={bulkRunning}
-        open={bulkRejectOpen}
-        title={t('admin.changeRequests.bulkRejectTitle', '批量拒绝')}
-        onCancel={() => setBulkRejectOpen(false)}
-        onOk={handleBulkReject}
-      >
-        <Flexbox gap={8}>
-          <div>
-            {t('admin.changeRequests.bulkRejectCount', `将拒绝 ${selectedIds.length} 个请求`)}
-          </div>
-          <Input.TextArea
-            placeholder={t('admin.changeRequests.rejectPlaceholder', '请输入拒绝原因')}
-            rows={3}
-            value={bulkReason}
-            onChange={(event: { target: { value: string } }) => setBulkReason(event.target.value)}
-          />
-        </Flexbox>
-      </Modal>
     </Flexbox>
   );
 });

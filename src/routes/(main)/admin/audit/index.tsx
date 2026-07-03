@@ -1,9 +1,11 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Descriptions, Empty, Input, message, Modal, Tag } from 'antd';
+import { Button, DatePicker, Descriptions, Empty, Input, message, Modal, Tag } from 'antd';
+import { type Dayjs } from 'dayjs';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
@@ -84,17 +86,49 @@ const downloadCsv = (rows: AuditRow[]) => {
 
 const AdminAuditPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const [actorFilter, setActorFilter] = useState('');
-  const [targetFilter, setTargetFilter] = useState('');
-  const [actionFilter, setActionFilter] = useState('');
+  const [searchParams] = useSearchParams();
+  const [actorFilter, setActorFilter] = useState(() => searchParams.get('actorUserId') ?? '');
+  const [targetFilter, setTargetFilter] = useState(() => searchParams.get('targetUserId') ?? '');
+  const [actionFilter, setActionFilter] = useState(() => searchParams.get('action') ?? '');
+  const [resourceTypeFilter, setResourceTypeFilter] = useState(
+    () => searchParams.get('resourceType') ?? '',
+  );
+  const [resourceIdFilter, setResourceIdFilter] = useState(
+    () => searchParams.get('resourceId') ?? '',
+  );
+  const [dateRangeFilter, setDateRangeFilter] = useState<[Dayjs | null, Dayjs | null] | null>(
+    null,
+  );
   const [cursor, setCursor] = useState(0);
   const [detail, setDetail] = useState<AuditRow | null>(null);
   const [drawerUser, setDrawerUser] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const fromFilter = dateRangeFilter?.[0]?.startOf('day').toISOString();
+  const toFilter = dateRangeFilter?.[1]?.endOf('day').toISOString();
 
   const swrKey = useMemo(
-    () => ['admin-audit', actorFilter, targetFilter, actionFilter, cursor] as const,
-    [actorFilter, targetFilter, actionFilter, cursor],
+    () =>
+      [
+        'admin-audit',
+        actorFilter,
+        targetFilter,
+        actionFilter,
+        resourceTypeFilter,
+        resourceIdFilter,
+        fromFilter,
+        toFilter,
+        cursor,
+      ] as const,
+    [
+      actorFilter,
+      targetFilter,
+      actionFilter,
+      resourceTypeFilter,
+      resourceIdFilter,
+      fromFilter,
+      toFilter,
+      cursor,
+    ],
   );
 
   const { data, isLoading } = useClientDataSWR(swrKey, () =>
@@ -102,8 +136,12 @@ const AdminAuditPage = memo(() => {
       action: actionFilter || undefined,
       actorUserId: actorFilter || undefined,
       cursor,
+      from: fromFilter,
       limit: 50,
+      resourceId: resourceIdFilter || undefined,
+      resourceType: resourceTypeFilter || undefined,
       targetUserId: targetFilter || undefined,
+      to: toFilter,
     }),
   );
 
@@ -115,8 +153,12 @@ const AdminAuditPage = memo(() => {
       const res = await adminCommercialService.exportAudit({
         action: actionFilter || undefined,
         actorUserId: actorFilter || undefined,
+        from: fromFilter,
         limit: 5000,
+        resourceId: resourceIdFilter || undefined,
+        resourceType: resourceTypeFilter || undefined,
         targetUserId: targetFilter || undefined,
+        to: toFilter,
       });
       downloadCsv(res.items as AuditRow[]);
       message.success(t('admin.audit.exportSuccess', `已导出 ${res.items.length} 行`));
@@ -212,7 +254,7 @@ const AdminAuditPage = memo(() => {
 
   return (
     <Flexbox gap={16} padding={24}>
-      <Flexbox horizontal align="center" gap={12}>
+      <Flexbox horizontal align="center" gap={12} style={{ flexWrap: 'wrap' }}>
         <Input
           allowClear
           placeholder={t('admin.audit.filter.actor', '操作者用户 ID')}
@@ -240,6 +282,36 @@ const AdminAuditPage = memo(() => {
           value={actionFilter}
           onChange={(e: { target: { value: string } }) => {
             setActionFilter(e.target.value);
+            setCursor(0);
+          }}
+        />
+        <Input
+          allowClear
+          placeholder={t('admin.audit.filter.resourceType', '资源类型')}
+          style={{ width: 180 }}
+          value={resourceTypeFilter}
+          onChange={(e: { target: { value: string } }) => {
+            setResourceTypeFilter(e.target.value);
+            setCursor(0);
+          }}
+        />
+        <Input
+          allowClear
+          placeholder={t('admin.audit.filter.resourceId', '资源 ID')}
+          style={{ width: 240 }}
+          value={resourceIdFilter}
+          onChange={(e: { target: { value: string } }) => {
+            setResourceIdFilter(e.target.value);
+            setCursor(0);
+          }}
+        />
+        <DatePicker.RangePicker
+          allowClear
+          format="YYYY/MM/DD"
+          style={{ width: 260 }}
+          value={dateRangeFilter}
+          onChange={(values) => {
+            setDateRangeFilter(values ? [values[0], values[1]] : null);
             setCursor(0);
           }}
         />

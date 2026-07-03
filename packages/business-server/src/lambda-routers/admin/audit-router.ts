@@ -1,0 +1,88 @@
+import { and, count, desc, eq, gte, lte } from 'drizzle-orm';
+import { z } from 'zod';
+
+import { adminAuditLogs } from '@/database/schemas';
+import { adminProcedure, router } from '@/libs/trpc/lambda';
+
+const auditFilterInput = z.object({
+  action: z.string().optional(),
+  actorUserId: z.string().optional(),
+  from: z.coerce.date().optional(),
+  resourceId: z.string().optional(),
+  resourceType: z.string().optional(),
+  targetUserId: z.string().optional(),
+  to: z.coerce.date().optional(),
+});
+
+type AuditFilterInput = z.infer<typeof auditFilterInput>;
+
+const buildAuditWhere = ({
+  action,
+  actorUserId,
+  from,
+  resourceId,
+  resourceType,
+  targetUserId,
+  to,
+}: AuditFilterInput) => {
+  const conditions = [
+    action ? eq(adminAuditLogs.action, action) : undefined,
+    actorUserId ? eq(adminAuditLogs.actorUserId, actorUserId) : undefined,
+    targetUserId ? eq(adminAuditLogs.targetUserId, targetUserId) : undefined,
+    resourceType ? eq(adminAuditLogs.resourceType, resourceType) : undefined,
+    resourceId ? eq(adminAuditLogs.resourceId, resourceId) : undefined,
+    from ? gte(adminAuditLogs.createdAt, from) : undefined,
+    to ? lte(adminAuditLogs.createdAt, to) : undefined,
+  ].filter(Boolean);
+
+  return conditions.length > 0 ? and(...conditions) : undefined;
+};
+
+export const adminAuditRouter = router({
+  list: adminProcedure
+    .input(
+      auditFilterInput.extend({
+        cursor: z.number().int().min(0).default(0),
+        limit: z.number().int().min(1).max(100).default(50),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { cursor, limit } = input;
+      const where = buildAuditWhere(input);
+
+      const [items, [{ value: total }]] = await Promise.all([
+        ctx.serverDB.query.adminAuditLogs.findMany({
+          limit,
+          offset: cursor,
+          orderBy: desc(adminAuditLogs.createdAt),
+          where,
+        }),
+        ctx.serverDB.select({ value: count() }).from(adminAuditLogs).where(where),
+      ]);
+
+      return {
+        items,
+        nextCursor: items.length === limit ? cursor + limit : null,
+        total,
+      };
+    }),
+
+  exportAll: adminProcedure
+    .input(
+      auditFilterInput.extend({
+        limit: z.number().int().min(1).max(10_000).default(5000),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { limit } = input;
+      const where = buildAuditWhere(input);
+
+      const items = await ctx.serverDB.query.adminAuditLogs.findMany({
+        limit,
+        orderBy: desc(adminAuditLogs.createdAt),
+        where,
+      });
+
+      return { items };
+    }),
+});

@@ -10,17 +10,23 @@ import { Drawer } from 'antd';
 import { History } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 
 import Loading from '@/components/Loading/BrandTextLoading';
 import { ONBOARDING_PRODUCTION_DEFAULT_MODEL } from '@/const/onboarding';
 import { type ConversationHooks } from '@/features/Conversation/types';
 import { mergeConversationHooks } from '@/features/Conversation/utils/mergeConversationHooks';
 import ModeSwitch from '@/features/Onboarding/components/ModeSwitch';
+import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { useOnboardingAgentTemplates } from '@/hooks/useOnboardingAgentTemplates';
 import { useClientDataSWR, useOnlyFetchOnceSWR } from '@/libs/swr';
+import { onboardingKeys } from '@/libs/swr/keys';
 import OnboardingContainer from '@/routes/onboarding/_layout';
 import { fetchOnboardingAgentTemplates } from '@/services/agentMarketplace';
+import {
+  trackOnboardingCompleted,
+  trackOnboardingStepCompleted,
+  trackOnboardingStepViewed,
+} from '@/services/onboardingMetrics';
 import { topicService } from '@/services/topic';
 import { userService } from '@/services/user';
 import { useAgentStore } from '@/store/agent';
@@ -29,6 +35,7 @@ import { useChatStore } from '@/store/chat';
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
 import { useUserStore } from '@/store/user';
 import { isDev } from '@/utils/env';
+import { peekOnboardingCallbackUrl } from '@/utils/onboardingRedirect';
 
 import AnalyticsBridge from './AnalyticsBridge';
 import { resolveAgentOnboardingContext } from './context';
@@ -41,7 +48,7 @@ import { useOnboardingFollowUp } from './useOnboardingFollowUp';
 const CLASSIC_ONBOARDING_PATH = '/onboarding/classic';
 
 const RedirectToClassicOnboarding = memo(() => {
-  const navigate = useNavigate();
+  const navigate = useWorkspaceAwareNavigate();
 
   useEffect(() => {
     navigate(CLASSIC_ONBOARDING_PATH, { replace: true });
@@ -80,7 +87,7 @@ const AgentOnboardingPage = memo(() => {
   }, []);
 
   const { data: historyData, mutate: mutateHistoryTopics } = useClientDataSWR(
-    isDev && onboardingAgentId ? ['agent-onboarding-history-topics', onboardingAgentId] : null,
+    isDev && onboardingAgentId ? onboardingKeys.agentHistoryTopics(onboardingAgentId) : null,
     () =>
       topicService.getTopics({
         agentId: onboardingAgentId,
@@ -89,7 +96,7 @@ const AgentOnboardingPage = memo(() => {
   );
 
   const { data, error, isLoading, mutate } = useOnlyFetchOnceSWR(
-    'agent-onboarding-bootstrap',
+    onboardingKeys.agentBootstrap(),
     () => userService.getOnboardingBootstrapState(),
     {
       onSuccess: async () => {
@@ -124,6 +131,25 @@ const AgentOnboardingPage = memo(() => {
     !!activeTopicId && !!effectiveTopicId && effectiveTopicId !== activeTopicId;
 
   useOnboardingAgentTemplates(!onboardingFinished && !viewingHistoricalTopic);
+
+  const conversationViewedRef = useRef(false);
+  useEffect(() => {
+    if (
+      conversationViewedRef.current ||
+      !onboardingAgentId ||
+      onboardingFinished ||
+      viewingHistoricalTopic
+    ) {
+      return;
+    }
+
+    conversationViewedRef.current = true;
+    trackOnboardingStepViewed({
+      flow: 'agent',
+      step: 'conversation',
+      stepIndex: 1,
+    });
+  }, [onboardingAgentId, onboardingFinished, viewingHistoricalTopic]);
 
   const onboardingChatKey = useMemo(
     () => messageMapKey({ agentId: onboardingAgentId || '', topicId: effectiveTopicId }),
@@ -226,6 +252,30 @@ const AgentOnboardingPage = memo(() => {
     return nextContext;
   }, [mutate, mutateHistoryTopics, onboardingAgentId]);
 
+  const trackAgentOnboardingCompletion = useCallback(
+    (topicId: string | undefined) => {
+      trackOnboardingStepCompleted({
+        flow: 'agent',
+        step: 'conversation',
+        stepIndex: 1,
+      });
+      trackOnboardingCompleted({
+        flow: 'agent',
+        hasTopic: !!topicId,
+        targetUrl:
+          // A threaded signup target (if any) wins over the onboarding topic on finish
+          peekOnboardingCallbackUrl() ??
+          (inboxAgentId && topicId ? SESSION_CHAT_TOPIC_URL(inboxAgentId, topicId) : undefined),
+      });
+    },
+    [inboxAgentId],
+  );
+
+  const handleAfterWrapUp = useCallback(async () => {
+    const nextContext = await syncOnboardingContext();
+    trackAgentOnboardingCompletion(nextContext.topicId ?? effectiveTopicId);
+  }, [effectiveTopicId, syncOnboardingContext, trackAgentOnboardingCompletion]);
+
   const onboardingTurnSettledHook = useMemo<ConversationHooks>(() => {
     if (onboardingFinished || viewingHistoricalTopic) return {};
 
@@ -241,6 +291,9 @@ const AgentOnboardingPage = memo(() => {
         const newFinishedAt = nextContext?.agentOnboarding?.finishedAt;
 
         const refreshes: Promise<unknown>[] = [];
+        if (newFinishedAt && newFinishedAt !== prevFinishedAt) {
+          trackAgentOnboardingCompletion(effectiveTopicId);
+        }
         if (newFinishedAt !== prevFinishedAt) refreshes.push(refreshUserState());
         if (newPhase !== prevPhase) {
           refreshes.push(refreshBuiltinAgent(BUILTIN_AGENT_SLUGS.webOnboarding));
@@ -257,6 +310,7 @@ const AgentOnboardingPage = memo(() => {
     refreshBuiltinAgent,
     refreshUserState,
     syncOnboardingContext,
+    trackAgentOnboardingCompletion,
   ]);
 
   const conversationHooks = useMemo(() => {
@@ -327,7 +381,7 @@ const AgentOnboardingPage = memo(() => {
               readOnly={viewingHistoricalTopic}
               showFeedback={!viewingHistoricalTopic}
               topicId={effectiveTopicId}
-              onAfterWrapUp={syncOnboardingContext}
+              onAfterWrapUp={handleAfterWrapUp}
             />
           </ErrorBoundary>
         </OnboardingConversationProvider>

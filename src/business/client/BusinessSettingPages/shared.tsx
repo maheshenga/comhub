@@ -199,7 +199,7 @@ export const getSubscriptionCycleTranslationKey = (cycle?: string) => {
       return 'recurring.payonce';
     }
     case 'lifetime': {
-      return 'recurring.fullYear';
+      return 'recurring.lifetime';
     }
     default: {
       return 'recurring.monthly';

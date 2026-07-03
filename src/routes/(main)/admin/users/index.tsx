@@ -7,8 +7,10 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
-import { AdminUserDetailDrawer } from '@/features/Admin';
+import { AdminDangerousActionButton, AdminUserDetailDrawer } from '@/features/Admin';
 import AdminAssignPlanModal from '@/features/Admin/AdminAssignPlanModal';
+import type { AdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
+import { isFiniteAdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -59,10 +61,9 @@ const AdminUsersPage = memo(() => {
   const [banReason, setBanReason] = useState('');
   const [adjustTarget, setAdjustTarget] = useState<string | null>(null);
   const [adjustAmount, setAdjustAmount] = useState<number>(0);
-  const [adjustReason, setAdjustReason] = useState('');
   const [assignTarget, setAssignTarget] = useState<string | null>(null);
   const [assignPlan, setAssignPlan] = useState<string>();
-  const [assignCycle, setAssignCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [assignCycle, setAssignCycle] = useState<AdminSubscriptionCycle>('monthly');
   const [assignDurationMonths, setAssignDurationMonths] = useState<number>(1);
   const [assignReason, setAssignReason] = useState('');
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
@@ -160,8 +161,9 @@ const AdminUsersPage = memo(() => {
     }
   };
 
-  const handleAdjustCredits = async () => {
-    if (!adjustTarget || !adjustReason.trim() || !adjustAmount) {
+  const handleAdjustCredits = async (reason?: null | string) => {
+    const normalizedReason = reason?.trim();
+    if (!adjustTarget || !normalizedReason || !adjustAmount) {
       message.warning(t('admin.adjustCredits.invalid', '请输入积分数量和调整原因'));
       return;
     }
@@ -169,13 +171,12 @@ const AdminUsersPage = memo(() => {
     try {
       await adminCommercialService.adjustCredits({
         amount: Math.round(adjustAmount),
-        reason: adjustReason,
+        reason: normalizedReason,
         userId: adjustTarget,
       });
       message.success(t('admin.adjustCredits.success', '积分已调整'));
       setAdjustTarget(null);
       setAdjustAmount(0);
-      setAdjustReason('');
     } catch {
       message.error(t('admin.error.generic', '操作失败，请稍后重试'));
     } finally {
@@ -200,7 +201,10 @@ const AdminUsersPage = memo(() => {
   };
 
   const handleAssignPlan = async () => {
-    if (!assignTarget || !assignPlan || !assignDurationMonths || !assignReason.trim()) {
+    const durationMonths = isFiniteAdminSubscriptionCycle(assignCycle)
+      ? Math.round(assignDurationMonths)
+      : 1;
+    if (!assignTarget || !assignPlan || durationMonths < 1 || !assignReason.trim()) {
       message.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
       return;
     }
@@ -209,7 +213,7 @@ const AdminUsersPage = memo(() => {
     try {
       await adminCommercialService.assignUserPlan({
         cycle: assignCycle,
-        durationMonths: Math.round(assignDurationMonths),
+        durationMonths,
         plan: assignPlan,
         reason: assignReason.trim(),
         userId: assignTarget,
@@ -224,8 +228,7 @@ const AdminUsersPage = memo(() => {
       setActionLoading(null);
     }
   };
-
-  const handleResetAllToFreePlan = async () => {
+  const handleResetAllToFreePlan = async (reason?: string | null) => {
     setActionLoading('reset-all-free-preview');
 
     let preview: { canceledPaid: number; insertedFree: number; normalizedFree: number };
@@ -263,7 +266,7 @@ const AdminUsersPage = memo(() => {
         setActionLoading('reset-all-free');
         try {
           const result = await adminCommercialService.resetAllUsersToFreePlan({
-            reason: 'admin_reset_from_users_page',
+            reason: reason?.trim() || 'admin_reset_from_users_page',
           });
           message.success(
             t(
@@ -412,7 +415,6 @@ const AdminUsersPage = memo(() => {
             onClick={() => {
               setAdjustTarget(row.id);
               setAdjustAmount(0);
-              setAdjustReason('');
             }}
           >
             {t('admin.adjustCredits', '调整积分')}
@@ -533,13 +535,14 @@ const AdminUsersPage = memo(() => {
         >
           {t('admin.exportCsv', '导出 CSV')}
         </Button>
-        <Button
+        <AdminDangerousActionButton
+          actionId="user.resetAllToFreePlan"
           danger
           loading={actionLoading === 'reset-all-free' || actionLoading === 'reset-all-free-preview'}
-          onClick={handleResetAllToFreePlan}
+          onConfirm={({ reason }) => handleResetAllToFreePlan(reason)}
         >
           {t('admin.resetAllToFreePlan', '重置所有用户为免费套餐')}
-        </Button>
+        </AdminDangerousActionButton>
       </Flexbox>
       <InlineTable
         columns={columns as any}
@@ -572,14 +575,31 @@ const AdminUsersPage = memo(() => {
         />
       </Modal>
       <Modal
-        confirmLoading={actionLoading === `${adjustTarget ?? ''}-credits`}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setAdjustTarget(null);
+              setAdjustAmount(0);
+            }}
+          >
+            {t('cancel', '取消')}
+          </Button>,
+          <AdminDangerousActionButton
+            key="confirm"
+            actionId="credits.adjust"
+            loading={actionLoading === `${adjustTarget ?? ''}-credits`}
+            type="primary"
+            onConfirm={({ reason }) => handleAdjustCredits(reason)}
+          >
+            {t('admin.adjustCredits', '调整积分')}
+          </AdminDangerousActionButton>,
+        ]}
         open={!!adjustTarget}
         title={t('admin.adjustCredits', '调整积分')}
-        onOk={handleAdjustCredits}
         onCancel={() => {
           setAdjustTarget(null);
           setAdjustAmount(0);
-          setAdjustReason('');
         }}
       >
         <Flexbox gap={12}>
@@ -589,16 +609,6 @@ const AdminUsersPage = memo(() => {
               style={{ width: '100%' }}
               value={adjustAmount}
               onChange={(value: number | null) => setAdjustAmount(Number(value ?? 0))}
-            />
-          </Flexbox>
-          <Flexbox gap={4}>
-            <div>{t('admin.adjustCredits.reason', '原因')}</div>
-            <Input.TextArea
-              rows={3}
-              value={adjustReason}
-              onChange={(event: { target: { value: string } }) =>
-                setAdjustReason(event.target.value)
-              }
             />
           </Flexbox>
         </Flexbox>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
+import { Flexbox, Icon } from '@lobehub/ui';
 import {
   Button,
   Drawer,
@@ -18,12 +18,15 @@ import {
   Tag,
   Tooltip,
 } from 'antd';
+import { RefreshCw } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { mutate, useClientDataSWR } from '@/libs/swr';
+import { serverConfigKeys } from '@/libs/swr/keys';
 import { adminCommercialService } from '@/services/adminCommercial';
+import { useAiInfraStore } from '@/store/aiInfra';
 
 import {
   ADMIN_MODEL_API_PROVIDER_TYPES,
@@ -31,6 +34,17 @@ import {
   buildProviderInstancePayload,
   getDefaultBaseUrlForAdminProviderType,
 } from './adminProviderInstanceForm';
+import {
+  type AdminModelAbilities,
+  AiProviderModelAbilitiesCell,
+  buildManualAbilitiesMetadata,
+} from './adminProviderModelAbilities';
+import {
+  AiProviderModelPricingCell,
+  buildManualMediaPricingMetadata,
+  buildManualTokenPricingMetadata,
+} from './adminProviderModelPricing';
+import AdminDangerousActionButton from './AdminDangerousActionButton';
 
 type ModelType =
   | 'chat'
@@ -55,6 +69,7 @@ const MODEL_TYPES: ModelType[] = [
 
 interface InstanceRow {
   apiKey: string | null;
+  apiKeyStatus?: 'invalid' | 'ok';
   baseUrl: string;
   description: string | null;
   enabled: boolean;
@@ -72,6 +87,7 @@ interface InstanceRow {
 interface ModelRow {
   displayName: string | null;
   enabled: boolean;
+  metadata?: Record<string, unknown> | null;
   modelId: string;
   modelType: ModelType;
   sortOrder: number;
@@ -83,10 +99,13 @@ const modelsKey = (instanceId: string, modelType?: ModelType) =>
 
 const PROVIDER_TYPE_LABELS: Record<AdminModelApiProviderType, string> = {
   'aliyun': '阿里云 DashScope',
+  'claude': 'Claude / Anthropic',
   'deepseek': 'DeepSeek',
-  'newapi': 'NewAPI',
+  'newapi': 'AI 服务商',
   'openai': 'OpenAI',
-  'openai-compatible': 'OpenAI 兼容',
+  'openai-compatible': '兼容 OpenAI 格式',
+  'opencode-go': 'OpenCode Go',
+  'siliconflow': 'SiliconFlow',
 };
 
 const splitToList = (text: string): string[] =>
@@ -128,9 +147,12 @@ const InstanceFormModal = memo<{
       setSubmitting(true);
       const payload = buildProviderInstancePayload(values, { isEdit });
       if (isEdit && initial) {
-        await adminCommercialService.updateNewapiInstance({ data: payload as any, id: initial.id });
+        await adminCommercialService.updateAiProviderInstance({
+          data: payload as any,
+          id: initial.id,
+        });
       } else {
-        await adminCommercialService.createNewapiInstance(payload as any);
+        await adminCommercialService.createAiProviderInstance(payload as any);
       }
       message.success(t('admin.providers.saveSuccess', '已保存'));
       await mutate(INSTANCES_KEY);
@@ -160,20 +182,25 @@ const InstanceFormModal = memo<{
       afterOpenChange={(visible: boolean) => {
         if (visible) {
           form.setFieldsValue(
-            initial ?? {
-              apiKey: '',
-              baseUrl: '',
-              description: '',
-              enabled: true,
-              fetchOnClient: false,
-              groupKey: 'default',
-              groupMultiplier: undefined,
-              groupName: '',
-              name: '',
-              priority: 0,
-              providerType: 'newapi',
-              usageScope: [],
-            },
+            initial
+              ? {
+                  ...initial,
+                  apiKey: initial.apiKeyStatus === 'invalid' ? '' : initial.apiKey,
+                }
+              : {
+                  apiKey: '',
+                  baseUrl: '',
+                  description: '',
+                  enabled: true,
+                  fetchOnClient: false,
+                  groupKey: 'default',
+                  groupMultiplier: undefined,
+                  groupName: '',
+                  name: '',
+                  priority: 0,
+                  providerType: 'newapi',
+                  usageScope: [],
+                },
           );
         }
       }}
@@ -191,10 +218,13 @@ const InstanceFormModal = memo<{
           name="providerType"
           extra={
             providerType === 'newapi'
-              ? t('admin.providers.field.providerTypeNewapiHint', '该类型支持同步模型和价格。')
+              ? t(
+                  'admin.providers.field.providerTypeNewapiHint',
+                  'AI 服务商网关支持同步模型和价格。',
+                )
               : t(
                   'admin.providers.field.providerTypeOpenaiHint',
-                  'OpenAI 兼容服务商支持同步模型，价格需要在计费矩阵中配置。',
+                  'OpenAI 兼容、Claude 和 OpenCode Go 格式支持同步模型；价格需要在计费矩阵中配置。',
                 )
           }
         >
@@ -227,12 +257,17 @@ const InstanceFormModal = memo<{
           name="apiKey"
           rules={isEdit ? [] : [{ required: true }]}
           extra={
-            isEdit
+            isEdit && initial?.apiKeyStatus === 'invalid'
               ? t(
-                  'admin.providers.field.apiKeyEditHint',
-                  '留空表示保持现有密钥不变；填写新密钥会替换当前密钥。',
+                  'admin.providers.field.apiKeyInvalidHint',
+                  '当前密钥无法解密，请填写新的 API Key 后保存。',
                 )
-              : undefined
+              : isEdit
+                ? t(
+                    'admin.providers.field.apiKeyEditHint',
+                    '留空表示保持现有密钥不变；填写新密钥会替换当前密钥。',
+                  )
+                : undefined
           }
         >
           <Input.Password placeholder="sk-..." />
@@ -258,6 +293,7 @@ const InstanceFormModal = memo<{
           </Form.Item>
           <Form.Item
             label={t('admin.providers.field.fetchOnClient', '客户端拉取')}
+            hidden
             name="fetchOnClient"
             valuePropName="checked"
           >
@@ -322,21 +358,28 @@ InstanceFormModal.displayName = 'InstanceFormModal';
 const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
   ({ instanceId, modelType }) => {
     const { t } = useTranslation('subscription');
+    const refreshAiProviderRuntimeState = useAiInfraStore((s) => s.refreshAiProviderRuntimeState);
     const swrKey = modelsKey(instanceId, modelType);
     const { data, isLoading } = useClientDataSWR(swrKey, () =>
-      adminCommercialService.listNewapiInstanceModels({ instanceId, modelType }),
+      adminCommercialService.listAiProviderInstanceModels({ instanceId, modelType }),
     );
     const items = (data?.items ?? []) as ModelRow[];
 
     const [bulkText, setBulkText] = useState('');
     const [adding, setAdding] = useState(false);
+    const [batchUpdating, setBatchUpdating] = useState<'disable' | 'enable' | null>(null);
+
+    const refreshModels = async () => {
+      await mutate(swrKey);
+      await refreshAiProviderRuntimeState();
+    };
 
     const handleBulkAdd = async () => {
       const ids = splitToList(bulkText);
       if (ids.length === 0) return;
       setAdding(true);
       try {
-        await adminCommercialService.addNewapiInstanceModels({
+        await adminCommercialService.addAiProviderInstanceModels({
           instanceId,
           models: ids.map((id, i) => ({
             enabled: true,
@@ -347,7 +390,7 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         });
         message.success(t('admin.providers.models.addSuccess', '模型已添加'));
         setBulkText('');
-        await mutate(swrKey);
+        await refreshModels();
       } catch {
         message.error(t('admin.providers.models.addFailed', '添加模型失败'));
       } finally {
@@ -355,33 +398,104 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       }
     };
 
+    const handleBatchToggle = async (enabled: boolean) => {
+      const targetRows = items.filter((item) => item.enabled !== enabled);
+      if (targetRows.length === 0) return;
+
+      setBatchUpdating(enabled ? 'enable' : 'disable');
+      try {
+        await Promise.all(
+          targetRows.map((row) =>
+            adminCommercialService.updateAiProviderInstanceModel({
+              data: { enabled },
+              instanceId,
+              modelId: row.modelId,
+              modelType: row.modelType,
+            }),
+          ),
+        );
+        message.success(
+          enabled
+            ? t('admin.providers.models.enableAllSuccess', '已启用当前类型模型')
+            : t('admin.providers.models.disableAllSuccess', '已禁用当前类型模型'),
+        );
+        await refreshModels();
+      } catch {
+        message.error(t('admin.providers.models.batchToggleFailed', '批量更新模型失败'));
+      } finally {
+        setBatchUpdating(null);
+      }
+    };
+
     const handleToggle = async (row: ModelRow) => {
-      await adminCommercialService.updateNewapiInstanceModel({
+      await adminCommercialService.updateAiProviderInstanceModel({
         data: { enabled: !row.enabled },
         instanceId,
         modelId: row.modelId,
         modelType: row.modelType,
       });
-      await mutate(swrKey);
+      await refreshModels();
     };
 
     const handleRename = async (row: ModelRow, displayName: string) => {
-      await adminCommercialService.updateNewapiInstanceModel({
+      await adminCommercialService.updateAiProviderInstanceModel({
         data: { displayName: displayName || undefined },
         instanceId,
         modelId: row.modelId,
         modelType: row.modelType,
       });
-      await mutate(swrKey);
+      await refreshModels();
     };
 
-    const handleDelete = async (row: ModelRow) => {
-      await adminCommercialService.removeNewapiInstanceModel({
+    const handleUpdateTokenPricing = async (
+      row: ModelRow,
+      inputCostRate?: number,
+      outputCostRate?: number,
+    ) => {
+      const metadata =
+        row.modelType === 'image' || row.modelType === 'video'
+          ? buildManualMediaPricingMetadata({
+              imageRate: row.modelType === 'image' ? inputCostRate : undefined,
+              metadata: row.metadata,
+              videoRate: row.modelType === 'video' ? outputCostRate : undefined,
+            })
+          : buildManualTokenPricingMetadata({
+              inputCostRate,
+              metadata: row.metadata,
+              outputCostRate,
+            });
+
+      await adminCommercialService.updateAiProviderInstanceModel({
+        data: { metadata },
         instanceId,
         modelId: row.modelId,
         modelType: row.modelType,
       });
-      await mutate(swrKey);
+      await refreshModels();
+    };
+
+    const handleUpdateAbilities = async (row: ModelRow, abilities: AdminModelAbilities) => {
+      await adminCommercialService.updateAiProviderInstanceModel({
+        data: {
+          metadata: buildManualAbilitiesMetadata({
+            abilities,
+            metadata: row.metadata,
+          }),
+        },
+        instanceId,
+        modelId: row.modelId,
+        modelType: row.modelType,
+      });
+      await refreshModels();
+    };
+
+    const handleDelete = async (row: ModelRow) => {
+      await adminCommercialService.removeAiProviderInstanceModel({
+        instanceId,
+        modelId: row.modelId,
+        modelType: row.modelType,
+      });
+      await refreshModels();
     };
 
     const columns = [
@@ -406,6 +520,33 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         ),
         title: t('admin.providers.models.col.displayName', '显示名称'),
         width: 220,
+      },
+      {
+        key: 'pricing',
+        render: (_: unknown, r: ModelRow) => (
+          <AiProviderModelPricingCell
+            metadata={r.metadata}
+            modelType={r.modelType}
+            t={t}
+            onSave={(inputCostRate, outputCostRate) =>
+              handleUpdateTokenPricing(r, inputCostRate, outputCostRate)
+            }
+          />
+        ),
+        title: t('admin.providers.models.col.pricing', '成本价'),
+        width: 280,
+      },
+      {
+        key: 'abilities',
+        render: (_: unknown, r: ModelRow) => (
+          <AiProviderModelAbilitiesCell
+            metadata={r.metadata}
+            t={t}
+            onSave={(abilities) => handleUpdateAbilities(r, abilities)}
+          />
+        ),
+        title: t('admin.providers.models.col.abilities', '能力'),
+        width: 360,
       },
       {
         dataIndex: 'enabled',
@@ -461,14 +602,34 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
         {!isLoading && items.length === 0 ? (
           <Empty description={t('admin.providers.models.empty', '该类型暂无模型')} />
         ) : (
-          <Table
-            columns={columns as any}
-            dataSource={items}
-            loading={isLoading}
-            pagination={false}
-            rowKey={(r: ModelRow) => `${r.modelId}__${r.modelType}`}
-            size="small"
-          />
+          <Flexbox gap={8}>
+            <Flexbox horizontal gap={8} justify="flex-end">
+              <Button
+                disabled={!items.some((item) => !item.enabled)}
+                loading={batchUpdating === 'enable'}
+                size="small"
+                onClick={() => handleBatchToggle(true)}
+              >
+                {t('admin.providers.models.enableAll', '启用当前类型')}
+              </Button>
+              <Button
+                disabled={!items.some((item) => item.enabled)}
+                loading={batchUpdating === 'disable'}
+                size="small"
+                onClick={() => handleBatchToggle(false)}
+              >
+                {t('admin.providers.models.disableAll', '禁用当前类型')}
+              </Button>
+            </Flexbox>
+            <Table
+              columns={columns as any}
+              dataSource={items}
+              loading={isLoading}
+              pagination={false}
+              rowKey={(r: ModelRow) => `${r.modelId}__${r.modelType}`}
+              size="small"
+            />
+          </Flexbox>
         )}
       </Flexbox>
     );
@@ -495,7 +656,7 @@ const ModelsDrawer = memo<{ instance: InstanceRow | null; onClose: () => void }>
       <Drawer
         destroyOnClose
         open={!!instance}
-        width={760}
+        width={980}
         title={
           instance
             ? t('admin.providers.drawer.title', '{{name}} 的模型', { name: instance.name })
@@ -516,8 +677,9 @@ ModelsDrawer.displayName = 'ModelsDrawer';
 
 const AdminProvidersPage = memo(() => {
   const { t } = useTranslation('subscription');
+  const refreshAiProviderRuntimeState = useAiInfraStore((s) => s.refreshAiProviderRuntimeState);
   const { data, isLoading } = useClientDataSWR(INSTANCES_KEY, () =>
-    adminCommercialService.listNewapiInstances(),
+    adminCommercialService.listAiProviderInstances(),
   );
 
   const [editing, setEditing] = useState<InstanceRow | null>(null);
@@ -525,16 +687,17 @@ const AdminProvidersPage = memo(() => {
   const [modelsTarget, setModelsTarget] = useState<InstanceRow | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [refreshingRuntimeCache, setRefreshingRuntimeCache] = useState(false);
 
   const items = (data?.items ?? []) as InstanceRow[];
 
   const handleToggle = async (row: InstanceRow) => {
-    await adminCommercialService.toggleNewapiInstance({ enabled: !row.enabled, id: row.id });
+    await adminCommercialService.toggleAiProviderInstance({ enabled: !row.enabled, id: row.id });
     await mutate(INSTANCES_KEY);
   };
 
-  const handleDelete = async (row: InstanceRow) => {
-    await adminCommercialService.deleteNewapiInstance(row.id);
+  const handleDelete = async (row: InstanceRow, reason?: string | null) => {
+    await adminCommercialService.deleteAiProviderInstance({ id: row.id, reason: reason?.trim() });
     message.success(t('admin.providers.deleteSuccess', '实例已删除'));
     await mutate(INSTANCES_KEY);
   };
@@ -542,7 +705,7 @@ const AdminProvidersPage = memo(() => {
   const handleTestConnection = async (row: InstanceRow) => {
     setTestingId(row.id);
     try {
-      const result = await adminCommercialService.testNewapiInstanceConnection(row.id);
+      const result = await adminCommercialService.testAiProviderInstanceConnection(row.id);
       if (result.ok) {
         message.success(
           t(
@@ -569,13 +732,14 @@ const AdminProvidersPage = memo(() => {
   const handleSyncModels = async (row: InstanceRow) => {
     setSyncingId(row.id);
     try {
-      const result = await adminCommercialService.syncNewapiInstanceModels(row.id);
+      const result = await adminCommercialService.syncAiProviderInstanceModels(row.id);
       message.success(
         t('admin.providers.sync.success', '同步完成：导入 {{count}} 个模型，新模型默认未启用', {
           count: result.importedCount,
         }),
       );
       await Promise.all(MODEL_TYPES.map((type) => mutate(modelsKey(row.id, type))));
+      await refreshAiProviderRuntimeState();
     } catch (error) {
       message.error(
         t('admin.providers.sync.failed', '同步失败：{{error}}', {
@@ -584,6 +748,28 @@ const AdminProvidersPage = memo(() => {
       );
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  const handleRefreshRuntimeCache = async () => {
+    setRefreshingRuntimeCache(true);
+    try {
+      const result = await adminCommercialService.refreshAiProviderRuntimeCache();
+      await mutate(serverConfigKeys.get);
+      await Promise.all([refreshAiProviderRuntimeState(), mutate(INSTANCES_KEY)]);
+      message.success(
+        t('admin.providers.refreshRuntimeCache.success', '用户模型缓存已更新：{{time}}', {
+          time: new Date(result.refreshedAt).toLocaleString(),
+        }),
+      );
+    } catch (error) {
+      message.error(
+        t('admin.providers.refreshRuntimeCache.failed', '更新用户缓存失败：{{error}}', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    } finally {
+      setRefreshingRuntimeCache(false);
     }
   };
 
@@ -617,7 +803,12 @@ const AdminProvidersPage = memo(() => {
     {
       dataIndex: 'apiKey',
       key: 'apiKey',
-      render: (v: string | null) => <code style={{ fontSize: 12 }}>{v ?? '-'}</code>,
+      render: (v: string | null, row: InstanceRow) =>
+        row.apiKeyStatus === 'invalid' ? (
+          <Tag color="red">{t('admin.providers.col.apiKeyInvalid', '密钥无效，需重置')}</Tag>
+        ) : (
+          <code style={{ fontSize: 12 }}>{v ?? '-'}</code>
+        ),
       title: t('admin.providers.col.apiKey', 'API 密钥'),
       width: 160,
     },
@@ -670,6 +861,7 @@ const AdminProvidersPage = memo(() => {
     },
     {
       dataIndex: 'fetchOnClient',
+      hidden: true,
       key: 'fetchOnClient',
       render: (v: boolean) =>
         v ? <Tag color="blue">客户端（Client）</Tag> : <Tag color="default">服务端（Server）</Tag>,
@@ -702,16 +894,15 @@ const AdminProvidersPage = memo(() => {
           <Button size="small" onClick={() => setEditing(row)}>
             {t('admin.providers.action.edit', '编辑')}
           </Button>
-          <Popconfirm
-            okButtonProps={{ danger: true }}
-            okText={t('admin.providers.action.delete', '删除')}
-            title={t('admin.providers.confirmDelete', '删除这个实例及其全部模型？')}
-            onConfirm={() => handleDelete(row)}
+          <AdminDangerousActionButton
+            actionId="newapiProvider.deleteInstance"
+            danger
+            size="small"
+            confirmDescription={t('admin.providers.confirmDelete', '删除这个实例及其全部模型？')}
+            onConfirm={({ reason }) => handleDelete(row, reason)}
           >
-            <Button danger size="small">
-              {t('admin.providers.action.delete', '删除')}
-            </Button>
-          </Popconfirm>
+            {t('admin.providers.action.delete', '删除')}
+          </AdminDangerousActionButton>
         </Flexbox>
       ),
       title: t('admin.providers.col.actions', '操作'),
@@ -728,9 +919,18 @@ const AdminProvidersPage = memo(() => {
             '配置多个服务商上游实例，并按模型类型登记可用模型。运行时会优先使用匹配模型且优先级最高的实例，失败时按优先级切换到下一个实例。',
           )}
         </div>
-        <Button type="primary" onClick={() => setCreating(true)}>
-          {t('admin.providers.createInstance', '新建实例')}
-        </Button>
+        <Flexbox horizontal gap={8}>
+          <Button
+            icon={<Icon icon={RefreshCw} size={14} />}
+            loading={refreshingRuntimeCache}
+            onClick={handleRefreshRuntimeCache}
+          >
+            {t('admin.providers.refreshRuntimeCache.action', '更新用户缓存')}
+          </Button>
+          <Button type="primary" onClick={() => setCreating(true)}>
+            {t('admin.providers.createInstance', '新建实例')}
+          </Button>
+        </Flexbox>
       </Flexbox>
 
       {!isLoading && items.length === 0 ? (

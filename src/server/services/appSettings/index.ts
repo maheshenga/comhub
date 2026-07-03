@@ -12,6 +12,7 @@ export const APP_SETTING_KEYS = {
   authSignupEnabled: 'auth.signup.enabled',
   authSignupPhoneEnabled: 'auth.signup.phoneEnabled',
   aboutLinks: 'about.links',
+  aboutLogoUrl: 'about.logoUrl',
   aboutPage: 'about.page',
   brandFaviconUrl: 'brand.faviconUrl',
   brandAuthTitle: 'brand.authTitle',
@@ -24,6 +25,7 @@ export const APP_SETTING_KEYS = {
   brandSlogan: 'brand.slogan',
   // ComHub runtime UI copy: keep these backend-controlled during upstream sync.
   communityForkAndChatLabel: 'community.forkAndChat.label',
+  communitySkillUseButtonLabel: 'community.skill.useButton.label',
   communityCreatorRewardBannerEnabled: 'community.creatorRewardBanner.enabled',
   communityFeaturedAssistantPageSize: 'community.featuredAssistant.pageSize',
   communityFeaturedAssistantTitle: 'community.featuredAssistant.title',
@@ -40,6 +42,9 @@ export const APP_SETTING_KEYS = {
   communityHomeAnnouncementEnabled: 'community.homeAnnouncement.enabled',
   communityHomeAnnouncementTitle: 'community.homeAnnouncement.title',
   communityHomeAnnouncementType: 'community.homeAnnouncement.type',
+  composioApiKey: 'composio.apiKey',
+  composioAuthConfigIds: 'composio.authConfigIds',
+  composioEnabled: 'composio.enabled',
   cronAuditRetentionDays: 'cron.auditRetentionDays',
   cronPendingOrderExpiryDays: 'cron.pendingOrderExpiryDays',
   cronSecret: 'cron.secret',
@@ -84,6 +89,14 @@ export const APP_SETTING_KEYS = {
   homeMessengerEnabled: 'home.messenger.enabled',
   homeMessengerBannerTitle: 'home.messengerBanner.title',
   helpMenuItems: 'help.menu.items',
+  memoryUserMemoryEmbeddingModel: 'memory.userMemory.embedding.model',
+  memoryUserMemoryEmbeddingProvider: 'memory.userMemory.embedding.provider',
+  memoryUserMemoryGatekeeperModel: 'memory.userMemory.gatekeeper.model',
+  memoryUserMemoryGatekeeperProvider: 'memory.userMemory.gatekeeper.provider',
+  memoryUserMemoryLayerExtractorModel: 'memory.userMemory.layerExtractor.model',
+  memoryUserMemoryLayerExtractorProvider: 'memory.userMemory.layerExtractor.provider',
+  memoryUserMemoryPersonaWriterModel: 'memory.userMemory.personaWriter.model',
+  memoryUserMemoryPersonaWriterProvider: 'memory.userMemory.personaWriter.provider',
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
   notificationDesktopEnabled: 'notification.desktop.enabled',
   notificationEmailEnabled: 'notification.email.enabled',
@@ -154,6 +167,9 @@ export const APP_SETTING_KEYS = {
 } as const;
 
 const CACHED_KEYS = [
+  APP_SETTING_KEYS.composioApiKey,
+  APP_SETTING_KEYS.composioAuthConfigIds,
+  APP_SETTING_KEYS.composioEnabled,
   APP_SETTING_KEYS.defaultAgentAvatar,
   APP_SETTING_KEYS.defaultAgentModel,
   APP_SETTING_KEYS.defaultAgentName,
@@ -162,6 +178,8 @@ const CACHED_KEYS = [
   APP_SETTING_KEYS.defaultImageProvider,
   APP_SETTING_KEYS.defaultVideoModel,
   APP_SETTING_KEYS.defaultVideoProvider,
+  APP_SETTING_KEYS.communitySkillUseButtonLabel,
+  APP_SETTING_KEYS.helpMenuItems,
   APP_SETTING_KEYS.modelPolicyAllowlist,
   APP_SETTING_KEYS.modelPolicyApplyToEmbeddings,
   APP_SETTING_KEYS.modelPolicyApplyToGenerateObject,
@@ -170,6 +188,14 @@ const CACHED_KEYS = [
   APP_SETTING_KEYS.modelPolicyDeniedMessage,
   APP_SETTING_KEYS.modelPolicyEnabled,
   APP_SETTING_KEYS.modelPolicyMode,
+  APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+  APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+  APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+  APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+  APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+  APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+  APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+  APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
   APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
   APP_SETTING_KEYS.notificationEventDefaults,
   APP_SETTING_KEYS.notificationInboxEnabled,
@@ -224,12 +250,91 @@ const normalizePositiveInt = (value: unknown, fallback: number, min: number, max
 
 const DEFAULT_S3_FILE_PATH = 'files';
 
+export type ServerComposioConfig = {
+  apiKey?: string;
+  authConfigIds?: string;
+  enabled: boolean;
+};
+
+const parseOptionalBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return undefined;
+
+  const normalized = value.trim().toLowerCase();
+
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+};
+
 export const normalizeS3FilePath = (value: unknown) => {
   const text = normalizeString(value);
 
   if (!text) return null;
 
   return text.replaceAll('\\', '/').replaceAll(/^\/+|\/+$/g, '') || null;
+};
+
+export const getServerComposioConfig = async (
+  db?: LobeChatDatabase,
+): Promise<ServerComposioConfig> => {
+  const [enabled, apiKey, authConfigIds] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.composioEnabled, db),
+    getAppSettingValue(APP_SETTING_KEYS.composioApiKey, db),
+    getAppSettingValue(APP_SETTING_KEYS.composioAuthConfigIds, db),
+  ]);
+
+  const resolvedApiKey = normalizeString(apiKey) ?? process.env.COMPOSIO_API_KEY;
+  const envEnabled = parseOptionalBoolean(process.env.COMPOSIO_ENABLED);
+  const dbEnabled = typeof enabled === 'boolean' ? enabled : undefined;
+
+  return {
+    apiKey: resolvedApiKey,
+    authConfigIds: normalizeString(authConfigIds) ?? process.env.COMPOSIO_AUTH_CONFIG_IDS,
+    enabled: dbEnabled ?? envEnabled ?? Boolean(resolvedApiKey),
+  };
+};
+
+export type PublicCustomizationConfig = {
+  helpMenuItems?: Array<{ label: string; url?: string }>;
+  skillUseButtonLabel?: string;
+};
+
+const normalizePublicHelpMenuItems = (items: unknown): PublicCustomizationConfig['helpMenuItems'] => {
+  if (!Array.isArray(items)) return undefined;
+
+  const normalized = items
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => {
+      const label = normalizeString(item.label);
+      const url = normalizeString(item.url);
+
+      if (!label) return undefined;
+
+      return {
+        label,
+        ...(url ? { url } : {}),
+      };
+    })
+    .filter((item): item is { label: string; url?: string } => Boolean(item));
+
+  return normalized.length > 0 ? normalized : undefined;
+};
+
+export const getServerPublicCustomizationConfig = async (
+  db?: LobeChatDatabase,
+): Promise<PublicCustomizationConfig> => {
+  const [rawSkillUseButtonLabel, rawHelpMenuItems] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.communitySkillUseButtonLabel, db),
+    getAppSettingValue(APP_SETTING_KEYS.helpMenuItems, db),
+  ]);
+
+  const skillUseButtonLabel = normalizeString(rawSkillUseButtonLabel);
+  const helpMenuItems = normalizePublicHelpMenuItems(rawHelpMenuItems);
+
+  return {
+    ...(helpMenuItems ? { helpMenuItems } : {}),
+    ...(skillUseButtonLabel ? { skillUseButtonLabel } : {}),
+  };
 };
 
 export type ServerFileS3Config = {
@@ -466,6 +571,69 @@ export const getServerVectorSettingOverrides = async (
           },
         }
       : {}),
+  };
+};
+
+export type ServerMemoryExtractionModelSettingOverrides = {
+  embedding?: { model?: string; provider?: string };
+  gatekeeper?: { model?: string; provider?: string };
+  layerExtractor?: { model?: string; provider?: string };
+  personaWriter?: { model?: string; provider?: string };
+};
+
+const toModelSetting = (provider: string | null, model: string | null) =>
+  provider || model
+    ? {
+        ...(provider ? { provider } : {}),
+        ...(model ? { model } : {}),
+      }
+    : undefined;
+
+export const getServerMemoryExtractionSettingOverrides = async (
+  db?: LobeChatDatabase,
+): Promise<ServerMemoryExtractionModelSettingOverrides> => {
+  const [
+    rawGatekeeperProvider,
+    rawGatekeeperModel,
+    rawLayerExtractorProvider,
+    rawLayerExtractorModel,
+    rawPersonaWriterProvider,
+    rawPersonaWriterModel,
+    rawEmbeddingProvider,
+    rawEmbeddingModel,
+  ] = await Promise.all([
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider, db),
+    getAppSettingValue(APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel, db),
+  ]);
+
+  const gatekeeper = toModelSetting(
+    normalizeString(rawGatekeeperProvider),
+    normalizeString(rawGatekeeperModel),
+  );
+  const layerExtractor = toModelSetting(
+    normalizeString(rawLayerExtractorProvider),
+    normalizeString(rawLayerExtractorModel),
+  );
+  const personaWriter = toModelSetting(
+    normalizeString(rawPersonaWriterProvider),
+    normalizeString(rawPersonaWriterModel),
+  );
+  const embedding = toModelSetting(
+    normalizeString(rawEmbeddingProvider),
+    normalizeString(rawEmbeddingModel),
+  );
+
+  return {
+    ...(gatekeeper ? { gatekeeper } : {}),
+    ...(layerExtractor ? { layerExtractor } : {}),
+    ...(personaWriter ? { personaWriter } : {}),
+    ...(embedding ? { embedding } : {}),
   };
 };
 

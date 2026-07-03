@@ -6,6 +6,7 @@ import { type PropsWithChildren } from 'react';
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DESKTOP_HEADER_ICON_SMALL_SIZE } from '@/const/layoutTokens';
 import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { SkeletonItem } from '@/features/NavPanel/components/SkeletonList';
@@ -29,7 +30,7 @@ const Agent = memo<PropsWithChildren>(() => {
   const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
 
   const displayTitle = isInbox
-    ? title || defaultAgentMeta.title || '青柚助手'
+    ? title || defaultAgentMeta.title || DEFAULT_COMHUB_AGENT_NAME
     : title || t('defaultSession', { ns: 'common' });
 
   if (isLoading) return <SkeletonItem height={32} padding={0} />;

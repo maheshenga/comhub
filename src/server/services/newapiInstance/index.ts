@@ -1,27 +1,48 @@
-import { and, asc, eq } from 'drizzle-orm';
-import type { Pricing } from 'model-bank';
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import debug from 'debug';
+import type { AiModelType, ModelAbilities, Pricing } from 'model-bank';
+import { normalizeAiModelType } from 'model-bank';
 
 import { isModelAllowedByPlanRules, resolvePlanModelRules } from '@/business/server/planModelRules';
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 import { adminNewapiInstanceModels, adminNewapiInstances } from '@/database/schemas';
 import { type LobeChatDatabase } from '@/database/type';
 
+import {
+  maybeBackfillPlaintextAdminProviderApiKey,
+  tryDecryptAdminProviderApiKey,
+} from './credentials';
+
+const log = debug('newapi-instance:runtime');
+
 export type NewapiModelType =
   | 'chat'
   | 'embedding'
   | 'tts'
+  | 'asr'
   | 'stt'
   | 'image'
   | 'video'
   | 'text2music'
   | 'realtime';
 
+const getCompatibleNewapiModelTypes = (modelType: NewapiModelType): NewapiModelType[] => {
+  const normalized = normalizeAiModelType(modelType) as AiModelType | NewapiModelType;
+  return normalized === 'asr' ? ['asr', 'stt'] : [modelType];
+};
+
+export const toAiModelType = (modelType: NewapiModelType): AiModelType =>
+  normalizeAiModelType(modelType) as AiModelType;
+
 export type AdminModelApiProviderType =
   | 'newapi'
   | 'openai-compatible'
   | 'openai'
+  | 'claude'
   | 'deepseek'
-  | 'aliyun';
+  | 'aliyun'
+  | 'opencode-go'
+  | 'siliconflow';
 
 export interface ResolvedNewapiInstance {
   apiKey: string;
@@ -35,6 +56,10 @@ export interface ResolvedNewapiInstance {
   providerType: AdminModelApiProviderType;
   source: 'instance';
 }
+
+export const getRuntimeProviderId = (
+  instance?: Pick<ResolvedNewapiInstance, 'instanceId' | 'providerType'> | null,
+) => instance?.instanceId || instance?.providerType || 'newapi';
 
 export const buildNewapiRouteMetadata = (
   instance?: Partial<ResolvedNewapiInstance> | null,
@@ -70,6 +95,33 @@ interface InstanceRowCache {
   usageScope?: NewapiModelType[] | null;
 }
 
+const decryptRuntimeRows = async <T extends { apiKey: string; id: string }>(
+  db: LobeChatDatabase,
+  rows: T[],
+): Promise<Array<T & { apiKey: string }>> => {
+  const decryptedRows: Array<T & { apiKey: string }> = [];
+
+  for (const row of rows) {
+    const result = await tryDecryptAdminProviderApiKey(row.apiKey);
+    if (!result.ok) {
+      log('skipped instance %s with invalid API key: %s', row.id, result.error.message);
+      continue;
+    }
+
+    await maybeBackfillPlaintextAdminProviderApiKey(db, {
+      apiKey: row.apiKey,
+      instanceId: row.id,
+    });
+
+    decryptedRows.push({
+      ...row,
+      apiKey: result.apiKey,
+    });
+  }
+
+  return decryptedRows;
+};
+
 const readEnabledInstances = async (db: LobeChatDatabase): Promise<InstanceRowCache[]> => {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.rows;
   try {
@@ -90,8 +142,9 @@ const readEnabledInstances = async (db: LobeChatDatabase): Promise<InstanceRowCa
       .from(adminNewapiInstances)
       .where(eq(adminNewapiInstances.enabled, true))
       .orderBy(asc(adminNewapiInstances.priority));
-    cache = { at: Date.now(), rows };
-    return rows;
+    const decryptedRows = await decryptRuntimeRows(db, rows);
+    cache = { at: Date.now(), rows: decryptedRows };
+    return decryptedRows;
   } catch {
     cache = { at: Date.now(), rows: [] };
     return [];
@@ -138,7 +191,11 @@ const toResolvedInstance = (row: NewapiRouteRow): ResolvedNewapiInstance => ({
 const usageScopeAllows = (
   usageScope: NewapiModelType[] | null | undefined,
   modelType: NewapiModelType,
-) => !Array.isArray(usageScope) || usageScope.length === 0 || usageScope.includes(modelType);
+) => {
+  if (!Array.isArray(usageScope) || usageScope.length === 0) return true;
+  const compatibleTypes = getCompatibleNewapiModelTypes(modelType);
+  return usageScope.some((type) => compatibleTypes.includes(type));
+};
 
 /**
  * Resolve the NewAPI instances that can serve a given model.
@@ -157,6 +214,7 @@ export const resolveNewapiInstancesForModel = async (
       ? rawParams
       : { modelId: rawParams, modelType: legacyModelType };
   const modelType = params.modelType ?? 'chat';
+  const compatibleModelTypes = getCompatibleNewapiModelTypes(modelType);
   const preferredGroupKey = params.preferredGroupKey?.trim();
   const trimmedModel = params.modelId?.trim();
 
@@ -184,22 +242,23 @@ export const resolveNewapiInstancesForModel = async (
           eq(adminNewapiInstances.enabled, true),
           eq(adminNewapiInstanceModels.enabled, true),
           eq(adminNewapiInstanceModels.modelId, trimmedModel),
-          eq(adminNewapiInstanceModels.modelType, modelType),
+          inArray(adminNewapiInstanceModels.modelType, compatibleModelTypes),
         ),
       )
       .orderBy(asc(adminNewapiInstances.priority));
 
     if (rows.length > 0) {
+      const decryptedRows = await decryptRuntimeRows(db, rows);
       const rules = params.userId
         ? await resolvePlanModelRules({ db, userId: params.userId })
         : null;
 
-      const allowedRows = rows.filter((row) => {
+      const allowedRows = decryptedRows.filter((row) => {
         const groupKey = row.groupKey || 'default';
         if (preferredGroupKey && groupKey !== preferredGroupKey) return false;
         if (!usageScopeAllows(row.usageScope, modelType)) return false;
 
-        return isModelAllowedByPlanRules(rules, trimmedModel, modelType, groupKey);
+        return isModelAllowedByPlanRules(rules, trimmedModel, toAiModelType(modelType), groupKey);
       });
 
       const selectedGroupKey = preferredGroupKey || allowedRows[0]?.groupKey || 'default';
@@ -237,6 +296,7 @@ export const resolveNewapiRouteMetadataForModel = async (
 };
 
 export interface EnabledModelEntry {
+  abilities?: ModelAbilities;
   displayName: string | null;
   groupKey?: string | null;
   groupName?: string | null;
@@ -244,19 +304,157 @@ export interface EnabledModelEntry {
   instanceId?: string | null;
   instanceName?: string | null;
   pricing?: Pricing;
+  providerId?: string | null;
   providerType?: AdminModelApiProviderType | null;
   type: NewapiModelType;
 }
+
+const ABILITY_KEYS: Array<keyof ModelAbilities> = [
+  'vision',
+  'files',
+  'imageOutput',
+  'video',
+  'audio',
+  'functionCall',
+  'reasoning',
+  'search',
+];
 
 const toPositiveNumber = (value: unknown) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : undefined;
 };
 
+const toPositiveMultiplier = (value: unknown) => toPositiveNumber(value) ?? 1;
+
+const resolveManualPricing = (
+  metadata: Record<string, unknown> | null | undefined,
+  modelType: NewapiModelType,
+): Pricing | undefined => {
+  const manualPricing =
+    metadata?.manualPricing && typeof metadata.manualPricing === 'object'
+      ? (metadata.manualPricing as Record<string, unknown>)
+      : undefined;
+  if (!manualPricing) return undefined;
+
+  const inputRate =
+    toPositiveNumber(manualPricing.inputRate) ?? toPositiveNumber(manualPricing.inputCostRate);
+  const outputRate =
+    toPositiveNumber(manualPricing.outputRate) ?? toPositiveNumber(manualPricing.outputCostRate);
+  const imageRate = toPositiveNumber(manualPricing.imageRate);
+  const videoRate = toPositiveNumber(manualPricing.videoRate);
+  const marginMultiplier = toPositiveMultiplier(manualPricing.marginMultiplier);
+
+  if (modelType === 'image' && imageRate) {
+    const rate = imageRate * marginMultiplier;
+
+    return {
+      approximatePricePerImage: rate,
+      units: [
+        {
+          name: 'imageGeneration' as const,
+          originalRate: imageRate,
+          rate,
+          strategy: 'fixed' as const,
+          unit: 'image' as const,
+        },
+      ],
+    };
+  }
+
+  if (modelType === 'video' && videoRate) {
+    const rate = videoRate * marginMultiplier;
+
+    return {
+      approximatePricePerVideo: rate,
+      units: [],
+    };
+  }
+
+  if (inputRate || outputRate) {
+    return {
+      units: [
+        ...(inputRate
+          ? [
+              {
+                originalRate: inputRate,
+                name: 'textInput' as const,
+                rate: inputRate * marginMultiplier,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+            ]
+          : []),
+        ...(outputRate
+          ? [
+              {
+                originalRate: outputRate,
+                name: 'textOutput' as const,
+                rate: outputRate * marginMultiplier,
+                strategy: 'fixed' as const,
+                unit: 'millionTokens' as const,
+              },
+            ]
+          : []),
+      ],
+    };
+  }
+
+  if (imageRate) {
+    const rate = imageRate * marginMultiplier;
+
+    return {
+      approximatePricePerImage: rate,
+      units: [
+        {
+          name: 'imageGeneration' as const,
+          originalRate: imageRate,
+          rate,
+          strategy: 'fixed' as const,
+          unit: 'image' as const,
+        },
+      ],
+    };
+  }
+
+  if (videoRate) {
+    const rate = videoRate * marginMultiplier;
+
+    return {
+      approximatePricePerVideo: rate,
+      units: [],
+    };
+  }
+
+  return undefined;
+};
+
+const resolveManualAbilities = (
+  metadata: Record<string, unknown> | null | undefined,
+): ModelAbilities | undefined => {
+  const manualAbilities =
+    metadata?.manualAbilities && typeof metadata.manualAbilities === 'object'
+      ? (metadata.manualAbilities as Record<string, unknown>)
+      : undefined;
+  if (!manualAbilities) return undefined;
+
+  const abilities = ABILITY_KEYS.reduce<ModelAbilities>((map, key) => {
+    if (typeof manualAbilities[key] === 'boolean') {
+      map[key] = manualAbilities[key] as boolean;
+    }
+    return map;
+  }, {});
+
+  return Object.keys(abilities).length > 0 ? abilities : undefined;
+};
+
 export const resolveNewapiModelPricingFromMetadata = (
   metadata: Record<string, unknown> | null | undefined,
   modelType: NewapiModelType,
 ): Pricing | undefined => {
+  const manualPricing = resolveManualPricing(metadata, modelType);
+  if (manualPricing) return manualPricing;
+
   const quotaType = Number(metadata?.quotaType);
   const modelPrice = toPositiveNumber(metadata?.modelPrice);
   const modelRatio = toPositiveNumber(metadata?.modelRatio);
@@ -335,6 +533,7 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
       if (!seen.has(key)) {
         seen.add(key);
         result.push({
+          abilities: resolveManualAbilities(row.metadata as Record<string, unknown> | null | undefined),
           displayName: row.displayName,
           groupKey: row.groupKey,
           groupName: row.groupName,
@@ -345,8 +544,12 @@ export const getAllEnabledModels = async (db?: LobeChatDatabase): Promise<Enable
             row.metadata as Record<string, unknown> | null | undefined,
             row.modelType as NewapiModelType,
           ),
+          providerId: getRuntimeProviderId({
+            instanceId: row.instanceId,
+            providerType: row.providerType,
+          }),
           providerType: row.providerType,
-          type: row.modelType as NewapiModelType,
+          type: toAiModelType(row.modelType as NewapiModelType),
         });
       }
     }

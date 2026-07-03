@@ -1,6 +1,7 @@
 import { Alert } from 'antd';
 
 import type { BaseSignUpFormValues } from '@/app/[variants]/(auth)/signup/[[...signup]]/types';
+
 import { message } from '@/components/AntdStaticMethods';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';

@@ -19,6 +19,7 @@ import { marketAuthEvents } from './events';
 import MarketAuthConfirmModal from './MarketAuthConfirmModal';
 import { MarketOIDC } from './oidc';
 import ProfileSetupModal from './ProfileSetupModal';
+import type { MarketAuthScene } from './scenes';
 import {
   type MarketAuthContextType,
   type MarketAuthSession,
@@ -140,6 +141,7 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
   const [oidcClient, setOidcClient] = useState<MarketOIDC | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [authScene, setAuthScene] = useState<MarketAuthScene>('default');
   const [showProfileSetupModal, setShowProfileSetupModal] = useState(false);
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false);
   const [pendingSignInResolve, setPendingSignInResolve] = useState<
@@ -399,7 +401,15 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   /**
    * Sign-in method (shows confirmation dialog first)
    */
-  const signIn = useCallback(async (options: MarketSignInOptions = {}): Promise<number | null> => {
+  const signIn = useCallback(async (
+    sceneOrOptions: MarketAuthScene | MarketSignInOptions = 'default',
+  ): Promise<number | null> => {
+    if (!useUserStore.getState().isSignedIn) {
+      throw new Error('LobeChat session required');
+    }
+    const scene = typeof sceneOrOptions === 'string' ? sceneOrOptions : 'default';
+    const options = typeof sceneOrOptions === 'string' ? {} : sceneOrOptions;
+    setAuthScene(scene);
     return new Promise<number | null>((resolve, reject) => {
       setPendingSignInResolve(() => resolve);
       setPendingSignInReject(() => reject);
@@ -637,30 +647,33 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
    * Attempts to refresh token first, then triggers signIn if refresh fails
    * @returns true if successfully re-authenticated, false if user cancelled or failed
    */
-  const handleUnauthorized = useCallback(async (): Promise<boolean> => {
-    console.info('[MarketAuth] Handling unauthorized error, attempting recovery...');
+  const handleUnauthorized = useCallback(
+    async (scene: MarketAuthScene = 'default'): Promise<boolean> => {
+      console.info('[MarketAuth] Handling unauthorized error, attempting recovery...');
 
-    // First try to refresh the token
-    const refreshed = await refreshToken();
-    if (refreshed) {
-      console.info('[MarketAuth] Token refresh successful, recovered from 401');
-      return true;
-    }
-
-    // Refresh failed, need to re-authenticate
-    console.info('[MarketAuth] Token refresh failed, triggering signIn...');
-    try {
-      const accountId = await signIn();
-      if (accountId !== null) {
-        console.info('[MarketAuth] Re-authentication successful');
+      // First try to refresh the token
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        console.info('[MarketAuth] Token refresh successful, recovered from 401');
         return true;
       }
-      return false;
-    } catch (error) {
-      console.error('[MarketAuth] Re-authentication failed:', error);
-      return false;
-    }
-  }, [refreshToken, signIn]);
+
+      // Refresh failed, need to re-authenticate
+      console.info('[MarketAuth] Token refresh failed, triggering signIn...');
+      try {
+        const accountId = await signIn(scene);
+        if (accountId !== null) {
+          console.info('[MarketAuth] Re-authentication successful');
+          return true;
+        }
+        return false;
+      } catch (error) {
+        console.error('[MarketAuth] Re-authentication failed:', error);
+        return false;
+      }
+    },
+    [refreshToken, signIn],
+  );
 
   /**
    * Restore session and fetch user info on initialization
@@ -712,18 +725,16 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   useEffect(() => {
     const unsubscribe = marketAuthEvents.on('market-unauthorized', async (event) => {
       console.info('[MarketAuth] Received unauthorized event for path:', event.path);
-      // Desktop: do not open community auth / profile modals from background API 401s.
-      // Only attempt a silent token refresh; Lobe cloud re-auth is handled separately (AuthRequiredModal).
       if (isDesktop) {
         const refreshed = await refreshToken();
         if (!refreshed) {
-          console.info(
-            '[MarketAuth] Desktop: market 401 — refresh failed, skipping community sign-in UI',
-          );
+          // Silent refresh failed — the Market OAuth token is genuinely expired.
+          // Show the Market auth modal so the user can re-authorize.
+          await handleUnauthorized(event.scene);
         }
         return;
       }
-      await handleUnauthorized();
+      await handleUnauthorized(event.scene);
     });
 
     return unsubscribe;
@@ -785,6 +796,7 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
       {children}
       <MarketAuthConfirmModal
         open={showConfirmModal}
+        scene={authScene}
         onCancel={handleCancelAuth}
         onConfirm={handleConfirmAuth}
       />

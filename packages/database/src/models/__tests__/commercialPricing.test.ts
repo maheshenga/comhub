@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 
 import { resolveAiUsagePricing } from '../commercial';
 
@@ -20,6 +21,35 @@ describe('resolveAiUsagePricing', () => {
       expect.objectContaining({
         matchedRule: expect.objectContaining({ multiplier: 1.2 }),
         multiplier: 1.2,
+      }),
+    );
+  });
+
+  it('uses the default 35 percent pricing multiplier when no global multiplier is configured', () => {
+    expect(
+      resolveAiUsagePricing({
+        model: 'gpt-test',
+        provider: 'newapi',
+        rules: [],
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        multiplier: DEFAULT_PRICING_CREDIT_MULTIPLIER,
+      }),
+    );
+  });
+
+  it('uses the default 35 percent pricing multiplier when global multiplier is non-positive', () => {
+    expect(
+      resolveAiUsagePricing({
+        globalMultiplier: 0,
+        model: 'gpt-test',
+        provider: 'newapi',
+        rules: [],
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        multiplier: DEFAULT_PRICING_CREDIT_MULTIPLIER,
       }),
     );
   });

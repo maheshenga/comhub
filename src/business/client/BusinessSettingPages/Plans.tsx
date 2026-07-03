@@ -16,7 +16,11 @@ import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 
 import { getPlanPurchaseUrl } from './planPurchase';
-import { formatPlanCurrencyAmount, getVisiblePaidPlans } from './plansDisplay';
+import {
+  getPlanYearlyDiscountPercent,
+  getVisiblePaidPlans,
+  resolvePlanCyclePrice,
+} from './plansDisplay';
 import {
   formatBusinessNumber,
   formatCredits,
@@ -67,23 +71,7 @@ const FEATURE_GROUPS = [
   },
 ];
 
-const MODEL_MESSAGE_ESTIMATES = [
-  { divisor: 141, model: 'DeepSeek V4 Pro' },
-  { divisor: 16_666, model: 'Claude Sonnet 4.6' },
-  { divisor: 12_500, model: 'Gemini 3.1 Pro Preview' },
-  { divisor: 30_000, model: 'GPT-5.5' },
-];
-
-const MODEL_PRICE_ROWS = [
-  { input: '0.044M', model: 'DeepSeek V4 Pro (1M)', output: '0.087M' },
-  { input: '3M', model: 'Claude Sonnet 4.6 (1M)', output: '15M' },
-  { input: '2M', model: 'Gemini 3.1 Pro Preview (1M)', output: '12M' },
-  { input: '5M', model: 'GPT-5.5 (1M)', output: '30M' },
-  { input: '0.75M', model: 'GPT-5.4 mini (400K)', output: '4.5M' },
-  { input: '0.25M', model: 'GPT-5 mini (400K)', output: '2M' },
-];
-
-type BillingCycle = 'yearly' | 'monthly' | 'one_time';
+type BillingCycle = 'yearly' | 'monthly' | 'one_time' | 'lifetime';
 type PlanCatalog = Awaited<ReturnType<typeof commercialService.listPlanCatalog>>;
 type PlanCatalogItem = PlanCatalog[number];
 type ComparisonRow = { feature: string; key: string } & Record<string, ReactNode>;
@@ -265,18 +253,15 @@ const getPlanKey = (plan: string): SubscriptionPlan | null =>
 const getCatalogPlan = (planCatalog: PlanCatalog | undefined, plan: SubscriptionPlan) =>
   planCatalog?.find((item) => item.plan === plan);
 
-const getDiscountPercent = (monthlyPrice: number, yearlyPrice: number) => {
-  if (monthlyPrice <= 0 || yearlyPrice <= 0) return 0;
-
-  return Math.max(0, Math.round((1 - yearlyPrice / (monthlyPrice * 12)) * 100));
-};
-
 const getYearlyDiscountLabel = (catalogPlan?: PlanCatalogItem) => {
   if (!catalogPlan) return '';
 
   if (catalogPlan.yearlyDiscountLabel) return catalogPlan.yearlyDiscountLabel;
 
-  const discountPercent = getDiscountPercent(catalogPlan.monthlyPrice, catalogPlan.yearlyPrice);
+  const discountPercent = getPlanYearlyDiscountPercent(
+    catalogPlan.monthlyPrice,
+    catalogPlan.yearlyPrice,
+  );
 
   return discountPercent > 0 ? `优惠 ${discountPercent}%` : '';
 };
@@ -287,10 +272,27 @@ const getRuleCount = (rule?: ModelRule) => {
   return rule.mode === 'blocklist' ? rule.blocklist?.length || 0 : rule.allowlist?.length || 0;
 };
 
-const formatEstimatedMessages = (monthlyCredits: number, divisor: number) => {
-  if (monthlyCredits <= 0) return '约 0 条消息';
+const getModelAccessSummary = (rules: Record<string, ModelRule>) => {
+  const entries = Object.entries(rules).filter(([, rule]) => Boolean(rule));
+  const allowlistEntries = entries.filter(([, rule]) => rule?.mode !== 'blocklist');
+  const blocklistEntries = entries.filter(([, rule]) => rule?.mode === 'blocklist');
 
-  return `约 ${formatBusinessNumber(Math.max(1, Math.floor(monthlyCredits / divisor)))} 条消息`;
+  if (entries.length === 0) {
+    return {
+      entries,
+      label: '默认开放全部已启用模型',
+    };
+  }
+
+  return {
+    entries,
+    label: [
+      allowlistEntries.length > 0 ? `白名单 ${allowlistEntries.length} 类` : null,
+      blocklistEntries.length > 0 ? `黑名单 ${blocklistEntries.length} 类` : null,
+    ]
+      .filter(Boolean)
+      .join(' / '),
+  };
 };
 
 const formatNullableQuota = (value: null | number | undefined, unit = '') => {
@@ -347,11 +349,20 @@ const Plans = memo<{ mobile?: boolean }>(() => {
     );
   }, [planCatalog]);
 
-  const yearlyCycleDiscountLabel = useMemo(
-    () =>
-      planCatalog?.find((item) => item.yearlyDiscountLabel)?.yearlyDiscountLabel || '最高优惠 37%',
-    [planCatalog],
-  );
+  const yearlyCycleDiscountLabel = useMemo(() => {
+    const configuredLabel = planCatalog?.find(
+      (item) => item.yearlyDiscountLabel,
+    )?.yearlyDiscountLabel;
+    if (configuredLabel) return configuredLabel;
+
+    const maxDiscount = (planCatalog ?? []).reduce(
+      (max, item) =>
+        Math.max(max, getPlanYearlyDiscountPercent(item.monthlyPrice, item.yearlyPrice)),
+      0,
+    );
+
+    return maxDiscount > 0 ? `最高优惠 ${maxDiscount}%` : '';
+  }, [planCatalog]);
 
   const comparisonColumns = useMemo(
     () => [
@@ -450,33 +461,6 @@ const Plans = memo<{ mobile?: boolean }>(() => {
       : PLAN_FEATURES_FALLBACK[plan];
   };
 
-  const getPrice = (catalogPlan?: PlanCatalogItem) => {
-    if (!catalogPlan)
-      return { label: '--', unit: t(getSubscriptionCycleTranslationKey(billingCycle)) };
-
-    if (billingCycle === 'monthly') {
-      return {
-        label: formatPlanCurrencyAmount(catalogPlan.monthlyPrice, catalogPlan.currency),
-        unit: '人民币 / 月',
-      };
-    }
-
-    if (billingCycle === 'one_time') {
-      return {
-        label:
-          catalogPlan.yearlyPrice > 0
-            ? formatPlanCurrencyAmount(catalogPlan.yearlyPrice, catalogPlan.currency)
-            : '--',
-        unit: '人民币 / 一次性',
-      };
-    }
-
-    return {
-      label: formatPlanCurrencyAmount(catalogPlan.monthlyPrice, catalogPlan.currency),
-      unit: '人民币 / 月（按年）',
-    };
-  };
-
   const handleUpgradeClick = (catalogPlan?: PlanCatalogItem) => {
     const purchaseUrl = getPlanPurchaseUrl(catalogPlan);
     if (purchaseUrl) {
@@ -541,6 +525,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
               },
               { label: '按月', value: 'monthly' },
               { label: '一次性', value: 'one_time' },
+              { label: '终身', value: 'lifetime' },
             ]}
             onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
           />
@@ -569,7 +554,14 @@ const Plans = memo<{ mobile?: boolean }>(() => {
           <div className={styles.grid}>
             {visiblePlans.map((plan) => {
               const catalogPlan = getCatalogPlan(planCatalog, plan);
-              const price = getPrice(catalogPlan);
+              const price = catalogPlan
+                ? resolvePlanCyclePrice(catalogPlan, billingCycle)
+                  : {
+                      discountPercent: 0,
+                      label: '--',
+                      secondaryLabel: undefined,
+                      unit: t(getSubscriptionCycleTranslationKey(billingCycle)),
+                    };
               const monthlyCredits =
                 catalogPlan?.monthlyCredits ?? subscriptionSummary?.monthlyCredits ?? 0;
               const yearlyDiscountLabel = getYearlyDiscountLabel(catalogPlan);
@@ -578,9 +570,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
               const planBadge =
                 catalogPlan?.badge || (plan === SubscriptionPlan.Premium ? '最受欢迎' : '');
               const modelRules = (catalogPlan?.modelRules || {}) as Record<string, ModelRule>;
-              const modelRuleEntries = Object.entries(modelRules).filter(([, rule]) =>
-                Boolean(rule),
-              );
+              const modelAccessSummary = getModelAccessSummary(modelRules);
 
               return (
                 <Card
@@ -612,12 +602,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                           <span className={styles.priceUnit}>/ {price.unit}</span>
                         </div>
                         <div className={styles.yearlyLine}>
-                          {catalogPlan?.yearlyPrice
-                            ? `${formatPlanCurrencyAmount(
-                                catalogPlan.yearlyPrice,
-                                catalogPlan.currency,
-                              )} / 人民币 / 年`
-                            : '--'}
+                          {price.secondaryLabel ?? '--'}
                           {billingCycle === 'yearly' && yearlyDiscountLabel ? (
                             <Tag color="green" style={{ margin: 0 }}>
                               {yearlyDiscountLabel}
@@ -666,16 +651,14 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                           <Icon className={styles.benefitIcon} icon={Check} size={15} />
                           <span>{formatCredits(monthlyCredits)} / 每月</span>
                         </div>
-                        {MODEL_MESSAGE_ESTIMATES.map((item) => (
-                          <div className={styles.benefit} key={item.model}>
-                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                            <span>
-                              {item.model}
-                              <br />
-                              {formatEstimatedMessages(monthlyCredits, item.divisor)}
-                            </span>
-                          </div>
-                        ))}
+                        <div className={styles.benefit}>
+                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                          <span>实际可用模型和消耗以后台“模型与计费矩阵”为准</span>
+                        </div>
+                        <div className={styles.benefit}>
+                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                          <span>模型倍率、每美元积分和套餐权限会随管理员配置实时生效</span>
+                        </div>
                       </Flexbox>
                       <Flexbox className={styles.featureGroup} gap={10}>
                         <div className={styles.sectionTitle}>后台配置权益</div>
@@ -709,9 +692,13 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                             <Icon icon={Info} size={14} />
                           </Tooltip>
                         </div>
-                        {modelRuleEntries.length > 0 ? (
+                        <div className={styles.benefit}>
+                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                          <span>{modelAccessSummary.label}</span>
+                        </div>
+                        {modelAccessSummary.entries.length > 0 ? (
                           <Flexbox horizontal gap={6} wrap="wrap">
-                            {modelRuleEntries.map(([type, rule]) => (
+                            {modelAccessSummary.entries.map(([type, rule]) => (
                               <Tag className={styles.modelTag} key={type}>
                                 {MODEL_TYPE_LABELS[type] || type}
                                 {' / '}
@@ -719,12 +706,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                               </Tag>
                             ))}
                           </Flexbox>
-                        ) : (
-                          <div className={styles.benefit}>
-                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                            <span>默认可用模型</span>
-                          </div>
-                        )}
+                        ) : null}
                       </Flexbox>
                     </Flexbox>
                   </Flexbox>
@@ -755,30 +737,17 @@ const Plans = memo<{ mobile?: boolean }>(() => {
         <Card className={styles.pricingCard} variant="borderless">
           <Flexbox gap={12}>
             <Flexbox gap={4}>
-              <h2 className={styles.title}>文本模型价格</h2>
+              <h2 className={styles.title}>模型计费说明</h2>
               <div className={subscriptionPageStyles.caption}>
-                平台使用算力积分衡量 AI 模型使用量。下表显示每百万 Token 的参考消耗。
+                平台使用算力积分衡量 AI 模型使用量。具体模型、倍率和可用套餐由后台“模型与计费矩阵”统一维护，新增 AI
+                服务商或模型后会按后台配置生效。
               </div>
             </Flexbox>
-            <Table
-              dataSource={MODEL_PRICE_ROWS}
-              locale={{ emptyText: <Empty description="暂无价格数据" /> }}
-              pagination={false}
-              rowKey="model"
-              size="small"
-              columns={[
-                { dataIndex: 'model', title: '模型' },
-                {
-                  dataIndex: 'input',
-                  render: (value: number) => `${value} 算力积分`,
-                  title: '输入 1M Tokens',
-                },
-                {
-                  dataIndex: 'output',
-                  render: (value: number) => `${value} 算力积分`,
-                  title: '输出 1M Tokens',
-                },
-              ]}
+            <Alert
+              showIcon
+              message="模型价格随后台配置动态生效"
+              type="info"
+              description="套餐页只展示用户可理解的权益摘要；具体模型计费、服务商分组、默认模型和套餐开放范围以管理员后台配置为准。"
             />
           </Flexbox>
         </Card>

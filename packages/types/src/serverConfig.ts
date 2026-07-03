@@ -7,8 +7,8 @@ import type {
   GlobalLLMProviderKey,
   UserDefaultAgent,
   UserImageConfig,
+  UserServiceModelConfig,
   UserSettings,
-  UserSystemAgentConfig,
 } from './user/settings';
 
 export type GlobalMemoryLayer = 'activity' | 'context' | 'experience' | 'identity' | 'preference';
@@ -40,6 +40,14 @@ export interface GlobalGenerationModelConfig {
   defaultProvider?: string;
 }
 
+export interface PublicCustomizationConfig {
+  helpMenuItems?: Array<{
+    label: string;
+    url?: string;
+  }>;
+  skillUseButtonLabel?: string;
+}
+
 export interface VisualUnderstandingConfig {
   model: string;
   provider: string;
@@ -65,15 +73,20 @@ export interface GlobalServerConfig {
    */
   agentGatewayUrl?: string;
   aiProvider: ServerLanguageModel;
+  customization?: PublicCustomizationConfig;
   defaultAgent?: PartialDeep<UserDefaultAgent>;
   disableEmailPassword?: boolean;
   enableBusinessFeatures?: boolean;
+  enableComposio?: boolean;
   /**
    * @deprecated
    */
   enabledOAuthSSO?: boolean;
   enableEmailVerification?: boolean;
-  enableKlavis?: boolean;
+  /**
+   * Whether Gateway mode is available for app-level agent execution.
+   */
+  enableGatewayMode?: boolean;
   enableLobehubSkill?: boolean;
   enableMagicLink?: boolean;
   enableMarketTrustedClient?: boolean;
@@ -82,7 +95,7 @@ export interface GlobalServerConfig {
   image?: PartialDeep<UserImageConfig>;
   memory?: GlobalMemoryConfig;
   oAuthSSOProviders?: string[];
-  systemAgent?: PartialDeep<UserSystemAgentConfig>;
+  systemAgent?: PartialDeep<UserServiceModelConfig>;
   telemetry: {
     langfuse?: boolean;
   };

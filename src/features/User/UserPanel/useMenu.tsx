@@ -6,16 +6,18 @@ import { BrainCircuit, Cloudy, Download, HardDriveDownload, LogOut, Settings2 } 
 import { type PropsWithChildren } from 'react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import useBusinessMenuItems from '@/business/client/features/User/useBusinessMenuItems';
 import { type MenuProps } from '@/components/Menu';
 import { DEFAULT_DESKTOP_HOTKEY_CONFIG } from '@/const/desktop';
 import { OFFICIAL_URL } from '@/const/url';
 import DataImporter from '@/features/DataImporter';
+import { buildCustomHelpMenuItems } from '@/features/User/helpMenuItems';
+import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import { usePlatform } from '@/hooks/usePlatform';
-import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
+import { featureFlagsSelectors, serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
 
@@ -49,6 +51,7 @@ export const useMenu = () => {
   const hasNewVersion = useNewVersion();
   const { t } = useTranslation(['common', 'setting', 'auth']);
   const { showCloudPromotion, hideDocs } = useServerConfigStore(featureFlagsSelectors);
+  const customization = useServerConfigStore(serverConfigSelectors.customization);
   const [isLogin, isLoginWithAuth] = useUserStore((s) => [
     authSelectors.isLogin(s),
     authSelectors.isLoginWithAuth(s),
@@ -73,9 +76,9 @@ export const useMenu = () => {
       icon: <Icon icon={Settings2} />,
       key: 'setting',
       label: (
-        <Link to="/settings">
+        <WorkspaceLink to="/settings">
           <NewVersionBadge showBadge={hasNewVersion}>{t('userPanel.setting')}</NewVersionBadge>
-        </Link>
+        </WorkspaceLink>
       ),
     },
     ...(userPanel.showMemory
@@ -101,7 +104,10 @@ export const useMenu = () => {
     },
   ];
 
+  const customHelpItems = buildCustomHelpMenuItems(customization?.helpMenuItems);
+
   const helps: MenuProps['items'] = [
+    ...customHelpItems,
     showCloudPromotion && {
       icon: <Icon icon={Cloudy} />,
       key: 'cloud',

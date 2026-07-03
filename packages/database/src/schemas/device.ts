@@ -1,0 +1,59 @@
+import type { WorkingDirEntry } from '@lobechat/types';
+import { sql } from 'drizzle-orm';
+import { index, jsonb, pgTable, text, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+
+import { timestamps, timestamptz } from './_helpers';
+import { users } from './user';
+import { workspaces } from './workspace';
+
+/**
+ * Stable device identity anchor.
+ *
+ * Personal rows use (userId, deviceId). Workspace-enrolled rows use
+ * (workspaceId, deviceId), with userId recording the enrolling admin.
+ */
+export const devices = pgTable(
+  'devices',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
+
+    /** Machine-derived id (sha256 truncated to 32 chars; 64 leaves room for fallback randomUUID) */
+    deviceId: varchar('device_id', { length: 64 }).notNull(),
+    /** 'machine-id' | 'fallback' - validated by zod at the router boundary */
+    identitySource: varchar('identity_source', { length: 20 }).notNull(),
+
+    hostname: text('hostname'),
+    /** 'darwin' | 'win32' | 'linux' */
+    platform: varchar('platform', { length: 20 }),
+    /** User-editable alias */
+    friendlyName: text('friendly_name'),
+
+    defaultCwd: text('default_cwd'),
+    /** @deprecated superseded by `workingDirs` (structured). Kept as a legacy column; no longer read/written. */
+    recentCwds: text('recent_cwds').array().default([]).notNull(),
+    workingDirs: jsonb('working_dirs').$type<WorkingDirEntry[]>().default([]),
+
+    firstSeenAt: timestamptz('first_seen_at').defaultNow().notNull(),
+    lastSeenAt: timestamptz('last_seen_at').defaultNow().notNull(),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('devices_user_id_device_id_unique')
+      .on(t.userId, t.deviceId)
+      .where(sql`${t.workspaceId} IS NULL`),
+    uniqueIndex('devices_workspace_id_device_id_unique')
+      .on(t.workspaceId, t.deviceId)
+      .where(sql`${t.workspaceId} IS NOT NULL`),
+    index('devices_user_id_idx').on(t.userId),
+    index('devices_workspace_id_idx').on(t.workspaceId),
+  ],
+);
+
+export type DeviceItem = typeof devices.$inferSelect;
+export type NewDevice = typeof devices.$inferInsert;

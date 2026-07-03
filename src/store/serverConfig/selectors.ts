@@ -3,11 +3,13 @@ import { type ServerConfigStore } from './store';
 export const featureFlagsSelectors = (s: ServerConfigStore) => s.featureFlags;
 
 export const serverConfigSelectors = {
+  customization: (s: ServerConfigStore) => s.serverConfig.customization,
   disableEmailPassword: (s: ServerConfigStore) => s.serverConfig.disableEmailPassword || false,
   enableBusinessFeatures: (s: ServerConfigStore) => s.serverConfig.enableBusinessFeatures || false,
   enableEmailVerification: (s: ServerConfigStore) =>
     s.serverConfig.enableEmailVerification || false,
-  enableKlavis: (s: ServerConfigStore) => s.serverConfig.enableKlavis || false,
+  enableComposio: (s: ServerConfigStore) => s.serverConfig.enableComposio || false,
+  enableGatewayMode: (s: ServerConfigStore) => s.serverConfig.enableGatewayMode || false,
   enableLobehubSkill: (s: ServerConfigStore) => s.serverConfig.enableLobehubSkill || false,
   enableMagicLink: (s: ServerConfigStore) => s.serverConfig.enableMagicLink || false,
   enableMarketTrustedClient: (s: ServerConfigStore) =>

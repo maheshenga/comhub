@@ -342,6 +342,44 @@ describe('ModelRuntimeOnClient', () => {
         expect(runtime['_runtime']).toBeInstanceOf(LobeOpenAI);
       });
 
+      it('passes the original custom provider id to NewAPI runtime options', async () => {
+        const initializeSpy = vi
+          .spyOn(ModelRuntime, 'initializeWithProvider')
+          .mockReturnValue({ models: vi.fn() } as any);
+
+        const { useAiInfraStore } = await import('@/store/aiInfra');
+        // @ts-ignore
+        useAiInfraStore.setState((state) => ({
+          aiProviderRuntimeConfig: {
+            ...state.aiProviderRuntimeConfig,
+            'custom-newapi': {
+              keyVaults: {
+                apiKey: 'custom-newapi-key',
+                baseURL: 'https://custom-newapi.example.com/v1',
+              },
+              settings: {
+                sdkType: ModelProvider.NewAPI,
+              },
+            },
+          },
+        }));
+
+        await initializeWithClientStore({
+          provider: 'custom-newapi',
+          runtimeProvider: ModelProvider.NewAPI,
+        });
+
+        expect(initializeSpy).toHaveBeenCalledWith(
+          ModelProvider.NewAPI,
+          expect.objectContaining({
+            apiKey: 'custom-newapi-key',
+            baseURL: 'https://custom-newapi.example.com/v1',
+            providerId: 'custom-newapi',
+            runtimeProvider: ModelProvider.NewAPI,
+          }),
+        );
+      });
+
       /**
        * The following test cases need to be enforce
        */

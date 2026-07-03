@@ -10,9 +10,9 @@ vi.mock('@lobechat/business-const', () => ({
 vi.mock('@/const/brand', () => ({
   DEFAULT_RUNTIME_BRAND: {
     authTitle: 'Agent teammates that grow with you',
-    copyrightText: '© 2026 青柚 AI. All rights reserved.',
-    logoUrl: '/images/brand/qingyou-ai-logo.png',
-    name: '青柚 AI',
+    copyrightText: '© 2026 玄果 AI. All rights reserved.',
+    logoUrl: null,
+    name: '玄果AI',
     primaryColor: '#12b981',
   },
 }));

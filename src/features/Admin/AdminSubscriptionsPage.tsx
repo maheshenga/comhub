@@ -15,6 +15,8 @@ import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminChangeRequestsPage from './AdminChangeRequestsPage';
+import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
+import { ADMIN_SUBSCRIPTION_CYCLES, getAdminSubscriptionCycleLabel } from './adminSubscriptionCycles';
 
 type PlanFilter = 'all' | 'free' | 'hobby' | 'starter' | 'premium' | 'ultimate';
 
@@ -39,7 +41,7 @@ const AdminSubscriptionsPage = memo(() => {
   const [plan, setPlan] = useState<PlanFilter>('all');
   const [cursor, setCursor] = useState<number | undefined>(undefined);
   const [forceModal, setForceModal] = useState<{
-    cycle: 'monthly' | 'yearly';
+    cycle: AdminSubscriptionCycle;
     plan: string;
     reason: string;
     userId: string;
@@ -133,7 +135,7 @@ const AdminSubscriptionsPage = memo(() => {
         key: 'monthlyPrice',
         render: (value: number, row: any) =>
           value != null ? formatCurrencyAmount(value, row.currency) : '--',
-        title: t('admin.subscriptions.columns.monthlyPrice', '月费'),
+        title: t('admin.subscriptions.columns.cycleAmount', '周期金额'),
       },
       {
         dataIndex: 'startedAt',
@@ -244,19 +246,17 @@ const AdminSubscriptionsPage = memo(() => {
                     </Flexbox>
                     <Flexbox gap={4}>
                       <div>{t('admin.subscriptions.modal.cycleLabel', '周期')}</div>
-                      <Select<'monthly' | 'yearly'>
+                      <Select<AdminSubscriptionCycle>
                         style={{ width: '100%' }}
                         value={forceModal.cycle}
-                        options={[
-                          {
-                            label: t('admin.subscriptions.modal.monthly', '月付'),
-                            value: 'monthly',
-                          },
-                          { label: t('admin.subscriptions.modal.yearly', '年付'), value: 'yearly' },
-                        ]}
-                        onChange={(value: 'monthly' | 'yearly') =>
-                          setForceModal((prev) => ({ ...prev, cycle: value }))
-                        }
+                        options={ADMIN_SUBSCRIPTION_CYCLES.map((item) => ({
+                          label: t(
+                            `admin.subscriptions.modal.${item}`,
+                            getAdminSubscriptionCycleLabel(item),
+                          ),
+                          value: item,
+                        }))}
+                        onChange={(value) => setForceModal((prev) => ({ ...prev, cycle: value }))}
                       />
                     </Flexbox>
                     <Flexbox gap={4}>

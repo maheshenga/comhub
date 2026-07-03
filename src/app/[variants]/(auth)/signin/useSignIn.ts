@@ -1,4 +1,3 @@
-import { ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { Form } from 'antd';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -11,6 +10,7 @@ import { message } from '@/components/AntdStaticMethods';
 import { trackLoginOrSignupClicked } from '@/features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
 import { requestPasswordReset, signIn } from '@/libs/better-auth/auth-client';
 import { isBuiltinProvider, normalizeProviderId } from '@/libs/better-auth/utils/client';
+import { buildOnboardingRedirectUrl, sanitizeRedirectPath } from '@/utils/onboardingRedirect';
 
 import { useAuthServerConfigStore } from '../_layout/AuthServerConfigProvider';
 import { EMAIL_REGEX, USERNAME_REGEX } from './SignInEmailStep';
@@ -29,29 +29,6 @@ interface ResolvedEmailResult {
   identifierType: 'email' | 'username';
 }
 
-export const normalizeAuthCallbackUrl = (
-  callbackUrl: null | string,
-  origin: string = globalThis.location?.origin,
-) => {
-  if (!callbackUrl) return '/';
-  if (callbackUrl.startsWith('/')) return callbackUrl.startsWith('//') ? '/' : callbackUrl;
-
-  if (!origin) return '/';
-
-  try {
-    const url = new URL(callbackUrl, origin);
-
-    if (url.origin !== origin) return '/';
-
-    return `${url.pathname}${url.search}${url.hash}` || '/';
-  } catch {
-    return '/';
-  }
-};
-
-const isEmailVerificationError = (error: any) =>
-  error?.status === 403 && error?.code !== 'INVALID_CALLBACKURL';
-
 export const useSignIn = () => {
   const { t } = useTranslation('auth');
   const router = useRouter();
@@ -59,6 +36,9 @@ export const useSignIn = () => {
   const enableMagicLink = useAuthServerConfigStore((s) => s.serverConfig.enableMagicLink || false);
   const disableEmailPassword = useAuthServerConfigStore(
     (s) => s.serverConfig.disableEmailPassword || false,
+  );
+  const enableBusinessFeatures = useAuthServerConfigStore(
+    (s) => s.serverConfig.enableBusinessFeatures || false,
   );
   const [form] = Form.useForm<SignInFormValues>();
   const [loading, setLoading] = useState(false);
@@ -82,8 +62,6 @@ export const useSignIn = () => {
     if (emailParam) form.setFieldValue('email', emailParam);
   }, [searchParams, form]);
 
-  const getCallbackUrl = () => normalizeAuthCallbackUrl(searchParams.get('callbackUrl'));
-
   const handleSendMagicLink = async (targetEmail?: string) => {
     try {
       const emailValue =
@@ -94,8 +72,12 @@ export const useSignIn = () => {
           .catch(() => null));
       if (!emailValue) return;
 
-      const callbackUrl = getCallbackUrl();
-      const { error } = await signIn.magicLink({ callbackURL: callbackUrl, email: emailValue });
+      const callbackUrl = searchParams.get('callbackUrl') || '/';
+      const { error } = await signIn.magicLink({
+        callbackURL: callbackUrl,
+        email: emailValue,
+        newUserCallbackURL: buildOnboardingRedirectUrl(callbackUrl),
+      });
       if (error) {
         message.error(error.message || t('betterAuth.signin.magicLinkError'));
         return;
@@ -164,10 +146,15 @@ export const useSignIn = () => {
           message.error(t('betterAuth.errors.usernameNotRegistered'));
           return;
         }
-        const callbackUrl = getCallbackUrl();
-        router.push(
-          `/signup?email=${encodeURIComponent(targetEmail)}&callbackUrl=${encodeURIComponent(callbackUrl)}`,
-        );
+        const callbackUrl = searchParams.get('callbackUrl') || '/';
+        const signupParams = new URLSearchParams();
+        signupParams.set('email', targetEmail);
+        signupParams.set('callbackUrl', callbackUrl);
+        const utmSource = searchParams.get('utm_source');
+        if (utmSource) signupParams.set('utm_source', utmSource);
+        const referral = searchParams.get('referral');
+        if (referral) signupParams.set('referral', referral);
+        router.push(`/signup?${signupParams.toString()}`);
         return;
       }
 
@@ -197,23 +184,25 @@ export const useSignIn = () => {
     await trackLoginOrSignupClicked({ spm: 'signin.password_step.submit' });
 
     try {
-      const callbackUrl = getCallbackUrl();
+      const callbackUrl = searchParams.get('callbackUrl') || '/';
       const result = await signIn.email(
         { callbackURL: callbackUrl, email, password: values.password },
         {
           onError: (ctx) => {
             console.error('Sign in error:', ctx.error);
-            if (isEmailVerificationError(ctx.error)) {
+            if (ctx.error.status === 403) {
               router.push(
                 `/verify-email?email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`,
               );
             }
           },
-          onSuccess: () => router.push(callbackUrl),
+          onSuccess: () => {
+            window.location.href = sanitizeRedirectPath(callbackUrl);
+          },
         },
       );
 
-      if (result.error && !isEmailVerificationError(result.error)) {
+      if (result.error && result.error.status !== 403) {
         message.error(result.error.message || t('betterAuth.signin.error'));
       }
     } catch (error) {
@@ -233,7 +222,7 @@ export const useSignIn = () => {
     });
 
     try {
-      if (ENABLE_BUSINESS_FEATURES && !(await preSocialSigninCheck())) {
+      if (enableBusinessFeatures && !(await preSocialSigninCheck())) {
         setSocialLoading(null);
         return;
       }
@@ -244,18 +233,21 @@ export const useSignIn = () => {
         // Ignore localStorage errors (e.g., quota exceeded, private mode)
       }
 
-      const callbackUrl = getCallbackUrl();
+      const callbackUrl = searchParams.get('callbackUrl') || '/';
+      const newUserCallbackURL = buildOnboardingRedirectUrl(callbackUrl);
       const additionalData = await getAdditionalData();
       const signInWithAdditionalData = async () =>
         isBuiltinProvider(normalizedProvider)
           ? await signIn.social({
               additionalData,
               callbackURL: callbackUrl,
+              newUserCallbackURL,
               provider: normalizedProvider,
             })
           : await signIn.oauth2({
               additionalData,
               callbackURL: callbackUrl,
+              newUserCallbackURL,
               providerId: normalizedProvider,
             });
 
@@ -278,10 +270,14 @@ export const useSignIn = () => {
 
   const handleGoToSignup = () => {
     const currentEmail = form.getFieldValue('email');
-    const callbackUrl = getCallbackUrl();
+    const callbackUrl = searchParams.get('callbackUrl') || '/';
     const params = new URLSearchParams();
     if (currentEmail) params.set('email', currentEmail);
     params.set('callbackUrl', callbackUrl);
+    const utmSource = searchParams.get('utm_source');
+    if (utmSource) params.set('utm_source', utmSource);
+    const referral = searchParams.get('referral');
+    if (referral) params.set('referral', referral);
     void trackLoginOrSignupClicked({ spm: 'signin.go_to_signup.click' }).finally(() => {
       router.push(`/signup?${params.toString()}`);
     });
@@ -299,7 +295,7 @@ export const useSignIn = () => {
     }
   };
 
-  const resolvedProviders = ENABLE_BUSINESS_FEATURES ? ssoProviders : oAuthSSOProviders;
+  const resolvedProviders = enableBusinessFeatures ? ssoProviders : oAuthSSOProviders;
   const sortedProviders = lastAuthProvider
     ? [...resolvedProviders].sort((a, b) => {
         if (a === lastAuthProvider) return -1;
@@ -322,7 +318,7 @@ export const useSignIn = () => {
     lastAuthProvider,
     loading,
     oAuthSSOProviders: sortedProviders,
-    serverConfigInit: ENABLE_BUSINESS_FEATURES ? true : serverConfigInit,
+    serverConfigInit: enableBusinessFeatures ? true : serverConfigInit,
     socialLoading,
     step,
   };

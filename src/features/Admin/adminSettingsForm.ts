@@ -1,3 +1,5 @@
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+
 import {
   type AboutLinksConfig,
   type AboutPageConfig,
@@ -15,6 +17,7 @@ import {
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { type HelpMenuItem, normalizeHelpMenuItems } from '@/const/helpMenu';
 import { type NotificationEventDefaults } from '@/const/notificationPreferences';
 import {
@@ -37,6 +40,7 @@ export {
 
 export const SETTING_KEYS = {
   aboutLinks: 'about.links',
+  aboutLogoUrl: 'about.logoUrl',
   aboutPage: 'about.page',
   brandFaviconUrl: 'brand.faviconUrl',
   brandAuthTitle: 'brand.authTitle',
@@ -48,6 +52,7 @@ export const SETTING_KEYS = {
   brandPrimaryColor: 'brand.primaryColor',
   brandSlogan: 'brand.slogan',
   communityForkAndChatLabel: 'community.forkAndChat.label',
+  communitySkillUseButtonLabel: 'community.skill.useButton.label',
   cronAuditRetentionDays: 'cron.auditRetentionDays',
   cronPendingOrderExpiryDays: 'cron.pendingOrderExpiryDays',
   cronSecret: 'cron.secret',
@@ -65,6 +70,14 @@ export const SETTING_KEYS = {
   helpMenuItems: 'help.menu.items',
   homeMessengerEnabled: 'home.messenger.enabled',
   homeMessengerBannerTitle: 'home.messengerBanner.title',
+  memoryUserMemoryEmbeddingModel: 'memory.userMemory.embedding.model',
+  memoryUserMemoryEmbeddingProvider: 'memory.userMemory.embedding.provider',
+  memoryUserMemoryGatekeeperModel: 'memory.userMemory.gatekeeper.model',
+  memoryUserMemoryGatekeeperProvider: 'memory.userMemory.gatekeeper.provider',
+  memoryUserMemoryLayerExtractorModel: 'memory.userMemory.layerExtractor.model',
+  memoryUserMemoryLayerExtractorProvider: 'memory.userMemory.layerExtractor.provider',
+  memoryUserMemoryPersonaWriterModel: 'memory.userMemory.personaWriter.model',
+  memoryUserMemoryPersonaWriterProvider: 'memory.userMemory.personaWriter.provider',
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
   notificationDesktopEnabled: 'notification.desktop.enabled',
   notificationEmailEnabled: 'notification.email.enabled',
@@ -117,6 +130,7 @@ export type DefaultModelOption = {
 };
 
 export type AdminSettingsData = {
+  aboutLogoUrl?: string | null;
   brandFaviconUrl?: string | null;
   brandAuthTitle?: string | null;
   brandCopyrightText?: string | null;
@@ -127,6 +141,7 @@ export type AdminSettingsData = {
   brandPrimaryColor?: string | null;
   brandSlogan?: string | null;
   communityForkAndChatLabel?: string | null;
+  communitySkillUseButtonLabel?: string | null;
   aboutLinks?: unknown;
   aboutPage?: unknown;
   cronAuditRetentionDays?: number | null;
@@ -189,6 +204,7 @@ export type AdminSettingsData = {
 };
 
 export type AdminSettingsFormValues = {
+  aboutLogoUrl: string;
   brandFaviconUrl: string;
   brandAuthTitle: string;
   brandCopyrightText: string;
@@ -199,6 +215,7 @@ export type AdminSettingsFormValues = {
   brandPrimaryColor: string;
   brandSlogan: string;
   communityForkAndChatLabel: string;
+  communitySkillUseButtonLabel: string;
   aboutLinks: AboutLinksConfig;
   aboutPage: AboutPageConfig;
   cronAuditRetentionDays: number;
@@ -251,6 +268,26 @@ export const normalizeMemoryUserMemoryTriggerMode = (
 const legacyProviderIdPattern =
   /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
+const buildManagedModelOptionLabel = ({
+  instanceName,
+  modelType,
+  name,
+  provider,
+  providerType,
+}: {
+  instanceName: string;
+  modelType: string;
+  name: string;
+  provider: string;
+  providerType: string;
+}) => {
+  const providerLabel =
+    providerType || instanceName || (legacyProviderIdPattern.test(provider) ? 'newapi' : provider);
+  const instanceSuffix = providerType && instanceName ? ` / ${instanceName}` : '';
+
+  return `${name}（${providerLabel} / ${modelType}${instanceSuffix}）`;
+};
+
 export const buildModelOptions = (data?: {
   defaultModelSuggestions?: string[] | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
@@ -273,11 +310,9 @@ export const buildModelOptions = (data?: {
     if (data?.modelType && modelType !== data.modelType) continue;
     const instanceName = normalizeText(item.instanceName);
     const providerType = normalizeText(item.providerType);
-    const providerLabel =
-      providerType || (legacyProviderIdPattern.test(provider) ? 'newapi' : provider);
 
     options.push({
-      label: `${name}（${providerLabel} / ${modelType}${instanceName ? ` / ${instanceName}` : ''}）`,
+      label: buildManagedModelOptionLabel({ instanceName, modelType, name, provider, providerType }),
       model,
       provider,
       value: key,
@@ -324,24 +359,26 @@ export const resolveModelOptionValue = (
 };
 
 export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValues => ({
+  aboutLogoUrl: data?.aboutLogoUrl ?? '',
   brandFaviconUrl: data?.brandFaviconUrl ?? '',
   brandAuthTitle: data?.brandAuthTitle ?? DEFAULT_RUNTIME_BRAND.authTitle,
   brandCopyrightText: data?.brandCopyrightText ?? DEFAULT_RUNTIME_BRAND.copyrightText,
-  brandLogoUrl: data?.brandLogoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl,
+  brandLogoUrl: data?.brandLogoUrl ?? DEFAULT_RUNTIME_BRAND.logoUrl ?? '',
   brandLoadingText: data?.brandLoadingText ?? DEFAULT_RUNTIME_BRAND.loadingText,
   brandLoadingSvgUrl: data?.brandLoadingSvgUrl ?? '',
   brandName: data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
   brandPrimaryColor: data?.brandPrimaryColor ?? DEFAULT_RUNTIME_BRAND.primaryColor,
   brandSlogan: data?.brandSlogan ?? DEFAULT_RUNTIME_BRAND.authTitle,
   communityForkAndChatLabel: data?.communityForkAndChatLabel ?? '',
+  communitySkillUseButtonLabel: data?.communitySkillUseButtonLabel ?? '',
   aboutLinks: normalizeAboutLinksConfig(data?.aboutLinks ?? DEFAULT_ABOUT_LINKS),
   aboutPage: normalizeAboutPageConfig(data?.aboutPage),
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
   cronSecret: '',
-  defaultAgentAvatar: data?.defaultAgentAvatar ?? '/images/brand/qingyou-ai-logo.png',
+  defaultAgentAvatar: data?.defaultAgentAvatar ?? DEFAULT_COMHUB_AGENT_AVATAR,
   defaultAgentModel: data?.defaultAgentModel ?? '',
-  defaultAgentName: data?.defaultAgentName ?? '青柚助手',
+  defaultAgentName: data?.defaultAgentName ?? DEFAULT_COMHUB_AGENT_NAME,
   defaultAgentProvider: data?.defaultAgentProvider ?? '',
   defaultImageModel: data?.defaultImageModel ?? '',
   defaultImageProvider: data?.defaultImageProvider ?? '',
@@ -358,7 +395,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   ),
   profileInterestAreas: normalizeConfiguredInterestAreas(data?.profileInterestAreas),
   ordersEnabled: data?.ordersManagementEnabled ?? true,
-  pricingMultiplier: data?.pricingCreditMultiplier ?? 1,
+  pricingMultiplier: data?.pricingCreditMultiplier ?? DEFAULT_PRICING_CREDIT_MULTIPLIER,
   referralRewardCredits: data?.referralRewardCredits ?? 0,
   sidebarGenerationLabel: data?.sidebarGenerationLabel ?? '生成',
   sidebarMemberLabel: data?.sidebarMemberLabel ?? '会员',
@@ -379,6 +416,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
 export const normalizeFormValues = (
   values: Partial<AdminSettingsFormValues>,
 ): AdminSettingsFormValues => ({
+  aboutLogoUrl: normalizeText(values.aboutLogoUrl),
   brandFaviconUrl: normalizeText(values.brandFaviconUrl),
   brandAuthTitle: normalizeText(values.brandAuthTitle),
   brandCopyrightText: normalizeText(values.brandCopyrightText),
@@ -389,6 +427,7 @@ export const normalizeFormValues = (
   brandPrimaryColor: normalizeText(values.brandPrimaryColor),
   brandSlogan: normalizeText(values.brandSlogan),
   communityForkAndChatLabel: normalizeText(values.communityForkAndChatLabel),
+  communitySkillUseButtonLabel: normalizeText(values.communitySkillUseButtonLabel),
   aboutLinks: normalizeAboutLinksConfig(values.aboutLinks),
   aboutPage: normalizeAboutPageConfig(values.aboutPage),
   cronAuditRetentionDays:
@@ -416,7 +455,10 @@ export const normalizeFormValues = (
   ),
   profileInterestAreas: normalizeConfiguredInterestAreas(values.profileInterestAreas),
   ordersEnabled: typeof values.ordersEnabled === 'boolean' ? values.ordersEnabled : true,
-  pricingMultiplier: typeof values.pricingMultiplier === 'number' ? values.pricingMultiplier : 1,
+  pricingMultiplier:
+    typeof values.pricingMultiplier === 'number' && values.pricingMultiplier > 0
+      ? values.pricingMultiplier
+      : DEFAULT_PRICING_CREDIT_MULTIPLIER,
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
   sidebarGenerationLabel: normalizeText(values.sidebarGenerationLabel) || '生成',
@@ -453,24 +495,11 @@ export const buildSettingUpdates = (
   const initial = normalizeFormValues(initialValues);
   const updates: SettingUpdate[] = [];
 
-  if (current.cronSecret) updates.push({ key: SETTING_KEYS.cronSecret, value: current.cronSecret });
-  const storageS3SecretUpdate = current.storageS3SecretAccessKey
-    ? { key: SETTING_KEYS.storageS3SecretAccessKey, value: current.storageS3SecretAccessKey }
-    : undefined;
-
   const keys: Array<keyof AdminSettingsFormValues> = [
-    'defaultAgentModel',
-    'defaultAgentProvider',
+    'aboutLogoUrl',
     'defaultAgentName',
     'defaultAgentAvatar',
-    'defaultImageModel',
-    'defaultImageProvider',
-    'defaultVideoModel',
-    'defaultVideoProvider',
     'defaultSkillName',
-    'referralRewardCredits',
-    'cronAuditRetentionDays',
-    'cronPendingOrderExpiryDays',
     'brandName',
     'brandLoadingText',
     'brandLoadingSvgUrl',
@@ -483,26 +512,14 @@ export const buildSettingUpdates = (
     'homeMessengerBannerTitle',
     'homeMessengerEnabled',
     'communityForkAndChatLabel',
+    'communitySkillUseButtonLabel',
     'sidebarMemberLabel',
     'sidebarMemberUrl',
     'sidebarGenerationLabel',
-    'desktopDownloadUrl',
-    'desktopDownloadLabel',
-    'memoryUserMemoryTriggerMode',
-    'pricingMultiplier',
-    'ordersEnabled',
-    'storageS3AccessKeyId',
-    'storageS3Endpoint',
-    'storageS3FilePath',
-    'storageS3Bucket',
-    'storageS3Region',
-    'storageS3PublicDomain',
-    'storageS3EnablePathStyle',
-    'storageS3SetAcl',
-    'storageS3PreviewUrlExpireIn',
   ];
 
   const keyMap: Record<keyof AdminSettingsFormValues, string> = {
+    aboutLogoUrl: SETTING_KEYS.aboutLogoUrl,
     brandFaviconUrl: SETTING_KEYS.brandFaviconUrl,
     aboutLinks: SETTING_KEYS.aboutLinks,
     aboutPage: SETTING_KEYS.aboutPage,
@@ -515,6 +532,7 @@ export const buildSettingUpdates = (
     brandPrimaryColor: SETTING_KEYS.brandPrimaryColor,
     brandSlogan: SETTING_KEYS.brandSlogan,
     communityForkAndChatLabel: SETTING_KEYS.communityForkAndChatLabel,
+    communitySkillUseButtonLabel: SETTING_KEYS.communitySkillUseButtonLabel,
     cronAuditRetentionDays: SETTING_KEYS.cronAuditRetentionDays,
     cronPendingOrderExpiryDays: SETTING_KEYS.cronPendingOrderExpiryDays,
     cronSecret: SETTING_KEYS.cronSecret,
@@ -555,9 +573,6 @@ export const buildSettingUpdates = (
 
   for (const key of keys) {
     if (current[key] !== initial[key]) updates.push({ key: keyMap[key], value: current[key] });
-    if (key === 'storageS3AccessKeyId' && storageS3SecretUpdate) {
-      updates.push(storageS3SecretUpdate);
-    }
   }
 
   if (JSON.stringify(current.helpMenuItems) !== JSON.stringify(initial.helpMenuItems)) {
@@ -591,9 +606,19 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     SETTING_KEYS.defaultImageProvider,
     SETTING_KEYS.defaultVideoModel,
     SETTING_KEYS.defaultVideoProvider,
+    SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+    SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+    SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+    SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+    SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+    SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+    SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+    SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+    SETTING_KEYS.communitySkillUseButtonLabel,
   ]);
   const needsRuntimeRefresh = updates.some((update) => runtimeKeys.has(update.key as any));
   const brandKeys = new Set([
+    SETTING_KEYS.aboutLogoUrl,
     SETTING_KEYS.brandAuthTitle,
     SETTING_KEYS.brandCopyrightText,
     SETTING_KEYS.brandFaviconUrl,
@@ -606,6 +631,7 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     SETTING_KEYS.homeMessengerBannerTitle,
     SETTING_KEYS.homeMessengerEnabled,
     SETTING_KEYS.communityForkAndChatLabel,
+    SETTING_KEYS.communitySkillUseButtonLabel,
     SETTING_KEYS.sidebarGenerationLabel,
     SETTING_KEYS.sidebarMemberLabel,
     SETTING_KEYS.sidebarMemberUrl,

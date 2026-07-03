@@ -2,7 +2,7 @@ export type BannerKind = 'skill' | 'botIntegration' | 'messenger';
 
 type BannerCandidateOptions = {
   isBotIntegrationBannerDismissed: boolean;
-  isKlavisEnabled: boolean;
+  isComposioEnabled: boolean;
   isLobehubSkillEnabled: boolean;
   isMessengerBannerDismissed: boolean;
   isMessengerEnabled: boolean;
@@ -11,7 +11,7 @@ type BannerCandidateOptions = {
 
 export const getHomeInputBannerCandidates = ({
   isBotIntegrationBannerDismissed,
-  isKlavisEnabled,
+  isComposioEnabled,
   isLobehubSkillEnabled,
   isMessengerBannerDismissed,
   isMessengerEnabled,
@@ -19,7 +19,7 @@ export const getHomeInputBannerCandidates = ({
 }: BannerCandidateOptions): BannerKind[] => {
   const candidates: BannerKind[] = [];
 
-  if ((isLobehubSkillEnabled || isKlavisEnabled) && !isSkillBannerDismissed) {
+  if ((isLobehubSkillEnabled || isComposioEnabled) && !isSkillBannerDismissed) {
     candidates.push('skill');
   }
 

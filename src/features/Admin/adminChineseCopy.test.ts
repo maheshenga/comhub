@@ -18,8 +18,10 @@ const filesWithAdminCopy = [
   'src/routes/(main)/admin/subscriptions/index.tsx',
   'src/routes/(main)/admin/topup/index.tsx',
   'src/routes/(main)/admin/redemption/index.tsx',
-  'src/routes/(main)/admin/notifications/index.tsx',
   'src/routes/(main)/admin/users/index.tsx',
+  'src/features/Admin/AdminFileStoragePage.tsx',
+  'src/features/Admin/AdminNotificationsPage.tsx',
+  'src/features/Admin/AdminSystemMaintenancePage.tsx',
   'src/features/Admin/AdminContentPages.tsx',
   'src/features/Admin/AdminExpertPlazaPage.tsx',
   'src/features/Admin/AdminSystemDefaultsPage.tsx',
@@ -115,7 +117,18 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.orders.actionSuccess']).toBe('订单已更新');
     expect(subscription['admin.orders.cancel']).toBe('取消订单');
     expect(subscription['admin.orders.col.amount']).toBe('金额');
+    expect(subscription['admin.orders.detail.title']).toBe('订单详情');
+    expect(subscription['admin.orders.detail.redemptionCode']).toBe('关联兑换码');
+    expect(subscription['admin.orders.detail.auditHint']).toBe(
+      '如需追踪后台操作，请在审计日志中按订单 ID 检索。',
+    );
+    expect(subscription['admin.orders.detail.viewAudit']).toBe('查看审计日志');
     expect(subscription['admin.orders.loadMore']).toBe('加载更多');
+    expect(subscription['admin.orders.settle']).toBe('手动结算');
+    expect(subscription['admin.orders.settleConfirm']).toBe('确认手动结算这个待支付订单？');
+    expect(subscription['admin.orders.settleConfirmDescription']).toBe(
+      '该操作会将订单标记为已支付并发放积分，请核对以下信息。',
+    );
 
     expect(subscription['admin.operations.bannerSection']).toBe('社区横幅');
     expect(subscription['admin.operations.featuredSection']).toBe('精选模块');
@@ -126,7 +139,7 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.growth.uploadSection']).toBe('上传限制');
 
     expect(subscription['admin.settings']).toBe('设置');
-    expect(subscription['admin.settings.title']).toBe('站点与 API 设置');
+    expect(subscription['admin.settings.title']).toBe('站点基础设置');
     expect(subscription['admin.settings.save']).toBe('保存');
     expect(subscription['admin.settings.noChanges']).toBe('没有需要保存的变更');
     expect(subscription['admin.settings.brandName.help']).toBe(
@@ -135,14 +148,17 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.settings.defaultSkillName.help']).toBe(
       '用于配置内置默认技能的显示名称；留空时使用品牌名称。',
     );
+    expect(subscription['admin.settings.defaultModel.help']).toBe(
+      '默认模型、模型套餐权限和模型计费请在“模型与计费矩阵”维护。',
+    );
     expect(subscription['admin.settings.defaultProvider.help']).toBe(
-      '使用服务商网关时填写对应供应商标识，例如 openai、deepseek、aliyun 或自定义兼容服务商。该值会写入后台默认助手配置。',
+      '默认模型服务商已迁移到“模型与计费矩阵”维护。',
     );
     expect(subscription['admin.settings.defaultImageProvider.help']).toBe(
-      '用于 image 页面初始化。请填写图像模型所属服务商标识，例如 openai、google、aliyun 或自定义兼容服务商。',
+      '默认图像模型服务商已迁移到“模型与计费矩阵”维护。',
     );
     expect(subscription['admin.settings.defaultVideoProvider.help']).toBe(
-      '用于 video 页面初始化。请填写视频模型所属服务商标识，例如 google、aliyun 或自定义兼容服务商。',
+      '默认视频模型服务商已迁移到“模型与计费矩阵”维护。',
     );
   });
 
@@ -158,7 +174,7 @@ describe('admin Chinese copy', () => {
     expect(subscription['admin.providers.empty']).toBe('暂未配置服务商实例');
     expect(subscription['admin.providers.field.providerType']).toBe('服务商类型');
     expect(subscription['admin.providers.field.providerTypeNewapiHint']).toBe(
-      '该类型支持同步模型和价格。',
+      'AI 服务商网关支持同步模型和价格。',
     );
     expect(subscription['admin.providers.models.bulkAddHint']).toBe(
       '可批量添加模型 ID，使用换行或逗号分隔。',
@@ -175,6 +191,24 @@ describe('admin Chinese copy', () => {
 
     expect(redemptionPage).not.toContain("'Batch ID'");
     expect(redemptionPage).toContain("t('admin.redemption.filter.batch', '批次 ID')");
+  });
+
+  it('includes default Chinese copy for redemption bulk action flow', () => {
+    expect(subscription['admin.bulkAction.count']).toBe('将处理 {{count}} 个项目。');
+    expect(subscription['admin.bulkAction.progress']).toBe('正在执行批量操作，请勿关闭页面。');
+    expect(subscription['admin.bulkAction.done']).toBe('批量操作已完成');
+    expect(subscription['admin.redemption.bulkDisableProgress']).toBe(
+      '正在停用选中的兑换码，请勿关闭页面。',
+    );
+    expect(subscription['admin.redemption.bulkDeleteProgress']).toBe(
+      '正在删除选中的未兑换兑换码，请勿关闭页面。',
+    );
+    expect(subscription['admin.changeRequests.bulkApproveProgress']).toBe(
+      '正在通过选中的套餐变更请求，请勿关闭页面。',
+    );
+    expect(subscription['admin.changeRequests.bulkRejectProgress']).toBe(
+      '正在拒绝选中的套餐变更请求，请勿关闭页面。',
+    );
   });
 
   it('includes default Chinese copy for assigning user plans from the user list', () => {

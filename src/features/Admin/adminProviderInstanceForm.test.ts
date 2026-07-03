@@ -60,7 +60,7 @@ describe('buildProviderInstancePayload', () => {
       baseUrl: 'https://newapi.example.com',
       description: 'primary',
       enabled: false,
-      fetchOnClient: true,
+      fetchOnClient: false,
       groupKey: 'default',
       name: 'Default Gateway',
       priority: 0,
@@ -111,9 +111,16 @@ describe('buildProviderInstancePayload', () => {
 
   it('should expose default base urls for provider presets', () => {
     expect(getDefaultBaseUrlForAdminProviderType('openai')).toBe('https://api.openai.com/v1');
+    expect(getDefaultBaseUrlForAdminProviderType('claude')).toBe('https://api.anthropic.com');
     expect(getDefaultBaseUrlForAdminProviderType('deepseek')).toBe('https://api.deepseek.com/v1');
     expect(getDefaultBaseUrlForAdminProviderType('aliyun')).toBe(
       'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    );
+    expect(getDefaultBaseUrlForAdminProviderType('opencode-go')).toBe(
+      'https://opencode.ai/zen/go/v1',
+    );
+    expect(getDefaultBaseUrlForAdminProviderType('siliconflow')).toBe(
+      'https://api.siliconflow.cn/v1',
     );
     expect(getDefaultBaseUrlForAdminProviderType('openai-compatible')).toBeUndefined();
   });

@@ -13,7 +13,7 @@ vi.mock('@/const/brand', () => ({
     authTitle: 'Default auth title',
     copyrightText: '2026 Default. All rights reserved.',
     loadingText: 'Loading',
-    logoUrl: '/images/brand/qingyou-ai-logo.png',
+    logoUrl: null,
     name: 'Default Brand',
     primaryColor: '#12b981',
   },
@@ -31,13 +31,19 @@ describe('getServerBrand lazy database loading', () => {
 
     await expect(getServerBrand()).resolves.toEqual({
       authTitle: 'Default auth title',
+      communityForkAndChatLabel: null,
       copyrightText: '2026 Default. All rights reserved.',
       defaultSkillName: 'Default Brand',
       faviconUrl: null,
+      homeMessengerEnabled: true,
+      homeMessengerBannerTitle: null,
       loadingText: 'Loading',
-      logoUrl: '/images/brand/qingyou-ai-logo.png',
+      logoUrl: null,
       name: 'Default Brand',
       primaryColor: '#12b981',
+      sidebarGenerationLabel: null,
+      sidebarMemberLabel: null,
+      sidebarMemberUrl: null,
       slogan: 'Default auth title',
     });
   });

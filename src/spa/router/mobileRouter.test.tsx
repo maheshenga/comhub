@@ -21,3 +21,29 @@ describe('mobileRouter task routes', () => {
     expect(source).not.toContain("import('@/routes/(main)/tasks/_layout')");
   });
 });
+
+describe('mobileRouter community routes', () => {
+  it('registers skill list and detail routes', async () => {
+    const source = await readFile(
+      path.join(process.cwd(), 'src/spa/router/mobileRouter.config.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain("import('@/routes/(main)/community/(list)/skill')");
+    expect(source).toContain("import('@/routes/(main)/community/(detail)/skill')");
+    expect(source).toContain("(m) => m.MobileSkillPage");
+    expect(source).toContain("path: 'skill'");
+    expect(source).toContain("path: 'skill/:slug'");
+  });
+
+  it('registers group agent detail routes', async () => {
+    const source = await readFile(
+      path.join(process.cwd(), 'src/spa/router/mobileRouter.config.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain("import('@/routes/(main)/community/(detail)/group_agent')");
+    expect(source).toContain("(m) => m.MobileGroupAgentPage");
+    expect(source).toContain("path: 'group_agent/:slug'");
+  });
+});

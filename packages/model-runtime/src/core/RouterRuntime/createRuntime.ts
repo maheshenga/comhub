@@ -13,6 +13,8 @@ import type { Stream } from 'openai/streaming';
 import { LobeOpenAI } from '../../providers/openai';
 import { LobeVertexAI } from '../../providers/vertexai';
 import type {
+  ASROptions,
+  ASRPayload,
   ChatCompletionErrorPayload,
   ChatMethodOptions,
   ChatStreamCallbacks,
@@ -34,6 +36,7 @@ import type {
 } from '../../types';
 import { AgentRuntimeError } from '../../utils/createError';
 import { isNonRetryableRequestError } from '../../utils/isNonRetryableRequestError';
+import type { ModelIdMappingOptions } from '../../utils/modelIdMapping';
 import { postProcessModelList } from '../../utils/postProcessModelList';
 import { safeParseJSON } from '../../utils/safeParseJSON';
 import type { LobeRuntimeAI } from '../BaseAI';
@@ -55,6 +58,7 @@ interface ProviderIniOptions extends Record<string, any> {
   baseURL?: string;
   baseURLOrAccountID?: string;
   dangerouslyAllowBrowser?: boolean;
+  modelIdMapping?: Record<string, string>;
   region?: string;
   sdkType?: string;
   sessionToken?: string;
@@ -82,12 +86,15 @@ interface RouterInstance {
   runtime?: RuntimeClass;
 }
 
-type ConstructorOptions<T extends Record<string, any> = any> = ClientOptions & T;
+// OpenAI SDK v6 widened apiKey to string | ApiKeySetter. LobeHub passes a plain
+// string here, so keep runtime options string-shaped for trim/assignment use.
+type LobeClientOptions = Omit<ClientOptions, 'apiKey'> & { apiKey?: string };
+type ConstructorOptions<T extends Record<string, any> = any> = LobeClientOptions & T;
 
 type Routers =
   | RouterInstance[]
   | ((
-      options: ClientOptions & Record<string, any>,
+      options: LobeClientOptions & Record<string, any>,
       runtimeContext: {
         model?: string;
       },
@@ -106,6 +113,17 @@ export interface RouteAttemptResult {
   routerId?: string;
   success: boolean;
   userId?: string;
+}
+
+interface RouteAttemptMetadata {
+  apiType: string;
+  channelId?: string;
+  durationMs: number;
+  optionIndex: number;
+  providerId: string;
+  routerId?: string;
+  success: boolean;
+  totalOptions: number;
 }
 
 export interface CreateRouterRuntimeOptions<T extends Record<string, any> = any> {
@@ -158,7 +176,7 @@ export interface CreateRouterRuntimeOptions<T extends Record<string, any> = any>
   ) => Promise<HandleCreateVideoWebhookResult>;
   id: string;
   models?:
-    | ((params: { client: OpenAI }) => Promise<ChatModelCard[]>)
+    | ((params: { client: OpenAI; options?: ConstructorOptions<T> }) => Promise<ChatModelCard[]>)
     | {
         transformModel?: (model: OpenAI.Model) => ChatModelCard;
       };
@@ -186,12 +204,21 @@ export const createRouterRuntime = ({
   ...params
 }: CreateRouterRuntimeOptions) => {
   return class UniformRuntime implements LobeRuntimeAI {
-    public _options: ClientOptions & Record<string, any>;
+    public _options: LobeClientOptions & Record<string, any>;
     private _routers: Routers;
     private _params: any;
     private _id: string;
 
-    constructor(options: ClientOptions & Record<string, any> = {}) {
+    private attachRouteAttemptMetadata(
+      metadata: Record<string, unknown> | undefined,
+      routeAttempt: RouteAttemptMetadata,
+    ) {
+      if (!metadata || this._id !== 'lobehub') return;
+
+      metadata.routeAttempt = routeAttempt;
+    }
+
+    constructor(options: LobeClientOptions & Record<string, any> = {}) {
       const startedAt = Date.now();
       this._options = {
         ...options,
@@ -358,7 +385,7 @@ export const createRouterRuntime = ({
       if (resolvedApiType === 'vertexai') {
         const { apiKey, googleAuthOptions, project, location, ...restOptions } = finalOptions;
         const credentials = safeParseJSON<Record<string, any>>(apiKey);
-        const vertexOptions: GoogleGenAIOptions = {
+        const vertexOptions: GoogleGenAIOptions & ModelIdMappingOptions = {
           ...(restOptions as GoogleGenAIOptions),
           vertexai: true,
         };
@@ -522,6 +549,17 @@ export const createRouterRuntime = ({
               log('onRouteAttempt callback error: %O', e);
             });
 
+          this.attachRouteAttemptMetadata(metadata, {
+            apiType: resolvedApiType,
+            channelId,
+            durationMs: Date.now() - startTime,
+            optionIndex: index,
+            providerId: id,
+            routerId: matchedRouter.id,
+            success: true,
+            totalOptions,
+          });
+
           return result;
         } catch (error) {
           lastError = error;
@@ -648,7 +686,10 @@ export const createRouterRuntime = ({
         typeof modelsOption === 'function' && // Use the same baseURL-matched runtime as chat routing for provider model discovery.
         'client' in runtime
       ) {
-        const modelList = await modelsOption({ client: (runtime as any).client });
+        const modelList = await modelsOption({
+          client: (runtime as any).client,
+          options: this._options,
+        });
         return await postProcessModelList(modelList);
       }
 
@@ -682,7 +723,7 @@ export const createRouterRuntime = ({
     async createImage(payload: CreateImagePayload, options?: CreateImageMethodOptions) {
       return this.runWithFallback(
         payload.model,
-        (runtime) => runtime.createImage!(payload),
+        (runtime) => runtime.createImage!(payload, options),
         options?.metadata,
       );
     }
@@ -690,9 +731,25 @@ export const createRouterRuntime = ({
     async createVideo(payload: CreateVideoPayload, options?: CreateVideoMethodOptions) {
       return this.runWithFallback(
         payload.model,
-        (runtime) => runtime.createVideo!(payload),
+        (runtime) => runtime.createVideo!(payload, options),
         options?.metadata,
       );
+    }
+
+    async handlePollVideoStatus(inferenceId: string) {
+      const resolvedRouters = await this.resolveRouters();
+      const matchedRouter = this._options.baseURL
+        ? (resolvedRouters.find((router) => router.baseURLPattern?.test(this._options.baseURL!)) ??
+          resolvedRouters.at(-1)!)
+        : resolvedRouters.at(-1)!;
+      const routerOptions = this.normalizeRouterOptions(matchedRouter);
+      const { runtime } = await this.createRuntimeFromOption(matchedRouter, routerOptions[0]);
+
+      if (!runtime.handlePollVideoStatus) {
+        throw new Error('Video polling is not supported by the matched runtime');
+      }
+
+      return runtime.handlePollVideoStatus(inferenceId);
     }
 
     async handleCreateVideoWebhook(payload: HandleCreateVideoWebhookPayload) {
@@ -722,6 +779,12 @@ export const createRouterRuntime = ({
     async textToSpeech(payload: TextToSpeechPayload, options?: EmbeddingsOptions) {
       return this.runWithFallback(payload.model, (runtime) =>
         runtime.textToSpeech!(payload, options),
+      );
+    }
+
+    async transcribe(payload: ASRPayload, options?: ASROptions) {
+      return this.runWithFallback(payload.model, (runtime) =>
+        runtime.transcribe!(payload, options),
       );
     }
   };

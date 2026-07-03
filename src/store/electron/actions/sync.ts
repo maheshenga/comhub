@@ -4,6 +4,7 @@ import { type SWRResponse } from 'swr';
 import useSWR from 'swr';
 
 import { mutate } from '@/libs/swr';
+import { electronKeys } from '@/libs/swr/keys';
 import { remoteServerService } from '@/services/electron/remoteServer';
 import { useChatStore } from '@/store/chat';
 import { useSessionStore } from '@/store/session';
@@ -16,8 +17,6 @@ import { type ElectronStore } from '../store';
 /**
  * Remote server actions
  */
-
-const REMOTE_SERVER_CONFIG_KEY = 'electron:getRemoteServerConfig';
 
 type Setter = StoreSetter<ElectronStore>;
 export const remoteSyncSlice = (set: Setter, get: () => ElectronStore, _api?: unknown) =>
@@ -93,7 +92,7 @@ export class ElectronRemoteServerActionImpl {
   };
 
   refreshServerConfig = async (): Promise<void> => {
-    await mutate(REMOTE_SERVER_CONFIG_KEY);
+    await mutate(electronKeys.remoteServerConfig());
   };
 
   refreshUserData = async (): Promise<void> => {
@@ -107,7 +106,7 @@ export class ElectronRemoteServerActionImpl {
 
   useDataSyncConfig = (): SWRResponse => {
     return useSWR<DataSyncConfig>(
-      REMOTE_SERVER_CONFIG_KEY,
+      electronKeys.remoteServerConfig(),
       async () => {
         try {
           return await remoteServerService.getRemoteServerConfig();

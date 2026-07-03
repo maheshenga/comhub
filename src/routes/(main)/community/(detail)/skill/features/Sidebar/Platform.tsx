@@ -19,12 +19,13 @@ import { createStaticStyles, cx } from 'antd-style';
 import { BotIcon, UserRoundIcon } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 
 import { useBrand } from '@/features/Brand';
+import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
+import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 
 import Title from '../../../../components/Title';
 import VsCodeIcon from './VsCodeIcon';
@@ -117,8 +118,9 @@ const genLayout = (
 const Platform = memo<PlatformProps>(
   ({ lite, identifier, mobile, expandCodeByDefault, downloadUrl }) => {
     const { t } = useTranslation('discover');
-    const navigate = useNavigate();
     const brand = useBrand();
+    const customization = useServerConfigStore(serverConfigSelectors.customization);
+    const navigate = useWorkspaceAwareNavigate();
     const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
     const sendMessage = useChatStore((s) => s.sendMessage);
     const [active, setActive] = useState<PlatformType>(PlatformType.Claude);
@@ -261,10 +263,11 @@ const Platform = memo<PlatformProps>(
                 type={'primary'}
                 onClick={handleUseOnLobeAI}
               >
-                {t('skills.details.sidebar.agent.useOnLobeAI', {
-                  defaultValue: `在 ${brand.name} 使用`,
-                  brandName: brand.name,
-                })}
+                {customization?.skillUseButtonLabel ||
+                  t('skills.details.sidebar.agent.useOnLobeAI', {
+                    defaultValue: `在 ${brand.name} 使用`,
+                    brandName: brand.name,
+                  })}
               </Button>
             </Flexbox>
           </Flexbox>

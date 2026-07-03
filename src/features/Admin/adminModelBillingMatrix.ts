@@ -91,6 +91,37 @@ export type MatrixDefaultModelHealthInput = Partial<
   Record<MatrixDefaultModelType, { model?: string | null; provider?: string | null }>
 >;
 
+export type MatrixConfigHealthSeverity = 'error' | 'info' | 'ok' | 'warning';
+
+export type MatrixConfigHealthCheck = {
+  count?: number;
+  detail?: string;
+  key: string;
+  severity: MatrixConfigHealthSeverity;
+  title: string;
+};
+
+export type MatrixConfigHealth = {
+  checks: MatrixConfigHealthCheck[];
+  status: Exclude<MatrixConfigHealthSeverity, 'info'>;
+  summary: {
+    blockedModelCount: number;
+    defaultModelIssueCount: number;
+    defaultModelOkCount: number;
+    defaultModelTotal: number;
+    modelCount: number;
+    planCount: number;
+    plansWithoutAccessCount: number;
+    pricingFallbackModelCount: number;
+    pricingOverrideCount: number;
+  };
+};
+
+export type MatrixConfigHealthFocus = {
+  planKeys: string[];
+  rowKeys: string[];
+};
+
 const escapeRegExp = (value: string) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const wildcardMatch = (pattern: string, value: string) => {
@@ -432,7 +463,8 @@ export const buildPlanModelRulesFromRows = (rows: MatrixRow[], plans: MatrixPlan
 
 export const buildPricingRulesFromRows = (rows: MatrixRow[]): MatrixPricingRule[] =>
   rows.flatMap((row) => {
-    const hasMultiplier = Number.isFinite(row.pricingMultiplier);
+    const hasMultiplier =
+      Number.isFinite(row.pricingMultiplier) && Number(row.pricingMultiplier) > 0;
     const hasCreditsPerDollar = Number.isFinite(row.creditsPerDollar);
     if (!hasMultiplier && !hasCreditsPerDollar) return [];
 
@@ -448,3 +480,208 @@ export const buildPricingRulesFromRows = (rows: MatrixRow[]): MatrixPricingRule[
       },
     ];
   });
+
+const aggregateHealthStatus = (checks: MatrixConfigHealthCheck[]): MatrixConfigHealth['status'] => {
+  if (checks.some((check) => check.severity === 'error')) return 'error';
+  if (checks.some((check) => check.severity === 'warning')) return 'warning';
+
+  return 'ok';
+};
+
+export const getMatrixConfigHealth = ({
+  defaultModelHealth,
+  globalPricingMultiplier = 1,
+  plans,
+  rows,
+}: {
+  defaultModelHealth: Record<MatrixDefaultModelType, MatrixDefaultModelHealth>;
+  globalPricingMultiplier?: number;
+  plans: MatrixPlan[];
+  rows: MatrixRow[];
+}): MatrixConfigHealth => {
+  const defaultHealthItems = Object.values(defaultModelHealth);
+  const defaultModelIssues = defaultHealthItems.filter((item) => item.status !== 'ok');
+  const defaultModelErrors = defaultModelIssues.filter((item) => item.status !== 'not_configured');
+  const blockedModels =
+    plans.length === 0
+      ? []
+      : rows.filter((row) => plans.every((plan) => row.planAccess[plan.plan] === false));
+  const plansWithoutAccess = plans.filter(
+    (plan) => rows.length > 0 && rows.every((row) => row.planAccess[plan.plan] === false),
+  );
+  const pricingOverrideCount = rows.filter(
+    (row) => Number.isFinite(row.pricingMultiplier) || Number.isFinite(row.creditsPerDollar),
+  ).length;
+  const pricingFallbackModelCount = rows.length - pricingOverrideCount;
+  const checks: MatrixConfigHealthCheck[] = [];
+
+  if (rows.length === 0) {
+    checks.push({
+      key: 'no-enabled-models',
+      severity: 'error',
+      title: 'No enabled provider models',
+    });
+  }
+
+  if (plans.length === 0) {
+    checks.push({
+      key: 'no-plans',
+      severity: 'error',
+      title: 'No subscription plans configured',
+    });
+  }
+
+  if (defaultModelIssues.length > 0) {
+    checks.push({
+      count: defaultModelIssues.length,
+      key: 'default-models',
+      severity: defaultModelErrors.length > 0 ? 'error' : 'warning',
+      title: 'Default model configuration needs attention',
+    });
+  }
+
+  if (plansWithoutAccess.length > 0) {
+    checks.push({
+      count: plansWithoutAccess.length,
+      detail: plansWithoutAccess.map((plan) => plan.displayName || plan.plan).join(', '),
+      key: 'plans-without-models',
+      severity: 'error',
+      title: 'Some plans have no visible models',
+    });
+  }
+
+  if (blockedModels.length > 0) {
+    checks.push({
+      count: blockedModels.length,
+      key: 'blocked-models',
+      severity: 'warning',
+      title: 'Some enabled models are hidden from every plan',
+    });
+  }
+
+  if (!Number.isFinite(globalPricingMultiplier) || globalPricingMultiplier <= 0) {
+    checks.push({
+      key: 'global-pricing-multiplier',
+      severity: 'warning',
+      title: 'Global pricing multiplier makes AI usage free',
+    });
+  }
+
+  if (pricingFallbackModelCount > 0) {
+    checks.push({
+      count: pricingFallbackModelCount,
+      key: 'pricing-fallbacks',
+      severity: 'info',
+      title: 'Some models use provider/default pricing',
+    });
+  }
+
+  if (checks.length === 0) {
+    checks.push({
+      key: 'healthy',
+      severity: 'ok',
+      title: 'AI provider, model access, and billing basics look healthy',
+    });
+  }
+
+  return {
+    checks,
+    status: aggregateHealthStatus(checks),
+    summary: {
+      blockedModelCount: blockedModels.length,
+      defaultModelIssueCount: defaultModelIssues.length,
+      defaultModelOkCount: defaultHealthItems.filter((item) => item.status === 'ok').length,
+      defaultModelTotal: defaultHealthItems.length,
+      modelCount: rows.length,
+      planCount: plans.length,
+      plansWithoutAccessCount: plansWithoutAccess.length,
+      pricingFallbackModelCount,
+      pricingOverrideCount,
+    },
+  };
+};
+
+export const getMatrixConfigHealthFocus = ({
+  checkKey,
+  defaultModelHealth,
+  plans,
+  rows,
+}: {
+  checkKey: string;
+  defaultModelHealth: Record<MatrixDefaultModelType, MatrixDefaultModelHealth>;
+  plans: MatrixPlan[];
+  rows: MatrixRow[];
+}): MatrixConfigHealthFocus => {
+  if (checkKey === 'no-plans' || checkKey === 'global-pricing-multiplier') {
+    return {
+      planKeys: [],
+      rowKeys: rows.map((row) => row.key),
+    };
+  }
+
+  if (checkKey === 'plans-without-models') {
+    const planKeys = plans
+      .filter((plan) => rows.length > 0 && rows.every((row) => row.planAccess[plan.plan] === false))
+      .map((plan) => plan.plan);
+
+    return {
+      planKeys,
+      rowKeys: rows
+        .filter((row) => planKeys.some((plan) => row.planAccess[plan] === false))
+        .map((row) => row.key),
+    };
+  }
+
+  if (checkKey === 'blocked-models') {
+    return {
+      planKeys: plans.map((plan) => plan.plan),
+      rowKeys: rows
+        .filter(
+          (row) => plans.length > 0 && plans.every((plan) => row.planAccess[plan.plan] === false),
+        )
+        .map((row) => row.key),
+    };
+  }
+
+  if (checkKey === 'pricing-fallbacks') {
+    return {
+      planKeys: [],
+      rowKeys: rows
+        .filter(
+          (row) =>
+            !Number.isFinite(row.pricingMultiplier) && !Number.isFinite(row.creditsPerDollar),
+        )
+        .map((row) => row.key),
+    };
+  }
+
+  if (checkKey === 'default-models') {
+    const defaultIssues = Object.values(defaultModelHealth).filter((item) => item.status !== 'ok');
+
+    return {
+      planKeys: defaultIssues.some((item) => item.status === 'denied_by_free_plan') ? ['free'] : [],
+      rowKeys: rows
+        .filter((row) =>
+          defaultIssues.some(
+            (item) =>
+              item.model &&
+              sameProvider(row.provider, item.provider) &&
+              sameModel(row.modelId, item.model),
+          ),
+        )
+        .map((row) => row.key),
+    };
+  }
+
+  if (checkKey === 'healthy') {
+    return {
+      planKeys: [],
+      rowKeys: rows.map((row) => row.key),
+    };
+  }
+
+  return {
+    planKeys: [],
+    rowKeys: [],
+  };
+};

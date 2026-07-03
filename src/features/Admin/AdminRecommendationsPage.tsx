@@ -91,76 +91,78 @@ const AdminRecommendationsPage = memo(() => {
     setSubmitting(true);
     try {
       const values = await form.validateFields();
-      await Promise.all([
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.enabled,
-          value: Boolean(values.enabled),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.assistantsEnabled,
-          value: Boolean(values.assistantsEnabled),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.mcpsEnabled,
-          value: Boolean(values.mcpsEnabled),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.skillsEnabled,
-          value: Boolean(values.skillsEnabled),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.generalSkillsEnabled,
-          value: Boolean(values.generalSkillsEnabled),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.hotSkillsEnabled,
-          value: Boolean(values.hotSkillsEnabled),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.selectedTags,
-          value: splitList(values.selectedTags),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.assistantTags,
-          value: splitList(values.assistantTags),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.assistantTitle,
-          value: values.assistantTitle,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.skillCategories,
-          value: splitList(values.skillCategories),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.skillTitle,
-          value: values.skillTitle,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.mcpCategories,
-          value: splitList(values.mcpCategories),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.mcpTitle,
-          value: values.mcpTitle,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.generalSkillCategories,
-          value: splitList(values.generalSkillCategories),
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.generalSkillTitle,
-          value: values.generalSkillTitle,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.hotSkillSort,
-          value: values.hotSkillSort || SkillSorts.InstallCount,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.hotSkillTitle,
-          value: values.hotSkillTitle,
-        }),
-      ]);
+      await adminCommercialService.setAppSettingsBatch({
+        updates: [
+          {
+            key: SETTING_KEYS.enabled,
+            value: Boolean(values.enabled),
+          },
+          {
+            key: SETTING_KEYS.assistantsEnabled,
+            value: Boolean(values.assistantsEnabled),
+          },
+          {
+            key: SETTING_KEYS.mcpsEnabled,
+            value: Boolean(values.mcpsEnabled),
+          },
+          {
+            key: SETTING_KEYS.skillsEnabled,
+            value: Boolean(values.skillsEnabled),
+          },
+          {
+            key: SETTING_KEYS.generalSkillsEnabled,
+            value: Boolean(values.generalSkillsEnabled),
+          },
+          {
+            key: SETTING_KEYS.hotSkillsEnabled,
+            value: Boolean(values.hotSkillsEnabled),
+          },
+          {
+            key: SETTING_KEYS.selectedTags,
+            value: splitList(values.selectedTags),
+          },
+          {
+            key: SETTING_KEYS.assistantTags,
+            value: splitList(values.assistantTags),
+          },
+          {
+            key: SETTING_KEYS.assistantTitle,
+            value: values.assistantTitle,
+          },
+          {
+            key: SETTING_KEYS.skillCategories,
+            value: splitList(values.skillCategories),
+          },
+          {
+            key: SETTING_KEYS.skillTitle,
+            value: values.skillTitle,
+          },
+          {
+            key: SETTING_KEYS.mcpCategories,
+            value: splitList(values.mcpCategories),
+          },
+          {
+            key: SETTING_KEYS.mcpTitle,
+            value: values.mcpTitle,
+          },
+          {
+            key: SETTING_KEYS.generalSkillCategories,
+            value: splitList(values.generalSkillCategories),
+          },
+          {
+            key: SETTING_KEYS.generalSkillTitle,
+            value: values.generalSkillTitle,
+          },
+          {
+            key: SETTING_KEYS.hotSkillSort,
+            value: values.hotSkillSort || SkillSorts.InstallCount,
+          },
+          {
+            key: SETTING_KEYS.hotSkillTitle,
+            value: values.hotSkillTitle,
+          },
+        ],
+      });
       message.success(t('admin.recommendations.saveSuccess', '推荐配置已保存'));
       await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {

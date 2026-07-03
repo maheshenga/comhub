@@ -18,6 +18,8 @@ import {
  * dispatcher needs but that do not belong in the intent itself.
  */
 export interface NonHeteroSubAgentDispatchContext {
+  /** Device bound by the parent agent execution switcher. */
+  boundDeviceId?: string;
   /** Conversation context of the *parent* agent (agentId = parent agent). */
   conversationContext: ConversationContext;
   /** Per-agent heterogeneous provider config used for runtime resolution. */
@@ -49,7 +51,7 @@ export interface NonHeteroSubAgentDispatchContext {
 }
 
 /**
- * Unified dispatcher for non-hetero, non-group sub-agent invocations (LOBE-8927).
+ * Unified dispatcher for non-hetero, non-group sub-agent invocations ().
  *
  * Resolves the child runtime by inheriting from the parent (via
  * `selectRuntimeType` with `parentRuntime`), then routes to the correct
@@ -73,6 +75,7 @@ export async function dispatchNonHeteroSubAgent(
   store: Pick<ChatStore, 'executeClientAgent' | 'executeGatewayAgent'>,
 ): Promise<void> {
   const runtimeType = selectRuntimeType({
+    boundDeviceId: ctx.boundDeviceId,
     heterogeneousProvider: ctx.heterogeneousProvider,
     isGatewayMode: ctx.isGatewayMode,
     parentRuntime: ctx.parentRuntime,
@@ -116,7 +119,7 @@ export async function dispatchNonHeteroSubAgent(
     }
 
     case 'hetero': {
-      // Hetero sub-agent invocation is out of scope for LOBE-8926.
+      // Hetero sub-agent invocation is out of scope for .
       // Hetero agents are dispatched through a dedicated heterogeneous pipeline
       // (`executeHeterogeneousAgent`) and must not fall through to client mode.
       throw new Error(

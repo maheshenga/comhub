@@ -554,6 +554,39 @@ describe('CommercialModel', () => {
       });
     });
 
+    it('should record manual plan grants as admin manual snapshots', async () => {
+      await seedPlanCatalogEntry(Plans.Starter);
+
+      await serverDB.transaction(async (tx) => {
+        await commercialModel.grantPlanManually({
+          assignedByUserId: 'admin-user-id',
+          cycle: 'yearly',
+          durationMonths: 12,
+          manualGrantId: 'manual-grant-id',
+          reason: 'manual upgrade',
+          targetPlan: Plans.Starter,
+          tx,
+        });
+      });
+
+      const snapshot = await commercialModel.getLatestPlanSnapshot();
+
+      expect(snapshot).toMatchObject({
+        cycle: 'yearly',
+        externalSubscriptionId: 'manual-grant-id',
+        plan: Plans.Starter,
+        provider: 'admin_manual',
+        status: 'active',
+      });
+      expect(snapshot?.metadata).toMatchObject({
+        adminReason: 'manual upgrade',
+        assignedByUserId: 'admin-user-id',
+        manualGrantId: 'manual-grant-id',
+        source: 'admin_manual',
+      });
+      expect(snapshot?.metadata).not.toHaveProperty('redemptionCodeId');
+    });
+
     it('should expire elapsed paid-plan snapshots and create an unlimited free snapshot', async () => {
       await serverDB.insert(userPlanSnapshots).values({
         cycle: 'monthly',
@@ -859,6 +892,40 @@ describe('CommercialModel', () => {
       expect(snapshot?.plan).toBe(Plans.Premium);
       expect(Number(snapshot?.monthlyCredits)).toBe(3000 * CREDITS_PER_DOLLAR);
       expect(Number(snapshot?.monthlyPrice)).toBe(79);
+    });
+
+    it('uses configured one-time plan price from plan metadata when activating', async () => {
+      await seedPlanCatalogEntry(Plans.Premium, {
+        metadata: { oneTimePrice: 499 },
+        monthlyPrice: 59,
+      });
+
+      const request = await commercialModel.createSubscriptionChangeRequest({
+        cycle: 'one_time',
+        targetPlan: Plans.Premium,
+      });
+      await commercialModel.activateSubscriptionChangeRequest(request.id);
+
+      const snapshot = await commercialModel.getLatestPlanSnapshot();
+      expect(snapshot?.cycle).toBe('one_time');
+      expect(Number(snapshot?.monthlyPrice)).toBe(499);
+    });
+
+    it('uses configured lifetime plan price from plan metadata when activating', async () => {
+      await seedPlanCatalogEntry(Plans.Premium, {
+        metadata: { lifetimePrice: 999 },
+        monthlyPrice: 59,
+      });
+
+      const request = await commercialModel.createSubscriptionChangeRequest({
+        cycle: 'lifetime',
+        targetPlan: Plans.Premium,
+      });
+      await commercialModel.activateSubscriptionChangeRequest(request.id);
+
+      const snapshot = await commercialModel.getLatestPlanSnapshot();
+      expect(snapshot?.cycle).toBe('lifetime');
+      expect(Number(snapshot?.monthlyPrice)).toBe(999);
     });
 
     it('rejects redemption grants for inactive plan catalog entries', async () => {

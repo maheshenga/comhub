@@ -18,6 +18,7 @@ import {
   KeyRound,
   Map,
   MessageCircleIcon,
+  MonitorSmartphoneIcon,
   PaletteIcon,
   ShieldCheck,
   Sparkles,
@@ -46,6 +47,8 @@ export enum SettingsGroupKey {
 }
 
 export interface CategoryItem {
+  /** Override the navigation URL. When omitted, Body derives the URL from `key`. */
+  href?: string;
   icon: any;
   key: SettingsTabs;
   label: string;
@@ -62,7 +65,7 @@ export const useCategory = () => {
   const { t: tAuth } = useTranslation('auth');
   const { t: tSubscription } = useTranslation('subscription');
   const mobile = useServerConfigStore((s) => s.isMobile);
-  const { hideDocs, showApiKeyManage } = useServerConfigStore(featureFlagsSelectors);
+  const { hideDocs, showApiKeyManage, showProvider } = useServerConfigStore(featureFlagsSelectors);
   const [avatar, username, user] = useUserStore((s) => [
     userProfileSelectors.userAvatar(s),
     userProfileSelectors.nickName(s),
@@ -100,6 +103,11 @@ export const useCategory = () => {
         key: SettingsTabs.Appearance,
         label: t('tab.appearance'),
       },
+      {
+        icon: MonitorSmartphoneIcon,
+        key: SettingsTabs.Devices,
+        label: t('tab.devices'),
+      },
       !mobile && {
         icon: KeyboardIcon,
         key: SettingsTabs.Hotkey,
@@ -118,7 +126,9 @@ export const useCategory = () => {
       title: t('group.common'),
     });
 
-    // Subscription group
+    // Personal subscription / billing items. Always shown when business
+    // features are enabled — workspace settings live under a separate
+    // `/:workspaceSlug/settings/*` surface and never share this sidebar.
     if (enableBusinessFeatures) {
       const subscriptionItems: CategoryItem[] = [
         { icon: Map, key: SettingsTabs.Plans, label: tSubscription('tab.plans') },
@@ -137,7 +147,9 @@ export const useCategory = () => {
 
     // Agent group
     const agentItems: CategoryItem[] = [
-      (!enableBusinessFeatures || isDevMode) && {
+      // Provider settings should not depend on Advanced tools: new users may need
+      // non-LobeHub providers, and desktop users often bring their own API keys.
+      showProvider && {
         icon: Brain,
         key: SettingsTabs.Provider,
         label: t('tab.provider'),
@@ -234,6 +246,7 @@ export const useCategory = () => {
     hideDocs,
     mobile,
     showApiKeyManage,
+    showProvider,
     isDevMode,
     avatarUrl,
     username,

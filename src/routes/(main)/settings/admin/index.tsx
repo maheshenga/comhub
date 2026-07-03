@@ -2,7 +2,7 @@
 
 import { Flexbox } from '@lobehub/ui';
 import { useTranslation } from 'react-i18next';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router';
 
 import { AdminSidebar } from '@/features/Admin';
 import AdminAuditPage from '@/routes/(main)/admin/audit';
@@ -10,8 +10,10 @@ import AdminCreditsPage from '@/routes/(main)/admin/credits';
 import AdminDesktopUpdatePage from '@/routes/(main)/admin/desktop-update';
 import AdminDocumentsPage from '@/routes/(main)/admin/documents';
 import AdminExpertPlazaPage from '@/routes/(main)/admin/expert-plaza';
+import AdminFileStoragePage from '@/routes/(main)/admin/file-storage';
 import AdminFilesPage from '@/routes/(main)/admin/files';
 import AdminGrowthPage from '@/routes/(main)/admin/growth';
+import AdminMaintenancePage from '@/routes/(main)/admin/maintenance';
 import AdminModelBillingMatrixPage from '@/routes/(main)/admin/model-billing-matrix';
 import AdminModelPolicyPage from '@/routes/(main)/admin/model-policy';
 import AdminNotificationsPage from '@/routes/(main)/admin/notifications';
@@ -41,8 +43,10 @@ const adminPageMap = {
   'desktop-update': AdminDesktopUpdatePage,
   'documents': AdminDocumentsPage,
   'expert-plaza': AdminExpertPlazaPage,
+  'file-storage': AdminFileStoragePage,
   'files': AdminFilesPage,
   'growth': AdminGrowthPage,
+  'maintenance': AdminMaintenancePage,
   'model-billing-matrix': AdminModelBillingMatrixPage,
   'model-policy': AdminModelPolicyPage,
   'notifications': AdminNotificationsPage,

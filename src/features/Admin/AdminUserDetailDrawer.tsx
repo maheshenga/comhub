@@ -6,7 +6,6 @@ import {
   Descriptions,
   Drawer,
   Empty,
-  Input,
   InputNumber,
   message,
   Modal,
@@ -22,6 +21,9 @@ import { mutate as swrMutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminAssignPlanModal from './AdminAssignPlanModal';
+import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
+import { isFiniteAdminSubscriptionCycle } from './adminSubscriptionCycles';
+import AdminDangerousActionButton from './AdminDangerousActionButton';
 
 interface AdminUserDetailDrawerProps {
   onClose: () => void;
@@ -41,17 +43,17 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
   );
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustAmount, setAdjustAmount] = useState<number | null>(0);
-  const [adjustReason, setAdjustReason] = useState('');
   const [adjusting, setAdjusting] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignPlan, setAssignPlan] = useState<string>();
-  const [assignCycle, setAssignCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [assignCycle, setAssignCycle] = useState<AdminSubscriptionCycle>('monthly');
   const [assignDurationMonths, setAssignDurationMonths] = useState<number | null>(1);
   const [assignReason, setAssignReason] = useState('');
   const [assigning, setAssigning] = useState(false);
 
-  const handleAdjust = async () => {
-    if (!userId || !adjustAmount || !adjustReason.trim()) {
+  const handleAdjust = async (reason?: null | string) => {
+    const normalizedReason = reason?.trim();
+    if (!userId || !adjustAmount || !normalizedReason) {
       message.warning(t('admin.adjustCredits.invalid', '请填写调整数量和原因'));
       return;
     }
@@ -59,13 +61,12 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
     try {
       await adminCommercialService.adjustCredits({
         amount: Math.round(adjustAmount),
-        reason: adjustReason,
+        reason: normalizedReason,
         userId,
       });
       message.success(t('admin.adjustCredits.success', '积分已调整'));
       setAdjustOpen(false);
       setAdjustAmount(0);
-      setAdjustReason('');
       if (swrKey) await swrMutate(swrKey);
     } catch {
       message.error(t('admin.adjustCredits.failed', '操作失败'));
@@ -75,7 +76,10 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
   };
 
   const handleAssignPlan = async () => {
-    if (!userId || !assignPlan || !assignDurationMonths || !assignReason.trim()) {
+    const durationMonths = isFiniteAdminSubscriptionCycle(assignCycle)
+      ? Math.round(assignDurationMonths ?? 0)
+      : 1;
+    if (!userId || !assignPlan || durationMonths < 1 || !assignReason.trim()) {
       message.warning(t('admin.assignPlan.invalid', '请选择套餐、使用时长并填写原因'));
       return;
     }
@@ -84,7 +88,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
     try {
       await adminCommercialService.assignUserPlan({
         cycle: assignCycle,
-        durationMonths: Math.round(assignDurationMonths),
+        durationMonths,
         plan: assignPlan,
         reason: assignReason.trim(),
         userId,
@@ -197,7 +201,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
               <Descriptions.Item label={t('admin.userDetail.monthlyCredits', '每月积分')}>
                 {data.subscription.monthlyCredits}
               </Descriptions.Item>
-              <Descriptions.Item label={t('admin.userDetail.monthlyPrice', '月付价格')}>
+              <Descriptions.Item label={t('admin.userDetail.cycleAmount', '周期金额')}>
                 {data.subscription.monthlyPrice} {data.subscription.currency}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.userDetail.renewsAt', '续费时间')}>
@@ -355,11 +359,29 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
         onReasonChange={setAssignReason}
       />
       <Modal
-        confirmLoading={adjusting}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setAdjustOpen(false);
+              setAdjustAmount(0);
+            }}
+          >
+            {t('cancel', '取消')}
+          </Button>,
+          <AdminDangerousActionButton
+            key="confirm"
+            actionId="credits.adjust"
+            loading={adjusting}
+            type="primary"
+            onConfirm={({ reason }) => handleAdjust(reason)}
+          >
+            {t('admin.adjustCredits', '调整积分')}
+          </AdminDangerousActionButton>,
+        ]}
         open={adjustOpen}
         title={t('admin.adjustCredits', '调整积分')}
         onCancel={() => setAdjustOpen(false)}
-        onOk={handleAdjust}
       >
         <Flexbox gap={12}>
           <div>{t('admin.adjustCredits.amount', '数量（正数增加，负数扣减）')}</div>
@@ -367,13 +389,6 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
             style={{ width: '100%' }}
             value={adjustAmount}
             onChange={(value: number | null) => setAdjustAmount(value ?? 0)}
-          />
-          <div>{t('admin.adjustCredits.reason', '原因')}</div>
-          <Input.TextArea
-            placeholder={t('admin.adjustCredits.reason.placeholder', '请输入调整原因')}
-            rows={3}
-            value={adjustReason}
-            onChange={(event: { target: { value: string } }) => setAdjustReason(event.target.value)}
           />
         </Flexbox>
       </Modal>

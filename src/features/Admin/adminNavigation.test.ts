@@ -48,8 +48,10 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/stats`,
         `${ADMIN_BASE_PATH}/topics`,
         `${ADMIN_BASE_PATH}/files`,
+        `${ADMIN_BASE_PATH}/file-storage`,
         `${ADMIN_BASE_PATH}/documents`,
         `${ADMIN_BASE_PATH}/system-defaults`,
+        `${ADMIN_BASE_PATH}/maintenance`,
         `${ADMIN_BASE_PATH}/audit`,
         `${ADMIN_BASE_PATH}/desktop-update`,
       ]),
@@ -90,6 +92,28 @@ describe('adminNavigation', () => {
     expect(collectPaths()).not.toContain(`${ADMIN_BASE_PATH}/newapi-providers`);
   });
 
+  it('keeps storage and maintenance settings in the system module', () => {
+    const systemItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'system')?.items ?? [];
+
+    expect(
+      systemItems.find((item) => item.path === `${ADMIN_BASE_PATH}/file-storage`),
+    ).toMatchObject({
+      icon: 'file-storage',
+      label: '文件存储',
+    });
+    expect(
+      systemItems.find((item) => item.path === `${ADMIN_BASE_PATH}/maintenance`),
+    ).toMatchObject({
+      icon: 'maintenance',
+      label: '系统维护',
+    });
+    expect(
+      ADMIN_NAV_GROUPS.flatMap((group) => group.items).find(
+        (item) => item.path === `${ADMIN_BASE_PATH}/notifications`,
+      )?.description,
+    ).not.toContain('通知保留时间');
+  });
+
   it('maps legacy billing routes to their merged sidebar entries', () => {
     expect(getAdminSelectedKey('/settings/admin/pricing')).toBe(
       `${ADMIN_BASE_PATH}/model-billing-matrix`,
@@ -98,6 +122,13 @@ describe('adminNavigation', () => {
     expect(getAdminSelectedKey('/settings/admin/change-requests')).toBe(
       `${ADMIN_BASE_PATH}/subscriptions`,
     );
+  });
+
+  it('normalizes legacy root admin URLs before selecting the sidebar item', () => {
+    expect(getAdminSelectedKey('/admin')).toBe(ADMIN_BASE_PATH);
+    expect(getAdminSelectedKey('/admin/users')).toBe(`${ADMIN_BASE_PATH}/users`);
+    expect(getAdminSelectedKey('/admin/pricing')).toBe(`${ADMIN_BASE_PATH}/model-billing-matrix`);
+    expect(getAdminOpenKeys('/admin/pricing')).toEqual(['model-billing']);
   });
 
   it('selects the nearest admin item for nested URLs and opens its module', () => {
@@ -118,9 +149,15 @@ describe('adminNavigation', () => {
     );
     expect(getAdminSelectedKey('/settings/admin/topics')).toBe(`${ADMIN_BASE_PATH}/topics`);
     expect(getAdminSelectedKey('/settings/admin/files')).toBe(`${ADMIN_BASE_PATH}/files`);
+    expect(getAdminSelectedKey('/settings/admin/file-storage')).toBe(
+      `${ADMIN_BASE_PATH}/file-storage`,
+    );
     expect(getAdminSelectedKey('/settings/admin/documents')).toBe(`${ADMIN_BASE_PATH}/documents`);
     expect(getAdminSelectedKey('/settings/admin/system-defaults')).toBe(
       `${ADMIN_BASE_PATH}/system-defaults`,
+    );
+    expect(getAdminSelectedKey('/settings/admin/maintenance')).toBe(
+      `${ADMIN_BASE_PATH}/maintenance`,
     );
 
     expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['model-billing']);
@@ -130,7 +167,9 @@ describe('adminNavigation', () => {
     expect(getAdminOpenKeys('/settings/admin/expert-plaza')).toEqual(['brand-growth']);
     expect(getAdminOpenKeys('/settings/admin/topics')).toEqual(['content']);
     expect(getAdminOpenKeys('/settings/admin/files')).toEqual(['content']);
+    expect(getAdminOpenKeys('/settings/admin/file-storage')).toEqual(['system']);
     expect(getAdminOpenKeys('/settings/admin/documents')).toEqual(['content']);
     expect(getAdminOpenKeys('/settings/admin/system-defaults')).toEqual(['system']);
+    expect(getAdminOpenKeys('/settings/admin/maintenance')).toEqual(['system']);
   });
 });

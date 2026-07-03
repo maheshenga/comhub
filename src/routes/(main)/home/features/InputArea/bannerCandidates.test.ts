@@ -7,7 +7,7 @@ describe('getHomeInputBannerCandidates', () => {
     expect(
       getHomeInputBannerCandidates({
         isBotIntegrationBannerDismissed: true,
-        isKlavisEnabled: false,
+        isComposioEnabled: false,
         isLobehubSkillEnabled: false,
         isMessengerBannerDismissed: false,
         isMessengerEnabled: false,
@@ -20,7 +20,7 @@ describe('getHomeInputBannerCandidates', () => {
     expect(
       getHomeInputBannerCandidates({
         isBotIntegrationBannerDismissed: true,
-        isKlavisEnabled: false,
+        isComposioEnabled: false,
         isLobehubSkillEnabled: false,
         isMessengerBannerDismissed: false,
         isMessengerEnabled: true,

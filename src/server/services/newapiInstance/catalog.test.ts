@@ -133,6 +133,29 @@ describe('NewAPI catalog sync', () => {
     });
   });
 
+  it('uses Anthropic headers when fetching Claude-format models', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ data: [] }),
+      ok: true,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchNewapiModels({
+      apiKey: 'sk-claude',
+      baseUrl: 'https://api.anthropic.com',
+      providerType: 'claude',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://api.anthropic.com/v1/models', {
+      headers: {
+        Accept: 'application/json',
+        'anthropic-version': '2023-06-01',
+        'x-api-key': 'sk-claude',
+      },
+    });
+  });
+
   it('reports a clear error when the models endpoint returns html', async () => {
     vi.stubGlobal(
       'fetch',

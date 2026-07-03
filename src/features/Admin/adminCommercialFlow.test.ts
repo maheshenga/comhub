@@ -51,6 +51,25 @@ describe('admin commercial flow pages', () => {
     expect(userDetailDrawer).toContain('<AdminAssignPlanModal');
   });
 
+  it('keeps admin subscription cycle controls aligned with backend validation', () => {
+    const assignPlanModal = readRepoFile('src/features/Admin/AdminAssignPlanModal.tsx');
+    const subscriptionsPage = readRepoFile('src/features/Admin/AdminSubscriptionsPage.tsx');
+    const subscriptionsRouter = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/subscriptions.ts',
+    );
+    const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
+    const usersPage = readRepoFile('src/routes/(main)/admin/users/index.tsx');
+
+    expect(assignPlanModal).toContain('ADMIN_SUBSCRIPTION_CYCLES.map');
+    expect(assignPlanModal).toContain('isFiniteAdminSubscriptionCycle(cycle)');
+    expect(subscriptionsPage).toContain('ADMIN_SUBSCRIPTION_CYCLES.map');
+    expect(subscriptionsRouter).toContain(
+      "const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const",
+    );
+    expect(userDetailDrawer).toContain('isFiniteAdminSubscriptionCycle(assignCycle)');
+    expect(usersPage).toContain('isFiniteAdminSubscriptionCycle(assignCycle)');
+  });
+
   it('does not keep the removed standalone pricing settings helper', () => {
     expect(existsSync(path.resolve(repoRoot, 'src/features/Admin/adminPricingSettings.ts'))).toBe(
       false,
@@ -71,7 +90,9 @@ describe('admin commercial flow pages', () => {
 
   it('lets admin configure public recommendation section titles', () => {
     const appSettings = readRepoFile('src/server/services/appSettings/index.ts');
-    const settingsRouter = readRepoFile('src/business/server/lambda-routers/admin/settings.ts');
+    const settingsRouter = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/settings.ts',
+    );
     const adminRecommendations = readRepoFile('src/features/Admin/AdminRecommendationsPage.tsx');
     const publicRecommendations = readRepoFile('src/features/CommunityRecommendations/index.tsx');
 
@@ -118,8 +139,8 @@ describe('admin commercial flow pages', () => {
     expect(providersPage).not.toContain('NewAPI 支持同步模型和价格');
     expect(matrixPage).toContain('暂无已启用的服务商模型');
     expect(providersPage).toContain('配置多个服务商上游实例');
-    expect(settingsPage).toContain('使用服务商网关时填写对应供应商标识');
-    expect(settingsPage).toContain('选择或输入服务商标识');
+    expect(settingsPage).toContain('默认模型请到“模型与计费矩阵”');
+    expect(matrixPage).toContain('默认模型健康检查');
   });
 
   it('uses provider-neutral i18n keys for the admin provider page', () => {
@@ -127,6 +148,195 @@ describe('admin commercial flow pages', () => {
 
     expect(providersPage).toContain('admin.providers.');
     expect(providersPage).not.toContain('admin.newapi.');
+  });
+
+  it('uses AI service provider service helpers as the provider page primary API', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+
+    for (const method of [
+      'listAiProviderInstances',
+      'createAiProviderInstance',
+      'updateAiProviderInstance',
+      'deleteAiProviderInstance',
+      'toggleAiProviderInstance',
+      'testAiProviderInstanceConnection',
+      'syncAiProviderInstanceModels',
+      'listAiProviderInstanceModels',
+      'addAiProviderInstanceModels',
+      'removeAiProviderInstanceModel',
+      'updateAiProviderInstanceModel',
+    ]) {
+      expect(service).toContain(method);
+      expect(providersPage).toContain(`adminCommercialService.${method}`);
+    }
+
+    for (const legacyMethod of [
+      'listNewapiInstances',
+      'createNewapiInstance',
+      'updateNewapiInstance',
+      'deleteNewapiInstance',
+      'toggleNewapiInstance',
+      'testNewapiInstanceConnection',
+      'syncNewapiInstanceModels',
+      'listNewapiInstanceModels',
+      'addNewapiInstanceModels',
+      'removeNewapiInstanceModel',
+      'updateNewapiInstanceModel',
+    ]) {
+      expect(providersPage).not.toContain(`adminCommercialService.${legacyMethod}`);
+    }
+  });
+
+  it('refreshes frontend provider runtime state after admin provider model changes', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+
+    expect(providersPage).toContain("import { useAiInfraStore } from '@/store/aiInfra'");
+    expect(providersPage).toContain('refreshAiProviderRuntimeState');
+    expect(providersPage).toContain('const handleBatchToggle = async (enabled: boolean)');
+    expect(providersPage).toContain("t('admin.providers.models.enableAll'");
+    expect(providersPage).toContain("t('admin.providers.models.disableAll'");
+    expect(providersPage.match(/await refreshModels\(\);/g)?.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('exposes an admin action to refresh user-facing AI provider cache', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+
+    expect(router).toContain('refreshRuntimeCache: adminProcedure.mutation');
+    expect(router).toContain('invalidateNewapiInstancesCache();');
+    expect(router).toContain("action: 'newapiInstanceModels.refreshRuntimeCache'");
+    expect(service).toContain('refreshAiProviderRuntimeCache');
+    expect(service).toContain('newapiProviders.refreshRuntimeCache.mutate()');
+    expect(providersPage).toContain('handleRefreshRuntimeCache');
+    expect(providersPage).toContain('adminCommercialService.refreshAiProviderRuntimeCache()');
+    expect(providersPage).toContain('mutate(serverConfigKeys.get)');
+    expect(providersPage).toContain('refreshAiProviderRuntimeState()');
+    expect(providersPage).toContain("t('admin.providers.refreshRuntimeCache.action'");
+  });
+
+  it('lets admins configure AI provider model official cost pricing', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const pricingCell = readRepoFile('src/features/Admin/adminProviderModelPricing.tsx');
+    const runtime = readRepoFile('src/server/services/newapiInstance/index.ts');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+
+    expect(providersPage).toContain('AiProviderModelPricingCell');
+    expect(providersPage).toContain('buildManualTokenPricingMetadata');
+    expect(providersPage).toContain('buildManualMediaPricingMetadata');
+    expect(pricingCell).toContain('DEFAULT_PRICING_CREDIT_MULTIPLIER');
+    expect(pricingCell).toContain('DEFAULT_PRICING_MARGIN_MULTIPLIER');
+    expect(pricingCell).toContain('TOKEN_PRICING_MODEL_TYPES');
+    expect(pricingCell).toContain('IMAGE_PRICING_MODEL_TYPES');
+    expect(pricingCell).toContain('VIDEO_PRICING_MODEL_TYPES');
+    expect(pricingCell).toContain('inputCostRate');
+    expect(pricingCell).toContain('outputCostRate');
+    expect(pricingCell).toContain('imageRate');
+    expect(pricingCell).toContain('videoRate');
+    expect(providersPage).toContain("'成本价'");
+    expect(pricingCell).toContain('计费价：输入 {{input}} / 输出 {{output}}');
+    expect(pricingCell).toContain('计费价：{{price}} / 张');
+    expect(pricingCell).toContain('计费价：{{price}} / 条');
+    expect(service).toContain('metadata?: Record<string, unknown> | null');
+    expect(router).toContain('ModelMetadataSchema');
+    expect(router).toContain("action: 'newapiInstanceModels.update'");
+    expect(runtime).toContain('resolveManualPricing');
+    expect(runtime).toContain('manualPricing.inputCostRate');
+    expect(runtime).toContain('manualPricing.outputCostRate');
+    expect(runtime).toContain('manualPricing.imageRate');
+    expect(runtime).toContain('manualPricing.videoRate');
+  });
+
+  it('lets admins configure AI provider model abilities for user-facing model cards', () => {
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const abilitiesCell = readRepoFile('src/features/Admin/adminProviderModelAbilities.tsx');
+    const runtime = readRepoFile('src/server/services/newapiInstance/index.ts');
+    const globalConfig = readRepoFile('apps/server/src/globalConfig/index.ts');
+
+    expect(providersPage).toContain('AiProviderModelAbilitiesCell');
+    expect(providersPage).toContain('buildManualAbilitiesMetadata');
+    expect(providersPage).toContain("t('admin.providers.models.col.abilities'");
+    expect(abilitiesCell).toContain('manualAbilities');
+    expect(abilitiesCell).toContain('functionCall');
+    expect(abilitiesCell).toContain('reasoning');
+    expect(abilitiesCell).toContain('vision');
+    expect(runtime).toContain('resolveManualAbilities');
+    expect(runtime).toContain('metadata?.manualAbilities');
+    expect(globalConfig).toContain("m.abilities ? { abilities: m.abilities } : {}");
+  });
+
+  it('keeps toapi as a NewAPI-compatible instance instead of a standalone provider type', () => {
+    const files = [
+      'packages/business-server/src/lambda-routers/admin/newapiProviders.ts',
+      'packages/database/src/schemas/newapiInstance.ts',
+      'src/features/Admin/AdminProvidersPage.tsx',
+      'src/features/Admin/adminProviderInstanceForm.ts',
+      'src/server/services/newapiInstance/catalog.ts',
+      'src/server/services/newapiInstance/index.ts',
+      'src/services/adminCommercial.ts',
+    ];
+
+    for (const file of files) {
+      const source = readRepoFile(file);
+      expect(source).toContain('siliconflow');
+      expect(source.toLowerCase()).not.toContain("'toapi'");
+      expect(source.toLowerCase()).not.toContain('"toapi"');
+    }
+  });
+
+  it('uses AI service provider model helpers in shared model billing surfaces', () => {
+    const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+
+    expect(service).toContain('listAllEnabledAiProviderModels');
+    expect(matrixPage).toContain('adminCommercialService.listAllEnabledAiProviderModels');
+    expect(matrixPage).not.toContain('adminCommercialService.listAllEnabledNewapiModels');
+  });
+
+  it('surfaces AI service model access and billing health in the matrix page', () => {
+    const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
+    const matrixLogic = readRepoFile('src/features/Admin/adminModelBillingMatrix.ts');
+
+    expect(matrixLogic).toContain('getMatrixConfigHealth');
+    expect(matrixLogic).toContain('plans-without-models');
+    expect(matrixLogic).toContain('blocked-models');
+    expect(matrixLogic).toContain('pricing-fallbacks');
+    expect(matrixLogic).toContain('getMatrixConfigHealthFocus');
+    expect(matrixPage).toContain('AI service health check');
+    expect(matrixPage).toContain('configHealth.summary.modelCount');
+    expect(matrixPage).toContain('configHealth.checks.map');
+    expect(matrixPage).toContain('focusedHealthCheckKey');
+    expect(matrixPage).toContain('handleFocusConfigHealthCheck');
+    expect(matrixPage).toContain('显示全部');
+  });
+
+  it('keeps plan model access visible but editable only through the shared matrix', () => {
+    const plansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
+    const planRules = readRepoFile('src/features/Admin/adminPlanModelRules.ts');
+
+    expect(plansPage).toContain('getPlanModelRulesSummaryInfo');
+    expect(plansPage).toContain('ADMIN_PLAN_MODEL_MATRIX_PATH');
+    expect(plansPage).toContain('白名单 {summary.allowlistTypeCount}');
+    expect(plansPage).toContain('黑名单 {summary.blocklistTypeCount}');
+    expect(planRules).toContain('默认开放全部已启用模型');
+    expect(planRules).toContain('allowlistEntryCount');
+    expect(planRules).toContain('blocklistEntryCount');
+    expect(plansPage).not.toContain('setPlanModelRules');
+  });
+
+  it('keeps the public plans page aligned with dynamic matrix model billing', () => {
+    const publicPlansPage = readRepoFile('src/business/client/BusinessSettingPages/Plans.tsx');
+
+    expect(publicPlansPage).toContain('getModelAccessSummary');
+    expect(publicPlansPage).toContain('默认开放全部已启用模型');
+    expect(publicPlansPage).toContain('模型与计费矩阵');
+    expect(publicPlansPage).toContain('模型价格随后台配置动态生效');
+    expect(publicPlansPage).not.toContain('MODEL_MESSAGE_ESTIMATES');
+    expect(publicPlansPage).not.toContain('MODEL_PRICE_ROWS');
+    expect(publicPlansPage).not.toContain('DeepSeek V4 Pro');
+    expect(publicPlansPage).not.toContain('GPT-5.5');
   });
 
   it('uses provider-neutral file names for the admin provider page', () => {
@@ -145,7 +355,7 @@ describe('admin commercial flow pages', () => {
   });
 
   it('uses the provider-neutral admin route for service provider management', () => {
-    const desktopRoutes = readRepoFile('src/business/client/BusinessDesktopRoutes.tsx');
+    const desktopRouteRegistry = readRepoFile('src/business/client/adminSettingsRouteRegistry.ts');
 
     expect(existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/providers/index.tsx'))).toBe(
       true,
@@ -153,8 +363,179 @@ describe('admin commercial flow pages', () => {
     expect(
       existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/newapi-providers/index.tsx')),
     ).toBe(false);
-    expect(desktopRoutes).toContain("() => import('@/routes/(main)/admin/providers')");
-    expect(desktopRoutes).toContain("path: 'providers'");
-    expect(desktopRoutes).not.toContain('newapi-providers');
+    expect(desktopRouteRegistry).toContain("import('@/routes/(main)/admin/providers')");
+    expect(desktopRouteRegistry).toContain("segment: 'providers'");
+    expect(desktopRouteRegistry).not.toContain('newapi-providers');
+  });
+
+  it('wires centralized dangerous action confirmations into high-risk admin surfaces', () => {
+    const creditsPage = readRepoFile('src/routes/(main)/admin/credits/index.tsx');
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
+    const usersPage = readRepoFile('src/routes/(main)/admin/users/index.tsx');
+    const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
+    const contentPages = readRepoFile('src/features/Admin/AdminContentPages.tsx');
+    const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
+
+    expect(creditsPage).toContain('AdminDangerousActionButton');
+    expect(creditsPage).toContain('actionId="credits.adjust"');
+
+    expect(providersPage).toContain('AdminDangerousActionButton');
+    expect(providersPage).toContain('actionId="newapiProvider.deleteInstance"');
+
+    expect(usersPage).toContain('AdminDangerousActionButton');
+    expect(usersPage).toContain('actionId="user.resetAllToFreePlan"');
+    expect(usersPage).toContain('actionId="credits.adjust"');
+
+    expect(userDetailDrawer).toContain('AdminDangerousActionButton');
+    expect(userDetailDrawer).toContain('actionId="credits.adjust"');
+
+    for (const actionId of [
+      'content.deleteTopic',
+      'content.deleteFile',
+      'content.deleteDocument',
+    ]) {
+      expect(contentPages).toContain(`actionId="${actionId}"`);
+    }
+
+    expect(ordersPage).toContain('actionId="order.expire"');
+    expect(ordersPage).toContain('actionId="order.cancel"');
+    expect(ordersPage).toContain('actionId="order.settle"');
+    expect(ordersPage).toContain('adminCommercialService.settleOrder');
+
+    expect(redemptionPage).toContain('AdminBulkActionFlow');
+    expect(redemptionPage).toContain('actionId="redemption.bulkDisable"');
+    expect(redemptionPage).toContain('actionId="redemption.bulkDelete"');
+  });
+
+  it('localizes centralized dangerous action confirmation microcopy', () => {
+    const dangerousButton = readRepoFile('src/features/Admin/AdminDangerousActionButton.tsx');
+    const enSubscription = readRepoFile('locales/en-US/subscription.json');
+    const zhSubscription = readRepoFile('locales/zh-CN/subscription.json');
+
+    expect(dangerousButton).toContain("useTranslation('subscription')");
+    expect(dangerousButton).toContain('admin.dangerousAction.typedConfirm');
+    expect(dangerousButton).toContain('admin.dangerousAction.reasonPlaceholder');
+    expect(dangerousButton).toContain('admin.dangerousAction.errors.');
+    expect(dangerousButton).not.toContain("setError(result.errors.join(', '))");
+    expect(dangerousButton).not.toContain('placeholder="Reason"');
+    expect(dangerousButton).not.toContain('Type <Typography.Text code>');
+
+    for (const locale of [enSubscription, zhSubscription]) {
+      for (const key of [
+        'admin.dangerousAction.typedConfirm',
+        'admin.dangerousAction.reasonPlaceholder',
+        'admin.dangerousAction.errors.confirmation_required',
+        'admin.dangerousAction.errors.confirmation_text_mismatch',
+        'admin.dangerousAction.errors.reason_required',
+        'admin.dangerousAction.errors.unknown_action',
+        'admin.bulkAction.cancel',
+        'admin.bulkAction.confirm',
+        'admin.bulkAction.close',
+        'admin.bulkAction.progress',
+        'admin.bulkAction.done',
+        'admin.bulkAction.error',
+        'admin.bulkAction.errorFallback',
+      ]) {
+        expect(locale).toContain(`"${key}"`);
+      }
+    }
+  });
+
+  it('uses a modal state machine for redemption bulk operations', () => {
+    const bulkActionFlow = readRepoFile('src/features/Admin/AdminBulkActionFlow.tsx');
+    const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
+
+    expect(bulkActionFlow).toContain(
+      "type AdminBulkActionFlowStep = 'confirm' | 'progress' | 'done' | 'error'",
+    );
+    expect(bulkActionFlow).toContain("closable={step !== 'progress'}");
+    expect(bulkActionFlow).toContain("maskClosable={step !== 'progress'}");
+    expect(bulkActionFlow).toContain('NeuralNetworkLoading');
+    expect(bulkActionFlow).toContain('validateAdminDangerousActionConfirmation');
+
+    expect(redemptionPage).toContain('AdminBulkActionFlow');
+    expect(redemptionPage).toContain('actionId="redemption.bulkDisable"');
+    expect(redemptionPage).toContain('actionId="redemption.bulkDelete"');
+    expect(redemptionPage).toContain('summary={formatBulkDisableResult}');
+    expect(redemptionPage).toContain('summary={formatBulkDeleteResult}');
+    expect(redemptionPage).not.toContain(
+      "message.success(\n        t('admin.redemption.bulkDisableDone'",
+    );
+    expect(redemptionPage).not.toContain(
+      "message.success(\n        t('admin.redemption.bulkDeleteDone'",
+    );
+  });
+
+  it('uses a modal state machine for change request bulk operations', () => {
+    const changeRequestsPage = readRepoFile('src/features/Admin/AdminChangeRequestsPage.tsx');
+    const bulkActionFlow = readRepoFile('src/features/Admin/AdminBulkActionFlow.tsx');
+
+    expect(changeRequestsPage).toContain('AdminBulkActionFlow');
+    expect(changeRequestsPage).toContain('actionId="subscription.changeRequest.bulkApprove"');
+    expect(changeRequestsPage).toContain('actionId="subscription.changeRequest.bulkReject"');
+    expect(changeRequestsPage).toContain('summary={formatBulkApproveChangeRequestResult}');
+    expect(changeRequestsPage).toContain('summary={formatBulkRejectChangeRequestResult}');
+    expect(changeRequestsPage).toContain('progressDescription={t(');
+    expect(changeRequestsPage).toContain("'admin.changeRequests.bulkApproveProgress'");
+    expect(changeRequestsPage).toContain("'admin.changeRequests.bulkRejectProgress'");
+    expect(changeRequestsPage).not.toContain('bulkRunning');
+    expect(changeRequestsPage).not.toContain('bulkRejectOpen');
+    expect(changeRequestsPage).not.toContain("t('admin.changeRequests.bulkApproveDone'");
+    expect(changeRequestsPage).not.toContain("t('admin.changeRequests.bulkRejectDone'");
+
+    expect(bulkActionFlow).toContain('reasonOptional?: boolean');
+    expect(bulkActionFlow).toContain('requirement?.requiresReason || reasonOptional');
+    expect(changeRequestsPage).toContain('reasonOptional');
+    expect(changeRequestsPage).toContain('onRun={({ reason }) => handleBulkReject(reason)}');
+  });
+
+  it('keeps all selected-row admin bulk mutations on the shared state machine', () => {
+    const redemptionPage = readRepoFile('src/routes/(main)/admin/redemption/index.tsx');
+    const changeRequestsPage = readRepoFile('src/features/Admin/AdminChangeRequestsPage.tsx');
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+
+    for (const page of [redemptionPage, changeRequestsPage]) {
+      expect(page).toContain('rowSelection={{');
+      expect(page).toContain('selectedIds');
+      expect(page).toContain('AdminBulkActionFlow');
+      expect(page).not.toContain('bulkRunning');
+      expect(page).not.toContain('confirmLoading={bulkRunning}');
+    }
+
+    expect(providersPage).toContain('bulkText');
+    expect(providersPage).toContain('admin.providers.models.bulkAddHint');
+    expect(providersPage).not.toContain('rowSelection={{');
+  });
+
+  it('adds an order detail drawer for P2 operations review', () => {
+    const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
+    const service = readRepoFile('src/services/adminCommercial.ts');
+
+    expect(ordersPage).toContain('orderDetailId');
+    expect(ordersPage).toContain('adminCommercialService.getOrderDetail(orderDetailId');
+    expect(ordersPage).toContain("t('admin.orders.viewDetail'");
+    expect(ordersPage).toContain("t('admin.orders.detail.redemptionCode'");
+    expect(ordersPage).toContain("t('admin.orders.detail.auditHint'");
+    expect(service).toContain('getOrderDetail = async (orderId: string)');
+  });
+
+  it('deep links order details into filtered audit logs', () => {
+    const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
+    const auditPage = readRepoFile('src/routes/(main)/admin/audit/index.tsx');
+
+    expect(ordersPage).toContain("import { Link } from 'react-router'");
+    expect(ordersPage).toContain('const buildOrderAuditUrl = (orderId: string) => {');
+    expect(ordersPage).toContain("searchParams.set('resourceType', 'top_up_order')");
+    expect(ordersPage).toContain("searchParams.set('resourceId', orderId)");
+    expect(ordersPage).toContain('to={buildOrderAuditUrl(orderDetail.id)}');
+    expect(ordersPage).toContain("t('admin.orders.detail.viewAudit'");
+
+    expect(auditPage).toContain("import { useSearchParams } from 'react-router'");
+    expect(auditPage).toContain('const [searchParams] = useSearchParams();');
+    expect(auditPage).toContain('const [resourceTypeFilter, setResourceTypeFilter] = useState(');
+    expect(auditPage).toContain("searchParams.get('resourceType') ?? ''");
+    expect(auditPage).toContain('const [resourceIdFilter, setResourceIdFilter] = useState(');
+    expect(auditPage).toContain("searchParams.get('resourceId') ?? ''");
   });
 });

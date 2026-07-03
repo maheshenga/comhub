@@ -1,4 +1,7 @@
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { describe, expect, it } from 'vitest';
+
+import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 
 import {
   buildFormValues,
@@ -33,13 +36,13 @@ describe('adminSettingsForm', () => {
       }),
     ).toEqual([
       {
-        label: 'DeepSeek Chat（newapi / chat / 主网关）',
+        label: 'DeepSeek Chat（主网关 / chat）',
         model: 'deepseek-chat',
         provider: 'newapi',
         value: 'newapi:deepseek-chat',
       },
       {
-        label: 'flux-kontext（newapi / image / 图像网关）',
+        label: 'flux-kontext（图像网关 / image）',
         model: 'flux-kontext',
         provider: 'newapi',
         value: 'newapi:flux-kontext',
@@ -49,6 +52,29 @@ describe('adminSettingsForm', () => {
         model: 'manual-chat',
         provider: 'newapi',
         value: 'newapi:manual-chat',
+      },
+    ]);
+  });
+
+  it('uses managed provider display name in model option labels while preserving provider id', () => {
+    expect(
+      buildModelOptions({
+        enabledNewapiModels: [
+          {
+            displayName: 'Qwen Coder',
+            instanceName: 'OpenCode Go',
+            modelId: 'qwen3-coder',
+            modelType: 'chat',
+            provider: 'opencodego-1234567890',
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        label: 'Qwen Coder（OpenCode Go / chat）',
+        model: 'qwen3-coder',
+        provider: 'opencodego-1234567890',
+        value: 'opencodego-1234567890:qwen3-coder',
       },
     ]);
   });
@@ -93,18 +119,20 @@ describe('adminSettingsForm', () => {
     expect(options[0].label).not.toContain('1234567890');
   });
 
-  it('builds app setting updates only for changed values', () => {
+  it('builds site setting updates only for changed site basics', () => {
     const initial = {
       ...buildFormValues(),
       brandFaviconUrl: '',
       brandAuthTitle: 'Agent teammates that grow with you',
-      brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
+      brandCopyrightText: '© 2026 玄果 AI. All rights reserved.',
       brandLogoUrl: '/logo.png',
       brandLoadingText: 'Loading',
       brandLoadingSvgUrl: '',
-      brandName: '青柚 AI',
+      brandName: '玄果 AI',
       brandPrimaryColor: '#1677ff',
       brandSlogan: '',
+      aboutLogoUrl: '',
+      communitySkillUseButtonLabel: '',
       aboutLinks: {
         contact: [],
         information: [],
@@ -113,9 +141,9 @@ describe('adminSettingsForm', () => {
       cronAuditRetentionDays: 365,
       cronPendingOrderExpiryDays: 7,
       cronSecret: '',
-      defaultAgentAvatar: '/avatars/qingyou-ai.png',
+      defaultAgentAvatar: '/avatars/xuangguo-ai.png',
       defaultAgentModel: 'gpt-4o-mini',
-      defaultAgentName: '青柚助手',
+      defaultAgentName: DEFAULT_COMHUB_AGENT_NAME,
       defaultAgentProvider: 'newapi',
       defaultImageModel: 'flux-pro',
       defaultImageProvider: 'newapi',
@@ -127,7 +155,7 @@ describe('adminSettingsForm', () => {
       helpMenuItems: [],
       memoryUserMemoryTriggerMode: 'auto' as const,
       ordersEnabled: true,
-      pricingMultiplier: 1,
+      pricingMultiplier: DEFAULT_PRICING_CREDIT_MULTIPLIER,
       profileInterestAreas: [],
       referralRewardCredits: 0,
       sidebarGenerationLabel: '生成',
@@ -139,14 +167,39 @@ describe('adminSettingsForm', () => {
       buildSettingUpdates(
         {
           ...initial,
-          defaultAgentModel: 'deepseek-chat',
+          brandName: 'ComHub',
         },
         initial,
       ),
-    ).toEqual([{ key: SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' }]);
+    ).toEqual([{ key: SETTING_KEYS.brandName, value: 'ComHub' }]);
   });
 
-  it('includes default image and video models in form values and updates', () => {
+  it('includes about page logo in brand setting updates', () => {
+    const initial = buildFormValues({
+      aboutLogoUrl: '',
+      brandLogoUrl: '/brand/logo.svg',
+    });
+
+    expect(initial.aboutLogoUrl).toBe('');
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          aboutLogoUrl: '/uploads/admin/about-logo.png',
+        },
+        initial,
+      ),
+    ).toEqual([{ key: SETTING_KEYS.aboutLogoUrl, value: '/uploads/admin/about-logo.png' }]);
+
+    expect(
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.aboutLogoUrl, value: '/uploads/admin/about-logo.png' },
+      ]),
+    ).toEqual(['brand-config']);
+  });
+
+  it('keeps default image and video model values readable without saving them from site settings', () => {
     const initial = buildFormValues({
       defaultImageModel: 'flux-pro',
       defaultImageProvider: 'newapi',
@@ -168,32 +221,29 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([
-      { key: SETTING_KEYS.defaultImageModel, value: 'flux-kontext' },
-      { key: SETTING_KEYS.defaultVideoModel, value: 'kling-v2' },
-    ]);
+    ).toEqual([]);
   });
 
   it('includes default assistant name and avatar in form values and updates', () => {
     const initial = buildFormValues({
-      defaultAgentAvatar: '/images/brand/qingyou-ai-logo.png',
-      defaultAgentName: '青柚助手',
+      defaultAgentAvatar: DEFAULT_COMHUB_AGENT_AVATAR,
+      defaultAgentName: DEFAULT_COMHUB_AGENT_NAME,
     });
 
-    expect(initial.defaultAgentName).toBe('青柚助手');
-    expect(initial.defaultAgentAvatar).toBe('/images/brand/qingyou-ai-logo.png');
+    expect(initial.defaultAgentName).toBe(DEFAULT_COMHUB_AGENT_NAME);
+    expect(initial.defaultAgentAvatar).toBe(DEFAULT_COMHUB_AGENT_AVATAR);
 
     expect(
       buildSettingUpdates(
         {
           ...initial,
           defaultAgentAvatar: '/images/brand/logo.svg',
-          defaultAgentName: '青柚 AI 助手',
+          defaultAgentName: '玄果 AI 助手',
         },
         initial,
       ),
     ).toEqual([
-      { key: SETTING_KEYS.defaultAgentName, value: '青柚 AI 助手' },
+      { key: SETTING_KEYS.defaultAgentName, value: '玄果 AI 助手' },
       { key: SETTING_KEYS.defaultAgentAvatar, value: '/images/brand/logo.svg' },
     ]);
   });
@@ -219,7 +269,7 @@ describe('adminSettingsForm', () => {
   it('includes login page title and copyright in brand setting updates', () => {
     const initial = buildFormValues({
       brandAuthTitle: 'Agent teammates that grow with you',
-      brandCopyrightText: '© 2026 青柚 AI. All rights reserved.',
+      brandCopyrightText: '© 2026 玄果 AI. All rights reserved.',
     });
 
     expect(
@@ -227,19 +277,20 @@ describe('adminSettingsForm', () => {
         {
           ...initial,
           brandAuthTitle: '与团队一起成长的 AI 助手',
-          brandCopyrightText: '© 2026 Qingyou AI',
+          brandCopyrightText: '© 2026 Xuangguo AI',
         },
         initial,
       ),
     ).toEqual([
       { key: SETTING_KEYS.brandAuthTitle, value: '与团队一起成长的 AI 助手' },
-      { key: SETTING_KEYS.brandCopyrightText, value: '© 2026 Qingyou AI' },
+      { key: SETTING_KEYS.brandCopyrightText, value: '© 2026 Xuangguo AI' },
     ]);
   });
 
   it('includes home messenger controls and community fork copy in brand setting updates', () => {
     const initial = buildFormValues({
       communityForkAndChatLabel: '',
+      communitySkillUseButtonLabel: '',
       homeMessengerEnabled: true,
       homeMessengerBannerTitle: '',
     });
@@ -249,6 +300,7 @@ describe('adminSettingsForm', () => {
         {
           ...initial,
           communityForkAndChatLabel: '立即派生',
+          communitySkillUseButtonLabel: 'Use in ComHub',
           homeMessengerEnabled: false,
           homeMessengerBannerTitle: '在聊天平台中，与 {{brandName}} 畅聊',
         },
@@ -261,16 +313,18 @@ describe('adminSettingsForm', () => {
       },
       { key: SETTING_KEYS.homeMessengerEnabled, value: false },
       { key: SETTING_KEYS.communityForkAndChatLabel, value: '立即派生' },
+      { key: SETTING_KEYS.communitySkillUseButtonLabel, value: 'Use in ComHub' },
     ]);
 
     expect(
       getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.communitySkillUseButtonLabel, value: 'Use in ComHub' },
         {
           key: SETTING_KEYS.homeMessengerBannerTitle,
           value: '在聊天平台中，与 {{brandName}} 畅聊',
         },
       ]),
-    ).toEqual(['brand-config']);
+    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState', 'brand-config']);
   });
 
   it('includes sidebar member and generation labels in brand setting updates', () => {
@@ -305,13 +359,11 @@ describe('adminSettingsForm', () => {
     const initial = buildFormValues({
       brandAuthTitle: 'Login page copy',
       brandLoadingText: 'Loading copy',
-      brandLoadingSvgUrl: '',
       brandSlogan: 'Legacy slogan',
     });
 
     expect(initial.brandAuthTitle).toBe('Login page copy');
     expect(initial.brandLoadingText).toBe('Loading copy');
-    expect(initial.brandLoadingSvgUrl).toBe('');
     expect(initial.brandSlogan).toBe('Legacy slogan');
 
     expect(
@@ -319,14 +371,10 @@ describe('adminSettingsForm', () => {
         {
           ...initial,
           brandLoadingText: 'Only this appears while loading',
-          brandLoadingSvgUrl: 'https://cdn.example.com/loading.svg',
         },
         initial,
       ),
-    ).toEqual([
-      { key: SETTING_KEYS.brandLoadingText, value: 'Only this appears while loading' },
-      { key: SETTING_KEYS.brandLoadingSvgUrl, value: 'https://cdn.example.com/loading.svg' },
-    ]);
+    ).toEqual([{ key: SETTING_KEYS.brandLoadingText, value: 'Only this appears while loading' }]);
   });
 
   it('refreshes runtime config and user state when default assistant config changes', () => {
@@ -337,12 +385,28 @@ describe('adminSettingsForm', () => {
     ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
 
     expect(
-      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.defaultAgentName, value: '青柚助手' }]),
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.defaultAgentName, value: DEFAULT_COMHUB_AGENT_NAME },
+      ]),
     ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
 
     expect(
-      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.brandName, value: '青柚 AI' }]),
+      getAdminSettingsRefreshKeys([{ key: SETTING_KEYS.brandName, value: '玄果 AI' }]),
     ).toEqual(['brand-config']);
+  });
+
+  it('refreshes runtime config and user state when memory analysis models change', () => {
+    expect(
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.memoryUserMemoryGatekeeperModel, value: 'gpt-5.5' },
+      ]),
+    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
+
+    expect(
+      getAdminSettingsRefreshKeys([
+        { key: SETTING_KEYS.memoryUserMemoryEmbeddingProvider, value: 'siliconflow' },
+      ]),
+    ).toEqual(['FETCH_SERVER_CONFIG', 'initUserState']);
   });
 
   it('shares the pricing model rules setting key with matrix-style admin pages', () => {
@@ -353,12 +417,7 @@ describe('adminSettingsForm', () => {
     expect(SETTING_KEYS.profileInterestAreas).toBe('profile.interestAreas');
   });
 
-  it('shares notification preference keys with admin notification controls', () => {
-    expect(SETTING_KEYS.notificationPushEnabled).toBe('notification.push.enabled');
-    expect(SETTING_KEYS.notificationEventDefaults).toBe('notification.eventDefaults');
-  });
-
-  it('includes memory trigger mode in system maintenance settings', () => {
+  it('keeps memory trigger mode readable without saving it from site settings', () => {
     const initial = buildFormValues({
       memoryUserMemoryTriggerMode: 'auto',
     });
@@ -373,10 +432,10 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([{ key: SETTING_KEYS.memoryUserMemoryTriggerMode, value: 'direct' }]);
+    ).toEqual([]);
   });
 
-  it('includes global billing controls in site setting updates', () => {
+  it('keeps global billing controls readable without saving them from site settings', () => {
     const initial = buildFormValues({
       ordersManagementEnabled: true,
       pricingCreditMultiplier: 1,
@@ -394,13 +453,22 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([
-      { key: SETTING_KEYS.pricingCreditMultiplier, value: 1.35 },
-      { key: SETTING_KEYS.ordersManagementEnabled, value: false },
-    ]);
+    ).toEqual([]);
   });
 
-  it('includes S3 storage settings in site setting updates while keeping the secret write-only', () => {
+  it('defaults global pricing multiplier to the configured 35 percent margin', () => {
+    const initial = buildFormValues();
+
+    expect(initial.pricingMultiplier).toBe(DEFAULT_PRICING_CREDIT_MULTIPLIER);
+  });
+
+  it('normalizes non-positive global pricing multiplier to the configured 35 percent margin', () => {
+    const initial = buildFormValues();
+
+    expect(buildSettingUpdates({ ...initial, pricingMultiplier: 0 }, initial)).toEqual([]);
+  });
+
+  it('keeps S3 storage settings readable without saving them from site settings', () => {
     const initial = buildFormValues({
       storageS3AccessKeyId: 'env-access-key',
       storageS3Bucket: 'env-bucket',
@@ -434,21 +502,10 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([
-      { key: SETTING_KEYS.storageS3AccessKeyId, value: 'admin-access-key' },
-      { key: SETTING_KEYS.storageS3SecretAccessKey, value: 'new-secret' },
-      { key: SETTING_KEYS.storageS3Endpoint, value: 'https://admin-s3.example.com' },
-      { key: SETTING_KEYS.storageS3FilePath, value: 'admin-files' },
-      { key: SETTING_KEYS.storageS3Bucket, value: 'admin-bucket' },
-      { key: SETTING_KEYS.storageS3Region, value: 'ap-southeast-1' },
-      { key: SETTING_KEYS.storageS3PublicDomain, value: 'https://cdn.example.com' },
-      { key: SETTING_KEYS.storageS3EnablePathStyle, value: true },
-      { key: SETTING_KEYS.storageS3SetAcl, value: false },
-      { key: SETTING_KEYS.storageS3PreviewUrlExpireIn, value: 1800 },
-    ]);
+    ).toEqual([]);
   });
 
-  it('allows rotating only the S3 secret without resending the masked current secret', () => {
+  it('does not rotate S3 secrets from site settings', () => {
     const initial = buildFormValues({
       storageS3AccessKeyId: 'env-access-key',
       storageS3Bucket: 'env-bucket',
@@ -464,7 +521,7 @@ describe('adminSettingsForm', () => {
         },
         initial,
       ),
-    ).toEqual([{ key: SETTING_KEYS.storageS3SecretAccessKey, value: 'rotated-secret' }]);
+    ).toEqual([]);
   });
 
   it('saves about page links as one shared setting', () => {
@@ -482,7 +539,9 @@ describe('adminSettingsForm', () => {
           ...initial,
           aboutLinks: {
             ...initial.aboutLinks,
-            contact: [{ id: 'officialSite', label: '青柚官网', url: 'https://chat.qingyouai.com' }],
+            contact: [
+              { id: 'officialSite', label: '玄果官网', url: 'https://xuangguo.example.com' },
+            ],
           },
         },
         initial,
@@ -493,7 +552,7 @@ describe('adminSettingsForm', () => {
         value: {
           ...initial.aboutLinks,
           contact: [
-            { id: 'officialSite', label: '青柚官网', url: 'https://chat.qingyouai.com' },
+            { id: 'officialSite', label: '玄果官网', url: 'https://xuangguo.example.com' },
             ...initial.aboutLinks.contact.slice(1),
           ],
         },

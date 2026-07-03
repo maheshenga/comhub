@@ -4,28 +4,11 @@ import { type PropsWithChildren } from 'react';
 import BusinessAuthProvider from '@/business/client/BusinessAuthProvider';
 import ClientOnly from '@/components/client/ClientOnly';
 import { BrandProvider } from '@/features/Brand';
-import { metadataModule } from '@/server/metadata';
 import { getServerBrand } from '@/server/services/brand';
-import { translation } from '@/server/translation';
 import { type DynamicLayoutProps } from '@/types/next';
-import { RouteVariants } from '@/utils/server/routeVariants';
 
 import AuthContainer from './_layout';
 import AuthGlobalProvider from './_layout/AuthGlobalProvider';
-
-export const generateMetadata = async (props: DynamicLayoutProps) => {
-  const locale = await RouteVariants.getLocale(props);
-  const { t } = await translation('auth', locale);
-  const brand = await getServerBrand();
-  const siteName = brand.name?.trim() || undefined;
-
-  return metadataModule.generate({
-    description: brand.authTitle?.trim() || t('signin.title'),
-    siteName,
-    title: siteName || t('signin.title'),
-    url: '/signin',
-  });
-};
 
 const AuthLayout = async ({ children, params }: PropsWithChildren<DynamicLayoutProps>) => {
   const { variants } = await params;
@@ -34,15 +17,13 @@ const AuthLayout = async ({ children, params }: PropsWithChildren<DynamicLayoutP
   return (
     <AuthGlobalProvider variants={variants}>
       <ClientOnly>
-        {/* ComHub: keep ClientOnly as the direct auth client boundary; moving BrandProvider
-            outside it can leave production auth pages as an empty client shell. */}
-        <BrandProvider initialBrand={brand} updateDocumentTitle={false}>
-          <NuqsAdapter>
-            <BusinessAuthProvider>
+        <NuqsAdapter>
+          <BusinessAuthProvider>
+            <BrandProvider initialBrand={brand} updateDocumentTitle={false}>
               <AuthContainer>{children}</AuthContainer>
-            </BusinessAuthProvider>
-          </NuqsAdapter>
-        </BrandProvider>
+            </BrandProvider>
+          </BusinessAuthProvider>
+        </NuqsAdapter>
       </ClientOnly>
     </AuthGlobalProvider>
   );

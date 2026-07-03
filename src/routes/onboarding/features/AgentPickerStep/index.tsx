@@ -10,17 +10,20 @@ import { cssVar } from 'antd-style';
 import { Undo2Icon } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 
 import { LOCAL_ONBOARDING_AGENT_TEMPLATES } from '@/const/onboardingAgentTemplates';
 import { useOnboardingAgentTemplates } from '@/hooks/useOnboardingAgentTemplates';
 import { installMarketplaceAgents } from '@/services/installMarketplaceAgents';
 import {
+  trackOnboardingCompleted,
   trackOnboardingMarketplacePicked,
   trackOnboardingMarketplaceShown,
+  trackOnboardingStepCompleted,
 } from '@/services/onboardingMetrics';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
+import { consumeOnboardingCallbackUrl } from '@/utils/onboardingRedirect';
 
 import LobeMessage from '../../components/LobeMessage';
 import { interestsToCategoryHints } from '../../interestCategoryMap';
@@ -40,7 +43,9 @@ const AgentPickerStep = memo<AgentPickerStepProps>(({ onBack }) => {
   const { t: tTool } = useTranslation('tool');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const showBack = searchParams.get('entry') !== 'skip';
+  const isAgentSkipEntry = searchParams.get('entry') === 'skip';
+  const showBack = !isAgentSkipEntry;
+  const completionFlow = isAgentSkipEntry ? 'agent' : 'classic';
 
   const finishOnboarding = useUserStore((s) => s.finishOnboarding);
   const interests = useUserStore(userProfileSelectors.interests);
@@ -98,16 +103,30 @@ const AgentPickerStep = memo<AgentPickerStepProps>(({ onBack }) => {
     trackOnboardingMarketplaceShown({ categoryHints, requestId });
   }, [categoryHints, requestId]);
 
-  const finish = useCallback(async () => {
-    await finishOnboarding();
-    navigate('/');
-  }, [finishOnboarding, navigate]);
+  const finish = useCallback(
+    async (action: 'continue' | 'skip', selectedCount: number) => {
+      await finishOnboarding();
+      trackOnboardingStepCompleted({
+        action,
+        entry: isAgentSkipEntry ? 'agent_skip' : 'classic',
+        flow: completionFlow,
+        selectedCount,
+        step: 'agentpicker',
+        stepIndex: 4,
+      });
+      // Restore the original signup target (threaded through onboarding), if any
+      const targetUrl = consumeOnboardingCallbackUrl() || '/';
+      trackOnboardingCompleted({ flow: completionFlow, targetUrl });
+      navigate(targetUrl);
+    },
+    [completionFlow, finishOnboarding, isAgentSkipEntry, navigate],
+  );
 
   const handleSkip = useCallback(async () => {
     if (pendingRef.current) return;
     pendingRef.current = true;
     setPending('skip');
-    await finish();
+    await finish('skip', 0);
   }, [finish]);
 
   const handleContinue = useCallback(async () => {
@@ -122,7 +141,7 @@ const AgentPickerStep = memo<AgentPickerStepProps>(({ onBack }) => {
     } catch (installError) {
       console.error('[AgentPickerStep] install failed', installError);
     }
-    await finish();
+    await finish('continue', selectedTemplateIds.length);
   }, [categoryHints, finish, requestId, selected]);
 
   const handleBack = useCallback(() => {

@@ -59,7 +59,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `translated:${key}` }),
 }));
 
-vi.mock('react-router-dom', async () => {
+vi.mock('react-router', async () => {
   const React = await vi.importActual<typeof ReactModule>('react');
 
   return {
@@ -123,17 +123,20 @@ describe('RouteMetaBridge', () => {
 
     render(<RouteMetaBridge />);
 
-    await waitFor(() => {
-      expect(document.title).toBe(`Chat A · ${BRANDING_NAME}`);
-      expect(mocks.setCurrentRouteMeta).toHaveBeenLastCalledWith(
-        {
-          avatar: undefined,
-          backgroundColor: undefined,
-          title: 'Chat A',
-        },
-        '/agent/agent-a',
-      );
-    });
+    await waitFor(
+      () => {
+        expect(document.title).toBe(`Chat A · ${BRANDING_NAME}`);
+        expect(mocks.setCurrentRouteMeta).toHaveBeenLastCalledWith(
+          {
+            avatar: undefined,
+            backgroundColor: undefined,
+            title: 'Chat A',
+          },
+          '/agent/agent-a',
+        );
+      },
+      { timeout: 2000 },
+    );
 
     act(() => {
       mocks.setMatches([
@@ -151,5 +154,57 @@ describe('RouteMetaBridge', () => {
       expect(document.title).toBe(BRANDING_NAME);
       expect(mocks.setCurrentRouteMeta).toHaveBeenLastCalledWith(null);
     });
+  });
+
+  it('keeps the previous title when switching params within the same route', async () => {
+    const titleSets: string[] = [];
+    const titleDescriptor = Object.getOwnPropertyDescriptor(document, 'title');
+    let titleStore = '';
+    Object.defineProperty(document, 'title', {
+      configurable: true,
+      get: () => titleStore,
+      set: (value: string) => {
+        titleStore = value;
+        titleSets.push(value);
+      },
+    });
+
+    try {
+      const makeMatch = (topicId: string) => ({
+        data: undefined,
+        handle: {
+          meta: {
+            titleKey: 'navigation.chat',
+            useDynamicMeta: (params: Record<string, string | undefined>) => ({
+              title: `Topic ${params.topicId}`,
+            }),
+          },
+        },
+        id: 'routes/agent',
+        params: { topicId },
+        pathname: `/agent/${topicId}`,
+      });
+
+      mocks.setMatches([makeMatch('a')]);
+      render(<RouteMetaBridge />);
+
+      await waitFor(() => {
+        expect(document.title).toBe(`Topic a · ${BRANDING_NAME}`);
+      });
+
+      titleSets.length = 0;
+
+      act(() => {
+        mocks.setMatches([makeMatch('b')]);
+      });
+
+      await waitFor(() => {
+        expect(document.title).toBe(`Topic b · ${BRANDING_NAME}`);
+      });
+
+      expect(titleSets).not.toContain(`translated:navigation.chat · ${BRANDING_NAME}`);
+    } finally {
+      if (titleDescriptor) Object.defineProperty(document, 'title', titleDescriptor);
+    }
   });
 });

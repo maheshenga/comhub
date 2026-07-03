@@ -1,11 +1,3 @@
-import { isDesktop } from './version';
-
-export const ELECTRON_BE_PROTOCOL_SCHEME = 'lobe-backend';
-
-export const withElectronProtocolIfElectron = (url: string) => {
-  return isDesktop ? `${ELECTRON_BE_PROTOCOL_SCHEME}://lobe${url}` : url;
-};
-
 /**
  * Custom protocol the desktop main process exposes for serving approved
  * local workspace file previews to the renderer.
@@ -14,6 +6,8 @@ export const withElectronProtocolIfElectron = (url: string) => {
  */
 export const LOCAL_FILE_PROTOCOL_SCHEME = 'localfile';
 export const LOCAL_FILE_PROTOCOL_HOST = 'file';
+
+export const withElectronProtocolIfElectron = (url: string) => url;
 
 /**
  * Build a `localfile://file/<abs-path>` URL from an absolute filesystem path.

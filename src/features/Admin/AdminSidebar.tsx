@@ -10,10 +10,12 @@ import {
   Compass,
   CreditCard,
   Download,
+  HardDrive,
   FileArchive,
   FileText,
   FolderOpen,
   Gauge,
+  Wrench,
   Megaphone,
   MessageSquareText,
   Package,
@@ -28,7 +30,7 @@ import {
   Users,
 } from 'lucide-react';
 import { memo, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import {
   ADMIN_NAV_GROUPS,
@@ -44,8 +46,10 @@ const iconMap: Record<AdminNavIcon, typeof Gauge> = {
   'desktop': Download,
   'documents': FileText,
   'expert-plaza': Compass,
+  'file-storage': HardDrive,
   'files': FileArchive,
   'growth': ShieldCheck,
+  'maintenance': Wrench,
   'models': SlidersHorizontal,
   'notifications': Bell,
   'orders': ReceiptText,

@@ -6,15 +6,17 @@ import { EyeOffIcon, MoreHorizontalIcon, SlidersHorizontalIcon } from 'lucide-re
 import type { Key, ReactElement } from 'react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
 
 import NavItem from '@/features/NavPanel/components/NavItem';
+import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useActiveTabKey } from '@/hooks/useActiveTabKey';
 import type { NavItem as NavItemType } from '@/hooks/useNavLayout';
 import { useNavLayout } from '@/hooks/useNavLayout';
 import Recents from '@/routes/(main)/home/features/Recents';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors';
+import { SIDEBAR_SPACER_ID } from '@/store/global/selectors/systemStatus';
 import { isExternalUrl, isModifierClick } from '@/utils/navigation';
 
 import Agent from './Agent';
@@ -59,7 +61,7 @@ const mergeSidebarExpandedKeys = (
 const Body = memo(() => {
   const { t } = useTranslation('common');
   const tab = useActiveTabKey();
-  const navigate = useNavigate();
+  const navigate = useWorkspaceAwareNavigate();
   const { topNavItems, bottomMenuItems } = useNavLayout();
   const sidebarItems = useGlobalStore(systemStatusSelectors.sidebarItems);
   const sidebarExpandedKeys = useGlobalStore(systemStatusSelectors.sidebarExpandedKeys);
@@ -100,14 +102,9 @@ const Body = memo(() => {
     return map;
   }, [topNavItems, bottomMenuItems]);
 
-  const bottomNavKeys = useMemo(
-    () => new Set(bottomMenuItems.map((item) => item.key)),
-    [bottomMenuItems],
-  );
-
   // Items that must always be visible regardless of hiddenSections
   const isVisible = useCallback(
-    (k: string) => k === GroupKey.Agent || !hiddenSections.includes(k),
+    (k: string) => k === GroupKey.Agent || k === SIDEBAR_SPACER_ID || !hiddenSections.includes(k),
     [hiddenSections],
   );
 
@@ -142,7 +139,7 @@ const Body = memo(() => {
       }
 
       return (
-        <Link
+        <WorkspaceLink
           key={key}
           to={navItem.url!}
           onClick={(e) => {
@@ -152,7 +149,7 @@ const Body = memo(() => {
           }}
         >
           {item}
-        </Link>
+        </WorkspaceLink>
       );
     },
     [navLinkItems, tab, getContextMenuItems, navigate],
@@ -171,70 +168,55 @@ const Body = memo(() => {
     [sidebarExpandedKeys, updateSystemStatus],
   );
 
-  // Render the flat list: group consecutive accordion items into an Accordion,
-  // interleave non-accordion keys as nav links.
+  // Render the flat list in `sidebarItems` order: group consecutive accordion
+  // items into an Accordion, interleave non-accordion keys as nav links, and
+  // emit a flex spacer wherever the spacer sentinel appears.
   const content = useMemo(() => {
-    const renderSection = (keys: string[], section: 'bottom' | 'top') => {
-      const elements: ReactElement[] = [];
-      let accGroup: { element: ReactElement; key: string }[] = [];
+    const elements: ReactElement[] = [];
+    let accGroup: { element: ReactElement; key: string }[] = [];
 
-      const flushAccordion = () => {
-        if (accGroup.length > 0) {
-          const accordionKeys = accGroup.map((item) => item.key);
+    const flushAccordion = () => {
+      if (accGroup.length > 0) {
+        const accordionKeys = accGroup.map((item) => item.key);
 
-          elements.push(
-            <Accordion
-              expandedKeys={sidebarExpandedKeys}
-              gap={8}
-              key={`${section}-acc-${elements.length}`}
-              onExpandedChange={(keys) => handleAccordionExpandedChange(accordionKeys, keys)}
-            >
-              {accGroup.map((item) => item.element)}
-            </Accordion>,
-          );
-          accGroup = [];
-        }
-      };
-
-      for (const key of keys) {
-        if (ACCORDION_KEYS.has(key)) {
-          const comp = accordionComponents[key]?.(key);
-          if (comp) accGroup.push({ element: comp, key });
-        } else {
-          flushAccordion();
-          const link = renderNavLink(key);
-          if (link) elements.push(link);
-        }
+        elements.push(
+          <Accordion
+            expandedKeys={sidebarExpandedKeys}
+            gap={8}
+            key={`acc-${elements.length}`}
+            onExpandedChange={(keys) => handleAccordionExpandedChange(accordionKeys, keys)}
+          >
+            {accGroup.map((item) => item.element)}
+          </Accordion>,
+        );
+        accGroup = [];
       }
-      flushAccordion();
-
-      return elements;
     };
 
-    const topKeys = visibleKeys.filter((key) => !bottomNavKeys.has(key));
-    const bottomKeys = visibleKeys.filter((key) => bottomNavKeys.has(key));
-    const topElements = renderSection(topKeys, 'top');
-    const bottomElements = renderSection(bottomKeys, 'bottom');
+    for (const key of visibleKeys) {
+      if (key === SIDEBAR_SPACER_ID) {
+        flushAccordion();
+        elements.push(
+          <div
+            aria-hidden
+            data-sidebar-bottom-spacer
+            key={`spacer-${elements.length}`}
+            style={{ flex: '1 1 0', minHeight: 0 }}
+          />,
+        );
+      } else if (ACCORDION_KEYS.has(key)) {
+        const comp = accordionComponents[key]?.(key);
+        if (comp) accGroup.push({ element: comp, key });
+      } else {
+        flushAccordion();
+        const link = renderNavLink(key);
+        if (link) elements.push(link);
+      }
+    }
+    flushAccordion();
 
-    if (bottomElements.length === 0) return topElements;
-
-    return [
-      ...topElements,
-      <div
-        aria-hidden
-        data-sidebar-bottom-spacer
-        key={'bottom-nav-spacer'}
-        style={{ flex: '1 1 0', minHeight: 0 }}
-      />,
-      ...bottomElements,
-    ];
-  }, [
-    visibleKeys,
-    renderNavLink,
-    sidebarExpandedKeys,
-    handleAccordionExpandedChange,
-    bottomNavKeys,
-  ]);
+    return elements;
+  }, [visibleKeys, renderNavLink, sidebarExpandedKeys, handleAccordionExpandedChange]);
 
   return (
     <Flexbox flex={1} gap={1} paddingInline={4} style={{ minHeight: '100%' }}>

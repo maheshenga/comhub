@@ -8,20 +8,15 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useBrand, useBrandName } from '@/features/Brand';
-
 import { AuthCard } from '../../../../../features/AuthCard';
 import { trackLoginOrSignupClicked } from '../../../../../features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
 import { type SignUpFormValues } from './useSignUp';
 import { useSignUp } from './useSignUp';
 
 const BetterAuthSignUpForm = () => {
-  const [form] = Form.useForm<SignUpFormValues>();
-  const { loading, onSubmit, businessElement } = useSignUp();
+  const { form, loading, onSubmit, businessElement } = useSignUp();
 
   const { t } = useTranslation('auth');
-  const brand = useBrand();
-  const brandName = useBrandName();
   const searchParams = useSearchParams();
 
   const emailInputRef = useRef<InputRef>(null);
@@ -57,8 +52,8 @@ const BetterAuthSignUpForm = () => {
   return (
     <AuthCard
       footer={footer}
-      subtitle={t('signin.subtitle', { appName: brandName })}
-      title={brand.authTitle || t('betterAuth.signup.title')}
+      subtitle={t('betterAuth.signup.subtitle')}
+      title={t('betterAuth.signup.title')}
     >
       <Form form={form} layout="vertical" onFinish={onSubmit}>
         <Form.Item

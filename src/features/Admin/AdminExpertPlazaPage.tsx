@@ -94,19 +94,21 @@ const AdminExpertPlazaPage = memo(() => {
         (item) => item.id && item.title && item.description,
       );
 
-      await Promise.all([
-        adminCommercialService.setAppSetting({ key: SETTING_KEYS.enabled, value: values.enabled }),
-        adminCommercialService.setAppSetting({ key: SETTING_KEYS.name, value: values.name }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.description,
-          value: values.description,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.categories,
-          value: splitTextList(values.categoriesText),
-        }),
-        adminCommercialService.setAppSetting({ key: SETTING_KEYS.cards, value: cards }),
-      ]);
+      await adminCommercialService.setAppSettingsBatch({
+        updates: [
+          { key: SETTING_KEYS.enabled, value: values.enabled },
+          { key: SETTING_KEYS.name, value: values.name },
+          {
+            key: SETTING_KEYS.description,
+            value: values.description,
+          },
+          {
+            key: SETTING_KEYS.categories,
+            value: splitTextList(values.categoriesText),
+          },
+          { key: SETTING_KEYS.cards, value: cards },
+        ],
+      });
 
       await mutate(ADMIN_SETTINGS_SWR_KEY);
       await mutate(PUBLIC_EXPERT_PLAZA_SWR_KEY);

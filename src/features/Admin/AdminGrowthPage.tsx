@@ -12,6 +12,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 const SETTING_KEYS = {
   initialCredits: 'onboarding.initialCredits',
   initialCreditsEnabled: 'onboarding.initialCredits.enabled',
+  referralRewardCredits: 'referral.rewardCredits',
   signupDisabledMessage: 'auth.signup.disabledMessage',
   signupEnabled: 'auth.signup.enabled',
   signupPhoneEnabled: 'auth.signup.phoneEnabled',
@@ -22,6 +23,7 @@ const SETTING_KEYS = {
 type FormValues = {
   initialCredits: number;
   initialCreditsEnabled: boolean;
+  referralRewardCredits: number;
   signupDisabledMessage: string;
   signupEnabled: boolean;
   signupPhoneEnabled: boolean;
@@ -42,6 +44,7 @@ const AdminGrowthPage = memo(() => {
     form.setFieldsValue({
       initialCredits: data.growthConfig.initialCredits.amount,
       initialCreditsEnabled: data.growthConfig.initialCredits.enabled,
+      referralRewardCredits: data.referralRewardCredits ?? 0,
       signupDisabledMessage: data.growthConfig.signup.disabledMessage,
       signupEnabled: data.growthConfig.signup.enabled,
       signupPhoneEnabled: data.growthConfig.signup.phoneEnabled,
@@ -54,36 +57,42 @@ const AdminGrowthPage = memo(() => {
     setSubmitting(true);
     try {
       const values = await form.validateFields();
-      await Promise.all([
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.signupEnabled,
-          value: values.signupEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.signupDisabledMessage,
-          value: values.signupDisabledMessage,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.signupPhoneEnabled,
-          value: values.signupPhoneEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.initialCreditsEnabled,
-          value: values.initialCreditsEnabled,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.initialCredits,
-          value: values.initialCredits,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.uploadMaxInputSizeMb,
-          value: values.uploadMaxInputSizeMb,
-        }),
-        adminCommercialService.setAppSetting({
-          key: SETTING_KEYS.uploadMaxActualSizeMb,
-          value: values.uploadMaxActualSizeMb,
-        }),
-      ]);
+      await adminCommercialService.setAppSettingsBatch({
+        updates: [
+          {
+            key: SETTING_KEYS.signupEnabled,
+            value: values.signupEnabled,
+          },
+          {
+            key: SETTING_KEYS.signupDisabledMessage,
+            value: values.signupDisabledMessage,
+          },
+          {
+            key: SETTING_KEYS.signupPhoneEnabled,
+            value: values.signupPhoneEnabled,
+          },
+          {
+            key: SETTING_KEYS.initialCreditsEnabled,
+            value: values.initialCreditsEnabled,
+          },
+          {
+            key: SETTING_KEYS.initialCredits,
+            value: values.initialCredits,
+          },
+          {
+            key: SETTING_KEYS.referralRewardCredits,
+            value: values.referralRewardCredits,
+          },
+          {
+            key: SETTING_KEYS.uploadMaxInputSizeMb,
+            value: values.uploadMaxInputSizeMb,
+          },
+          {
+            key: SETTING_KEYS.uploadMaxActualSizeMb,
+            value: values.uploadMaxActualSizeMb,
+          },
+        ],
+      });
       message.success(t('admin.growth.saveSuccess', '增长配置已保存'));
       await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
@@ -107,6 +116,7 @@ const AdminGrowthPage = memo(() => {
         initialValues={{
           initialCredits: 0,
           initialCreditsEnabled: false,
+          referralRewardCredits: 0,
           signupDisabledMessage: '注册暂时关闭。',
           signupEnabled: true,
           signupPhoneEnabled: false,
@@ -155,6 +165,18 @@ const AdminGrowthPage = memo(() => {
             'admin.growth.initialCredits.help',
             '新账号创建时仅赠送一次，使用系统内部积分单位。',
           )}
+        >
+          <InputNumber min={0} precision={0} style={{ width: '100%' }} />
+        </Form.Item>
+
+        <Divider plain>{t('admin.growth.referralSection', '邀请与推荐')}</Divider>
+        <Form.Item
+          extra={t(
+            'admin.growth.referralReward.help',
+            '用户邀请新用户完成注册后发放的奖励积分，使用系统内部积分单位。',
+          )}
+          label={t('admin.growth.referralReward', '推荐奖励积分')}
+          name="referralRewardCredits"
         >
           <InputNumber min={0} precision={0} style={{ width: '100%' }} />
         </Form.Item>
