@@ -128,6 +128,7 @@ export type DefaultModelOption = {
   label: string;
   model: string;
   provider: string;
+  providerLabel?: string;
   value: string;
 };
 
@@ -331,6 +332,21 @@ const buildManagedModelOptionLabel = ({
   return `${name}（${providerLabel} / ${modelType}${instanceSuffix}）`;
 };
 
+const buildManagedProviderLabel = ({
+  instanceName,
+  provider,
+  providerType,
+}: {
+  instanceName: string;
+  provider: string;
+  providerType: string;
+}) => {
+  const providerLabel =
+    providerType || instanceName || (legacyProviderIdPattern.test(provider) ? 'newapi' : provider);
+
+  return providerType && instanceName ? `${providerLabel} / ${instanceName}` : providerLabel;
+};
+
 export const buildModelOptions = (data?: {
   defaultModelSuggestions?: string[] | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
@@ -358,6 +374,7 @@ export const buildModelOptions = (data?: {
       label: buildManagedModelOptionLabel({ instanceName, modelType, name, provider, providerType }),
       model,
       provider,
+      providerLabel: buildManagedProviderLabel({ instanceName, provider, providerType }),
       value: key,
     });
   }
@@ -399,6 +416,22 @@ export const resolveModelOptionValue = (
 
   const candidates = options.filter((option) => option.model === model);
   return candidates.length === 1 ? candidates[0].value : directValue;
+};
+
+export const resolveModelProviderLabel = (
+  value?: { model?: unknown; provider?: unknown } | null,
+  options: DefaultModelOption[] = [],
+) => {
+  const provider = normalizeText(value?.provider);
+  const model = normalizeText(value?.model);
+  if (!provider) return '';
+
+  const candidates = model ? options.filter((option) => option.model === model) : [];
+  const selected =
+    candidates.find((option) => option.provider === provider) ??
+    (legacyProviderIdPattern.test(provider) && candidates.length === 1 ? candidates[0] : undefined);
+
+  return selected?.providerLabel || selected?.provider || provider;
 };
 
 export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValues => ({

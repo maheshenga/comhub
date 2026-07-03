@@ -11,6 +11,7 @@ import {
   getAdminSettingsRefreshKeys,
   RECOMMENDED_HELP_MENU_ITEMS,
   resolveModelOptionValue,
+  resolveModelProviderLabel,
   SETTING_KEYS,
 } from './adminSettingsForm';
 
@@ -41,12 +42,14 @@ describe('adminSettingsForm', () => {
         label: 'DeepSeek Chat（主网关 / chat）',
         model: 'deepseek-chat',
         provider: 'newapi',
+        providerLabel: '主网关',
         value: 'newapi:deepseek-chat',
       },
       {
         label: 'flux-kontext（图像网关 / image）',
         model: 'flux-kontext',
         provider: 'newapi',
+        providerLabel: '图像网关',
         value: 'newapi:flux-kontext',
       },
       {
@@ -76,6 +79,7 @@ describe('adminSettingsForm', () => {
         label: 'Qwen Coder（OpenCode Go / chat）',
         model: 'qwen3-coder',
         provider: 'opencodego-1234567890',
+        providerLabel: 'OpenCode Go',
         value: 'opencodego-1234567890:qwen3-coder',
       },
     ]);
@@ -116,9 +120,35 @@ describe('adminSettingsForm', () => {
     expect(options[0]).toMatchObject({
       label: 'OpenCode Chat（opencodego / chat / OpenCode Gateway）',
       provider: '1234567890',
+      providerLabel: 'opencodego / OpenCode Gateway',
       value: '1234567890:opencode-chat',
     });
     expect(options[0].label).not.toContain('1234567890');
+  });
+
+  it('resolves managed provider labels for UUID-backed memory model settings', () => {
+    const options = buildModelOptions({
+      enabledNewapiModels: [
+        {
+          displayName: 'DeepSeek V4 Pro',
+          instanceName: 'OpenCode Go',
+          modelId: 'deepseek-v4-pro',
+          modelType: 'chat',
+          provider: '757e1732-8478-4c93-a4dd-1e17489a9c48',
+          providerType: 'opencode-go',
+        },
+      ],
+    });
+
+    expect(
+      resolveModelProviderLabel(
+        {
+          model: 'deepseek-v4-pro',
+          provider: '757e1732-8478-4c93-a4dd-1e17489a9c48',
+        },
+        options,
+      ),
+    ).toBe('opencode-go / OpenCode Go');
   });
 
   it('builds site setting updates only for changed site basics', () => {
