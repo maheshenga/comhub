@@ -13,6 +13,7 @@ import {
   ADMIN_SETTINGS_SWR_KEY,
   type AdminSettingsFormValues,
   buildFormValues,
+  buildSettingMaterializationUpdates,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
 } from '@/features/Admin/adminSettingsForm';
@@ -38,6 +39,7 @@ const AdminSettingsPage = memo(() => {
     adminCommercialService.getAllSettings(),
   );
   const [form] = Form.useForm<AdminSettingsFormValues>();
+  const [materializing, setMaterializing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const watchedValues = Form.useWatch([], form) as Partial<AdminSettingsFormValues> | undefined;
@@ -76,6 +78,32 @@ const AdminSettingsPage = memo(() => {
       message.error(t('admin.settings.saveFailed', '保存失败，请检查表单内容'));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleMaterializeDefaults = async () => {
+    try {
+      const values = await form.validateFields();
+      const updates = buildSettingMaterializationUpdates(values);
+
+      setMaterializing(true);
+      await adminCommercialService.setAppSettingsBatch({ updates });
+      await mutate(ADMIN_SETTINGS_SWR_KEY);
+
+      const refreshKeys = getAdminSettingsRefreshKeys(updates);
+      for (const key of refreshKeys) {
+        await mutate(key);
+      }
+
+      message.success(
+        t('admin.settings.materializeDefaultsSuccess', '推荐默认配置已同步到后台设置'),
+      );
+    } catch {
+      message.error(
+        t('admin.settings.materializeDefaultsFailed', '同步失败，请检查表单内容后重试'),
+      );
+    } finally {
+      setMaterializing(false);
     }
   };
 
@@ -544,7 +572,7 @@ const AdminSettingsPage = memo(() => {
 
         <Space>
           <Button
-            disabled={!hasPendingChanges}
+            disabled={!hasPendingChanges || materializing}
             loading={submitting}
             type="primary"
             onClick={handleSave}
@@ -552,6 +580,9 @@ const AdminSettingsPage = memo(() => {
             {t('admin.settings.save', '保存设置')}
           </Button>
           {hasPendingChanges && <Text type="secondary">有 {pendingUpdates.length} 项待保存</Text>}
+          <Button disabled={submitting} loading={materializing} onClick={handleMaterializeDefaults}>
+            {t('admin.settings.materializeDefaults', '同步推荐默认配置')}
+          </Button>
         </Space>
       </Form>
     </Flexbox>

@@ -38,7 +38,7 @@ type NotificationSettingsForm = {
   systemType: 'error' | 'info' | 'success' | 'warning';
 };
 
-const buildInitialValues = (data: any): NotificationSettingsForm => ({
+export const buildInitialValues = (data: any): NotificationSettingsForm => ({
   desktopEnabled: data?.notificationDesktopEnabled ?? true,
   emailEnabled: data?.notificationEmailEnabled ?? false,
   eventDefaults: normalizeNotificationEventDefaults(data?.notificationEventDefaults),
@@ -55,25 +55,25 @@ const buildInitialValues = (data: any): NotificationSettingsForm => ({
     : 'warning',
 });
 
+const NOTIFICATION_SETTING_MAP: Array<[keyof NotificationSettingsForm, string]> = [
+  ['inboxEnabled', SETTING_KEYS.notificationInboxEnabled],
+  ['desktopEnabled', SETTING_KEYS.notificationDesktopEnabled],
+  ['emailEnabled', SETTING_KEYS.notificationEmailEnabled],
+  ['pushEnabled', SETTING_KEYS.notificationPushEnabled],
+  ['retentionDays', SETTING_KEYS.notificationRetentionDays],
+  ['systemEnabled', SETTING_KEYS.notificationSystemEnabled],
+  ['systemTitle', SETTING_KEYS.notificationSystemTitle],
+  ['systemContent', SETTING_KEYS.notificationSystemContent],
+  ['systemActionLabel', SETTING_KEYS.notificationSystemActionLabel],
+  ['systemActionUrl', SETTING_KEYS.notificationSystemActionUrl],
+  ['systemType', SETTING_KEYS.notificationSystemType],
+];
+
 const buildUpdates = (
   values: NotificationSettingsForm,
   initial: NotificationSettingsForm,
 ): SettingUpdate[] => {
-  const map: Array<[keyof NotificationSettingsForm, string]> = [
-    ['inboxEnabled', SETTING_KEYS.notificationInboxEnabled],
-    ['desktopEnabled', SETTING_KEYS.notificationDesktopEnabled],
-    ['emailEnabled', SETTING_KEYS.notificationEmailEnabled],
-    ['pushEnabled', SETTING_KEYS.notificationPushEnabled],
-    ['retentionDays', SETTING_KEYS.notificationRetentionDays],
-    ['systemEnabled', SETTING_KEYS.notificationSystemEnabled],
-    ['systemTitle', SETTING_KEYS.notificationSystemTitle],
-    ['systemContent', SETTING_KEYS.notificationSystemContent],
-    ['systemActionLabel', SETTING_KEYS.notificationSystemActionLabel],
-    ['systemActionUrl', SETTING_KEYS.notificationSystemActionUrl],
-    ['systemType', SETTING_KEYS.notificationSystemType],
-  ];
-
-  const updates = map
+  const updates = NOTIFICATION_SETTING_MAP
     .filter(([key]) => values[key] !== initial[key])
     .map(([key, settingKey]) => ({ key: settingKey, value: values[key] }));
 
@@ -86,12 +86,23 @@ const buildUpdates = (
   return updates;
 };
 
+export const buildNotificationMaterializationUpdates = (
+  values: NotificationSettingsForm,
+): SettingUpdate[] => [
+  ...NOTIFICATION_SETTING_MAP.map(([key, settingKey]) => ({ key: settingKey, value: values[key] })),
+  {
+    key: SETTING_KEYS.notificationEventDefaults,
+    value: normalizeNotificationEventDefaults(values.eventDefaults),
+  },
+];
+
 const AdminNotificationsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
   );
   const [form] = Form.useForm<NotificationSettingsForm>();
+  const [materializing, setMaterializing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const initialValues = useMemo(() => buildInitialValues(data), [data]);
 
@@ -119,6 +130,27 @@ const AdminNotificationsPage = memo(() => {
       message.error(t('admin.notifications.saveFailed', 'Failed to save notification settings'));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleMaterializeDefaults = async () => {
+    const values = await form.validateFields();
+    const updates = buildNotificationMaterializationUpdates(values);
+
+    setMaterializing(true);
+    try {
+      await adminCommercialService.setAppSettingsBatch({ updates });
+      await mutate(ADMIN_SETTINGS_SWR_KEY);
+      await mutate('public-notification-config');
+      message.success(
+        t('admin.notifications.materializeDefaultsSuccess', 'Notification defaults synced'),
+      );
+    } catch {
+      message.error(
+        t('admin.notifications.materializeDefaultsFailed', 'Failed to sync notification defaults'),
+      );
+    } finally {
+      setMaterializing(false);
     }
   };
 
@@ -257,8 +289,11 @@ const AdminNotificationsPage = memo(() => {
           </Form.Item>
         </Card>
 
-        <Flexbox horizontal justify="flex-end" style={{ marginTop: 16 }}>
-          <Button loading={submitting} type="primary" onClick={handleSave}>
+        <Flexbox horizontal gap={8} justify="flex-end" style={{ marginTop: 16 }}>
+          <Button disabled={submitting} loading={materializing} onClick={handleMaterializeDefaults}>
+            {t('admin.notifications.materializeDefaults', 'Sync defaults')}
+          </Button>
+          <Button disabled={materializing} loading={submitting} type="primary" onClick={handleSave}>
             {t('admin.notifications.save', 'Save notification settings')}
           </Button>
         </Flexbox>

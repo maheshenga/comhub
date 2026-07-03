@@ -1,4 +1,5 @@
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+import { SOCIAL_URL } from '@lobechat/business-const';
 
 import {
   type AboutLinksConfig,
@@ -20,6 +21,7 @@ import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { type HelpMenuItem, normalizeHelpMenuItems } from '@/const/helpMenu';
 import { type NotificationEventDefaults } from '@/const/notificationPreferences';
+import { DOCUMENTS_REFER_URL, GITHUB } from '@/const/url';
 import {
   type ConfiguredInterestArea,
   normalizeConfiguredInterestAreas,
@@ -260,6 +262,47 @@ export type SettingUpdate = { key: string; value: unknown };
 
 export const normalizeText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
+export const RECOMMENDED_HELP_MENU_ITEMS: HelpMenuItem[] = normalizeHelpMenuItems([
+  {
+    action: 'url',
+    enabled: true,
+    icon: 'book',
+    key: 'docs',
+    label: '使用文档',
+    url: DOCUMENTS_REFER_URL,
+  },
+  {
+    action: 'feedback',
+    enabled: true,
+    icon: 'feather',
+    key: 'feedback',
+    label: '联系我们',
+  },
+  {
+    action: 'url',
+    enabled: true,
+    icon: 'discord',
+    key: 'discord',
+    label: 'Discord',
+    url: SOCIAL_URL.discord,
+  },
+  {
+    action: 'changelog',
+    enabled: true,
+    icon: 'file-clock',
+    key: 'changelog',
+    label: '更新日志',
+  },
+  {
+    action: 'url',
+    enabled: true,
+    icon: 'github',
+    key: 'github',
+    label: 'GitHub',
+    url: GITHUB,
+  },
+]);
+
 export const normalizeMemoryUserMemoryTriggerMode = (
   value: unknown,
 ): MemoryUserMemoryTriggerMode =>
@@ -487,6 +530,100 @@ export const normalizeFormValues = (
   storageS3SetAcl: typeof values.storageS3SetAcl === 'boolean' ? values.storageS3SetAcl : false,
 });
 
+const SITE_CUSTOMIZATION_FIELDS: Array<keyof AdminSettingsFormValues> = [
+  'aboutLogoUrl',
+  'defaultAgentName',
+  'defaultAgentAvatar',
+  'defaultSkillName',
+  'brandName',
+  'brandLoadingText',
+  'brandLoadingSvgUrl',
+  'brandAuthTitle',
+  'brandCopyrightText',
+  'brandLogoUrl',
+  'brandFaviconUrl',
+  'brandPrimaryColor',
+  'brandSlogan',
+  'homeMessengerBannerTitle',
+  'homeMessengerEnabled',
+  'communityForkAndChatLabel',
+  'communitySkillUseButtonLabel',
+  'sidebarMemberLabel',
+  'sidebarMemberUrl',
+  'sidebarGenerationLabel',
+];
+
+const SETTING_KEY_BY_FORM_FIELD: Record<keyof AdminSettingsFormValues, string> = {
+  aboutLogoUrl: SETTING_KEYS.aboutLogoUrl,
+  brandFaviconUrl: SETTING_KEYS.brandFaviconUrl,
+  aboutLinks: SETTING_KEYS.aboutLinks,
+  aboutPage: SETTING_KEYS.aboutPage,
+  brandAuthTitle: SETTING_KEYS.brandAuthTitle,
+  brandCopyrightText: SETTING_KEYS.brandCopyrightText,
+  brandLogoUrl: SETTING_KEYS.brandLogoUrl,
+  brandLoadingText: SETTING_KEYS.brandLoadingText,
+  brandLoadingSvgUrl: SETTING_KEYS.brandLoadingSvgUrl,
+  brandName: SETTING_KEYS.brandName,
+  brandPrimaryColor: SETTING_KEYS.brandPrimaryColor,
+  brandSlogan: SETTING_KEYS.brandSlogan,
+  communityForkAndChatLabel: SETTING_KEYS.communityForkAndChatLabel,
+  communitySkillUseButtonLabel: SETTING_KEYS.communitySkillUseButtonLabel,
+  cronAuditRetentionDays: SETTING_KEYS.cronAuditRetentionDays,
+  cronPendingOrderExpiryDays: SETTING_KEYS.cronPendingOrderExpiryDays,
+  cronSecret: SETTING_KEYS.cronSecret,
+  defaultAgentAvatar: SETTING_KEYS.defaultAgentAvatar,
+  defaultAgentModel: SETTING_KEYS.defaultAgentModel,
+  defaultAgentName: SETTING_KEYS.defaultAgentName,
+  defaultAgentProvider: SETTING_KEYS.defaultAgentProvider,
+  defaultImageModel: SETTING_KEYS.defaultImageModel,
+  defaultImageProvider: SETTING_KEYS.defaultImageProvider,
+  defaultSkillName: SETTING_KEYS.defaultSkillName,
+  defaultVideoModel: SETTING_KEYS.defaultVideoModel,
+  defaultVideoProvider: SETTING_KEYS.defaultVideoProvider,
+  desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
+  desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
+  helpMenuItems: SETTING_KEYS.helpMenuItems,
+  homeMessengerEnabled: SETTING_KEYS.homeMessengerEnabled,
+  homeMessengerBannerTitle: SETTING_KEYS.homeMessengerBannerTitle,
+  memoryUserMemoryTriggerMode: SETTING_KEYS.memoryUserMemoryTriggerMode,
+  profileInterestAreas: SETTING_KEYS.profileInterestAreas,
+  ordersEnabled: SETTING_KEYS.ordersManagementEnabled,
+  pricingMultiplier: SETTING_KEYS.pricingCreditMultiplier,
+  referralRewardCredits: SETTING_KEYS.referralRewardCredits,
+  sidebarGenerationLabel: SETTING_KEYS.sidebarGenerationLabel,
+  sidebarMemberLabel: SETTING_KEYS.sidebarMemberLabel,
+  sidebarMemberUrl: SETTING_KEYS.sidebarMemberUrl,
+  storageS3AccessKeyId: SETTING_KEYS.storageS3AccessKeyId,
+  storageS3Bucket: SETTING_KEYS.storageS3Bucket,
+  storageS3EnablePathStyle: SETTING_KEYS.storageS3EnablePathStyle,
+  storageS3Endpoint: SETTING_KEYS.storageS3Endpoint,
+  storageS3FilePath: SETTING_KEYS.storageS3FilePath,
+  storageS3PreviewUrlExpireIn: SETTING_KEYS.storageS3PreviewUrlExpireIn,
+  storageS3PublicDomain: SETTING_KEYS.storageS3PublicDomain,
+  storageS3Region: SETTING_KEYS.storageS3Region,
+  storageS3SecretAccessKey: SETTING_KEYS.storageS3SecretAccessKey,
+  storageS3SecretAccessKeyConfigured: SETTING_KEYS.storageS3SecretAccessKey,
+  storageS3SetAcl: SETTING_KEYS.storageS3SetAcl,
+};
+
+export const buildSettingMaterializationUpdates = (
+  values: Partial<AdminSettingsFormValues>,
+): SettingUpdate[] => {
+  const current = normalizeFormValues(values);
+  const helpMenuItems =
+    current.helpMenuItems.length > 0 ? current.helpMenuItems : RECOMMENDED_HELP_MENU_ITEMS;
+
+  return [
+    ...SITE_CUSTOMIZATION_FIELDS.map((key) => ({
+      key: SETTING_KEY_BY_FORM_FIELD[key],
+      value: current[key],
+    })),
+    { key: SETTING_KEYS.aboutLinks, value: current.aboutLinks },
+    { key: SETTING_KEYS.aboutPage, value: current.aboutPage },
+    { key: SETTING_KEYS.helpMenuItems, value: helpMenuItems },
+  ];
+};
+
 export const buildSettingUpdates = (
   currentValues: Partial<AdminSettingsFormValues>,
   initialValues: AdminSettingsFormValues,
@@ -495,84 +632,9 @@ export const buildSettingUpdates = (
   const initial = normalizeFormValues(initialValues);
   const updates: SettingUpdate[] = [];
 
-  const keys: Array<keyof AdminSettingsFormValues> = [
-    'aboutLogoUrl',
-    'defaultAgentName',
-    'defaultAgentAvatar',
-    'defaultSkillName',
-    'brandName',
-    'brandLoadingText',
-    'brandLoadingSvgUrl',
-    'brandAuthTitle',
-    'brandCopyrightText',
-    'brandLogoUrl',
-    'brandFaviconUrl',
-    'brandPrimaryColor',
-    'brandSlogan',
-    'homeMessengerBannerTitle',
-    'homeMessengerEnabled',
-    'communityForkAndChatLabel',
-    'communitySkillUseButtonLabel',
-    'sidebarMemberLabel',
-    'sidebarMemberUrl',
-    'sidebarGenerationLabel',
-  ];
-
-  const keyMap: Record<keyof AdminSettingsFormValues, string> = {
-    aboutLogoUrl: SETTING_KEYS.aboutLogoUrl,
-    brandFaviconUrl: SETTING_KEYS.brandFaviconUrl,
-    aboutLinks: SETTING_KEYS.aboutLinks,
-    aboutPage: SETTING_KEYS.aboutPage,
-    brandAuthTitle: SETTING_KEYS.brandAuthTitle,
-    brandCopyrightText: SETTING_KEYS.brandCopyrightText,
-    brandLogoUrl: SETTING_KEYS.brandLogoUrl,
-    brandLoadingText: SETTING_KEYS.brandLoadingText,
-    brandLoadingSvgUrl: SETTING_KEYS.brandLoadingSvgUrl,
-    brandName: SETTING_KEYS.brandName,
-    brandPrimaryColor: SETTING_KEYS.brandPrimaryColor,
-    brandSlogan: SETTING_KEYS.brandSlogan,
-    communityForkAndChatLabel: SETTING_KEYS.communityForkAndChatLabel,
-    communitySkillUseButtonLabel: SETTING_KEYS.communitySkillUseButtonLabel,
-    cronAuditRetentionDays: SETTING_KEYS.cronAuditRetentionDays,
-    cronPendingOrderExpiryDays: SETTING_KEYS.cronPendingOrderExpiryDays,
-    cronSecret: SETTING_KEYS.cronSecret,
-    defaultAgentAvatar: SETTING_KEYS.defaultAgentAvatar,
-    defaultAgentModel: SETTING_KEYS.defaultAgentModel,
-    defaultAgentName: SETTING_KEYS.defaultAgentName,
-    defaultAgentProvider: SETTING_KEYS.defaultAgentProvider,
-    defaultImageModel: SETTING_KEYS.defaultImageModel,
-    defaultImageProvider: SETTING_KEYS.defaultImageProvider,
-    defaultSkillName: SETTING_KEYS.defaultSkillName,
-    defaultVideoModel: SETTING_KEYS.defaultVideoModel,
-    defaultVideoProvider: SETTING_KEYS.defaultVideoProvider,
-    desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
-    desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
-    helpMenuItems: SETTING_KEYS.helpMenuItems,
-    homeMessengerEnabled: SETTING_KEYS.homeMessengerEnabled,
-    homeMessengerBannerTitle: SETTING_KEYS.homeMessengerBannerTitle,
-    memoryUserMemoryTriggerMode: SETTING_KEYS.memoryUserMemoryTriggerMode,
-    profileInterestAreas: SETTING_KEYS.profileInterestAreas,
-    ordersEnabled: SETTING_KEYS.ordersManagementEnabled,
-    pricingMultiplier: SETTING_KEYS.pricingCreditMultiplier,
-    referralRewardCredits: SETTING_KEYS.referralRewardCredits,
-    sidebarGenerationLabel: SETTING_KEYS.sidebarGenerationLabel,
-    sidebarMemberLabel: SETTING_KEYS.sidebarMemberLabel,
-    sidebarMemberUrl: SETTING_KEYS.sidebarMemberUrl,
-    storageS3AccessKeyId: SETTING_KEYS.storageS3AccessKeyId,
-    storageS3Bucket: SETTING_KEYS.storageS3Bucket,
-    storageS3EnablePathStyle: SETTING_KEYS.storageS3EnablePathStyle,
-    storageS3Endpoint: SETTING_KEYS.storageS3Endpoint,
-    storageS3FilePath: SETTING_KEYS.storageS3FilePath,
-    storageS3PreviewUrlExpireIn: SETTING_KEYS.storageS3PreviewUrlExpireIn,
-    storageS3PublicDomain: SETTING_KEYS.storageS3PublicDomain,
-    storageS3Region: SETTING_KEYS.storageS3Region,
-    storageS3SecretAccessKey: SETTING_KEYS.storageS3SecretAccessKey,
-    storageS3SecretAccessKeyConfigured: SETTING_KEYS.storageS3SecretAccessKey,
-    storageS3SetAcl: SETTING_KEYS.storageS3SetAcl,
-  };
-
-  for (const key of keys) {
-    if (current[key] !== initial[key]) updates.push({ key: keyMap[key], value: current[key] });
+  for (const key of SITE_CUSTOMIZATION_FIELDS) {
+    if (current[key] !== initial[key])
+      updates.push({ key: SETTING_KEY_BY_FORM_FIELD[key], value: current[key] });
   }
 
   if (JSON.stringify(current.helpMenuItems) !== JSON.stringify(initial.helpMenuItems)) {
