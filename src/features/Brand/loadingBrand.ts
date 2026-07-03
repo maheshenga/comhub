@@ -16,10 +16,14 @@ const escapeHtml = (value: string) =>
     .replaceAll("'", '&#39;');
 
 export const getBrandLoadingText = (
-  _brand: LoadingBrandLike,
-  _fallback: string = GENERIC_LOADING_TEXT,
+  brand: LoadingBrandLike,
+  fallback: string = GENERIC_LOADING_TEXT,
 ): string => {
-  return GENERIC_LOADING_TEXT;
+  const configured = typeof brand.loadingText === 'string' ? brand.loadingText.trim() : '';
+  if (configured) return configured;
+
+  const fallbackText = fallback.trim();
+  return fallbackText || GENERIC_LOADING_TEXT;
 };
 
 export const buildStaticLoadingBrandHtml = (text: string, loadingSvgUrl?: null | string) => {

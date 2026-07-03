@@ -6,6 +6,7 @@ export const VITE_DEV_ORIGIN = 'http://localhost:9876';
 
 const SERVER_CONFIG_PLACEHOLDER =
   /window\.__SERVER_CONFIG__\s*=\s*undefined;\s*\/\*\s*SERVER_CONFIG\s*\*\//;
+const LOADING_BRAND_PLACEHOLDER = /<div\b(?=[^>]*\bid=["']loading-brand["'])[^>]*>[\s\S]*?<\/div>/;
 
 async function rewriteViteAssetUrls(html: string, origin = VITE_DEV_ORIGIN): Promise<string> {
   const { parseHTML } = await import('linkedom');
@@ -145,10 +146,7 @@ export function renderSpaHtml(
   html = html.replace('<!--SEO_META-->', options.seoMeta);
   html = html.replace('<!--ANALYTICS_SCRIPTS-->', '');
   if (options.loadingBrandHtml) {
-    html = html.replace(
-      /<div id="loading-brand" aria-label="Loading" role="status">[\s\S]*?<\/div>\s*<\/div>/,
-      options.loadingBrandHtml,
-    );
+    html = html.replace(LOADING_BRAND_PLACEHOLDER, options.loadingBrandHtml);
   }
 
   return new Response(html, {

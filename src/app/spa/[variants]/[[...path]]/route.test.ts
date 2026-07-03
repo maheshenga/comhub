@@ -97,10 +97,9 @@ describe('SPA route brand boot config', () => {
     expect(html).not.toContain('<svg><title>LobeHub</title></svg>');
 
     const loadingBrandHtml = html.match(/<div id="loading-brand"[\s\S]*?<\/div>/)?.[0] ?? '';
-    expect(loadingBrandHtml).toContain('加载中');
+    expect(loadingBrandHtml).toContain('正在进入玄果AI');
     expect(loadingBrandHtml).toContain('src="https://cdn.example.com/branding/loading.svg"');
     expect(loadingBrandHtml).toContain('data-loading-svg="true"');
-    expect(loadingBrandHtml).not.toContain('正在进入玄果AI');
     expect(loadingBrandHtml).not.toContain('品牌口号不作为加载文案');
     expect(loadingBrandHtml).not.toContain('登录页文案不作为加载文案');
   });

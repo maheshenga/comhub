@@ -35,6 +35,30 @@ describe('renderSpaHtml', () => {
 
     expect(await res.text()).not.toContain('</script>');
   });
+
+  it('replaces localized loading brand markup with configured static brand html', async () => {
+    const template = [
+      '<html><body>',
+      '<div id="loading-screen">',
+      '<div id="loading-brand" aria-label="加载中" role="status">',
+      '<span>加载中</span>',
+      '</div>',
+      '</div>',
+      '</body></html>',
+    ].join('');
+
+    const res = renderSpaHtml(template, {
+      loadingBrandHtml:
+        '<img alt="Loading ComHub" data-loading-svg="true" src="/branding/loading.svg" />',
+      seoMeta: '',
+      serverConfig: {},
+    });
+    const html = await res.text();
+
+    expect(html).toContain('data-loading-svg="true"');
+    expect(html).toContain('/branding/loading.svg');
+    expect(html).not.toContain('<span>加载中</span>');
+  });
 });
 
 describe('buildAnalyticsConfig', () => {

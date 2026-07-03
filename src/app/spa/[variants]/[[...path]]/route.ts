@@ -119,10 +119,16 @@ export async function GET(
     { loadingText: brand.loadingText, name: appName, slogan: brand.slogan },
     appName,
   );
-  const loadingBrandHtml = buildStaticLoadingBrandHtml(loadingText, brand.loadingSvgUrl);
+  const loadingSvgUrl =
+    typeof brand.loadingSvgUrl === 'string' ? brand.loadingSvgUrl.trim() : '';
+  const loadingBrandHtml = loadingSvgUrl
+    ? buildStaticLoadingBrandHtml(loadingText, loadingSvgUrl)
+    : undefined;
 
   return renderSpaHtml(template, {
-    loadingBrandHtml: `<div id="loading-brand" aria-label="${escapeHtml(loadingText)}" role="status">${loadingBrandHtml}</div>\n    </div>`,
+    loadingBrandHtml: loadingBrandHtml
+      ? `<div id="loading-brand" aria-label="${escapeHtml(loadingText)}" role="status">${loadingBrandHtml}</div>`
+      : undefined,
     seoMeta,
     serverConfig: spaConfig,
   });

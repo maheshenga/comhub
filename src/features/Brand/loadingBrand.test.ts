@@ -1,18 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildStaticLoadingBrandHtml, getBrandLoadingText } from './loadingBrand';
+import {
+  buildStaticLoadingBrandHtml,
+  GENERIC_LOADING_TEXT,
+  getBrandLoadingText,
+} from './loadingBrand';
 
 describe('loadingBrand', () => {
-  it('uses one generic loading text instead of brand or admin copy', () => {
+  it('uses configured admin loading text before falling back to generic copy', () => {
     expect(
       getBrandLoadingText({
         loadingText: 'Loading ComHub',
         name: 'Xuangguo AI',
         slogan: 'Login page copy',
       }),
-    ).toBe('加载中');
-    expect(getBrandLoadingText({ name: 'Xuangguo AI', slogan: 'Login page copy' })).toBe('加载中');
-    expect(getBrandLoadingText({ loadingText: '   ', name: 'Xuangguo AI' })).toBe('加载中');
+    ).toBe('Loading ComHub');
+    expect(getBrandLoadingText({ name: 'Xuangguo AI', slogan: 'Login page copy' })).toBe(
+      GENERIC_LOADING_TEXT,
+    );
+    expect(getBrandLoadingText({ loadingText: '   ', name: 'Xuangguo AI' })).toBe(
+      GENERIC_LOADING_TEXT,
+    );
   });
 
   it('renders static loading as escaped text instead of a brand logo image', () => {
