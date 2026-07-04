@@ -5,13 +5,17 @@ import type { App as AppCore } from '../../App';
 import { UpdaterManager } from '../UpdaterManager';
 
 // Use vi.hoisted to ensure mocks work with require()
-const { mockGetAllWindows, mockReleaseSingleInstanceLock, mockUpdateServerUrl } = vi.hoisted(
-  () => ({
+const {
+  mockFetchRemoteUpdateConfig,
+  mockGetAllWindows,
+  mockReleaseSingleInstanceLock,
+  mockUpdateServerUrl,
+} = vi.hoisted(() => ({
     mockGetAllWindows: vi.fn().mockReturnValue([]),
     mockReleaseSingleInstanceLock: vi.fn(),
+    mockFetchRemoteUpdateConfig: vi.fn(),
     mockUpdateServerUrl: { value: 'https://mock.update.server' },
-  }),
-);
+  }));
 
 // Mock electron-log
 vi.mock('electron-log', () => ({
@@ -68,6 +72,8 @@ vi.mock('@/utils/logger', () => ({
 // Mock updater configs
 vi.mock('@/modules/updater/configs', () => ({
   UPDATE_CHANNEL: 'stable',
+  coerceStoredUpdateChannel: (channel?: string | null) =>
+    channel === 'canary' ? 'canary' : 'stable',
   get UPDATE_SERVER_URL() {
     return mockUpdateServerUrl.value;
   },
@@ -79,6 +85,10 @@ vi.mock('@/modules/updater/configs', () => ({
     },
     enableAppUpdate: true,
   },
+}));
+
+vi.mock('@/modules/updater/remoteConfig', () => ({
+  fetchRemoteUpdateConfig: mockFetchRemoteUpdateConfig,
 }));
 
 // Mock env
@@ -102,6 +112,7 @@ describe('UpdaterManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    mockFetchRemoteUpdateConfig.mockResolvedValue(null);
     mockUpdateServerUrl.value = 'https://mock.update.server';
 
     // Reset autoUpdater state
@@ -188,6 +199,25 @@ describe('UpdaterManager', () => {
           repo: 'lobehub',
         }),
       );
+    });
+
+    it('should prefer remote desktop update config from the backend', async () => {
+      mockFetchRemoteUpdateConfig.mockResolvedValue({
+        autoCheck: true,
+        channel: 'canary',
+        checkIntervalMinutes: 15,
+        serverUrl: 'https://cdn.qingyouai.com/desktop',
+      });
+      vi.mocked(mockApp.storeManager.get).mockReturnValue('stable');
+
+      await updaterManager.initialize();
+
+      expect(autoUpdater.channel).toBe('canary');
+      expect(autoUpdater.allowPrerelease).toBe(true);
+      expect(autoUpdater.setFeedURL).toHaveBeenCalledWith({
+        provider: 'generic',
+        url: 'https://cdn.qingyouai.com/desktop/canary',
+      });
     });
   });
 

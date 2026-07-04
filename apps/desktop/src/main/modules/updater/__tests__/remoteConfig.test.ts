@@ -53,11 +53,41 @@ describe('fetchRemoteUpdateConfig', () => {
 
     const config = await fetchRemoteUpdateConfig();
 
+    expect(mockNetFetch).toHaveBeenCalledWith(
+      'https://chat.qingyouai.com/trpc/lambda/admin.settings.getPublicDesktopUpdate',
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
     expect(config).toEqual({
       autoCheck: false,
       channel: 'canary',
       checkIntervalMinutes: 30,
       serverUrl: 'https://releases.qingyouai.com/releases',
     });
+  });
+
+  it('should return null when no cloud server is configured', async () => {
+    mockGetDesktopEnv.mockReturnValue({
+      OFFICIAL_CLOUD_SERVER: '',
+    });
+
+    await expect(fetchRemoteUpdateConfig()).resolves.toBeNull();
+    expect(mockNetFetch).not.toHaveBeenCalled();
+  });
+
+  it('should return null when remote config cannot be loaded', async () => {
+    mockNetFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+    });
+
+    await expect(fetchRemoteUpdateConfig()).resolves.toBeNull();
+  });
+
+  it('should return null when remote config request fails', async () => {
+    mockNetFetch.mockRejectedValue(new Error('network timeout'));
+
+    await expect(fetchRemoteUpdateConfig()).resolves.toBeNull();
   });
 });

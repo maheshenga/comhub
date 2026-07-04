@@ -11,7 +11,13 @@ import { autoUpdater } from 'electron-updater';
 
 import { isDev, isWindows } from '@/const/env';
 import { getDesktopEnv } from '@/env';
-import { UPDATE_CHANNEL, UPDATE_SERVER_URL, updaterConfig } from '@/modules/updater/configs';
+import {
+  coerceStoredUpdateChannel,
+  UPDATE_CHANNEL,
+  UPDATE_SERVER_URL,
+  updaterConfig,
+} from '@/modules/updater/configs';
+import { fetchRemoteUpdateConfig } from '@/modules/updater/remoteConfig';
 import { extractRestoreRoute } from '@/modules/updater/utils';
 import { createLogger } from '@/utils/logger';
 
@@ -41,6 +47,8 @@ export class UpdaterManager {
   private remoteServerUrl: string | null = null;
   private checkIntervalTimer: ReturnType<typeof setInterval> | null = null;
   private updateProviderConfigured: boolean = false;
+  private autoCheckUpdate: boolean = updaterConfig.app.autoCheckUpdate;
+  private checkUpdateInterval: number = updaterConfig.app.checkUpdateInterval;
 
   constructor(app: AppCore) {
     this.app = app;
@@ -102,7 +110,10 @@ export class UpdaterManager {
     }
 
     // Read persisted channel from store (defaults to build-time UPDATE_CHANNEL)
-    this.currentChannel = this.app.storeManager.get('updateChannel') ?? UPDATE_CHANNEL;
+    this.currentChannel = coerceStoredUpdateChannel(
+      this.app.storeManager.get('updateChannel') ?? UPDATE_CHANNEL,
+    );
+    await this.loadRemoteUpdateConfig();
 
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
@@ -125,9 +136,9 @@ export class UpdaterManager {
 
     this.registerEvents();
 
-    if (updaterConfig.app.autoCheckUpdate) {
+    if (this.autoCheckUpdate) {
       setTimeout(() => this.checkForUpdates(), 60 * 1000);
-      setInterval(() => this.checkForUpdates(), updaterConfig.app.checkUpdateInterval);
+      this.checkIntervalTimer = setInterval(() => this.checkForUpdates(), this.checkUpdateInterval);
     }
 
     logger.debug(
@@ -403,8 +414,19 @@ export class UpdaterManager {
    * Handles both base URL (https://cdn.example.com) and legacy URLs with channel suffixes.
    */
   private getBaseUpdateUrl(): string | undefined {
-    if (!UPDATE_SERVER_URL) return undefined;
-    return UPDATE_SERVER_URL.replace(/\/(stable|nightly|canary|beta)\/?$/, '');
+    const url = this.remoteServerUrl || UPDATE_SERVER_URL;
+    if (!url) return undefined;
+    return url.replace(/\/(stable|nightly|canary|beta)\/?$/, '');
+  }
+
+  private async loadRemoteUpdateConfig() {
+    const remoteConfig = await fetchRemoteUpdateConfig();
+    if (!remoteConfig) return;
+
+    this.autoCheckUpdate = remoteConfig.autoCheck;
+    this.checkUpdateInterval = remoteConfig.checkIntervalMinutes * 60 * 1000;
+    this.currentChannel = coerceStoredUpdateChannel(remoteConfig.channel);
+    this.remoteServerUrl = remoteConfig.serverUrl || null;
   }
 
   /**

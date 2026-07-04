@@ -1,0 +1,151 @@
+name: ComHub Desktop Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Desktop version, for example 2.3.0'
+        required: true
+        type: string
+      channel:
+        description: 'Update channel'
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - canary
+      release_notes:
+        description: 'Release notes shown by the desktop updater'
+        required: false
+        type: string
+      update_server_url:
+        description: 'Update server base URL, defaults to vars.DESKTOP_RELEASE_UPDATE_SERVER_URL'
+        required: false
+        type: string
+      publish:
+        description: 'Upload release artifacts to S3-compatible storage'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      update_backend:
+        description: 'Write latest desktop version back to the web admin settings'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: comhub-desktop-${{ inputs.channel }}
+  cancel-in-progress: false
+
+env:
+  NODEJS_VERSION: '22'
+  UPDATE_SERVER_URL: ${{ inputs.update_server_url || vars.DESKTOP_RELEASE_UPDATE_SERVER_URL }}
+
+jobs:
+  build-windows:
+    name: Build Windows Desktop
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup desktop build
+        uses: ./.github/actions/desktop-build-setup
+        with:
+          node-version: ${{ env.NODEJS_VERSION }}
+
+      - name: Validate update server URL
+        if: ${{ inputs.publish == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${UPDATE_SERVER_URL}" ]; then
+            echo "Set workflow input update_server_url or repository variable DESKTOP_RELEASE_UPDATE_SERVER_URL."
+            exit 1
+          fi
+
+      - name: Set desktop version
+        shell: bash
+        run: npm run workflow:set-desktop-version -- "${{ inputs.version }}" "${{ inputs.channel }}"
+
+      - name: Build Windows installer
+        shell: bash
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          UPDATE_CHANNEL: ${{ inputs.channel }}
+        run: npm run package:win --prefix=./apps/desktop
+
+      - name: Upload release artifacts
+        uses: ./.github/actions/desktop-upload-artifacts
+        with:
+          artifact-name: merged-release
+
+  publish:
+    name: Publish Desktop Release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: ${{ inputs.publish == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish to S3-compatible storage
+        uses: ./.github/actions/desktop-publish-s3
+        with:
+          channel: ${{ inputs.channel }}
+          version: ${{ inputs.version }}
+          aws-access-key-id: ${{ secrets.DESKTOP_RELEASE_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY }}
+          s3-bucket: ${{ secrets.DESKTOP_RELEASE_S3_BUCKET }}
+          s3-region: ${{ vars.DESKTOP_RELEASE_S3_REGION || 'us-east-1' }}
+          s3-endpoint: ${{ vars.DESKTOP_RELEASE_S3_ENDPOINT || '' }}
+
+      - name: Update backend desktop settings
+        if: ${{ inputs.update_backend == 'true' }}
+        shell: bash
+        env:
+          APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          CHANNEL: ${{ inputs.channel }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_TOKEN}" ]; then
+            echo "Set secret COMHUB_DESKTOP_RELEASE_TOKEN to the same value as backend cron.secret or CRON_SECRET."
+            exit 1
+          fi
+
+          server_url="${UPDATE_SERVER_URL%/}"
+          server_url="$(printf '%s' "$server_url" | sed -E 's#/(stable|canary|nightly|beta)$##')"
+          app_url="${APP_URL%/}"
+          installer="$(find release -maxdepth 1 -type f -name '*.exe' | head -n 1)"
+          if [ -z "${installer}" ]; then
+            echo "No Windows installer (*.exe) found in release artifacts."
+            exit 1
+          fi
+          installer_name="$(basename "$installer")"
+          download_url="${server_url}/${CHANNEL}/${VERSION}/${installer_name}"
+          payload="$(jq -nc \
+            --arg channel "$CHANNEL" \
+            --arg downloadUrl "$download_url" \
+            --arg releaseNotes "$RELEASE_NOTES" \
+            --arg serverUrl "$server_url" \
+            --arg version "$VERSION" \
+            '{channel:$channel,downloadUrl:$downloadUrl,releaseNotes:$releaseNotes,serverUrl:$serverUrl,version:$version}')"
+
+          curl -fsS \
+            -H "authorization: Bearer ${RELEASE_TOKEN}" \
+            -H "content-type: application/json" \
+            -d "$payload" \
+            "${app_url}/api/admin/desktop-release"
