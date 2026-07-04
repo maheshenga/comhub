@@ -66,6 +66,9 @@ runs:
         ENDPOINT_ARG=""
         if [ -n "$S3_ENDPOINT" ]; then
           ENDPOINT_ARG="--endpoint-url $S3_ENDPOINT"
+          if [[ "$S3_ENDPOINT" == *".aliyuncs.com"* ]]; then
+            aws configure set default.s3.addressing_style virtual
+          fi
           echo "📡 Using custom S3 endpoint: $S3_ENDPOINT"
         fi
 
