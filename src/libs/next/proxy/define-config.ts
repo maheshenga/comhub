@@ -180,6 +180,8 @@ export function defineConfig() {
     // version
     '/api/version',
     '/api/desktop/(.*)',
+    // CI/CD service endpoint; the route performs its own Bearer token check.
+    '/api/admin/desktop-release',
     // Composio OAuth callback — hit via a cross-site redirect from the provider
     // after Composio-managed auth; only renders a popup-closing page, so it must
     // not be session-gated.

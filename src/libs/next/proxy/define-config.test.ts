@@ -4,6 +4,7 @@
 import { NextRequest } from 'next/server';
 import { describe, expect, it, vi } from 'vitest';
 
+import { auth } from '@/auth';
 import { LOBE_LOCALE_COOKIE } from '@/const/locale';
 
 import { defineConfig } from './define-config';
@@ -76,6 +77,22 @@ describe('defineConfig middleware locale routing', () => {
     });
 
     expect(rewrite.pathname).toBe('/ja-JP__0/signin');
+  });
+});
+
+describe('defineConfig backend service routes', () => {
+  it('allows desktop release writeback to use its own bearer token auth', async () => {
+    const { middleware } = defineConfig();
+    vi.mocked(auth.api.getSession).mockClear();
+
+    const response = await middleware(
+      createRequest('/api/admin/desktop-release', {
+        authorization: 'Bearer release-token',
+      }),
+    );
+
+    expect(auth.api.getSession).not.toHaveBeenCalled();
+    expect(response.headers.get('location')).toBeNull();
   });
 });
 
