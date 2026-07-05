@@ -9,6 +9,7 @@ export type PlanPriceCatalogLike = {
   lifetimePrice?: null | number;
   monthlyPrice?: null | number;
   oneTimePrice?: null | number;
+  yearlyDiscountLabel?: null | string;
   yearlyPrice?: null | number;
 };
 
@@ -50,6 +51,42 @@ export const getPlanYearlyDiscountPercent = (monthlyPrice: number, yearlyPrice: 
   return Math.max(0, Math.round((1 - yearlyPrice / (monthlyPrice * 12)) * 100));
 };
 
+export const getPlanYearlyDiscountLabel = (
+  catalogPlan: PlanPriceCatalogLike | null | undefined,
+) => {
+  const configuredLabel = catalogPlan?.yearlyDiscountLabel?.trim();
+  if (configuredLabel) return configuredLabel;
+
+  const discountPercent = getPlanYearlyDiscountPercent(
+    Number(catalogPlan?.monthlyPrice ?? 0),
+    Number(catalogPlan?.yearlyPrice ?? 0),
+  );
+
+  return discountPercent > 0 ? `优惠 ${discountPercent}%` : '';
+};
+
+export const getYearlyCycleDiscountLabel = (
+  planCatalog: Array<PlanPriceCatalogLike> | null | undefined,
+) => {
+  const configuredLabel = planCatalog?.find((item) => item.yearlyDiscountLabel?.trim())
+    ?.yearlyDiscountLabel;
+  if (configuredLabel?.trim()) return configuredLabel.trim();
+
+  const maxDiscount = (planCatalog ?? []).reduce(
+    (max, item) =>
+      Math.max(
+        max,
+        getPlanYearlyDiscountPercent(
+          Number(item.monthlyPrice ?? 0),
+          Number(item.yearlyPrice ?? 0),
+        ),
+      ),
+    0,
+  );
+
+  return maxDiscount > 0 ? `最高优惠 ${maxDiscount}%` : '';
+};
+
 export const resolvePlanCyclePrice = (
   catalogPlan: PlanPriceCatalogLike | null | undefined,
   cycle: PlanDisplayBillingCycle,
@@ -63,11 +100,13 @@ export const resolvePlanCyclePrice = (
 
   const build = ({
     amount,
+    label,
     monthlyEquivalent,
     secondaryLabel,
     unit,
   }: {
     amount: number;
+    label?: string;
     monthlyEquivalent?: number;
     secondaryLabel?: string;
     unit: string;
@@ -77,7 +116,7 @@ export const resolvePlanCyclePrice = (
     cycle,
     discountPercent,
     isAvailable: amount > 0,
-    label: amount > 0 ? formatPlanCurrencyAmount(amount, currency) : '--',
+    label: amount > 0 ? label || formatPlanCurrencyAmount(amount, currency) : '--',
     ...(monthlyEquivalent === undefined ? {} : { monthlyEquivalent }),
     ...(secondaryLabel === undefined ? {} : { secondaryLabel }),
     unit,
@@ -85,14 +124,22 @@ export const resolvePlanCyclePrice = (
 
   switch (cycle) {
     case 'yearly': {
+      const monthlyEquivalent = yearlyPrice > 0 ? yearlyPrice / 12 : undefined;
       return build({
         amount: yearlyPrice,
-        ...(yearlyPrice > 0 ? { monthlyEquivalent: yearlyPrice / 12 } : {}),
+        ...(monthlyEquivalent === undefined
+          ? {}
+          : {
+              label: formatPlanCurrencyAmount(monthlyEquivalent, currency),
+              monthlyEquivalent,
+            }),
         secondaryLabel:
           yearlyPrice > 0
-            ? `${formatPlanCurrencyAmount(yearlyPrice / 12, currency)} / 月，按年支付`
+            ? `${formatPlanCurrencyAmount(yearlyPrice, currency)} / 每年${
+                discountPercent > 0 ? `，优惠 ${discountPercent}%` : ''
+              }`
             : '暂未配置年付价格',
-        unit: '年',
+        unit: '每月',
       });
     }
 
@@ -141,12 +188,12 @@ export const resolvePlanCyclePrice = (
         amount: monthlyPrice,
         ...(yearlyPrice > 0
           ? {
-              secondaryLabel: `${formatPlanCurrencyAmount(yearlyPrice, currency)} / 年${
+              secondaryLabel: `${formatPlanCurrencyAmount(yearlyPrice, currency)} / 每年${
                 discountPercent > 0 ? `，年付优惠 ${discountPercent}%` : ''
               }`,
             }
           : {}),
-        unit: '月',
+        unit: '每月',
       });
     }
   }

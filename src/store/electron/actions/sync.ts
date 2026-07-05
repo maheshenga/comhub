@@ -79,7 +79,7 @@ export class ElectronRemoteServerActionImpl {
       // Must use clearRemoteServerConfig (not only set active: false): main process
       // clears encrypted OIDC access/refresh tokens; otherwise sign-out still leaves auth state.
       await remoteServerService.clearRemoteServerConfig();
-      stores.reset();
+      await stores.reset();
       await this.#get().refreshServerConfig();
     } catch (error) {
       console.error('Disconnect failed:', error);
@@ -96,7 +96,7 @@ export class ElectronRemoteServerActionImpl {
   };
 
   refreshUserData = async (): Promise<void> => {
-    stores.reset();
+    await stores.reset();
 
     await useSessionStore.getState().refreshSessions();
     await useChatStore.getState().refreshMessages();

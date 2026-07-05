@@ -4,14 +4,23 @@ import { Plans as SubscriptionPlan } from '@lobechat/types';
 import { Flexbox, Icon, Segmented } from '@lobehub/ui';
 import { Alert, Button, Collapse, Empty, Input, message, Modal, Skeleton, Table, Tag, Tooltip } from 'antd';
 import { createStyles, cssVar } from 'antd-style';
-import { Check, ChevronRight, Info, LockKeyhole, Sparkles, Ticket } from 'lucide-react';
-import { type ReactNode, memo, useMemo, useState } from 'react';
+import {
+  BookOpen,
+  Check,
+  ChevronRight,
+  Info,
+  LockKeyhole,
+  Mail,
+  MessageCircle,
+  Sparkles,
+  Ticket,
+} from 'lucide-react';
+import { memo, type ReactNode, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import { Card } from '@/components/antd-compat/Card';
 import PlanIcon from '@/features/PlanIcon';
-import { DOCUMENTS_REFER_URL } from '@/const/url';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
@@ -19,8 +28,9 @@ import { useServerConfigStore } from '@/store/serverConfig';
 
 import { getPlanPurchaseUrl } from './planPurchase';
 import {
-  getPlanYearlyDiscountPercent,
+  getPlanYearlyDiscountLabel,
   getVisiblePaidPlans,
+  getYearlyCycleDiscountLabel,
   resolvePlanCyclePrice,
 } from './plansDisplay';
 import {
@@ -53,26 +63,6 @@ const PLAN_FEATURES_FALLBACK: Record<SubscriptionPlan, string[]> = {
   [SubscriptionPlan.Ultimate]: ['高级模型服务', '4 GB 文件存储', '优先聊天与邮件支持'],
 };
 
-const FEATURE_GROUPS = [
-  {
-    description: '在对话中使用文件和知识库，支持 PDF / MD / DOC / XLS / PPT 等格式。',
-    items: ['文件存储', '向量存储'],
-    title: '文件与知识库',
-  },
-  {
-    items: ['全局主流模型自定义 API 服务', '无限消息请求'],
-    title: '模型服务',
-  },
-  {
-    items: ['无限对话历史', '全球云端同步'],
-    title: '云服务',
-  },
-  {
-    items: ['精选智能体市场', '专属高级插件', '智能网页搜索'],
-    title: '高级功能',
-  },
-];
-
 type BillingCycle = 'yearly' | 'monthly' | 'one_time' | 'lifetime';
 type PlanCatalog = Awaited<ReturnType<typeof commercialService.listPlanCatalog>>;
 type PlanCatalogItem = PlanCatalog[number];
@@ -86,7 +76,6 @@ const useStyles = createStyles(({ css, cx, token }) => ({
   `,
   actionGrid: css`
     display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 8px;
   `,
   benefit: css`
@@ -109,7 +98,7 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     overflow: hidden;
 
     height: 100%;
-    min-height: 620px;
+    min-height: 500px;
     border: 1px solid ${cssVar.colorBorderSecondary};
     border-radius: 8px;
 
@@ -127,8 +116,7 @@ const useStyles = createStyles(({ css, cx, token }) => ({
   `,
   cycleWrap: css`
     display: flex;
-    justify-content: center;
-    margin-block: 4px 10px;
+    justify-content: flex-end;
   `,
   featureGroup: css`
     display: flex;
@@ -158,7 +146,32 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     }
   `,
   header: css`
-    min-height: 116px;
+    min-height: 104px;
+  `,
+  introBar: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    justify-content: space-between;
+
+    padding-block: 2px 4px;
+  `,
+  introCopy: css`
+    max-width: 520px;
+  `,
+  introSubtitle: css`
+    margin-block-start: 4px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: ${cssVar.colorTextDescription};
+  `,
+  introTitle: css`
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: ${cssVar.colorText};
   `,
   modelTag: css`
     max-width: 100%;
@@ -237,6 +250,11 @@ const useStyles = createStyles(({ css, cx, token }) => ({
       color: ${cssVar.colorText};
     `,
   ),
+  supportActions: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  `,
   yearlyLine: css`
     display: flex;
     gap: 8px;
@@ -254,19 +272,6 @@ const getPlanKey = (plan: string): SubscriptionPlan | null =>
 
 const getCatalogPlan = (planCatalog: PlanCatalog | undefined, plan: SubscriptionPlan) =>
   planCatalog?.find((item) => item.plan === plan);
-
-const getYearlyDiscountLabel = (catalogPlan?: PlanCatalogItem) => {
-  if (!catalogPlan) return '';
-
-  if (catalogPlan.yearlyDiscountLabel) return catalogPlan.yearlyDiscountLabel;
-
-  const discountPercent = getPlanYearlyDiscountPercent(
-    catalogPlan.monthlyPrice,
-    catalogPlan.yearlyPrice,
-  );
-
-  return discountPercent > 0 ? `优惠 ${discountPercent}%` : '';
-};
 
 const getRuleCount = (rule?: ModelRule) => {
   if (!rule) return 0;
@@ -323,7 +328,7 @@ const formatModelRulesSummary = (modelRules?: PlanCatalogItem['modelRules']) => 
 const findHelpMenuUrl = (
   items: Array<{ label: string; url?: string }> | undefined,
   matchers: string[],
-  fallback: string,
+  fallback?: string,
 ) => {
   const matched = items?.find((item) => {
     const label = item.label.toLowerCase();
@@ -368,18 +373,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
   }, [planCatalog]);
 
   const yearlyCycleDiscountLabel = useMemo(() => {
-    const configuredLabel = planCatalog?.find(
-      (item) => item.yearlyDiscountLabel,
-    )?.yearlyDiscountLabel;
-    if (configuredLabel) return configuredLabel;
-
-    const maxDiscount = (planCatalog ?? []).reduce(
-      (max, item) =>
-        Math.max(max, getPlanYearlyDiscountPercent(item.monthlyPrice, item.yearlyPrice)),
-      0,
-    );
-
-    return maxDiscount > 0 ? `最高优惠 ${maxDiscount}%` : '';
+    return getYearlyCycleDiscountLabel(planCatalog);
   }, [planCatalog]);
 
   const comparisonColumns = useMemo(
@@ -454,7 +448,8 @@ const Plans = memo<{ mobile?: boolean }>(() => {
           title: '模型权限',
         },
         {
-          getValue: (catalogPlan?: PlanCatalogItem) => getYearlyDiscountLabel(catalogPlan) || '--',
+          getValue: (catalogPlan?: PlanCatalogItem) =>
+            getPlanYearlyDiscountLabel(catalogPlan) || '--',
           key: 'discount',
           title: '年付优惠',
         },
@@ -471,10 +466,24 @@ const Plans = memo<{ mobile?: boolean }>(() => {
   );
 
   const faqLinks = useMemo(
-    () => ({
-      contact: findHelpMenuUrl(helpMenuItems, ['contact', '联系'], 'mailto:support@lobehub.com'),
-      docs: findHelpMenuUrl(helpMenuItems, ['doc', '文档'], DOCUMENTS_REFER_URL),
-    }),
+    () =>
+      [
+        {
+          icon: BookOpen,
+          label: '产品文档',
+          url: findHelpMenuUrl(helpMenuItems, ['doc', '文档', '帮助']),
+        },
+        {
+          icon: MessageCircle,
+          label: '社区支持',
+          url: findHelpMenuUrl(helpMenuItems, ['community', 'discord', '社区', '群']),
+        },
+        {
+          icon: Mail,
+          label: '邮件支持',
+          url: findHelpMenuUrl(helpMenuItems, ['contact', 'support', '联系', '邮件']),
+        },
+      ].filter((item) => item.url),
     [helpMenuItems],
   );
 
@@ -531,30 +540,36 @@ const Plans = memo<{ mobile?: boolean }>(() => {
     <>
       <SettingHeader title="套餐" />
       <div className={styles.wrapper}>
-        <div className={styles.cycleWrap}>
-          <Segmented
-            value={billingCycle}
-            variant="filled"
-            options={[
-              {
-                label: (
-                  <Flexbox horizontal align="center" gap={8}>
-                    按年
-                    {yearlyCycleDiscountLabel ? (
-                      <Tag color="green" style={{ margin: 0 }}>
-                        {yearlyCycleDiscountLabel}
-                      </Tag>
-                    ) : null}
-                  </Flexbox>
-                ),
-                value: 'yearly',
-              },
-              { label: '按月', value: 'monthly' },
-              { label: '一次性', value: 'one_time' },
-              { label: '终身', value: 'lifetime' },
-            ]}
-            onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
-          />
+        <div className={styles.introBar}>
+          <div className={styles.introCopy}>
+            <h1 className={styles.introTitle}>升级方案</h1>
+            <div className={styles.introSubtitle}>解锁更多容量与高级功能。</div>
+          </div>
+          <div className={styles.cycleWrap}>
+            <Segmented
+              value={billingCycle}
+              variant="filled"
+              options={[
+                {
+                  label: (
+                    <Flexbox horizontal align="center" gap={8}>
+                      按年
+                      {yearlyCycleDiscountLabel ? (
+                        <Tag color="green" style={{ margin: 0 }}>
+                          {yearlyCycleDiscountLabel}
+                        </Tag>
+                      ) : null}
+                    </Flexbox>
+                  ),
+                  value: 'yearly',
+                },
+                { label: '按月', value: 'monthly' },
+                { label: '一次性', value: 'one_time' },
+                { label: '终身', value: 'lifetime' },
+              ]}
+              onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
+            />
+          </div>
         </div>
         {pendingChangeRequest ? (
           <Alert
@@ -590,7 +605,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                     };
               const monthlyCredits =
                 catalogPlan?.monthlyCredits ?? subscriptionSummary?.monthlyCredits ?? 0;
-              const yearlyDiscountLabel = getYearlyDiscountLabel(catalogPlan);
+              const yearlyDiscountLabel = getPlanYearlyDiscountLabel(catalogPlan);
               const isCurrent = plan === currentPlan;
               const isPending = pendingChangeRequest?.toPlan === plan;
               const planBadge =
@@ -629,7 +644,9 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                         </div>
                         <div className={styles.yearlyLine}>
                           {price.secondaryLabel ?? '--'}
-                          {billingCycle === 'yearly' && yearlyDiscountLabel ? (
+                          {billingCycle === 'yearly' &&
+                          yearlyDiscountLabel &&
+                          !price.secondaryLabel?.includes(yearlyDiscountLabel) ? (
                             <Tag color="green" style={{ margin: 0 }}>
                               {yearlyDiscountLabel}
                             </Tag>
@@ -648,19 +665,22 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                         ) : (
                           <div className={styles.actionGrid}>
                             <Button
-                              className={styles.action}
-                              icon={<Icon icon={Ticket} />}
-                              onClick={() => setRedeemOpen(true)}
-                            >
-                              兑换
-                            </Button>
-                            <Button
+                              block
                               className={styles.action}
                               icon={<Icon icon={ChevronRight} />}
                               type="primary"
                               onClick={() => handleUpgradeClick(catalogPlan)}
                             >
                               升级
+                            </Button>
+                            <Button
+                              block
+                              className={styles.action}
+                              icon={<Icon icon={Ticket} />}
+                              type="text"
+                              onClick={() => setRedeemOpen(true)}
+                            >
+                              使用兑换码
                             </Button>
                           </div>
                         )}
@@ -681,10 +701,6 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                           <Icon className={styles.benefitIcon} icon={Check} size={15} />
                           <span>实际可用模型和消耗以后台“模型与计费矩阵”为准</span>
                         </div>
-                        <div className={styles.benefit}>
-                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>模型倍率、每美元积分和套餐权限会随管理员配置实时生效</span>
-                        </div>
                       </Flexbox>
                       <Flexbox className={styles.featureGroup} gap={10}>
                         <div className={styles.sectionTitle}>后台配置权益</div>
@@ -695,22 +711,17 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                           </div>
                         ))}
                       </Flexbox>
-                      {FEATURE_GROUPS.map((group) => (
-                        <Flexbox className={styles.featureGroup} gap={10} key={group.title}>
-                          <div className={styles.sectionTitle}>{group.title}</div>
-                          {group.description ? (
-                            <div className={subscriptionPageStyles.caption}>
-                              {group.description}
-                            </div>
-                          ) : null}
-                          {group.items.map((item) => (
-                            <div className={styles.benefit} key={item}>
-                              <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                              <span>{item}</span>
-                            </div>
-                          ))}
-                        </Flexbox>
-                      ))}
+                      <Flexbox className={styles.featureGroup} gap={10}>
+                        <div className={styles.sectionTitle}>文件与知识库</div>
+                        <div className={styles.benefit}>
+                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                          <span>文件存储 {formatNullableQuota(catalogPlan?.storageQuotaMb, ' MB')}</span>
+                        </div>
+                        <div className={styles.benefit}>
+                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                          <span>向量记录 {formatNullableQuota(catalogPlan?.vectorQuota, ' 条目')}</span>
+                        </div>
+                      </Flexbox>
                       <Flexbox className={styles.featureGroup} gap={10}>
                         <div className={styles.sectionTitle}>
                           模型权限
@@ -746,7 +757,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             <Flexbox gap={4}>
               <h2 className={styles.title}>套餐对比</h2>
               <div className={subscriptionPageStyles.caption}>
-                根据后台套餐配置汇总展示积分、资源额度、PPT 权益、模型权限和优惠信息。
+                根据后台套餐配置汇总展示积分、资源额度、PPT 权益、模型权限和优惠信息；分类维度对齐官方套餐页。
               </div>
             </Flexbox>
             <Table
@@ -763,7 +774,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
         <Card className={styles.pricingCard} variant="borderless">
           <Flexbox gap={12}>
             <Flexbox gap={4}>
-              <h2 className={styles.title}>模型计费说明</h2>
+              <h2 className={styles.title}>文本模型价格</h2>
               <div className={subscriptionPageStyles.caption}>
                 平台使用算力积分衡量 AI 模型使用量。具体模型、倍率和可用套餐由后台“模型与计费矩阵”统一维护，新增 AI
                 服务商或模型后会按后台配置生效。
@@ -771,9 +782,9 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             </Flexbox>
             <Alert
               showIcon
+              description="这里展示计费规则入口和解释，不写死任何官方模型价格；具体模型计费、服务商分组、默认模型和套餐开放范围以管理员后台配置为准。"
               message="模型价格随后台配置动态生效"
               type="info"
-              description="套餐页只展示用户可理解的权益摘要；具体模型计费、服务商分组、默认模型和套餐开放范围以管理员后台配置为准。"
             />
           </Flexbox>
         </Card>
@@ -782,16 +793,24 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             <Flexbox gap={4}>
               <h2 className={styles.title}>常见问题</h2>
               <div className={subscriptionPageStyles.caption}>
-                如果您的问题未被解答，请查看{' '}
-                <a href={faqLinks.docs} rel="noopener noreferrer" target="_blank">
-                  产品文档
-                </a>{' '}
-                获取更多常见问题，或{' '}
-                <a href={faqLinks.contact} rel="noopener noreferrer" target="_blank">
-                  联系我们
-                </a>
-                。
+                如果您的问题未被解答，请通过后台配置的支持入口获取帮助。
               </div>
+              {faqLinks.length > 0 ? (
+                <div className={styles.supportActions}>
+                  {faqLinks.map((item) => (
+                    <Button
+                      href={item.url}
+                      icon={<Icon icon={item.icon} />}
+                      key={item.label}
+                      rel="noopener noreferrer"
+                      size="small"
+                      target="_blank"
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
             </Flexbox>
             <Collapse
               ghost
@@ -815,6 +834,24 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                   children: '套餐价格、年付优惠、权益、模型权限和购买链接均由管理员在后台维护。',
                   key: 'admin',
                   label: '套餐权益由哪里配置？',
+                },
+                {
+                  children:
+                    '长上下文、图片/文件输入、较长输出和高阶模型都会提高积分消耗；同一个模型在不同上下文长度下也可能产生不同扣费。',
+                  key: 'usage-fast',
+                  label: '为什么我的积分消耗比预期快？',
+                },
+                {
+                  children:
+                    '如果购买链接已配置，可通过套餐卡片进入购买页；如果未配置，请联系管理员处理升级、降级或取消订阅。',
+                  key: 'change-subscription',
+                  label: '如何更改或取消订阅？',
+                },
+                {
+                  children:
+                    '向量存储通常按知识库条目或后台配置的额度统计，文档越多、切分片段越多，占用的向量记录越高。',
+                  key: 'vector',
+                  label: '向量存储是如何计算的？',
                 },
               ]}
             />

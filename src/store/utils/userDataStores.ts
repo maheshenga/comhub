@@ -1,56 +1,85 @@
 import { unstable_batchedUpdates } from 'react-dom';
 
-import { useAgentStore } from '@/store/agent';
-import { useAgentGroupStore } from '@/store/agentGroup';
-import { useChatStore } from '@/store/chat';
-import { useDiscoverStore } from '@/store/discover';
-import { useDocumentStore } from '@/store/document';
-import { useEvalStore } from '@/store/eval';
-import { useFileStore } from '@/store/file';
-import { useHomeStore } from '@/store/home';
-import { useImageStore } from '@/store/image';
-import { useKnowledgeBaseStore } from '@/store/library';
-import { useMentionStore } from '@/store/mention';
-import { useNotebookStore } from '@/store/notebook';
-import { usePageStore } from '@/store/page';
-import { useSessionStore } from '@/store/session';
-import { useTaskStore } from '@/store/task';
-import { useToolStore } from '@/store/tool';
-import { useUserStore } from '@/store/user';
-import { useUserMemoryStore } from '@/store/userMemory';
 import type { ResetableStore } from '@/store/utils/resetableStore';
-import { useVideoStore } from '@/store/video';
 
 interface ResetableStoreApi {
   getState: () => ResetableStore;
 }
 
-const resetableStores: ResetableStoreApi[] = [
-  useAgentGroupStore,
-  useAgentStore,
-  useChatStore,
-  useDiscoverStore,
-  useDocumentStore,
-  useEvalStore,
-  useFileStore,
-  useHomeStore,
-  useImageStore,
-  useKnowledgeBaseStore,
-  useMentionStore,
-  useNotebookStore,
-  usePageStore,
-  useSessionStore,
-  useTaskStore,
-  useToolStore,
-  useUserMemoryStore,
-  useUserStore,
-  useVideoStore,
-];
+const getResetableStores = async (): Promise<ResetableStoreApi[]> => {
+  const [
+    { useAgentGroupStore },
+    { useAgentStore },
+    { useChatStore },
+    { useDiscoverStore },
+    { useDocumentStore },
+    { useEvalStore },
+    { useFileStore },
+    { useHomeStore },
+    { useImageStore },
+    { useKnowledgeBaseStore },
+    { useMentionStore },
+    { useNotebookStore },
+    { usePageStore },
+    { useSessionStore },
+    { useTaskStore },
+    { useToolStore },
+    { useUserMemoryStore },
+    { useUserStore },
+    { useVideoStore },
+  ] = await Promise.all([
+    import('@/store/agentGroup'),
+    import('@/store/agent'),
+    import('@/store/chat'),
+    import('@/store/discover'),
+    import('@/store/document'),
+    import('@/store/eval'),
+    import('@/store/file'),
+    import('@/store/home'),
+    import('@/store/image'),
+    import('@/store/library'),
+    import('@/store/mention'),
+    import('@/store/notebook'),
+    import('@/store/page'),
+    import('@/store/session'),
+    import('@/store/task'),
+    import('@/store/tool'),
+    import('@/store/userMemory'),
+    import('@/store/user'),
+    import('@/store/video'),
+  ]);
 
-export interface StoreActions extends ResetableStore {}
+  return [
+    useAgentGroupStore,
+    useAgentStore,
+    useChatStore,
+    useDiscoverStore,
+    useDocumentStore,
+    useEvalStore,
+    useFileStore,
+    useHomeStore,
+    useImageStore,
+    useKnowledgeBaseStore,
+    useMentionStore,
+    useNotebookStore,
+    usePageStore,
+    useSessionStore,
+    useTaskStore,
+    useToolStore,
+    useUserMemoryStore,
+    useUserStore,
+    useVideoStore,
+  ];
+};
 
-const createStoreActions = (stores: ResetableStoreApi[]): StoreActions => ({
-  reset: () => {
+export interface StoreActions {
+  reset: () => Promise<void>;
+}
+
+const createStoreActions = (getStores: () => Promise<ResetableStoreApi[]>): StoreActions => ({
+  reset: async () => {
+    const stores = await getStores();
+
     unstable_batchedUpdates(() => {
       for (const store of stores) {
         store.getState().reset();
@@ -59,4 +88,4 @@ const createStoreActions = (stores: ResetableStoreApi[]): StoreActions => ({
   },
 });
 
-export const stores = createStoreActions(resetableStores);
+export const stores = createStoreActions(getResetableStores);

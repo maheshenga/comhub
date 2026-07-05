@@ -333,6 +333,12 @@ describe('admin commercial flow pages', () => {
     expect(publicPlansPage).toContain('默认开放全部已启用模型');
     expect(publicPlansPage).toContain('模型与计费矩阵');
     expect(publicPlansPage).toContain('模型价格随后台配置动态生效');
+    expect(publicPlansPage).toContain('升级方案');
+    expect(publicPlansPage).toContain('解锁更多容量与高级功能');
+    expect(publicPlansPage).toContain('文本模型价格');
+    expect(publicPlansPage).toContain('为什么我的积分消耗比预期快');
+    expect(publicPlansPage).not.toContain('lobehub.com/docs');
+    expect(publicPlansPage).not.toContain('mailto:support@lobehub.com');
     expect(publicPlansPage).not.toContain('MODEL_MESSAGE_ESTIMATES');
     expect(publicPlansPage).not.toContain('MODEL_PRICE_ROWS');
     expect(publicPlansPage).not.toContain('DeepSeek V4 Pro');

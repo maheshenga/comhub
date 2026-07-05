@@ -5,6 +5,7 @@ import {
   formatPlanCurrencyAmount,
   getPlanYearlyDiscountPercent,
   getVisiblePaidPlans,
+  getYearlyCycleDiscountLabel,
   resolvePlanCyclePrice,
 } from './plansDisplay';
 
@@ -27,7 +28,7 @@ describe('plans display helpers', () => {
     expect(getPlanYearlyDiscountPercent(0, 590)).toBe(0);
   });
 
-  it('resolves yearly prices as cycle totals with monthly equivalents', () => {
+  it('resolves yearly prices with a monthly headline and yearly total detail', () => {
     const price = resolvePlanCyclePrice(
       {
         currency: 'CNY',
@@ -38,9 +39,27 @@ describe('plans display helpers', () => {
     );
 
     expect(price.amount).toBe(590);
-    expect(price.unit).toBe('年');
+    expect(price.label).toContain('49.17');
+    expect(price.unit).toBe('每月');
     expect(price.discountPercent).toBe(17);
-    expect(price.secondaryLabel).toContain('按年支付');
+    expect(price.secondaryLabel).toContain('590');
+    expect(price.secondaryLabel).toContain('优惠 17%');
+  });
+
+  it('builds the yearly tab discount label from configured labels or max computed discount', () => {
+    expect(
+      getYearlyCycleDiscountLabel([
+        { monthlyPrice: 59, yearlyPrice: 590 },
+        { monthlyPrice: 99, yearlyDiscountLabel: '  最高优惠 37% ', yearlyPrice: 748 },
+      ]),
+    ).toBe('最高优惠 37%');
+
+    expect(
+      getYearlyCycleDiscountLabel([
+        { monthlyPrice: 59, yearlyPrice: 590 },
+        { monthlyPrice: 99, yearlyPrice: 950 },
+      ]),
+    ).toBe('最高优惠 20%');
   });
 
   it('resolves one-time prices from monthly catalog prices until dedicated prices exist', () => {
