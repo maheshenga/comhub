@@ -1,8 +1,12 @@
 import { asc, desc, eq } from 'drizzle-orm';
 
-import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
+import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
+import {
+  normalizePlanCatalogPresentation,
+  normalizePlanFaqItems,
+} from '@/const/billingPresentation';
 import { CommercialModel } from '@/database/models/commercial';
-import { planCatalog, userPlanSnapshots } from '@/database/schemas';
+import { appSettings, planCatalog, userPlanSnapshots } from '@/database/schemas';
 import { type PlanModelRules } from '@/database/schemas';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
@@ -96,6 +100,14 @@ export const subscriptionRouter = router({
       sortOrder: Number(r.sortOrder),
       yearlyPrice: Number(r.yearlyPrice),
     }));
+  }),
+
+  listPlanFaq: authedProcedure.use(serverDatabase).query(async ({ ctx }) => {
+    const row = await ctx.serverDB.query.appSettings.findFirst({
+      where: eq(appSettings.key, APP_SETTING_KEYS.plansFaqItems),
+    });
+
+    return normalizePlanFaqItems(row?.value);
   }),
 
   getCurrentPlanModelRules: authedProcedure

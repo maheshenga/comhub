@@ -119,6 +119,7 @@ export const APP_SETTING_KEYS = {
   onboardingInitialCredits: 'onboarding.initialCredits',
   onboardingInitialCreditsEnabled: 'onboarding.initialCredits.enabled',
   ordersManagementEnabled: 'orders.management.enabled',
+  plansFaqItems: 'plans.faq.items',
   pricingCreditMultiplier: 'pricing.creditMultiplier',
   pricingModelRules: 'pricing.modelRules',
   recommendationAssistantTags: 'recommendation.assistantTags',
@@ -213,7 +214,7 @@ const inferDomain = (key: AppSettingKey): AppSettingDomain => {
   ) {
     return 'model';
   }
-  if (key.startsWith('pricing.')) return 'pricing';
+  if (key.startsWith('pricing.') || key.startsWith('plans.')) return 'pricing';
   if (key.startsWith('storage.')) return 'storage';
   if (key.startsWith('user.') || key.startsWith('profile.')) return 'user-defaults';
   if (key.startsWith('orders.') || key.startsWith('referral.') || key.startsWith('cron.')) {

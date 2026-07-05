@@ -452,6 +452,101 @@ const AdminSettingsPage = memo(() => {
                   >
                     <Input placeholder="生成" />
                   </Form.Item>
+                  <Form.Item
+                    extra={t(
+                      'admin.settings.planFaqItems.help',
+                      '显示在用户端 /settings/plans 的常见问题区域。用于对齐官方套餐页说明，同时避免以后改源码。',
+                    )}
+                    label={t('admin.settings.planFaqItems', '套餐页常见问题')}
+                  >
+                    <Form.List name="planFaqItems">
+                      {(fields, { add, remove }) => (
+                        <Flexbox gap={8}>
+                          {fields.map(({ key, name, ...restField }) => (
+                            <Flexbox
+                              horizontal
+                              align="center"
+                              gap={8}
+                              key={key}
+                              style={{ flexWrap: 'wrap' }}
+                            >
+                              <Form.Item {...restField} hidden name={[name, 'id']}>
+                                <Input />
+                              </Form.Item>
+                              <Form.Item
+                                {...restField}
+                                noStyle
+                                name={[name, 'question']}
+                                rules={[
+                                  {
+                                    message: t(
+                                      'admin.settings.planFaqItems.questionRequired',
+                                      '请填写问题',
+                                    ),
+                                    required: true,
+                                  },
+                                ]}
+                              >
+                                <Input
+                                  placeholder={t(
+                                    'admin.settings.planFaqItems.question',
+                                    '问题',
+                                  )}
+                                  style={{ flex: 1 }}
+                                />
+                              </Form.Item>
+                              <Form.Item
+                                {...restField}
+                                noStyle
+                                name={[name, 'answer']}
+                                rules={[
+                                  {
+                                    message: t(
+                                      'admin.settings.planFaqItems.answerRequired',
+                                      '请填写答案',
+                                    ),
+                                    required: true,
+                                  },
+                                ]}
+                              >
+                                <Input
+                                  placeholder={t('admin.settings.planFaqItems.answer', '答案')}
+                                  style={{ flex: 1.8 }}
+                                />
+                              </Form.Item>
+                              <Form.Item
+                                {...restField}
+                                noStyle
+                                name={[name, 'enabled']}
+                                valuePropName="checked"
+                              >
+                                <Switch size="small" />
+                              </Form.Item>
+                              <MinusCircleOutlined
+                                style={{ color: '#ff4d4f' }}
+                                onClick={() => remove(name)}
+                              />
+                            </Flexbox>
+                          ))}
+                          <Button
+                            block
+                            icon={<PlusOutlined />}
+                            type="dashed"
+                            onClick={() =>
+                              add({
+                                answer: '',
+                                enabled: true,
+                                id: '',
+                                question: '',
+                              })
+                            }
+                          >
+                            {t('admin.settings.planFaqItems.add', '添加常见问题')}
+                          </Button>
+                        </Flexbox>
+                      )}
+                    </Form.List>
+                  </Form.Item>
                 </Card>
               ),
               key: 'entry',

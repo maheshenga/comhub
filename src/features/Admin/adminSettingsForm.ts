@@ -2,6 +2,10 @@ import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { SOCIAL_URL } from '@lobechat/business-const';
 
 import {
+  type PlanFaqItem,
+  normalizePlanFaqSettings,
+} from '@/const/billingPresentation';
+import {
   type AboutLinksConfig,
   type AboutPageConfig,
   DEFAULT_ABOUT_LINKS,
@@ -13,6 +17,7 @@ import {
   PUBLIC_ABOUT_LINKS_SWR_KEY,
   PUBLIC_ABOUT_PAGE_SWR_KEY,
   PUBLIC_HELP_MENU_SWR_KEY,
+  PUBLIC_PLAN_FAQ_SWR_KEY,
   PROFILE_INTEREST_AREAS_SWR_KEY,
   RUNTIME_CONFIG_SWR_KEY,
   USER_STATE_SWR_KEY,
@@ -33,6 +38,7 @@ export {
   PUBLIC_ABOUT_LINKS_SWR_KEY,
   PUBLIC_ABOUT_PAGE_SWR_KEY,
   PUBLIC_HELP_MENU_SWR_KEY,
+  PUBLIC_PLAN_FAQ_SWR_KEY,
   BRAND_CONFIG_SWR_KEY,
   PROFILE_INTEREST_AREAS_SWR_KEY,
   PROFILE_OPTIONS_SWR_KEY,
@@ -116,6 +122,7 @@ export type AdminSettingsData = {
   } | null;
   pricingCreditMultiplier?: number | null;
   pricingModelRules?: unknown[] | null;
+  plansFaqItems?: unknown;
   profileInterestAreas?: unknown;
   referralRewardCredits?: number | null;
   sidebarGenerationLabel?: string | null;
@@ -168,6 +175,7 @@ export type AdminSettingsFormValues = {
   profileInterestAreas: ConfiguredInterestArea[];
   ordersEnabled: boolean;
   pricingMultiplier: number;
+  planFaqItems: PlanFaqItem[];
   referralRewardCredits: number;
   sidebarGenerationLabel: string;
   sidebarMemberLabel: string;
@@ -410,6 +418,7 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   profileInterestAreas: normalizeConfiguredInterestAreas(data?.profileInterestAreas),
   ordersEnabled: data?.ordersManagementEnabled ?? true,
   pricingMultiplier: data?.pricingCreditMultiplier ?? DEFAULT_PRICING_CREDIT_MULTIPLIER,
+  planFaqItems: normalizePlanFaqSettings(data?.plansFaqItems),
   referralRewardCredits: data?.referralRewardCredits ?? 0,
   sidebarGenerationLabel: data?.sidebarGenerationLabel ?? '生成',
   sidebarMemberLabel: data?.sidebarMemberLabel ?? '会员',
@@ -471,6 +480,7 @@ export const normalizeFormValues = (
     typeof values.pricingMultiplier === 'number' && values.pricingMultiplier > 0
       ? values.pricingMultiplier
       : DEFAULT_PRICING_CREDIT_MULTIPLIER,
+  planFaqItems: normalizePlanFaqSettings(values.planFaqItems),
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
   sidebarGenerationLabel: normalizeText(values.sidebarGenerationLabel) || '生成',
@@ -556,6 +566,7 @@ const SETTING_KEY_BY_FORM_FIELD: Record<keyof AdminSettingsFormValues, string> =
   profileInterestAreas: SETTING_KEYS.profileInterestAreas,
   ordersEnabled: SETTING_KEYS.ordersManagementEnabled,
   pricingMultiplier: SETTING_KEYS.pricingCreditMultiplier,
+  planFaqItems: SETTING_KEYS.plansFaqItems,
   referralRewardCredits: SETTING_KEYS.referralRewardCredits,
   sidebarGenerationLabel: SETTING_KEYS.sidebarGenerationLabel,
   sidebarMemberLabel: SETTING_KEYS.sidebarMemberLabel,
@@ -588,6 +599,7 @@ export const buildSettingMaterializationUpdates = (
     { key: SETTING_KEYS.aboutLinks, value: current.aboutLinks },
     { key: SETTING_KEYS.aboutPage, value: current.aboutPage },
     { key: SETTING_KEYS.helpMenuItems, value: helpMenuItems },
+    { key: SETTING_KEYS.plansFaqItems, value: current.planFaqItems },
   ];
 };
 
@@ -606,6 +618,10 @@ export const buildSettingUpdates = (
 
   if (JSON.stringify(current.helpMenuItems) !== JSON.stringify(initial.helpMenuItems)) {
     updates.push({ key: SETTING_KEYS.helpMenuItems, value: current.helpMenuItems });
+  }
+
+  if (JSON.stringify(current.planFaqItems) !== JSON.stringify(initial.planFaqItems)) {
+    updates.push({ key: SETTING_KEYS.plansFaqItems, value: current.planFaqItems });
   }
 
   if (
@@ -671,6 +687,7 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     (update) => update.key === SETTING_KEYS.profileInterestAreas,
   );
   const needsHelpMenuRefresh = updates.some((update) => update.key === SETTING_KEYS.helpMenuItems);
+  const needsPlanFaqRefresh = updates.some((update) => update.key === SETTING_KEYS.plansFaqItems);
   const needsAboutLinksRefresh = updates.some((update) => update.key === SETTING_KEYS.aboutLinks);
   const needsAboutPageRefresh = updates.some((update) => update.key === SETTING_KEYS.aboutPage);
 
@@ -678,6 +695,7 @@ export const getAdminSettingsRefreshKeys = (updates: SettingUpdate[]) => {
     ...(needsRuntimeRefresh ? [RUNTIME_CONFIG_SWR_KEY, USER_STATE_SWR_KEY] : []),
     ...(needsBrandRefresh ? [BRAND_CONFIG_SWR_KEY] : []),
     ...(needsHelpMenuRefresh ? [PUBLIC_HELP_MENU_SWR_KEY] : []),
+    ...(needsPlanFaqRefresh ? [PUBLIC_PLAN_FAQ_SWR_KEY] : []),
     ...(needsAboutLinksRefresh ? [PUBLIC_ABOUT_LINKS_SWR_KEY] : []),
     ...(needsAboutPageRefresh ? [PUBLIC_ABOUT_PAGE_SWR_KEY] : []),
     ...(needsProfileInterestRefresh ? [PROFILE_INTEREST_AREAS_SWR_KEY] : []),

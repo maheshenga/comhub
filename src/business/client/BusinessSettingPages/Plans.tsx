@@ -20,6 +20,8 @@ import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import { Card } from '@/components/antd-compat/Card';
+import { PUBLIC_PLAN_FAQ_SWR_KEY } from '@/const/adminCacheKeys';
+import { DEFAULT_PLAN_FAQ_ITEMS } from '@/const/billingPresentation';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
@@ -357,6 +359,10 @@ const Plans = memo<{ mobile?: boolean }>(() => {
   const { data: pendingChangeRequest } = useClientDataSWR(
     ['business-subscription-change-request'],
     () => commercialService.getPendingSubscriptionChangeRequest(),
+  );
+  const { data: planFaqItems = DEFAULT_PLAN_FAQ_ITEMS } = useClientDataSWR(
+    PUBLIC_PLAN_FAQ_SWR_KEY,
+    () => commercialService.listPlanFaq(),
   );
 
   const visiblePlans = useMemo(() => {
@@ -814,46 +820,11 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             </Flexbox>
             <Collapse
               ghost
-              items={[
-                {
-                  children: '可以。免费套餐可使用基础额度；升级后可获得更多积分、容量和高级模型权限。',
-                  key: 'free',
-                  label: '可以免费使用吗？',
-                },
-                {
-                  children: '积分用于衡量模型调用、生成与部分高级能力的消耗，具体扣费以后台模型与计费矩阵为准。',
-                  key: 'credits',
-                  label: '什么是积分？',
-                },
-                {
-                  children: '订阅积分会优先消耗，之后使用充值积分。积分不足时可以升级套餐、充值积分或使用兑换码。',
-                  key: 'topup',
-                  label: '积分用完怎么办？',
-                },
-                {
-                  children: '套餐价格、年付优惠、权益、模型权限和购买链接均由管理员在后台维护。',
-                  key: 'admin',
-                  label: '套餐权益由哪里配置？',
-                },
-                {
-                  children:
-                    '长上下文、图片/文件输入、较长输出和高阶模型都会提高积分消耗；同一个模型在不同上下文长度下也可能产生不同扣费。',
-                  key: 'usage-fast',
-                  label: '为什么我的积分消耗比预期快？',
-                },
-                {
-                  children:
-                    '如果购买链接已配置，可通过套餐卡片进入购买页；如果未配置，请联系管理员处理升级、降级或取消订阅。',
-                  key: 'change-subscription',
-                  label: '如何更改或取消订阅？',
-                },
-                {
-                  children:
-                    '向量存储通常按知识库条目或后台配置的额度统计，文档越多、切分片段越多，占用的向量记录越高。',
-                  key: 'vector',
-                  label: '向量存储是如何计算的？',
-                },
-              ]}
+              items={planFaqItems.map((item) => ({
+                children: item.answer,
+                key: item.id,
+                label: item.question,
+              }))}
             />
           </Flexbox>
         </Card>

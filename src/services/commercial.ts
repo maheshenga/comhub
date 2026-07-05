@@ -27,6 +27,10 @@ class CommercialService {
     return lambdaClient.subscription.listPlanCatalog.query();
   };
 
+  listPlanFaq = async () => {
+    return lambdaClient.subscription.listPlanFaq.query();
+  };
+
   getCreditAccountSummary = async () => {
     return lambdaClient.spend.getAccountSummary.query();
   };

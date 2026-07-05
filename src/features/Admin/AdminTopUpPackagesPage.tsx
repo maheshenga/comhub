@@ -123,6 +123,27 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
       title: t('admin.topup.col.amount', '金额'),
     },
     {
+      dataIndex: 'metadata',
+      key: 'promotion',
+      render: (_metadata: PackageRow['metadata'], row: PackageRow) => {
+        const promotion = normalizeTopUpPackagePromotion(row.metadata);
+        if (!promotion.enabled) return <Tag>未设置</Tag>;
+
+        return (
+          <Flexbox horizontal gap={4} wrap="wrap">
+            <Tag color="red">{promotion.label || '限时优惠'}</Tag>
+            {typeof promotion.originalAmount === 'number' ? (
+              <Tag>
+                原价 {promotion.originalAmount} {row.currency}
+              </Tag>
+            ) : null}
+            {promotion.note ? <Tag color="blue">{promotion.note}</Tag> : null}
+          </Flexbox>
+        );
+      },
+      title: t('admin.topup.col.promotion', '促销'),
+    },
+    {
       dataIndex: 'validityMonths',
       key: 'validityMonths',
       title: t('admin.topup.col.validity', '有效期（月）'),

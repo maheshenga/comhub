@@ -328,6 +328,12 @@ describe('admin commercial flow pages', () => {
 
   it('keeps the public plans page aligned with dynamic matrix model billing', () => {
     const publicPlansPage = readRepoFile('src/business/client/BusinessSettingPages/Plans.tsx');
+    const adminSettingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
+    const adminSettingsForm = readRepoFile('src/features/Admin/adminSettingsForm.ts');
+    const settingsRouter = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/settings.ts',
+    );
+    const subscriptionRouter = readRepoFile('packages/business-server/src/lambda-routers/subscription.ts');
 
     expect(publicPlansPage).toContain('getModelAccessSummary');
     expect(publicPlansPage).toContain('默认开放全部已启用模型');
@@ -336,13 +342,30 @@ describe('admin commercial flow pages', () => {
     expect(publicPlansPage).toContain('升级方案');
     expect(publicPlansPage).toContain('解锁更多容量与高级功能');
     expect(publicPlansPage).toContain('文本模型价格');
-    expect(publicPlansPage).toContain('为什么我的积分消耗比预期快');
+    expect(publicPlansPage).toContain('commercialService.listPlanFaq');
+    expect(publicPlansPage).toContain('PUBLIC_PLAN_FAQ_SWR_KEY');
+    expect(publicPlansPage).toContain('planFaqItems.map');
+    expect(adminSettingsPage).toContain('name="planFaqItems"');
+    expect(adminSettingsForm).toContain('plansFaqItems?: unknown');
+    expect(settingsRouter).toContain('SETTING_KEYS.plansFaqItems');
+    expect(subscriptionRouter).toContain('listPlanFaq');
+    expect(publicPlansPage).not.toContain("key: 'usage-fast'");
     expect(publicPlansPage).not.toContain('lobehub.com/docs');
     expect(publicPlansPage).not.toContain('mailto:support@lobehub.com');
     expect(publicPlansPage).not.toContain('MODEL_MESSAGE_ESTIMATES');
     expect(publicPlansPage).not.toContain('MODEL_PRICE_ROWS');
     expect(publicPlansPage).not.toContain('DeepSeek V4 Pro');
     expect(publicPlansPage).not.toContain('GPT-5.5');
+  });
+
+  it('shows admin-configured top-up promotion metadata in admin and user credit surfaces', () => {
+    const topupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
+    const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
+
+    expect(topupPage).toContain('normalizeTopUpPackagePromotion(row.metadata)');
+    expect(topupPage).toContain("admin.topup.col.promotion");
+    expect(creditsPage).toContain('限时优惠');
+    expect(creditsPage).toContain('优先使用订阅积分，其次使用充值积分');
   });
 
   it('uses provider-neutral file names for the admin provider page', () => {

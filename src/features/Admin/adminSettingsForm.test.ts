@@ -19,6 +19,7 @@ describe('adminSettingsForm', () => {
   it('uses the shared app setting key registry', () => {
     expect(SETTING_KEYS.brandName).toBe('brand.name');
     expect(SETTING_KEYS.desktopDownloadUrl).toBe('desktop.download.url');
+    expect(SETTING_KEYS.plansFaqItems).toBe('plans.faq.items');
   });
 
   it('builds default model options from enabled provider models and suggestions', () => {
@@ -674,6 +675,89 @@ describe('adminSettingsForm', () => {
       'public-help-menu',
     ]);
   });
+
+  it('preserves configurable plan FAQ settings for the public plans page', () => {
+    const initial = buildFormValues({
+      plansFaqItems: [
+        {
+          answer: ' Usage units. ',
+          enabled: true,
+          id: 'credits',
+          question: ' What are credits? ',
+        },
+      ],
+    } as any);
+
+    expect(initial.planFaqItems).toEqual([
+      {
+        answer: 'Usage units.',
+        enabled: true,
+        id: 'credits',
+        question: 'What are credits?',
+      },
+    ]);
+
+    expect(
+      buildSettingUpdates(
+        {
+          ...initial,
+          planFaqItems: [
+            ...initial.planFaqItems,
+            {
+              answer: 'Ask support.',
+              enabled: true,
+              id: 'support',
+              question: 'Need help?',
+            },
+          ],
+        },
+        initial,
+      ),
+    ).toEqual([
+      {
+        key: SETTING_KEYS.plansFaqItems,
+        value: [
+          ...initial.planFaqItems,
+          {
+            answer: 'Ask support.',
+            enabled: true,
+            id: 'support',
+            question: 'Need help?',
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('keeps disabled plan FAQ rows editable instead of restoring defaults', () => {
+    const initial = buildFormValues({
+      plansFaqItems: [
+        {
+          answer: 'Hidden answer',
+          enabled: false,
+          id: 'hidden',
+          question: 'Hidden?',
+        },
+      ],
+    } as any);
+
+    expect(initial.planFaqItems).toEqual([
+      {
+        answer: 'Hidden answer',
+        enabled: false,
+        id: 'hidden',
+        question: 'Hidden?',
+      },
+    ]);
+
+    expect(buildSettingUpdates({ ...initial, planFaqItems: [] }, initial)).toEqual([
+      {
+        key: SETTING_KEYS.plansFaqItems,
+        value: [],
+      },
+    ]);
+  });
+
 
   it('materializes site customization defaults for newly introduced admin settings', () => {
     const values = buildFormValues({

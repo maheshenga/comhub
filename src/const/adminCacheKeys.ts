@@ -6,5 +6,6 @@ export const PUBLIC_EXPERT_PLAZA_SWR_KEY = 'public-expert-plaza';
 export const PUBLIC_ABOUT_LINKS_SWR_KEY = 'about-links';
 export const PUBLIC_ABOUT_PAGE_SWR_KEY = 'public-about-page';
 export const PUBLIC_HELP_MENU_SWR_KEY = 'public-help-menu';
+export const PUBLIC_PLAN_FAQ_SWR_KEY = 'business-plan-faq';
 export const RUNTIME_CONFIG_SWR_KEY = 'FETCH_SERVER_CONFIG';
 export const USER_STATE_SWR_KEY = 'initUserState';

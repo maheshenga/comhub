@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_PLAN_FAQ_ITEMS,
+  normalizePlanFaqItems,
+  normalizePlanFaqSettings,
   normalizePlanCatalogPresentation,
   normalizeTopUpPackagePromotion,
 } from './billingPresentation';
@@ -64,5 +67,35 @@ describe('billingPresentation', () => {
       note: 'Valid for 6 months',
       originalAmount: 30,
     });
+  });
+
+  it('normalizes configurable plan FAQ items', () => {
+    expect(
+      normalizePlanFaqItems([
+        { answer: ' Usage units. ', enabled: true, id: 'credits', question: ' What are credits? ' },
+        { answer: ' Still visible ', enabled: true, id: 'credits', question: ' Duplicate ' },
+        { answer: 'hidden', enabled: true, id: 'blank', question: '' },
+        { answer: 'Hidden', enabled: false, id: 'disabled', question: 'Disabled' },
+      ]),
+    ).toEqual([
+      { answer: 'Usage units.', enabled: true, id: 'credits', question: 'What are credits?' },
+      { answer: 'Still visible', enabled: true, id: 'credits-2', question: 'Duplicate' },
+    ]);
+
+    expect(normalizePlanFaqItems(null)).toEqual(DEFAULT_PLAN_FAQ_ITEMS);
+  });
+
+  it('preserves disabled and empty FAQ rows for admin settings', () => {
+    expect(
+      normalizePlanFaqSettings([
+        { answer: 'Hidden answer', enabled: false, id: 'hidden', question: 'Hidden?' },
+        { answer: '', enabled: true, id: 'blank', question: 'Blank?' },
+      ]),
+    ).toEqual([
+      { answer: 'Hidden answer', enabled: false, id: 'hidden', question: 'Hidden?' },
+    ]);
+
+    expect(normalizePlanFaqSettings([])).toEqual([]);
+    expect(normalizePlanFaqSettings(null)).toEqual(DEFAULT_PLAN_FAQ_ITEMS);
   });
 });

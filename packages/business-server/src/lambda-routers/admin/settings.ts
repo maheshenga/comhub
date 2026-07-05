@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { normalizeAboutLinksConfig, normalizeAboutPageConfig } from '@/const/aboutLinks';
 import { normalizeAvatarPresets } from '@/const/avatarPresets';
+import { normalizePlanFaqSettings } from '@/const/billingPresentation';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { normalizeHelpMenuItems } from '@/const/helpMenu';
@@ -152,6 +153,7 @@ const RECOMMENDATION_KEYS = [
 ] as const;
 
 const PRICING_KEYS = [
+  SETTING_KEYS.plansFaqItems,
   SETTING_KEYS.pricingCreditMultiplier,
   SETTING_KEYS.pricingModelRules,
   SETTING_KEYS.ordersManagementEnabled,
@@ -626,6 +628,8 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
     value = Array.isArray(value) ? value : [];
   } else if (input.key === SETTING_KEYS.ordersManagementEnabled) {
     value = Boolean(value);
+  } else if (input.key === SETTING_KEYS.plansFaqItems) {
+    value = normalizePlanFaqSettings(value);
   } else if ((OPERATIONS_KEYS as readonly string[]).includes(input.key)) {
     if (
       [
@@ -1480,6 +1484,7 @@ export const adminSettingsRouter = router({
       defaultVideoModel,
       defaultVideoProvider,
       recommendationConfig,
+      plansFaqItems,
       pricingCreditMultiplier,
       pricingModelRules,
       ordersManagementEnabled,
@@ -1583,6 +1588,7 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.defaultVideoModel),
       readSetting(ctx.serverDB, SETTING_KEYS.defaultVideoProvider),
       readPublicRecommendations(ctx.serverDB),
+      readSetting(ctx.serverDB, SETTING_KEYS.plansFaqItems),
       readSetting(ctx.serverDB, SETTING_KEYS.pricingCreditMultiplier),
       readSetting(ctx.serverDB, SETTING_KEYS.pricingModelRules),
       readSetting(ctx.serverDB, SETTING_KEYS.ordersManagementEnabled),
@@ -1744,6 +1750,7 @@ export const adminSettingsRouter = router({
         providerType: item.providerType ?? null,
       })),
       ordersManagementEnabled: toBoolean(ordersManagementEnabled, true),
+      plansFaqItems: normalizePlanFaqSettings(plansFaqItems),
       paymentGatewayStatus: {
         configured: false,
         message:
