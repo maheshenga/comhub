@@ -9,7 +9,10 @@ import { getServerDB } from '@/database/core/db-adaptor';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
-import { getAllEnabledModels } from '@/server/services/newapiInstance';
+import {
+  getAllEnabledModels,
+  invalidateNewapiInstancesCache,
+} from '@/server/services/newapiInstance';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
@@ -25,6 +28,7 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('@/server/services/newapiInstance', () => ({
   getAllEnabledModels: vi.fn(),
+  invalidateNewapiInstancesCache: vi.fn(),
 }));
 
 vi.mock('@/server/modules/S3', () => ({
@@ -381,6 +385,29 @@ describe('admin settings default model validation', () => {
     } satisfies Partial<TRPCError>);
 
     expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('refreshes runtime caches on admin request', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.refreshRuntimeCaches();
+
+    expect(result).toEqual({
+      ok: true,
+      refreshed: ['app-settings', 'newapi-instances', 's3-runtime'],
+    });
+    expect(invalidateFileS3RuntimeCache).toHaveBeenCalledTimes(1);
+    expect(invalidateNewapiInstancesCache).toHaveBeenCalledTimes(1);
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'settings.refreshRuntimeCaches',
+        payload: { refreshed: ['app-settings', 'newapi-instances', 's3-runtime'] },
+        resourceType: 'app_setting',
+      }),
+    );
   });
 
   it('cleans archived notifications during maintenance using the configured retention days', async () => {

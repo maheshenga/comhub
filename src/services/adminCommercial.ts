@@ -129,6 +129,10 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.syncUserGlobalSettingsDefaultsToUsers.mutate();
   };
 
+  refreshRuntimeCaches = async () => {
+    return lambdaClient.admin.settings.refreshRuntimeCaches.mutate();
+  };
+
   testS3Storage = async () => {
     return lambdaClient.admin.settings.testS3Storage.mutate();
   };

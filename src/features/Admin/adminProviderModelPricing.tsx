@@ -162,11 +162,16 @@ export const AiProviderModelPricingCell = ({
           onPressEnter={() => saveMediaPricing(draftImageRate, undefined)}
         />
         <span style={{ fontSize: 12, opacity: 0.65 }}>
-          {t('admin.providers.models.pricing.estimateImage', '计费价：{{price}} / 张', {
-            price: formatRate(
-              draftImageRate ? draftImageRate * DEFAULT_PRICING_MARGIN_MULTIPLIER : undefined,
-            ),
-          })}
+          {t(
+            'admin.providers.models.pricing.estimateImage',
+            '官方成本：{{cost}} / 张；默认利润后：{{price}} / 张',
+            {
+              cost: formatRate(draftImageRate ?? undefined),
+              price: formatRate(
+                draftImageRate ? draftImageRate * DEFAULT_PRICING_MARGIN_MULTIPLIER : undefined,
+              ),
+            },
+          )}
         </span>
       </Flexbox>
     );
@@ -187,11 +192,16 @@ export const AiProviderModelPricingCell = ({
           onPressEnter={() => saveMediaPricing(undefined, draftVideoRate)}
         />
         <span style={{ fontSize: 12, opacity: 0.65 }}>
-          {t('admin.providers.models.pricing.estimateVideo', '计费价：{{price}} / 条', {
-            price: formatRate(
-              draftVideoRate ? draftVideoRate * DEFAULT_PRICING_MARGIN_MULTIPLIER : undefined,
-            ),
-          })}
+          {t(
+            'admin.providers.models.pricing.estimateVideo',
+            '官方成本：{{cost}} / 条；默认利润后：{{price}} / 条',
+            {
+              cost: formatRate(draftVideoRate ?? undefined),
+              price: formatRate(
+                draftVideoRate ? draftVideoRate * DEFAULT_PRICING_MARGIN_MULTIPLIER : undefined,
+              ),
+            },
+          )}
         </span>
       </Flexbox>
     );
@@ -239,16 +249,24 @@ export const AiProviderModelPricingCell = ({
         />
       </Flexbox>
       <span style={{ fontSize: 12, opacity: 0.65 }}>
-        {t('admin.providers.models.pricing.estimate', '计费价：输入 {{input}} / 输出 {{output}}', {
-          input: formatRate(
-            draftInputCostRate ? draftInputCostRate * DEFAULT_PRICING_MARGIN_MULTIPLIER : undefined,
-          ),
-          output: formatRate(
-            draftOutputCostRate
-              ? draftOutputCostRate * DEFAULT_PRICING_MARGIN_MULTIPLIER
-              : undefined,
-          ),
-        })}
+        {t(
+          'admin.providers.models.pricing.estimate',
+          '官方成本：输入 {{input}} / 输出 {{output}}；默认利润后：输入 {{retailInput}} / 输出 {{retailOutput}}',
+          {
+            input: formatRate(draftInputCostRate ?? undefined),
+            output: formatRate(draftOutputCostRate ?? undefined),
+            retailInput: formatRate(
+              draftInputCostRate
+                ? draftInputCostRate * DEFAULT_PRICING_MARGIN_MULTIPLIER
+                : undefined,
+            ),
+            retailOutput: formatRate(
+              draftOutputCostRate
+                ? draftOutputCostRate * DEFAULT_PRICING_MARGIN_MULTIPLIER
+                : undefined,
+            ),
+          },
+        )}
       </span>
     </Flexbox>
   );

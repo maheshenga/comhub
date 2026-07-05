@@ -16,6 +16,11 @@ import {
 } from './adminSettingsForm';
 
 describe('adminSettingsForm', () => {
+  it('uses the shared app setting key registry', () => {
+    expect(SETTING_KEYS.brandName).toBe('brand.name');
+    expect(SETTING_KEYS.desktopDownloadUrl).toBe('desktop.download.url');
+  });
+
   it('builds default model options from enabled provider models and suggestions', () => {
     expect(
       buildModelOptions({
@@ -39,21 +44,21 @@ describe('adminSettingsForm', () => {
       }),
     ).toEqual([
       {
-        label: 'DeepSeek Chat（主网关 / chat）',
+        label: 'DeepSeek Chat (newapi / 主网关 / chat)',
         model: 'deepseek-chat',
         provider: 'newapi',
-        providerLabel: '主网关',
+        providerLabel: 'newapi / 主网关',
         value: 'newapi:deepseek-chat',
       },
       {
-        label: 'flux-kontext（图像网关 / image）',
+        label: 'flux-kontext (newapi / 图像网关 / image)',
         model: 'flux-kontext',
         provider: 'newapi',
-        providerLabel: '图像网关',
+        providerLabel: 'newapi / 图像网关',
         value: 'newapi:flux-kontext',
       },
       {
-        label: 'manual-chat（newapi / 建议）',
+        label: 'manual-chat (newapi / suggested)',
         model: 'manual-chat',
         provider: 'newapi',
         value: 'newapi:manual-chat',
@@ -76,10 +81,10 @@ describe('adminSettingsForm', () => {
       }),
     ).toEqual([
       {
-        label: 'Qwen Coder（OpenCode Go / chat）',
+        label: 'Qwen Coder (opencodego-1234567890 / OpenCode Go / chat)',
         model: 'qwen3-coder',
         provider: 'opencodego-1234567890',
-        providerLabel: 'OpenCode Go',
+        providerLabel: 'opencodego-1234567890 / OpenCode Go',
         value: 'opencodego-1234567890:qwen3-coder',
       },
     ]);
@@ -118,7 +123,7 @@ describe('adminSettingsForm', () => {
     });
 
     expect(options[0]).toMatchObject({
-      label: 'OpenCode Chat（opencodego / chat / OpenCode Gateway）',
+      label: 'OpenCode Chat (opencodego / OpenCode Gateway / chat)',
       provider: '1234567890',
       providerLabel: 'opencodego / OpenCode Gateway',
       value: '1234567890:opencode-chat',
@@ -149,6 +154,28 @@ describe('adminSettingsForm', () => {
         options,
       ),
     ).toBe('opencode-go / OpenCode Go');
+  });
+
+  it('shows provider type and instance group without leaking UUID provider ids', () => {
+    const options = buildModelOptions({
+      enabledNewapiModels: [
+        {
+          displayName: 'Qwen Coder',
+          instanceName: 'OpenCode Gateway',
+          modelId: 'qwen-coder',
+          modelType: 'chat',
+          provider: '757e1732-8478-4c93-a4dd-1e17489a9c48',
+          providerType: 'opencode-go',
+        },
+      ],
+    });
+
+    expect(options[0]).toMatchObject({
+      label: 'Qwen Coder (opencode-go / OpenCode Gateway / chat)',
+      providerLabel: 'opencode-go / OpenCode Gateway',
+      value: '757e1732-8478-4c93-a4dd-1e17489a9c48:qwen-coder',
+    });
+    expect(options[0].label).not.toContain('757e1732');
   });
 
   it('builds site setting updates only for changed site basics', () => {

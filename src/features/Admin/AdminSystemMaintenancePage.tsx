@@ -118,6 +118,7 @@ const AdminSystemMaintenancePage = memo(() => {
   const [form] = Form.useForm<MaintenanceFormValues>();
   const [submitting, setSubmitting] = useState(false);
   const [running, setRunning] = useState(false);
+  const [refreshingCaches, setRefreshingCaches] = useState(false);
   const [runResult, setRunResult] = useState<MaintenanceResult | null>(null);
 
   const initialValues = useMemo(() => buildInitialValues(data), [data]);
@@ -159,6 +160,22 @@ const AdminSystemMaintenancePage = memo(() => {
       message.error(t('admin.maintenance.runFailed', '维护任务执行失败'));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleRefreshRuntimeCaches = async () => {
+    setRefreshingCaches(true);
+    try {
+      const result = await adminCommercialService.refreshRuntimeCaches();
+      message.success(
+        t('admin.maintenance.refreshCachesSuccess', '已刷新 {{count}} 类运行时缓存', {
+          count: result.refreshed.length,
+        }),
+      );
+    } catch {
+      message.error(t('admin.maintenance.refreshCachesFailed', '刷新运行时缓存失败'));
+    } finally {
+      setRefreshingCaches(false);
     }
   };
 
@@ -228,9 +245,14 @@ const AdminSystemMaintenancePage = memo(() => {
           >
             <InputNumber max={3650} min={1} style={{ width: '100%' }} />
           </Form.Item>
-          <Button loading={running} onClick={handleRunNow}>
-            {t('admin.maintenance.runNow', '立即执行维护')}
-          </Button>
+          <Space>
+            <Button loading={running} onClick={handleRunNow}>
+              {t('admin.maintenance.runNow', '立即执行维护')}
+            </Button>
+            <Button loading={refreshingCaches} onClick={handleRefreshRuntimeCaches}>
+              {t('admin.maintenance.refreshCaches', '刷新用户端配置缓存')}
+            </Button>
+          </Space>
         </Card>
 
         <Card title={t('admin.maintenance.memorySection', '记忆系统')}>

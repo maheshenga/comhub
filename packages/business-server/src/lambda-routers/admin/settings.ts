@@ -37,11 +37,15 @@ import {
   getServerFileS3Config,
   getServerModelPolicyConfig,
   invalidateServerAppSettings,
+  isSensitiveAppSettingKey,
   normalizeS3FilePath,
   serializeModelIdList,
 } from '@/server/services/appSettings';
 import { invalidateServerBrand } from '@/server/services/brand';
-import { getAllEnabledModels } from '@/server/services/newapiInstance';
+import {
+  getAllEnabledModels,
+  invalidateNewapiInstancesCache,
+} from '@/server/services/newapiInstance';
 
 import { isModelAllowedByPlanRules } from '../../planModelRules';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
@@ -99,14 +103,6 @@ const assertHttpOk = async (response: Response, code: string) => {
   const body = await readResponseSnippet(response);
   throw new Error(`${code}: ${response.status}${body ? ` ${body}` : ''}`);
 };
-
-const SENSITIVE_KEYS = new Set<string>([
-  SETTING_KEYS.composioApiKey,
-  SETTING_KEYS.cronSecret,
-  SETTING_KEYS.desktopOssAccessKeySecret,
-  SETTING_KEYS.docmeePptApiKey,
-  SETTING_KEYS.storageS3SecretAccessKey,
-]);
 
 const BRAND_KEYS = [
   SETTING_KEYS.aboutLogoUrl,
@@ -809,7 +805,7 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
 
   return {
     hasValue: value !== null && value !== undefined && value !== '',
-    isSensitive: SENSITIVE_KEYS.has(input.key),
+    isSensitive: isSensitiveAppSettingKey(input.key),
     key: input.key,
     value,
   };
@@ -1986,6 +1982,21 @@ export const adminSettingsRouter = router({
     });
 
     return { ok: true, ...result };
+  }),
+
+  refreshRuntimeCaches: adminProcedure.mutation(async ({ ctx }) => {
+    invalidateServerAppSettings();
+    invalidateNewapiInstancesCache();
+    invalidateFileS3RuntimeCache();
+
+    const refreshed = ['app-settings', 'newapi-instances', 's3-runtime'] as const;
+    await recordAdminAudit(ctx, {
+      action: 'settings.refreshRuntimeCaches',
+      payload: { refreshed },
+      resourceType: 'app_setting',
+    });
+
+    return { ok: true, refreshed };
   }),
 
   testS3Storage: adminProcedure.mutation(async ({ ctx }) => {

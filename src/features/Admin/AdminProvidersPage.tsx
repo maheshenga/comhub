@@ -97,6 +97,27 @@ const INSTANCES_KEY = ['admin-provider-instances'];
 const modelsKey = (instanceId: string, modelType?: ModelType) =>
   ['admin-provider-instance-models', instanceId, modelType ?? 'all'] as const;
 
+const hasSyncedOrManualPricing = (metadata?: Record<string, unknown> | null) => {
+  if (metadata?.pricingAvailable === true) return true;
+
+  const manualPricing =
+    metadata?.manualPricing && typeof metadata.manualPricing === 'object'
+      ? (metadata.manualPricing as Record<string, unknown>)
+      : undefined;
+
+  return Boolean(
+    manualPricing &&
+      [
+        manualPricing.inputCostRate,
+        manualPricing.inputRate,
+        manualPricing.outputCostRate,
+        manualPricing.outputRate,
+        manualPricing.imageRate,
+        manualPricing.videoRate,
+      ].some((value) => Number.isFinite(Number(value)) && Number(value) > 0),
+  );
+};
+
 const PROVIDER_TYPE_LABELS: Record<AdminModelApiProviderType, string> = {
   'aliyun': '阿里云 DashScope',
   'claude': 'Claude / Anthropic',
@@ -524,14 +545,19 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       {
         key: 'pricing',
         render: (_: unknown, r: ModelRow) => (
-          <AiProviderModelPricingCell
-            metadata={r.metadata}
-            modelType={r.modelType}
-            t={t}
-            onSave={(inputCostRate, outputCostRate) =>
-              handleUpdateTokenPricing(r, inputCostRate, outputCostRate)
-            }
-          />
+          <Flexbox gap={6}>
+            {!hasSyncedOrManualPricing(r.metadata) ? (
+              <Tag color="orange">{t('admin.providers.models.pricing.missing', '未设置价格')}</Tag>
+            ) : null}
+            <AiProviderModelPricingCell
+              metadata={r.metadata}
+              modelType={r.modelType}
+              t={t}
+              onSave={(inputCostRate, outputCostRate) =>
+                handleUpdateTokenPricing(r, inputCostRate, outputCostRate)
+              }
+            />
+          </Flexbox>
         ),
         title: t('admin.providers.models.col.pricing', '成本价'),
         width: 280,

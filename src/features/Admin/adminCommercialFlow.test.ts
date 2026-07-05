@@ -89,7 +89,7 @@ describe('admin commercial flow pages', () => {
   });
 
   it('lets admin configure public recommendation section titles', () => {
-    const appSettings = readRepoFile('src/server/services/appSettings/index.ts');
+    const appSettingsRegistry = readRepoFile('src/const/appSettingsRegistry.ts');
     const settingsRouter = readRepoFile(
       'packages/business-server/src/lambda-routers/admin/settings.ts',
     );
@@ -103,7 +103,7 @@ describe('admin commercial flow pages', () => {
       'recommendationGeneralSkillTitle',
       'recommendationHotSkillTitle',
     ]) {
-      expect(appSettings).toContain(key);
+      expect(appSettingsRegistry).toContain(key);
       expect(settingsRouter).toContain(`SETTING_KEYS.${key}`);
     }
 
@@ -236,9 +236,9 @@ describe('admin commercial flow pages', () => {
     expect(pricingCell).toContain('imageRate');
     expect(pricingCell).toContain('videoRate');
     expect(providersPage).toContain("'成本价'");
-    expect(pricingCell).toContain('计费价：输入 {{input}} / 输出 {{output}}');
-    expect(pricingCell).toContain('计费价：{{price}} / 张');
-    expect(pricingCell).toContain('计费价：{{price}} / 条');
+    expect(pricingCell).toContain('官方成本：输入 {{input}} / 输出 {{output}}');
+    expect(pricingCell).toContain('官方成本：{{cost}} / 张');
+    expect(pricingCell).toContain('官方成本：{{cost}} / 条');
     expect(service).toContain('metadata?: Record<string, unknown> | null');
     expect(router).toContain('ModelMetadataSchema');
     expect(router).toContain("action: 'newapiInstanceModels.update'");

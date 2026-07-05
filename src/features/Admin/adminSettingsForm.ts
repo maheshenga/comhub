@@ -17,6 +17,7 @@ import {
   RUNTIME_CONFIG_SWR_KEY,
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
+import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { type HelpMenuItem, normalizeHelpMenuItems } from '@/const/helpMenu';
@@ -40,76 +41,7 @@ export {
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
 
-export const SETTING_KEYS = {
-  aboutLinks: 'about.links',
-  aboutLogoUrl: 'about.logoUrl',
-  aboutPage: 'about.page',
-  brandFaviconUrl: 'brand.faviconUrl',
-  brandAuthTitle: 'brand.authTitle',
-  brandCopyrightText: 'brand.copyrightText',
-  brandLoadingText: 'brand.loadingText',
-  brandLoadingSvgUrl: 'brand.loadingSvgUrl',
-  brandLogoUrl: 'brand.logoUrl',
-  brandName: 'brand.name',
-  brandPrimaryColor: 'brand.primaryColor',
-  brandSlogan: 'brand.slogan',
-  communityForkAndChatLabel: 'community.forkAndChat.label',
-  communitySkillUseButtonLabel: 'community.skill.useButton.label',
-  cronAuditRetentionDays: 'cron.auditRetentionDays',
-  cronPendingOrderExpiryDays: 'cron.pendingOrderExpiryDays',
-  cronSecret: 'cron.secret',
-  defaultAgentAvatar: 'defaultAgent.avatar',
-  defaultAgentModel: 'defaultAgent.model',
-  defaultAgentName: 'defaultAgent.name',
-  defaultAgentProvider: 'defaultAgent.provider',
-  defaultImageModel: 'defaultImage.model',
-  defaultImageProvider: 'defaultImage.provider',
-  defaultSkillName: 'defaultSkill.name',
-  defaultVideoModel: 'defaultVideo.model',
-  defaultVideoProvider: 'defaultVideo.provider',
-  helpMenuItems: 'help.menu.items',
-  homeMessengerEnabled: 'home.messenger.enabled',
-  homeMessengerBannerTitle: 'home.messengerBanner.title',
-  memoryUserMemoryEmbeddingModel: 'memory.userMemory.embedding.model',
-  memoryUserMemoryEmbeddingProvider: 'memory.userMemory.embedding.provider',
-  memoryUserMemoryGatekeeperModel: 'memory.userMemory.gatekeeper.model',
-  memoryUserMemoryGatekeeperProvider: 'memory.userMemory.gatekeeper.provider',
-  memoryUserMemoryLayerExtractorModel: 'memory.userMemory.layerExtractor.model',
-  memoryUserMemoryLayerExtractorProvider: 'memory.userMemory.layerExtractor.provider',
-  memoryUserMemoryPersonaWriterModel: 'memory.userMemory.personaWriter.model',
-  memoryUserMemoryPersonaWriterProvider: 'memory.userMemory.personaWriter.provider',
-  memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
-  notificationDesktopEnabled: 'notification.desktop.enabled',
-  notificationEmailEnabled: 'notification.email.enabled',
-  notificationEventDefaults: 'notification.eventDefaults',
-  notificationInboxEnabled: 'notification.inbox.enabled',
-  notificationPushEnabled: 'notification.push.enabled',
-  notificationRetentionDays: 'notification.retentionDays',
-  notificationSystemActionLabel: 'notification.system.actionLabel',
-  notificationSystemActionUrl: 'notification.system.actionUrl',
-  notificationSystemContent: 'notification.system.content',
-  notificationSystemEnabled: 'notification.system.enabled',
-  notificationSystemTitle: 'notification.system.title',
-  notificationSystemType: 'notification.system.type',
-  profileInterestAreas: 'profile.interestAreas',
-  ordersManagementEnabled: 'orders.management.enabled',
-  pricingCreditMultiplier: 'pricing.creditMultiplier',
-  pricingModelRules: 'pricing.modelRules',
-  referralRewardCredits: 'referral.rewardCredits',
-  sidebarGenerationLabel: 'sidebar.generation.label',
-  sidebarMemberLabel: 'sidebar.member.label',
-  sidebarMemberUrl: 'sidebar.member.url',
-  storageS3AccessKeyId: 'storage.s3.accessKeyId',
-  storageS3Bucket: 'storage.s3.bucket',
-  storageS3EnablePathStyle: 'storage.s3.enablePathStyle',
-  storageS3Endpoint: 'storage.s3.endpoint',
-  storageS3FilePath: 'storage.s3.filePath',
-  storageS3PreviewUrlExpireIn: 'storage.s3.previewUrlExpireIn',
-  storageS3PublicDomain: 'storage.s3.publicDomain',
-  storageS3Region: 'storage.s3.region',
-  storageS3SecretAccessKey: 'storage.s3.secretAccessKey',
-  storageS3SetAcl: 'storage.s3.setAcl',
-} as const;
+export const SETTING_KEYS = APP_SETTING_KEYS;
 
 export type MemoryUserMemoryTriggerMode = 'auto' | 'direct' | 'workflow';
 
@@ -306,6 +238,21 @@ export const normalizeMemoryUserMemoryTriggerMode = (
 const legacyProviderIdPattern =
   /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
+const normalizeManagedProviderParts = ({
+  instanceName,
+  provider,
+  providerType,
+}: {
+  instanceName: string;
+  provider: string;
+  providerType: string;
+}) => {
+  const baseProvider =
+    providerType || (legacyProviderIdPattern.test(provider) ? 'newapi' : provider);
+
+  return [baseProvider, instanceName].filter(Boolean);
+};
+
 const buildManagedModelOptionLabel = ({
   instanceName,
   modelType,
@@ -319,11 +266,9 @@ const buildManagedModelOptionLabel = ({
   provider: string;
   providerType: string;
 }) => {
-  const providerLabel =
-    providerType || instanceName || (legacyProviderIdPattern.test(provider) ? 'newapi' : provider);
-  const instanceSuffix = providerType && instanceName ? ` / ${instanceName}` : '';
+  const providerParts = normalizeManagedProviderParts({ instanceName, provider, providerType });
 
-  return `${name}（${providerLabel} / ${modelType}${instanceSuffix}）`;
+  return `${name} (${[...providerParts, modelType].join(' / ')})`;
 };
 
 const buildManagedProviderLabel = ({
@@ -334,12 +279,7 @@ const buildManagedProviderLabel = ({
   instanceName: string;
   provider: string;
   providerType: string;
-}) => {
-  const providerLabel =
-    providerType || instanceName || (legacyProviderIdPattern.test(provider) ? 'newapi' : provider);
-
-  return providerType && instanceName ? `${providerLabel} / ${instanceName}` : providerLabel;
-};
+}) => normalizeManagedProviderParts({ instanceName, provider, providerType }).join(' / ');
 
 export const buildModelOptions = (data?: {
   defaultModelSuggestions?: string[] | null;
@@ -365,7 +305,13 @@ export const buildModelOptions = (data?: {
     const providerType = normalizeText(item.providerType);
 
     options.push({
-      label: buildManagedModelOptionLabel({ instanceName, modelType, name, provider, providerType }),
+      label: buildManagedModelOptionLabel({
+        instanceName,
+        modelType,
+        name,
+        provider,
+        providerType,
+      }),
       model,
       provider,
       providerLabel: buildManagedProviderLabel({ instanceName, provider, providerType }),
@@ -385,7 +331,7 @@ export const buildModelOptions = (data?: {
     seen.add(key);
 
     options.push({
-      label: `${model}（${provider} / 建议）`,
+      label: `${model} (${provider} / suggested)`,
       model,
       provider,
       value: key,

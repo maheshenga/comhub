@@ -4,11 +4,13 @@ import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 
 import {
   APP_SETTING_KEYS,
+  getAppSettingRegistryItem,
   getServerComposioConfig,
   getServerDefaultAgentSettingOverrides,
   getServerDefaultModelSuggestions,
   getServerFileS3Config,
   invalidateServerAppSettings,
+  isSensitiveAppSettingKey,
   normalizeModelIdList,
   serializeModelIdList,
 } from './index';
@@ -27,6 +29,19 @@ describe('appSettings model helpers', () => {
     expect(serializeModelIdList(['gpt-4o-mini', 'gpt-4.1', 'gpt-4o-mini'])).toBe(
       'gpt-4o-mini\ngpt-4.1',
     );
+  });
+
+  it('exposes shared setting registry metadata', () => {
+    expect(APP_SETTING_KEYS.brandName).toBe('brand.name');
+    expect(getAppSettingRegistryItem(APP_SETTING_KEYS.brandName)).toMatchObject({
+      domain: 'brand',
+      publicRuntime: true,
+    });
+  });
+
+  it('marks sensitive setting keys', () => {
+    expect(isSensitiveAppSettingKey(APP_SETTING_KEYS.composioApiKey)).toBe(true);
+    expect(isSensitiveAppSettingKey(APP_SETTING_KEYS.brandName)).toBe(false);
   });
 
   it('returns the current model as a default model suggestion', async () => {

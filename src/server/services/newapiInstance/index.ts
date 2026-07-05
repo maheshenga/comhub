@@ -336,8 +336,6 @@ const toPositiveNumber = (value: unknown) => {
   return Number.isFinite(number) && number > 0 ? number : undefined;
 };
 
-const toPositiveMultiplier = (value: unknown) => toPositiveNumber(value) ?? 1;
-
 const resolveManualPricing = (
   metadata: Record<string, unknown> | null | undefined,
   modelType: NewapiModelType,
@@ -354,18 +352,15 @@ const resolveManualPricing = (
     toPositiveNumber(manualPricing.outputRate) ?? toPositiveNumber(manualPricing.outputCostRate);
   const imageRate = toPositiveNumber(manualPricing.imageRate);
   const videoRate = toPositiveNumber(manualPricing.videoRate);
-  const marginMultiplier = toPositiveMultiplier(manualPricing.marginMultiplier);
 
   if (modelType === 'image' && imageRate) {
-    const rate = imageRate * marginMultiplier;
-
     return {
-      approximatePricePerImage: rate,
+      approximatePricePerImage: imageRate,
       units: [
         {
           name: 'imageGeneration' as const,
           originalRate: imageRate,
-          rate,
+          rate: imageRate,
           strategy: 'fixed' as const,
           unit: 'image' as const,
         },
@@ -374,10 +369,8 @@ const resolveManualPricing = (
   }
 
   if (modelType === 'video' && videoRate) {
-    const rate = videoRate * marginMultiplier;
-
     return {
-      approximatePricePerVideo: rate,
+      approximatePricePerVideo: videoRate,
       units: [],
     };
   }
@@ -390,7 +383,7 @@ const resolveManualPricing = (
               {
                 originalRate: inputRate,
                 name: 'textInput' as const,
-                rate: inputRate * marginMultiplier,
+                rate: inputRate,
                 strategy: 'fixed' as const,
                 unit: 'millionTokens' as const,
               },
@@ -401,7 +394,7 @@ const resolveManualPricing = (
               {
                 originalRate: outputRate,
                 name: 'textOutput' as const,
-                rate: outputRate * marginMultiplier,
+                rate: outputRate,
                 strategy: 'fixed' as const,
                 unit: 'millionTokens' as const,
               },
@@ -412,15 +405,13 @@ const resolveManualPricing = (
   }
 
   if (imageRate) {
-    const rate = imageRate * marginMultiplier;
-
     return {
-      approximatePricePerImage: rate,
+      approximatePricePerImage: imageRate,
       units: [
         {
           name: 'imageGeneration' as const,
           originalRate: imageRate,
-          rate,
+          rate: imageRate,
           strategy: 'fixed' as const,
           unit: 'image' as const,
         },
@@ -429,10 +420,8 @@ const resolveManualPricing = (
   }
 
   if (videoRate) {
-    const rate = videoRate * marginMultiplier;
-
     return {
-      approximatePricePerVideo: rate,
+      approximatePricePerVideo: videoRate,
       units: [],
     };
   }

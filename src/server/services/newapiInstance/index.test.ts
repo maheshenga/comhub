@@ -463,14 +463,14 @@ describe('NewAPI instance resolver', () => {
               {
                 name: 'textInput',
                 originalRate: 1.2,
-                rate: 1.62,
+                rate: 1.2,
                 strategy: 'fixed',
                 unit: 'millionTokens',
               },
               {
                 name: 'textOutput',
                 originalRate: 3.4,
-                rate: 4.59,
+                rate: 3.4,
                 strategy: 'fixed',
                 unit: 'millionTokens',
               },
@@ -532,12 +532,12 @@ describe('NewAPI instance resolver', () => {
         },
         id: 'vision-image-model',
         pricing: {
-          approximatePricePerImage: 0.0675,
+          approximatePricePerImage: 0.05,
           units: [
             {
               name: 'imageGeneration',
               originalRate: 0.05,
-              rate: 0.0675,
+              rate: 0.05,
               strategy: 'fixed',
               unit: 'image',
             },
@@ -547,7 +547,7 @@ describe('NewAPI instance resolver', () => {
       expect.objectContaining({
         id: 'video-model',
         pricing: {
-          approximatePricePerVideo: 1.08,
+          approximatePricePerVideo: 0.8,
           units: [],
         },
       }),
