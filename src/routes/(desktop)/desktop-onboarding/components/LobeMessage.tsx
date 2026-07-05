@@ -1,4 +1,4 @@
-import { type FlexboxProps } from '@lobehub/ui';
+import { Avatar, type FlexboxProps } from '@lobehub/ui';
 import { Flexbox, Text } from '@lobehub/ui';
 import { type TypewriterEffectProps } from '@lobehub/ui/awesome';
 import { TypewriterEffect } from '@lobehub/ui/awesome';
@@ -10,16 +10,21 @@ import { ProductLogo } from '@/components/Branding';
 
 interface LobeMessageProps extends Omit<FlexboxProps, 'children'> {
   fontSize?: number;
+  logoUrl?: string;
   sentences: TypewriterEffectProps['sentences'];
 }
 
-const LobeMessage = memo<LobeMessageProps>(({ sentences, fontSize = 24, ...rest }) => {
+const LobeMessage = memo<LobeMessageProps>(({ logoUrl, sentences, fontSize = 24, ...rest }) => {
   const { i18n } = useTranslation();
   const locale = i18n.language;
 
   return (
     <Flexbox gap={8} {...rest}>
-      <ProductLogo size={fontSize * 2} />
+      {logoUrl ? (
+        <Avatar avatar={logoUrl} size={fontSize * 2} />
+      ) : (
+        <ProductLogo size={fontSize * 2} />
+      )}
       <Text as={'h1'} fontSize={fontSize} weight={'bold'}>
         <TypewriterEffect
           cursorCharacter={<LoadingDots size={fontSize} variant={'pulse'} />}

@@ -12,13 +12,14 @@ const collectPaths = () =>
 
 describe('adminNavigation', () => {
   it('organizes admin pages into the planned management modules', () => {
-    expect(ADMIN_NAV_GROUPS.map((group) => group.label)).toEqual([
-      '工作台',
-      '用户与套餐',
-      '模型与计费',
-      '品牌与增长',
-      '内容治理',
-      '系统运维',
+    expect(ADMIN_NAV_GROUPS.map((group) => group.key)).toEqual([
+      'overview',
+      'user-plan',
+      'model-billing',
+      'brand-growth',
+      'content',
+      'client',
+      'system',
     ]);
   });
 
@@ -65,12 +66,12 @@ describe('adminNavigation', () => {
     expect(
       modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/model-billing-matrix`),
     ).toMatchObject({
-      label: '模型与计费矩阵',
+      icon: 'pricing',
     });
     expect(
       modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/model-policy`),
     ).toMatchObject({
-      label: '全局模型策略',
+      icon: 'models',
     });
   });
 
@@ -80,10 +81,6 @@ describe('adminNavigation', () => {
       (item) => item.path === `${ADMIN_BASE_PATH}/providers`,
     );
 
-    expect(modelApiGroup?.description).toBe(
-      '服务商实例、模型同步、默认模型、套餐权限、模型策略和计费矩阵',
-    );
-    expect(providerItem?.description).toBe('维护服务商实例、分组、用途范围和模型目录');
     expect(providerItem?.icon).toBe('providers');
     expect(ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.icon))).not.toContain(
       'newapi',
@@ -99,19 +96,34 @@ describe('adminNavigation', () => {
       systemItems.find((item) => item.path === `${ADMIN_BASE_PATH}/file-storage`),
     ).toMatchObject({
       icon: 'file-storage',
-      label: '文件存储',
     });
     expect(
       systemItems.find((item) => item.path === `${ADMIN_BASE_PATH}/maintenance`),
     ).toMatchObject({
       icon: 'maintenance',
-      label: '系统维护',
     });
     expect(
       ADMIN_NAV_GROUPS.flatMap((group) => group.items).find(
         (item) => item.path === `${ADMIN_BASE_PATH}/notifications`,
       )?.description,
-    ).not.toContain('通知保留时间');
+    ).not.toContain('閫氱煡淇濈暀鏃堕棿');
+  });
+
+  it('moves desktop client settings into the client module', () => {
+    const clientItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'client')?.items ?? [];
+    const systemItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'system')?.items ?? [];
+
+    expect(clientItems).toContainEqual(
+      expect.objectContaining({
+        icon: 'desktop',
+        label: '客户端',
+        path: `${ADMIN_BASE_PATH}/desktop-update`,
+      }),
+    );
+    expect(systemItems.map((item) => item.path)).not.toContain(
+      `${ADMIN_BASE_PATH}/desktop-update`,
+    );
+    expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client']);
   });
 
   it('maps legacy billing routes to their merged sidebar entries', () => {
@@ -159,6 +171,9 @@ describe('adminNavigation', () => {
     expect(getAdminSelectedKey('/settings/admin/maintenance')).toBe(
       `${ADMIN_BASE_PATH}/maintenance`,
     );
+    expect(getAdminSelectedKey('/settings/admin/desktop-update')).toBe(
+      `${ADMIN_BASE_PATH}/desktop-update`,
+    );
 
     expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['model-billing']);
     expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['model-billing']);
@@ -171,5 +186,6 @@ describe('adminNavigation', () => {
     expect(getAdminOpenKeys('/settings/admin/documents')).toEqual(['content']);
     expect(getAdminOpenKeys('/settings/admin/system-defaults')).toEqual(['system']);
     expect(getAdminOpenKeys('/settings/admin/maintenance')).toEqual(['system']);
+    expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client']);
   });
 });

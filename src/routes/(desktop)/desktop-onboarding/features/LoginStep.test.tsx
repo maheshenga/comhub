@@ -13,6 +13,19 @@ const mockElectronState = vi.hoisted(() => ({
   useDataSyncConfig: vi.fn(() => ({})),
 }));
 
+const mockPublicDesktopUpdate = vi.hoisted(() => ({
+  data: undefined as
+    | {
+        loginConfig?: {
+          cloudButtonLabel?: string | null;
+          description?: string | null;
+          logoUrl?: string | null;
+          title?: string | null;
+        } | null;
+      }
+    | undefined,
+}));
+
 vi.mock('@lobechat/electron-client-ipc', () => ({
   useWatchBroadcast: vi.fn(),
 }));
@@ -91,6 +104,16 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+vi.mock('@/libs/swr', () => ({
+  useClientDataSWR: () => ({ data: mockPublicDesktopUpdate.data }),
+}));
+
+vi.mock('@/services/adminCommercial', () => ({
+  adminCommercialService: {
+    getPublicDesktopUpdate: vi.fn(),
+  },
+}));
+
 vi.mock('@/const/version', () => ({
   isDesktop: true,
 }));
@@ -130,8 +153,11 @@ vi.mock('@/utils/electron/autoOidc', () => ({
 }));
 
 vi.mock('../components/LobeMessage', () => ({
-  default: ({ sentences }: { sentences: string[] }) => (
-    <div>{sentences.filter(Boolean).join(' ')}</div>
+  default: ({ logoUrl, sentences }: { logoUrl?: string; sentences: string[] }) => (
+    <div>
+      {logoUrl && <img alt="login logo" src={logoUrl} />}
+      {sentences.filter(Boolean).join(' ')}
+    </div>
   ),
 }));
 
@@ -149,6 +175,7 @@ beforeEach(() => {
   mockElectronState.refreshServerConfig.mockClear();
   mockElectronState.remoteServerSyncError = undefined;
   mockElectronState.useDataSyncConfig.mockClear();
+  mockPublicDesktopUpdate.data = undefined;
 });
 
 afterEach(() => {
@@ -170,5 +197,25 @@ describe('Desktop onboarding LoginStep', () => {
     expect(screen.queryByText('Authorization Successful')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in Cloud' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Use self-hosted server' })).toBeInTheDocument();
+  });
+
+  it('uses public desktop login configuration for the visible login copy and logo', async () => {
+    mockElectronState.dataSyncConfig = { active: false, storageMode: 'cloud' };
+    mockPublicDesktopUpdate.data = {
+      loginConfig: {
+        cloudButtonLabel: '登录 XUANGUO Cloud',
+        description: '同步玄果代理、群组、设置和上下文。',
+        logoUrl: '/images/brand/xuanguo.png',
+        title: '登录玄果客户端',
+      },
+    };
+
+    await renderLoginStep();
+
+    expect(screen.getByText('登录玄果客户端')).toBeInTheDocument();
+    expect(screen.getByText('同步玄果代理、群组、设置和上下文。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '登录 XUANGUO Cloud' })).toBeInTheDocument();
+    expect(screen.getByAltText('login logo')).toHaveAttribute('src', '/images/brand/xuanguo.png');
+    expect(screen.queryByText('Sign in to sync across devices')).not.toBeInTheDocument();
   });
 });

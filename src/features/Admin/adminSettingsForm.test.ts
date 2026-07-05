@@ -182,8 +182,6 @@ describe('adminSettingsForm', () => {
       defaultSkillName: 'LobeHub',
       defaultVideoModel: 'sora-2',
       defaultVideoProvider: 'newapi',
-      desktopDownloadLabel: '',
-      desktopDownloadUrl: '',
       helpMenuItems: [],
       memoryUserMemoryTriggerMode: 'auto' as const,
       ordersEnabled: true,

@@ -8,7 +8,7 @@ describe('adminSettingsCopy', () => {
     expect(SETTINGS_SUBTITLE).toContain('默认助手外观');
     expect(SETTINGS_SUBTITLE).toContain('文件存储');
     expect(SETTINGS_SUBTITLE).toContain('系统维护');
-    expect(SETTINGS_SUBTITLE).toContain('桌面端更新');
+    expect(SETTINGS_SUBTITLE).toContain('客户端');
     expect(SETTINGS_SUBTITLE).toContain('增长和计费');
     expect(SETTINGS_SUBTITLE).not.toContain('全局计费设置');
     expect(SETTINGS_SUBTITLE).not.toContain('客户端入口和维护任务');

@@ -3,6 +3,12 @@ export const DESKTOP_DEFAULT_BUSINESS_SERVER_URL = 'https://chat.qingyouai.com';
 export const DESKTOP_UPDATE_SETTING_KEYS = {
   desktopDownloadLabel: 'desktop.download.label',
   desktopDownloadUrl: 'desktop.download.url',
+  desktopLoginCloudButtonLabel: 'desktop.login.cloudButtonLabel',
+  desktopLoginDescription: 'desktop.login.description',
+  desktopLoginFooterText: 'desktop.login.footerText',
+  desktopLoginLogoUrl: 'desktop.login.logoUrl',
+  desktopLoginTitle: 'desktop.login.title',
+  desktopLoginWindowTitle: 'desktop.login.windowTitle',
   desktopOssAccessKeyId: 'desktop.oss.accessKeyId',
   desktopOssAccessKeySecret: 'desktop.oss.accessKeySecret',
   desktopOssBucket: 'desktop.oss.bucket',
@@ -21,6 +27,11 @@ export const DESKTOP_SETTINGS_SECTIONS = [
     key: 'businessConnection',
     readonly: true,
     title: '桌面业务连接',
+  },
+  {
+    key: 'loginPage',
+    readonly: false,
+    title: '客户端登录页',
   },
   {
     key: 'updateServer',

@@ -15,6 +15,8 @@ import {
   DESKTOP_UPDATE_SETTING_KEYS as SETTING_KEYS,
 } from './adminDesktopUpdateSettings';
 
+type AdminSettingsData = Awaited<ReturnType<typeof adminCommercialService.getAllSettings>>;
+
 type FormValues = {
   autoCheck: boolean;
   channel: string;
@@ -22,6 +24,12 @@ type FormValues = {
   currentVersion: string;
   downloadLabel: string;
   downloadUrl: string;
+  loginCloudButtonLabel: string;
+  loginDescription: string;
+  loginFooterText: string;
+  loginLogoUrl: string;
+  loginTitle: string;
+  loginWindowTitle: string;
   ossAccessKeyId: string;
   ossAccessKeySecret: string;
   ossBucket: string;
@@ -31,6 +39,28 @@ type FormValues = {
   serverUrl: string;
 };
 
+const getInitialValues = (data?: AdminSettingsData): FormValues => ({
+  autoCheck: data?.desktopUpdateConfig?.autoCheck ?? true,
+  channel: data?.desktopUpdateConfig?.channel || 'stable',
+  checkInterval: data?.desktopUpdateConfig?.checkInterval || 60,
+  currentVersion: data?.desktopUpdateConfig?.currentVersion || '',
+  downloadLabel: data?.desktopDownloadLabel || '',
+  downloadUrl: data?.desktopDownloadUrl || '',
+  loginCloudButtonLabel: data?.desktopLoginConfig?.cloudButtonLabel || '',
+  loginDescription: data?.desktopLoginConfig?.description || '',
+  loginFooterText: data?.desktopLoginConfig?.footerText || '',
+  loginLogoUrl: data?.desktopLoginConfig?.logoUrl || '',
+  loginTitle: data?.desktopLoginConfig?.title || '',
+  loginWindowTitle: data?.desktopLoginConfig?.windowTitle || '',
+  ossAccessKeyId: data?.desktopOssConfig?.accessKeyId || '',
+  ossAccessKeySecret: '',
+  ossBucket: data?.desktopOssConfig?.bucket || '',
+  ossEndpoint: data?.desktopOssConfig?.endpoint || '',
+  ossPath: data?.desktopOssConfig?.path || 'releases',
+  releaseNotes: data?.desktopUpdateConfig?.releaseNotes || '',
+  serverUrl: data?.desktopUpdateConfig?.serverUrl || '',
+});
+
 const AdminDesktopUpdatePage = memo(() => {
   const { t } = useTranslation('subscription');
   const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
@@ -39,39 +69,11 @@ const AdminDesktopUpdatePage = memo(() => {
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
 
-  const initialValues: FormValues = {
-    autoCheck: data?.desktopUpdateConfig?.autoCheck ?? true,
-    channel: data?.desktopUpdateConfig?.channel || 'stable',
-    checkInterval: data?.desktopUpdateConfig?.checkInterval || 60,
-    currentVersion: data?.desktopUpdateConfig?.currentVersion || '',
-    downloadLabel: data?.desktopDownloadLabel || '',
-    downloadUrl: data?.desktopDownloadUrl || '',
-    ossAccessKeyId: data?.desktopOssConfig?.accessKeyId || '',
-    ossAccessKeySecret: '',
-    ossBucket: data?.desktopOssConfig?.bucket || '',
-    ossEndpoint: data?.desktopOssConfig?.endpoint || '',
-    ossPath: data?.desktopOssConfig?.path || 'releases',
-    releaseNotes: data?.desktopUpdateConfig?.releaseNotes || '',
-    serverUrl: data?.desktopUpdateConfig?.serverUrl || '',
-  };
+  const initialValues = getInitialValues(data);
 
   useEffect(() => {
     if (!data) return;
-    form.setFieldsValue({
-      autoCheck: data.desktopUpdateConfig?.autoCheck ?? true,
-      channel: data.desktopUpdateConfig?.channel || 'stable',
-      checkInterval: data.desktopUpdateConfig?.checkInterval || 60,
-      currentVersion: data.desktopUpdateConfig?.currentVersion || '',
-      downloadLabel: data.desktopDownloadLabel || '',
-      downloadUrl: data.desktopDownloadUrl || '',
-      ossAccessKeyId: data.desktopOssConfig?.accessKeyId || '',
-      ossAccessKeySecret: '',
-      ossBucket: data.desktopOssConfig?.bucket || '',
-      ossEndpoint: data.desktopOssConfig?.endpoint || '',
-      ossPath: data.desktopOssConfig?.path || 'releases',
-      releaseNotes: data.desktopUpdateConfig?.releaseNotes || '',
-      serverUrl: data.desktopUpdateConfig?.serverUrl || '',
-    });
+    form.setFieldsValue(getInitialValues(data));
   }, [data, form]);
 
   const handleSave = async () => {
@@ -79,9 +81,19 @@ const AdminDesktopUpdatePage = memo(() => {
       const values = await form.validateFields();
       const updates: { key: string; value: unknown }[] = [];
 
-      if (values.serverUrl !== initialValues.serverUrl) {
-        updates.push({ key: SETTING_KEYS.desktopUpdateServerUrl, value: values.serverUrl.trim() });
-      }
+      const pushTextUpdate = (field: keyof FormValues, key: string) => {
+        const value = String(values[field] ?? '').trim();
+        if (value !== String(initialValues[field] ?? '')) updates.push({ key, value });
+      };
+
+      pushTextUpdate('loginWindowTitle', SETTING_KEYS.desktopLoginWindowTitle);
+      pushTextUpdate('loginLogoUrl', SETTING_KEYS.desktopLoginLogoUrl);
+      pushTextUpdate('loginTitle', SETTING_KEYS.desktopLoginTitle);
+      pushTextUpdate('loginDescription', SETTING_KEYS.desktopLoginDescription);
+      pushTextUpdate('loginCloudButtonLabel', SETTING_KEYS.desktopLoginCloudButtonLabel);
+      pushTextUpdate('loginFooterText', SETTING_KEYS.desktopLoginFooterText);
+      pushTextUpdate('serverUrl', SETTING_KEYS.desktopUpdateServerUrl);
+
       if (values.channel !== initialValues.channel) {
         updates.push({ key: SETTING_KEYS.desktopUpdateChannel, value: values.channel });
       }
@@ -91,48 +103,23 @@ const AdminDesktopUpdatePage = memo(() => {
       if (values.checkInterval !== initialValues.checkInterval) {
         updates.push({ key: SETTING_KEYS.desktopUpdateCheckInterval, value: values.checkInterval });
       }
-      if (values.currentVersion !== initialValues.currentVersion) {
-        updates.push({
-          key: SETTING_KEYS.desktopUpdateCurrentVersion,
-          value: values.currentVersion.trim(),
-        });
-      }
-      if (values.releaseNotes !== initialValues.releaseNotes) {
-        updates.push({
-          key: SETTING_KEYS.desktopUpdateReleaseNotes,
-          value: values.releaseNotes.trim(),
-        });
-      }
-      if (values.downloadUrl !== initialValues.downloadUrl) {
-        updates.push({ key: SETTING_KEYS.desktopDownloadUrl, value: values.downloadUrl.trim() });
-      }
-      if (values.downloadLabel !== initialValues.downloadLabel) {
-        updates.push({
-          key: SETTING_KEYS.desktopDownloadLabel,
-          value: values.downloadLabel.trim(),
-        });
-      }
-      if (values.ossBucket !== initialValues.ossBucket) {
-        updates.push({ key: SETTING_KEYS.desktopOssBucket, value: values.ossBucket.trim() });
-      }
-      if (values.ossEndpoint !== initialValues.ossEndpoint) {
-        updates.push({ key: SETTING_KEYS.desktopOssEndpoint, value: values.ossEndpoint.trim() });
-      }
-      if (values.ossAccessKeyId !== initialValues.ossAccessKeyId) {
-        updates.push({
-          key: SETTING_KEYS.desktopOssAccessKeyId,
-          value: values.ossAccessKeyId.trim(),
-        });
-      }
+
+      pushTextUpdate('currentVersion', SETTING_KEYS.desktopUpdateCurrentVersion);
+      pushTextUpdate('releaseNotes', SETTING_KEYS.desktopUpdateReleaseNotes);
+      pushTextUpdate('downloadUrl', SETTING_KEYS.desktopDownloadUrl);
+      pushTextUpdate('downloadLabel', SETTING_KEYS.desktopDownloadLabel);
+      pushTextUpdate('ossBucket', SETTING_KEYS.desktopOssBucket);
+      pushTextUpdate('ossEndpoint', SETTING_KEYS.desktopOssEndpoint);
+      pushTextUpdate('ossAccessKeyId', SETTING_KEYS.desktopOssAccessKeyId);
+
       if (values.ossAccessKeySecret) {
         updates.push({
           key: SETTING_KEYS.desktopOssAccessKeySecret,
           value: values.ossAccessKeySecret.trim(),
         });
       }
-      if (values.ossPath !== initialValues.ossPath) {
-        updates.push({ key: SETTING_KEYS.desktopOssPath, value: values.ossPath.trim() });
-      }
+
+      pushTextUpdate('ossPath', SETTING_KEYS.desktopOssPath);
 
       if (updates.length === 0) {
         message.info(t('admin.desktopUpdate.noChanges', '没有需要保存的变更'));
@@ -141,7 +128,7 @@ const AdminDesktopUpdatePage = memo(() => {
 
       setSubmitting(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
-      message.success(t('admin.desktopUpdate.saveSuccess', '桌面端设置已保存'));
+      message.success(t('admin.desktopUpdate.saveSuccess', '客户端设置已保存'));
       await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.desktopUpdate.saveFailed', '保存失败'));
@@ -153,6 +140,67 @@ const AdminDesktopUpdatePage = memo(() => {
   return (
     <Flexbox gap={16} padding={24} style={{ maxWidth: 760 }}>
       <Form disabled={isLoading} form={form} initialValues={initialValues} layout="vertical">
+        <Divider plain>
+          {t('admin.desktopUpdate.loginSection', DESKTOP_SETTINGS_SECTIONS[1].title)}
+        </Divider>
+
+        <Alert
+          showIcon
+          type="info"
+          description={t(
+            'admin.desktopUpdate.loginSection.description',
+            '这些配置会影响桌面客户端登录窗口中的标题栏、登录头像、主标题、副标题、云端登录按钮和底部版权。',
+          )}
+          message={t('admin.desktopUpdate.loginSection.message', '客户端登录页可在后台自定义')}
+        />
+
+        <Form.Item
+          extra={t('admin.desktopUpdate.loginWindowTitle.help', '显示在客户端登录窗口顶部标题栏。')}
+          label={t('admin.desktopUpdate.loginWindowTitle', '标题栏文字')}
+          name="loginWindowTitle"
+        >
+          <Input placeholder="XUANGUO" />
+        </Form.Item>
+
+        <Form.Item
+          extra={t('admin.desktopUpdate.loginLogoUrl.help', '支持站内路径或完整图片 URL。留空使用默认品牌 Logo。')}
+          label={t('admin.desktopUpdate.loginLogoUrl', '登录头像/Logo 地址')}
+          name="loginLogoUrl"
+        >
+          <Input placeholder="/images/brand/xuanguo.png" />
+        </Form.Item>
+
+        <Form.Item
+          label={t('admin.desktopUpdate.loginTitle', '登录主标题')}
+          name="loginTitle"
+        >
+          <Input placeholder="登录以实现跨设备同步" />
+        </Form.Item>
+
+        <Form.Item
+          label={t('admin.desktopUpdate.loginDescription', '登录副标题')}
+          name="loginDescription"
+        >
+          <Input.TextArea
+            autoSize={{ minRows: 2, maxRows: 4 }}
+            placeholder="登录以在所有设备间同步代理、群组、设置和上下文。"
+          />
+        </Form.Item>
+
+        <Form.Item
+          label={t('admin.desktopUpdate.loginCloudButtonLabel', '云端登录按钮文案')}
+          name="loginCloudButtonLabel"
+        >
+          <Input placeholder="登录 XUANGUO Cloud" />
+        </Form.Item>
+
+        <Form.Item
+          label={t('admin.desktopUpdate.loginFooterText', '底部版权文案')}
+          name="loginFooterText"
+        >
+          <Input placeholder="© 2026 XUANGUO. All rights reserved." />
+        </Form.Item>
+
         <Divider plain>
           {t('admin.desktopUpdate.businessSection', DESKTOP_SETTINGS_SECTIONS[0].title)}
         </Divider>
@@ -181,7 +229,7 @@ const AdminDesktopUpdatePage = memo(() => {
         </Form.Item>
 
         <Divider plain>
-          {t('admin.desktopUpdate.serverSection', DESKTOP_SETTINGS_SECTIONS[1].title)}
+          {t('admin.desktopUpdate.serverSection', DESKTOP_SETTINGS_SECTIONS[2].title)}
         </Divider>
 
         <Form.Item
@@ -210,7 +258,7 @@ const AdminDesktopUpdatePage = memo(() => {
         </Form.Item>
 
         <Divider plain>
-          {t('admin.desktopUpdate.checkSection', DESKTOP_SETTINGS_SECTIONS[2].title)}
+          {t('admin.desktopUpdate.checkSection', DESKTOP_SETTINGS_SECTIONS[3].title)}
         </Divider>
 
         <Form.Item
@@ -233,7 +281,7 @@ const AdminDesktopUpdatePage = memo(() => {
         </Form.Item>
 
         <Divider plain>
-          {t('admin.desktopUpdate.versionSection', DESKTOP_SETTINGS_SECTIONS[3].title)}
+          {t('admin.desktopUpdate.versionSection', DESKTOP_SETTINGS_SECTIONS[4].title)}
         </Divider>
 
         <Form.Item
@@ -259,7 +307,7 @@ const AdminDesktopUpdatePage = memo(() => {
         </Form.Item>
 
         <Divider plain>
-          {t('admin.desktopUpdate.downloadSection', DESKTOP_SETTINGS_SECTIONS[4].title)}
+          {t('admin.desktopUpdate.downloadSection', DESKTOP_SETTINGS_SECTIONS[5].title)}
         </Divider>
 
         <Form.Item
@@ -282,7 +330,7 @@ const AdminDesktopUpdatePage = memo(() => {
         </Form.Item>
 
         <Divider plain>
-          {t('admin.desktopUpdate.ossSection', DESKTOP_SETTINGS_SECTIONS[5].title)}
+          {t('admin.desktopUpdate.ossSection', DESKTOP_SETTINGS_SECTIONS[6].title)}
         </Divider>
 
         <Form.Item

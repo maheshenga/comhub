@@ -67,8 +67,6 @@ export const SETTING_KEYS = {
   defaultSkillName: 'defaultSkill.name',
   defaultVideoModel: 'defaultVideo.model',
   defaultVideoProvider: 'defaultVideo.provider',
-  desktopDownloadLabel: 'desktop.download.label',
-  desktopDownloadUrl: 'desktop.download.url',
   helpMenuItems: 'help.menu.items',
   homeMessengerEnabled: 'home.messenger.enabled',
   homeMessengerBannerTitle: 'home.messengerBanner.title',
@@ -159,8 +157,6 @@ export type AdminSettingsData = {
   defaultVideoModel?: string | null;
   defaultVideoProvider?: string | null;
   defaultModelSuggestions?: string[] | null;
-  desktopDownloadLabel?: string | null;
-  desktopDownloadUrl?: string | null;
   enabledNewapiModels?: EnabledNewapiModelOption[] | null;
   helpMenuItems?: unknown;
   homeMessengerBannerTitle?: string | null;
@@ -233,8 +229,6 @@ export type AdminSettingsFormValues = {
   defaultSkillName: string;
   defaultVideoModel: string;
   defaultVideoProvider: string;
-  desktopDownloadLabel: string;
-  desktopDownloadUrl: string;
   helpMenuItems: HelpMenuItem[];
   homeMessengerBannerTitle: string;
   homeMessengerEnabled: boolean;
@@ -461,8 +455,6 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   defaultSkillName: data?.defaultSkillName ?? data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
   defaultVideoModel: data?.defaultVideoModel ?? '',
   defaultVideoProvider: data?.defaultVideoProvider ?? '',
-  desktopDownloadLabel: data?.desktopDownloadLabel ?? '',
-  desktopDownloadUrl: data?.desktopDownloadUrl ?? '',
   helpMenuItems: normalizeHelpMenuItems(data?.helpMenuItems),
   homeMessengerBannerTitle: data?.homeMessengerBannerTitle ?? '',
   homeMessengerEnabled: data?.homeMessengerEnabled ?? true,
@@ -520,8 +512,6 @@ export const normalizeFormValues = (
   defaultSkillName: normalizeText(values.defaultSkillName),
   defaultVideoModel: normalizeText(values.defaultVideoModel),
   defaultVideoProvider: normalizeText(values.defaultVideoProvider),
-  desktopDownloadLabel: normalizeText(values.desktopDownloadLabel),
-  desktopDownloadUrl: normalizeText(values.desktopDownloadUrl),
   helpMenuItems: normalizeHelpMenuItems(values.helpMenuItems),
   homeMessengerBannerTitle: normalizeText(values.homeMessengerBannerTitle),
   homeMessengerEnabled:
@@ -613,8 +603,6 @@ const SETTING_KEY_BY_FORM_FIELD: Record<keyof AdminSettingsFormValues, string> =
   defaultSkillName: SETTING_KEYS.defaultSkillName,
   defaultVideoModel: SETTING_KEYS.defaultVideoModel,
   defaultVideoProvider: SETTING_KEYS.defaultVideoProvider,
-  desktopDownloadLabel: SETTING_KEYS.desktopDownloadLabel,
-  desktopDownloadUrl: SETTING_KEYS.desktopDownloadUrl,
   helpMenuItems: SETTING_KEYS.helpMenuItems,
   homeMessengerEnabled: SETTING_KEYS.homeMessengerEnabled,
   homeMessengerBannerTitle: SETTING_KEYS.homeMessengerBannerTitle,

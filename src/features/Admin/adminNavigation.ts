@@ -6,6 +6,7 @@ export type AdminNavGroupKey =
   | 'model-billing'
   | 'brand-growth'
   | 'content'
+  | 'client'
   | 'system';
 
 export type AdminNavIcon =
@@ -90,7 +91,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/plans`,
       },
       {
-        description: '查看充值订单并处理待支付、过期和取消状态；充值包入口已收口到订单链路',
+        description: '查看充值订单并处理待支付、过期和取消状态',
         icon: 'orders',
         label: '订单与充值',
         path: `${ADMIN_BASE_PATH}/orders`,
@@ -188,7 +189,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '品牌与增长',
   },
   {
-    description: '统一治理用户话题、资源文件和文稿内容',
+    description: '统一治理用户话题、资源文件和文档内容',
     icon: 'documents',
     items: [
       {
@@ -204,9 +205,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         path: `${ADMIN_BASE_PATH}/files`,
       },
       {
-        description: '查看用户文稿、知识文档、网页文档和助理相关文档',
+        description: '查看用户文档、知识文档、网页文档和助理相关文档',
         icon: 'documents',
-        label: '用户文稿',
+        label: '用户文档',
         path: `${ADMIN_BASE_PATH}/documents`,
       },
     ],
@@ -214,7 +215,21 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '内容治理',
   },
   {
-    description: '桌面端更新、文件存储、数据看板、审计日志和系统运维',
+    description: '客户端登录页、下载入口、发布版本、自动更新和对象存储',
+    icon: 'desktop',
+    items: [
+      {
+        description: '配置客户端登录页、桌面端下载、发布版本、自动更新和 OSS 存储',
+        icon: 'desktop',
+        label: '客户端',
+        path: `${ADMIN_BASE_PATH}/desktop-update`,
+      },
+    ],
+    key: 'client',
+    label: '客户端',
+  },
+  {
+    description: '文件存储、数据看板、审计日志和系统运维',
     icon: 'stats',
     items: [
       {
@@ -246,12 +261,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         icon: 'maintenance',
         label: '系统维护',
         path: `${ADMIN_BASE_PATH}/maintenance`,
-      },
-      {
-        description: '配置桌面端下载、发布版本和自动更新',
-        icon: 'desktop',
-        label: '桌面端更新',
-        path: `${ADMIN_BASE_PATH}/desktop-update`,
       },
     ],
     key: 'system',

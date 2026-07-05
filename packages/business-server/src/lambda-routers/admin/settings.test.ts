@@ -333,6 +333,12 @@ describe('admin settings default model validation', () => {
         { value: 'Download Qingyou Desktop' },
         { value: '0.1.0-canary.6' },
         { value: '- Fix auto update' },
+        { value: 'XUANGUO' },
+        { value: '/images/brand/xuanguo.png' },
+        { value: '登录玄果客户端' },
+        { value: '同步玄果代理、群组、设置和上下文。' },
+        { value: '登录 XUANGUO Cloud' },
+        { value: '© 2026 XUANGUO. All rights reserved.' },
       ],
     });
     vi.mocked(getServerDB).mockResolvedValue(db);
@@ -345,6 +351,14 @@ describe('admin settings default model validation', () => {
       currentVersion: '0.1.0-canary.6',
       downloadLabel: 'Download Qingyou Desktop',
       downloadUrl: 'https://comhubs.oss-cn-shanghai.aliyuncs.com/canary/0.1.0-canary.6/LobeHub.exe',
+      loginConfig: {
+        cloudButtonLabel: '登录 XUANGUO Cloud',
+        description: '同步玄果代理、群组、设置和上下文。',
+        footerText: '© 2026 XUANGUO. All rights reserved.',
+        logoUrl: '/images/brand/xuanguo.png',
+        title: '登录玄果客户端',
+        windowTitle: 'XUANGUO',
+      },
       releaseNotes: '- Fix auto update',
       serverUrl: 'https://comhubs.oss-cn-shanghai.aliyuncs.com',
     });

@@ -4,8 +4,9 @@ import { TITLE_BAR_HEIGHT } from '@lobechat/desktop-bridge';
 import { Center, Flexbox, Text } from '@lobehub/ui';
 import { Divider } from 'antd';
 import { css, cx } from 'antd-style';
-import { type FC, type PropsWithChildren } from 'react';
+import { type FC, type PropsWithChildren, useEffect } from 'react';
 
+import { usePublicDesktopClientConfig } from '@/features/DesktopDownload/usePublicDesktopClientConfig';
 import SimpleTitleBar from '@/features/Electron/titlebar/SimpleTitleBar';
 import LangButton from '@/features/User/UserPanel/LangButton';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
@@ -16,11 +17,28 @@ import { styles } from './style';
 const contentContainer = css`
   overflow: auto;
 `;
+
+const DEFAULT_FOOTER_TEXT = '© 2026 LobeHub. All rights reserved.';
+
 const OnboardingContainer: FC<PropsWithChildren> = ({ children }) => {
   const isDarkMode = useIsDark();
+  const { loginConfig } = usePublicDesktopClientConfig();
+  const footerText = loginConfig.footerText || DEFAULT_FOOTER_TEXT;
+
+  useEffect(() => {
+    if (!loginConfig.windowTitle) return;
+
+    const previousTitle = document.title;
+    document.title = loginConfig.windowTitle;
+
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [loginConfig.windowTitle]);
+
   return (
     <Flexbox height={'100%'} width={'100%'}>
-      <SimpleTitleBar />
+      <SimpleTitleBar title={loginConfig.windowTitle} />
       <Flexbox
         className={styles.outerContainer}
         height={`calc(100% - ${TITLE_BAR_HEIGHT}px)`}
@@ -52,7 +70,7 @@ const OnboardingContainer: FC<PropsWithChildren> = ({ children }) => {
           </Flexbox>
           <Center padding={24}>
             <Text align={'center'} type={'secondary'}>
-              © 2026 LobeHub. All rights reserved.
+              {footerText}
             </Text>
           </Center>
         </Flexbox>

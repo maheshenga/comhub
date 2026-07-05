@@ -289,6 +289,15 @@ const DESKTOP_UPDATE_KEYS = [
   SETTING_KEYS.desktopOssPath,
 ] as const;
 
+const DESKTOP_LOGIN_KEYS = [
+  SETTING_KEYS.desktopLoginWindowTitle,
+  SETTING_KEYS.desktopLoginLogoUrl,
+  SETTING_KEYS.desktopLoginTitle,
+  SETTING_KEYS.desktopLoginDescription,
+  SETTING_KEYS.desktopLoginCloudButtonLabel,
+  SETTING_KEYS.desktopLoginFooterText,
+] as const;
+
 const readSetting = async (db: any, key: string): Promise<unknown> => {
   const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
   return row?.value ?? null;
@@ -411,6 +420,7 @@ const WRITABLE_SETTING_KEYS = [
   ...MODEL_POLICY_KEYS,
   ...BRAND_KEYS,
   ...DESKTOP_UPDATE_KEYS,
+  ...DESKTOP_LOGIN_KEYS,
   SETTING_KEYS.desktopDownloadUrl,
   SETTING_KEYS.desktopDownloadLabel,
   SETTING_KEYS.helpMenuItems,
@@ -782,6 +792,8 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
   } else if (input.key === SETTING_KEYS.desktopDownloadUrl) {
     value = toString(value);
   } else if (input.key === SETTING_KEYS.desktopDownloadLabel) {
+    value = toString(value);
+  } else if ((DESKTOP_LOGIN_KEYS as readonly string[]).includes(input.key)) {
     value = toString(value);
   } else if ((DESKTOP_UPDATE_KEYS as readonly string[]).includes(input.key)) {
     if (input.key === SETTING_KEYS.desktopUpdateAutoCheck) {
@@ -1399,6 +1411,12 @@ export const adminSettingsRouter = router({
       downloadLabel,
       currentVersion,
       releaseNotes,
+      loginWindowTitle,
+      loginLogoUrl,
+      loginTitle,
+      loginDescription,
+      loginCloudButtonLabel,
+      loginFooterText,
     ] =
       await Promise.all([
         readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateServerUrl),
@@ -1409,6 +1427,12 @@ export const adminSettingsRouter = router({
         readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
         readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCurrentVersion),
         readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateReleaseNotes),
+        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginWindowTitle),
+        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginLogoUrl),
+        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginTitle),
+        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginDescription),
+        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginCloudButtonLabel),
+        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginFooterText),
       ]);
     return {
       autoCheck: toBoolean(autoCheck, true),
@@ -1417,6 +1441,14 @@ export const adminSettingsRouter = router({
       currentVersion: toString(currentVersion) || null,
       downloadLabel: toString(downloadLabel) || null,
       downloadUrl: toString(downloadUrl) || null,
+      loginConfig: {
+        cloudButtonLabel: toString(loginCloudButtonLabel) || null,
+        description: toString(loginDescription) || null,
+        footerText: toString(loginFooterText) || null,
+        logoUrl: toString(loginLogoUrl) || null,
+        title: toString(loginTitle) || null,
+        windowTitle: toString(loginWindowTitle) || null,
+      },
       releaseNotes: toString(releaseNotes) || null,
       serverUrl: toString(serverUrl),
     };
@@ -1471,6 +1503,12 @@ export const adminSettingsRouter = router({
       desktopOssPath,
       desktopDownloadUrl,
       desktopDownloadLabel,
+      desktopLoginWindowTitle,
+      desktopLoginLogoUrl,
+      desktopLoginTitle,
+      desktopLoginDescription,
+      desktopLoginCloudButtonLabel,
+      desktopLoginFooterText,
       helpMenuItems,
       aboutLinks,
       composioEnabled,
@@ -1568,6 +1606,12 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.desktopOssPath),
       readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadUrl),
       readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginWindowTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginLogoUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginDescription),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginCloudButtonLabel),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginFooterText),
       readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems),
       readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks),
       readSetting(ctx.serverDB, SETTING_KEYS.composioEnabled),
@@ -1741,6 +1785,14 @@ export const adminSettingsRouter = router({
       },
       desktopDownloadLabel: toString(desktopDownloadLabel) || null,
       desktopDownloadUrl: toString(desktopDownloadUrl) || null,
+      desktopLoginConfig: {
+        cloudButtonLabel: toString(desktopLoginCloudButtonLabel),
+        description: toString(desktopLoginDescription),
+        footerText: toString(desktopLoginFooterText),
+        logoUrl: toString(desktopLoginLogoUrl),
+        title: toString(desktopLoginTitle),
+        windowTitle: toString(desktopLoginWindowTitle),
+      },
       helpMenuItems: normalizeHelpMenuItems(helpMenuItems),
       aboutLinks: normalizeAboutLinksConfig(aboutLinks),
       aboutPage: normalizeAboutPageConfig(aboutPage),

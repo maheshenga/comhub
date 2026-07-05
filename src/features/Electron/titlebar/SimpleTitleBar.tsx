@@ -1,7 +1,7 @@
 'use client';
 
 import { TITLE_BAR_HEIGHT } from '@lobechat/desktop-bridge';
-import { Flexbox } from '@lobehub/ui';
+import { Flexbox, Text } from '@lobehub/ui';
 import { type FC } from 'react';
 
 import { ProductLogo } from '@/components/Branding/ProductLogo';
@@ -19,7 +19,11 @@ const isLinux = getPlatform() === 'Linux';
  * Provides draggable area without business logic (navigation, updates, etc.)
  * Use this for secondary windows like onboarding, settings, etc.
  */
-const SimpleTitleBar: FC = () => {
+type SimpleTitleBarProps = {
+  title?: string;
+};
+
+const SimpleTitleBar: FC<SimpleTitleBarProps> = ({ title }) => {
   useWatchThemeUpdate();
 
   const showWinControl = isLinux && !isMac;
@@ -35,7 +39,18 @@ const SimpleTitleBar: FC = () => {
       width={'100%'}
     >
       {showWinControl && <div style={{ width: WINDOW_CONTROL_WIDTH }} />}
-      <ProductLogo size={16} type={'text'} />
+      {title ? (
+        <Text
+          as={'span'}
+          ellipsis
+          style={{ maxWidth: 240, minWidth: 0, textAlign: 'center' }}
+          weight={'bold'}
+        >
+          {title}
+        </Text>
+      ) : (
+        <ProductLogo size={16} type={'text'} />
+      )}
       {showWinControl && <WinControl />}
     </Flexbox>
   );

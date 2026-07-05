@@ -12,6 +12,7 @@ describe('adminDesktopUpdateSettings', () => {
 
     expect(DESKTOP_SETTINGS_SECTIONS.map((section) => section.key)).toEqual([
       'businessConnection',
+      'loginPage',
       'updateServer',
       'autoCheck',
       'releaseInfo',
@@ -28,6 +29,10 @@ describe('adminDesktopUpdateSettings', () => {
   it('keeps update, download, and oss keys explicit for batch saves', () => {
     expect(DESKTOP_UPDATE_SETTING_KEYS.desktopUpdateServerUrl).toBe('desktop.update.serverUrl');
     expect(DESKTOP_UPDATE_SETTING_KEYS.desktopDownloadUrl).toBe('desktop.download.url');
+    expect(DESKTOP_UPDATE_SETTING_KEYS.desktopLoginTitle).toBe('desktop.login.title');
+    expect(DESKTOP_UPDATE_SETTING_KEYS.desktopLoginWindowTitle).toBe(
+      'desktop.login.windowTitle',
+    );
     expect(DESKTOP_UPDATE_SETTING_KEYS.desktopOssAccessKeySecret).toBe(
       'desktop.oss.accessKeySecret',
     );

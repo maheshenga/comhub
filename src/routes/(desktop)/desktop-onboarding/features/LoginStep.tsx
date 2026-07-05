@@ -12,6 +12,7 @@ import urlJoin from 'url-join';
 
 import { OFFICIAL_SITE } from '@/const/url';
 import { isDesktop } from '@/const/version';
+import { usePublicDesktopClientConfig } from '@/features/DesktopDownload/usePublicDesktopClientConfig';
 import UserInfo from '@/features/User/UserInfo';
 import { useIMECompositionEvent } from '@/hooks/useIMECompositionEvent';
 import { remoteServerService } from '@/services/electron/remoteServer';
@@ -61,6 +62,12 @@ interface LoginStepProps {
 
 const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
   const { t } = useTranslation('desktop-onboarding');
+  const { loginConfig } = usePublicDesktopClientConfig();
+  const loginSentences = loginConfig.title
+    ? [loginConfig.title]
+    : [t('screen5.title'), t('screen5.title2'), t('screen5.title3')];
+  const loginDescription = loginConfig.description || t('screen5.description');
+  const cloudButtonLabel = loginConfig.cloudButtonLabel || t('screen5.actions.signInCloud');
   const [endpoint, setEndpoint] = useState('');
   const [cloudLoginStatus, setCloudLoginStatus] = useState<LoginStatus>('idle');
   const [authProgress, setAuthProgress] = useState<AuthorizationProgress | null>(null);
@@ -305,8 +312,8 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
     return (
       <Center gap={32} style={{ height: '100%', minHeight: '100%' }}>
         <Flexbox align={'flex-start'} justify={'flex-start'} style={{ width: '100%' }}>
-          <LobeMessage sentences={[t('screen5.title'), t('screen5.title2'), t('screen5.title3')]} />
-          <Text as={'p'}>{t('screen5.description')}</Text>
+          <LobeMessage logoUrl={loginConfig.logoUrl} sentences={loginSentences} />
+          <Text as={'p'}>{loginDescription}</Text>
         </Flexbox>
 
         <Flexbox gap={16} style={{ width: '100%' }}>
@@ -409,7 +416,7 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
         type={'primary'}
         onClick={handleCloudLogin}
       >
-        {t('screen5.actions.signInCloud')}
+        {cloudButtonLabel}
       </Button>
     );
   };
@@ -522,8 +529,8 @@ const LoginStep = memo<LoginStepProps>(({ onBack, onNext }) => {
   return (
     <Center gap={32} style={{ height: '100%', minHeight: '100%' }}>
       <Flexbox align={'flex-start'} justify={'flex-start'} style={{ width: '100%' }}>
-        <LobeMessage sentences={[t('screen5.title'), t('screen5.title2'), t('screen5.title3')]} />
-        <Text as={'p'}>{t('screen5.description')}</Text>
+        <LobeMessage logoUrl={loginConfig.logoUrl} sentences={loginSentences} />
+        <Text as={'p'}>{loginDescription}</Text>
       </Flexbox>
 
       <Flexbox align={'flex-start'} gap={16} style={{ width: '100%' }} width={'100%'}>
