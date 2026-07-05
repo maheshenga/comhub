@@ -3,23 +3,31 @@ export default {
   'active': 'Active',
   'agentBuilder.installPlugin.authRequired': 'Cloud MCP requires sign-in to continue',
   'agentBuilder.installPlugin.cancel': 'Cancel',
-  'agentBuilder.installPlugin.clickApproveToConnect': 'Click "Approve" to connect and authorize this Integration',
+  'agentBuilder.installPlugin.clickApproveToConnect':
+    'Click "Approve" to connect and authorize this Integration',
   'agentBuilder.installPlugin.clickApproveToInstall': 'Click "Approve" to install this Skill',
   'agentBuilder.installPlugin.connectedAndEnabled': 'Connected and enabled',
-  'agentBuilder.installPlugin.connectionFailed': 'Connection failed. Retry, or check authorization and network settings.',
-  'agentBuilder.installPlugin.installFailed': 'Installation failed. Retry, or view details and try again.',
+  'agentBuilder.installPlugin.connectionFailed':
+    'Connection failed. Retry, or check authorization and network settings.',
+  'agentBuilder.installPlugin.installFailed':
+    'Installation failed. Retry, or view details and try again.',
   'agentBuilder.installPlugin.installPlugin': 'Install Skill',
-  'agentBuilder.installPlugin.installToEnable': 'Install to enable this Skill for the Agent (you can do it later)',
+  'agentBuilder.installPlugin.installToEnable':
+    'Install to enable this Skill for the Agent (you can do it later)',
   'agentBuilder.installPlugin.installedAndEnabled': 'Installed and enabled',
   'agentBuilder.installPlugin.requiresAuth': 'Requires authorization. Click "Approve" to connect',
   'agentBuilder.installPlugin.retry': 'Retry',
   'agentBuilder.title': 'Agent Builder',
-  'agentBuilder.welcome': 'Tell me your use case.\n\nWriting, coding, or data analysis—anything works. You own the goal and standards; I’ll break it down into collaborative, runnable Agents.',
+  'agentBuilder.welcome':
+    'Tell me your use case.\n\nWriting, coding, or data analysis—anything works. You own the goal and standards; I’ll break it down into collaborative, runnable Agents.',
   'agentConfigError.retry': 'Retry',
   'agentConfigError.title': 'Failed to load agent settings',
-  'agentDefaultMessage': 'Hi, I’m **{{name}}**. One sentence is enough.\n\nWant me to match your workflow better? Go to [Agent Settings]({{url}}) and fill in the Agent Profile (you can edit it anytime).',
-  'agentDefaultMessageWithSystemRole': "Hi, I’m **{{name}}**. One sentence is enough—you're in control.",
-  'agentDefaultMessageWithoutEdit': "Hi, I’m **{{name}}**. One sentence is enough—you're in control.",
+  'agentDefaultMessage':
+    'Hi, I’m **{{name}}**. One sentence is enough.\n\nWant me to match your workflow better? Go to [Agent Settings]({{url}}) and fill in the Agent Profile (you can edit it anytime).',
+  'agentDefaultMessageWithSystemRole':
+    "Hi, I’m **{{name}}**. One sentence is enough—you're in control.",
+  'agentDefaultMessageWithoutEdit':
+    "Hi, I’m **{{name}}**. One sentence is enough—you're in control.",
   'agentDocument.backToChat': 'Back to chat',
   'agentDocument.linkCopied': 'Link copied',
   'agentDocument.openAsPage': 'Open as full page',
@@ -37,7 +45,8 @@ export default {
   'agentSignal.receipts.skill.title': 'Auto-learned a new skill',
   'agents': 'Agents',
   'artifact.generating': 'Generating',
-  'artifact.inThread': 'Cannot view in subtopic, please switch to the main conversation area to open',
+  'artifact.inThread':
+    'Cannot view in subtopic, please switch to the main conversation area to open',
   'artifact.thinking': 'Thinking',
   'artifact.thought': 'Thought process',
   'artifact.unknownTitle': 'Untitled Work',
@@ -51,14 +60,19 @@ export default {
   'clearCurrentMessages': 'Clear current session messages',
   'compressedHistory': 'Compressed History',
   'compression.cancel': 'Uncompress',
-  'compression.cancelConfirm': 'Are you sure you want to uncompress? This will restore the original messages.',
+  'compression.cancelConfirm':
+    'Are you sure you want to uncompress? This will restore the original messages.',
   'compression.history': 'History',
   'compression.summary': 'Summary',
-  'confirmClearCurrentMessages': 'You are about to clear the current session messages. Once cleared, they cannot be retrieved. Please confirm your action.',
-  'confirmRemoveChatGroupItemAlert': 'This Group will be deleted. Group-specific assistants will also be deleted, while external assistants will not be affected.',
-  'confirmRemoveGroupItemAlert': 'You are about to delete this category. After deletion, its agents will be moved to the default list. Please confirm your action.',
+  'confirmClearCurrentMessages':
+    'You are about to clear the current session messages. Once cleared, they cannot be retrieved. Please confirm your action.',
+  'confirmRemoveChatGroupItemAlert':
+    'This Group will be deleted. Group-specific assistants will also be deleted, while external assistants will not be affected.',
+  'confirmRemoveGroupItemAlert':
+    'You are about to delete this category. After deletion, its agents will be moved to the default list. Please confirm your action.',
   'confirmRemoveGroupSuccess': 'Group deleted successfully',
-  'confirmRemoveSessionItemAlert': 'You are about to delete this agent. Once deleted, it cannot be retrieved. Please confirm your action.',
+  'confirmRemoveSessionItemAlert':
+    'You are about to delete this agent. Once deleted, it cannot be retrieved. Please confirm your action.',
   'confirmRemoveSessionSuccess': 'Agent removed successfully',
   'defaultAgent': 'Default Agent',
   'defaultGroupChat': 'Group',
@@ -78,15 +92,20 @@ export default {
   'duplicateTitle': '{{title}} Copy',
   'emptyAgent': 'No Agents yet. Start with your first Agent—build your system over time.',
   'emptyAgentAction': 'Create Agent',
-  'extendParams.disableContextCaching.desc': 'Reduce by up to 90% of the cost of generating a single conversation and bring a max of 4x speed. <1>Learn more</1>',
+  'extendParams.disableContextCaching.desc':
+    'Reduce by up to 90% of the cost of generating a single conversation and bring a max of 4x speed. <1>Learn more</1>',
   'extendParams.disableContextCaching.title': 'Enable Context Caching',
-  'extendParams.effort.desc': 'Control how many tokens Claude uses when responding with the effort parameter.',
+  'extendParams.effort.desc':
+    'Control how many tokens Claude uses when responding with the effort parameter.',
   'extendParams.effort.title': 'Effort',
-  'extendParams.enableAdaptiveThinking.desc': 'Let Claude dynamically decide when and how much to think with adaptive thinking mode.',
+  'extendParams.enableAdaptiveThinking.desc':
+    'Let Claude dynamically decide when and how much to think with adaptive thinking mode.',
   'extendParams.enableAdaptiveThinking.title': 'Enable Adaptive Thinking',
-  'extendParams.enableReasoning.desc': 'Let the model reason before answering. Use it for complex tasks.',
+  'extendParams.enableReasoning.desc':
+    'Let the model reason before answering. Use it for complex tasks.',
   'extendParams.enableReasoning.title': 'Enable Deep Thinking',
-  'extendParams.preserveThinking.desc': 'When enabled, assistant historical reasoning will be sent back as context for models. This may increase token usage.',
+  'extendParams.preserveThinking.desc':
+    'When enabled, assistant historical reasoning will be sent back as context for models. This may increase token usage.',
   'extendParams.preserveThinking.title': 'Preserve Historical Thinking',
   'extendParams.imageAspectRatio.title': 'Image Aspect Ratio',
   'extendParams.imageResolution.title': 'Image Resolution',
@@ -97,17 +116,21 @@ export default {
   'extendParams.thinkingBudget.title': 'Thinking Budget',
   'extendParams.thinkingLevel.title': 'Level of Thinking',
   'extendParams.title': 'Model Extension Features',
-  'extendParams.urlContext.desc': 'When enabled, web links will be automatically parsed to retrieve the actual webpage context content',
+  'extendParams.urlContext.desc':
+    'When enabled, web links will be automatically parsed to retrieve the actual webpage context content',
   'extendParams.urlContext.title': 'Extract Webpage Link Content',
   'group.desc': 'Move a task forward with multiple Agents in one shared space.',
   'group.memberTooltip': 'There are {{count}} members in the group',
   'group.orchestratorThinking': 'Orchestrator is thinking...',
-  'group.profile.contentPlaceholder': 'Set the group objectives/work modes here. This information will be shared with all group members.',
+  'group.profile.contentPlaceholder':
+    'Set the group objectives/work modes here. This information will be shared with all group members.',
   'group.profile.external': 'External',
-  'group.profile.externalAgentWarning': 'This is an external agent. Changes made here will directly modify the original agent configuration.',
+  'group.profile.externalAgentWarning':
+    'This is an external agent. Changes made here will directly modify the original agent configuration.',
   'group.profile.groupSettings': 'Group Settings',
   'group.profile.supervisor': 'Supervisor',
-  'group.profile.supervisorPlaceholder': 'The supervisor coordinates different agents. Setting supervisor information here enables more precise workflow coordination.',
+  'group.profile.supervisorPlaceholder':
+    'The supervisor coordinates different agents. Setting supervisor information here enables more precise workflow coordination.',
   'group.removeMember': 'Remove Member',
   'group.title': 'Group',
   'groupDescription': 'Group description',
@@ -129,7 +152,8 @@ export default {
   'groupWizard.createGroup': 'Create Group',
   'groupWizard.existingMembers': 'Current Agents',
   'groupWizard.groupMembers': 'These agents will also be added to your list',
-  'groupWizard.host.description': 'Let the Group move forward automatically. You can step in anytime.',
+  'groupWizard.host.description':
+    'Let the Group move forward automatically. You can step in anytime.',
   'groupWizard.host.title': 'Enable Orchestrator',
   'groupWizard.host.tooltip': 'When off, you’ll need to @mention members to get their replies.',
   'groupWizard.memberCount': '{{count}} members',
@@ -141,25 +165,32 @@ export default {
   'groupWizard.title': 'Create Group',
   'groupWizard.useTemplate': 'Use Template',
   'heteroAgent.fullAccess.label': 'Full access',
-  'heteroAgent.fullAccess.tooltip': 'Claude Code runs locally with full read/write access to the working directory. Switching permission modes is not available yet.',
-  'heteroAgent.resumeReset.cwdChanged': 'Working directory changed. Previous Claude Code session can only be resumed from its original directory, so a new conversation has started.',
-  'heteroAgent.resumeReset.resumeFailed': 'The saved Codex thread could not be resumed safely, so a new conversation has started for this topic.',
+  'heteroAgent.fullAccess.tooltip':
+    'Claude Code runs locally with full read/write access to the working directory. Switching permission modes is not available yet.',
+  'heteroAgent.resumeReset.cwdChanged':
+    'Working directory changed. Previous Claude Code session can only be resumed from its original directory, so a new conversation has started.',
+  'heteroAgent.resumeReset.resumeFailed':
+    'The saved Codex thread could not be resumed safely, so a new conversation has started for this topic.',
   'heteroAgent.switchCwd.cancel': 'Cancel',
-  'heteroAgent.switchCwd.content': 'Claude Code sessions are pinned to a working directory. Switching will start a new session for this topic — chat messages stay, but the previous session context cannot be resumed.',
+  'heteroAgent.switchCwd.content':
+    'Claude Code sessions are pinned to a working directory. Switching will start a new session for this topic — chat messages stay, but the previous session context cannot be resumed.',
   'heteroAgent.switchCwd.ok': 'Switch and start new session',
   'heteroAgent.switchCwd.title': 'Switch working directory?',
   'heteroAgent.cloudNotConfigured.action': 'Configure',
-  'heteroAgent.cloudNotConfigured.desc': 'Configure your Claude Code token in agent profile to start sending messages.',
+  'heteroAgent.cloudNotConfigured.desc':
+    'Configure your Claude Code token in agent profile to start sending messages.',
   'heteroAgent.cloudNotConfigured.title': 'Cloud credentials required',
   'heteroAgent.cloudRepo.sectionTitle': 'Repositories',
   'heteroAgent.cloudRepo.notSet': 'No repo selected',
   'heteroAgent.cloudRepo.noRepos': 'No repositories configured. Add them in agent settings.',
   'heteroAgent.cloudRepo.multiSelected': '{{count}} repos selected',
-  'heteroAgent.executionTarget.infoTooltip': 'Pick a device and the agent uses it as its runtime environment — reading and writing files and operating the computer. Cloud sandbox is provided by LobeHub Marketplace.',
+  'heteroAgent.executionTarget.infoTooltip':
+    'Pick a device and the agent uses it as its runtime environment — reading and writing files and operating the computer. Cloud sandbox is provided by {{brandName}} Marketplace.',
   'heteroAgent.executionTarget.loading': 'Loading devices…',
   'heteroAgent.executionTarget.local': 'This device',
   'heteroAgent.executionTarget.localDesc': 'Run as a local process on this desktop app',
-  'heteroAgent.executionTarget.noDevices': 'No remote devices yet. Run `lh connect` on another machine to add one.',
+  'heteroAgent.executionTarget.noDevices':
+    'No remote devices yet. Run `lh connect` on another machine to add one.',
   'heteroAgent.executionTarget.none': 'No device',
   'heteroAgent.executionTarget.noneDesc': 'No device enabled',
   'heteroAgent.executionTarget.offline': 'Offline',
@@ -171,7 +202,8 @@ export default {
   'heteroAgent.executionTarget.downloadDesktopTitle': 'Get the desktop app',
   'heteroAgent.executionTarget.title': 'Execution Device',
   'heteroAgent.executionTarget.unknownDevice': 'Unknown device',
-  'hideForYou': "Direct message content is hidden. Please enable 'Show Direct Message Content' in settings to view.",
+  'hideForYou':
+    "Direct message content is hidden. Please enable 'Show Direct Message Content' in settings to view.",
   'history.title': 'The Agent will keep only the latest {{count}} messages.',
   'historyRange': 'History Range',
   'historySummary': 'Historical Message Summary',
@@ -180,17 +212,20 @@ export default {
   'inbox.title': '{{brandName}}',
   'input.addAi': 'Add an AI message',
   'input.addUser': 'Add a user message',
-  'input.agentModeUnsupportedModel': 'The current model doesn’t support agentic tool calling. Switch to a model with agent capability for the best experience.',
+  'input.agentModeUnsupportedModel':
+    'The current model doesn’t support agentic tool calling. Switch to a model with agent capability for the best experience.',
   'input.costEstimate.creditsPerMillionTokens': '{{credits}} credits/M tokens',
   'input.costEstimate.hint': 'Estimated cost: ~{{credits}} credits',
   'input.costEstimate.inputLabel': 'Input',
   'input.costEstimate.outputLabel': 'Output',
   'input.costEstimate.settingsLink': 'Adjust warning threshold',
   'input.costEstimate.tokenCount': '~{{tokens}} tokens',
-  'input.costEstimate.tooltip': 'Estimated from current context, tools, and model pricing. Actual cost may vary.',
+  'input.costEstimate.tooltip':
+    'Estimated from current context, tools, and model pricing. Actual cost may vary.',
   'input.disclaimer': 'Agents can make mistakes. Use your judgment for critical info.',
   'input.errorMsg': 'Send failed: {{errorMsg}}. Retry, or send again later.',
-  'input.inputCompletionError.desc': 'Input suggestions stopped after an error. Retry, or adjust the suggestion model in Settings.',
+  'input.inputCompletionError.desc':
+    'Input suggestions stopped after an error. Retry, or adjust the suggestion model in Settings.',
   'input.inputCompletionError.retry': 'Retry',
   'input.inputCompletionError.settings': 'Settings',
   'input.inputCompletionError.title': 'Input suggestions paused',
@@ -209,7 +244,8 @@ export default {
   'knowledgeBase.all': 'All Content',
   'knowledgeBase.allFiles': 'All Files',
   'knowledgeBase.allLibraries': 'All Libraries',
-  'knowledgeBase.disabled': 'Library chat isn’t available in this deployment. Switch to a server-side database, or use {{cloud}}.',
+  'knowledgeBase.disabled':
+    'Library chat isn’t available in this deployment. Switch to a server-side database, or use {{cloud}}.',
   'knowledgeBase.library.action.add': 'Add',
   'knowledgeBase.library.action.detail': 'Details',
   'knowledgeBase.library.action.remove': 'Remove',
@@ -250,13 +286,15 @@ export default {
   'messages.dm.title': 'DM',
   'messages.modelCard.credit': 'Credits',
   'messages.modelCard.creditPricing': 'Pricing',
-  'messages.modelCard.creditTooltip': 'For counting, we treat $1 as 1M credits. Example: $3/M tokens → 3 credits per token.',
+  'messages.modelCard.creditTooltip':
+    'For counting, we treat $1 as 1M credits. Example: $3/M tokens → 3 credits per token.',
   'messages.modelCard.pricing.inputCachedTokens': 'Cached input {{amount}} credits · ${{amount}}/M',
   'messages.modelCard.pricing.inputCharts': '${{amount}}/M characters',
   'messages.modelCard.pricing.inputMinutes': '${{amount}}/minute',
   'messages.modelCard.pricing.inputTokens': 'Input {{amount}} credits · ${{amount}}/M',
   'messages.modelCard.pricing.outputTokens': 'Output {{amount}} credits · ${{amount}}/M',
-  'messages.modelCard.pricing.writeCacheInputTokens': 'Cache write {{amount}} credits · ${{amount}}/M',
+  'messages.modelCard.pricing.writeCacheInputTokens':
+    'Cache write {{amount}} credits · ${{amount}}/M',
   'messages.tokenDetails.average': 'Average unit price',
   'messages.tokenDetails.cacheRate': 'Cache rate',
   'messages.tokenDetails.input': 'Input',
@@ -275,9 +313,11 @@ export default {
   'messages.tokenDetails.outputTitle': 'Output Details',
   'messages.tokenDetails.reasoning': 'Deep Thinking',
   'messages.tokenDetails.speed.tps.title': 'TPS',
-  'messages.tokenDetails.speed.tps.tooltip': 'Tokens Per Second (TPS). This indicates the average speed of AI-generated content (Tokens/second), calculated from the moment the first Token is received.',
+  'messages.tokenDetails.speed.tps.tooltip':
+    'Tokens Per Second (TPS). This indicates the average speed of AI-generated content (Tokens/second), calculated from the moment the first Token is received.',
   'messages.tokenDetails.speed.ttft.title': 'TTFT',
-  'messages.tokenDetails.speed.ttft.tooltip': 'Time To First Token (TTFT). This refers to the time interval from when you send a message to when the client receives the first Token.',
+  'messages.tokenDetails.speed.ttft.tooltip':
+    'Time To First Token (TTFT). This refers to the time interval from when you send a message to when the client receives the first Token.',
   'messages.tokenDetails.title': 'Generation Details',
   'messages.tokenDetails.total': 'Total Consumption',
   'minimap.emptyPreview': '(No text content)',
@@ -293,29 +333,37 @@ export default {
   'createModal.title': 'What should your agent do?',
   'claudeCodeInstallGuide.actions.openDocs': 'Open Install Guide',
   'claudeCodeInstallGuide.actions.openSystemTools': 'Open System Tools',
-  'claudeCodeInstallGuide.afterInstall': 'After installing, run Claude Code once to sign in, then retry your message or click Re-detect in System Tools.',
-  'claudeCodeInstallGuide.desc': 'Claude Code needs the Claude Code CLI to run locally. Install it and make sure the `claude` command is available in your PATH.',
+  'claudeCodeInstallGuide.afterInstall':
+    'After installing, run Claude Code once to sign in, then retry your message or click Re-detect in System Tools.',
+  'claudeCodeInstallGuide.desc':
+    'Claude Code needs the Claude Code CLI to run locally. Install it and make sure the `claude` command is available in your PATH.',
   'claudeCodeInstallGuide.installWithBrew': 'Homebrew',
   'claudeCodeInstallGuide.installWithNpm': 'Recommended install',
   'claudeCodeInstallGuide.menuNotification.title': 'Claude Code CLI not found',
-  'claudeCodeInstallGuide.reason': 'LobeHub could not start Claude Code: {{message}}',
+  'claudeCodeInstallGuide.reason': '{{brandName}} could not start Claude Code: {{message}}',
   'claudeCodeInstallGuide.title': 'Install Claude Code CLI',
   'cliAuthGuide.actions.openDocs': 'Open Sign-in Guide',
   'cliAuthGuide.actions.openSystemTools': 'Open System Tools',
-  'cliAuthGuide.afterLogin': 'After signing in again or refreshing credentials, retry your message. You can also re-detect in System Tools.',
-  'cliAuthGuide.desc': '{{name}} could not continue because its sign-in session expired or the credentials are invalid.',
+  'cliAuthGuide.afterLogin':
+    'After signing in again or refreshing credentials, retry your message. You can also re-detect in System Tools.',
+  'cliAuthGuide.desc':
+    '{{name}} could not continue because its sign-in session expired or the credentials are invalid.',
   'cliAuthGuide.errorDetails': 'Error details',
   'cliAuthGuide.runCommand': 'Run this in Terminal',
   'cliAuthGuide.title': 'Sign in to {{name}}',
   'cliOverloadedGuide.actions.retry': 'Retry',
-  'cliOverloadedGuide.desc': "{{name}}'s upstream model service is temporarily overloaded. This usually clears in a moment.",
+  'cliOverloadedGuide.desc':
+    "{{name}}'s upstream model service is temporarily overloaded. This usually clears in a moment.",
   'cliOverloadedGuide.errorDetails': 'Error details',
-  'cliOverloadedGuide.retryHint': 'Wait a few seconds and retry. If it keeps failing, the provider may be having a wider incident.',
+  'cliOverloadedGuide.retryHint':
+    'Wait a few seconds and retry. If it keeps failing, the provider may be having a wider incident.',
   'cliOverloadedGuide.title': '{{name}} is temporarily overloaded',
   'cliRateLimitGuide.actions.openSystemTools': 'Open System Tools',
   'cliRateLimitGuide.actions.retry': 'Retry',
-  'cliRateLimitGuide.afterReset': 'Wait until the reset time, then retry your message. If you are using API authorization, you can also check your provider quota and billing status.',
-  'cliRateLimitGuide.desc': '{{name}} has reached its current usage limit and cannot continue this run right now.',
+  'cliRateLimitGuide.afterReset':
+    'Wait until the reset time, then retry your message. If you are using API authorization, you can also check your provider quota and billing status.',
+  'cliRateLimitGuide.desc':
+    '{{name}} has reached its current usage limit and cannot continue this run right now.',
   'cliRateLimitGuide.limitType': 'Limit window',
   'cliRateLimitGuide.limitTypes.weekCycle': 'Week cycle',
   'cliRateLimitGuide.relative.day_one': '{{count}} day',
@@ -330,12 +378,14 @@ export default {
   'cliRateLimitGuide.title': '{{name}} usage limit reached',
   'codexInstallGuide.actions.openDocs': 'Open Install Guide',
   'codexInstallGuide.actions.openSystemTools': 'Open System Tools',
-  'codexInstallGuide.afterInstall': 'After installing, run Codex once to sign in, then retry your message or click Re-detect in System Tools.',
-  'codexInstallGuide.desc': 'Codex Agent needs the Codex CLI to run locally. Install it and make sure the codex command is available in your PATH.',
+  'codexInstallGuide.afterInstall':
+    'After installing, run Codex once to sign in, then retry your message or click Re-detect in System Tools.',
+  'codexInstallGuide.desc':
+    'Codex Agent needs the Codex CLI to run locally. Install it and make sure the codex command is available in your PATH.',
   'codexInstallGuide.installWithBrew': 'Homebrew (macOS)',
   'codexInstallGuide.installWithNpm': 'Recommended install',
   'codexInstallGuide.menuNotification.title': 'Codex CLI not found',
-  'codexInstallGuide.reason': 'LobeHub could not start Codex: {{message}}',
+  'codexInstallGuide.reason': '{{brandName}} could not start Codex: {{message}}',
   'codexInstallGuide.title': 'Install Codex CLI',
   'newAgent': 'Create Agent',
   'newClaudeCodeAgent': 'Add Claude Code',
@@ -367,7 +417,8 @@ export default {
   'platformAgent.create.descriptionPlaceholder': 'Brief description (optional)',
   'platformAgent.create.fetchingProfile': 'Fetching profile...',
   'platformAgent.create.noDevices': 'No devices connected',
-  'platformAgent.create.noDevicesDesktopHint': 'Install the Desktop App — it connects automatically after login',
+  'platformAgent.create.noDevicesDesktopHint':
+    'Install the Desktop App — it connects automatically after login',
   'platformAgent.create.downloadDesktop': 'Download Desktop App',
   'platformAgent.create.noDevicesCliHint': 'Or connect any machine via CLI, then click Refresh:',
   'platformAgent.create.noDevicesCmd': 'lh connect',
@@ -382,11 +433,14 @@ export default {
   'platformAgent.create.upgradeCmd': 'npm install -g @lobehub/cli',
   'platformAgent.create.comingSoon': 'Coming Soon',
   'platformAgent.deviceGuard.deviceOffline.title': 'Device not connected',
-  'platformAgent.deviceGuard.deviceOffline.desc': 'The bound device is not connected. Run `lh connect` on that machine then refresh.',
+  'platformAgent.deviceGuard.deviceOffline.desc':
+    'The bound device is not connected. Run `lh connect` on that machine then refresh.',
   'platformAgent.deviceGuard.platformUnavailable.title': '{{name}} not available',
-  'platformAgent.deviceGuard.platformUnavailable.desc': '{{name}} is not installed on the connected device.',
+  'platformAgent.deviceGuard.platformUnavailable.desc':
+    '{{name}} is not installed on the connected device.',
   'platformAgent.deviceGuard.noDevice.title': 'No device bound',
-  'platformAgent.deviceGuard.noDevice.desc': 'This agent has no bound device. Edit the agent profile to configure one.',
+  'platformAgent.deviceGuard.noDevice.desc':
+    'This agent has no bound device. Edit the agent profile to configure one.',
   'platformAgent.deviceGuard.refresh': 'Refresh',
   'platformAgent.deviceGuard.configure': 'Configure',
   'newPage': 'Create Page',
@@ -401,7 +455,8 @@ export default {
   'operation.execClientSubAgent': 'Running sub-agent',
   'operation.execHeterogeneousAgent': '{{name}} is running',
   'operation.heterogeneousAgentFallback': 'External agent',
-  'operation.execServerAgentRuntime': 'Task is running in the server. You are safe to leave this page',
+  'operation.execServerAgentRuntime':
+    'Task is running in the server. You are safe to leave this page',
   'operation.sendMessage': 'Sending message',
   'owner': 'Group owner',
   'pageCopilot.title': 'Page Agent',
@@ -426,13 +481,15 @@ export default {
   'memory.on.title': 'Enable Memory Tool',
   'memory.title': 'Memory',
   'gatewayMode.beta': 'Beta',
-  'gatewayMode.desc': "Run agents in the cloud through LobeHub's Agent Gateway. Tasks keep running even after you close the page.",
+  'gatewayMode.desc':
+    "Run agents in the cloud through {{brandName}}'s Agent Gateway. Tasks keep running even after you close the page.",
   'gatewayMode.title': 'Agent Gateway Mode',
   'search.grounding.imageSearchQueries': 'Image Search Keywords',
   'search.grounding.imageTitle': 'Found {{count}} images',
   'chatMode.agent': 'Agent',
   'plus.search.appSearch': 'Smart Search',
-  'plus.search.appSearchDesc': 'LobeHub optimized search service, delivering best retrieval results.',
+  'plus.search.appSearchDesc':
+    '{{brandName}} optimized search service, delivering best retrieval results.',
   'plus.search.modelSearch': 'Provider Search',
   'plus.search.modelSearchDesc': 'May cause unexpected behavior when enabled, not recommended.',
   'plus.search.off': 'Off',
@@ -467,7 +524,8 @@ export default {
   'search.mode.on.desc': 'Always search the web for the latest information.',
   'search.mode.on.title': 'Always on',
   'search.mode.useModelBuiltin': 'Use model built-in web search',
-  'search.searchModel.desc': 'The current model does not support function calls, so it needs to be paired with a model that does support function calls for online searching.',
+  'search.searchModel.desc':
+    'The current model does not support function calls, so it needs to be paired with a model that does support function calls for online searching.',
   'search.searchModel.title': 'Search helper model',
   'search.title': 'Web search',
   'searchAgentPlaceholder': 'Search agents...',
@@ -477,11 +535,14 @@ export default {
   'followUpPlaceholderHeterogeneous': 'Follow up.',
   'sendPlaceholder': 'Ask, create, or start a task, <hotkey><hotkey/>',
   'sendPlaceholderChat': 'Ask, search, or brainstorm, <hotkey><hotkey/>',
-  'sendPlaceholderChatWithAgentAssignment': 'Ask, search, or brainstorm. @ to bring in other agents.',
+  'sendPlaceholderChatWithAgentAssignment':
+    'Ask, search, or brainstorm. @ to bring in other agents.',
   'sendPlaceholderHeterogeneous': 'Describe a task or ask a question to {{name}}',
-  'sendPlaceholderWithAgentAssignment': 'Ask, create, or start a task. @ to assign tasks to other agents.',
+  'sendPlaceholderWithAgentAssignment':
+    'Ask, create, or start a task. @ to assign tasks to other agents.',
   'sessionGroup.config': 'Category Management',
-  'sessionGroup.confirmRemoveGroupAlert': 'This category is about to be deleted. After deletion, the agents in this category will be moved to the default list. Please confirm your operation.',
+  'sessionGroup.confirmRemoveGroupAlert':
+    'This category is about to be deleted. After deletion, the agents in this category will be moved to the default list. Please confirm your operation.',
   'sessionGroup.createAgentSuccess': 'Agent created successfully',
   'sessionGroup.createGroup': 'Add New Category',
   'sessionGroup.createGroupFailed': 'Failed to create category',
@@ -536,7 +597,8 @@ export default {
   'shareModal.pdfReady': 'PDF is ready',
   'shareModal.popover.export': 'Export',
   'shareModal.popover.privacyWarning.confirm': 'Share & copy link',
-  'shareModal.popover.privacyWarning.content': "Anyone with the link can open this whole conversation, so take a moment to make sure there's nothing here you'd rather keep private. A shared topic may include:",
+  'shareModal.popover.privacyWarning.content':
+    "Anyone with the link can open this whole conversation, so take a moment to make sure there's nothing here you'd rather keep private. A shared topic may include:",
   'shareModal.popover.privacyWarning.doNotShowAgain': "Don't show this again",
   'shareModal.popover.privacyWarning.items.credentials': 'Credentials',
   'shareModal.popover.privacyWarning.items.files': 'Uploaded files',
@@ -572,7 +634,8 @@ export default {
   'sharePage.menu.goToLobeHub': 'Go to LobeHub',
   'sharePage.menu.more': 'More',
   'sharePage.menu.report': 'Report',
-  'sharePageDisclaimer': "Shared by a user. The content reflects their views, not LobeHub's, and LobeHub takes no responsibility for it.",
+  'sharePageDisclaimer':
+    "Shared by a user. The content reflects their views, not LobeHub's, and LobeHub takes no responsibility for it.",
   'signalCallbacks.collapse': 'Hide details',
   'signalCallbacks.empty': 'No callback messages',
   'signalCallbacks.expand': 'Show details',
@@ -666,7 +729,8 @@ export default {
   'taskDetail.artifacts': 'Artifacts',
   'taskDetail.untitled': 'Untitled',
   'taskDetail.artifactMenu.delete': 'Remove from task',
-  'taskDetail.artifactMenu.deleteConfirm.content': 'This artifact will no longer appear in this task workspace.',
+  'taskDetail.artifactMenu.deleteConfirm.content':
+    'This artifact will no longer appear in this task workspace.',
   'taskDetail.artifactMenu.deleteConfirm.ok': 'Remove',
   'taskDetail.artifactMenu.deleteConfirm.title': 'Remove this artifact?',
   'taskDetail.artifactSize': '{{value}} chars',
@@ -683,7 +747,8 @@ export default {
   'taskDetail.comment.deleteConfirm.title': 'Delete this comment?',
   'taskDetail.comment.edit': 'Edit',
   'taskDetail.comment.save': 'Save',
-  'taskDetail.commentPlaceholder': 'Leave feedback to guide the agent — your comments shape the next run...',
+  'taskDetail.commentPlaceholder':
+    'Leave feedback to guide the agent — your comments shape the next run...',
   'taskDetail.replyInThread': 'Reply in this thread',
   'taskDetail.replyPlaceholder': 'Reply in this thread...',
   'taskDetail.sendFollowUp': 'Send follow up message',
@@ -710,7 +775,8 @@ export default {
   'taskDetail.stopTask': 'Stop task',
   'taskDetail.navigation': 'Navigation',
   'taskDetail.notFound.backToTasks': 'Back to all tasks',
-  'taskDetail.notFound.desc': "This task may have been deleted, or you don't have permission to view it.",
+  'taskDetail.notFound.desc':
+    "This task may have been deleted, or you don't have permission to view it.",
   'taskDetail.notFound.title': 'Task not found',
   'taskDetail.subIssueOf': 'Sub-issue of',
   'taskDetail.priority.high': 'High',
@@ -731,15 +797,20 @@ export default {
   'taskDetail.subtaskInstructionPlaceholder': 'Describe the sub-task...',
   'taskDetail.runAll': 'Run all',
   'taskDetail.runAll.title': 'Run subtasks in dependency order',
-  'taskDetail.runAll.description': 'Subtasks will run layer by layer. Each layer waits for the previous one to finish. Tasks with no dependencies run in layer 1.',
+  'taskDetail.runAll.description':
+    'Subtasks will run layer by layer. Each layer waits for the previous one to finish. Tasks with no dependencies run in layer 1.',
   'taskDetail.runAll.layer': 'Layer {{index}}',
   'taskDetail.runAll.layerHint.first': 'Starts immediately',
   'taskDetail.runAll.layerHint.next': 'Waits for layer {{prev}} to finish',
-  'taskDetail.runAll.skipped.alreadyDone': '{{count}} task(s) already completed or canceled — skipped',
+  'taskDetail.runAll.skipped.alreadyDone':
+    '{{count}} task(s) already completed or canceled — skipped',
   'taskDetail.runAll.skipped.ineligible': '{{count}} task(s) running or scheduled — skipped',
-  'taskDetail.runAll.skipped.blockedExternally': '{{count}} task(s) waiting on a blocker outside this batch — will run automatically when unblocked',
-  'taskDetail.runAll.cycleWarning': 'Circular dependency detected. Tasks involved in or blocked by the cycle will not run: {{members}}',
-  'taskDetail.runAll.empty': 'Nothing to run — every subtask is already completed, in flight, or stuck in a cycle.',
+  'taskDetail.runAll.skipped.blockedExternally':
+    '{{count}} task(s) waiting on a blocker outside this batch — will run automatically when unblocked',
+  'taskDetail.runAll.cycleWarning':
+    'Circular dependency detected. Tasks involved in or blocked by the cycle will not run: {{members}}',
+  'taskDetail.runAll.empty':
+    'Nothing to run — every subtask is already completed, in flight, or stuck in a cycle.',
   'taskDetail.runAll.confirm': 'Run {{count}} subtask(s)',
   'taskDetail.runAll.cancel': 'Cancel',
   'taskDetail.runAll.kickedOff': 'Started {{count}} subtask(s); downstream layers will follow.',
@@ -787,7 +858,8 @@ export default {
   'taskList.assigneeSearch.empty': 'No matching agent',
   'taskList.assigneeSearch.placeholder': 'Search agent...',
   'taskList.contextMenu.copyConfirm': 'Copy',
-  'taskList.contextMenu.copyDescription': 'Clone this task (and all its subtasks) into another workspace. Status resets to backlog.',
+  'taskList.contextMenu.copyDescription':
+    'Clone this task (and all its subtasks) into another workspace. Status resets to backlog.',
   'taskList.contextMenu.copyFailed': 'Failed to copy task',
   'taskList.contextMenu.copyId': 'Copy ID',
   'taskList.contextMenu.copyIdSuccess': 'ID copied',
@@ -800,12 +872,14 @@ export default {
   'taskList.contextMenu.runNow': 'Run now',
   'taskList.contextMenu.status': 'Status',
   'taskList.contextMenu.transferConfirm': 'Transfer',
-  'taskList.contextMenu.transferDescription': 'Move this task (and all its subtasks) to another workspace. Identifiers will be re-assigned.',
+  'taskList.contextMenu.transferDescription':
+    'Move this task (and all its subtasks) to another workspace. Identifiers will be re-assigned.',
   'taskList.contextMenu.transferFailed': 'Failed to transfer task',
   'taskList.contextMenu.transferSuccess': 'Task transferred',
   'taskList.contextMenu.transferTitle': 'Transfer task',
   'taskList.contextMenu.transferTo': 'Transfer to…',
-  'taskList.contextMenu.transferWarning': 'Cross-workspace references like assigned agent and active topic will be cleared.',
+  'taskList.contextMenu.transferWarning':
+    'Cross-workspace references like assigned agent and active topic will be cleared.',
   'taskList.kanban.addTask': 'Create task',
   'taskList.kanban.backlog': 'Backlog',
   'taskList.kanban.canceled': 'Canceled',
@@ -828,7 +902,8 @@ export default {
   'thread.subagentMetrics.tokens': '{{count}} tokens',
   'thread.subagentMetrics.toolsShort_one': '{{count}} tool',
   'thread.subagentMetrics.toolsShort_other': '{{count}} tools',
-  'thread.subagentReadOnlyHint': 'SubAgent conversations are read-only — execution is driven by the parent agent.',
+  'thread.subagentReadOnlyHint':
+    'SubAgent conversations are read-only — execution is driven by the parent agent.',
   'thread.threadMessageCount': '{{messageCount}} messages',
   'thread.title': 'Subtopic',
   'todoProgress.allCompleted': 'All tasks completed',
@@ -858,13 +933,16 @@ export default {
   'tool.intervention.mode.autoRunDesc': 'Automatically approve all tool executions',
   'tool.intervention.mode.manual': 'Manual',
   'tool.intervention.mode.manualDesc': 'Manual approval required for each invocation',
-  'tool.intervention.onboarding.agentIdentity.editHint': 'You can edit the name or avatar directly below.',
+  'tool.intervention.onboarding.agentIdentity.editHint':
+    'You can edit the name or avatar directly below.',
   'tool.intervention.onboarding.agentIdentity.namePlaceholder': 'Agent name',
   'tool.intervention.onboarding.agentIdentity.title': "I'll update my name and avatar",
   'tool.intervention.onboarding.agentIdentity.titleAvatarOnly': "I'll update my avatar",
   'tool.intervention.onboarding.agentIdentity.titleNameOnly': "I'll update my name",
-  'tool.intervention.onboarding.userProfile.applyHint': 'These details will be saved to your profile after approval.',
-  'tool.intervention.onboarding.userProfile.description': 'Approving this change updates your onboarding profile so the Agent can tailor future replies.',
+  'tool.intervention.onboarding.userProfile.applyHint':
+    'These details will be saved to your profile after approval.',
+  'tool.intervention.onboarding.userProfile.description':
+    'Approving this change updates your onboarding profile so the Agent can tailor future replies.',
   'tool.intervention.onboarding.userProfile.eyebrow': 'Onboarding approval',
   'tool.intervention.onboarding.userProfile.fullName': 'Full name',
   'tool.intervention.onboarding.userProfile.responseLanguage': 'Response language',
@@ -880,7 +958,8 @@ export default {
   'tool.intervention.toolRejected': 'This Skill call was rejected',
   'toolAuth.authorize': 'Authorize',
   'toolAuth.authorizing': 'Authorizing...',
-  'toolAuth.hint': "When Skills aren't authorized or configured, the related Skills won't work and the Agent's capabilities may be limited or run into errors.",
+  'toolAuth.hint':
+    "When Skills aren't authorized or configured, the related Skills won't work and the Agent's capabilities may be limited or run into errors.",
   'task.title': 'Tasks',
   'toolAuth.remove': 'Remove',
   'toolAuth.signIn': 'Sign In',
@@ -902,19 +981,25 @@ export default {
   'upload.action.fileUpload': 'Upload File',
   'upload.action.fileOrImageUpload': 'Upload File or Image',
   'upload.action.folderUpload': 'Upload Folder',
-  'upload.action.imageDisabled': 'The current model does not support visual recognition. Please switch models to use this feature.',
+  'upload.action.imageDisabled':
+    'The current model does not support visual recognition. Please switch models to use this feature.',
   'upload.action.imageUpload': 'Upload Image',
   'upload.action.tooltip': 'Upload',
   'upload.clientMode.actionFiletip': 'Upload File',
   'upload.clientMode.actionTooltip': 'Upload',
-  'upload.clientMode.disabled': 'The current model does not support visual recognition and file analysis. Please switch models to use this feature.',
-  'upload.clientMode.fileNotSupported': 'File uploads are not supported in browser mode; only images are allowed.',
-  'upload.clientMode.visionNotSupported': 'The current model does not support visual recognition. Please switch to a different model to use this feature.',
+  'upload.clientMode.disabled':
+    'The current model does not support visual recognition and file analysis. Please switch models to use this feature.',
+  'upload.clientMode.fileNotSupported':
+    'File uploads are not supported in browser mode; only images are allowed.',
+  'upload.clientMode.visionNotSupported':
+    'The current model does not support visual recognition. Please switch to a different model to use this feature.',
   'upload.preview.prepareTasks': 'Preparing chunks...',
   'upload.preview.status.pending': 'Preparing to upload...',
   'upload.preview.status.processing': 'Processing file...',
-  'upload.validation.unsupportedFileType': 'Unsupported file type: {{files}}. Supported images: JPG, PNG, GIF, WebP. Supported documents include PDF, Word, Excel, PowerPoint, Markdown, text, CSV, JSON, and code files.',
-  'upload.validation.videoSizeExceeded': 'Video file size must not exceed {{maxSize}}. Current file size is {{actualSize}}.',
+  'upload.validation.unsupportedFileType':
+    'Unsupported file type: {{files}}. Supported images: JPG, PNG, GIF, WebP. Supported documents include PDF, Word, Excel, PowerPoint, Markdown, text, CSV, JSON, and code files.',
+  'upload.validation.videoSizeExceeded':
+    'Video file size must not exceed {{maxSize}}. Current file size is {{actualSize}}.',
   'viewMode.fullWidth': 'Full Width',
   'viewMode.normal': 'Standard',
   'viewMode.wideScreen': 'Widescreen',
@@ -1049,11 +1134,13 @@ export default {
   'workingPanel.skills.actions.delete': 'Delete',
   'workingPanel.skills.actions.rename': 'Rename',
   'workingPanel.skills.actions.view': 'View',
-  'workingPanel.skills.delete.agentConfirm': 'Remove the skill “{{name}}” from this agent? This cannot be undone.',
+  'workingPanel.skills.delete.agentConfirm':
+    'Remove the skill “{{name}}” from this agent? This cannot be undone.',
   'workingPanel.skills.delete.error': 'Failed to delete skill',
   'workingPanel.skills.delete.success': 'Skill deleted',
   'workingPanel.skills.delete.title': 'Delete skill?',
-  'workingPanel.skills.delete.userConfirm': 'Uninstall the skill “{{name}}”? This cannot be undone.',
+  'workingPanel.skills.delete.userConfirm':
+    'Uninstall the skill “{{name}}”? This cannot be undone.',
   'workingPanel.skills.detail.title': 'Skill details',
   'workingPanel.skills.empty': 'No skills available',
   'workingPanel.skills.rename.action': 'Rename',
@@ -1085,7 +1172,8 @@ export default {
   'workingPanel.review.revealInTree': 'Reveal in tree',
   'workingPanel.review.empty': 'No working tree changes',
   'workingPanel.review.empty.branch': 'No changes vs {{baseRef}}',
-  'workingPanel.review.empty.noBaseRef': "Couldn't determine the remote default branch. Run `git remote set-head origin --auto` in your terminal.",
+  'workingPanel.review.empty.noBaseRef':
+    "Couldn't determine the remote default branch. Run `git remote set-head origin --auto` in your terminal.",
   'workingPanel.review.error': "Couldn't load this file's diff",
   'workingPanel.review.expandAll': 'Expand all',
   'workingPanel.review.group.collapseDiffs': 'Collapse all diffs in this group',
@@ -1126,8 +1214,10 @@ export default {
   'workingPanel.title': 'Working Panel',
   'you': 'You',
   'zenMode': 'Zen Mode',
-  'tool.intervention.onboarding.agentIdentity.applyHint': 'The new identity will appear after approval.',
-  'tool.intervention.onboarding.agentIdentity.description': 'Approving this change updates the Agent shown in Inbox and in this onboarding conversation.',
+  'tool.intervention.onboarding.agentIdentity.applyHint':
+    'The new identity will appear after approval.',
+  'tool.intervention.onboarding.agentIdentity.description':
+    'Approving this change updates the Agent shown in Inbox and in this onboarding conversation.',
   'tool.intervention.onboarding.agentIdentity.emoji': 'Agent avatar',
   'tool.intervention.onboarding.agentIdentity.eyebrow': 'Onboarding approval',
   'tool.intervention.onboarding.agentIdentity.name': 'Agent name',
@@ -1136,7 +1226,8 @@ export default {
   'tool.intervention.onboarding.agentIdentity.targets': 'Applies to',
   'extendParams.async.title': 'Async Image Task',
   'operation.execClientTask': 'Executing task',
-  'prompts.summaryExpert': 'As a summary expert, please summarize the following content based on the system prompts above:',
+  'prompts.summaryExpert':
+    'As a summary expert, please summarize the following content based on the system prompts above:',
   'thread.subagentBadge': 'Subagent',
   'tool.intervention.approveAndRemember': 'Approve and Remember',
   'tool.intervention.approveOnce': 'Approve This Time Only',
@@ -1147,20 +1238,25 @@ export default {
   'audioPlayer.pause': 'Pause audio',
   'audioPlayer.play': 'Play audio',
   'heteroAgent.executionTarget.auto': 'Auto',
-  'heteroAgent.executionTarget.autoDesc': 'Use an online device automatically, picking one when several are available',
+  'heteroAgent.executionTarget.autoDesc':
+    'Use an online device automatically, picking one when several are available',
   'heteroAgent.executionTarget.gateway': 'Gateway',
-  'heteroAgent.executionTarget.gatewayDesc': 'Run through the device gateway so other clients can follow progress',
+  'heteroAgent.executionTarget.gatewayDesc':
+    'Run through the device gateway so other clients can follow progress',
   'createModal.skillSuggestion.actions.createAnyway': 'Create Agent Anyway',
   'createModal.skillSuggestion.actions.createAnywayHint': 'Skill not a fit?',
   'createModal.skillSuggestion.actions.install': 'Install Skill',
   'createModal.skillSuggestion.actions.installing': 'Installing…',
   'createModal.skillSuggestion.actions.openSkills': 'View in Skills',
   'createModal.skillSuggestion.actions.tryInLobeAI': 'Use in {{name}}',
-  'createModal.skillSuggestion.description': 'This looks like a reusable workflow. Install the Skill once, then use it across Agents.',
-  'createModal.skillSuggestion.installed.description': 'You can use this Skill in {{name}}, or enable it for any Agent.',
+  'createModal.skillSuggestion.description':
+    'This looks like a reusable workflow. Install the Skill once, then use it across Agents.',
+  'createModal.skillSuggestion.installed.description':
+    'You can use this Skill in {{name}}, or enable it for any Agent.',
   'createModal.skillSuggestion.installed.ready': 'Ready in {{name}}',
   'createModal.skillSuggestion.installed.title': 'Skill installed',
-  'createModal.skillSuggestion.installError': "Skill wasn't installed. Retry, or create an Agent anyway.",
+  'createModal.skillSuggestion.installError':
+    "Skill wasn't installed. Retry, or create an Agent anyway.",
   'createModal.skillSuggestion.title': 'A Skill may fit better',
   'gatewayMode.cardTitle': 'Agent Gateway Mode',
   'floatingChatPanel.collapse': 'Collapse chat',

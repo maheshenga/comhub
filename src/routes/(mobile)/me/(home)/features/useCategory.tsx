@@ -1,5 +1,5 @@
 import { LOBE_CHAT_CLOUD, UTM_SOURCE } from '@lobechat/business-const';
-import { DOWNLOAD_URL, OFFICIAL_URL } from '@lobechat/const';
+import { OFFICIAL_URL } from '@lobechat/const';
 import {
   Book,
   CircleUserRound,
@@ -9,7 +9,6 @@ import {
   FileClockIcon,
   Settings2,
 } from 'lucide-react';
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
@@ -17,6 +16,7 @@ import useBusinessMeCells from '@/business/client/features/User/useBusinessMeCel
 import { type CellProps } from '@/components/Cell';
 import { openChangelogModal } from '@/components/ChangelogModal';
 import { DOCUMENTS, FEEDBACK } from '@/const/index';
+import { usePublicDesktopDownload } from '@/features/DesktopDownload';
 import { usePlatform } from '@/hooks/usePlatform';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useUserStore } from '@/store/user';
@@ -30,11 +30,11 @@ export const useCategory = () => {
   const { isIOS, isAndroid } = usePlatform();
   const businessMeCells = useBusinessMeCells();
 
-  const downloadUrl = useMemo(() => {
-    if (isIOS) return DOWNLOAD_URL.ios;
-    if (isAndroid) return DOWNLOAD_URL.android;
-    return DOWNLOAD_URL.default;
-  }, [isIOS, isAndroid]);
+  const desktopDownload = usePublicDesktopDownload({
+    fallbackLabel: t('getDesktopApp'),
+    isAndroid,
+    isIOS,
+  });
 
   const profile: CellProps[] = [
     {
@@ -61,8 +61,8 @@ export const useCategory = () => {
     {
       icon: Download,
       key: 'get-desktop-app',
-      label: t('getDesktopApp'),
-      onClick: () => window.open(downloadUrl, '__blank'),
+      label: desktopDownload.label,
+      onClick: () => window.open(desktopDownload.url, '__blank'),
     },
     {
       type: 'divider',

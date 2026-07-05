@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode } from 'react';
-import { createContext, memo, use, useCallback, useMemo, useState } from 'react';
+import { createContext, memo, use, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useBrand } from '@/features/Brand';
 
@@ -97,21 +97,31 @@ export const FaviconProvider = memo<{ children: ReactNode }>(({ children }) => {
   const [currentState, setCurrentState] = useState<FaviconState>('default');
   const [isDevMode, setIsDevModeState] = useState<boolean>(__DEV__);
 
-  const setFavicon = useCallback((state: FaviconState) => {
-    setCurrentState(state);
-    setIsDevModeState((isDev) => {
-      updateFaviconDOM(state, isDev, faviconUrl);
-      return isDev;
-    });
-  }, [faviconUrl]);
+  useEffect(() => {
+    updateFaviconDOM(currentState, isDevMode, faviconUrl);
+  }, [currentState, faviconUrl, isDevMode]);
 
-  const setIsDevMode = useCallback((isDev: boolean) => {
-    setIsDevModeState(isDev);
-    setCurrentState((state) => {
-      updateFaviconDOM(state, isDev, faviconUrl);
-      return state;
-    });
-  }, [faviconUrl]);
+  const setFavicon = useCallback(
+    (state: FaviconState) => {
+      setCurrentState(state);
+      setIsDevModeState((isDev) => {
+        updateFaviconDOM(state, isDev, faviconUrl);
+        return isDev;
+      });
+    },
+    [faviconUrl],
+  );
+
+  const setIsDevMode = useCallback(
+    (isDev: boolean) => {
+      setIsDevModeState(isDev);
+      setCurrentState((state) => {
+        updateFaviconDOM(state, isDev, faviconUrl);
+        return state;
+      });
+    },
+    [faviconUrl],
+  );
 
   const stateValue = useMemo(() => ({ currentState, isDevMode }), [currentState, isDevMode]);
 

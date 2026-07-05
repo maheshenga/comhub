@@ -40,9 +40,6 @@ export default function BusinessPanelContent() {
         <span>/</span>
         <span>{formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}</span>
       </Flexbox>
-      <div style={{ color: cssVar.colorTextSecondary, fontSize: 13 }}>
-        充值积分余额 {formatCredits(accountSummary?.balance ?? 0)}
-      </div>
     </Flexbox>
   );
 }

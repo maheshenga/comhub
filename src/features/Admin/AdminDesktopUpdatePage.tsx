@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Divider, Form, Input, InputNumber, message, Radio, Space, Switch } from 'antd';
+import { Alert, Button, Divider, Form, Input, InputNumber, message, Radio, Space, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -9,21 +9,11 @@ import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
-const SETTING_KEYS = {
-  desktopDownloadLabel: 'desktop.download.label',
-  desktopDownloadUrl: 'desktop.download.url',
-  desktopOssAccessKeyId: 'desktop.oss.accessKeyId',
-  desktopOssAccessKeySecret: 'desktop.oss.accessKeySecret',
-  desktopOssBucket: 'desktop.oss.bucket',
-  desktopOssEndpoint: 'desktop.oss.endpoint',
-  desktopOssPath: 'desktop.oss.path',
-  desktopUpdateAutoCheck: 'desktop.update.autoCheck',
-  desktopUpdateChannel: 'desktop.update.channel',
-  desktopUpdateCheckInterval: 'desktop.update.checkInterval',
-  desktopUpdateCurrentVersion: 'desktop.update.currentVersion',
-  desktopUpdateReleaseNotes: 'desktop.update.releaseNotes',
-  desktopUpdateServerUrl: 'desktop.update.serverUrl',
-} as const;
+import {
+  DESKTOP_DEFAULT_BUSINESS_SERVER_URL,
+  DESKTOP_SETTINGS_SECTIONS,
+  DESKTOP_UPDATE_SETTING_KEYS as SETTING_KEYS,
+} from './adminDesktopUpdateSettings';
 
 type FormValues = {
   autoCheck: boolean;
@@ -151,7 +141,7 @@ const AdminDesktopUpdatePage = memo(() => {
 
       setSubmitting(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
-      message.success(t('admin.desktopUpdate.saveSuccess', '桌面端更新设置已保存'));
+      message.success(t('admin.desktopUpdate.saveSuccess', '桌面端设置已保存'));
       await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.desktopUpdate.saveFailed', '保存失败'));
@@ -161,9 +151,38 @@ const AdminDesktopUpdatePage = memo(() => {
   };
 
   return (
-    <Flexbox gap={16} padding={24} style={{ maxWidth: 720 }}>
+    <Flexbox gap={16} padding={24} style={{ maxWidth: 760 }}>
       <Form disabled={isLoading} form={form} initialValues={initialValues} layout="vertical">
-        <Divider plain>{t('admin.desktopUpdate.serverSection', '更新服务器')}</Divider>
+        <Divider plain>
+          {t('admin.desktopUpdate.businessSection', DESKTOP_SETTINGS_SECTIONS[0].title)}
+        </Divider>
+
+        <Alert
+          showIcon
+          type="info"
+          description={t(
+            'admin.desktopUpdate.businessConnection.description',
+            '桌面客户端的登录、同步、tRPC/API、OIDC 与本地代理请求默认连接到该业务服务地址。此地址由桌面发布流水线注入，后台这里只做展示，避免和更新服务器地址混淆。',
+          )}
+          message={t(
+            'admin.desktopUpdate.businessConnection.message',
+            '桌面业务连接由发布包控制',
+          )}
+        />
+
+        <Form.Item
+          label={t('admin.desktopUpdate.businessConnection.url', '业务服务地址')}
+          extra={t(
+            'admin.desktopUpdate.businessConnection.url.help',
+            '如需调整正式客户端默认连接地址，应修改桌面发布流水线的 OFFICIAL_CLOUD_SERVER，而不是修改更新服务器地址。',
+          )}
+        >
+          <Input disabled value={DESKTOP_DEFAULT_BUSINESS_SERVER_URL} />
+        </Form.Item>
+
+        <Divider plain>
+          {t('admin.desktopUpdate.serverSection', DESKTOP_SETTINGS_SECTIONS[1].title)}
+        </Divider>
 
         <Form.Item
           label={t('admin.desktopUpdate.serverUrl', '更新服务器地址（URL）')}
@@ -181,7 +200,7 @@ const AdminDesktopUpdatePage = memo(() => {
           name="channel"
           extra={t(
             'admin.desktopUpdate.channel.help',
-            'stable 表示正式版发布，canary 表示预发布构建。',
+            'stable 表示正式发布，canary 表示预发布构建。',
           )}
         >
           <Radio.Group>
@@ -190,7 +209,9 @@ const AdminDesktopUpdatePage = memo(() => {
           </Radio.Group>
         </Form.Item>
 
-        <Divider plain>{t('admin.desktopUpdate.checkSection', '自动检查')}</Divider>
+        <Divider plain>
+          {t('admin.desktopUpdate.checkSection', DESKTOP_SETTINGS_SECTIONS[2].title)}
+        </Divider>
 
         <Form.Item
           label={t('admin.desktopUpdate.autoCheck', '自动检查更新')}
@@ -211,7 +232,9 @@ const AdminDesktopUpdatePage = memo(() => {
           <InputNumber max={1440} min={1} style={{ width: '100%' }} />
         </Form.Item>
 
-        <Divider plain>{t('admin.desktopUpdate.versionSection', '当前发布版本')}</Divider>
+        <Divider plain>
+          {t('admin.desktopUpdate.versionSection', DESKTOP_SETTINGS_SECTIONS[3].title)}
+        </Divider>
 
         <Form.Item
           label={t('admin.desktopUpdate.currentVersion', '当前版本')}
@@ -235,15 +258,17 @@ const AdminDesktopUpdatePage = memo(() => {
           <Input.TextArea placeholder={'## 更新内容\n- 新功能 A\n- 修复问题 B'} rows={6} />
         </Form.Item>
 
-        <Divider plain>{t('admin.desktopUpdate.downloadSection', '客户端下载入口')}</Divider>
+        <Divider plain>
+          {t('admin.desktopUpdate.downloadSection', DESKTOP_SETTINGS_SECTIONS[4].title)}
+        </Divider>
 
         <Form.Item
+          label={t('admin.desktopUpdate.downloadUrl', '桌面客户端下载地址（URL）')}
+          name="downloadUrl"
           extra={t(
             'admin.desktopUpdate.downloadUrl.help',
             '用于覆盖用户面板中的桌面客户端下载链接。留空则使用内置地址。',
           )}
-          label={t('admin.desktopUpdate.downloadUrl', '桌面客户端下载地址（URL）')}
-          name="downloadUrl"
         >
           <Input placeholder="https://example.com/download" />
         </Form.Item>
@@ -256,7 +281,9 @@ const AdminDesktopUpdatePage = memo(() => {
           <Input placeholder="下载桌面端应用" />
         </Form.Item>
 
-        <Divider plain>{t('admin.desktopUpdate.ossSection', '阿里云对象存储（OSS）')}</Divider>
+        <Divider plain>
+          {t('admin.desktopUpdate.ossSection', DESKTOP_SETTINGS_SECTIONS[5].title)}
+        </Divider>
 
         <Form.Item
           label={t('admin.desktopUpdate.ossBucket', 'OSS 存储桶（Bucket）')}
@@ -304,7 +331,7 @@ const AdminDesktopUpdatePage = memo(() => {
           name="ossPath"
           extra={t(
             'admin.desktopUpdate.ossPath.help',
-            '存储桶内的路径前缀，例如 releases。最终地址格式为 https://{bucket}.{endpoint}/{path}/{channel}/latest.yml',
+            '存储桶内的路径前缀，例如 releases。最终地址格式为 https://{bucket}.{endpoint}/{path}/{channel}/latest.yml。',
           )}
         >
           <Input placeholder="releases" />

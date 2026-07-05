@@ -828,17 +828,21 @@ export class DiscoverService {
       },
     );
 
-    // Fetch related MCPs
-    const list = await this.getMcpList({
+    const related = await this.getMcpList({
       category: mcp.category,
       locale,
       page: 1,
       pageSize: 7,
-    });
+    })
+      .then((list) => list.items.filter((item) => item.identifier !== mcp.identifier).slice(0, 6))
+      .catch((error) => {
+        log('getMcpDetail: failed to fetch related MCPs: %O', error);
+        return [];
+      });
 
     const result = {
       ...mcp,
-      related: list.items.filter((item) => item.identifier !== mcp.identifier).slice(0, 6),
+      related,
     };
     log('getMcpDetail: returning mcp with %d related items', result.related.length);
     return result;

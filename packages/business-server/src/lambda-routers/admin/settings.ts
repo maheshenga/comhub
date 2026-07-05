@@ -1390,7 +1390,16 @@ export const adminSettingsRouter = router({
   }),
 
   getPublicDesktopUpdate: publicDbProcedure.query(async ({ ctx }) => {
-    const [serverUrl, channel, autoCheck, checkInterval, downloadUrl, downloadLabel] =
+    const [
+      serverUrl,
+      channel,
+      autoCheck,
+      checkInterval,
+      downloadUrl,
+      downloadLabel,
+      currentVersion,
+      releaseNotes,
+    ] =
       await Promise.all([
         readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateServerUrl),
         readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateChannel),
@@ -1398,13 +1407,17 @@ export const adminSettingsRouter = router({
         readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCheckInterval),
         readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadUrl),
         readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
+        readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCurrentVersion),
+        readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateReleaseNotes),
       ]);
     return {
       autoCheck: toBoolean(autoCheck, true),
       channel: toString(channel, 'stable') || 'stable',
       checkIntervalMinutes: toNumber(checkInterval, 60),
+      currentVersion: toString(currentVersion) || null,
       downloadLabel: toString(downloadLabel) || null,
       downloadUrl: toString(downloadUrl) || null,
+      releaseNotes: toString(releaseNotes) || null,
       serverUrl: toString(serverUrl),
     };
   }),

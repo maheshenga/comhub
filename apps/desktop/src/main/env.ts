@@ -53,6 +53,7 @@ const envNumber = (defaultValue: number) =>
 const getRuntimeEnv = () => ({
   ...process.env,
   DESKTOP_EXTERNAL_NAVIGATION_HOSTS: process.env.DESKTOP_EXTERNAL_NAVIGATION_HOSTS,
+  OFFICIAL_CLOUD_SERVER: process.env.OFFICIAL_CLOUD_SERVER,
   UPDATE_CHANNEL: process.env.UPDATE_CHANNEL,
   UPDATE_SERVER_URL: process.env.UPDATE_SERVER_URL,
 });
@@ -95,7 +96,7 @@ export const getDesktopEnv = memoize(() =>
       NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
 
       // cloud server url (can be overridden for selfhost/dev)
-      OFFICIAL_CLOUD_SERVER: z.string().optional().default('https://app.lobehub.com'),
+      OFFICIAL_CLOUD_SERVER: z.string().optional().default('https://chat.qingyouai.com'),
 
       // updater
       // process.env.xxx will replace in build stage

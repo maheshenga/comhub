@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 
 import Card from './Card';
+import { filterUserVisibleProviders } from './filterProviders';
 
 const loadingArr = Array.from({ length: 12 })
   .fill('-')
@@ -20,11 +21,11 @@ type ListProps = {
 const List = memo((props: ListProps) => {
   const { onProviderSelect } = props;
   const { t } = useTranslation('modelProvider');
-  const enabledList = useAiInfraStore(aiProviderSelectors.enabledAiProviderList, isEqual);
-  const disabledList = useAiInfraStore(aiProviderSelectors.disabledAiProviderList, isEqual);
-  const disabledCustomList = useAiInfraStore(
-    aiProviderSelectors.disabledCustomAiProviderList,
-    isEqual,
+  const enabledList = filterUserVisibleProviders(
+    useAiInfraStore(aiProviderSelectors.enabledAiProviderList, isEqual),
+  );
+  const disabledList = filterUserVisibleProviders(
+    useAiInfraStore(aiProviderSelectors.disabledAiProviderList, isEqual),
   );
   const [initAiProviderList] = useAiInfraStore((s) => [s.initAiProviderList]);
 
@@ -66,21 +67,6 @@ const List = memo((props: ListProps) => {
           ))}
         </Grid>
       </Flexbox>
-      {disabledCustomList.length > 0 && (
-        <Flexbox gap={24}>
-          <Flexbox horizontal align={'center'} gap={8}>
-            <Text strong style={{ fontSize: 18 }}>
-              {t('list.title.custom')}
-            </Text>
-            <Tag>{disabledCustomList.length}</Tag>
-          </Flexbox>
-          <Grid gap={16} rows={3}>
-            {disabledCustomList.map((item) => (
-              <Card {...item} key={item.id} onProviderSelect={onProviderSelect} />
-            ))}
-          </Grid>
-        </Flexbox>
-      )}
       <Flexbox gap={24}>
         <Flexbox horizontal align={'center'} gap={8}>
           <Text strong style={{ fontSize: 18 }}>

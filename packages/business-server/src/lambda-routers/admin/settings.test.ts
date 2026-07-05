@@ -322,6 +322,34 @@ describe('admin settings default model validation', () => {
     );
   });
 
+  it('returns public desktop update display fields for client download entries', async () => {
+    const db = createDb({
+      appSettings: [
+        { value: 'https://comhubs.oss-cn-shanghai.aliyuncs.com' },
+        { value: 'canary' },
+        { value: true },
+        { value: 30 },
+        { value: 'https://comhubs.oss-cn-shanghai.aliyuncs.com/canary/0.1.0-canary.6/LobeHub.exe' },
+        { value: 'Download Qingyou Desktop' },
+        { value: '0.1.0-canary.6' },
+        { value: '- Fix auto update' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const settings = await caller.getPublicDesktopUpdate();
+
+    expect(settings).toMatchObject({
+      channel: 'canary',
+      currentVersion: '0.1.0-canary.6',
+      downloadLabel: 'Download Qingyou Desktop',
+      downloadUrl: 'https://comhubs.oss-cn-shanghai.aliyuncs.com/canary/0.1.0-canary.6/LobeHub.exe',
+      releaseNotes: '- Fix auto update',
+      serverUrl: 'https://comhubs.oss-cn-shanghai.aliyuncs.com',
+    });
+  });
+
   it('rejects non-positive global pricing multipliers', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);

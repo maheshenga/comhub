@@ -20,6 +20,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
+import { usePublicDesktopDownload } from '@/features/DesktopDownload';
 import { lambdaQuery } from '@/libs/trpc/client';
 import { deviceService } from '@/services/device';
 import { useAgentStore } from '@/store/agent';
@@ -106,6 +107,9 @@ interface CreatePlatformAgentModalProps {
 const CreatePlatformAgentModal = memo<CreatePlatformAgentModalProps>(
   ({ open, onClose, groupId }) => {
     const { t } = useTranslation('chat');
+    const desktopDownload = usePublicDesktopDownload({
+      fallbackLabel: t('platformAgent.create.downloadDesktop'),
+    });
     const navigate = useNavigate();
     const storeCreateAgent = useAgentStore((s) => s.createAgent);
     const refreshAgentList = useHomeStore((s) => s.refreshAgentList);
@@ -395,13 +399,13 @@ const CreatePlatformAgentModal = memo<CreatePlatformAgentModalProps>(
                   <Flexbox gap={12}>
                     <Flexbox gap={6}>
                       <span>{t('platformAgent.create.noDevicesDesktopHint')}</span>
-                      <a href="https://lobehub.com/downloads" rel="noreferrer" target="_blank">
+                      <a href={desktopDownload.url} rel="noreferrer" target="_blank">
                         <Button
                           icon={<Icon icon={Download} size={13} />}
                           size="small"
                           type="primary"
                         >
-                          {t('platformAgent.create.downloadDesktop')}
+                          {desktopDownload.label}
                         </Button>
                       </a>
                     </Flexbox>

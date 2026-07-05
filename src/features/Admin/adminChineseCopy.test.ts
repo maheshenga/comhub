@@ -164,7 +164,9 @@ describe('admin Chinese copy', () => {
 
   it('keeps default admin desktop update labels in Chinese', () => {
     expect(subscription['admin.sidebar.desktopUpdate']).toBe('桌面端更新');
-    expect(subscription['admin.desktopUpdate.serverSection']).toBe('更新服务器');
+    expect(subscription['admin.desktopUpdate.businessSection']).toBe('桌面业务连接');
+    expect(subscription['admin.desktopUpdate.serverSection']).toBe('更新服务');
+    expect(subscription['admin.desktopUpdate.downloadSection']).toBe('客户端下载入口');
     expect(subscription['admin.desktopUpdate.channel']).toBe('默认更新渠道');
     expect(subscription['admin.desktopUpdate.save']).toBe('保存');
   });

@@ -84,7 +84,7 @@
   "messenger.slack.installResult.reasons.missingToken": "Slack 未返回机器人令牌",
   "messenger.slack.installResult.reasons.persistFailed": "无法保存工作区连接",
   "messenger.slack.installResult.success": "Slack 工作区已连接。",
-  "messenger.subtitle": "将你的账号连接到官方 LobeHub 机器人。选择由哪个 Agent 接收消息，可随时从此处或机器人中切换。",
+  "messenger.subtitle": "将你的账号连接到官方 {{brandName}} 机器人。选择由哪个 Agent 接收消息，可随时从此处或机器人中切换。",
   "messenger.title": "Messenger",
   "messenger.unlinkConfirm": "确定要把你的 {{platform}} 账号从 LobeHub 断开吗？在你重新 /start 之前，传入消息将停止。",
   "messenger.unlinkCta": "断开",

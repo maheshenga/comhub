@@ -11,6 +11,9 @@ import { DiscoverService } from './index';
 vi.mock('@/server/modules/AssistantStore');
 vi.mock('@/server/modules/PluginStore');
 vi.mock('@lobehub/market-sdk');
+vi.mock('@lobechat/builtin-tools', () => ({
+  builtinTools: [],
+}));
 vi.mock('@/locales/resources', () => ({
   normalizeLocale: vi.fn((locale) => {
     if (locale === 'en-US') return 'en';
@@ -587,6 +590,23 @@ describe('DiscoverService', () => {
           expect.objectContaining({
             identifier: 'mcp-1',
             related: expect.any(Array),
+          }),
+        );
+      });
+
+      it('should still return MCP detail when fetching related MCPs fails', async () => {
+        const mockMcp = { identifier: 'mcp-1', category: 'tools' };
+        mockMarket.plugins.getPluginDetail.mockResolvedValue(mockMcp);
+        mockMarket.plugins.getPluginList.mockRejectedValue(new Error('market list unavailable'));
+
+        const result = await service.getMcpDetail({
+          identifier: 'mcp-1',
+        });
+
+        expect(result).toEqual(
+          expect.objectContaining({
+            identifier: 'mcp-1',
+            related: [],
           }),
         );
       });

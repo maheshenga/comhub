@@ -10,6 +10,7 @@ import { PlusIcon } from 'lucide-react';
 import React, { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useDefaultSkillName } from '@/features/Brand/useDefaultSkillName';
 import ActionDropdown from '@/features/ChatInput/ActionBar/components/ActionDropdown';
 import ComposioServerItem from '@/features/ChatInput/ActionBar/Tools/ComposioServerItem';
 import ComposioSkillIcon, {
@@ -70,6 +71,7 @@ export interface AgentToolProps {
 const AgentTool = memo<AgentToolProps>(
   ({ agentId, showWebBrowsing = false, filterAvailableInWeb = false, useAllMetaList = false }) => {
     const { t } = useTranslation('setting');
+    const defaultSkillName = useDefaultSkillName();
     const { allowed: canEdit } = usePermission('edit_own_content');
     const activeAgentId = useAgentStore((s) => s.activeAgentId);
     const effectiveAgentId = agentId || activeAgentId || '';
@@ -303,7 +305,7 @@ const AgentTool = memo<AgentToolProps>(
                 <ToolItemDetailPopover
                   icon={<LobehubSkillIcon icon={provider.icon} label={provider.label} size={36} />}
                   identifier={provider.id}
-                  sourceLabel={provider.author}
+                  sourceLabel={provider.author === 'LobeHub' ? defaultSkillName : provider.author}
                   title={provider.label}
                   description={t(`tools.lobehubSkill.providers.${provider.id}.description` as any, {
                     defaultValue: provider.description,
@@ -312,7 +314,7 @@ const AgentTool = memo<AgentToolProps>(
               ),
             }))
           : [],
-      [isLobehubSkillEnabled, allLobehubSkillServers, effectiveAgentId, t],
+      [isLobehubSkillEnabled, allLobehubSkillServers, effectiveAgentId, t, defaultSkillName],
     );
 
     // Handle plugin remove via Tag close - use byId actions
@@ -359,7 +361,7 @@ const AgentTool = memo<AgentToolProps>(
           popoverContent: (
             <ToolItemDetailPopover
               identifier={skill.identifier}
-              sourceLabel={t('skillStore.tabs.lobehub')}
+              sourceLabel={defaultSkillName}
               description={t(`tools.builtins.${skill.identifier}.description` as any, {
                 defaultValue: skill.description,
               })}
@@ -380,7 +382,7 @@ const AgentTool = memo<AgentToolProps>(
             />
           ),
         })),
-      [installedBuiltinSkills, isToolEnabled, handleToggleTool, t],
+      [installedBuiltinSkills, isToolEnabled, handleToggleTool, t, defaultSkillName],
     );
 
     // Market Agent Skills list items (grouped under Community)
@@ -480,7 +482,7 @@ const AgentTool = memo<AgentToolProps>(
           popoverContent: (
             <ToolItemDetailPopover
               identifier={item.identifier}
-              sourceLabel={t('skillStore.tabs.lobehub')}
+              sourceLabel={defaultSkillName}
               description={t(`tools.builtins.${item.identifier}.description` as any, {
                 defaultValue: item.meta?.description || '',
               })}
@@ -510,6 +512,7 @@ const AgentTool = memo<AgentToolProps>(
         isToolEnabled,
         handleToggleTool,
         t,
+        defaultSkillName,
       ],
     );
 
@@ -599,7 +602,7 @@ const AgentTool = memo<AgentToolProps>(
               {
                 children: builtinItems,
                 key: 'lobehub',
-                label: t('skillStore.tabs.lobehub'),
+                label: defaultSkillName,
                 type: 'group' as const,
               },
             ]
@@ -627,7 +630,7 @@ const AgentTool = memo<AgentToolProps>(
             ]
           : []),
       ],
-      [builtinItems, communityGroupChildren, customGroupChildren, t],
+      [builtinItems, communityGroupChildren, customGroupChildren, t, defaultSkillName],
     );
 
     const button = (

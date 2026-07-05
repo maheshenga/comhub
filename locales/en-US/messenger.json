@@ -84,7 +84,7 @@
   "messenger.slack.installResult.reasons.missingToken": "Slack did not return a bot token",
   "messenger.slack.installResult.reasons.persistFailed": "the workspace connection could not be saved",
   "messenger.slack.installResult.success": "Slack workspace connected.",
-  "messenger.subtitle": "Connect your account to the official LobeHub bot once. Pick which agent receives messages, switch any time from here or from the bot.",
+  "messenger.subtitle": "Connect your account to the official {{brandName}} bot once. Pick which agent receives messages, switch any time from here or from the bot.",
   "messenger.title": "Messenger",
   "messenger.unlinkConfirm": "Disconnect your {{platform}} account from LobeHub? Inbound messages will stop until you /start again.",
   "messenger.unlinkCta": "Disconnect",

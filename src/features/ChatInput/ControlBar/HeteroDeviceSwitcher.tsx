@@ -23,6 +23,8 @@ import { memo, type ReactNode, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { resolveExecutionTarget } from '@/helpers/executionTarget';
+import { usePublicDesktopDownload } from '@/features/DesktopDownload';
+import { usePlatform } from '@/hooks/usePlatform';
 import { lambdaQuery } from '@/libs/trpc/client';
 import { gatewayConnectionService } from '@/services/electron/gatewayConnection';
 import { useAgentStore } from '@/store/agent';
@@ -294,6 +296,12 @@ interface HeteroDeviceSwitcherProps {
 
 const HeteroDeviceSwitcher = memo<HeteroDeviceSwitcherProps>(({ agentId }) => {
   const { t } = useTranslation('chat');
+  const { isAndroid, isIOS } = usePlatform();
+  const desktopDownload = usePublicDesktopDownload({
+    fallbackLabel: t('heteroAgent.executionTarget.downloadDesktop'),
+    isAndroid,
+    isIOS,
+  });
   const [open, setOpen] = useState(false);
 
   const agencyConfig = useAgentStore(agentByIdSelectors.getAgencyConfigById(agentId));
@@ -440,12 +448,12 @@ const HeteroDeviceSwitcher = memo<HeteroDeviceSwitcherProps>(({ agentId }) => {
         {isDesktop || showWebDownloadCard ? null : (
           <a
             className={styles.headerLink}
-            href="https://lobehub.com/downloads"
+            href={desktopDownload.url}
             rel="noreferrer"
             target="_blank"
           >
             <Icon icon={ExternalLinkIcon} size={11} />
-            <span>{t('heteroAgent.executionTarget.downloadDesktop')}</span>
+            <span>{desktopDownload.label}</span>
           </a>
         )}
       </div>
@@ -503,7 +511,7 @@ const HeteroDeviceSwitcher = memo<HeteroDeviceSwitcherProps>(({ agentId }) => {
       {showWebDownloadCard ? (
         <a
           className={styles.downloadCard}
-          href="https://lobehub.com/downloads"
+          href={desktopDownload.url}
           rel="noreferrer"
           target="_blank"
         >
@@ -511,9 +519,7 @@ const HeteroDeviceSwitcher = memo<HeteroDeviceSwitcherProps>(({ agentId }) => {
             <Icon icon={MonitorDownIcon} size={14} />
           </div>
           <div className={styles.optionMeta}>
-            <div className={styles.optionTitle}>
-              {t('heteroAgent.executionTarget.downloadDesktopTitle')}
-            </div>
+            <div className={styles.optionTitle}>{desktopDownload.label}</div>
             <div className={styles.desc}>
               {t('heteroAgent.executionTarget.downloadDesktopDesc')}
             </div>

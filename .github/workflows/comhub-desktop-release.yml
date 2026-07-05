@@ -49,6 +49,7 @@ concurrency:
 
 env:
   NODEJS_VERSION: '22'
+  OFFICIAL_CLOUD_SERVER: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
   UPDATE_SERVER_URL: ${{ inputs.update_server_url || vars.DESKTOP_RELEASE_UPDATE_SERVER_URL }}
 
 jobs:
@@ -81,9 +82,51 @@ jobs:
       - name: Build Windows installer
         shell: bash
         env:
+          OFFICIAL_CLOUD_SERVER: ${{ env.OFFICIAL_CLOUD_SERVER }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
           UPDATE_CHANNEL: ${{ inputs.channel }}
         run: npm run package:win --prefix=./apps/desktop
+
+      - name: Verify desktop backend target
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const distDir = path.join(process.cwd(), 'apps', 'desktop', 'dist', 'main');
+          const expected = process.env.OFFICIAL_CLOUD_SERVER;
+          const forbidden = 'https://app.lobehub.com';
+          let sawExpected = false;
+          const offenders = [];
+
+          const walk = (dir) => {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const fullPath = path.join(dir, entry.name);
+              if (entry.isDirectory()) {
+                walk(fullPath);
+                continue;
+              }
+              if (!/\.(c?js|mjs|json)$/.test(entry.name)) continue;
+
+              const content = fs.readFileSync(fullPath, 'utf8');
+              if (content.includes(expected)) sawExpected = true;
+              if (content.includes(forbidden)) offenders.push(path.relative(process.cwd(), fullPath));
+            }
+          };
+
+          walk(distDir);
+
+          if (!sawExpected) {
+            console.error(`Desktop bundle does not contain OFFICIAL_CLOUD_SERVER=${expected}`);
+            process.exit(1);
+          }
+
+          if (offenders.length > 0) {
+            console.error(`Desktop bundle still contains upstream cloud server: ${offenders.join(', ')}`);
+            process.exit(1);
+          }
+          NODE
 
       - name: Upload release artifacts
         uses: ./.github/actions/desktop-upload-artifacts

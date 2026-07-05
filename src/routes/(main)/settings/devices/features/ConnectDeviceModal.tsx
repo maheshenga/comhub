@@ -1,11 +1,12 @@
 'use client';
 
-import { DOWNLOAD_URL } from '@lobechat/const';
 import { Button, CopyButton, Flexbox, Icon, Modal, Segmented, Text } from '@lobehub/ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { DownloadIcon, MonitorDownIcon, ShieldCheckIcon, TerminalIcon } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import { usePublicDesktopDownload } from '@/features/DesktopDownload';
 
 const styles = createStaticStyles(({ css }) => ({
   codeBlock: css`
@@ -114,6 +115,9 @@ const cliCommands = {
 
 const ConnectDeviceModal = memo<ConnectDeviceModalProps>(({ onClose, open, initialTab }) => {
   const { t } = useTranslation('setting');
+  const desktopDownload = usePublicDesktopDownload({
+    fallbackLabel: t('devices.connectWizard.desktop.downloadLink'),
+  });
   const [active, setActive] = useState<'cli' | 'desktop'>(initialTab ?? 'desktop');
 
   useEffect(() => {
@@ -156,9 +160,9 @@ const ConnectDeviceModal = memo<ConnectDeviceModalProps>(({ onClose, open, initi
               index={1}
               title={t('devices.connectWizard.desktop.step1')}
             >
-              <a href={DOWNLOAD_URL.default} rel="noreferrer" target="_blank">
+              <a href={desktopDownload.url} rel="noreferrer" target="_blank">
                 <Button icon={<Icon icon={DownloadIcon} />} size={'small'} type={'primary'}>
-                  {t('devices.connectWizard.desktop.downloadLink')}
+                  {desktopDownload.label}
                 </Button>
               </a>
             </Step>

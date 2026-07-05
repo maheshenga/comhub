@@ -29,6 +29,7 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useDefaultSkillName } from '@/features/Brand/useDefaultSkillName';
 import DevModal from '@/features/PluginDevModal';
 import { createSkillStoreModal } from '@/features/SkillStore';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
@@ -64,8 +65,8 @@ import ToolItemDetailPopover from './ToolItemDetailPopover';
 const SKILL_ICON_SIZE = 18;
 const CLOSE_TOOL_DETAIL_POPOVER_EVENT = 'lobe-chat-tool-detail-popover-close';
 
-const officialTag = (
-  <Tooltip placement={'top'} title={'LobeHub'}>
+const renderOfficialTag = (title: string) => (
+  <Tooltip placement={'top'} title={title}>
     <Tag color={'success'} icon={<Icon icon={BadgeCheck} />} size={'small'} />
   </Tooltip>
 );
@@ -400,6 +401,12 @@ const styles = createStaticStyles(({ css }) => ({
 
 export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = {}) => {
   const { t } = useTranslation('setting');
+  const defaultSkillName = useDefaultSkillName();
+  const officialTag = useMemo(() => renderOfficialTag(defaultSkillName), [defaultSkillName]);
+  const resolveOfficialAuthor = useCallback(
+    (author?: string) => (author === 'LobeHub' ? defaultSkillName : author),
+    [defaultSkillName],
+  );
   const agentId = useAgentId();
   const navigate = useWorkspaceAwareNavigate();
   const { updateAgentChatConfig } = useUpdateAgentConfig();
@@ -859,7 +866,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
               <ToolItemDetailPopover
                 icon={<ComposioSkillIcon icon={type.icon} label={type.label} size={36} />}
                 identifier={type.identifier}
-                sourceLabel={type.author}
+                sourceLabel={resolveOfficialAuthor(type.author)}
                 title={type.label}
                 description={t(`tools.composio.servers.${type.identifier}.description` as any, {
                   defaultValue: type.description,
@@ -951,6 +958,8 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
       renderPolicyMenu,
       openSkillPolicyMenu,
       checkedSet,
+      officialTag,
+      resolveOfficialAuthor,
     ],
   );
 
@@ -974,7 +983,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
               <ToolItemDetailPopover
                 icon={<LobehubSkillIcon icon={provider.icon} label={provider.label} size={36} />}
                 identifier={provider.id}
-                sourceLabel={provider.author}
+                sourceLabel={resolveOfficialAuthor(provider.author)}
                 title={provider.label}
                 description={t(`tools.lobehubSkill.providers.${provider.id}.description` as any, {
                   defaultValue: provider.description,
@@ -1017,6 +1026,8 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
       agentId,
       t,
       createManagedSkillItem,
+      officialTag,
+      resolveOfficialAuthor,
     ],
   );
 
@@ -1035,7 +1046,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
         const popoverContent = (
           <ToolItemDetailPopover
             identifier={item.identifier}
-            sourceLabel={t('skillStore.tabs.lobehub')}
+            sourceLabel={defaultSkillName}
             title={title}
             description={t(`tools.builtins.${item.identifier}.description` as any, {
               defaultValue: item.meta?.description || '',
@@ -1069,7 +1080,14 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
           title,
         });
       }),
-    [filteredBuiltinList, t, createManagedSkillItem, uninstallBuiltinTool],
+    [
+      filteredBuiltinList,
+      t,
+      createManagedSkillItem,
+      uninstallBuiltinTool,
+      defaultSkillName,
+      officialTag,
+    ],
   );
 
   // Application-fixed tool items (read-only). Always-on tools owned by the runtime
@@ -1089,7 +1107,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
         const popoverContent = (
           <ToolItemDetailPopover
             identifier={item.identifier}
-            sourceLabel={t('skillStore.tabs.lobehub')}
+            sourceLabel={defaultSkillName}
             title={title}
             description={t(`tools.builtins.${item.identifier}.description` as any, {
               defaultValue: item.meta?.description || '',
@@ -1135,7 +1153,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
           searchText: `${title} ${item.identifier}`,
         } as SkillMenuItem;
       }),
-    [fixedDisplayList, t],
+    [fixedDisplayList, t, defaultSkillName, officialTag],
   );
 
   // Builtin Agent Skills list items (grouped under LobeHub)
@@ -1153,7 +1171,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
         const popoverContent = (
           <ToolItemDetailPopover
             identifier={skill.identifier}
-            sourceLabel={t('skillStore.tabs.lobehub')}
+            sourceLabel={defaultSkillName}
             title={title}
             description={t(`tools.builtins.${skill.identifier}.description` as any, {
               defaultValue: skill.description,
@@ -1183,7 +1201,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
           title,
         });
       }),
-    [installedBuiltinSkills, t, createManagedSkillItem],
+    [installedBuiltinSkills, t, createManagedSkillItem, defaultSkillName, officialTag],
   );
 
   // Market Agent Skills list items (grouped under Community)
@@ -1619,7 +1637,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
         popoverContent: (
           <ToolItemDetailPopover
             identifier={item.identifier}
-            sourceLabel={t('skillStore.tabs.lobehub')}
+            sourceLabel={defaultSkillName}
             description={t(`tools.builtins.${item.identifier}.description` as any, {
               defaultValue: item.meta?.description || '',
             })}
@@ -1680,7 +1698,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
         popoverContent: (
           <ToolItemDetailPopover
             identifier={skill.identifier}
-            sourceLabel={t('skillStore.tabs.lobehub')}
+            sourceLabel={defaultSkillName}
             description={t(`tools.builtins.${skill.identifier}.description` as any, {
               defaultValue: skill.description,
             })}
@@ -1721,7 +1739,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
       installedItems.push({
         children: allBuiltinItems,
         key: 'installed-lobehub',
-        label: t('skillStore.tabs.lobehub'),
+        label: defaultSkillName,
         type: 'group',
       });
     }
@@ -1915,6 +1933,7 @@ export const useControls = ({ closeDropdown }: { closeDropdown?: () => void } = 
     togglePlugin,
     canEdit,
     t,
+    defaultSkillName,
   ]);
 
   const editPluginDrawer = (
