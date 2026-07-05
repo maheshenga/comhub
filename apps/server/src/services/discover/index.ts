@@ -80,6 +80,65 @@ const loadBuiltinModels = async () => {
   return loadModels();
 };
 
+const firstText = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const text = value.trim();
+    if (text) return text;
+  }
+};
+
+const normalizeMcpListItem = (item: unknown, fallbackIdentifier?: unknown) => {
+  if (!item || typeof item !== 'object') return;
+
+  const mcp = item as Record<string, unknown>;
+  const identifier = firstText(mcp.identifier, mcp.slug, fallbackIdentifier);
+  if (!identifier) return;
+
+  const name = firstText(mcp.name, mcp.title, mcp.displayName, identifier);
+  const title = firstText(mcp.title, mcp.displayName);
+  const description = firstText(mcp.description, mcp.summary);
+  const icon = firstText(mcp.icon, mcp.avatar);
+
+  if (
+    identifier === mcp.identifier &&
+    name === mcp.name &&
+    (title === undefined || title === mcp.title) &&
+    (description === undefined || description === mcp.description) &&
+    (icon === undefined || icon === mcp.icon)
+  ) {
+    return item;
+  }
+
+  return {
+    ...mcp,
+    ...(description ? { description } : {}),
+    identifier,
+    ...(icon ? { icon } : {}),
+    name,
+    ...(title ? { title } : {}),
+  };
+};
+
+const normalizeMcpListResponse = (response: McpListResponse): McpListResponse => {
+  const items = Array.isArray(response.items) ? response.items : [];
+  let changed = !Array.isArray(response.items);
+  const normalizedItems: unknown[] = [];
+
+  for (const item of items) {
+    const normalized = normalizeMcpListItem(item);
+    if (!normalized) {
+      changed = true;
+      continue;
+    }
+
+    normalizedItems.push(normalized);
+    if (normalized !== item) changed = true;
+  }
+
+  return changed ? ({ ...response, items: normalizedItems } as McpListResponse) : response;
+};
+
 export interface DiscoverServiceOptions {
   /** Access token from OIDC flow (legacy) */
   accessToken?: string;
@@ -827,21 +886,24 @@ export class DiscoverService {
         },
       },
     );
+    const normalizedMcp = normalizeMcpListItem(mcp, params.identifier) as DiscoverMcpDetail;
 
     const related = await this.getMcpList({
-      category: mcp.category,
+      category: normalizedMcp.category,
       locale,
       page: 1,
       pageSize: 7,
     })
-      .then((list) => list.items.filter((item) => item.identifier !== mcp.identifier).slice(0, 6))
+      .then((list) =>
+        list.items.filter((item) => item.identifier !== normalizedMcp.identifier).slice(0, 6),
+      )
       .catch((error) => {
         log('getMcpDetail: failed to fetch related MCPs: %O', error);
         return [];
       });
 
     const result = {
-      ...mcp,
+      ...normalizedMcp,
       related,
     };
     log('getMcpDetail: returning mcp with %d related items', result.related.length);
@@ -871,7 +933,7 @@ export class DiscoverService {
       },
     );
     log('getMcpList: returning %d items on page %d', result.items.length, result.currentPage);
-    return result;
+    return normalizeMcpListResponse(result);
   };
 
   getMcpManifest = async (params: { identifier: string; locale?: string; version?: string }) => {

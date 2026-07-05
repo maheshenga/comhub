@@ -187,7 +187,8 @@ const MarketSkillDetail = memo<MarketSkillDetailProps>(({ identifier }) => {
     return <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 16 }} />;
   }
 
-  const { name, icon, version, description, homepage, github } = data;
+  const { icon, version, description, homepage, github } = data;
+  const name = data.name || (data as { title?: string }).title || identifier;
 
   const skillDetailForViewer = {
     content: installedData?.skillDetail?.content || data.content,

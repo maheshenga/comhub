@@ -17,6 +17,7 @@ import { type DiscoverSkillItem, SkillSorts } from '@/types/discover';
 import MarketSkillItem from '../Community/MarketSkillItem';
 import Empty from '../Empty';
 import Loading from '../Loading';
+import { normalizeMarketSkillItems } from '../normalizeMarketItems';
 import { virtuosoGridStyles } from '../style';
 import VirtuosoLoading from '../VirtuosoLoading';
 import WantMoreSkills from '../WantMoreSkills';
@@ -54,11 +55,12 @@ const MarketSkillList = memo<MarketSkillListProps>(({ keywords }) => {
   useEffect(() => {
     if (!data) return;
     setTotalPages(data.totalPages);
+    const nextItems = normalizeMarketSkillItems(data.items);
 
     if (page === 1) {
-      setItems(data.items);
+      setItems(nextItems);
     } else {
-      setItems((prev) => uniqBy([...prev, ...data.items], (i) => i.identifier));
+      setItems((prev) => uniqBy([...prev, ...nextItems], (i) => i.identifier));
     }
   }, [data, page]);
 

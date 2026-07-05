@@ -127,6 +127,7 @@ const Header = memo<{ inModal?: boolean; mobile?: boolean }>(({ mobile: isMobile
   const recommendedDeployment = getRecommendedDeployment(deploymentOptions);
   const categories = useCategory();
   const cate = categories.find((c) => c.key === category);
+  const displayName = name || identifier;
 
   const scores = (
     <Scores
@@ -158,7 +159,7 @@ const Header = memo<{ inModal?: boolean; mobile?: boolean }>(({ mobile: isMobile
   return (
     <Flexbox gap={12}>
       <Flexbox horizontal align={'flex-start'} gap={16} width={'100%'}>
-        <Avatar avatar={icon} shape={'square'} size={mobile ? 48 : 64} />
+        <Avatar avatar={icon || displayName} shape={'square'} size={mobile ? 48 : 64} />
         <Flexbox
           flex={1}
           gap={4}
@@ -192,7 +193,7 @@ const Header = memo<{ inModal?: boolean; mobile?: boolean }>(({ mobile: isMobile
                 style={{ fontSize: inModal ? 20 : mobile ? 18 : 24, margin: 0 }}
                 title={identifier}
               >
-                {name}
+                {displayName}
               </Text>
               {isOfficial && (
                 <Tooltip title={t('isOfficial')}>

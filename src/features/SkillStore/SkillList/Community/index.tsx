@@ -15,6 +15,7 @@ import { type DiscoverMcpItem } from '@/types/discover';
 import AgentSkillItem from '../AgentSkillItem';
 import Empty from '../Empty';
 import Loading from '../Loading';
+import { normalizeAgentSkillListItems, normalizeMcpMarketItems } from '../normalizeMarketItems';
 import { virtuosoGridStyles } from '../style';
 import VirtuosoLoading from '../VirtuosoLoading';
 import WantMoreSkills from '../WantMoreSkills';
@@ -55,10 +56,11 @@ export const CommunityList = memo(() => {
   useFetchAgentSkills(true);
 
   const filteredMarketAgentSkills = useMemo(() => {
+    const visibleMarketAgentSkills = normalizeAgentSkillListItems(marketAgentSkills);
     const lowerKeywords = (keywords || '').toLowerCase().trim();
-    if (!lowerKeywords) return marketAgentSkills;
+    if (!lowerKeywords) return visibleMarketAgentSkills;
 
-    return marketAgentSkills.filter((skill) => {
+    return visibleMarketAgentSkills.filter((skill) => {
       const name = skill.name?.toLowerCase() || '';
       const identifier = skill.identifier?.toLowerCase() || '';
       return name.includes(lowerKeywords) || identifier.includes(lowerKeywords);
@@ -70,7 +72,7 @@ export const CommunityList = memo(() => {
       itemType: 'agentSkill' as const,
       skill,
     }));
-    const mcpItems: CommunityListItem[] = allItems.map((data) => ({
+    const mcpItems: CommunityListItem[] = normalizeMcpMarketItems(allItems).map((data) => ({
       data,
       itemType: 'mcp' as const,
     }));

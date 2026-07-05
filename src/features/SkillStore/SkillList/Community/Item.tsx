@@ -58,6 +58,7 @@ const Item = memo<DiscoverMcpItem>(({ name, description, icon, identifier }) => 
     agentSelectors.currentAgentPlugins(s).includes(identifier),
   ]);
   const { isAuthenticated, signIn } = useMarketAuth();
+  const displayName = name || identifier;
 
   const isCloudMcp = !!((plugin as any)?.cloudEndPoint || (plugin as any)?.haveCloudEndpoint);
 
@@ -148,10 +149,10 @@ const Item = memo<DiscoverMcpItem>(({ name, description, icon, identifier }) => 
           variant={'outlined'}
           onClick={() => setDetailOpen(true)}
         >
-          <PluginAvatar avatar={icon} size={40} />
+          <PluginAvatar avatar={icon || displayName} size={40} />
           <Flexbox flex={1} gap={4} style={{ minWidth: 0, overflow: 'hidden' }}>
             <Flexbox horizontal align="center" gap={8}>
-              <span className={styles.title}>{name}</span>
+              <span className={styles.title}>{displayName}</span>
               <MCPTag showText={false} />
             </Flexbox>
             {description && <span className={styles.description}>{description}</span>}

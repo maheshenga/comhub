@@ -55,6 +55,65 @@ const fetchPublicMarketJson = async <T>(path: string, params: Record<string, unk
   return response.json() as Promise<T>;
 };
 
+const firstText = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const text = value.trim();
+    if (text) return text;
+  }
+};
+
+const normalizeSkillListItem = (item: unknown) => {
+  if (!item || typeof item !== 'object') return;
+
+  const skill = item as Record<string, unknown>;
+  const identifier = firstText(skill.identifier, skill.slug);
+  if (!identifier) return;
+
+  const name = firstText(skill.name, skill.title, skill.displayName, identifier);
+  const title = firstText(skill.title, skill.displayName);
+  const description = firstText(skill.description, skill.summary);
+  const icon = firstText(skill.icon, skill.avatar);
+
+  if (
+    identifier === skill.identifier &&
+    name === skill.name &&
+    (title === undefined || title === skill.title) &&
+    (description === undefined || description === skill.description) &&
+    (icon === undefined || icon === skill.icon)
+  ) {
+    return item;
+  }
+
+  return {
+    ...skill,
+    ...(description ? { description } : {}),
+    identifier,
+    ...(icon ? { icon } : {}),
+    name,
+    ...(title ? { title } : {}),
+  };
+};
+
+const normalizeSkillListResponse = (response: MarketSkillListResponse): MarketSkillListResponse => {
+  const items = Array.isArray(response.items) ? response.items : [];
+  let changed = !Array.isArray(response.items);
+  const normalizedItems: unknown[] = [];
+
+  for (const item of items) {
+    const normalized = normalizeSkillListItem(item);
+    if (!normalized) {
+      changed = true;
+      continue;
+    }
+
+    normalizedItems.push(normalized);
+    if (normalized !== item) changed = true;
+  }
+
+  return changed ? ({ ...response, items: normalizedItems } as MarketSkillListResponse) : response;
+};
+
 /**
  * Extract access token from Authorization header
  */
@@ -472,13 +531,17 @@ export class MarketService {
 
       log('searchSkill response: %O', result);
 
-      return result;
+      return normalizeSkillListResponse(result);
     } catch (error) {
       if (!isMarketAuthError(error)) throw error;
 
       log('searchSkill SDK auth failed, falling back to public sitemap: %O', error);
 
-      return fetchPublicMarketJson<MarketSkillListResponse>('/api/v1/skills/sitemap', params);
+      const result = await fetchPublicMarketJson<MarketSkillListResponse>(
+        '/api/v1/skills/sitemap',
+        params,
+      );
+      return normalizeSkillListResponse(result);
     }
   }
 

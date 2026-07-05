@@ -52,6 +52,7 @@ const MarketSkillItem = memo<DiscoverSkillItem>(({ name, icon, description, iden
     s.refreshAgentSkills,
     s.deleteAgentSkill,
   ]);
+  const displayName = name || identifier;
 
   const handleInstall = useCallback(async () => {
     if (!canCreate || installing || installed) return;
@@ -86,12 +87,12 @@ const MarketSkillItem = memo<DiscoverSkillItem>(({ name, icon, description, iden
     try {
       const result = await agentSkillService.getZipUrl(installedSkill.id);
       if (result.url) {
-        await downloadFile(result.url, `${result.name || name}.zip`);
+        await downloadFile(result.url, `${result.name || displayName}.zip`);
       }
     } finally {
       setLoading(false);
     }
-  }, [installedSkill, name]);
+  }, [displayName, installedSkill]);
 
   const renderAction = () => {
     if (installed) {
@@ -149,11 +150,11 @@ const MarketSkillItem = memo<DiscoverSkillItem>(({ name, icon, description, iden
           paddingInline={12}
           variant={'outlined'}
         >
-          <Avatar avatar={icon || name} shape={'square'} size={40} style={{ flex: 'none' }} />
+          <Avatar avatar={icon || displayName} shape={'square'} size={40} style={{ flex: 'none' }} />
           <Flexbox flex={1} gap={4} style={{ minWidth: 0, overflow: 'hidden' }}>
             <Flexbox horizontal align="center" gap={8}>
               <span className={styles.title} onClick={() => setDetailOpen(true)}>
-                {name}
+                {displayName}
               </span>
               <Tag icon={<Icon icon={SkillsIcon} />} size={'small'} />
             </Flexbox>

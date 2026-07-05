@@ -37,7 +37,7 @@ const Detail = memo<DetailProps>(({ identifier: defaultIdentifier, defaultTab, n
   const identifier = defaultIdentifier ?? activeMCPIdentifier;
 
   const useMcpDetail = useDiscoverStore((s) => s.useFetchMcpDetail);
-  const { data, isLoading } = useMcpDetail({ identifier });
+  const { data, error, isLoading } = useMcpDetail({ identifier });
 
   // If an explicit identifier is passed in, skip the isMcpListInit check
   const shouldWaitForInit = !defaultIdentifier && !isMcpListInit;
@@ -60,6 +60,25 @@ const Detail = memo<DetailProps>(({ identifier: defaultIdentifier, defaultTab, n
         />
       </Center>
     );
+
+  if (error || !data) {
+    return (
+      <Center
+        height={'100%'}
+        width={'100%'}
+        style={{
+          background: theme.colorBgContainerSecondary,
+        }}
+      >
+        <Empty
+          description={t('store.emptySelectHint')}
+          descriptionProps={{ fontSize: 14 }}
+          icon={Boxes}
+          style={{ maxWidth: 400 }}
+        />
+      </Center>
+    );
+  }
 
   return (
     <DetailProvider config={data}>

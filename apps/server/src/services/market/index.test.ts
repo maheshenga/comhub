@@ -491,6 +491,37 @@ describe('MarketService', () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
+    it('should normalize skill list items and drop entries without identifiers', async () => {
+      const service = new MarketService();
+      const sdkResult = {
+        currentPage: 1,
+        items: [
+          {
+            description: 'Uses title from the current market API',
+            identifier: 'title-skill',
+            title: 'Title Skill',
+          },
+          { description: 'Missing identifier should not be shown', name: 'Broken Skill' },
+        ],
+        pageSize: 20,
+        totalCount: 2,
+        totalPages: 1,
+      };
+      (service as any).market.marketSkills.getSkillList = vi.fn().mockResolvedValue(sdkResult);
+
+      const result = await service.searchSkill({ page: 1, pageSize: 20 });
+
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          description: 'Uses title from the current market API',
+          identifier: 'title-skill',
+          name: 'Title Skill',
+          title: 'Title Skill',
+        }),
+      ]);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
     it('should fall back to the public skill sitemap when the SDK skill list rejects M2M auth', async () => {
       const service = new MarketService();
       (service as any).market.marketSkills.getSkillList = vi.fn().mockRejectedValue({

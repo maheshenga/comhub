@@ -50,6 +50,8 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
   const [loading, setLoading] = useState(false);
   const { allowed: canEdit } = usePermission('edit_own_content');
   const deleteAgentSkill = useToolStore((s) => s.deleteAgentSkill);
+  const displayName = skill.name || skill.manifest?.name || skill.identifier || skill.id;
+  const description = skill.description || skill.manifest?.description;
 
   const handleDownload = async () => {
     if (!skill.zipFileHash) return;
@@ -58,7 +60,7 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
     try {
       const result = await agentSkillService.getZipUrl(skill.id);
       if (result.url) {
-        await downloadFile(result.url, `${result.name || skill.name}.zip`);
+        await downloadFile(result.url, `${result.name || displayName}.zip`);
       }
     } finally {
       setLoading(false);
@@ -94,13 +96,11 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill }) => {
           <Flexbox flex={1} gap={4} style={{ minWidth: 0, overflow: 'hidden' }}>
             <Flexbox horizontal align="center" gap={8}>
               <span className={styles.title} onClick={() => setDetailOpen(true)}>
-                {skill.name}
+                {displayName}
               </span>
               <Tag icon={<Icon icon={SkillsIcon} />} size={'small'} />
             </Flexbox>
-            {skill.description && (
-              <span className={itemStyles.description}>{skill.description}</span>
-            )}
+            {description && <span className={itemStyles.description}>{description}</span>}
           </Flexbox>
           <Flexbox horizontal>
             {skill.source === 'user' && (

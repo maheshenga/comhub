@@ -2,7 +2,7 @@
 
 import { Center, Icon, Text } from '@lobehub/ui';
 import { ServerCrash } from 'lucide-react';
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { VirtuosoGrid } from 'react-virtuoso';
 
@@ -11,6 +11,7 @@ import { useToolStore } from '@/store/tool';
 import Item from '../Community/Item';
 import Empty from '../Empty';
 import Loading from '../Loading';
+import { normalizeMcpMarketItems } from '../normalizeMarketItems';
 import { virtuosoGridStyles } from '../style';
 import VirtuosoLoading from '../VirtuosoLoading';
 import WantMoreSkills from '../WantMoreSkills';
@@ -39,6 +40,7 @@ export const MCPList = memo(() => {
     s.loadMoreMCPPlugins,
     s.resetMCPPluginList,
   ]);
+  const visibleItems = useMemo(() => normalizeMcpMarketItems(allItems), [allItems]);
 
   const prevKeywordsRef = useRef(keywords);
 
@@ -68,7 +70,7 @@ export const MCPList = memo(() => {
     );
   }
 
-  if (allItems.length === 0) return <Empty search={hasSearchKeywords} />;
+  if (visibleItems.length === 0) return <Empty search={hasSearchKeywords} />;
 
   const hasReachedEnd = totalPages !== undefined && currentPage >= totalPages;
 
@@ -81,7 +83,7 @@ export const MCPList = memo(() => {
   return (
     <VirtuosoGrid
       components={{ Footer: renderFooter }}
-      data={allItems}
+      data={visibleItems}
       endReached={loadMoreMCPPlugins}
       increaseViewportBy={typeof window !== 'undefined' ? window.innerHeight : 0}
       itemClassName={virtuosoGridStyles.item}

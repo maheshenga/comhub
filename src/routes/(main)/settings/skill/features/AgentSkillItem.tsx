@@ -51,7 +51,7 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill, isSelected, onSelect 
 
   const title = isBuiltin
     ? t(`tools.builtins.${skill.identifier}.title`, { defaultValue: skill.name })
-    : skill.name;
+    : skill.name || skill.manifest?.name || skill.identifier || skill.id;
 
   const avatar = isBuiltin ? skill.avatar : undefined;
 
@@ -63,7 +63,7 @@ const AgentSkillItem = memo<AgentSkillItemProps>(({ skill, isSelected, onSelect 
     try {
       const result = await agentSkillService.getZipUrl(skill.id);
       if (result.url) {
-        await downloadFile(result.url, `${result.name || skill.name}.zip`);
+        await downloadFile(result.url, `${result.name || title}.zip`);
       }
     } finally {
       setLoading(false);

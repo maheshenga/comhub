@@ -575,6 +575,37 @@ describe('DiscoverService', () => {
           expect.any(Object),
         );
       });
+
+      it('should normalize MCP items and drop entries without identifiers', async () => {
+        mockMarket.plugins.getPluginList.mockResolvedValue({
+          currentPage: 1,
+          items: [
+            {
+              description: 'Uses title from the current market API',
+              identifier: 'title-mcp',
+              title: 'Title MCP',
+            },
+            {
+              description: 'Missing identifier should not be shown',
+              name: 'Broken MCP',
+            },
+          ],
+          pageSize: 20,
+          totalCount: 2,
+          totalPages: 1,
+        });
+
+        const result = await service.getMcpList({ locale: 'en-US' });
+
+        expect(result.items).toEqual([
+          expect.objectContaining({
+            description: 'Uses title from the current market API',
+            identifier: 'title-mcp',
+            name: 'Title MCP',
+            title: 'Title MCP',
+          }),
+        ]);
+      });
     });
 
     describe('getMcpDetail', () => {
@@ -607,6 +638,29 @@ describe('DiscoverService', () => {
           expect.objectContaining({
             identifier: 'mcp-1',
             related: [],
+          }),
+        );
+      });
+
+      it('should normalize MCP detail display fields', async () => {
+        mockMarket.plugins.getPluginDetail.mockResolvedValue({
+          avatar: 'mcp-icon',
+          category: 'tools',
+          summary: 'Summary text',
+          title: 'Title MCP',
+        });
+
+        const result = await service.getMcpDetail({
+          identifier: 'mcp-1',
+        });
+
+        expect(result).toEqual(
+          expect.objectContaining({
+            description: 'Summary text',
+            icon: 'mcp-icon',
+            identifier: 'mcp-1',
+            name: 'Title MCP',
+            title: 'Title MCP',
           }),
         );
       });
