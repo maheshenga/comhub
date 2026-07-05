@@ -26,6 +26,7 @@ import {
   formatSignedCredits,
   getCreditLedgerTypeTranslationKey,
   getCreditSourceTranslationKey,
+  isPaidPlan,
   subscriptionPageStyles,
   toRawCredits,
   useBusinessSubscriptionProfile,
@@ -124,6 +125,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
   const effectiveCurrency = selectedPackage?.currency ?? accountSummary?.currency ?? 'USD';
   const accountBreakdown = accountSummary?.breakdown;
   const selectedPromotion = normalizeTopUpPackagePromotion(selectedPackage?.metadata);
+  const canPurchaseTopUp = isPaidPlan(currentPlan);
 
   const packageOptions = useMemo(
     () => [
@@ -255,8 +257,13 @@ const Credits = memo<{ mobile?: boolean }>(() => {
     void refreshCommercialEntitlementState();
   };
 
-  const handleSubscribeFirst = () => {
-    message.info('当前前端未接入真实支付，管理员可通过后台或兑换码发放套餐与积分。');
+  const handleTopUpAction = () => {
+    if (!canPurchaseTopUp) {
+      message.info('积分充值仅对付费套餐开放，请先升级会员套餐。');
+      return;
+    }
+
+    message.info('在线支付暂未接入，请联系管理员充值，或使用兑换码发放积分。');
   };
 
   return (
@@ -361,11 +368,12 @@ const Credits = memo<{ mobile?: boolean }>(() => {
                 </span>
               </div>
               <Button
+                href={canPurchaseTopUp ? undefined : '/settings/plans'}
                 icon={<Icon icon={ShoppingCart} />}
                 type={'primary'}
-                onClick={handleSubscribeFirst}
+                onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
               >
-                请先订阅
+                {canPurchaseTopUp ? '联系管理员充值' : '升级会员'}
               </Button>
             </Flexbox>
           </Card>
@@ -374,10 +382,17 @@ const Credits = memo<{ mobile?: boolean }>(() => {
           <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
             <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
               <div>
-                <strong>订阅付费计划以启用自动充值</strong>
-                <div className={subscriptionPageStyles.caption}>确保你的积分不会用光。</div>
+                <strong>在线支付暂未接入</strong>
+                <div className={subscriptionPageStyles.caption}>
+                  自动充值将在支付网关接入后开放；当前可联系管理员或使用兑换码补充积分。
+                </div>
               </div>
-              <Button onClick={handleSubscribeFirst}>升级</Button>
+              <Button
+                href={canPurchaseTopUp ? undefined : '/settings/plans'}
+                onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
+              >
+                {canPurchaseTopUp ? '联系管理员' : '升级会员'}
+              </Button>
             </Flexbox>
           </Card>
         </FormGroup>

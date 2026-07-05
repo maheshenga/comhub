@@ -57,6 +57,8 @@ const Billing = memo<{ mobile?: boolean }>(() => {
     () => commercialService.listSubscriptionChangeRequests({ limit: 20 }),
   );
   const hasBillingHistory = changeRequests.length > 0;
+  const cycleLabel = t(getSubscriptionCycleTranslationKey(subscriptionSummary?.cycle));
+  const nextDate = subscriptionSummary?.renewsAt ?? subscriptionSummary?.endsAt;
 
   const handleViewBillingHistory = () => {
     historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -94,7 +96,7 @@ const Billing = memo<{ mobile?: boolean }>(() => {
           <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
             <div className={subscriptionPageStyles.cardGrid}>
               <div>
-                <div>当前周期金额</div>
+                <div>当前周期金额（{cycleLabel}）</div>
                 <div className={subscriptionPageStyles.tileValue}>
                   {formatCurrencyAmount(
                     subscriptionSummary?.monthlyPrice ?? 0,
@@ -102,7 +104,7 @@ const Billing = memo<{ mobile?: boolean }>(() => {
                   )}
                 </div>
                 <div className={subscriptionPageStyles.caption}>
-                  此金额来自当前套餐快照，真实支付记录以后续订单/发票为准。
+                  此金额来自当前套餐快照；真实收款、退款与开票仍以管理员后台订单记录为准。
                   <Button size={'small'} type={'link'} onClick={handleViewBillingHistory}>
                     查看变更记录
                   </Button>
@@ -116,7 +118,14 @@ const Billing = memo<{ mobile?: boolean }>(() => {
                 <div className={subscriptionPageStyles.caption}>
                   订阅 ID：{subscriptionSummary?.externalSubscriptionId || '--'}
                 </div>
-                <Button size={'small'} type={'link'}>
+                <div className={subscriptionPageStyles.caption}>周期：{cycleLabel}</div>
+                <div className={subscriptionPageStyles.caption}>
+                  开始时间：{formatBusinessDate(subscriptionSummary?.startedAt)}
+                </div>
+                <div className={subscriptionPageStyles.caption}>
+                  续费/结束时间：{formatBusinessDate(nextDate)}
+                </div>
+                <Button href="/settings/plans" size={'small'} type={'link'}>
                   升级计划
                 </Button>
               </div>
@@ -140,7 +149,9 @@ const Billing = memo<{ mobile?: boolean }>(() => {
             <Flexbox gap={16}>
               <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
                 <PlanIcon plan={currentPlan} type={'combine'} />
-                <Button type={'primary'}>升级</Button>
+                <Button href="/settings/plans" type={'primary'}>
+                  升级
+                </Button>
               </Flexbox>
               <div className={subscriptionPageStyles.cardGrid}>
                 <div>

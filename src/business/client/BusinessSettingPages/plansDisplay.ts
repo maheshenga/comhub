@@ -1,6 +1,6 @@
 import { Plans } from '@lobechat/types';
 
-export const PLAN_DISPLAY_CURRENCY = 'CNY';
+export const PLAN_DISPLAY_CURRENCY = 'USD';
 
 export type PlanDisplayBillingCycle = 'lifetime' | 'monthly' | 'one_time' | 'yearly';
 
@@ -27,6 +27,24 @@ export type PlanCyclePrice = {
 
 export const getVisiblePaidPlans = <T extends string>(plans: T[]) =>
   plans.filter((plan) => plan !== Plans.Free);
+
+const hasPositivePrice = (value: unknown) => Number(value ?? 0) > 0;
+
+export const getAvailableBillingCycles = (
+  planCatalog: Array<PlanPriceCatalogLike> | null | undefined,
+): PlanDisplayBillingCycle[] => {
+  const plans = planCatalog ?? [];
+  const hasYearly = plans.some((item) => hasPositivePrice(item.yearlyPrice));
+  const hasMonthly = plans.some((item) => hasPositivePrice(item.monthlyPrice));
+  const cycles: PlanDisplayBillingCycle[] = [];
+
+  if (hasYearly) cycles.push('yearly');
+  if (hasMonthly) cycles.push('monthly');
+  if (plans.some((item) => hasPositivePrice(item.oneTimePrice))) cycles.push('one_time');
+  if (plans.some((item) => hasPositivePrice(item.lifetimePrice))) cycles.push('lifetime');
+
+  return cycles;
+};
 
 const normalizeCurrency = (currency?: null | string) =>
   (currency?.trim() || PLAN_DISPLAY_CURRENCY).toUpperCase();
@@ -144,41 +162,17 @@ export const resolvePlanCyclePrice = (
     }
 
     case 'one_time': {
-      const hasConfiguredAmount = oneTimePrice > 0;
-      const amount = hasConfiguredAmount
-        ? oneTimePrice
-        : monthlyPrice > 0
-          ? Number((monthlyPrice * 12).toFixed(2))
-          : 0;
-
       return build({
-        amount,
-        secondaryLabel:
-          amount > 0
-            ? hasConfiguredAmount
-              ? '一次性支付'
-              : '按 12 个月月付价估算，最终以购买页为准'
-            : '暂未配置一次性价格',
+        amount: oneTimePrice,
+        secondaryLabel: oneTimePrice > 0 ? '一次性支付' : '暂未配置一次性价格',
         unit: '一次性',
       });
     }
 
     case 'lifetime': {
-      const hasConfiguredAmount = lifetimePrice > 0;
-      const amount = hasConfiguredAmount
-        ? lifetimePrice
-        : monthlyPrice > 0
-          ? Number((monthlyPrice * 24).toFixed(2))
-          : 0;
-
       return build({
-        amount,
-        secondaryLabel:
-          amount > 0
-            ? hasConfiguredAmount
-              ? '终身权益价格'
-              : '按 24 个月月付价估算，最终以购买页为准'
-            : '暂未配置终身价格',
+        amount: lifetimePrice,
+        secondaryLabel: lifetimePrice > 0 ? '终身权益价格' : '暂未配置终身价格',
         unit: '终身',
       });
     }

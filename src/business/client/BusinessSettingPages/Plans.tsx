@@ -30,6 +30,7 @@ import { useServerConfigStore } from '@/store/serverConfig';
 
 import { getPlanPurchaseUrl } from './planPurchase';
 import {
+  getAvailableBillingCycles,
   getPlanYearlyDiscountLabel,
   getVisiblePaidPlans,
   getYearlyCycleDiscountLabel,
@@ -69,6 +70,7 @@ type BillingCycle = 'yearly' | 'monthly' | 'one_time' | 'lifetime';
 type PlanCatalog = Awaited<ReturnType<typeof commercialService.listPlanCatalog>>;
 type PlanCatalogItem = PlanCatalog[number];
 type ComparisonRow = { feature: string; key: string } & Record<string, ReactNode>;
+const LOADING_BILLING_CYCLES: BillingCycle[] = ['yearly', 'monthly'];
 
 const useStyles = createStyles(({ css, cx, token }) => ({
   action: css`
@@ -382,6 +384,15 @@ const Plans = memo<{ mobile?: boolean }>(() => {
     return getYearlyCycleDiscountLabel(planCatalog);
   }, [planCatalog]);
 
+  const availableBillingCycles = useMemo(
+    () => (isPlanCatalogLoading ? LOADING_BILLING_CYCLES : getAvailableBillingCycles(planCatalog)),
+    [isPlanCatalogLoading, planCatalog],
+  );
+  const hasAvailableBillingCycles = availableBillingCycles.length > 0;
+  const activeBillingCycle = availableBillingCycles.includes(billingCycle)
+    ? billingCycle
+    : (availableBillingCycles[0] ?? 'monthly');
+
   const comparisonColumns = useMemo(
     () => [
       {
@@ -552,29 +563,40 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             <div className={styles.introSubtitle}>解锁更多容量与高级功能。</div>
           </div>
           <div className={styles.cycleWrap}>
-            <Segmented
-              value={billingCycle}
-              variant="filled"
-              options={[
-                {
-                  label: (
-                    <Flexbox horizontal align="center" gap={8}>
-                      按年
-                      {yearlyCycleDiscountLabel ? (
-                        <Tag color="green" style={{ margin: 0 }}>
-                          {yearlyCycleDiscountLabel}
-                        </Tag>
-                      ) : null}
-                    </Flexbox>
-                  ),
-                  value: 'yearly',
-                },
-                { label: '按月', value: 'monthly' },
-                { label: '一次性', value: 'one_time' },
-                { label: '终身', value: 'lifetime' },
-              ]}
-              onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
-            />
+            {hasAvailableBillingCycles ? (
+              <Segmented
+                value={activeBillingCycle}
+                variant="filled"
+                options={availableBillingCycles.map((cycle) => ({
+                  label:
+                    cycle === 'yearly' ? (
+                      <Flexbox horizontal align="center" gap={8}>
+                        按年
+                        {yearlyCycleDiscountLabel ? (
+                          <Tag color="green" style={{ margin: 0 }}>
+                            {yearlyCycleDiscountLabel}
+                          </Tag>
+                        ) : null}
+                      </Flexbox>
+                    ) : cycle === 'monthly' ? (
+                      '按月'
+                    ) : cycle === 'one_time' ? (
+                      '一次性'
+                    ) : (
+                      '终身'
+                    ),
+                  value: cycle,
+                }))}
+                onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
+              />
+            ) : (
+              <Alert
+                showIcon
+                message="暂无可购买周期"
+                type="warning"
+                description="后台尚未配置套餐价格，请联系管理员。"
+              />
+            )}
           </div>
         </div>
         {pendingChangeRequest ? (
@@ -602,13 +624,17 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             {visiblePlans.map((plan) => {
               const catalogPlan = getCatalogPlan(planCatalog, plan);
               const price = catalogPlan
-                ? resolvePlanCyclePrice(catalogPlan, billingCycle)
-                  : {
-                      discountPercent: 0,
-                      label: '--',
-                      secondaryLabel: undefined,
-                      unit: t(getSubscriptionCycleTranslationKey(billingCycle)),
-                    };
+                ? resolvePlanCyclePrice(catalogPlan, activeBillingCycle)
+                : {
+                    amount: 0,
+                    currency: '',
+                    cycle: activeBillingCycle,
+                    discountPercent: 0,
+                    isAvailable: false,
+                    label: '--',
+                    secondaryLabel: undefined,
+                    unit: t(getSubscriptionCycleTranslationKey(activeBillingCycle)),
+                  };
               const monthlyCredits =
                 catalogPlan?.monthlyCredits ?? subscriptionSummary?.monthlyCredits ?? 0;
               const yearlyDiscountLabel = getPlanYearlyDiscountLabel(catalogPlan);
@@ -650,7 +676,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                         </div>
                         <div className={styles.yearlyLine}>
                           {price.secondaryLabel ?? '--'}
-                          {billingCycle === 'yearly' &&
+                          {activeBillingCycle === 'yearly' &&
                           yearlyDiscountLabel &&
                           !price.secondaryLabel?.includes(yearlyDiscountLabel) ? (
                             <Tag color="green" style={{ margin: 0 }}>
@@ -673,11 +699,12 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                             <Button
                               block
                               className={styles.action}
+                              disabled={!price.isAvailable}
                               icon={<Icon icon={ChevronRight} />}
                               type="primary"
                               onClick={() => handleUpgradeClick(catalogPlan)}
                             >
-                              升级
+                              {price.isAvailable ? '升级' : '暂未配置'}
                             </Button>
                             <Button
                               block

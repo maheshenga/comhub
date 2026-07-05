@@ -2,7 +2,9 @@ import { Plans } from '@lobechat/types';
 import { describe, expect, it } from 'vitest';
 
 import {
+  PLAN_DISPLAY_CURRENCY,
   formatPlanCurrencyAmount,
+  getAvailableBillingCycles,
   getPlanYearlyDiscountPercent,
   getVisiblePaidPlans,
   getYearlyCycleDiscountLabel,
@@ -21,6 +23,11 @@ describe('plans display helpers', () => {
   it('formats prices with the catalog currency', () => {
     expect(formatPlanCurrencyAmount(29, 'USD')).toContain('29');
     expect(formatPlanCurrencyAmount(29, 'CNY')).toContain('¥');
+  });
+
+  it('uses USD as the display fallback currency to match backend pricing defaults', () => {
+    expect(PLAN_DISPLAY_CURRENCY).toBe('USD');
+    expect(formatPlanCurrencyAmount(29)).toContain('29');
   });
 
   it('calculates yearly discounts from monthly and yearly catalog prices', () => {
@@ -62,19 +69,53 @@ describe('plans display helpers', () => {
     ).toBe('最高优惠 20%');
   });
 
-  it('resolves one-time prices from monthly catalog prices until dedicated prices exist', () => {
-    const price = resolvePlanCyclePrice(
+  it('derives billing cycle tabs from configured catalog prices', () => {
+    expect(
+      getAvailableBillingCycles([
+        { monthlyPrice: 59, yearlyPrice: 590 },
+        { monthlyPrice: 99, yearlyPrice: 950 },
+      ]),
+    ).toEqual(['yearly', 'monthly']);
+
+    expect(
+      getAvailableBillingCycles([
+        { lifetimePrice: 999, monthlyPrice: 59, oneTimePrice: 499, yearlyPrice: 590 },
+      ]),
+    ).toEqual(['yearly', 'monthly', 'one_time', 'lifetime']);
+
+    expect(getAvailableBillingCycles([])).toEqual([]);
+    expect(
+      getAvailableBillingCycles([
+        { monthlyPrice: 0, yearlyPrice: 0 },
+        { lifetimePrice: 0, oneTimePrice: 0 },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('does not estimate one-time or lifetime prices when they are not configured', () => {
+    const oneTime = resolvePlanCyclePrice(
       {
-        currency: 'CNY',
+        currency: 'USD',
         monthlyPrice: 59,
         yearlyPrice: 590,
       },
       'one_time',
     );
+    const lifetime = resolvePlanCyclePrice(
+      {
+        currency: 'USD',
+        monthlyPrice: 59,
+        yearlyPrice: 590,
+      },
+      'lifetime',
+    );
 
-    expect(price.amount).toBe(708);
-    expect(price.unit).toBe('一次性');
-    expect(price.secondaryLabel).toContain('估算');
+    expect(oneTime.amount).toBe(0);
+    expect(oneTime.isAvailable).toBe(false);
+    expect(oneTime.secondaryLabel).toContain('未配置');
+    expect(lifetime.amount).toBe(0);
+    expect(lifetime.isAvailable).toBe(false);
+    expect(lifetime.secondaryLabel).toContain('未配置');
   });
 
   it('prefers configured one-time prices over fallback estimates', () => {

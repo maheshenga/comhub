@@ -44,7 +44,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
     const init = row ?? {
       amount: 0,
       credits: 0,
-      currency: 'CNY',
+      currency: 'USD',
       displayName: '',
       id: '',
       isActive: true,
@@ -70,7 +70,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
       await adminCommercialService.upsertPackage({
         amount: Number(values.amount || 0),
         credits: Number(values.credits || 0),
-        currency: values.currency || 'CNY',
+        currency: values.currency || 'USD',
         displayName: values.displayName,
         id: values.id,
         isActive: !!values.isActive,

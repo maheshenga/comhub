@@ -344,6 +344,12 @@ describe('admin commercial flow pages', () => {
     expect(publicPlansPage).toContain('文本模型价格');
     expect(publicPlansPage).toContain('commercialService.listPlanFaq');
     expect(publicPlansPage).toContain('PUBLIC_PLAN_FAQ_SWR_KEY');
+    expect(publicPlansPage).toContain('getAvailableBillingCycles');
+    expect(publicPlansPage).toContain('availableBillingCycles.map');
+    expect(publicPlansPage).toContain('hasAvailableBillingCycles');
+    expect(publicPlansPage).toContain('暂无可购买周期');
+    expect(publicPlansPage).toContain('activeBillingCycle');
+    expect(publicPlansPage).toContain('!price.isAvailable');
     expect(publicPlansPage).toContain('planFaqItems.map');
     expect(adminSettingsPage).toContain('name="planFaqItems"');
     expect(adminSettingsForm).toContain('plansFaqItems?: unknown');
@@ -366,6 +372,30 @@ describe('admin commercial flow pages', () => {
     expect(topupPage).toContain("admin.topup.col.promotion");
     expect(creditsPage).toContain('限时优惠');
     expect(creditsPage).toContain('优先使用订阅积分，其次使用充值积分');
+  });
+
+  it('keeps billing page actions and cycle dates aligned with configured plans', () => {
+    const billingPage = readRepoFile('src/business/client/BusinessSettingPages/Billing.tsx');
+
+    expect(billingPage).toContain('subscriptionSummary?.cycle');
+    expect(billingPage).toContain('subscriptionSummary?.renewsAt');
+    expect(billingPage).toContain('subscriptionSummary?.endsAt');
+    expect(billingPage).toContain('href="/settings/plans"');
+    expect(billingPage).toContain('套餐变更记录');
+    expect(billingPage).not.toContain('发票');
+  });
+
+  it('keeps credits top-up purchase state honest while online payment is unavailable', () => {
+    const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
+    const adminTopupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
+    const adminPlansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
+
+    expect(creditsPage).toContain('isPaidPlan(currentPlan)');
+    expect(creditsPage).toContain("href={canPurchaseTopUp ? undefined : '/settings/plans'}");
+    expect(creditsPage).toContain('在线支付暂未接入');
+    expect(adminTopupPage).toContain("currency: 'USD'");
+    expect(adminTopupPage).toContain("values.currency || 'USD'");
+    expect(adminPlansPage).toContain('留空时前台不展示');
   });
 
   it('uses provider-neutral file names for the admin provider page', () => {

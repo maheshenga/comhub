@@ -435,7 +435,7 @@ const AdminPlansPage = memo(() => {
           </Flexbox>
           <Flexbox horizontal gap={12}>
             <Form.Item
-              extra={t('admin.plans.field.oneTimeHint', '留空时按 12 个月月付价估算。')}
+              extra={t('admin.plans.field.oneTimeHint', '留空时前台不展示一次性周期。')}
               label={t('admin.plans.field.oneTime', '一次性价格')}
               name="oneTimePrice"
               style={{ flex: 1 }}
@@ -443,7 +443,7 @@ const AdminPlansPage = memo(() => {
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
-              extra={t('admin.plans.field.lifetimeHint', '留空时按 24 个月月付价估算。')}
+              extra={t('admin.plans.field.lifetimeHint', '留空时前台不展示终身周期。')}
               label={t('admin.plans.field.lifetime', '终身价格')}
               name="lifetimePrice"
               style={{ flex: 1 }}
