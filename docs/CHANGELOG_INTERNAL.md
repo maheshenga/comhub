@@ -18,3 +18,5 @@
 - Verification: `packages/business-server/src/lambda-routers/admin/settings.test.ts`.
 - GOV-027: Extended the public `/api/version` probe with safe deployment metadata and injected commit/image build metadata through the Docker build workflow.
 - Verification: `src/app/(backend)/api/version/route.test.ts`.
+- GOV-028: Added explicit user default settings sync priority coverage. Default assistant meta is preserved by default during backend default sync, while the admin "save and sync" action can explicitly force default assistant meta into existing users and records that force flag in the audit payload.
+- Verification: `packages/business-server/src/lambda-routers/admin/settings.test.ts`.

@@ -1,8 +1,7 @@
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import type { TRPCError } from '@trpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { getServerDB } from '@/database/core/db-adaptor';
@@ -1069,6 +1068,82 @@ describe('admin settings default model validation', () => {
     );
   });
 
+  it('records explicit force-sync when admin overwrites user default assistant meta', async () => {
+    const defaults = {
+      defaultAgent: {
+        config: { model: 'gpt-5.5', provider: 'newapi' },
+        meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+      },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }]);
+    const selectSettingsWhere = vi.fn().mockResolvedValue([
+      {
+        defaultAgent: {
+          config: { model: 'old-model', provider: 'old-provider' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    const selectSettingsFrom = vi.fn(() => ({ where: selectSettingsWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: selectUsersFrom })
+      .mockReturnValueOnce({ from: selectSettingsFrom });
+    const db = {
+      insert,
+      query: {
+        appSettings: {
+          findFirst: vi.fn().mockResolvedValue({ value: defaults }),
+        },
+        planCatalog: {
+          findFirst: vi.fn().mockResolvedValue({ modelRules: null, plan: Plans.Free }),
+        },
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      select,
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.syncUserGlobalSettingsDefaultsToUsers({
+      forceDefaultAgentMeta: true,
+    });
+
+    expect(result).toEqual({
+      forceDefaultAgentMeta: true,
+      ok: true,
+      syncedFields: ['defaultAgent'],
+      syncedUsers: 1,
+    });
+    expect(values).toHaveBeenCalledWith([
+      {
+        defaultAgent: {
+          config: { model: 'gpt-5.5', provider: 'newapi' },
+          meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'settings.syncUserDefaults',
+        payload: {
+          forceDefaultAgentMeta: true,
+          syncedFields: ['defaultAgent'],
+          syncedUsers: 1,
+        },
+        resourceType: 'user_settings',
+      }),
+    );
+  });
+
   it('preserves user-customized default assistant meta when syncing default agent config', async () => {
     const defaults = {
       defaultAgent: { config: { model: 'gpt-5.5', provider: 'newapi' } },
@@ -1117,6 +1192,88 @@ describe('admin settings default model validation', () => {
       },
       target: expect.anything(),
     });
+  });
+
+  it('preserves user default assistant meta when default agent meta sync is not forced', async () => {
+    const defaults = {
+      defaultAgent: {
+        config: { model: 'gpt-5.5', provider: 'newapi' },
+        meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+      },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }]);
+    const selectSettingsWhere = vi.fn().mockResolvedValue([
+      {
+        defaultAgent: {
+          config: { model: 'old-model', provider: 'old-provider' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    const selectSettingsFrom = vi.fn(() => ({ where: selectSettingsWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: selectUsersFrom })
+      .mockReturnValueOnce({ from: selectSettingsFrom });
+    const db = { insert, select } as any;
+
+    await syncUserGlobalSettingsDefaultsToUserSettings(db, defaults);
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        defaultAgent: {
+          config: { model: 'gpt-5.5', provider: 'newapi' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+  });
+
+  it('overwrites user default assistant meta when admin sync explicitly forces meta', async () => {
+    const defaults = {
+      defaultAgent: {
+        config: { model: 'gpt-5.5', provider: 'newapi' },
+        meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+      },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }]);
+    const selectSettingsWhere = vi.fn().mockResolvedValue([
+      {
+        defaultAgent: {
+          config: { model: 'old-model', provider: 'old-provider' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    const selectSettingsFrom = vi.fn(() => ({ where: selectSettingsWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: selectUsersFrom })
+      .mockReturnValueOnce({ from: selectSettingsFrom });
+    const db = { insert, select } as any;
+
+    await syncUserGlobalSettingsDefaultsToUserSettings(db, defaults, {
+      forceDefaultAgentMeta: true,
+    });
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        defaultAgent: {
+          config: { model: 'gpt-5.5', provider: 'newapi' },
+          meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
   });
 
   it('rejects syncing saved user defaults when enabled input completion model is unavailable', async () => {

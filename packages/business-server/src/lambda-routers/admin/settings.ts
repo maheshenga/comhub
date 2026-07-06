@@ -11,12 +11,12 @@ import { normalizeAvatarPresets } from '@/const/avatarPresets';
 import { normalizePlanFaqSettings } from '@/const/billingPresentation';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
-import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import {
   DEFAULT_EXPERT_PLAZA_CONFIG,
   normalizeExpertPlazaCards,
   normalizeExpertPlazaConfig,
 } from '@/const/expertPlaza';
+import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 import {
   adminAuditLogs,
@@ -443,11 +443,20 @@ type NormalizedSettingUpdate = SettingUpdateInput & {
   isSensitive: boolean;
 };
 type UserSettingsSyncValues = Partial<typeof userSettings.$inferInsert>;
+type UserSettingsSyncOptions = {
+  forceDefaultAgentMeta?: boolean;
+};
 
 const appSettingUpdateInputSchema = z.object({
   key: z.enum(WRITABLE_SETTING_KEYS),
   value: z.unknown(),
 });
+
+const syncUserGlobalSettingsDefaultsInputSchema = z
+  .object({
+    forceDefaultAgentMeta: z.boolean().optional(),
+  })
+  .optional();
 
 const settingDraftString = (settings: AppSettingDraft, key: string) =>
   typeof settings[key] === 'string' ? (settings[key] as string).trim() : '';
@@ -478,13 +487,31 @@ export const buildUserGlobalSettingsSyncValues = (defaults: unknown): UserSettin
   return values;
 };
 
-const mergeDefaultAgentSyncValue = (existing: unknown, incoming: unknown) => {
+const mergeDefaultAgentSyncValue = (
+  existing: unknown,
+  incoming: unknown,
+  options: UserSettingsSyncOptions = {},
+) => {
   const incomingDefaultAgent = getRecordValue(incoming);
   if (!incomingDefaultAgent) return incoming;
 
   const existingDefaultAgent = getRecordValue(existing) ?? {};
   const incomingConfig = getRecordValue(incomingDefaultAgent.config);
-  if (!incomingConfig) return { ...existingDefaultAgent, ...incomingDefaultAgent };
+  const incomingMeta = getRecordValue(incomingDefaultAgent.meta);
+  const existingMeta = getNestedRecordValue(existingDefaultAgent, 'meta');
+  const shouldPreserveExistingMeta =
+    incomingMeta &&
+    existingMeta &&
+    Object.keys(existingMeta).length > 0 &&
+    !options.forceDefaultAgentMeta;
+
+  if (!incomingConfig) {
+    return {
+      ...existingDefaultAgent,
+      ...incomingDefaultAgent,
+      ...(shouldPreserveExistingMeta ? { meta: existingMeta } : {}),
+    };
+  }
 
   const existingConfig = getNestedRecordValue(existingDefaultAgent, 'config') ?? {};
 
@@ -495,6 +522,7 @@ const mergeDefaultAgentSyncValue = (existing: unknown, incoming: unknown) => {
       ...existingConfig,
       ...incomingConfig,
     },
+    ...(shouldPreserveExistingMeta ? { meta: existingMeta } : {}),
   };
 };
 
@@ -864,6 +892,7 @@ const upsertAppSetting = async (
 export const syncUserGlobalSettingsDefaultsToUserSettings = async (
   db: LobeChatDatabase,
   defaults: unknown,
+  options: UserSettingsSyncOptions = {},
 ) => {
   const syncValues = buildUserGlobalSettingsSyncValues(defaults);
   const syncedFields = Object.keys(syncValues).filter((key) => key !== 'id');
@@ -902,6 +931,7 @@ export const syncUserGlobalSettingsDefaultsToUserSettings = async (
         defaultAgent: mergeDefaultAgentSyncValue(
           existingDefaultAgentByUser.get(user.id),
           defaultAgentSyncValue,
+          options,
         ),
       }));
       conflictSet = {
@@ -2093,20 +2123,30 @@ export const adminSettingsRouter = router({
       return { count: updates.length, ok: true };
     }),
 
-  syncUserGlobalSettingsDefaultsToUsers: systemWriteProcedure.mutation(async ({ ctx }) => {
-    const defaults = await readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults);
-    await validateUserGlobalSettingsDefaults(ctx.serverDB, defaults);
-    const result = await syncUserGlobalSettingsDefaultsToUserSettings(ctx.serverDB, defaults);
+  syncUserGlobalSettingsDefaultsToUsers: systemWriteProcedure
+    .input(syncUserGlobalSettingsDefaultsInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const options = { forceDefaultAgentMeta: input?.forceDefaultAgentMeta === true };
+      const defaults = await readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults);
+      await validateUserGlobalSettingsDefaults(ctx.serverDB, defaults);
+      const result = await syncUserGlobalSettingsDefaultsToUserSettings(
+        ctx.serverDB,
+        defaults,
+        options,
+      );
+      const forceSyncAuditPayload = options.forceDefaultAgentMeta
+        ? { forceDefaultAgentMeta: true }
+        : {};
 
-    await recordAdminAudit(ctx, {
-      action: 'settings.syncUserDefaults',
-      payload: result,
-      resourceId: SETTING_KEYS.userGlobalSettingsDefaults,
-      resourceType: 'user_settings',
-    });
+      await recordAdminAudit(ctx, {
+        action: 'settings.syncUserDefaults',
+        payload: { ...result, ...forceSyncAuditPayload },
+        resourceId: SETTING_KEYS.userGlobalSettingsDefaults,
+        resourceType: 'user_settings',
+      });
 
-    return { ok: true, ...result };
-  }),
+      return { ok: true, ...result, ...forceSyncAuditPayload };
+    }),
 
   refreshRuntimeCaches: systemWriteProcedure.mutation(async ({ ctx }) => {
     invalidateServerAppSettings();

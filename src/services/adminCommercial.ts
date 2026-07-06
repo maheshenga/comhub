@@ -133,8 +133,8 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.setAppSettingsBatch.mutate(params as any);
   };
 
-  syncUserGlobalSettingsDefaultsToUsers = async () => {
-    return lambdaClient.admin.settings.syncUserGlobalSettingsDefaultsToUsers.mutate();
+  syncUserGlobalSettingsDefaultsToUsers = async (params?: { forceDefaultAgentMeta?: boolean }) => {
+    return lambdaClient.admin.settings.syncUserGlobalSettingsDefaultsToUsers.mutate(params);
   };
 
   refreshRuntimeCaches = async () => {
