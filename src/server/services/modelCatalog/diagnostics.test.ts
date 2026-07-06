@@ -49,4 +49,34 @@ describe('model catalog diagnostics', () => {
       }),
     );
   });
+
+  it('reports duplicate model IDs across different provider instances', () => {
+    const diagnostics = getModelCatalogDiagnostics({
+      state: createState([
+        {
+          enabled: true,
+          id: 'shared-chat',
+          instanceName: 'ToAPI',
+          providerId: 'toapi',
+          type: 'chat',
+        },
+        {
+          enabled: true,
+          id: 'shared-chat',
+          providerId: 'siliconflow',
+          providerType: 'SiliconFlow',
+          type: 'chat',
+        },
+      ]),
+    });
+
+    expect(diagnostics.risks).toContainEqual(
+      expect.objectContaining({
+        key: 'duplicate:chat:shared-chat',
+        level: 'warning',
+      }),
+    );
+    expect(diagnostics.risks.at(-1)?.message).toContain('ToAPI');
+    expect(diagnostics.risks.at(-1)?.message).toContain('SiliconFlow');
+  });
 });

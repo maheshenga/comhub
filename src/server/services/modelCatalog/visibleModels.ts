@@ -4,10 +4,13 @@ import { isModelAllowedByPlanRules, type PlanModelRuleType } from '@/business/se
 import type { PlanModelRules } from '@/database/schemas';
 
 type RuntimeModel = AiProviderRuntimeState['enabledAiModels'][number] & {
+  displayName?: string | null;
   groupKey?: string | null;
   groupName?: string | null;
   instanceId?: string | null;
   instanceName?: string | null;
+  name?: string | null;
+  providerName?: string | null;
   providerType?: string | null;
 };
 
@@ -27,6 +30,14 @@ export interface ModelCatalogEntry {
   visibilityReason: ModelVisibilityReason;
 }
 
+export interface ModelCatalogDuplicateModelGroup {
+  count: number;
+  key: string;
+  modelId: string;
+  providers: string[];
+  type: string;
+}
+
 export interface ResolveVisibleModelCatalogParams {
   modelType?: PlanModelRuleType;
   planRules?: PlanModelRules | null;
@@ -35,6 +46,34 @@ export interface ResolveVisibleModelCatalogParams {
 }
 
 const getModelType = (model: RuntimeModel) => model.type as PlanModelRuleType;
+
+const UUID_RE = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
+
+const pickString = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+};
+
+export const resolveModelCatalogProviderDisplayName = (entry: ModelCatalogEntry) =>
+  pickString(
+    entry.instanceName,
+    entry.groupName,
+    entry.model.instanceName,
+    entry.model.groupName,
+    entry.model.providerName,
+    entry.providerType,
+    entry.model.providerType,
+    entry.model.providerId && !UUID_RE.test(entry.model.providerId)
+      ? entry.model.providerId
+      : undefined,
+  ) || 'Custom provider';
+
+export const resolveModelCatalogModelDisplayName = (entry: ModelCatalogEntry) =>
+  pickString(entry.model.displayName, entry.model.name, entry.model.id) || 'Untitled model';
 
 const resolveVisibilityReason = (
   model: RuntimeModel,
@@ -138,4 +177,59 @@ export const getModelCatalogHealth = (catalog: ModelCatalogEntry[]) => {
     totalCount: catalog.length,
     visibleCount,
   };
+};
+
+export const getModelCatalogDuplicateModelGroups = (
+  catalog: ModelCatalogEntry[],
+): ModelCatalogDuplicateModelGroup[] => {
+  const groups = catalog.reduce<
+    Map<
+      string,
+      {
+        count: number;
+        modelId: string;
+        providerIdentities: Set<string>;
+        providers: Set<string>;
+        type: string;
+      }
+    >
+  >((map, entry) => {
+    const type = String(entry.model.type || 'unknown');
+    const modelId = entry.model.id;
+    const key = `${type}:${modelId}`;
+    const providerLabel = resolveModelCatalogProviderDisplayName(entry);
+    const providerIdentity =
+      entry.instanceId || entry.model.instanceId || entry.model.providerId || providerLabel;
+    const group =
+      map.get(key) ||
+      ({
+        count: 0,
+        modelId,
+        providerIdentities: new Set<string>(),
+        providers: new Set<string>(),
+        type,
+      } satisfies {
+        count: number;
+        modelId: string;
+        providerIdentities: Set<string>;
+        providers: Set<string>;
+        type: string;
+      });
+
+    group.count += 1;
+    group.providerIdentities.add(providerIdentity);
+    group.providers.add(providerLabel);
+    map.set(key, group);
+    return map;
+  }, new Map());
+
+  return Array.from(groups.entries())
+    .filter(([, group]) => group.count > 1 && group.providerIdentities.size > 1)
+    .map(([key, group]) => ({
+      count: group.count,
+      key,
+      modelId: group.modelId,
+      providers: Array.from(group.providers),
+      type: group.type,
+    }));
 };

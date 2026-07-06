@@ -18,6 +18,7 @@ import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 import { type CreditLedgerEntryItem, type TopUpOrderHistoryItem } from '@/types/business';
 
+import { formatLedgerAllocationText } from './creditsDisplay';
 import { formatCreditLedgerDescription } from './ledgerDisplay';
 import RedemptionPanel from './RedemptionPanel';
 import {
@@ -135,27 +136,12 @@ const Credits = memo<{ mobile?: boolean }>(() => {
   );
 
   const getLedgerAllocationText = useCallback(
-    (record: CreditLedgerEntryItem) => {
-      if (record.type !== 'consume') return null;
-
-      const allocations = record.metadata?.allocations;
-      if (!Array.isArray(allocations) || allocations.length === 0) return null;
-
-      const normalizedAllocations = allocations.flatMap((item) => {
-        if (typeof item !== 'object' || item === null) return [];
-
-        const amount = (item as { amount?: unknown }).amount;
-        const source = (item as { source?: unknown }).source;
-
-        if (!Number.isFinite(amount) || typeof source !== 'string') return [];
-
-        return [`${t(getCreditSourceTranslationKey(source))} ${formatCredits(Number(amount))}`];
-      });
-
-      if (normalizedAllocations.length === 0) return null;
-
-      return `扣费来源：${normalizedAllocations.join(' · ')}`;
-    },
+    (record: CreditLedgerEntryItem) =>
+      formatLedgerAllocationText(
+        record,
+        (source) => t(getCreditSourceTranslationKey(source)),
+        formatCredits,
+      ),
     [t],
   );
 

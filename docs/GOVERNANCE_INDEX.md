@@ -14,9 +14,11 @@ This index tells future agents which governance artifact to read or update.
 | `docs/CHANGELOG_INTERNAL.md` | internal implementation record | every governance or feature sprint |
 | `docs/GOVERNANCE_SPRINT_001.md` | first executable governance batch | historical record only |
 | `docs/GOVERNANCE_SPRINT_002.md` | second executable governance batch | update verification status for this batch |
+| `docs/GOVERNANCE_SPRINT_003.md` | third executable governance batch | update verification status for this batch |
 | `docs/ADMIN_SETTINGS_MAP.md` | app settings registry and cache ownership map | app setting keys/domains/cache scopes change |
 | `docs/COMMERCIAL_PAGE_BOUNDARIES.md` | commercial page data ownership rules | plans/credits/billing/usage/referral responsibilities change |
 | `docs/DEPLOYMENT_VERSION_PROBE.md` | deployment evidence checklist | deployment pipeline or smoke checks change |
+| `docs/MODEL_CATALOG_DISPLAY_RULES.md` | provider/model display and duplicate grouping rules | model catalog display, grouping, diagnostics, or pricing metadata changes |
 
 ## Agent Workflow
 
