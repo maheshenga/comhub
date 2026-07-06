@@ -196,7 +196,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
         key: 'description',
         render: (value, record) => {
           const allocationText = getLedgerAllocationText(record);
-          const description = formatCreditLedgerDescription(value);
+          const description = formatCreditLedgerDescription(value, record.metadata);
 
           if (!allocationText) return description;
 

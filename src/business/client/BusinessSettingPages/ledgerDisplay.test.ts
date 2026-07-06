@@ -9,6 +9,29 @@ describe('formatCreditLedgerDescription', () => {
     ).toBe('模型调用：deepseek-v4-pro');
   });
 
+  it('uses metadata display names before raw provider UUIDs and model ids', () => {
+    expect(
+      formatCreditLedgerDescription(
+        'Consumed on 757e1732-8478-4c93-a4dd-1e17489a9c48/deepseek-v4-pro',
+        {
+          instanceName: 'ToAPI',
+          modelDisplayName: 'DeepSeek V4 Pro',
+        },
+      ),
+    ).toBe('模型调用：DeepSeek V4 Pro · 服务商：ToAPI');
+  });
+
+  it('falls back to provider metadata when the raw provider is not readable', () => {
+    expect(
+      formatCreditLedgerDescription(
+        'Consumed on 757e1732-8478-4c93-a4dd-1e17489a9c48/deepseek-v4-pro',
+        {
+          providerType: 'newapi',
+        },
+      ),
+    ).toBe('模型调用：deepseek-v4-pro · 服务商：newapi');
+  });
+
   it('keeps readable provider names when available', () => {
     expect(formatCreditLedgerDescription('Consumed on siliconflow/deepseek-v3')).toBe(
       '模型调用：deepseek-v3 · 服务商：siliconflow',

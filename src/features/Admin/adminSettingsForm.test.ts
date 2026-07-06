@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 
 import {
+  ADMIN_SETTINGS_FORM_SETTING_KEYS,
+  ADMIN_SETTINGS_NON_FORM_SETTING_KEYS,
   buildFormValues,
   buildSettingMaterializationUpdates,
   buildModelOptions,
@@ -19,6 +21,21 @@ describe('adminSettingsForm', () => {
     expect(SETTING_KEYS.brandName).toBe('brand.name');
     expect(SETTING_KEYS.desktopDownloadUrl).toBe('desktop.download.url');
     expect(SETTING_KEYS.plansFaqItems).toBe('plans.faq.items');
+  });
+
+  it('classifies every registered app setting as form-managed or explicitly non-form', () => {
+    const allRegisteredKeys = Object.values(SETTING_KEYS).sort();
+    const formKeys = [...ADMIN_SETTINGS_FORM_SETTING_KEYS].sort();
+    const nonFormKeys = [...ADMIN_SETTINGS_NON_FORM_SETTING_KEYS].sort();
+    const nonFormKeySet = new Set<string>(nonFormKeys);
+    const coveredKeys = [...new Set([...formKeys, ...nonFormKeys])].sort();
+
+    expect(formKeys).toEqual([...new Set(formKeys)]);
+    expect(nonFormKeys).toEqual([...new Set(nonFormKeys)]);
+    expect(formKeys.filter((key) => nonFormKeySet.has(key))).toEqual([]);
+    expect(coveredKeys).toEqual(allRegisteredKeys);
+    expect(formKeys).toContain(SETTING_KEYS.brandName);
+    expect(nonFormKeys).toContain(SETTING_KEYS.composioApiKey);
   });
 
   it('builds default model options from enabled provider models and suggestions', () => {

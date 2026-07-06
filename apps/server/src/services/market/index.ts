@@ -18,6 +18,8 @@ const MARKET_BASE_URL = process.env.MARKET_BASE_URL || 'https://market.lobehub.c
 
 // ============================== Helper Functions ==============================
 
+const EMPTY_DESCRIPTION_FALLBACK = '内容暂不可用';
+
 const MARKET_SKILL_AUTH_ERROR_CODES = new Set(['invalid_token', 'unauthorized']);
 
 const isMarketAuthError = (error: unknown) => {
@@ -55,24 +57,33 @@ const fetchPublicMarketJson = async <T>(path: string, params: Record<string, unk
   return response.json() as Promise<T>;
 };
 
+const isPlaceholderText = (text: string) => text.toUpperCase() === 'UN';
+
 const firstText = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value !== 'string') continue;
     const text = value.trim();
+    if (isPlaceholderText(text)) continue;
     if (text) return text;
   }
 };
 
-const normalizeSkillListItem = (item: unknown) => {
+const normalizeSkillListItem = (item: unknown, fallbackIdentifier?: unknown) => {
   if (!item || typeof item !== 'object') return;
 
   const skill = item as Record<string, unknown>;
-  const identifier = firstText(skill.identifier, skill.slug);
+  const identifier = firstText(skill.identifier, skill.slug, fallbackIdentifier);
   if (!identifier) return;
 
+  const hasPlaceholderLabel = [skill.name, skill.title, skill.displayName].some(
+    (value) => typeof value === 'string' && isPlaceholderText(value.trim()),
+  );
+  const hasDescriptionField = 'description' in skill || 'summary' in skill;
   const name = firstText(skill.name, skill.title, skill.displayName, identifier);
   const title = firstText(skill.title, skill.displayName);
-  const description = firstText(skill.description, skill.summary);
+  const description =
+    firstText(skill.description, skill.summary) ||
+    (hasDescriptionField || hasPlaceholderLabel ? EMPTY_DESCRIPTION_FALLBACK : undefined);
   const icon = firstText(skill.icon, skill.avatar);
 
   if (
@@ -559,16 +570,18 @@ export class MarketService {
 
       log('getSkillDetail response: %O', result);
 
-      return result;
+      return (normalizeSkillListItem(result, identifier) || result) as MarketSkillDetail;
     } catch (error) {
       if (!isMarketAuthError(error)) throw error;
 
       log('getSkillDetail SDK auth failed, falling back to public detail: %O', error);
 
-      return fetchPublicMarketJson<MarketSkillDetail>(
+      const result = await fetchPublicMarketJson<MarketSkillDetail>(
         `/api/v1/skills/${encodeURIComponent(identifier)}`,
         options,
       );
+
+      return (normalizeSkillListItem(result, identifier) || result) as MarketSkillDetail;
     }
   }
 

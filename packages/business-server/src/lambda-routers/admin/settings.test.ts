@@ -474,6 +474,43 @@ describe('admin settings default model validation', () => {
     });
   });
 
+  it('does not expose sensitive desktop OSS settings through public desktop config', async () => {
+    const db = createDb({
+      appSettings: [
+        { value: 'https://updates.example.com' },
+        { value: 'stable' },
+        { value: true },
+        { value: 60 },
+        { value: 'https://downloads.example.com/app.exe' },
+        { value: 'Download Desktop' },
+        { value: '1.0.0' },
+        { value: 'Release notes' },
+        { value: 'Desktop' },
+        { value: '/logo.png' },
+        { value: 'Sign in' },
+        { value: 'Connect your account.' },
+        { value: 'Sign in to Cloud' },
+        { value: 'Copyright' },
+      ],
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.desktopOssAccessKeyId, value: 'desktop-oss-access-key' },
+        { key: APP_SETTING_KEYS.desktopOssAccessKeySecret, value: 'desktop-oss-secret-key' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const settings = await caller.getPublicDesktopUpdate();
+    const serialized = JSON.stringify(settings);
+
+    expect(settings).toMatchObject({
+      downloadUrl: 'https://downloads.example.com/app.exe',
+      serverUrl: 'https://updates.example.com',
+    });
+    expect(serialized).not.toContain('desktop-oss-access-key');
+    expect(serialized).not.toContain('desktop-oss-secret-key');
+  });
+
   it('rejects non-positive global pricing multipliers', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);

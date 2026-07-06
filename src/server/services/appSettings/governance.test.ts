@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
+import {
+  APP_SETTING_KEYS,
+  APP_SETTING_REGISTRY,
+  listAppSettingRegistryItems,
+} from '@/const/appSettingsRegistry';
 
 import { buildAppSettingsGovernance, isUnknownAppSettingKey } from './governance';
 
@@ -57,5 +61,21 @@ describe('buildAppSettingsGovernance', () => {
     expect(result.unknownKeys).toEqual([{ key: 'legacy.unknown.key' }]);
     expect(result.domainGroups[0]).toHaveProperty('label');
     expect(result.cacheScopeGroups[0]).toHaveProperty('label');
+  });
+
+  it('requires every app setting key to declare governance metadata', () => {
+    const registeredKeys = Object.values(APP_SETTING_KEYS).sort();
+
+    expect(Object.keys(APP_SETTING_REGISTRY).sort()).toEqual(registeredKeys);
+
+    for (const item of listAppSettingRegistryItems()) {
+      expect(item.key).toBeTruthy();
+      expect(item.domain).toBeTruthy();
+      expect(item.cacheScopes.length).toBeGreaterThan(0);
+      expect(item.cacheScopes).toContain('app-settings');
+      expect(typeof item.sensitive).toBe('boolean');
+      expect(typeof item.publicRuntime).toBe('boolean');
+      if (item.publicRuntime) expect(item.sensitive).toBe(false);
+    }
   });
 });
