@@ -22,3 +22,5 @@
 - Verification: `packages/business-server/src/lambda-routers/admin/settings.test.ts`.
 - GOV-029: Added before/after credit-account snapshots to the admin `credits.adjust` audit payload so manual credit changes have a reversible asset trail.
 - Verification: `packages/business-server/src/lambda-routers/admin/credits.test.ts`.
+- GOV-030: Added before/after plan-catalog snapshots to admin plan update/delete audit payloads while preserving the existing payload fields.
+- Verification: `packages/business-server/src/lambda-routers/admin/plans.test.ts`.

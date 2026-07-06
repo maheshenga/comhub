@@ -16,10 +16,12 @@ vi.mock('./audit', () => ({
 
 const createDb = ({
   activePlanSnapshot = undefined,
+  planCatalogRow = { plan: Plans.Premium },
   planRedemptionCode = undefined,
   role = 'admin',
 }: {
   activePlanSnapshot?: { id: string };
+  planCatalogRow?: Record<string, unknown> | null;
   planRedemptionCode?: { id: string };
   role?: string | null;
 } = {}) => {
@@ -43,7 +45,7 @@ const createDb = ({
     insert,
     query: {
       planCatalog: {
-        findFirst: vi.fn().mockResolvedValue({ plan: Plans.Premium }),
+        findFirst: vi.fn().mockResolvedValue(planCatalogRow),
       },
       redemptionCodes: {
         findFirst: vi.fn().mockResolvedValue(planRedemptionCode),
@@ -94,7 +96,14 @@ describe('adminPlansRouter', () => {
     expect(db.delete).toHaveBeenCalled();
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ action: 'plan.delete', resourceId: Plans.Premium }),
+      expect.objectContaining({
+        action: 'plan.delete',
+        payload: expect.objectContaining({
+          after: null,
+          before: expect.objectContaining({ plan: Plans.Premium }),
+        }),
+        resourceId: Plans.Premium,
+      }),
     );
   });
 
@@ -113,7 +122,20 @@ describe('adminPlansRouter', () => {
   });
 
   it('syncs resource quotas to active users when a plan is saved', async () => {
-    const db = createDb();
+    const existingPlan = {
+      currency: 'CNY',
+      displayName: 'Old Premium',
+      features: ['old feature'],
+      isActive: true,
+      metadata: { storageQuotaMb: 256, vectorQuota: 600 },
+      modelRules: null,
+      monthlyCredits: 1000,
+      monthlyPrice: 100,
+      plan: Plans.Premium,
+      sortOrder: 2,
+      yearlyPrice: 1000,
+    };
+    const db = createDb({ planCatalogRow: existingPlan });
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     await adminPlansRouter.createCaller({ userId: 'admin-user' } as any).upsert({
@@ -183,7 +205,34 @@ describe('adminPlansRouter', () => {
     );
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ action: 'plan.update', resourceId: Plans.Premium }),
+      expect.objectContaining({
+        action: 'plan.update',
+        payload: expect.objectContaining({
+          activeUserCount: 2,
+          after: expect.objectContaining({
+            displayName: 'Premium',
+            metadata: expect.objectContaining({
+              badge: 'Popular',
+              comparisonNote: expect.any(String),
+              storageQuotaMb: 512,
+              vectorQuota: 1200,
+              yearlyDiscountLabel: expect.any(String),
+            }),
+            monthlyCredits: 5000,
+            plan: Plans.Premium,
+          }),
+          before: expect.objectContaining({
+            displayName: 'Old Premium',
+            metadata: { storageQuotaMb: 256, vectorQuota: 600 },
+            plan: Plans.Premium,
+          }),
+          quotaUpdate: expect.objectContaining({
+            storageQuota: 512 * 1024 * 1024,
+            vectorQuota: 1200,
+          }),
+        }),
+        resourceId: Plans.Premium,
+      }),
     );
   });
 

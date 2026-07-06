@@ -69,6 +69,28 @@ const toStorageQuotaBytes = (storageQuotaMb?: null | number) =>
 
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
+type PlanCatalogAuditRow = Partial<typeof planCatalog.$inferSelect>;
+
+const toPlanCatalogAuditSnapshot = (row?: PlanCatalogAuditRow | null) => {
+  if (!row) return null;
+
+  return Object.fromEntries(
+    Object.entries({
+      currency: row.currency,
+      displayName: row.displayName,
+      features: row.features,
+      isActive: row.isActive,
+      metadata: row.metadata ?? null,
+      modelRules: row.modelRules ?? null,
+      monthlyCredits: row.monthlyCredits,
+      monthlyPrice: row.monthlyPrice,
+      plan: row.plan,
+      sortOrder: row.sortOrder,
+      yearlyPrice: row.yearlyPrice,
+    }).filter(([, value]) => value !== undefined),
+  );
+};
+
 export const adminPlansRouter = router({
   delete: financeWriteProcedure
     .input(z.object({ plan: z.string().min(1) }))
@@ -100,9 +122,17 @@ export const adminPlansRouter = router({
         });
       }
 
+      const existing = await ctx.serverDB.query.planCatalog.findFirst({
+        where: eq(planCatalog.plan, input.plan),
+      });
+
       await ctx.serverDB.delete(planCatalog).where(eq(planCatalog.plan, input.plan));
       await recordAdminAudit(ctx, {
         action: 'plan.delete',
+        payload: {
+          after: null,
+          before: toPlanCatalogAuditSnapshot(existing),
+        },
         resourceId: input.plan,
         resourceType: 'plan_catalog',
       });
@@ -182,13 +212,15 @@ export const adminPlansRouter = router({
     };
     if (!normalizedPurchaseUrl) delete metadata.purchaseUrl;
 
+    const nextPlanCatalog = { ...planInput, metadata };
+
     if (existing) {
       await ctx.serverDB
         .update(planCatalog)
-        .set({ ...planInput, metadata, updatedAt: new Date() })
+        .set({ ...nextPlanCatalog, updatedAt: new Date() })
         .where(eq(planCatalog.plan, planInput.plan));
     } else {
-      await ctx.serverDB.insert(planCatalog).values({ ...planInput, metadata });
+      await ctx.serverDB.insert(planCatalog).values(nextPlanCatalog);
     }
 
     const activeSnapshots = await ctx.serverDB.query.userPlanSnapshots.findMany({
@@ -201,11 +233,14 @@ export const adminPlansRouter = router({
     const activeUserIds = Array.from(
       new Set(activeSnapshots.map((snapshot: { userId: string }) => snapshot.userId)),
     );
+    const quotaAudit = {
+      storageQuota: toStorageQuotaBytes(storageQuotaMb),
+      vectorQuota: vectorQuota ?? null,
+    };
     if (activeUserIds.length > 0) {
       const quotaUpdate = {
-        storageQuota: toStorageQuotaBytes(storageQuotaMb),
+        ...quotaAudit,
         updatedAt: new Date(),
-        vectorQuota: vectorQuota ?? null,
       };
 
       await ctx.serverDB
@@ -226,12 +261,16 @@ export const adminPlansRouter = router({
       action: existing ? 'plan.update' : 'plan.create',
       payload: {
         ...planInput,
+        activeUserCount: activeUserIds.length,
+        after: toPlanCatalogAuditSnapshot(nextPlanCatalog),
+        before: toPlanCatalogAuditSnapshot(existing),
         ...(lifetimePrice === undefined ? {} : { lifetimePrice }),
         ...(oneTimePrice === undefined ? {} : { oneTimePrice }),
         pptCreditCost: pptCreditCost ?? 0,
         pptEnabled: pptEnabled === true,
         pptMonthlyQuota: pptMonthlyQuota ?? null,
         purchaseUrl: normalizedPurchaseUrl,
+        quotaUpdate: quotaAudit,
         storageQuotaMb: storageQuotaMb ?? null,
         vectorQuota: vectorQuota ?? null,
       },
