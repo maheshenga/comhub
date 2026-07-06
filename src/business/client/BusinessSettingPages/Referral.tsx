@@ -253,18 +253,19 @@ const Referral = memo<{ mobile?: boolean }>(() => {
           ) : null}
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title="我的推荐码" variant="filled">
-          {isEditing ? (
-            <Input
-              maxLength={7}
-              value={draftCode}
-              onChange={(e: { target: { value: string } }) =>
-                setDraftCode(e.target.value.replaceAll(/\D/g, '').slice(0, 7))
-              }
-            />
-          ) : (
-            <div className={subscriptionPageStyles.monoBlock}>{effectiveReferralCode}</div>
-          )}
-          <div className={subscriptionPageStyles.actionRow}>
+          <div className={subscriptionPageStyles.inlineValueRow}>
+            {isEditing ? (
+              <Input
+                maxLength={7}
+                style={{ flex: 1, minWidth: 0 }}
+                value={draftCode}
+                onChange={(e: { target: { value: string } }) =>
+                  setDraftCode(e.target.value.replaceAll(/\D/g, '').slice(0, 7))
+                }
+              />
+            ) : (
+              <div className={subscriptionPageStyles.inlineValue}>{effectiveReferralCode}</div>
+            )}
             <Button
               icon={<Icon icon={Copy} />}
               onClick={() => void copyText(effectiveReferralCode, '推荐码')}
@@ -293,13 +294,15 @@ const Referral = memo<{ mobile?: boolean }>(() => {
           </div>
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title="推荐链接" variant="filled">
-          <div className={subscriptionPageStyles.monoBlock}>{effectiveReferralLink}</div>
-          <Button
-            icon={<Icon icon={Copy} />}
-            onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
-          >
-            复制链接
-          </Button>
+          <div className={subscriptionPageStyles.inlineValueRow}>
+            <div className={subscriptionPageStyles.inlineValue}>{effectiveReferralLink}</div>
+            <Button
+              icon={<Icon icon={Copy} />}
+              onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
+            >
+              复制链接
+            </Button>
+          </div>
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title="推荐记录" variant="filled">
           <InlineTable
@@ -328,10 +331,10 @@ const Referral = memo<{ mobile?: boolean }>(() => {
             <li>忘记填写邀请码：注册三天内可以补填邀请码。</li>
             <li>如检测到通过不正当手段获取积分，相关账号将被永久封禁。</li>
           </ol>
-          <div className={subscriptionPageStyles.actionRow}>
+          <div className={subscriptionPageStyles.inlineValueRow}>
             <Input
               placeholder="输入 7 位推荐码或推荐链接"
-              style={{ maxWidth: 360 }}
+              style={{ flex: 1, minWidth: 0 }}
               value={backfillCode}
               onChange={(e: { target: { value: string } }) => setBackfillCode(e.target.value)}
             />

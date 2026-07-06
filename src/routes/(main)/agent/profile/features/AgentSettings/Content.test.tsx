@@ -20,6 +20,12 @@ const mocks = vi.hoisted(() => ({
       enableAgentSelfIteration: true,
     },
   },
+  userState: {
+    defaultAgentMeta: {
+      avatar: '/images/brand/logo.svg',
+      title: '小果',
+    },
+  },
 }));
 
 vi.mock('@lobehub/ui', () => ({
@@ -60,6 +66,10 @@ vi.mock('@/features/AgentSetting', () => ({
   ),
 }));
 
+vi.mock('@/features/Brand/BrandProvider', () => ({
+  useBrand: () => ({ logoUrl: '/brand.svg', name: '玄果' }),
+}));
+
 vi.mock('@/store/agent', () => {
   const useAgentStore = (selector: (state: typeof mocks.agentState) => unknown) =>
     selector(mocks.agentState);
@@ -84,6 +94,16 @@ vi.mock('@/store/serverConfig', () => ({
     selector(mocks.serverState),
 }));
 
+vi.mock('@/store/user', () => ({
+  useUserStore: (selector: (state: typeof mocks.userState) => unknown) => selector(mocks.userState),
+}));
+
+vi.mock('@/store/user/selectors', () => ({
+  settingsSelectors: {
+    defaultAgentMeta: (state: typeof mocks.userState) => state.defaultAgentMeta,
+  },
+}));
+
 vi.mock('antd-style', () => ({
   useTheme: () => ({
     colorBgLayout: '#fff',
@@ -101,6 +121,10 @@ describe('AgentSettings Content', () => {
   beforeEach(() => {
     mocks.agentState.isInbox = true;
     mocks.serverState.featureFlags.enableAgentSelfIteration = true;
+    mocks.userState.defaultAgentMeta = {
+      avatar: '/images/brand/logo.svg',
+      title: '小果',
+    };
   });
 
   it('should select self iteration when inbox hides opening settings', () => {
@@ -116,5 +140,16 @@ describe('AgentSettings Content', () => {
       'data-tab',
       ChatSettingsTabs.SelfIteration,
     );
+  });
+
+  it('should show default agent identity and fallback content when inbox has no advanced tabs', () => {
+    mocks.serverState.featureFlags.enableAgentSelfIteration = false;
+
+    render(<Content />);
+
+    expect(screen.getByText('小果')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-settings-content')).not.toBeInTheDocument();
+    expect(screen.getByText('agentTab.empty.title')).toBeInTheDocument();
+    expect(screen.getByText('agentTab.empty.desc')).toBeInTheDocument();
   });
 });

@@ -8,7 +8,6 @@ import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
-import { Card } from '@/components/antd-compat/Card';
 import InlineTable from '@/components/InlineTable';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
@@ -93,44 +92,42 @@ const Billing = memo<{ mobile?: boolean }>(() => {
       <SettingHeader title={'账单'} />
       <div className={subscriptionPageStyles.pageStack}>
         <FormGroup collapsible={false} gap={16} title={'订阅摘要'} variant={'filled'}>
-          <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
-            <div className={subscriptionPageStyles.cardGrid}>
-              <div>
-                <div>当前周期金额（{cycleLabel}）</div>
-                <div className={subscriptionPageStyles.tileValue}>
-                  {formatCurrencyAmount(
-                    subscriptionSummary?.monthlyPrice ?? 0,
-                    subscriptionSummary?.currency,
-                  )}
-                </div>
-                <div className={subscriptionPageStyles.caption}>
-                  此金额来自当前套餐快照；真实收款、退款与开票仍以管理员后台订单记录为准。
-                  <Button size={'small'} type={'link'} onClick={handleViewBillingHistory}>
-                    查看变更记录
-                  </Button>
-                </div>
+          <div className={subscriptionPageStyles.cardGrid}>
+            <div>
+              <div>当前周期金额（{cycleLabel}）</div>
+              <div className={subscriptionPageStyles.tileValue}>
+                {formatCurrencyAmount(
+                  subscriptionSummary?.monthlyPrice ?? 0,
+                  subscriptionSummary?.currency,
+                )}
               </div>
-              <div>
-                <div>账单信息</div>
-                <div className={subscriptionPageStyles.caption}>
-                  状态：{t(getBillingStatusTranslationKey(subscriptionSummary?.status))}
-                </div>
-                <div className={subscriptionPageStyles.caption}>
-                  订阅 ID：{subscriptionSummary?.externalSubscriptionId || '--'}
-                </div>
-                <div className={subscriptionPageStyles.caption}>周期：{cycleLabel}</div>
-                <div className={subscriptionPageStyles.caption}>
-                  开始时间：{formatBusinessDate(subscriptionSummary?.startedAt)}
-                </div>
-                <div className={subscriptionPageStyles.caption}>
-                  续费/结束时间：{formatBusinessDate(nextDate)}
-                </div>
-                <Button href="/settings/plans" size={'small'} type={'link'}>
-                  升级计划
+              <div className={subscriptionPageStyles.caption}>
+                此金额来自当前套餐快照；真实收款、退款与开票仍以管理员后台订单记录为准。
+                <Button size={'small'} type={'link'} onClick={handleViewBillingHistory}>
+                  查看变更记录
                 </Button>
               </div>
             </div>
-          </Card>
+            <div>
+              <div>账单信息</div>
+              <div className={subscriptionPageStyles.caption}>
+                状态：{t(getBillingStatusTranslationKey(subscriptionSummary?.status))}
+              </div>
+              <div className={subscriptionPageStyles.caption}>
+                订阅 ID：{subscriptionSummary?.externalSubscriptionId || '--'}
+              </div>
+              <div className={subscriptionPageStyles.caption}>周期：{cycleLabel}</div>
+              <div className={subscriptionPageStyles.caption}>
+                开始时间：{formatBusinessDate(subscriptionSummary?.startedAt)}
+              </div>
+              <div className={subscriptionPageStyles.caption}>
+                续费/结束时间：{formatBusinessDate(nextDate)}
+              </div>
+              <Button href="/settings/plans" size={'small'} type={'link'}>
+                升级计划
+              </Button>
+            </div>
+          </div>
           {pendingChangeRequest ? (
             <Alert
               showIcon
@@ -145,32 +142,30 @@ const Billing = memo<{ mobile?: boolean }>(() => {
           ) : null}
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'当前套餐'} variant={'filled'}>
-          <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
-            <Flexbox gap={16}>
-              <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
-                <PlanIcon plan={currentPlan} type={'combine'} />
-                <Button href="/settings/plans" type={'primary'}>
-                  升级
-                </Button>
-              </Flexbox>
-              <div className={subscriptionPageStyles.cardGrid}>
-                <div>
-                  {includedBenefits.map((item) => (
-                    <div className={subscriptionPageStyles.caption} key={item}>
-                      <Icon color={'#16a34a'} icon={Check} size={14} /> {item}
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  {excludedBenefits.map((item) => (
-                    <div className={subscriptionPageStyles.caption} key={item}>
-                      <Icon color={'#ef4444'} icon={X} size={14} /> {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
+          <Flexbox gap={16}>
+            <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
+              <PlanIcon plan={currentPlan} type={'combine'} />
+              <Button href="/settings/plans" type={'primary'}>
+                升级
+              </Button>
             </Flexbox>
-          </Card>
+            <div className={subscriptionPageStyles.cardGrid}>
+              <div>
+                {includedBenefits.map((item) => (
+                  <div className={subscriptionPageStyles.caption} key={item}>
+                    <Icon color={'#16a34a'} icon={Check} size={14} /> {item}
+                  </div>
+                ))}
+              </div>
+              <div>
+                {excludedBenefits.map((item) => (
+                  <div className={subscriptionPageStyles.caption} key={item}>
+                    <Icon color={'#ef4444'} icon={X} size={14} /> {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Flexbox>
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'兑换码'} variant={'filled'}>
           <RedemptionPanel

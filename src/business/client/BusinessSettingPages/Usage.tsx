@@ -82,7 +82,9 @@ const Usage = memo<{ mobile?: boolean }>(() => {
           <div className={subscriptionPageStyles.caption}>
             展示文本生成、嵌入、图像生成等功能的计算积分使用详情。
           </div>
-          <UsageTable dateStrings={month} />
+          <div className={subscriptionPageStyles.tableSection}>
+            <UsageTable dateStrings={month} />
+          </div>
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'本月使用情况'} variant={'filled'}>
           <div className={subscriptionPageStyles.cardGrid}>
@@ -107,9 +109,9 @@ const Usage = memo<{ mobile?: boolean }>(() => {
               value={formatCredits(accountBreakdown?.referral.available ?? 0)}
             />
           </div>
-          <Divider style={{ marginBlock: 0 }} />
+          <Divider style={{ marginBlock: 8 }} />
           <UsageCards data={usageData} groupBy={groupBy} isLoading={isLoading} />
-          <Divider style={{ marginBlock: 0 }} />
+          <Divider style={{ marginBlock: 8 }} />
           <UsageTrends data={usageData} groupBy={groupBy} isLoading={isLoading} />
         </FormGroup>
       </div>
