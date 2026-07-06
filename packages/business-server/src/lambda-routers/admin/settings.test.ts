@@ -19,6 +19,7 @@ import { recordAdminAudit } from './audit';
 import {
   adminSettingsRouter,
   buildUserGlobalSettingsSyncValues,
+  syncUserGlobalSettingsDefaultsToUserSettings,
   validateDefaultAgentModelUsability,
 } from './settings';
 
@@ -1002,6 +1003,56 @@ describe('admin settings default model validation', () => {
         resourceType: 'user_settings',
       }),
     );
+  });
+
+  it('preserves user-customized default assistant meta when syncing default agent config', async () => {
+    const defaults = {
+      defaultAgent: { config: { model: 'gpt-5.5', provider: 'newapi' } },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]);
+    const selectSettingsWhere = vi.fn().mockResolvedValue([
+      {
+        defaultAgent: {
+          config: { model: 'old-model', provider: 'old-provider' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    const selectSettingsFrom = vi.fn(() => ({ where: selectSettingsWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: selectUsersFrom })
+      .mockReturnValueOnce({ from: selectSettingsFrom });
+    const db = { insert, select } as any;
+
+    await expect(syncUserGlobalSettingsDefaultsToUserSettings(db, defaults)).resolves.toEqual({
+      syncedFields: ['defaultAgent'],
+      syncedUsers: 2,
+    });
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        defaultAgent: {
+          config: { model: 'gpt-5.5', provider: 'newapi' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+      {
+        defaultAgent: { config: { model: 'gpt-5.5', provider: 'newapi' } },
+        id: 'user-2',
+      },
+    ]);
+    expect(onConflictDoUpdate).toHaveBeenCalledWith({
+      set: {
+        defaultAgent: expect.anything(),
+      },
+      target: expect.anything(),
+    });
   });
 
   it('rejects syncing saved user defaults when enabled input completion model is unavailable', async () => {

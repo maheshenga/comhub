@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { normalizeAboutLinksConfig, normalizeAboutPageConfig } from '@/const/aboutLinks';
@@ -478,6 +478,26 @@ export const buildUserGlobalSettingsSyncValues = (defaults: unknown): UserSettin
   return values;
 };
 
+const mergeDefaultAgentSyncValue = (existing: unknown, incoming: unknown) => {
+  const incomingDefaultAgent = getRecordValue(incoming);
+  if (!incomingDefaultAgent) return incoming;
+
+  const existingDefaultAgent = getRecordValue(existing) ?? {};
+  const incomingConfig = getRecordValue(incomingDefaultAgent.config);
+  if (!incomingConfig) return { ...existingDefaultAgent, ...incomingDefaultAgent };
+
+  const existingConfig = getNestedRecordValue(existingDefaultAgent, 'config') ?? {};
+
+  return {
+    ...existingDefaultAgent,
+    ...incomingDefaultAgent,
+    config: {
+      ...existingConfig,
+      ...incomingConfig,
+    },
+  };
+};
+
 const getDefaultModelValidationTarget = (key: string): ModelValidationTarget | undefined => {
   if (key === SETTING_KEYS.defaultImageModel || key === SETTING_KEYS.defaultImageProvider) {
     return {
@@ -857,11 +877,44 @@ export const syncUserGlobalSettingsDefaultsToUserSettings = async (
     const batch = userRows.slice(index, index + USER_SETTINGS_SYNC_BATCH_SIZE);
     if (batch.length === 0) continue;
 
+    const defaultAgentSyncValue = syncValues.defaultAgent;
+    const shouldMergeDefaultAgent = defaultAgentSyncValue !== undefined;
+    let rows = batch.map((user) => ({ id: user.id, ...syncValues }));
+    let conflictSet = syncValues;
+
+    if (shouldMergeDefaultAgent) {
+      const existingRows = await db
+        .select({ defaultAgent: userSettings.defaultAgent, id: userSettings.id })
+        .from(userSettings)
+        .where(
+          inArray(
+            userSettings.id,
+            batch.map((user) => user.id),
+          ),
+        );
+      const existingDefaultAgentByUser = new Map(
+        existingRows.map((row) => [row.id, row.defaultAgent]),
+      );
+
+      rows = batch.map((user) => ({
+        id: user.id,
+        ...syncValues,
+        defaultAgent: mergeDefaultAgentSyncValue(
+          existingDefaultAgentByUser.get(user.id),
+          defaultAgentSyncValue,
+        ),
+      }));
+      conflictSet = {
+        ...syncValues,
+        defaultAgent: sql`excluded.default_agent` as never,
+      };
+    }
+
     await db
       .insert(userSettings)
-      .values(batch.map((user) => ({ id: user.id, ...syncValues })))
+      .values(rows)
       .onConflictDoUpdate({
-        set: syncValues,
+        set: conflictSet,
         target: userSettings.id,
       });
     syncedUsers += batch.length;
