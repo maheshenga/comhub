@@ -1209,8 +1209,6 @@ export class CommercialModel {
       where: eq(topUpPackages.isActive, true),
     });
 
-    if (rows.length === 0) return DEFAULT_TOP_UP_PACKAGES;
-
     return rows.map((r) => ({
       amount: Number(r.amount),
       credits: Number(r.credits),

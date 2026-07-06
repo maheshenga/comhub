@@ -3,12 +3,14 @@ import { z } from 'zod';
 
 import { creditAccounts, creditLedgerEntries } from '@/database/schemas';
 import type { Transaction } from '@/database/type';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
+const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+
 export const adminCreditsRouter = router({
-  adjust: adminProcedure
+  adjust: financeWriteProcedure
     .input(
       z.object({
         amount: z.number().int(),

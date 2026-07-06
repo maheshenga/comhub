@@ -32,11 +32,13 @@ const createDbMock = ({
   findFirstRow,
   findManyRows,
   providerType = 'newapi',
+  role = 'admin',
 }: {
   existingRows?: Array<{ enabled: boolean; modelId: string; modelType: string }>;
   findFirstRow?: Record<string, any>;
   findManyRows?: Array<Record<string, any>>;
   providerType?: string;
+  role?: string | null;
 } = {}) => {
   const writes = {
     insertRows: [] as any[],
@@ -98,7 +100,7 @@ const createDbMock = ({
         ),
       },
       users: {
-        findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        findFirst: vi.fn().mockResolvedValue({ banned: false, role }),
       },
     },
     select: vi.fn(() => ({
@@ -179,6 +181,30 @@ describe('adminNewapiProvidersRouter', () => {
         providerType: 'newapi',
       }),
     );
+  });
+
+  it('allows model ops admins to refresh the AI provider runtime cache', async () => {
+    const { db } = createDbMock({ role: 'model_ops' });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    await expect(
+      adminNewapiProvidersRouter
+        .createCaller({ userId: 'model-ops-user' } as any)
+        .refreshRuntimeCache(),
+    ).resolves.toEqual(expect.objectContaining({ refreshedAt: expect.any(String) }));
+  });
+
+  it('rejects finance admins from mutating AI provider instances', async () => {
+    const { db } = createDbMock({ role: 'finance_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    await expect(
+      adminNewapiProvidersRouter.createCaller({ userId: 'finance-user' } as any).createInstance({
+        apiKey: 'sk-test-key',
+        baseUrl: 'https://newapi.example.com',
+        name: 'Denied Provider',
+      } as any),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('forces direct create and update payloads to server-side fetching', async () => {
@@ -386,8 +412,8 @@ describe('adminNewapiProvidersRouter', () => {
     );
   });
 
-  it('does not warn about pricing when the service provider format has no pricing sync', async () => {
-    const { db } = createDbMock({ providerType: 'openai-compatible' });
+  it('warns about manual pricing when the service provider format has no pricing sync', async () => {
+    const { db } = createDbMock({ providerType: 'siliconflow' });
     vi.mocked(getServerDB).mockResolvedValue(db as any);
     const fetchMock = vi.fn().mockResolvedValueOnce({
       headers: new Headers({ 'content-type': 'application/json' }),
@@ -403,7 +429,9 @@ describe('adminNewapiProvidersRouter', () => {
       expect.objectContaining({
         ok: true,
         pricingCount: 0,
-        warnings: [],
+        warnings: [
+          'Pricing sync is not supported for provider type siliconflow. Configure manual pricing in the model billing matrix.',
+        ],
       }),
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);

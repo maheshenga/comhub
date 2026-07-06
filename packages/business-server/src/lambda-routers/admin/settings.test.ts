@@ -54,10 +54,12 @@ const createDb = ({
   appSettings = [],
   appSettingsMany = [],
   modelRules = null,
+  role = 'admin',
 }: {
   appSettings?: Array<{ value: unknown } | null>;
   appSettingsMany?: Array<{ key: string; value: unknown }>;
   modelRules?: any;
+  role?: string | null;
 } = {}) => {
   const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
   const values = vi.fn(() => ({
@@ -85,7 +87,7 @@ const createDb = ({
         }),
       },
       users: {
-        findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        findFirst: vi.fn().mockResolvedValue({ banned: false, role }),
       },
     },
   } as any;
@@ -408,6 +410,27 @@ describe('admin settings default model validation', () => {
         resourceType: 'app_setting',
       }),
     );
+  });
+
+  it('allows scoped system admins to refresh runtime caches', async () => {
+    const db = createDb({ role: 'system_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).refreshRuntimeCaches(),
+    ).resolves.toEqual({
+      ok: true,
+      refreshed: ['app-settings', 'newapi-instances', 's3-runtime'],
+    });
+  });
+
+  it('rejects finance admins from refreshing runtime caches', async () => {
+    const db = createDb({ role: 'finance_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'finance-user' } as any).refreshRuntimeCaches(),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('cleans archived notifications during maintenance using the configured retention days', async () => {

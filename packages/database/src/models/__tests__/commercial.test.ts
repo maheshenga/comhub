@@ -656,10 +656,25 @@ describe('CommercialModel', () => {
       await serverDB.delete(topUpPackages);
     });
 
-    it('returns hardcoded defaults when DB is empty', async () => {
+    it('returns an empty list when DB is empty', async () => {
       const packages = await commercialModel.listTopUpPackages();
-      expect(packages.length).toBeGreaterThan(0);
-      expect(packages.some((p) => p.id === 'starter')).toBe(true);
+      expect(packages).toEqual([]);
+    });
+
+    it('returns an empty list when only inactive DB rows exist', async () => {
+      await serverDB.insert(topUpPackages).values({
+        amount: 200,
+        credits: 2000 * CREDITS_PER_DOLLAR,
+        currency: 'USD',
+        displayName: 'Inactive',
+        id: 'pkg-inactive',
+        isActive: false,
+        sortOrder: 0,
+        validityMonths: 12,
+      });
+
+      const packages = await commercialModel.listTopUpPackages();
+      expect(packages).toEqual([]);
     });
 
     it('returns active DB rows ordered by sortOrder', async () => {

@@ -204,7 +204,7 @@ describe('admin commercial flow pages', () => {
     const service = readRepoFile('src/services/adminCommercial.ts');
     const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
 
-    expect(router).toContain('refreshRuntimeCache: adminProcedure.mutation');
+    expect(router).toContain('refreshRuntimeCache: modelOpsWriteProcedure.mutation');
     expect(router).toContain('invalidateNewapiInstancesCache();');
     expect(router).toContain("action: 'newapiInstanceModels.refreshRuntimeCache'");
     expect(service).toContain('refreshAiProviderRuntimeCache');

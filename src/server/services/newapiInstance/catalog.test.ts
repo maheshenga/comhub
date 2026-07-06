@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  buildNewapiPricingSyncWarnings,
   classifyNewapiModelType,
   fetchNewapiModels,
   fetchNewapiPricing,
@@ -112,6 +113,33 @@ describe('NewAPI catalog sync', () => {
     ).resolves.toEqual([]);
   });
 
+  it('returns no pricing without calling pricing endpoint for non-NewAPI providers', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      fetchNewapiPricing({
+        apiKey: 'sk-test',
+        baseUrl: 'https://siliconflow.example.com/v1',
+        providerType: 'siliconflow',
+      }),
+    ).resolves.toEqual([]);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reports unsupported pricing sync for non-NewAPI providers', () => {
+    expect(buildNewapiPricingSyncWarnings('siliconflow', 0)).toEqual([
+      'Pricing sync is not supported for provider type siliconflow. Configure manual pricing in the model billing matrix.',
+    ]);
+  });
+
+  it('keeps the NewAPI empty pricing endpoint warning', () => {
+    expect(buildNewapiPricingSyncWarnings('newapi', 0)).toEqual([
+      'Pricing endpoint unavailable or empty',
+    ]);
+  });
+
   it('does not duplicate the v1 segment when fetching models', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       headers: new Headers({ 'content-type': 'application/json' }),
@@ -171,6 +199,8 @@ describe('NewAPI catalog sync', () => {
         apiKey: 'sk-test',
         baseUrl: 'https://newapi.example.com/v1',
       }),
-    ).rejects.toThrow('模型列表接口返回的不是 JSON');
+    ).rejects.toThrow(
+      'AI provider models endpoint did not return JSON. Check that the base URL is an API endpoint.',
+    );
   });
 });

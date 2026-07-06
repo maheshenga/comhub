@@ -28,7 +28,13 @@ import {
   userSettings,
 } from '@/database/schemas';
 import { type LobeChatDatabase, type Transaction } from '@/database/type';
-import { adminProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
+import {
+  ADMIN_CAPABILITIES,
+  adminCapabilityProcedure,
+  adminProcedure,
+  publicProcedure,
+  router,
+} from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
@@ -53,6 +59,7 @@ import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
+const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
 
 const maskApiKey = (key: string | null | undefined): string | null => {
   if (!key) return null;
@@ -1927,7 +1934,7 @@ export const adminSettingsRouter = router({
       return { ok: true };
     }),
 
-  setAppSetting: adminProcedure
+  setAppSetting: systemWriteProcedure
     .input(appSettingUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
       const update = normalizeAppSettingUpdate(input);
@@ -1946,7 +1953,7 @@ export const adminSettingsRouter = router({
       return { ok: true };
     }),
 
-  setAppSettingsBatch: adminProcedure
+  setAppSettingsBatch: systemWriteProcedure
     .input(
       z.object({
         updates: z.array(appSettingUpdateInputSchema).min(1).max(100),
@@ -1976,7 +1983,7 @@ export const adminSettingsRouter = router({
       return { count: updates.length, ok: true };
     }),
 
-  syncUserGlobalSettingsDefaultsToUsers: adminProcedure.mutation(async ({ ctx }) => {
+  syncUserGlobalSettingsDefaultsToUsers: systemWriteProcedure.mutation(async ({ ctx }) => {
     const defaults = await readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults);
     await validateUserGlobalSettingsDefaults(ctx.serverDB, defaults);
     const result = await syncUserGlobalSettingsDefaultsToUserSettings(ctx.serverDB, defaults);
@@ -1991,7 +1998,7 @@ export const adminSettingsRouter = router({
     return { ok: true, ...result };
   }),
 
-  refreshRuntimeCaches: adminProcedure.mutation(async ({ ctx }) => {
+  refreshRuntimeCaches: systemWriteProcedure.mutation(async ({ ctx }) => {
     invalidateServerAppSettings();
     invalidateNewapiInstancesCache();
     invalidateFileS3RuntimeCache();
@@ -2006,7 +2013,7 @@ export const adminSettingsRouter = router({
     return { ok: true, refreshed };
   }),
 
-  testS3Storage: adminProcedure.mutation(async ({ ctx }) => {
+  testS3Storage: systemWriteProcedure.mutation(async ({ ctx }) => {
     const config = await getServerFileS3Config(ctx.serverDB);
 
     if (!config.accessKeyId || !config.secretAccessKey || !config.endpoint || !config.bucket) {
@@ -2115,7 +2122,7 @@ export const adminSettingsRouter = router({
    * Manually trigger maintenance job (audit pruning + pending order expiry + notification cleanup).
    * Reuses the same DB-driven defaults as the public cron route.
    */
-  runMaintenance: adminProcedure
+  runMaintenance: systemWriteProcedure
     .input(
       z
         .object({

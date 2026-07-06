@@ -8,10 +8,11 @@ import {
   adminNewapiInstances,
   NEWAPI_MODEL_TYPES,
 } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
 import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
 import { getModelCatalogDiagnostics } from '@/server/services/modelCatalog/diagnostics';
 import {
+  buildNewapiPricingSyncWarnings,
   fetchNewapiModels,
   fetchNewapiPricing,
   normalizeNewapiSyncRows,
@@ -85,15 +86,8 @@ const ModelMetadataSchema = z
   })
   .passthrough();
 
-const supportsPricingSync = (providerType?: string | null) =>
-  !providerType || providerType === 'newapi';
-
-const buildPricingSyncWarnings = (providerType: string | null | undefined, pricingCount: number) =>
-  supportsPricingSync(providerType) && pricingCount === 0
-    ? ['Pricing endpoint unavailable or empty']
-    : [];
-
 const INVALID_API_KEY_MESSAGE = 'Instance API key is invalid. Please reset it before retrying.';
+const modelOpsWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsWrite);
 
 const normalizeInstanceInput = async <T extends { apiKey?: string; fetchOnClient?: boolean }>(
   input: T,
@@ -144,7 +138,7 @@ const assertInstanceApiKeyReady = <T extends { apiKeyStatus?: 'invalid' | 'ok' }
 export const adminNewapiProvidersRouter = router({
   // ─── Instance CRUD ─────────────────────────────────────────────────────────
 
-  createInstance: adminProcedure.input(InstanceInputSchema).mutation(async ({ ctx, input }) => {
+  createInstance: modelOpsWriteProcedure.input(InstanceInputSchema).mutation(async ({ ctx, input }) => {
     const data = await normalizeInstanceInput(input);
     const [row] = await ctx.serverDB
       .insert(adminNewapiInstances)
@@ -161,7 +155,7 @@ export const adminNewapiProvidersRouter = router({
     return { id: row.id };
   }),
 
-  deleteInstance: adminProcedure
+  deleteInstance: modelOpsWriteProcedure
     .input(z.object({ id: z.string().uuid(), reason: z.string().max(500).optional() }))
     .mutation(async ({ ctx, input }) => {
       const reason = input.reason?.trim();
@@ -214,7 +208,7 @@ export const adminNewapiProvidersRouter = router({
     };
   }),
 
-  updateInstance: adminProcedure
+  updateInstance: modelOpsWriteProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -242,7 +236,7 @@ export const adminNewapiProvidersRouter = router({
       return { ok: true };
     }),
 
-  toggleInstanceEnabled: adminProcedure
+  toggleInstanceEnabled: modelOpsWriteProcedure
     .input(z.object({ enabled: z.boolean(), id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.serverDB
@@ -262,7 +256,7 @@ export const adminNewapiProvidersRouter = router({
 
   // ─── Instance Models CRUD ──────────────────────────────────────────────────
 
-  syncInstanceModels: adminProcedure
+  syncInstanceModels: modelOpsWriteProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const instance = await ctx.serverDB.query.adminNewapiInstances.findFirst({
@@ -330,7 +324,7 @@ export const adminNewapiProvidersRouter = router({
         modelsCount: models.length,
         ok: true,
         pricingCount: pricing.length,
-        warnings: buildPricingSyncWarnings(instance.providerType, pricing.length),
+        warnings: buildNewapiPricingSyncWarnings(instance.providerType, pricing.length),
       };
     }),
 
@@ -369,7 +363,7 @@ export const adminNewapiProvidersRouter = router({
           modelsCount: models.length,
           ok: true,
           pricingCount: pricing.length,
-          warnings: buildPricingSyncWarnings(instance.providerType, pricing.length),
+          warnings: buildNewapiPricingSyncWarnings(instance.providerType, pricing.length),
         };
       } catch (error) {
         return {
@@ -398,7 +392,7 @@ export const adminNewapiProvidersRouter = router({
     return getModelCatalogDiagnostics({ planRules, state });
   }),
 
-  refreshRuntimeCache: adminProcedure.mutation(async ({ ctx }) => {
+  refreshRuntimeCache: modelOpsWriteProcedure.mutation(async ({ ctx }) => {
     invalidateNewapiInstancesCache();
 
     await recordAdminAudit(ctx, {
@@ -410,7 +404,7 @@ export const adminNewapiProvidersRouter = router({
     return { refreshedAt: new Date().toISOString() };
   }),
 
-  addModels: adminProcedure
+  addModels: modelOpsWriteProcedure
     .input(
       z.object({
         instanceId: z.string().uuid(),
@@ -475,7 +469,7 @@ export const adminNewapiProvidersRouter = router({
       return { items };
     }),
 
-  removeModel: adminProcedure
+  removeModel: modelOpsWriteProcedure
     .input(
       z.object({
         instanceId: z.string().uuid(),
@@ -504,7 +498,7 @@ export const adminNewapiProvidersRouter = router({
       return { ok: true };
     }),
 
-  updateModel: adminProcedure
+  updateModel: modelOpsWriteProcedure
     .input(
       z.object({
         instanceId: z.string().uuid(),

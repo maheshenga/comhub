@@ -4,8 +4,14 @@ import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
-import { creditAccounts, NEWAPI_MODEL_TYPES, planCatalog, userPlanSnapshots } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import {
+  creditAccounts,
+  NEWAPI_MODEL_TYPES,
+  planCatalog,
+  redemptionCodes,
+  userPlanSnapshots,
+} from '@/database/schemas';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
@@ -61,10 +67,39 @@ const toStorageQuotaBytes = (storageQuotaMb?: null | number) =>
     ? null
     : Math.floor(storageQuotaMb * 1024 * 1024);
 
+const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+
 export const adminPlansRouter = router({
-  delete: adminProcedure
+  delete: financeWriteProcedure
     .input(z.object({ plan: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const activeSnapshot = await ctx.serverDB.query.userPlanSnapshots.findFirst({
+        columns: { id: true },
+        where: and(
+          eq(userPlanSnapshots.plan, input.plan as Plans),
+          eq(userPlanSnapshots.status, 'active'),
+        ),
+      });
+
+      if (activeSnapshot) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'PLAN_HAS_ACTIVE_USERS',
+        });
+      }
+
+      const referencingCode = await ctx.serverDB.query.redemptionCodes.findFirst({
+        columns: { id: true },
+        where: and(eq(redemptionCodes.rewardType, 'plan'), eq(redemptionCodes.planKey, input.plan)),
+      });
+
+      if (referencingCode) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'PLAN_HAS_REDEMPTION_CODES',
+        });
+      }
+
       await ctx.serverDB.delete(planCatalog).where(eq(planCatalog.plan, input.plan));
       await recordAdminAudit(ctx, {
         action: 'plan.delete',
@@ -81,7 +116,7 @@ export const adminPlansRouter = router({
     return { items };
   }),
 
-  setModelRules: adminProcedure
+  setModelRules: financeWriteProcedure
     .input(z.object({ modelRules: PlanModelRulesSchema, plan: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const result = await ctx.serverDB
@@ -102,7 +137,7 @@ export const adminPlansRouter = router({
       return { ok: true };
     }),
 
-  upsert: adminProcedure.input(PlanInputSchema).mutation(async ({ ctx, input }) => {
+  upsert: financeWriteProcedure.input(PlanInputSchema).mutation(async ({ ctx, input }) => {
     const {
       badge,
       comparisonNote,
@@ -122,7 +157,9 @@ export const adminPlansRouter = router({
     });
     const normalizedPurchaseUrl = normalizePurchaseUrl(purchaseUrl);
     const previousMetadata =
-      existing?.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+      existing?.metadata &&
+      typeof existing.metadata === 'object' &&
+      !Array.isArray(existing.metadata)
         ? existing.metadata
         : {};
     const presentation = normalizePlanCatalogPresentation({
@@ -204,7 +241,7 @@ export const adminPlansRouter = router({
     return { ok: true };
   }),
 
-  setActive: adminProcedure
+  setActive: financeWriteProcedure
     .input(z.object({ isActive: z.boolean(), plan: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const result = await ctx.serverDB
