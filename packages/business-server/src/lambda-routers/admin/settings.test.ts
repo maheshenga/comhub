@@ -9,6 +9,7 @@ import { getServerDB } from '@/database/core/db-adaptor';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
+import { invalidateServerBrand } from '@/server/services/brand';
 import {
   getAllEnabledModels,
   invalidateNewapiInstancesCache,
@@ -30,6 +31,10 @@ vi.mock('@/database/core/db-adaptor', () => ({
 vi.mock('@/server/services/newapiInstance', () => ({
   getAllEnabledModels: vi.fn(),
   invalidateNewapiInstancesCache: vi.fn(),
+}));
+
+vi.mock('@/server/services/brand', () => ({
+  invalidateServerBrand: vi.fn(),
 }));
 
 vi.mock('@/server/modules/S3', () => ({
@@ -560,15 +565,16 @@ describe('admin settings default model validation', () => {
 
     expect(result).toEqual({
       ok: true,
-      refreshed: ['app-settings', 'newapi-instances', 's3-runtime'],
+      refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
     });
     expect(invalidateFileS3RuntimeCache).toHaveBeenCalledTimes(1);
     expect(invalidateNewapiInstancesCache).toHaveBeenCalledTimes(1);
+    expect(invalidateServerBrand).toHaveBeenCalledTimes(1);
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         action: 'settings.refreshRuntimeCaches',
-        payload: { refreshed: ['app-settings', 'newapi-instances', 's3-runtime'] },
+        payload: { refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'] },
         resourceType: 'app_setting',
       }),
     );
@@ -582,7 +588,7 @@ describe('admin settings default model validation', () => {
       adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).refreshRuntimeCaches(),
     ).resolves.toEqual({
       ok: true,
-      refreshed: ['app-settings', 'newapi-instances', 's3-runtime'],
+      refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
     });
   });
 

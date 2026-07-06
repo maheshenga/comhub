@@ -2112,8 +2112,9 @@ export const adminSettingsRouter = router({
     invalidateServerAppSettings();
     invalidateNewapiInstancesCache();
     invalidateFileS3RuntimeCache();
+    invalidateServerBrand();
 
-    const refreshed = ['app-settings', 'newapi-instances', 's3-runtime'] as const;
+    const refreshed = ['app-settings', 'newapi-instances', 's3-runtime', 'brand'] as const;
     await recordAdminAudit(ctx, {
       action: 'settings.refreshRuntimeCaches',
       payload: { refreshed },
