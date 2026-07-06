@@ -196,6 +196,8 @@ export type AdminSettingsFormValues = {
 export type SettingUpdate = { key: string; value: unknown };
 
 export const normalizeText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+const normalizeTextWithFallback = (value: unknown, fallback: string) =>
+  normalizeText(value) || fallback;
 
 export const RECOMMENDED_HELP_MENU_ITEMS: HelpMenuItem[] = normalizeHelpMenuItems([
   {
@@ -400,13 +402,19 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
   cronSecret: '',
-  defaultAgentAvatar: data?.defaultAgentAvatar ?? DEFAULT_COMHUB_AGENT_AVATAR,
+  defaultAgentAvatar: normalizeTextWithFallback(
+    data?.defaultAgentAvatar,
+    DEFAULT_COMHUB_AGENT_AVATAR,
+  ),
   defaultAgentModel: data?.defaultAgentModel ?? '',
-  defaultAgentName: data?.defaultAgentName ?? DEFAULT_COMHUB_AGENT_NAME,
+  defaultAgentName: normalizeTextWithFallback(data?.defaultAgentName, DEFAULT_COMHUB_AGENT_NAME),
   defaultAgentProvider: data?.defaultAgentProvider ?? '',
   defaultImageModel: data?.defaultImageModel ?? '',
   defaultImageProvider: data?.defaultImageProvider ?? '',
-  defaultSkillName: data?.defaultSkillName ?? data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
+  defaultSkillName:
+    normalizeText(data?.defaultSkillName) ||
+    normalizeText(data?.brandName) ||
+    DEFAULT_RUNTIME_BRAND.name,
   defaultVideoModel: data?.defaultVideoModel ?? '',
   defaultVideoProvider: data?.defaultVideoProvider ?? '',
   helpMenuItems: normalizeHelpMenuItems(data?.helpMenuItems),
@@ -458,13 +466,19 @@ export const normalizeFormValues = (
   cronPendingOrderExpiryDays:
     typeof values.cronPendingOrderExpiryDays === 'number' ? values.cronPendingOrderExpiryDays : 7,
   cronSecret: normalizeText(values.cronSecret),
-  defaultAgentAvatar: normalizeText(values.defaultAgentAvatar),
+  defaultAgentAvatar: normalizeTextWithFallback(
+    values.defaultAgentAvatar,
+    DEFAULT_COMHUB_AGENT_AVATAR,
+  ),
   defaultAgentModel: normalizeText(values.defaultAgentModel),
-  defaultAgentName: normalizeText(values.defaultAgentName),
+  defaultAgentName: normalizeTextWithFallback(values.defaultAgentName, DEFAULT_COMHUB_AGENT_NAME),
   defaultAgentProvider: normalizeText(values.defaultAgentProvider),
   defaultImageModel: normalizeText(values.defaultImageModel),
   defaultImageProvider: normalizeText(values.defaultImageProvider),
-  defaultSkillName: normalizeText(values.defaultSkillName),
+  defaultSkillName:
+    normalizeText(values.defaultSkillName) ||
+    normalizeText(values.brandName) ||
+    DEFAULT_RUNTIME_BRAND.name,
   defaultVideoModel: normalizeText(values.defaultVideoModel),
   defaultVideoProvider: normalizeText(values.defaultVideoProvider),
   helpMenuItems: normalizeHelpMenuItems(values.helpMenuItems),

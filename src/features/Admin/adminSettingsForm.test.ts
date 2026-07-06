@@ -306,6 +306,34 @@ describe('adminSettingsForm', () => {
     ]);
   });
 
+  it('falls back instead of materializing empty default assistant identity', () => {
+    const initial = buildFormValues({
+      brandName: 'ComHub',
+      defaultAgentAvatar: '',
+      defaultAgentName: '',
+      defaultSkillName: '',
+    });
+
+    expect(initial.defaultAgentName).toBe(DEFAULT_COMHUB_AGENT_NAME);
+    expect(initial.defaultAgentAvatar).toBe(DEFAULT_COMHUB_AGENT_AVATAR);
+    expect(initial.defaultSkillName).toBe('ComHub');
+
+    expect(
+      buildSettingMaterializationUpdates({
+        ...initial,
+        defaultAgentAvatar: '',
+        defaultAgentName: '',
+        defaultSkillName: '',
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        { key: SETTING_KEYS.defaultAgentName, value: DEFAULT_COMHUB_AGENT_NAME },
+        { key: SETTING_KEYS.defaultAgentAvatar, value: DEFAULT_COMHUB_AGENT_AVATAR },
+        { key: SETTING_KEYS.defaultSkillName, value: 'ComHub' },
+      ]),
+    );
+  });
+
   it('includes default skill name in form values and updates', () => {
     const initial = buildFormValues({
       defaultSkillName: 'LobeHub',

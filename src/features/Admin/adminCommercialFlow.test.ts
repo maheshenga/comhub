@@ -400,6 +400,13 @@ describe('admin commercial flow pages', () => {
     expect(governanceCard).not.toContain('dataSource={data.registeredSettings}');
   });
 
+  it('does not materialize admin settings before current data has loaded', () => {
+    const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
+
+    expect(settingsPage).toContain('if (!data) return;');
+    expect(settingsPage).toContain('disabled={isLoading || !data || submitting}');
+  });
+
   it('shows admin-configured top-up promotion metadata in admin and user credit surfaces', () => {
     const topupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
