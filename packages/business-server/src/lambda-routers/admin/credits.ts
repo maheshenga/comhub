@@ -9,6 +9,12 @@ import { recordAdminAudit } from './audit';
 
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
+const creditAccountAuditSnapshot = {
+  balance: creditAccounts.balance,
+  totalCredited: creditAccounts.totalCredited,
+  totalDebited: creditAccounts.totalDebited,
+};
+
 export const adminCreditsRouter = router({
   adjust: financeWriteProcedure
     .input(
@@ -21,11 +27,16 @@ export const adminCreditsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { amount, reason, userId } = input;
 
-      await ctx.serverDB.transaction(async (tx: Transaction) => {
+      const snapshots = await ctx.serverDB.transaction(async (tx: Transaction) => {
         await tx
           .insert(creditAccounts)
           .values({ balance: 0, totalCredited: 0, totalDebited: 0, userId })
           .onConflictDoNothing({ target: creditAccounts.userId });
+
+        const [before] = await tx
+          .select(creditAccountAuditSnapshot)
+          .from(creditAccounts)
+          .where(eq(creditAccounts.userId, userId));
 
         if (amount > 0) {
           await tx
@@ -38,14 +49,9 @@ export const adminCreditsRouter = router({
             .where(eq(creditAccounts.userId, userId));
         } else {
           // Pre-check: ensure sufficient balance for negative adjustment
-          const [current] = await tx
-            .select({ balance: creditAccounts.balance })
-            .from(creditAccounts)
-            .where(eq(creditAccounts.userId, userId));
-
-          if (current && Number(current.balance) + amount < 0) {
+          if (before && Number(before.balance) + amount < 0) {
             throw new Error(
-              `Insufficient balance: current ${current.balance}, adjustment ${amount}`,
+              `Insufficient balance: current ${before.balance}, adjustment ${amount}`,
             );
           }
 
@@ -59,25 +65,31 @@ export const adminCreditsRouter = router({
             .where(eq(creditAccounts.userId, userId));
         }
 
-        const [account] = await tx
-          .select({ balance: creditAccounts.balance })
+        const [after] = await tx
+          .select(creditAccountAuditSnapshot)
           .from(creditAccounts)
           .where(eq(creditAccounts.userId, userId));
 
+        if (!after) {
+          throw new Error(`Credit account not found after adjustment: ${userId}`);
+        }
+
         await tx.insert(creditLedgerEntries).values({
           amount,
-          balanceAfter: account.balance,
+          balanceAfter: after.balance,
           description: reason,
           referenceType: 'admin_adjustment',
           title: 'Admin Adjustment',
           type: 'adjustment',
           userId,
         });
+
+        return { after, before: before ?? null };
       });
 
       await recordAdminAudit(ctx, {
         action: 'credits.adjust',
-        payload: { amount, reason },
+        payload: { amount, reason, ...snapshots },
         resourceType: 'credit_account',
         targetUserId: userId,
       });

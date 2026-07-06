@@ -20,3 +20,5 @@
 - Verification: `src/app/(backend)/api/version/route.test.ts`.
 - GOV-028: Added explicit user default settings sync priority coverage. Default assistant meta is preserved by default during backend default sync, while the admin "save and sync" action can explicitly force default assistant meta into existing users and records that force flag in the audit payload.
 - Verification: `packages/business-server/src/lambda-routers/admin/settings.test.ts`.
+- GOV-029: Added before/after credit-account snapshots to the admin `credits.adjust` audit payload so manual credit changes have a reversible asset trail.
+- Verification: `packages/business-server/src/lambda-routers/admin/credits.test.ts`.

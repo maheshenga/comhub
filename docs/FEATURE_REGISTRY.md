@@ -870,3 +870,4 @@
 | 2026-07-07 | Runtime Brand Cache Refresh | active | GOV-026 added brand cache invalidation to the admin runtime cache refresh path for loading SVG, favicon, and runtime brand config. |
 | 2026-07-07 | Deployment Version Probe | active | GOV-027 extended `/api/version` with safe commit, branch, build timestamp, and image metadata for post-deploy verification. |
 | 2026-07-07 | User Default Settings Sync Priority | active | GOV-028 documents and tests the priority rule for backend defaults, user-customized default assistant meta, and explicit admin force-sync snapshots. |
+| 2026-07-07 | Admin Credit Adjustment Audit | active | GOV-029 adds before/after credit account snapshots to the `credits.adjust` audit payload for manual admin credit changes. |
