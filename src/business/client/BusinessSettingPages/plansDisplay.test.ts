@@ -5,6 +5,7 @@ import {
   PLAN_DISPLAY_CURRENCY,
   formatPlanCurrencyAmount,
   getAvailableBillingCycles,
+  getPlanYearlyDiscountLabel,
   getPlanYearlyDiscountPercent,
   getVisiblePaidPlans,
   getYearlyCycleDiscountLabel,
@@ -146,5 +147,44 @@ describe('plans display helpers', () => {
 
     expect(price.amount).toBe(999);
     expect(price.isAvailable).toBe(true);
+  });
+
+  it('builds per-plan yearly discount labels without inventing discounts', () => {
+    expect(
+      getPlanYearlyDiscountLabel({
+        monthlyPrice: 59,
+        yearlyDiscountLabel: '  Save 25%  ',
+        yearlyPrice: 530,
+      }),
+    ).toBe('Save 25%');
+
+    expect(
+      getPlanYearlyDiscountLabel({
+        monthlyPrice: 59,
+        yearlyPrice: 590,
+      }),
+    ).toContain('17%');
+
+    expect(
+      getPlanYearlyDiscountLabel({
+        monthlyPrice: 0,
+        yearlyPrice: 590,
+      }),
+    ).toBe('');
+  });
+
+  it('marks missing monthly prices unavailable without reusing yearly totals', () => {
+    const price = resolvePlanCyclePrice(
+      {
+        currency: 'USD',
+        yearlyPrice: 590,
+      },
+      'monthly',
+    );
+
+    expect(price.amount).toBe(0);
+    expect(price.isAvailable).toBe(false);
+    expect(price.label).toBe('--');
+    expect(price.secondaryLabel).toContain('590');
   });
 });

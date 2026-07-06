@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   APP_SETTING_KEYS,
   APP_SETTING_REGISTRY,
+  hasSecretLikeAppSettingKeyName,
   listAppSettingRegistryItems,
 } from '@/const/appSettingsRegistry';
 
@@ -76,6 +77,21 @@ describe('buildAppSettingsGovernance', () => {
       expect(typeof item.sensitive).toBe('boolean');
       expect(typeof item.publicRuntime).toBe('boolean');
       if (item.publicRuntime) expect(item.sensitive).toBe(false);
+    }
+  });
+
+  it('keeps secret-like setting names out of public runtime settings', () => {
+    expect(hasSecretLikeAppSettingKeyName(APP_SETTING_KEYS.storageS3SecretAccessKey)).toBe(true);
+    expect(hasSecretLikeAppSettingKeyName(APP_SETTING_KEYS.desktopOssAccessKeySecret)).toBe(true);
+    expect(hasSecretLikeAppSettingKeyName(APP_SETTING_KEYS.composioApiKey)).toBe(true);
+    expect(hasSecretLikeAppSettingKeyName(APP_SETTING_KEYS.desktopDownloadUrl)).toBe(false);
+
+    for (const item of listAppSettingRegistryItems()) {
+      expect({
+        key: item.key,
+        publicRuntime: item.publicRuntime,
+        secretLike: hasSecretLikeAppSettingKeyName(item.key),
+      }).not.toMatchObject({ publicRuntime: true, secretLike: true });
     }
   });
 });

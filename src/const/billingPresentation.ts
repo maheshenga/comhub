@@ -99,7 +99,9 @@ export const normalizeTopUpPackagePromotion = (metadata: unknown): TopUpPackageP
 };
 
 export const serializeTopUpPackagePromotion = (promotion: TopUpPackagePromotion) => ({
-  originalAmount: promotion.originalAmount,
+  ...(typeof promotion.originalAmount === 'number'
+    ? { originalAmount: promotion.originalAmount }
+    : {}),
   promotionEnabled: promotion.enabled,
   promotionLabel: promotion.label,
   promotionNote: promotion.note,

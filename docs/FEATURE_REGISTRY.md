@@ -865,3 +865,4 @@
 | 2026-07-07 | Admin System And Settings Governance | active | GOV-001 added guardrail coverage for app setting form classification, registry metadata completeness, and public desktop config sensitive-field leakage. |
 | 2026-07-07 | Credits, Top-up And Ledger | active | GOV-002 added ledger provider/model display formatting that prefers metadata display names and avoids exposing raw provider UUIDs in user credit ledger rows. |
 | 2026-07-07 | Skills, MCP And Community Market | active | GOV-003 added frontend and server fallback normalization for placeholder `UN` labels and blank market descriptions. |
+| 2026-07-07 | Governance Sprint 002 | active | GOV-004 to GOV-015 added the Sprint 002 register, admin settings map, commercial page boundaries, deployment probe checklist, governance index, secret-like settings guard, desktop public config allowlist guard, commercial formatter coverage, top-up serializer cleanup, and referral input formatter extraction. |

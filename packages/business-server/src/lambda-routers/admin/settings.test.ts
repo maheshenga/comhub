@@ -457,7 +457,9 @@ describe('admin settings default model validation', () => {
     const settings = await caller.getPublicDesktopUpdate();
 
     expect(settings).toMatchObject({
+      autoCheck: true,
       channel: 'canary',
+      checkIntervalMinutes: 30,
       currentVersion: '0.1.0-canary.6',
       downloadLabel: 'Download Qingyou Desktop',
       downloadUrl: 'https://comhubs.oss-cn-shanghai.aliyuncs.com/canary/0.1.0-canary.6/LobeHub.exe',
@@ -472,6 +474,25 @@ describe('admin settings default model validation', () => {
       releaseNotes: '- Fix auto update',
       serverUrl: 'https://comhubs.oss-cn-shanghai.aliyuncs.com',
     });
+    expect(Object.keys(settings).sort()).toEqual([
+      'autoCheck',
+      'channel',
+      'checkIntervalMinutes',
+      'currentVersion',
+      'downloadLabel',
+      'downloadUrl',
+      'loginConfig',
+      'releaseNotes',
+      'serverUrl',
+    ]);
+    expect(Object.keys(settings.loginConfig).sort()).toEqual([
+      'cloudButtonLabel',
+      'description',
+      'footerText',
+      'logoUrl',
+      'title',
+      'windowTitle',
+    ]);
   });
 
   it('does not expose sensitive desktop OSS settings through public desktop config', async () => {

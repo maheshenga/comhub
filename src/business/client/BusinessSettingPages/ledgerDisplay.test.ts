@@ -41,4 +41,29 @@ describe('formatCreditLedgerDescription', () => {
   it('falls back to the original description for non-model ledger text', () => {
     expect(formatCreditLedgerDescription('Manual top-up')).toBe('Manual top-up');
   });
+
+  it('keeps model ids with slash segments readable', () => {
+    const formatted = formatCreditLedgerDescription('Consumed on openrouter/meta/llama-3.1-70b');
+
+    expect(formatted).toContain('meta/llama-3.1-70b');
+    expect(formatted).toContain('openrouter');
+  });
+
+  it('prefers explicit provider display names over lower-priority metadata', () => {
+    const formatted = formatCreditLedgerDescription('Consumed on 757e1732-8478/deepseek-chat', {
+      groupName: 'Fallback Group',
+      instanceName: 'Instance Name',
+      providerDisplayName: 'Displayed Provider',
+    });
+
+    expect(formatted).toContain('deepseek-chat');
+    expect(formatted).toContain('Displayed Provider');
+    expect(formatted).not.toContain('Fallback Group');
+    expect(formatted).not.toContain('Instance Name');
+  });
+
+  it('uses the standard empty placeholder for blank or non-string descriptions', () => {
+    expect(formatCreditLedgerDescription('')).toBe('--');
+    expect(formatCreditLedgerDescription(null)).toBe('--');
+  });
 });

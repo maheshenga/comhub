@@ -231,6 +231,12 @@ const SENSITIVE_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.storageS3SecretAccessKey,
 ]);
 
+const SECRET_LIKE_KEY_NAME_RE =
+  /(?:apiKey|secret|token|password|credential|credentials|accessKey|privateKey)/i;
+
+export const hasSecretLikeAppSettingKeyName = (key: AppSettingKey | string) =>
+  SECRET_LIKE_KEY_NAME_RE.test(key);
+
 const PUBLIC_PREFIXES = [
   'about.',
   'brand.',

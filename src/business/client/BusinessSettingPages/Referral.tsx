@@ -14,6 +14,7 @@ import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 import { type ReferralHistoryItem } from '@/types/business';
 
+import { normalizeReferralCodeInput } from './referralDisplay';
 import {
   formatBusinessDate,
   formatBusinessNumber,
@@ -26,18 +27,6 @@ import {
 } from './shared';
 
 const REFERRAL_CODE_RE = /^\d{7}$/;
-
-const extractReferralCodeInput = (value: string) => {
-  const trimmed = value.trim();
-  const normalize = (input: string) => input.replaceAll(/\D/g, '').slice(0, 7);
-
-  try {
-    const url = new URL(trimmed);
-    return normalize(url.searchParams.get('ref') || url.searchParams.get('referral') || '');
-  } catch {
-    return normalize(trimmed);
-  }
-};
 
 const Referral = memo<{ mobile?: boolean }>(() => {
   const { t } = useTranslation('subscription');
@@ -182,7 +171,7 @@ const Referral = memo<{ mobile?: boolean }>(() => {
   };
 
   const handleBindCode = async () => {
-    const normalized = extractReferralCodeInput(backfillCode);
+    const normalized = normalizeReferralCodeInput(backfillCode);
 
     if (hasBoundReferral) {
       message.error('你已经绑定过邀请码');
