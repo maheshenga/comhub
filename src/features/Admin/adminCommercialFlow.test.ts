@@ -364,6 +364,23 @@ describe('admin commercial flow pages', () => {
     expect(publicPlansPage).not.toContain('GPT-5.5');
   });
 
+  it('surfaces app settings governance in the admin settings page', () => {
+    const settingsRouter = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/settings.ts',
+    );
+    const service = readRepoFile('src/services/adminCommercial.ts');
+    const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
+    const governanceCard = readRepoFile('src/features/Admin/AdminSettingsGovernanceCard.tsx');
+
+    expect(settingsRouter).toContain('getGovernance: adminProcedure.query');
+    expect(service).toContain('getAppSettingsGovernance');
+    expect(service).toContain('admin.settings.getGovernance.query()');
+    expect(settingsPage).toContain('AdminSettingsGovernanceCard');
+    expect(governanceCard).toContain('unknownKeys');
+    expect(governanceCard).toContain('sensitiveConfiguredKeys');
+    expect(governanceCard).not.toContain('value');
+  });
+
   it('shows admin-configured top-up promotion metadata in admin and user credit surfaces', () => {
     const topupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');

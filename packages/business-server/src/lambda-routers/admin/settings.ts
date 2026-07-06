@@ -48,6 +48,7 @@ import {
   normalizeS3FilePath,
   serializeModelIdList,
 } from '@/server/services/appSettings';
+import { buildAppSettingsGovernance } from '@/server/services/appSettings/governance';
 import { invalidateServerBrand } from '@/server/services/brand';
 import {
   getAllEnabledModels,
@@ -1459,6 +1460,18 @@ export const adminSettingsRouter = router({
       releaseNotes: toString(releaseNotes) || null,
       serverUrl: toString(serverUrl),
     };
+  }),
+
+  getGovernance: adminProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.serverDB.query.appSettings.findMany({
+      columns: {
+        key: true,
+        updatedAt: true,
+        value: true,
+      },
+    });
+
+    return buildAppSettingsGovernance(rows);
   }),
 
   getAll: adminProcedure.query(async ({ ctx }) => {

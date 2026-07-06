@@ -117,6 +117,10 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.getAll.query();
   };
 
+  getAppSettingsGovernance = async () => {
+    return lambdaClient.admin.settings.getGovernance.query();
+  };
+
   setAppSetting = async (params: { key: string; value: unknown }) => {
     return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
   };

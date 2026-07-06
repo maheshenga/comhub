@@ -328,6 +328,29 @@ describe('admin settings default model validation', () => {
     );
   });
 
+  it('returns app settings governance without exposing persisted values', async () => {
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.brandName, value: 'ComHub' },
+        { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: 'admin-secret-key' },
+        { key: 'legacy.unknown.key', value: 'legacy-value' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.getGovernance();
+
+    expect(result.summary.unknownCount).toBe(1);
+    expect(result.summary.sensitiveConfiguredCount).toBe(1);
+    expect(result.unknownKeys).toEqual([{ key: 'legacy.unknown.key' }]);
+    expect(result.sensitiveConfiguredKeys).toEqual([
+      expect.objectContaining({ key: APP_SETTING_KEYS.storageS3SecretAccessKey }),
+    ]);
+    expect(JSON.stringify(result)).not.toContain('admin-secret-key');
+    expect(JSON.stringify(result)).not.toContain('legacy-value');
+  });
+
   it('returns public desktop update display fields for client download entries', async () => {
     const db = createDb({
       appSettings: [
