@@ -24,3 +24,5 @@
 - Verification: `packages/business-server/src/lambda-routers/admin/credits.test.ts`.
 - GOV-030: Added before/after plan-catalog snapshots to admin plan update/delete audit payloads while preserving the existing payload fields.
 - Verification: `packages/business-server/src/lambda-routers/admin/plans.test.ts`.
+- GOV-031: Added before/after plan-catalog snapshots to admin `plan.setActive` and `plan.setModelRules` audit payloads.
+- Verification: `packages/business-server/src/lambda-routers/admin/plans.test.ts`.

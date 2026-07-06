@@ -30,7 +30,8 @@ const createDb = ({
     Array.isArray(payload) ? { onConflictDoUpdate } : Promise.resolve(undefined),
   );
   const insert = vi.fn(() => ({ values }));
-  const where = vi.fn().mockResolvedValue(undefined);
+  const returning = vi.fn().mockResolvedValue([{ plan: Plans.Premium }]);
+  const where = vi.fn(() => ({ returning }));
   const deleteFrom = vi.fn(() => ({ where }));
   const set = vi.fn(() => ({ where }));
   const update = vi.fn(() => ({ set }));
@@ -38,6 +39,7 @@ const createDb = ({
   return {
     __mocks: {
       onConflictDoUpdate,
+      returning,
       set,
       values,
     },
@@ -253,6 +255,77 @@ describe('adminPlansRouter', () => {
         yearlyPrice: 5000,
       } as any),
     ).resolves.toEqual({ ok: true });
+  });
+
+  it('records before and after snapshots when toggling plan active state', async () => {
+    const db = createDb({
+      planCatalogRow: {
+        displayName: 'Premium',
+        isActive: true,
+        plan: Plans.Premium,
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'admin-user' } as any).setActive({
+        isActive: false,
+        plan: Plans.Premium,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'plan.setActive',
+        payload: expect.objectContaining({
+          after: expect.objectContaining({ isActive: false, plan: Plans.Premium }),
+          before: expect.objectContaining({ isActive: true, plan: Plans.Premium }),
+          isActive: false,
+        }),
+        resourceId: Plans.Premium,
+      }),
+    );
+  });
+
+  it('records before and after snapshots when updating plan model rules', async () => {
+    const previousModelRules = {
+      chat: { blocklist: ['old-*'], mode: 'blocklist' },
+    };
+    const nextModelRules = {
+      chat: { allowlist: ['gpt-*'], mode: 'allowlist' },
+    };
+    const db = createDb({
+      planCatalogRow: {
+        displayName: 'Premium',
+        modelRules: previousModelRules,
+        plan: Plans.Premium,
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'admin-user' } as any).setModelRules({
+        modelRules: nextModelRules as any,
+        plan: Plans.Premium,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'plan.setModelRules',
+        payload: expect.objectContaining({
+          after: expect.objectContaining({ modelRules: nextModelRules, plan: Plans.Premium }),
+          before: expect.objectContaining({
+            modelRules: previousModelRules,
+            plan: Plans.Premium,
+          }),
+          modelRules: nextModelRules,
+        }),
+        resourceId: Plans.Premium,
+      }),
+    );
   });
 
   it('rejects model ops admins from saving plans', async () => {

@@ -149,6 +149,13 @@ export const adminPlansRouter = router({
   setModelRules: financeWriteProcedure
     .input(z.object({ modelRules: PlanModelRulesSchema, plan: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.serverDB.query.planCatalog.findFirst({
+        where: eq(planCatalog.plan, input.plan),
+      });
+
+      if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
+
+      const nextPlanCatalog = { ...existing, modelRules: input.modelRules ?? null };
       const result = await ctx.serverDB
         .update(planCatalog)
         .set({ modelRules: input.modelRules ?? null, updatedAt: new Date() })
@@ -160,7 +167,11 @@ export const adminPlansRouter = router({
 
       await recordAdminAudit(ctx, {
         action: 'plan.setModelRules',
-        payload: { modelRules: input.modelRules },
+        payload: {
+          after: toPlanCatalogAuditSnapshot(nextPlanCatalog),
+          before: toPlanCatalogAuditSnapshot(existing),
+          modelRules: input.modelRules,
+        },
         resourceId: input.plan,
         resourceType: 'plan_catalog',
       });
@@ -283,6 +294,13 @@ export const adminPlansRouter = router({
   setActive: financeWriteProcedure
     .input(z.object({ isActive: z.boolean(), plan: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.serverDB.query.planCatalog.findFirst({
+        where: eq(planCatalog.plan, input.plan),
+      });
+
+      if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
+
+      const nextPlanCatalog = { ...existing, isActive: input.isActive };
       const result = await ctx.serverDB
         .update(planCatalog)
         .set({ isActive: input.isActive, updatedAt: new Date() })
@@ -293,7 +311,11 @@ export const adminPlansRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
       await recordAdminAudit(ctx, {
         action: 'plan.setActive',
-        payload: { isActive: input.isActive },
+        payload: {
+          after: toPlanCatalogAuditSnapshot(nextPlanCatalog),
+          before: toPlanCatalogAuditSnapshot(existing),
+          isActive: input.isActive,
+        },
         resourceId: input.plan,
         resourceType: 'plan_catalog',
       });

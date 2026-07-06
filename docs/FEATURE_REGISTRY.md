@@ -872,3 +872,4 @@
 | 2026-07-07 | User Default Settings Sync Priority | active | GOV-028 documents and tests the priority rule for backend defaults, user-customized default assistant meta, and explicit admin force-sync snapshots. |
 | 2026-07-07 | Admin Credit Adjustment Audit | active | GOV-029 adds before/after credit account snapshots to the `credits.adjust` audit payload for manual admin credit changes. |
 | 2026-07-07 | Admin Plan Catalog Audit | active | GOV-030 adds before/after plan catalog snapshots to admin plan update/delete audit payloads while preserving existing audit fields. |
+| 2026-07-07 | Admin Plan Minor Mutation Audit | active | GOV-031 adds before/after plan catalog snapshots to `plan.setActive` and `plan.setModelRules` audit payloads. |
