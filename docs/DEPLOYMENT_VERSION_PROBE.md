@@ -17,6 +17,7 @@ Purpose: prevent production from appearing to roll back or miss newly deployed f
 ## Required Evidence After Deploy
 
 - `/health` or equivalent application health endpoint responds from the active container.
+- `/api/version` returns the expected `commitSha`, `commitShortSha`, `branch`, `buildAt`, `imageTag`, and `imageRef`.
 - Production container image digest matches the CI output.
 - SPA HTML references the new asset hash.
 - Admin app settings page loads.
@@ -37,6 +38,29 @@ Production should keep the established blue-green scheme:
 
 Do not replace this with direct Baota file upload or ad hoc manual traffic switching unless the deployment strategy is explicitly changed.
 
+## `/api/version` Probe
+
+The public `/api/version` route is safe for post-deploy verification. It must not expose secrets.
+
+Expected fields:
+
+| Field | Meaning |
+| --- | --- |
+| `version` | `package.json` app version. |
+| `commitSha` | Full Git commit SHA injected at image build time, or fallback CI/Vercel commit env. |
+| `commitShortSha` | First 12 characters of `commitSha`, matching the default `sha-*` image tag length. |
+| `branch` | Git branch/ref name injected at build time. |
+| `buildAt` | UTC image build timestamp from GitHub Actions. |
+| `imageTag` | Docker image tag selected by the workflow, for example `sha-abcdef123456`. |
+| `imageRef` | Full image reference selected by the workflow. |
+| `deploymentId` | Optional platform deployment id, when provided by the runtime environment. |
+
+Example:
+
+```bash
+curl -k -sS https://chat.qingyouai.com/api/version
+```
+
 ## Smoke Record Template
 
 ```text
@@ -44,6 +68,7 @@ Date:
 Operator:
 Branch:
 Commit SHA:
+API version result:
 Image digest:
 Deploy script output:
 Active container:

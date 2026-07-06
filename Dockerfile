@@ -135,6 +135,12 @@ RUN set -e && \
 ## Production image, copy all the files and run next
 FROM scratch
 
+ARG COMHUB_COMMIT_SHA=""
+ARG COMHUB_BUILD_BRANCH=""
+ARG COMHUB_BUILD_AT=""
+ARG COMHUB_IMAGE_TAG=""
+ARG COMHUB_IMAGE_REF=""
+
 # Copy all the files from app, set the correct permission for prerender cache
 COPY --from=app / /
 
@@ -151,6 +157,13 @@ ENV MIDDLEWARE_REWRITE_THROUGH_LOCAL="1"
 # set hostname to localhost
 ENV HOSTNAME="0.0.0.0" \
     PORT="3210"
+
+# Safe deployment metadata exposed by /api/version for post-deploy verification
+ENV COMHUB_COMMIT_SHA="${COMHUB_COMMIT_SHA}" \
+    COMHUB_BUILD_BRANCH="${COMHUB_BUILD_BRANCH}" \
+    COMHUB_BUILD_AT="${COMHUB_BUILD_AT}" \
+    COMHUB_IMAGE_TAG="${COMHUB_IMAGE_TAG}" \
+    COMHUB_IMAGE_REF="${COMHUB_IMAGE_REF}"
 
 # General Variables
 ENV APP_URL="" \

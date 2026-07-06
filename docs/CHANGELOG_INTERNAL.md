@@ -16,3 +16,5 @@
 - Verification: `src/server/services/modelCatalog/visibleModels.test.ts`, `src/server/services/modelCatalog/diagnostics.test.ts`, `src/business/client/BusinessSettingPages/creditsDisplay.test.ts`, `src/business/client/BusinessSettingPages/ledgerDisplay.test.ts`, and `git diff --check`.
 - GOV-026: Added server brand cache invalidation to the admin runtime cache refresh action so loading SVG, favicon, and brand config can be refreshed without waiting for the brand TTL.
 - Verification: `packages/business-server/src/lambda-routers/admin/settings.test.ts`.
+- GOV-027: Extended the public `/api/version` probe with safe deployment metadata and injected commit/image build metadata through the Docker build workflow.
+- Verification: `src/app/(backend)/api/version/route.test.ts`.
