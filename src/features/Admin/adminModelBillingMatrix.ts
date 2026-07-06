@@ -17,6 +17,8 @@ export type MatrixSourceModel = {
   displayName: string | null;
   groupKey?: string | null;
   groupName?: string | null;
+  hasModelAbilities?: boolean;
+  hasModelPricing?: boolean;
   instanceId: string;
   instanceName: string;
   modelId: string;
@@ -48,6 +50,8 @@ export type MatrixRow = {
   displayName: string;
   groupKey?: string | null;
   groupName?: string | null;
+  hasModelAbilities: boolean;
+  hasModelPricing: boolean;
   instanceIds: string[];
   instanceNames: string[];
   isDefault: boolean;
@@ -109,11 +113,14 @@ export type MatrixConfigHealth = {
     defaultModelIssueCount: number;
     defaultModelOkCount: number;
     defaultModelTotal: number;
+    missingAbilityModelCount: number;
+    missingPricingModelCount: number;
     modelCount: number;
     planCount: number;
     plansWithoutAccessCount: number;
     pricingFallbackModelCount: number;
     pricingOverrideCount: number;
+    providerPricingModelCount: number;
   };
 };
 
@@ -277,6 +284,8 @@ export const buildMatrixRows = ({
         displayName: first.displayName || first.modelId,
         groupKey,
         groupName: first.groupName,
+        hasModelAbilities: sorted.some((item) => item.hasModelAbilities === true),
+        hasModelPricing: sorted.some((item) => item.hasModelPricing === true),
         instanceIds,
         instanceNames: sorted.map((item) => item.instanceName),
         isDefault:
@@ -488,6 +497,9 @@ const aggregateHealthStatus = (checks: MatrixConfigHealthCheck[]): MatrixConfigH
   return 'ok';
 };
 
+const hasPricingOverride = (row: MatrixRow) =>
+  Number.isFinite(row.pricingMultiplier) || Number.isFinite(row.creditsPerDollar);
+
 export const getMatrixConfigHealth = ({
   defaultModelHealth,
   globalPricingMultiplier = 1,
@@ -509,9 +521,16 @@ export const getMatrixConfigHealth = ({
   const plansWithoutAccess = plans.filter(
     (plan) => rows.length > 0 && rows.every((row) => row.planAccess[plan.plan] === false),
   );
-  const pricingOverrideCount = rows.filter(
-    (row) => Number.isFinite(row.pricingMultiplier) || Number.isFinite(row.creditsPerDollar),
-  ).length;
+  const pricingOverrideRows = rows.filter(hasPricingOverride);
+  const providerPricingRows = rows.filter((row) => row.hasModelPricing === true);
+  const providerPricingFallbackRows = rows.filter(
+    (row) => !hasPricingOverride(row) && row.hasModelPricing === true,
+  );
+  const missingPricingRows = rows.filter(
+    (row) => !hasPricingOverride(row) && row.hasModelPricing !== true,
+  );
+  const missingAbilityRows = rows.filter((row) => row.hasModelAbilities !== true);
+  const pricingOverrideCount = pricingOverrideRows.length;
   const pricingFallbackModelCount = rows.length - pricingOverrideCount;
   const checks: MatrixConfigHealthCheck[] = [];
 
@@ -567,12 +586,30 @@ export const getMatrixConfigHealth = ({
     });
   }
 
-  if (pricingFallbackModelCount > 0) {
+  if (providerPricingFallbackRows.length > 0) {
     checks.push({
-      count: pricingFallbackModelCount,
+      count: providerPricingFallbackRows.length,
       key: 'pricing-fallbacks',
       severity: 'info',
-      title: 'Some models use provider/default pricing',
+      title: 'Some models rely on provider/manual pricing',
+    });
+  }
+
+  if (missingPricingRows.length > 0) {
+    checks.push({
+      count: missingPricingRows.length,
+      key: 'missing-model-pricing',
+      severity: 'warning',
+      title: 'Some models are missing pricing metadata',
+    });
+  }
+
+  if (missingAbilityRows.length > 0) {
+    checks.push({
+      count: missingAbilityRows.length,
+      key: 'missing-model-abilities',
+      severity: 'info',
+      title: 'Some models are missing ability metadata',
     });
   }
 
@@ -592,11 +629,14 @@ export const getMatrixConfigHealth = ({
       defaultModelIssueCount: defaultModelIssues.length,
       defaultModelOkCount: defaultHealthItems.filter((item) => item.status === 'ok').length,
       defaultModelTotal: defaultHealthItems.length,
+      missingAbilityModelCount: missingAbilityRows.length,
+      missingPricingModelCount: missingPricingRows.length,
       modelCount: rows.length,
       planCount: plans.length,
       plansWithoutAccessCount: plansWithoutAccess.length,
       pricingFallbackModelCount,
       pricingOverrideCount,
+      providerPricingModelCount: providerPricingRows.length,
     },
   };
 };
@@ -647,10 +687,25 @@ export const getMatrixConfigHealthFocus = ({
     return {
       planKeys: [],
       rowKeys: rows
-        .filter(
-          (row) =>
-            !Number.isFinite(row.pricingMultiplier) && !Number.isFinite(row.creditsPerDollar),
-        )
+        .filter((row) => !hasPricingOverride(row) && row.hasModelPricing === true)
+        .map((row) => row.key),
+    };
+  }
+
+  if (checkKey === 'missing-model-pricing') {
+    return {
+      planKeys: [],
+      rowKeys: rows
+        .filter((row) => !hasPricingOverride(row) && row.hasModelPricing !== true)
+        .map((row) => row.key),
+    };
+  }
+
+  if (checkKey === 'missing-model-abilities') {
+    return {
+      planKeys: [],
+      rowKeys: rows
+        .filter((row) => row.hasModelAbilities !== true)
         .map((row) => row.key),
     };
   }

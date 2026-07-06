@@ -295,6 +295,19 @@ describe('admin commercial flow pages', () => {
     expect(matrixPage).not.toContain('adminCommercialService.listAllEnabledNewapiModels');
   });
 
+  it('returns model pricing and ability completeness flags for billing diagnostics', () => {
+    const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
+    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+
+    expect(router).toContain('metadata: adminNewapiInstanceModels.metadata');
+    expect(router).toContain('hasModelPricing');
+    expect(router).toContain('hasModelAbilities');
+    expect(router).toContain('resolveModelPricingCompleteness');
+    expect(router).toContain('resolveModelAbilityCompleteness');
+    expect(matrixPage).toContain('hasModelPricing: item.hasModelPricing === true');
+    expect(matrixPage).toContain('hasModelAbilities: item.hasModelAbilities === true');
+  });
+
   it('surfaces AI service model access and billing health in the matrix page', () => {
     const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
     const matrixLogic = readRepoFile('src/features/Admin/adminModelBillingMatrix.ts');
@@ -419,6 +432,17 @@ describe('admin commercial flow pages', () => {
     expect(adminTopupPage).toContain("currency: 'USD'");
     expect(adminTopupPage).toContain("values.currency || 'USD'");
     expect(adminPlansPage).toContain('留空时前台不展示');
+  });
+
+  it('uses configured brand and keeps a non-duplicative usable balance summary on credits page', () => {
+    const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
+
+    expect(creditsPage).toContain("import { useBrand } from '@/features/Brand/BrandProvider'");
+    expect(creditsPage).toContain('const brand = useBrand();');
+    expect(creditsPage).toContain('{brand.name} Subscription');
+    expect(creditsPage).toContain('formatCredits(accountSummary?.balance ?? 0)');
+    expect(creditsPage).not.toContain('LOBEHUB CLOUD SUBSCRIPTION');
+    expect(creditsPage).not.toContain('充值积分余额</div>');
   });
 
   it('uses provider-neutral file names for the admin provider page', () => {

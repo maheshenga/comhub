@@ -12,6 +12,7 @@ import { refreshCommercialEntitlementState } from '@/business/client/commercialR
 import { Card } from '@/components/antd-compat/Card';
 import InlineTable from '@/components/InlineTable';
 import { normalizeTopUpPackagePromotion } from '@/const/billingPresentation';
+import { useBrand } from '@/features/Brand/BrandProvider';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
@@ -101,6 +102,7 @@ const sourceLabels: Record<string, string> = {
 
 const Credits = memo<{ mobile?: boolean }>(() => {
   const { t } = useTranslation('subscription');
+  const brand = useBrand();
   const { accountSummary, currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
   const { data: ledgerResult, isLoading: isLedgerLoading } = useClientDataSWR(
     ['business-credit-ledger'],
@@ -276,7 +278,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
               <div className={styles.balancePanel}>
                 <div className={styles.balanceStats}>
                   <div>
-                    <div className={subscriptionPageStyles.caption}>充值积分余额</div>
+                    <div className={subscriptionPageStyles.caption}>可用积分余额</div>
                     <div className={styles.bigValue}>
                       {formatCredits(accountSummary?.balance ?? 0)}
                     </div>
@@ -303,7 +305,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
                 </Flexbox>
               </div>
               <div className={styles.subscriptionBox}>
-                <div className={subscriptionPageStyles.caption}>LOBEHUB CLOUD SUBSCRIPTION</div>
+                <div className={subscriptionPageStyles.caption}>{brand.name} Subscription</div>
                 <PlanIcon plan={currentPlan} type={'combine'} />
                 <div className={subscriptionPageStyles.caption}>
                   每月订阅积分 {formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}

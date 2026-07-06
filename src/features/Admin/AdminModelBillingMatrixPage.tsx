@@ -87,6 +87,8 @@ type EnabledModelItem = {
   displayName?: string | null;
   groupKey?: string | null;
   groupName?: string | null;
+  hasModelAbilities?: boolean | null;
+  hasModelPricing?: boolean | null;
   instanceId: string;
   instanceName: string;
   modelId: string;
@@ -105,6 +107,8 @@ const FILTERABLE_CONFIG_HEALTH_CHECKS = new Set([
   'default-models',
   'global-pricing-multiplier',
   'healthy',
+  'missing-model-abilities',
+  'missing-model-pricing',
   'plans-without-models',
   'pricing-fallbacks',
 ]);
@@ -171,6 +175,8 @@ const AdminModelBillingMatrixPage = memo(() => {
         displayName: item.displayName ?? null,
         groupKey: item.groupKey,
         groupName: item.groupName,
+        hasModelAbilities: item.hasModelAbilities === true,
+        hasModelPricing: item.hasModelPricing === true,
         instanceId: item.instanceId,
         instanceName: item.instanceName,
         modelId: item.modelId,
@@ -582,8 +588,16 @@ const AdminModelBillingMatrixPage = memo(() => {
                     {configHealth.summary.pricingOverrideCount}
                   </Tag>
                   <Tag>
-                    {t('admin.modelBillingMatrix.healthPricingFallbacks', 'Provider pricing')}:{' '}
-                    {configHealth.summary.pricingFallbackModelCount}
+                    {t('admin.modelBillingMatrix.healthPricingFallbacks', 'Pricing metadata')}:{' '}
+                    {configHealth.summary.providerPricingModelCount}
+                  </Tag>
+                  <Tag>
+                    {t('admin.modelBillingMatrix.healthPricingMissing', 'Missing pricing')}:{' '}
+                    {configHealth.summary.missingPricingModelCount}
+                  </Tag>
+                  <Tag>
+                    {t('admin.modelBillingMatrix.healthAbilitiesMissing', 'Missing abilities')}:{' '}
+                    {configHealth.summary.missingAbilityModelCount}
                   </Tag>
                 </Space>
 

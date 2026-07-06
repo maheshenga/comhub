@@ -135,6 +135,47 @@ const assertInstanceApiKeyReady = <T extends { apiKeyStatus?: 'invalid' | 'ok' }
   }
 };
 
+const MODEL_PRICING_KEYS = [
+  'inputCostRate',
+  'inputRate',
+  'outputCostRate',
+  'outputRate',
+  'imageRate',
+  'videoRate',
+];
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const hasPositiveNumber = (value: unknown) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0;
+};
+
+const resolveModelPricingCompleteness = (
+  metadata: Record<string, unknown> | null | undefined,
+) => {
+  if (!isPlainRecord(metadata)) return false;
+  if (metadata.pricingAvailable === true) return true;
+  if (hasPositiveNumber(metadata.modelPrice) || hasPositiveNumber(metadata.modelRatio)) return true;
+
+  const manualPricing = metadata.manualPricing;
+  if (!isPlainRecord(manualPricing)) return false;
+
+  return MODEL_PRICING_KEYS.some((key) => hasPositiveNumber(manualPricing[key]));
+};
+
+const resolveModelAbilityCompleteness = (
+  metadata: Record<string, unknown> | null | undefined,
+) => {
+  if (!isPlainRecord(metadata)) return false;
+
+  const manualAbilities = metadata.manualAbilities;
+  if (!isPlainRecord(manualAbilities)) return false;
+
+  return Object.values(manualAbilities).some((value) => typeof value === 'boolean');
+};
+
 export const adminNewapiProvidersRouter = router({
   // ─── Instance CRUD ─────────────────────────────────────────────────────────
 
@@ -565,6 +606,7 @@ export const adminNewapiProvidersRouter = router({
           groupName: adminNewapiInstances.groupName,
           instanceId: adminNewapiInstances.id,
           instanceName: adminNewapiInstances.name,
+          metadata: adminNewapiInstanceModels.metadata,
           modelId: adminNewapiInstanceModels.modelId,
           modelType: adminNewapiInstanceModels.modelType,
           priority: adminNewapiInstances.priority,
@@ -578,6 +620,12 @@ export const adminNewapiProvidersRouter = router({
         .where(and(...conditions))
         .orderBy(asc(adminNewapiInstances.priority), asc(adminNewapiInstanceModels.sortOrder));
 
-      return { items: rows };
+      return {
+        items: rows.map(({ metadata, ...item }) => ({
+          ...item,
+          hasModelAbilities: resolveModelAbilityCompleteness(metadata),
+          hasModelPricing: resolveModelPricingCompleteness(metadata),
+        })),
+      };
     }),
 });

@@ -35,20 +35,21 @@ export const useBuildListItems = (
       for (const providerItem of sortedProviders) {
         for (const modelItem of providerItem.children) {
           const displayName = modelItem.displayName || modelItem.id;
+          const modelKey = modelItem.id;
 
           if (!matchesSearch(displayName) && !matchesSearch(providerItem.name)) {
             continue;
           }
 
-          if (!modelMap.has(displayName)) {
-            modelMap.set(displayName, {
+          if (!modelMap.has(modelKey)) {
+            modelMap.set(modelKey, {
               displayName,
               model: modelItem,
               providers: [],
             });
           }
 
-          const entry = modelMap.get(displayName)!;
+          const entry = modelMap.get(modelKey)!;
           entry.providers.push({
             id: providerItem.id,
             logo: providerItem.logo,
