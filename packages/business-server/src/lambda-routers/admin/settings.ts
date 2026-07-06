@@ -641,6 +641,8 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
     value = Boolean(value);
   } else if (input.key === SETTING_KEYS.plansFaqItems) {
     value = normalizePlanFaqSettings(value);
+  } else if (input.key === SETTING_KEYS.homeMessengerEnabled) {
+    value = Boolean(value);
   } else if ((OPERATIONS_KEYS as readonly string[]).includes(input.key)) {
     if (
       [
@@ -1390,8 +1392,10 @@ export const adminSettingsRouter = router({
   }),
 
   getPublicHelpMenu: publicDbProcedure.query(async ({ ctx }) => {
-    const raw = await readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems);
-    return normalizeHelpMenuItems(raw);
+    const row = await ctx.serverDB.query.appSettings.findFirst({
+      where: eq(appSettings.key, SETTING_KEYS.helpMenuItems),
+    });
+    return row ? normalizeHelpMenuItems(row.value) : null;
   }),
 
   getPublicAboutLinks: publicDbProcedure.query(async ({ ctx }) => {

@@ -112,6 +112,8 @@ const AdminNotificationsPage = memo(() => {
   }, [data, form]);
 
   const handleSave = async () => {
+    if (!data) return;
+
     const values = await form.validateFields();
     const updates = buildUpdates(values, initialValues);
 
@@ -134,6 +136,8 @@ const AdminNotificationsPage = memo(() => {
   };
 
   const handleMaterializeDefaults = async () => {
+    if (!data) return;
+
     const values = await form.validateFields();
     const updates = buildNotificationMaterializationUpdates(values);
 
@@ -290,10 +294,19 @@ const AdminNotificationsPage = memo(() => {
         </Card>
 
         <Flexbox horizontal gap={8} justify="flex-end" style={{ marginTop: 16 }}>
-          <Button disabled={submitting} loading={materializing} onClick={handleMaterializeDefaults}>
+          <Button
+            disabled={isLoading || !data || submitting}
+            loading={materializing}
+            onClick={handleMaterializeDefaults}
+          >
             {t('admin.notifications.materializeDefaults', 'Sync defaults')}
           </Button>
-          <Button disabled={materializing} loading={submitting} type="primary" onClick={handleSave}>
+          <Button
+            disabled={isLoading || !data || materializing}
+            loading={submitting}
+            type="primary"
+            onClick={handleSave}
+          >
             {t('admin.notifications.save', 'Save notification settings')}
           </Button>
         </Flexbox>

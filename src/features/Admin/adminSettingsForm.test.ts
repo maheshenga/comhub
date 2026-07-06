@@ -9,7 +9,6 @@ import {
   buildModelOptions,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
-  RECOMMENDED_HELP_MENU_ITEMS,
   resolveModelOptionValue,
   resolveModelProviderLabel,
   SETTING_KEYS,
@@ -787,7 +786,7 @@ describe('adminSettingsForm', () => {
   });
 
 
-  it('materializes site customization defaults for newly introduced admin settings', () => {
+  it('materializes site customization defaults without restoring explicitly empty help menus', () => {
     const values = buildFormValues({
       brandLoadingText: 'Loading ComHub',
       brandName: 'ComHub',
@@ -800,7 +799,7 @@ describe('adminSettingsForm', () => {
         { key: SETTING_KEYS.brandLoadingText, value: 'Loading ComHub' },
         { key: SETTING_KEYS.sidebarMemberLabel, value: '会员' },
         { key: SETTING_KEYS.sidebarMemberUrl, value: '/settings/plans' },
-        { key: SETTING_KEYS.helpMenuItems, value: RECOMMENDED_HELP_MENU_ITEMS },
+        { key: SETTING_KEYS.helpMenuItems, value: [] },
       ]),
     );
   });

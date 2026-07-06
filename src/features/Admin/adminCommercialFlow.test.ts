@@ -407,6 +407,22 @@ describe('admin commercial flow pages', () => {
     expect(settingsPage).toContain('disabled={isLoading || !data || submitting}');
   });
 
+  it('does not materialize notification defaults before current data has loaded', () => {
+    const notificationsPage = readRepoFile('src/features/Admin/AdminNotificationsPage.tsx');
+
+    expect(notificationsPage).toContain('if (!data) return;');
+    expect(notificationsPage).toContain('disabled={isLoading || !data || submitting}');
+    expect(notificationsPage).toContain('disabled={isLoading || !data || materializing}');
+  });
+
+  it('does not fall back to built-in help links when admin explicitly clears the menu', () => {
+    const footer = readRepoFile('src/routes/(main)/home/_layout/Footer/index.tsx');
+
+    expect(footer).toContain('data: configuredHelpMenuItems');
+    expect(footer).not.toContain('configuredMenuItems.length > 0');
+    expect(footer).not.toContain('configuredHelpMenuItems.length > 0');
+  });
+
   it('shows admin-configured top-up promotion metadata in admin and user credit surfaces', () => {
     const topupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');

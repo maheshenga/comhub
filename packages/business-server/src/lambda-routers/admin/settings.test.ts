@@ -302,6 +302,22 @@ describe('admin settings default model validation', () => {
     expect(settings.pricingCreditMultiplier).toBe(DEFAULT_PRICING_CREDIT_MULTIPLIER);
   });
 
+  it('persists home messenger enabled as a boolean brand setting', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    await caller.setAppSetting({
+      key: APP_SETTING_KEYS.homeMessengerEnabled,
+      value: false,
+    });
+
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.homeMessengerEnabled,
+      value: false,
+    });
+  });
+
   it('returns enabled managed models with their runtime provider ids', async () => {
     vi.mocked(getAllEnabledModels).mockResolvedValue([
       {
@@ -326,6 +342,16 @@ describe('admin settings default model validation', () => {
         provider: 'toapi',
       }),
     );
+  });
+
+  it('distinguishes missing and explicitly empty public help menu settings', async () => {
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    vi.mocked(getServerDB).mockResolvedValue(createDb());
+    await expect(caller.getPublicHelpMenu()).resolves.toBeNull();
+
+    vi.mocked(getServerDB).mockResolvedValue(createDb({ appSettings: [{ value: [] }] }));
+    await expect(caller.getPublicHelpMenu()).resolves.toEqual([]);
   });
 
   it('returns app settings governance without exposing persisted values', async () => {

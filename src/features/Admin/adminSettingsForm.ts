@@ -602,8 +602,6 @@ export const buildSettingMaterializationUpdates = (
   values: Partial<AdminSettingsFormValues>,
 ): SettingUpdate[] => {
   const current = normalizeFormValues(values);
-  const helpMenuItems =
-    current.helpMenuItems.length > 0 ? current.helpMenuItems : RECOMMENDED_HELP_MENU_ITEMS;
 
   return [
     ...SITE_CUSTOMIZATION_FIELDS.map((key) => ({
@@ -612,7 +610,7 @@ export const buildSettingMaterializationUpdates = (
     })),
     { key: SETTING_KEYS.aboutLinks, value: current.aboutLinks },
     { key: SETTING_KEYS.aboutPage, value: current.aboutPage },
-    { key: SETTING_KEYS.helpMenuItems, value: helpMenuItems },
+    { key: SETTING_KEYS.helpMenuItems, value: current.helpMenuItems },
     { key: SETTING_KEYS.plansFaqItems, value: current.planFaqItems },
   ];
 };
