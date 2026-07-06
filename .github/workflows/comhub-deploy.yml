@@ -146,6 +146,13 @@ jobs:
 
           cd "$DEPLOY_DIR"
 
+          echo "Disk usage before deploy:"
+          df -h /
+          docker system df || true
+
+          echo "Pruning unused Docker images before pull to protect Redis persistence space..."
+          docker image prune -af || true
+
           if command -v ctr >/dev/null 2>&1; then
             echo "Pre-pulling image through containerd: $IMAGE_REF"
             timeout "${COMHUB_CTR_PULL_TIMEOUT:-1800}" \
@@ -155,4 +162,22 @@ jobs:
           fi
 
           COMHUB_IMAGE="$IMAGE_REF" COMHUB_IMAGE_TAG="$IMAGE_TAG" ./deploy.sh "$IMAGE_REF"
+
+          echo "Running post-deploy runtime smoke checks..."
+          for path in / /api/auth/get-session; do
+            code="$(curl -sS -o /tmp/comhub-smoke.out -w '%{http_code}' "http://127.0.0.1:${COMHUB_PORT:-3213}${path}")"
+            echo "Smoke ${path}: HTTP ${code}"
+            if [ "$code" = "000" ] || [ "$code" -ge 500 ]; then
+              echo "Smoke check failed for ${path}; response preview:"
+              head -c 500 /tmp/comhub-smoke.out || true
+              exit 1
+            fi
+          done
+
+          echo "Pruning unused Docker images after deploy..."
+          docker image prune -af || true
+
+          echo "Disk usage after deploy:"
+          df -h /
+          docker system df || true
           REMOTE_DEPLOY
