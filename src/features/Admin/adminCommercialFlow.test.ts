@@ -373,12 +373,18 @@ describe('admin commercial flow pages', () => {
     const governanceCard = readRepoFile('src/features/Admin/AdminSettingsGovernanceCard.tsx');
 
     expect(settingsRouter).toContain('getGovernance: adminProcedure.query');
+    expect(settingsRouter).toContain('deleteUnknownSetting: systemWriteProcedure');
     expect(service).toContain('getAppSettingsGovernance');
     expect(service).toContain('admin.settings.getGovernance.query()');
+    expect(service).toContain('deleteUnknownAppSetting');
+    expect(service).toContain('admin.settings.deleteUnknownSetting.mutate(params)');
     expect(settingsPage).toContain('AdminSettingsGovernanceCard');
     expect(governanceCard).toContain('unknownKeys');
+    expect(governanceCard).toContain('deleteUnknownAppSetting');
+    expect(governanceCard).toContain('confirmKey');
     expect(governanceCard).toContain('sensitiveConfiguredKeys');
-    expect(governanceCard).not.toContain('value');
+    expect(governanceCard).not.toContain('item.value');
+    expect(governanceCard).not.toContain('dataSource={data.registeredSettings}');
   });
 
   it('shows admin-configured top-up promotion metadata in admin and user credit surfaces', () => {

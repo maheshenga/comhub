@@ -23,11 +23,13 @@ export type AppSettingsGovernance = {
   cacheScopeGroups: Array<{
     cacheScope: string;
     configuredCount: number;
+    label: string;
     registeredCount: number;
   }>;
   domainGroups: Array<{
     configuredCount: number;
     domain: AppSettingDomain;
+    label: string;
     registeredCount: number;
     sensitiveConfiguredCount: number;
   }>;
@@ -44,8 +46,34 @@ export type AppSettingsGovernance = {
   unknownKeys: Array<{ key: string }>;
 };
 
+const DOMAIN_LABELS: Record<AppSettingDomain, string> = {
+  about: 'About',
+  brand: 'Brand',
+  client: 'Client',
+  composio: 'Composio',
+  content: 'Content',
+  growth: 'Growth',
+  model: 'Model',
+  notification: 'Notification',
+  operations: 'Operations',
+  pricing: 'Pricing',
+  storage: 'Storage',
+  system: 'System',
+  'user-defaults': 'User defaults',
+};
+
+const CACHE_SCOPE_LABELS: Record<string, string> = {
+  'app-settings': 'App settings',
+  brand: 'Brand runtime',
+  runtime: 'Model/runtime',
+  s3: 'S3 runtime',
+  'user-state': 'User state',
+};
+
 const hasPersistedValue = (value: unknown) =>
   value !== null && value !== undefined && value !== '';
+
+export const isUnknownAppSettingKey = (key: string) => !getAppSettingRegistryItem(key);
 
 export const buildAppSettingsGovernance = (
   rows: AppSettingsGovernanceInputRow[],
@@ -65,7 +93,7 @@ export const buildAppSettingsGovernance = (
     };
   });
   const unknownKeys = rows
-    .filter((row) => !getAppSettingRegistryItem(row.key))
+    .filter((row) => isUnknownAppSettingKey(row.key))
     .map((row) => ({ key: row.key }))
     .sort((a, b) => a.key.localeCompare(b.key));
   const sensitiveConfiguredKeys = registeredSettings.filter(
@@ -78,6 +106,7 @@ export const buildAppSettingsGovernance = (
           const current = groups.get(item.domain) ?? {
             configuredCount: 0,
             domain: item.domain,
+            label: DOMAIN_LABELS[item.domain],
             registeredCount: 0,
             sensitiveConfiguredCount: 0,
           };
@@ -101,6 +130,7 @@ export const buildAppSettingsGovernance = (
             const current = groups.get(cacheScope) ?? {
               cacheScope,
               configuredCount: 0,
+              label: CACHE_SCOPE_LABELS[cacheScope] ?? cacheScope,
               registeredCount: 0,
             };
 

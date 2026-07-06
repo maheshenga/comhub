@@ -48,7 +48,10 @@ import {
   normalizeS3FilePath,
   serializeModelIdList,
 } from '@/server/services/appSettings';
-import { buildAppSettingsGovernance } from '@/server/services/appSettings/governance';
+import {
+  buildAppSettingsGovernance,
+  isUnknownAppSettingKey,
+} from '@/server/services/appSettings/governance';
 import { invalidateServerBrand } from '@/server/services/brand';
 import {
   getAllEnabledModels,
@@ -1473,6 +1476,43 @@ export const adminSettingsRouter = router({
 
     return buildAppSettingsGovernance(rows);
   }),
+
+  deleteUnknownSetting: systemWriteProcedure
+    .input(
+      z.object({
+        confirmKey: z.string().min(1),
+        key: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.confirmKey !== input.key) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'CONFIRMATION_KEY_MISMATCH',
+        });
+      }
+
+      if (!isUnknownAppSettingKey(input.key)) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'REGISTERED_SETTING_DELETE_BLOCKED',
+        });
+      }
+
+      const deleted = await ctx.serverDB
+        .delete(appSettings)
+        .where(eq(appSettings.key, input.key))
+        .returning({ key: appSettings.key });
+
+      await recordAdminAudit(ctx, {
+        action: 'settings.deleteUnknown',
+        payload: { key: input.key },
+        resourceId: input.key,
+        resourceType: 'app_setting',
+      });
+
+      return { deleted: deleted.length > 0, key: input.key };
+    }),
 
   getAll: adminProcedure.query(async ({ ctx }) => {
     const [

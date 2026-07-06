@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 
-import { buildAppSettingsGovernance } from './governance';
+import { buildAppSettingsGovernance, isUnknownAppSettingKey } from './governance';
 
 describe('buildAppSettingsGovernance', () => {
   it('reports registered, persisted, unknown and sensitive setting counts', () => {
@@ -44,5 +44,18 @@ describe('buildAppSettingsGovernance', () => {
         expect.objectContaining({ cacheScope: 's3' }),
       ]),
     );
+  });
+
+  it('marks unknown keys and includes readable group labels', () => {
+    const result = buildAppSettingsGovernance([
+      { key: APP_SETTING_KEYS.brandName, value: 'ComHub' },
+      { key: 'legacy.unknown.key', value: true },
+    ]);
+
+    expect(isUnknownAppSettingKey(APP_SETTING_KEYS.brandName)).toBe(false);
+    expect(isUnknownAppSettingKey('legacy.unknown.key')).toBe(true);
+    expect(result.unknownKeys).toEqual([{ key: 'legacy.unknown.key' }]);
+    expect(result.domainGroups[0]).toHaveProperty('label');
+    expect(result.cacheScopeGroups[0]).toHaveProperty('label');
   });
 });

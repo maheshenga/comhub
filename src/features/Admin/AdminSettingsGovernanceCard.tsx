@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, List, Skeleton, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Input, List, message, Modal, Skeleton, Space, Tag, Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -38,6 +38,47 @@ const AdminSettingsGovernanceCard = memo(() => {
   if (!data) return null;
 
   const hasUnknownKeys = data.unknownKeys.length > 0;
+
+  const handleDeleteUnknownKey = (key: string) => {
+    let typedKey = '';
+
+    Modal.confirm({
+      content: (
+        <Flexbox gap={8}>
+          <Text type="secondary">
+            {t(
+              'admin.settings.governance.deleteUnknownDescription',
+              '请输入完整 key 以确认删除。此操作只用于清理未注册的历史设置项。',
+            )}
+          </Text>
+          <Text code>{key}</Text>
+          <Input
+            placeholder={key}
+            onChange={(event) => {
+              typedKey = event.target.value;
+            }}
+          />
+        </Flexbox>
+      ),
+      okButtonProps: { danger: true },
+      okText: t('admin.settings.governance.deleteUnknownConfirm', '删除'),
+      onOk: async () => {
+        if (typedKey !== key) {
+          message.error(
+            t('admin.settings.governance.deleteUnknownMismatch', '输入的 key 不匹配'),
+          );
+          return Promise.reject(new Error('CONFIRMATION_KEY_MISMATCH'));
+        }
+
+        await adminCommercialService.deleteUnknownAppSetting({ confirmKey: key, key });
+        message.success(
+          t('admin.settings.governance.deleteUnknownSuccess', '未知设置项已删除'),
+        );
+        await mutate();
+      },
+      title: t('admin.settings.governance.deleteUnknownTitle', '删除未知设置项？'),
+    });
+  };
 
   return (
     <Card
@@ -90,7 +131,22 @@ const AdminSettingsGovernanceCard = memo(() => {
           <List
             bordered
             dataSource={data.unknownKeys}
-            renderItem={(item) => <List.Item>{item.key}</List.Item>}
+            renderItem={(item) => (
+              <List.Item
+                actions={[
+                  <Button
+                    danger
+                    key="delete"
+                    size="small"
+                    onClick={() => handleDeleteUnknownKey(item.key)}
+                  >
+                    {t('admin.settings.governance.deleteUnknown', '删除')}
+                  </Button>,
+                ]}
+              >
+                <Text code>{item.key}</Text>
+              </List.Item>
+            )}
             size="small"
           />
         )}

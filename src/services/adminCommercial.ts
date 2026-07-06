@@ -121,6 +121,10 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.getGovernance.query();
   };
 
+  deleteUnknownAppSetting = async (params: { confirmKey: string; key: string }) => {
+    return lambdaClient.admin.settings.deleteUnknownSetting.mutate(params);
+  };
+
   setAppSetting = async (params: { key: string; value: unknown }) => {
     return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
   };

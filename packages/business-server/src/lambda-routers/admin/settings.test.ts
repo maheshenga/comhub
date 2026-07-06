@@ -351,6 +351,60 @@ describe('admin settings default model validation', () => {
     expect(JSON.stringify(result)).not.toContain('legacy-value');
   });
 
+  it('deletes unknown app setting keys with exact confirmation and audit log', async () => {
+    const where = vi.fn(() => ({
+      returning: vi.fn().mockResolvedValue([{ key: 'legacy.unknown.key' }]),
+    }));
+    const db = {
+      delete: vi.fn(() => ({ where })),
+      query: {
+        users: { findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'system_admin' }) },
+      },
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
+        confirmKey: 'legacy.unknown.key',
+        key: 'legacy.unknown.key',
+      }),
+    ).resolves.toEqual({ deleted: true, key: 'legacy.unknown.key' });
+
+    expect(db.delete).toHaveBeenCalled();
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'settings.deleteUnknown',
+        resourceId: 'legacy.unknown.key',
+        resourceType: 'app_setting',
+      }),
+    );
+  });
+
+  it('rejects deleting registered app setting keys', async () => {
+    const db = createDb({ role: 'system_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
+        confirmKey: APP_SETTING_KEYS.brandName,
+        key: APP_SETTING_KEYS.brandName,
+      }),
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+  });
+
+  it('rejects unknown setting cleanup when confirmation does not match', async () => {
+    const db = createDb({ role: 'system_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
+        confirmKey: 'wrong',
+        key: 'legacy.unknown.key',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
   it('returns public desktop update display fields for client download entries', async () => {
     const db = createDb({
       appSettings: [
