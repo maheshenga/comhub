@@ -4,6 +4,7 @@ import { LOBE_DEFAULT_MODEL_LIST } from 'model-bank';
 import { z } from 'zod';
 
 import {
+  type AdminNewapiInstanceModelItem,
   type AdminNewapiInstanceItem,
   adminNewapiInstanceModels,
   adminNewapiInstances,
@@ -168,12 +169,12 @@ const resolveModelPricingCompleteness = (
   return MODEL_PRICING_KEYS.some((key) => hasPositiveNumber(manualPricing[key]));
 };
 
-const MODEL_BANK_PROVIDER_BY_ADMIN_PROVIDER_TYPE = {
+const MODEL_BANK_PROVIDER_BY_ADMIN_PROVIDER_TYPE: Partial<Record<AdminProviderType, string>> = {
   claude: 'anthropic',
   deepseek: 'deepseek',
   openai: 'openai',
   siliconflow: 'siliconcloud',
-} satisfies Partial<Record<AdminProviderType, string>>;
+};
 
 const hasExactModelBankPricing = ({
   modelId,
@@ -189,6 +190,20 @@ const hasExactModelBankPricing = ({
   return LOBE_DEFAULT_MODEL_LIST.some(
     (item) => item.providerId === modelBankProviderId && item.id === modelId && Boolean(item.pricing),
   );
+};
+
+type AdminEnabledProviderModelRow = {
+  baseUrl: AdminNewapiInstanceItem['baseUrl'];
+  displayName: AdminNewapiInstanceModelItem['displayName'];
+  groupKey: AdminNewapiInstanceItem['groupKey'];
+  groupName: AdminNewapiInstanceItem['groupName'];
+  instanceId: AdminNewapiInstanceItem['id'];
+  instanceName: AdminNewapiInstanceItem['name'];
+  metadata: AdminNewapiInstanceModelItem['metadata'];
+  modelId: AdminNewapiInstanceModelItem['modelId'];
+  modelType: AdminNewapiInstanceModelItem['modelType'];
+  priority: AdminNewapiInstanceItem['priority'];
+  providerType: AdminNewapiInstanceItem['providerType'];
 };
 
 const resolveModelPricingSource = ({
@@ -660,8 +675,10 @@ export const adminNewapiProvidersRouter = router({
         .where(and(...conditions))
         .orderBy(asc(adminNewapiInstances.priority), asc(adminNewapiInstanceModels.sortOrder));
 
-      return {
-        items: rows.map(({ metadata, ...item }) => ({
+      const items = rows.map((row: AdminEnabledProviderModelRow) => {
+        const { metadata, ...item } = row;
+
+        return {
           ...item,
           hasModelAbilities: resolveModelAbilityCompleteness(metadata),
           hasModelPricing: resolveModelPricingCompleteness(metadata),
@@ -670,7 +687,11 @@ export const adminNewapiProvidersRouter = router({
             modelId: item.modelId,
             providerType: item.providerType,
           }),
-        })),
+        };
+      });
+
+      return {
+        items,
       };
     }),
 });
