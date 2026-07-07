@@ -875,3 +875,4 @@
 | 2026-07-07 | Admin Plan Minor Mutation Audit | active | GOV-031 adds before/after plan catalog snapshots to `plan.setActive` and `plan.setModelRules` audit payloads. |
 | 2026-07-07 | Admin Settings Cache Sync Audit | active | GOV-032 adds structured operation, status, scope, and cache-domain result metadata to admin settings cache refresh and user-default sync audit payloads. |
 | 2026-07-07 | Model Pricing Margin Foundation | active | GOV-033 adds a pure business pricing margin transform for model-bank pricing objects, covering fixed, tiered, lookup, and approximate media price fields without mutating source pricing or changing billing transactions. |
+| 2026-07-07 | Server Model Pricing Snapshot | active | GOV-034 adds a server-side model pricing snapshot helper that records whether pricing comes from admin/database metadata, static model-bank data, or is missing while keeping existing billing pricing output unchanged. |

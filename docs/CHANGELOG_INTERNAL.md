@@ -30,3 +30,5 @@
 - Verification: `packages/business-server/src/lambda-routers/admin/settings.test.ts`.
 - GOV-033: Added a pure business model pricing margin transform for model-bank pricing objects. The first P0-04 slice covers fixed, tiered, lookup, and approximate media price fields without mutating source pricing or changing billing transactions.
 - Verification: `src/business/client/hooks/useBusinessModelPricing.test.ts`.
+- GOV-034: Added a server-side model pricing snapshot helper that records whether pricing comes from admin/database metadata, static model-bank data, or is missing while preserving the existing pricing-only helper output.
+- Verification: `packages/business-server/src/serverModelPricing.test.ts`.
