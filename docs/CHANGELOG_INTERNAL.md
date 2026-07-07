@@ -34,3 +34,5 @@
 - Verification: `packages/business-server/src/serverModelPricing.test.ts`.
 - GOV-035: Added admin model billing matrix pricing-source visibility so rows can distinguish manual overrides, database/admin pricing, model-bank pricing, and missing pricing without changing billing transactions.
 - Verification: `src/features/Admin/adminModelBillingMatrix.test.ts`.
+- GOV-036: Added `pricingSource` to the admin enabled AI provider models API so the billing matrix can receive database/missing pricing source metadata from the backend.
+- Verification: `packages/business-server/src/lambda-routers/admin/newapiProviders.test.ts`.

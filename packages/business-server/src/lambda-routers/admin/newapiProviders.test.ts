@@ -28,12 +28,14 @@ vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
 const instanceId = '00000000-0000-4000-8000-000000000001';
 
 const createDbMock = ({
+  allEnabledModelRows = [],
   existingRows = [],
   findFirstRow,
   findManyRows,
   providerType = 'newapi',
   role = 'admin',
 }: {
+  allEnabledModelRows?: Array<Record<string, any>>;
   existingRows?: Array<{ enabled: boolean; modelId: string; modelType: string }>;
   findFirstRow?: Record<string, any>;
   findManyRows?: Array<Record<string, any>>;
@@ -105,6 +107,11 @@ const createDbMock = ({
     },
     select: vi.fn(() => ({
       from: vi.fn(() => ({
+        innerJoin: vi.fn(() => ({
+          where: vi.fn(() => ({
+            orderBy: vi.fn().mockResolvedValue(allEnabledModelRows),
+          })),
+        })),
         where: vi.fn().mockResolvedValue(existingRows),
       })),
     })),
@@ -410,6 +417,56 @@ describe('adminNewapiProvidersRouter', () => {
         modelType: 'image',
       }),
     );
+  });
+
+  it('returns pricing source metadata for enabled models', async () => {
+    const { db } = createDbMock({
+      allEnabledModelRows: [
+        {
+          baseUrl: 'https://newapi.example.com',
+          displayName: 'Priced Chat',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceName: 'NewAPI Gateway',
+          metadata: { modelRatio: 1, pricingAvailable: true },
+          modelId: 'priced-chat',
+          modelType: 'chat',
+          priority: 0,
+          providerType: 'newapi',
+        },
+        {
+          baseUrl: 'https://newapi.example.com',
+          displayName: 'Missing Chat',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceName: 'NewAPI Gateway',
+          metadata: {},
+          modelId: 'missing-chat',
+          modelType: 'chat',
+          priority: 1,
+          providerType: 'newapi',
+        },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.getAllEnabledModels();
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        hasModelPricing: true,
+        modelId: 'priced-chat',
+        pricingSource: 'database',
+      }),
+      expect.objectContaining({
+        hasModelPricing: false,
+        modelId: 'missing-chat',
+        pricingSource: 'missing',
+      }),
+    ]);
   });
 
   it('warns about manual pricing when the service provider format has no pricing sync', async () => {

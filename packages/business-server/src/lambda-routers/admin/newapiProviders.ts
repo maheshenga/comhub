@@ -9,8 +9,8 @@ import {
   NEWAPI_MODEL_TYPES,
 } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
-import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
 import { getModelCatalogDiagnostics } from '@/server/services/modelCatalog/diagnostics';
+import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
 import {
   buildNewapiPricingSyncWarnings,
   fetchNewapiModels,
@@ -164,6 +164,9 @@ const resolveModelPricingCompleteness = (
 
   return MODEL_PRICING_KEYS.some((key) => hasPositiveNumber(manualPricing[key]));
 };
+
+const resolveModelPricingSource = (metadata: Record<string, unknown> | null | undefined) =>
+  resolveModelPricingCompleteness(metadata) ? 'database' : 'missing';
 
 const resolveModelAbilityCompleteness = (
   metadata: Record<string, unknown> | null | undefined,
@@ -625,6 +628,7 @@ export const adminNewapiProvidersRouter = router({
           ...item,
           hasModelAbilities: resolveModelAbilityCompleteness(metadata),
           hasModelPricing: resolveModelPricingCompleteness(metadata),
+          pricingSource: resolveModelPricingSource(metadata),
         })),
       };
     }),
