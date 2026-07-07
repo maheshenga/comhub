@@ -11,16 +11,23 @@ import {
   type PlatformPluginPermissionReason,
   resolvePlatformPluginPermission,
 } from '@/business/server/platform-plugins/permission';
+import { runPlatformPlugin } from '@/business/server/platform-plugins/runPlatformPlugin';
+import { decryptPlatformPluginSecret } from '@/business/server/platform-plugins/secrets';
 import { getSubscriptionPlan } from '@/business/server/user';
+import { CommercialModel } from '@/database/models/commercial';
 import { PlatformPluginModel } from '@/database/models/platformPlugin';
 import {
+  platformPluginActions,
   platformPluginAgentBindings,
   platformPluginInstallations,
+  platformPluginSecrets,
   platformPluginVersions,
 } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
+import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
+import { FileService } from '@/server/services/file';
 
 const PluginIdInputSchema = z.object({
   pluginId: z.string().uuid(),
@@ -111,6 +118,26 @@ const findLatestVersionId = async (db: LobeChatDatabase, pluginId: string) => {
   return version.id;
 };
 
+const findRuntimeActionRow = async (
+  db: LobeChatDatabase,
+  params: { actionKey: string; pluginId: string },
+) => {
+  const versionId = await findLatestVersionId(db, params.pluginId);
+  const action = await db.query.platformPluginActions.findFirst({
+    where: and(
+      eq(platformPluginActions.pluginId, params.pluginId),
+      eq(platformPluginActions.versionId, versionId),
+      eq(platformPluginActions.actionKey, params.actionKey),
+    ),
+  });
+
+  if (!action) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'platform_plugin_action_not_found' });
+  }
+
+  return { actionDbId: action.id, versionId };
+};
+
 const isPluginInstalled = async (db: LobeChatDatabase, params: { pluginId: string; userId: string }) => {
   const installation = await db.query.platformPluginInstallations.findFirst({
     where: and(
@@ -138,6 +165,73 @@ const isAgentBound = async (
   });
 
   return !!binding;
+};
+
+const resolvePluginSecrets = async (db: LobeChatDatabase, pluginId: string) => {
+  const rows = await db.query.platformPluginSecrets.findMany({
+    where: eq(platformPluginSecrets.pluginId, pluginId),
+  });
+  const secrets: Record<string, string> = {};
+
+  for (const row of rows) {
+    const value = decryptPlatformPluginSecret(row.encryptedValue);
+    secrets[row.secretKey] = value;
+    secrets[`${row.scope}:${row.secretKey}`] = value;
+  }
+
+  return secrets;
+};
+
+const extractTextFromRuntimeResponse = async (response: unknown): Promise<string> => {
+  if (response && typeof response === 'object' && 'text' in response) {
+    const text = await (response as { text: () => Promise<string> }).text();
+
+    try {
+      const json = JSON.parse(text) as Record<string, any>;
+      const choiceText = json.choices?.[0]?.message?.content ?? json.output_text ?? json.content;
+
+      if (typeof choiceText === 'string') return choiceText;
+    } catch {
+      const dataLines = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trim())
+        .filter((line) => line && line !== '[DONE]');
+
+      if (dataLines.length > 0) return dataLines.join('\n');
+    }
+
+    return text;
+  }
+
+  return typeof response === 'string' ? response : JSON.stringify(response ?? '');
+};
+
+const createTextGenerator = (db: LobeChatDatabase, userId: string) => async ({
+  model,
+  prompt,
+  provider,
+}: {
+  model?: string;
+  prompt: string;
+  provider?: string;
+}) => {
+  if (!provider || !model) {
+    throw new Error('PLATFORM_PLUGIN_TEXT_GENERATOR_PROVIDER_MODEL_REQUIRED');
+  }
+
+  const runtime = await initModelRuntimeFromDB(db, userId, provider, { model });
+  const response = await runtime.chat({
+    messages: [{ content: prompt, role: 'user' }],
+    model,
+    stream: false,
+  } as any);
+
+  return {
+    aiActualCredits: 0,
+    text: await extractTextFromRuntimeResponse(response),
+  };
 };
 
 export const platformPluginRouter = router({
@@ -236,7 +330,29 @@ export const platformPluginRouter = router({
       throwPermissionDenied(decision.runnable.reason ?? 'plan_run_denied');
     }
 
-    throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'platform_plugin_runtime_not_ready' });
+    const runtimeAction = await findRuntimeActionRow(ctx.serverDB, {
+      actionKey: action.id,
+      pluginId: detail.id,
+    });
+
+    return runPlatformPlugin({
+      action,
+      actionDbId: runtimeAction.actionDbId,
+      agentBound,
+      agentId: input.agentId,
+      artifactStorage: new FileService(ctx.serverDB, ctx.userId),
+      commercialModel: new CommercialModel(ctx.serverDB, ctx.userId),
+      currentPlan: ctx.currentPlan,
+      db: ctx.serverDB,
+      detail,
+      input: input.input,
+      installed,
+      pluginId: detail.id,
+      resolvedSecrets: await resolvePluginSecrets(ctx.serverDB, detail.id),
+      textGenerator: createTextGenerator(ctx.serverDB, ctx.userId),
+      userId: ctx.userId,
+      versionId: runtimeAction.versionId,
+    });
   }),
 
   setAgentBinding: platformPluginProcedure
