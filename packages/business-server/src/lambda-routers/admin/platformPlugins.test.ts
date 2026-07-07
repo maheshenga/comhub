@@ -153,6 +153,12 @@ const pluginRow = {
   tags: [],
 };
 
+const getWhereColumnName = (where: unknown) => {
+  const chunks = (where as { queryChunks?: Array<{ name?: string }> })?.queryChunks ?? [];
+
+  return chunks.find((chunk) => typeof chunk.name === 'string')?.name;
+};
+
 const createDb = ({ role = 'admin' }: { role?: string | null } = {}) => {
   const secrets: Array<Record<string, unknown>> = [];
 
@@ -262,6 +268,26 @@ describe('admin.platformPlugins router', () => {
         maskedValue: 'sk_l**********6789',
       }),
     ]);
+  });
+
+  it('gets a plugin by id when the input is a UUID', async () => {
+    const { caller, db } = createAdminCaller({ role: 'admin' });
+
+    await caller.platformPlugins.get({ pluginIdOrSlug: pluginId });
+
+    const where = db.query.platformPlugins.findFirst.mock.calls.at(-1)?.[0]?.where;
+
+    expect(getWhereColumnName(where)).toBe('id');
+  });
+
+  it('gets a plugin by slug when the input is not a UUID', async () => {
+    const { caller, db } = createAdminCaller({ role: 'admin' });
+
+    await caller.platformPlugins.get({ pluginIdOrSlug: 'writer' });
+
+    const where = db.query.platformPlugins.findFirst.mock.calls.at(-1)?.[0]?.where;
+
+    expect(getWhereColumnName(where)).toBe('slug');
   });
 
   it('rejects non-admin access', async () => {
