@@ -854,6 +854,7 @@
 | 是否建议重构 | 是 |
 | 是否需要补测试 | 是 |
 | 备注 | P1 明确不导入现有 MCP 或 Skills。聊天快捷入口只导航到显式插件详情/运行面板，不经过旧 Tool Store、MCP settings 或 Skill ActionTag 执行链路。 |
+| Seed script | `scripts/seedPlatformPlugins.ts` creates draft samples; admins must publish them before users can see them. |
 
 ## 待人工确认清单
 

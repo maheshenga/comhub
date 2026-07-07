@@ -43,3 +43,5 @@
 
 - PLATFORM-PLUGIN-P1-010: Added a chat input platform plugin shortcut category for installed runnable platform plugins. Selecting a platform plugin opens the explicit `/plugins/:pluginId` detail/run surface with the current Agent id instead of dispatching legacy MCP/Skill ActionTag commands.
 - Verification: `src/features/ChatInput/InputEditor/platformPluginMentions.test.tsx`, `src/features/ChatInput/InputEditor/index.test.tsx`, `src/services/platformPlugin.test.ts`, `src/features/PlatformPluginMarket/helpers.test.ts`, and `src/spa/router/desktopRouter.sync.test.tsx`.
+- PLATFORM-PLUGIN-P1-011: Added an idempotent `platform-plugin:seed` script for two draft P1 sample plugins: `dictionary-lookup` API action and `research-notes` content generation with plan entitlements.
+- Verification: `scripts/seedPlatformPlugins.test.ts`.
