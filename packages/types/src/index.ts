@@ -26,6 +26,7 @@ export * from './hotkey';
 export * from './importer';
 export * from './knowledgeBase';
 export * from './llm';
+export * from './platformPlugin';
 export * from './message';
 export * from './meta';
 export * from './plugins';
