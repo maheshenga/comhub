@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { assertSafePlatformPluginUrl } from './urlSafety';
+import { assertSafePlatformPluginUrl, setDefaultPlatformPluginUrlResolver } from './urlSafety';
+
+let resetDefaultResolver: (() => void) | undefined;
+
+afterEach(() => {
+  resetDefaultResolver?.();
+  resetDefaultResolver = undefined;
+});
 
 describe('assertSafePlatformPluginUrl', () => {
   it.each([
@@ -18,9 +25,23 @@ describe('assertSafePlatformPluginUrl', () => {
   });
 
   it('accepts public http and https URLs', () => {
+    resetDefaultResolver = setDefaultPlatformPluginUrlResolver(() => ['93.184.216.34']);
+
     expect(assertSafePlatformPluginUrl('https://api.dictionaryapi.dev/api/v2/entries/en/test')).toBe(
       'https://api.dictionaryapi.dev/api/v2/entries/en/test',
     );
+  });
+
+  it('rejects default runtime resolver results that point at private targets', () => {
+    resetDefaultResolver = setDefaultPlatformPluginUrlResolver(() => ['127.0.0.1']);
+
+    expect(() => assertSafePlatformPluginUrl('http://127.0.0.1.nip.io/api')).toThrow();
+  });
+
+  it('fails closed when the default resolver cannot resolve a hostname', () => {
+    resetDefaultResolver = setDefaultPlatformPluginUrlResolver(() => []);
+
+    expect(() => assertSafePlatformPluginUrl('https://example.invalid/api')).toThrow();
   });
 
   it.each([

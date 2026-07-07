@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { isIP } from 'node:net';
 
 export type PlatformPluginUrlResolver = (hostname: string) => readonly string[];
@@ -7,6 +8,63 @@ export interface PlatformPluginUrlSafetyOptions {
 }
 
 const unsafeUrlError = () => new Error('PLATFORM_PLUGIN_UNSAFE_URL');
+
+const DNS_LOOKUP_TIMEOUT_MS = 2000;
+
+const resolveHostnameWithSystemDns: PlatformPluginUrlResolver = (hostname) => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      `
+const { lookup } = require('node:dns');
+const hostname = process.argv[process.argv.length - 1];
+lookup(hostname, { all: true, verbatim: true }, (error, addresses) => {
+  if (error) {
+    process.exit(1);
+    return;
+  }
+
+  process.stdout.write(JSON.stringify(addresses.map(({ address }) => address)));
+});
+`,
+      hostname,
+    ],
+    {
+      encoding: 'utf8',
+      timeout: DNS_LOOKUP_TIMEOUT_MS,
+      windowsHide: true,
+    },
+  );
+
+  if (result.error || result.status !== 0) {
+    throw unsafeUrlError();
+  }
+
+  try {
+    const addresses = JSON.parse(result.stdout);
+
+    if (!Array.isArray(addresses) || !addresses.every((address) => typeof address === 'string')) {
+      throw unsafeUrlError();
+    }
+
+    return addresses;
+  } catch {
+    throw unsafeUrlError();
+  }
+};
+
+let defaultResolveHostname = resolveHostnameWithSystemDns;
+
+export const setDefaultPlatformPluginUrlResolver = (resolver: PlatformPluginUrlResolver) => {
+  const previousResolver = defaultResolveHostname;
+
+  defaultResolveHostname = resolver;
+
+  return () => {
+    defaultResolveHostname = previousResolver;
+  };
+};
 
 const stripIpv6Brackets = (hostname: string) =>
   hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
@@ -154,7 +212,14 @@ export const assertSafePlatformPluginUrl = (
 
   assertSafeHostname(parsedUrl.hostname);
 
-  const resolvedAddresses = options.resolveHostname?.(parsedUrl.hostname) ?? [];
+  const hostWithoutBrackets = stripIpv6Brackets(parsedUrl.hostname);
+  const resolvedAddresses = isIP(hostWithoutBrackets)
+    ? [hostWithoutBrackets]
+    : (options.resolveHostname ?? defaultResolveHostname)(parsedUrl.hostname);
+
+  if (resolvedAddresses.length === 0) {
+    throw unsafeUrlError();
+  }
 
   for (const address of resolvedAddresses) {
     if (isUnsafeIpAddress(address)) {
