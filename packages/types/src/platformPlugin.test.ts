@@ -49,6 +49,10 @@ describe('platform plugin shared schemas', () => {
     'http://192.168.1.1',
     'http://169.254.169.254',
     'http://[::1]',
+    'http://[::ffff:7f00:1]',
+    'http://[::ffff:a9fe:a9fe]',
+    'http://[::ffff:0a00:0001]',
+    'http://[::ffff:0808:0808]',
   ])('rejects unsafe api url %s', (url) => {
     expect(() =>
       platformPluginActionConfigSchema.parse({

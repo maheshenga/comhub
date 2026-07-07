@@ -61,3 +61,13 @@
 - Added a passing case for a normal public HTTPS URL.
 - Verification command: `bunx vitest run --silent='passed-only' src/platformPlugin.test.ts`
 - Result: `1 file passed, 14 tests passed`.
+
+## Re-review security fix
+
+- Tightened `isPrivateOrReservedIpv6()` to reject every normalized IPv4-mapped IPv6 literal after lowercasing and bracket stripping, including hex-encoded forms such as `http://[::ffff:7f00:1]`, `http://[::ffff:a9fe:a9fe]`, `http://[::ffff:0a00:0001]`, and `http://[::ffff:0808:0808]`.
+- Added regression coverage for those four literals in `packages/types/src/platformPlugin.test.ts`.
+- Verification command run from `packages/types`:
+  - `bunx vitest run --silent='passed-only' src/platformPlugin.test.ts`
+- Result:
+  - Red before the fix: 4 failing cases for the IPv4-mapped IPv6 literals.
+  - Green after the fix: 1 file passed, 18 tests passed.

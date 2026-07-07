@@ -118,10 +118,8 @@ function isPrivateOrReservedIpv6(hostname: string) {
     return true;
   }
 
-  const mappedIpv4 = strippedHostname.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-
-  if (mappedIpv4) {
-    return isPrivateOrReservedIpv4(mappedIpv4[1]);
+  if (strippedHostname.includes('::ffff:')) {
+    return true;
   }
 
   const value = parseIpv6Address(strippedHostname);
