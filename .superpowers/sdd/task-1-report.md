@@ -43,3 +43,21 @@
 - The shared contract is isolated to `packages/types` and does not touch legacy MCP/Skill/plugin runtime paths.
 - I verified the new symbols through both the focused test and a direct barrel import check.
 - No open concerns.
+
+## Review follow-up
+
+- Hardened `platformPluginActionConfigSchema.api.url` with a schema-level safety refinement that only accepts public `http(s)` targets.
+- The refinement now rejects literal localhost, private, loopback, link-local, and metadata IP hosts, including the review examples for IPv4 and IPv6.
+- Added regression coverage for:
+  - `file:///etc/passwd`
+  - `http://localhost:3000`
+  - `http://127.0.0.1`
+  - `http://10.0.0.1`
+  - `http://172.16.0.1`
+  - `http://172.31.255.255`
+  - `http://192.168.1.1`
+  - `http://169.254.169.254`
+  - `http://[::1]`
+- Added a passing case for a normal public HTTPS URL.
+- Verification command: `bunx vitest run --silent='passed-only' src/platformPlugin.test.ts`
+- Result: `1 file passed, 14 tests passed`.

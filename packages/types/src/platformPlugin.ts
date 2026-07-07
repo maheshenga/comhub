@@ -1,4 +1,182 @@
+import { isIP } from 'node:net';
+
 import { z } from 'zod';
+
+function parseIpv4Octets(hostname: string) {
+  const octets = hostname.split('.').map((value) => Number(value));
+
+  if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+    return null;
+  }
+
+  return octets;
+}
+
+function isPrivateOrReservedIpv4(hostname: string) {
+  const octets = parseIpv4Octets(hostname);
+
+  if (!octets) {
+    return false;
+  }
+
+  const [a, b] = octets;
+
+  if (a === 0 || a === 10 || a === 127) {
+    return true;
+  }
+
+  if (a === 100 && b >= 64 && b <= 127) {
+    return true;
+  }
+
+  if (a === 169 && b === 254) {
+    return true;
+  }
+
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true;
+  }
+
+  if (a === 192 && b === 168) {
+    return true;
+  }
+
+  if (a >= 224) {
+    return true;
+  }
+
+  return false;
+}
+
+function parseIpv6Address(hostname: string) {
+  const normalizedHostname = hostname.toLowerCase();
+  const ipv4TailMatch = normalizedHostname.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  let expandedHostname = normalizedHostname;
+
+  if (ipv4TailMatch) {
+    const octets = parseIpv4Octets(ipv4TailMatch[1]);
+
+    if (!octets) {
+      return null;
+    }
+
+    const [a, b, c, d] = octets;
+    const hextet1 = ((a << 8) | b).toString(16);
+    const hextet2 = ((c << 8) | d).toString(16);
+    expandedHostname = `${normalizedHostname.slice(0, ipv4TailMatch.index)}${hextet1}:${hextet2}`;
+  }
+
+  const parts = expandedHostname.split('::');
+
+  if (parts.length > 2) {
+    return null;
+  }
+
+  const leftParts = parts[0] ? parts[0].split(':').filter(Boolean) : [];
+  const rightParts = parts[1] ? parts[1].split(':').filter(Boolean) : [];
+  const hextetCount = leftParts.length + rightParts.length;
+
+  if (parts.length === 1) {
+    if (hextetCount !== 8) {
+      return null;
+    }
+  } else if (hextetCount >= 8) {
+    return null;
+  }
+
+  const hextets = [
+    ...leftParts,
+    ...Array.from({ length: 8 - hextetCount }, () => '0'),
+    ...rightParts,
+  ];
+
+  if (hextets.length !== 8) {
+    return null;
+  }
+
+  let value = 0n;
+
+  for (const hextet of hextets) {
+    if (!/^[0-9a-f]{1,4}$/.test(hextet)) {
+      return null;
+    }
+
+    value = (value << 16n) + BigInt(Number.parseInt(hextet, 16));
+  }
+
+  return value;
+}
+
+function isPrivateOrReservedIpv6(hostname: string) {
+  const normalizedHostname = hostname.toLowerCase();
+  const strippedHostname =
+    normalizedHostname.startsWith('[') && normalizedHostname.endsWith(']')
+      ? normalizedHostname.slice(1, -1)
+      : normalizedHostname;
+
+  if (strippedHostname === '::' || strippedHostname === '::1') {
+    return true;
+  }
+
+  const mappedIpv4 = strippedHostname.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+
+  if (mappedIpv4) {
+    return isPrivateOrReservedIpv4(mappedIpv4[1]);
+  }
+
+  const value = parseIpv6Address(strippedHostname);
+
+  if (value === null) {
+    return false;
+  }
+
+  const ranges = [
+    [0n, 0n],
+    [0x0000_0000_0000_0000_0000_0000_0000_0001n, 0x0000_0000_0000_0000_0000_0000_0000_0001n],
+    [0xfc00_0000_0000_0000_0000_0000_0000_0000n, 0xfdff_ffff_ffff_ffff_ffff_ffff_ffff_ffffn],
+    [0xfe80_0000_0000_0000_0000_0000_0000_0000n, 0xfebf_ffff_ffff_ffff_ffff_ffff_ffff_ffffn],
+    [0xff00_0000_0000_0000_0000_0000_0000_0000n, 0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffffn],
+  ] as const;
+
+  return ranges.some(([start, end]) => value >= start && value <= end);
+}
+
+function isSafePlatformPluginApiUrl(url: string) {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const normalizedHostname =
+      hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return false;
+    }
+
+    if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+      return false;
+    }
+
+    if (normalizedHostname === '0.0.0.0') {
+      return false;
+    }
+
+    if (isIP(normalizedHostname) === 4) {
+      return !isPrivateOrReservedIpv4(normalizedHostname);
+    }
+
+    if (isIP(normalizedHostname) === 6) {
+      return !isPrivateOrReservedIpv6(normalizedHostname);
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const platformPluginApiUrlSchema = z.string().url().refine(isSafePlatformPluginApiUrl, {
+  message: 'API URL must use a public http(s) host',
+});
 
 export const platformPluginStatusSchema = z.enum(['draft', 'published', 'unpublished']);
 export type PlatformPluginStatus = z.infer<typeof platformPluginStatusSchema>;
@@ -56,7 +234,7 @@ export const platformPluginActionConfigSchema = z.object({
       method: z.enum(['GET', 'POST']).default('POST'),
       responsePath: z.string().max(200).optional(),
       timeoutMs: z.coerce.number().int().min(1000).max(60_000).default(30_000),
-      url: z.string().url().optional(),
+      url: platformPluginApiUrlSchema.optional(),
     })
     .optional(),
   contentGeneration: z

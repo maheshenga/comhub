@@ -39,6 +39,45 @@ describe('platform plugin shared schemas', () => {
     expect(value.moduleMultiplier).toBe(1.2);
   });
 
+  it.each([
+    'file:///etc/passwd',
+    'http://localhost:3000',
+    'http://127.0.0.1',
+    'http://10.0.0.1',
+    'http://172.16.0.1',
+    'http://172.31.255.255',
+    'http://192.168.1.1',
+    'http://169.254.169.254',
+    'http://[::1]',
+  ])('rejects unsafe api url %s', (url) => {
+    expect(() =>
+      platformPluginActionConfigSchema.parse({
+        api: { url },
+        id: 'dictionary_lookup',
+        inputSchema: {
+          fields: [{ key: 'word', label: 'Word', required: true, type: 'text' }],
+        },
+        name: 'Dictionary Lookup',
+        runtimeType: 'api_action',
+      })
+    ).toThrow();
+  });
+
+  it('accepts a normal public https api url', () => {
+    const publicUrl = 'https://example.com/api/v1/lookup?q=term';
+    const value = platformPluginActionConfigSchema.parse({
+      api: { url: publicUrl },
+      id: 'dictionary_lookup',
+      inputSchema: {
+        fields: [{ key: 'word', label: 'Word', required: true, type: 'text' }],
+      },
+      name: 'Dictionary Lookup',
+      runtimeType: 'api_action',
+    });
+
+    expect(value.api?.url).toBe(publicUrl);
+  });
+
   it('validates admin upsert payloads', () => {
     const value = platformPluginAdminUpsertSchema.parse({
       billing: { defaultMultiplier: 1.35, fixedServiceFeeCredits: 10 },
