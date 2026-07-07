@@ -184,16 +184,11 @@ export class PlatformPluginModel {
     actionConfig: PlatformPluginAdminUpsertInput['actionConfig'],
     db: DbExecutor,
   ) => {
-    if (!actionConfig) return;
-
     await db
       .delete(platformPluginActions)
-      .where(
-        and(
-          eq(platformPluginActions.pluginId, pluginId),
-          eq(platformPluginActions.versionId, versionId),
-        ),
-      );
+      .where(eq(platformPluginActions.pluginId, pluginId));
+
+    if (!actionConfig) return;
 
     const runtimeConfig =
       actionConfig.runtimeType === 'content_generation'
@@ -329,7 +324,7 @@ export class PlatformPluginModel {
 
     if (!plugin || plugin.status !== 'published') return null;
 
-    const [planEntitlement, version, entitlements, actions, installation] = await Promise.all([
+    const [planEntitlement, version, entitlements, installation] = await Promise.all([
       this.db.query.platformPluginPlanEntitlements.findFirst({
         where: and(
           eq(platformPluginPlanEntitlements.pluginId, plugin.id),
@@ -340,10 +335,6 @@ export class PlatformPluginModel {
       this.db.query.platformPluginPlanEntitlements.findMany({
         orderBy: [asc(platformPluginPlanEntitlements.plan)],
         where: eq(platformPluginPlanEntitlements.pluginId, plugin.id),
-      }),
-      this.db.query.platformPluginActions.findMany({
-        orderBy: [asc(platformPluginActions.createdAt)],
-        where: eq(platformPluginActions.pluginId, plugin.id),
       }),
       this.db.query.platformPluginInstallations.findFirst({
         where: and(
@@ -356,6 +347,14 @@ export class PlatformPluginModel {
     ]);
 
     if (!planEntitlement?.visible || !version) return null;
+
+    const actions = await this.db.query.platformPluginActions.findMany({
+      orderBy: [asc(platformPluginActions.createdAt)],
+      where: and(
+        eq(platformPluginActions.pluginId, plugin.id),
+        eq(platformPluginActions.versionId, version.id),
+      ),
+    });
 
     return {
       ...toListItem(plugin, planEntitlement, !!installation),

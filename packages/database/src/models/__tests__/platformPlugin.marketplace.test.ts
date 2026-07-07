@@ -1,8 +1,5 @@
 // @vitest-environment node
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -26,27 +23,8 @@ const baseBilling = {
   failureFixedFeePolicy: 'do_not_charge' as const,
   fixedServiceFeeCredits: 0,
 };
-let platformPluginSchemaReady = false;
-
-const ensurePlatformPluginSchema = async () => {
-  if (platformPluginSchemaReady) return;
-
-  const migrationPath = join(__dirname, '../../../migrations/0130_add_platform_plugins.sql');
-  const migrationSql = await readFile(migrationPath, 'utf8');
-  const statements = migrationSql
-    .split('--> statement-breakpoint')
-    .map((statement) => statement.trim())
-    .filter(Boolean);
-
-  for (const statement of statements) {
-    await serverDB.execute(sql.raw(statement));
-  }
-
-  platformPluginSchemaReady = true;
-};
 
 beforeEach(async () => {
-  await ensurePlatformPluginSchema();
   await serverDB.delete(platformPlugins);
   await serverDB.delete(users);
   await serverDB.insert(users).values([{ id: userId }, { id: adminUserId }]);
@@ -185,6 +163,93 @@ describe('PlatformPluginModel marketplace behavior', () => {
       runtimeType: 'api_action',
     });
     expect(detail?.version).toBeTruthy();
+  });
+
+  it('removes stale actions when a plugin is upserted without actionConfig', async () => {
+    const plugin = await model.upsertPluginForAdmin({
+      actionConfig: {
+        api: {
+          method: 'POST',
+          timeoutMs: 30_000,
+          url: 'https://api.example.com/dictionary',
+        },
+        id: 'lookup_word',
+        inputSchema: { fields: [{ key: 'term', label: 'Term', required: true, type: 'text' }] },
+        moduleMultiplier: 1,
+        name: 'Lookup Word',
+        runtimeType: 'api_action',
+      },
+      billing: baseBilling,
+      category: 'productivity',
+      description: 'Lookup a public dictionary.',
+      displayName: 'Dictionary Lookup',
+      icon: 'BookOpen',
+      runtimeType: 'api_action',
+      slug: 'dictionary-lookup',
+      status: 'published',
+      tags: ['lookup'],
+    });
+    await model.setPlanEntitlements('dictionary-lookup', [
+      {
+        discountPercent: 0,
+        freeQuotaCredits: 0,
+        installable: true,
+        plan: 'free',
+        runnable: true,
+        visible: true,
+      },
+    ]);
+
+    const originalDetail = await model.getPluginDetail({
+      plan: 'free',
+      pluginIdOrSlug: plugin.slug,
+      userId,
+    });
+
+    expect(originalDetail?.actions).toHaveLength(1);
+
+    await model.upsertPluginForAdmin({
+      billing: baseBilling,
+      category: 'productivity',
+      description: 'Lookup a public dictionary.',
+      displayName: 'Dictionary Lookup',
+      icon: 'BookOpen',
+      runtimeType: 'api_action',
+      slug: 'dictionary-lookup',
+      status: 'published',
+      tags: ['lookup'],
+    });
+
+    const updatedDetail = await model.getPluginDetail({
+      plan: 'free',
+      pluginIdOrSlug: plugin.slug,
+      userId,
+    });
+
+    expect(updatedDetail?.actions).toEqual([]);
+
+    const [version] = await serverDB
+      .select({ id: platformPluginVersions.id, version: platformPluginVersions.version })
+      .from(platformPluginVersions)
+      .where(eq(platformPluginVersions.pluginId, plugin.id));
+
+    expect(version?.id).toBeTruthy();
+    expect(version?.version).toBeTruthy();
+
+    await model.installPlugin({
+      pluginId: plugin.id,
+      userId,
+      versionId: version!.id,
+    });
+
+    await expect(model.listInstalledPlugins({ userId })).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          installationSource: 'platform_plugin_installations',
+          slug: 'dictionary-lookup',
+        }),
+      ]),
+    );
   });
 
   it('installs from the new platform plugin installation table and supports uninstall', async () => {

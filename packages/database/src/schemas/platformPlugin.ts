@@ -11,13 +11,6 @@ import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex, uuid } from
 import { createdAt, timestamptz, updatedAt } from './_helpers';
 import { users } from './user';
 
-const DEFAULT_PLATFORM_PLUGIN_BILLING_CONFIG: PlatformPluginBillingConfig = {
-  defaultMultiplier: 1,
-  externalApiCostCredits: 0,
-  failureFixedFeePolicy: 'do_not_charge',
-  fixedServiceFeeCredits: 0,
-};
-
 export const platformPlugins = pgTable(
   'platform_plugins',
   {
@@ -31,10 +24,7 @@ export const platformPlugins = pgTable(
     runtimeType: text('runtime_type').$type<PlatformPluginRuntimeType>().notNull(),
     status: text('status').$type<PlatformPluginStatus>().default('draft').notNull(),
     tags: jsonb('tags').$type<string[]>().default([]).notNull(),
-    billing: jsonb('billing')
-      .$type<PlatformPluginBillingConfig>()
-      .$defaultFn(() => ({ ...DEFAULT_PLATFORM_PLUGIN_BILLING_CONFIG }))
-      .notNull(),
+    billing: jsonb('billing').$type<PlatformPluginBillingConfig>().default({}).notNull(),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
     createdAt: createdAt(),
