@@ -573,7 +573,18 @@ describe('admin settings default model validation', () => {
       expect.anything(),
       expect.objectContaining({
         action: 'settings.refreshRuntimeCaches',
-        payload: { refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'] },
+        payload: {
+          operation: 'refreshRuntimeCaches',
+          refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
+          requestedDomains: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
+          results: [
+            { domain: 'app-settings', status: 'refreshed' },
+            { domain: 'newapi-instances', status: 'refreshed' },
+            { domain: 's3-runtime', status: 'refreshed' },
+            { domain: 'brand', status: 'refreshed' },
+          ],
+          status: 'success',
+        },
         resourceType: 'app_setting',
       }),
     );
@@ -1060,6 +1071,9 @@ describe('admin settings default model validation', () => {
       expect.objectContaining({
         action: 'settings.syncUserDefaults',
         payload: {
+          operation: 'syncUserGlobalSettingsDefaultsToUsers',
+          scope: { forceDefaultAgentMeta: false, target: 'all-users' },
+          status: 'success',
           syncedFields: ['languageModel', 'systemAgent', 'tool'],
           syncedUsers: 2,
         },
@@ -1136,6 +1150,9 @@ describe('admin settings default model validation', () => {
         action: 'settings.syncUserDefaults',
         payload: {
           forceDefaultAgentMeta: true,
+          operation: 'syncUserGlobalSettingsDefaultsToUsers',
+          scope: { forceDefaultAgentMeta: true, target: 'all-users' },
+          status: 'success',
           syncedFields: ['defaultAgent'],
           syncedUsers: 1,
         },

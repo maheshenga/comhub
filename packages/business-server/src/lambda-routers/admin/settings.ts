@@ -2137,10 +2137,20 @@ export const adminSettingsRouter = router({
       const forceSyncAuditPayload = options.forceDefaultAgentMeta
         ? { forceDefaultAgentMeta: true }
         : {};
+      const scope = {
+        forceDefaultAgentMeta: options.forceDefaultAgentMeta,
+        target: 'all-users',
+      };
 
       await recordAdminAudit(ctx, {
         action: 'settings.syncUserDefaults',
-        payload: { ...result, ...forceSyncAuditPayload },
+        payload: {
+          operation: 'syncUserGlobalSettingsDefaultsToUsers',
+          scope,
+          status: 'success',
+          ...result,
+          ...forceSyncAuditPayload,
+        },
         resourceId: SETTING_KEYS.userGlobalSettingsDefaults,
         resourceType: 'user_settings',
       });
@@ -2154,10 +2164,22 @@ export const adminSettingsRouter = router({
     invalidateFileS3RuntimeCache();
     invalidateServerBrand();
 
-    const refreshed = ['app-settings', 'newapi-instances', 's3-runtime', 'brand'] as const;
+    const results = [
+      { domain: 'app-settings', status: 'refreshed' },
+      { domain: 'newapi-instances', status: 'refreshed' },
+      { domain: 's3-runtime', status: 'refreshed' },
+      { domain: 'brand', status: 'refreshed' },
+    ] as const;
+    const refreshed = results.map(({ domain }) => domain);
     await recordAdminAudit(ctx, {
       action: 'settings.refreshRuntimeCaches',
-      payload: { refreshed },
+      payload: {
+        operation: 'refreshRuntimeCaches',
+        refreshed,
+        requestedDomains: refreshed,
+        results,
+        status: 'success',
+      },
       resourceType: 'app_setting',
     });
 

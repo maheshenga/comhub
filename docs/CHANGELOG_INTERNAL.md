@@ -26,3 +26,5 @@
 - Verification: `packages/business-server/src/lambda-routers/admin/plans.test.ts`.
 - GOV-031: Added before/after plan-catalog snapshots to admin `plan.setActive` and `plan.setModelRules` audit payloads.
 - Verification: `packages/business-server/src/lambda-routers/admin/plans.test.ts`.
+- GOV-032: Added structured operation, status, scope, and cache-domain result metadata to admin settings cache refresh and user-default sync audit payloads.
+- Verification: `packages/business-server/src/lambda-routers/admin/settings.test.ts`.
