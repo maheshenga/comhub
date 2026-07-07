@@ -3,8 +3,8 @@
 import type { PlatformPluginDetail } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Descriptions, Empty, Input, message, Spin, Tag, Typography } from 'antd';
-import { memo, useState } from 'react';
-import { useParams } from 'react-router';
+import { memo, useEffect, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router';
 
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { platformPluginService } from '@/services/platformPlugin';
@@ -21,17 +21,22 @@ import PluginRunPanel from './PluginRunPanel';
 const { Paragraph, Text, Title } = Typography;
 
 type PluginDetailViewProps = {
+  initialAgentId?: string;
   plugin: PlatformPluginDetail;
 };
 
 const detailKey = (pluginIdOrSlug?: string) =>
   pluginIdOrSlug ? ['platform-plugin-detail', pluginIdOrSlug] : null;
 
-const PluginDetailView = memo<PluginDetailViewProps>(({ plugin }) => {
-  const [agentId, setAgentId] = useState('');
+const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plugin }) => {
+  const [agentId, setAgentId] = useState(initialAgentId);
   const [submitting, setSubmitting] = useState(false);
   const restrictionReason = getPlatformPluginRestrictionReason(plugin);
   const action = plugin.actions[0];
+
+  useEffect(() => {
+    setAgentId(initialAgentId);
+  }, [initialAgentId]);
 
   const refresh = async () => {
     await Promise.all([
@@ -170,6 +175,8 @@ PluginDetailView.displayName = 'PluginDetailView';
 
 export const PlatformPluginDetailPage = memo(() => {
   const { pluginId } = useParams();
+  const [searchParams] = useSearchParams();
+  const initialAgentId = searchParams.get('agentId') ?? '';
   const { data, error, isLoading } = useClientDataSWR(detailKey(pluginId), () =>
     platformPluginService.getDetail({ pluginIdOrSlug: pluginId! }),
   );
@@ -185,7 +192,7 @@ export const PlatformPluginDetailPage = memo(() => {
   if (error) return <Alert showIcon message="插件详情加载失败" type="error" />;
   if (!data) return <Empty description="插件不存在或当前套餐不可见" />;
 
-  return <PluginDetailView plugin={data} />;
+  return <PluginDetailView initialAgentId={initialAgentId} plugin={data} />;
 });
 
 PlatformPluginDetailPage.displayName = 'PlatformPluginDetailPage';

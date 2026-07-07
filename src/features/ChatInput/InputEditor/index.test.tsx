@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => {
       model: 'gpt-4o-mini',
       provider: 'openai',
     },
+    navigate: vi.fn(),
     recordTracingFeedback: vi.fn(),
   };
 });
@@ -123,6 +124,7 @@ vi.mock('react-hotkeys-hook', () => ({
     enableScope: vi.fn(),
   }),
 }));
+vi.mock('react-router', () => ({ useNavigate: () => mocks.navigate }));
 
 vi.mock('@/components/DragUploadZone', () => ({
   usePasteFile: vi.fn(),

@@ -1,9 +1,11 @@
 import { Avatar, Icon } from '@lobehub/ui';
 import { SkillsIcon } from '@lobehub/ui/icons';
-import { Bot, MessageSquareText, Users, Wrench } from 'lucide-react';
+import { Bot, MessageSquareText, Puzzle, Users, Wrench } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useClientDataSWR } from '@/libs/swr';
+import { platformPluginService } from '@/services/platformPlugin';
 import { useChatStore } from '@/store/chat';
 import { topicSelectors } from '@/store/chat/selectors';
 import { useGlobalStore } from '@/store/global';
@@ -16,9 +18,11 @@ import { useChatInputStore } from '../store';
 import { useInstalledSkillsAndTools } from './ActionTag/useInstalledSkillsAndTools';
 import MentionItemIcon from './MentionItemIcon';
 import type { MentionCategory } from './MentionMenu/types';
+import { buildPlatformPluginMentionItems } from './platformPluginMentions';
 
 const MAX_AGENT_ITEMS = 20;
 const MAX_TOPIC_LABEL = 50;
+const INSTALLED_PLATFORM_PLUGINS_KEY = ['platform-plugin-installed-mentions'];
 type MenuOptionWithMetadata = { key: string; metadata?: Record<string, unknown> };
 
 export const useMentionCategories = (): MentionCategory[] => {
@@ -38,6 +42,10 @@ export const useMentionCategories = (): MentionCategory[] => {
   const isGroupChat = !!externalMentionItems;
 
   const enabledSkills = useInstalledSkillsAndTools();
+  const { data: installedPlatformPlugins = [] } = useClientDataSWR(
+    INSTALLED_PLATFORM_PLUGINS_KEY,
+    () => platformPluginService.listInstalled(),
+  );
 
   return useMemo(() => {
     const categories: MentionCategory[] = [];
@@ -166,6 +174,17 @@ export const useMentionCategories = (): MentionCategory[] => {
       });
     }
 
+    // --- Platform Plugins ---
+    const platformPluginItems = buildPlatformPluginMentionItems(installedPlatformPlugins);
+    if (platformPluginItems.length > 0) {
+      categories.push({
+        id: 'platformPlugin',
+        icon: <Icon icon={Puzzle} size={16} />,
+        items: platformPluginItems,
+        label: t('mention.category.platformPlugins'),
+      });
+    }
+
     return categories;
   }, [
     allAgents,
@@ -175,6 +194,7 @@ export const useMentionCategories = (): MentionCategory[] => {
     isGroupChat,
     externalMentionItems,
     enabledSkills,
+    installedPlatformPlugins,
     t,
   ]);
 };

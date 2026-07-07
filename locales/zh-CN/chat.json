@@ -333,6 +333,7 @@
   "memory.title": "记忆",
   "mention.category.agents": "助理",
   "mention.category.members": "成员",
+  "mention.category.platformPlugins": "插件",
   "mention.category.skills": "技能",
   "mention.category.tools": "工具",
   "mention.category.topics": "话题",

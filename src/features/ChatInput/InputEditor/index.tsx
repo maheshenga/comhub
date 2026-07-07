@@ -26,6 +26,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useHotkeysContext } from 'react-hotkeys-hook';
+import { useNavigate } from 'react-router';
 
 import { usePasteFile, useUploadFiles } from '@/components/DragUploadZone';
 import { useEnterToSend } from '@/hooks/useEnterToSend';
@@ -56,6 +57,7 @@ import type { MentionMenuState } from './MentionMenu/types';
 import { mentionFilledClassName } from './mentionStyle';
 import Placeholder, { type PlaceholderVariant } from './Placeholder';
 import { CHAT_INPUT_EMBED_PLUGINS, createChatInputRichPlugins } from './plugins';
+import { buildPlatformPluginRunRoute } from './platformPluginMentions';
 import { INSERT_REFER_TOPIC_COMMAND } from './ReferTopic';
 import { useLocalFileMention } from './useLocalFileMention';
 import { useMentionCategories } from './useMentionCategories';
@@ -182,6 +184,7 @@ const InputEditor = memo<{
   const { allowed: canCreateContent } = usePermission('create_content');
   const hotkey = useUserStore(settingsSelectors.getHotkeyById(HotkeyEnum.AddUserMessage));
   const { enableScope, disableScope } = useHotkeysContext();
+  const navigate = useNavigate();
 
   const { compositionProps, isComposingRef } = useIMECompositionEvent();
 
@@ -469,26 +472,37 @@ const InputEditor = memo<{
     return `<mention name="${mention.label}" id="${mention.metadata.id}" />`;
   }, []);
 
-  const mentionOnSelect = useCallback((editor: any, option: any) => {
-    if (option.metadata?.type === 'topic') {
-      editor.dispatchCommand(INSERT_REFER_TOPIC_COMMAND, {
-        topicId: option.metadata.topicId as string,
-        topicTitle: String(option.metadata.topicTitle ?? option.label),
-      });
-    } else if (option.metadata?.type === 'skill' || option.metadata?.type === 'tool') {
-      const payload: InsertActionTagPayload = {
-        category: option.metadata.actionCategory as 'skill' | 'tool',
-        label: String(option.label),
-        type: String(option.metadata.actionType),
-      };
-      editor.dispatchCommand(INSERT_ACTION_TAG_COMMAND, payload);
-    } else {
-      editor.dispatchCommand(INSERT_MENTION_COMMAND, {
-        label: String(option.label),
-        metadata: option.metadata,
-      });
-    }
-  }, []);
+  const mentionOnSelect = useCallback(
+    (editor: any, option: any) => {
+      if (option.metadata?.type === 'topic') {
+        editor.dispatchCommand(INSERT_REFER_TOPIC_COMMAND, {
+          topicId: option.metadata.topicId as string,
+          topicTitle: String(option.metadata.topicTitle ?? option.label),
+        });
+      } else if (option.metadata?.type === 'platformPlugin') {
+        const pluginIdOrSlug = String(
+          option.metadata.pluginSlug ?? option.metadata.pluginId ?? '',
+        ).trim();
+
+        if (pluginIdOrSlug) {
+          navigate(buildPlatformPluginRunRoute({ agentId, pluginIdOrSlug }));
+        }
+      } else if (option.metadata?.type === 'skill' || option.metadata?.type === 'tool') {
+        const payload: InsertActionTagPayload = {
+          category: option.metadata.actionCategory as 'skill' | 'tool',
+          label: String(option.label),
+          type: String(option.metadata.actionType),
+        };
+        editor.dispatchCommand(INSERT_ACTION_TAG_COMMAND, payload);
+      } else {
+        editor.dispatchCommand(INSERT_MENTION_COMMAND, {
+          label: String(option.label),
+          metadata: option.metadata,
+        });
+      }
+    },
+    [agentId, navigate],
+  );
 
   const mentionOption = useMemo(
     () =>

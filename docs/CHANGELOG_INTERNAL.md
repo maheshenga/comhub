@@ -38,3 +38,8 @@
 - Verification: `packages/business-server/src/lambda-routers/admin/newapiProviders.test.ts`.
 - GOV-037: Added exact static model-bank pricing source detection to the admin enabled AI provider models API for safe provider mappings only, preserving DB pricing priority and leaving generic compatible gateways as missing.
 - Verification: `packages/business-server/src/lambda-routers/admin/newapiProviders.test.ts`.
+
+### Platform Plugins
+
+- PLATFORM-PLUGIN-P1-010: Added a chat input platform plugin shortcut category for installed runnable platform plugins. Selecting a platform plugin opens the explicit `/plugins/:pluginId` detail/run surface with the current Agent id instead of dispatching legacy MCP/Skill ActionTag commands.
+- Verification: `src/features/ChatInput/InputEditor/platformPluginMentions.test.tsx`, `src/features/ChatInput/InputEditor/index.test.tsx`, `src/services/platformPlugin.test.ts`, `src/features/PlatformPluginMarket/helpers.test.ts`, and `src/spa/router/desktopRouter.sync.test.tsx`.

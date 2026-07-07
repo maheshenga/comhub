@@ -71,6 +71,7 @@
 | Legacy Top-up 入口 | `deprecated` | 中 | 是 | 是 |
 | 空壳 Workspace 商业 Router | `unknown` | 高 | 是 | 是 |
 | Storage Overage 空壳 Router | `deprecated` | 中 | 是 | 是 |
+| Platform Plugin Marketplace | `experimental` | 高 | 是 | 是 |
 
 ## 功能明细
 
@@ -833,6 +834,26 @@
 | 是否建议重构 | 是 |
 | 是否需要补测试 | 是 |
 | 备注 | deprecated candidate。若产品需要存储超额付费，应改为 planned 并补完整 API/DB/账单链路。 |
+
+### 39. Platform Plugin Marketplace
+
+| 字段 | 内容 |
+| --- | --- |
+| 功能名称 | Platform Plugin Marketplace |
+| 功能状态 | `experimental` |
+| 功能说明 | 平台控制的商业插件市场，P1 支持 API action 与 content generation 插件，包含后台管理、套餐权限、计费配置、安装、Agent 绑定、运行记录、产物和聊天输入快捷入口。 |
+| 前端入口 | `/plugins`、`/plugins/:pluginId`、`/admin/platform-plugins`、聊天输入平台插件 mention 分类 |
+| 核心组件 | `src/features/PlatformPluginMarket`、`src/features/Admin/platformPlugins`、`src/features/ChatInput/InputEditor/platformPluginMentions.ts` |
+| 后端 API / Server Action | `lambda.platformPlugin`、`admin.platformPlugins` |
+| 数据库依赖 | `platform_plugin_*` tables |
+| 配置项依赖 | Plugin plan entitlements、plugin billing config、plugin secrets |
+| 环境变量依赖 | `PLATFORM_PLUGIN_SECRET_KEY`、既有 AI provider 与对象存储变量 |
+| 外部服务依赖 | 既有 AI provider、插件配置的外部 API、对象存储 |
+| 主要相关文件 | `packages/types/src/platformPlugin.ts`、`packages/database/src/schemas/platformPlugin.ts`、`packages/business-server/src/platform-plugins`、`apps/server/src/routers/lambda/platformPlugin.ts`、`src/services/platformPlugin.ts` |
+| 维护风险 | 高 |
+| 是否建议重构 | 是 |
+| 是否需要补测试 | 是 |
+| 备注 | P1 明确不导入现有 MCP 或 Skills。聊天快捷入口只导航到显式插件详情/运行面板，不经过旧 Tool Store、MCP settings 或 Skill ActionTag 执行链路。 |
 
 ## 待人工确认清单
 

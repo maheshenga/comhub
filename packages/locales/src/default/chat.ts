@@ -267,6 +267,7 @@ export default {
   'members': 'Members',
   'mention.category.agents': 'Agents',
   'mention.category.members': 'Members',
+  'mention.category.platformPlugins': 'Plugins',
   'mention.category.skills': 'Skills',
   'mention.category.tools': 'Tools',
   'mention.category.topics': 'Topics',
