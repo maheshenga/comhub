@@ -25,6 +25,7 @@ export default {
   'navigation.pages': 'Pages',
   'navigation.pin': 'Pin',
   'navigation.pinned': 'Pinned',
+  'navigation.plugins': 'Plugins',
   'navigation.ppt': 'PPT',
   'navigation.provider': 'Provider',
   'navigation.recentView': 'Recent pages',

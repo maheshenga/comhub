@@ -2,9 +2,22 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { matchRoutes } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { desktopRoutes } from './desktopRouter.config';
+
+vi.mock('@/business/client/BusinessDesktopRoutes', () => ({
+  BusinessDesktopRoutesWithMainLayout: [],
+  BusinessDesktopRoutesWithoutMainLayout: [],
+  BusinessDesktopRoutesWithSettingsLayout: [],
+}));
+
+vi.mock('@/utils/router', () => ({
+  dynamicElement: () => null,
+  dynamicLayout: () => null,
+  ErrorBoundary: () => null,
+  redirectElement: () => null,
+}));
 
 /**
  * Known path pairs that intentionally differ between web and desktop (Electron).
