@@ -41,6 +41,24 @@
 
 ### Platform Plugins
 
+- PLATFORM-PLUGIN-P1-001: Added the shared platform plugin type contract for P1 `api_action` and `content_generation` plugins, including status, runtime, permission, billing, entitlement, action config, detail, and run-result DTO schemas.
+- Verification: `packages/types/src/platformPlugin.test.ts`.
+- PLATFORM-PLUGIN-P1-002: Added the `platform_plugin_*` database schema, migration registration, and `PlatformPluginModel` marketplace/admin data access while keeping the domain separate from legacy MCP/Skill plugin tables.
+- Verification: `packages/database/src/models/__tests__/platformPlugin.marketplace.test.ts` when `DATABASE_TEST_URL` is available.
+- PLATFORM-PLUGIN-P1-003: Added platform plugin domain guards for plan visibility/install/run permissions, billing calculations, secret masking/encryption helpers, URL safety checks, DNS hardening, and audit payload helpers.
+- Verification: `packages/business-server/src/platform-plugins/permission.test.ts`, `packages/business-server/src/platform-plugins/billing.test.ts`, `packages/business-server/src/platform-plugins/secrets.test.ts`, and `packages/business-server/src/platform-plugins/urlSafety.test.ts`.
+- PLATFORM-PLUGIN-P1-004: Added the admin `admin.platformPlugins` router for plugin CRUD, publishing state, entitlements, billing configuration, secret metadata, run records, artifacts, and audit-safe operations.
+- Verification: `packages/business-server/src/lambda-routers/admin/platformPlugins.test.ts`.
+- PLATFORM-PLUGIN-P1-005: Added the authenticated user `lambda.platformPlugin` router for marketplace listing, detail reads, install/uninstall, Agent binding, and run entry points with server-side permission checks.
+- Verification: `apps/server/src/routers/lambda/platformPlugin.test.ts`.
+- PLATFORM-PLUGIN-P1-006: Added the independent admin platform plugin navigation entry and page shell at `/admin/platform-plugins` without placing plugin settings into AI provider, model pricing, or system-default pages.
+- Verification: `src/features/Admin/adminNavigation.test.ts`, `src/business/client/BusinessDesktopRoutes.test.ts`, and `src/features/Admin/adminChineseCopy.test.ts`.
+- PLATFORM-PLUGIN-P1-007: Added the admin platform plugin editor surface, including entitlement, billing, secret metadata, run record, and artifact panels plus admin service wrappers.
+- Verification: admin editor files under `src/features/Admin/platformPlugins` and service wrappers under `src/services/adminCommercial.ts`.
+- PLATFORM-PLUGIN-P1-008: Added the user platform plugin marketplace and detail/run UI routes at `/plugins` and `/plugins/:pluginId`, with desktop router sync protection and presentation helpers.
+- Verification: `src/services/platformPlugin.test.ts`, `src/features/PlatformPluginMarket/helpers.test.ts`, and `src/spa/router/desktopRouter.sync.test.tsx`.
+- PLATFORM-PLUGIN-P1-009: Added runtime execution orchestration for API action and content generation plugins, including safe API runner behavior, artifact metadata writing, billing policy integration, sanitized failure handling, and user router delegation.
+- Verification: `packages/business-server/src/platform-plugins/runners/apiActionRunner.test.ts`, `packages/business-server/src/platform-plugins/runners/contentGenerationRunner.test.ts`, `packages/business-server/src/platform-plugins/artifactWriter.test.ts`, `packages/business-server/src/platform-plugins/runPlatformPlugin.test.ts`, and `apps/server/src/routers/lambda/platformPlugin.test.ts`.
 - PLATFORM-PLUGIN-P1-010: Added a chat input platform plugin shortcut category for installed runnable platform plugins. Selecting a platform plugin opens the explicit `/plugins/:pluginId` detail/run surface with the current Agent id instead of dispatching legacy MCP/Skill ActionTag commands.
 - Verification: `src/features/ChatInput/InputEditor/platformPluginMentions.test.tsx`, `src/features/ChatInput/InputEditor/index.test.tsx`, `src/services/platformPlugin.test.ts`, `src/features/PlatformPluginMarket/helpers.test.ts`, and `src/spa/router/desktopRouter.sync.test.tsx`.
 - PLATFORM-PLUGIN-P1-011: Added an idempotent `platform-plugin:seed` script for two draft P1 sample plugins: `dictionary-lookup` API action and `research-notes` content generation with plan entitlements.
