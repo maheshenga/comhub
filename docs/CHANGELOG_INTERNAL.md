@@ -28,3 +28,5 @@
 - Verification: `packages/business-server/src/lambda-routers/admin/plans.test.ts`.
 - GOV-032: Added structured operation, status, scope, and cache-domain result metadata to admin settings cache refresh and user-default sync audit payloads.
 - Verification: `packages/business-server/src/lambda-routers/admin/settings.test.ts`.
+- GOV-033: Added a pure business model pricing margin transform for model-bank pricing objects. The first P0-04 slice covers fixed, tiered, lookup, and approximate media price fields without mutating source pricing or changing billing transactions.
+- Verification: `src/business/client/hooks/useBusinessModelPricing.test.ts`.
