@@ -224,6 +224,31 @@ class AdminCommercialService {
     tokenTtlMinutes?: number;
   }) => lambdaClient.admin.ppt.saveSettings.mutate(params);
 
+  // Platform plugins
+  platformPlugins = {
+    deleteSecret: (input: { key: string; pluginId: string; scope?: string }) =>
+      lambdaClient.admin.platformPlugins.deleteSecret.mutate(input),
+    get: (input: { pluginIdOrSlug: string }) =>
+      lambdaClient.admin.platformPlugins.get.query(input),
+    list: (input?: { category?: string; cursor?: number; limit?: number; status?: string }) =>
+      lambdaClient.admin.platformPlugins.list.query(input as any),
+    listArtifacts: (input: { cursor?: number; limit?: number; pluginId: string }) =>
+      lambdaClient.admin.platformPlugins.listArtifacts.query(input),
+    listRuns: (input: { cursor?: number; limit?: number; pluginId: string }) =>
+      lambdaClient.admin.platformPlugins.listRuns.query(input),
+    publish: (input: { pluginId: string }) =>
+      lambdaClient.admin.platformPlugins.publish.mutate(input),
+    unpublish: (input: { pluginId: string }) =>
+      lambdaClient.admin.platformPlugins.unpublish.mutate(input),
+    upsert: (input: unknown) => lambdaClient.admin.platformPlugins.upsert.mutate(input as any),
+    upsertBilling: (input: { billing: unknown; pluginId: string }) =>
+      lambdaClient.admin.platformPlugins.upsertBilling.mutate(input as any),
+    upsertEntitlements: (input: { entitlements: unknown[]; pluginSlug: string }) =>
+      lambdaClient.admin.platformPlugins.upsertEntitlements.mutate(input as any),
+    upsertSecret: (input: { key: string; pluginId: string; scope?: string; value: string }) =>
+      lambdaClient.admin.platformPlugins.upsertSecret.mutate(input),
+  };
+
   // Orders
   listOrders = async (params: {
     cursor?: number;
