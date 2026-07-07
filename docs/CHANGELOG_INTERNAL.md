@@ -36,3 +36,5 @@
 - Verification: `src/features/Admin/adminModelBillingMatrix.test.ts`.
 - GOV-036: Added `pricingSource` to the admin enabled AI provider models API so the billing matrix can receive database/missing pricing source metadata from the backend.
 - Verification: `packages/business-server/src/lambda-routers/admin/newapiProviders.test.ts`.
+- GOV-037: Added exact static model-bank pricing source detection to the admin enabled AI provider models API for safe provider mappings only, preserving DB pricing priority and leaving generic compatible gateways as missing.
+- Verification: `packages/business-server/src/lambda-routers/admin/newapiProviders.test.ts`.

@@ -13,6 +13,26 @@ vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
 }));
 
+vi.mock('model-bank', async (importOriginal) => ({
+  ...(await importOriginal()),
+  LOBE_DEFAULT_MODEL_LIST: [
+    {
+      id: 'deepseek-v4-pro',
+      pricing: {
+        units: [{ name: 'textInput', rate: 3, strategy: 'fixed', unit: 'millionTokens' }],
+      },
+      providerId: 'deepseek',
+    },
+    {
+      id: 'deepseek-v4-pro',
+      pricing: {
+        units: [{ name: 'textInput', rate: 99, strategy: 'fixed', unit: 'millionTokens' }],
+      },
+      providerId: 'other-provider',
+    },
+  ],
+}));
+
 vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
   KeyVaultsGateKeeper: {
     initWithEnvKey: vi.fn().mockResolvedValue({
@@ -448,6 +468,32 @@ describe('adminNewapiProvidersRouter', () => {
           priority: 1,
           providerType: 'newapi',
         },
+        {
+          baseUrl: 'https://deepseek.example.com',
+          displayName: 'DeepSeek V4 Pro',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceName: 'DeepSeek',
+          metadata: {},
+          modelId: 'deepseek-v4-pro',
+          modelType: 'chat',
+          priority: 2,
+          providerType: 'deepseek',
+        },
+        {
+          baseUrl: 'https://compatible.example.com',
+          displayName: 'Compatible DeepSeek',
+          groupKey: 'default',
+          groupName: 'Default',
+          instanceId,
+          instanceName: 'Compatible Gateway',
+          metadata: {},
+          modelId: 'deepseek-v4-pro',
+          modelType: 'chat',
+          priority: 3,
+          providerType: 'openai-compatible',
+        },
       ],
     });
     vi.mocked(getServerDB).mockResolvedValue(db as any);
@@ -465,6 +511,18 @@ describe('adminNewapiProvidersRouter', () => {
         hasModelPricing: false,
         modelId: 'missing-chat',
         pricingSource: 'missing',
+      }),
+      expect.objectContaining({
+        hasModelPricing: false,
+        modelId: 'deepseek-v4-pro',
+        pricingSource: 'model-bank',
+        providerType: 'deepseek',
+      }),
+      expect.objectContaining({
+        hasModelPricing: false,
+        modelId: 'deepseek-v4-pro',
+        pricingSource: 'missing',
+        providerType: 'openai-compatible',
       }),
     ]);
   });

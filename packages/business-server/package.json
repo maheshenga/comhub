@@ -13,6 +13,7 @@
     "@lobechat/database": "workspace:*",
     "@lobechat/model-runtime": "workspace:*",
     "@lobechat/trpc": "workspace:*",
-    "@lobechat/types": "workspace:*"
+    "@lobechat/types": "workspace:*",
+    "model-bank": "workspace:*"
   }
 }

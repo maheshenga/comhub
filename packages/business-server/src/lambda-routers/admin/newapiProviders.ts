@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { and, asc, eq, sql } from 'drizzle-orm';
+import { LOBE_DEFAULT_MODEL_LIST } from 'model-bank';
 import { z } from 'zod';
 
 import {
@@ -45,6 +46,8 @@ const ProviderTypeSchema = z
     'siliconflow',
   ])
   .default('newapi');
+
+type AdminProviderType = z.infer<typeof ProviderTypeSchema>;
 
 const InstanceInputSchema = z.object({
   apiKey: z.string().min(1),
@@ -165,8 +168,42 @@ const resolveModelPricingCompleteness = (
   return MODEL_PRICING_KEYS.some((key) => hasPositiveNumber(manualPricing[key]));
 };
 
-const resolveModelPricingSource = (metadata: Record<string, unknown> | null | undefined) =>
-  resolveModelPricingCompleteness(metadata) ? 'database' : 'missing';
+const MODEL_BANK_PROVIDER_BY_ADMIN_PROVIDER_TYPE = {
+  claude: 'anthropic',
+  deepseek: 'deepseek',
+  openai: 'openai',
+  siliconflow: 'siliconcloud',
+} satisfies Partial<Record<AdminProviderType, string>>;
+
+const hasExactModelBankPricing = ({
+  modelId,
+  providerType,
+}: {
+  modelId: string;
+  providerType: string | null | undefined;
+}) => {
+  const modelBankProviderId =
+    MODEL_BANK_PROVIDER_BY_ADMIN_PROVIDER_TYPE[providerType as AdminProviderType];
+  if (!modelBankProviderId) return false;
+
+  return LOBE_DEFAULT_MODEL_LIST.some(
+    (item) => item.providerId === modelBankProviderId && item.id === modelId && Boolean(item.pricing),
+  );
+};
+
+const resolveModelPricingSource = ({
+  metadata,
+  modelId,
+  providerType,
+}: {
+  metadata: Record<string, unknown> | null | undefined;
+  modelId: string;
+  providerType: string | null | undefined;
+}) => {
+  if (resolveModelPricingCompleteness(metadata)) return 'database';
+
+  return hasExactModelBankPricing({ modelId, providerType }) ? 'model-bank' : 'missing';
+};
 
 const resolveModelAbilityCompleteness = (
   metadata: Record<string, unknown> | null | undefined,
@@ -628,7 +665,11 @@ export const adminNewapiProvidersRouter = router({
           ...item,
           hasModelAbilities: resolveModelAbilityCompleteness(metadata),
           hasModelPricing: resolveModelPricingCompleteness(metadata),
-          pricingSource: resolveModelPricingSource(metadata),
+          pricingSource: resolveModelPricingSource({
+            metadata,
+            modelId: item.modelId,
+            providerType: item.providerType,
+          }),
         })),
       };
     }),
