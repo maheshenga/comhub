@@ -84,6 +84,11 @@ export const ADMIN_SETTINGS_ROUTE_REGISTRY = [
     segment: 'ppt',
   },
   {
+    debugId: 'Desktop > Admin > Platform Plugins',
+    importPage: () => import('@/routes/(main)/admin/platform-plugins'),
+    segment: 'platform-plugins',
+  },
+  {
     debugId: 'Desktop > Admin > Subscriptions',
     importPage: () => import('@/routes/(main)/admin/subscriptions'),
     segment: 'subscriptions',

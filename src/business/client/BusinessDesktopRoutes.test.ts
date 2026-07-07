@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigation';
 
@@ -8,6 +8,12 @@ import {
   ADMIN_SETTINGS_ROUTE_REGISTRY,
   ADMIN_SETTINGS_ROUTE_SEGMENTS,
 } from './adminSettingsRouteRegistry';
+
+vi.mock('@/utils/router', () => ({
+  dynamicElement: () => null,
+  dynamicLayout: () => null,
+  ErrorBoundary: () => null,
+}));
 
 const routeSegmentFromAdminPath = (path: string) => {
   if (path === ADMIN_BASE_PATH) return '';
@@ -21,6 +27,7 @@ describe('BusinessDesktopRoutes', () => {
     const visibleSegments = adminPaths.map(routeSegmentFromAdminPath);
 
     expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toEqual(expect.arrayContaining(visibleSegments));
+    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain('platform-plugins');
   });
 
   it('keeps legacy merged admin aliases reachable without adding sidebar-only entries', () => {
