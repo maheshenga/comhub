@@ -32,3 +32,5 @@
 - Verification: `src/business/client/hooks/useBusinessModelPricing.test.ts`.
 - GOV-034: Added a server-side model pricing snapshot helper that records whether pricing comes from admin/database metadata, static model-bank data, or is missing while preserving the existing pricing-only helper output.
 - Verification: `packages/business-server/src/serverModelPricing.test.ts`.
+- GOV-035: Added admin model billing matrix pricing-source visibility so rows can distinguish manual overrides, database/admin pricing, model-bank pricing, and missing pricing without changing billing transactions.
+- Verification: `src/features/Admin/adminModelBillingMatrix.test.ts`.

@@ -1,7 +1,7 @@
 'use client';
 
-import { Flexbox } from '@lobehub/ui';
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+import { Flexbox } from '@lobehub/ui';
 import {
   Alert,
   Button,
@@ -38,6 +38,8 @@ import {
   type MatrixModelType,
   type MatrixPlan,
   type MatrixPlanRules,
+  type MatrixPricingSource,
+  type MatrixProviderPricingSource,
   type MatrixRow,
   type MatrixSourceModel,
   togglePlanAccess,
@@ -77,6 +79,13 @@ const CONFIG_HEALTH_CHECK_STATUS = {
   warning: { color: 'orange', label: 'Warning' },
 } as const;
 
+const PRICING_SOURCE_STATUS: Record<MatrixPricingSource, { color: string; label: string }> = {
+  database: { color: 'green', label: 'DB pricing' },
+  'manual-override': { color: 'gold', label: 'Manual pricing' },
+  missing: { color: 'red', label: 'Missing pricing' },
+  'model-bank': { color: 'blue', label: 'Model Bank' },
+};
+
 type PlanItem = {
   displayName?: string | null;
   modelRules?: MatrixPlanRules | null;
@@ -93,6 +102,7 @@ type EnabledModelItem = {
   instanceName: string;
   modelId: string;
   modelType: MatrixModelType;
+  pricingSource?: MatrixProviderPricingSource | null;
   priority: number;
   providerType?: string | null;
 };
@@ -181,6 +191,7 @@ const AdminModelBillingMatrixPage = memo(() => {
         instanceName: item.instanceName,
         modelId: item.modelId,
         modelType: item.modelType,
+        pricingSource: item.pricingSource ?? undefined,
         priority: item.priority,
         providerType: item.providerType,
       })),
@@ -470,6 +481,9 @@ const AdminModelBillingMatrixPage = memo(() => {
             {row.providerType ? <Tag color="cyan">{row.providerType}</Tag> : null}
             {row.groupKey ? <Tag color="purple">{row.groupName || row.groupKey}</Tag> : null}
             <Tag>{getAdminModelTypeLabel(row.modelType)}</Tag>
+            <Tag color={PRICING_SOURCE_STATUS[row.effectivePricingSource].color}>
+              {PRICING_SOURCE_STATUS[row.effectivePricingSource].label}
+            </Tag>
           </Space>
         </Flexbox>
       ),
@@ -561,10 +575,6 @@ const AdminModelBillingMatrixPage = memo(() => {
         <Flexbox gap={12}>
           <Alert
             showIcon
-            message={t(
-              'admin.modelBillingMatrix.configHealthTitle',
-              'Provider, model access, and billing configuration',
-            )}
             type={configHealthMeta.alertType as 'error' | 'success' | 'warning'}
             description={
               <Flexbox gap={10}>
@@ -591,6 +601,8 @@ const AdminModelBillingMatrixPage = memo(() => {
                     {t('admin.modelBillingMatrix.healthPricingFallbacks', 'Pricing metadata')}:{' '}
                     {configHealth.summary.providerPricingModelCount}
                   </Tag>
+                  <Tag>DB pricing: {configHealth.summary.databasePricingModelCount}</Tag>
+                  <Tag>Model Bank: {configHealth.summary.modelBankPricingModelCount}</Tag>
                   <Tag>
                     {t('admin.modelBillingMatrix.healthPricingMissing', 'Missing pricing')}:{' '}
                     {configHealth.summary.missingPricingModelCount}
@@ -626,6 +638,10 @@ const AdminModelBillingMatrixPage = memo(() => {
                 </Flexbox>
               </Flexbox>
             }
+            message={t(
+              'admin.modelBillingMatrix.configHealthTitle',
+              'Provider, model access, and billing configuration',
+            )}
           />
         </Flexbox>
       </Card>
@@ -734,14 +750,14 @@ const AdminModelBillingMatrixPage = memo(() => {
       {focusedHealthCheck ? (
         <Alert
           showIcon
+          description={`当前显示 ${displayRows.length}/${rows.length} 个相关模型。`}
+          message={`已定位：${focusedHealthCheck.title}`}
+          type="warning"
           action={
             <Button size="small" onClick={() => setFocusedHealthCheckKey(null)}>
               显示全部
             </Button>
           }
-          message={`已定位：${focusedHealthCheck.title}`}
-          type="warning"
-          description={`当前显示 ${displayRows.length}/${rows.length} 个相关模型。`}
         />
       ) : null}
 

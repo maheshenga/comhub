@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { MatrixSourceModel } from './adminModelBillingMatrix';
 import {
   buildMatrixRows,
   buildPlanModelRulesFromRows,
@@ -10,7 +11,6 @@ import {
   getMatrixConfigHealthFocus,
   togglePlanAccess,
 } from './adminModelBillingMatrix';
-import type { MatrixSourceModel } from './adminModelBillingMatrix';
 
 describe('adminModelBillingMatrix', () => {
   const plans = [
@@ -94,6 +94,71 @@ describe('adminModelBillingMatrix', () => {
       hasModelAbilities: true,
       hasModelPricing: true,
       key: 'newapi:chat:grouped-model',
+    });
+  });
+
+  it('preserves pricing sources from grouped source models', () => {
+    const rows = buildMatrixRows({
+      models: [
+        {
+          displayName: 'Grouped Model Primary',
+          hasModelAbilities: true,
+          hasModelPricing: true,
+          instanceId: 'inst-database',
+          instanceName: 'Database Gateway',
+          modelId: 'priced-model',
+          modelType: 'chat',
+          pricingSource: 'database',
+          priority: 0,
+        },
+        {
+          displayName: 'Grouped Model Backup',
+          hasModelAbilities: true,
+          hasModelPricing: true,
+          instanceId: 'inst-model-bank',
+          instanceName: 'Model Bank Gateway',
+          modelId: 'priced-model',
+          modelType: 'chat',
+          pricingSource: 'model-bank',
+          priority: 1,
+        },
+      ] as MatrixSourceModel[],
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [],
+    });
+
+    expect(rows[0]).toMatchObject({
+      effectivePricingSource: 'database',
+      hasModelPricing: true,
+      pricingSources: ['database', 'model-bank'],
+    });
+  });
+
+  it('marks manual pricing overrides as the effective pricing source', () => {
+    const rows = buildMatrixRows({
+      models: [
+        {
+          displayName: 'Override Model',
+          hasModelAbilities: true,
+          hasModelPricing: false,
+          instanceId: 'inst-override',
+          instanceName: 'Override Gateway',
+          modelId: 'override-model',
+          modelType: 'chat',
+          pricingSource: 'missing',
+          priority: 0,
+        },
+      ] as MatrixSourceModel[],
+      plans,
+      planRulesByPlan: {},
+      pricingRules: [{ model: 'override-model', multiplier: 1.35, provider: 'newapi' }],
+    });
+
+    expect(rows[0]).toMatchObject({
+      effectivePricingSource: 'manual-override',
+      hasModelPricing: false,
+      pricingSources: ['missing'],
     });
   });
 
@@ -524,13 +589,15 @@ describe('adminModelBillingMatrix', () => {
     expect(health.status).toBe('error');
     expect(health.summary).toMatchObject({
       blockedModelCount: 1,
+      databasePricingModelCount: 0,
       defaultModelIssueCount: 2,
       missingAbilityModelCount: 2,
+      modelBankPricingModelCount: 0,
       missingPricingModelCount: 1,
       modelCount: 2,
       planCount: 2,
       plansWithoutAccessCount: 1,
-      pricingFallbackModelCount: 1,
+      pricingFallbackModelCount: 0,
       pricingOverrideCount: 1,
       providerPricingModelCount: 0,
     });
@@ -543,7 +610,7 @@ describe('adminModelBillingMatrix', () => {
     ]);
   });
 
-  it('distinguishes pricing overrides, provider pricing, missing pricing, and missing abilities', () => {
+  it('distinguishes pricing overrides, pricing metadata sources, missing pricing, and missing abilities', () => {
     const diagnosticModels: MatrixSourceModel[] = [
       {
         displayName: 'Override Chat',
@@ -553,6 +620,7 @@ describe('adminModelBillingMatrix', () => {
         instanceName: 'Override Gateway',
         modelId: 'override-chat',
         modelType: 'chat',
+        pricingSource: 'database',
         priority: 0,
       },
       {
@@ -563,6 +631,18 @@ describe('adminModelBillingMatrix', () => {
         instanceName: 'Provider Gateway',
         modelId: 'provider-image',
         modelType: 'image',
+        pricingSource: 'model-bank',
+        priority: 0,
+      },
+      {
+        displayName: 'Database Embedding',
+        hasModelAbilities: true,
+        hasModelPricing: true,
+        instanceId: 'inst-database',
+        instanceName: 'Database Gateway',
+        modelId: 'database-embedding',
+        modelType: 'embedding',
+        pricingSource: 'database',
         priority: 0,
       },
       {
@@ -603,12 +683,42 @@ describe('adminModelBillingMatrix', () => {
     expect(health.summary).toMatchObject({
       missingAbilityModelCount: 2,
       missingPricingModelCount: 1,
-      modelCount: 3,
+      modelCount: 4,
+      databasePricingModelCount: 1,
+      modelBankPricingModelCount: 1,
+      pricingFallbackModelCount: 2,
       pricingOverrideCount: 1,
-      providerPricingModelCount: 2,
+      providerPricingModelCount: 3,
     });
     expect(health.checks.map((check) => check.key)).toEqual(
-      expect.arrayContaining(['missing-model-pricing', 'missing-model-abilities']),
+      expect.arrayContaining([
+        'pricing-fallbacks',
+        'missing-model-pricing',
+        'missing-model-abilities',
+      ]),
+    );
+    expect(health.checks.find((check) => check.key === 'pricing-fallbacks')).toMatchObject({
+      count: 2,
+      severity: 'info',
+    });
+    expect(
+      getMatrixConfigHealthFocus({
+        checkKey: 'pricing-fallbacks',
+        defaultModelHealth,
+        plans,
+        rows,
+      }),
+    ).toEqual({
+      planKeys: [],
+      rowKeys: ['newapi:embedding:database-embedding', 'newapi:image:provider-image'],
+    });
+    expect(rows.map((row) => [row.modelId, row.effectivePricingSource])).toEqual(
+      expect.arrayContaining([
+        ['override-chat', 'manual-override'],
+        ['provider-image', 'model-bank'],
+        ['database-embedding', 'database'],
+        ['missing-video', 'missing'],
+      ]),
     );
     expect(
       health.checks.find((check) => check.key === 'missing-model-pricing'),
