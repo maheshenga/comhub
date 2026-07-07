@@ -1,12 +1,22 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { lookup } from 'node:dns/promises';
+import type { LookupAddress } from 'node:dns';
 
-import { assertSafePlatformPluginUrl, setDefaultPlatformPluginUrlResolver } from './urlSafety';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-let resetDefaultResolver: (() => void) | undefined;
+import { assertSafePlatformPluginUrl } from './urlSafety';
+
+vi.mock('node:dns/promises', () => ({
+  lookup: vi.fn(),
+}));
+
+const lookupMock = vi.mocked(lookup);
+
+const mockLookupAddresses = (addresses: LookupAddress[]) => {
+  lookupMock.mockResolvedValue(addresses as never);
+};
 
 afterEach(() => {
-  resetDefaultResolver?.();
-  resetDefaultResolver = undefined;
+  vi.clearAllMocks();
 });
 
 describe('assertSafePlatformPluginUrl', () => {
@@ -20,47 +30,49 @@ describe('assertSafePlatformPluginUrl', () => {
     'http://169.254.169.254',
     'http://[::1]',
     'file:///etc/passwd',
-  ])('rejects unsafe URL %s', (url) => {
-    expect(() => assertSafePlatformPluginUrl(url)).toThrow();
+  ])('rejects unsafe URL %s', async (url) => {
+    await expect(assertSafePlatformPluginUrl(url)).rejects.toThrow();
   });
 
-  it('accepts public http and https URLs', () => {
-    resetDefaultResolver = setDefaultPlatformPluginUrlResolver(() => ['93.184.216.34']);
+  it('accepts public http and https URLs', async () => {
+    mockLookupAddresses([{ address: '93.184.216.34', family: 4 }]);
 
-    expect(assertSafePlatformPluginUrl('https://api.dictionaryapi.dev/api/v2/entries/en/test')).toBe(
+    await expect(
+      assertSafePlatformPluginUrl('https://api.dictionaryapi.dev/api/v2/entries/en/test'),
+    ).resolves.toBe(
       'https://api.dictionaryapi.dev/api/v2/entries/en/test',
     );
   });
 
-  it('rejects default runtime resolver results that point at private targets', () => {
-    resetDefaultResolver = setDefaultPlatformPluginUrlResolver(() => ['127.0.0.1']);
+  it('rejects default runtime resolver results that point at private targets', async () => {
+    mockLookupAddresses([{ address: '127.0.0.1', family: 4 }]);
 
-    expect(() => assertSafePlatformPluginUrl('http://127.0.0.1.nip.io/api')).toThrow();
+    await expect(assertSafePlatformPluginUrl('http://127.0.0.1.nip.io/api')).rejects.toThrow();
   });
 
-  it('fails closed when the default resolver cannot resolve a hostname', () => {
-    resetDefaultResolver = setDefaultPlatformPluginUrlResolver(() => []);
+  it('fails closed when the default resolver cannot resolve a hostname', async () => {
+    lookupMock.mockRejectedValue(new Error('ENOTFOUND'));
 
-    expect(() => assertSafePlatformPluginUrl('https://example.invalid/api')).toThrow();
+    await expect(assertSafePlatformPluginUrl('https://example.invalid/api')).rejects.toThrow();
   });
 
   it.each([
     ['http://127.0.0.1.nip.io/api', '127.0.0.1'],
     ['http://localhost.nip.io/api', '127.0.0.1'],
     ['http://169.254.169.254.nip.io/latest/meta-data', '169.254.169.254'],
-  ])('rejects resolver-injected private or metadata target %s', (url, resolvedAddress) => {
-    expect(() =>
+  ])('rejects resolver-injected private or metadata target %s', async (url, resolvedAddress) => {
+    await expect(
       assertSafePlatformPluginUrl(url, {
         resolveHostname: () => [resolvedAddress],
       }),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 
-  it('accepts public resolver results', () => {
-    expect(
+  it('accepts public resolver results', async () => {
+    await expect(
       assertSafePlatformPluginUrl('https://example.com/api', {
         resolveHostname: () => ['93.184.216.34'],
       }),
-    ).toBe('https://example.com/api');
+    ).resolves.toBe('https://example.com/api');
   });
 });

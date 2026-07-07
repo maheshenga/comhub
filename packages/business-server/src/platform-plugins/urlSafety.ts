@@ -1,7 +1,9 @@
-import { spawnSync } from 'node:child_process';
+import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
-export type PlatformPluginUrlResolver = (hostname: string) => readonly string[];
+export type PlatformPluginUrlResolver = (
+  hostname: string,
+) => Promise<readonly string[]> | readonly string[];
 
 export interface PlatformPluginUrlSafetyOptions {
   resolveHostname?: PlatformPluginUrlResolver;
@@ -9,61 +11,14 @@ export interface PlatformPluginUrlSafetyOptions {
 
 const unsafeUrlError = () => new Error('PLATFORM_PLUGIN_UNSAFE_URL');
 
-const DNS_LOOKUP_TIMEOUT_MS = 2000;
-
-const resolveHostnameWithSystemDns: PlatformPluginUrlResolver = (hostname) => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      '-e',
-      `
-const { lookup } = require('node:dns');
-const hostname = process.argv[process.argv.length - 1];
-lookup(hostname, { all: true, verbatim: true }, (error, addresses) => {
-  if (error) {
-    process.exit(1);
-    return;
-  }
-
-  process.stdout.write(JSON.stringify(addresses.map(({ address }) => address)));
-});
-`,
-      hostname,
-    ],
-    {
-      encoding: 'utf8',
-      timeout: DNS_LOOKUP_TIMEOUT_MS,
-      windowsHide: true,
-    },
-  );
-
-  if (result.error || result.status !== 0) {
-    throw unsafeUrlError();
-  }
-
+const resolveHostnameWithSystemDns: PlatformPluginUrlResolver = async (hostname) => {
   try {
-    const addresses = JSON.parse(result.stdout);
+    const addresses = await lookup(hostname, { all: true, verbatim: true });
 
-    if (!Array.isArray(addresses) || !addresses.every((address) => typeof address === 'string')) {
-      throw unsafeUrlError();
-    }
-
-    return addresses;
+    return addresses.map(({ address }) => address);
   } catch {
     throw unsafeUrlError();
   }
-};
-
-let defaultResolveHostname = resolveHostnameWithSystemDns;
-
-export const setDefaultPlatformPluginUrlResolver = (resolver: PlatformPluginUrlResolver) => {
-  const previousResolver = defaultResolveHostname;
-
-  defaultResolveHostname = resolver;
-
-  return () => {
-    defaultResolveHostname = previousResolver;
-  };
 };
 
 const stripIpv6Brackets = (hostname: string) =>
@@ -190,10 +145,10 @@ const assertSafeHostname = (hostname: string) => {
   }
 };
 
-export const assertSafePlatformPluginUrl = (
+export const assertSafePlatformPluginUrl = async (
   value: string,
   options: PlatformPluginUrlSafetyOptions = {},
-): string => {
+): Promise<string> => {
   let parsedUrl: URL;
 
   try {
@@ -215,7 +170,9 @@ export const assertSafePlatformPluginUrl = (
   const hostWithoutBrackets = stripIpv6Brackets(parsedUrl.hostname);
   const resolvedAddresses = isIP(hostWithoutBrackets)
     ? [hostWithoutBrackets]
-    : (options.resolveHostname ?? defaultResolveHostname)(parsedUrl.hostname);
+    : await Promise.resolve(
+        (options.resolveHostname ?? resolveHostnameWithSystemDns)(parsedUrl.hostname),
+      );
 
   if (resolvedAddresses.length === 0) {
     throw unsafeUrlError();
