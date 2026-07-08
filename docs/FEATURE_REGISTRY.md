@@ -919,19 +919,19 @@
 | --- | --- |
 | 功能名称 | Module App Platform |
 | 功能状态 | `experimental` |
-| 功能说明 | 通用模块/应用平台，用于承载普通业务应用、AI 应用、API 应用、简单工作流应用和混合应用。P1 基础已开始落地：独立类型契约、数据库 schema/model、个人/团队记录权限、用户端 `lambda.moduleApp` 路由、后台 `admin.moduleApps` 路由、client service、个人安装、记录、运行、产物、后台审计基础能力，以及用户端 `/apps` 市场/运行时 route shell。后台管理 UI、完整运行时与计费执行仍在后续任务中。 |
-| 前端入口 | 已有用户端：`/apps`、`/apps/my`、`/apps/team`、`/apps/:appId`、`/apps/:appId/app`、`/apps/:appId/app/:pageKey`；规划后台：`/admin/module-apps` |
-| 核心组件 | 已有用户端：`src/features/ModuleAppMarket`、`src/features/ModuleAppRuntime`；规划后台：`src/features/Admin/moduleApps` |
+| 功能说明 | 通用模块/应用平台，用于承载普通业务应用、AI 应用、API 应用、简单工作流应用和混合应用。P1 基础已开始落地：独立类型契约、数据库 schema/model、个人/团队记录权限、用户端 `lambda.moduleApp` 路由、后台 `admin.moduleApps` 路由、client service、个人安装、记录、运行、产物、后台审计基础能力、用户端 `/apps` 市场/运行时 route shell，以及后台 `/admin/module-apps` 管理入口 shell。完整运行时与计费执行仍在后续任务中。 |
+| 前端入口 | 已有用户端：`/apps`、`/apps/my`、`/apps/team`、`/apps/:appId`、`/apps/:appId/app`、`/apps/:appId/app/:pageKey`；已有后台：`/admin/module-apps`、兼容入口 `/settings/admin/module-apps` |
+| 核心组件 | 已有用户端：`src/features/ModuleAppMarket`、`src/features/ModuleAppRuntime`；已有后台：`src/features/Admin/moduleApps` |
 | 后端 API / Server Action | 已有：`lambda.moduleApp`、`admin.moduleApps` |
 | 数据库依赖 | 已有：`module_apps`、`module_app_versions`、`module_app_pages`、`module_app_actions`、`module_app_entitlements`、`module_app_installations`、`module_app_records`、`module_app_record_events`、`module_app_runs`、`module_app_artifacts`、`module_app_audit_logs` |
 | 配置项依赖 | 应用 manifest、页面 schema、动作 schema、套餐权限、计费配置、应用 secrets、个人/团队 scope |
 | 环境变量依赖 | P1 不新增强制环境变量；AI/API action 复用既有 AI provider、对象存储和安全配置变量 |
 | 外部服务依赖 | 可选：AI provider、外部 API、对象存储；普通 CRUD 应用不依赖 AI provider |
-| 主要相关文件 | `packages/types/src/moduleApp.ts`、`packages/database/src/schemas/moduleApp.ts`、`packages/database/src/models/moduleApp.ts`、`packages/business-server/src/module-apps/permission.ts`、`packages/business-server/src/module-apps/audit.ts`、`apps/server/src/routers/lambda/moduleApp.ts`、`packages/business-server/src/lambda-routers/admin/moduleApps.ts`、`src/services/moduleApp.ts`、`src/services/adminCommercial.ts`、`src/features/ModuleAppMarket`、`src/features/ModuleAppRuntime`、`src/routes/(main)/apps`、`src/spa/router/desktopRouter.config.tsx`、`src/spa/router/desktopRouter.config.desktop.tsx`、`docs/superpowers/specs/2026-07-09-module-app-platform-p1-design.md`、`docs/superpowers/plans/2026-07-09-module-app-platform-p1.md` |
+| 主要相关文件 | `packages/types/src/moduleApp.ts`、`packages/database/src/schemas/moduleApp.ts`、`packages/database/src/models/moduleApp.ts`、`packages/business-server/src/module-apps/permission.ts`、`packages/business-server/src/module-apps/audit.ts`、`apps/server/src/routers/lambda/moduleApp.ts`、`packages/business-server/src/lambda-routers/admin/moduleApps.ts`、`src/services/moduleApp.ts`、`src/services/adminCommercial.ts`、`src/features/ModuleAppMarket`、`src/features/ModuleAppRuntime`、`src/features/Admin/moduleApps`、`src/routes/(main)/apps`、`src/routes/(main)/admin/module-apps`、`src/business/client/adminSettingsRouteRegistry.ts`、`src/spa/router/desktopRouter.config.tsx`、`src/spa/router/desktopRouter.config.desktop.tsx`、`docs/superpowers/specs/2026-07-09-module-app-platform-p1-design.md`、`docs/superpowers/plans/2026-07-09-module-app-platform-p1.md` |
 | 维护风险 | 高 |
 | 是否建议重构 | 是 |
 | 是否需要补测试 | 是 |
-| 备注 | 新域必须与现有 `platform_plugin_*`、MCP、Skills 保持隔离。P1 不执行外部前端 JS、不使用 iframe/remote module、不动态创建每个应用的物理表。当前用户路由已对 `createRecord` / `runAction` 执行套餐 `runnable` 校验；后台 router 写操作已接入 module app audit log；用户端和后台 client service 已可调用当前 router。用户端市场/详情/个人/团队/运行时 route shell 已注册到 web/Electron 两套桌面 router；workspace 运行记录/产物查询输入、后台 UI shell、真实运行时与计费快照仍待后续任务补齐。 |
+| 备注 | 新域必须与现有 `platform_plugin_*`、MCP、Skills 保持隔离。P1 不执行外部前端 JS、不使用 iframe/remote module、不动态创建每个应用的物理表。当前用户路由已对 `createRecord` / `runAction` 执行套餐 `runnable` 校验；后台 router 写操作已接入 module app audit log；用户端和后台 client service 已可调用当前 router。用户端市场/详情/个人/团队/运行时 route shell 已注册到 web/Electron 两套桌面 router；后台管理入口、导航和 `/settings/admin/*` 兼容入口已注册。workspace 运行记录/产物查询输入、真实运行时与计费快照仍待后续任务补齐。 |
 
 ## 待人工确认清单
 

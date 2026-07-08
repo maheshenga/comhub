@@ -156,6 +156,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         label: '插件市场',
         path: `${ADMIN_BASE_PATH}/platform-plugins`,
       },
+      {
+        description: '管理模块应用、页面、动作、套餐权限、计费配置、记录、运行产物和审计日志',
+        icon: 'plugins',
+        label: '模块应用',
+        path: `${ADMIN_BASE_PATH}/module-apps`,
+      },
     ],
     key: 'plugins',
     label: '插件',

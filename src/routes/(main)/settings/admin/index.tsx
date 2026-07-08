@@ -16,6 +16,7 @@ import AdminGrowthPage from '@/routes/(main)/admin/growth';
 import AdminMaintenancePage from '@/routes/(main)/admin/maintenance';
 import AdminModelBillingMatrixPage from '@/routes/(main)/admin/model-billing-matrix';
 import AdminModelPolicyPage from '@/routes/(main)/admin/model-policy';
+import AdminModuleAppsPage from '@/routes/(main)/admin/module-apps';
 import AdminNotificationsPage from '@/routes/(main)/admin/notifications';
 import AdminOperationsPage from '@/routes/(main)/admin/operations';
 import AdminOrdersPage from '@/routes/(main)/admin/orders';
@@ -49,6 +50,7 @@ const adminPageMap = {
   'maintenance': AdminMaintenancePage,
   'model-billing-matrix': AdminModelBillingMatrixPage,
   'model-policy': AdminModelPolicyPage,
+  'module-apps': AdminModuleAppsPage,
   'notifications': AdminNotificationsPage,
   'operations': AdminOperationsPage,
   'orders': AdminOrdersPage,

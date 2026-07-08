@@ -123,3 +123,8 @@
 - Reused the existing localized failed-preview copy in history rows.
 - Preserved readable runtime previews and existing run-history pagination.
 - Preserved plugin authorization, billing, persistence, runtime execution, and MCP / Skills isolation.
+
+### Module App Platform P1
+
+- MODULE-APP-P1-009: Added the admin Module Apps page shell, admin navigation entry, business desktop route registry segment, and `/settings/admin/module-apps` compatibility mapping.
+- Verification: `src/features/Admin/moduleApps/formSchema.test.ts`, `src/features/Admin/adminNavigation.test.ts`, `src/business/client/BusinessDesktopRoutes.test.ts`, and `src/routes/(main)/settings/admin/index.test.tsx`.

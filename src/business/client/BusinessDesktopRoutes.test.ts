@@ -28,6 +28,7 @@ describe('BusinessDesktopRoutes', () => {
 
     expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toEqual(expect.arrayContaining(visibleSegments));
     expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain('platform-plugins');
+    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain('module-apps');
   });
 
   it('keeps legacy merged admin aliases reachable without adding sidebar-only entries', () => {
