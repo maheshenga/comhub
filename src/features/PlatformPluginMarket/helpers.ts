@@ -31,8 +31,8 @@ export const getPlatformPluginRestrictionReason = (
 ): PlatformPluginRestrictionReason | null => {
   if (!plugin.planState.visible) return 'plan_visibility_denied';
   if (!plugin.planState.installable) return 'plan_install_denied';
-  if (!plugin.installed) return 'not_installed';
   if (!plugin.planState.runnable) return 'plan_run_denied';
+  if (!plugin.installed) return 'not_installed';
   return null;
 };
 
@@ -67,13 +67,20 @@ export const filterAndSortPlatformPlugins = (
 
 export const getPlatformPluginPlanStatusLabel = (
   plugin: Pick<PlatformPluginListItem, 'installed' | 'planState'>,
-): { color: 'default' | 'green' | 'orange'; label: string } => {
+): {
+  color: 'default' | 'green' | 'orange';
+  labelKey:
+    | 'marketplace.status.installable'
+    | 'marketplace.status.runnable'
+    | 'marketplace.status.upgradeRequired';
+} => {
   const reason = getPlatformPluginRestrictionReason(plugin);
 
-  if (!reason) return { color: 'green', label: 'Runnable' };
-  if (reason === 'not_installed') return { color: 'default', label: 'Installable' };
+  if (!reason) return { color: 'green', labelKey: 'marketplace.status.runnable' };
+  if (reason === 'not_installed')
+    return { color: 'default', labelKey: 'marketplace.status.installable' };
 
-  return { color: 'orange', label: 'Upgrade required' };
+  return { color: 'orange', labelKey: 'marketplace.status.upgradeRequired' };
 };
 
 export const formatPlatformPluginRuntimeType = (runtimeType: PlatformPluginListItem['runtimeType']) =>

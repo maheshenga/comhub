@@ -4,10 +4,10 @@ import type { PlatformPluginListItem } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Button, Tag, Typography } from 'antd';
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import {
-  formatPlatformPluginRuntimeType,
   getPlatformPluginBillingSummary,
   getPlatformPluginPlanStatusLabel,
 } from './helpers';
@@ -20,7 +20,12 @@ type PluginCardProps = {
 
 const PluginCard = memo<PluginCardProps>(({ plugin }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation('subscription');
   const planStatus = getPlatformPluginPlanStatusLabel(plugin);
+  const runtimeTypeLabelKey =
+    plugin.runtimeType === 'content_generation'
+      ? 'admin.platformPlugins.contentGeneration'
+      : 'admin.platformPlugins.apiAction';
 
   return (
     <Flexbox
@@ -49,11 +54,11 @@ const PluginCard = memo<PluginCardProps>(({ plugin }) => {
       </Paragraph>
 
       <Flexbox horizontal gap={4} wrap="wrap">
-        {plugin.operations.featured ? <Tag color="gold">Featured</Tag> : null}
+        {plugin.operations.featured ? <Tag color="gold">{t('marketplace.featured')}</Tag> : null}
         {plugin.operations.promoLabel ? <Tag color="blue">{plugin.operations.promoLabel}</Tag> : null}
-        <Tag>{formatPlatformPluginRuntimeType(plugin.runtimeType)}</Tag>
+        <Tag>{t(runtimeTypeLabelKey)}</Tag>
         <Tag>{getPlatformPluginBillingSummary(plugin)}</Tag>
-        <Tag color={planStatus.color}>{planStatus.label}</Tag>
+        <Tag color={planStatus.color}>{t(planStatus.labelKey)}</Tag>
       </Flexbox>
 
       <Button style={{ marginTop: 'auto' }} type="primary" onClick={() => navigate(`/plugins/${plugin.slug}`)}>

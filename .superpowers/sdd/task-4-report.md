@@ -72,3 +72,30 @@ Result:
 ## Concerns
 
 - None.
+
+## Review Fix: Important Findings
+
+- Fixed `getPlatformPluginRestrictionReason` precedence so plan visibility/install/run denials are evaluated before `not_installed`.
+- Changed `getPlatformPluginPlanStatusLabel` to return semantic `labelKey` values instead of hardcoded user-facing strings.
+- Updated `PluginCard` to translate marketplace status labels and the featured tag through `useTranslation('subscription')`.
+- Localized the Task 4 runtime/category filter labels in `src/features/PlatformPluginMarket/index.tsx`.
+- Added marketplace translation keys to:
+  - `packages/locales/src/default/subscription.ts`
+  - `locales/en-US/subscription.json`
+  - `locales/zh-CN/subscription.json`
+- Expanded helper coverage for:
+  - label-key return shape
+  - upgrade-required precedence when `installed: false` and `planState.runnable: false`
+  - installable label-key mapping for uninstalled runnable plugins
+
+## Review Fix Verification
+
+Ran:
+
+- `bunx vitest run --silent='passed-only' src/features/PlatformPluginMarket/helpers.test.ts src/services/platformPlugin.test.ts apps/server/src/routers/lambda/platformPlugin.test.ts`
+- `git diff --check`
+
+Result:
+
+- 3 test files passed, 14 tests passed
+- `git diff --check` returned exit code 0; Git printed a line-ending warning for `packages/locales/src/default/subscription.ts`

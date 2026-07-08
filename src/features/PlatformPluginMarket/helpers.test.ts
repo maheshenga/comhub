@@ -81,12 +81,34 @@ describe('platform plugin marketplace helpers', () => {
   it('returns clear plan availability labels', () => {
     expect(getPlatformPluginPlanStatusLabel(buildPlugin({ installed: true }))).toEqual({
       color: 'green',
-      label: 'Runnable',
+      labelKey: 'marketplace.status.runnable',
     });
     expect(
       getPlatformPluginPlanStatusLabel(
         buildPlugin({ planState: { installable: false, runnable: false, visible: true } }),
       ),
-    ).toEqual({ color: 'orange', label: 'Upgrade required' });
+    ).toEqual({ color: 'orange', labelKey: 'marketplace.status.upgradeRequired' });
+  });
+
+  it('prioritizes plan run restrictions before install state', () => {
+    expect(
+      getPlatformPluginPlanStatusLabel(
+        buildPlugin({
+          installed: false,
+          planState: { installable: true, runnable: false, visible: true },
+        }),
+      ),
+    ).toEqual({ color: 'orange', labelKey: 'marketplace.status.upgradeRequired' });
+  });
+
+  it('returns installable label key for uninstalled runnable plugins', () => {
+    expect(
+      getPlatformPluginPlanStatusLabel(
+        buildPlugin({
+          installed: false,
+          planState: { installable: true, runnable: true, visible: true },
+        }),
+      ),
+    ).toEqual({ color: 'default', labelKey: 'marketplace.status.installable' });
   });
 });

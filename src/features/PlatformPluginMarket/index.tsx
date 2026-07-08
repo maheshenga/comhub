@@ -4,6 +4,7 @@ import type { PlatformPluginListItem, PlatformPluginMarketplaceListInput } from 
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Empty, Input, Select, Spin, Typography } from 'antd';
 import { memo, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useClientDataSWR } from '@/libs/swr';
 import { platformPluginService } from '@/services/platformPlugin';
@@ -16,6 +17,7 @@ const { Text, Title } = Typography;
 const MARKETPLACE_KEY = ['platform-plugin-marketplace'];
 
 const PlatformPluginMarket = memo(() => {
+  const { t } = useTranslation('subscription');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [runtimeType, setRuntimeType] = useState<'all' | PlatformPluginListItem['runtimeType']>('all');
@@ -37,8 +39,12 @@ const PlatformPluginMarket = memo(() => {
   const categoryOptions = useMemo(() => {
     const categories = Array.from(new Set(plugins.map((plugin) => plugin.category).filter(Boolean))).sort();
 
-    return [{ label: '全部分类', value: 'all' }, ...categories.map((item) => ({ label: item, value: item }))];
-  }, [plugins]);
+    return [
+      { label: t('marketplace.filters.allCategories'), value: 'all' },
+      ...categories.map((item) => ({ label: item, value: item })),
+    ];
+  }, [plugins, t]);
+
   const filteredPlugins = useMemo(
     () => filterAndSortPlatformPlugins(plugins, marketplaceFilters),
     [marketplaceFilters, plugins],
@@ -69,9 +75,9 @@ const PlatformPluginMarket = memo(() => {
           />
           <Select
             options={[
-              { label: '全部类型', value: 'all' },
-              { label: 'API Action', value: 'api_action' },
-              { label: '内容生成', value: 'content_generation' },
+              { label: t('marketplace.filters.allRuntimeTypes'), value: 'all' },
+              { label: t('admin.platformPlugins.apiAction'), value: 'api_action' },
+              { label: t('admin.platformPlugins.contentGeneration'), value: 'content_generation' },
             ]}
             style={{ width: 160 }}
             value={runtimeType}
