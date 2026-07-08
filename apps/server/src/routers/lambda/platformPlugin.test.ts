@@ -12,6 +12,7 @@ const platformPluginModelMocks = vi.hoisted(() => ({
   installPlugin: vi.fn(),
   listInstalledPlugins: vi.fn(),
   listMarketplacePlugins: vi.fn(),
+  listUserRunHistory: vi.fn(),
   setAgentBinding: vi.fn(),
   uninstallPlugin: vi.fn(),
 }));
@@ -130,6 +131,22 @@ describe('lambda.platformPlugin router', () => {
     platformPluginModelMocks.installPlugin.mockResolvedValue(undefined);
     platformPluginModelMocks.listInstalledPlugins.mockResolvedValue([baseMarketplaceItem]);
     platformPluginModelMocks.listMarketplacePlugins.mockResolvedValue([baseMarketplaceItem]);
+    platformPluginModelMocks.listUserRunHistory.mockResolvedValue({
+      items: [
+        {
+          artifactIds: ['file-1'],
+          chargedCredits: 10,
+          createdAt: '2026-07-08T00:00:00.000Z',
+          fixedServiceFeeCharged: true,
+          pluginId,
+          pluginName: 'Dictionary Lookup',
+          preview: 'A fruit.',
+          runId: 'run-1',
+          status: 'succeeded',
+        },
+      ],
+      nextCursor: null,
+    });
     platformPluginModelMocks.setAgentBinding.mockResolvedValue(undefined);
     platformPluginModelMocks.uninstallPlugin.mockResolvedValue(undefined);
     vi.mocked(runPlatformPlugin).mockResolvedValue({
@@ -164,6 +181,22 @@ describe('lambda.platformPlugin router', () => {
       plan: Plans.Free,
       userId: 'user-a',
     });
+  });
+
+  it('lists only current user run history with sanitized fields', async () => {
+    const caller = createAuthedCaller({ plan: Plans.Free, userId: 'user-a' });
+
+    const result = await caller.listRuns({ pluginId });
+
+    expect(platformPluginModelMocks.listUserRunHistory).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 20,
+      pluginId,
+      userId: 'user-a',
+    });
+    expect(JSON.stringify(result)).not.toContain('inputSnapshot');
+    expect(JSON.stringify(result)).not.toContain('runtimeConfig');
+    expect(result.items[0]).toMatchObject({ runId: 'run-1', status: 'succeeded' });
   });
 
   it('denies running plugins that are not enabled for the selected Agent', async () => {

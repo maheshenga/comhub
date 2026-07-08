@@ -47,4 +47,17 @@ describe('platformPluginService', () => {
       pluginId,
     });
   });
+
+  it('forwards run history queries to lambda.platformPlugin.listRuns', async () => {
+    const client = {
+      platformPlugin: {
+        listRuns: { query: vi.fn().mockResolvedValue({ items: [], nextCursor: null }) },
+      },
+    };
+    const service = createPlatformPluginService(client as never);
+    const pluginId = '00000000-0000-4000-8000-000000000001';
+
+    await expect(service.listRuns({ pluginId })).resolves.toEqual({ items: [], nextCursor: null });
+    expect(client.platformPlugin.listRuns.query).toHaveBeenCalledWith({ pluginId });
+  });
 });

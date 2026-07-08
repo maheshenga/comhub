@@ -2,6 +2,8 @@ import type {
   PlatformPluginDetail,
   PlatformPluginListItem,
   PlatformPluginMarketplaceListInput,
+  PlatformPluginRunHistoryInput,
+  PlatformPluginRunHistoryItem,
   PlatformPluginRunResult,
 } from '@lobechat/types';
 
@@ -14,6 +16,12 @@ type PlatformPluginClient = {
     listInstalled: { query: () => Promise<PlatformPluginListItem[]> };
     listMarketplace: {
       query: (input?: PlatformPluginMarketplaceListInput) => Promise<PlatformPluginListItem[]>;
+    };
+    listRuns: {
+      query: (input: PlatformPluginRunHistoryInput) => Promise<{
+        items: PlatformPluginRunHistoryItem[];
+        nextCursor: null | number;
+      }>;
     };
     run: {
       mutate: (input: {
@@ -36,6 +44,7 @@ export const createPlatformPluginService = (client: PlatformPluginClient) => ({
   listInstalled: () => client.platformPlugin.listInstalled.query(),
   listMarketplace: (input?: PlatformPluginMarketplaceListInput) =>
     client.platformPlugin.listMarketplace.query(input),
+  listRuns: (input: PlatformPluginRunHistoryInput) => client.platformPlugin.listRuns.query(input),
   run: (input: {
     actionId: string;
     agentId: string;

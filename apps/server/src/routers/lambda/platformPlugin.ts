@@ -3,7 +3,7 @@ import type {
   PlatformPluginListItem,
   PlatformPluginPlanEntitlement,
 } from '@lobechat/types';
-import { platformPluginMarketplaceListInputSchema } from '@lobechat/types';
+import { platformPluginMarketplaceListInputSchema, platformPluginRunHistoryInputSchema } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
@@ -298,6 +298,24 @@ export const platformPluginRouter = router({
       return ctx.platformPluginModel.listMarketplacePlugins({
         filters: input,
         plan: ctx.currentPlan,
+        userId: ctx.userId,
+      });
+    }),
+
+  listRuns: platformPluginProcedure
+    .input(platformPluginRunHistoryInputSchema)
+    .query(async ({ ctx, input }) => {
+      await requirePluginDetail({
+        model: ctx.platformPluginModel,
+        plan: ctx.currentPlan,
+        pluginIdOrSlug: input.pluginId,
+        userId: ctx.userId,
+      });
+
+      return ctx.platformPluginModel.listUserRunHistory({
+        cursor: input.cursor,
+        limit: input.limit,
+        pluginId: input.pluginId,
         userId: ctx.userId,
       });
     }),

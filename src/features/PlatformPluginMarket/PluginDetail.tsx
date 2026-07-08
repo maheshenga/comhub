@@ -4,6 +4,7 @@ import type { PlatformPluginDetail } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Descriptions, Empty, Input, message, Spin, Tag, Typography } from 'antd';
 import { memo, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router';
 
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -16,6 +17,7 @@ import {
   isPlatformPluginRunnable,
 } from './helpers';
 import PluginRestrictionNotice from './PluginRestrictionNotice';
+import PluginRunHistory from './PluginRunHistory';
 import PluginRunPanel from './PluginRunPanel';
 
 const { Paragraph, Text, Title } = Typography;
@@ -29,10 +31,15 @@ const detailKey = (pluginIdOrSlug?: string) =>
   pluginIdOrSlug ? ['platform-plugin-detail', pluginIdOrSlug] : null;
 
 const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plugin }) => {
+  const { t } = useTranslation('subscription');
   const [agentId, setAgentId] = useState(initialAgentId);
   const [submitting, setSubmitting] = useState(false);
   const restrictionReason = getPlatformPluginRestrictionReason(plugin);
   const action = plugin.actions[0];
+  const runsKey = ['platform-plugin-runs', plugin.id];
+  const { data: runHistory } = useClientDataSWR(runsKey, () =>
+    platformPluginService.listRuns({ pluginId: plugin.id }),
+  );
 
   useEffect(() => {
     setAgentId(initialAgentId);
@@ -43,6 +50,7 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
       mutate(['platform-plugin-detail', plugin.slug]),
       mutate(['platform-plugin-detail', plugin.id]),
       mutate(['platform-plugin-marketplace']),
+      mutate(runsKey),
     ]);
   };
 
@@ -93,6 +101,14 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
       </Flexbox>
 
       <Paragraph style={{ margin: 0 }}>{plugin.description}</Paragraph>
+
+      {plugin.operations.useCase ? <Alert message={plugin.operations.useCase} showIcon type="info" /> : null}
+      {restrictionReason && plugin.operations.upgradeCta ? (
+        <Alert message={plugin.operations.upgradeCta} showIcon type="warning" />
+      ) : null}
+      {plugin.operations.planBenefitSummary ? (
+        <Text type="secondary">{plugin.operations.planBenefitSummary}</Text>
+      ) : null}
 
       <Flexbox horizontal gap={4} wrap="wrap">
         <Tag>{formatPlatformPluginRuntimeType(plugin.runtimeType)}</Tag>
@@ -166,6 +182,11 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
           disabled={!isPlatformPluginRunnable(plugin)}
           pluginId={plugin.id}
         />
+      </Flexbox>
+
+      <Flexbox gap={8}>
+        <Text strong>{t('platformPlugins.runHistory.title')}</Text>
+        <PluginRunHistory items={runHistory?.items ?? []} />
       </Flexbox>
     </Flexbox>
   );

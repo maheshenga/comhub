@@ -7,12 +7,14 @@ import type {
   PlatformPluginMarketplaceListInput,
   PlatformPluginOperationsMetadata,
   PlatformPluginPlanEntitlement,
+  PlatformPluginRunHistoryItem,
 } from '@lobechat/types';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import {
   platformPluginActions,
   platformPluginAgentBindings,
+  platformPluginArtifacts,
   platformPluginInstallations,
   platformPluginPlanEntitlements,
   platformPlugins,
@@ -112,6 +114,21 @@ const matchesMarketplaceFilters = (
     plugin.tags.some((tag) => tag.toLowerCase().includes(query));
 
   return matchesCategory && matchesRuntime && matchesQuery;
+};
+
+const getRunChargedCredits = (snapshot: Record<string, unknown> | null | undefined) => {
+  const value = Number(snapshot?.chargedCredits ?? 0);
+
+  return Number.isFinite(value) && value > 0 ? value : 0;
+};
+
+const getFixedServiceFeeCharged = (snapshot: Record<string, unknown> | null | undefined) =>
+  snapshot?.fixedServiceFeeCharged === true;
+
+const getRunPreview = (snapshot: Record<string, unknown> | null | undefined) => {
+  const preview = snapshot?.preview;
+
+  return typeof preview === 'string' && preview.trim() ? preview.trim().slice(0, 240) : undefined;
 };
 
 export class PlatformPluginModel {
@@ -474,6 +491,60 @@ export class PlatformPluginModel {
         visible: entitlement.visible,
       })),
       version: version.version,
+    };
+  };
+
+  listUserRunHistory = async (params: {
+    cursor: number;
+    limit: number;
+    pluginId: string;
+    userId: string;
+  }): Promise<{ items: PlatformPluginRunHistoryItem[]; nextCursor: null | number }> => {
+    const plugin = await this.db.query.platformPlugins.findFirst({
+      where: eq(platformPlugins.id, params.pluginId),
+    });
+
+    if (!plugin) return { items: [], nextCursor: null };
+
+    const runs = await this.db.query.platformPluginRuns.findMany({
+      limit: params.limit,
+      offset: params.cursor,
+      orderBy: [desc(platformPluginRuns.createdAt)],
+      where: and(
+        eq(platformPluginRuns.pluginId, params.pluginId),
+        eq(platformPluginRuns.userId, params.userId),
+      ),
+    });
+
+    if (runs.length === 0) return { items: [], nextCursor: null };
+
+    const artifacts = await this.db.query.platformPluginArtifacts.findMany({
+      where: inArray(
+        platformPluginArtifacts.runId,
+        runs.map((run) => run.id),
+      ),
+    });
+    const artifactIdsByRunId = new Map<string, string[]>();
+
+    for (const artifact of artifacts) {
+      const ids = artifactIdsByRunId.get(artifact.runId) ?? [];
+      ids.push(artifact.id);
+      artifactIdsByRunId.set(artifact.runId, ids);
+    }
+
+    return {
+      items: runs.map((run) => ({
+        artifactIds: artifactIdsByRunId.get(run.id) ?? [],
+        chargedCredits: getRunChargedCredits(run.billingSnapshot),
+        createdAt: run.createdAt.toISOString(),
+        fixedServiceFeeCharged: getFixedServiceFeeCharged(run.billingSnapshot),
+        pluginId: plugin.id,
+        pluginName: plugin.displayName,
+        preview: getRunPreview(run.outputSnapshot),
+        runId: run.id,
+        status: run.status,
+      })),
+      nextCursor: runs.length === params.limit ? params.cursor + params.limit : null,
     };
   };
 
