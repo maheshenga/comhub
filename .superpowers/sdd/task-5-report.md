@@ -80,3 +80,14 @@ Pending / not run:
 
 - There is no dedicated database-model test covering pagination/artifact grouping for `listUserRunHistory`; current verification is through router/service tests only.
 - I did not run a browser/UI test pass, so the run-history presentation is unverified visually in this task.
+
+## Review Fixes
+
+- Adjusted `src/services/platformPlugin.ts` so the client-facing `listRuns` input allows `cursor` and `limit` to be omitted while the router schema still supplies defaults.
+- This fixes the Task 5-owned type errors in `PluginDetail.tsx` and `src/services/platformPlugin.test.ts` where callers pass `{ pluginId }`.
+
+## Review Fix Verification
+
+- `bunx vitest run --silent='passed-only' apps/server/src/routers/lambda/platformPlugin.test.ts src/services/platformPlugin.test.ts` passed: 2 files, 8 tests.
+- `git diff --check` passed with no output.
+- `bun run type-check` still fails on out-of-task accumulated issues: admin router implicit any, missing `operations` in older fixtures/seeds, missing `failureFixedFeePolicy` in earlier tests. No remaining Task 5-owned `listRuns` input errors were reported.

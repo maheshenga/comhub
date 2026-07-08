@@ -2,12 +2,17 @@ import type {
   PlatformPluginDetail,
   PlatformPluginListItem,
   PlatformPluginMarketplaceListInput,
-  PlatformPluginRunHistoryInput,
   PlatformPluginRunHistoryItem,
   PlatformPluginRunResult,
 } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
+
+type PlatformPluginRunHistoryQueryInput = {
+  cursor?: number;
+  limit?: number;
+  pluginId: string;
+};
 
 type PlatformPluginClient = {
   platformPlugin: {
@@ -18,7 +23,7 @@ type PlatformPluginClient = {
       query: (input?: PlatformPluginMarketplaceListInput) => Promise<PlatformPluginListItem[]>;
     };
     listRuns: {
-      query: (input: PlatformPluginRunHistoryInput) => Promise<{
+      query: (input: PlatformPluginRunHistoryQueryInput) => Promise<{
         items: PlatformPluginRunHistoryItem[];
         nextCursor: null | number;
       }>;
@@ -44,7 +49,8 @@ export const createPlatformPluginService = (client: PlatformPluginClient) => ({
   listInstalled: () => client.platformPlugin.listInstalled.query(),
   listMarketplace: (input?: PlatformPluginMarketplaceListInput) =>
     client.platformPlugin.listMarketplace.query(input),
-  listRuns: (input: PlatformPluginRunHistoryInput) => client.platformPlugin.listRuns.query(input),
+  listRuns: (input: PlatformPluginRunHistoryQueryInput) =>
+    client.platformPlugin.listRuns.query(input),
   run: (input: {
     actionId: string;
     agentId: string;
