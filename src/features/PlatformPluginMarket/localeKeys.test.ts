@@ -38,12 +38,25 @@ const requiredDetailKeys = [
   'platformPlugins.restriction.unknown',
 ];
 
+const requiredRunKeys = [
+  'platformPlugins.run.action',
+  'platformPlugins.run.agentRequired',
+  'platformPlugins.run.artifacts',
+  'platformPlugins.run.billing',
+  'platformPlugins.run.completed',
+  'platformPlugins.run.emptyInput',
+  'platformPlugins.run.noAction',
+  'platformPlugins.run.noPreview',
+  'platformPlugins.run.result',
+  'platformPlugins.run.status',
+];
+
 describe('platform plugin marketplace locale keys', () => {
-  it('ships detail and restriction keys in default, en-US, and zh-CN locales', () => {
+  it('ships detail, restriction, and run panel keys in default, en-US, and zh-CN locales', () => {
     const enUS = readJson('locales/en-US/subscription.json');
     const zhCN = readJson('locales/zh-CN/subscription.json');
 
-    for (const key of requiredDetailKeys) {
+    for (const key of [...requiredDetailKeys, ...requiredRunKeys]) {
       expect(defaultSubscription, `default missing ${key}`).toHaveProperty(key);
       expect(enUS, `en-US missing ${key}`).toHaveProperty(key);
       expect(zhCN, `zh-CN missing ${key}`).toHaveProperty(key);

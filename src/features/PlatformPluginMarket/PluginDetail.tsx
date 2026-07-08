@@ -204,6 +204,7 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
           action={action}
           agentId={agentId}
           disabled={!isPlatformPluginRunnable(plugin)}
+          onRunComplete={refresh}
           pluginId={plugin.id}
         />
       </Flexbox>
