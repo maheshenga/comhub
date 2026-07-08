@@ -1,8 +1,10 @@
 import type {
   PlatformPluginActionConfig,
+  PlatformPluginAdminStats,
   PlatformPluginAdminUpsertInput,
   PlatformPluginDetail,
   PlatformPluginListItem,
+  PlatformPluginOperationsMetadata,
   PlatformPluginPlanEntitlement,
 } from '@lobechat/types';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
@@ -13,9 +15,15 @@ import {
   platformPluginInstallations,
   platformPluginPlanEntitlements,
   platformPlugins,
+  platformPluginRuns,
   platformPluginVersions,
 } from '../schemas';
 import type { LobeChatDatabase, Transaction } from '../type';
+import {
+  readPlatformPluginOperationsMetadata,
+  summarizePlatformPluginAdminStats,
+  writePlatformPluginOperationsMetadata,
+} from './platformPluginOperations';
 
 const DEFAULT_VERSION = '1.0.0';
 const INSTALL_STATUS_ACTIVE = 'installed';
@@ -56,6 +64,7 @@ const toListItem = (
   icon: plugin.icon,
   id: plugin.id,
   installed,
+  operations: readPlatformPluginOperationsMetadata(plugin.metadata, plugin.sortOrder),
   planState: buildPlanState(entitlement),
   runtimeType: plugin.runtimeType,
   slug: plugin.slug,
@@ -213,14 +222,17 @@ export class PlatformPluginModel {
   ): Promise<{ id: string; slug: string }> => {
     return this.db.transaction(async (tx) => {
       const existing = await this.findPluginForUpsert(input, tx);
+      const operations = input.operations;
       const pluginValues = {
         billing: input.billing,
         category: input.category,
         description: input.description,
         displayName: input.displayName,
         icon: input.icon,
+        metadata: writePlatformPluginOperationsMetadata(existing?.metadata, operations),
         runtimeType: input.runtimeType,
         slug: input.slug,
+        sortOrder: operations.sortWeight,
         status: input.status,
         tags: input.tags,
       };
@@ -279,6 +291,78 @@ export class PlatformPluginModel {
         })),
       );
     });
+  };
+
+  updateOperationsForAdmin = async (params: {
+    operations: PlatformPluginOperationsMetadata;
+    pluginId: string;
+  }): Promise<void> => {
+    const plugin = await this.db.query.platformPlugins.findFirst({
+      where: eq(platformPlugins.id, params.pluginId),
+    });
+
+    if (!plugin) throw new Error('PLATFORM_PLUGIN_NOT_FOUND');
+
+    await this.db
+      .update(platformPlugins)
+      .set({
+        metadata: writePlatformPluginOperationsMetadata(plugin.metadata, params.operations),
+        sortOrder: params.operations.sortWeight,
+        updatedAt: new Date(),
+      })
+      .where(eq(platformPlugins.id, params.pluginId));
+  };
+
+  getAdminStats = async (pluginIds: string[]): Promise<Map<string, PlatformPluginAdminStats>> => {
+    if (pluginIds.length === 0) return new Map();
+
+    const [plugins, installations, runs] = await Promise.all([
+      this.db.query.platformPlugins.findMany({
+        where: inArray(platformPlugins.id, pluginIds),
+      }),
+      this.db.query.platformPluginInstallations.findMany({
+        where: and(
+          inArray(platformPluginInstallations.pluginId, pluginIds),
+          eq(platformPluginInstallations.status, INSTALL_STATUS_ACTIVE),
+          isNull(platformPluginInstallations.uninstalledAt),
+        ),
+      }),
+      this.db.query.platformPluginRuns.findMany({
+        where: inArray(platformPluginRuns.pluginId, pluginIds),
+      }),
+    ]);
+
+    const installationCountByPluginId = new Map<string, number>();
+    for (const installation of installations) {
+      installationCountByPluginId.set(
+        installation.pluginId,
+        (installationCountByPluginId.get(installation.pluginId) ?? 0) + 1,
+      );
+    }
+
+    const runsByPluginId = new Map<
+      string,
+      Array<{
+        billingSnapshot?: Record<string, unknown> | null;
+        status: (typeof runs)[number]['status'];
+      }>
+    >();
+    for (const run of runs) {
+      const items = runsByPluginId.get(run.pluginId) ?? [];
+      items.push({ billingSnapshot: run.billingSnapshot, status: run.status });
+      runsByPluginId.set(run.pluginId, items);
+    }
+
+    return new Map(
+      plugins.map((plugin) => [
+        plugin.id,
+        summarizePlatformPluginAdminStats({
+          billing: plugin.billing,
+          installationCount: installationCountByPluginId.get(plugin.id) ?? 0,
+          runs: runsByPluginId.get(plugin.id) ?? [],
+        }),
+      ]),
+    );
   };
 
   listMarketplacePlugins = async (params: {
@@ -468,6 +552,7 @@ export class PlatformPluginModel {
       id: plugin.id,
       installationSource: 'platform_plugin_installations',
       installed: true,
+      operations: readPlatformPluginOperationsMetadata(plugin.metadata, plugin.sortOrder),
       planState: aggregatePlanState(entitlementsByPluginId.get(plugin.id) ?? []),
       runtimeType: plugin.runtimeType,
       slug: plugin.slug,

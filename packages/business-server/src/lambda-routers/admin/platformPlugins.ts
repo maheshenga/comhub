@@ -1,6 +1,7 @@
 import {
   platformPluginAdminUpsertSchema,
   platformPluginBillingConfigSchema,
+  platformPluginOperationsMetadataSchema,
   platformPluginPlanEntitlementSchema,
   platformPluginStatusSchema,
 } from '@lobechat/types';
@@ -9,6 +10,7 @@ import { and, asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { PlatformPluginModel } from '@/database/models/platformPlugin';
+import { readPlatformPluginOperationsMetadata } from '@/database/models/platformPluginOperations';
 import {
   platformPluginActions,
   platformPluginArtifacts,
@@ -37,6 +39,15 @@ const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemW
 
 const SecretKeySchema = z.string().min(1).max(128).regex(/^[A-Za-z][A-Za-z0-9_:-]*$/);
 const SecretScopeSchema = z.string().min(1).max(80).regex(/^[a-z][a-z0-9_-]*$/).default('global');
+const EMPTY_PLUGIN_STATS = {
+  failedRuns: 0,
+  fixedServiceFeeCredits: 0,
+  installations: 0,
+  runs: 0,
+  successRate: 0,
+  succeededRuns: 0,
+  totalChargedCredits: 0,
+};
 
 const ListInputSchema = z
   .object({
@@ -62,6 +73,11 @@ const EntitlementsInputSchema = z.object({
 
 const BillingInputSchema = z.object({
   billing: platformPluginBillingConfigSchema,
+  pluginId: z.string().uuid(),
+});
+
+const OperationsInputSchema = z.object({
+  operations: platformPluginOperationsMetadataSchema,
   pluginId: z.string().uuid(),
 });
 
@@ -181,7 +197,7 @@ export const adminPlatformPluginsRouter = router({
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Platform plugin not found' });
     }
 
-    const [version, actions, entitlements, secrets] = await Promise.all([
+    const [version, actions, entitlements, secrets, statsMap] = await Promise.all([
       ctx.serverDB.query.platformPluginVersions.findFirst({
         orderBy: [desc(platformPluginVersions.createdAt)],
         where: eq(platformPluginVersions.pluginId, plugin.id),
@@ -198,13 +214,16 @@ export const adminPlatformPluginsRouter = router({
         orderBy: [asc(platformPluginSecrets.scope), asc(platformPluginSecrets.secretKey)],
         where: eq(platformPluginSecrets.pluginId, plugin.id),
       }),
+      new PlatformPluginModel(ctx.serverDB).getAdminStats([plugin.id]),
     ]);
 
     return {
       ...plugin,
       actions,
       entitlements,
+      operations: readPlatformPluginOperationsMetadata(plugin.metadata, plugin.sortOrder),
       secrets: secrets.map(toSecretMetadata),
+      stats: statsMap.get(plugin.id) ?? EMPTY_PLUGIN_STATS,
       version: version?.version ?? null,
     };
   }),
@@ -221,9 +240,14 @@ export const adminPlatformPluginsRouter = router({
       orderBy: [asc(platformPlugins.sortOrder), asc(platformPlugins.displayName)],
       where: conditions.length > 0 ? and(...conditions) : undefined,
     });
+    const statsMap = await new PlatformPluginModel(ctx.serverDB).getAdminStats(items.map((item) => item.id));
 
     return {
-      items,
+      items: items.map((item) => ({
+        ...item,
+        operations: readPlatformPluginOperationsMetadata(item.metadata, item.sortOrder),
+        stats: statsMap.get(item.id) ?? EMPTY_PLUGIN_STATS,
+      })),
       nextCursor: items.length === params.limit ? params.cursor + params.limit : null,
     };
   }),
@@ -295,6 +319,16 @@ export const adminPlatformPluginsRouter = router({
       resourceId: input.pluginId,
     });
 
+    return { ok: true };
+  }),
+
+  updateOperations: contentWriteProcedure.input(OperationsInputSchema).mutation(async ({ ctx, input }) => {
+    await new PlatformPluginModel(ctx.serverDB).updateOperationsForAdmin(input);
+    await writeAudit(ctx, {
+      eventType: 'platform_plugin.operations_updated',
+      metadata: { operations: input.operations },
+      resourceId: input.pluginId,
+    });
     return { ok: true };
   }),
 

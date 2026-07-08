@@ -8,7 +8,9 @@ import { writePlatformPluginAuditLog } from '../../platform-plugins/audit';
 import { adminRouter } from './index';
 
 const platformPluginModelMocks = vi.hoisted(() => ({
+  getAdminStats: vi.fn(),
   setPlanEntitlements: vi.fn(),
+  updateOperationsForAdmin: vi.fn(),
   upsertPluginForAdmin: vi.fn(),
 }));
 
@@ -241,8 +243,25 @@ const createUserCaller = ({ userId = 'user-a' }: { userId?: string } = {}) => {
 describe('admin.platformPlugins router', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    platformPluginModelMocks.getAdminStats.mockResolvedValue(
+      new Map([
+        [
+          pluginId,
+          {
+            failedRuns: 1,
+            fixedServiceFeeCredits: 10,
+            installations: 2,
+            runs: 3,
+            successRate: 66.7,
+            succeededRuns: 2,
+            totalChargedCredits: 120,
+          },
+        ],
+      ]),
+    );
     platformPluginModelMocks.upsertPluginForAdmin.mockResolvedValue({ id: pluginId, slug: 'writer' });
     platformPluginModelMocks.setPlanEntitlements.mockResolvedValue(undefined);
+    platformPluginModelMocks.updateOperationsForAdmin.mockResolvedValue(undefined);
     process.env.PLATFORM_PLUGIN_SECRET_KEY = '0123456789abcdef0123456789abcdef';
   });
 
@@ -294,6 +313,16 @@ describe('admin.platformPlugins router', () => {
     const caller = createUserCaller({ userId: 'user-a' });
 
     await expect(caller.platformPlugins.list()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('returns operations metadata and stats in the admin list', async () => {
+    const { caller } = createAdminCaller({ role: 'admin' });
+    const result = await caller.platformPlugins.list();
+
+    expect(result.items[0]).toMatchObject({
+      operations: { featured: false, sortWeight: 0 },
+      stats: { installations: 2, runs: 3, successRate: 66.7, totalChargedCredits: 120 },
+    });
   });
 
   it('splits metadata, billing, and secret write capabilities', async () => {
@@ -372,6 +401,25 @@ describe('admin.platformPlugins router', () => {
         resourceId: pluginId,
         resourceType: 'platformPlugin',
       }),
+    );
+  });
+
+  it('updates operations metadata with content write capability', async () => {
+    const { caller } = createAdminCaller({ role: 'content_admin' });
+
+    await expect(
+      caller.platformPlugins.updateOperations({
+        operations: { featured: true, promoLabel: 'Hot', sortWeight: 20, upgradeCta: 'Upgrade to Pro' },
+        pluginId,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(platformPluginModelMocks.updateOperationsForAdmin).toHaveBeenCalledWith({
+      operations: { featured: true, promoLabel: 'Hot', sortWeight: 20, upgradeCta: 'Upgrade to Pro' },
+      pluginId,
+    });
+    expect(writePlatformPluginAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'platform_plugin.operations_updated', resourceId: pluginId }),
     );
   });
 });
