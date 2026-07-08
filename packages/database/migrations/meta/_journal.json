@@ -938,6 +938,13 @@
       "when": 1783430406335,
       "tag": "0130_add_platform_plugins",
       "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1783544894973,
+      "tag": "0131_add_module_apps",
+      "breakpoints": true
     }
   ],
   "version": "6"

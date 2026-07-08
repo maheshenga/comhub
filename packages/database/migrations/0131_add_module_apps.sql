@@ -97,14 +97,27 @@ CREATE TABLE IF NOT EXISTS "module_app_installations" (
   "installed_at" timestamp with time zone DEFAULT now() NOT NULL,
   "uninstalled_at" timestamp with time zone,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
-  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+  CONSTRAINT "module_app_installations_scope_owner_check" CHECK (
+    (
+      "scope_type" = 'personal'
+      AND "user_id" IS NOT NULL
+      AND "workspace_id" IS NULL
+    )
+    OR (
+      "scope_type" = 'workspace'
+      AND "workspace_id" IS NOT NULL
+    )
+  )
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "module_app_install_personal_unique"
-  ON "module_app_installations" ("app_id", "scope_type", "user_id");
+  ON "module_app_installations" ("app_id", "user_id")
+  WHERE "scope_type" = 'personal' AND "user_id" IS NOT NULL;
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "module_app_install_workspace_unique"
-  ON "module_app_installations" ("app_id", "scope_type", "workspace_id");
+  ON "module_app_installations" ("app_id", "workspace_id")
+  WHERE "scope_type" = 'workspace' AND "workspace_id" IS NOT NULL;
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "module_app_records" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -120,7 +133,18 @@ CREATE TABLE IF NOT EXISTS "module_app_records" (
   "created_by" text REFERENCES "users"("id") ON DELETE set null,
   "updated_by" text REFERENCES "users"("id") ON DELETE set null,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
-  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+  CONSTRAINT "module_app_records_scope_owner_check" CHECK (
+    (
+      "scope_type" = 'personal'
+      AND "owner_user_id" IS NOT NULL
+      AND "workspace_id" IS NULL
+    )
+    OR (
+      "scope_type" = 'workspace'
+      AND "workspace_id" IS NOT NULL
+    )
+  )
 );
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "module_app_records_personal_idx"

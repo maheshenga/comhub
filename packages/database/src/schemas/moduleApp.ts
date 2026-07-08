@@ -8,8 +8,10 @@ import type {
   ModuleAppStatus,
   ModuleAppType,
 } from '@lobechat/types';
+import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -230,16 +232,19 @@ export const moduleAppInstallations = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    uniqueIndex('module_app_install_personal_unique').on(
-      table.appId,
-      table.scopeType,
-      table.userId,
+    check(
+      'module_app_installations_scope_owner_check',
+      sql`(
+        (${table.scopeType} = 'personal' AND ${table.userId} IS NOT NULL AND ${table.workspaceId} IS NULL)
+        OR (${table.scopeType} = 'workspace' AND ${table.workspaceId} IS NOT NULL)
+      )`,
     ),
-    uniqueIndex('module_app_install_workspace_unique').on(
-      table.appId,
-      table.scopeType,
-      table.workspaceId,
-    ),
+    uniqueIndex('module_app_install_personal_unique')
+      .on(table.appId, table.userId)
+      .where(sql`${table.scopeType} = 'personal' AND ${table.userId} IS NOT NULL`),
+    uniqueIndex('module_app_install_workspace_unique')
+      .on(table.appId, table.workspaceId)
+      .where(sql`${table.scopeType} = 'workspace' AND ${table.workspaceId} IS NOT NULL`),
   ],
 );
 
@@ -277,6 +282,13 @@ export const moduleAppRecords = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
+    check(
+      'module_app_records_scope_owner_check',
+      sql`(
+        (${table.scopeType} = 'personal' AND ${table.ownerUserId} IS NOT NULL AND ${table.workspaceId} IS NULL)
+        OR (${table.scopeType} = 'workspace' AND ${table.workspaceId} IS NOT NULL)
+      )`,
+    ),
     index('module_app_records_personal_idx').on(
       table.appId,
       table.scopeType,
