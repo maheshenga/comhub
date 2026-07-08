@@ -7,6 +7,12 @@
 - MODULE-APP-P1-DESIGN-001: Added the planned Module App Platform P1 design for ordinary apps, AI apps, API apps, simple workflow apps, and hybrid apps with personal and workspace data scopes.
 - Scope: documentation and feature governance only; no business code, routes, database migrations, or deployment files changed.
 - Design: `docs/superpowers/specs/2026-07-09-module-app-platform-p1-design.md`.
+- MODULE-APP-P1-001: Added independent Module App type contracts and schema guardrails for app metadata, pages, actions, entitlements, records, runs, and admin/user inputs.
+- MODULE-APP-P1-002: Added the independent `module_app_*` database schema, migration registration, and Drizzle model foundations without touching `platform_plugin_*`, MCP, or Skills tables.
+- MODULE-APP-P1-003: Added the Module App permission service for personal records, workspace membership, workspace admin/archive rules, and admin override.
+- MODULE-APP-P1-004: Added Module App model marketplace/detail/install/record/run/artifact foundations, including personal install/uninstall and archived-record filtering.
+- MODULE-APP-P1-005: Added the authenticated user `lambda.moduleApp` router with marketplace, detail, personal install, personal/team app listing, runtime manifest, record CRUD, run, and artifact endpoints. `createRecord`, `updateRecord`, and `runAction` now enforce the current plan's runnable entitlement before mutating module app data.
+- Verification: `packages/types/src/moduleApp.test.ts`, `packages/database/src/schemas/moduleApp.schema.test.ts`, `packages/database/src/models/__tests__/moduleApp.marketplace.test.ts`, `packages/business-server/src/module-apps/permission.test.ts`, `apps/server/src/routers/lambda/moduleApp.test.ts`, `bun run type-check`, and `git diff --check`.
 
 ## 2026-07-07
 

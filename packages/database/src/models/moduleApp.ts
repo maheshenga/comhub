@@ -9,7 +9,7 @@ import type {
   ModuleAppRunStatus,
   ModuleAppScopeType,
 } from '@lobechat/types';
-import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 
 import {
   moduleAppActions,
@@ -27,6 +27,7 @@ import type { LobeChatDatabase, Transaction } from '../type';
 
 const DEFAULT_VERSION = '1.0.0';
 const INSTALL_STATUS_ACTIVE = 'installed';
+const INSTALL_STATUS_INACTIVE = 'uninstalled';
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -42,6 +43,16 @@ const buildPlanState = (entitlement?: ModuleAppEntitlementRow | null) => ({
   runnable: entitlement?.runnable ?? false,
   visible: entitlement?.visible ?? false,
 });
+
+const aggregatePlanState = (entitlements: ModuleAppEntitlementRow[]) =>
+  entitlements.reduce(
+    (state, entitlement) => ({
+      installable: state.installable || entitlement.installable,
+      runnable: state.runnable || entitlement.runnable,
+      visible: state.visible || entitlement.visible,
+    }),
+    { installable: false, runnable: false, visible: false },
+  );
 
 const toListItem = (
   app: ModuleAppRow,
@@ -192,6 +203,14 @@ export class ModuleAppModel {
       orderBy: [desc(moduleAppVersions.createdAt)],
       where: eq(moduleAppVersions.appId, appId),
     });
+  };
+
+  private getLatestVersionId = async (appId: string) => {
+    const version = await this.getLatestVersion(appId);
+
+    if (!version) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+
+    return version.id;
   };
 
   private ensureVersionSnapshot = async (
@@ -488,6 +507,103 @@ export class ModuleAppModel {
     });
   };
 
+  installPersonalApp = async (params: { appId: string; userId: string }) => {
+    const versionId = await this.getLatestVersionId(params.appId);
+
+    await this.installApp({
+      appId: params.appId,
+      scopeType: 'personal',
+      userId: params.userId,
+      versionId,
+    });
+  };
+
+  uninstallPersonalApp = async (params: { appId: string; userId: string }) => {
+    await this.db
+      .update(moduleAppInstallations)
+      .set({
+        status: INSTALL_STATUS_INACTIVE,
+        uninstalledAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(moduleAppInstallations.appId, params.appId),
+          eq(moduleAppInstallations.scopeType, 'personal'),
+          eq(moduleAppInstallations.userId, params.userId),
+        ),
+      );
+
+    return { ok: true as const };
+  };
+
+  listInstalledApps = async (params: {
+    scopeType: ModuleAppScopeType;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    const rows = await this.db
+      .select({ app: moduleApps })
+      .from(moduleAppInstallations)
+      .innerJoin(moduleApps, eq(moduleAppInstallations.appId, moduleApps.id))
+      .where(
+        params.scopeType === 'personal'
+          ? and(
+              eq(moduleAppInstallations.scopeType, 'personal'),
+              eq(moduleAppInstallations.userId, params.userId),
+              eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+              isNull(moduleAppInstallations.uninstalledAt),
+            )
+          : and(
+              eq(moduleAppInstallations.scopeType, 'workspace'),
+              eq(moduleAppInstallations.workspaceId, params.workspaceId ?? ''),
+              eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+              isNull(moduleAppInstallations.uninstalledAt),
+            ),
+      )
+      .orderBy(asc(moduleApps.sortOrder), asc(moduleApps.displayName));
+
+    if (rows.length === 0) return [];
+
+    const appIds = rows.map((row) => row.app.id);
+    const entitlements = await this.db.query.moduleAppEntitlements.findMany({
+      where: inArray(moduleAppEntitlements.appId, appIds),
+    });
+    const entitlementsByAppId = new Map<string, ModuleAppEntitlementRow[]>();
+
+    for (const entitlement of entitlements) {
+      const items = entitlementsByAppId.get(entitlement.appId) ?? [];
+      items.push(entitlement);
+      entitlementsByAppId.set(entitlement.appId, items);
+    }
+
+    return rows.map(({ app }) => ({
+      ...toListItem(app, null, true),
+      planState: aggregatePlanState(entitlementsByAppId.get(app.id) ?? []),
+    }));
+  };
+
+  getRuntimeManifest = async (params: { appId: string; plan: string; userId: string }) => {
+    const detail = await this.getAppDetail({
+      appIdOrSlug: params.appId,
+      plan: params.plan,
+      userId: params.userId,
+    });
+
+    if (!detail) return null;
+
+    return {
+      actions: detail.actions,
+      appId: detail.id,
+      appType: detail.appType,
+      billing: detail.billing,
+      displayName: detail.displayName,
+      pages: detail.pages,
+      slug: detail.slug,
+      version: detail.version,
+    };
+  };
+
   listRecords = async (params: {
     appId: string;
     collectionKey: string;
@@ -504,6 +620,39 @@ export class ModuleAppModel {
         recordScopeWhere(params),
       ),
     });
+  };
+
+  getRecord = async (params: {
+    appId: string;
+    recordId: string;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    const personalAccess = and(
+      eq(moduleAppRecords.scopeType, 'personal'),
+      eq(moduleAppRecords.ownerUserId, params.userId),
+      isNull(moduleAppRecords.workspaceId),
+    );
+    const scopedAccess = params.workspaceId
+      ? or(
+          personalAccess,
+          and(
+            eq(moduleAppRecords.scopeType, 'workspace'),
+            eq(moduleAppRecords.workspaceId, params.workspaceId),
+          ),
+        )
+      : personalAccess;
+
+    return (
+      (await this.db.query.moduleAppRecords.findFirst({
+        where: and(
+          eq(moduleAppRecords.id, params.recordId),
+          eq(moduleAppRecords.appId, params.appId),
+          ne(moduleAppRecords.status, 'archived'),
+          scopedAccess,
+        ),
+      })) ?? null
+    );
   };
 
   createRecord = async (params: ModuleAppRecordInput & { recordKey?: string; userId: string }) => {

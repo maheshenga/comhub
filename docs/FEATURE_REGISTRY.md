@@ -72,7 +72,7 @@
 | 空壳 Workspace 商业 Router | `unknown` | 高 | 是 | 是 |
 | Storage Overage 空壳 Router | `deprecated` | 中 | 是 | 是 |
 | Platform Plugin Marketplace | `experimental` | 高 | 是 | 是 |
-| Module App Platform | `planned` | 高 | 是 | 是 |
+| Module App Platform | `experimental` | 高 | 是 | 是 |
 
 ## 功能明细
 
@@ -918,20 +918,20 @@
 | 字段 | 内容 |
 | --- | --- |
 | 功能名称 | Module App Platform |
-| 功能状态 | `planned` |
-| 功能说明 | 规划中的通用模块/应用平台，用于承载普通业务应用、AI 应用、API 应用、简单工作流应用和混合应用。P1 目标是支持个人与团队数据保存、简单团队权限、应用页面、动作、运行记录、产物、套餐权限和计费。 |
+| 功能状态 | `experimental` |
+| 功能说明 | 通用模块/应用平台，用于承载普通业务应用、AI 应用、API 应用、简单工作流应用和混合应用。P1 后端基础已开始落地：独立类型契约、数据库 schema/model、个人/团队记录权限、用户端 `lambda.moduleApp` 路由、个人安装、记录、运行与产物查询基础能力。用户 UI、后台管理 UI、admin router、完整运行时与计费执行仍在后续任务中。 |
 | 前端入口 | 规划：`/apps`、`/apps/my`、`/apps/team`、`/apps/:appId`、`/apps/:appId/app`、`/admin/module-apps` |
 | 核心组件 | 规划：`src/features/ModuleAppMarket`、`src/features/ModuleAppRuntime`、`src/features/Admin/moduleApps` |
-| 后端 API / Server Action | 规划：`lambda.moduleApp`、`admin.moduleApps` |
-| 数据库依赖 | 规划：`module_apps`、`module_app_versions`、`module_app_pages`、`module_app_actions`、`module_app_entitlements`、`module_app_installations`、`module_app_records`、`module_app_record_events`、`module_app_runs`、`module_app_artifacts` |
+| 后端 API / Server Action | 已有：`lambda.moduleApp`；规划：`admin.moduleApps` |
+| 数据库依赖 | 已有：`module_apps`、`module_app_versions`、`module_app_pages`、`module_app_actions`、`module_app_entitlements`、`module_app_installations`、`module_app_records`、`module_app_record_events`、`module_app_runs`、`module_app_artifacts`、`module_app_audit_logs` |
 | 配置项依赖 | 应用 manifest、页面 schema、动作 schema、套餐权限、计费配置、应用 secrets、个人/团队 scope |
 | 环境变量依赖 | P1 不新增强制环境变量；AI/API action 复用既有 AI provider、对象存储和安全配置变量 |
 | 外部服务依赖 | 可选：AI provider、外部 API、对象存储；普通 CRUD 应用不依赖 AI provider |
-| 主要相关文件 | 设计文档：`docs/superpowers/specs/2026-07-09-module-app-platform-p1-design.md` |
+| 主要相关文件 | `packages/types/src/moduleApp.ts`、`packages/database/src/schemas/moduleApp.ts`、`packages/database/src/models/moduleApp.ts`、`packages/business-server/src/module-apps/permission.ts`、`apps/server/src/routers/lambda/moduleApp.ts`、`docs/superpowers/specs/2026-07-09-module-app-platform-p1-design.md`、`docs/superpowers/plans/2026-07-09-module-app-platform-p1.md` |
 | 维护风险 | 高 |
 | 是否建议重构 | 是 |
 | 是否需要补测试 | 是 |
-| 备注 | 新域必须与现有 `platform_plugin_*`、MCP、Skills 保持隔离。P1 不执行外部前端 JS、不使用 iframe/remote module、不动态创建每个应用的物理表。 |
+| 备注 | 新域必须与现有 `platform_plugin_*`、MCP、Skills 保持隔离。P1 不执行外部前端 JS、不使用 iframe/remote module、不动态创建每个应用的物理表。当前用户路由已对 `createRecord` / `runAction` 执行套餐 `runnable` 校验；workspace 运行记录/产物查询输入、admin router、client service、UI shell、真实运行时与计费快照仍待后续任务补齐。 |
 
 ## 待人工确认清单
 

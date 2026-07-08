@@ -6,6 +6,7 @@ import { getTestDB } from '../../core/getTestDB';
 import {
   moduleAppArtifacts,
   moduleAppEntitlements,
+  moduleAppInstallations,
   moduleAppRecordEvents,
   moduleApps,
   moduleAppVersions,
@@ -50,6 +51,8 @@ const createRecordDesk = async () => {
         inputSchema: { fields: [] },
         moduleMultiplier: 1,
         name: 'Create',
+        outputSchema: {},
+        runtimeConfig: {},
         runtimeType: 'record_create',
       },
     ],
@@ -61,14 +64,22 @@ const createRecordDesk = async () => {
     icon: 'Notebook',
     pages: [
       {
+        actionBindings: [],
+        dataSource: {},
         key: 'overview',
+        layoutSchema: {},
         routePath: '/',
+        sortOrder: 0,
         title: 'Overview',
         type: 'overview',
       },
       {
+        actionBindings: [],
+        dataSource: {},
         key: 'records',
+        layoutSchema: {},
         routePath: '/records',
+        sortOrder: 1,
         title: 'Records',
         type: 'list',
       },
@@ -101,7 +112,18 @@ describe('ModuleAppModel marketplace behavior', () => {
       description: 'Hidden app',
       displayName: 'Hidden Desk',
       icon: 'Notebook',
-      pages: [{ key: 'overview', routePath: '/', title: 'Overview', type: 'overview' }],
+      pages: [
+        {
+          actionBindings: [],
+          dataSource: {},
+          key: 'overview',
+          layoutSchema: {},
+          routePath: '/',
+          sortOrder: 0,
+          title: 'Overview',
+          type: 'overview',
+        },
+      ],
       slug: 'hidden-desk',
       status: 'published',
       tags: ['records'],
@@ -155,6 +177,29 @@ describe('ModuleAppModel marketplace behavior', () => {
     );
   });
 
+  it('lists and uninstalls personal module apps', async () => {
+    const app = await createRecordDesk();
+    const [version] = await serverDB
+      .select({ id: moduleAppVersions.id })
+      .from(moduleAppVersions)
+      .where(eq(moduleAppVersions.appId, app.id));
+
+    await model.installPersonalApp({ appId: app.id, userId });
+
+    await expect(model.listInstalledApps({ scopeType: 'personal', userId })).resolves.toEqual([
+      expect.objectContaining({ id: app.id, installed: true, slug: 'record-desk' }),
+    ]);
+
+    await model.uninstallPersonalApp({ appId: app.id, userId });
+
+    await expect(model.listInstalledApps({ scopeType: 'personal', userId })).resolves.toEqual([]);
+    await expect(
+      serverDB.query.moduleAppInstallations.findFirst({
+        where: eq(moduleAppInstallations.versionId, version!.id),
+      }),
+    ).resolves.toMatchObject({ status: 'uninstalled' });
+  });
+
   it('isolates personal and workspace records and hides archived records', async () => {
     const app = await createRecordDesk();
 
@@ -185,6 +230,11 @@ describe('ModuleAppModel marketplace behavior', () => {
     });
 
     await model.archiveRecord({ appId: app.id, recordId: personal.id, userId });
+
+    await expect(model.getRecord({ appId: app.id, recordId: personal.id, userId })).resolves.toBeNull();
+    await expect(
+      model.getRecord({ appId: app.id, recordId: workspace.id, userId, workspaceId }),
+    ).resolves.toMatchObject({ id: workspace.id, scopeType: 'workspace' });
 
     await expect(
       model.listRecords({
