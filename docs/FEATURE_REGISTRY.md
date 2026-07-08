@@ -880,6 +880,14 @@
 - Test recommendation: add browser smoke for install -> bind Agent -> run -> see history once a seeded test database is available.
 - Note: This slice is frontend presentation only and does not change plugin permissions, billing calculation, runtime types, MCP / Skills isolation, or database schema.
 
+#### Platform Plugin Marketplace P4 Run History Pagination Update
+
+- Status: experimental
+- Description: P4 adds client-side pagination for current-user plugin run history using the existing `listRuns` cursor API.
+- Maintenance risk: medium
+- Test recommendation: add browser smoke for repeated plugin runs and history load-more once a seeded test database is available.
+- Note: This slice does not change plugin run authorization, billing, runtime types, database schema, MCP / Skills isolation, or desktop behavior.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |

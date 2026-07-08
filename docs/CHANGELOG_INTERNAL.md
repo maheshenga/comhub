@@ -78,3 +78,10 @@
 - Added presentation helpers for restriction copy keys and run status metadata.
 - Refreshed recent run history after a successful plugin run.
 - Preserved server-side install/run authorization and billing behavior.
+
+### Platform Plugin Marketplace P4 Run History Pagination
+
+- Added deduplicated current-user run history page merging.
+- Added localized Load more controls for plugin run history.
+- Wired plugin detail pages to fetch additional run pages through the existing `listRuns` cursor API.
+- Preserved server-side authorization, billing behavior, and MCP / Skills isolation.
