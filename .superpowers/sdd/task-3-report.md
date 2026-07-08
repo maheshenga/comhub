@@ -134,3 +134,34 @@ bun run type-check
 - `bunx vitest run --silent='passed-only' src/features/Admin/platformPlugins/formSchema.test.ts`: passed, 3 tests.
 - `git diff --check`: passed.
 - `bun run type-check`: failed in out-of-scope files that still omit required `operations` fields, including `apps/server/src/routers/lambda/platformPlugin.ts`, `packages/business-server/src/lambda-routers/admin/platformPlugins.ts`, `packages/business-server/src/platform-plugins/runPlatformPlugin.test.ts`, `packages/database/src/models/__tests__/platformPlugin.marketplace.test.ts`, `packages/database/src/models/platformPluginOperations.test.ts`, and `scripts/seedPlatformPlugins.ts`.
+
+## Locale Source Fix
+
+- Added the Task 3 `admin.platformPlugins.*` keys to `packages/locales/src/default/subscription.ts` so the canonical default source now matches the English `locales/en-US/subscription.json` namespace additions.
+- Inserted the full operations/stats label set in the same admin block order as the English source:
+  - `apiAction`
+  - `contentGeneration`
+  - `featured`
+  - `apiUrl`
+  - `operations`
+  - `planBenefit`
+  - `planBenefitSummary`
+  - `promotionLabel`
+  - `displayNamePlaceholder`
+  - `slug`
+  - `slugPlaceholder`
+  - `sortWeight`
+  - `stats`
+  - `statsSummary`
+  - `upgradeCta`
+  - `useCase`
+
+## Locale Source Verification
+
+```bash
+bunx vitest run --silent='passed-only' src/features/Admin/platformPlugins/formSchema.test.ts
+git diff --check
+```
+
+- `bunx vitest run --silent='passed-only' src/features/Admin/platformPlugins/formSchema.test.ts`: passed, 3 tests.
+- `git diff --check`: passed with a CRLF normalization warning on `packages/locales/src/default/subscription.ts`.
