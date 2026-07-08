@@ -200,6 +200,50 @@ describe('ModuleAppModel marketplace behavior', () => {
     ).resolves.toMatchObject({ status: 'uninstalled' });
   });
 
+  it('returns admin list/detail data and updates status/entitlements', async () => {
+    const app = await createRecordDesk();
+
+    await expect(model.listAdminApps({ status: 'published' })).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: app.id, slug: 'record-desk' })],
+      nextCursor: null,
+    });
+
+    await expect(model.getAdminApp({ appId: app.id })).resolves.toMatchObject({
+      actions: expect.arrayContaining([expect.objectContaining({ id: 'create_record' })]),
+      entitlements: expect.arrayContaining([
+        expect.objectContaining({ plan: 'free', runnable: true }),
+      ]),
+      id: app.id,
+      pages: expect.arrayContaining([expect.objectContaining({ key: 'overview' })]),
+      version: '1.0.0',
+    });
+
+    await model.setStatus({ appId: app.id, status: 'unpublished' });
+    await expect(model.getAdminApp({ appId: app.id })).resolves.toMatchObject({
+      status: 'unpublished',
+    });
+
+    await model.upsertEntitlementsForAdmin({
+      appId: app.id,
+      entitlements: [
+        {
+          discountPercent: 20,
+          freeQuotaCredits: 100,
+          installable: false,
+          plan: 'premium',
+          runnable: true,
+          visible: true,
+        },
+      ],
+    });
+
+    await expect(model.getAdminApp({ appId: app.id })).resolves.toMatchObject({
+      entitlements: expect.arrayContaining([
+        expect.objectContaining({ discountPercent: 20, plan: 'premium' }),
+      ]),
+    });
+  });
+
   it('isolates personal and workspace records and hides archived records', async () => {
     const app = await createRecordDesk();
 

@@ -1,0 +1,214 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getServerDB } from '@/database/core/db-adaptor';
+
+import { writeModuleAppAuditLog } from '../../module-apps/audit';
+
+import { adminRouter } from './index';
+
+const moduleAppModelMocks = vi.hoisted(() => ({
+  getAdminApp: vi.fn(),
+  setStatus: vi.fn(),
+  upsertAppForAdmin: vi.fn(),
+}));
+
+vi.mock('@/database/core/db-adaptor', () => ({
+  getServerDB: vi.fn(),
+}));
+
+vi.mock('@/database/models/moduleApp', () => ({
+  ModuleAppModel: vi.fn(() => moduleAppModelMocks),
+}));
+
+vi.mock('../../module-apps/audit', () => ({
+  writeModuleAppAuditLog: vi.fn(),
+}));
+
+vi.mock('./audit-router', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminAuditRouter: router({}) };
+});
+
+vi.mock('./content', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminContentRouter: router({}) };
+});
+
+vi.mock('./credits', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminCreditsRouter: router({}) };
+});
+
+vi.mock('./newapiProviders', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminNewapiProvidersRouter: router({}) };
+});
+
+vi.mock('./orders', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminOrdersRouter: router({}) };
+});
+
+vi.mock('./plans', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminPlansRouter: router({}) };
+});
+
+vi.mock('./platformPlugins', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminPlatformPluginsRouter: router({}) };
+});
+
+vi.mock('./ppt', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminPptRouter: router({}) };
+});
+
+vi.mock('./redemption', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminRedemptionRouter: router({}) };
+});
+
+vi.mock('./referral', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminReferralRouter: router({}) };
+});
+
+vi.mock('./settings', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminSettingsRouter: router({}) };
+});
+
+vi.mock('./stats', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminStatsRouter: router({}) };
+});
+
+vi.mock('./subscriptions', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminSubscriptionsRouter: router({}) };
+});
+
+vi.mock('./topupPackages', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminTopUpPackagesRouter: router({}) };
+});
+
+vi.mock('./users', async () => {
+  const { router } = await import('@/libs/trpc/lambda');
+
+  return { adminUsersRouter: router({}) };
+});
+
+const APP_ID = '00000000-0000-4000-8000-000000000001';
+
+const createDb = () =>
+  ({
+    query: {
+      users: {
+        findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+      },
+    },
+  }) as any;
+
+const createCaller = () => {
+  vi.mocked(getServerDB).mockResolvedValue(createDb());
+
+  return adminRouter.createCaller({ userId: 'admin-user' } as any);
+};
+
+describe('admin module apps router', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    moduleAppModelMocks.getAdminApp.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
+    moduleAppModelMocks.setStatus.mockResolvedValue({ ok: true });
+    moduleAppModelMocks.upsertAppForAdmin.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
+  });
+
+  it('registers admin.moduleApps', () => {
+    expect(adminRouter._def.record.moduleApps).toBeDefined();
+  });
+
+  it('writes an audit log when upserting a module app', async () => {
+    const caller = createCaller();
+
+    const result = await caller.moduleApps.upsert({
+      actions: [],
+      appType: 'standard_app',
+      billing: {
+        chargeMode: 'free',
+        defaultMultiplier: 1,
+        externalApiCostCredits: 0,
+        failureFixedFeePolicy: 'do_not_charge',
+        fixedServiceFeeCredits: 0,
+      },
+      category: 'office',
+      description: 'Simple workbench app.',
+      displayName: 'Workbench',
+      icon: 'Blocks',
+      pages: [],
+      slug: 'workbench',
+      status: 'draft',
+      tags: [],
+    });
+
+    expect(result).toEqual({ id: APP_ID, slug: 'workbench' });
+    expect(moduleAppModelMocks.upsertAppForAdmin).toHaveBeenCalledWith(
+      expect.objectContaining({ displayName: 'Workbench', slug: 'workbench' }),
+    );
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.upserted',
+        resourceId: APP_ID,
+        resourceType: 'moduleApp',
+      }),
+    );
+  });
+
+  it('writes an audit log when publishing a module app', async () => {
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.publish({ appId: APP_ID })).resolves.toEqual({ ok: true });
+
+    expect(moduleAppModelMocks.setStatus).toHaveBeenCalledWith({
+      appId: APP_ID,
+      status: 'published',
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.published',
+        resourceId: APP_ID,
+        resourceType: 'moduleApp',
+      }),
+    );
+  });
+
+  it('does not publish or audit a missing module app', async () => {
+    moduleAppModelMocks.getAdminApp.mockResolvedValue(null);
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'module_app_not_found',
+    });
+
+    expect(moduleAppModelMocks.setStatus).not.toHaveBeenCalled();
+    expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
+  });
+});

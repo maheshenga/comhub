@@ -8,12 +8,14 @@ import type {
   ModuleAppRunInput,
   ModuleAppRunStatus,
   ModuleAppScopeType,
+  ModuleAppStatus,
 } from '@lobechat/types';
 import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 
 import {
   moduleAppActions,
   moduleAppArtifacts,
+  moduleAppAuditLogs,
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppPages,
@@ -348,6 +350,248 @@ export class ModuleAppModel {
 
       return { id: app.id, slug: app.slug };
     });
+  };
+
+  listAdminApps = async (
+    params: {
+      category?: string;
+      cursor?: number;
+      limit?: number;
+      status?: ModuleAppStatus;
+    } = {},
+  ) => {
+    const limit = params.limit ?? 50;
+    const cursor = params.cursor ?? 0;
+    const where =
+      params.status && params.category
+        ? and(eq(moduleApps.status, params.status), eq(moduleApps.category, params.category))
+        : params.status
+          ? eq(moduleApps.status, params.status)
+          : params.category
+            ? eq(moduleApps.category, params.category)
+            : undefined;
+
+    const items = await this.db.query.moduleApps.findMany({
+      limit,
+      offset: cursor,
+      orderBy: [asc(moduleApps.sortOrder), asc(moduleApps.displayName)],
+      where,
+    });
+
+    return {
+      items,
+      nextCursor: items.length === limit ? cursor + limit : null,
+    };
+  };
+
+  getAdminApp = async (params: { appId: string }) => {
+    const app = await this.db.query.moduleApps.findFirst({
+      where: eq(moduleApps.id, params.appId),
+    });
+
+    if (!app) return null;
+
+    const [version, pages, actions, entitlements] = await Promise.all([
+      this.getLatestVersion(app.id),
+      this.db.query.moduleAppPages.findMany({
+        orderBy: [asc(moduleAppPages.sortOrder), asc(moduleAppPages.createdAt)],
+        where: eq(moduleAppPages.appId, app.id),
+      }),
+      this.db.query.moduleAppActions.findMany({
+        orderBy: [asc(moduleAppActions.createdAt)],
+        where: eq(moduleAppActions.appId, app.id),
+      }),
+      this.db.query.moduleAppEntitlements.findMany({
+        orderBy: [asc(moduleAppEntitlements.plan)],
+        where: eq(moduleAppEntitlements.appId, app.id),
+      }),
+    ]);
+
+    return {
+      ...app,
+      actions: actions.map(toActionConfig),
+      entitlements: entitlements.map(toEntitlementConfig),
+      pages: pages.map(toPageConfig),
+      version: version?.version ?? DEFAULT_VERSION,
+    };
+  };
+
+  setStatus = async (params: { appId: string; status: ModuleAppStatus }) => {
+    await this.db
+      .update(moduleApps)
+      .set({ status: params.status, updatedAt: new Date() })
+      .where(eq(moduleApps.id, params.appId));
+
+    const version = await this.getLatestVersion(params.appId);
+
+    if (version) {
+      await this.db
+        .update(moduleAppVersions)
+        .set({
+          publishedAt:
+            params.status === 'published' ? version.publishedAt ?? new Date() : null,
+        })
+        .where(eq(moduleAppVersions.id, version.id));
+    }
+
+    return { ok: true as const };
+  };
+
+  upsertPagesForAdmin = async (params: { appId: string; pages: ModuleAppPage[] }) => {
+    const versionId = await this.getLatestVersionId(params.appId);
+
+    await this.db.delete(moduleAppPages).where(eq(moduleAppPages.appId, params.appId));
+
+    if (params.pages.length > 0) {
+      await this.db.insert(moduleAppPages).values(
+        params.pages.map((page) => ({
+          actionBindings: page.actionBindings,
+          appId: params.appId,
+          dataSource: page.dataSource,
+          layoutSchema: page.layoutSchema,
+          pageKey: page.key,
+          pageType: page.type,
+          routePath: page.routePath,
+          sortOrder: page.sortOrder,
+          title: page.title,
+          versionId,
+        })),
+      );
+    }
+
+    return { ok: true as const };
+  };
+
+  upsertActionsForAdmin = async (params: {
+    actions: ModuleAppActionConfig[];
+    appId: string;
+  }) => {
+    const versionId = await this.getLatestVersionId(params.appId);
+
+    await this.db.delete(moduleAppActions).where(eq(moduleAppActions.appId, params.appId));
+
+    if (params.actions.length > 0) {
+      await this.db.insert(moduleAppActions).values(
+        params.actions.map((action) => ({
+          actionKey: action.id,
+          appId: params.appId,
+          inputSchema: action.inputSchema,
+          moduleMultiplier: Math.round(action.moduleMultiplier),
+          name: action.name,
+          outputSchema: action.outputSchema,
+          runtimeConfig: action.runtimeConfig,
+          runtimeType: action.runtimeType,
+          versionId,
+        })),
+      );
+    }
+
+    return { ok: true as const };
+  };
+
+  upsertBillingForAdmin = async (params: {
+    appId: string;
+    billing: ModuleAppAdminUpsertInput['billing'];
+  }) => {
+    await this.db
+      .update(moduleApps)
+      .set({ billing: params.billing, updatedAt: new Date() })
+      .where(eq(moduleApps.id, params.appId));
+
+    return { ok: true as const };
+  };
+
+  upsertEntitlementsForAdmin = async (params: {
+    appId: string;
+    entitlements: ModuleAppPlanEntitlement[];
+  }) => {
+    await this.db
+      .delete(moduleAppEntitlements)
+      .where(eq(moduleAppEntitlements.appId, params.appId));
+
+    if (params.entitlements.length > 0) {
+      await this.db.insert(moduleAppEntitlements).values(
+        params.entitlements.map((entitlement) => ({
+          appId: params.appId,
+          discountPercent: entitlement.discountPercent,
+          freeQuotaCredits: entitlement.freeQuotaCredits,
+          installable: entitlement.installable,
+          plan: entitlement.plan,
+          runnable: entitlement.runnable,
+          visible: entitlement.visible,
+        })),
+      );
+    }
+
+    return { ok: true as const };
+  };
+
+  listAdminInstalls = async (params: { appId: string; cursor?: number; limit?: number }) => {
+    const limit = params.limit ?? 50;
+    const cursor = params.cursor ?? 0;
+    const items = await this.db.query.moduleAppInstallations.findMany({
+      limit,
+      offset: cursor,
+      orderBy: [desc(moduleAppInstallations.createdAt)],
+      where: eq(moduleAppInstallations.appId, params.appId),
+    });
+
+    return { items, nextCursor: items.length === limit ? cursor + limit : null };
+  };
+
+  listAdminRecords = async (params: { appId: string; cursor?: number; limit?: number }) => {
+    const limit = params.limit ?? 50;
+    const cursor = params.cursor ?? 0;
+    const items = await this.db.query.moduleAppRecords.findMany({
+      limit,
+      offset: cursor,
+      orderBy: [desc(moduleAppRecords.updatedAt)],
+      where: eq(moduleAppRecords.appId, params.appId),
+    });
+
+    return { items, nextCursor: items.length === limit ? cursor + limit : null };
+  };
+
+  listAdminRuns = async (params: { appId: string; cursor?: number; limit?: number }) => {
+    const limit = params.limit ?? 50;
+    const cursor = params.cursor ?? 0;
+    const items = await this.db.query.moduleAppRuns.findMany({
+      limit,
+      offset: cursor,
+      orderBy: [desc(moduleAppRuns.createdAt)],
+      where: eq(moduleAppRuns.appId, params.appId),
+    });
+
+    return { items, nextCursor: items.length === limit ? cursor + limit : null };
+  };
+
+  listAdminArtifacts = async (params: { appId: string; cursor?: number; limit?: number }) => {
+    const limit = params.limit ?? 50;
+    const cursor = params.cursor ?? 0;
+    const items = await this.db.query.moduleAppArtifacts.findMany({
+      limit,
+      offset: cursor,
+      orderBy: [desc(moduleAppArtifacts.createdAt)],
+      where: eq(moduleAppArtifacts.appId, params.appId),
+    });
+
+    return { items, nextCursor: items.length === limit ? cursor + limit : null };
+  };
+
+  listAdminAuditEvents = async (params: { appId: string; cursor?: number; limit?: number }) => {
+    const limit = params.limit ?? 50;
+    const cursor = params.cursor ?? 0;
+    const items = await this.db.query.moduleAppAuditLogs.findMany({
+      limit,
+      offset: cursor,
+      orderBy: [desc(moduleAppAuditLogs.createdAt)],
+      where: and(
+        eq(moduleAppAuditLogs.resourceType, 'moduleApp'),
+        eq(moduleAppAuditLogs.resourceId, params.appId),
+      ),
+    });
+
+    return { items, nextCursor: items.length === limit ? cursor + limit : null };
   };
 
   listMarketplaceApps = async (params: {
