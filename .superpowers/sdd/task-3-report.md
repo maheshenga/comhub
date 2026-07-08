@@ -87,6 +87,7 @@ These are outside the files assigned for Task 3, so they were not changed here.
   - It only fires when the submitted operations payload differs from the current `editingPlugin.operations`, so the second mutation is avoided when there is no real change.
 - Replaced the Task 3 admin-facing English strings in the plugin editor with `useTranslation('subscription')` keys and added the matching `admin.platformPlugins.*` entries in both locale files.
 - Kept the operations block in the modal on a plain container instead of a nested `Form.Item` wrapper to avoid brittle antd composition.
+- Replaced the admin platform plugins stats cell inline English string with `subscription` i18n using `admin.platformPlugins.statsSummary`, and added matching English and Simplified Chinese locale entries.
 
 ## Review Verification
 

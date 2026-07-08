@@ -358,7 +358,10 @@ const AdminPlatformPluginsPage = memo(() => {
       dataIndex: 'stats',
       key: 'stats',
       render: (stats: AdminPlatformPluginItem['stats']) =>
-        `${formatStats(stats?.runs)} runs / ${formatSuccessRate(stats?.successRate)}`,
+        tt('admin.platformPlugins.statsSummary', {
+          runs: formatStats(stats?.runs),
+          successRate: formatSuccessRate(stats?.successRate),
+        }),
       title: tt('admin.platformPlugins.stats'),
     },
     {

@@ -200,6 +200,7 @@
   "admin.platformPlugins.slugPlaceholder": "research-notes",
   "admin.platformPlugins.sortWeight": "排序权重",
   "admin.platformPlugins.stats": "统计",
+  "admin.platformPlugins.statsSummary": "{{runs}} 次运行 / {{successRate}}",
   "admin.platformPlugins.upgradeCta": "升级按钮文案",
   "admin.platformPlugins.useCase": "使用场景",
   "admin.dangerousAction.errors.confirmation_required": "请先确认此操作。",
