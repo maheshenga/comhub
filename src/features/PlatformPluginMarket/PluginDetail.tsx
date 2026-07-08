@@ -12,6 +12,7 @@ import { platformPluginService } from '@/services/platformPlugin';
 
 import {
   getPlatformPluginBillingSummaryValues,
+  getPlatformPluginDetailActionErrorCopyKey,
   getPlatformPluginRestrictionReason,
   getPlatformPluginRuntimeLabelKey,
   isPlatformPluginRunnable,
@@ -90,7 +91,7 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
       await refresh();
       message.success(successMessage);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : t('platformPlugins.restriction.unknown'));
+      message.error(t(getPlatformPluginDetailActionErrorCopyKey(error)));
     } finally {
       setSubmitting(false);
     }
