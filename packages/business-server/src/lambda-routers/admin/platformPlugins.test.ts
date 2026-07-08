@@ -292,11 +292,15 @@ describe('admin.platformPlugins router', () => {
   it('gets a plugin by id when the input is a UUID', async () => {
     const { caller, db } = createAdminCaller({ role: 'admin' });
 
-    await caller.platformPlugins.get({ pluginIdOrSlug: pluginId });
+    const detail = await caller.platformPlugins.get({ pluginIdOrSlug: pluginId });
 
     const where = db.query.platformPlugins.findFirst.mock.calls.at(-1)?.[0]?.where;
 
     expect(getWhereColumnName(where)).toBe('id');
+    expect(detail).toMatchObject({
+      operations: { featured: false, sortWeight: 0 },
+      stats: { installations: 2, runs: 3, successRate: 66.7, totalChargedCredits: 120 },
+    });
   });
 
   it('gets a plugin by slug when the input is not a UUID', async () => {
@@ -421,5 +425,23 @@ describe('admin.platformPlugins router', () => {
     expect(writePlatformPluginAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: 'platform_plugin.operations_updated', resourceId: pluginId }),
     );
+  });
+
+  it('normalizes missing plugin operations updates to not found', async () => {
+    platformPluginModelMocks.updateOperationsForAdmin.mockRejectedValueOnce(
+      new Error('PLATFORM_PLUGIN_NOT_FOUND'),
+    );
+
+    const { caller } = createAdminCaller({ role: 'content_admin' });
+
+    await expect(
+      caller.platformPlugins.updateOperations({
+        operations: { featured: true, sortWeight: 20 },
+        pluginId,
+      }),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Platform plugin not found',
+    });
   });
 });

@@ -323,7 +323,15 @@ export const adminPlatformPluginsRouter = router({
   }),
 
   updateOperations: contentWriteProcedure.input(OperationsInputSchema).mutation(async ({ ctx, input }) => {
-    await new PlatformPluginModel(ctx.serverDB).updateOperationsForAdmin(input);
+    try {
+      await new PlatformPluginModel(ctx.serverDB).updateOperationsForAdmin(input);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PLATFORM_PLUGIN_NOT_FOUND') {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Platform plugin not found' });
+      }
+
+      throw error;
+    }
     await writeAudit(ctx, {
       eventType: 'platform_plugin.operations_updated',
       metadata: { operations: input.operations },

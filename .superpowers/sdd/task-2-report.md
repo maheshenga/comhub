@@ -52,3 +52,10 @@ DONE
 - No migration created.
 - Admin/user API secret hygiene preserved; raw secret values remain masked-only in router tests.
 - Existing legacy plugin routers and unrelated code paths were left unchanged.
+
+## Review Fix Append
+
+- Normalized `admin.platformPlugins.updateOperations` at the router boundary so a model-level `PLATFORM_PLUGIN_NOT_FOUND` still returns `TRPCError({ code: 'NOT_FOUND', message: 'Platform plugin not found' })`.
+- Added a focused admin `get` assertion that the detail payload includes both `operations` and `stats`.
+- Fresh verification passed:
+  - `bunx vitest run --silent='passed-only' src/lambda-routers/admin/platformPlugins.test.ts` in `packages/business-server`
