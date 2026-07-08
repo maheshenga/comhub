@@ -13,7 +13,8 @@
 - MODULE-APP-P1-004: Added Module App model marketplace/detail/install/record/run/artifact foundations, including personal install/uninstall and archived-record filtering.
 - MODULE-APP-P1-005: Added the authenticated user `lambda.moduleApp` router with marketplace, detail, personal install, personal/team app listing, runtime manifest, record CRUD, run, and artifact endpoints. `createRecord`, `updateRecord`, and `runAction` now enforce the current plan's runnable entitlement before mutating module app data.
 - MODULE-APP-P1-006: Added the admin `admin.moduleApps` router for listing, detail reads, upsert, publish/unpublish, pages/actions/billing/entitlement updates, installs, records, runs, artifacts, and audit-event reads. Admin write operations now emit module app audit logs.
-- Verification: `packages/types/src/moduleApp.test.ts`, `packages/database/src/schemas/moduleApp.schema.test.ts`, `packages/database/src/models/__tests__/moduleApp.marketplace.test.ts`, `packages/business-server/src/module-apps/permission.test.ts`, `packages/business-server/src/lambda-routers/admin/moduleApps.test.ts`, `apps/server/src/routers/lambda/moduleApp.test.ts`, `bun run type-check`, and `git diff --check`.
+- MODULE-APP-P1-007: Added typed client service wrappers for user `lambda.moduleApp` calls and admin `adminCommercialService.moduleApps` calls.
+- Verification: `packages/types/src/moduleApp.test.ts`, `packages/database/src/schemas/moduleApp.schema.test.ts`, `packages/database/src/models/__tests__/moduleApp.marketplace.test.ts`, `packages/business-server/src/module-apps/permission.test.ts`, `packages/business-server/src/lambda-routers/admin/moduleApps.test.ts`, `apps/server/src/routers/lambda/moduleApp.test.ts`, `src/services/moduleApp.test.ts`, `src/services/adminCommercial.test.ts`, `bun run type-check`, and `git diff --check`.
 
 ## 2026-07-07
 

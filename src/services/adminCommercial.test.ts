@@ -10,6 +10,9 @@ vi.mock('@/libs/trpc/client', () => ({
       settings: {
         validateDefaultAgentSettings: { mutate: vi.fn() },
       },
+      moduleApps: {
+        list: { query: vi.fn() },
+      },
       newapiProviders: {
         getModelCatalogDiagnostics: { query: vi.fn() },
         syncInstanceModels: { mutate: vi.fn() },
@@ -47,6 +50,22 @@ describe('adminCommercialService NewAPI helpers', () => {
 
     expect(lambdaClient.admin.newapiProviders.testInstanceConnection.query).toHaveBeenCalledWith({
       id: 'instance-1',
+    });
+  });
+
+  it('calls the module app admin list endpoint', async () => {
+    vi.mocked(lambdaClient.admin.moduleApps.list.query).mockResolvedValue({
+      items: [{ id: 'app1' } as any],
+      nextCursor: null,
+    });
+
+    await expect(adminCommercialService.moduleApps.list({ status: 'published' })).resolves.toEqual({
+      items: [{ id: 'app1' }],
+      nextCursor: null,
+    });
+
+    expect(lambdaClient.admin.moduleApps.list.query).toHaveBeenCalledWith({
+      status: 'published',
     });
   });
 

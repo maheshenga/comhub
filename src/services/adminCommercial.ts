@@ -224,6 +224,34 @@ class AdminCommercialService {
     tokenTtlMinutes?: number;
   }) => lambdaClient.admin.ppt.saveSettings.mutate(params);
 
+  // Module apps
+  moduleApps = {
+    get: (input: { appId: string }) => lambdaClient.admin.moduleApps.get.query(input),
+    list: (input?: { category?: string; cursor?: number; limit?: number; status?: string }) =>
+      lambdaClient.admin.moduleApps.list.query(input as any),
+    listArtifacts: (input: { appId: string; cursor?: number; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listArtifacts.query(input),
+    listAuditEvents: (input: { appId: string; cursor?: number; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listAuditEvents.query(input),
+    listInstalls: (input: { appId: string; cursor?: number; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listInstalls.query(input),
+    listRecords: (input: { appId: string; cursor?: number; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listRecords.query(input),
+    listRuns: (input: { appId: string; cursor?: number; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listRuns.query(input),
+    publish: (input: { appId: string }) => lambdaClient.admin.moduleApps.publish.mutate(input),
+    unpublish: (input: { appId: string }) => lambdaClient.admin.moduleApps.unpublish.mutate(input),
+    upsert: (input: unknown) => lambdaClient.admin.moduleApps.upsert.mutate(input as any),
+    upsertActions: (input: { actions: unknown[]; appId: string }) =>
+      lambdaClient.admin.moduleApps.upsertActions.mutate(input as any),
+    upsertBilling: (input: { appId: string; billing: unknown }) =>
+      lambdaClient.admin.moduleApps.upsertBilling.mutate(input as any),
+    upsertEntitlements: (input: { appId: string; entitlements: unknown[] }) =>
+      lambdaClient.admin.moduleApps.upsertEntitlements.mutate(input as any),
+    upsertPages: (input: { appId: string; pages: unknown[] }) =>
+      lambdaClient.admin.moduleApps.upsertPages.mutate(input as any),
+  };
+
   // Platform plugins
   platformPlugins = {
     deleteSecret: (input: { key: string; pluginId: string; scope?: string }) =>
