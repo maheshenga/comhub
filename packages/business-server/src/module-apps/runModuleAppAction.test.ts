@@ -127,4 +127,101 @@ describe('runModuleAppAction record actions', () => {
       userId: 'u1',
     });
   });
+
+  it('builds fixed and external API billing snapshots for api_action', async () => {
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'lookup',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Lookup',
+        outputSchema: {},
+        runtimeConfig: {},
+        runtimeType: 'api_action',
+      },
+      appId: APP_ID,
+      billing: {
+        chargeMode: 'external_api',
+        defaultMultiplier: 1,
+        externalApiCostCredits: 7,
+        failureFixedFeePolicy: 'do_not_charge',
+        fixedServiceFeeCredits: 5,
+      },
+      input: { keyword: 'apple' },
+      model: model as never,
+      runner: vi.fn().mockResolvedValue({
+        actualAiCredits: 0,
+        artifactIds: [],
+        output: { definition: 'fruit' },
+        preview: 'fruit',
+      }),
+      scopeType: 'personal',
+      userId: 'u1',
+    });
+
+    expect(result.billing).toMatchObject({
+      chargedCredits: 12,
+      chargeMode: 'external_api',
+      externalApiCostCredits: 7,
+      fixedServiceFeeCharged: true,
+      fixedServiceFeeCredits: 5,
+    });
+    expect(model.updateRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billing: expect.objectContaining({ chargedCredits: 12 }),
+        output: { definition: 'fruit' },
+        status: 'succeeded',
+      }),
+    );
+  });
+
+  it('builds AI usage billing snapshots with action and app multipliers', async () => {
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'generate',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 2,
+        name: 'Generate',
+        outputSchema: {},
+        runtimeConfig: {},
+        runtimeType: 'content_generation',
+      },
+      appId: APP_ID,
+      billing: {
+        chargeMode: 'ai_usage',
+        defaultMultiplier: 1.5,
+        externalApiCostCredits: 0,
+        failureFixedFeePolicy: 'do_not_charge',
+        fixedServiceFeeCredits: 2,
+      },
+      input: { topic: 'apple' },
+      model: model as never,
+      runner: vi.fn().mockResolvedValue({
+        actualAiCredits: 10,
+        artifactIds: [],
+        output: { text: 'Apple note' },
+        preview: 'Apple note',
+      }),
+      scopeType: 'personal',
+      userId: 'u1',
+    });
+
+    expect(result.billing).toMatchObject({
+      actualAiCredits: 10,
+      chargedCredits: 32,
+      chargeMode: 'ai_usage',
+      fixedServiceFeeCredits: 2,
+      multiplier: 3,
+    });
+  });
 });

@@ -1,4 +1,10 @@
-import type { ModuleAppActionConfig, ModuleAppScopeType } from '@lobechat/types';
+import type {
+  ModuleAppActionConfig,
+  ModuleAppBillingConfig,
+  ModuleAppScopeType,
+} from '@lobechat/types';
+
+import { isSafeModuleAppApiUrl } from './safeUrl';
 
 export interface ModuleAppRuntimeModel {
   archiveRecord: (input: {
@@ -45,18 +51,31 @@ export interface ModuleAppRuntimeModel {
 export interface RunModuleAppActionInput {
   action: ModuleAppActionConfig;
   appId: string;
+  billing?: ModuleAppBillingConfig;
   input: Record<string, unknown>;
   model: ModuleAppRuntimeModel;
   recordId?: string;
+  runner?: ModuleAppActionRunner;
   scopeType: ModuleAppScopeType;
   userId: string;
   workspaceId?: string;
 }
 
+export interface ModuleAppRunnerResult {
+  actualAiCredits?: number;
+  artifactIds?: string[];
+  output?: Record<string, unknown>;
+  preview?: string;
+}
+
+export type ModuleAppActionRunner = () => Promise<ModuleAppRunnerResult>;
+
 const freeBilling = {
   chargedCredits: 0,
   fixedServiceFeeCharged: false,
 };
+
+const billableRuntimeTypes = new Set(['api_action', 'content_generation', 'workflow_step']);
 
 const getTextInput = (input: Record<string, unknown>, key: string) => {
   const value = input[key];
@@ -76,7 +95,48 @@ const getCollectionKey = (action: ModuleAppActionConfig, input: Record<string, u
 const getRecordId = (input: Record<string, unknown>, fallback?: string) =>
   getTextInput(input, 'recordId') ?? fallback;
 
+const getFiniteNumber = (value: unknown, fallback = 0) =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : fallback;
+
+const buildBillingSnapshot = (input: {
+  actualAiCredits?: number;
+  chargeMode: string;
+  externalApiCostCredits?: number;
+  fixedServiceFeeCredits?: number;
+  multiplier?: number;
+}) => {
+  const fixedServiceFeeCredits = input.fixedServiceFeeCredits ?? 0;
+  const externalApiCostCredits = input.externalApiCostCredits ?? 0;
+  const actualAiCredits = input.actualAiCredits ?? 0;
+  const multiplier = input.multiplier ?? 1;
+  const aiCredits = actualAiCredits * multiplier;
+
+  return {
+    actualAiCredits,
+    chargedCredits: fixedServiceFeeCredits + externalApiCostCredits + aiCredits,
+    chargeMode: input.chargeMode,
+    externalApiCostCredits,
+    fixedServiceFeeCharged: fixedServiceFeeCredits > 0,
+    fixedServiceFeeCredits,
+    multiplier,
+  };
+};
+
+const assertSafeApiRuntimeConfig = (action: ModuleAppActionConfig) => {
+  const url = action.runtimeConfig.url ?? action.runtimeConfig.endpoint;
+  if (typeof url !== 'string' || !url) return;
+  if (!isSafeModuleAppApiUrl(url)) throw new Error('MODULE_APP_UNSAFE_API_URL');
+};
+
 export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
+  if (billableRuntimeTypes.has(params.action.runtimeType) && !params.runner) {
+    throw new Error('MODULE_APP_RUNNER_REQUIRED');
+  }
+
+  if (params.action.runtimeType === 'api_action') {
+    assertSafeApiRuntimeConfig(params.action);
+  }
+
   const run = await params.model.createRun({
     actionId: params.action.id,
     appId: params.appId,
@@ -171,6 +231,40 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
       artifactIds: [],
       billing: freeBilling,
       preview: 'Archived',
+      runId: run.id,
+      status: 'succeeded' as const,
+    };
+  }
+
+  if (billableRuntimeTypes.has(params.action.runtimeType)) {
+    const runnerResult = await params.runner!();
+    const billing = params.billing ?? {
+      chargeMode: 'free',
+      defaultMultiplier: 1,
+      externalApiCostCredits: 0,
+      failureFixedFeePolicy: 'do_not_charge',
+      fixedServiceFeeCredits: 0,
+    };
+    const billingSnapshot = buildBillingSnapshot({
+      actualAiCredits: getFiniteNumber(runnerResult.actualAiCredits),
+      chargeMode: billing.chargeMode,
+      externalApiCostCredits: billing.externalApiCostCredits,
+      fixedServiceFeeCredits: billing.fixedServiceFeeCredits,
+      multiplier: billing.defaultMultiplier * params.action.moduleMultiplier,
+    });
+    const output = runnerResult.output ?? {};
+
+    await params.model.updateRun({
+      billing: billingSnapshot,
+      output,
+      runId: run.id,
+      status: 'succeeded',
+    });
+
+    return {
+      artifactIds: runnerResult.artifactIds ?? [],
+      billing: billingSnapshot,
+      preview: runnerResult.preview ?? '',
       runId: run.id,
       status: 'succeeded' as const,
     };

@@ -130,3 +130,5 @@
 - Verification: `src/features/Admin/moduleApps/formSchema.test.ts`, `src/features/Admin/adminNavigation.test.ts`, `src/business/client/BusinessDesktopRoutes.test.ts`, and `src/routes/(main)/settings/admin/index.test.tsx`.
 - MODULE-APP-P1-010: Added the free standard-app record action runtime for `record_create`, `record_update`, and `record_archive`, and delegated `lambda.moduleApp.runAction` through the runtime instead of only creating a run row.
 - Verification: `packages/business-server/src/module-apps/runModuleAppAction.test.ts` and `apps/server/src/routers/lambda/moduleApp.test.ts`.
+- MODULE-APP-P1-011: Added Module App API URL safety checks and billable runtime snapshot support for injected `api_action`, `content_generation`, and `workflow_step` runners without enabling arbitrary frontend JS, iframe, MCP, or Skills execution.
+- Verification: `packages/business-server/src/module-apps/safeUrl.test.ts` and `packages/business-server/src/module-apps/runModuleAppAction.test.ts`.
