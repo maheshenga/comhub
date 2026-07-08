@@ -93,3 +93,26 @@ These are outside the files assigned for Task 3, so they were not changed here.
 
 - `bunx vitest run --silent='passed-only' src/features/Admin/platformPlugins/formSchema.test.ts`
 - `git diff --check`
+
+## Task 3 Follow-up Fix
+
+- Updated the local `tt` helper in `src/features/Admin/AdminPlatformPluginsPage.tsx` so it accepts the interpolation/options object used by `admin.platformPlugins.statsSummary`.
+- Kept the no-options call path intact so existing translation fallback behavior is preserved.
+- Narrowed the helper to the object interpolation shape used on this page and cast through `unknown` to satisfy the `react-i18next` overloads.
+
+## Task 3 Follow-up Verification
+
+### Passed
+
+```bash
+bunx vitest run --silent='passed-only' src/features/Admin/platformPlugins/formSchema.test.ts
+git diff --check
+```
+
+### Known follow-up
+
+```bash
+bun run type-check
+```
+
+Result: still fails in broader repo areas unrelated to this task, including missing `operations` fields in server, database, and seed files. The Task 3-owned `AdminPlatformPluginsPage.tsx` type error is no longer present in the output.

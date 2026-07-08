@@ -132,7 +132,11 @@ const AdminPlatformPluginsPage = memo(() => {
   const [editingPlugin, setEditingPlugin] = useState<AdminPlatformPluginDetail | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [billingForm] = Form.useForm();
-  const tt = (key: string) => t(key as never);
+  function tt(key: string): string;
+  function tt(key: string, options: Record<string, unknown>): string;
+  function tt(key: string, options?: Record<string, unknown>): string {
+    return (options ? t(key as never, options as never) : t(key as never)) as unknown as string;
+  }
 
   const listKey = useMemo(() => ['admin-platform-plugins', statusFilter], [statusFilter]);
   const detailKey = useMemo(
