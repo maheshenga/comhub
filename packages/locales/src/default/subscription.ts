@@ -803,6 +803,8 @@
   'platformPlugins.runHistory.artifacts': '{{count}} artifacts',
   'platformPlugins.runHistory.credits': '{{credits}} credits',
   'platformPlugins.runHistory.empty': 'No recent runs',
+  'platformPlugins.runHistory.loadMore': 'Load more',
+  'platformPlugins.runHistory.loadingMore': 'Loading more...',
   'platformPlugins.runHistory.serviceFee': 'Service fee',
   'platformPlugins.runHistory.status.denied': 'Denied',
   'platformPlugins.runHistory.status.failed': 'Failed',

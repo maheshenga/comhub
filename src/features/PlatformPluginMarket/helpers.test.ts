@@ -10,6 +10,7 @@ import {
   getPlatformPluginRunStatusMeta,
   getPlatformPluginRuntimeLabelKey,
   isPlatformPluginRunnable,
+  mergePlatformPluginRunHistoryItems,
 } from './helpers';
 
 const buildPlugin = (overrides: Partial<PlatformPluginListItem>): PlatformPluginListItem => ({
@@ -169,5 +170,25 @@ describe('platform plugin marketplace helpers', () => {
       fixedCredits: '1.5K',
       multiplier: 3,
     });
+  });
+
+  it('merges run history pages without duplicating run ids', () => {
+    const first = {
+      artifactIds: [],
+      chargedCredits: 10,
+      createdAt: '2026-07-09T00:00:00.000Z',
+      fixedServiceFeeCharged: false,
+      pluginId: 'plugin-1',
+      pluginName: 'Research Notes',
+      runId: 'run-1',
+      status: 'succeeded' as const,
+    };
+    const duplicate = { ...first, chargedCredits: 20 };
+    const second = { ...first, runId: 'run-2', status: 'failed' as const };
+
+    expect(mergePlatformPluginRunHistoryItems([first], [duplicate, second])).toEqual([
+      first,
+      second,
+    ]);
   });
 });

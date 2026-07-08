@@ -226,6 +226,8 @@
   "platformPlugins.runHistory.artifacts": "{{count}} 个产物",
   "platformPlugins.runHistory.credits": "{{credits}} 积分",
   "platformPlugins.runHistory.empty": "暂无最近运行记录",
+  "platformPlugins.runHistory.loadMore": "加载更多",
+  "platformPlugins.runHistory.loadingMore": "正在加载...",
   "platformPlugins.runHistory.serviceFee": "服务费",
   "platformPlugins.runHistory.status.denied": "已拒绝",
   "platformPlugins.runHistory.status.failed": "失败",

@@ -49,6 +49,8 @@ const requiredRunKeys = [
   'platformPlugins.run.noPreview',
   'platformPlugins.run.result',
   'platformPlugins.run.status',
+  'platformPlugins.runHistory.loadMore',
+  'platformPlugins.runHistory.loadingMore',
 ];
 
 describe('platform plugin marketplace locale keys', () => {

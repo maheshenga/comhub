@@ -1,6 +1,7 @@
 import type {
   PlatformPluginListItem,
   PlatformPluginMarketplaceListInput,
+  PlatformPluginRunHistoryItem,
   PlatformPluginRunStatus,
 } from '@lobechat/types';
 
@@ -177,4 +178,20 @@ export const getPlatformPluginBillingSummary = (plugin: Pick<PlatformPluginListI
   return `${billing.defaultMultiplier ?? 1}x · ${formatPlatformPluginCredits(
     billing.fixedServiceFeeCredits,
   )} credits fixed`;
+};
+
+export const mergePlatformPluginRunHistoryItems = (
+  current: PlatformPluginRunHistoryItem[],
+  next: PlatformPluginRunHistoryItem[],
+) => {
+  const seen = new Set(current.map((item) => item.runId));
+  const merged = [...current];
+
+  for (const item of next) {
+    if (seen.has(item.runId)) continue;
+    seen.add(item.runId);
+    merged.push(item);
+  }
+
+  return merged;
 };
