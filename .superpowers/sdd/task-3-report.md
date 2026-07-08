@@ -116,3 +116,21 @@ bun run type-check
 ```
 
 Result: still fails in broader repo areas unrelated to this task, including missing `operations` fields in server, database, and seed files. The Task 3-owned `AdminPlatformPluginsPage.tsx` type error is no longer present in the output.
+
+## Review Fix: Redundant Operations Write Removed
+
+- Simplified `src/features/Admin/AdminPlatformPluginsPage.tsx` so `handleSavePlugin` now performs only the normalized `adminCommercialService.platformPlugins.upsert(input)` write.
+- Removed the follow-up `platformPlugins.updateOperations(...)` mutation and the local operations comparison helpers that only existed to gate that second write.
+- Kept the service wrapper in `src/services/adminCommercial.ts` unchanged, per task instructions.
+
+## Review Fix Verification
+
+```bash
+bunx vitest run --silent='passed-only' src/features/Admin/platformPlugins/formSchema.test.ts
+git diff --check
+bun run type-check
+```
+
+- `bunx vitest run --silent='passed-only' src/features/Admin/platformPlugins/formSchema.test.ts`: passed, 3 tests.
+- `git diff --check`: passed.
+- `bun run type-check`: failed in out-of-scope files that still omit required `operations` fields, including `apps/server/src/routers/lambda/platformPlugin.ts`, `packages/business-server/src/lambda-routers/admin/platformPlugins.ts`, `packages/business-server/src/platform-plugins/runPlatformPlugin.test.ts`, `packages/database/src/models/__tests__/platformPlugin.marketplace.test.ts`, `packages/database/src/models/platformPluginOperations.test.ts`, and `scripts/seedPlatformPlugins.ts`.

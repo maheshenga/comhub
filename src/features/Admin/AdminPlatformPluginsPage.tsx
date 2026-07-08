@@ -3,7 +3,6 @@
 import type {
   PlatformPluginAdminUpsertInput,
   PlatformPluginBillingConfig,
-  PlatformPluginOperationsMetadata,
   PlatformPluginPlanEntitlement,
   PlatformPluginStatus,
 } from '@lobechat/types';
@@ -92,20 +91,6 @@ const runtimeLabel = {
 const formatDate = (value?: Date | string) => (value ? new Date(value).toLocaleString() : '-');
 const formatStats = (value?: number) => Number(value ?? 0).toLocaleString();
 const formatSuccessRate = (value?: number) => `${Number(value ?? 0).toFixed(1)}%`;
-
-const normalizeOperations = (operations?: null | PlatformPluginOperationsMetadata) => ({
-  featured: operations?.featured === true,
-  planBenefitSummary: operations?.planBenefitSummary || undefined,
-  promoLabel: operations?.promoLabel || undefined,
-  sortWeight: Number(operations?.sortWeight ?? 0),
-  upgradeCta: operations?.upgradeCta || undefined,
-  useCase: operations?.useCase || undefined,
-});
-
-const areOperationsEqual = (
-  next?: null | PlatformPluginOperationsMetadata,
-  current?: null | PlatformPluginOperationsMetadata,
-) => JSON.stringify(normalizeOperations(next)) === JSON.stringify(normalizeOperations(current));
 
 const formatTags = (tags?: string[]) =>
   tags && tags.length > 0 ? (
@@ -247,14 +232,7 @@ const AdminPlatformPluginsPage = memo(() => {
   const handleSavePlugin = async (input: PlatformPluginAdminUpsertInput) => {
     setSubmitting(true);
     try {
-      const existingPlugin = editingPlugin;
       const result = await adminCommercialService.platformPlugins.upsert(input);
-      if (existingPlugin && !areOperationsEqual(input.operations, existingPlugin.operations)) {
-        await adminCommercialService.platformPlugins.updateOperations({
-          operations: input.operations,
-          pluginId: result.id,
-        });
-      }
       setEditorOpen(false);
       setEditingPlugin(null);
       setSelectedPluginId(result.id);
