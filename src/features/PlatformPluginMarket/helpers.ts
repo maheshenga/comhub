@@ -152,6 +152,12 @@ export type PlatformPluginRunPreviewCopyKey =
   | 'platformPlugins.run.failedPreview'
   | 'platformPlugins.run.noPreview';
 
+export type PlatformPluginDetailActionErrorCopyKey =
+  | PlatformPluginRestrictionCopyKey
+  | 'platformPlugins.detail.errors.agentBindingUnavailable'
+  | 'platformPlugins.detail.errors.pluginUnavailable'
+  | 'platformPlugins.detail.errors.unknown';
+
 export const getPlatformPluginRunStatusMeta = (
   status: PlatformPluginRunStatus,
 ): { color: string; labelKey: PlatformPluginRunStatusLabelKey } => {
@@ -191,6 +197,28 @@ const normalizePlatformPluginErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message.trim();
   if (typeof error === 'string') return error.trim();
   return '';
+};
+
+const detailActionErrorCopyKey: Record<string, PlatformPluginDetailActionErrorCopyKey> = {
+  agent_not_enabled: 'platformPlugins.restriction.agentNotEnabled',
+  not_installed: 'platformPlugins.detail.errors.agentBindingUnavailable',
+  plan_install_denied: 'platformPlugins.restriction.planInstallDenied',
+  plan_run_denied: 'platformPlugins.restriction.planRunDenied',
+  plan_visibility_denied: 'platformPlugins.restriction.planVisibilityDenied',
+  plugin_not_published: 'platformPlugins.detail.errors.pluginUnavailable',
+  platform_plugin_not_found: 'platformPlugins.detail.errors.pluginUnavailable',
+  platform_plugin_version_not_found: 'platformPlugins.detail.errors.pluginUnavailable',
+};
+
+export const getPlatformPluginDetailActionErrorCopyKey = (
+  error: unknown,
+): PlatformPluginDetailActionErrorCopyKey => {
+  const message = normalizePlatformPluginErrorMessage(error);
+  const restrictionKey = restrictionCopyKey[message as PlatformPluginRestrictionReason];
+
+  if (restrictionKey && message !== 'not_installed') return restrictionKey;
+
+  return detailActionErrorCopyKey[message] ?? 'platformPlugins.detail.errors.unknown';
 };
 
 export const getPlatformPluginRunErrorCopyKey = (

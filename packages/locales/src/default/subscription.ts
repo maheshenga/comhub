@@ -820,6 +820,12 @@
   'platformPlugins.detail.available.runnable': 'Runnable',
   'platformPlugins.detail.available.visible': 'Visible',
   'platformPlugins.detail.enable': 'Enable',
+  'platformPlugins.detail.errors.agentBindingUnavailable':
+    'Install this plugin and make sure your plan can run it before updating Agent binding.',
+  'platformPlugins.detail.errors.pluginUnavailable':
+    'This plugin is unavailable or no longer visible to your current plan.',
+  'platformPlugins.detail.errors.unknown':
+    'This plugin action cannot be completed right now. Try again later or contact an administrator.',
   'platformPlugins.detail.install': 'Install',
   'platformPlugins.detail.installed': 'Plugin installed',
   'platformPlugins.detail.installRequired':

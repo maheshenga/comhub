@@ -5,6 +5,7 @@ import {
   filterAndSortPlatformPlugins,
   formatPlatformPluginCredits,
   getPlatformPluginBillingSummaryValues,
+  getPlatformPluginDetailActionErrorCopyKey,
   getPlatformPluginPlanStatusLabel,
   getPlatformPluginRestrictionCopyKey,
   getPlatformPluginRunErrorCopyKey,
@@ -79,6 +80,27 @@ describe('platform plugin marketplace helpers', () => {
     );
     expect(getPlatformPluginRunErrorCopyKey(new Error('unexpected raw backend detail'))).toBe(
       'platformPlugins.run.errors.unknown',
+    );
+  });
+
+  it('maps platform plugin detail operation errors to localized copy keys', () => {
+    expect(getPlatformPluginDetailActionErrorCopyKey(new Error('plan_install_denied'))).toBe(
+      'platformPlugins.restriction.planInstallDenied',
+    );
+    expect(getPlatformPluginDetailActionErrorCopyKey(new Error('plan_run_denied'))).toBe(
+      'platformPlugins.restriction.planRunDenied',
+    );
+    expect(getPlatformPluginDetailActionErrorCopyKey(new Error('not_installed'))).toBe(
+      'platformPlugins.detail.errors.agentBindingUnavailable',
+    );
+    expect(getPlatformPluginDetailActionErrorCopyKey(new Error('platform_plugin_not_found'))).toBe(
+      'platformPlugins.detail.errors.pluginUnavailable',
+    );
+    expect(getPlatformPluginDetailActionErrorCopyKey(new Error('plugin_not_published'))).toBe(
+      'platformPlugins.detail.errors.pluginUnavailable',
+    );
+    expect(getPlatformPluginDetailActionErrorCopyKey(new Error('raw database detail'))).toBe(
+      'platformPlugins.detail.errors.unknown',
     );
   });
 
