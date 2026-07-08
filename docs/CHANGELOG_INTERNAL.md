@@ -92,3 +92,10 @@
 - Added frontend mapping for known plugin run backend error codes.
 - Stopped showing raw plugin run error strings directly in the user toast.
 - Preserved plugin authorization, billing, persistence, runtime execution, and MCP / Skills isolation.
+
+### Platform Plugin Marketplace P6 Detail Operation Error Copy
+
+- Added localized detail-page operation failure copy for install, uninstall, and Agent binding actions.
+- Added frontend mapping for known detail operation backend error codes.
+- Stopped showing raw plugin detail operation error strings directly in the user toast.
+- Preserved plugin authorization, entitlement checks, billing, persistence, runtime execution, and MCP / Skills isolation.

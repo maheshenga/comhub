@@ -896,6 +896,14 @@
 - Test recommendation: add browser smoke for a configured failing plugin run once a seeded test database is available.
 - Note: This slice keeps backend error creation and run history persistence unchanged; it only changes presentation copy.
 
+#### Platform Plugin Marketplace P6 Detail Operation Error Copy Update
+
+- Status: experimental
+- Description: P6 localizes install, uninstall, and Agent binding operation failures without changing plugin authorization, entitlement checks, persistence, runtime execution, billing, or MCP / Skills isolation.
+- Maintenance risk: medium
+- Test recommendation: add browser smoke for install denied, plugin missing, and Agent binding denied states once a seeded test database is available.
+- Note: This slice only changes frontend presentation copy for detail-page operation failures.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |
