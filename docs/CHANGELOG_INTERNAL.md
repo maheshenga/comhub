@@ -85,3 +85,10 @@
 - Added localized Load more controls for plugin run history.
 - Wired plugin detail pages to fetch additional run pages through the existing `listRuns` cursor API.
 - Preserved server-side authorization, billing behavior, and MCP / Skills isolation.
+
+### Platform Plugin Marketplace P5 Run Error Copy
+
+- Added localized run failure notice and failed-result preview copy.
+- Added frontend mapping for known plugin run backend error codes.
+- Stopped showing raw plugin run error strings directly in the user toast.
+- Preserved plugin authorization, billing, persistence, runtime execution, and MCP / Skills isolation.

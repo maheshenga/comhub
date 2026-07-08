@@ -888,6 +888,14 @@
 - Test recommendation: add browser smoke for repeated plugin runs and history load-more once a seeded test database is available.
 - Note: This slice does not change plugin run authorization, billing, runtime types, database schema, MCP / Skills isolation, or desktop behavior.
 
+#### Platform Plugin Marketplace P5 Run Error Copy Update
+
+- Status: experimental
+- Description: P5 localizes user-facing run failures, failed-run notices, and backend error-code mapping without changing run authorization, billing, runtime execution, persistence, or MCP / Skills isolation.
+- Maintenance risk: medium
+- Test recommendation: add browser smoke for a configured failing plugin run once a seeded test database is available.
+- Note: This slice keeps backend error creation and run history persistence unchanged; it only changes presentation copy.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |
