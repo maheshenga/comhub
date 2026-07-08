@@ -104,6 +104,12 @@ import MemoryContextsPage from '@/routes/(main)/memory/contexts';
 import MemoryExperiencesPage from '@/routes/(main)/memory/experiences';
 import MemoryIdentitiesPage from '@/routes/(main)/memory/identities';
 import MemoryPreferencesPage from '@/routes/(main)/memory/preferences';
+import ModuleAppMarketPage from '@/routes/(main)/apps';
+import ModuleAppRuntimePage from '@/routes/(main)/apps/[appId]/app';
+import ModuleAppRuntimePageRoute from '@/routes/(main)/apps/[appId]/app/[pageKey]';
+import ModuleAppDetailPage from '@/routes/(main)/apps/[appId]';
+import ModuleAppMyAppsPage from '@/routes/(main)/apps/my';
+import ModuleAppTeamAppsPage from '@/routes/(main)/apps/team';
 import PageIndexPage from '@/routes/(main)/page';
 import DesktopPageLayout from '@/routes/(main)/page/_layout';
 import PageDetailPage from '@/routes/(main)/page/[id]';
@@ -382,6 +388,41 @@ export const sharedMainAreaChildren: RouteObject[] = [
     ],
     errorElement: <ErrorBoundary />,
     path: 'plugins',
+  },
+
+  // Module app marketplace and runtime routes
+  {
+    children: [
+      {
+        element: <ModuleAppMarketPage />,
+        handle: {
+          meta: routeMeta({ icon: ShapesIcon, titleKey: 'navigation.apps' }),
+        },
+        index: true,
+      },
+      {
+        element: <ModuleAppMyAppsPage />,
+        path: 'my',
+      },
+      {
+        element: <ModuleAppTeamAppsPage />,
+        path: 'team',
+      },
+      {
+        element: <ModuleAppDetailPage />,
+        path: ':appId',
+      },
+      {
+        element: <ModuleAppRuntimePage />,
+        path: ':appId/app',
+      },
+      {
+        element: <ModuleAppRuntimePageRoute />,
+        path: ':appId/app/:pageKey',
+      },
+    ],
+    errorElement: <ErrorBoundary />,
+    path: 'apps',
   },
 
   // Expert plaza routes
