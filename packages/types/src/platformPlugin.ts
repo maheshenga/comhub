@@ -312,7 +312,7 @@ export const platformPluginAdminUpsertSchema = z.object({
   displayName: z.string().min(1).max(120),
   icon: z.string().min(1).max(120),
   id: z.string().uuid().optional(),
-  operations: platformPluginOperationsMetadataSchema.optional(),
+  operations: platformPluginOperationsMetadataSchema,
   runtimeType: platformPluginRuntimeTypeSchema,
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   status: platformPluginStatusSchema.default('draft'),

@@ -101,6 +101,25 @@ describe('platform plugin shared schemas', () => {
     expect(value.billing.defaultMultiplier).toBe(1.35);
   });
 
+  it('defaults operations in admin upsert payloads', () => {
+    const value = platformPluginAdminUpsertSchema.parse({
+      billing: {},
+      category: 'research',
+      description: 'Generate research notes.',
+      displayName: 'Research Notes',
+      icon: 'FileText',
+      runtimeType: 'content_generation',
+      slug: 'research-notes',
+      status: 'published',
+      tags: ['research'],
+    });
+
+    expect(value.operations).toEqual({
+      featured: false,
+      sortWeight: 0,
+    });
+  });
+
   it('defaults and trims operations metadata', () => {
     expect(platformPluginOperationsMetadataSchema.parse(undefined)).toEqual({
       featured: false,
