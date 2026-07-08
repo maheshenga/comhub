@@ -1,5 +1,13 @@
 # Internal Changelog
 
+## 2026-07-09
+
+### Module App Platform
+
+- MODULE-APP-P1-DESIGN-001: Added the planned Module App Platform P1 design for ordinary apps, AI apps, API apps, simple workflow apps, and hybrid apps with personal and workspace data scopes.
+- Scope: documentation and feature governance only; no business code, routes, database migrations, or deployment files changed.
+- Design: `docs/superpowers/specs/2026-07-09-module-app-platform-p1-design.md`.
+
 ## 2026-07-07
 
 ### Governance
