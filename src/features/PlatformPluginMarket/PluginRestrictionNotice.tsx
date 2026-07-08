@@ -2,21 +2,24 @@
 
 import { Alert } from 'antd';
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { getPlatformPluginRestrictionCopy } from './helpers';
+import { getPlatformPluginRestrictionCopyKey } from './helpers';
 
 type PluginRestrictionNoticeProps = {
   reason?: null | string;
 };
 
 const PluginRestrictionNotice = memo<PluginRestrictionNoticeProps>(({ reason }) => {
+  const { t } = useTranslation('subscription');
+
   if (!reason) return null;
 
   return (
     <Alert
       showIcon
-      description={getPlatformPluginRestrictionCopy(reason)}
-      message="当前不可运行"
+      description={t(getPlatformPluginRestrictionCopyKey(reason))}
+      message={t('platformPlugins.detail.unavailable')}
       type="warning"
     />
   );

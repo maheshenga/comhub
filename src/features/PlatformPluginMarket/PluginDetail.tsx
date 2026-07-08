@@ -11,9 +11,9 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { platformPluginService } from '@/services/platformPlugin';
 
 import {
-  formatPlatformPluginRuntimeType,
-  getPlatformPluginBillingSummary,
+  getPlatformPluginBillingSummaryValues,
   getPlatformPluginRestrictionReason,
+  getPlatformPluginRuntimeLabelKey,
   isPlatformPluginRunnable,
 } from './helpers';
 import PluginRestrictionNotice from './PluginRestrictionNotice';
@@ -30,6 +30,8 @@ type PluginDetailViewProps = {
 const detailKey = (pluginIdOrSlug?: string) =>
   pluginIdOrSlug ? ['platform-plugin-detail', pluginIdOrSlug] : null;
 
+const availabilityColor = (available: boolean) => (available ? 'green' : 'orange');
+
 const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plugin }) => {
   const { t } = useTranslation('subscription');
   const [agentId, setAgentId] = useState(initialAgentId);
@@ -37,6 +39,7 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
   const restrictionReason = getPlatformPluginRestrictionReason(plugin);
   const action = plugin.actions[0];
   const runsKey = ['platform-plugin-runs', plugin.id];
+  const billingSummary = getPlatformPluginBillingSummaryValues(plugin);
   const { data: runHistory } = useClientDataSWR(runsKey, () =>
     platformPluginService.listRuns({ pluginId: plugin.id }),
   );
@@ -54,14 +57,14 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
     ]);
   };
 
-  const runAction = async (actionFn: () => Promise<unknown>, success: string) => {
+  const runAction = async (actionFn: () => Promise<unknown>, successMessage: string) => {
     try {
       setSubmitting(true);
       await actionFn();
       await refresh();
-      message.success(success);
+      message.success(successMessage);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '操作失败');
+      message.error(error instanceof Error ? error.message : t('platformPlugins.restriction.unknown'));
     } finally {
       setSubmitting(false);
     }
@@ -81,20 +84,26 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
             <Button
               loading={submitting}
               onClick={() =>
-                runAction(() => platformPluginService.uninstall({ pluginId: plugin.id }), '插件已卸载')
+                runAction(
+                  () => platformPluginService.uninstall({ pluginId: plugin.id }),
+                  t('platformPlugins.detail.uninstalled'),
+                )
               }
             >
-              卸载
+              {t('platformPlugins.detail.uninstall')}
             </Button>
           ) : (
             <Button
               loading={submitting}
               type="primary"
               onClick={() =>
-                runAction(() => platformPluginService.install({ pluginId: plugin.id }), '插件已安装')
+                runAction(
+                  () => platformPluginService.install({ pluginId: plugin.id }),
+                  t('platformPlugins.detail.installed'),
+                )
               }
             >
-              安装
+              {t('platformPlugins.detail.install')}
             </Button>
           )}
         </Flexbox>
@@ -111,28 +120,41 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
       ) : null}
 
       <Flexbox horizontal gap={4} wrap="wrap">
-        <Tag>{formatPlatformPluginRuntimeType(plugin.runtimeType)}</Tag>
-        <Tag>{getPlatformPluginBillingSummary(plugin)}</Tag>
-        <Tag color={plugin.planState.visible ? 'green' : 'orange'}>可见</Tag>
-        <Tag color={plugin.planState.installable ? 'green' : 'orange'}>可安装</Tag>
-        <Tag color={plugin.planState.runnable ? 'green' : 'orange'}>可运行</Tag>
+        <Tag>{t(getPlatformPluginRuntimeLabelKey(plugin.runtimeType))}</Tag>
+        <Tag>
+          {t('platformPlugins.marketplace.billingSummary', {
+            fixedCredits: billingSummary.fixedCredits,
+            multiplier: billingSummary.multiplier,
+          })}
+        </Tag>
+        <Tag color={availabilityColor(plugin.planState.visible)}>
+          {t('platformPlugins.detail.available.visible')}
+        </Tag>
+        <Tag color={availabilityColor(plugin.planState.installable)}>
+          {t('platformPlugins.detail.available.installable')}
+        </Tag>
+        <Tag color={availabilityColor(plugin.planState.runnable)}>
+          {t('platformPlugins.detail.available.runnable')}
+        </Tag>
       </Flexbox>
 
       <PluginRestrictionNotice reason={restrictionReason} />
 
       <Descriptions bordered column={2} size="small">
-        <Descriptions.Item label="Slug">{plugin.slug}</Descriptions.Item>
-        <Descriptions.Item label="版本">{plugin.version}</Descriptions.Item>
-        <Descriptions.Item label="标签" span={2}>
+        <Descriptions.Item label={t('platformPlugins.detail.slug')}>{plugin.slug}</Descriptions.Item>
+        <Descriptions.Item label={t('platformPlugins.detail.version')}>
+          {plugin.version}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('platformPlugins.detail.tags')} span={2}>
           {plugin.tags.length > 0 ? plugin.tags.join(' / ') : '-'}
         </Descriptions.Item>
       </Descriptions>
 
       <Flexbox gap={8}>
-        <Text strong>Agent 绑定</Text>
+        <Text strong>{t('platformPlugins.detail.agentBinding')}</Text>
         <Flexbox horizontal gap={8}>
           <Input
-            placeholder="输入 Agent ID"
+            placeholder={t('platformPlugins.detail.agentIdPlaceholder')}
             value={agentId}
             onChange={(event) => setAgentId(event.target.value)}
           />
@@ -147,11 +169,11 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
                     enabled: true,
                     pluginId: plugin.id,
                   }),
-                'Agent 绑定已启用',
+                t('platformPlugins.detail.agentBindingEnabled'),
               )
             }
           >
-            启用
+            {t('platformPlugins.detail.enable')}
           </Button>
           <Button
             disabled={!agentId.trim()}
@@ -164,18 +186,20 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
                     enabled: false,
                     pluginId: plugin.id,
                   }),
-                'Agent 绑定已关闭',
+                t('platformPlugins.detail.agentBindingDisabled'),
               )
             }
           >
-            关闭
+            {t('platformPlugins.detail.agentBindingDisabled')}
           </Button>
         </Flexbox>
       </Flexbox>
 
       <Flexbox gap={8}>
-        <Text strong>运行插件</Text>
-        {!plugin.installed ? <Alert showIcon message="安装后可配置 Agent 并运行插件" type="info" /> : null}
+        <Text strong>{t('platformPlugins.detail.runPlugin')}</Text>
+        {!plugin.installed ? (
+          <Alert showIcon message={t('platformPlugins.detail.installRequired')} type="info" />
+        ) : null}
         <PluginRunPanel
           action={action}
           agentId={agentId}
@@ -198,6 +222,7 @@ export const PlatformPluginDetailPage = memo(() => {
   const { pluginId } = useParams();
   const [searchParams] = useSearchParams();
   const initialAgentId = searchParams.get('agentId') ?? '';
+  const { t } = useTranslation('subscription');
   const { data, error, isLoading } = useClientDataSWR(detailKey(pluginId), () =>
     platformPluginService.getDetail({ pluginIdOrSlug: pluginId! }),
   );
@@ -210,8 +235,8 @@ export const PlatformPluginDetailPage = memo(() => {
     );
   }
 
-  if (error) return <Alert showIcon message="插件详情加载失败" type="error" />;
-  if (!data) return <Empty description="插件不存在或当前套餐不可见" />;
+  if (error) return <Alert showIcon message={t('platformPlugins.detail.loadError')} type="error" />;
+  if (!data) return <Empty description={t('platformPlugins.detail.missing')} />;
 
   return <PluginDetailView initialAgentId={initialAgentId} plugin={data} />;
 });
