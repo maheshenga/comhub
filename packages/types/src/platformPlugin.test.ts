@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -11,6 +13,13 @@ import {
 } from './platformPlugin';
 
 describe('platform plugin shared schemas', () => {
+  it('keeps shared platform plugin schemas free of Node builtins', () => {
+    const source = readFileSync(new URL('./platformPlugin.ts', import.meta.url), 'utf8');
+
+    expect(source).not.toContain('node:net');
+    expect(source).not.toContain("from 'net'");
+  });
+
   it('accepts P1 runtime types only', () => {
     expect(platformPluginRuntimeTypeSchema.parse('api_action')).toBe('api_action');
     expect(platformPluginRuntimeTypeSchema.parse('content_generation')).toBe('content_generation');

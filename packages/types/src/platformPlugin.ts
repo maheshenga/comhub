@@ -1,15 +1,24 @@
-import { isIP } from 'node:net';
-
 import { z } from 'zod';
 
 function parseIpv4Octets(hostname: string) {
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) {
+    return null;
+  }
+
   const octets = hostname.split('.').map((value) => Number(value));
 
-  if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+  if (
+    octets.length !== 4 ||
+    octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)
+  ) {
     return null;
   }
 
   return octets;
+}
+
+function isIpv4Address(hostname: string) {
+  return parseIpv4Octets(hostname) !== null;
 }
 
 function isPrivateOrReservedIpv4(hostname: string) {
@@ -139,6 +148,10 @@ function isPrivateOrReservedIpv6(hostname: string) {
   return ranges.some(([start, end]) => value >= start && value <= end);
 }
 
+function isIpv6Address(hostname: string) {
+  return parseIpv6Address(hostname) !== null;
+}
+
 function isSafePlatformPluginApiUrl(url: string) {
   try {
     const parsedUrl = new URL(url);
@@ -158,11 +171,11 @@ function isSafePlatformPluginApiUrl(url: string) {
       return false;
     }
 
-    if (isIP(normalizedHostname) === 4) {
+    if (isIpv4Address(normalizedHostname)) {
       return !isPrivateOrReservedIpv4(normalizedHostname);
     }
 
-    if (isIP(normalizedHostname) === 6) {
+    if (isIpv6Address(normalizedHostname)) {
       return !isPrivateOrReservedIpv6(normalizedHostname);
     }
 
