@@ -1,6 +1,6 @@
 'use client';
 
-import type { PlatformPluginDetail } from '@lobechat/types';
+import type { PlatformPluginDetail, PlatformPluginRunHistoryItem } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Button, Descriptions, Empty, Input, message, Spin, Tag, Typography } from 'antd';
 import { memo, useEffect, useState } from 'react';
@@ -15,6 +15,7 @@ import {
   getPlatformPluginRestrictionReason,
   getPlatformPluginRuntimeLabelKey,
   isPlatformPluginRunnable,
+  mergePlatformPluginRunHistoryItems,
 } from './helpers';
 import PluginRestrictionNotice from './PluginRestrictionNotice';
 import PluginRunHistory from './PluginRunHistory';
@@ -30,23 +31,32 @@ type PluginDetailViewProps = {
 const detailKey = (pluginIdOrSlug?: string) =>
   pluginIdOrSlug ? ['platform-plugin-detail', pluginIdOrSlug] : null;
 
+const RUN_HISTORY_LIMIT = 20;
 const availabilityColor = (available: boolean) => (available ? 'green' : 'orange');
 
 const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plugin }) => {
   const { t } = useTranslation('subscription');
   const [agentId, setAgentId] = useState(initialAgentId);
+  const [loadingMoreRuns, setLoadingMoreRuns] = useState(false);
+  const [nextRunCursor, setNextRunCursor] = useState<null | number>(null);
+  const [runHistoryItems, setRunHistoryItems] = useState<PlatformPluginRunHistoryItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const restrictionReason = getPlatformPluginRestrictionReason(plugin);
   const action = plugin.actions[0];
   const runsKey = ['platform-plugin-runs', plugin.id];
   const billingSummary = getPlatformPluginBillingSummaryValues(plugin);
   const { data: runHistory } = useClientDataSWR(runsKey, () =>
-    platformPluginService.listRuns({ pluginId: plugin.id }),
+    platformPluginService.listRuns({ limit: RUN_HISTORY_LIMIT, pluginId: plugin.id }),
   );
 
   useEffect(() => {
     setAgentId(initialAgentId);
   }, [initialAgentId]);
+
+  useEffect(() => {
+    setRunHistoryItems(runHistory?.items ?? []);
+    setNextRunCursor(runHistory?.nextCursor ?? null);
+  }, [runHistory]);
 
   const refresh = async () => {
     await Promise.all([
@@ -55,6 +65,22 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
       mutate(['platform-plugin-marketplace']),
       mutate(runsKey),
     ]);
+  };
+
+  const loadMoreRuns = async () => {
+    if (nextRunCursor === null) return;
+    setLoadingMoreRuns(true);
+    try {
+      const nextPage = await platformPluginService.listRuns({
+        cursor: nextRunCursor,
+        limit: RUN_HISTORY_LIMIT,
+        pluginId: plugin.id,
+      });
+      setRunHistoryItems((items) => mergePlatformPluginRunHistoryItems(items, nextPage.items));
+      setNextRunCursor(nextPage.nextCursor);
+    } finally {
+      setLoadingMoreRuns(false);
+    }
   };
 
   const runAction = async (actionFn: () => Promise<unknown>, successMessage: string) => {
@@ -211,7 +237,12 @@ const PluginDetailView = memo<PluginDetailViewProps>(({ initialAgentId = '', plu
 
       <Flexbox gap={8}>
         <Text strong>{t('platformPlugins.runHistory.title')}</Text>
-        <PluginRunHistory items={runHistory?.items ?? []} />
+        <PluginRunHistory
+          hasMore={nextRunCursor !== null}
+          items={runHistoryItems}
+          loadingMore={loadingMoreRuns}
+          onLoadMore={loadMoreRuns}
+        />
       </Flexbox>
     </Flexbox>
   );
