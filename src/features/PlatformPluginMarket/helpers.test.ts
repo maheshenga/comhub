@@ -7,6 +7,9 @@ import {
   getPlatformPluginBillingSummaryValues,
   getPlatformPluginPlanStatusLabel,
   getPlatformPluginRestrictionCopyKey,
+  getPlatformPluginRunErrorCopyKey,
+  getPlatformPluginRunNoticeKey,
+  getPlatformPluginRunPreviewCopyKey,
   getPlatformPluginRunStatusMeta,
   getPlatformPluginRuntimeLabelKey,
   isPlatformPluginRunnable,
@@ -56,6 +59,44 @@ describe('platform plugin marketplace helpers', () => {
       color: 'red',
       labelKey: 'platformPlugins.runHistory.status.failed',
     });
+  });
+
+  it('maps platform plugin run errors to localized copy keys', () => {
+    expect(getPlatformPluginRunErrorCopyKey(new Error('plan_run_denied'))).toBe(
+      'platformPlugins.restriction.planRunDenied',
+    );
+    expect(getPlatformPluginRunErrorCopyKey(new Error('platform_plugin_action_not_found'))).toBe(
+      'platformPlugins.run.errors.actionUnavailable',
+    );
+    expect(getPlatformPluginRunErrorCopyKey(new Error('PLATFORM_PLUGIN_API_REQUEST_FAILED:429'))).toBe(
+      'platformPlugins.run.errors.externalApiFailed',
+    );
+    expect(getPlatformPluginRunErrorCopyKey(new Error('InsufficientBudgetForModel'))).toBe(
+      'platformPlugins.run.errors.insufficientBudget',
+    );
+    expect(getPlatformPluginRunErrorCopyKey(new Error('PLATFORM_PLUGIN_UNSAFE_URL'))).toBe(
+      'platformPlugins.run.errors.unsafeUrl',
+    );
+    expect(getPlatformPluginRunErrorCopyKey(new Error('unexpected raw backend detail'))).toBe(
+      'platformPlugins.run.errors.unknown',
+    );
+  });
+
+  it('returns run notice and failed preview keys', () => {
+    expect(getPlatformPluginRunNoticeKey('succeeded')).toBe('platformPlugins.run.completed');
+    expect(getPlatformPluginRunNoticeKey('failed')).toBe('platformPlugins.run.failed');
+    expect(
+      getPlatformPluginRunPreviewCopyKey({
+        preview: 'platform_plugin_run_failed',
+        status: 'failed',
+      }),
+    ).toBe('platformPlugins.run.failedPreview');
+    expect(
+      getPlatformPluginRunPreviewCopyKey({
+        preview: 'Readable runtime output',
+        status: 'succeeded',
+      }),
+    ).toBeNull();
   });
 
   it('requires visible installable runnable installed state before running', () => {

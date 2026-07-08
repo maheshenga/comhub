@@ -134,6 +134,24 @@ export type PlatformPluginRunStatusLabelKey =
   | 'platformPlugins.runHistory.status.running'
   | 'platformPlugins.runHistory.status.succeeded';
 
+export type PlatformPluginRunErrorCopyKey =
+  | PlatformPluginRestrictionCopyKey
+  | 'platformPlugins.run.errors.actionUnavailable'
+  | 'platformPlugins.run.errors.adminConfiguration'
+  | 'platformPlugins.run.errors.externalApiFailed'
+  | 'platformPlugins.run.errors.insufficientBudget'
+  | 'platformPlugins.run.errors.pluginUnavailable'
+  | 'platformPlugins.run.errors.unsafeUrl'
+  | 'platformPlugins.run.errors.unknown';
+
+export type PlatformPluginRunNoticeKey =
+  | 'platformPlugins.run.completed'
+  | 'platformPlugins.run.failed';
+
+export type PlatformPluginRunPreviewCopyKey =
+  | 'platformPlugins.run.failedPreview'
+  | 'platformPlugins.run.noPreview';
+
 export const getPlatformPluginRunStatusMeta = (
   status: PlatformPluginRunStatus,
 ): { color: string; labelKey: PlatformPluginRunStatusLabelKey } => {
@@ -149,6 +167,63 @@ export const getPlatformPluginRunStatusMeta = (
   >;
 
   return map[status];
+};
+
+const runErrorCopyKey: Record<string, PlatformPluginRunErrorCopyKey> = {
+  COMMERCIAL_BALANCE_EXHAUSTED_ON_FINAL_CHARGE: 'platformPlugins.run.errors.insufficientBudget',
+  InsufficientBudgetForModel: 'platformPlugins.run.errors.insufficientBudget',
+  PLATFORM_PLUGIN_API_ACTION_NOT_CONFIGURED: 'platformPlugins.run.errors.adminConfiguration',
+  PLATFORM_PLUGIN_CONTENT_GENERATION_NOT_CONFIGURED:
+    'platformPlugins.run.errors.adminConfiguration',
+  PLATFORM_PLUGIN_RUN_REPOSITORY_REQUIRED: 'platformPlugins.run.errors.adminConfiguration',
+  PLATFORM_PLUGIN_SECRET_KEY_INVALID: 'platformPlugins.run.errors.adminConfiguration',
+  PLATFORM_PLUGIN_SECRET_KEY_REQUIRED: 'platformPlugins.run.errors.adminConfiguration',
+  PLATFORM_PLUGIN_TEXT_GENERATOR_PROVIDER_MODEL_REQUIRED:
+    'platformPlugins.run.errors.adminConfiguration',
+  PLATFORM_PLUGIN_TEXT_GENERATOR_REQUIRED: 'platformPlugins.run.errors.adminConfiguration',
+  PLATFORM_PLUGIN_UNSAFE_URL: 'platformPlugins.run.errors.unsafeUrl',
+  platform_plugin_action_not_found: 'platformPlugins.run.errors.actionUnavailable',
+  platform_plugin_not_found: 'platformPlugins.run.errors.pluginUnavailable',
+  platform_plugin_version_not_found: 'platformPlugins.run.errors.actionUnavailable',
+};
+
+const normalizePlatformPluginErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message.trim();
+  if (typeof error === 'string') return error.trim();
+  return '';
+};
+
+export const getPlatformPluginRunErrorCopyKey = (
+  error: unknown,
+): PlatformPluginRunErrorCopyKey => {
+  const message = normalizePlatformPluginErrorMessage(error);
+  const restrictionKey = restrictionCopyKey[message as PlatformPluginRestrictionReason];
+
+  if (restrictionKey) return restrictionKey;
+  if (message.startsWith('PLATFORM_PLUGIN_API_REQUEST_FAILED:')) {
+    return 'platformPlugins.run.errors.externalApiFailed';
+  }
+
+  return runErrorCopyKey[message] ?? 'platformPlugins.run.errors.unknown';
+};
+
+export const getPlatformPluginRunNoticeKey = (
+  status: PlatformPluginRunStatus,
+): PlatformPluginRunNoticeKey =>
+  status === 'succeeded' ? 'platformPlugins.run.completed' : 'platformPlugins.run.failed';
+
+export const getPlatformPluginRunPreviewCopyKey = ({
+  preview,
+  status,
+}: {
+  preview?: string;
+  status: PlatformPluginRunStatus;
+}): PlatformPluginRunPreviewCopyKey | null => {
+  if (status === 'failed' && preview === 'platform_plugin_run_failed') {
+    return 'platformPlugins.run.failedPreview';
+  }
+  if (!preview) return 'platformPlugins.run.noPreview';
+  return null;
 };
 
 export const formatPlatformPluginRuntimeType = (runtimeType: PlatformPluginListItem['runtimeType']) =>
