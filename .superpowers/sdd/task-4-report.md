@@ -3,6 +3,7 @@
 ## Implementation
 
 - Added `filterAndSortPlatformPlugins` and `getPlatformPluginPlanStatusLabel` in `src/features/PlatformPluginMarket/helpers.ts`.
+- Expanded marketplace query matching to include `displayName`, `slug`, `category`, and `tags` in both the helper and database-side filter.
 - Forwarded marketplace filters through `src/services/platformPlugin.ts` and `apps/server/src/routers/lambda/platformPlugin.ts`.
 - Updated `packages/database/src/models/platformPlugin.ts` so `listMarketplacePlugins` accepts optional marketplace filters and applies the same category/runtime/query predicate after mapping rows to `PlatformPluginListItem`.
 - Updated `src/features/PlatformPluginMarket/index.tsx` to:
@@ -19,42 +20,34 @@
 
 - Added helper coverage in `src/features/PlatformPluginMarket/helpers.test.ts` for:
   - featured-first sorting
-  - query filtering
+  - query filtering by display name / slug
+  - query filtering by category / tags while preserving featured-first ordering
   - plan status label mapping
 - Updated `src/services/platformPlugin.test.ts` to assert filtered marketplace input forwarding.
 - Updated `apps/server/src/routers/lambda/platformPlugin.test.ts` to assert router filter forwarding and adjusted the default no-input expectation to `filters: {}`.
 
-## TDD Evidence
+## Follow-up Fix
 
-### Red
+- Corrected the marketplace query predicate to match the task brief and the database filter contract:
+  - `displayName`
+  - `slug`
+  - `category`
+  - `tags`
+- Reworked the helper test data so the `research` query is no longer self-contradictory:
+  - `query: 'featured'` resolves to the featured plugin only
+  - `query: 'research'` resolves to both plugins in featured-first order
 
-1. Ran:
-   - `bunx vitest run --silent='passed-only' src/features/PlatformPluginMarket/helpers.test.ts`
-   - Failure: `filterAndSortPlatformPlugins is not a function`
-   - Failure: `getPlatformPluginPlanStatusLabel is not a function`
-2. Ran:
-   - `bunx vitest run --silent='passed-only' src/services/platformPlugin.test.ts apps/server/src/routers/lambda/platformPlugin.test.ts`
-   - Failure: service did not forward marketplace filters
-   - Failure: router did not forward marketplace filters
-
-### Green
+## Verification
 
 Ran:
 
-`bunx vitest run --silent='passed-only' src/features/PlatformPluginMarket/helpers.test.ts src/services/platformPlugin.test.ts apps/server/src/routers/lambda/platformPlugin.test.ts`
-
-Result:
-
-- 3 test files passed
-- 12 tests passed
-
-Also ran:
-
+- `bunx vitest run --silent='passed-only' src/features/PlatformPluginMarket/helpers.test.ts src/services/platformPlugin.test.ts apps/server/src/routers/lambda/platformPlugin.test.ts`
 - `git diff --check`
 
 Result:
 
-- Passed with no whitespace or conflict-marker issues
+- 3 test files passed, 12 tests passed
+- `git diff --check` passed with no output
 
 ## Files Changed
 
@@ -78,4 +71,4 @@ Result:
 
 ## Concerns
 
-- The brief’s sample helper predicate text included matching query against category and tags, but the provided failing test data only passes if query matching is limited to display name and slug. The implementation follows the tested behavior and mirrors it in the database filter so client/server remain consistent.
+- None.

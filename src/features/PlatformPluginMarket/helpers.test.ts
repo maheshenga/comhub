@@ -68,8 +68,12 @@ describe('platform plugin marketplace helpers', () => {
       slug: 'featured-research',
     });
 
+    expect(filterAndSortPlatformPlugins([standard, featured], { query: 'featured' })).toEqual([
+      featured,
+    ]);
     expect(filterAndSortPlatformPlugins([standard, featured], { query: 'research' })).toEqual([
       featured,
+      standard,
     ]);
     expect(filterAndSortPlatformPlugins([standard, featured], {})).toEqual([featured, standard]);
   });

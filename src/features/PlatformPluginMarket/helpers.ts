@@ -49,7 +49,9 @@ export const filterAndSortPlatformPlugins = (
       const matchesQuery =
         !query ||
         plugin.displayName.toLowerCase().includes(query) ||
-        plugin.slug.toLowerCase().includes(query);
+        plugin.slug.toLowerCase().includes(query) ||
+        plugin.category.toLowerCase().includes(query) ||
+        plugin.tags.some((tag) => tag.toLowerCase().includes(query));
 
       return matchesCategory && matchesRuntime && matchesQuery;
     })
