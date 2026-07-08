@@ -8,7 +8,13 @@ import { useTranslation } from 'react-i18next';
 
 import { platformPluginService } from '@/services/platformPlugin';
 
-import { formatPlatformPluginCredits, getPlatformPluginRunStatusMeta } from './helpers';
+import {
+  formatPlatformPluginCredits,
+  getPlatformPluginRunErrorCopyKey,
+  getPlatformPluginRunNoticeKey,
+  getPlatformPluginRunPreviewCopyKey,
+  getPlatformPluginRunStatusMeta,
+} from './helpers';
 
 const { Paragraph, Text } = Typography;
 
@@ -29,6 +35,7 @@ const PluginRunPanel = memo<PluginRunPanelProps>(
 
     const fields = useMemo(() => action?.inputSchema?.fields ?? [], [action]);
     const statusMeta = result ? getPlatformPluginRunStatusMeta(result.status) : null;
+    const previewCopyKey = result ? getPlatformPluginRunPreviewCopyKey(result) : null;
 
     const handleRun = async () => {
       if (!action) return;
@@ -48,11 +55,14 @@ const PluginRunPanel = memo<PluginRunPanelProps>(
         });
         setResult(runResult);
         await onRunComplete?.();
-        message.success(t('platformPlugins.run.completed'));
+        const noticeKey = getPlatformPluginRunNoticeKey(runResult.status);
+        if (runResult.status === 'succeeded') {
+          message.success(t(noticeKey));
+        } else {
+          message.warning(t(noticeKey));
+        }
       } catch (error) {
-        const reason =
-          error instanceof Error && error.message ? error.message : t('platformPlugins.restriction.unknown');
-        message.warning(reason);
+        message.warning(t(getPlatformPluginRunErrorCopyKey(error)));
         setResult(null);
       } finally {
         setRunning(false);
@@ -98,7 +108,7 @@ const PluginRunPanel = memo<PluginRunPanelProps>(
           <Flexbox gap={8}>
             <Text strong>{t('platformPlugins.run.result')}</Text>
             <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-              {result.preview || t('platformPlugins.run.noPreview')}
+              {previewCopyKey ? t(previewCopyKey) : result.preview}
             </Paragraph>
             <Flexbox horizontal gap={6} wrap="wrap">
               <Tag color={statusMeta.color}>{t(statusMeta.labelKey)}</Tag>
