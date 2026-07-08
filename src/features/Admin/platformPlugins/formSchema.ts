@@ -23,17 +23,23 @@ export type PlatformPluginFormInput = {
   description?: string;
   displayName?: string;
   externalApiCostCredits?: NumericInput;
+  featured?: boolean;
   fixedServiceFeeCredits?: NumericInput;
   icon?: string;
   id?: string;
   model?: string;
   moduleMultiplier?: NumericInput;
+  planBenefitSummary?: string;
   promptTemplate?: string;
+  promoLabel?: string;
   provider?: string;
   runtimeType?: PlatformPluginRuntimeType | string;
   slug?: string;
+  sortWeight?: NumericInput;
   status?: PlatformPluginStatus | string;
   tags?: string[] | string;
+  upgradeCta?: string;
+  useCase?: string;
 };
 
 export type PlatformPluginFormValues = Required<
@@ -47,9 +53,11 @@ export type PlatformPluginFormValues = Required<
     | 'category'
     | 'description'
     | 'displayName'
+    | 'featured'
     | 'icon'
     | 'runtimeType'
     | 'slug'
+    | 'sortWeight'
     | 'status'
   >
 > &
@@ -75,6 +83,7 @@ export type PlatformPluginFormValues = Required<
     fixedServiceFeeCredits: number;
     moduleMultiplier: number;
     runtimeType: PlatformPluginRuntimeType;
+    sortWeight: number;
     status: PlatformPluginStatus;
     tags: string[];
   };
@@ -150,17 +159,23 @@ export const normalizePlatformPluginFormValues = (
     description: toText(values.description),
     displayName: toText(values.displayName),
     externalApiCostCredits: toNumber(values.externalApiCostCredits, 0),
+    featured: values.featured === true,
     fixedServiceFeeCredits: toNumber(values.fixedServiceFeeCredits, 0),
     icon: toText(values.icon) || 'Plug',
     id: toText(values.id) || undefined,
     model: toText(values.model),
     moduleMultiplier: toNumber(values.moduleMultiplier, 1),
+    planBenefitSummary: toText(values.planBenefitSummary),
     promptTemplate: toText(values.promptTemplate),
+    promoLabel: toText(values.promoLabel),
     provider: toText(values.provider),
     runtimeType,
     slug,
+    sortWeight: Math.round(toNumber(values.sortWeight, 0)),
     status: toStatus(values.status),
     tags: toTags(values.tags),
+    upgradeCta: toText(values.upgradeCta),
+    useCase: toText(values.useCase),
   };
 };
 
@@ -207,6 +222,14 @@ export const buildPlatformPluginUpsertInput = (
     displayName: values.displayName,
     icon: values.icon,
     id: values.id,
+    operations: {
+      featured: values.featured,
+      planBenefitSummary: values.planBenefitSummary || undefined,
+      promoLabel: values.promoLabel || undefined,
+      sortWeight: values.sortWeight,
+      upgradeCta: values.upgradeCta || undefined,
+      useCase: values.useCase || undefined,
+    },
     runtimeType: values.runtimeType,
     slug: values.slug,
     status: values.status,

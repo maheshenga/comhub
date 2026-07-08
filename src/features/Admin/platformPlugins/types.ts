@@ -1,5 +1,7 @@
 import type {
+  PlatformPluginAdminStats,
   PlatformPluginBillingConfig,
+  PlatformPluginOperationsMetadata,
   PlatformPluginPlanEntitlement,
   PlatformPluginRunStatus,
   PlatformPluginRuntimeType,
@@ -16,9 +18,11 @@ export type AdminPlatformPluginItem = {
   icon: string;
   id: string;
   metadata?: Record<string, unknown> | null;
+  operations: PlatformPluginOperationsMetadata;
   runtimeType: PlatformPluginRuntimeType;
   slug: string;
   sortOrder?: number;
+  stats?: PlatformPluginAdminStats;
   status: PlatformPluginStatus;
   tags: string[];
   updatedAt?: Date | string;

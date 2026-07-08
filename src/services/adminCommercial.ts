@@ -238,6 +238,8 @@ class AdminCommercialService {
       lambdaClient.admin.platformPlugins.listRuns.query(input),
     publish: (input: { pluginId: string }) =>
       lambdaClient.admin.platformPlugins.publish.mutate(input),
+    updateOperations: (input: { operations: unknown; pluginId: string }) =>
+      lambdaClient.admin.platformPlugins.updateOperations.mutate(input as any),
     unpublish: (input: { pluginId: string }) =>
       lambdaClient.admin.platformPlugins.unpublish.mutate(input),
     upsert: (input: unknown) => lambdaClient.admin.platformPlugins.upsert.mutate(input as any),

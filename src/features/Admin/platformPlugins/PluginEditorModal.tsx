@@ -11,6 +11,7 @@ import {
   normalizePlatformPluginFormValues,
   type PlatformPluginFormInput,
 } from './formSchema';
+import OperationsEditor from './OperationsEditor';
 import type { AdminPlatformPluginDetail } from './types';
 
 type PluginEditorModalProps = {
@@ -39,6 +40,7 @@ const buildInitialValues = (plugin?: AdminPlatformPluginDetail | null): Platform
   const action = plugin?.actions?.[0];
   const runtimeConfig = getRecord(action?.runtimeConfig);
   const billing = plugin?.billing;
+  const operations = plugin?.operations ?? { featured: false, sortWeight: plugin?.sortOrder ?? 0 };
 
   return {
     actionId: action?.actionKey || '',
@@ -56,17 +58,23 @@ const buildInitialValues = (plugin?: AdminPlatformPluginDetail | null): Platform
     description: plugin?.description || '',
     displayName: plugin?.displayName || '',
     externalApiCostCredits: billing?.externalApiCostCredits ?? 0,
+    featured: operations.featured,
     fixedServiceFeeCredits: billing?.fixedServiceFeeCredits ?? 0,
     icon: plugin?.icon || 'Plug',
     id: plugin?.id,
     model: getString(runtimeConfig, 'model'),
     moduleMultiplier: action?.moduleMultiplier ?? 1,
+    planBenefitSummary: operations.planBenefitSummary || '',
     promptTemplate: getString(runtimeConfig, 'promptTemplate'),
+    promoLabel: operations.promoLabel || '',
     provider: getString(runtimeConfig, 'provider'),
     runtimeType: plugin?.runtimeType || 'api_action',
     slug: plugin?.slug || '',
+    sortWeight: operations.sortWeight,
     status: plugin?.status || 'draft',
     tags: plugin?.tags ?? [],
+    upgradeCta: operations.upgradeCta || '',
+    useCase: operations.useCase || '',
   };
 };
 
@@ -146,6 +154,10 @@ const PluginEditorModal = memo<PluginEditorModalProps>(
 
           <Form.Item label="描述" name="description" rules={[{ required: true }]}>
             <Input.TextArea autoSize={{ maxRows: 5, minRows: 3 }} />
+          </Form.Item>
+
+          <Form.Item label="Operations">
+            <OperationsEditor />
           </Form.Item>
 
           <Flexbox horizontal gap={12}>

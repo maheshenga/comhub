@@ -88,6 +88,8 @@ const runtimeLabel = {
 };
 
 const formatDate = (value?: Date | string) => (value ? new Date(value).toLocaleString() : '-');
+const formatStats = (value?: number) => Number(value ?? 0).toLocaleString();
+const formatSuccessRate = (value?: number) => `${Number(value ?? 0).toFixed(1)}%`;
 
 const formatTags = (tags?: string[]) =>
   tags && tags.length > 0 ? (
@@ -313,6 +315,24 @@ const AdminPlatformPluginsPage = memo(() => {
       title: '状态',
     },
     {
+      dataIndex: ['operations', 'featured'],
+      key: 'featured',
+      render: (value: boolean) => (value ? <Tag color="gold">Featured</Tag> : '-'),
+      title: 'Featured',
+    },
+    {
+      dataIndex: ['operations', 'sortWeight'],
+      key: 'sortWeight',
+      title: 'Sort weight',
+    },
+    {
+      dataIndex: 'stats',
+      key: 'stats',
+      render: (stats: AdminPlatformPluginItem['stats']) =>
+        `${formatStats(stats?.runs)} runs / ${formatSuccessRate(stats?.successRate)}`,
+      title: 'Stats',
+    },
+    {
       dataIndex: 'billing',
       key: 'billing',
       render: (value: PlatformPluginBillingConfig) => `${value?.defaultMultiplier ?? 1}x`,
@@ -369,8 +389,23 @@ const AdminPlatformPluginsPage = memo(() => {
             </Descriptions.Item>
             <Descriptions.Item label="分类">{selectedPlugin.category}</Descriptions.Item>
             <Descriptions.Item label="版本">{detail?.version ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="Promotion label">
+              {selectedPlugin.operations?.promoLabel || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Sort weight">
+              {selectedPlugin.operations?.sortWeight ?? 0}
+            </Descriptions.Item>
             <Descriptions.Item label="标签" span={2}>{formatTags(selectedPlugin.tags)}</Descriptions.Item>
             <Descriptions.Item label="更新时间" span={2}>{formatDate(selectedPlugin.updatedAt)}</Descriptions.Item>
+            <Descriptions.Item label="Use case" span={2}>
+              {selectedPlugin.operations?.useCase || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Plan benefit" span={2}>
+              {selectedPlugin.operations?.planBenefitSummary || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Upgrade CTA" span={2}>
+              {selectedPlugin.operations?.upgradeCta || '-'}
+            </Descriptions.Item>
             <Descriptions.Item label="描述" span={2}>{selectedPlugin.description}</Descriptions.Item>
           </Descriptions>
           <InlineTable

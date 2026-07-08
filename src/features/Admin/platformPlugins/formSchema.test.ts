@@ -52,4 +52,33 @@ describe('platform plugin admin form schema', () => {
       provider: 'openai',
     });
   });
+
+  it('normalizes operations fields into the admin upsert payload', () => {
+    const values = normalizePlatformPluginFormValues({
+      category: 'automation',
+      description: 'Summarize customer feedback.',
+      displayName: 'Feedback Summary',
+      featured: true,
+      icon: 'Sparkles',
+      planBenefitSummary: 'Included for Business users',
+      promoLabel: 'Featured',
+      runtimeType: 'content_generation',
+      slug: 'feedback-summary',
+      sortWeight: '25',
+      status: 'published',
+      upgradeCta: 'Upgrade to Business',
+      useCase: 'Turn messy feedback into themes.',
+    });
+
+    const input = buildPlatformPluginUpsertInput(values);
+
+    expect(input.operations).toEqual({
+      featured: true,
+      planBenefitSummary: 'Included for Business users',
+      promoLabel: 'Featured',
+      sortWeight: 25,
+      upgradeCta: 'Upgrade to Business',
+      useCase: 'Turn messy feedback into themes.',
+    });
+  });
 });
