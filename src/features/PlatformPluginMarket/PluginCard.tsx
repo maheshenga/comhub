@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router';
 import {
   formatPlatformPluginRuntimeType,
   getPlatformPluginBillingSummary,
-  getPlatformPluginRestrictionReason,
+  getPlatformPluginPlanStatusLabel,
 } from './helpers';
 
 const { Paragraph, Text, Title } = Typography;
@@ -20,7 +20,7 @@ type PluginCardProps = {
 
 const PluginCard = memo<PluginCardProps>(({ plugin }) => {
   const navigate = useNavigate();
-  const restrictionReason = getPlatformPluginRestrictionReason(plugin);
+  const planStatus = getPlatformPluginPlanStatusLabel(plugin);
 
   return (
     <Flexbox
@@ -49,9 +49,11 @@ const PluginCard = memo<PluginCardProps>(({ plugin }) => {
       </Paragraph>
 
       <Flexbox horizontal gap={4} wrap="wrap">
+        {plugin.operations.featured ? <Tag color="gold">Featured</Tag> : null}
+        {plugin.operations.promoLabel ? <Tag color="blue">{plugin.operations.promoLabel}</Tag> : null}
         <Tag>{formatPlatformPluginRuntimeType(plugin.runtimeType)}</Tag>
         <Tag>{getPlatformPluginBillingSummary(plugin)}</Tag>
-        {restrictionReason ? <Tag color="orange">受限</Tag> : <Tag color="green">可运行</Tag>}
+        <Tag color={planStatus.color}>{planStatus.label}</Tag>
       </Flexbox>
 
       <Button style={{ marginTop: 'auto' }} type="primary" onClick={() => navigate(`/plugins/${plugin.slug}`)}>

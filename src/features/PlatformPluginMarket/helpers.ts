@@ -1,4 +1,4 @@
-import type { PlatformPluginListItem } from '@lobechat/types';
+import type { PlatformPluginListItem, PlatformPluginMarketplaceListInput } from '@lobechat/types';
 
 export type PlatformPluginRestrictionReason =
   | 'agent_not_enabled'
@@ -34,6 +34,44 @@ export const getPlatformPluginRestrictionReason = (
   if (!plugin.installed) return 'not_installed';
   if (!plugin.planState.runnable) return 'plan_run_denied';
   return null;
+};
+
+export const filterAndSortPlatformPlugins = (
+  plugins: PlatformPluginListItem[],
+  filters: PlatformPluginMarketplaceListInput,
+) => {
+  const query = filters.query?.toLowerCase();
+
+  return plugins
+    .filter((plugin) => {
+      const matchesCategory = !filters.category || plugin.category === filters.category;
+      const matchesRuntime = !filters.runtimeType || plugin.runtimeType === filters.runtimeType;
+      const matchesQuery =
+        !query ||
+        plugin.displayName.toLowerCase().includes(query) ||
+        plugin.slug.toLowerCase().includes(query);
+
+      return matchesCategory && matchesRuntime && matchesQuery;
+    })
+    .sort((a, b) => {
+      if (a.operations.featured !== b.operations.featured) return a.operations.featured ? -1 : 1;
+      if (a.operations.sortWeight !== b.operations.sortWeight) {
+        return b.operations.sortWeight - a.operations.sortWeight;
+      }
+
+      return a.displayName.localeCompare(b.displayName);
+    });
+};
+
+export const getPlatformPluginPlanStatusLabel = (
+  plugin: Pick<PlatformPluginListItem, 'installed' | 'planState'>,
+): { color: 'default' | 'green' | 'orange'; label: string } => {
+  const reason = getPlatformPluginRestrictionReason(plugin);
+
+  if (!reason) return { color: 'green', label: 'Runnable' };
+  if (reason === 'not_installed') return { color: 'default', label: 'Installable' };
+
+  return { color: 'orange', label: 'Upgrade required' };
 };
 
 export const formatPlatformPluginRuntimeType = (runtimeType: PlatformPluginListItem['runtimeType']) =>

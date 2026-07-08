@@ -1,6 +1,6 @@
 'use client';
 
-import type { PlatformPluginListItem } from '@lobechat/types';
+import type { PlatformPluginListItem, PlatformPluginMarketplaceListInput } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Alert, Empty, Input, Select, Spin, Typography } from 'antd';
 import { memo, useMemo, useState } from 'react';
@@ -8,6 +8,7 @@ import { memo, useMemo, useState } from 'react';
 import { useClientDataSWR } from '@/libs/swr';
 import { platformPluginService } from '@/services/platformPlugin';
 
+import { filterAndSortPlatformPlugins } from './helpers';
 import PluginCard from './PluginCard';
 
 const { Text, Title } = Typography;
@@ -17,28 +18,31 @@ const MARKETPLACE_KEY = ['platform-plugin-marketplace'];
 const PlatformPluginMarket = memo(() => {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
-  const { data, error, isLoading } = useClientDataSWR(MARKETPLACE_KEY, () =>
-    platformPluginService.listMarketplace(),
+  const [runtimeType, setRuntimeType] = useState<'all' | PlatformPluginListItem['runtimeType']>('all');
+
+  const marketplaceFilters = useMemo<PlatformPluginMarketplaceListInput>(
+    () => ({
+      category: category === 'all' ? undefined : category,
+      query: query.trim() || undefined,
+      runtimeType: runtimeType === 'all' ? undefined : runtimeType,
+    }),
+    [category, query, runtimeType],
+  );
+
+  const { data, error, isLoading } = useClientDataSWR([...MARKETPLACE_KEY, marketplaceFilters], () =>
+    platformPluginService.listMarketplace(marketplaceFilters),
   );
 
   const plugins = (data ?? []) as PlatformPluginListItem[];
   const categoryOptions = useMemo(() => {
     const categories = Array.from(new Set(plugins.map((plugin) => plugin.category).filter(Boolean))).sort();
+
     return [{ label: '全部分类', value: 'all' }, ...categories.map((item) => ({ label: item, value: item }))];
   }, [plugins]);
-  const filteredPlugins = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-    return plugins.filter((plugin) => {
-      const matchCategory = category === 'all' || plugin.category === category;
-      const matchKeyword =
-        !keyword ||
-        plugin.displayName.toLowerCase().includes(keyword) ||
-        plugin.slug.toLowerCase().includes(keyword) ||
-        plugin.tags.some((tag) => tag.toLowerCase().includes(keyword));
-
-      return matchCategory && matchKeyword;
-    });
-  }, [category, plugins, query]);
+  const filteredPlugins = useMemo(
+    () => filterAndSortPlatformPlugins(plugins, marketplaceFilters),
+    [marketplaceFilters, plugins],
+  );
 
   return (
     <Flexbox gap={16} padding={24}>
@@ -62,6 +66,16 @@ const PlatformPluginMarket = memo(() => {
             style={{ width: 160 }}
             value={category}
             onChange={setCategory}
+          />
+          <Select
+            options={[
+              { label: '全部类型', value: 'all' },
+              { label: 'API Action', value: 'api_action' },
+              { label: '内容生成', value: 'content_generation' },
+            ]}
+            style={{ width: 160 }}
+            value={runtimeType}
+            onChange={setRuntimeType}
           />
         </Flexbox>
       </Flexbox>

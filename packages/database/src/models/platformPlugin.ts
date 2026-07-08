@@ -4,6 +4,7 @@ import type {
   PlatformPluginAdminUpsertInput,
   PlatformPluginDetail,
   PlatformPluginListItem,
+  PlatformPluginMarketplaceListInput,
   PlatformPluginOperationsMetadata,
   PlatformPluginPlanEntitlement,
 } from '@lobechat/types';
@@ -94,6 +95,21 @@ const toActionConfig = (action: PlatformPluginActionRow): PlatformPluginActionCo
     ...base,
     api: action.runtimeConfig as NonNullable<PlatformPluginActionConfig['api']>,
   };
+};
+
+const matchesMarketplaceFilters = (
+  plugin: PlatformPluginListItem,
+  filters?: PlatformPluginMarketplaceListInput,
+) => {
+  const query = filters?.query?.toLowerCase();
+  const matchesCategory = !filters?.category || plugin.category === filters.category;
+  const matchesRuntime = !filters?.runtimeType || plugin.runtimeType === filters.runtimeType;
+  const matchesQuery =
+    !query ||
+    plugin.displayName.toLowerCase().includes(query) ||
+    plugin.slug.toLowerCase().includes(query);
+
+  return matchesCategory && matchesRuntime && matchesQuery;
 };
 
 export class PlatformPluginModel {
@@ -366,6 +382,7 @@ export class PlatformPluginModel {
   };
 
   listMarketplacePlugins = async (params: {
+    filters?: PlatformPluginMarketplaceListInput;
     plan: string;
     userId: string;
   }): Promise<PlatformPluginListItem[]> => {
@@ -396,7 +413,9 @@ export class PlatformPluginModel {
       .where(eq(platformPlugins.status, 'published'))
       .orderBy(asc(platformPlugins.sortOrder), asc(platformPlugins.displayName));
 
-    return rows.map((row) => toListItem(row.plugin, row.entitlement, !!row.installationId));
+    return rows
+      .map((row) => toListItem(row.plugin, row.entitlement, !!row.installationId))
+      .filter((plugin) => matchesMarketplaceFilters(plugin, params.filters));
   };
 
   getPluginDetail = async (params: {

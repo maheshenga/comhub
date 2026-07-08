@@ -3,6 +3,7 @@ import type {
   PlatformPluginListItem,
   PlatformPluginPlanEntitlement,
 } from '@lobechat/types';
+import { platformPluginMarketplaceListInputSchema } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
@@ -69,6 +70,7 @@ const toListItem = (detail: PlatformPluginDetail): PlatformPluginListItem => ({
   icon: detail.icon,
   id: detail.id,
   installed: detail.installed,
+  operations: detail.operations,
   planState: detail.planState,
   runtimeType: detail.runtimeType,
   slug: detail.slug,
@@ -290,12 +292,15 @@ export const platformPluginRouter = router({
     return details.filter((detail): detail is PlatformPluginDetail => !!detail).map(toListItem);
   }),
 
-  listMarketplace: platformPluginProcedure.query(async ({ ctx }) => {
-    return ctx.platformPluginModel.listMarketplacePlugins({
-      plan: ctx.currentPlan,
-      userId: ctx.userId,
-    });
-  }),
+  listMarketplace: platformPluginProcedure
+    .input(platformPluginMarketplaceListInputSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.platformPluginModel.listMarketplacePlugins({
+        filters: input,
+        plan: ctx.currentPlan,
+        userId: ctx.userId,
+      });
+    }),
 
   run: platformPluginProcedure.input(RunInputSchema).mutation(async ({ ctx, input }) => {
     const detail = await requirePluginDetail({

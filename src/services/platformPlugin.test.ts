@@ -11,8 +11,13 @@ describe('platformPluginService', () => {
     };
     const service = createPlatformPluginService(client as never);
 
-    await expect(service.listMarketplace()).resolves.toEqual([{ id: 'p1' }]);
-    expect(client.platformPlugin.listMarketplace.query).toHaveBeenCalledWith();
+    await expect(
+      service.listMarketplace({ query: 'research', runtimeType: 'content_generation' }),
+    ).resolves.toEqual([{ id: 'p1' }]);
+    expect(client.platformPlugin.listMarketplace.query).toHaveBeenCalledWith({
+      query: 'research',
+      runtimeType: 'content_generation',
+    });
   });
 
   it('passes install and run inputs to lambda.platformPlugin mutations', async () => {

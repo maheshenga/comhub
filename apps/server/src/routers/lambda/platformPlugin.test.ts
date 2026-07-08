@@ -58,6 +58,7 @@ const baseMarketplaceItem = {
   icon: 'BookOpen',
   id: pluginId,
   installed: true,
+  operations: { featured: false, sortWeight: 0 },
   planState: {
     installable: true,
     runnable: true,
@@ -147,6 +148,19 @@ describe('lambda.platformPlugin router', () => {
 
     expect(rows.every((item) => item.planState.visible)).toBe(true);
     expect(platformPluginModelMocks.listMarketplacePlugins).toHaveBeenCalledWith({
+      filters: {},
+      plan: Plans.Free,
+      userId: 'user-a',
+    });
+  });
+
+  it('forwards marketplace filters to the model', async () => {
+    const caller = createAuthedCaller({ plan: Plans.Free, userId: 'user-a' });
+
+    await caller.listMarketplace({ query: 'dictionary', runtimeType: 'api_action' });
+
+    expect(platformPluginModelMocks.listMarketplacePlugins).toHaveBeenCalledWith({
+      filters: { query: 'dictionary', runtimeType: 'api_action' },
       plan: Plans.Free,
       userId: 'user-a',
     });
