@@ -6,7 +6,8 @@ import {
   formatPlatformPluginCredits,
   getPlatformPluginBillingSummaryValues,
   getPlatformPluginPlanStatusLabel,
-  getPlatformPluginRestrictionCopy,
+  getPlatformPluginRestrictionCopyKey,
+  getPlatformPluginRunStatusMeta,
   getPlatformPluginRuntimeLabelKey,
   isPlatformPluginRunnable,
 } from './helpers';
@@ -33,12 +34,27 @@ const buildPlugin = (overrides: Partial<PlatformPluginListItem>): PlatformPlugin
 });
 
 describe('platform plugin marketplace helpers', () => {
-  it('returns upgrade guidance for plan denial', () => {
-    expect(getPlatformPluginRestrictionCopy('plan_run_denied')).toContain('升级');
+  it('returns localization keys for run restrictions', () => {
+    expect(getPlatformPluginRestrictionCopyKey('plan_run_denied')).toBe(
+      'platformPlugins.restriction.planRunDenied',
+    );
+    expect(getPlatformPluginRestrictionCopyKey('agent_not_enabled')).toBe(
+      'platformPlugins.restriction.agentNotEnabled',
+    );
+    expect(getPlatformPluginRestrictionCopyKey('unknown_reason')).toBe(
+      'platformPlugins.restriction.unknown',
+    );
   });
 
-  it('returns binding guidance for Agent denial', () => {
-    expect(getPlatformPluginRestrictionCopy('agent_not_enabled')).toContain('Agent');
+  it('returns status label metadata for run results', () => {
+    expect(getPlatformPluginRunStatusMeta('succeeded')).toEqual({
+      color: 'green',
+      labelKey: 'platformPlugins.runHistory.status.succeeded',
+    });
+    expect(getPlatformPluginRunStatusMeta('failed')).toEqual({
+      color: 'red',
+      labelKey: 'platformPlugins.runHistory.status.failed',
+    });
   });
 
   it('requires visible installable runnable installed state before running', () => {

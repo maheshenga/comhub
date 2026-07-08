@@ -1,4 +1,8 @@
-import type { PlatformPluginListItem, PlatformPluginMarketplaceListInput } from '@lobechat/types';
+import type {
+  PlatformPluginListItem,
+  PlatformPluginMarketplaceListInput,
+  PlatformPluginRunStatus,
+} from '@lobechat/types';
 
 export type PlatformPluginRestrictionReason =
   | 'agent_not_enabled'
@@ -9,22 +13,54 @@ export type PlatformPluginRestrictionReason =
   | 'runtime_not_ready'
   | 'unknown';
 
-const restrictionCopy: Record<PlatformPluginRestrictionReason, string> = {
-  agent_not_enabled: '需要先为当前 Agent 启用该插件，然后才能运行。',
-  not_installed: '需要先安装该插件。',
-  plan_install_denied: '当前套餐暂不支持安装该插件，请升级套餐后使用。',
-  plan_run_denied: '当前套餐暂不支持运行该插件，请升级套餐后使用。',
-  plan_visibility_denied: '当前套餐暂不可见该插件，请升级套餐解锁更多功能。',
-  runtime_not_ready: '插件运行能力正在接入中，当前可先完成安装和 Agent 绑定。',
-  unknown: '当前无法执行该插件，请稍后重试或联系管理员。',
+export type PlatformPluginRestrictionCopyKey =
+  | 'platformPlugins.restriction.agentNotEnabled'
+  | 'platformPlugins.restriction.notInstalled'
+  | 'platformPlugins.restriction.planInstallDenied'
+  | 'platformPlugins.restriction.planRunDenied'
+  | 'platformPlugins.restriction.planVisibilityDenied'
+  | 'platformPlugins.restriction.runtimeNotReady'
+  | 'platformPlugins.restriction.unknown';
+
+const restrictionCopyKey: Record<PlatformPluginRestrictionReason, PlatformPluginRestrictionCopyKey> =
+  {
+    agent_not_enabled: 'platformPlugins.restriction.agentNotEnabled',
+    not_installed: 'platformPlugins.restriction.notInstalled',
+    plan_install_denied: 'platformPlugins.restriction.planInstallDenied',
+    plan_run_denied: 'platformPlugins.restriction.planRunDenied',
+    plan_visibility_denied: 'platformPlugins.restriction.planVisibilityDenied',
+    runtime_not_ready: 'platformPlugins.restriction.runtimeNotReady',
+    unknown: 'platformPlugins.restriction.unknown',
+  };
+
+const restrictionFallbackCopy: Record<PlatformPluginRestrictionReason, string> = {
+  agent_not_enabled: 'Enable this plugin for the current Agent before running it.',
+  not_installed: 'Install this plugin before running it.',
+  plan_install_denied: 'Your current plan cannot install this plugin. Upgrade to use it.',
+  plan_run_denied: 'Your current plan cannot run this plugin. Upgrade to use it.',
+  plan_visibility_denied:
+    'Your current plan cannot view this plugin. Upgrade to unlock more capabilities.',
+  runtime_not_ready: 'Plugin runtime is still being connected. You can install and bind it first.',
+  unknown: 'This plugin cannot run right now. Try again later or contact an administrator.',
 };
 
+export const getPlatformPluginRestrictionCopyKey = (
+  reason: string,
+): PlatformPluginRestrictionCopyKey =>
+  restrictionCopyKey[(reason as PlatformPluginRestrictionReason) || 'unknown'] ??
+  restrictionCopyKey.unknown;
+
 export const getPlatformPluginRestrictionCopy = (reason: string) =>
-  restrictionCopy[(reason as PlatformPluginRestrictionReason) || 'unknown'] ?? restrictionCopy.unknown;
+  restrictionFallbackCopy[(reason as PlatformPluginRestrictionReason) || 'unknown'] ??
+  restrictionFallbackCopy.unknown;
 
 export const isPlatformPluginRunnable = (
   plugin: Pick<PlatformPluginListItem, 'installed' | 'planState'>,
-) => plugin.planState.visible && plugin.planState.installable && plugin.planState.runnable && plugin.installed;
+) =>
+  plugin.planState.visible &&
+  plugin.planState.installable &&
+  plugin.planState.runnable &&
+  plugin.installed;
 
 export const getPlatformPluginRestrictionReason = (
   plugin: Pick<PlatformPluginListItem, 'installed' | 'planState'>,
@@ -90,8 +126,32 @@ export const getPlatformPluginRuntimeLabelKey = (
     ? 'platformPlugins.marketplace.runtime.contentGeneration'
     : 'platformPlugins.marketplace.runtime.apiAction';
 
+export type PlatformPluginRunStatusLabelKey =
+  | 'platformPlugins.runHistory.status.denied'
+  | 'platformPlugins.runHistory.status.failed'
+  | 'platformPlugins.runHistory.status.queued'
+  | 'platformPlugins.runHistory.status.running'
+  | 'platformPlugins.runHistory.status.succeeded';
+
+export const getPlatformPluginRunStatusMeta = (
+  status: PlatformPluginRunStatus,
+): { color: string; labelKey: PlatformPluginRunStatusLabelKey } => {
+  const map = {
+    denied: { color: 'orange', labelKey: 'platformPlugins.runHistory.status.denied' },
+    failed: { color: 'red', labelKey: 'platformPlugins.runHistory.status.failed' },
+    queued: { color: 'default', labelKey: 'platformPlugins.runHistory.status.queued' },
+    running: { color: 'blue', labelKey: 'platformPlugins.runHistory.status.running' },
+    succeeded: { color: 'green', labelKey: 'platformPlugins.runHistory.status.succeeded' },
+  } satisfies Record<
+    PlatformPluginRunStatus,
+    { color: string; labelKey: PlatformPluginRunStatusLabelKey }
+  >;
+
+  return map[status];
+};
+
 export const formatPlatformPluginRuntimeType = (runtimeType: PlatformPluginListItem['runtimeType']) =>
-  runtimeType === 'content_generation' ? '内容生成' : 'API Action';
+  runtimeType === 'content_generation' ? 'Content Generation' : 'API Action';
 
 export const formatPlatformPluginCredits = (value?: number) => {
   const credits = Number(value ?? 0);
@@ -114,7 +174,7 @@ export const getPlatformPluginBillingSummaryValues = (
 
 export const getPlatformPluginBillingSummary = (plugin: Pick<PlatformPluginListItem, 'billing'>) => {
   const billing = plugin.billing ?? {};
-  return `倍率 ${billing.defaultMultiplier ?? 1}x · 固定 ${formatPlatformPluginCredits(
+  return `${billing.defaultMultiplier ?? 1}x · ${formatPlatformPluginCredits(
     billing.fixedServiceFeeCredits,
-  )} 积分`;
+  )} credits fixed`;
 };
