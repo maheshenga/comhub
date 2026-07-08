@@ -13,6 +13,7 @@ import {
 } from './formSchema';
 import OperationsEditor from './OperationsEditor';
 import type { AdminPlatformPluginDetail } from './types';
+import { useTranslation } from 'react-i18next';
 
 type PluginEditorModalProps = {
   initialPlugin?: AdminPlatformPluginDetail | null;
@@ -81,6 +82,8 @@ const buildInitialValues = (plugin?: AdminPlatformPluginDetail | null): Platform
 const PluginEditorModal = memo<PluginEditorModalProps>(
   ({ initialPlugin, onCancel, onSubmit, open, submitting }) => {
     const [form] = Form.useForm<PlatformPluginFormInput>();
+    const { t } = useTranslation('subscription');
+    const tt = (key: string) => t(key as never);
     const runtimeType = Form.useWatch('runtimeType', form) || 'api_action';
 
     useEffect(() => {
@@ -112,10 +115,10 @@ const PluginEditorModal = memo<PluginEditorModalProps>(
         <Form form={form} layout="vertical">
           <Flexbox horizontal gap={12}>
             <Form.Item label="插件名称" name="displayName" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <Input placeholder="Research Notes" />
+              <Input placeholder={tt('admin.platformPlugins.displayNamePlaceholder')} />
             </Form.Item>
-            <Form.Item label="Slug" name="slug" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <Input disabled={!!initialPlugin} placeholder="research-notes" />
+            <Form.Item label={tt('admin.platformPlugins.slug')} name="slug" rules={[{ required: true }]} style={{ flex: 1 }}>
+              <Input disabled={!!initialPlugin} placeholder={tt('admin.platformPlugins.slugPlaceholder')} />
             </Form.Item>
           </Flexbox>
 
@@ -132,8 +135,8 @@ const PluginEditorModal = memo<PluginEditorModalProps>(
             <Form.Item label="运行类型" name="runtimeType" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select
                 options={[
-                  { label: 'API Action', value: 'api_action' },
-                  { label: 'Content Generation', value: 'content_generation' },
+                  { label: tt('admin.platformPlugins.apiAction'), value: 'api_action' },
+                  { label: tt('admin.platformPlugins.contentGeneration'), value: 'content_generation' },
                 ]}
               />
             </Form.Item>
@@ -156,9 +159,10 @@ const PluginEditorModal = memo<PluginEditorModalProps>(
             <Input.TextArea autoSize={{ maxRows: 5, minRows: 3 }} />
           </Form.Item>
 
-          <Form.Item label="Operations">
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontWeight: 500, marginBottom: 8 }}>{tt('admin.platformPlugins.operations')}</div>
             <OperationsEditor />
-          </Form.Item>
+          </div>
 
           <Flexbox horizontal gap={12}>
             <Form.Item label="动作 ID" name="actionId" style={{ flex: 1 }}>
@@ -180,7 +184,7 @@ const PluginEditorModal = memo<PluginEditorModalProps>(
                     ]}
                   />
                 </Form.Item>
-                <Form.Item label="API URL" name="apiUrl" style={{ flex: 1 }}>
+                <Form.Item label={tt('admin.platformPlugins.apiUrl')} name="apiUrl" style={{ flex: 1 }}>
                   <Input placeholder="https://api.example.com/action" />
                 </Form.Item>
               </Flexbox>

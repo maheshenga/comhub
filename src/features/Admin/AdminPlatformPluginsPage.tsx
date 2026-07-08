@@ -3,6 +3,7 @@
 import type {
   PlatformPluginAdminUpsertInput,
   PlatformPluginBillingConfig,
+  PlatformPluginOperationsMetadata,
   PlatformPluginPlanEntitlement,
   PlatformPluginStatus,
 } from '@lobechat/types';
@@ -21,6 +22,7 @@ import {
   Typography,
 } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -91,6 +93,20 @@ const formatDate = (value?: Date | string) => (value ? new Date(value).toLocaleS
 const formatStats = (value?: number) => Number(value ?? 0).toLocaleString();
 const formatSuccessRate = (value?: number) => `${Number(value ?? 0).toFixed(1)}%`;
 
+const normalizeOperations = (operations?: null | PlatformPluginOperationsMetadata) => ({
+  featured: operations?.featured === true,
+  planBenefitSummary: operations?.planBenefitSummary || undefined,
+  promoLabel: operations?.promoLabel || undefined,
+  sortWeight: Number(operations?.sortWeight ?? 0),
+  upgradeCta: operations?.upgradeCta || undefined,
+  useCase: operations?.useCase || undefined,
+});
+
+const areOperationsEqual = (
+  next?: null | PlatformPluginOperationsMetadata,
+  current?: null | PlatformPluginOperationsMetadata,
+) => JSON.stringify(normalizeOperations(next)) === JSON.stringify(normalizeOperations(current));
+
 const formatTags = (tags?: string[]) =>
   tags && tags.length > 0 ? (
     <Flexbox horizontal gap={4} wrap="wrap">
@@ -109,12 +125,14 @@ const getBillingFormValues = (billing?: PlatformPluginBillingConfig) => ({
 });
 
 const AdminPlatformPluginsPage = memo(() => {
+  const { t } = useTranslation('subscription');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedPluginId, setSelectedPluginId] = useState<string>();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPlugin, setEditingPlugin] = useState<AdminPlatformPluginDetail | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [billingForm] = Form.useForm();
+  const tt = (key: string) => t(key as never);
 
   const listKey = useMemo(() => ['admin-platform-plugins', statusFilter], [statusFilter]);
   const detailKey = useMemo(
@@ -173,6 +191,10 @@ const AdminPlatformPluginsPage = memo(() => {
   const runs = runsData?.items ?? [];
   const artifacts = artifactsData?.items ?? [];
   const plans = plansData?.items ?? [];
+  const runtimeLabel = {
+    api_action: tt('admin.platformPlugins.apiAction'),
+    content_generation: tt('admin.platformPlugins.contentGeneration'),
+  };
 
   useEffect(() => {
     if (selectedPluginId || items.length === 0) return;
@@ -221,7 +243,14 @@ const AdminPlatformPluginsPage = memo(() => {
   const handleSavePlugin = async (input: PlatformPluginAdminUpsertInput) => {
     setSubmitting(true);
     try {
+      const existingPlugin = editingPlugin;
       const result = await adminCommercialService.platformPlugins.upsert(input);
+      if (existingPlugin && !areOperationsEqual(input.operations, existingPlugin.operations)) {
+        await adminCommercialService.platformPlugins.updateOperations({
+          operations: input.operations,
+          pluginId: result.id,
+        });
+      }
       setEditorOpen(false);
       setEditingPlugin(null);
       setSelectedPluginId(result.id);
@@ -317,20 +346,20 @@ const AdminPlatformPluginsPage = memo(() => {
     {
       dataIndex: ['operations', 'featured'],
       key: 'featured',
-      render: (value: boolean) => (value ? <Tag color="gold">Featured</Tag> : '-'),
-      title: 'Featured',
+      render: (value: boolean) => (value ? <Tag color="gold">{tt('admin.platformPlugins.featured')}</Tag> : '-'),
+      title: tt('admin.platformPlugins.featured'),
     },
     {
       dataIndex: ['operations', 'sortWeight'],
       key: 'sortWeight',
-      title: 'Sort weight',
+      title: tt('admin.platformPlugins.sortWeight'),
     },
     {
       dataIndex: 'stats',
       key: 'stats',
       render: (stats: AdminPlatformPluginItem['stats']) =>
         `${formatStats(stats?.runs)} runs / ${formatSuccessRate(stats?.successRate)}`,
-      title: 'Stats',
+      title: tt('admin.platformPlugins.stats'),
     },
     {
       dataIndex: 'billing',
@@ -389,21 +418,21 @@ const AdminPlatformPluginsPage = memo(() => {
             </Descriptions.Item>
             <Descriptions.Item label="分类">{selectedPlugin.category}</Descriptions.Item>
             <Descriptions.Item label="版本">{detail?.version ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="Promotion label">
+            <Descriptions.Item label={tt('admin.platformPlugins.promotionLabel')}>
               {selectedPlugin.operations?.promoLabel || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="Sort weight">
+            <Descriptions.Item label={tt('admin.platformPlugins.sortWeight')}>
               {selectedPlugin.operations?.sortWeight ?? 0}
             </Descriptions.Item>
             <Descriptions.Item label="标签" span={2}>{formatTags(selectedPlugin.tags)}</Descriptions.Item>
             <Descriptions.Item label="更新时间" span={2}>{formatDate(selectedPlugin.updatedAt)}</Descriptions.Item>
-            <Descriptions.Item label="Use case" span={2}>
+            <Descriptions.Item label={tt('admin.platformPlugins.useCase')} span={2}>
               {selectedPlugin.operations?.useCase || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="Plan benefit" span={2}>
+            <Descriptions.Item label={tt('admin.platformPlugins.planBenefit')} span={2}>
               {selectedPlugin.operations?.planBenefitSummary || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="Upgrade CTA" span={2}>
+            <Descriptions.Item label={tt('admin.platformPlugins.upgradeCta')} span={2}>
               {selectedPlugin.operations?.upgradeCta || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="描述" span={2}>{selectedPlugin.description}</Descriptions.Item>
