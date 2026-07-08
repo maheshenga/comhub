@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { getInitialModuleAppPageKey, resolveModuleAppPagePath } from './runtimeHelpers';
+import {
+  formatModuleAppRunPreview,
+  getInitialModuleAppPageKey,
+  resolveModuleAppPagePath,
+} from './runtimeHelpers';
 
 describe('module app runtime helpers', () => {
   const pages = [
@@ -14,5 +18,13 @@ describe('module app runtime helpers', () => {
 
   it('builds stable app page paths', () => {
     expect(resolveModuleAppPagePath('app-1', 'records')).toBe('/apps/app-1/app/records');
+  });
+
+  it('prefers explicit run preview and falls back to status copy', () => {
+    expect(formatModuleAppRunPreview({ preview: ' Created A ', status: 'succeeded' })).toBe(
+      'Created A',
+    );
+    expect(formatModuleAppRunPreview({ status: 'failed' })).toBe('Run failed');
+    expect(formatModuleAppRunPreview({ status: 'denied' })).toBe('Run denied');
   });
 });

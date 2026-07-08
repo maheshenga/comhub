@@ -132,3 +132,5 @@
 - Verification: `packages/business-server/src/module-apps/runModuleAppAction.test.ts` and `apps/server/src/routers/lambda/moduleApp.test.ts`.
 - MODULE-APP-P1-011: Added Module App API URL safety checks and billable runtime snapshot support for injected `api_action`, `content_generation`, and `workflow_step` runners without enabling arbitrary frontend JS, iframe, MCP, or Skills execution.
 - Verification: `packages/business-server/src/module-apps/safeUrl.test.ts` and `packages/business-server/src/module-apps/runModuleAppAction.test.ts`.
+- MODULE-APP-P1-012: Added run preview formatting plus lightweight user run-result and admin records/runs/artifacts display shells for the Module App P1 surface.
+- Verification: `src/features/ModuleAppRuntime/runtimeHelpers.test.ts`.
