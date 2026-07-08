@@ -11,6 +11,7 @@ import {
   type ModuleAppRecordOperation,
   type ModuleAppWorkspaceMembership,
 } from '@/business/server/module-apps/permission';
+import { runModuleAppAction } from '@/business/server/module-apps/runModuleAppAction';
 import { getSubscriptionPlan } from '@/business/server/user';
 import { ModuleAppModel } from '@/database/models/moduleApp';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
@@ -289,22 +290,55 @@ export const moduleAppRouter = router({
     }),
 
   runAction: moduleAppProcedure.input(moduleAppRunInputSchema).mutation(async ({ ctx, input }) => {
-    await assertRunnableApp({
+    const detail = await assertRunnableApp({
       appId: input.appId,
       currentPlan: ctx.currentPlan,
       model: ctx.moduleAppModel,
       userId: ctx.userId,
     });
 
-    await assertScopePermission({
-      db: ctx.serverDB,
-      operation: 'create',
+    const action = detail.actions.find((item) => item.id === input.actionId);
+    if (!action) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_action_not_found' });
+
+    if (action.runtimeType === 'record_update' || action.runtimeType === 'record_archive') {
+      if (!input.recordId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'module_app_record_id_required' });
+      }
+
+      const record = await ctx.moduleAppModel.getRecord({
+        appId: input.appId,
+        recordId: input.recordId,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+      if (!record) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_record_not_found' });
+
+      await assertRecordPermission({
+        db: ctx.serverDB,
+        operation: action.runtimeType === 'record_archive' ? 'archive' : 'update',
+        record,
+        userId: ctx.userId,
+      });
+    } else {
+      await assertScopePermission({
+        db: ctx.serverDB,
+        operation: 'create',
+        scopeType: input.scopeType,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+    }
+
+    return runModuleAppAction({
+      action,
+      appId: input.appId,
+      input: input.input,
+      model: ctx.moduleAppModel,
+      recordId: input.recordId,
       scopeType: input.scopeType,
       userId: ctx.userId,
       workspaceId: input.workspaceId,
     });
-
-    return ctx.moduleAppModel.createRun({ ...input, userId: ctx.userId });
   }),
 
   uninstallPersonal: moduleAppProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {

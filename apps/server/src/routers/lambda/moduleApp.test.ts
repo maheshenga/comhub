@@ -7,10 +7,12 @@ import { moduleAppRouter } from './moduleApp';
 const {
   mockGetServerDB,
   mockGetSubscriptionPlan,
+  mockRunModuleAppAction,
   mockModuleAppModel,
 } = vi.hoisted(() => ({
   mockGetServerDB: vi.fn(),
   mockGetSubscriptionPlan: vi.fn(),
+  mockRunModuleAppAction: vi.fn(),
   mockModuleAppModel: {
     createRecord: vi.fn(),
     createRun: vi.fn(),
@@ -24,6 +26,10 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('@/business/server/user', () => ({
   getSubscriptionPlan: mockGetSubscriptionPlan,
+}));
+
+vi.mock('@/business/server/module-apps/runModuleAppAction', () => ({
+  runModuleAppAction: mockRunModuleAppAction,
 }));
 
 vi.mock('@/database/models/moduleApp', () => ({
@@ -40,8 +46,16 @@ describe('moduleApp router registration', () => {
     mockGetServerDB.mockResolvedValue({});
     mockGetSubscriptionPlan.mockResolvedValue('free');
     mockModuleAppModel.getAppDetail.mockResolvedValue({
+      actions: [],
       id: APP_ID,
       planState: { installable: true, runnable: false, visible: true },
+    });
+    mockRunModuleAppAction.mockResolvedValue({
+      artifactIds: [],
+      billing: { chargedCredits: 0, fixedServiceFeeCharged: false },
+      preview: 'Created',
+      runId: 'run-1',
+      status: 'succeeded',
     });
   });
 
@@ -71,6 +85,44 @@ describe('moduleApp router registration', () => {
         scopeType: 'personal',
       }),
     ).rejects.toThrow('plan_run_denied');
+    expect(mockModuleAppModel.createRun).not.toHaveBeenCalled();
+  });
+
+  it('delegates allowed action runs to the module app runtime', async () => {
+    const action = {
+      id: 'create_item',
+      inputSchema: { fields: [] },
+      moduleMultiplier: 1,
+      name: 'Create item',
+      outputSchema: {},
+      runtimeConfig: {},
+      runtimeType: 'record_create',
+    };
+    mockModuleAppModel.getAppDetail.mockResolvedValue({
+      actions: [action],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+
+    await expect(
+      createCaller().runAction({
+        actionId: 'create_item',
+        appId: APP_ID,
+        input: { title: 'A' },
+        scopeType: 'personal',
+      }),
+    ).resolves.toMatchObject({ runId: 'run-1', status: 'succeeded' });
+
+    expect(mockRunModuleAppAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action,
+        appId: APP_ID,
+        input: { title: 'A' },
+        model: mockModuleAppModel,
+        scopeType: 'personal',
+        userId: 'user-1',
+      }),
+    );
     expect(mockModuleAppModel.createRun).not.toHaveBeenCalled();
   });
 });
