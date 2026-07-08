@@ -99,3 +99,10 @@
 - Added frontend mapping for known detail operation backend error codes.
 - Stopped showing raw plugin detail operation error strings directly in the user toast.
 - Preserved plugin authorization, entitlement checks, billing, persistence, runtime execution, and MCP / Skills isolation.
+
+### Platform Plugin Marketplace P7 Run History Preview Copy
+
+- Added run-history presentation coverage for failed sentinel previews.
+- Reused the existing localized failed-preview copy in history rows.
+- Preserved readable runtime previews and existing run-history pagination.
+- Preserved plugin authorization, billing, persistence, runtime execution, and MCP / Skills isolation.

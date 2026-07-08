@@ -904,6 +904,14 @@
 - Test recommendation: add browser smoke for install denied, plugin missing, and Agent binding denied states once a seeded test database is available.
 - Note: This slice only changes frontend presentation copy for detail-page operation failures.
 
+#### Platform Plugin Marketplace P7 Run History Preview Copy Update
+
+- Status: experimental
+- Description: P7 localizes failed run-history sentinel previews while preserving readable runtime previews and existing run-history pagination.
+- Maintenance risk: low
+- Test recommendation: add browser smoke for failed plugin runs appearing in history once a seeded test database is available.
+- Note: This slice only changes frontend run-history presentation and does not change history persistence, billing, authorization, runtime execution, or MCP / Skills isolation.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |
