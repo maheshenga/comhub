@@ -4,7 +4,10 @@ import {
   platformPluginActionConfigSchema,
   platformPluginAdminUpsertSchema,
   platformPluginBillingConfigSchema,
+  platformPluginMarketplaceListInputSchema,
   platformPluginRuntimeTypeSchema,
+  platformPluginOperationsMetadataSchema,
+  platformPluginRunHistoryInputSchema,
 } from './platformPlugin';
 
 describe('platform plugin shared schemas', () => {
@@ -96,5 +99,60 @@ describe('platform plugin shared schemas', () => {
 
     expect(value.slug).toBe('research-notes');
     expect(value.billing.defaultMultiplier).toBe(1.35);
+  });
+
+  it('defaults and trims operations metadata', () => {
+    expect(platformPluginOperationsMetadataSchema.parse(undefined)).toEqual({
+      featured: false,
+      sortWeight: 0,
+    });
+    expect(
+      platformPluginOperationsMetadataSchema.parse({
+        featured: true,
+        planBenefitSummary: ' Pro benefit ',
+        promoLabel: ' Hot ',
+        sortWeight: '12',
+        upgradeCta: ' Upgrade ',
+        useCase: '',
+      })
+    ).toEqual({
+      featured: true,
+      planBenefitSummary: 'Pro benefit',
+      promoLabel: 'Hot',
+      sortWeight: 12,
+      upgradeCta: 'Upgrade',
+    });
+  });
+
+  it('accepts operations in admin upsert payloads', () => {
+    const input = platformPluginAdminUpsertSchema.parse({
+      billing: {},
+      category: 'research',
+      description: 'Generate research notes.',
+      displayName: 'Research Notes',
+      icon: 'FileText',
+      operations: { featured: true, promoLabel: 'New', sortWeight: 20 },
+      runtimeType: 'content_generation',
+      slug: 'research-notes',
+      status: 'published',
+      tags: ['research'],
+    });
+
+    expect(input.operations).toEqual({ featured: true, promoLabel: 'New', sortWeight: 20 });
+  });
+
+  it('validates marketplace filters and run history pagination', () => {
+    expect(platformPluginMarketplaceListInputSchema.parse({ query: ' notes ' })).toEqual({
+      query: 'notes',
+    });
+    expect(
+      platformPluginRunHistoryInputSchema.parse({
+        pluginId: '00000000-0000-4000-8000-000000000001',
+      })
+    ).toEqual({
+      cursor: 0,
+      limit: 20,
+      pluginId: '00000000-0000-4000-8000-000000000001',
+    });
   });
 });

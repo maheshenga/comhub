@@ -176,6 +176,19 @@ const platformPluginApiUrlSchema = z.string().url().refine(isSafePlatformPluginA
   message: 'API URL must use a public http(s) host',
 });
 
+const optionalTrimmedString = (max: number) =>
+  z.preprocess((value) => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const text = value.trim();
+    return text ? text : undefined;
+  }, z.string().max(max).optional());
+
+const stripUndefinedValues = <T extends Record<string, unknown>>(value: T) =>
+  Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+
 export const platformPluginStatusSchema = z.enum(['draft', 'published', 'unpublished']);
 export type PlatformPluginStatus = z.infer<typeof platformPluginStatusSchema>;
 
@@ -208,6 +221,34 @@ export const platformPluginBillingConfigSchema = z
   })
   .default({});
 export type PlatformPluginBillingConfig = z.infer<typeof platformPluginBillingConfigSchema>;
+
+export const DEFAULT_PLATFORM_PLUGIN_OPERATIONS_METADATA = {
+  featured: false,
+  sortWeight: 0,
+} as const;
+
+export const platformPluginOperationsMetadataSchema = z
+  .object({
+    featured: z.boolean().default(false),
+    planBenefitSummary: optionalTrimmedString(300),
+    promoLabel: optionalTrimmedString(80),
+    sortWeight: z.coerce.number().int().min(-100_000).max(100_000).default(0),
+    upgradeCta: optionalTrimmedString(160),
+    useCase: optionalTrimmedString(500),
+  })
+  .default(DEFAULT_PLATFORM_PLUGIN_OPERATIONS_METADATA)
+  .transform((value) => stripUndefinedValues(value));
+export type PlatformPluginOperationsMetadata = z.infer<typeof platformPluginOperationsMetadataSchema>;
+
+export type PlatformPluginAdminStats = {
+  failedRuns: number;
+  fixedServiceFeeCredits: number;
+  installations: number;
+  runs: number;
+  successRate: number;
+  succeededRuns: number;
+  totalChargedCredits: number;
+};
 
 export const platformPluginInputFieldSchema = z.object({
   defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
@@ -271,6 +312,7 @@ export const platformPluginAdminUpsertSchema = z.object({
   displayName: z.string().min(1).max(120),
   icon: z.string().min(1).max(120),
   id: z.string().uuid().optional(),
+  operations: platformPluginOperationsMetadataSchema.optional(),
   runtimeType: platformPluginRuntimeTypeSchema,
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   status: platformPluginStatusSchema.default('draft'),
@@ -285,6 +327,7 @@ export type PlatformPluginListItem = {
   icon: string;
   id: string;
   installed: boolean;
+  operations: PlatformPluginOperationsMetadata;
   planState: {
     installable: boolean;
     runnable: boolean;
@@ -310,6 +353,36 @@ export type PlatformPluginRunResult = {
     fixedServiceFeeCharged: boolean;
   };
   preview: string;
+  runId: string;
+  status: PlatformPluginRunStatus;
+};
+
+export const platformPluginMarketplaceListInputSchema = z
+  .object({
+    category: optionalTrimmedString(80),
+    query: optionalTrimmedString(120),
+    runtimeType: platformPluginRuntimeTypeSchema.optional(),
+  })
+  .optional()
+  .default({})
+  .transform((value) => stripUndefinedValues(value));
+export type PlatformPluginMarketplaceListInput = z.infer<typeof platformPluginMarketplaceListInputSchema>;
+
+export const platformPluginRunHistoryInputSchema = z.object({
+  cursor: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(50).default(20),
+  pluginId: z.string().uuid(),
+});
+export type PlatformPluginRunHistoryInput = z.infer<typeof platformPluginRunHistoryInputSchema>;
+
+export type PlatformPluginRunHistoryItem = {
+  artifactIds: string[];
+  chargedCredits: number;
+  createdAt: string;
+  fixedServiceFeeCharged: boolean;
+  pluginId: string;
+  pluginName: string;
+  preview?: string;
   runId: string;
   status: PlatformPluginRunStatus;
 };
