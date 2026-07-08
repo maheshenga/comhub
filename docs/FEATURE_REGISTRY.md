@@ -856,6 +856,22 @@
 | 备注 | P1 明确不导入现有 MCP 或 Skills。聊天快捷入口只导航到显式插件详情/运行面板，不经过旧 Tool Store、MCP settings 或 Skill ActionTag 执行链路。 |
 | Seed script | `scripts/seedPlatformPlugins.ts` creates draft samples; admins must publish them before users can see them. |
 
+#### Platform Plugin Marketplace P2-lite Update
+
+- Status: experimental
+- Description: Independent platform function plugin marketplace. P2-lite adds operations metadata, admin stats, user filtering, plan availability presentation, and user run history.
+- Frontend entries: `/plugins`, `/plugins/:pluginId`, `settings/admin/platform-plugins`
+- Core components: `src/features/PlatformPluginMarket/*`, `src/features/Admin/platformPlugins/*`
+- Backend API: `admin.platformPlugins.*`, `lambda.platformPlugin.*`
+- Database dependencies: `platform_plugins`, `platform_plugin_versions`, `platform_plugin_actions`, `platform_plugin_plan_entitlements`, `platform_plugin_installations`, `platform_plugin_agent_bindings`, `platform_plugin_runs`, `platform_plugin_artifacts`, `platform_plugin_secrets`, `platform_plugin_audit_logs`
+- Config dependencies: plugin billing config, plan entitlement config, plugin secret config
+- Env dependencies: `PLATFORM_PLUGIN_SECRET_KEY`
+- External services: plugin API Action targets and AI providers configured by content generation plugins
+- Maintenance risk: high
+- Refactor recommendation: split the admin page and run history query further after this phase
+- Test recommendation: add real DB integration and browser interaction tests later
+- Note: P2-lite does not import MCP / Skills, does not add desktop plugin ability, and does not add new runtime types.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |

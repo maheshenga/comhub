@@ -12,6 +12,8 @@ const sampleBilling = {
   fixedServiceFeeCredits: 0,
 };
 
+const sampleOperations = { featured: false, sortWeight: 0 };
+
 const entitlement = (
   plan: Plans,
   access: Pick<PlatformPluginPlanEntitlement, 'installable' | 'runnable' | 'visible'>,
@@ -54,6 +56,7 @@ const platformPluginSamples: Array<{
       description: 'Lookup public dictionary definitions from a controlled API action plugin.',
       displayName: 'Dictionary Lookup',
       icon: 'BookOpen',
+      operations: sampleOperations,
       runtimeType: 'api_action',
       slug: 'dictionary-lookup',
       status: 'draft',
@@ -97,6 +100,7 @@ const platformPluginSamples: Array<{
       description: 'Generate structured markdown research notes and store the result as an artifact.',
       displayName: 'Research Notes',
       icon: 'FileText',
+      operations: sampleOperations,
       runtimeType: 'content_generation',
       slug: 'research-notes',
       status: 'draft',

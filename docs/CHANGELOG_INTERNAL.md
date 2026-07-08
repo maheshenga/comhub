@@ -63,3 +63,11 @@
 - Verification: `src/features/ChatInput/InputEditor/platformPluginMentions.test.tsx`, `src/features/ChatInput/InputEditor/index.test.tsx`, `src/services/platformPlugin.test.ts`, `src/features/PlatformPluginMarket/helpers.test.ts`, and `src/spa/router/desktopRouter.sync.test.tsx`.
 - PLATFORM-PLUGIN-P1-011: Added an idempotent `platform-plugin:seed` script for two draft P1 sample plugins: `dictionary-lookup` API action and `research-notes` content generation with plan entitlements.
 - Verification: `scripts/seedPlatformPlugins.test.ts`.
+
+### Platform Plugin Marketplace P2-lite
+
+- Added admin operations metadata for featured state, sort weight, promotion label, use case, plan benefit summary, and upgrade CTA.
+- Added admin plugin stats for installations, runs, success rate, charged credits, and fixed service fee estimate.
+- Added user marketplace filtering by search, category, and runtime type with featured-first ordering.
+- Added user plugin detail availability copy, billing summary, and current-user run history.
+- Preserved MCP / Skills isolation and did not add new plugin runtime types.

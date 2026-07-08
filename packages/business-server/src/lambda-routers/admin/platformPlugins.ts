@@ -234,7 +234,7 @@ export const adminPlatformPluginsRouter = router({
       ...(params.status ? [eq(platformPlugins.status, params.status)] : []),
       ...(params.category ? [eq(platformPlugins.category, params.category)] : []),
     ];
-    const items = await ctx.serverDB.query.platformPlugins.findMany({
+    const items: PlatformPluginRow[] = await ctx.serverDB.query.platformPlugins.findMany({
       limit: params.limit,
       offset: params.cursor,
       orderBy: [asc(platformPlugins.sortOrder), asc(platformPlugins.displayName)],

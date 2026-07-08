@@ -23,6 +23,7 @@ const baseBilling = {
   failureFixedFeePolicy: 'do_not_charge' as const,
   fixedServiceFeeCredits: 0,
 };
+const defaultOperations = { featured: false, sortWeight: 0 };
 
 beforeEach(async () => {
   await serverDB.delete(platformPlugins);
@@ -38,6 +39,7 @@ describe('PlatformPluginModel marketplace behavior', () => {
       description: 'Lookup a public dictionary.',
       displayName: 'Dictionary Lookup',
       icon: 'BookOpen',
+      operations: defaultOperations,
       runtimeType: 'api_action',
       slug: 'dictionary-lookup',
       status: 'published',
@@ -60,6 +62,7 @@ describe('PlatformPluginModel marketplace behavior', () => {
       description: 'This should stay hidden.',
       displayName: 'Hidden Lookup',
       icon: 'BookOpen',
+      operations: defaultOperations,
       runtimeType: 'api_action',
       slug: 'hidden-lookup',
       status: 'published',
@@ -82,6 +85,7 @@ describe('PlatformPluginModel marketplace behavior', () => {
       description: 'Still in draft.',
       displayName: 'Draft Lookup',
       icon: 'BookOpen',
+      operations: defaultOperations,
       runtimeType: 'api_action',
       slug: 'draft-lookup',
       status: 'draft',
@@ -127,6 +131,7 @@ describe('PlatformPluginModel marketplace behavior', () => {
       description: 'Lookup a public dictionary.',
       displayName: 'Dictionary Lookup',
       icon: 'BookOpen',
+      operations: defaultOperations,
       runtimeType: 'api_action',
       slug: 'dictionary-lookup',
       status: 'published',
@@ -184,6 +189,7 @@ describe('PlatformPluginModel marketplace behavior', () => {
       description: 'Lookup a public dictionary.',
       displayName: 'Dictionary Lookup',
       icon: 'BookOpen',
+      operations: defaultOperations,
       runtimeType: 'api_action',
       slug: 'dictionary-lookup',
       status: 'published',
@@ -214,6 +220,7 @@ describe('PlatformPluginModel marketplace behavior', () => {
       description: 'Lookup a public dictionary.',
       displayName: 'Dictionary Lookup',
       icon: 'BookOpen',
+      operations: defaultOperations,
       runtimeType: 'api_action',
       slug: 'dictionary-lookup',
       status: 'published',
@@ -259,6 +266,7 @@ describe('PlatformPluginModel marketplace behavior', () => {
       description: 'Lookup a public dictionary.',
       displayName: 'Dictionary Lookup',
       icon: 'BookOpen',
+      operations: defaultOperations,
       runtimeType: 'api_action',
       slug: 'dictionary-lookup',
       status: 'published',
@@ -310,6 +318,7 @@ describe('PlatformPluginModel marketplace behavior', () => {
       description: 'Lookup a public dictionary.',
       displayName: 'Dictionary Lookup',
       icon: 'BookOpen',
+      operations: defaultOperations,
       runtimeType: 'api_action',
       slug: 'dictionary-lookup',
       status: 'published',

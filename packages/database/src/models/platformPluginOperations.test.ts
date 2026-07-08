@@ -32,7 +32,12 @@ describe('platformPluginOperations model helpers', () => {
   it('summarizes admin stats from installation count and run snapshots', () => {
     expect(
       summarizePlatformPluginAdminStats({
-        billing: { defaultMultiplier: 1.35, externalApiCostCredits: 20, fixedServiceFeeCredits: 10 },
+        billing: {
+          defaultMultiplier: 1.35,
+          externalApiCostCredits: 20,
+          failureFixedFeePolicy: 'do_not_charge',
+          fixedServiceFeeCredits: 10,
+        },
         installationCount: 2,
         runs: [
           { billingSnapshot: { chargedCredits: 32 }, status: 'succeeded' },

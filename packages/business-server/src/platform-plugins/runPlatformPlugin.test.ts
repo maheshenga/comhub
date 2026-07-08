@@ -38,6 +38,7 @@ const detail: PlatformPluginDetail = {
   icon: 'FileText',
   id: pluginId,
   installed: true,
+  operations: { featured: false, sortWeight: 0 },
   planState: { installable: true, runnable: true, visible: true },
   runtimeType: 'content_generation',
   slug: 'research-notes',

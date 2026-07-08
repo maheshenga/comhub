@@ -12,7 +12,12 @@ import {
 } from './helpers';
 
 const buildPlugin = (overrides: Partial<PlatformPluginListItem>): PlatformPluginListItem => ({
-  billing: { defaultMultiplier: 1, externalApiCostCredits: 0, fixedServiceFeeCredits: 0 },
+  billing: {
+    defaultMultiplier: 1,
+    externalApiCostCredits: 0,
+    failureFixedFeePolicy: 'do_not_charge',
+    fixedServiceFeeCredits: 0,
+  },
   category: 'research',
   displayName: 'Research Notes',
   icon: 'FileText',
@@ -136,7 +141,12 @@ describe('platform plugin marketplace helpers', () => {
     expect(
       getPlatformPluginBillingSummaryValues(
         buildPlugin({
-          billing: { defaultMultiplier: 3, externalApiCostCredits: 0, fixedServiceFeeCredits: 1_500 },
+          billing: {
+            defaultMultiplier: 3,
+            externalApiCostCredits: 0,
+            failureFixedFeePolicy: 'do_not_charge',
+            fixedServiceFeeCredits: 1_500,
+          },
         }),
       ),
     ).toEqual({
