@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   filterAndSortPlatformPlugins,
   formatPlatformPluginCredits,
+  getPlatformPluginBillingSummaryValues,
   getPlatformPluginPlanStatusLabel,
   getPlatformPluginRestrictionCopy,
+  getPlatformPluginRuntimeLabelKey,
   isPlatformPluginRunnable,
 } from './helpers';
 
@@ -81,13 +83,16 @@ describe('platform plugin marketplace helpers', () => {
   it('returns clear plan availability labels', () => {
     expect(getPlatformPluginPlanStatusLabel(buildPlugin({ installed: true }))).toEqual({
       color: 'green',
-      labelKey: 'marketplace.status.runnable',
+      labelKey: 'platformPlugins.marketplace.status.runnable',
     });
     expect(
       getPlatformPluginPlanStatusLabel(
         buildPlugin({ planState: { installable: false, runnable: false, visible: true } }),
       ),
-    ).toEqual({ color: 'orange', labelKey: 'marketplace.status.upgradeRequired' });
+    ).toEqual({
+      color: 'orange',
+      labelKey: 'platformPlugins.marketplace.status.upgradeRequired',
+    });
   });
 
   it('prioritizes plan run restrictions before install state', () => {
@@ -98,7 +103,10 @@ describe('platform plugin marketplace helpers', () => {
           planState: { installable: true, runnable: false, visible: true },
         }),
       ),
-    ).toEqual({ color: 'orange', labelKey: 'marketplace.status.upgradeRequired' });
+    ).toEqual({
+      color: 'orange',
+      labelKey: 'platformPlugins.marketplace.status.upgradeRequired',
+    });
   });
 
   it('returns installable label key for uninstalled runnable plugins', () => {
@@ -109,6 +117,31 @@ describe('platform plugin marketplace helpers', () => {
           planState: { installable: true, runnable: true, visible: true },
         }),
       ),
-    ).toEqual({ color: 'default', labelKey: 'marketplace.status.installable' });
+    ).toEqual({
+      color: 'default',
+      labelKey: 'platformPlugins.marketplace.status.installable',
+    });
+  });
+
+  it('returns semantic runtime label keys for marketplace cards', () => {
+    expect(getPlatformPluginRuntimeLabelKey('api_action')).toBe(
+      'platformPlugins.marketplace.runtime.apiAction',
+    );
+    expect(getPlatformPluginRuntimeLabelKey('content_generation')).toBe(
+      'platformPlugins.marketplace.runtime.contentGeneration',
+    );
+  });
+
+  it('returns billing summary values for localized formatting', () => {
+    expect(
+      getPlatformPluginBillingSummaryValues(
+        buildPlugin({
+          billing: { defaultMultiplier: 3, externalApiCostCredits: 0, fixedServiceFeeCredits: 1_500 },
+        }),
+      ),
+    ).toEqual({
+      fixedCredits: '1.5K',
+      multiplier: 3,
+    });
   });
 });

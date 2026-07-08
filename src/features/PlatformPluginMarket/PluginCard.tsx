@@ -8,8 +8,9 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import {
-  getPlatformPluginBillingSummary,
+  getPlatformPluginBillingSummaryValues,
   getPlatformPluginPlanStatusLabel,
+  getPlatformPluginRuntimeLabelKey,
 } from './helpers';
 
 const { Paragraph, Text, Title } = Typography;
@@ -21,11 +22,11 @@ type PluginCardProps = {
 const PluginCard = memo<PluginCardProps>(({ plugin }) => {
   const navigate = useNavigate();
   const { t } = useTranslation('subscription');
+  const billingSummary = getPlatformPluginBillingSummaryValues(plugin);
+  const installedStatusKey = plugin.installed
+    ? 'platformPlugins.marketplace.status.installed'
+    : 'platformPlugins.marketplace.status.uninstalled';
   const planStatus = getPlatformPluginPlanStatusLabel(plugin);
-  const runtimeTypeLabelKey =
-    plugin.runtimeType === 'content_generation'
-      ? 'admin.platformPlugins.contentGeneration'
-      : 'admin.platformPlugins.apiAction';
 
   return (
     <Flexbox
@@ -44,25 +45,32 @@ const PluginCard = memo<PluginCardProps>(({ plugin }) => {
           </Title>
           <Text type="secondary">{plugin.category}</Text>
         </Flexbox>
-        <Tag color={plugin.installed ? 'green' : 'default'}>
-          {plugin.installed ? '已安装' : '未安装'}
-        </Tag>
+        <Tag color={plugin.installed ? 'green' : 'default'}>{t(installedStatusKey)}</Tag>
       </Flexbox>
 
       <Paragraph ellipsis={{ rows: 2 }} style={{ margin: 0 }}>
-        {plugin.tags.length > 0 ? plugin.tags.join(' / ') : '平台插件'}
+        {plugin.tags.length > 0
+          ? plugin.tags.join(' / ')
+          : t('platformPlugins.marketplace.fallbackTag')}
       </Paragraph>
 
       <Flexbox horizontal gap={4} wrap="wrap">
-        {plugin.operations.featured ? <Tag color="gold">{t('marketplace.featured')}</Tag> : null}
+        {plugin.operations.featured ? (
+          <Tag color="gold">{t('platformPlugins.marketplace.featured')}</Tag>
+        ) : null}
         {plugin.operations.promoLabel ? <Tag color="blue">{plugin.operations.promoLabel}</Tag> : null}
-        <Tag>{t(runtimeTypeLabelKey)}</Tag>
-        <Tag>{getPlatformPluginBillingSummary(plugin)}</Tag>
+        <Tag>{t(getPlatformPluginRuntimeLabelKey(plugin.runtimeType))}</Tag>
+        <Tag>
+          {t('platformPlugins.marketplace.billingSummary', {
+            fixedCredits: billingSummary.fixedCredits,
+            multiplier: billingSummary.multiplier,
+          })}
+        </Tag>
         <Tag color={planStatus.color}>{t(planStatus.labelKey)}</Tag>
       </Flexbox>
 
       <Button style={{ marginTop: 'auto' }} type="primary" onClick={() => navigate(`/plugins/${plugin.slug}`)}>
-        查看详情
+        {t('platformPlugins.marketplace.action.viewDetails')}
       </Button>
     </Flexbox>
   );

@@ -99,3 +99,25 @@ Result:
 
 - 3 test files passed, 14 tests passed
 - `git diff --check` returned exit code 0; Git printed a line-ending warning for `packages/locales/src/default/subscription.ts`
+
+## Review Fix: Important i18n Findings
+
+- Replaced remaining hardcoded marketplace copy in `PluginCard.tsx` and `index.tsx` with `useTranslation('subscription')` lookups under `platformPlugins.marketplace.*`.
+- Updated marketplace helpers to return semantic keys and formatting values for card status/runtime/billing presentation.
+- Added locale entries for marketplace title, description, search placeholder, error state, empty state, filter labels, runtime labels, status labels, fallback tag, featured tag, billing summary, and view-details CTA in:
+  - `packages/locales/src/default/subscription.ts`
+  - `locales/en-US/subscription.json`
+  - `locales/zh-CN/subscription.json`
+- Expanded helper coverage for the new marketplace status keys plus runtime-label and billing-summary value helpers.
+
+## Review Fix Verification (Important i18n Findings)
+
+Ran:
+
+- `bunx vitest run --silent='passed-only' src/features/PlatformPluginMarket/helpers.test.ts src/services/platformPlugin.test.ts apps/server/src/routers/lambda/platformPlugin.test.ts`
+- `git diff --check`
+
+Result:
+
+- 3 test files passed, 16 tests passed
+- `git diff --check` returned exit code 0; Git printed a line-ending warning for `packages/locales/src/default/subscription.ts`

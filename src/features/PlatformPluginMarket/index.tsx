@@ -40,7 +40,7 @@ const PlatformPluginMarket = memo(() => {
     const categories = Array.from(new Set(plugins.map((plugin) => plugin.category).filter(Boolean))).sort();
 
     return [
-      { label: t('marketplace.filters.allCategories'), value: 'all' },
+      { label: t('platformPlugins.marketplace.filters.allCategories'), value: 'all' },
       ...categories.map((item) => ({ label: item, value: item })),
     ];
   }, [plugins, t]);
@@ -55,29 +55,34 @@ const PlatformPluginMarket = memo(() => {
       <Flexbox horizontal align="center" justify="space-between" gap={16}>
         <Flexbox gap={4}>
           <Title level={3} style={{ margin: 0 }}>
-            插件市场
+            {t('platformPlugins.marketplace.title')}
           </Title>
-          <Text type="secondary">安装由平台提供的功能插件，并按套餐权限在 Agent 中运行。</Text>
+          <Text type="secondary">{t('platformPlugins.marketplace.description')}</Text>
         </Flexbox>
         <Flexbox horizontal gap={8}>
           <Input.Search
             allowClear
-            placeholder="搜索插件"
+            placeholder={t('platformPlugins.marketplace.searchPlaceholder')}
             style={{ width: 220 }}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
           <Select
+            aria-label={t('platformPlugins.marketplace.filters.category')}
             options={categoryOptions}
             style={{ width: 160 }}
             value={category}
             onChange={setCategory}
           />
           <Select
+            aria-label={t('platformPlugins.marketplace.filters.runtime')}
             options={[
-              { label: t('marketplace.filters.allRuntimeTypes'), value: 'all' },
-              { label: t('admin.platformPlugins.apiAction'), value: 'api_action' },
-              { label: t('admin.platformPlugins.contentGeneration'), value: 'content_generation' },
+              { label: t('platformPlugins.marketplace.filters.allRuntimeTypes'), value: 'all' },
+              { label: t('platformPlugins.marketplace.runtime.apiAction'), value: 'api_action' },
+              {
+                label: t('platformPlugins.marketplace.runtime.contentGeneration'),
+                value: 'content_generation',
+              },
             ]}
             style={{ width: 160 }}
             value={runtimeType}
@@ -86,13 +91,15 @@ const PlatformPluginMarket = memo(() => {
         </Flexbox>
       </Flexbox>
 
-      {error ? <Alert showIcon message="插件市场加载失败" type="error" /> : null}
+      {error ? (
+        <Alert showIcon message={t('platformPlugins.marketplace.loadError')} type="error" />
+      ) : null}
       {isLoading ? (
         <Flexbox align="center" padding={48}>
           <Spin />
         </Flexbox>
       ) : filteredPlugins.length === 0 ? (
-        <Empty description="暂无可用插件" />
+        <Empty description={t('platformPlugins.marketplace.empty')} />
       ) : (
         <div
           style={{

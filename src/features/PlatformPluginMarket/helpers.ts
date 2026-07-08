@@ -70,18 +70,25 @@ export const getPlatformPluginPlanStatusLabel = (
 ): {
   color: 'default' | 'green' | 'orange';
   labelKey:
-    | 'marketplace.status.installable'
-    | 'marketplace.status.runnable'
-    | 'marketplace.status.upgradeRequired';
+    | 'platformPlugins.marketplace.status.installable'
+    | 'platformPlugins.marketplace.status.runnable'
+    | 'platformPlugins.marketplace.status.upgradeRequired';
 } => {
   const reason = getPlatformPluginRestrictionReason(plugin);
 
-  if (!reason) return { color: 'green', labelKey: 'marketplace.status.runnable' };
+  if (!reason) return { color: 'green', labelKey: 'platformPlugins.marketplace.status.runnable' };
   if (reason === 'not_installed')
-    return { color: 'default', labelKey: 'marketplace.status.installable' };
+    return { color: 'default', labelKey: 'platformPlugins.marketplace.status.installable' };
 
-  return { color: 'orange', labelKey: 'marketplace.status.upgradeRequired' };
+  return { color: 'orange', labelKey: 'platformPlugins.marketplace.status.upgradeRequired' };
 };
+
+export const getPlatformPluginRuntimeLabelKey = (
+  runtimeType: PlatformPluginListItem['runtimeType'],
+): 'platformPlugins.marketplace.runtime.apiAction' | 'platformPlugins.marketplace.runtime.contentGeneration' =>
+  runtimeType === 'content_generation'
+    ? 'platformPlugins.marketplace.runtime.contentGeneration'
+    : 'platformPlugins.marketplace.runtime.apiAction';
 
 export const formatPlatformPluginRuntimeType = (runtimeType: PlatformPluginListItem['runtimeType']) =>
   runtimeType === 'content_generation' ? '内容生成' : 'API Action';
@@ -92,6 +99,17 @@ export const formatPlatformPluginCredits = (value?: number) => {
   if (credits >= 1_000_000) return `${Number((credits / 1_000_000).toFixed(1))}M`;
   if (credits >= 1_000) return `${Number((credits / 1_000).toFixed(1))}K`;
   return `${Math.round(credits)}`;
+};
+
+export const getPlatformPluginBillingSummaryValues = (
+  plugin: Pick<PlatformPluginListItem, 'billing'>,
+) => {
+  const billing = plugin.billing ?? {};
+
+  return {
+    fixedCredits: formatPlatformPluginCredits(billing.fixedServiceFeeCredits),
+    multiplier: billing.defaultMultiplier ?? 1,
+  };
 };
 
 export const getPlatformPluginBillingSummary = (plugin: Pick<PlatformPluginListItem, 'billing'>) => {
