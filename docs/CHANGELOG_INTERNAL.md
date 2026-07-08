@@ -71,3 +71,10 @@
 - Added user marketplace filtering by search, category, and runtime type with featured-first ordering.
 - Added user plugin detail availability copy, billing summary, and current-user run history.
 - Preserved MCP / Skills isolation and did not add new plugin runtime types.
+
+### Platform Plugin Marketplace P3 Run Experience
+
+- Replaced hardcoded/mojibake platform plugin detail and run panel copy with localized subscription namespace keys.
+- Added presentation helpers for restriction copy keys and run status metadata.
+- Refreshed recent run history after a successful plugin run.
+- Preserved server-side install/run authorization and billing behavior.

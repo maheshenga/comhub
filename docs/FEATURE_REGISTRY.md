@@ -872,6 +872,14 @@
 - Test recommendation: add real DB integration and browser interaction tests later
 - Note: P2-lite does not import MCP / Skills, does not add desktop plugin ability, and does not add new runtime types.
 
+#### Platform Plugin Marketplace P3 Run Experience Update
+
+- Status: experimental
+- Description: P3 run experience adds localized detail-page copy, localized restriction explanations, readable run result metadata, and recent-run refresh after successful execution.
+- Maintenance risk: medium
+- Test recommendation: add browser smoke for install -> bind Agent -> run -> see history once a seeded test database is available.
+- Note: This slice is frontend presentation only and does not change plugin permissions, billing calculation, runtime types, MCP / Skills isolation, or database schema.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |
