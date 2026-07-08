@@ -6,7 +6,7 @@ import { Button, Empty, Tag, Typography } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { formatPlatformPluginCredits } from './helpers';
+import { formatPlatformPluginCredits, getPlatformPluginRunPreviewCopyKey } from './helpers';
 
 const { Text } = Typography;
 
@@ -40,37 +40,44 @@ const PluginRunHistory = memo<PluginRunHistoryProps>(
 
     return (
       <Flexbox gap={8}>
-        {items.map((item) => (
-          <Flexbox
-            gap={6}
-            key={item.runId}
-            padding={12}
-            style={{ border: '1px solid var(--lobe-color-border-secondary)', borderRadius: 8 }}
-          >
-            <Flexbox horizontal align="center" justify="space-between" gap={8}>
-              <Flexbox horizontal gap={6} wrap="wrap">
-                <Tag color={statusColor[item.status]}>
-                  {t(`platformPlugins.runHistory.status.${item.status}`)}
-                </Tag>
-                <Tag>
-                  {t('platformPlugins.runHistory.credits', {
-                    credits: formatPlatformPluginCredits(item.chargedCredits),
-                  })}
-                </Tag>
-                {item.fixedServiceFeeCharged ? (
-                  <Tag color="blue">{t('platformPlugins.runHistory.serviceFee')}</Tag>
-                ) : null}
-                {item.artifactIds.length > 0 ? (
-                  <Tag color="purple">
-                    {t('platformPlugins.runHistory.artifacts', { count: item.artifactIds.length })}
+        {items.map((item) => {
+          const previewCopyKey = item.preview ? getPlatformPluginRunPreviewCopyKey(item) : null;
+          const previewText = previewCopyKey ? t(previewCopyKey) : item.preview;
+
+          return (
+            <Flexbox
+              gap={6}
+              key={item.runId}
+              padding={12}
+              style={{ border: '1px solid var(--lobe-color-border-secondary)', borderRadius: 8 }}
+            >
+              <Flexbox horizontal align="center" justify="space-between" gap={8}>
+                <Flexbox horizontal gap={6} wrap="wrap">
+                  <Tag color={statusColor[item.status]}>
+                    {t(`platformPlugins.runHistory.status.${item.status}`)}
                   </Tag>
-                ) : null}
+                  <Tag>
+                    {t('platformPlugins.runHistory.credits', {
+                      credits: formatPlatformPluginCredits(item.chargedCredits),
+                    })}
+                  </Tag>
+                  {item.fixedServiceFeeCharged ? (
+                    <Tag color="blue">{t('platformPlugins.runHistory.serviceFee')}</Tag>
+                  ) : null}
+                  {item.artifactIds.length > 0 ? (
+                    <Tag color="purple">
+                      {t('platformPlugins.runHistory.artifacts', {
+                        count: item.artifactIds.length,
+                      })}
+                    </Tag>
+                  ) : null}
+                </Flexbox>
+                <Text type="secondary">{new Date(item.createdAt).toLocaleString()}</Text>
               </Flexbox>
-              <Text type="secondary">{new Date(item.createdAt).toLocaleString()}</Text>
+              {previewText ? <Text ellipsis>{previewText}</Text> : null}
             </Flexbox>
-            {item.preview ? <Text ellipsis>{item.preview}</Text> : null}
-          </Flexbox>
-        ))}
+          );
+        })}
         {hasMore ? (
           <Button loading={loadingMore} onClick={onLoadMore}>
             {t(
