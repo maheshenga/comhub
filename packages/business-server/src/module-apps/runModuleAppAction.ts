@@ -1,10 +1,28 @@
 import type {
   ModuleAppActionConfig,
   ModuleAppBillingConfig,
+  ModuleAppRunStatus,
   ModuleAppScopeType,
 } from '@lobechat/types';
 
-import { isSafeModuleAppApiUrl } from './safeUrl';
+import {
+  type ModuleAppArtifactStorage,
+  writeModuleAppArtifact,
+} from './artifactWriter';
+import {
+  redactModuleAppLogValue,
+  redactResolvedModuleAppSecretValues,
+} from './logRedaction';
+import {
+  runModuleAppApiAction,
+  type ModuleAppFetch,
+  type ModuleAppRunnerArtifactRequest,
+} from './runners/apiActionRunner';
+import {
+  runModuleAppContentGeneration,
+  type ModuleAppTextGenerator,
+} from './runners/contentGenerationRunner';
+import type { ModuleAppUrlResolver } from './safeUrl';
 
 export interface ModuleAppRuntimeModel {
   archiveRecord: (input: {
@@ -12,6 +30,19 @@ export interface ModuleAppRuntimeModel {
     recordId: string;
     userId: string;
   }) => Promise<unknown>;
+  createArtifact?: (input: {
+    appId: string;
+    expiresAt?: Date | null;
+    fileName: string;
+    mimeType: string;
+    recordId?: null | string;
+    runId: string;
+    scopeType: ModuleAppScopeType;
+    sizeBytes: number;
+    storageKey: string;
+    userId: string;
+    workspaceId?: string;
+  }) => Promise<{ id: string }>;
   createRecord: (input: {
     appId: string;
     collectionKey: string;
@@ -42,21 +73,36 @@ export interface ModuleAppRuntimeModel {
   }) => Promise<{ id: string }>;
   updateRun: (input: {
     billing?: Record<string, unknown>;
+    durationMs?: number;
+    errorMessage?: string;
+    errorType?: string;
     output?: Record<string, unknown>;
     runId: string;
-    status: 'succeeded';
+    status: ModuleAppRunStatus;
+  }) => Promise<unknown>;
+  writeAuditLog?: (input: {
+    actorUserId?: null | string;
+    eventType: string;
+    metadata?: null | Record<string, unknown>;
+    resourceId: string;
+    resourceType: string;
   }) => Promise<unknown>;
 }
 
 export interface RunModuleAppActionInput {
   action: ModuleAppActionConfig;
   appId: string;
+  artifactStorage?: ModuleAppArtifactStorage;
   billing?: ModuleAppBillingConfig;
+  fetchImpl?: ModuleAppFetch;
   input: Record<string, unknown>;
   model: ModuleAppRuntimeModel;
   recordId?: string;
+  resolvedSecrets?: Record<string, string>;
+  resolveHostname?: ModuleAppUrlResolver;
   runner?: ModuleAppActionRunner;
   scopeType: ModuleAppScopeType;
+  textGenerator?: ModuleAppTextGenerator;
   userId: string;
   workspaceId?: string;
 }
@@ -64,6 +110,7 @@ export interface RunModuleAppActionInput {
 export interface ModuleAppRunnerResult {
   actualAiCredits?: number;
   artifactIds?: string[];
+  artifacts?: ModuleAppRunnerArtifactRequest[];
   output?: Record<string, unknown>;
   preview?: string;
 }
@@ -73,6 +120,14 @@ export type ModuleAppActionRunner = () => Promise<ModuleAppRunnerResult>;
 const freeBilling = {
   chargedCredits: 0,
   fixedServiceFeeCharged: false,
+};
+
+const defaultBilling: ModuleAppBillingConfig = {
+  chargeMode: 'free',
+  defaultMultiplier: 1,
+  externalApiCostCredits: 0,
+  failureFixedFeePolicy: 'do_not_charge',
+  fixedServiceFeeCredits: 0,
 };
 
 const billableRuntimeTypes = new Set(['api_action', 'content_generation', 'workflow_step']);
@@ -102,41 +157,117 @@ const buildBillingSnapshot = (input: {
   actualAiCredits?: number;
   chargeMode: string;
   externalApiCostCredits?: number;
+  failureFixedFeePolicy?: ModuleAppBillingConfig['failureFixedFeePolicy'];
   fixedServiceFeeCredits?: number;
   multiplier?: number;
+  runSucceeded?: boolean;
 }) => {
   const fixedServiceFeeCredits = input.fixedServiceFeeCredits ?? 0;
   const externalApiCostCredits = input.externalApiCostCredits ?? 0;
   const actualAiCredits = input.actualAiCredits ?? 0;
   const multiplier = input.multiplier ?? 1;
   const aiCredits = actualAiCredits * multiplier;
+  const fixedServiceFeeCharged =
+    fixedServiceFeeCredits > 0 &&
+    (input.runSucceeded !== false || input.failureFixedFeePolicy !== 'do_not_charge');
+  const fixedServiceFee = fixedServiceFeeCharged ? fixedServiceFeeCredits : 0;
 
   return {
     actualAiCredits,
-    chargedCredits: fixedServiceFeeCredits + externalApiCostCredits + aiCredits,
+    chargedCredits: fixedServiceFee + externalApiCostCredits + aiCredits,
     chargeMode: input.chargeMode,
     externalApiCostCredits,
-    fixedServiceFeeCharged: fixedServiceFeeCredits > 0,
+    fixedServiceFeeCharged,
     fixedServiceFeeCredits,
     multiplier,
   };
 };
 
-const assertSafeApiRuntimeConfig = (action: ModuleAppActionConfig) => {
-  const url = action.runtimeConfig.url ?? action.runtimeConfig.endpoint;
-  if (typeof url !== 'string' || !url) return;
-  if (!isSafeModuleAppApiUrl(url)) throw new Error('MODULE_APP_UNSAFE_API_URL');
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'MODULE_APP_RUNTIME_ERROR';
+
+const getIncurredAiCredits = (error: unknown) => {
+  const value =
+    error && typeof error === 'object'
+      ? ((error as { actualAiCredits?: unknown; aiActualCredits?: unknown }).actualAiCredits ??
+        (error as { aiActualCredits?: unknown }).aiActualCredits)
+      : undefined;
+
+  return getFiniteNumber(value);
+};
+
+const resolveActionRunner = (params: RunModuleAppActionInput): ModuleAppActionRunner => {
+  if (params.runner) return params.runner;
+
+  if (params.action.runtimeType === 'api_action') {
+    return () =>
+      runModuleAppApiAction({
+        action: params.action,
+        fetchImpl: params.fetchImpl,
+        input: params.input,
+        resolvedSecrets: params.resolvedSecrets,
+        resolveHostname: params.resolveHostname,
+      });
+  }
+
+  if (params.action.runtimeType === 'content_generation') {
+    return () =>
+      runModuleAppContentGeneration({
+        action: params.action,
+        input: params.input,
+        textGenerator: params.textGenerator,
+        userId: params.userId,
+      });
+  }
+
+  throw new Error('MODULE_APP_RUNNER_REQUIRED');
+};
+
+const writeAudit = async (
+  params: RunModuleAppActionInput,
+  input: { eventType: string; metadata?: Record<string, unknown> },
+) => {
+  if (!params.model.writeAuditLog) return;
+
+  await params.model.writeAuditLog({
+    actorUserId: params.userId,
+    eventType: input.eventType,
+    metadata: input.metadata,
+    resourceId: params.appId,
+    resourceType: 'moduleApp',
+  });
+};
+
+const writeArtifacts = async (
+  params: RunModuleAppActionInput,
+  runId: string,
+  artifacts: ModuleAppRunnerArtifactRequest[] | undefined,
+) => {
+  if (!artifacts?.length) return [];
+  if (!params.artifactStorage) throw new Error('MODULE_APP_ARTIFACT_STORAGE_REQUIRED');
+  if (!params.model.createArtifact) throw new Error('MODULE_APP_ARTIFACT_REPOSITORY_REQUIRED');
+
+  const artifactIds: string[] = [];
+
+  for (const artifact of artifacts) {
+    const written = await writeModuleAppArtifact({
+      appId: params.appId,
+      artifact,
+      model: { createArtifact: params.model.createArtifact },
+      recordId: params.recordId,
+      runId,
+      scopeType: params.scopeType,
+      storage: params.artifactStorage,
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+    });
+    artifactIds.push(written.id);
+  }
+
+  return artifactIds;
 };
 
 export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
-  if (billableRuntimeTypes.has(params.action.runtimeType) && !params.runner) {
-    throw new Error('MODULE_APP_RUNNER_REQUIRED');
-  }
-
-  if (params.action.runtimeType === 'api_action') {
-    assertSafeApiRuntimeConfig(params.action);
-  }
-
   const run = await params.model.createRun({
     actionId: params.action.id,
     appId: params.appId,
@@ -237,37 +368,94 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
   }
 
   if (billableRuntimeTypes.has(params.action.runtimeType)) {
-    const runnerResult = await params.runner!();
-    const billing = params.billing ?? {
-      chargeMode: 'free',
-      defaultMultiplier: 1,
-      externalApiCostCredits: 0,
-      failureFixedFeePolicy: 'do_not_charge',
-      fixedServiceFeeCredits: 0,
-    };
-    const billingSnapshot = buildBillingSnapshot({
-      actualAiCredits: getFiniteNumber(runnerResult.actualAiCredits),
-      chargeMode: billing.chargeMode,
-      externalApiCostCredits: billing.externalApiCostCredits,
-      fixedServiceFeeCredits: billing.fixedServiceFeeCredits,
-      multiplier: billing.defaultMultiplier * params.action.moduleMultiplier,
-    });
-    const output = runnerResult.output ?? {};
+    const startedAt = Date.now();
+    const runner = resolveActionRunner(params);
+    const billing = params.billing ?? defaultBilling;
 
-    await params.model.updateRun({
-      billing: billingSnapshot,
-      output,
-      runId: run.id,
-      status: 'succeeded',
-    });
+    try {
+      const runnerResult = await runner();
+      const billingSnapshot = buildBillingSnapshot({
+        actualAiCredits: getFiniteNumber(runnerResult.actualAiCredits),
+        chargeMode: billing.chargeMode,
+        externalApiCostCredits: billing.externalApiCostCredits,
+        failureFixedFeePolicy: billing.failureFixedFeePolicy,
+        fixedServiceFeeCredits: billing.fixedServiceFeeCredits,
+        multiplier: billing.defaultMultiplier * params.action.moduleMultiplier,
+        runSucceeded: true,
+      });
+      const writtenArtifactIds = await writeArtifacts(params, run.id, runnerResult.artifacts);
+      const artifactIds = [...(runnerResult.artifactIds ?? []), ...writtenArtifactIds];
+      const output = {
+        ...(runnerResult.output ?? {}),
+        ...(artifactIds.length > 0 ? { artifactIds } : {}),
+      };
 
-    return {
-      artifactIds: runnerResult.artifactIds ?? [],
-      billing: billingSnapshot,
-      preview: runnerResult.preview ?? '',
-      runId: run.id,
-      status: 'succeeded' as const,
-    };
+      await params.model.updateRun({
+        billing: billingSnapshot,
+        durationMs: Date.now() - startedAt,
+        output,
+        runId: run.id,
+        status: 'succeeded',
+      });
+      await writeAudit(params, {
+        eventType: 'module_app.run_succeeded',
+        metadata: {
+          actionId: params.action.id,
+          artifactIds,
+          billing: billingSnapshot,
+        },
+      });
+
+      return {
+        artifactIds,
+        billing: billingSnapshot,
+        preview: runnerResult.preview ?? '',
+        runId: run.id,
+        status: 'succeeded' as const,
+      };
+    } catch (error) {
+      const safeMessage = String(
+        redactResolvedModuleAppSecretValues(
+          getErrorMessage(error),
+          params.resolvedSecrets ?? {},
+        ),
+      );
+      const billingSnapshot = buildBillingSnapshot({
+        actualAiCredits: getIncurredAiCredits(error),
+        chargeMode: billing.chargeMode,
+        externalApiCostCredits: billing.externalApiCostCredits,
+        failureFixedFeePolicy: billing.failureFixedFeePolicy,
+        fixedServiceFeeCredits: billing.fixedServiceFeeCredits,
+        multiplier: billing.defaultMultiplier * params.action.moduleMultiplier,
+        runSucceeded: false,
+      });
+
+      await params.model.updateRun({
+        billing: billingSnapshot,
+        durationMs: Date.now() - startedAt,
+        errorMessage: safeMessage,
+        errorType: 'module_app_runtime_error',
+        output: {},
+        runId: run.id,
+        status: 'failed',
+      });
+      await writeAudit(params, {
+        eventType: 'module_app.run_failed',
+        metadata: redactModuleAppLogValue({
+          actionId: params.action.id,
+          billing: billingSnapshot,
+          errorMessage: safeMessage,
+        }) as Record<string, unknown>,
+      });
+
+      return {
+        artifactIds: [],
+        billing: billingSnapshot,
+        preview: 'module_app_run_failed',
+        runId: run.id,
+        status: 'failed' as const,
+      };
+    }
   }
 
   throw new Error(`MODULE_APP_RUNTIME_NOT_IMPLEMENTED:${params.action.runtimeType}`);

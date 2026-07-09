@@ -1,16 +1,33 @@
 import { describe, expect, it } from 'vitest';
 
-import { isSafeModuleAppApiUrl } from './safeUrl';
+import { assertSafeModuleAppApiUrl, isSafeModuleAppApiUrl } from './safeUrl';
 
-describe('isSafeModuleAppApiUrl', () => {
-  it('allows public https urls', () => {
-    expect(isSafeModuleAppApiUrl('https://api.example.com/run')).toBe(true);
+describe('module app safe URL validation', () => {
+  it('keeps the sync compatibility helper for simple public URLs', () => {
+    expect(isSafeModuleAppApiUrl('https://api.example.com/v1')).toBe(true);
+    expect(isSafeModuleAppApiUrl('ftp://api.example.com/v1')).toBe(false);
+    expect(isSafeModuleAppApiUrl('http://localhost:3000')).toBe(false);
   });
 
-  it('blocks localhost and private networks', () => {
-    expect(isSafeModuleAppApiUrl('http://localhost:3000')).toBe(false);
-    expect(isSafeModuleAppApiUrl('http://127.0.0.1:3000')).toBe(false);
-    expect(isSafeModuleAppApiUrl('http://10.0.0.2/run')).toBe(false);
-    expect(isSafeModuleAppApiUrl('ftp://api.example.com/run')).toBe(false);
+  it('rejects credentials and DNS results pointing to private addresses', async () => {
+    await expect(
+      assertSafeModuleAppApiUrl('https://user:pass@example.com/v1', {
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).rejects.toThrow('MODULE_APP_UNSAFE_API_URL');
+
+    await expect(
+      assertSafeModuleAppApiUrl('https://api.example.com/v1', {
+        resolveHostname: () => ['127.0.0.1'],
+      }),
+    ).rejects.toThrow('MODULE_APP_UNSAFE_API_URL');
+  });
+
+  it('normalizes safe public URLs after DNS verification', async () => {
+    await expect(
+      assertSafeModuleAppApiUrl('https://api.example.com/v1', {
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).resolves.toBe('https://api.example.com/v1');
   });
 });

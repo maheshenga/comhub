@@ -1235,6 +1235,59 @@ export class ModuleAppModel {
     return { ok: true as const };
   };
 
+  createArtifact = async (params: {
+    appId: string;
+    expiresAt?: Date | null;
+    fileName: string;
+    mimeType: string;
+    recordId?: null | string;
+    runId: string;
+    scopeType: ModuleAppScopeType;
+    sizeBytes: number;
+    storageKey: string;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    const [row] = await this.db
+      .insert(moduleAppArtifacts)
+      .values({
+        appId: params.appId,
+        expiresAt: params.expiresAt ?? null,
+        fileName: params.fileName,
+        mimeType: params.mimeType,
+        recordId: params.recordId ?? null,
+        runId: params.runId,
+        scopeType: params.scopeType,
+        sizeBytes: params.sizeBytes,
+        storageKey: params.storageKey,
+        userId: params.userId,
+        workspaceId: params.scopeType === 'workspace' ? params.workspaceId : undefined,
+      })
+      .returning({ id: moduleAppArtifacts.id });
+
+    if (!row) throw new Error('MODULE_APP_ARTIFACT_CREATE_FAILED');
+
+    return row;
+  };
+
+  writeAuditLog = async (params: {
+    actorUserId?: null | string;
+    eventType: string;
+    metadata?: null | Record<string, unknown>;
+    resourceId: string;
+    resourceType: string;
+  }) => {
+    await this.db.insert(moduleAppAuditLogs).values({
+      actorUserId: params.actorUserId ?? null,
+      eventType: params.eventType,
+      metadata: params.metadata ?? {},
+      resourceId: params.resourceId,
+      resourceType: params.resourceType,
+    });
+
+    return { ok: true as const };
+  };
+
   listRuns = async (params: {
     appId: string;
     cursor?: number;

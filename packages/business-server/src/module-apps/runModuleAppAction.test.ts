@@ -224,4 +224,177 @@ describe('runModuleAppAction record actions', () => {
       multiplier: 3,
     });
   });
+
+  it('uses the built-in API action runner when no explicit runner is provided', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      headers: { get: () => 'application/json' },
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: { summary: 'fruit' } }),
+    });
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+      writeAuditLog: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'lookup',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Lookup',
+        outputSchema: {},
+        runtimeConfig: {
+          bodyTemplate: { keyword: '{{keyword}}' },
+          responsePath: 'data.summary',
+          url: 'https://api.example.com/search',
+        },
+        runtimeType: 'api_action',
+      },
+      appId: APP_ID,
+      fetchImpl,
+      input: { keyword: 'apple' },
+      model: model as never,
+      resolveHostname: () => ['93.184.216.34'],
+      scopeType: 'personal',
+      userId: 'u1',
+    });
+
+    expect(result).toMatchObject({
+      preview: 'fruit',
+      status: 'succeeded',
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(model.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'module_app.run_succeeded',
+        resourceId: APP_ID,
+      }),
+    );
+  });
+
+  it('writes artifacts returned by the built-in content generation runner', async () => {
+    const artifactStorage = {
+      uploadBuffer: vi.fn().mockResolvedValue({ key: 'stored/module-app-result.md' }),
+    };
+    const model = {
+      createArtifact: vi.fn().mockResolvedValue({ id: 'artifact-1' }),
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+      writeAuditLog: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'generate',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Generate',
+        outputSchema: {},
+        runtimeConfig: {
+          artifactNameTemplate: '{{topic}}.md',
+          promptTemplate: 'Write about {{topic}}',
+        },
+        runtimeType: 'content_generation',
+      },
+      appId: APP_ID,
+      artifactStorage,
+      input: { topic: 'apple' },
+      model: model as never,
+      scopeType: 'personal',
+      textGenerator: vi.fn().mockResolvedValue({
+        actualAiCredits: 4,
+        text: 'Apple note',
+      }),
+      userId: 'u1',
+    });
+
+    expect(result).toMatchObject({
+      artifactIds: ['artifact-1'],
+      preview: 'Apple note',
+      status: 'succeeded',
+    });
+    expect(artifactStorage.uploadBuffer).toHaveBeenCalledWith(
+      expect.stringMatching(/^module-apps\/00000000-0000-4000-8000-000000000001\/run-1\/.+-apple\.md$/),
+      expect.any(Buffer),
+      'text/markdown',
+    );
+    expect(model.createArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: APP_ID,
+        fileName: 'apple.md',
+        mimeType: 'text/markdown',
+        runId: 'run-1',
+        sizeBytes: Buffer.byteLength('Apple note'),
+        storageKey: 'stored/module-app-result.md',
+      }),
+    );
+    expect(model.updateRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: expect.objectContaining({ artifactIds: ['artifact-1'] }),
+        status: 'succeeded',
+      }),
+    );
+  });
+
+  it('persists failed billable runs with redacted errors and audit events', async () => {
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+      writeAuditLog: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'lookup',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Lookup',
+        outputSchema: {},
+        runtimeConfig: {},
+        runtimeType: 'api_action',
+      },
+      appId: APP_ID,
+      billing: {
+        chargeMode: 'external_api',
+        defaultMultiplier: 1,
+        externalApiCostCredits: 7,
+        failureFixedFeePolicy: 'do_not_charge',
+        fixedServiceFeeCredits: 5,
+      },
+      input: { keyword: 'apple' },
+      model: model as never,
+      resolvedSecrets: { apiKey: 'secret-token' },
+      runner: vi.fn().mockRejectedValue(new Error('upstream leaked secret-token')),
+      scopeType: 'personal',
+      userId: 'u1',
+    });
+
+    expect(result).toMatchObject({
+      artifactIds: [],
+      preview: 'module_app_run_failed',
+      status: 'failed',
+    });
+    expect(model.updateRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billing: expect.objectContaining({
+          chargedCredits: 7,
+          fixedServiceFeeCharged: false,
+        }),
+        errorMessage: 'upstream leaked [REDACTED]',
+        errorType: 'module_app_runtime_error',
+        status: 'failed',
+      }),
+    );
+    expect(model.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'module_app.run_failed',
+        metadata: expect.objectContaining({
+          errorMessage: 'upstream leaked [REDACTED]',
+        }),
+        resourceId: APP_ID,
+      }),
+    );
+  });
 });

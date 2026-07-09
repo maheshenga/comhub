@@ -964,6 +964,12 @@
 - Review model: Submitted package review continues through `module_app_packages`; approval converts reviewed manifests into Module App records.
 - Boundary: P0/P1 does not execute uploaded code and does not remove MCP or Skills.
 
+#### Module App Platform Unification P2
+
+- Status: experimental
+- Runtime parity: Module App owns API action and content generation runners, artifact persistence, failure run snapshots, safe URL validation, and runtime audit events.
+- Boundary: P2 keeps Platform Plugin code only as deprecated compatibility and does not execute uploaded package code.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |

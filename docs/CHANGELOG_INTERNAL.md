@@ -7,6 +7,7 @@
 - MODULE-APP-UNIFY-P0-001: Deprecated Platform Plugin Marketplace as a product track and redirected new extensibility work to Module App Platform.
 - MODULE-APP-UNIFY-P1-001: Added Module App source ownership for `system`, `admin`, `user`, and `developer` app sources across type contracts, database schema, migrations, model list/detail responses, admin forms, and package approval.
 - MODULE-APP-UNIFY-P1-002: Added the admin Module App package review queue tab with pending package listing, source/status display, and approve/reject actions.
+- MODULE-APP-UNIFY-P2-001: Added Module App-owned API/content runtime parity with safe URL checks, redacted snapshots, artifacts, failed run records, and audit events.
 - Boundary: Platform Plugin code and `platform_plugin_*` tables remain in place for later staged removal; MCP and Skills are unchanged.
 
 ## 2026-07-09
