@@ -163,4 +163,35 @@ describe('module app admin form schema', () => {
       'No visible plan entitlement configured',
     ]);
   });
+
+  it('converts an existing app detail into editable form values', () => {
+    const values = normalizeModuleAppFormValues({
+      actions: [
+        {
+          id: 'create_record',
+          inputSchema: { fields: [] },
+          moduleMultiplier: 1,
+          name: 'Create record',
+          outputSchema: {},
+          runtimeConfig: { collectionKey: 'records' },
+          runtimeType: 'record_create',
+        },
+      ],
+      appType: 'standard_app',
+      billing: { chargeMode: 'free', defaultMultiplier: 1 },
+      category: 'office',
+      description: 'Simple workbench app.',
+      displayName: 'Workbench',
+      icon: 'Blocks',
+      id: '00000000-0000-4000-8000-000000000001',
+      pages: [{ key: 'overview', routePath: '/', title: 'Overview', type: 'overview' }],
+      slug: 'workbench',
+      status: 'draft',
+      tags: ['office'],
+    });
+
+    expect(values.id).toBe('00000000-0000-4000-8000-000000000001');
+    expect(values.actions[0].runtimeConfigJson).toContain('collectionKey');
+    expect(values.pages[0].dataSourceJson).toBe('');
+  });
 });
