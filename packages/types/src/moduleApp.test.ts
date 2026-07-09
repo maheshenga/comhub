@@ -11,6 +11,7 @@ import {
   moduleAppPageSchema,
   moduleAppRecordInputSchema,
   moduleAppRuntimeTypeSchema,
+  moduleAppSourceSchema,
 } from './moduleApp';
 
 describe('module app type contracts', () => {
@@ -78,6 +79,60 @@ describe('module app type contracts', () => {
 
     expect(input.pages).toHaveLength(2);
     expect(input.actions).toHaveLength(1);
+  });
+
+  it('defaults admin-created apps to admin source and accepts reviewed sources', () => {
+    expect(moduleAppSourceSchema.options).toEqual(['system', 'admin', 'user', 'developer']);
+
+    expect(
+      moduleAppAdminUpsertSchema.parse({
+        actions: [],
+        appType: 'standard_app',
+        billing: {},
+        category: 'office',
+        description: 'Admin-created module.',
+        displayName: 'Admin Module',
+        icon: 'Blocks',
+        pages: [],
+        slug: 'admin-module',
+        status: 'draft',
+        tags: [],
+      }).source,
+    ).toBe('admin');
+
+    expect(
+      moduleAppAdminUpsertSchema.parse({
+        actions: [],
+        appType: 'standard_app',
+        billing: {},
+        category: 'developer',
+        description: 'Developer submitted module.',
+        displayName: 'Developer Module',
+        icon: 'Package',
+        pages: [],
+        slug: 'developer-module',
+        source: 'developer',
+        status: 'draft',
+        tags: [],
+      }).source,
+    ).toBe('developer');
+
+    expect(() =>
+      moduleAppAdminUpsertSchema.parse({
+        actions: [],
+        appType: 'standard_app',
+        billing: {},
+        category: 'bad',
+        description: 'Invalid source.',
+        displayName: 'Invalid Source',
+        icon: 'Package',
+        pages: [],
+        slug: 'invalid-source',
+        source: 'plugin',
+        status: 'draft',
+        tags: [],
+      }),
+    ).toThrow();
   });
 
   it('normalizes optional list and record inputs', () => {

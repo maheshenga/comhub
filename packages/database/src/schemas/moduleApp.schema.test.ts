@@ -83,4 +83,19 @@ describe('module app schema exports', () => {
       true,
     );
   });
+
+  it('registers the module app source migration', () => {
+    const migration = readFileSync(
+      resolve(__dirname, '../../migrations/0133_add_module_app_source.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain(`ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'admin' NOT NULL`);
+    expect(migration).toContain('module_apps_source_check');
+    expect(migration).toContain(`IN ('system', 'admin', 'user', 'developer')`);
+    expect(journal.entries.some(({ tag }) => tag === '0133_add_module_app_source')).toBe(true);
+  });
 });

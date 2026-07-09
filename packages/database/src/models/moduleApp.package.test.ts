@@ -29,6 +29,7 @@ const manifest: ModuleAppPackageManifest = {
     icon: 'Package',
     pages: [],
     slug: 'package-app',
+    source: 'developer',
     status: 'draft',
     tags: [],
   },
@@ -65,7 +66,7 @@ describe('ModuleAppModel package review lifecycle', () => {
     const result = await new ModuleAppModel(db).createPackageSubmission({
       archive,
       fileManifest: [{ path: 'manifest.json', sha256: HASH, sizeBytes: 512 }],
-      manifest,
+      manifest: { ...manifest, app: { ...manifest.app, source: 'system' } },
       submittedByUserId: 'user-1',
       validationReport: [],
     });
@@ -75,7 +76,12 @@ describe('ModuleAppModel package review lifecycle', () => {
     expect(values).toHaveBeenCalledWith(
       expect.objectContaining({
         archive,
-        manifestSnapshot: manifest,
+        manifestSnapshot: expect.objectContaining({
+          app: expect.objectContaining({
+            displayName: 'Package App',
+            source: 'developer',
+          }),
+        }),
         reviewStatus: 'pending_review',
         submittedByUserId: 'user-1',
       }),
@@ -154,7 +160,11 @@ describe('ModuleAppModel package review lifecycle', () => {
     });
 
     expect(insertValuesByTable.get(moduleApps)).toEqual(
-      expect.objectContaining({ displayName: 'Package App', slug: 'package-app' }),
+      expect.objectContaining({
+        displayName: 'Package App',
+        slug: 'package-app',
+        source: 'developer',
+      }),
     );
     expect(insertValuesByTable.get(moduleAppEntitlements)).toEqual([
       expect.objectContaining({ appId: app.id, plan: 'pro', runnable: true }),

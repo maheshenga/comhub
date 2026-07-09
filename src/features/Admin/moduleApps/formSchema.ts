@@ -6,6 +6,7 @@ import type {
   ModuleAppPageType,
   ModuleAppPlanEntitlement,
   ModuleAppRuntimeType,
+  ModuleAppSource,
   ModuleAppStatus,
   ModuleAppType,
 } from '@lobechat/types';
@@ -63,6 +64,7 @@ export type ModuleAppAdminFormInput = {
   id?: string;
   pages?: ModuleAppPageFormInput[];
   slug?: string;
+  source?: ModuleAppSource | string;
   status?: ModuleAppStatus | string;
   tags?: string[] | string;
 };
@@ -216,6 +218,11 @@ const toStatus = (value: ModuleAppAdminFormInput['status']): ModuleAppStatus => 
   return 'draft';
 };
 
+const toSource = (value: ModuleAppAdminFormInput['source']): ModuleAppSource => {
+  if (value === 'system' || value === 'user' || value === 'developer') return value;
+  return 'admin';
+};
+
 const toAppType = (value: ModuleAppAdminFormInput['appType']): ModuleAppType => {
   if (
     value === 'api_app' ||
@@ -355,6 +362,7 @@ export const createDefaultModuleAppFormValues = (): ModuleAppAdminFormValues => 
   icon: 'Blocks',
   pages: [normalizePage(DEFAULT_PAGE, 0)],
   slug: '',
+  source: 'admin',
   status: 'draft',
   tags: [],
 });
@@ -378,6 +386,7 @@ export const normalizeModuleAppFormValues = (
     id: toText(input.id) || undefined,
     pages,
     slug: toSlug(input.slug),
+    source: toSource(input.source),
     status: toStatus(input.status),
     tags: toTags(input.tags),
   };

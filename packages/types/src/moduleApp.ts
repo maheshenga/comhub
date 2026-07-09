@@ -14,6 +14,9 @@ const stripUndefinedValues = <T extends Record<string, unknown>>(value: T) =>
 export const moduleAppStatusSchema = z.enum(['draft', 'published', 'unpublished']);
 export type ModuleAppStatus = z.infer<typeof moduleAppStatusSchema>;
 
+export const moduleAppSourceSchema = z.enum(['system', 'admin', 'user', 'developer']);
+export type ModuleAppSource = z.infer<typeof moduleAppSourceSchema>;
+
 export const moduleAppTypeSchema = z.enum([
   'standard_app',
   'api_app',
@@ -122,6 +125,7 @@ export const moduleAppAdminUpsertSchema = z.object({
   id: z.string().uuid().optional(),
   pages: z.array(moduleAppPageSchema).max(80).default([]),
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  source: moduleAppSourceSchema.default('admin'),
   status: moduleAppStatusSchema.default('draft'),
   tags: z.array(z.string().min(1).max(40)).max(20).default([]),
 });

@@ -3,7 +3,9 @@ import type {
   ModuleAppAdminUpsertInput,
   ModuleAppBillingConfig,
   ModuleAppPage,
+  ModuleAppPackageReviewStatus,
   ModuleAppPlanEntitlement,
+  ModuleAppSource,
   ModuleAppStatus,
   ModuleAppType,
 } from '@lobechat/types';
@@ -17,6 +19,7 @@ export type AdminModuleAppItem = {
   icon: string;
   id: string;
   slug: string;
+  source?: ModuleAppSource;
   status: ModuleAppStatus;
   tags?: string[];
   updatedAt?: Date | string;
@@ -36,4 +39,21 @@ export type AdminModuleAppUpsertResult = Pick<ModuleAppAdminUpsertInput, 'slug'>
 export type AdminPlanOption = {
   displayName?: string;
   plan: string;
+};
+
+export type AdminModuleAppPackageRow = {
+  appId?: null | string;
+  createdAt?: Date | string;
+  id: string;
+  manifestSnapshot?: {
+    app?: {
+      displayName?: string;
+      slug?: string;
+      source?: ModuleAppSource;
+    };
+    packageVersion?: string;
+  };
+  rejectionReason?: null | string;
+  reviewStatus: ModuleAppPackageReviewStatus;
+  submittedByUserId?: null | string;
 };

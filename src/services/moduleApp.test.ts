@@ -49,6 +49,7 @@ describe('createModuleAppService', () => {
           icon: 'Package',
           pages: [],
           slug: 'package-app',
+          source: 'developer',
           status: 'draft',
           tags: [],
         },

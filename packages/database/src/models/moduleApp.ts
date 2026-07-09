@@ -77,6 +77,7 @@ const toListItem = (
   installed,
   planState: buildPlanState(entitlement),
   slug: app.slug,
+  source: app.source,
   status: app.status,
   tags: app.tags,
 });
@@ -250,6 +251,7 @@ export class ModuleAppModel {
       icon: input.icon,
       pages: input.pages,
       slug: input.slug,
+      source: input.source,
       status: input.status,
       tags: input.tags,
     } satisfies Record<string, unknown>;
@@ -342,6 +344,7 @@ export class ModuleAppModel {
       icon: input.icon,
       metadata: {},
       slug: input.slug,
+      source: input.source,
       status: input.status,
       tags: input.tags,
     };
@@ -406,12 +409,16 @@ export class ModuleAppModel {
     },
   ) => {
     const parsed = moduleAppPackageSubmitSchema.parse(params);
+    const manifestSnapshot = {
+      ...parsed.manifest,
+      app: { ...parsed.manifest.app, source: 'developer' as const },
+    };
     const [submission] = await this.db
       .insert(moduleAppPackages)
       .values({
         archive: parsed.archive,
         fileManifest: parsed.fileManifest,
-        manifestSnapshot: parsed.manifest,
+        manifestSnapshot,
         reviewStatus: 'pending_review',
         submittedByUserId: params.submittedByUserId,
         validationReport: params.validationReport ?? [],
@@ -474,7 +481,8 @@ export class ModuleAppModel {
       }
 
       const normalized = normalizePackageManifestForApproval(submission.manifestSnapshot);
-      const app = await this.upsertAppForAdminWithExecutor(normalized.app, tx);
+      const appInput = { ...normalized.app, source: 'developer' as const };
+      const app = await this.upsertAppForAdminWithExecutor(appInput, tx);
       await this.replaceEntitlementsForAdmin(
         { appId: app.id, entitlements: normalized.entitlements },
         tx,
@@ -488,7 +496,7 @@ export class ModuleAppModel {
         .update(moduleAppPackages)
         .set({
           appId: app.id,
-          publishedAt: normalized.app.status === 'published' ? (version.publishedAt ?? now) : null,
+          publishedAt: appInput.status === 'published' ? (version.publishedAt ?? now) : null,
           rejectionReason: null,
           reviewStatus: 'approved',
           reviewedAt: now,

@@ -4,6 +4,7 @@ import type {
   ModuleAppActionConfig,
   ModuleAppAdminUpsertInput,
   ModuleAppPage,
+  ModuleAppPackageReviewStatus,
   ModuleAppPlanEntitlement,
   ModuleAppStatus,
 } from '@lobechat/types';
@@ -36,6 +37,7 @@ import RunsTable from './RunsTable';
 import type {
   AdminModuleAppDetail,
   AdminModuleAppItem,
+  AdminModuleAppPackageRow,
   AdminModuleAppUpsertResult,
 } from './types';
 
@@ -47,6 +49,7 @@ type ListResponse<T> = {
 };
 
 type StatusFilter = 'all' | ModuleAppStatus;
+type PackageStatusFilter = 'all' | ModuleAppPackageReviewStatus;
 
 type ModuleAppRecordRow = {
   collectionKey: string;
@@ -97,6 +100,13 @@ const statusOptions: Array<{ label: string; value: StatusFilter }> = [
   { label: 'Unpublished', value: 'unpublished' },
 ];
 
+const packageStatusOptions: Array<{ label: string; value: PackageStatusFilter }> = [
+  { label: 'All packages', value: 'all' },
+  { label: 'Pending review', value: 'pending_review' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Rejected', value: 'rejected' },
+];
+
 const statusColor: Record<ModuleAppStatus, string> = {
   draft: 'default',
   published: 'green',
@@ -107,6 +117,12 @@ const statusLabel: Record<ModuleAppStatus, string> = {
   draft: 'Draft',
   published: 'Published',
   unpublished: 'Unpublished',
+};
+
+const packageStatusColor: Record<ModuleAppPackageReviewStatus, string> = {
+  approved: 'green',
+  pending_review: 'gold',
+  rejected: 'red',
 };
 
 const formatDate = (value?: Date | string) => {
@@ -132,12 +148,18 @@ const isDetail = (app: AdminModuleAppDetail | AdminModuleAppItem): app is AdminM
 
 const AdminModuleAppsPage = memo(() => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [packageStatusFilter, setPackageStatusFilter] =
+    useState<PackageStatusFilter>('pending_review');
   const [selectedAppId, setSelectedAppId] = useState<string>();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<AdminModuleAppDetail | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const listKey = useMemo(() => ['admin-module-apps', statusFilter], [statusFilter]);
+  const packagesKey = useMemo(
+    () => ['admin-module-app-packages', packageStatusFilter],
+    [packageStatusFilter],
+  );
   const detailKey = useMemo(
     () => (selectedAppId ? ['admin-module-app-detail', selectedAppId] : null),
     [selectedAppId],
@@ -170,6 +192,14 @@ const AdminModuleAppsPage = memo(() => {
         limit: 100,
         status: statusFilter === 'all' ? undefined : statusFilter,
       }) as Promise<ListResponse<AdminModuleAppItem>>,
+  );
+  const { data: packagesData, isLoading: packagesLoading } = useClientDataSWR(
+    packagesKey,
+    () =>
+      adminCommercialService.moduleApps.listPackages({
+        limit: 100,
+        reviewStatus: packageStatusFilter === 'all' ? undefined : packageStatusFilter,
+      }) as Promise<ListResponse<AdminModuleAppPackageRow>>,
   );
   const { data: detailData, isLoading: detailLoading } = useClientDataSWR(
     detailKey,
@@ -220,6 +250,7 @@ const AdminModuleAppsPage = memo(() => {
   );
 
   const items = listData?.items ?? [];
+  const packages = packagesData?.items ?? [];
   const detail = detailData ?? null;
   const selectedListItem = items.find((item) => item.id === selectedAppId);
   const selectedApp = detail ?? selectedListItem ?? null;
@@ -252,6 +283,10 @@ const AdminModuleAppsPage = memo(() => {
       mutate(['admin-module-app-installs', appId]),
       mutate(['admin-module-app-audit-events', appId]),
     ]);
+  };
+
+  const refreshPackageData = async () => {
+    await mutate(packagesKey);
   };
 
   const runMutation = async (action: () => Promise<void>, success: string) => {
@@ -314,6 +349,22 @@ const AdminModuleAppsPage = memo(() => {
       await refreshAppData(app.id);
     }, 'Module app unpublished');
 
+  const handleApprovePackage = (packageId: string) =>
+    runMutation(async () => {
+      await adminCommercialService.moduleApps.approvePackage({ packageId });
+      await refreshPackageData();
+      await refreshAppData();
+    }, 'Package approved');
+
+  const handleRejectPackage = (packageId: string) =>
+    runMutation(async () => {
+      await adminCommercialService.moduleApps.rejectPackage({
+        packageId,
+        reason: 'Rejected from admin review queue',
+      });
+      await refreshPackageData();
+    }, 'Package rejected');
+
   const appColumns = [
     {
       dataIndex: 'displayName',
@@ -336,6 +387,12 @@ const AdminModuleAppsPage = memo(() => {
       key: 'appType',
       render: (value: string) => <Tag>{value}</Tag>,
       title: 'Type',
+    },
+    {
+      dataIndex: 'source',
+      key: 'source',
+      render: (value?: string) => <Tag>{value ?? 'admin'}</Tag>,
+      title: 'Source',
     },
     { dataIndex: 'category', key: 'category', title: 'Category' },
     {
@@ -429,6 +486,80 @@ const AdminModuleAppsPage = memo(() => {
     { dataIndex: 'discountPercent', key: 'discountPercent', render: (value: number) => `${value ?? 0}%`, title: 'Discount' },
   ];
 
+  const packageColumns = [
+    {
+      key: 'app',
+      render: (_: unknown, row: AdminModuleAppPackageRow) =>
+        row.manifestSnapshot?.app?.displayName ?? '-',
+      title: 'App',
+    },
+    {
+      key: 'slug',
+      render: (_: unknown, row: AdminModuleAppPackageRow) => (
+        <Text code>{row.manifestSnapshot?.app?.slug ?? '-'}</Text>
+      ),
+      title: 'Slug',
+    },
+    {
+      key: 'source',
+      render: (_: unknown, row: AdminModuleAppPackageRow) => (
+        <Tag>{row.manifestSnapshot?.app?.source ?? 'developer'}</Tag>
+      ),
+      title: 'Source',
+    },
+    {
+      key: 'packageVersion',
+      render: (_: unknown, row: AdminModuleAppPackageRow) => (
+        <Text code>{row.manifestSnapshot?.packageVersion ?? '-'}</Text>
+      ),
+      title: 'Version',
+    },
+    {
+      dataIndex: 'reviewStatus',
+      key: 'reviewStatus',
+      render: (value: ModuleAppPackageReviewStatus) => (
+        <Tag color={packageStatusColor[value]}>{value}</Tag>
+      ),
+      title: 'Review status',
+    },
+    {
+      dataIndex: 'submittedByUserId',
+      key: 'submittedByUserId',
+      render: (value?: null | string) => <Text code>{value ?? '-'}</Text>,
+      title: 'Submitter',
+    },
+    {
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: formatDate,
+      title: 'Submitted',
+    },
+    {
+      key: 'actions',
+      render: (_: unknown, row: AdminModuleAppPackageRow) => (
+        <Flexbox horizontal gap={8}>
+          <Button
+            disabled={row.reviewStatus !== 'pending_review'}
+            size="small"
+            type="primary"
+            onClick={() => handleApprovePackage(row.id)}
+          >
+            Approve
+          </Button>
+          <Button
+            danger
+            disabled={row.reviewStatus !== 'pending_review'}
+            size="small"
+            onClick={() => handleRejectPackage(row.id)}
+          >
+            Reject
+          </Button>
+        </Flexbox>
+      ),
+      title: 'Actions',
+    },
+  ];
+
   const tabItems = [
     {
       children: selectedApp ? (
@@ -443,6 +574,9 @@ const AdminModuleAppsPage = memo(() => {
             </Descriptions.Item>
             <Descriptions.Item label="Type">
               <Tag>{selectedApp.appType}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Source">
+              <Tag>{selectedApp.source ?? 'admin'}</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Category">{selectedApp.category}</Descriptions.Item>
             <Descriptions.Item label="Version">{detail?.version ?? '-'}</Descriptions.Item>
@@ -462,6 +596,31 @@ const AdminModuleAppsPage = memo(() => {
       ),
       key: 'overview',
       label: 'Overview',
+    },
+    {
+      children: (
+        <Flexbox gap={12}>
+          <Flexbox horizontal align="center" gap={8} justify="space-between">
+            <Text type="secondary">
+              Review user and developer submitted Module App packages before they become apps.
+            </Text>
+            <Select<PackageStatusFilter>
+              options={packageStatusOptions}
+              style={{ width: 180 }}
+              value={packageStatusFilter}
+              onChange={setPackageStatusFilter}
+            />
+          </Flexbox>
+          <InlineTable
+            columns={packageColumns as any}
+            dataSource={packages}
+            loading={packagesLoading}
+            rowKey="id"
+          />
+        </Flexbox>
+      ),
+      key: 'packages',
+      label: 'Package review',
     },
     {
       children: (

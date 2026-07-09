@@ -290,6 +290,25 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   },
 ];
 
+const moduleAppAdminGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'plugins');
+
+if (moduleAppAdminGroup) {
+  moduleAppAdminGroup.description =
+    'Module App Platform is the target app/module marketplace. Platform Plugins are deprecated compatibility surfaces pending staged removal.';
+
+  for (const item of moduleAppAdminGroup.items) {
+    if (item.path === `${ADMIN_BASE_PATH}/platform-plugins`) {
+      item.description =
+        'Deprecated compatibility management for existing platform plugins before Module App cutover removes this surface.';
+    }
+
+    if (item.path === `${ADMIN_BASE_PATH}/module-apps`) {
+      item.description =
+        'Manage module apps, package review, pages, actions, entitlements, billing, records, runs, artifacts, and audit logs.';
+    }
+  }
+}
+
 const ADMIN_NAV_ALIASES: Record<string, string> = {
   [`${ADMIN_BASE_PATH}/change-requests`]: `${ADMIN_BASE_PATH}/subscriptions`,
   [`${ADMIN_BASE_PATH}/pricing`]: `${ADMIN_BASE_PATH}/model-billing-matrix`,

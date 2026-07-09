@@ -1,5 +1,14 @@
 # Internal Changelog
 
+## 2026-07-10
+
+### Module App Platform Unification
+
+- MODULE-APP-UNIFY-P0-001: Deprecated Platform Plugin Marketplace as a product track and redirected new extensibility work to Module App Platform.
+- MODULE-APP-UNIFY-P1-001: Added Module App source ownership for `system`, `admin`, `user`, and `developer` app sources across type contracts, database schema, migrations, model list/detail responses, admin forms, and package approval.
+- MODULE-APP-UNIFY-P1-002: Added the admin Module App package review queue tab with pending package listing, source/status display, and approve/reject actions.
+- Boundary: Platform Plugin code and `platform_plugin_*` tables remain in place for later staged removal; MCP and Skills are unchanged.
+
 ## 2026-07-09
 
 ### Module App Platform

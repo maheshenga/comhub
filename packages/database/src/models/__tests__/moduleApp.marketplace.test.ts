@@ -85,6 +85,7 @@ const createRecordDesk = async () => {
       },
     ],
     slug: 'record-desk',
+    source: 'admin',
     status: 'published',
     tags: ['records'],
   });
@@ -125,6 +126,7 @@ describe('ModuleAppModel marketplace behavior', () => {
         },
       ],
       slug: 'hidden-desk',
+      source: 'admin',
       status: 'published',
       tags: ['records'],
     });

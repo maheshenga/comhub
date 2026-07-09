@@ -71,7 +71,7 @@
 | Legacy Top-up 入口 | `deprecated` | 中 | 是 | 是 |
 | 空壳 Workspace 商业 Router | `unknown` | 高 | 是 | 是 |
 | Storage Overage 空壳 Router | `deprecated` | 中 | 是 | 是 |
-| Platform Plugin Marketplace | `experimental` | 高 | 是 | 是 |
+| Platform Plugin Marketplace | `deprecated` | 高 | 是 | 是 |
 | Module App Platform | `experimental` | 高 | 是 | 是 |
 
 ## 功能明细
@@ -857,6 +857,14 @@
 | 备注 | P1 明确不导入现有 MCP 或 Skills。聊天快捷入口只导航到显式插件详情/运行面板，不经过旧 Tool Store、MCP settings 或 Skill ActionTag 执行链路。 |
 | Seed script | `scripts/seedPlatformPlugins.ts` creates draft samples; admins must publish them before users can see them. |
 
+#### Platform Plugin Marketplace Deprecation Freeze
+
+- Status: deprecated
+- Decision: New extensibility, app marketplace, module factory, package submission, billing, and runtime work must target Module App Platform.
+- Compatibility: Existing code remains only until Module App parity and product surface cutover are complete.
+- Safety: Do not drop `platform_plugin_*` tables until backup and production safety confirmation are complete.
+- Boundary: MCP and Skills are not part of this removal.
+
 #### Platform Plugin Marketplace P2-lite Update
 
 - Status: experimental
@@ -937,7 +945,7 @@
 
 - Status: experimental
 - Description: Adds the first package-container foundation for user/developer submitted module app packages. P1 stores archive metadata, parsed `manifest.json`, file manifest, validation issues, and admin review status in `module_app_packages`.
-- Frontend entries: no upload UI yet; client wrappers now expose `moduleAppService.submitPackage` and `adminCommercialService.moduleApps.*Package` for later UI wiring.
+- Frontend entries: admin review queue is available in `/settings/admin/module-apps`; upload UI is not added yet. Client wrappers expose `moduleAppService.submitPackage` and `adminCommercialService.moduleApps.*Package`.
 - Backend API: `lambda.moduleApp.submitPackage`, `admin.moduleApps.listPackages`, `admin.moduleApps.getPackage`, `admin.moduleApps.approvePackage`, `admin.moduleApps.rejectPackage`.
 - Database dependencies: adds `module_app_packages`, linked optionally to `module_apps` and `module_app_versions` after approval.
 - Config dependencies: package manifest app schema, package runtime kind, plan entitlements, existing module app billing config.
@@ -947,6 +955,14 @@
 - Refactor recommendation: keep package validation pure and keep any future runtime/container execution behind a separate reviewed runtime service, not inside TRPC routers or database models.
 - Test recommendation: add browser upload/review flow and real database migration tests when upload UI and storage integration are added.
 - Note: Approval converts a reviewed manifest into existing Module App records and entitlements only. Real zip parsing, upload UI, SDK/API gateway, server container runtime, and package upgrade/uninstall UX remain later phases.
+
+#### Module App Platform Unification P0/P1
+
+- Status: experimental
+- Decision: Module App Platform is the sole long-term extensibility platform for system, admin-created, user-uploaded, and developer-submitted apps/modules.
+- Source model: Apps must identify one source: `system`, `admin`, `user`, or `developer`.
+- Review model: Submitted package review continues through `module_app_packages`; approval converts reviewed manifests into Module App records.
+- Boundary: P0/P1 does not execute uploaded code and does not remove MCP or Skills.
 
 ## 待人工确认清单
 

@@ -10,6 +10,7 @@ import type {
   ModuleAppPackageValidationIssue,
   ModuleAppRunStatus,
   ModuleAppScopeType,
+  ModuleAppSource,
   ModuleAppStatus,
   ModuleAppType,
 } from '@lobechat/types';
@@ -48,6 +49,7 @@ export const moduleApps = pgTable(
     category: text('category').notNull(),
     description: text('description').notNull(),
     appType: text('app_type').$type<ModuleAppType>().notNull(),
+    source: text('source').$type<ModuleAppSource>().default('admin').notNull(),
     status: text('status').$type<ModuleAppStatus>().default('draft').notNull(),
     tags: jsonb('tags').$type<string[]>().default([]).notNull(),
     billing: jsonb('billing')
