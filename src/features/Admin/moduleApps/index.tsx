@@ -28,7 +28,9 @@ import { adminCommercialService } from '@/services/adminCommercial';
 
 import AppEditorModal from './AppEditorModal';
 import ArtifactsTable from './ArtifactsTable';
+import AuditEventsTable from './AuditEventsTable';
 import { buildModuleAppPublishWarnings } from './formSchema';
+import InstallsTable from './InstallsTable';
 import RecordsTable from './RecordsTable';
 import RunsTable from './RunsTable';
 import type {
@@ -46,6 +48,32 @@ type ListResponse<T> = {
 
 type StatusFilter = 'all' | ModuleAppStatus;
 
+type ModuleAppRecordRow = {
+  collectionKey: string;
+  id: string;
+  scopeType: string;
+  status?: string;
+  title?: null | string;
+};
+
+type ModuleAppRunRow = {
+  actionId?: null | string;
+  createdAt?: Date | string;
+  durationMs?: null | number;
+  errorType?: null | string;
+  id: string;
+  status: string;
+};
+
+type ModuleAppArtifactRow = {
+  artifactType?: null | string;
+  fileName?: null | string;
+  id: string;
+  mimeType?: null | string;
+  sizeBytes?: null | number;
+  storageUrl?: null | string;
+};
+
 type ModuleAppInstallRow = {
   id: string;
   installedAt?: Date | string;
@@ -60,28 +88,6 @@ type ModuleAppAuditRow = {
   createdAt?: Date | string;
   eventType: string;
   id: string;
-};
-
-type ModuleAppRecordRow = {
-  collectionKey: string;
-  id: string;
-  scopeType: string;
-  status?: string;
-  title?: null | string;
-};
-
-type ModuleAppRunRow = {
-  actionId?: null | string;
-  createdAt?: Date | string;
-  id: string;
-  status: string;
-};
-
-type ModuleAppArtifactRow = {
-  artifactType?: null | string;
-  fileName?: null | string;
-  id: string;
-  storageUrl?: null | string;
 };
 
 const statusOptions: Array<{ label: string; value: StatusFilter }> = [
@@ -423,22 +429,6 @@ const AdminModuleAppsPage = memo(() => {
     { dataIndex: 'discountPercent', key: 'discountPercent', render: (value: number) => `${value ?? 0}%`, title: 'Discount' },
   ];
 
-  const installColumns = [
-    { dataIndex: 'id', key: 'id', render: (value: string) => <Text code>{value}</Text>, title: 'Install' },
-    { dataIndex: 'scopeType', key: 'scopeType', title: 'Scope' },
-    { dataIndex: 'status', key: 'status', title: 'Status' },
-    { dataIndex: 'userId', key: 'userId', render: (value?: string) => value || '-', title: 'User' },
-    { dataIndex: 'workspaceId', key: 'workspaceId', render: (value?: string) => value || '-', title: 'Workspace' },
-    { dataIndex: 'installedAt', key: 'installedAt', render: formatDate, title: 'Installed' },
-  ];
-
-  const auditColumns = [
-    { dataIndex: 'id', key: 'id', render: (value: string) => <Text code>{value}</Text>, title: 'Audit' },
-    { dataIndex: 'eventType', key: 'eventType', title: 'Event' },
-    { dataIndex: 'actorUserId', key: 'actorUserId', render: (value?: string) => value || '-', title: 'Actor' },
-    { dataIndex: 'createdAt', key: 'createdAt', render: formatDate, title: 'Created' },
-  ];
-
   const tabItems = [
     {
       children: selectedApp ? (
@@ -533,45 +523,27 @@ const AdminModuleAppsPage = memo(() => {
       label: 'Billing',
     },
     {
-      children: (
-        <InlineTable
-          columns={installColumns as any}
-          dataSource={installs}
-          loading={installsLoading}
-          rowKey="id"
-        />
-      ),
+      children: <InstallsTable items={installs} loading={installsLoading} />,
       key: 'installs',
       label: 'Installs',
     },
     {
-      children: recordsLoading ? (
-        <Spin />
-      ) : (
-        <RecordsTable items={records} />
-      ),
+      children: <RecordsTable items={records} loading={recordsLoading} />,
       key: 'records',
       label: 'Records',
     },
     {
-      children: runsLoading ? <Spin /> : <RunsTable items={runs} />,
+      children: <RunsTable items={runs} loading={runsLoading} />,
       key: 'runs',
       label: 'Runs',
     },
     {
-      children: artifactsLoading ? <Spin /> : <ArtifactsTable items={artifacts} />,
+      children: <ArtifactsTable items={artifacts} loading={artifactsLoading} />,
       key: 'artifacts',
       label: 'Artifacts',
     },
     {
-      children: (
-        <InlineTable
-          columns={auditColumns as any}
-          dataSource={auditEvents}
-          loading={auditLoading}
-          rowKey="id"
-        />
-      ),
+      children: <AuditEventsTable items={auditEvents} loading={auditLoading} />,
       key: 'audit',
       label: 'Audit',
     },

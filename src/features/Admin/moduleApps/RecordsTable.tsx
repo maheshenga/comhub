@@ -6,13 +6,19 @@ interface ModuleAppRecordRow {
   scopeType: string;
   status?: string;
   title?: null | string;
+  updatedAt?: Date | string;
 }
 
 interface RecordsTableProps {
   items?: ModuleAppRecordRow[];
+  loading?: boolean;
 }
 
-const RecordsTable = memo<RecordsTableProps>(({ items = [] }) => {
+const RecordsTable = memo<RecordsTableProps>(({ items = [], loading }) => {
+  if (loading) {
+    return <div data-testid="admin-module-app-records">Loading records</div>;
+  }
+
   if (items.length === 0) {
     return <div data-testid="admin-module-app-records">No records</div>;
   }
@@ -25,6 +31,7 @@ const RecordsTable = memo<RecordsTableProps>(({ items = [] }) => {
           <th>Collection</th>
           <th>Scope</th>
           <th>Status</th>
+          <th>Updated</th>
         </tr>
       </thead>
       <tbody>
@@ -34,6 +41,7 @@ const RecordsTable = memo<RecordsTableProps>(({ items = [] }) => {
             <td>{item.collectionKey}</td>
             <td>{item.scopeType}</td>
             <td>{item.status ?? '-'}</td>
+            <td>{item.updatedAt ? String(item.updatedAt) : '-'}</td>
           </tr>
         ))}
       </tbody>
