@@ -134,3 +134,10 @@
 - Verification: `packages/business-server/src/module-apps/safeUrl.test.ts` and `packages/business-server/src/module-apps/runModuleAppAction.test.ts`.
 - MODULE-APP-P1-012: Added run preview formatting plus lightweight user run-result and admin records/runs/artifacts display shells for the Module App P1 surface.
 - Verification: `src/features/ModuleAppRuntime/runtimeHelpers.test.ts`.
+
+### Module App Platform P2-A Admin Editor
+
+- Added the admin editor foundation for `/admin/module-apps`, including metadata authoring, page/action/entitlement/billing editors, publish controls, and operational inspection tabs.
+- Added read-only admin installs, records, runs, artifacts, and audit table coverage for the selected module app.
+- Preserved isolation from Platform Plugin Marketplace, MCP, and Skills; P2-A does not execute arbitrary frontend code, use iframe/remote modules, or post real credit ledger transactions.
+- Verification: `src/features/Admin/moduleApps/formSchema.test.ts`, `src/features/Admin/moduleApps/editors.test.tsx`, `src/features/Admin/moduleApps/AppEditorModal.test.tsx`, `src/features/Admin/moduleApps/tables.test.tsx`, `src/services/adminCommercial.test.ts`, and `packages/business-server/src/lambda-routers/admin/moduleApps.test.ts`.

@@ -957,6 +957,18 @@
 | P4 | 桌面客户端、Composio、通知、记忆 | 增加后台诊断页和缓存刷新/同步反馈 |
 | P5 | 社区、Skill、MCP、Workspace 预留功能 | 清理空壳、deprecated candidate 和市场数据 fallback |
 
+#### Module App Platform P2-A Admin Editor Update
+
+- Status: experimental
+- Description: P2-A adds a usable admin editor at `/admin/module-apps` for listing apps, creating/editing metadata, pages, actions, entitlements, billing config, publish state, and read-only installs/records/runs/artifacts/audit inspection.
+- Frontend entries: `/admin/module-apps`, compatibility entry `/settings/admin/module-apps`
+- Core components: `src/features/Admin/moduleApps/*`
+- Backend API: existing `admin.moduleApps.*`
+- Database dependencies: existing `module_app_*` tables
+- Maintenance risk: high
+- Test recommendation: add browser smoke for create draft -> edit -> publish warning -> inspect records/runs/artifacts once a seeded test database is available.
+- Note: The feature remains experimental and still does not import MCP/Skills, execute arbitrary frontend code, use iframes/remote modules, or post real credit ledger transactions.
+
 ## Governance Execution Notes
 
 | Date | Scope | Status | Note |
