@@ -1,5 +1,6 @@
 import type {
   ModuleAppMarketplaceListInput,
+  ModuleAppPackageSubmitInput,
   ModuleAppRecordInput,
   ModuleAppRunInput,
 } from '@lobechat/types';
@@ -38,6 +39,8 @@ export const createModuleAppService = (client: ModuleAppClient) => ({
   listRuns: (input: { appId: string }) => client.moduleApp.listRuns.query!(input),
   listTeamApps: (input: { workspaceId: string }) => client.moduleApp.listTeamApps.query!(input),
   runAction: (input: ModuleAppRunInput) => client.moduleApp.runAction.mutate!(input),
+  submitPackage: (input: ModuleAppPackageSubmitInput) =>
+    client.moduleApp.submitPackage.mutate!(input),
   uninstallPersonal: (input: { appId: string }) =>
     client.moduleApp.uninstallPersonal.mutate!(input),
   updateRecord: (input: ModuleAppRecordInput & { recordId: string }) =>

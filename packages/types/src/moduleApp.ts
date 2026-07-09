@@ -161,3 +161,87 @@ export const moduleAppRunInputSchema = z.object({
   workspaceId: z.string().optional(),
 });
 export type ModuleAppRunInput = z.infer<typeof moduleAppRunInputSchema>;
+
+export const moduleAppPackageReviewStatusSchema = z.enum([
+  'pending_review',
+  'approved',
+  'rejected',
+]);
+export type ModuleAppPackageReviewStatus = z.infer<
+  typeof moduleAppPackageReviewStatusSchema
+>;
+
+export const moduleAppPackageRuntimeKindSchema = z.enum([
+  'manifest_only',
+  'frontend_static',
+  'external_api',
+]);
+export type ModuleAppPackageRuntimeKind = z.infer<
+  typeof moduleAppPackageRuntimeKindSchema
+>;
+
+export const moduleAppPackageRuntimeSchema = z.object({
+  entry: optionalTrimmedString(240),
+  kind: moduleAppPackageRuntimeKindSchema.default('manifest_only'),
+  permissions: z
+    .array(z.string().regex(/^[a-z][a-z0-9_.:-]{1,79}$/))
+    .max(80)
+    .default([]),
+});
+export type ModuleAppPackageRuntime = z.infer<typeof moduleAppPackageRuntimeSchema>;
+
+export const moduleAppPackageArchiveMetadataSchema = z.object({
+  fileName: z
+    .string()
+    .min(1)
+    .max(240)
+    .refine((value) => value.toLowerCase().endsWith('.zip'), {
+      message: 'module_app_package_archive_must_be_zip',
+    }),
+  mimeType: z
+    .enum(['application/zip', 'application/x-zip-compressed', 'application/octet-stream'])
+    .default('application/zip'),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/i),
+  sizeBytes: z.coerce.number().int().min(1),
+  storageKey: z.string().min(1).max(600),
+});
+export type ModuleAppPackageArchiveMetadata = z.infer<
+  typeof moduleAppPackageArchiveMetadataSchema
+>;
+
+export const moduleAppPackageFileManifestItemSchema = z.object({
+  path: z.string().min(1).max(500),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+  sizeBytes: z.coerce.number().int().min(0),
+});
+export type ModuleAppPackageFileManifestItem = z.infer<
+  typeof moduleAppPackageFileManifestItemSchema
+>;
+
+export const moduleAppPackageValidationIssueSchema = z.object({
+  code: z.string().min(1).max(120),
+  message: z.string().min(1).max(500),
+  path: z.string().max(500).optional(),
+  severity: z.enum(['error', 'warning']),
+});
+export type ModuleAppPackageValidationIssue = z.infer<
+  typeof moduleAppPackageValidationIssueSchema
+>;
+
+export const moduleAppPackageManifestSchema = z.object({
+  app: moduleAppAdminUpsertSchema.omit({ id: true }).extend({
+    status: moduleAppStatusSchema.default('draft'),
+  }),
+  entitlements: z.array(moduleAppPlanEntitlementSchema).max(100).default([]),
+  manifestVersion: z.literal(1),
+  packageVersion: z.string().min(1).max(80),
+  runtime: moduleAppPackageRuntimeSchema.default({ kind: 'manifest_only' }),
+});
+export type ModuleAppPackageManifest = z.infer<typeof moduleAppPackageManifestSchema>;
+
+export const moduleAppPackageSubmitSchema = z.object({
+  archive: moduleAppPackageArchiveMetadataSchema,
+  fileManifest: z.array(moduleAppPackageFileManifestItemSchema).max(1000).default([]),
+  manifest: moduleAppPackageManifestSchema,
+});
+export type ModuleAppPackageSubmitInput = z.infer<typeof moduleAppPackageSubmitSchema>;

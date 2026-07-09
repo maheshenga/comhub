@@ -227,6 +227,10 @@ class AdminCommercialService {
   // Module apps
   moduleApps = {
     get: (input: { appId: string }) => lambdaClient.admin.moduleApps.get.query(input),
+    approvePackage: (input: { packageId: string }) =>
+      lambdaClient.admin.moduleApps.approvePackage.mutate(input),
+    getPackage: (input: { packageId: string }) =>
+      lambdaClient.admin.moduleApps.getPackage.query(input),
     list: (input?: { category?: string; cursor?: number; limit?: number; status?: string }) =>
       lambdaClient.admin.moduleApps.list.query(input as any),
     listArtifacts: (input: { appId: string; cursor?: number; limit?: number }) =>
@@ -235,11 +239,20 @@ class AdminCommercialService {
       lambdaClient.admin.moduleApps.listAuditEvents.query(input),
     listInstalls: (input: { appId: string; cursor?: number; limit?: number }) =>
       lambdaClient.admin.moduleApps.listInstalls.query(input),
+    listPackages: (input?: {
+      appId?: string;
+      cursor?: number;
+      limit?: number;
+      reviewStatus?: string;
+      submittedByUserId?: string;
+    }) => lambdaClient.admin.moduleApps.listPackages.query(input as any),
     listRecords: (input: { appId: string; cursor?: number; limit?: number }) =>
       lambdaClient.admin.moduleApps.listRecords.query(input),
     listRuns: (input: { appId: string; cursor?: number; limit?: number }) =>
       lambdaClient.admin.moduleApps.listRuns.query(input),
     publish: (input: { appId: string }) => lambdaClient.admin.moduleApps.publish.mutate(input),
+    rejectPackage: (input: { packageId: string; reason?: string }) =>
+      lambdaClient.admin.moduleApps.rejectPackage.mutate(input),
     unpublish: (input: { appId: string }) => lambdaClient.admin.moduleApps.unpublish.mutate(input),
     upsert: (input: unknown) => lambdaClient.admin.moduleApps.upsert.mutate(input as any),
     upsertActions: (input: { actions: unknown[]; appId: string }) =>

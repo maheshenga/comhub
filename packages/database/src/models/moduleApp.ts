@@ -2,6 +2,9 @@ import type {
   ModuleAppActionConfig,
   ModuleAppAdminUpsertInput,
   ModuleAppMarketplaceListInput,
+  ModuleAppPackageReviewStatus,
+  ModuleAppPackageSubmitInput,
+  ModuleAppPackageValidationIssue,
   ModuleAppPage,
   ModuleAppPlanEntitlement,
   ModuleAppRecordInput,
@@ -10,6 +13,8 @@ import type {
   ModuleAppScopeType,
   ModuleAppStatus,
 } from '@lobechat/types';
+import { moduleAppPackageManifestSchema, moduleAppPackageSubmitSchema } from '@lobechat/types';
+import type { SQL } from 'drizzle-orm';
 import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 
 import {
@@ -18,6 +23,7 @@ import {
   moduleAppAuditLogs,
   moduleAppEntitlements,
   moduleAppInstallations,
+  moduleAppPackages,
   moduleAppPages,
   moduleAppRecordEvents,
   moduleAppRecords,
@@ -37,6 +43,7 @@ type DbExecutor = LobeChatDatabase | Transaction;
 type ModuleAppRow = typeof moduleApps.$inferSelect;
 type ModuleAppActionRow = typeof moduleAppActions.$inferSelect;
 type ModuleAppEntitlementRow = typeof moduleAppEntitlements.$inferSelect;
+type ModuleAppPackageRow = typeof moduleAppPackages.$inferSelect;
 type ModuleAppPageRow = typeof moduleAppPages.$inferSelect;
 type ModuleAppVersionRow = typeof moduleAppVersions.$inferSelect;
 
@@ -105,6 +112,17 @@ const toEntitlementConfig = (
   runnable: entitlement.runnable,
   visible: entitlement.visible,
 });
+
+const normalizePackageManifestForApproval = (manifest: ModuleAppPackageRow['manifestSnapshot']) => {
+  const parsed = moduleAppPackageManifestSchema.parse(manifest);
+
+  return {
+    app: parsed.app,
+    entitlements: parsed.entitlements,
+    packageVersion: parsed.packageVersion,
+    runtime: parsed.runtime,
+  };
+};
 
 const matchesMarketplaceFilters = (
   app: ReturnType<typeof toListItem>,
@@ -310,45 +328,214 @@ export class ModuleAppModel {
     }
   };
 
+  private upsertAppForAdminWithExecutor = async (
+    input: ModuleAppAdminUpsertInput,
+    db: DbExecutor,
+  ): Promise<{ id: string; slug: string }> => {
+    const existing = await this.findAppForUpsert(input, db);
+    const appValues = {
+      appType: input.appType,
+      billing: input.billing,
+      category: input.category,
+      description: input.description,
+      displayName: input.displayName,
+      icon: input.icon,
+      metadata: {},
+      slug: input.slug,
+      status: input.status,
+      tags: input.tags,
+    };
+
+    let app: ModuleAppRow;
+
+    if (existing) {
+      const [updated] = await db
+        .update(moduleApps)
+        .set({ ...appValues, updatedAt: new Date() })
+        .where(eq(moduleApps.id, existing.id))
+        .returning();
+      app = updated;
+    } else {
+      const [inserted] = await db
+        .insert(moduleApps)
+        .values({ ...appValues, id: input.id })
+        .returning();
+      app = inserted;
+    }
+
+    const version = await this.ensureVersionSnapshot(app.id, input, db);
+    await this.replacePagesAndActions(app.id, version.id, input, db);
+
+    return { id: app.id, slug: app.slug };
+  };
+
+  private replaceEntitlementsForAdmin = async (
+    params: {
+      appId: string;
+      entitlements: ModuleAppPlanEntitlement[];
+    },
+    db: DbExecutor,
+  ) => {
+    await db.delete(moduleAppEntitlements).where(eq(moduleAppEntitlements.appId, params.appId));
+
+    if (params.entitlements.length > 0) {
+      await db.insert(moduleAppEntitlements).values(
+        params.entitlements.map((entitlement) => ({
+          appId: params.appId,
+          discountPercent: entitlement.discountPercent,
+          freeQuotaCredits: entitlement.freeQuotaCredits,
+          installable: entitlement.installable,
+          plan: entitlement.plan,
+          runnable: entitlement.runnable,
+          visible: entitlement.visible,
+        })),
+      );
+    }
+  };
+
   upsertAppForAdmin = async (
     input: ModuleAppAdminUpsertInput,
   ): Promise<{ id: string; slug: string }> => {
+    return this.db.transaction((tx) => this.upsertAppForAdminWithExecutor(input, tx));
+  };
+
+  createPackageSubmission = async (
+    params: ModuleAppPackageSubmitInput & {
+      submittedByUserId: string;
+      validationReport?: ModuleAppPackageValidationIssue[];
+    },
+  ) => {
+    const parsed = moduleAppPackageSubmitSchema.parse(params);
+    const [submission] = await this.db
+      .insert(moduleAppPackages)
+      .values({
+        archive: parsed.archive,
+        fileManifest: parsed.fileManifest,
+        manifestSnapshot: parsed.manifest,
+        reviewStatus: 'pending_review',
+        submittedByUserId: params.submittedByUserId,
+        validationReport: params.validationReport ?? [],
+      })
+      .returning();
+
+    return submission;
+  };
+
+  listAdminPackageSubmissions = async (
+    params: {
+      appId?: string;
+      cursor?: number;
+      limit?: number;
+      reviewStatus?: ModuleAppPackageReviewStatus;
+      submittedByUserId?: string;
+    } = {},
+  ) => {
+    const limit = params.limit ?? 50;
+    const cursor = params.cursor ?? 0;
+    const conditions: Array<SQL | undefined> = [
+      params.reviewStatus ? eq(moduleAppPackages.reviewStatus, params.reviewStatus) : undefined,
+      params.submittedByUserId
+        ? eq(moduleAppPackages.submittedByUserId, params.submittedByUserId)
+        : undefined,
+      params.appId ? eq(moduleAppPackages.appId, params.appId) : undefined,
+    ];
+    const filters = conditions.filter((condition): condition is SQL => condition !== undefined);
+
+    const items = await this.db.query.moduleAppPackages.findMany({
+      limit,
+      offset: cursor,
+      orderBy: [desc(moduleAppPackages.createdAt)],
+      where: filters.length > 0 ? and(...filters) : undefined,
+    });
+
+    return { items, nextCursor: items.length === limit ? cursor + limit : null };
+  };
+
+  getAdminPackageSubmission = async (params: { packageId: string }) => {
+    return (
+      (await this.db.query.moduleAppPackages.findFirst({
+        where: eq(moduleAppPackages.id, params.packageId),
+      })) ?? null
+    );
+  };
+
+  approvePackageSubmissionForAdmin = async (params: {
+    packageId: string;
+    reviewedByUserId: string;
+  }) => {
     return this.db.transaction(async (tx) => {
-      const existing = await this.findAppForUpsert(input, tx);
-      const appValues = {
-        appType: input.appType,
-        billing: input.billing,
-        category: input.category,
-        description: input.description,
-        displayName: input.displayName,
-        icon: input.icon,
-        metadata: {},
-        slug: input.slug,
-        status: input.status,
-        tags: input.tags,
-      };
+      const submission = await tx.query.moduleAppPackages.findFirst({
+        where: eq(moduleAppPackages.id, params.packageId),
+      });
 
-      let app: ModuleAppRow;
-
-      if (existing) {
-        const [updated] = await tx
-          .update(moduleApps)
-          .set({ ...appValues, updatedAt: new Date() })
-          .where(eq(moduleApps.id, existing.id))
-          .returning();
-        app = updated;
-      } else {
-        const [inserted] = await tx
-          .insert(moduleApps)
-          .values({ ...appValues, id: input.id })
-          .returning();
-        app = inserted;
+      if (!submission) throw new Error('MODULE_APP_PACKAGE_NOT_FOUND');
+      if (submission.reviewStatus !== 'pending_review') {
+        throw new Error('MODULE_APP_PACKAGE_NOT_PENDING_REVIEW');
       }
 
-      const version = await this.ensureVersionSnapshot(app.id, input, tx);
-      await this.replacePagesAndActions(app.id, version.id, input, tx);
+      const normalized = normalizePackageManifestForApproval(submission.manifestSnapshot);
+      const app = await this.upsertAppForAdminWithExecutor(normalized.app, tx);
+      await this.replaceEntitlementsForAdmin(
+        { appId: app.id, entitlements: normalized.entitlements },
+        tx,
+      );
 
-      return { id: app.id, slug: app.slug };
+      const version = await this.getLatestVersion(app.id, tx);
+      if (!version) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+
+      const now = new Date();
+      const [updatedPackage] = await tx
+        .update(moduleAppPackages)
+        .set({
+          appId: app.id,
+          publishedAt: normalized.app.status === 'published' ? (version.publishedAt ?? now) : null,
+          rejectionReason: null,
+          reviewStatus: 'approved',
+          reviewedAt: now,
+          reviewedByUserId: params.reviewedByUserId,
+          updatedAt: now,
+          versionId: version.id,
+        })
+        .where(eq(moduleAppPackages.id, params.packageId))
+        .returning();
+
+      return {
+        appId: app.id,
+        package: updatedPackage,
+        slug: app.slug,
+        versionId: version.id,
+      };
+    });
+  };
+
+  rejectPackageSubmissionForAdmin = async (params: {
+    packageId: string;
+    reason?: string;
+    reviewedByUserId: string;
+  }) => {
+    return this.db.transaction(async (tx) => {
+      const submission = await tx.query.moduleAppPackages.findFirst({
+        where: eq(moduleAppPackages.id, params.packageId),
+      });
+
+      if (!submission) throw new Error('MODULE_APP_PACKAGE_NOT_FOUND');
+      if (submission.reviewStatus !== 'pending_review') {
+        throw new Error('MODULE_APP_PACKAGE_NOT_PENDING_REVIEW');
+      }
+
+      const [updatedPackage] = await tx
+        .update(moduleAppPackages)
+        .set({
+          rejectionReason: params.reason,
+          reviewStatus: 'rejected',
+          reviewedAt: new Date(),
+          reviewedByUserId: params.reviewedByUserId,
+          updatedAt: new Date(),
+        })
+        .where(eq(moduleAppPackages.id, params.packageId))
+        .returning();
+
+      return updatedPackage;
     });
   };
 
@@ -505,23 +692,7 @@ export class ModuleAppModel {
     appId: string;
     entitlements: ModuleAppPlanEntitlement[];
   }) => {
-    await this.db
-      .delete(moduleAppEntitlements)
-      .where(eq(moduleAppEntitlements.appId, params.appId));
-
-    if (params.entitlements.length > 0) {
-      await this.db.insert(moduleAppEntitlements).values(
-        params.entitlements.map((entitlement) => ({
-          appId: params.appId,
-          discountPercent: entitlement.discountPercent,
-          freeQuotaCredits: entitlement.freeQuotaCredits,
-          installable: entitlement.installable,
-          plan: entitlement.plan,
-          runnable: entitlement.runnable,
-          visible: entitlement.visible,
-        })),
-      );
-    }
+    await this.replaceEntitlementsForAdmin(params, this.db);
 
     return { ok: true as const };
   };

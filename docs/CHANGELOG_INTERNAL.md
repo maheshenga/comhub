@@ -134,6 +134,9 @@
 - Verification: `packages/business-server/src/module-apps/safeUrl.test.ts` and `packages/business-server/src/module-apps/runModuleAppAction.test.ts`.
 - MODULE-APP-P1-012: Added run preview formatting plus lightweight user run-result and admin records/runs/artifacts display shells for the Module App P1 surface.
 - Verification: `src/features/ModuleAppRuntime/runtimeHelpers.test.ts`.
+- MODULE-APP-P1-013: Added the package review foundation for Module App Platform packages, including package manifest/runtime contracts, pure package validation, `module_app_packages`, model submission/approval/rejection lifecycle, user submit API, admin review APIs, and client service wrappers.
+- Boundaries: this slice does not unzip archives, add upload UI, execute uploaded code, run frontend JS, use iframe/remote modules, create Docker/server containers, or import MCP/Skills/Platform Plugin behavior.
+- Verification: `packages/types/src/moduleApp.test.ts`, `packages/business-server/src/module-apps/packageManifest.test.ts`, `packages/database/src/schemas/moduleApp.schema.test.ts`, `packages/database/src/models/moduleApp.package.test.ts`, `apps/server/src/routers/lambda/moduleApp.test.ts`, `packages/business-server/src/lambda-routers/admin/moduleApps.test.ts`, `src/services/moduleApp.test.ts`, and `src/services/adminCommercial.test.ts`.
 
 ### Module App Platform P2-A Admin Editor
 

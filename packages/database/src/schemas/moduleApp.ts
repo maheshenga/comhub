@@ -3,6 +3,11 @@ import type {
   ModuleAppBillingConfig,
   ModuleAppInputSchema,
   ModuleAppPage,
+  ModuleAppPackageArchiveMetadata,
+  ModuleAppPackageFileManifestItem,
+  ModuleAppPackageManifest,
+  ModuleAppPackageReviewStatus,
+  ModuleAppPackageValidationIssue,
   ModuleAppRunStatus,
   ModuleAppScopeType,
   ModuleAppStatus,
@@ -455,6 +460,65 @@ export const moduleAppArtifacts = pgTable(
 
 export type NewModuleAppArtifact = typeof moduleAppArtifacts.$inferInsert;
 export type ModuleAppArtifactItem = typeof moduleAppArtifacts.$inferSelect;
+
+export const moduleAppPackages = pgTable(
+  'module_app_packages',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    appId: uuid('app_id').references(() => moduleApps.id, {
+      onDelete: 'set null',
+    }),
+    versionId: uuid('version_id').references(() => moduleAppVersions.id, {
+      onDelete: 'set null',
+    }),
+    submittedByUserId: text('submitted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    reviewedByUserId: text('reviewed_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    reviewStatus: text('review_status')
+      .$type<ModuleAppPackageReviewStatus>()
+      .default('pending_review')
+      .notNull(),
+    archive: jsonb('archive')
+      .$type<ModuleAppPackageArchiveMetadata>()
+      .notNull(),
+    fileManifest: jsonb('file_manifest')
+      .$type<ModuleAppPackageFileManifestItem[]>()
+      .default([])
+      .notNull(),
+    manifestSnapshot: jsonb('manifest_snapshot')
+      .$type<ModuleAppPackageManifest>()
+      .notNull(),
+    validationReport: jsonb('validation_report')
+      .$type<ModuleAppPackageValidationIssue[]>()
+      .default([])
+      .notNull(),
+    rejectionReason: text('rejection_reason'),
+    reviewedAt: timestamptz('reviewed_at'),
+    publishedAt: timestamptz('published_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index('module_app_packages_review_status_created_at_idx').on(
+      table.reviewStatus,
+      table.createdAt,
+    ),
+    index('module_app_packages_submitted_by_created_at_idx').on(
+      table.submittedByUserId,
+      table.createdAt,
+    ),
+    index('module_app_packages_app_id_created_at_idx').on(
+      table.appId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export type NewModuleAppPackage = typeof moduleAppPackages.$inferInsert;
+export type ModuleAppPackageItem = typeof moduleAppPackages.$inferSelect;
 
 export const moduleAppAuditLogs = pgTable(
   'module_app_audit_logs',

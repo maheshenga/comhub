@@ -14,6 +14,7 @@ const {
   mockGetSubscriptionPlan: vi.fn(),
   mockRunModuleAppAction: vi.fn(),
   mockModuleAppModel: {
+    createPackageSubmission: vi.fn(),
     createRecord: vi.fn(),
     createRun: vi.fn(),
     getAppDetail: vi.fn(),
@@ -124,5 +125,57 @@ describe('moduleApp router registration', () => {
       }),
     );
     expect(mockModuleAppModel.createRun).not.toHaveBeenCalled();
+  });
+
+  it('validates and stores a module app package submission', async () => {
+    mockModuleAppModel.createPackageSubmission.mockResolvedValue({
+      id: 'package-1',
+      reviewStatus: 'pending_review',
+    });
+
+    await expect(
+      createCaller().submitPackage({
+        archive: {
+          fileName: 'package-app.zip',
+          mimeType: 'application/zip',
+          sha256: 'a'.repeat(64),
+          sizeBytes: 1024,
+          storageKey: 'module-app-packages/package-app.zip',
+        },
+        fileManifest: [{ path: 'manifest.json', sha256: 'a'.repeat(64), sizeBytes: 512 }],
+        manifest: {
+          app: {
+            actions: [],
+            appType: 'standard_app',
+            billing: {
+              chargeMode: 'free',
+              defaultMultiplier: 1,
+              externalApiCostCredits: 0,
+              failureFixedFeePolicy: 'do_not_charge',
+              fixedServiceFeeCredits: 0,
+            },
+            category: 'business',
+            description: 'A package app.',
+            displayName: 'Package App',
+            icon: 'Package',
+            pages: [],
+            slug: 'package-app',
+            status: 'draft',
+            tags: [],
+          },
+          entitlements: [],
+          manifestVersion: 1,
+          packageVersion: '1.0.0',
+          runtime: { kind: 'manifest_only', permissions: [] },
+        },
+      }),
+    ).resolves.toEqual({ id: 'package-1', reviewStatus: 'pending_review' });
+
+    expect(mockModuleAppModel.createPackageSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        submittedByUserId: 'user-1',
+        validationReport: [],
+      }),
+    );
   });
 });

@@ -7,7 +7,11 @@ import { writeModuleAppAuditLog } from '../../module-apps/audit';
 import { adminRouter } from './index';
 
 const moduleAppModelMocks = vi.hoisted(() => ({
+  approvePackageSubmissionForAdmin: vi.fn(),
   getAdminApp: vi.fn(),
+  getAdminPackageSubmission: vi.fn(),
+  listAdminPackageSubmissions: vi.fn(),
+  rejectPackageSubmissionForAdmin: vi.fn(),
   setStatus: vi.fn(),
   upsertAppForAdmin: vi.fn(),
 }));
@@ -115,6 +119,7 @@ vi.mock('./users', async () => {
 });
 
 const APP_ID = '00000000-0000-4000-8000-000000000001';
+const PACKAGE_ID = '00000000-0000-4000-8000-000000000011';
 
 const createDb = () =>
   ({
@@ -135,6 +140,24 @@ describe('admin module apps router', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     moduleAppModelMocks.getAdminApp.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
+    moduleAppModelMocks.getAdminPackageSubmission.mockResolvedValue({
+      id: PACKAGE_ID,
+      reviewStatus: 'pending_review',
+    });
+    moduleAppModelMocks.listAdminPackageSubmissions.mockResolvedValue({
+      items: [{ id: PACKAGE_ID }],
+      nextCursor: null,
+    });
+    moduleAppModelMocks.approvePackageSubmissionForAdmin.mockResolvedValue({
+      appId: APP_ID,
+      package: { id: PACKAGE_ID, reviewStatus: 'approved' },
+      slug: 'workbench',
+      versionId: 'version-1',
+    });
+    moduleAppModelMocks.rejectPackageSubmissionForAdmin.mockResolvedValue({
+      id: PACKAGE_ID,
+      reviewStatus: 'rejected',
+    });
     moduleAppModelMocks.setStatus.mockResolvedValue({ ok: true });
     moduleAppModelMocks.upsertAppForAdmin.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
   });
@@ -210,5 +233,66 @@ describe('admin module apps router', () => {
 
     expect(moduleAppModelMocks.setStatus).not.toHaveBeenCalled();
     expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('lists module app package submissions for review', async () => {
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.listPackages({ reviewStatus: 'pending_review' })).resolves.toEqual({
+      items: [{ id: PACKAGE_ID }],
+      nextCursor: null,
+    });
+
+    expect(moduleAppModelMocks.listAdminPackageSubmissions).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 50,
+      reviewStatus: 'pending_review',
+    });
+  });
+
+  it('approves a package submission and writes an audit log', async () => {
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).resolves.toEqual({
+      appId: APP_ID,
+      package: { id: PACKAGE_ID, reviewStatus: 'approved' },
+      slug: 'workbench',
+      versionId: 'version-1',
+    });
+
+    expect(moduleAppModelMocks.approvePackageSubmissionForAdmin).toHaveBeenCalledWith({
+      packageId: PACKAGE_ID,
+      reviewedByUserId: 'admin-user',
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.package_approved',
+        resourceId: APP_ID,
+        resourceType: 'moduleApp',
+      }),
+    );
+  });
+
+  it('rejects a package submission and writes an audit log', async () => {
+    const caller = createCaller();
+
+    await expect(
+      caller.moduleApps.rejectPackage({ packageId: PACKAGE_ID, reason: 'Unsafe manifest' }),
+    ).resolves.toEqual({ id: PACKAGE_ID, reviewStatus: 'rejected' });
+
+    expect(moduleAppModelMocks.rejectPackageSubmissionForAdmin).toHaveBeenCalledWith({
+      packageId: PACKAGE_ID,
+      reason: 'Unsafe manifest',
+      reviewedByUserId: 'admin-user',
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.package_rejected',
+        resourceId: PACKAGE_ID,
+        resourceType: 'moduleAppPackage',
+      }),
+    );
   });
 });

@@ -933,6 +933,21 @@
 | 是否需要补测试 | 是 |
 | 备注 | 新域必须与现有 `platform_plugin_*`、MCP、Skills 保持隔离。P1 不执行外部前端 JS、不使用 iframe/remote module、不动态创建每个应用的物理表。当前用户路由已对 `createRecord` / `runAction` 执行套餐 `runnable` 校验；后台 router 写操作已接入 module app audit log；用户端和后台 client service 已可调用当前 router。用户端市场/详情/个人/团队/运行时 route shell 已注册到 web/Electron 两套桌面 router；后台管理入口、导航和 `/settings/admin/*` 兼容入口已注册。`record_create` / `record_update` / `record_archive` 运行时已接入 `moduleApp.runAction`，普通 CRUD 动作固定零扣费。`api_action` / `content_generation` / `workflow_step` 已具备可注入 runner 的成功计费快照和 API URL 安全校验基础；没有 runner 时不会假装执行。用户端 run result 和后台 records/runs/artifacts 已有轻量展示 shell。workspace 运行记录/产物查询输入、真实 API/AI runner、商业扣费落账和浏览器级交互测试仍待后续任务补齐。 |
 
+#### Module App Platform P1 Package Review Foundation
+
+- Status: experimental
+- Description: Adds the first package-container foundation for user/developer submitted module app packages. P1 stores archive metadata, parsed `manifest.json`, file manifest, validation issues, and admin review status in `module_app_packages`.
+- Frontend entries: no upload UI yet; client wrappers now expose `moduleAppService.submitPackage` and `adminCommercialService.moduleApps.*Package` for later UI wiring.
+- Backend API: `lambda.moduleApp.submitPackage`, `admin.moduleApps.listPackages`, `admin.moduleApps.getPackage`, `admin.moduleApps.approvePackage`, `admin.moduleApps.rejectPackage`.
+- Database dependencies: adds `module_app_packages`, linked optionally to `module_apps` and `module_app_versions` after approval.
+- Config dependencies: package manifest app schema, package runtime kind, plan entitlements, existing module app billing config.
+- Env dependencies: none added in this slice; archive storage keys assume the existing object-storage path used by future upload flow.
+- External services: none called by P1. P1 does not unzip, run, iframe, remote-load, Docker-run, MCP-run, Skill-run, or execute uploaded package code.
+- Maintenance risk: high
+- Refactor recommendation: keep package validation pure and keep any future runtime/container execution behind a separate reviewed runtime service, not inside TRPC routers or database models.
+- Test recommendation: add browser upload/review flow and real database migration tests when upload UI and storage integration are added.
+- Note: Approval converts a reviewed manifest into existing Module App records and entitlements only. Real zip parsing, upload UI, SDK/API gateway, server container runtime, and package upgrade/uninstall UX remain later phases.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |

@@ -1,6 +1,7 @@
 import {
   moduleAppAdminUpsertSchema,
   moduleAppBillingConfigSchema,
+  moduleAppPackageReviewStatusSchema,
   moduleAppPlanEntitlementSchema,
   moduleAppStatusSchema,
 } from '@lobechat/types';
@@ -18,6 +19,7 @@ const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.conten
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 const AppIdInputSchema = z.object({ appId: z.string().uuid() });
+const PackageIdInputSchema = z.object({ packageId: z.string().uuid() });
 const ListInputSchema = z
   .object({
     category: z.string().min(1).max(80).optional(),
@@ -30,6 +32,19 @@ const ListInputSchema = z
 const ListByAppInputSchema = AppIdInputSchema.extend({
   cursor: z.number().int().min(0).default(0),
   limit: z.number().int().min(1).max(200).default(50),
+});
+const ListPackagesInputSchema = z
+  .object({
+    appId: z.string().uuid().optional(),
+    cursor: z.number().int().min(0).default(0),
+    limit: z.number().int().min(1).max(200).default(50),
+    reviewStatus: moduleAppPackageReviewStatusSchema.optional(),
+    submittedByUserId: z.string().min(1).max(255).optional(),
+  })
+  .optional()
+  .default({});
+const RejectPackageInputSchema = PackageIdInputSchema.extend({
+  reason: z.string().min(1).max(1000).optional(),
 });
 
 const PagesInputSchema = z.object({
@@ -58,6 +73,7 @@ const writeAudit = async (
     eventType: string;
     metadata?: null | Record<string, unknown>;
     resourceId: string;
+    resourceType?: string;
   },
 ) => {
   await writeModuleAppAuditLog({
@@ -66,7 +82,7 @@ const writeAudit = async (
     eventType: input.eventType,
     metadata: input.metadata,
     resourceId: input.resourceId,
-    resourceType: 'moduleApp',
+    resourceType: input.resourceType ?? 'moduleApp',
   });
 };
 
@@ -89,6 +105,16 @@ export const adminModuleAppsRouter = router({
     return new ModuleAppModel(ctx.serverDB).listAdminApps(input);
   }),
 
+  getPackage: auditReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {
+    const submission = await new ModuleAppModel(ctx.serverDB).getAdminPackageSubmission(input);
+
+    if (!submission) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_package_not_found' });
+    }
+
+    return submission;
+  }),
+
   listArtifacts: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
@@ -99,6 +125,10 @@ export const adminModuleAppsRouter = router({
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppModel(ctx.serverDB).listAdminAuditEvents(input);
+  }),
+
+  listPackages: auditReadProcedure.input(ListPackagesInputSchema).query(async ({ ctx, input }) => {
+    return new ModuleAppModel(ctx.serverDB).listAdminPackageSubmissions(input);
   }),
 
   listInstalls: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
@@ -127,6 +157,41 @@ export const adminModuleAppsRouter = router({
 
     return { ok: true };
   }),
+
+  approvePackage: contentWriteProcedure
+    .input(PackageIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppModel(ctx.serverDB).approvePackageSubmissionForAdmin({
+        ...input,
+        reviewedByUserId: ctx.userId,
+      });
+
+      await writeAudit(ctx, {
+        eventType: 'module_app.package_approved',
+        metadata: { packageId: input.packageId, slug: result.slug, versionId: result.versionId },
+        resourceId: result.appId,
+      });
+
+      return result;
+    }),
+
+  rejectPackage: contentWriteProcedure
+    .input(RejectPackageInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppModel(ctx.serverDB).rejectPackageSubmissionForAdmin({
+        ...input,
+        reviewedByUserId: ctx.userId,
+      });
+
+      await writeAudit(ctx, {
+        eventType: 'module_app.package_rejected',
+        metadata: { reason: input.reason },
+        resourceId: input.packageId,
+        resourceType: 'moduleAppPackage',
+      });
+
+      return result;
+    }),
 
   unpublish: contentWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);

@@ -9,6 +9,7 @@ import {
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppPages,
+  moduleAppPackages,
   moduleAppRecordEvents,
   moduleAppRecords,
   moduleAppRuns,
@@ -29,6 +30,7 @@ describe('module app schema exports', () => {
     expect(moduleAppRuns).toBeDefined();
     expect(moduleAppArtifacts).toBeDefined();
     expect(moduleAppAuditLogs).toBeDefined();
+    expect(moduleAppPackages).toBeDefined();
   });
 
   it('keeps database ownership constraints in the generated migration', () => {
@@ -58,6 +60,26 @@ describe('module app schema exports', () => {
     ) as { entries: Array<{ tag: string }> };
 
     expect(journal.entries.some(({ tag }) => tag === '0131_add_module_apps')).toBe(
+      true,
+    );
+  });
+
+  it('registers the module app package review migration', () => {
+    const migration = readFileSync(
+      resolve(__dirname, '../../migrations/0132_add_module_app_packages.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(
+        resolve(__dirname, '../../migrations/meta/_journal.json'),
+        'utf8',
+      ),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_packages"');
+    expect(migration).toContain('"submitted_by_user_id" text');
+    expect(migration).toContain('module_app_packages_review_status_created_at_idx');
+    expect(journal.entries.some(({ tag }) => tag === '0132_add_module_app_packages')).toBe(
       true,
     );
   });

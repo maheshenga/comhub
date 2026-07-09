@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   moduleAppActionConfigSchema,
   moduleAppAdminUpsertSchema,
+  moduleAppPackageArchiveMetadataSchema,
+  moduleAppPackageManifestSchema,
+  moduleAppPackageSubmitSchema,
   moduleAppBillingConfigSchema,
   moduleAppMarketplaceListInputSchema,
   moduleAppPageSchema,
@@ -90,5 +93,121 @@ describe('module app type contracts', () => {
         scopeType: 'personal',
       }),
     ).toMatchObject({ collectionKey: 'records', scopeType: 'personal' });
+  });
+
+  it('parses package manifests with app metadata, billing, pages, actions, and entitlements', () => {
+    const manifest = moduleAppPackageManifestSchema.parse({
+      app: {
+        actions: [
+          {
+            id: 'create_listing',
+            inputSchema: { fields: [] },
+            name: 'Create listing',
+            runtimeType: 'record_create',
+          },
+        ],
+        appType: 'standard_app',
+        billing: {
+          chargeMode: 'fixed',
+          defaultMultiplier: 1.35,
+          externalApiCostCredits: 0,
+          failureFixedFeePolicy: 'do_not_charge',
+          fixedServiceFeeCredits: 20,
+        },
+        category: 'local-services',
+        description: 'A classified information module package.',
+        displayName: 'Classified Info',
+        icon: 'Newspaper',
+        pages: [{ key: 'listings', routePath: '/listings', title: 'Listings', type: 'list' }],
+        slug: 'classified-info',
+        tags: ['classified'],
+      },
+      entitlements: [
+        {
+          installable: true,
+          plan: 'pro',
+          runnable: true,
+          visible: true,
+        },
+      ],
+      manifestVersion: 1,
+      packageVersion: '1.0.0',
+      runtime: {
+        entry: 'app/index.html',
+        kind: 'frontend_static',
+        permissions: ['storage.records', 'billing.charge'],
+      },
+    });
+
+    expect(manifest.app.displayName).toBe('Classified Info');
+    expect(manifest.entitlements[0]).toMatchObject({
+      installable: true,
+      plan: 'pro',
+      runnable: true,
+      visible: true,
+    });
+    expect(manifest.runtime.kind).toBe('frontend_static');
+  });
+
+  it('rejects server container runtime declarations in package manifests for P1', () => {
+    expect(() =>
+      moduleAppPackageManifestSchema.parse({
+        app: {
+          actions: [],
+          appType: 'hybrid_app',
+          billing: {},
+          category: 'enterprise',
+          description: 'Server container module.',
+          displayName: 'Server Module',
+          icon: 'Server',
+          pages: [],
+          slug: 'server-module',
+          tags: [],
+        },
+        manifestVersion: 1,
+        packageVersion: '1.0.0',
+        runtime: {
+          entry: 'server/index.js',
+          kind: 'server_container',
+          permissions: ['network.external'],
+        },
+      }),
+    ).toThrow();
+  });
+
+  it('parses submitted package archive metadata', () => {
+    const input = moduleAppPackageSubmitSchema.parse({
+      archive: {
+        fileName: 'classified-info.zip',
+        mimeType: 'application/zip',
+        sha256: 'a'.repeat(64),
+        sizeBytes: 1024,
+        storageKey: 'module-app-packages/user-1/classified-info.zip',
+      },
+      fileManifest: [{ path: 'manifest.json', sizeBytes: 512 }],
+      manifest: {
+        app: {
+          actions: [],
+          appType: 'standard_app',
+          billing: {},
+          category: 'local-services',
+          description: 'A classified information module package.',
+          displayName: 'Classified Info',
+          icon: 'Newspaper',
+          pages: [],
+          slug: 'classified-info',
+          tags: [],
+        },
+        manifestVersion: 1,
+        packageVersion: '1.0.0',
+        runtime: { kind: 'manifest_only', permissions: [] },
+      },
+    });
+
+    expect(moduleAppPackageArchiveMetadataSchema.parse(input.archive)).toMatchObject({
+      fileName: 'classified-info.zip',
+      sizeBytes: 1024,
+    });
+    expect(input.fileManifest).toEqual([{ path: 'manifest.json', sizeBytes: 512 }]);
   });
 });

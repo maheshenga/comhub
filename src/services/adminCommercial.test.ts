@@ -83,6 +83,51 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
   });
 
+  it('calls the module app package review endpoints', async () => {
+    (lambdaClient.admin.moduleApps as any).listPackages = {
+      query: vi.fn().mockResolvedValue({ items: [{ id: 'package-1' }], nextCursor: null }),
+    };
+    (lambdaClient.admin.moduleApps as any).getPackage = {
+      query: vi.fn().mockResolvedValue({ id: 'package-1' }),
+    };
+    (lambdaClient.admin.moduleApps as any).approvePackage = {
+      mutate: vi.fn().mockResolvedValue({ appId: 'app-1', package: { id: 'package-1' } }),
+    };
+    (lambdaClient.admin.moduleApps as any).rejectPackage = {
+      mutate: vi.fn().mockResolvedValue({ id: 'package-1', reviewStatus: 'rejected' }),
+    };
+
+    await expect(
+      adminCommercialService.moduleApps.listPackages({ reviewStatus: 'pending_review' }),
+    ).resolves.toEqual({ items: [{ id: 'package-1' }], nextCursor: null });
+    await expect(adminCommercialService.moduleApps.getPackage({ packageId: 'package-1' })).resolves.toEqual({
+      id: 'package-1',
+    });
+    await expect(
+      adminCommercialService.moduleApps.approvePackage({ packageId: 'package-1' }),
+    ).resolves.toEqual({ appId: 'app-1', package: { id: 'package-1' } });
+    await expect(
+      adminCommercialService.moduleApps.rejectPackage({
+        packageId: 'package-1',
+        reason: 'Unsafe manifest',
+      }),
+    ).resolves.toEqual({ id: 'package-1', reviewStatus: 'rejected' });
+
+    expect((lambdaClient.admin.moduleApps as any).listPackages.query).toHaveBeenCalledWith({
+      reviewStatus: 'pending_review',
+    });
+    expect((lambdaClient.admin.moduleApps as any).getPackage.query).toHaveBeenCalledWith({
+      packageId: 'package-1',
+    });
+    expect((lambdaClient.admin.moduleApps as any).approvePackage.mutate).toHaveBeenCalledWith({
+      packageId: 'package-1',
+    });
+    expect((lambdaClient.admin.moduleApps as any).rejectPackage.mutate).toHaveBeenCalledWith({
+      packageId: 'package-1',
+      reason: 'Unsafe manifest',
+    });
+  });
+
   it('calls the module app admin publish endpoint', async () => {
     (lambdaClient.admin.moduleApps as any).publish = {
       mutate: vi.fn().mockResolvedValue({ ok: true }),

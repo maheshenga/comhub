@@ -1,5 +1,6 @@
 import {
   moduleAppMarketplaceListInputSchema,
+  moduleAppPackageSubmitSchema,
   moduleAppRecordInputSchema,
   moduleAppRunInputSchema,
 } from '@lobechat/types';
@@ -11,6 +12,7 @@ import {
   type ModuleAppRecordOperation,
   type ModuleAppWorkspaceMembership,
 } from '@/business/server/module-apps/permission';
+import { validateModuleAppPackageSubmission } from '@/business/server/module-apps/packageManifest';
 import { runModuleAppAction } from '@/business/server/module-apps/runModuleAppAction';
 import { getSubscriptionPlan } from '@/business/server/user';
 import { ModuleAppModel } from '@/database/models/moduleApp';
@@ -340,6 +342,25 @@ export const moduleAppRouter = router({
       workspaceId: input.workspaceId,
     });
   }),
+
+  submitPackage: moduleAppProcedure
+    .input(moduleAppPackageSubmitSchema)
+    .mutation(async ({ ctx, input }) => {
+      const validation = validateModuleAppPackageSubmission(input);
+
+      if (!validation.ok) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'module_app_package_validation_failed',
+        });
+      }
+
+      return ctx.moduleAppModel.createPackageSubmission({
+        ...input,
+        submittedByUserId: ctx.userId,
+        validationReport: validation.issues,
+      });
+    }),
 
   uninstallPersonal: moduleAppProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     return ctx.moduleAppModel.uninstallPersonalApp({ ...input, userId: ctx.userId });

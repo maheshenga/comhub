@@ -945,6 +945,13 @@
       "when": 1783544894973,
       "tag": "0131_add_module_apps",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1783618800000,
+      "tag": "0132_add_module_app_packages",
+      "breakpoints": true
     }
   ],
   "version": "6"
