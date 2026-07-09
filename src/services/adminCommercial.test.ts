@@ -69,6 +69,61 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
   });
 
+  it('calls the module app admin detail endpoint', async () => {
+    (lambdaClient.admin.moduleApps as any).get = {
+      query: vi.fn().mockResolvedValue({ id: 'app1' }),
+    };
+
+    await expect(adminCommercialService.moduleApps.get({ appId: 'app1' })).resolves.toEqual({
+      id: 'app1',
+    });
+
+    expect((lambdaClient.admin.moduleApps as any).get.query).toHaveBeenCalledWith({
+      appId: 'app1',
+    });
+  });
+
+  it('calls the module app admin publish endpoint', async () => {
+    (lambdaClient.admin.moduleApps as any).publish = {
+      mutate: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    await expect(adminCommercialService.moduleApps.publish({ appId: 'app1' })).resolves.toEqual({
+      ok: true,
+    });
+
+    expect((lambdaClient.admin.moduleApps as any).publish.mutate).toHaveBeenCalledWith({
+      appId: 'app1',
+    });
+  });
+
+  it('calls the module app admin upsert endpoint', async () => {
+    (lambdaClient.admin.moduleApps as any).upsert = {
+      mutate: vi.fn().mockResolvedValue({ id: 'app1', slug: 'workbench' }),
+    };
+
+    const input = {
+      actions: [],
+      appType: 'standard_app',
+      billing: {},
+      category: 'office',
+      description: 'Simple workbench app.',
+      displayName: 'Workbench',
+      icon: 'Blocks',
+      pages: [{ key: 'overview', routePath: '/', title: 'Overview', type: 'overview' }],
+      slug: 'workbench',
+      status: 'draft',
+      tags: [],
+    };
+
+    await expect(adminCommercialService.moduleApps.upsert(input)).resolves.toEqual({
+      id: 'app1',
+      slug: 'workbench',
+    });
+
+    expect((lambdaClient.admin.moduleApps as any).upsert.mutate).toHaveBeenCalledWith(input);
+  });
+
   it('calls the AI provider model sync endpoint', async () => {
     vi.mocked(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).mockResolvedValue({
       importedCount: 1,

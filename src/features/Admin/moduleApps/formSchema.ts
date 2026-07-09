@@ -15,7 +15,7 @@ type NumericInput = number | string | undefined;
 
 type JsonRecord = Record<string, unknown>;
 
-type ModuleAppPageFormInput = Partial<ModuleAppPage> & {
+type ModuleAppPageFormInput = Omit<Partial<ModuleAppPage>, 'sortOrder' | 'type'> & {
   actionBindingsJson?: string;
   dataSourceJson?: string;
   layoutSchemaJson?: string;
@@ -23,7 +23,10 @@ type ModuleAppPageFormInput = Partial<ModuleAppPage> & {
   type?: ModuleAppPageType | string;
 };
 
-type ModuleAppActionFormInput = Partial<ModuleAppActionConfig> & {
+type ModuleAppActionFormInput = Omit<
+  Partial<ModuleAppActionConfig>,
+  'moduleMultiplier' | 'runtimeType'
+> & {
   inputSchemaJson?: string;
   moduleMultiplier?: NumericInput;
   outputSchemaJson?: string;
@@ -31,15 +34,27 @@ type ModuleAppActionFormInput = Partial<ModuleAppActionConfig> & {
   runtimeType?: ModuleAppRuntimeType | string;
 };
 
-type ModuleAppEntitlementFormInput = Partial<ModuleAppPlanEntitlement> & {
+type ModuleAppEntitlementFormInput = Omit<
+  Partial<ModuleAppPlanEntitlement>,
+  'discountPercent' | 'freeQuotaCredits'
+> & {
   discountPercent?: NumericInput;
   freeQuotaCredits?: NumericInput;
+};
+
+type ModuleAppBillingFormInput = Omit<
+  Partial<ModuleAppBillingConfig>,
+  'defaultMultiplier' | 'externalApiCostCredits' | 'fixedServiceFeeCredits'
+> & {
+  defaultMultiplier?: NumericInput;
+  externalApiCostCredits?: NumericInput;
+  fixedServiceFeeCredits?: NumericInput;
 };
 
 export type ModuleAppAdminFormInput = {
   actions?: ModuleAppActionFormInput[];
   appType?: ModuleAppType | string;
-  billing?: Partial<ModuleAppBillingConfig>;
+  billing?: ModuleAppBillingFormInput;
   category?: string;
   description?: string;
   displayName?: string;
