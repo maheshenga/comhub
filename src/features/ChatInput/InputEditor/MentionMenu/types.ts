@@ -7,7 +7,6 @@ export type MentionCategoryId =
   | 'member'
   | 'skill'
   | 'tool'
-  | 'platformPlugin'
   | 'localFile';
 
 export interface MentionCategory {

@@ -8,7 +8,8 @@
 - MODULE-APP-UNIFY-P1-001: Added Module App source ownership for `system`, `admin`, `user`, and `developer` app sources across type contracts, database schema, migrations, model list/detail responses, admin forms, and package approval.
 - MODULE-APP-UNIFY-P1-002: Added the admin Module App package review queue tab with pending package listing, source/status display, and approve/reject actions.
 - MODULE-APP-UNIFY-P2-001: Added Module App-owned API/content runtime parity with safe URL checks, redacted snapshots, artifacts, failed run records, and audit events.
-- Boundary: Platform Plugin code and `platform_plugin_*` tables remain in place for later staged removal; MCP and Skills are unchanged.
+- MODULE-APP-UNIFY-P3-001: Removed live Platform Plugin Marketplace code, user/admin routes, chat mention entry, service wrappers, routers, type/schema/model exports, seed script, and locale keys. Added `0134_drop_platform_plugin_tables.sql` to decommission `platform_plugin_*` tables by migration.
+- Boundary: MCP, Skills, upstream discover/community plugin features, and Module App Platform are unchanged. Production must have a fresh database backup before applying the table-drop migration.
 
 ## 2026-07-09
 

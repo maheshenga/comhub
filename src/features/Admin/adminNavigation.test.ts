@@ -44,7 +44,6 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/providers`,
         `${ADMIN_BASE_PATH}/model-billing-matrix`,
         `${ADMIN_BASE_PATH}/ppt`,
-        `${ADMIN_BASE_PATH}/platform-plugins`,
         `${ADMIN_BASE_PATH}/module-apps`,
         `${ADMIN_BASE_PATH}/subscriptions`,
         `${ADMIN_BASE_PATH}/redemption`,
@@ -92,30 +91,23 @@ describe('adminNavigation', () => {
     expect(collectPaths()).not.toContain(`${ADMIN_BASE_PATH}/newapi-providers`);
   });
 
-  it('keeps platform plugins in an independent admin module', () => {
+  it('keeps module apps in the extensibility admin module after platform plugin removal', () => {
     const pluginGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'plugins');
 
     expect(pluginGroup).toMatchObject({
       icon: 'plugins',
-      label: '插件',
     });
-    expect(pluginGroup?.items).toContainEqual(
-      expect.objectContaining({
-        icon: 'plugins',
-        label: '插件市场',
-        path: `${ADMIN_BASE_PATH}/platform-plugins`,
-      }),
-    );
     expect(pluginGroup?.items).toContainEqual(
       expect.objectContaining({
         icon: 'plugins',
         path: `${ADMIN_BASE_PATH}/module-apps`,
       }),
     );
-    expect(getAdminSelectedKey('/settings/admin/platform-plugins')).toBe(
+    expect(pluginGroup?.items.map((item) => item.path)).not.toContain(
       `${ADMIN_BASE_PATH}/platform-plugins`,
     );
-    expect(getAdminOpenKeys('/settings/admin/platform-plugins')).toEqual(['plugins']);
+    expect(getAdminSelectedKey('/settings/admin/platform-plugins')).toBe(ADMIN_BASE_PATH);
+    expect(getAdminOpenKeys('/settings/admin/platform-plugins')).toEqual(['overview']);
     expect(getAdminSelectedKey('/settings/admin/module-apps')).toBe(
       `${ADMIN_BASE_PATH}/module-apps`,
     );
@@ -186,9 +178,6 @@ describe('adminNavigation', () => {
       `${ADMIN_BASE_PATH}/model-billing-matrix`,
     );
     expect(getAdminSelectedKey('/settings/admin/ppt')).toBe(`${ADMIN_BASE_PATH}/ppt`);
-    expect(getAdminSelectedKey('/settings/admin/platform-plugins')).toBe(
-      `${ADMIN_BASE_PATH}/platform-plugins`,
-    );
     expect(getAdminSelectedKey('/settings/admin/module-apps')).toBe(
       `${ADMIN_BASE_PATH}/module-apps`,
     );
@@ -217,7 +206,6 @@ describe('adminNavigation', () => {
     expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['model-billing']);
     expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['model-billing']);
     expect(getAdminOpenKeys('/settings/admin/ppt')).toEqual(['model-billing']);
-    expect(getAdminOpenKeys('/settings/admin/platform-plugins')).toEqual(['plugins']);
     expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['plugins']);
     expect(getAdminOpenKeys('/settings/admin/notifications')).toEqual(['brand-growth']);
     expect(getAdminOpenKeys('/settings/admin/expert-plaza')).toEqual(['brand-growth']);

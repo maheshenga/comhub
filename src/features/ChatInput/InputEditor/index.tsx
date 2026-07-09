@@ -26,7 +26,6 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useHotkeysContext } from 'react-hotkeys-hook';
-import { useNavigate } from 'react-router';
 
 import { usePasteFile, useUploadFiles } from '@/components/DragUploadZone';
 import { useEnterToSend } from '@/hooks/useEnterToSend';
@@ -57,7 +56,6 @@ import type { MentionMenuState } from './MentionMenu/types';
 import { mentionFilledClassName } from './mentionStyle';
 import Placeholder, { type PlaceholderVariant } from './Placeholder';
 import { CHAT_INPUT_EMBED_PLUGINS, createChatInputRichPlugins } from './plugins';
-import { buildPlatformPluginRunRoute } from './platformPluginMentions';
 import { INSERT_REFER_TOPIC_COMMAND } from './ReferTopic';
 import { useLocalFileMention } from './useLocalFileMention';
 import { useMentionCategories } from './useMentionCategories';
@@ -184,8 +182,6 @@ const InputEditor = memo<{
   const { allowed: canCreateContent } = usePermission('create_content');
   const hotkey = useUserStore(settingsSelectors.getHotkeyById(HotkeyEnum.AddUserMessage));
   const { enableScope, disableScope } = useHotkeysContext();
-  const navigate = useNavigate();
-
   const { compositionProps, isComposingRef } = useIMECompositionEvent();
 
   const shouldSendOnEnter = useEnterToSend();
@@ -479,14 +475,6 @@ const InputEditor = memo<{
           topicId: option.metadata.topicId as string,
           topicTitle: String(option.metadata.topicTitle ?? option.label),
         });
-      } else if (option.metadata?.type === 'platformPlugin') {
-        const pluginIdOrSlug = String(
-          option.metadata.pluginSlug ?? option.metadata.pluginId ?? '',
-        ).trim();
-
-        if (pluginIdOrSlug) {
-          navigate(buildPlatformPluginRunRoute({ agentId, pluginIdOrSlug }));
-        }
       } else if (option.metadata?.type === 'skill' || option.metadata?.type === 'tool') {
         const payload: InsertActionTagPayload = {
           category: option.metadata.actionCategory as 'skill' | 'tool',
@@ -501,7 +489,7 @@ const InputEditor = memo<{
         });
       }
     },
-    [agentId, navigate],
+    [],
   );
 
   const mentionOption = useMemo(

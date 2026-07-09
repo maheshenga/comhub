@@ -21,7 +21,6 @@ const filesWithAdminCopy = [
   'src/routes/(main)/admin/users/index.tsx',
   'src/features/Admin/AdminFileStoragePage.tsx',
   'src/features/Admin/AdminNotificationsPage.tsx',
-  'src/features/Admin/AdminPlatformPluginsPage.tsx',
   'src/features/Admin/AdminSystemMaintenancePage.tsx',
   'src/features/Admin/AdminContentPages.tsx',
   'src/features/Admin/AdminExpertPlazaPage.tsx',

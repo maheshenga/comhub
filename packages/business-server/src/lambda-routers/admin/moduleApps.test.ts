@@ -64,12 +64,6 @@ vi.mock('./plans', async () => {
   return { adminPlansRouter: router({}) };
 });
 
-vi.mock('./platformPlugins', async () => {
-  const { router } = await import('@/libs/trpc/lambda');
-
-  return { adminPlatformPluginsRouter: router({}) };
-});
-
 vi.mock('./ppt', async () => {
   const { router } = await import('@/libs/trpc/lambda');
 

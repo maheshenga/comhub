@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { getTableName } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 
+import * as liveSchema from './index';
 import {
   moduleAppActions,
   moduleAppArtifacts,
@@ -97,5 +99,31 @@ describe('module app schema exports', () => {
     expect(migration).toContain('module_apps_source_check');
     expect(migration).toContain(`IN ('system', 'admin', 'user', 'developer')`);
     expect(journal.entries.some(({ tag }) => tag === '0133_add_module_app_source')).toBe(true);
+  });
+
+  it('registers platform plugin table decommission migration without live schema exports', () => {
+    const migration = readFileSync(
+      resolve(__dirname, '../../migrations/0134_drop_platform_plugin_tables.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+    const tableNames = Object.values(liveSchema).flatMap((value): string[] => {
+      try {
+        const name = getTableName(value as any);
+
+        return typeof name === 'string' ? [name] : [];
+      } catch {
+        return [];
+      }
+    });
+
+    expect(migration).toContain('DROP TABLE IF EXISTS "platform_plugin_audit_logs"');
+    expect(migration).toContain('DROP TABLE IF EXISTS "platform_plugins"');
+    expect(journal.entries.some(({ tag }) => tag === '0134_drop_platform_plugin_tables')).toBe(
+      true,
+    );
+    expect(tableNames.filter((name) => name.startsWith('platform_plugin'))).toEqual([]);
   });
 });

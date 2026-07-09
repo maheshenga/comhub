@@ -113,8 +113,6 @@ import ModuleAppTeamAppsPage from '@/routes/(main)/apps/team';
 import PageIndexPage from '@/routes/(main)/page';
 import DesktopPageLayout from '@/routes/(main)/page/_layout';
 import PageDetailPage from '@/routes/(main)/page/[id]';
-import PlatformPluginMarketPage from '@/routes/(main)/plugins';
-import PlatformPluginDetailPage from '@/routes/(main)/plugins/[pluginId]';
 import ResourceLayout from '@/routes/(main)/resource/_layout';
 import ResourceHomePage from '@/routes/(main)/resource/(home)';
 import ResourceHomeLayout from '@/routes/(main)/resource/(home)/_layout';
@@ -366,28 +364,6 @@ export const sharedMainAreaChildren: RouteObject[] = [
     element: <CommunityLayout />,
     errorElement: <ErrorBoundary />,
     path: 'community',
-  },
-
-  // Platform plugin marketplace routes
-  {
-    children: [
-      {
-        element: <PlatformPluginMarketPage />,
-        handle: {
-          meta: routeMeta({ icon: ShapesIcon, titleKey: 'navigation.plugins' }),
-        },
-        index: true,
-      },
-      {
-        element: <PlatformPluginDetailPage />,
-        handle: {
-          meta: routeMeta({ icon: ShapesIcon, titleKey: 'navigation.plugins' }),
-        },
-        path: ':pluginId',
-      },
-    ],
-    errorElement: <ErrorBoundary />,
-    path: 'plugins',
   },
 
   // Module app marketplace and runtime routes

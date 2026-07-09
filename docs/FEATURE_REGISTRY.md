@@ -838,88 +838,23 @@
 
 ### 39. Platform Plugin Marketplace
 
-| 字段 | 内容 |
+| Field | Value |
 | --- | --- |
-| 功能名称 | Platform Plugin Marketplace |
-| 功能状态 | `experimental` |
-| 功能说明 | 平台控制的商业插件市场，P1 支持 API action 与 content generation 插件，包含后台管理、套餐权限、计费配置、安装、Agent 绑定、运行记录、产物和聊天输入快捷入口。 |
-| 前端入口 | `/plugins`、`/plugins/:pluginId`、`/admin/platform-plugins`、聊天输入平台插件 mention 分类 |
-| 核心组件 | `src/features/PlatformPluginMarket`、`src/features/Admin/platformPlugins`、`src/features/ChatInput/InputEditor/platformPluginMentions.ts` |
-| 后端 API / Server Action | `lambda.platformPlugin`、`admin.platformPlugins` |
-| 数据库依赖 | `platform_plugin_*` tables |
-| 配置项依赖 | Plugin plan entitlements、plugin billing config、plugin secrets |
-| 环境变量依赖 | `PLATFORM_PLUGIN_SECRET_KEY`、既有 AI provider 与对象存储变量 |
-| 外部服务依赖 | 既有 AI provider、插件配置的外部 API、对象存储 |
-| 主要相关文件 | `packages/types/src/platformPlugin.ts`、`packages/database/src/schemas/platformPlugin.ts`、`packages/business-server/src/platform-plugins`、`apps/server/src/routers/lambda/platformPlugin.ts`、`src/services/platformPlugin.ts` |
-| 维护风险 | 高 |
-| 是否建议重构 | 是 |
-| 是否需要补测试 | 是 |
-| 备注 | P1 明确不导入现有 MCP 或 Skills。聊天快捷入口只导航到显式插件详情/运行面板，不经过旧 Tool Store、MCP settings 或 Skill ActionTag 执行链路。 |
-| Seed script | `scripts/seedPlatformPlugins.ts` creates draft samples; admins must publish them before users can see them. |
-
-#### Platform Plugin Marketplace Deprecation Freeze
-
-- Status: deprecated
-- Decision: New extensibility, app marketplace, module factory, package submission, billing, and runtime work must target Module App Platform.
-- Compatibility: Existing code remains only until Module App parity and product surface cutover are complete.
-- Safety: Do not drop `platform_plugin_*` tables until backup and production safety confirmation are complete.
-- Boundary: MCP and Skills are not part of this removal.
-
-#### Platform Plugin Marketplace P2-lite Update
-
-- Status: experimental
-- Description: Independent platform function plugin marketplace. P2-lite adds operations metadata, admin stats, user filtering, plan availability presentation, and user run history.
-- Frontend entries: `/plugins`, `/plugins/:pluginId`, `settings/admin/platform-plugins`
-- Core components: `src/features/PlatformPluginMarket/*`, `src/features/Admin/platformPlugins/*`
-- Backend API: `admin.platformPlugins.*`, `lambda.platformPlugin.*`
-- Database dependencies: `platform_plugins`, `platform_plugin_versions`, `platform_plugin_actions`, `platform_plugin_plan_entitlements`, `platform_plugin_installations`, `platform_plugin_agent_bindings`, `platform_plugin_runs`, `platform_plugin_artifacts`, `platform_plugin_secrets`, `platform_plugin_audit_logs`
-- Config dependencies: plugin billing config, plan entitlement config, plugin secret config
-- Env dependencies: `PLATFORM_PLUGIN_SECRET_KEY`
-- External services: plugin API Action targets and AI providers configured by content generation plugins
-- Maintenance risk: high
-- Refactor recommendation: split the admin page and run history query further after this phase
-- Test recommendation: add real DB integration and browser interaction tests later
-- Note: P2-lite does not import MCP / Skills, does not add desktop plugin ability, and does not add new runtime types.
-
-#### Platform Plugin Marketplace P3 Run Experience Update
-
-- Status: experimental
-- Description: P3 run experience adds localized detail-page copy, localized restriction explanations, readable run result metadata, and recent-run refresh after successful execution.
-- Maintenance risk: medium
-- Test recommendation: add browser smoke for install -> bind Agent -> run -> see history once a seeded test database is available.
-- Note: This slice is frontend presentation only and does not change plugin permissions, billing calculation, runtime types, MCP / Skills isolation, or database schema.
-
-#### Platform Plugin Marketplace P4 Run History Pagination Update
-
-- Status: experimental
-- Description: P4 adds client-side pagination for current-user plugin run history using the existing `listRuns` cursor API.
-- Maintenance risk: medium
-- Test recommendation: add browser smoke for repeated plugin runs and history load-more once a seeded test database is available.
-- Note: This slice does not change plugin run authorization, billing, runtime types, database schema, MCP / Skills isolation, or desktop behavior.
-
-#### Platform Plugin Marketplace P5 Run Error Copy Update
-
-- Status: experimental
-- Description: P5 localizes user-facing run failures, failed-run notices, and backend error-code mapping without changing run authorization, billing, runtime execution, persistence, or MCP / Skills isolation.
-- Maintenance risk: medium
-- Test recommendation: add browser smoke for a configured failing plugin run once a seeded test database is available.
-- Note: This slice keeps backend error creation and run history persistence unchanged; it only changes presentation copy.
-
-#### Platform Plugin Marketplace P6 Detail Operation Error Copy Update
-
-- Status: experimental
-- Description: P6 localizes install, uninstall, and Agent binding operation failures without changing plugin authorization, entitlement checks, persistence, runtime execution, billing, or MCP / Skills isolation.
-- Maintenance risk: medium
-- Test recommendation: add browser smoke for install denied, plugin missing, and Agent binding denied states once a seeded test database is available.
-- Note: This slice only changes frontend presentation copy for detail-page operation failures.
-
-#### Platform Plugin Marketplace P7 Run History Preview Copy Update
-
-- Status: experimental
-- Description: P7 localizes failed run-history sentinel previews while preserving readable runtime previews and existing run-history pagination.
-- Maintenance risk: low
-- Test recommendation: add browser smoke for failed plugin runs appearing in history once a seeded test database is available.
-- Note: This slice only changes frontend run-history presentation and does not change history persistence, billing, authorization, runtime execution, or MCP / Skills isolation.
+| Feature name | Platform Plugin Marketplace |
+| Status | `deprecated` / removed from live code |
+| Description | Former standalone platform plugin marketplace. Module App Platform is now the only active extensibility domain for apps, modules, marketplace listing, billing, plan access, review, and runtime records. |
+| Frontend entry | Removed: `/plugins`, `/plugins/:pluginId`, `/admin/platform-plugins`, and the chat-input platform plugin mention category. |
+| Core components | Deleted: `src/features/PlatformPluginMarket`, `src/features/Admin/platformPlugins`, `src/features/ChatInput/InputEditor/platformPluginMentions.ts`. |
+| Backend API / Server Action | Deleted: `lambda.platformPlugin`, `admin.platformPlugins`. |
+| Database dependency | Live schema/model exports removed. Migration `0134_drop_platform_plugin_tables.sql` drops `platform_plugin_*` tables. |
+| Config dependency | Removed old plugin plan entitlements, billing config, and plugin secret entry points. |
+| Environment variables | Live code no longer depends on `PLATFORM_PLUGIN_SECRET_KEY`. |
+| External services | Removed old plugin runtime calls to external API targets and AI providers. |
+| Main related files | Historical create migration remains at `0130_add_platform_plugins.sql`; live code/types/schema/model/router/service/UI/seed files were deleted; drop migration added at `packages/database/migrations/0134_drop_platform_plugin_tables.sql`. |
+| Maintenance risk | Medium: historical migrations and old design docs remain for audit context. Production must have a fresh database backup before applying the drop migration. |
+| Refactor recommendation | No. The feature domain is removed; new work belongs to Module App Platform. |
+| Test gap | Schema/migration governance coverage was added. Future tests should protect Module App Platform instead. |
+| Notes | MCP, Skills, and upstream discover/community plugin features are not part of this removal. Code submission does not execute production DROP statements automatically. |
 
 ### 40. Module App Platform
 

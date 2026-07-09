@@ -147,15 +147,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '模型与计费',
   },
   {
-    description: '插件市场、运行记录、产物、密钥、套餐权限和商业计费',
+    description: '模块应用、运行记录、产物、套餐权限、审核发布和商业计费',
     icon: 'plugins',
     items: [
-      {
-        description: '管理平台插件、发布状态、套餐权限、计费配置、运行记录和密钥',
-        icon: 'plugins',
-        label: '插件市场',
-        path: `${ADMIN_BASE_PATH}/platform-plugins`,
-      },
       {
         description: '管理模块应用、页面、动作、套餐权限、计费配置、记录、运行产物和审计日志',
         icon: 'plugins',
@@ -164,7 +158,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       },
     ],
     key: 'plugins',
-    label: '插件',
+    label: '应用模块',
   },
   {
     description: '品牌、登录页、默认助手外观、注册、推荐和公开运营内容',
@@ -289,25 +283,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '系统运维',
   },
 ];
-
-const moduleAppAdminGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'plugins');
-
-if (moduleAppAdminGroup) {
-  moduleAppAdminGroup.description =
-    'Module App Platform is the target app/module marketplace. Platform Plugins are deprecated compatibility surfaces pending staged removal.';
-
-  for (const item of moduleAppAdminGroup.items) {
-    if (item.path === `${ADMIN_BASE_PATH}/platform-plugins`) {
-      item.description =
-        'Deprecated compatibility management for existing platform plugins before Module App cutover removes this surface.';
-    }
-
-    if (item.path === `${ADMIN_BASE_PATH}/module-apps`) {
-      item.description =
-        'Manage module apps, package review, pages, actions, entitlements, billing, records, runs, artifacts, and audit logs.';
-    }
-  }
-}
 
 const ADMIN_NAV_ALIASES: Record<string, string> = {
   [`${ADMIN_BASE_PATH}/change-requests`]: `${ADMIN_BASE_PATH}/subscriptions`,

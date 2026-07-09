@@ -27,7 +27,7 @@ describe('BusinessDesktopRoutes', () => {
     const visibleSegments = adminPaths.map(routeSegmentFromAdminPath);
 
     expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toEqual(expect.arrayContaining(visibleSegments));
-    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain('platform-plugins');
+    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).not.toContain('platform-plugins');
     expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain('module-apps');
   });
 

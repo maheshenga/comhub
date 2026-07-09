@@ -364,31 +364,6 @@ export const sharedMainAreaChildren: RouteObject[] = [
     path: 'community',
   },
 
-  // Platform plugin marketplace routes
-  {
-    children: [
-      {
-        element: dynamicElement(() => import('@/routes/(main)/plugins'), 'Desktop > Plugins'),
-        handle: {
-          meta: routeMeta({ icon: ShapesIcon, titleKey: 'navigation.plugins' }),
-        },
-        index: true,
-      },
-      {
-        element: dynamicElement(
-          () => import('@/routes/(main)/plugins/[pluginId]'),
-          'Desktop > Plugins > Detail',
-        ),
-        handle: {
-          meta: routeMeta({ icon: ShapesIcon, titleKey: 'navigation.plugins' }),
-        },
-        path: ':pluginId',
-      },
-    ],
-    errorElement: <ErrorBoundary />,
-    path: 'plugins',
-  },
-
   // Module app marketplace and runtime routes
   {
     children: [

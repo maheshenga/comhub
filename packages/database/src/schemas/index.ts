@@ -27,7 +27,6 @@ export * from './newapiInstance';
 export * from './nextauth';
 export * from './notification';
 export * from './oidc';
-export * from './platformPlugin';
 export * from './pushToken';
 export * from './rag';
 export * from './ragEvals';
