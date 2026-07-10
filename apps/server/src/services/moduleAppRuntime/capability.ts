@@ -18,8 +18,8 @@ export type ModuleAppCapabilityKeys = {
 
 type ModuleAppCapabilityInput = Omit<
   ModuleAppCapabilityClaims,
-  'aud' | 'exp' | 'iat' | 'nonce'
->;
+  'aud' | 'exp' | 'iat' | 'nonce' | 'surface'
+> & { surface?: ModuleAppCapabilityClaims['surface'] };
 
 type SignOptions = {
   expiresInSeconds?: number;
@@ -92,6 +92,7 @@ export const signModuleAppCapability = async (
     installationId: claims.installationId,
     nonce: claims.nonce,
     permissions: claims.permissions,
+    surface: claims.surface,
     userId: claims.userId,
     versionId: claims.versionId,
     workspaceId: claims.workspaceId,

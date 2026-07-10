@@ -25,6 +25,8 @@ import type { LobeChatDatabase } from '@/database/type';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { ModuleAppPackageIngestionService } from '@/server/services/moduleAppPackage/ingestion';
+import { verifyModuleAppCapability } from '@/server/services/moduleAppRuntime/capability';
+import { createModuleAppCapabilityGateway } from '@/server/services/moduleAppRuntime/gateway';
 
 const AppIdInputSchema = z.object({
   appId: z.string().uuid(),
@@ -38,6 +40,20 @@ const RecordIdInputSchema = z.object({
   appId: z.string().uuid(),
   recordId: z.string().uuid(),
   workspaceId: z.string().optional(),
+});
+
+const ModuleAppGatewayCallInputSchema = z.object({
+  capability: z.string().min(1).max(8192),
+  input: z.unknown().optional(),
+  method: z.enum([
+    'context.get',
+    'files.createDownload',
+    'files.createUpload',
+    'http.fetch',
+    'notifications.create',
+    'secrets.get',
+  ]),
+  requestId: z.string().min(1).max(160).optional(),
 });
 
 const publicPackageArchiveSchema = moduleAppPackageArchiveMetadataSchema.pick({
@@ -130,6 +146,38 @@ const mapPackageError = (error: unknown) => {
     code: 'INTERNAL_SERVER_ERROR',
     message: 'module_app_package_ingestion_failed',
   });
+};
+
+const mapGatewayError = (error: unknown) => {
+  if (error instanceof TRPCError) return error;
+  const identifier = getPackageErrorIdentifier(error);
+
+  if (identifier === 'MODULE_APP_CAPABILITY_REPLAYED') {
+    return new TRPCError({ cause: error, code: 'CONFLICT', message: identifier });
+  }
+  if (identifier === 'MODULE_APP_NOTIFICATION_RATE_LIMITED') {
+    return new TRPCError({ cause: error, code: 'TOO_MANY_REQUESTS', message: identifier });
+  }
+  if (
+    identifier === 'MODULE_APP_CAPABILITY_DENIED' ||
+    identifier === 'MODULE_APP_CAPABILITY_SCOPE_MISMATCH' ||
+    identifier === 'MODULE_APP_FILE_SCOPE_DENIED' ||
+    identifier === 'MODULE_APP_HTTP_HOST_DENIED' ||
+    identifier === 'MODULE_APP_UNSAFE_API_URL'
+  ) {
+    return new TRPCError({ cause: error, code: 'FORBIDDEN', message: identifier });
+  }
+  if (
+    identifier.startsWith('MODULE_APP_FILE_') ||
+    identifier.startsWith('MODULE_APP_HTTP_') ||
+    identifier.startsWith('MODULE_APP_NOTIFICATION_') ||
+    identifier.startsWith('MODULE_APP_SECRET_') ||
+    identifier === 'MODULE_APP_CAPABILITY_REQUEST_ID_REQUIRED'
+  ) {
+    return new TRPCError({ cause: error, code: 'BAD_REQUEST', message: identifier });
+  }
+
+  return new TRPCError({ cause: error, code: 'INTERNAL_SERVER_ERROR', message: 'module_app_gateway_failed' });
 };
 
 const moduleAppProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
@@ -236,6 +284,40 @@ const assertRecordPermission = async (params: {
 };
 
 export const moduleAppRouter = router({
+  callSdk: moduleAppProcedure
+    .input(ModuleAppGatewayCallInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      let capability;
+      try {
+        capability = await verifyModuleAppCapability(input.capability, { userId: ctx.userId });
+      } catch (error) {
+        throw new TRPCError({ cause: error, code: 'UNAUTHORIZED', message: 'MODULE_APP_CAPABILITY_INVALID' });
+      }
+      if (capability.surface !== 'browser') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'MODULE_APP_CAPABILITY_SURFACE_DENIED' });
+      }
+      await assertRunnableApp({
+        appId: capability.appId,
+        currentPlan: ctx.currentPlan,
+        model: ctx.moduleAppModel,
+        userId: ctx.userId,
+      });
+
+      try {
+        return await createModuleAppCapabilityGateway({
+          capability,
+          db: ctx.serverDB,
+        }).call({
+          capability,
+          input: input.input,
+          method: input.method,
+          requestId: input.requestId,
+        });
+      } catch (error) {
+        throw mapGatewayError(error);
+      }
+    }),
+
   createPackageUpload: moduleAppProcedure
     .input(moduleAppPackageUploadRequestSchema)
     .mutation(async ({ ctx, input }) => {

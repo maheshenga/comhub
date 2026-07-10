@@ -157,9 +157,12 @@ export class S3 {
     return upload.url;
   }
 
-  public async createPreSignedUpload(key: string): Promise<PreSignedUpload> {
+  private async createPreSignedUploadWithAcl(
+    key: string,
+    acl?: typeof PUBLIC_READ_ACL_HEADER,
+  ): Promise<PreSignedUpload> {
     const command = new PutObjectCommand({
-      ACL: this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined,
+      ACL: acl,
       Bucket: this.bucket,
       Key: key,
     });
@@ -167,9 +170,20 @@ export class S3 {
     const url = await getSignedUrl(this.client, command, { expiresIn: 3600 });
 
     return {
-      headers: this.setAcl ? { 'x-amz-acl': PUBLIC_READ_ACL_HEADER } : undefined,
+      headers: acl ? { 'x-amz-acl': acl } : undefined,
       url,
     };
+  }
+
+  public async createPreSignedUpload(key: string): Promise<PreSignedUpload> {
+    return this.createPreSignedUploadWithAcl(
+      key,
+      this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined,
+    );
+  }
+
+  public async createPrivatePreSignedUpload(key: string): Promise<PreSignedUpload> {
+    return this.createPreSignedUploadWithAcl(key);
   }
 
   public async createPreSignedUrlForPreview(key: string, expiresIn?: number): Promise<string> {
@@ -360,6 +374,10 @@ export class FileS3 extends S3 {
 
   public async createPreSignedUpload(key: string): Promise<PreSignedUpload> {
     return (await this.getRuntimeS3()).createPreSignedUpload(key);
+  }
+
+  public async createPrivatePreSignedUpload(key: string): Promise<PreSignedUpload> {
+    return (await this.getRuntimeS3()).createPrivatePreSignedUpload(key);
   }
 
   public async testConnection() {

@@ -70,6 +70,7 @@ export const moduleAppCapabilityClaimsSchema = z
     installationId: z.string().uuid(),
     nonce: z.string().min(16).max(128),
     permissions: z.array(z.string()).max(80),
+    surface: z.enum(['browser', 'runtime']).default('browser'),
     userId: z.string().min(1),
     versionId: z.string().uuid(),
     workspaceId: z.string().min(1).optional(),

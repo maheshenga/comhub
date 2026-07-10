@@ -29,6 +29,7 @@ import {
   moduleAppBuilds,
   moduleAppEntitlements,
   moduleAppInstallations,
+  moduleAppInstallationSecrets,
   moduleAppPackages,
   moduleAppPackageUploads,
   moduleAppPages,
@@ -1151,6 +1152,66 @@ export class ModuleAppModel {
       slug: detail.slug,
       version: detail.version,
     };
+  };
+
+  getRuntimeInstallationContext = async (params: {
+    appId: string;
+    installationId: string;
+    userId: string;
+    versionId: string;
+    workspaceId?: string;
+  }) => {
+    const [row] = await this.db
+      .select({
+        appId: moduleApps.id,
+        displayName: moduleApps.displayName,
+        installationId: moduleAppInstallations.id,
+        runtimeManifest: moduleAppVersions.runtimeManifest,
+        scopeType: moduleAppInstallations.scopeType,
+        userId: moduleAppInstallations.userId,
+        versionId: moduleAppVersions.id,
+        workspaceId: moduleAppInstallations.workspaceId,
+      })
+      .from(moduleAppInstallations)
+      .innerJoin(moduleApps, eq(moduleApps.id, moduleAppInstallations.appId))
+      .innerJoin(moduleAppVersions, eq(moduleAppVersions.id, moduleAppInstallations.versionId))
+      .where(
+        and(
+          eq(moduleAppInstallations.id, params.installationId),
+          eq(moduleAppInstallations.appId, params.appId),
+          eq(moduleAppInstallations.versionId, params.versionId),
+          eq(moduleApps.status, 'published'),
+          eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+          isNull(moduleAppInstallations.uninstalledAt),
+          or(
+            and(
+              eq(moduleAppInstallations.scopeType, 'personal'),
+              eq(moduleAppInstallations.userId, params.userId),
+            ),
+            params.workspaceId
+              ? and(
+                  eq(moduleAppInstallations.scopeType, 'workspace'),
+                  eq(moduleAppInstallations.workspaceId, params.workspaceId),
+                )
+              : undefined,
+          ),
+        ),
+      )
+      .limit(1);
+
+    return row ?? null;
+  };
+
+  getInstallationSecret = async (params: { installationId: string; key: string }) => {
+    const secret = await this.db.query.moduleAppInstallationSecrets.findFirst({
+      columns: { encryptedValue: true },
+      where: and(
+        eq(moduleAppInstallationSecrets.installationId, params.installationId),
+        eq(moduleAppInstallationSecrets.secretKey, params.key),
+      ),
+    });
+
+    return secret?.encryptedValue ?? null;
   };
 
   listRecords = async (params: {

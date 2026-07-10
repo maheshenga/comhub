@@ -39,7 +39,7 @@ describe('module app executable runtime contracts', () => {
         userId: 'user-1',
         versionId: '00000000-0000-4000-8000-000000000003',
       }),
-    ).toMatchObject({ aud: 'module-runtime', userId: 'user-1' });
+    ).toMatchObject({ aud: 'module-runtime', surface: 'browser', userId: 'user-1' });
 
     expect(() =>
       moduleAppCapabilityClaimsSchema.parse({

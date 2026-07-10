@@ -1021,6 +1021,23 @@
 - Security boundary: the iframe never receives a signing key. SDK responses require exact channel, target origin, parent source, launch nonce, and request id; wildcard origins are not supported.
 - Docker deployment: no Docker or bind-mount change. Runtime deployment remains disabled.
 
+#### Module App Platform P1 Controlled Capability Gateway
+
+- Status: experimental. The authenticated browser relay route and server-side gateway are implemented, but no production package execution or capability launch flow is enabled yet.
+- Description: Exposes allowlisted `context.get`, `files.createUpload`, `files.createDownload`, `http.fetch`, `notifications.create`, and `secrets.get` operations behind verified Module App capabilities.
+- Frontend entry: future iframe shell through the SDK bridge; no visible navigation entry in this slice.
+- Backend API and services: `lambda.moduleApp.callSdk`, `createModuleAppCapabilityGateway`, and `packages/business-server/src/module-apps/sdk/*`.
+- Database dependencies: active `module_app_installations`, published `module_apps`, matching `module_app_versions`, encrypted `module_app_installation_secrets`, current workspace membership, and existing notifications.
+- Configuration and environment: existing `JWKS_KEY`, `KEY_VAULTS_SECRET`, and S3/OSS configuration. No new app setting or environment variable.
+- External services: configured S3-compatible object storage and reviewed outbound HTTPS endpoints.
+- Main files: `apps/server/src/routers/lambda/moduleApp.ts`, `apps/server/src/services/moduleAppRuntime/gateway.ts`, `packages/business-server/src/module-apps/sdk/`, and `packages/database/src/models/moduleApp.ts`.
+- Maintenance risk: high. This is a direct authorization, SSRF, secret, storage, notification, and workspace-membership boundary.
+- Refactor recommendation: keep adapters small and injectable. Before multi-replica production rollout, replace in-process replay and notification rate-limit stores with a shared atomic store.
+- Test coverage: method permission denial, browser secret redaction, runtime-only decryption, installation file isolation, SSRF denial, bounded HTTP responses, replay denial, notification rate limits, database installation/secret isolation, browser-only user route, type-check, and lint.
+- Security boundary: user-facing `callSdk` rejects runtime-surface tokens and rechecks the current plan's runnable entitlement; installation/app/version/user/workspace are revalidated against current database state on every call. Module App uploads force a private S3 pre-sign path even when the global file setting enables public ACL. HTTP hosts must appear in the reviewed manifest and still pass DNS/private-address checks. Secret plaintext is decrypted only for server runtime capabilities.
+- Known limitation: replay and notification windows are process-local during the experimental stage. Production enablement remains blocked until Phase 5 provides a shared multi-instance implementation and passes sandbox/E2E probes.
+- Docker deployment: no Docker or bind-mount change. Runtime deployment remains disabled.
+
 ## Governance Execution Notes
 
 | Date | Scope | Status | Note |

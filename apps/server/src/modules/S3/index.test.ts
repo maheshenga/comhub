@@ -517,6 +517,22 @@ describe('FileS3', () => {
   });
 
   describe('createPreSignedUpload', () => {
+    it('should force private uploads without inheriting the public ACL setting', async () => {
+      const s3 = new FileS3();
+
+      const result = await s3.createPrivatePreSignedUpload('private/module-file.txt');
+
+      expect(PutObjectCommand).toHaveBeenCalledWith({
+        ACL: undefined,
+        Bucket: 'test-bucket',
+        Key: 'private/module-file.txt',
+      });
+      expect(result).toEqual({
+        headers: undefined,
+        url: 'https://presigned-url.example.com',
+      });
+    });
+
     it('should return upload headers required by the signed PUT request', async () => {
       const s3 = new FileS3();
 

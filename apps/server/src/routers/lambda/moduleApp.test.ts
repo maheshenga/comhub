@@ -8,8 +8,10 @@ const {
   mockGetServerDB,
   mockGetSubscriptionPlan,
   mockIngestionService,
+  mockModuleAppGateway,
   mockRunModuleAppAction,
   mockModuleAppModel,
+  mockVerifyModuleAppCapability,
 } = vi.hoisted(() => ({
   mockGetServerDB: vi.fn(),
   mockGetSubscriptionPlan: vi.fn(),
@@ -17,6 +19,7 @@ const {
     issueUpload: vi.fn(),
     submitUpload: vi.fn(),
   },
+  mockModuleAppGateway: { call: vi.fn() },
   mockRunModuleAppAction: vi.fn(),
   mockModuleAppModel: {
     createRecord: vi.fn(),
@@ -24,6 +27,7 @@ const {
     getAppDetail: vi.fn(),
     listAdminPackageSubmissions: vi.fn(),
   },
+  mockVerifyModuleAppCapability: vi.fn(),
 }));
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -40,6 +44,14 @@ vi.mock('@/business/server/module-apps/runModuleAppAction', () => ({
 
 vi.mock('@/server/services/moduleAppPackage/ingestion', () => ({
   ModuleAppPackageIngestionService: vi.fn(() => mockIngestionService),
+}));
+
+vi.mock('@/server/services/moduleAppRuntime/capability', () => ({
+  verifyModuleAppCapability: mockVerifyModuleAppCapability,
+}));
+
+vi.mock('@/server/services/moduleAppRuntime/gateway', () => ({
+  createModuleAppCapabilityGateway: vi.fn(() => mockModuleAppGateway),
 }));
 
 vi.mock('@/database/models/moduleApp', () => ({
@@ -79,10 +91,82 @@ describe('moduleApp router registration', () => {
       id: 'package-1',
       reviewStatus: 'pending_review',
     });
+    mockVerifyModuleAppCapability.mockResolvedValue({
+      appId: APP_ID,
+      aud: 'module-runtime',
+      exp: 1_783_760_300,
+      iat: 1_783_760_000,
+      installationId: '00000000-0000-4000-8000-000000000010',
+      nonce: '0123456789abcdef0123456789abcdef',
+      permissions: ['context.read'],
+      surface: 'browser',
+      userId: 'user-1',
+      versionId: '00000000-0000-4000-8000-000000000011',
+    });
+    mockModuleAppGateway.call.mockResolvedValue({ appId: APP_ID });
   });
 
   it('registers the moduleApp router on lambda root', () => {
     expect(lambdaRouter._def.record.moduleApp).toBeDefined();
+  });
+
+  it('verifies and delegates a browser capability gateway call', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+
+    await expect(
+      createCaller().callSdk({
+        capability: 'signed-capability',
+        input: {},
+        method: 'context.get',
+        requestId: 'request-1',
+      }),
+    ).resolves.toEqual({ appId: APP_ID });
+
+    expect(mockVerifyModuleAppCapability).toHaveBeenCalledWith('signed-capability', {
+      userId: 'user-1',
+    });
+    expect(mockModuleAppGateway.call).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'context.get', requestId: 'request-1' }),
+    );
+  });
+
+  it('rechecks the current plan before a browser capability gateway call', async () => {
+    await expect(
+      createCaller().callSdk({
+        capability: 'signed-capability',
+        input: {},
+        method: 'context.get',
+      }),
+    ).rejects.toThrow('plan_run_denied');
+    expect(mockModuleAppGateway.call).not.toHaveBeenCalled();
+  });
+
+  it('rejects runtime capabilities from the user-facing gateway route', async () => {
+    mockVerifyModuleAppCapability.mockResolvedValueOnce({
+      appId: APP_ID,
+      aud: 'module-runtime',
+      exp: 1_783_760_300,
+      iat: 1_783_760_000,
+      installationId: '00000000-0000-4000-8000-000000000010',
+      nonce: '0123456789abcdef0123456789abcdef',
+      permissions: ['secrets.read'],
+      surface: 'runtime',
+      userId: 'user-1',
+      versionId: '00000000-0000-4000-8000-000000000011',
+    });
+
+    await expect(
+      createCaller().callSdk({
+        capability: 'runtime-capability',
+        input: { key: 'CRM_TOKEN' },
+        method: 'secrets.get',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(mockModuleAppGateway.call).not.toHaveBeenCalled();
   });
 
   it('denies record creation when the current plan cannot run the app', async () => {
