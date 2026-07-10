@@ -9,8 +9,9 @@
 - MODULE-APP-RUNTIME-P1-003: Executable package approval now remains draft and creates its queued build in the same database transaction. Admin package review shows queued/building/failed/ready state and audit metadata includes the build identity.
 - MODULE-APP-RUNTIME-P1-004: Added build-worker storage orchestration using the existing S3-compatible storage configuration. Workers receive short-lived reviewed-source downloads and build-scoped staging uploads; the server verifies artifact key, size, and SHA-256 before promoting bytes to a content-addressed final key.
 - MODULE-APP-RUNTIME-P1-005: Added a database-level publication gate so manifest v2 applications cannot publish until the matching version has a ready build and identical runtime artifact snapshot. The admin API returns `PRECONDITION_FAILED` without writing a success audit when the gate blocks publication.
+- MODULE-APP-RUNTIME-P1-006: Added `@lobechat/module-app-sdk` with a versioned request/response/event bridge that requires exact runtime origin, parent-window source, launch nonce, channel, and request identity. Added RS256 runtime capabilities with a maximum five-minute TTL, installation/user/version/workspace scope checks, and permission checks using the existing deployment `JWKS_KEY`.
 - Configuration and deployment: reuses existing S3/OSS settings. No new environment variable, Docker service, volume, runtime image, or public worker endpoint is enabled in this stage.
-- Runtime boundary: uploaded executable code is still not run. Capability SDK, core gateway, runtime service, iframe shell, production sandbox policy, and execution feature flag remain subsequent stages.
+- Runtime boundary: uploaded executable code is still not run. The capability SDK is present, while the core gateway, runtime service, iframe shell, production sandbox policy, and execution feature flag remain subsequent stages.
 - Verification: manifest/archive/type tests, build schema/model/approval/storage/service tests, admin router/UI tests, full `bun run type-check`, targeted lint, and `git diff --check`.
 
 ### Module App Package Risk Controls

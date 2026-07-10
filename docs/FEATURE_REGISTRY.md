@@ -1005,6 +1005,22 @@
 - Security boundary: worker uploads are limited to a build-scoped staging key; ready callbacks cannot select arbitrary object keys. The server checks bounded size and SHA-256, copies verified bytes to a content-addressed final object, and writes that exact key/hash to the version before publication is allowed.
 - Docker deployment: no Docker file or compose change in this stage. Existing bind-mount deployment rules remain unchanged; runtime containers are deferred.
 
+#### Module App Platform P1 Capability SDK
+
+- Status: experimental. Token and browser bridge contracts are active in source but are not connected to an enabled package runtime.
+- Description: Provides a browser-facing SDK bridge and short-lived RS256 capability tokens scoped to application version, installation, user, optional workspace, permissions, and launch nonce.
+- Frontend entry: none yet. The package will be consumed by the isolated Module App iframe shell in the runtime-shell task.
+- Core components: `packages/module-app-sdk/src/client.ts`, `packages/module-app-sdk/src/bridge.ts`.
+- Backend API and services: `apps/server/src/services/moduleAppRuntime/capability.ts`; no public router is added in this slice.
+- Database dependencies: none. Capability claims reference existing app/version/installation identities but are not persisted here.
+- Configuration and environment: reuses the existing private RS256 key in `JWKS_KEY`; no new signing secret or app setting is introduced.
+- External services: none.
+- Maintenance risk: high because capability scope and postMessage validation form a runtime authorization boundary.
+- Refactor recommendation: no large refactor. Keep signing, verification, bridge transport, and gateway authorization as separate tested adapters.
+- Test coverage: five-minute TTL, wrong installation, missing permission, wrong origin, wrong source window, wrong nonce, trusted events, and listener disposal.
+- Security boundary: the iframe never receives a signing key. SDK responses require exact channel, target origin, parent source, launch nonce, and request id; wildcard origins are not supported.
+- Docker deployment: no Docker or bind-mount change. Runtime deployment remains disabled.
+
 ## Governance Execution Notes
 
 | Date | Scope | Status | Note |
