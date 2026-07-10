@@ -11,8 +11,8 @@ import EntitlementEditor from './EntitlementEditor';
 import {
   buildModuleAppUpsertInput,
   createDefaultModuleAppFormValues,
-  normalizeModuleAppFormValues,
   type ModuleAppAdminFormInput,
+  normalizeModuleAppFormValues,
 } from './formSchema';
 import PageEditor from './PageEditor';
 import type { AdminModuleAppDetail } from './types';

@@ -297,6 +297,33 @@ describe('ModuleAppPackageLifecycleService', () => {
     expect(mocks.storage.deleteFile).not.toHaveBeenCalled();
   });
 
+  it('rejects an unsafe legacy storage key without attempting object deletion', async () => {
+    const mocks = createMocks();
+    mocks.packageModel.getPackageSubmissionForLifecycle.mockResolvedValueOnce({
+      ...packageRow,
+      archive: {
+        ...packageRow.archive,
+        storageKey: 'legacy-client-supplied-key.zip',
+      },
+    });
+
+    await expect(
+      createService(mocks).releaseRejectedPackage({
+        packageId: PACKAGE_ID,
+        reason: 'Legacy package cannot be safely cleaned',
+        reviewedByUserId: 'admin-1',
+      }),
+    ).resolves.toEqual({
+      cleanupQueued: false,
+      cleanupSkipped: true,
+      package: { id: PACKAGE_ID, reviewStatus: 'rejected' },
+    });
+
+    expect(mocks.packageModel.rejectPackageSubmissionForAdmin).toHaveBeenCalled();
+    expect(mocks.uploadModel.createLegacySession).not.toHaveBeenCalled();
+    expect(mocks.storage.deleteFile).not.toHaveBeenCalled();
+  });
+
   it('keeps a rejected package reserved when object deletion fails', async () => {
     const mocks = createMocks();
     mocks.uploadModel.getByPackageId.mockResolvedValueOnce({

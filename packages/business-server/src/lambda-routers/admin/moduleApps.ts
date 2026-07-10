@@ -259,7 +259,11 @@ export const adminModuleAppsRouter = router({
 
       await writeAudit(ctx, {
         eventType: 'module_app.package_rejected',
-        metadata: { cleanupQueued: result.cleanupQueued, reason: input.reason },
+        metadata: {
+          cleanupQueued: result.cleanupQueued,
+          cleanupSkipped: 'cleanupSkipped' in result ? result.cleanupSkipped : false,
+          reason: input.reason,
+        },
         resourceId: input.packageId,
         resourceType: 'moduleAppPackage',
       });

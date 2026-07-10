@@ -1,5 +1,18 @@
 # Internal Changelog
 
+## 2026-07-11
+
+### Module App Package Risk Controls
+
+- MODULE-APP-PACKAGE-P0-001: Added additive `module_app_package_uploads` persistence with upload/scan state, per-user open-session, rolling daily, and retained-storage quotas, atomic claims, and clean-scan approval enforcement.
+- MODULE-APP-PACKAGE-P0-002: Added ZIP central-directory validation and bounded static scanning for ZIP64/malformed metadata, symlinks, encrypted entries, nested archives, command/native binaries, executable signatures, WebAssembly, and EICAR content.
+- MODULE-APP-PACKAGE-P0-003: Moved pre-signing and submission into a durable ingestion service with user-scoped keys, actual-size checks, stable errors, storage compensation, and client feedback for quota, expiry, size, and security failures.
+- MODULE-APP-PACKAGE-P0-004: Added explicit administrator legacy rescan, archive hash integrity checks, scan-state display, clean-only approval, rejection cleanup, and response allowlists that omit storage keys, hashes, upload ids, and scan internals. Unsafe legacy keys can be rejected but are never deleted; the cleanup skip is audited.
+- MODULE-APP-PACKAGE-P0-005: Added bounded maintenance cleanup with `FOR UPDATE SKIP LOCKED`, a retry lease, idempotent missing-object handling, existing cron/manual maintenance integration, and cleanup result counts.
+- Boundary: Packages remain review-only and non-executable. No iframe, remote module, server container, queue, environment variable, Docker volume, or external antivirus service was added.
+- Deferred: package signing/provenance, external antivirus, executable package runtime, immutable upgrades/rollback, uninstall storage lifecycle, installed-app pagination, and browser E2E.
+- Verification: focused type/schema/database/scanner/ingestion/lifecycle/router/service/UI/maintenance suites, `bun run type-check`, targeted ESLint, locale JSON parsing, and `git diff --check`.
+
 ## 2026-07-10
 
 ### Module App Platform Unification

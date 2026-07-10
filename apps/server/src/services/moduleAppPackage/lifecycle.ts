@@ -300,7 +300,8 @@ export class ModuleAppPackageLifecycleService {
         )
       : STRUCTURAL_STORAGE_KEY_PATTERN.test(packageRow.archive.storageKey);
     if (!storageKeyIsValid) {
-      throw new ModuleAppPackageLifecycleError('MODULE_APP_PACKAGE_RESCAN_OWNERSHIP_INVALID');
+      const rejectedPackage = await this.packageModel.rejectPackageSubmissionForAdmin(params);
+      return { cleanupQueued: false, cleanupSkipped: true, package: rejectedPackage };
     }
 
     const linked = await this.uploadModel.getByPackageId(params.packageId);
