@@ -1,6 +1,8 @@
 import type {
   ModuleAppActionConfig,
   ModuleAppBillingConfig,
+  ModuleAppBuildProfile,
+  ModuleAppBuildStatus,
   ModuleAppInputSchema,
   ModuleAppPackageArchiveMetadata,
   ModuleAppPackageFileManifestItem,
@@ -93,6 +95,12 @@ export const moduleAppVersions = pgTable(
     changelog: text('changelog').default('').notNull(),
     publishedAt: timestamptz('published_at'),
     rollbackSourceVersionId: uuid('rollback_source_version_id'),
+    runtimeArtifactKey: text('runtime_artifact_key'),
+    runtimeArtifactSha256: text('runtime_artifact_sha256'),
+    runtimeManifest: jsonb('runtime_manifest')
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
     createdAt: createdAt(),
   },
   (table) => [
@@ -261,6 +269,30 @@ export type NewModuleAppInstallation =
   typeof moduleAppInstallations.$inferInsert;
 export type ModuleAppInstallationItem =
   typeof moduleAppInstallations.$inferSelect;
+
+export const moduleAppInstallationSecrets = pgTable(
+  'module_app_installation_secrets',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    installationId: uuid('installation_id')
+      .references(() => moduleAppInstallations.id, { onDelete: 'cascade' })
+      .notNull(),
+    secretKey: text('secret_key').notNull(),
+    encryptedValue: text('encrypted_value').notNull(),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_installation_secrets_installation_key_unique').on(
+      table.installationId,
+      table.secretKey,
+    ),
+  ],
+);
+
+export type NewModuleAppInstallationSecret = typeof moduleAppInstallationSecrets.$inferInsert;
+export type ModuleAppInstallationSecretItem = typeof moduleAppInstallationSecrets.$inferSelect;
 
 export const moduleAppRecords = pgTable(
   'module_app_records',
@@ -523,6 +555,45 @@ export const moduleAppPackages = pgTable(
 
 export type NewModuleAppPackage = typeof moduleAppPackages.$inferInsert;
 export type ModuleAppPackageItem = typeof moduleAppPackages.$inferSelect;
+
+export const moduleAppBuilds = pgTable(
+  'module_app_builds',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    packageId: uuid('package_id')
+      .references(() => moduleAppPackages.id, { onDelete: 'cascade' })
+      .notNull(),
+    versionId: uuid('version_id')
+      .references(() => moduleAppVersions.id, { onDelete: 'cascade' })
+      .notNull(),
+    status: text('status').$type<ModuleAppBuildStatus>().default('queued').notNull(),
+    sourceSha256: text('source_sha256').notNull(),
+    artifactKey: text('artifact_key'),
+    artifactSha256: text('artifact_sha256'),
+    buildProfile: text('build_profile').$type<ModuleAppBuildProfile>().notNull(),
+    workerId: text('worker_id'),
+    claimedAt: timestamptz('claimed_at'),
+    completedAt: timestamptz('completed_at'),
+    failureCode: text('failure_code'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_builds_version_id_unique').on(table.versionId),
+    index('module_app_builds_status_created_at_idx').on(table.status, table.createdAt),
+    check(
+      'module_app_builds_status_check',
+      sql`${table.status} IN ('queued', 'building', 'ready', 'failed')`,
+    ),
+    check(
+      'module_app_builds_source_sha256_check',
+      sql`${table.sourceSha256} ~ '^[a-f0-9]{64}$'`,
+    ),
+  ],
+);
+
+export type NewModuleAppBuild = typeof moduleAppBuilds.$inferInsert;
+export type ModuleAppBuildItem = typeof moduleAppBuilds.$inferSelect;
 
 export const moduleAppPackageUploads = pgTable(
   'module_app_package_uploads',

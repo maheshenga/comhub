@@ -20,6 +20,14 @@ export type ModuleAppRuntimeLanguage = z.infer<typeof moduleAppRuntimeLanguageSc
 export const moduleAppBuildProfileSchema = z.enum(['node22-static', 'python312-assets']);
 export type ModuleAppBuildProfile = z.infer<typeof moduleAppBuildProfileSchema>;
 
+export const moduleAppBuildStatusSchema = z.enum([
+  'queued',
+  'building',
+  'ready',
+  'failed',
+]);
+export type ModuleAppBuildStatus = z.infer<typeof moduleAppBuildStatusSchema>;
+
 export const moduleAppBuildConfigSchema = z
   .object({
     frontend: z

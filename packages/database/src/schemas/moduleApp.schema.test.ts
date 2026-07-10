@@ -8,8 +8,10 @@ import {
   moduleAppActions,
   moduleAppArtifacts,
   moduleAppAuditLogs,
+  moduleAppBuilds,
   moduleAppEntitlements,
   moduleAppInstallations,
+  moduleAppInstallationSecrets,
   moduleAppPages,
   moduleAppPackages,
   moduleAppPackageUploads,
@@ -35,6 +37,8 @@ describe('module app schema exports', () => {
     expect(moduleAppAuditLogs).toBeDefined();
     expect(moduleAppPackages).toBeDefined();
     expect(moduleAppPackageUploads).toBeDefined();
+    expect(moduleAppBuilds).toBeDefined();
+    expect(moduleAppInstallationSecrets).toBeDefined();
   });
 
   it('keeps database ownership constraints in the generated migration', () => {
@@ -144,6 +148,25 @@ describe('module app schema exports', () => {
     expect(migration).toContain('module_app_package_uploads_status_expires_at_idx');
     expect(
       journal.entries.some(({ tag }) => tag === '0135_add_module_app_package_uploads'),
+    ).toBe(true);
+  });
+
+  it('registers immutable build and encrypted installation secret persistence', () => {
+    const migration = readFileSync(
+      resolve(__dirname, '../../migrations/0136_add_module_app_build_runtime.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_builds"');
+    expect(migration).toContain('module_app_builds_version_id_unique');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_installation_secrets"');
+    expect(migration).toContain('"encrypted_value" text NOT NULL');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "runtime_artifact_sha256" text');
+    expect(
+      journal.entries.some(({ tag }) => tag === '0136_add_module_app_build_runtime'),
     ).toBe(true);
   });
 });
