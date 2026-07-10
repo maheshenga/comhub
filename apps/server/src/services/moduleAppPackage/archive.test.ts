@@ -106,4 +106,28 @@ describe('parseModuleAppPackageArchive', () => {
       code: 'module_app_package_manifest_missing',
     });
   });
+
+  it('rejects statically unsafe package contents with a bounded scan report', async () => {
+    const bytes = createArchive({
+      'install.ps1': strToU8('Write-Host unsafe'),
+      'manifest.json': strToU8(JSON.stringify(validManifest)),
+    });
+
+    await expect(
+      parseModuleAppPackageArchive({
+        bytes,
+        fileName: 'unsafe-script.zip',
+        mimeType: 'application/zip',
+        storageKey: 'module-app-packages/user-scope/unsafe-script.zip',
+      }),
+    ).rejects.toMatchObject({
+      code: 'module_app_package_forbidden_extension',
+      issues: [
+        expect.objectContaining({
+          code: 'module_app_package_forbidden_extension',
+          path: 'install.ps1',
+        }),
+      ],
+    });
+  });
 });

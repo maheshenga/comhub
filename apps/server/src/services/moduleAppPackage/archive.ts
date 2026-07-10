@@ -4,10 +4,14 @@ import {
   MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES,
   moduleAppPackageManifestSchema,
   type ModuleAppPackageSubmitInput,
+  type ModuleAppPackageValidationIssue,
 } from '@lobechat/types';
 import { unzip } from 'fflate';
 
 import { validateModuleAppPackageSubmission } from '@/business/server/module-apps/packageManifest';
+
+import { scanModuleAppPackage } from './scanner';
+import { inspectModuleAppZipEntries, ModuleAppZipMetadataError } from './zipMetadata';
 
 const DEFAULT_LIMITS = {
   maxCompressionRatio: 200,
@@ -24,6 +28,7 @@ export class ModuleAppPackageArchiveError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    public readonly issues: ModuleAppPackageValidationIssue[] = [],
   ) {
     super(message);
     this.name = 'ModuleAppPackageArchiveError';
@@ -151,7 +156,23 @@ export const parseModuleAppPackageArchive = async (
     );
   }
 
+  let entries;
+  try {
+    entries = inspectModuleAppZipEntries(input.bytes);
+  } catch (error) {
+    if (error instanceof ModuleAppZipMetadataError) {
+      throw new ModuleAppPackageArchiveError(error.code, error.message);
+    }
+    throw error;
+  }
+
   const files = await unzipPackage(input.bytes, limits);
+  const scanIssues = scanModuleAppPackage({ entries, files });
+  if (scanIssues.length > 0) {
+    const firstIssue = scanIssues[0];
+    throw new ModuleAppPackageArchiveError(firstIssue.code, firstIssue.message, scanIssues);
+  }
+
   const manifestBytes = files['manifest.json'];
   if (!manifestBytes) {
     throw new ModuleAppPackageArchiveError(
