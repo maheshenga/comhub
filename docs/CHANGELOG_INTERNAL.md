@@ -2,6 +2,17 @@
 
 ## 2026-07-11
 
+### Module App Executable Build Foundation
+
+- MODULE-APP-RUNTIME-P1-001: Added strict manifest v2 `module-app.yaml` contracts for fixed `node22-static` and `python312-assets` build profiles while preserving legacy manifest v1 JSON packages and rejecting mixed manifest formats or custom images.
+- MODULE-APP-RUNTIME-P1-002: Added migration `0136_add_module_app_build_runtime.sql`, immutable build records, installation secret persistence for encrypted values, runtime artifact snapshots, atomic build claims, and immutable completion transitions.
+- MODULE-APP-RUNTIME-P1-003: Executable package approval now remains draft and creates its queued build in the same database transaction. Admin package review shows queued/building/failed/ready state and audit metadata includes the build identity.
+- MODULE-APP-RUNTIME-P1-004: Added build-worker storage orchestration using the existing S3-compatible storage configuration. Workers receive short-lived reviewed-source downloads and build-scoped staging uploads; the server verifies artifact key, size, and SHA-256 before promoting bytes to a content-addressed final key.
+- MODULE-APP-RUNTIME-P1-005: Added a database-level publication gate so manifest v2 applications cannot publish until the matching version has a ready build and identical runtime artifact snapshot. The admin API returns `PRECONDITION_FAILED` without writing a success audit when the gate blocks publication.
+- Configuration and deployment: reuses existing S3/OSS settings. No new environment variable, Docker service, volume, runtime image, or public worker endpoint is enabled in this stage.
+- Runtime boundary: uploaded executable code is still not run. Capability SDK, core gateway, runtime service, iframe shell, production sandbox policy, and execution feature flag remain subsequent stages.
+- Verification: manifest/archive/type tests, build schema/model/approval/storage/service tests, admin router/UI tests, full `bun run type-check`, targeted lint, and `git diff --check`.
+
 ### Module App Package Risk Controls
 
 - MODULE-APP-PACKAGE-P0-001: Added additive `module_app_package_uploads` persistence with upload/scan state, per-user open-session, rolling daily, and retained-storage quotas, atomic claims, and clean-scan approval enforcement.

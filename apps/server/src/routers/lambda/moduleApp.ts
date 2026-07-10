@@ -1,7 +1,7 @@
 import {
   moduleAppMarketplaceListInputSchema,
   moduleAppPackageArchiveMetadataSchema,
-  moduleAppPackageManifestSchema,
+  moduleAppPackageManifestV1Schema,
   moduleAppPackageSubmissionListInputSchema,
   moduleAppPackageUploadedSubmitSchema,
   moduleAppPackageUploadRequestSchema,
@@ -45,10 +45,10 @@ const publicPackageArchiveSchema = moduleAppPackageArchiveMetadataSchema.pick({
   sizeBytes: true,
 });
 
-const publicPackageManifestSchema = moduleAppPackageManifestSchema
+const publicPackageManifestSchema = moduleAppPackageManifestV1Schema
   .pick({ app: true, packageVersion: true })
   .extend({
-    app: moduleAppPackageManifestSchema.shape.app.pick({ displayName: true, slug: true }),
+    app: moduleAppPackageManifestV1Schema.shape.app.pick({ displayName: true, slug: true }),
   });
 
 type PublicPackageSubmissionSource = Pick<

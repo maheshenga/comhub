@@ -71,13 +71,16 @@ describe('ModuleAppModel package review lifecycle', () => {
             severity: 'warning' as const,
           })),
         },
+        buildFailureCode: null,
+        buildStatus: 'queued',
         scanStatus: null,
       },
     ]);
     const limit = vi.fn(() => ({ offset }));
     const orderBy = vi.fn(() => ({ limit }));
     const where = vi.fn(() => ({ orderBy }));
-    const leftJoin = vi.fn(() => ({ where }));
+    const secondLeftJoin = vi.fn(() => ({ where }));
+    const leftJoin = vi.fn(() => ({ leftJoin: secondLeftJoin }));
     const from = vi.fn(() => ({ leftJoin }));
     const db = { select: vi.fn(() => ({ from })) } as any;
 
@@ -90,6 +93,8 @@ describe('ModuleAppModel package review lifecycle', () => {
         sizeBytes: 1024,
       },
       id: 'package-1',
+      buildFailureCode: null,
+      buildStatus: 'queued',
       scanStatus: 'pending',
     });
     expect(result.items[0].validationReport).toHaveLength(100);

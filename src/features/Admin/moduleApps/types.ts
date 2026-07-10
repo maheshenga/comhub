@@ -2,6 +2,7 @@ import type {
   ModuleAppActionConfig,
   ModuleAppAdminUpsertInput,
   ModuleAppBillingConfig,
+  ModuleAppBuildStatus,
   ModuleAppPackageReviewStatus,
   ModuleAppPackageScanStatus,
   ModuleAppPage,
@@ -44,6 +45,8 @@ export type AdminPlanOption = {
 
 export type AdminModuleAppPackageRow = {
   appId?: null | string;
+  buildFailureCode?: null | string;
+  buildStatus?: ModuleAppBuildStatus | null;
   createdAt?: Date | string;
   id: string;
   manifestSnapshot?: {

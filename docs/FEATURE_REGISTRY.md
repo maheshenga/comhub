@@ -987,6 +987,24 @@
 - Test coverage: type/schema/migration, real database quota and cleanup concurrency, ZIP parser/scanner, ingestion compensation, admin rescan/rejection, user/admin routers, upload/review UI, cron/manual maintenance, type-check, and targeted ESLint.
 - Deferred P1/P2: external antivirus, signed packages/provenance, executable package runtime, immutable package versions with explicit upgrade/rollback, uninstall object lifecycle, installed-app pagination, and browser E2E.
 
+#### Module App Platform P1 Executable Build Foundation
+
+- Status: experimental. Manifest, persistence, approval, build storage, and publication gates are active; package execution remains disabled until the runtime and production sandbox stages pass their security gates.
+- Description: Adds manifest v2 executable package contracts, immutable build records, atomic approval-to-build creation, worker request preparation, server-side artifact verification/promotion, build status visibility, and a database-level pre-publication gate.
+- Frontend entry: `/admin/module-apps` package review displays build status and bounded failure codes. Existing `/apps/my` and marketplace routes remain unchanged in this stage.
+- Core components: `src/features/Admin/moduleApps/index.tsx`, `src/features/Admin/moduleApps/types.ts`.
+- Backend API and services: `admin.moduleApps.approvePackage`, `admin.moduleApps.publish`, `ModuleAppBuildService`, `ModuleAppBuildStorageService`, `ModuleAppModel`, and `ModuleAppBuildModel`.
+- Database dependencies: `module_app_packages`, `module_app_versions`, `module_app_builds`, `module_app_installation_secrets`, and additive migration `0136_add_module_app_build_runtime.sql`.
+- Configuration dependencies: existing S3-compatible storage configuration and reviewed package archive object keys. No new app-setting key is introduced.
+- Environment variables: existing S3/OSS environment fallback only; no new variable is required in this stage.
+- External services: existing S3-compatible object storage. No build worker or runtime endpoint is publicly registered yet.
+- Main files: `packages/types/src/moduleAppRuntime.ts`, `packages/types/src/moduleApp.ts`, `packages/database/src/schemas/moduleApp.ts`, `packages/database/src/models/moduleAppBuild.ts`, `packages/database/src/models/moduleApp.ts`, `apps/server/src/services/moduleAppBuild/`, `packages/business-server/src/lambda-routers/admin/moduleApps.ts`, and `src/features/Admin/moduleApps/`.
+- Maintenance risk: high. This crosses package review, database transactions, object storage, admin publication, and future runtime trust boundaries.
+- Refactor recommendation: yes, incrementally. Phase 4 must replace mutable latest-version snapshots with explicit immutable package versions before multi-version upgrade/rollback is enabled.
+- Test gap: focused contracts, real database transitions, storage orchestration, admin API, UI, and type-check coverage exist. Build worker integration, capability SDK, runtime service, browser iframe isolation, production sandbox probes, and end-to-end rollout tests remain pending.
+- Security boundary: worker uploads are limited to a build-scoped staging key; ready callbacks cannot select arbitrary object keys. The server checks bounded size and SHA-256, copies verified bytes to a content-addressed final object, and writes that exact key/hash to the version before publication is allowed.
+- Docker deployment: no Docker file or compose change in this stage. Existing bind-mount deployment rules remain unchanged; runtime containers are deferred.
+
 ## Governance Execution Notes
 
 | Date | Scope | Status | Note |

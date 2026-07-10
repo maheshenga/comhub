@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { ModuleAppModel } from '@/database/models/moduleApp';
 import type { LobeChatDatabase } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
+import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
@@ -129,6 +130,15 @@ const mapPackageReviewError = (error: unknown) => {
   });
 };
 
+const mapPublishError = (error: unknown) => {
+  const identifier = getPackageErrorIdentifier(error);
+  if (identifier === 'MODULE_APP_BUILD_NOT_READY') {
+    return new TRPCError({ cause: error, code: 'PRECONDITION_FAILED', message: identifier });
+  }
+
+  return error;
+};
+
 export const adminModuleAppsRouter = router({
   get: auditReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
     return requireAdminApp(ctx.serverDB, input.appId);
@@ -185,7 +195,11 @@ export const adminModuleAppsRouter = router({
   publish: contentWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
-    await new ModuleAppModel(ctx.serverDB).setStatus({ appId: input.appId, status: 'published' });
+    try {
+      await new ModuleAppModel(ctx.serverDB).setStatus({ appId: input.appId, status: 'published' });
+    } catch (error) {
+      throw mapPublishError(error);
+    }
     await writeAudit(ctx, { eventType: 'module_app.published', resourceId: input.appId });
 
     return { ok: true };
@@ -196,7 +210,7 @@ export const adminModuleAppsRouter = router({
     .mutation(async ({ ctx, input }) => {
       let result;
       try {
-        result = await new ModuleAppModel(ctx.serverDB).approvePackageSubmissionForAdmin({
+        result = await new ModuleAppBuildService({ db: ctx.serverDB }).approvePackage({
           ...input,
           reviewedByUserId: ctx.userId,
         });
@@ -206,7 +220,13 @@ export const adminModuleAppsRouter = router({
 
       await writeAudit(ctx, {
         eventType: 'module_app.package_approved',
-        metadata: { packageId: input.packageId, slug: result.slug, versionId: result.versionId },
+        metadata: {
+          buildId: result.build?.id,
+          buildStatus: result.build?.status,
+          packageId: input.packageId,
+          slug: result.slug,
+          versionId: result.versionId,
+        },
         resourceId: result.appId,
       });
 

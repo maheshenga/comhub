@@ -20,6 +20,10 @@ const lifecycleMocks = vi.hoisted(() => ({
   rescanLegacyPackage: vi.fn(),
 }));
 
+const buildServiceMocks = vi.hoisted(() => ({
+  approvePackage: vi.fn(),
+}));
+
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
 }));
@@ -30,6 +34,10 @@ vi.mock('@/database/models/moduleApp', () => ({
 
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
   ModuleAppPackageLifecycleService: vi.fn(() => lifecycleMocks),
+}));
+
+vi.mock('@/server/services/moduleAppBuild/service', () => ({
+  ModuleAppBuildService: vi.fn(() => buildServiceMocks),
 }));
 
 vi.mock('../../module-apps/audit', () => ({
@@ -156,6 +164,13 @@ describe('admin module apps router', () => {
       slug: 'workbench',
       versionId: 'version-1',
     });
+    buildServiceMocks.approvePackage.mockResolvedValue({
+      appId: APP_ID,
+      build: { id: 'build-1', status: 'queued' },
+      package: { id: PACKAGE_ID, reviewStatus: 'approved' },
+      slug: 'workbench',
+      versionId: 'version-1',
+    });
     moduleAppModelMocks.rejectPackageSubmissionForAdmin.mockResolvedValue({
       id: PACKAGE_ID,
       reviewStatus: 'rejected',
@@ -247,6 +262,17 @@ describe('admin module apps router', () => {
     expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
   });
 
+  it('maps an executable build gate to a precondition error without a success audit', async () => {
+    moduleAppModelMocks.setStatus.mockRejectedValueOnce(new Error('MODULE_APP_BUILD_NOT_READY'));
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'MODULE_APP_BUILD_NOT_READY',
+    });
+    expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
+  });
+
   it('lists module app package submissions for review', async () => {
     const caller = createCaller();
 
@@ -267,12 +293,13 @@ describe('admin module apps router', () => {
 
     await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).resolves.toEqual({
       appId: APP_ID,
+      build: { id: 'build-1', status: 'queued' },
       package: { id: PACKAGE_ID, reviewStatus: 'approved' },
       slug: 'workbench',
       versionId: 'version-1',
     });
 
-    expect(moduleAppModelMocks.approvePackageSubmissionForAdmin).toHaveBeenCalledWith({
+    expect(buildServiceMocks.approvePackage).toHaveBeenCalledWith({
       packageId: PACKAGE_ID,
       reviewedByUserId: 'admin-user',
     });
@@ -287,7 +314,7 @@ describe('admin module apps router', () => {
   });
 
   it('maps a non-clean package approval to a precondition error', async () => {
-    moduleAppModelMocks.approvePackageSubmissionForAdmin.mockRejectedValueOnce(
+    buildServiceMocks.approvePackage.mockRejectedValueOnce(
       new Error('MODULE_APP_PACKAGE_SCAN_NOT_CLEAN'),
     );
     const caller = createCaller();

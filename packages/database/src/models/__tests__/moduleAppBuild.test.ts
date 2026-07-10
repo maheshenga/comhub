@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { moduleAppPackageManifestSchema } from '@lobechat/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -15,6 +16,26 @@ import { ModuleAppBuildModel } from '../moduleAppBuild';
 const USER_ID = 'module-app-build-user';
 const NOW = new Date('2026-07-11T01:00:00.000Z');
 const serverDB: LobeChatDatabase = await getTestDB();
+
+const buildManifest = moduleAppPackageManifestSchema.parse({
+  app: {
+    actions: [],
+    appType: 'hybrid_app',
+    billing: {},
+    category: 'business',
+    description: 'Build test app.',
+    displayName: 'Build Test',
+    icon: 'Package',
+    pages: [],
+    slug: 'build-test',
+    tags: [],
+  },
+  build: { frontend: { output: 'dist', profile: 'node22-static' } },
+  entitlements: [],
+  manifestVersion: 2,
+  packageVersion: '1.0.0',
+  runtime: { functions: [], permissions: [] },
+});
 
 const createPackageVersion = async () => {
   const [app] = await serverDB
@@ -45,23 +66,8 @@ const createPackageVersion = async () => {
       },
       fileManifest: [{ path: 'module-app.yaml', sizeBytes: 100 }],
       manifestSnapshot: {
-        app: {
-          actions: [],
-          appType: 'hybrid_app',
-          billing: {},
-          category: 'business',
-          description: 'Build test app.',
-          displayName: 'Build Test',
-          icon: 'Package',
-          pages: [],
-          slug: app.slug,
-          tags: [],
-        },
-        build: { frontend: { output: 'dist', profile: 'node22-static' } },
-        entitlements: [],
-        manifestVersion: 2,
-        packageVersion: '1.0.0',
-        runtime: { functions: [], permissions: [] },
+        ...buildManifest,
+        app: { ...buildManifest.app, slug: app.slug },
       },
       reviewStatus: 'approved',
       submittedByUserId: USER_ID,
@@ -95,9 +101,11 @@ describe('ModuleAppBuildModel', () => {
 
     await expect(model.claimNext({ workerId: 'builder-1' })).resolves.toMatchObject({
       id: build.id,
+      sourceStorageKey: 'module-app-packages/build.zip',
       status: 'building',
       workerId: 'builder-1',
     });
+    await expect(model.getById(build.id)).resolves.toMatchObject({ id: build.id });
     await expect(model.claimNext({ workerId: 'builder-2' })).resolves.toBeNull();
 
     const completed = await model.complete({

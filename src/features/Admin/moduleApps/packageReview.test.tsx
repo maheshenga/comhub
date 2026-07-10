@@ -70,6 +70,7 @@ vi.mock('@/libs/swr', () => ({
             {
               createdAt: '2026-07-10T00:00:00.000Z',
               id: PACKAGE_ID,
+              buildStatus: 'queued',
               manifestSnapshot: {
                 app: {
                   displayName: 'Recruiting Desk',
@@ -132,6 +133,7 @@ describe('AdminModuleAppsPage package review', () => {
 
     expect(screen.getByText('Recruiting Desk')).toBeInTheDocument();
     expect(screen.getByText('pending_review')).toBeInTheDocument();
+    expect(screen.getByText('queued')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument();
 

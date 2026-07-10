@@ -1,7 +1,7 @@
 import type { ModuleAppBuildProfile } from '@lobechat/types';
 import { and, asc, eq } from 'drizzle-orm';
 
-import { moduleAppBuilds, moduleAppVersions } from '../schemas';
+import { moduleAppBuilds, moduleAppPackages, moduleAppVersions } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 
 type ModuleAppBuildModelOptions = {
@@ -35,8 +35,9 @@ export class ModuleAppBuildModel {
 
     return this.db.transaction(async (tx) => {
       const [candidate] = await tx
-        .select({ id: moduleAppBuilds.id })
+        .select({ archive: moduleAppPackages.archive, id: moduleAppBuilds.id })
         .from(moduleAppBuilds)
+        .innerJoin(moduleAppPackages, eq(moduleAppPackages.id, moduleAppBuilds.packageId))
         .where(eq(moduleAppBuilds.status, 'queued'))
         .orderBy(asc(moduleAppBuilds.createdAt), asc(moduleAppBuilds.id))
         .limit(1)
@@ -50,7 +51,9 @@ export class ModuleAppBuildModel {
         .where(and(eq(moduleAppBuilds.id, candidate.id), eq(moduleAppBuilds.status, 'queued')))
         .returning();
 
-      return claimed ?? null;
+      return claimed
+        ? { ...claimed, sourceStorageKey: candidate.archive.storageKey }
+        : null;
     });
   };
 
@@ -109,4 +112,7 @@ export class ModuleAppBuildModel {
 
   getByVersionId = (versionId: string) =>
     this.db.query.moduleAppBuilds.findFirst({ where: eq(moduleAppBuilds.versionId, versionId) });
+
+  getById = (buildId: string) =>
+    this.db.query.moduleAppBuilds.findFirst({ where: eq(moduleAppBuilds.id, buildId) });
 }

@@ -133,6 +133,13 @@ const packageScanStatusColor: Record<ModuleAppPackageScanStatus, string> = {
   pending: 'default',
 };
 
+const packageBuildStatusColor: Record<string, string> = {
+  building: 'blue',
+  failed: 'red',
+  queued: 'gold',
+  ready: 'green',
+};
+
 const formatDate = (value?: Date | string) => {
   if (!value) return '-';
 
@@ -543,6 +550,19 @@ const AdminModuleAppsPage = memo(() => {
         <Tag color={packageScanStatusColor[value]}>{value}</Tag>
       ),
       title: 'Scan status',
+    },
+    {
+      dataIndex: 'buildStatus',
+      key: 'buildStatus',
+      render: (value?: null | string, row?: AdminModuleAppPackageRow) =>
+        value ? (
+          <Tag color={packageBuildStatusColor[value]} title={row?.buildFailureCode ?? undefined}>
+            {value}
+          </Tag>
+        ) : (
+          '-'
+        ),
+      title: 'Build status',
     },
     {
       dataIndex: 'submittedByUserId',

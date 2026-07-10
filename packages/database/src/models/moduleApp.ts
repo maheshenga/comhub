@@ -26,6 +26,7 @@ import {
   moduleAppActions,
   moduleAppArtifacts,
   moduleAppAuditLogs,
+  moduleAppBuilds,
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppPackages,
@@ -56,6 +57,7 @@ type ModuleAppVersionRow = typeof moduleAppVersions.$inferSelect;
 const serializeAdminPackageSubmission = (
   packageRow: ModuleAppPackageRow,
   scanStatus: ModuleAppPackageScanStatus | null,
+  build?: { failureCode: null | string; status: null | string },
 ) => ({
   ...packageRow,
   archive: {
@@ -65,6 +67,8 @@ const serializeAdminPackageSubmission = (
   },
   fileManifest: packageRow.fileManifest.map(({ path, sizeBytes }) => ({ path, sizeBytes })),
   scanStatus: scanStatus ?? 'pending',
+  buildFailureCode: build?.failureCode ?? null,
+  buildStatus: build?.status ?? null,
   validationReport: packageRow.validationReport.slice(0, MODULE_APP_PACKAGE_MAX_SCAN_ISSUES),
 });
 
@@ -140,7 +144,9 @@ const normalizePackageManifestForApproval = (manifest: ModuleAppPackageRow['mani
 
   return {
     app: parsed.app,
+    build: parsed.manifestVersion === 2 ? parsed.build : undefined,
     entitlements: parsed.entitlements,
+    manifestVersion: parsed.manifestVersion,
     packageVersion: parsed.packageVersion,
     runtime: parsed.runtime,
   };
@@ -478,18 +484,27 @@ export class ModuleAppModel {
     const filters = conditions.filter((condition): condition is SQL => condition !== undefined);
 
     const rows = await this.db
-      .select({ packageRow: moduleAppPackages, scanStatus: moduleAppPackageUploads.scanStatus })
+      .select({
+        buildFailureCode: moduleAppBuilds.failureCode,
+        buildStatus: moduleAppBuilds.status,
+        packageRow: moduleAppPackages,
+        scanStatus: moduleAppPackageUploads.scanStatus,
+      })
       .from(moduleAppPackages)
       .leftJoin(
         moduleAppPackageUploads,
         eq(moduleAppPackageUploads.packageId, moduleAppPackages.id),
       )
+      .leftJoin(moduleAppBuilds, eq(moduleAppBuilds.packageId, moduleAppPackages.id))
       .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(desc(moduleAppPackages.createdAt))
       .limit(limit)
       .offset(cursor);
-    const items = rows.map(({ packageRow, scanStatus }) =>
-      serializeAdminPackageSubmission(packageRow, scanStatus),
+    const items = rows.map(({ buildFailureCode, buildStatus, packageRow, scanStatus }) =>
+      serializeAdminPackageSubmission(packageRow, scanStatus, {
+        failureCode: buildFailureCode,
+        status: buildStatus,
+      }),
     );
 
     return { items, nextCursor: items.length === limit ? cursor + limit : null };
@@ -497,16 +512,27 @@ export class ModuleAppModel {
 
   getAdminPackageSubmission = async (params: { packageId: string }) => {
     const [row] = await this.db
-      .select({ packageRow: moduleAppPackages, scanStatus: moduleAppPackageUploads.scanStatus })
+      .select({
+        buildFailureCode: moduleAppBuilds.failureCode,
+        buildStatus: moduleAppBuilds.status,
+        packageRow: moduleAppPackages,
+        scanStatus: moduleAppPackageUploads.scanStatus,
+      })
       .from(moduleAppPackages)
       .leftJoin(
         moduleAppPackageUploads,
         eq(moduleAppPackageUploads.packageId, moduleAppPackages.id),
       )
+      .leftJoin(moduleAppBuilds, eq(moduleAppBuilds.packageId, moduleAppPackages.id))
       .where(eq(moduleAppPackages.id, params.packageId))
       .limit(1);
 
-    return row ? serializeAdminPackageSubmission(row.packageRow, row.scanStatus) : null;
+    return row
+      ? serializeAdminPackageSubmission(row.packageRow, row.scanStatus, {
+          failureCode: row.buildFailureCode,
+          status: row.buildStatus,
+        })
+      : null;
   };
 
   approvePackageSubmissionForAdmin = async (params: {
@@ -531,7 +557,11 @@ export class ModuleAppModel {
       }
 
       const normalized = normalizePackageManifestForApproval(submission.manifestSnapshot);
-      const appInput = { ...normalized.app, source: 'developer' as const };
+      const appInput = {
+        ...normalized.app,
+        source: 'developer' as const,
+        status: normalized.manifestVersion === 2 ? ('draft' as const) : normalized.app.status,
+      };
       const app = await this.upsertAppForAdminWithExecutor(appInput, tx);
       await this.replaceEntitlementsForAdmin(
         { appId: app.id, entitlements: normalized.entitlements },
@@ -540,6 +570,34 @@ export class ModuleAppModel {
 
       const version = await this.getLatestVersion(app.id, tx);
       if (!version) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+
+      const runtimeManifest = {
+        ...(normalized.build ? { build: normalized.build } : {}),
+        manifestVersion: normalized.manifestVersion,
+        runtime: normalized.runtime,
+      };
+      await tx
+        .update(moduleAppVersions)
+        .set({
+          publishedAt: normalized.manifestVersion === 2 ? null : version.publishedAt,
+          runtimeManifest,
+          version: normalized.packageVersion,
+        })
+        .where(eq(moduleAppVersions.id, version.id));
+
+      let build = null;
+      if (normalized.manifestVersion === 2 && normalized.build) {
+        [build] = await tx
+          .insert(moduleAppBuilds)
+          .values({
+            buildProfile: normalized.build.frontend.profile,
+            packageId: submission.id,
+            sourceSha256: submission.archive.sha256,
+            versionId: version.id,
+          })
+          .returning();
+        if (!build) throw new Error('MODULE_APP_BUILD_CREATE_FAILED');
+      }
 
       const now = new Date();
       const [updatedPackage] = await tx
@@ -559,6 +617,7 @@ export class ModuleAppModel {
 
       return {
         appId: app.id,
+        build,
         package: updatedPackage,
         slug: app.slug,
         versionId: version.id,
@@ -662,24 +721,41 @@ export class ModuleAppModel {
   };
 
   setStatus = async (params: { appId: string; status: ModuleAppStatus }) => {
-    await this.db
-      .update(moduleApps)
-      .set({ status: params.status, updatedAt: new Date() })
-      .where(eq(moduleApps.id, params.appId));
+    return this.db.transaction(async (tx) => {
+      const version = await this.getLatestVersion(params.appId, tx);
+      const runtimeManifest = version?.runtimeManifest as { manifestVersion?: unknown } | undefined;
 
-    const version = await this.getLatestVersion(params.appId);
+      if (version && params.status === 'published' && runtimeManifest?.manifestVersion === 2) {
+        const build = await tx.query.moduleAppBuilds.findFirst({
+          where: eq(moduleAppBuilds.versionId, version.id),
+        });
+        const hasReadyArtifact =
+          build?.status === 'ready' &&
+          Boolean(build.artifactKey) &&
+          Boolean(build.artifactSha256) &&
+          build.artifactKey === version.runtimeArtifactKey &&
+          build.artifactSha256 === version.runtimeArtifactSha256;
 
-    if (version) {
-      await this.db
+        if (!hasReadyArtifact) throw new Error('MODULE_APP_BUILD_NOT_READY');
+      }
+
+      await tx
+        .update(moduleApps)
+        .set({ status: params.status, updatedAt: new Date() })
+        .where(eq(moduleApps.id, params.appId));
+
+      if (version) {
+        await tx
         .update(moduleAppVersions)
         .set({
           publishedAt:
             params.status === 'published' ? version.publishedAt ?? new Date() : null,
         })
         .where(eq(moduleAppVersions.id, version.id));
-    }
+      }
 
-    return { ok: true as const };
+      return { ok: true as const };
+    });
   };
 
   upsertPagesForAdmin = async (params: { appId: string; pages: ModuleAppPage[] }) => {
