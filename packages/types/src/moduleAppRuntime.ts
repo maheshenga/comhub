@@ -64,6 +64,7 @@ export type ModuleAppExecutableRuntime = z.infer<typeof moduleAppExecutableRunti
 export const moduleAppCapabilityClaimsSchema = z
   .object({
     appId: z.string().uuid(),
+    artifactSha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
     aud: z.literal('module-runtime'),
     exp: z.number().int().positive(),
     iat: z.number().int().positive(),
@@ -79,6 +80,13 @@ export const moduleAppCapabilityClaimsSchema = z
   .superRefine((claims, ctx) => {
     if (claims.exp <= claims.iat || claims.exp - claims.iat > 300) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_capability_ttl_invalid' });
+    }
+    if (claims.surface === 'runtime' && !claims.artifactSha256) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'module_app_runtime_artifact_required',
+        path: ['artifactSha256'],
+      });
     }
   });
 export type ModuleAppCapabilityClaims = z.infer<typeof moduleAppCapabilityClaimsSchema>;

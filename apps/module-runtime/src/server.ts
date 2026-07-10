@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import { verifyRuntimeCapability } from './capability';
 import { FixedProcessModuleAppLauncher, ModuleAppRuntimeInvoker } from './invocation';
+import { assertModuleAppRuntimePolicy } from './policy';
 
 const MAX_REQUEST_BYTES = 1024 * 1024 + 16 * 1024;
 const MODULE_APP_RUNTIME_ARTIFACT_ROOT = '/runtime/artifacts';
@@ -104,6 +105,7 @@ export const createModuleAppRuntimeServer = (options: {
   internalToken: string;
   invoker: ModuleAppRuntimeInvoker;
   runtimeJwks: string;
+  verifyCapability?: typeof verifyRuntimeCapability;
 }) => {
   if (!options.internalToken.trim() || !options.runtimeJwks.trim()) {
     throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
@@ -129,11 +131,12 @@ export const createModuleAppRuntimeServer = (options: {
     }
 
     try {
-      const input = await readJson(request);
-      if (!input || typeof input !== 'object' || !('capability' in input)) {
-        throw new Error('MODULE_APP_RUNTIME_CAPABILITY_INVALID');
-      }
-      await verifyRuntimeCapability(String(input.capability), options.runtimeJwks);
+      const input = assertModuleAppRuntimePolicy(await readJson(request));
+      await (options.verifyCapability ?? verifyRuntimeCapability)(
+        input.capability,
+        options.runtimeJwks,
+        { artifactSha256: input.artifactSha256 },
+      );
       sendJson(response, 200, await options.invoker.invoke(input));
     } catch (error) {
       const code = error instanceof Error ? error.message : 'MODULE_APP_RUNTIME_FAILED';

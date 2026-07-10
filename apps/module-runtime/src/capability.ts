@@ -1,7 +1,11 @@
 import { moduleAppCapabilityClaimsSchema } from '@lobechat/types';
 import { importJWK, jwtVerify } from 'jose';
 
-export const verifyRuntimeCapability = async (token: string, jwksValue: string) => {
+export const verifyRuntimeCapability = async (
+  token: string,
+  jwksValue: string,
+  expected: { artifactSha256: string },
+) => {
   let jwks: { keys?: Record<string, unknown>[] };
   try {
     jwks = JSON.parse(jwksValue);
@@ -19,8 +23,17 @@ export const verifyRuntimeCapability = async (token: string, jwksValue: string) 
     });
     const claims = moduleAppCapabilityClaimsSchema.parse(payload);
     if (claims.surface !== 'runtime') throw new Error('MODULE_APP_RUNTIME_CAPABILITY_INVALID');
+    if (claims.artifactSha256 !== expected.artifactSha256) {
+      throw new Error('MODULE_APP_RUNTIME_CAPABILITY_SCOPE_MISMATCH');
+    }
     return claims;
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === 'MODULE_APP_RUNTIME_CAPABILITY_SCOPE_MISMATCH'
+    ) {
+      throw error;
+    }
     throw new Error('MODULE_APP_RUNTIME_CAPABILITY_INVALID', { cause: error });
   }
 };

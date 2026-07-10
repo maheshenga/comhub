@@ -422,7 +422,7 @@ git commit -m "feat: add fixed module app runtime service"
 - Produces: `moduleApp.getLaunchContext` and `SandboxFrame`.
 - Consumes: capability signer and immutable ready version.
 
-- [ ] **Step 1: Add failing launch authorization and iframe tests**
+- [x] **Step 1: Add failing launch authorization and iframe tests**
 
 ```tsx
 expect(screen.getByTitle('Jobs Board')).toHaveAttribute('sandbox', 'allow-forms allow-scripts allow-downloads');
@@ -431,13 +431,13 @@ expect(screen.getByTitle('Jobs Board')).not.toHaveAttribute('sandbox', expect.st
 
 Router tests must reject uninstalled, unentitled, suspended, wrong-workspace, and non-ready versions.
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `bunx vitest run --silent='passed-only' src/features/ModuleAppRuntime/SandboxFrame.test.tsx src/services/moduleApp.test.ts apps/server/src/routers/lambda/moduleApp.test.ts`
 
 Expected: FAIL because the launch context and iframe do not exist.
 
-- [ ] **Step 3: Implement the trusted shell**
+- [x] **Step 3: Implement the trusted shell**
 
 ```ts
 type ModuleAppLaunchContext = {
@@ -452,13 +452,13 @@ type ModuleAppLaunchContext = {
 
 Render loading, denied, build-not-ready, runtime-unavailable, and retry states. Send capability only after the iframe posts a ready message with the expected origin and nonce. Keep current route files thin and preserve both desktop router configurations.
 
-- [ ] **Step 4: Run the focused suite and router sync test**
+- [x] **Step 4: Run the focused suite and router sync test**
 
 Run: `bunx vitest run --silent='passed-only' src/features/ModuleAppRuntime/SandboxFrame.test.tsx src/services/moduleApp.test.ts apps/server/src/routers/lambda/moduleApp.test.ts src/spa/router/desktopRouter.sync.test.tsx`
 
 Expected: PASS.
 
-- [ ] **Step 5: Run plan verification**
+- [x] **Step 5: Run plan verification**
 
 Run: `bun run type-check`
 
@@ -468,7 +468,7 @@ Run: `git diff --check`
 
 Expected: no output.
 
-- [ ] **Step 6: Update governance docs and commit**
+- [x] **Step 6: Update governance docs and commit**
 
 Update `docs/FEATURE_REGISTRY.md` and `docs/CHANGELOG_INTERNAL.md` with the disabled runtime capability, required environment variables, Docker impact, and production gate.
 
@@ -488,3 +488,12 @@ git commit -m "feat: launch module apps in the isolated site shell"
 - Runtime service tests use fixed Node.js/Python profiles and deny custom images.
 - `MODULE_APP_EXECUTION_ENABLED` remains false in production.
 - Targeted tests, router sync, type-check, and `git diff --check` pass.
+
+## Phase 1 Acceptance Review (2026-07-11)
+
+- Status: accepted for disabled, non-production integration only. Production execution remains blocked.
+- Review correction: runtime capabilities now carry an immutable `artifactSha256`, and the runtime service compares that signed hash with every invocation before launching a process.
+- Fresh verification: 152 focused root/types/SDK/business-server tests passed, plus 13 pure database package tests; `bun run type-check` and targeted ESLint passed.
+- Environment-limited verification: PostgreSQL integration suites for build claiming, executable approval, and launch-context isolation require `DATABASE_TEST_URL`, which is not configured in this workspace. They remain required in CI or a seeded test environment.
+- Deferred production gates: production artifact extraction and read-only bind mount, shared replay/rate-limit storage, per-invocation namespace/seccomp/network/resource isolation, Browser E2E, migration rehearsal, smoke probes, and blue-green rollback proof.
+- Operational rule: do not set `MODULE_APP_EXECUTION_ENABLED=true` in production until the Phase 5 gate is complete.

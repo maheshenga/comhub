@@ -89,6 +89,7 @@ export const signModuleAppCapability = async (
 
   return new SignJWT({
     appId: claims.appId,
+    artifactSha256: claims.artifactSha256,
     installationId: claims.installationId,
     nonce: claims.nonce,
     permissions: claims.permissions,

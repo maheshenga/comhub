@@ -5,6 +5,7 @@ import { verifyRuntimeCapability } from './capability';
 
 const claims = {
   appId: '00000000-0000-4000-8000-000000000001',
+  artifactSha256: 'a'.repeat(64),
   installationId: '00000000-0000-4000-8000-000000000002',
   nonce: '0123456789abcdef0123456789abcdef',
   permissions: ['data.read'],
@@ -35,10 +36,25 @@ describe('verifyRuntimeCapability', () => {
   it('accepts a valid runtime-surface capability', async () => {
     const fixture = await createTokenFixture('runtime');
 
-    await expect(verifyRuntimeCapability(fixture.token, fixture.jwks)).resolves.toMatchObject({
+    await expect(
+      verifyRuntimeCapability(fixture.token, fixture.jwks, {
+        artifactSha256: claims.artifactSha256,
+      }),
+    ).resolves.toMatchObject({
+      artifactSha256: claims.artifactSha256,
       installationId: claims.installationId,
       surface: 'runtime',
     });
+  });
+
+  it('rejects a runtime capability for a different artifact', async () => {
+    const fixture = await createTokenFixture('runtime');
+
+    await expect(
+      verifyRuntimeCapability(fixture.token, fixture.jwks, {
+        artifactSha256: 'b'.repeat(64),
+      }),
+    ).rejects.toThrow('MODULE_APP_RUNTIME_CAPABILITY_SCOPE_MISMATCH');
   });
 
   it('rejects a browser-surface capability', async () => {
