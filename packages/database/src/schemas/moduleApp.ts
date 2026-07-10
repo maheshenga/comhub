@@ -7,6 +7,8 @@ import type {
   ModuleAppPackageFileManifestItem,
   ModuleAppPackageManifest,
   ModuleAppPackageReviewStatus,
+  ModuleAppPackageScanStatus,
+  ModuleAppPackageUploadStatus,
   ModuleAppPackageValidationIssue,
   ModuleAppRunStatus,
   ModuleAppScopeType,
@@ -521,6 +523,59 @@ export const moduleAppPackages = pgTable(
 
 export type NewModuleAppPackage = typeof moduleAppPackages.$inferInsert;
 export type ModuleAppPackageItem = typeof moduleAppPackages.$inferSelect;
+
+export const moduleAppPackageUploads = pgTable(
+  'module_app_package_uploads',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    packageId: uuid('package_id').references(() => moduleAppPackages.id, {
+      onDelete: 'set null',
+    }),
+    storageKey: text('storage_key').notNull(),
+    fileName: text('file_name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    declaredSizeBytes: integer('declared_size_bytes').notNull(),
+    actualSizeBytes: integer('actual_size_bytes'),
+    sha256: text('sha256'),
+    status: text('status').$type<ModuleAppPackageUploadStatus>().default('issued').notNull(),
+    scanStatus: text('scan_status')
+      .$type<ModuleAppPackageScanStatus>()
+      .default('pending')
+      .notNull(),
+    scanReport: jsonb('scan_report')
+      .$type<ModuleAppPackageValidationIssue[]>()
+      .default([])
+      .notNull(),
+    failureCode: text('failure_code'),
+    storageReleasedAt: timestamptz('storage_released_at'),
+    expiresAt: timestamptz('expires_at').notNull(),
+    completedAt: timestamptz('completed_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_package_uploads_storage_key_unique').on(table.storageKey),
+    uniqueIndex('module_app_package_uploads_package_id_unique').on(table.packageId),
+    index('module_app_package_uploads_user_status_created_at_idx').on(
+      table.userId,
+      table.status,
+      table.createdAt,
+    ),
+    index('module_app_package_uploads_status_expires_at_idx').on(table.status, table.expiresAt),
+    check(
+      'module_app_package_uploads_status_check',
+      sql`${table.status} IN ('issued', 'processing', 'submitted', 'rejected', 'failed', 'cleaning', 'expired')`,
+    ),
+    check(
+      'module_app_package_uploads_scan_status_check',
+      sql`${table.scanStatus} IN ('pending', 'clean', 'blocked', 'error')`,
+    ),
+  ],
+);
+
+export type NewModuleAppPackageUpload = typeof moduleAppPackageUploads.$inferInsert;
+export type ModuleAppPackageUploadItem = typeof moduleAppPackageUploads.$inferSelect;
 
 export const moduleAppAuditLogs = pgTable(
   'module_app_audit_logs',

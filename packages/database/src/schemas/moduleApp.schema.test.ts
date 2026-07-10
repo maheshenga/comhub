@@ -12,6 +12,7 @@ import {
   moduleAppInstallations,
   moduleAppPages,
   moduleAppPackages,
+  moduleAppPackageUploads,
   moduleAppRecordEvents,
   moduleAppRecords,
   moduleAppRuns,
@@ -33,6 +34,7 @@ describe('module app schema exports', () => {
     expect(moduleAppArtifacts).toBeDefined();
     expect(moduleAppAuditLogs).toBeDefined();
     expect(moduleAppPackages).toBeDefined();
+    expect(moduleAppPackageUploads).toBeDefined();
   });
 
   it('keeps database ownership constraints in the generated migration', () => {
@@ -125,5 +127,23 @@ describe('module app schema exports', () => {
       true,
     );
     expect(tableNames.filter((name) => name.startsWith('platform_plugin'))).toEqual([]);
+  });
+
+  it('registers the module app package upload session migration', () => {
+    const migration = readFileSync(
+      resolve(__dirname, '../../migrations/0135_add_module_app_package_uploads.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_package_uploads"');
+    expect(migration).toContain('module_app_package_uploads_storage_key_unique');
+    expect(migration).toContain('module_app_package_uploads_user_status_created_at_idx');
+    expect(migration).toContain('module_app_package_uploads_status_expires_at_idx');
+    expect(
+      journal.entries.some(({ tag }) => tag === '0135_add_module_app_package_uploads'),
+    ).toBe(true);
   });
 });

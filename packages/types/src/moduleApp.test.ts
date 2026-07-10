@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE,
+  MODULE_APP_PACKAGE_MAX_DAILY_UPLOADS,
+  MODULE_APP_PACKAGE_MAX_OPEN_UPLOADS,
+  MODULE_APP_PACKAGE_MAX_RETAINED_BYTES,
+  MODULE_APP_PACKAGE_MAX_SCAN_ISSUES,
+  MODULE_APP_PACKAGE_UPLOAD_TTL_MS,
   moduleAppActionConfigSchema,
   moduleAppAdminUpsertSchema,
   moduleAppBillingConfigSchema,
@@ -8,9 +14,11 @@ import {
   moduleAppPackageArchiveMetadataSchema,
   moduleAppPackageManifestSchema,
   moduleAppPackageSubmissionListInputSchema,
+  moduleAppPackageScanStatusSchema,
   moduleAppPackageSubmitSchema,
   moduleAppPackageUploadedSubmitSchema,
   moduleAppPackageUploadRequestSchema,
+  moduleAppPackageUploadStatusSchema,
   moduleAppPageSchema,
   moduleAppRecordInputSchema,
   moduleAppRuntimeTypeSchema,
@@ -286,11 +294,20 @@ describe('module app type contracts', () => {
       moduleAppPackageUploadedSubmitSchema.parse({
         fileName: 'classified-info.zip',
         storageKey: 'module-app-packages/user-scope/package.zip',
+        uploadId: '00000000-0000-4000-8000-000000000001',
       }),
     ).toEqual({
       fileName: 'classified-info.zip',
       storageKey: 'module-app-packages/user-scope/package.zip',
+      uploadId: '00000000-0000-4000-8000-000000000001',
     });
+
+    expect(
+      moduleAppPackageUploadedSubmitSchema.safeParse({
+        fileName: 'classified-info.zip',
+        storageKey: 'module-app-packages/user-scope/package.zip',
+      }).success,
+    ).toBe(false);
 
     expect(() =>
       moduleAppPackageUploadRequestSchema.parse({
@@ -299,6 +316,30 @@ describe('module app type contracts', () => {
         sizeBytes: 1024,
       }),
     ).toThrow();
+  });
+
+  it('defines bounded upload lifecycle and scan contracts', () => {
+    expect(moduleAppPackageUploadStatusSchema.options).toEqual([
+      'issued',
+      'processing',
+      'submitted',
+      'rejected',
+      'failed',
+      'cleaning',
+      'expired',
+    ]);
+    expect(moduleAppPackageScanStatusSchema.options).toEqual([
+      'pending',
+      'clean',
+      'blocked',
+      'error',
+    ]);
+    expect(MODULE_APP_PACKAGE_MAX_OPEN_UPLOADS).toBe(3);
+    expect(MODULE_APP_PACKAGE_MAX_DAILY_UPLOADS).toBe(20);
+    expect(MODULE_APP_PACKAGE_MAX_RETAINED_BYTES).toBe(500 * 1024 * 1024);
+    expect(MODULE_APP_PACKAGE_UPLOAD_TTL_MS).toBe(2 * 60 * 60 * 1000);
+    expect(MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE).toBe(100);
+    expect(MODULE_APP_PACKAGE_MAX_SCAN_ISSUES).toBe(100);
   });
 
   it('bounds user package submission list pagination and status filters', () => {

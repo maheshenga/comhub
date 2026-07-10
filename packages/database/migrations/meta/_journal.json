@@ -966,6 +966,13 @@
       "when": 1783791600000,
       "tag": "0134_drop_platform_plugin_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1783878000000,
+      "tag": "0135_add_module_app_package_uploads",
+      "breakpoints": true
     }
   ],
   "version": "6"

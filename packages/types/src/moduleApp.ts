@@ -195,6 +195,30 @@ export const moduleAppPackageRuntimeSchema = z.object({
 export type ModuleAppPackageRuntime = z.infer<typeof moduleAppPackageRuntimeSchema>;
 
 export const MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES = 50 * 1024 * 1024;
+export const MODULE_APP_PACKAGE_MAX_OPEN_UPLOADS = 3;
+export const MODULE_APP_PACKAGE_MAX_DAILY_UPLOADS = 20;
+export const MODULE_APP_PACKAGE_MAX_RETAINED_BYTES = 500 * 1024 * 1024;
+export const MODULE_APP_PACKAGE_UPLOAD_TTL_MS = 2 * 60 * 60 * 1000;
+export const MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE = 100;
+export const MODULE_APP_PACKAGE_MAX_SCAN_ISSUES = 100;
+
+export const moduleAppPackageUploadStatusSchema = z.enum([
+  'issued',
+  'processing',
+  'submitted',
+  'rejected',
+  'failed',
+  'cleaning',
+  'expired',
+]);
+export type ModuleAppPackageUploadStatus = z.infer<
+  typeof moduleAppPackageUploadStatusSchema
+>;
+
+export const moduleAppPackageScanStatusSchema = z.enum(['pending', 'clean', 'blocked', 'error']);
+export type ModuleAppPackageScanStatus = z.infer<typeof moduleAppPackageScanStatusSchema>;
+
+export const moduleAppPackageUploadIdSchema = z.string().uuid();
 
 const moduleAppPackageFileNameSchema = z
   .string()
@@ -265,9 +289,18 @@ export const moduleAppPackageUploadRequestSchema = z.object({
 });
 export type ModuleAppPackageUploadRequest = z.infer<typeof moduleAppPackageUploadRequestSchema>;
 
+export type ModuleAppPackageUploadTarget = {
+  expiresAt: Date | string;
+  headers: Record<string, string>;
+  storageKey: string;
+  uploadId: string;
+  uploadUrl: string;
+};
+
 export const moduleAppPackageUploadedSubmitSchema = z.object({
   fileName: moduleAppPackageFileNameSchema,
   storageKey: z.string().min(1).max(600),
+  uploadId: moduleAppPackageUploadIdSchema,
 });
 export type ModuleAppPackageUploadedSubmitInput = z.infer<
   typeof moduleAppPackageUploadedSubmitSchema
