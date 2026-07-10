@@ -24,6 +24,7 @@ import {
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppPackages,
+  moduleAppPackageUploads,
   moduleAppPages,
   moduleAppRecordEvents,
   moduleAppRecords,
@@ -478,6 +479,13 @@ export class ModuleAppModel {
       if (!submission) throw new Error('MODULE_APP_PACKAGE_NOT_FOUND');
       if (submission.reviewStatus !== 'pending_review') {
         throw new Error('MODULE_APP_PACKAGE_NOT_PENDING_REVIEW');
+      }
+
+      const upload = await tx.query.moduleAppPackageUploads.findFirst({
+        where: eq(moduleAppPackageUploads.packageId, params.packageId),
+      });
+      if (!upload || upload.status !== 'submitted' || upload.scanStatus !== 'clean') {
+        throw new Error('MODULE_APP_PACKAGE_SCAN_NOT_CLEAN');
       }
 
       const normalized = normalizePackageManifestForApproval(submission.manifestSnapshot);

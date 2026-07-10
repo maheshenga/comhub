@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { ModuleAppPackageArchiveMetadata, ModuleAppPackageManifest } from '@lobechat/types';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   moduleAppEntitlements,
@@ -7,7 +7,6 @@ import {
   moduleApps,
   moduleAppVersions,
 } from '../schemas';
-
 import { ModuleAppModel } from './moduleApp';
 
 const HASH = 'a'.repeat(64);
@@ -136,6 +135,13 @@ describe('ModuleAppModel package review lifecycle', () => {
             reviewStatus: 'pending_review',
           }),
         },
+        moduleAppPackageUploads: {
+          findFirst: vi.fn().mockResolvedValue({
+            packageId: 'package-1',
+            scanStatus: 'clean',
+            status: 'submitted',
+          }),
+        },
         moduleAppVersions: {
           findFirst: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(version),
         },
@@ -177,6 +183,31 @@ describe('ModuleAppModel package review lifecycle', () => {
         versionId: version.id,
       }),
     );
+  });
+
+  it('blocks approval before app mutation when the linked upload is not clean', async () => {
+    const tx = {
+      query: {
+        moduleAppPackages: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: 'package-1',
+            manifestSnapshot: manifest,
+            reviewStatus: 'pending_review',
+          }),
+        },
+        moduleAppPackageUploads: {
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
+      },
+    };
+    const db = { transaction: vi.fn((callback) => callback(tx)) } as any;
+
+    await expect(
+      new ModuleAppModel(db).approvePackageSubmissionForAdmin({
+        packageId: 'package-1',
+        reviewedByUserId: 'admin-1',
+      }),
+    ).rejects.toThrow('MODULE_APP_PACKAGE_SCAN_NOT_CLEAN');
   });
 
   it('rejects a pending package with a reviewer and reason', async () => {
