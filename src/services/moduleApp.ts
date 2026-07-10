@@ -4,6 +4,7 @@ import type {
   ModuleAppPackageSubmissionListResult,
   ModuleAppPackageUploadedSubmitInput,
   ModuleAppPackageUploadRequest,
+  ModuleAppPackageUploadTarget,
   ModuleAppRecordInput,
   ModuleAppRunInput,
 } from '@lobechat/types';
@@ -23,12 +24,6 @@ type RecordListInput = Pick<
   ModuleAppRecordInput,
   'appId' | 'collectionKey' | 'scopeType' | 'workspaceId'
 >;
-
-type ModuleAppPackageUploadTarget = {
-  headers: Record<string, string>;
-  storageKey: string;
-  uploadUrl: string;
-};
 
 export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof fetch = fetch) => {
   const createPackageUpload = async (input: ModuleAppPackageUploadRequest) =>
@@ -83,7 +78,11 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
 
       if (!response.ok) throw new Error('module_app_package_upload_failed');
 
-      return submitUploadedPackage({ fileName: file.name, storageKey: target.storageKey });
+      return submitUploadedPackage({
+        fileName: file.name,
+        storageKey: target.storageKey,
+        uploadId: target.uploadId,
+      });
     },
   };
 };

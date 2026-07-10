@@ -34,7 +34,13 @@ const packageSubmission = (storageKey: string) => ({
     app: {
       actions: [],
       appType: 'standard_app' as const,
-      billing: {},
+      billing: {
+        chargeMode: 'free' as const,
+        defaultMultiplier: 1,
+        externalApiCostCredits: 0,
+        failureFixedFeePolicy: 'do_not_charge' as const,
+        fixedServiceFeeCredits: 0,
+      },
       category: 'business',
       description: 'Package upload test app.',
       displayName: 'Package Upload Test',

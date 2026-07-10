@@ -1,7 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
-
 import {
-  MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES,
   moduleAppMarketplaceListInputSchema,
   moduleAppPackageArchiveMetadataSchema,
   moduleAppPackageManifestSchema,
@@ -14,7 +11,6 @@ import {
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { validateModuleAppPackageSubmission } from '@/business/server/module-apps/packageManifest';
 import {
   assertModuleAppRecordPermission,
   type ModuleAppRecordOperation,
@@ -28,11 +24,7 @@ import type { ModuleAppPackageItem, ModuleAppRecordItem } from '@/database/schem
 import type { LobeChatDatabase } from '@/database/type';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
-import { FileS3 } from '@/server/modules/S3';
-import {
-  ModuleAppPackageArchiveError,
-  parseModuleAppPackageArchive,
-} from '@/server/services/moduleAppPackage/archive';
+import { ModuleAppPackageIngestionService } from '@/server/services/moduleAppPackage/ingestion';
 
 const AppIdInputSchema = z.object({
   appId: z.string().uuid(),
@@ -47,33 +39,6 @@ const RecordIdInputSchema = z.object({
   recordId: z.string().uuid(),
   workspaceId: z.string().optional(),
 });
-
-const getPackageStoragePrefix = (userId: string) => {
-  const userScope = createHash('sha256').update(userId).digest('hex').slice(0, 32);
-  return `module-app-packages/${userScope}/`;
-};
-
-const isValidPackageStorageKey = (storageKey: string, expectedPrefix: string) => {
-  if (!storageKey.startsWith(expectedPrefix)) return false;
-
-  const objectName = storageKey.slice(expectedPrefix.length);
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.zip$/i.test(
-    objectName,
-  );
-};
-
-const resolvePackageMimeType = (contentType?: string) => {
-  const normalized = contentType?.split(';')[0]?.trim().toLowerCase();
-  if (
-    normalized === 'application/zip' ||
-    normalized === 'application/x-zip-compressed' ||
-    normalized === 'application/octet-stream'
-  ) {
-    return normalized;
-  }
-
-  return 'application/zip' as const;
-};
 
 const publicPackageArchiveSchema = moduleAppPackageArchiveMetadataSchema.pick({
   fileName: true,
@@ -106,6 +71,50 @@ const serializePublicPackageSubmission = (item: ModuleAppPackageItem) => {
     sizeBytes: archive.data.sizeBytes,
     updatedAt: item.updatedAt,
   };
+};
+
+const getPackageErrorIdentifier = (error: unknown) => {
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
+    return error.code;
+  }
+
+  return error instanceof Error ? error.message : 'module_app_package_ingestion_failed';
+};
+
+const mapPackageError = (error: unknown) => {
+  if (error instanceof TRPCError) return error;
+
+  const identifier = getPackageErrorIdentifier(error);
+  if (
+    identifier === 'MODULE_APP_PACKAGE_OPEN_UPLOAD_LIMIT' ||
+    identifier === 'MODULE_APP_PACKAGE_DAILY_UPLOAD_LIMIT'
+  ) {
+    return new TRPCError({ cause: error, code: 'TOO_MANY_REQUESTS', message: identifier });
+  }
+  if (
+    identifier === 'MODULE_APP_PACKAGE_STORAGE_QUOTA_EXCEEDED' ||
+    identifier === 'MODULE_APP_PACKAGE_UPLOAD_FORBIDDEN' ||
+    identifier === 'module_app_package_storage_key_forbidden'
+  ) {
+    return new TRPCError({ cause: error, code: 'FORBIDDEN', message: identifier });
+  }
+  if (identifier === 'MODULE_APP_PACKAGE_UPLOAD_CONFLICT') {
+    return new TRPCError({ cause: error, code: 'CONFLICT', message: identifier });
+  }
+  if (
+    identifier === 'MODULE_APP_PACKAGE_UPLOAD_EXPIRED' ||
+    (identifier.startsWith('module_app_package_') &&
+      identifier !== 'module_app_package_ingestion_failed' &&
+      identifier !== 'module_app_package_upload_signing_failed')
+  ) {
+    return new TRPCError({ cause: error, code: 'BAD_REQUEST', message: identifier });
+  }
+
+  return new TRPCError({
+    cause: error,
+    code: 'INTERNAL_SERVER_ERROR',
+    message: 'module_app_package_ingestion_failed',
+  });
 };
 
 const moduleAppProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
@@ -214,15 +223,15 @@ const assertRecordPermission = async (params: {
 export const moduleAppRouter = router({
   createPackageUpload: moduleAppProcedure
     .input(moduleAppPackageUploadRequestSchema)
-    .mutation(async ({ ctx }) => {
-      const storageKey = `${getPackageStoragePrefix(ctx.userId)}${randomUUID()}.zip`;
-      const upload = await new FileS3().createPreSignedUpload(storageKey);
-
-      return {
-        headers: upload.headers ?? {},
-        storageKey,
-        uploadUrl: upload.url,
-      };
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await new ModuleAppPackageIngestionService({ db: ctx.serverDB }).issueUpload({
+          input,
+          userId: ctx.userId,
+        });
+      } catch (error) {
+        throw mapPackageError(error);
+      }
     }),
 
   archiveRecord: moduleAppProcedure
@@ -449,64 +458,13 @@ export const moduleAppRouter = router({
   submitUploadedPackage: moduleAppProcedure
     .input(moduleAppPackageUploadedSubmitSchema)
     .mutation(async ({ ctx, input }) => {
-      const expectedPrefix = getPackageStoragePrefix(ctx.userId);
-      if (!isValidPackageStorageKey(input.storageKey, expectedPrefix)) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'module_app_package_storage_key_forbidden',
-        });
-      }
-
-      const s3 = new FileS3();
-      const metadata = await s3.getFileMetadata(input.storageKey);
-
-      if (
-        metadata.contentLength < 1 ||
-        metadata.contentLength > MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES
-      ) {
-        await s3.deleteFile(input.storageKey).catch(() => undefined);
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'module_app_package_archive_too_large',
-        });
-      }
-
-      const bytes = await s3.getFileByteArray(input.storageKey);
-      let submission;
       try {
-        submission = await parseModuleAppPackageArchive({
-          bytes,
-          fileName: input.fileName,
-          mimeType: resolvePackageMimeType(metadata.contentType),
-          storageKey: input.storageKey,
+        return await new ModuleAppPackageIngestionService({ db: ctx.serverDB }).submitUpload({
+          input,
+          userId: ctx.userId,
         });
       } catch (error) {
-        if (error instanceof ModuleAppPackageArchiveError) {
-          await s3.deleteFile(input.storageKey).catch(() => undefined);
-          throw new TRPCError({ code: 'BAD_REQUEST', message: error.code });
-        }
-        throw error;
-      }
-
-      const validation = validateModuleAppPackageSubmission(submission);
-
-      if (!validation.ok) {
-        await s3.deleteFile(input.storageKey).catch(() => undefined);
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'module_app_package_validation_failed',
-        });
-      }
-
-      try {
-        return await ctx.moduleAppModel.createPackageSubmission({
-          ...submission,
-          submittedByUserId: ctx.userId,
-          validationReport: validation.issues,
-        });
-      } catch (error) {
-        await s3.deleteFile(input.storageKey).catch(() => undefined);
-        throw error;
+        throw mapPackageError(error);
       }
     }),
 

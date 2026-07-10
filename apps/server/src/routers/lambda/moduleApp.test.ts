@@ -7,23 +7,18 @@ import { moduleAppRouter } from './moduleApp';
 const {
   mockGetServerDB,
   mockGetSubscriptionPlan,
-  mockFileS3,
-  mockParseModuleAppPackageArchive,
+  mockIngestionService,
   mockRunModuleAppAction,
   mockModuleAppModel,
 } = vi.hoisted(() => ({
-  mockFileS3: {
-    createPreSignedUpload: vi.fn(),
-    deleteFile: vi.fn(),
-    getFileByteArray: vi.fn(),
-    getFileMetadata: vi.fn(),
-  },
   mockGetServerDB: vi.fn(),
   mockGetSubscriptionPlan: vi.fn(),
-  mockParseModuleAppPackageArchive: vi.fn(),
+  mockIngestionService: {
+    issueUpload: vi.fn(),
+    submitUpload: vi.fn(),
+  },
   mockRunModuleAppAction: vi.fn(),
   mockModuleAppModel: {
-    createPackageSubmission: vi.fn(),
     createRecord: vi.fn(),
     createRun: vi.fn(),
     getAppDetail: vi.fn(),
@@ -43,13 +38,8 @@ vi.mock('@/business/server/module-apps/runModuleAppAction', () => ({
   runModuleAppAction: mockRunModuleAppAction,
 }));
 
-vi.mock('@/server/modules/S3', () => ({
-  FileS3: vi.fn(() => mockFileS3),
-}));
-
-vi.mock('@/server/services/moduleAppPackage/archive', () => ({
-  ModuleAppPackageArchiveError: class ModuleAppPackageArchiveError extends Error {},
-  parseModuleAppPackageArchive: mockParseModuleAppPackageArchive,
+vi.mock('@/server/services/moduleAppPackage/ingestion', () => ({
+  ModuleAppPackageIngestionService: vi.fn(() => mockIngestionService),
 }));
 
 vi.mock('@/database/models/moduleApp', () => ({
@@ -60,34 +50,6 @@ const APP_ID = '00000000-0000-4000-8000-000000000001';
 
 const createCaller = () => moduleAppRouter.createCaller({ userId: 'user-1' } as any);
 
-const createParsedPackageSubmission = (storageKey: string) => ({
-  archive: {
-    fileName: 'package-app.zip',
-    mimeType: 'application/zip' as const,
-    sha256: 'a'.repeat(64),
-    sizeBytes: 256,
-    storageKey,
-  },
-  fileManifest: [{ path: 'manifest.json', sha256: 'b'.repeat(64), sizeBytes: 128 }],
-  manifest: {
-    app: {
-      actions: [],
-      appType: 'standard_app' as const,
-      billing: {},
-      category: 'business' as const,
-      description: 'A package app.',
-      displayName: 'Package App',
-      icon: 'Package',
-      pages: [],
-      slug: 'package-app',
-      tags: [],
-    },
-    entitlements: [],
-    manifestVersion: 1 as const,
-    packageVersion: '1.0.0',
-    runtime: { kind: 'manifest_only' as const, permissions: [] },
-  },
-});
 describe('moduleApp router registration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -105,16 +67,18 @@ describe('moduleApp router registration', () => {
       runId: 'run-1',
       status: 'succeeded',
     });
-    mockFileS3.createPreSignedUpload.mockResolvedValue({
+    mockIngestionService.issueUpload.mockResolvedValue({
+      expiresAt: new Date('2026-07-11T02:00:00.000Z'),
       headers: { 'x-amz-acl': 'private' },
-      url: 'https://uploads.example.com/package.zip',
+      storageKey:
+        'module-app-packages/c6c289e49e9c05b2145860387b73bcb1/00000000-0000-4000-8000-000000000011.zip',
+      uploadId: '00000000-0000-4000-8000-000000000010',
+      uploadUrl: 'https://uploads.example.com/package.zip',
     });
-    mockFileS3.getFileMetadata.mockResolvedValue({
-      contentLength: 256,
-      contentType: 'application/zip',
+    mockIngestionService.submitUpload.mockResolvedValue({
+      id: 'package-1',
+      reviewStatus: 'pending_review',
     });
-    mockFileS3.getFileByteArray.mockResolvedValue(new Uint8Array([80, 75, 3, 4]));
-    mockFileS3.deleteFile.mockResolvedValue(undefined);
   });
 
   it('registers the moduleApp router on lambda root', () => {
@@ -184,11 +148,7 @@ describe('moduleApp router registration', () => {
     expect(mockModuleAppModel.createRun).not.toHaveBeenCalled();
   });
 
-  it('issues a user-scoped package upload target and stores only server-parsed contents', async () => {
-    mockModuleAppModel.createPackageSubmission.mockResolvedValue({
-      id: 'package-1',
-      reviewStatus: 'pending_review',
-    });
+  it('delegates package upload issuance to the durable ingestion service', async () => {
     const caller = createCaller();
     const target = await caller.createPackageUpload({
       fileName: 'package-app.zip',
@@ -197,112 +157,54 @@ describe('moduleApp router registration', () => {
     });
 
     expect(target).toMatchObject({
+      expiresAt: new Date('2026-07-11T02:00:00.000Z'),
       headers: { 'x-amz-acl': 'private' },
-      storageKey: expect.stringMatching(
-        /^module-app-packages\/[a-f0-9]{32}\/[0-9a-f-]{36}\.zip$/,
-      ),
+      storageKey:
+        'module-app-packages/c6c289e49e9c05b2145860387b73bcb1/00000000-0000-4000-8000-000000000011.zip',
+      uploadId: '00000000-0000-4000-8000-000000000010',
       uploadUrl: 'https://uploads.example.com/package.zip',
     });
-    expect(mockFileS3.createPreSignedUpload).toHaveBeenCalledWith(target.storageKey);
-
-    const parsedSubmission = {
-      archive: {
+    expect(mockIngestionService.issueUpload).toHaveBeenCalledWith({
+      input: {
         fileName: 'package-app.zip',
         mimeType: 'application/zip',
-        sha256: 'a'.repeat(64),
         sizeBytes: 256,
-        storageKey: target.storageKey,
       },
-      fileManifest: [{ path: 'manifest.json', sha256: 'b'.repeat(64), sizeBytes: 128 }],
-      manifest: {
-        app: {
-          actions: [],
-          appType: 'standard_app',
-          billing: {},
-          category: 'business',
-          description: 'A package app.',
-          displayName: 'Package App',
-          icon: 'Package',
-          pages: [],
-          slug: 'package-app',
-          tags: [],
-        },
-        entitlements: [],
-        manifestVersion: 1,
-        packageVersion: '1.0.0',
-        runtime: { kind: 'manifest_only', permissions: [] },
-      },
+      userId: 'user-1',
+    });
+  });
+
+  it('delegates uploaded package submission with the durable upload identity', async () => {
+    const input = {
+      fileName: 'package-app.zip',
+      storageKey:
+        'module-app-packages/c6c289e49e9c05b2145860387b73bcb1/00000000-0000-4000-8000-000000000011.zip',
+      uploadId: '00000000-0000-4000-8000-000000000010',
     };
-    mockParseModuleAppPackageArchive.mockResolvedValue(parsedSubmission);
 
-    await expect(
-      caller.submitUploadedPackage({
-        fileName: 'package-app.zip',
-        storageKey: target.storageKey,
-      }),
-    ).resolves.toEqual({ id: 'package-1', reviewStatus: 'pending_review' });
+    await expect(createCaller().submitUploadedPackage(input)).resolves.toEqual({
+      id: 'package-1',
+      reviewStatus: 'pending_review',
+    });
 
-    expect(mockFileS3.getFileMetadata).toHaveBeenCalledWith(target.storageKey);
-    expect(mockFileS3.getFileByteArray).toHaveBeenCalledWith(target.storageKey);
-    expect(mockParseModuleAppPackageArchive).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileName: 'package-app.zip',
-        storageKey: target.storageKey,
-      }),
-    );
-    expect(mockModuleAppModel.createPackageSubmission).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ...parsedSubmission,
-        submittedByUserId: 'user-1',
-        validationReport: [],
-      }),
-    );
+    expect(mockIngestionService.submitUpload).toHaveBeenCalledWith({ input, userId: 'user-1' });
   });
 
-  it('deletes the uploaded package when persistence fails', async () => {
-    const target = await createCaller().createPackageUpload({
-      fileName: 'package-app.zip',
-      mimeType: 'application/zip',
-      sizeBytes: 256,
-    });
-    mockParseModuleAppPackageArchive.mockResolvedValue(
-      createParsedPackageSubmission(target.storageKey),
-    );
-    mockModuleAppModel.createPackageSubmission.mockRejectedValueOnce(
-      new Error('database unavailable'),
-    );
+  it.each([
+    ['MODULE_APP_PACKAGE_OPEN_UPLOAD_LIMIT', 'TOO_MANY_REQUESTS'],
+    ['MODULE_APP_PACKAGE_STORAGE_QUOTA_EXCEEDED', 'FORBIDDEN'],
+    ['MODULE_APP_PACKAGE_UPLOAD_CONFLICT', 'CONFLICT'],
+    ['MODULE_APP_PACKAGE_UPLOAD_EXPIRED', 'BAD_REQUEST'],
+  ])('maps ingestion error %s to tRPC code %s', async (message, code) => {
+    mockIngestionService.issueUpload.mockRejectedValueOnce(new Error(message));
 
     await expect(
-      createCaller().submitUploadedPackage({
+      createCaller().createPackageUpload({
         fileName: 'package-app.zip',
-        storageKey: target.storageKey,
+        mimeType: 'application/zip',
+        sizeBytes: 256,
       }),
-    ).rejects.toThrow('database unavailable');
-
-    expect(mockFileS3.deleteFile).toHaveBeenCalledWith(target.storageKey);
-  });
-  it('rejects package storage keys outside the current user namespace or UUID object shape', async () => {
-    await expect(
-      createCaller().submitUploadedPackage({
-        fileName: 'package-app.zip',
-        storageKey: 'module-app-packages/another-user/package.zip',
-      }),
-    ).rejects.toThrow('module_app_package_storage_key_forbidden');
-
-    const target = await createCaller().createPackageUpload({
-      fileName: 'package-app.zip',
-      mimeType: 'application/zip',
-      sizeBytes: 256,
-    });
-    await expect(
-      createCaller().submitUploadedPackage({
-        fileName: 'package-app.zip',
-        storageKey: `${target.storageKey}/nested.zip`,
-      }),
-    ).rejects.toThrow('module_app_package_storage_key_forbidden');
-
-    expect(mockFileS3.getFileMetadata).not.toHaveBeenCalled();
-    expect(mockModuleAppModel.createPackageSubmission).not.toHaveBeenCalled();
+    ).rejects.toMatchObject({ code, message });
   });
 
   it('lists only the current user package submissions without exposing storage keys', async () => {

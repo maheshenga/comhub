@@ -15,6 +15,38 @@ type ModuleAppPackageUploaderProps = {
   onSubmitted?: () => Promise<void> | void;
 };
 
+const QUOTA_ERRORS = new Set([
+  'MODULE_APP_PACKAGE_DAILY_UPLOAD_LIMIT',
+  'MODULE_APP_PACKAGE_OPEN_UPLOAD_LIMIT',
+  'MODULE_APP_PACKAGE_STORAGE_QUOTA_EXCEEDED',
+]);
+
+const SECURITY_ERRORS = new Set([
+  'module_app_package_archive_metadata_invalid',
+  'module_app_package_eicar_detected',
+  'module_app_package_encrypted_entry',
+  'module_app_package_executable_magic',
+  'module_app_package_forbidden_extension',
+  'module_app_package_nested_archive',
+  'module_app_package_symbolic_link',
+]);
+
+const getUploadErrorKey = (error: unknown) => {
+  const identifier = error instanceof Error ? error.message : '';
+  if (QUOTA_ERRORS.has(identifier)) return 'moduleApps.packageUploader.quotaExceeded';
+  if (identifier === 'MODULE_APP_PACKAGE_UPLOAD_EXPIRED') {
+    return 'moduleApps.packageUploader.expired';
+  }
+  if (
+    identifier === 'module_app_package_actual_size_exceeded' ||
+    identifier === 'module_app_package_archive_too_large'
+  ) {
+    return 'moduleApps.packageUploader.tooLarge';
+  }
+  if (SECURITY_ERRORS.has(identifier)) return 'moduleApps.packageUploader.securityRejected';
+  return 'moduleApps.packageUploader.failure';
+};
+
 const ModuleAppPackageUploader = memo<ModuleAppPackageUploaderProps>(({ onSubmitted }) => {
   const { t } = useTranslation('common');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,8 +69,8 @@ const ModuleAppPackageUploader = memo<ModuleAppPackageUploaderProps>(({ onSubmit
       await moduleAppService.uploadPackage(file);
       setState({ message: t('moduleApps.packageUploader.success'), status: 'success' });
       await Promise.resolve(onSubmitted?.()).catch(() => undefined);
-    } catch {
-      setState({ message: t('moduleApps.packageUploader.failure'), status: 'error' });
+    } catch (error) {
+      setState({ message: t(getUploadErrorKey(error)), status: 'error' });
     } finally {
       if (inputRef.current) inputRef.current.value = '';
     }

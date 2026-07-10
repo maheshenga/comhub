@@ -31,8 +31,10 @@ describe('createModuleAppService', () => {
 
   it('uploads a ZIP to the server-issued target before submitting it for review', async () => {
     const createUpload = vi.fn().mockResolvedValue({
+      expiresAt: '2026-07-11T02:00:00.000Z',
       headers: { 'x-amz-acl': 'private' },
       storageKey: 'module-app-packages/user-scope/package.zip',
+      uploadId: '00000000-0000-4000-8000-000000000010',
       uploadUrl: 'https://uploads.example.com/package.zip',
     });
     const submitUploadedPackage = vi.fn().mockResolvedValue({ id: 'package-1' });
@@ -65,6 +67,7 @@ describe('createModuleAppService', () => {
     expect(submitUploadedPackage).toHaveBeenCalledWith({
       fileName: 'package-app.zip',
       storageKey: 'module-app-packages/user-scope/package.zip',
+      uploadId: '00000000-0000-4000-8000-000000000010',
     });
   });
 });

@@ -51,4 +51,20 @@ describe('ModuleAppPackageUploader', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('moduleApps.packageUploader.zipOnly');
     expect(mockUploadPackage).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['MODULE_APP_PACKAGE_OPEN_UPLOAD_LIMIT', 'moduleApps.packageUploader.quotaExceeded'],
+    ['MODULE_APP_PACKAGE_UPLOAD_EXPIRED', 'moduleApps.packageUploader.expired'],
+    ['module_app_package_forbidden_extension', 'moduleApps.packageUploader.securityRejected'],
+  ])('shows a specific message for %s', async (code, messageKey) => {
+    mockUploadPackage.mockRejectedValueOnce(new Error(code));
+    render(<ModuleAppPackageUploader />);
+    const file = new File(['zip-content'], 'package-app.zip', { type: 'application/zip' });
+
+    fireEvent.change(screen.getByLabelText('moduleApps.packageUploader.fileLabel'), {
+      target: { files: [file] },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(messageKey);
+  });
 });
