@@ -1,8 +1,15 @@
+import type { ModuleAppLaunchContext } from '@lobechat/types';
 import { memo } from 'react';
 
-const PageRenderer = memo(() => {
-  return <div data-testid="module-app-page-renderer" />;
-});
+import SandboxFrame from './SandboxFrame';
+
+interface PageRendererProps {
+  context: ModuleAppLaunchContext;
+}
+
+const PageRenderer = memo<PageRendererProps>(({ context }) => (
+  <SandboxFrame context={context} title={context.displayName} />
+));
 
 PageRenderer.displayName = 'PageRenderer';
 

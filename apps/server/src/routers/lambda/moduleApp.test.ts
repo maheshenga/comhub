@@ -7,14 +7,22 @@ import { moduleAppRouter } from './moduleApp';
 const {
   mockGetServerDB,
   mockGetSubscriptionPlan,
+  mockGetWorkspaceMember,
   mockIngestionService,
+  mockAppEnv,
   mockModuleAppGateway,
   mockRunModuleAppAction,
   mockModuleAppModel,
+  mockSignModuleAppCapability,
   mockVerifyModuleAppCapability,
 } = vi.hoisted(() => ({
+  mockAppEnv: {
+    MODULE_APP_EXECUTION_ENABLED: true,
+    MODULE_APP_RUNTIME_PUBLIC_ORIGIN: 'https://module-runtime.example.com',
+  },
   mockGetServerDB: vi.fn(),
   mockGetSubscriptionPlan: vi.fn(),
+  mockGetWorkspaceMember: vi.fn(),
   mockIngestionService: {
     issueUpload: vi.fn(),
     submitUpload: vi.fn(),
@@ -25,9 +33,15 @@ const {
     createRecord: vi.fn(),
     createRun: vi.fn(),
     getAppDetail: vi.fn(),
+    getLaunchInstallationContext: vi.fn(),
     listAdminPackageSubmissions: vi.fn(),
   },
+  mockSignModuleAppCapability: vi.fn(),
   mockVerifyModuleAppCapability: vi.fn(),
+}));
+
+vi.mock('@/envs/app', () => ({
+  appEnv: mockAppEnv,
 }));
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -47,7 +61,12 @@ vi.mock('@/server/services/moduleAppPackage/ingestion', () => ({
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/capability', () => ({
+  signModuleAppCapability: mockSignModuleAppCapability,
   verifyModuleAppCapability: mockVerifyModuleAppCapability,
+}));
+
+vi.mock('@/database/models/workspaceMember', () => ({
+  WorkspaceMemberModel: vi.fn(() => ({ getMember: mockGetWorkspaceMember })),
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/gateway', () => ({
@@ -67,6 +86,9 @@ describe('moduleApp router registration', () => {
     vi.clearAllMocks();
     mockGetServerDB.mockResolvedValue({});
     mockGetSubscriptionPlan.mockResolvedValue('free');
+    mockGetWorkspaceMember.mockResolvedValue({ role: 'member', workspaceId: 'workspace-1' });
+    mockAppEnv.MODULE_APP_EXECUTION_ENABLED = true;
+    mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = 'https://module-runtime.example.com';
     mockModuleAppModel.getAppDetail.mockResolvedValue({
       actions: [],
       id: APP_ID,
@@ -104,10 +126,124 @@ describe('moduleApp router registration', () => {
       versionId: '00000000-0000-4000-8000-000000000011',
     });
     mockModuleAppGateway.call.mockResolvedValue({ appId: APP_ID });
+    mockModuleAppModel.getLaunchInstallationContext.mockResolvedValue({
+      artifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
+      artifactSha256: 'a'.repeat(64),
+      buildArtifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
+      buildArtifactSha256: 'a'.repeat(64),
+      buildStatus: 'ready',
+      displayName: 'Jobs Board',
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runtimeManifest: {
+        build: { frontend: { output: 'dist', profile: 'node22-static' } },
+        manifestVersion: 2,
+        runtime: {
+          functions: [],
+          kind: 'sandboxed_app',
+          outboundHosts: [],
+          permissions: ['context.read'],
+        },
+      },
+      versionId: '00000000-0000-4000-8000-000000000011',
+      workspaceId: null,
+    });
+    mockSignModuleAppCapability.mockResolvedValue('signed-launch-capability');
   });
 
   it('registers the moduleApp router on lambda root', () => {
     expect(lambdaRouter._def.record.moduleApp).toBeDefined();
+  });
+
+  it('returns a scoped launch context for an installed entitled ready application', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).resolves.toMatchObject({
+      capability: 'signed-launch-capability',
+      iframeUrl: expect.stringContaining('/artifacts/'),
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runtimeOrigin: 'https://module-runtime.example.com',
+    });
+    expect(mockSignModuleAppCapability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: APP_ID,
+        permissions: ['context.read'],
+        surface: 'browser',
+        userId: 'user-1',
+      }),
+      expect.objectContaining({ expiresInSeconds: 300 }),
+    );
+  });
+
+  it('rejects launch while runtime execution is disabled', async () => {
+    mockAppEnv.MODULE_APP_EXECUTION_ENABLED = false;
+
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_runtime_unavailable',
+    });
+    expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
+  });
+
+  it('rejects uninstalled and suspended applications', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+    mockModuleAppModel.getLaunchInstallationContext.mockResolvedValueOnce(null);
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'module_app_installation_required',
+    });
+
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce(null);
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('rechecks runnable plan entitlement before launch', async () => {
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toThrow(
+      'plan_run_denied',
+    );
+    expect(mockModuleAppModel.getLaunchInstallationContext).not.toHaveBeenCalled();
+  });
+
+  it('rejects a workspace launch when the user is not a current member', async () => {
+    mockGetWorkspaceMember.mockResolvedValueOnce(null);
+
+    await expect(
+      createCaller().getLaunchContext({ appId: APP_ID, workspaceId: 'workspace-1' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
+    expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
+  });
+
+  it('rejects an installation whose immutable build is not ready', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+    mockModuleAppModel.getLaunchInstallationContext.mockResolvedValueOnce({
+      artifactSha256: null,
+      buildArtifactSha256: null,
+      buildStatus: 'building',
+      displayName: 'Jobs Board',
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runtimeManifest: {},
+      versionId: '00000000-0000-4000-8000-000000000011',
+      workspaceId: null,
+    });
+
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_build_not_ready',
+    });
+    expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
   });
 
   it('verifies and delegates a browser capability gateway call', async () => {

@@ -29,6 +29,20 @@ describe('createModuleAppService', () => {
     expect(query).toHaveBeenCalledWith({ limit: 20, reviewStatus: 'pending_review' });
   });
 
+  it('requests an installation-scoped launch context', async () => {
+    const query = vi.fn().mockResolvedValue({ capability: 'signed-capability' });
+    const service = createModuleAppService({
+      moduleApp: {
+        getLaunchContext: { query },
+      },
+    } as never);
+
+    await expect(
+      service.getLaunchContext({ appId: 'app-1', workspaceId: 'workspace-1' }),
+    ).resolves.toEqual({ capability: 'signed-capability' });
+    expect(query).toHaveBeenCalledWith({ appId: 'app-1', workspaceId: 'workspace-1' });
+  });
+
   it('uploads a ZIP to the server-issued target before submitting it for review', async () => {
     const createUpload = vi.fn().mockResolvedValue({
       expiresAt: '2026-07-11T02:00:00.000Z',

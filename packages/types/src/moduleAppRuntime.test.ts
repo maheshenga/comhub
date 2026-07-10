@@ -4,6 +4,7 @@ import {
   moduleAppBuildProfileSchema,
   moduleAppCapabilityClaimsSchema,
   moduleAppExecutableRuntimeSchema,
+  moduleAppLaunchContextSchema,
 } from './moduleAppRuntime';
 
 describe('module app executable runtime contracts', () => {
@@ -54,5 +55,19 @@ describe('module app executable runtime contracts', () => {
         versionId: '00000000-0000-4000-8000-000000000003',
       }),
     ).toThrow();
+  });
+
+  it('includes the trusted display name in a launch context', () => {
+    expect(
+      moduleAppLaunchContextSchema.parse({
+        capability: 'signed-capability',
+        displayName: 'Jobs Board',
+        expiresAt: '2026-07-11T08:05:00.000Z',
+        iframeUrl: 'https://module-runtime.example.com/artifacts/hash/dist/index.html',
+        installationId: '00000000-0000-4000-8000-000000000001',
+        nonce: 'launch-nonce-0001',
+        runtimeOrigin: 'https://module-runtime.example.com',
+      }),
+    ).toMatchObject({ displayName: 'Jobs Board' });
   });
 });

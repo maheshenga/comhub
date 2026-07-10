@@ -86,6 +86,7 @@ export type ModuleAppCapabilityClaims = z.infer<typeof moduleAppCapabilityClaims
 export const moduleAppLaunchContextSchema = z
   .object({
     capability: z.string().min(1),
+    displayName: z.string().min(1).max(120),
     expiresAt: z.string().datetime(),
     iframeUrl: z.string().url(),
     installationId: z.string().uuid(),

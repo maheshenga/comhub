@@ -445,6 +445,18 @@ export default {
   'moduleApps.installed.title': 'Installed Apps',
   'moduleApps.market.title': 'App Marketplace',
   'moduleApps.my.title': 'My Apps',
+  'moduleApps.runtime.buildNotReady.description':
+    'This version is still being prepared or did not pass the build checks.',
+  'moduleApps.runtime.buildNotReady.title': 'Application build is not ready',
+  'moduleApps.runtime.denied.description':
+    'Install this application with an eligible plan and workspace before opening it.',
+  'moduleApps.runtime.denied.title': 'Application access is unavailable',
+  'moduleApps.runtime.failure.description': 'The application could not be opened. Try again.',
+  'moduleApps.runtime.failure.title': 'Application failed to load',
+  'moduleApps.runtime.retry': 'Retry',
+  'moduleApps.runtime.unavailable.description':
+    'The isolated application runtime is not enabled for this deployment.',
+  'moduleApps.runtime.unavailable.title': 'Application runtime is unavailable',
   'moduleApps.packageUploader.failure': 'Package upload failed. Please try again.',
   'moduleApps.packageUploader.expired': 'The upload session expired. Select the package again.',
   'moduleApps.packageUploader.fileLabel': 'Module app ZIP package',

@@ -1,4 +1,8 @@
+import { randomUUID } from 'node:crypto';
+
 import {
+  moduleAppBuildConfigSchema,
+  moduleAppExecutableRuntimeSchema,
   moduleAppMarketplaceListInputSchema,
   moduleAppPackageArchiveMetadataSchema,
   moduleAppPackageManifestV1Schema,
@@ -22,15 +26,31 @@ import { ModuleAppModel } from '@/database/models/moduleApp';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { ModuleAppPackageItem, ModuleAppRecordItem } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
+import { appEnv } from '@/envs/app';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { ModuleAppPackageIngestionService } from '@/server/services/moduleAppPackage/ingestion';
-import { verifyModuleAppCapability } from '@/server/services/moduleAppRuntime/capability';
+import {
+  signModuleAppCapability,
+  verifyModuleAppCapability,
+} from '@/server/services/moduleAppRuntime/capability';
 import { createModuleAppCapabilityGateway } from '@/server/services/moduleAppRuntime/gateway';
 
 const AppIdInputSchema = z.object({
   appId: z.string().uuid(),
 });
+
+const ModuleAppLaunchInputSchema = AppIdInputSchema.extend({
+  workspaceId: z.string().min(1).optional(),
+});
+
+const ModuleAppLaunchRuntimeManifestSchema = z
+  .object({
+    build: moduleAppBuildConfigSchema,
+    manifestVersion: z.literal(2),
+    runtime: moduleAppExecutableRuntimeSchema,
+  })
+  .strict();
 
 const AppIdOrSlugInputSchema = z.object({
   appIdOrSlug: z.string().min(1).max(160),
@@ -375,6 +395,100 @@ export const moduleAppRouter = router({
       userId: ctx.userId,
     });
   }),
+
+  getLaunchContext: moduleAppProcedure
+    .input(ModuleAppLaunchInputSchema)
+    .query(async ({ ctx, input }) => {
+      if (
+        !appEnv.MODULE_APP_EXECUTION_ENABLED ||
+        !appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN
+      ) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_runtime_unavailable',
+        });
+      }
+
+      if (input.workspaceId) {
+        const membership = await getWorkspaceMembership(
+          ctx.serverDB,
+          ctx.userId,
+          input.workspaceId,
+        );
+        if (!membership) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'module_app_workspace_denied',
+          });
+        }
+      }
+
+      await assertRunnableApp({
+        appId: input.appId,
+        currentPlan: ctx.currentPlan,
+        model: ctx.moduleAppModel,
+        userId: ctx.userId,
+      });
+      const installation = await ctx.moduleAppModel.getLaunchInstallationContext({
+        ...input,
+        userId: ctx.userId,
+      });
+      if (!installation) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'module_app_installation_required',
+        });
+      }
+
+      const manifest = ModuleAppLaunchRuntimeManifestSchema.safeParse(
+        installation.runtimeManifest,
+      );
+      const artifactReady =
+        installation.buildStatus === 'ready' &&
+        Boolean(installation.artifactKey) &&
+        Boolean(installation.artifactSha256) &&
+        installation.artifactKey === installation.buildArtifactKey &&
+        installation.artifactSha256 === installation.buildArtifactSha256;
+      if (!artifactReady || !manifest.success) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_build_not_ready',
+        });
+      }
+
+      const now = new Date();
+      const nonce = randomUUID();
+      const runtimeOrigin = new URL(appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN).origin;
+      const output = manifest.data.build.frontend.output.replace(/\/+$/, '');
+      const entry = output.endsWith('.html') ? output : `${output}/index.html`;
+      const iframeUrl = new URL(
+        `/artifacts/${installation.artifactSha256}/${entry}`,
+        `${runtimeOrigin}/`,
+      );
+      iframeUrl.searchParams.set('nonce', nonce);
+      const capability = await signModuleAppCapability(
+        {
+          appId: input.appId,
+          installationId: installation.installationId,
+          permissions: manifest.data.runtime.permissions,
+          surface: 'browser',
+          userId: ctx.userId,
+          versionId: installation.versionId,
+          workspaceId: installation.workspaceId ?? undefined,
+        },
+        { expiresInSeconds: 300, nonce, now: () => now },
+      );
+
+      return {
+        capability,
+        displayName: installation.displayName,
+        expiresAt: new Date(now.getTime() + 300_000).toISOString(),
+        iframeUrl: iframeUrl.toString(),
+        installationId: installation.installationId,
+        nonce,
+        runtimeOrigin,
+      };
+    }),
 
   getRecord: moduleAppProcedure.input(RecordIdInputSchema).query(async ({ ctx, input }) => {
     const record = await ctx.moduleAppModel.getRecord({ ...input, userId: ctx.userId });

@@ -17,13 +17,13 @@ const getVercelUrl = () => {
   return `https://${process.env.VERCEL_BRANCH_URL}`;
 };
 
-const APP_URL = process.env.APP_URL
-  ? process.env.APP_URL
-  : isInVercel
+const APP_URL =
+  process.env.APP_URL ||
+  (isInVercel
     ? getVercelUrl()
     : process.env.NODE_ENV === 'development'
       ? `http://localhost:${process.env.PORT || 3010}`
-      : `http://localhost:${process.env.PORT || 3210}`;
+      : `http://localhost:${process.env.PORT || 3210}`);
 
 // INTERNAL_APP_URL is used for server-to-server calls to bypass CDN/proxy
 // Falls back to APP_URL if not set
@@ -75,6 +75,9 @@ export const getAppConfig = () => {
        */
       MARKET_TRUSTED_CLIENT_ID: z.string().optional(),
 
+      MODULE_APP_EXECUTION_ENABLED: z.boolean().optional(),
+      MODULE_APP_RUNTIME_PUBLIC_ORIGIN: z.string().url().optional(),
+
       AGENT_GATEWAY_SERVICE_TOKEN: z.string().optional(),
       ENABLE_AGENT_GATEWAY: z.boolean().optional(),
       AGENT_GATEWAY_URL: z.string().url().optional(),
@@ -120,6 +123,9 @@ export const getAppConfig = () => {
 
       MARKET_TRUSTED_CLIENT_SECRET: process.env.MARKET_TRUSTED_CLIENT_SECRET,
       MARKET_TRUSTED_CLIENT_ID: process.env.MARKET_TRUSTED_CLIENT_ID,
+
+      MODULE_APP_EXECUTION_ENABLED: process.env.MODULE_APP_EXECUTION_ENABLED === 'true',
+      MODULE_APP_RUNTIME_PUBLIC_ORIGIN: process.env.MODULE_APP_RUNTIME_PUBLIC_ORIGIN,
 
       AGENT_GATEWAY_SERVICE_TOKEN: process.env.AGENT_GATEWAY_SERVICE_TOKEN,
       ENABLE_AGENT_GATEWAY: process.env.ENABLE_AGENT_GATEWAY === '1',

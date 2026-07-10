@@ -1041,7 +1041,7 @@
 #### Module App Platform P1 Fixed Runtime Service
 
 - Status: experimental. The internal runtime protocol and fixed Node.js/Python runtime profiles exist in source, but production execution remains disabled by default.
-- Description: Adds a private `POST /v1/invocations` contract, strict invocation policy, runtime-surface capability verification, bounded input and logs, process-group timeout termination, and a main-server client that refuses calls unless execution is explicitly enabled.
+- Description: Adds a private `POST /v1/invocations` contract, content-addressed public static asset routes, strict invocation policy, runtime-surface capability verification, bounded input and logs, process-group timeout termination, and a main-server client that refuses calls unless execution is explicitly enabled.
 - Frontend entry: none. The main-site sandbox shell and launch context are a separate task.
 - Backend API and services: `apps/module-runtime/src/server.ts`, `apps/module-runtime/src/invocation.ts`, `apps/module-runtime/src/capability.ts`, and `apps/server/src/services/moduleAppRuntime/client.ts`.
 - Database dependencies: none directly. Invocation inputs reference immutable artifact hashes and capabilities issued from existing app/version/installation records.
@@ -1050,9 +1050,27 @@
 - Main files: `apps/module-runtime/`, `apps/server/src/services/moduleAppRuntime/client.ts`, `pnpm-workspace.yaml`, and `pnpm-lock.yaml`.
 - Maintenance risk: high because this is a process-execution, artifact-integrity, capability, and container-isolation boundary.
 - Refactor recommendation: keep the protocol, policy, capability verifier, launcher, and deployment orchestrator isolated. Do not add developer-selected images or commands.
-- Test coverage: fixed invocation validation, custom-image and timeout denial, bounded logs, runtime-versus-browser capability enforcement, disabled-client behavior, internal endpoint routing, incomplete credential rejection, and portable service entry detection. Tests inject a launcher and do not execute uploaded or host commands.
+- Test coverage: fixed invocation validation, custom-image and timeout denial, bounded logs, runtime-versus-browser capability enforcement, disabled-client behavior, internal endpoint routing, immutable static asset serving, incomplete credential rejection, and portable service entry detection. Tests inject a launcher and do not execute uploaded or host commands.
 - Security boundary: only `node22` and `python312` runtime identifiers are accepted; entry paths are package-relative; the service requires an internal bearer token plus a valid `surface: runtime` RS256 capability; execution is off unless `MODULE_APP_EXECUTION_ENABLED=true`.
 - Docker deployment: fixed non-root Dockerfiles run as UID/GID `10001`. No production compose service, network access, namespace/seccomp policy, or artifact bind mount is enabled in this slice. Phase 5 verification is required before production execution.
+
+#### Module App Platform P1 Main-Site Sandbox Launch
+
+- Status: experimental. Launch authorization, iframe isolation, SDK relay, and user-facing states are implemented, while runtime execution remains disabled by default.
+- Description: Adds `moduleApp.getLaunchContext`, active installation/build lookup, current plan and workspace revalidation, a five-minute browser capability, and a main-site iframe shell with loading, denied, build-not-ready, runtime-unavailable, failure, and retry states.
+- Frontend entry: `/apps/:appId/app` and `/apps/:appId/app/:pageKey`; workspace launches use the optional `workspaceId` query parameter.
+- Core components: `src/features/ModuleAppRuntime/index.tsx`, `PageRenderer.tsx`, `SandboxFrame.tsx`, and SDK `waitForModuleAppLaunch`.
+- Backend API and services: `lambda.moduleApp.getLaunchContext`, `signModuleAppCapability`, and `ModuleAppModel.getLaunchInstallationContext`.
+- Database dependencies: published `module_apps`, active `module_app_installations`, immutable `module_app_versions`, matching ready `module_app_builds`, current plan entitlements, and current workspace membership.
+- Configuration and environment: `MODULE_APP_EXECUTION_ENABLED` and `MODULE_APP_RUNTIME_PUBLIC_ORIGIN` for launch; the runtime service separately uses `MODULE_APP_RUNTIME_INTERNAL_URL`, `MODULE_APP_RUNTIME_INTERNAL_TOKEN`, and `MODULE_APP_RUNTIME_JWKS`.
+- External services: the separately deployed Module App runtime origin and its content-addressed artifact mount.
+- Main files: `apps/server/src/routers/lambda/moduleApp.ts`, `packages/database/src/models/moduleApp.ts`, `packages/module-app-sdk/src/bridge.ts`, `src/services/moduleApp.ts`, and `src/features/ModuleAppRuntime/`.
+- Maintenance risk: high because launch authorization, short-lived credentials, cross-origin messaging, immutable artifacts, and workspace scope meet at this boundary.
+- Refactor recommendation: keep launch lookup, signing, iframe transport, SDK relay, and runtime deployment separate. Do not move entitlement or workspace authorization into the browser.
+- Test coverage: uninstalled, suspended, plan-denied, wrong-workspace, non-ready build, disabled runtime, launch context, SDK ready/launch guards and relay, relay error redaction, fixed iframe sandbox, user-visible states, database isolation, route sync, type-check, and lint.
+- Security boundary: the iframe sandbox is exactly `allow-forms allow-scripts allow-downloads` and never includes `allow-same-origin`. This intentionally creates an opaque origin, so browser messages report origin `null`; the host therefore validates the exact iframe `contentWindow`, channel, server nonce, launch state, and server-issued runtime URL before sending the capability. Wildcard `postMessage` targeting is used only after those checks because opaque frames cannot be addressed by their pre-sandbox origin.
+- Known limitation: production launch remains blocked until Phase 5 validates the runtime service image, content-addressed artifact bind mount, network namespace, seccomp profile, resource limits, multi-instance replay store, rollback, and browser E2E probes.
+- Docker deployment: no production compose service is added in this slice. Existing deployment remains unchanged and execution defaults off.
 
 ## Governance Execution Notes
 

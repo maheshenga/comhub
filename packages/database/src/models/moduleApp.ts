@@ -1154,6 +1154,50 @@ export class ModuleAppModel {
     };
   };
 
+  getLaunchInstallationContext = async (params: {
+    appId: string;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    const [row] = await this.db
+      .select({
+        artifactKey: moduleAppVersions.runtimeArtifactKey,
+        artifactSha256: moduleAppVersions.runtimeArtifactSha256,
+        buildArtifactKey: moduleAppBuilds.artifactKey,
+        buildArtifactSha256: moduleAppBuilds.artifactSha256,
+        buildStatus: moduleAppBuilds.status,
+        displayName: moduleApps.displayName,
+        installationId: moduleAppInstallations.id,
+        runtimeManifest: moduleAppVersions.runtimeManifest,
+        versionId: moduleAppVersions.id,
+        workspaceId: moduleAppInstallations.workspaceId,
+      })
+      .from(moduleAppInstallations)
+      .innerJoin(moduleApps, eq(moduleApps.id, moduleAppInstallations.appId))
+      .innerJoin(moduleAppVersions, eq(moduleAppVersions.id, moduleAppInstallations.versionId))
+      .leftJoin(moduleAppBuilds, eq(moduleAppBuilds.versionId, moduleAppVersions.id))
+      .where(
+        and(
+          eq(moduleAppInstallations.appId, params.appId),
+          eq(moduleApps.status, 'published'),
+          eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+          isNull(moduleAppInstallations.uninstalledAt),
+          params.workspaceId
+            ? and(
+                eq(moduleAppInstallations.scopeType, 'workspace'),
+                eq(moduleAppInstallations.workspaceId, params.workspaceId),
+              )
+            : and(
+                eq(moduleAppInstallations.scopeType, 'personal'),
+                eq(moduleAppInstallations.userId, params.userId),
+              ),
+        ),
+      )
+      .limit(1);
+
+    return row ?? null;
+  };
+
   getRuntimeInstallationContext = async (params: {
     appId: string;
     installationId: string;

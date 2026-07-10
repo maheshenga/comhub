@@ -1,4 +1,5 @@
 import type {
+  ModuleAppLaunchContext,
   ModuleAppMarketplaceListInput,
   ModuleAppPackageSubmissionListInput,
   ModuleAppPackageSubmissionListResult,
@@ -35,9 +36,17 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
   return {
     archiveRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
       client.moduleApp.archiveRecord.mutate!(input),
+    callSdk: (input: {
+      capability: string;
+      input?: unknown;
+      method: string;
+      requestId?: string;
+    }) => client.moduleApp.callSdk.mutate!(input),
     createPackageUpload,
     createRecord: (input: ModuleAppRecordInput) => client.moduleApp.createRecord.mutate!(input),
     getDetail: (input: { appIdOrSlug: string }) => client.moduleApp.getDetail.query!(input),
+    getLaunchContext: (input: { appId: string; workspaceId?: string }) =>
+      client.moduleApp.getLaunchContext.query!(input) as Promise<ModuleAppLaunchContext>,
     getRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
       client.moduleApp.getRecord.query!(input),
     getRuntimeManifest: (input: { appId: string }) =>

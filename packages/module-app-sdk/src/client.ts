@@ -1,7 +1,9 @@
 import {
   isModuleAppBridgeEvent,
+  isModuleAppBridgeLaunch,
   isModuleAppBridgeResponse,
   MODULE_APP_BRIDGE_CHANNEL,
+  type ModuleAppBridgeLaunch,
   type ModuleAppBridgeRequest,
 } from './bridge';
 
@@ -26,6 +28,13 @@ type ModuleAppSdkOptions = {
   runtimeOrigin: string;
 };
 
+type ModuleAppLaunchOptions = {
+  eventTarget?: MessageEventTarget;
+  nonce: string;
+  parentWindow?: MessageTarget;
+  timeoutMs?: number;
+};
+
 type PendingRequest = {
   reject: (error: Error) => void;
   resolve: (value: unknown) => void;
@@ -45,6 +54,56 @@ export interface ModuleAppSdk {
   invoke: <T = unknown>(method: string, input?: unknown) => Promise<T>;
   on: (event: ModuleAppSdkEvent, listener: ModuleAppSdkListener) => () => void;
 }
+
+export const waitForModuleAppLaunch = (
+  options: ModuleAppLaunchOptions,
+): Promise<ModuleAppBridgeLaunch> => {
+  if (options.nonce.length < 16) {
+    return Promise.reject(new ModuleAppSdkError('MODULE_APP_SDK_NONCE_INVALID'));
+  }
+
+  const eventTarget: MessageEventTarget =
+    options.eventTarget ?? (window as unknown as MessageEventTarget);
+  const parentWindow: MessageTarget =
+    options.parentWindow ?? (window.parent as unknown as MessageTarget);
+
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeout);
+      eventTarget.removeEventListener('message', onMessage);
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (
+        event.source !== parentWindow ||
+        !isModuleAppBridgeLaunch(event.data) ||
+        event.data.nonce !== options.nonce
+      ) {
+        return;
+      }
+
+      let hostOrigin: string;
+      try {
+        hostOrigin = new URL(event.data.hostOrigin).origin;
+      } catch {
+        return;
+      }
+      if (event.origin !== hostOrigin) return;
+
+      cleanup();
+      resolve(event.data);
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new ModuleAppSdkError('MODULE_APP_SDK_LAUNCH_TIMEOUT'));
+    }, options.timeoutMs ?? 30_000);
+
+    eventTarget.addEventListener('message', onMessage);
+    parentWindow.postMessage(
+      { channel: MODULE_APP_BRIDGE_CHANNEL, nonce: options.nonce, type: 'ready' },
+      '*',
+    );
+  });
+};
 
 export const createModuleAppSdk = (options: ModuleAppSdkOptions): ModuleAppSdk => {
   if (options.nonce.length < 16) throw new ModuleAppSdkError('MODULE_APP_SDK_NONCE_INVALID');

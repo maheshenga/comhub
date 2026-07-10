@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { MODULE_APP_BRIDGE_CHANNEL } from './bridge';
-import { createModuleAppSdk } from './client';
+import { createModuleAppSdk, waitForModuleAppLaunch } from './client';
 
 const RUNTIME_ORIGIN = 'https://module-runtime.example.com';
 const NONCE = '0123456789abcdef0123456789abcdef';
@@ -32,6 +32,61 @@ const createHarness = () => {
 };
 
 describe('createModuleAppSdk', () => {
+  it('performs an opaque-frame ready handshake before accepting launch credentials', async () => {
+    const listeners = new Set<(event: MessageEvent) => void>();
+    const eventTarget = {
+      addEventListener: vi.fn((_type: 'message', listener: (event: MessageEvent) => void) => {
+        listeners.add(listener);
+      }),
+      removeEventListener: vi.fn((_type: 'message', listener: (event: MessageEvent) => void) => {
+        listeners.delete(listener);
+      }),
+    };
+    const parentWindow = { postMessage: vi.fn() };
+    const launch = waitForModuleAppLaunch({
+      eventTarget: eventTarget as never,
+      nonce: NONCE,
+      parentWindow: parentWindow as never,
+    });
+
+    expect(parentWindow.postMessage).toHaveBeenCalledWith(
+      { channel: MODULE_APP_BRIDGE_CHANNEL, nonce: NONCE, type: 'ready' },
+      '*',
+    );
+    for (const listener of listeners) {
+      listener({
+        data: {
+          capability: 'attacker-capability',
+          channel: MODULE_APP_BRIDGE_CHANNEL,
+          hostOrigin: RUNTIME_ORIGIN,
+          nonce: NONCE,
+          type: 'launch',
+        },
+        origin: 'https://attacker.example.com',
+        source: parentWindow,
+      } as never);
+    }
+    for (const listener of listeners) {
+      listener({
+        data: {
+          capability: 'signed-capability',
+          channel: MODULE_APP_BRIDGE_CHANNEL,
+          hostOrigin: RUNTIME_ORIGIN,
+          nonce: NONCE,
+          type: 'launch',
+        },
+        origin: RUNTIME_ORIGIN,
+        source: parentWindow,
+      } as never);
+    }
+
+    await expect(launch).resolves.toMatchObject({
+      capability: 'signed-capability',
+      hostOrigin: RUNTIME_ORIGIN,
+    });
+    expect(eventTarget.removeEventListener).toHaveBeenCalledOnce();
+  });
+
   it('ignores responses from a wrong origin, source, or nonce', async () => {
     const { dispatch, parentWindow, sdk } = createHarness();
     const request = sdk.context();
