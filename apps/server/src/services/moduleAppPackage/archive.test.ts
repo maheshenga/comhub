@@ -1,5 +1,6 @@
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
+import { stringify } from 'yaml';
 
 import { parseModuleAppPackageArchive } from './archive';
 
@@ -23,6 +24,29 @@ const validManifest = {
 } as const;
 
 const createArchive = (files: Record<string, Uint8Array>) => zipSync(files);
+
+const validManifestV2 = {
+  app: {
+    actions: [],
+    appType: 'hybrid_app',
+    billing: {},
+    category: 'business',
+    description: 'A reviewed executable package.',
+    displayName: 'Executable Package',
+    icon: 'Package',
+    pages: [],
+    slug: 'executable-package',
+    tags: [],
+  },
+  build: { frontend: { output: 'dist', profile: 'node22-static' } },
+  entitlements: [],
+  manifestVersion: 2,
+  packageVersion: '1.0.0',
+  runtime: {
+    functions: [{ entry: 'server/index.ts', key: 'main', runtime: 'node22' }],
+    permissions: ['data.read'],
+  },
+} as const;
 
 describe('parseModuleAppPackageArchive', () => {
   it('derives manifest, file inventory, size, and hashes from uploaded ZIP bytes', async () => {
@@ -129,5 +153,43 @@ describe('parseModuleAppPackageArchive', () => {
         }),
       ],
     });
+  });
+
+  it('parses a root module-app.yaml executable manifest', async () => {
+    const bytes = createArchive({
+      'module-app.yaml': strToU8(stringify(validManifestV2)),
+      'server/index.ts': strToU8('export default async () => ({ ok: true });'),
+    });
+
+    const result = await parseModuleAppPackageArchive({
+      bytes,
+      fileName: 'executable-package.zip',
+      mimeType: 'application/zip',
+      storageKey: 'module-app-packages/user-scope/executable-package.zip',
+    });
+
+    expect(result.manifest).toMatchObject({
+      manifestVersion: 2,
+      packageVersion: '1.0.0',
+    });
+    expect(result.fileManifest).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: 'module-app.yaml' })]),
+    );
+  });
+
+  it('rejects packages that contain both manifest formats', async () => {
+    const bytes = createArchive({
+      'manifest.json': strToU8(JSON.stringify(validManifest)),
+      'module-app.yaml': strToU8(stringify(validManifestV2)),
+    });
+
+    await expect(
+      parseModuleAppPackageArchive({
+        bytes,
+        fileName: 'conflicting-package.zip',
+        mimeType: 'application/zip',
+        storageKey: 'module-app-packages/user-scope/conflicting-package.zip',
+      }),
+    ).rejects.toMatchObject({ code: 'module_app_package_manifest_conflict' });
   });
 });

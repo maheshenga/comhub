@@ -2,11 +2,13 @@ import { createHash } from 'node:crypto';
 
 import {
   MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES,
-  moduleAppPackageManifestSchema,
+  moduleAppPackageManifestV1Schema,
+  moduleAppPackageManifestV2Schema,
   type ModuleAppPackageSubmitInput,
   type ModuleAppPackageValidationIssue,
 } from '@lobechat/types';
 import { unzip } from 'fflate';
+import { parse as parseYaml } from 'yaml';
 
 import { validateModuleAppPackageSubmission } from '@/business/server/module-apps/packageManifest';
 
@@ -173,35 +175,50 @@ export const parseModuleAppPackageArchive = async (
     throw new ModuleAppPackageArchiveError(firstIssue.code, firstIssue.message, scanIssues);
   }
 
-  const manifestBytes = files['manifest.json'];
+  const legacyManifestBytes = files['manifest.json'];
+  const executableManifestBytes = files['module-app.yaml'];
+  if (legacyManifestBytes && executableManifestBytes) {
+    throw new ModuleAppPackageArchiveError(
+      'module_app_package_manifest_conflict',
+      'Package must not contain both manifest.json and module-app.yaml.',
+    );
+  }
+
+  const manifestBytes = legacyManifestBytes ?? executableManifestBytes;
+  const manifestPath = legacyManifestBytes ? 'manifest.json' : 'module-app.yaml';
   if (!manifestBytes) {
     throw new ModuleAppPackageArchiveError(
       'module_app_package_manifest_missing',
-      'Package must contain a root manifest.json file.',
+      'Package must contain one root manifest.json or module-app.yaml file.',
     );
   }
   if (manifestBytes.byteLength > limits.maxManifestBytes) {
     throw new ModuleAppPackageArchiveError(
       'module_app_package_manifest_too_large',
-      `manifest.json exceeds ${limits.maxManifestBytes} bytes.`,
+      `${manifestPath} exceeds ${limits.maxManifestBytes} bytes.`,
     );
   }
 
   let manifest: unknown;
   try {
-    manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestBytes));
+    const manifestText = new TextDecoder('utf-8', { fatal: true }).decode(manifestBytes);
+    manifest = legacyManifestBytes ? JSON.parse(manifestText) : parseYaml(manifestText);
   } catch {
     throw new ModuleAppPackageArchiveError(
-      'module_app_package_manifest_invalid_json',
-      'manifest.json must contain valid UTF-8 JSON.',
+      legacyManifestBytes
+        ? 'module_app_package_manifest_invalid_json'
+        : 'module_app_package_manifest_invalid_yaml',
+      `${manifestPath} must contain valid UTF-8 ${legacyManifestBytes ? 'JSON' : 'YAML'}.`,
     );
   }
 
-  const parsedManifest = moduleAppPackageManifestSchema.safeParse(manifest);
+  const parsedManifest = legacyManifestBytes
+    ? moduleAppPackageManifestV1Schema.safeParse(manifest)
+    : moduleAppPackageManifestV2Schema.safeParse(manifest);
   if (!parsedManifest.success) {
     throw new ModuleAppPackageArchiveError(
       'module_app_package_manifest_invalid',
-      'manifest.json does not match the Module App manifest schema.',
+      `${manifestPath} does not match the Module App manifest schema.`,
     );
   }
 

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { moduleAppBuildConfigSchema, moduleAppExecutableRuntimeSchema } from './moduleAppRuntime';
+
 const optionalTrimmedString = (max: number) =>
   z.preprocess((value) => {
     if (typeof value !== 'string') return value;
@@ -264,7 +266,7 @@ export type ModuleAppPackageValidationIssue = z.infer<
   typeof moduleAppPackageValidationIssueSchema
 >;
 
-export const moduleAppPackageManifestSchema = z.object({
+export const moduleAppPackageManifestV1Schema = z.object({
   app: moduleAppAdminUpsertSchema.omit({ id: true }).extend({
     status: moduleAppStatusSchema.default('draft'),
   }),
@@ -273,6 +275,27 @@ export const moduleAppPackageManifestSchema = z.object({
   packageVersion: z.string().min(1).max(80),
   runtime: moduleAppPackageRuntimeSchema.default({ kind: 'manifest_only' }),
 });
+
+export const moduleAppPackageManifestV2Schema = z
+  .object({
+    app: moduleAppAdminUpsertSchema.omit({ id: true }).extend({
+      status: moduleAppStatusSchema.default('draft'),
+    }),
+    build: moduleAppBuildConfigSchema,
+    entitlements: z.array(moduleAppPlanEntitlementSchema).max(100).default([]),
+    manifestVersion: z.literal(2),
+    packageVersion: z
+      .string()
+      .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
+      .max(80),
+    runtime: moduleAppExecutableRuntimeSchema,
+  })
+  .strict();
+
+export const moduleAppPackageManifestSchema = z.discriminatedUnion('manifestVersion', [
+  moduleAppPackageManifestV1Schema,
+  moduleAppPackageManifestV2Schema,
+]);
 export type ModuleAppPackageManifest = z.infer<typeof moduleAppPackageManifestSchema>;
 
 export const moduleAppPackageSubmitSchema = z.object({

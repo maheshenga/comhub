@@ -59,6 +59,24 @@ describe('module app package manifest helpers', () => {
     expect(result).toEqual({ issues: [], ok: true });
   });
 
+  it('accepts exactly one executable module-app.yaml manifest', () => {
+    expect(
+      validateModuleAppPackageFiles([
+        { path: 'module-app.yaml', sizeBytes: 512 },
+        { path: 'src/index.ts', sizeBytes: 1024 },
+      ]),
+    ).toEqual({ issues: [], ok: true });
+
+    const both = validateModuleAppPackageFiles([
+      { path: 'manifest.json', sizeBytes: 512 },
+      { path: 'module-app.yaml', sizeBytes: 512 },
+    ]);
+    expect(both.ok).toBe(false);
+    expect(both.issues).toContainEqual(
+      expect.objectContaining({ code: 'module_app_package_manifest_conflict' }),
+    );
+  });
+
   it('rejects packages missing manifest.json', () => {
     const result = validateModuleAppPackageFiles([{ path: 'app/index.html', sizeBytes: 1024 }]);
 

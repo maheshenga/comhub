@@ -60,13 +60,22 @@ export const validateModuleAppPackageFiles = (
     );
   }
 
-  const hasManifest = files.some((file) => file.path === 'manifest.json');
-  if (!hasManifest) {
+  const hasLegacyManifest = files.some((file) => file.path === 'manifest.json');
+  const hasExecutableManifest = files.some((file) => file.path === 'module-app.yaml');
+  if (!hasLegacyManifest && !hasExecutableManifest) {
     issues.push(
       createIssue({
         code: 'module_app_package_manifest_missing',
-        message: 'Package must contain a root manifest.json file.',
+        message: 'Package must contain one root manifest.json or module-app.yaml file.',
         path: 'manifest.json',
+      }),
+    );
+  }
+  if (hasLegacyManifest && hasExecutableManifest) {
+    issues.push(
+      createIssue({
+        code: 'module_app_package_manifest_conflict',
+        message: 'Package must not contain both manifest.json and module-app.yaml.',
       }),
     );
   }

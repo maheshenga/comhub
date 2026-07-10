@@ -29,6 +29,7 @@ export * from './llm';
 export * from './message';
 export * from './meta';
 export * from './moduleApp';
+export * from './moduleAppRuntime';
 export * from './plugins';
 export * from './rag';
 export * from './redis';

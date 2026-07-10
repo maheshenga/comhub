@@ -13,6 +13,7 @@ import {
   moduleAppMarketplaceListInputSchema,
   moduleAppPackageArchiveMetadataSchema,
   moduleAppPackageManifestSchema,
+  moduleAppPackageManifestV2Schema,
   moduleAppPackageSubmissionListInputSchema,
   moduleAppPackageScanStatusSchema,
   moduleAppPackageSubmitSchema,
@@ -237,6 +238,40 @@ describe('module app type contracts', () => {
           kind: 'server_container',
           permissions: ['network.external'],
         },
+      }),
+    ).toThrow();
+  });
+
+  it('parses executable manifest v2 with fixed platform build profiles', () => {
+    const manifest = moduleAppPackageManifestV2Schema.parse({
+      app: {
+        actions: [],
+        appType: 'hybrid_app',
+        billing: {},
+        category: 'business',
+        description: 'A reviewed executable module.',
+        displayName: 'Executable Module',
+        icon: 'Package',
+        pages: [],
+        slug: 'executable-module',
+        tags: [],
+      },
+      build: { frontend: { output: 'dist', profile: 'node22-static' } },
+      entitlements: [],
+      manifestVersion: 2,
+      packageVersion: '1.0.0',
+      runtime: {
+        functions: [{ entry: 'server/index.ts', key: 'main', runtime: 'node22' }],
+        permissions: ['data.read'],
+      },
+    });
+
+    expect(manifest.build.frontend).toEqual({ output: 'dist', profile: 'node22-static' });
+    expect(moduleAppPackageManifestSchema.parse(manifest).manifestVersion).toBe(2);
+    expect(() =>
+      moduleAppPackageManifestV2Schema.parse({
+        ...manifest,
+        build: { image: 'developer/custom:latest' },
       }),
     ).toThrow();
   });
