@@ -1,4 +1,5 @@
 import type {
+  ModuleAppPackageScanStatus,
   ModuleAppPackageSubmitInput,
   ModuleAppPackageUploadStatus,
   ModuleAppPackageValidationIssue,
@@ -338,6 +339,66 @@ export class ModuleAppPackageUploadModel {
         where: eq(moduleAppPackageUploads.packageId, packageId),
       })) ?? null
     );
+  };
+
+  createLegacySession = async (params: {
+    actualSizeBytes: number;
+    failureCode?: string;
+    fileName: string;
+    mimeType: string;
+    packageId: string;
+    scanReport?: ModuleAppPackageValidationIssue[];
+    scanStatus: ModuleAppPackageScanStatus;
+    sha256: string;
+    status: Extract<ModuleAppPackageUploadStatus, 'failed' | 'rejected' | 'submitted'>;
+    storageKey: string;
+    userId: null | string;
+  }) => {
+    const now = this.now();
+    const [created] = await this.db
+      .insert(moduleAppPackageUploads)
+      .values({
+        actualSizeBytes: params.actualSizeBytes,
+        completedAt: now,
+        declaredSizeBytes: params.actualSizeBytes,
+        expiresAt: now,
+        failureCode: params.failureCode,
+        fileName: params.fileName,
+        mimeType: params.mimeType,
+        packageId: params.packageId,
+        scanReport: boundedIssues(params.scanReport),
+        scanStatus: params.scanStatus,
+        sha256: params.sha256,
+        status: params.status,
+        storageKey: params.storageKey,
+        userId: params.userId,
+      })
+      .onConflictDoNothing({ target: moduleAppPackageUploads.packageId })
+      .returning();
+
+    if (created) return created;
+
+    const existing = await this.getByPackageId(params.packageId);
+    if (!existing) throw new Error('MODULE_APP_PACKAGE_LEGACY_SESSION_CONFLICT');
+    return existing;
+  };
+
+  prepareRejectedForCleanup = async (params: { failureCode: string; uploadId: string }) => {
+    const now = this.now();
+    const [updated] = await this.db
+      .update(moduleAppPackageUploads)
+      .set({
+        completedAt: now,
+        expiresAt: now,
+        failureCode: params.failureCode,
+        status: 'rejected',
+        updatedAt: now,
+      })
+      .where(eq(moduleAppPackageUploads.id, params.uploadId))
+      .returning();
+
+    if (!updated) throw new Error('MODULE_APP_PACKAGE_UPLOAD_NOT_FOUND');
+    return updated;
   };
 
   listExpiredForCleanup = async (limit: number) => {

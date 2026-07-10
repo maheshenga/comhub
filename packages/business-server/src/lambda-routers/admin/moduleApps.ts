@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { ModuleAppModel } from '@/database/models/moduleApp';
 import type { LobeChatDatabase } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
+import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
 
@@ -96,6 +97,38 @@ const requireAdminApp = async (db: LobeChatDatabase, appId: string) => {
   return app;
 };
 
+const getPackageErrorIdentifier = (error: unknown) => {
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
+    return error.code;
+  }
+
+  return error instanceof Error ? error.message : '';
+};
+
+const mapPackageReviewError = (error: unknown) => {
+  if (error instanceof TRPCError) return error;
+
+  const identifier = getPackageErrorIdentifier(error);
+  if (identifier === 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN') {
+    return new TRPCError({ cause: error, code: 'PRECONDITION_FAILED', message: identifier });
+  }
+  if (identifier === 'MODULE_APP_PACKAGE_NOT_FOUND') {
+    return new TRPCError({ cause: error, code: 'NOT_FOUND', message: identifier });
+  }
+  if (
+    identifier === 'MODULE_APP_PACKAGE_NOT_PENDING_REVIEW' ||
+    identifier.startsWith('MODULE_APP_PACKAGE_RESCAN_')
+  ) {
+    return new TRPCError({ cause: error, code: 'BAD_REQUEST', message: identifier });
+  }
+
+  return new TRPCError({
+    cause: error,
+    code: 'INTERNAL_SERVER_ERROR',
+    message: 'module_app_package_review_failed',
+  });
+};
+
 export const adminModuleAppsRouter = router({
   get: auditReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
     return requireAdminApp(ctx.serverDB, input.appId);
@@ -161,10 +194,15 @@ export const adminModuleAppsRouter = router({
   approvePackage: contentWriteProcedure
     .input(PackageIdInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const result = await new ModuleAppModel(ctx.serverDB).approvePackageSubmissionForAdmin({
-        ...input,
-        reviewedByUserId: ctx.userId,
-      });
+      let result;
+      try {
+        result = await new ModuleAppModel(ctx.serverDB).approvePackageSubmissionForAdmin({
+          ...input,
+          reviewedByUserId: ctx.userId,
+        });
+      } catch (error) {
+        throw mapPackageReviewError(error);
+      }
 
       await writeAudit(ctx, {
         eventType: 'module_app.package_approved',
@@ -175,17 +213,53 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
+  rescanPackage: contentWriteProcedure
+    .input(PackageIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      let result;
+      try {
+        result = await new ModuleAppPackageLifecycleService({
+          db: ctx.serverDB,
+        }).rescanLegacyPackage({
+          ...input,
+          reviewedByUserId: ctx.userId,
+        });
+      } catch (error) {
+        throw mapPackageReviewError(error);
+      }
+
+      await writeAudit(ctx, {
+        eventType: 'module_app.package_rescanned',
+        metadata: {
+          cleanupQueued: result.cleanupQueued,
+          issueCodes: result.issueCodes,
+          scanStatus: result.scanStatus,
+        },
+        resourceId: input.packageId,
+        resourceType: 'moduleAppPackage',
+      });
+
+      return result;
+    }),
+
   rejectPackage: contentWriteProcedure
     .input(RejectPackageInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const result = await new ModuleAppModel(ctx.serverDB).rejectPackageSubmissionForAdmin({
-        ...input,
-        reviewedByUserId: ctx.userId,
-      });
+      let result;
+      try {
+        result = await new ModuleAppPackageLifecycleService({
+          db: ctx.serverDB,
+        }).releaseRejectedPackage({
+          ...input,
+          reviewedByUserId: ctx.userId,
+        });
+      } catch (error) {
+        throw mapPackageReviewError(error);
+      }
 
       await writeAudit(ctx, {
         eventType: 'module_app.package_rejected',
-        metadata: { reason: input.reason },
+        metadata: { cleanupQueued: result.cleanupQueued, reason: input.reason },
         resourceId: input.packageId,
         resourceType: 'moduleAppPackage',
       });

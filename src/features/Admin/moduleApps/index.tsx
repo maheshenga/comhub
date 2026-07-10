@@ -3,8 +3,9 @@
 import type {
   ModuleAppActionConfig,
   ModuleAppAdminUpsertInput,
-  ModuleAppPage,
   ModuleAppPackageReviewStatus,
+  ModuleAppPackageScanStatus,
+  ModuleAppPage,
   ModuleAppPlanEntitlement,
   ModuleAppStatus,
 } from '@lobechat/types';
@@ -123,6 +124,13 @@ const packageStatusColor: Record<ModuleAppPackageReviewStatus, string> = {
   approved: 'green',
   pending_review: 'gold',
   rejected: 'red',
+};
+
+const packageScanStatusColor: Record<ModuleAppPackageScanStatus, string> = {
+  blocked: 'red',
+  clean: 'green',
+  error: 'orange',
+  pending: 'default',
 };
 
 const formatDate = (value?: Date | string) => {
@@ -365,6 +373,12 @@ const AdminModuleAppsPage = memo(() => {
       await refreshPackageData();
     }, 'Package rejected');
 
+  const handleRescanPackage = (packageId: string) =>
+    runMutation(async () => {
+      await adminCommercialService.moduleApps.rescanPackage({ packageId });
+      await refreshPackageData();
+    }, 'Package scan completed');
+
   const appColumns = [
     {
       dataIndex: 'displayName',
@@ -523,6 +537,14 @@ const AdminModuleAppsPage = memo(() => {
       title: 'Review status',
     },
     {
+      dataIndex: 'scanStatus',
+      key: 'scanStatus',
+      render: (value: ModuleAppPackageScanStatus) => (
+        <Tag color={packageScanStatusColor[value]}>{value}</Tag>
+      ),
+      title: 'Scan status',
+    },
+    {
       dataIndex: 'submittedByUserId',
       key: 'submittedByUserId',
       render: (value?: null | string) => <Text code>{value ?? '-'}</Text>,
@@ -539,16 +561,28 @@ const AdminModuleAppsPage = memo(() => {
       render: (_: unknown, row: AdminModuleAppPackageRow) => (
         <Flexbox horizontal gap={8}>
           <Button
-            disabled={row.reviewStatus !== 'pending_review'}
+            disabled={row.reviewStatus !== 'pending_review' || row.scanStatus !== 'clean'}
+            loading={submitting}
             size="small"
             type="primary"
             onClick={() => handleApprovePackage(row.id)}
           >
             Approve
           </Button>
+          {row.reviewStatus === 'pending_review' && row.scanStatus !== 'clean' && (
+            <Button
+              disabled={submitting}
+              loading={submitting}
+              size="small"
+              onClick={() => handleRescanPackage(row.id)}
+            >
+              Scan
+            </Button>
+          )}
           <Button
             danger
             disabled={row.reviewStatus !== 'pending_review'}
+            loading={submitting}
             size="small"
             onClick={() => handleRejectPackage(row.id)}
           >
@@ -767,11 +801,11 @@ const AdminModuleAppsPage = memo(() => {
         initialApp={editingApp}
         open={editorOpen}
         submitting={submitting}
+        onSubmit={handleSaveApp}
         onCancel={() => {
           setEditorOpen(false);
           setEditingApp(null);
         }}
-        onSubmit={handleSaveApp}
       />
     </Flexbox>
   );

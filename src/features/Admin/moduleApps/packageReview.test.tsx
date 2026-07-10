@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminModuleAppsPage from './index';
 
 const PACKAGE_ID = '00000000-0000-4000-8000-000000000011';
+const packageState = vi.hoisted(() => ({ scanStatus: 'clean' }));
 
 vi.mock('@/features/Admin/moduleApps/AppEditorModal', () => ({
   default: () => null,
@@ -78,6 +79,7 @@ vi.mock('@/libs/swr', () => ({
                 packageVersion: '1.0.0',
               },
               reviewStatus: 'pending_review',
+              scanStatus: packageState.scanStatus,
               submittedByUserId: 'developer-1',
             },
           ],
@@ -105,6 +107,10 @@ vi.mock('@/services/adminCommercial', () => ({
       listRuns: vi.fn(),
       publish: vi.fn(),
       rejectPackage: vi.fn().mockResolvedValue({ ok: true }),
+      rescanPackage: vi.fn().mockResolvedValue({
+        packageId: '00000000-0000-4000-8000-000000000011',
+        scanStatus: 'clean',
+      }),
       unpublish: vi.fn(),
       upsert: vi.fn(),
     },
@@ -112,6 +118,11 @@ vi.mock('@/services/adminCommercial', () => ({
 }));
 
 describe('AdminModuleAppsPage package review', () => {
+  beforeEach(() => {
+    packageState.scanStatus = 'clean';
+    vi.clearAllMocks();
+  });
+
   it('renders package submissions and approves a pending package', async () => {
     render(<AdminModuleAppsPage />);
 
@@ -128,6 +139,23 @@ describe('AdminModuleAppsPage package review', () => {
 
     await waitFor(() => {
       expect(adminCommercialService.moduleApps.approvePackage).toHaveBeenCalledWith({
+        packageId: PACKAGE_ID,
+      });
+    });
+  });
+
+  it('requires a scan before a pending package can be approved', async () => {
+    packageState.scanStatus = 'pending';
+    render(<AdminModuleAppsPage />);
+
+    fireEvent.click(screen.getByText('Package review'));
+
+    expect(screen.getByText('pending')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Scan' }));
+
+    await waitFor(() => {
+      expect(adminCommercialService.moduleApps.rescanPackage).toHaveBeenCalledWith({
         packageId: PACKAGE_ID,
       });
     });

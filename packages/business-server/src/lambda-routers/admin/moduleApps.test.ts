@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getServerDB } from '@/database/core/db-adaptor';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
-
 import { adminRouter } from './index';
 
 const moduleAppModelMocks = vi.hoisted(() => ({
@@ -16,12 +15,21 @@ const moduleAppModelMocks = vi.hoisted(() => ({
   upsertAppForAdmin: vi.fn(),
 }));
 
+const lifecycleMocks = vi.hoisted(() => ({
+  releaseRejectedPackage: vi.fn(),
+  rescanLegacyPackage: vi.fn(),
+}));
+
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
 }));
 
 vi.mock('@/database/models/moduleApp', () => ({
   ModuleAppModel: vi.fn(() => moduleAppModelMocks),
+}));
+
+vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
+  ModuleAppPackageLifecycleService: vi.fn(() => lifecycleMocks),
 }));
 
 vi.mock('../../module-apps/audit', () => ({
@@ -152,6 +160,16 @@ describe('admin module apps router', () => {
       id: PACKAGE_ID,
       reviewStatus: 'rejected',
     });
+    lifecycleMocks.releaseRejectedPackage.mockResolvedValue({
+      cleanupQueued: false,
+      package: { id: PACKAGE_ID, reviewStatus: 'rejected' },
+    });
+    lifecycleMocks.rescanLegacyPackage.mockResolvedValue({
+      cleanupQueued: false,
+      issueCodes: [],
+      packageId: PACKAGE_ID,
+      scanStatus: 'clean',
+    });
     moduleAppModelMocks.setStatus.mockResolvedValue({ ok: true });
     moduleAppModelMocks.upsertAppForAdmin.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
   });
@@ -268,14 +286,66 @@ describe('admin module apps router', () => {
     );
   });
 
+  it('maps a non-clean package approval to a precondition error', async () => {
+    moduleAppModelMocks.approvePackageSubmissionForAdmin.mockRejectedValueOnce(
+      new Error('MODULE_APP_PACKAGE_SCAN_NOT_CLEAN'),
+    );
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
+    });
+  });
+
+  it('rescans a legacy package and writes an audit log', async () => {
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.rescanPackage({ packageId: PACKAGE_ID })).resolves.toEqual({
+      cleanupQueued: false,
+      issueCodes: [],
+      packageId: PACKAGE_ID,
+      scanStatus: 'clean',
+    });
+
+    expect(lifecycleMocks.rescanLegacyPackage).toHaveBeenCalledWith({
+      packageId: PACKAGE_ID,
+      reviewedByUserId: 'admin-user',
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.package_rescanned',
+        resourceId: PACKAGE_ID,
+        resourceType: 'moduleAppPackage',
+      }),
+    );
+  });
+
+  it('maps a rescan remediation error without writing a success audit', async () => {
+    lifecycleMocks.rescanLegacyPackage.mockRejectedValueOnce(
+      new Error('MODULE_APP_PACKAGE_RESCAN_OBJECT_MISSING'),
+    );
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.rescanPackage({ packageId: PACKAGE_ID })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'MODULE_APP_PACKAGE_RESCAN_OBJECT_MISSING',
+    });
+    expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
+  });
+
   it('rejects a package submission and writes an audit log', async () => {
     const caller = createCaller();
 
     await expect(
       caller.moduleApps.rejectPackage({ packageId: PACKAGE_ID, reason: 'Unsafe manifest' }),
-    ).resolves.toEqual({ id: PACKAGE_ID, reviewStatus: 'rejected' });
+    ).resolves.toEqual({
+      cleanupQueued: false,
+      package: { id: PACKAGE_ID, reviewStatus: 'rejected' },
+    });
 
-    expect(moduleAppModelMocks.rejectPackageSubmissionForAdmin).toHaveBeenCalledWith({
+    expect(lifecycleMocks.releaseRejectedPackage).toHaveBeenCalledWith({
       packageId: PACKAGE_ID,
       reason: 'Unsafe manifest',
       reviewedByUserId: 'admin-user',

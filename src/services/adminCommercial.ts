@@ -253,6 +253,8 @@ class AdminCommercialService {
     publish: (input: { appId: string }) => lambdaClient.admin.moduleApps.publish.mutate(input),
     rejectPackage: (input: { packageId: string; reason?: string }) =>
       lambdaClient.admin.moduleApps.rejectPackage.mutate(input),
+    rescanPackage: (input: { packageId: string }) =>
+      lambdaClient.admin.moduleApps.rescanPackage.mutate(input),
     unpublish: (input: { appId: string }) => lambdaClient.admin.moduleApps.unpublish.mutate(input),
     upsert: (input: unknown) => lambdaClient.admin.moduleApps.upsert.mutate(input as any),
     upsertActions: (input: { actions: unknown[]; appId: string }) =>

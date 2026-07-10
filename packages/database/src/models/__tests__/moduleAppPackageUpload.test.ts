@@ -234,4 +234,49 @@ describe('ModuleAppPackageUploadModel', () => {
 
     await expect(serverDB.select().from(moduleAppPackages)).resolves.toHaveLength(0);
   });
+
+  it('creates an idempotent legacy session and prepares it for rejection cleanup', async () => {
+    const submission = packageSubmission(
+      'module-app-packages/user-scope/00000000-0000-4000-8000-000000000030.zip',
+    );
+    const [packageRow] = await serverDB
+      .insert(moduleAppPackages)
+      .values({
+        archive: submission.archive,
+        fileManifest: submission.fileManifest,
+        manifestSnapshot: submission.manifest,
+        reviewStatus: 'pending_review',
+        submittedByUserId: USER_ID,
+        validationReport: [],
+      })
+      .returning();
+    const model = new ModuleAppPackageUploadModel(serverDB, { now: () => NOW });
+    const input = {
+      actualSizeBytes: submission.archive.sizeBytes,
+      fileName: submission.archive.fileName,
+      mimeType: submission.archive.mimeType,
+      packageId: packageRow.id,
+      scanReport: [],
+      scanStatus: 'clean' as const,
+      sha256: submission.archive.sha256,
+      status: 'submitted' as const,
+      storageKey: submission.archive.storageKey,
+      userId: USER_ID,
+    };
+
+    const created = await model.createLegacySession(input);
+    const repeated = await model.createLegacySession(input);
+
+    expect(repeated.id).toBe(created.id);
+    await expect(
+      model.prepareRejectedForCleanup({
+        failureCode: 'module_app_package_admin_rejected',
+        uploadId: created.id,
+      }),
+    ).resolves.toMatchObject({
+      failureCode: 'module_app_package_admin_rejected',
+      scanStatus: 'clean',
+      status: 'rejected',
+    });
+  });
 });

@@ -3,6 +3,7 @@ import type {
   ModuleAppAdminUpsertInput,
   ModuleAppMarketplaceListInput,
   ModuleAppPackageReviewStatus,
+  ModuleAppPackageScanStatus,
   ModuleAppPackageSubmitInput,
   ModuleAppPackageValidationIssue,
   ModuleAppPage,
@@ -13,7 +14,11 @@ import type {
   ModuleAppScopeType,
   ModuleAppStatus,
 } from '@lobechat/types';
-import { moduleAppPackageManifestSchema, moduleAppPackageSubmitSchema } from '@lobechat/types';
+import {
+  MODULE_APP_PACKAGE_MAX_SCAN_ISSUES,
+  moduleAppPackageManifestSchema,
+  moduleAppPackageSubmitSchema,
+} from '@lobechat/types';
 import type { SQL } from 'drizzle-orm';
 import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 
@@ -47,6 +52,21 @@ type ModuleAppEntitlementRow = typeof moduleAppEntitlements.$inferSelect;
 type ModuleAppPackageRow = typeof moduleAppPackages.$inferSelect;
 type ModuleAppPageRow = typeof moduleAppPages.$inferSelect;
 type ModuleAppVersionRow = typeof moduleAppVersions.$inferSelect;
+
+const serializeAdminPackageSubmission = (
+  packageRow: ModuleAppPackageRow,
+  scanStatus: ModuleAppPackageScanStatus | null,
+) => ({
+  ...packageRow,
+  archive: {
+    fileName: packageRow.archive.fileName,
+    mimeType: packageRow.archive.mimeType,
+    sizeBytes: packageRow.archive.sizeBytes,
+  },
+  fileManifest: packageRow.fileManifest.map(({ path, sizeBytes }) => ({ path, sizeBytes })),
+  scanStatus: scanStatus ?? 'pending',
+  validationReport: packageRow.validationReport.slice(0, MODULE_APP_PACKAGE_MAX_SCAN_ISSUES),
+});
 
 const buildPlanState = (entitlement?: ModuleAppEntitlementRow | null) => ({
   installable: entitlement?.installable ?? false,
@@ -429,6 +449,14 @@ export class ModuleAppModel {
     return submission;
   };
 
+  getPackageSubmissionForLifecycle = async (params: { packageId: string }) => {
+    return (
+      (await this.db.query.moduleAppPackages.findFirst({
+        where: eq(moduleAppPackages.id, params.packageId),
+      })) ?? null
+    );
+  };
+
   listAdminPackageSubmissions = async (
     params: {
       appId?: string;
@@ -449,22 +477,36 @@ export class ModuleAppModel {
     ];
     const filters = conditions.filter((condition): condition is SQL => condition !== undefined);
 
-    const items = await this.db.query.moduleAppPackages.findMany({
-      limit,
-      offset: cursor,
-      orderBy: [desc(moduleAppPackages.createdAt)],
-      where: filters.length > 0 ? and(...filters) : undefined,
-    });
+    const rows = await this.db
+      .select({ packageRow: moduleAppPackages, scanStatus: moduleAppPackageUploads.scanStatus })
+      .from(moduleAppPackages)
+      .leftJoin(
+        moduleAppPackageUploads,
+        eq(moduleAppPackageUploads.packageId, moduleAppPackages.id),
+      )
+      .where(filters.length > 0 ? and(...filters) : undefined)
+      .orderBy(desc(moduleAppPackages.createdAt))
+      .limit(limit)
+      .offset(cursor);
+    const items = rows.map(({ packageRow, scanStatus }) =>
+      serializeAdminPackageSubmission(packageRow, scanStatus),
+    );
 
     return { items, nextCursor: items.length === limit ? cursor + limit : null };
   };
 
   getAdminPackageSubmission = async (params: { packageId: string }) => {
-    return (
-      (await this.db.query.moduleAppPackages.findFirst({
-        where: eq(moduleAppPackages.id, params.packageId),
-      })) ?? null
-    );
+    const [row] = await this.db
+      .select({ packageRow: moduleAppPackages, scanStatus: moduleAppPackageUploads.scanStatus })
+      .from(moduleAppPackages)
+      .leftJoin(
+        moduleAppPackageUploads,
+        eq(moduleAppPackageUploads.packageId, moduleAppPackages.id),
+      )
+      .where(eq(moduleAppPackages.id, params.packageId))
+      .limit(1);
+
+    return row ? serializeAdminPackageSubmission(row.packageRow, row.scanStatus) : null;
   };
 
   approvePackageSubmissionForAdmin = async (params: {

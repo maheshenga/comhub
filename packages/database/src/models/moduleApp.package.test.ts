@@ -56,6 +56,47 @@ const archive: ModuleAppPackageArchiveMetadata = {
 };
 
 describe('ModuleAppModel package review lifecycle', () => {
+  it('returns bounded admin scan state without storage keys or hashes', async () => {
+    const offset = vi.fn().mockResolvedValue([
+      {
+        packageRow: {
+          archive,
+          fileManifest: [{ path: 'manifest.json', sha256: HASH, sizeBytes: 512 }],
+          id: 'package-1',
+          manifestSnapshot: manifest,
+          reviewStatus: 'pending_review',
+          validationReport: Array.from({ length: 120 }, (_, index) => ({
+            code: `issue-${index}`,
+            message: 'Issue',
+            severity: 'warning' as const,
+          })),
+        },
+        scanStatus: null,
+      },
+    ]);
+    const limit = vi.fn(() => ({ offset }));
+    const orderBy = vi.fn(() => ({ limit }));
+    const where = vi.fn(() => ({ orderBy }));
+    const leftJoin = vi.fn(() => ({ where }));
+    const from = vi.fn(() => ({ leftJoin }));
+    const db = { select: vi.fn(() => ({ from })) } as any;
+
+    const result = await new ModuleAppModel(db).listAdminPackageSubmissions({ limit: 50 });
+
+    expect(result.items[0]).toMatchObject({
+      archive: {
+        fileName: 'package-app.zip',
+        mimeType: 'application/zip',
+        sizeBytes: 1024,
+      },
+      id: 'package-1',
+      scanStatus: 'pending',
+    });
+    expect(result.items[0].validationReport).toHaveLength(100);
+    expect(JSON.stringify(result.items[0])).not.toContain('module-app-packages/package-app.zip');
+    expect(JSON.stringify(result.items[0])).not.toContain(HASH);
+  });
+
   it('creates a pending package submission', async () => {
     const returning = vi.fn().mockResolvedValue([{ id: 'package-1', reviewStatus: 'pending_review' }]);
     const values = vi.fn().mockReturnValue({ returning });

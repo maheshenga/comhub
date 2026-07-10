@@ -2,8 +2,9 @@ import type {
   ModuleAppActionConfig,
   ModuleAppAdminUpsertInput,
   ModuleAppBillingConfig,
-  ModuleAppPage,
   ModuleAppPackageReviewStatus,
+  ModuleAppPackageScanStatus,
+  ModuleAppPage,
   ModuleAppPlanEntitlement,
   ModuleAppSource,
   ModuleAppStatus,
@@ -55,5 +56,6 @@ export type AdminModuleAppPackageRow = {
   };
   rejectionReason?: null | string;
   reviewStatus: ModuleAppPackageReviewStatus;
+  scanStatus: ModuleAppPackageScanStatus;
   submittedByUserId?: null | string;
 };

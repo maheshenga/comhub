@@ -51,7 +51,22 @@ const publicPackageManifestSchema = moduleAppPackageManifestSchema
     app: moduleAppPackageManifestSchema.shape.app.pick({ displayName: true, slug: true }),
   });
 
-const serializePublicPackageSubmission = (item: ModuleAppPackageItem) => {
+type PublicPackageSubmissionSource = Pick<
+  ModuleAppPackageItem,
+  | 'appId'
+  | 'createdAt'
+  | 'id'
+  | 'publishedAt'
+  | 'rejectionReason'
+  | 'reviewedAt'
+  | 'reviewStatus'
+  | 'updatedAt'
+> & {
+  archive: unknown;
+  manifestSnapshot: unknown;
+};
+
+const serializePublicPackageSubmission = (item: PublicPackageSubmissionSource) => {
   const archive = publicPackageArchiveSchema.safeParse(item.archive);
   const manifest = publicPackageManifestSchema.safeParse(item.manifestSnapshot);
   if (!archive.success || !manifest.success) return null;

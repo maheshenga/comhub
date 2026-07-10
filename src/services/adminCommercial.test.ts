@@ -94,7 +94,10 @@ describe('adminCommercialService NewAPI helpers', () => {
       mutate: vi.fn().mockResolvedValue({ appId: 'app-1', package: { id: 'package-1' } }),
     };
     (lambdaClient.admin.moduleApps as any).rejectPackage = {
-      mutate: vi.fn().mockResolvedValue({ id: 'package-1', reviewStatus: 'rejected' }),
+      mutate: vi.fn().mockResolvedValue({ package: { id: 'package-1', reviewStatus: 'rejected' } }),
+    };
+    (lambdaClient.admin.moduleApps as any).rescanPackage = {
+      mutate: vi.fn().mockResolvedValue({ packageId: 'package-1', scanStatus: 'clean' }),
     };
 
     await expect(
@@ -111,7 +114,10 @@ describe('adminCommercialService NewAPI helpers', () => {
         packageId: 'package-1',
         reason: 'Unsafe manifest',
       }),
-    ).resolves.toEqual({ id: 'package-1', reviewStatus: 'rejected' });
+    ).resolves.toEqual({ package: { id: 'package-1', reviewStatus: 'rejected' } });
+    await expect(
+      adminCommercialService.moduleApps.rescanPackage({ packageId: 'package-1' }),
+    ).resolves.toEqual({ packageId: 'package-1', scanStatus: 'clean' });
 
     expect((lambdaClient.admin.moduleApps as any).listPackages.query).toHaveBeenCalledWith({
       reviewStatus: 'pending_review',
@@ -125,6 +131,9 @@ describe('adminCommercialService NewAPI helpers', () => {
     expect((lambdaClient.admin.moduleApps as any).rejectPackage.mutate).toHaveBeenCalledWith({
       packageId: 'package-1',
       reason: 'Unsafe manifest',
+    });
+    expect((lambdaClient.admin.moduleApps as any).rescanPackage.mutate).toHaveBeenCalledWith({
+      packageId: 'package-1',
     });
   });
 
