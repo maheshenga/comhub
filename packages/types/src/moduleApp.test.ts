@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   moduleAppActionConfigSchema,
   moduleAppAdminUpsertSchema,
-  moduleAppPackageArchiveMetadataSchema,
-  moduleAppPackageManifestSchema,
-  moduleAppPackageSubmitSchema,
   moduleAppBillingConfigSchema,
   moduleAppMarketplaceListInputSchema,
+  moduleAppPackageArchiveMetadataSchema,
+  moduleAppPackageManifestSchema,
+  moduleAppPackageSubmissionListInputSchema,
+  moduleAppPackageSubmitSchema,
+  moduleAppPackageUploadedSubmitSchema,
+  moduleAppPackageUploadRequestSchema,
   moduleAppPageSchema,
   moduleAppRecordInputSchema,
   moduleAppRuntimeTypeSchema,
@@ -264,5 +267,56 @@ describe('module app type contracts', () => {
       sizeBytes: 1024,
     });
     expect(input.fileManifest).toEqual([{ path: 'manifest.json', sizeBytes: 512 }]);
+  });
+
+  it('accepts a bounded ZIP upload request and uploaded package reference', () => {
+    expect(
+      moduleAppPackageUploadRequestSchema.parse({
+        fileName: 'classified-info.zip',
+        mimeType: 'application/zip',
+        sizeBytes: 1024,
+      }),
+    ).toEqual({
+      fileName: 'classified-info.zip',
+      mimeType: 'application/zip',
+      sizeBytes: 1024,
+    });
+
+    expect(
+      moduleAppPackageUploadedSubmitSchema.parse({
+        fileName: 'classified-info.zip',
+        storageKey: 'module-app-packages/user-scope/package.zip',
+      }),
+    ).toEqual({
+      fileName: 'classified-info.zip',
+      storageKey: 'module-app-packages/user-scope/package.zip',
+    });
+
+    expect(() =>
+      moduleAppPackageUploadRequestSchema.parse({
+        fileName: 'classified-info.tar.gz',
+        mimeType: 'application/gzip',
+        sizeBytes: 1024,
+      }),
+    ).toThrow();
+  });
+
+  it('bounds user package submission list pagination and status filters', () => {
+    expect(moduleAppPackageSubmissionListInputSchema.parse({})).toEqual({
+      cursor: 0,
+      limit: 20,
+    });
+
+    expect(
+      moduleAppPackageSubmissionListInputSchema.parse({
+        cursor: 20,
+        limit: 10,
+        reviewStatus: 'rejected',
+      }),
+    ).toEqual({ cursor: 20, limit: 10, reviewStatus: 'rejected' });
+
+    expect(() =>
+      moduleAppPackageSubmissionListInputSchema.parse({ cursor: -1, limit: 51 }),
+    ).toThrow();
   });
 });

@@ -9,7 +9,16 @@
 - MODULE-APP-UNIFY-P1-002: Added the admin Module App package review queue tab with pending package listing, source/status display, and approve/reject actions.
 - MODULE-APP-UNIFY-P2-001: Added Module App-owned API/content runtime parity with safe URL checks, redacted snapshots, artifacts, failed run records, and audit events.
 - MODULE-APP-UNIFY-P3-001: Removed live Platform Plugin Marketplace code, user/admin routes, chat mention entry, service wrappers, routers, type/schema/model exports, seed script, and locale keys. Added `0134_drop_platform_plugin_tables.sql` to decommission `platform_plugin_*` tables by migration.
-- Boundary: MCP, Skills, upstream discover/community plugin features, and Module App Platform are unchanged. Production must have a fresh database backup before applying the table-drop migration.
+- MODULE-APP-P3-UPLOAD-001: Added a user-scoped Module App ZIP upload target, server-side OSS retrieval, bounded ZIP expansion, server-derived archive/file hashes, root `manifest.json` parsing, and trusted pending-review submission creation.
+- MODULE-APP-P3-UPLOAD-002: Added the package submission control to `/apps/my`; the client uploads only to the server-issued object key and then asks the server to parse and submit the stored archive.
+- MODULE-APP-P3-UPLOAD-003: Deletes the uploaded OSS/S3 object when the validated package cannot be persisted, preventing database-write failures from leaving permanent orphan archives.
+- MODULE-APP-P3-MY-APPS-001: Added the `/apps/my` overview for installed Module Apps and the current user's package submissions, with independent loading, empty, error, and review-status states.
+- MODULE-APP-P3-MY-APPS-002: Added `lambda.moduleApp.listMyPackageSubmissions` with mandatory user ownership filtering, bounded cursor pagination, optional review-status filtering, and an explicit public response allowlist.
+- MODULE-APP-P3-MY-APPS-003: Refreshes the current user's submission list after a successful ZIP submission without duplicating the uploader surface.
+- MODULE-APP-P3-MY-APPS-004: Hardened public package serialization so malformed or legacy JSONB package rows are skipped without failing the current user's full submission list.
+- MODULE-APP-P3-I18N-001: Moved Module App market, package upload, installed-app, submission, and review-status copy into the common locale namespace with maintained English and Simplified Chinese resources.
+- Boundary: MCP, Skills, and upstream discover/community plugin features remain unchanged and separate from Module App Platform. Production must have a fresh database backup before applying the table-drop migration.
+- Upload boundary: Uploaded package code is not executed. This slice adds no container runtime, iframe, remote module loading, new database table, new environment variable, or Docker volume.
 
 ## 2026-07-09
 

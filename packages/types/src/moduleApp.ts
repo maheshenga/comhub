@@ -5,7 +5,7 @@ const optionalTrimmedString = (max: number) =>
     if (typeof value !== 'string') return value;
 
     const text = value.trim();
-    return text ? text : undefined;
+    return text || undefined;
   }, z.string().max(max).optional());
 
 const stripUndefinedValues = <T extends Record<string, unknown>>(value: T) =>
@@ -194,17 +194,25 @@ export const moduleAppPackageRuntimeSchema = z.object({
 });
 export type ModuleAppPackageRuntime = z.infer<typeof moduleAppPackageRuntimeSchema>;
 
+export const MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES = 50 * 1024 * 1024;
+
+const moduleAppPackageFileNameSchema = z
+  .string()
+  .min(1)
+  .max(240)
+  .refine((value) => value.toLowerCase().endsWith('.zip'), {
+    message: 'module_app_package_archive_must_be_zip',
+  });
+
+const moduleAppPackageMimeTypeSchema = z.enum([
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/octet-stream',
+]);
+
 export const moduleAppPackageArchiveMetadataSchema = z.object({
-  fileName: z
-    .string()
-    .min(1)
-    .max(240)
-    .refine((value) => value.toLowerCase().endsWith('.zip'), {
-      message: 'module_app_package_archive_must_be_zip',
-    }),
-  mimeType: z
-    .enum(['application/zip', 'application/x-zip-compressed', 'application/octet-stream'])
-    .default('application/zip'),
+  fileName: moduleAppPackageFileNameSchema,
+  mimeType: moduleAppPackageMimeTypeSchema.default('application/zip'),
   sha256: z.string().regex(/^[a-f0-9]{64}$/i),
   sizeBytes: z.coerce.number().int().min(1),
   storageKey: z.string().min(1).max(600),
@@ -249,3 +257,48 @@ export const moduleAppPackageSubmitSchema = z.object({
   manifest: moduleAppPackageManifestSchema,
 });
 export type ModuleAppPackageSubmitInput = z.infer<typeof moduleAppPackageSubmitSchema>;
+
+export const moduleAppPackageUploadRequestSchema = z.object({
+  fileName: moduleAppPackageFileNameSchema,
+  mimeType: moduleAppPackageMimeTypeSchema.default('application/zip'),
+  sizeBytes: z.coerce.number().int().min(1).max(MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES),
+});
+export type ModuleAppPackageUploadRequest = z.infer<typeof moduleAppPackageUploadRequestSchema>;
+
+export const moduleAppPackageUploadedSubmitSchema = z.object({
+  fileName: moduleAppPackageFileNameSchema,
+  storageKey: z.string().min(1).max(600),
+});
+export type ModuleAppPackageUploadedSubmitInput = z.infer<
+  typeof moduleAppPackageUploadedSubmitSchema
+>;
+
+export const moduleAppPackageSubmissionListInputSchema = z.object({
+  cursor: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  reviewStatus: moduleAppPackageReviewStatusSchema.optional(),
+});
+export type ModuleAppPackageSubmissionListInput = z.input<
+  typeof moduleAppPackageSubmissionListInputSchema
+>;
+
+export type ModuleAppPackageSubmissionSummary = {
+  appDisplayName: string;
+  appId: null | string;
+  appSlug: string;
+  createdAt: Date | string;
+  fileName: string;
+  id: string;
+  packageVersion: string;
+  publishedAt: Date | null | string;
+  rejectionReason: null | string;
+  reviewedAt: Date | null | string;
+  reviewStatus: ModuleAppPackageReviewStatus;
+  sizeBytes: number;
+  updatedAt: Date | string;
+};
+
+export type ModuleAppPackageSubmissionListResult = {
+  items: ModuleAppPackageSubmissionSummary[];
+  nextCursor: null | number;
+};

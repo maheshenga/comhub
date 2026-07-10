@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ModuleAppPackageSubmitInput } from '@lobechat/types';
 
 import { createModuleAppService } from './moduleApp';
 
@@ -16,51 +15,56 @@ describe('createModuleAppService', () => {
     expect(query).toHaveBeenCalledWith({ query: 'desk' });
   });
 
-  it('calls moduleApp submitPackage mutation', async () => {
-    const mutate = vi.fn().mockResolvedValue({ id: 'package-1' });
+  it('calls the current user package submission list query', async () => {
+    const query = vi.fn().mockResolvedValue({ items: [], nextCursor: null });
     const service = createModuleAppService({
       moduleApp: {
-        submitPackage: { mutate },
+        listMyPackageSubmissions: { query },
       },
     } as never);
-    const input: ModuleAppPackageSubmitInput = {
-      archive: {
-        fileName: 'package-app.zip',
-        mimeType: 'application/zip',
-        sha256: 'a'.repeat(64),
-        sizeBytes: 1024,
-        storageKey: 'module-app-packages/package-app.zip',
-      },
-      fileManifest: [{ path: 'manifest.json', sha256: 'a'.repeat(64), sizeBytes: 512 }],
-      manifest: {
-        app: {
-          actions: [],
-          appType: 'standard_app',
-          billing: {
-            chargeMode: 'free',
-            defaultMultiplier: 1,
-            externalApiCostCredits: 0,
-            failureFixedFeePolicy: 'do_not_charge',
-            fixedServiceFeeCredits: 0,
-          },
-          category: 'business',
-          description: 'A package app.',
-          displayName: 'Package App',
-          icon: 'Package',
-          pages: [],
-          slug: 'package-app',
-          source: 'developer',
-          status: 'draft',
-          tags: [],
-        },
-        entitlements: [],
-        manifestVersion: 1,
-        packageVersion: '1.0.0',
-        runtime: { kind: 'manifest_only', permissions: [] },
-      },
-    };
 
-    await expect(service.submitPackage(input)).resolves.toEqual({ id: 'package-1' });
-    expect(mutate).toHaveBeenCalledWith(input);
+    await expect(
+      service.listMyPackageSubmissions({ limit: 20, reviewStatus: 'pending_review' }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(query).toHaveBeenCalledWith({ limit: 20, reviewStatus: 'pending_review' });
+  });
+
+  it('uploads a ZIP to the server-issued target before submitting it for review', async () => {
+    const createUpload = vi.fn().mockResolvedValue({
+      headers: { 'x-amz-acl': 'private' },
+      storageKey: 'module-app-packages/user-scope/package.zip',
+      uploadUrl: 'https://uploads.example.com/package.zip',
+    });
+    const submitUploadedPackage = vi.fn().mockResolvedValue({ id: 'package-1' });
+    const fetcher = vi.fn().mockResolvedValue({ ok: true });
+    const service = createModuleAppService({
+      moduleApp: {
+        createPackageUpload: { mutate: createUpload },
+        submitUploadedPackage: { mutate: submitUploadedPackage },
+      },
+    } as never, fetcher as typeof fetch);
+    const file = new File(['zip-content'], 'package-app.zip', { type: 'application/zip' });
+
+    await expect(service.uploadPackage(file)).resolves.toEqual({ id: 'package-1' });
+    expect(createUpload).toHaveBeenCalledWith({
+      fileName: 'package-app.zip',
+      mimeType: 'application/zip',
+      sizeBytes: file.size,
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://uploads.example.com/package.zip',
+      expect.objectContaining({
+        body: file,
+        headers: expect.objectContaining({
+          'Content-Type': 'application/zip',
+          'x-amz-acl': 'private',
+        }),
+        method: 'PUT',
+      }),
+    );
+    expect(submitUploadedPackage).toHaveBeenCalledWith({
+      fileName: 'package-app.zip',
+      storageKey: 'module-app-packages/user-scope/package.zip',
+    });
   });
 });
