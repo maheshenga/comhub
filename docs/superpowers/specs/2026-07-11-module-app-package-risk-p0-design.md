@@ -66,7 +66,7 @@ Fields:
 | `declaredSizeBytes` | integer, not null | Client file size used for pre-upload quota reservation. |
 | `actualSizeBytes` | integer, nullable | S3/OSS `HeadObject` size. |
 | `sha256` | text, nullable | Server-derived archive digest. |
-| `status` | text, not null | `issued`, `processing`, `submitted`, `rejected`, `failed`, or `expired`. |
+| `status` | text, not null | `issued`, `processing`, `submitted`, `rejected`, `failed`, `cleaning`, or `expired`. |
 | `scanStatus` | text, not null | `pending`, `clean`, `blocked`, or `error`. |
 | `scanReport` | JSONB, not null | Bounded validation issues without file contents. |
 | `failureCode` | text, nullable | Stable machine-readable failure reason. |
@@ -110,8 +110,8 @@ processing -> rejected
 processing -> failed
 processing -> expired
 submitted -> rejected
-rejected -> expired
-failed -> expired
+issued|processing|rejected|failed|cleaning -> cleaning
+cleaning -> expired
 ```
 
 Rules:
@@ -163,8 +163,9 @@ Responsibilities:
 
 - delete a single session object idempotently;
 - reject a package and clean its linked object;
-- select at most 100 expired incomplete sessions using row locking with skip-locked semantics;
+- select at most 100 expired incomplete sessions using row locking with skip-locked semantics and claim them as `cleaning`;
 - delete objects, then mark successfully handled rows `expired`;
+- leave deletion failures in `cleaning` so a later maintenance run can retry them;
 - set `storageReleasedAt` only after deletion or confirmed object absence;
 - leave rows retryable when storage deletion fails;
 - treat an already-missing object as a successful cleanup.
