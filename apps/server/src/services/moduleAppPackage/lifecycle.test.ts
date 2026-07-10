@@ -56,13 +56,14 @@ const createMocks = () => {
     }),
   };
   const uploadModel = {
+    claimExpiredForCleanup: vi.fn().mockResolvedValue([]),
     createLegacySession: vi.fn().mockImplementation(async (input) => ({
       ...input,
       id: UPLOAD_ID,
       storageReleasedAt: null,
     })),
     getByPackageId: vi.fn().mockResolvedValue(null),
-    markStorageReleased: vi.fn().mockResolvedValue(undefined),
+    markStorageReleased: vi.fn().mockResolvedValue({ id: UPLOAD_ID }),
     prepareRejectedForCleanup: vi.fn().mockImplementation(async (input) => ({
       ...input,
       id: UPLOAD_ID,
@@ -320,5 +321,42 @@ describe('ModuleAppPackageLifecycleService', () => {
     });
 
     expect(mocks.uploadModel.markStorageReleased).not.toHaveBeenCalled();
+  });
+
+  it('cleans a bounded claimed batch and retries transient deletion failures', async () => {
+    const mocks = createMocks();
+    const keys = [23, 24, 25].map(
+      (suffix) =>
+        `module-app-packages/c6c289e49e9c05b2145860387b73bcb1/00000000-0000-4000-8000-${String(suffix).padStart(12, '0')}.zip`,
+    );
+    mocks.uploadModel.claimExpiredForCleanup.mockResolvedValueOnce(
+      keys.map((storageKey, index) => ({
+        id: `00000000-0000-4000-8000-${String(index + 30).padStart(12, '0')}`,
+        storageKey,
+        userId: USER_ID,
+      })),
+    );
+    mocks.storage.deleteFile.mockImplementation(async (storageKey) => {
+      if (storageKey === keys[1]) {
+        throw Object.assign(new Error('Object is already gone'), { code: 'NoSuchKey' });
+      }
+      if (storageKey === keys[2]) throw new Error('temporary storage failure');
+    });
+
+    await expect(createService(mocks).cleanupExpiredUploads({ limit: 1000 })).resolves.toEqual({
+      expired: 2,
+      failed: 1,
+    });
+
+    expect(mocks.uploadModel.claimExpiredForCleanup).toHaveBeenCalledWith(100);
+    expect(mocks.uploadModel.markStorageReleased).toHaveBeenCalledTimes(2);
+    expect(mocks.uploadModel.markStorageReleased).toHaveBeenNthCalledWith(1, {
+      status: 'expired',
+      uploadId: '00000000-0000-4000-8000-000000000030',
+    });
+    expect(mocks.uploadModel.markStorageReleased).toHaveBeenNthCalledWith(2, {
+      status: 'expired',
+      uploadId: '00000000-0000-4000-8000-000000000031',
+    });
   });
 });

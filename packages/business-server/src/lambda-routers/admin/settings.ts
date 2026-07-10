@@ -53,6 +53,7 @@ import {
   isUnknownAppSettingKey,
 } from '@/server/services/appSettings/governance';
 import { invalidateServerBrand } from '@/server/services/brand';
+import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
   getAllEnabledModels,
   invalidateNewapiInstancesCache,
@@ -2303,6 +2304,7 @@ export const adminSettingsRouter = router({
           notificationRetentionDays: z.number().int().min(1).max(3650).optional(),
           pendingOrderExpiryDays: z.number().int().min(1).max(365).optional(),
           skipAudit: z.boolean().optional(),
+          skipModuleAppUploads: z.boolean().optional(),
           skipNotifications: z.boolean().optional(),
           skipOrders: z.boolean().optional(),
         })
@@ -2314,6 +2316,8 @@ export const adminSettingsRouter = router({
         auditCutoff?: string;
         auditLogsDeleted?: number;
         freeSnapshotsCreated?: number;
+        moduleAppUploadCleanupFailed?: number;
+        moduleAppUploadsExpired?: number;
         notificationRetentionCutoff?: string;
         notificationsDeleted?: number;
         pendingOrdersCutoff?: string;
@@ -2368,6 +2372,14 @@ export const adminSettingsRouter = router({
           .returning({ id: notifications.id });
         result.notificationRetentionCutoff = cutoff.toISOString();
         result.notificationsDeleted = deleted.length;
+      }
+
+      if (!opts.skipModuleAppUploads) {
+        const cleanup = await new ModuleAppPackageLifecycleService({
+          db: ctx.serverDB,
+        }).cleanupExpiredUploads({ limit: 100 });
+        result.moduleAppUploadCleanupFailed = cleanup.failed;
+        result.moduleAppUploadsExpired = cleanup.expired;
       }
 
       const subscriptionResult = await syncExpiredSubscriptionsToFree(ctx.serverDB);

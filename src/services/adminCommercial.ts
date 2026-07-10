@@ -444,6 +444,7 @@ class AdminCommercialService {
     notificationRetentionDays?: number;
     pendingOrderExpiryDays?: number;
     skipAudit?: boolean;
+    skipModuleAppUploads?: boolean;
     skipNotifications?: boolean;
     skipOrders?: boolean;
   }) => lambdaClient.admin.settings.runMaintenance.mutate(params ?? {});

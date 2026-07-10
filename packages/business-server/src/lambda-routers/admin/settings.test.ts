@@ -9,6 +9,7 @@ import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 import { invalidateServerBrand } from '@/server/services/brand';
+import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
   getAllEnabledModels,
   invalidateNewapiInstancesCache,
@@ -34,6 +35,10 @@ vi.mock('@/server/services/newapiInstance', () => ({
 
 vi.mock('@/server/services/brand', () => ({
   invalidateServerBrand: vi.fn(),
+}));
+
+vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
+  ModuleAppPackageLifecycleService: vi.fn(),
 }));
 
 vi.mock('@/server/modules/S3', () => ({
@@ -112,6 +117,12 @@ describe('admin settings default model validation', () => {
       expiredSnapshots: 0,
       freeSnapshotsCreated: 0,
     });
+    vi.mocked(ModuleAppPackageLifecycleService).mockImplementation(
+      () =>
+        ({
+          cleanupExpiredUploads: vi.fn().mockResolvedValue({ expired: 3, failed: 1 }),
+        }) as any,
+    );
   });
 
   afterEach(() => {
@@ -653,7 +664,26 @@ describe('admin settings default model validation', () => {
 
     expect(result.notificationsDeleted).toBe(2);
     expect(result.notificationRetentionCutoff).toBeTruthy();
+    expect(result.moduleAppUploadsExpired).toBe(3);
+    expect(result.moduleAppUploadCleanupFailed).toBe(1);
     expect(deleteMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('can skip module app upload cleanup during manual maintenance', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .runMaintenance({
+        skipAudit: true,
+        skipModuleAppUploads: true,
+        skipNotifications: true,
+        skipOrders: true,
+      });
+
+    expect(result).not.toHaveProperty('moduleAppUploadsExpired');
+    expect(ModuleAppPackageLifecycleService).not.toHaveBeenCalled();
   });
 
   it('returns public notification config with channel defaults and system action metadata', async () => {

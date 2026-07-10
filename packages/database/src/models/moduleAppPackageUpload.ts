@@ -5,6 +5,7 @@ import type {
   ModuleAppPackageValidationIssue,
 } from '@lobechat/types';
 import {
+  MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE,
   MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES,
   MODULE_APP_PACKAGE_MAX_DAILY_UPLOADS,
   MODULE_APP_PACKAGE_MAX_OPEN_UPLOADS,
@@ -13,12 +14,13 @@ import {
   MODULE_APP_PACKAGE_UPLOAD_TTL_MS,
   moduleAppPackageSubmitSchema,
 } from '@lobechat/types';
-import { and, count, eq, gt, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, count, eq, gt, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { moduleAppPackages, moduleAppPackageUploads } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const CLEANUP_CLAIM_LEASE_MS = 5 * 60 * 1000;
 const OPEN_STATUSES: ModuleAppPackageUploadStatus[] = ['issued', 'processing'];
 
 type UploadLimits = {
@@ -401,21 +403,55 @@ export class ModuleAppPackageUploadModel {
     return updated;
   };
 
-  listExpiredForCleanup = async (limit: number) => {
-    return this.db.query.moduleAppPackageUploads.findMany({
-      limit,
-      orderBy: [moduleAppPackageUploads.expiresAt],
-      where: and(
-        inArray(moduleAppPackageUploads.status, [
-          'issued',
-          'processing',
-          'rejected',
-          'failed',
-          'cleaning',
-        ]),
-        lte(moduleAppPackageUploads.expiresAt, this.now()),
-        isNull(moduleAppPackageUploads.storageReleasedAt),
-      ),
+  claimExpiredForCleanup = async (limit = MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE) => {
+    const now = this.now();
+    const staleClaimCutoff = new Date(now.getTime() - CLEANUP_CLAIM_LEASE_MS);
+    const boundedLimit = Math.max(
+      1,
+      Math.min(Math.floor(limit), MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE),
+    );
+
+    return this.db.transaction(async (tx) => {
+      const candidates = await tx
+        .select()
+        .from(moduleAppPackageUploads)
+        .where(
+          and(
+            isNull(moduleAppPackageUploads.storageReleasedAt),
+            lte(moduleAppPackageUploads.expiresAt, now),
+            or(
+              inArray(moduleAppPackageUploads.status, [
+                'issued',
+                'processing',
+                'rejected',
+                'failed',
+              ]),
+              and(
+                eq(moduleAppPackageUploads.status, 'cleaning'),
+                lte(moduleAppPackageUploads.updatedAt, staleClaimCutoff),
+              ),
+            ),
+          ),
+        )
+        .orderBy(moduleAppPackageUploads.expiresAt)
+        .limit(boundedLimit)
+        .for('update', { skipLocked: true });
+
+      if (candidates.length === 0) return [];
+
+      return tx
+        .update(moduleAppPackageUploads)
+        .set({ status: 'cleaning', updatedAt: now })
+        .where(
+          and(
+            inArray(
+              moduleAppPackageUploads.id,
+              candidates.map(({ id }) => id),
+            ),
+            isNull(moduleAppPackageUploads.storageReleasedAt),
+          ),
+        )
+        .returning();
     });
   };
 }

@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { syncExpiredSubscriptionsToFree } from '@/business/server/subscriptionMaintenance';
 import { adminAuditLogs, appSettings, topUpOrders } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
+import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 
 /**
  * POST /api/admin/maintenance
@@ -21,6 +22,7 @@ import { getServerDB } from '@/database/server';
  *     auditRetentionDays?: number,
  *     pendingOrderExpiryDays?: number,
  *     skipAudit?: boolean,
+ *     skipModuleAppUploads?: boolean,
  *     skipOrders?: boolean,
  *   }
  *
@@ -56,6 +58,7 @@ export const POST = async (req: NextRequest) => {
     auditRetentionDays?: number;
     pendingOrderExpiryDays?: number;
     skipAudit?: boolean;
+    skipModuleAppUploads?: boolean;
     skipOrders?: boolean;
   } = {};
   try {
@@ -69,6 +72,8 @@ export const POST = async (req: NextRequest) => {
     auditCutoff?: string;
     pendingOrdersExpired?: number;
     pendingOrdersCutoff?: string;
+    moduleAppUploadCleanupFailed?: number;
+    moduleAppUploadsExpired?: number;
     subscriptionSnapshotsExpired?: number;
     freeSnapshotsCreated?: number;
     ok: true;
@@ -105,6 +110,14 @@ export const POST = async (req: NextRequest) => {
       .returning({ id: topUpOrders.id });
     result.pendingOrdersExpired = expired.length;
     result.pendingOrdersCutoff = cutoff.toISOString();
+  }
+
+  if (!body.skipModuleAppUploads) {
+    const cleanup = await new ModuleAppPackageLifecycleService({ db }).cleanupExpiredUploads({
+      limit: 100,
+    });
+    result.moduleAppUploadCleanupFailed = cleanup.failed;
+    result.moduleAppUploadsExpired = cleanup.expired;
   }
 
   const subscriptionResult = await syncExpiredSubscriptionsToFree(db);

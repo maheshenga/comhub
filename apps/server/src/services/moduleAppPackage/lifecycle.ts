@@ -1,4 +1,5 @@
 import {
+  MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE,
   MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES,
   MODULE_APP_PACKAGE_MAX_SCAN_ISSUES,
   type ModuleAppPackageScanStatus,
@@ -20,6 +21,7 @@ type PackageModel = Pick<
 
 type UploadModel = Pick<
   ModuleAppPackageUploadModel,
+  | 'claimExpiredForCleanup'
   | 'createLegacySession'
   | 'getByPackageId'
   | 'markStorageReleased'
@@ -46,6 +48,17 @@ type ScanSummary = {
 
 const STRUCTURAL_STORAGE_KEY_PATTERN =
   /^module-app-packages\/[0-9a-f]{32}\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.zip$/i;
+
+const isMissingObjectError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+
+  const values = ['code', 'name', 'statusCode']
+    .map((key) => (key in error ? String((error as Record<string, unknown>)[key]) : ''))
+    .filter(Boolean);
+  return values.some((value) =>
+    ['404', 'NotFound', 'NoSuchKey', 'ObjectNotFound'].includes(value),
+  );
+};
 
 const boundedIssues = (issues: ModuleAppPackageValidationIssue[]) =>
   issues.slice(0, MODULE_APP_PACKAGE_MAX_SCAN_ISSUES);
@@ -109,6 +122,54 @@ export class ModuleAppPackageLifecycleService {
     } catch {
       return false;
     }
+  };
+
+  cleanupExpiredUploads = async (params: { limit?: number } = {}) => {
+    const limit = Math.max(
+      1,
+      Math.min(
+        params.limit ?? MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE,
+        MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE,
+      ),
+    );
+    const uploads = await this.uploadModel.claimExpiredForCleanup(limit);
+    let expired = 0;
+    let failed = 0;
+
+    for (const upload of uploads) {
+      const storageKeyIsValid = upload.userId
+        ? isValidModuleAppPackageStorageKey(upload.storageKey, upload.userId)
+        : STRUCTURAL_STORAGE_KEY_PATTERN.test(upload.storageKey);
+      if (!storageKeyIsValid) {
+        failed += 1;
+        continue;
+      }
+
+      try {
+        await this.storage.deleteFile(upload.storageKey);
+      } catch (error) {
+        if (!isMissingObjectError(error)) {
+          failed += 1;
+          continue;
+        }
+      }
+
+      try {
+        const released = await this.uploadModel.markStorageReleased({
+          status: 'expired',
+          uploadId: upload.id,
+        });
+        if (!released) {
+          failed += 1;
+          continue;
+        }
+        expired += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    return { expired, failed };
   };
 
   rescanLegacyPackage = async (params: {

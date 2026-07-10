@@ -279,4 +279,68 @@ describe('ModuleAppPackageUploadModel', () => {
       status: 'rejected',
     });
   });
+
+  it('claims at most 100 expired rows and leaves future rows untouched', async () => {
+    const expiredAt = new Date(NOW.getTime() - 60_000);
+    const futureAt = new Date(NOW.getTime() + 60_000);
+    await serverDB.insert(moduleAppPackageUploads).values([
+      ...Array.from({ length: 105 }, (_, index) => ({
+        declaredSizeBytes: 1,
+        expiresAt: expiredAt,
+        failureCode: 'test_failure',
+        fileName: `expired-${index}.zip`,
+        mimeType: 'application/zip',
+        scanReport: [],
+        scanStatus: 'error' as const,
+        status: 'failed' as const,
+        storageKey: `module-app-packages/test/expired-${index}.zip`,
+      })),
+      {
+        declaredSizeBytes: 1,
+        expiresAt: futureAt,
+        failureCode: 'test_failure',
+        fileName: 'future.zip',
+        mimeType: 'application/zip',
+        scanReport: [],
+        scanStatus: 'error' as const,
+        status: 'failed' as const,
+        storageKey: 'module-app-packages/test/future.zip',
+      },
+    ]);
+    const model = new ModuleAppPackageUploadModel(serverDB, { now: () => NOW });
+
+    const claimed = await model.claimExpiredForCleanup(1000);
+
+    expect(claimed).toHaveLength(100);
+    expect(claimed.every(({ status }) => status === 'cleaning')).toBe(true);
+    expect(claimed.some(({ fileName }) => fileName === 'future.zip')).toBe(false);
+  });
+
+  it('does not return the same row to concurrent cleanup claimers', async () => {
+    const expiredAt = new Date(NOW.getTime() - 60_000);
+    await serverDB.insert(moduleAppPackageUploads).values(
+      Array.from({ length: 2 }, (_, index) => ({
+        declaredSizeBytes: 1,
+        expiresAt: expiredAt,
+        failureCode: 'test_failure',
+        fileName: `concurrent-${index}.zip`,
+        mimeType: 'application/zip',
+        scanReport: [],
+        scanStatus: 'error' as const,
+        status: 'failed' as const,
+        storageKey: `module-app-packages/test/concurrent-${index}.zip`,
+      })),
+    );
+    const first = new ModuleAppPackageUploadModel(serverDB, { now: () => NOW });
+    const second = new ModuleAppPackageUploadModel(serverDB, { now: () => NOW });
+
+    const claims = await Promise.all([
+      first.claimExpiredForCleanup(1),
+      second.claimExpiredForCleanup(1),
+    ]);
+    const ids = claims.flat().map(({ id }) => id);
+
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids)).toHaveLength(2);
+  });
 });
