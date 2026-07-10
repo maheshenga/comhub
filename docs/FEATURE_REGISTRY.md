@@ -1001,7 +1001,7 @@
 - Main files: `packages/types/src/moduleAppRuntime.ts`, `packages/types/src/moduleApp.ts`, `packages/database/src/schemas/moduleApp.ts`, `packages/database/src/models/moduleAppBuild.ts`, `packages/database/src/models/moduleApp.ts`, `apps/server/src/services/moduleAppBuild/`, `packages/business-server/src/lambda-routers/admin/moduleApps.ts`, and `src/features/Admin/moduleApps/`.
 - Maintenance risk: high. This crosses package review, database transactions, object storage, admin publication, and future runtime trust boundaries.
 - Refactor recommendation: yes, incrementally. Phase 4 must replace mutable latest-version snapshots with explicit immutable package versions before multi-version upgrade/rollback is enabled.
-- Test gap: focused contracts, real database transitions, storage orchestration, admin API, UI, and type-check coverage exist. Build worker integration, capability SDK, runtime service, browser iframe isolation, production sandbox probes, and end-to-end rollout tests remain pending.
+- Test gap: focused contracts, real database transitions, storage orchestration, admin API, UI, capability SDK, runtime service contract, and type-check coverage exist. Build worker integration, browser iframe isolation, production sandbox probes, artifact-mount integration, and end-to-end rollout tests remain pending.
 - Security boundary: worker uploads are limited to a build-scoped staging key; ready callbacks cannot select arbitrary object keys. The server checks bounded size and SHA-256, copies verified bytes to a content-addressed final object, and writes that exact key/hash to the version before publication is allowed.
 - Docker deployment: no Docker file or compose change in this stage. Existing bind-mount deployment rules remain unchanged; runtime containers are deferred.
 
@@ -1037,6 +1037,22 @@
 - Security boundary: user-facing `callSdk` rejects runtime-surface tokens and rechecks the current plan's runnable entitlement; installation/app/version/user/workspace are revalidated against current database state on every call. Module App uploads force a private S3 pre-sign path even when the global file setting enables public ACL. HTTP hosts must appear in the reviewed manifest and still pass DNS/private-address checks. Secret plaintext is decrypted only for server runtime capabilities.
 - Known limitation: replay and notification windows are process-local during the experimental stage. Production enablement remains blocked until Phase 5 provides a shared multi-instance implementation and passes sandbox/E2E probes.
 - Docker deployment: no Docker or bind-mount change. Runtime deployment remains disabled.
+
+#### Module App Platform P1 Fixed Runtime Service
+
+- Status: experimental. The internal runtime protocol and fixed Node.js/Python runtime profiles exist in source, but production execution remains disabled by default.
+- Description: Adds a private `POST /v1/invocations` contract, strict invocation policy, runtime-surface capability verification, bounded input and logs, process-group timeout termination, and a main-server client that refuses calls unless execution is explicitly enabled.
+- Frontend entry: none. The main-site sandbox shell and launch context are a separate task.
+- Backend API and services: `apps/module-runtime/src/server.ts`, `apps/module-runtime/src/invocation.ts`, `apps/module-runtime/src/capability.ts`, and `apps/server/src/services/moduleAppRuntime/client.ts`.
+- Database dependencies: none directly. Invocation inputs reference immutable artifact hashes and capabilities issued from existing app/version/installation records.
+- Configuration and environment: `MODULE_APP_EXECUTION_ENABLED`, `MODULE_APP_RUNTIME_INTERNAL_URL`, `MODULE_APP_RUNTIME_INTERNAL_TOKEN`, and `MODULE_APP_RUNTIME_JWKS`. Credentials are mandatory when enabled and are never hardcoded.
+- External services: none in the service contract. Production artifact retrieval/mounting and shared sandbox orchestration remain pending.
+- Main files: `apps/module-runtime/`, `apps/server/src/services/moduleAppRuntime/client.ts`, `pnpm-workspace.yaml`, and `pnpm-lock.yaml`.
+- Maintenance risk: high because this is a process-execution, artifact-integrity, capability, and container-isolation boundary.
+- Refactor recommendation: keep the protocol, policy, capability verifier, launcher, and deployment orchestrator isolated. Do not add developer-selected images or commands.
+- Test coverage: fixed invocation validation, custom-image and timeout denial, bounded logs, runtime-versus-browser capability enforcement, disabled-client behavior, internal endpoint routing, incomplete credential rejection, and portable service entry detection. Tests inject a launcher and do not execute uploaded or host commands.
+- Security boundary: only `node22` and `python312` runtime identifiers are accepted; entry paths are package-relative; the service requires an internal bearer token plus a valid `surface: runtime` RS256 capability; execution is off unless `MODULE_APP_EXECUTION_ENABLED=true`.
+- Docker deployment: fixed non-root Dockerfiles run as UID/GID `10001`. No production compose service, network access, namespace/seccomp policy, or artifact bind mount is enabled in this slice. Phase 5 verification is required before production execution.
 
 ## Governance Execution Notes
 
