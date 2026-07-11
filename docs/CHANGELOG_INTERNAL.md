@@ -220,3 +220,14 @@
 - Added read-only admin installs, records, runs, artifacts, and audit table coverage for the selected module app.
 - Preserved isolation from Platform Plugin Marketplace, MCP, and Skills; P2-A does not execute arbitrary frontend code, use iframe/remote modules, or post real credit ledger transactions.
 - Verification: `src/features/Admin/moduleApps/formSchema.test.ts`, `src/features/Admin/moduleApps/editors.test.tsx`, `src/features/Admin/moduleApps/AppEditorModal.test.tsx`, `src/features/Admin/moduleApps/tables.test.tsx`, `src/services/adminCommercial.test.ts`, and `packages/business-server/src/lambda-routers/admin/moduleApps.test.ts`.
+
+### Module App Commerce Task 6
+
+- Added an append-only developer revenue ledger with exact platform fee, refundable reserve, developer pending amount, reversal, delayed settlement, and per-order/type idempotency protection in migration `0139`.
+- Made manual order settlement and refund atomic with license/subscription changes, revenue accrual/reversal, and finance audit events. A revenue failure now rolls the whole order transition back.
+- Added bounded revenue listing and audited batch settlement under existing `auditRead` and `financeWrite` capability boundaries.
+- Added the admin Commerce table for filtering revenue, inspecting gross/platform/reserve/developer amounts, and settling only selected pending accrual entries.
+- Updated the Module App billing editor to reflect the shared runtime credit ledger and the separate product revenue ledger; module multipliers remain bounded to `0..100`.
+- Revenue is derived only from immutable product order snapshots. AI, runtime, storage, and network costs are not included in developer share. Publisher identity temporarily resolves from the latest approved package submitter.
+- Deployment impact: apply migrations `0138` then `0139` before enabling the new admin APIs. No new environment variables or Docker volume changes are required. Production Module App execution remains disabled.
+- Verification: `packages/business-server/src/module-apps/revenue.test.ts`, `packages/business-server/src/lambda-routers/admin/moduleApps.test.ts`, `src/features/Admin/moduleApps/CommerceTable.test.tsx`, `src/features/Admin/moduleApps/editors.test.tsx`, `src/features/Admin/moduleApps/packageReview.test.tsx`, TypeScript `tsgo --noEmit`, target ESLint, and `git diff --check`.

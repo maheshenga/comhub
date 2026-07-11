@@ -20,6 +20,16 @@ const moduleAppCommerceMocks = vi.hoisted(() => ({
   settleOrder: vi.fn(),
 }));
 
+const moduleAppRevenueMocks = vi.hoisted(() => ({
+  listRevenue: vi.fn(),
+  settleBatchWithAudit: vi.fn(),
+}));
+
+const moduleAppOrderRevenueMocks = vi.hoisted(() => ({
+  refundOrder: vi.fn(),
+  settleOrder: vi.fn(),
+}));
+
 const lifecycleMocks = vi.hoisted(() => ({
   releaseRejectedPackage: vi.fn(),
   rescanLegacyPackage: vi.fn(),
@@ -39,6 +49,11 @@ vi.mock('@/database/models/moduleApp', () => ({
 
 vi.mock('@/database/models/moduleAppCommerce', () => ({
   ModuleAppCommerceModel: vi.fn(() => moduleAppCommerceMocks),
+}));
+
+vi.mock('../../module-apps/revenue', () => ({
+  ModuleAppRevenueService: vi.fn(() => moduleAppRevenueMocks),
+  ModuleAppOrderRevenueService: vi.fn(() => moduleAppOrderRevenueMocks),
 }));
 
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
@@ -189,8 +204,14 @@ describe('admin module apps router', () => {
       cleanupQueued: false,
       package: { id: PACKAGE_ID, reviewStatus: 'rejected' },
     });
-    moduleAppCommerceMocks.settleOrder.mockResolvedValue({ id: ORDER_ID, status: 'paid' });
-    moduleAppCommerceMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
+    moduleAppOrderRevenueMocks.settleOrder.mockResolvedValue({ id: ORDER_ID, status: 'paid' });
+    moduleAppOrderRevenueMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
+    moduleAppRevenueMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppRevenueMocks.settleBatchWithAudit.mockResolvedValue({
+      batchId: '00000000-0000-4000-8000-000000000031',
+      count: 2,
+      settledAt: new Date('2026-07-11T00:00:00.000Z'),
+    });
     lifecycleMocks.rescanLegacyPackage.mockResolvedValue({
       cleanupQueued: false,
       issueCodes: [],
@@ -405,18 +426,11 @@ describe('admin module apps router', () => {
       caller.moduleApps.settleOrder({ orderId: ORDER_ID, paymentReference: 'manual:admin:1' }),
     ).resolves.toMatchObject({ status: 'paid' });
 
-    expect(moduleAppCommerceMocks.settleOrder).toHaveBeenCalledWith({
+    expect(moduleAppOrderRevenueMocks.settleOrder).toHaveBeenCalledWith({
+      actorUserId: 'admin-user',
       orderId: ORDER_ID,
       paymentReference: 'manual:admin:1',
     });
-    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorUserId: 'admin-user',
-        eventType: 'module_app.order_settled',
-        resourceId: ORDER_ID,
-        resourceType: 'moduleAppOrder',
-      }),
-    );
   });
 
   it('refunds a paid order with an actor and reason audit snapshot', async () => {
@@ -425,19 +439,43 @@ describe('admin module apps router', () => {
       caller.moduleApps.refundOrder({ orderId: ORDER_ID, reason: 'customer_request' }),
     ).resolves.toMatchObject({ status: 'refunded' });
 
-    expect(moduleAppCommerceMocks.refundOrder).toHaveBeenCalledWith({
+    expect(moduleAppOrderRevenueMocks.refundOrder).toHaveBeenCalledWith({
       actorUserId: 'admin-user',
       orderId: ORDER_ID,
       reason: 'customer_request',
     });
-    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorUserId: 'admin-user',
-        eventType: 'module_app.order_refunded',
-        metadata: { reason: 'customer_request' },
-        resourceId: ORDER_ID,
-        resourceType: 'moduleAppOrder',
-      }),
-    );
+  });
+
+  it('lists bounded module app revenue entries', async () => {
+    const caller = createCaller();
+
+    await expect(
+      caller.moduleApps.listRevenue({ limit: 25, publisherUserId: 'publisher-1', status: 'pending' }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+
+    expect(moduleAppRevenueMocks.listRevenue).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 25,
+      publisherUserId: 'publisher-1',
+      status: 'pending',
+    });
+  });
+
+  it('settles a revenue batch through finance permission with an audit snapshot', async () => {
+    const caller = createCaller();
+    const entryIds = [
+      '00000000-0000-4000-8000-000000000041',
+      '00000000-0000-4000-8000-000000000042',
+    ];
+
+    await expect(caller.moduleApps.settleRevenueBatch({ entryIds })).resolves.toMatchObject({
+      batchId: '00000000-0000-4000-8000-000000000031',
+      count: 2,
+    });
+
+    expect(moduleAppRevenueMocks.settleBatchWithAudit).toHaveBeenCalledWith({
+      actorUserId: 'admin-user',
+      entryIds,
+    });
   });
 });

@@ -39,5 +39,7 @@ describe('module app admin section editors', () => {
 
     expect(screen.getByText('Billing')).toBeInTheDocument();
     expect(screen.getByLabelText('Charge mode')).toBeInTheDocument();
+    expect(screen.getByText(/shared credit ledger/i)).toBeInTheDocument();
+    expect(screen.queryByText(/real credit ledger posting is not enabled/i)).not.toBeInTheDocument();
   });
 });

@@ -994,6 +994,13 @@
       "when": 1784137200000,
       "tag": "0138_add_module_app_commerce",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1784223600000,
+      "tag": "0139_add_module_app_revenue_idempotency",
+      "breakpoints": true
     }
   ],
   "version": "6"

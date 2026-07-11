@@ -1039,6 +1039,35 @@ export const moduleAppSubscriptions = pgTable('module_app_subscriptions', {
   updatedAt: updatedAt(),
 });
 
+export const moduleAppRevenueEntries = pgTable(
+  'module_app_revenue_entries',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
+    orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'restrict' }).notNull(),
+    publisherUserId: text('publisher_user_id').references(() => users.id, { onDelete: 'set null' }),
+    type: text('type').notNull(),
+    grossAmount: numeric('gross_amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
+    platformFee: numeric('platform_fee', { mode: 'number', precision: 20, scale: 6 }).notNull(),
+    reserveAmount: numeric('reserve_amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
+    developerAmount: numeric('developer_amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
+    currency: varchar('currency', { length: 16 }).notNull(),
+    status: text('status').default('pending').notNull(),
+    settlementBatchId: uuid('settlement_batch_id'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
+    createdAt: createdAt(),
+    settledAt: timestamptz('settled_at'),
+  },
+  (table) => [
+    uniqueIndex('module_app_revenue_entries_order_type_unique').on(table.orderId, table.type),
+    index('module_app_revenue_entries_publisher_status_created_idx').on(
+      table.publisherUserId,
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const moduleAppAuditLogs = pgTable(
   'module_app_audit_logs',
   {

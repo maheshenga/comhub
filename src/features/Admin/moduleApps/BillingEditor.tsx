@@ -17,7 +17,7 @@ const BillingEditor = memo(() => {
       </Typography.Title>
       <Alert
         showIcon
-        message="P2-A stores billing configuration only; real credit ledger posting is not enabled in this editor."
+        message="Runtime charges use the shared credit ledger. Product revenue and developer settlement are managed separately in Commerce."
         type="info"
       />
       <Flexbox horizontal gap={12}>
@@ -25,7 +25,7 @@ const BillingEditor = memo(() => {
           <Select aria-label="Charge mode" options={chargeModeOptions} />
         </Form.Item>
         <Form.Item label="Default multiplier" name={['billing', 'defaultMultiplier']} style={{ flex: 1 }}>
-          <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+          <InputNumber max={100} min={0} precision={2} style={{ width: '100%' }} />
         </Form.Item>
       </Flexbox>
       <Flexbox horizontal gap={12}>

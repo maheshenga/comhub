@@ -246,6 +246,12 @@ class AdminCommercialService {
       reviewStatus?: string;
       submittedByUserId?: string;
     }) => lambdaClient.admin.moduleApps.listPackages.query(input as any),
+    listRevenue: (input?: {
+      cursor?: number;
+      limit?: number;
+      publisherUserId?: string;
+      status?: 'pending' | 'reversed' | 'settled';
+    }) => lambdaClient.admin.moduleApps.listRevenue.query(input),
     listRecords: (input: { appId: string; cursor?: number; limit?: number }) =>
       lambdaClient.admin.moduleApps.listRecords.query(input),
     listRuns: (input: { appId: string; cursor?: number; limit?: number }) =>
@@ -255,6 +261,8 @@ class AdminCommercialService {
       lambdaClient.admin.moduleApps.rejectPackage.mutate(input),
     rescanPackage: (input: { packageId: string }) =>
       lambdaClient.admin.moduleApps.rescanPackage.mutate(input),
+    settleRevenueBatch: (input: { entryIds: string[] }) =>
+      lambdaClient.admin.moduleApps.settleRevenueBatch.mutate(input),
     unpublish: (input: { appId: string }) => lambdaClient.admin.moduleApps.unpublish.mutate(input),
     upsert: (input: unknown) => lambdaClient.admin.moduleApps.upsert.mutate(input as any),
     upsertActions: (input: { actions: unknown[]; appId: string }) =>

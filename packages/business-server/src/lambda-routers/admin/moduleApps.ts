@@ -9,13 +9,13 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { ModuleAppModel } from '@/database/models/moduleApp';
-import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import type { LobeChatDatabase } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
+import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../module-apps/revenue';
 
 const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
 const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
@@ -55,6 +55,18 @@ const SettleOrderInputSchema = OrderIdInputSchema.extend({
 });
 const RefundOrderInputSchema = OrderIdInputSchema.extend({
   reason: z.string().min(1).max(1000),
+});
+const ListRevenueInputSchema = z
+  .object({
+    cursor: z.number().int().min(0).default(0),
+    limit: z.number().int().min(1).max(200).default(50),
+    publisherUserId: z.string().min(1).max(255).optional(),
+    status: z.enum(['pending', 'reversed', 'settled']).optional(),
+  })
+  .optional()
+  .default({});
+const SettleRevenueBatchInputSchema = z.object({
+  entryIds: z.array(z.string().uuid()).min(1).max(500),
 });
 
 const PagesInputSchema = z.object({
@@ -156,31 +168,33 @@ export const adminModuleAppsRouter = router({
     return new ModuleAppModel(ctx.serverDB).listAdminApps(input);
   }),
 
+  listRevenue: auditReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
+    return new ModuleAppRevenueService(ctx.serverDB).listRevenue(input);
+  }),
+
   refundOrder: financeWriteProcedure.input(RefundOrderInputSchema).mutation(async ({ ctx, input }) => {
-    const result = await new ModuleAppCommerceModel(ctx.serverDB).refundOrder({
+    return new ModuleAppOrderRevenueService(ctx.serverDB).refundOrder({
       actorUserId: ctx.userId,
       orderId: input.orderId,
       reason: input.reason,
     });
-    await writeAudit(ctx, {
-      eventType: 'module_app.order_refunded',
-      metadata: { reason: input.reason },
-      resourceId: input.orderId,
-      resourceType: 'moduleAppOrder',
-    });
-    return result;
   }),
 
   settleOrder: financeWriteProcedure.input(SettleOrderInputSchema).mutation(async ({ ctx, input }) => {
-    const result = await new ModuleAppCommerceModel(ctx.serverDB).settleOrder(input);
-    await writeAudit(ctx, {
-      eventType: 'module_app.order_settled',
-      metadata: { paymentReference: input.paymentReference },
-      resourceId: input.orderId,
-      resourceType: 'moduleAppOrder',
+    return new ModuleAppOrderRevenueService(ctx.serverDB).settleOrder({
+      actorUserId: ctx.userId,
+      ...input,
     });
-    return result;
   }),
+
+  settleRevenueBatch: financeWriteProcedure
+    .input(SettleRevenueBatchInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return new ModuleAppRevenueService(ctx.serverDB).settleBatchWithAudit({
+        actorUserId: ctx.userId,
+        entryIds: input.entryIds,
+      });
+    }),
 
   getPackage: auditReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {
     const submission = await new ModuleAppModel(ctx.serverDB).getAdminPackageSubmission(input);

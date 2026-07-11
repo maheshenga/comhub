@@ -905,6 +905,19 @@
 - Runtime parity: Module App owns API action and content generation runners, artifact persistence, failure run snapshots, safe URL validation, and runtime audit events.
 - Boundary: Platform Plugin live code has been removed. Module App still does not execute uploaded package code.
 
+#### Module App Commerce And Developer Revenue
+
+- Status: experimental
+- Frontend entry: `/admin/module-apps`, Commerce tab; billing limits remain in the Module App editor.
+- Backend API: `admin.moduleApps.listRevenue`, `admin.moduleApps.settleRevenueBatch`, `admin.moduleApps.settleOrder`, and `admin.moduleApps.refundOrder`.
+- Database dependencies: `module_app_products`, `module_app_prices`, `module_app_orders`, `module_app_licenses`, `module_app_subscriptions`, `module_app_revenue_entries`, and `module_app_audit_logs`; migration `0139_add_module_app_revenue_idempotency.sql` protects one accrual/reversal type per order.
+- Configuration dependencies: immutable order snapshots contain product price, currency, billing period, promotion, license scope, seat count, module multiplier, revenue share rate, and terms version. No new environment variable is required.
+- Transaction boundary: order/license/subscription transitions, revenue accrual or reversal, and the finance audit event commit in one database transaction. Revenue batch settlement and its audit event also commit atomically.
+- Revenue rule: developer revenue is calculated only from the snapshotted product gross amount. AI, runtime, storage, and network costs are excluded. Until publisher verification is implemented, the publisher resolves from the latest approved package submitter; platform-owned apps may have no publisher.
+- Permission boundary: revenue reads require `auditRead`; order settlement, refunds, billing updates, and revenue batch settlement require `financeWrite`.
+- Maintenance risk: high. A real payment adapter and verified publisher ownership are still pending. Production Module App execution remains disabled, and pending orders must not be presented as paid.
+- Test coverage: revenue arithmetic, idempotent accrual/reversal, settlement eligibility, transaction rollback, admin route permissions/contracts, BillingEditor messaging, and CommerceTable selection are covered by focused tests. Browser-level finance workflow and migration-on-production rehearsal remain required before release.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |

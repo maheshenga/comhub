@@ -31,6 +31,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import AppEditorModal from './AppEditorModal';
 import ArtifactsTable from './ArtifactsTable';
 import AuditEventsTable from './AuditEventsTable';
+import CommerceTable, { type ModuleAppRevenueRow } from './CommerceTable';
 import { buildModuleAppPublishWarnings } from './formSchema';
 import InstallsTable from './InstallsTable';
 import RecordsTable from './RecordsTable';
@@ -51,6 +52,7 @@ type ListResponse<T> = {
 
 type StatusFilter = 'all' | ModuleAppStatus;
 type PackageStatusFilter = 'all' | ModuleAppPackageReviewStatus;
+type RevenueStatusFilter = 'all' | 'pending' | 'reversed' | 'settled';
 
 type ModuleAppRecordRow = {
   collectionKey: string;
@@ -106,6 +108,13 @@ const packageStatusOptions: Array<{ label: string; value: PackageStatusFilter }>
   { label: 'Pending review', value: 'pending_review' },
   { label: 'Approved', value: 'approved' },
   { label: 'Rejected', value: 'rejected' },
+];
+
+const revenueStatusOptions: Array<{ label: string; value: RevenueStatusFilter }> = [
+  { label: 'All revenue', value: 'all' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Settled', value: 'settled' },
+  { label: 'Reversed', value: 'reversed' },
 ];
 
 const statusColor: Record<ModuleAppStatus, string> = {
@@ -165,6 +174,7 @@ const AdminModuleAppsPage = memo(() => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [packageStatusFilter, setPackageStatusFilter] =
     useState<PackageStatusFilter>('pending_review');
+  const [revenueStatusFilter, setRevenueStatusFilter] = useState<RevenueStatusFilter>('pending');
   const [selectedAppId, setSelectedAppId] = useState<string>();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<AdminModuleAppDetail | null>(null);
@@ -174,6 +184,10 @@ const AdminModuleAppsPage = memo(() => {
   const packagesKey = useMemo(
     () => ['admin-module-app-packages', packageStatusFilter],
     [packageStatusFilter],
+  );
+  const revenueKey = useMemo(
+    () => ['admin-module-app-revenue', revenueStatusFilter],
+    [revenueStatusFilter],
   );
   const detailKey = useMemo(
     () => (selectedAppId ? ['admin-module-app-detail', selectedAppId] : null),
@@ -215,6 +229,14 @@ const AdminModuleAppsPage = memo(() => {
         limit: 100,
         reviewStatus: packageStatusFilter === 'all' ? undefined : packageStatusFilter,
       }) as Promise<ListResponse<AdminModuleAppPackageRow>>,
+  );
+  const { data: revenueData, isLoading: revenueLoading } = useClientDataSWR(
+    revenueKey,
+    () =>
+      adminCommercialService.moduleApps.listRevenue({
+        limit: 200,
+        status: revenueStatusFilter === 'all' ? undefined : revenueStatusFilter,
+      }) as Promise<ListResponse<ModuleAppRevenueRow>>,
   );
   const { data: detailData, isLoading: detailLoading } = useClientDataSWR(
     detailKey,
@@ -264,8 +286,9 @@ const AdminModuleAppsPage = memo(() => {
       }) as Promise<ListResponse<ModuleAppAuditRow>>,
   );
 
-  const items = listData?.items ?? [];
+  const items = useMemo(() => listData?.items ?? [], [listData?.items]);
   const packages = packagesData?.items ?? [];
+  const revenueEntries = revenueData?.items ?? [];
   const detail = detailData ?? null;
   const selectedListItem = items.find((item) => item.id === selectedAppId);
   const selectedApp = detail ?? selectedListItem ?? null;
@@ -385,6 +408,12 @@ const AdminModuleAppsPage = memo(() => {
       await adminCommercialService.moduleApps.rescanPackage({ packageId });
       await refreshPackageData();
     }, 'Package scan completed');
+
+  const handleSettleRevenue = (entryIds: string[]) =>
+    runMutation(async () => {
+      await adminCommercialService.moduleApps.settleRevenueBatch({ entryIds });
+      await mutate(revenueKey);
+    }, 'Revenue batch settled');
 
   const appColumns = [
     {
@@ -734,6 +763,27 @@ const AdminModuleAppsPage = memo(() => {
       ),
       key: 'billing',
       label: 'Billing',
+    },
+    {
+      children: (
+        <Flexbox gap={12}>
+          <Flexbox horizontal justify="flex-end">
+            <Select<RevenueStatusFilter>
+              options={revenueStatusOptions}
+              style={{ width: 160 }}
+              value={revenueStatusFilter}
+              onChange={setRevenueStatusFilter}
+            />
+          </Flexbox>
+          <CommerceTable
+            items={revenueEntries}
+            loading={revenueLoading}
+            onSettle={handleSettleRevenue}
+          />
+        </Flexbox>
+      ),
+      key: 'commerce',
+      label: 'Commerce',
     },
     {
       children: <InstallsTable items={installs} loading={installsLoading} />,

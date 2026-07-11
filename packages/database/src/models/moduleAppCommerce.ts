@@ -2,7 +2,7 @@ import { moduleAppOrderSnapshotSchema } from '@lobechat/types';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 
 import { moduleAppLicenses, moduleAppOrders, moduleAppPrices, moduleAppProducts, moduleApps,moduleAppSubscriptions } from '../schemas';
-import type { LobeChatDatabase } from '../type';
+import type { LobeChatDatabase, Transaction } from '../type';
 
 const buildOrderSnapshot = (
   product: typeof moduleAppProducts.$inferSelect,
@@ -26,6 +26,92 @@ const buildOrderSnapshot = (
 
 export class ModuleAppCommerceModel {
   constructor(private readonly db: LobeChatDatabase) {}
+
+  settleOrderInTransaction = async (
+    tx: Transaction,
+    { orderId, paymentReference }: { orderId: string; paymentReference: string },
+  ) => {
+    const [order] = await tx
+      .select()
+      .from(moduleAppOrders)
+      .where(eq(moduleAppOrders.id, orderId))
+      .for('update');
+    if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
+    if (order.status === 'paid') {
+      if (order.paymentReference !== paymentReference) {
+        throw new Error('MODULE_APP_ORDER_PAYMENT_CONFLICT');
+      }
+      return order;
+    }
+    if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_SETTLEABLE');
+    const now = new Date();
+    const [paid] = await tx
+      .update(moduleAppOrders)
+      .set({ paidAt: now, paymentReference, status: 'paid', updatedAt: now })
+      .where(eq(moduleAppOrders.id, orderId))
+      .returning();
+    if (!paid) throw new Error('MODULE_APP_ORDER_SETTLEMENT_FAILED');
+    const billingPeriod = paid.snapshot.billingPeriod;
+    const trialDays = Number(paid.snapshot.trialDays ?? 0);
+    const isSubscription = paid.snapshot.productType === 'subscription';
+    const periodEnd = new Date(now);
+    if (trialDays > 0) periodEnd.setUTCDate(periodEnd.getUTCDate() + trialDays);
+    else if (billingPeriod === 'monthly') periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+    else if (billingPeriod === 'yearly') periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+    const [license] = await tx
+      .insert(moduleAppLicenses)
+      .values({
+        appId: paid.appId,
+        endsAt: isSubscription ? periodEnd : null,
+        licenseScope: String(paid.snapshot.licenseScope),
+        orderId: paid.id,
+        ownerUserId: paid.workspaceId ? null : paid.purchaserUserId,
+        workspaceId: paid.workspaceId,
+      })
+      .returning();
+    if (!license) throw new Error('MODULE_APP_LICENSE_CREATE_FAILED');
+    if (isSubscription) {
+      await tx.insert(moduleAppSubscriptions).values({
+        currentPeriodEnd: periodEnd,
+        currentPeriodStart: now,
+        licenseId: license.id,
+        orderId: paid.id,
+        status: trialDays > 0 ? 'trialing' : 'active',
+      });
+    }
+    return paid;
+  };
+
+  refundOrderInTransaction = async (
+    tx: Transaction,
+    { actorUserId, orderId, reason }: { actorUserId: string; orderId: string; reason: string },
+  ) => {
+    if (!actorUserId.trim() || !reason.trim()) throw new Error('MODULE_APP_REFUND_AUDIT_REQUIRED');
+    const [existing] = await tx
+      .select()
+      .from(moduleAppOrders)
+      .where(eq(moduleAppOrders.id, orderId))
+      .for('update');
+    if (!existing) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
+    if (existing.status === 'refunded') return existing;
+    if (existing.status !== 'paid') throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
+    const now = new Date();
+    const [order] = await tx
+      .update(moduleAppOrders)
+      .set({ refundedAt: now, status: 'refunded', updatedAt: now })
+      .where(eq(moduleAppOrders.id, orderId))
+      .returning();
+    if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
+    await tx
+      .update(moduleAppLicenses)
+      .set({ revokedAt: now, status: 'revoked', updatedAt: now })
+      .where(eq(moduleAppLicenses.orderId, orderId));
+    await tx
+      .update(moduleAppSubscriptions)
+      .set({ status: 'cancelled', updatedAt: now })
+      .where(eq(moduleAppSubscriptions.orderId, orderId));
+    return order;
+  };
 
   createProduct = async (input: {
     appId: string;
@@ -132,44 +218,7 @@ export class ModuleAppCommerceModel {
   };
 
   settleOrder = async ({ orderId, paymentReference }: { orderId: string; paymentReference: string }) =>
-    this.db.transaction(async (tx) => {
-      const [order] = await tx.select().from(moduleAppOrders).where(eq(moduleAppOrders.id, orderId)).for('update');
-      if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-      if (order.status === 'paid') {
-        if (order.paymentReference !== paymentReference) throw new Error('MODULE_APP_ORDER_PAYMENT_CONFLICT');
-        return order;
-      }
-      if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_SETTLEABLE');
-      const now = new Date();
-      const [paid] = await tx.update(moduleAppOrders).set({ paidAt: now, paymentReference, status: 'paid', updatedAt: now }).where(eq(moduleAppOrders.id, orderId)).returning();
-      if (!paid) throw new Error('MODULE_APP_ORDER_SETTLEMENT_FAILED');
-      const billingPeriod = paid.snapshot.billingPeriod;
-      const trialDays = Number(paid.snapshot.trialDays ?? 0);
-      const isSubscription = paid.snapshot.productType === 'subscription';
-      const periodEnd = new Date(now);
-      if (trialDays > 0) periodEnd.setUTCDate(periodEnd.getUTCDate() + trialDays);
-      else if (billingPeriod === 'monthly') periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
-      else if (billingPeriod === 'yearly') periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
-      const [license] = await tx.insert(moduleAppLicenses).values({
-        appId: paid.appId,
-        endsAt: isSubscription ? periodEnd : null,
-        licenseScope: String(paid.snapshot.licenseScope),
-        orderId: paid.id,
-        ownerUserId: paid.workspaceId ? null : paid.purchaserUserId,
-        workspaceId: paid.workspaceId,
-      }).returning();
-      if (!license) throw new Error('MODULE_APP_LICENSE_CREATE_FAILED');
-      if (isSubscription) {
-        await tx.insert(moduleAppSubscriptions).values({
-          currentPeriodEnd: periodEnd,
-          currentPeriodStart: now,
-          licenseId: license.id,
-          orderId: paid.id,
-          status: trialDays > 0 ? 'trialing' : 'active',
-        });
-      }
-      return paid;
-    });
+    this.db.transaction((tx) => this.settleOrderInTransaction(tx, { orderId, paymentReference }));
 
   resolveLicense = async ({ appId, userId, workspaceId }: { appId: string; userId?: string; workspaceId?: string }) => {
     if ((!userId && !workspaceId) || (userId && workspaceId)) throw new Error('MODULE_APP_LICENSE_SCOPE_INVALID');
@@ -177,17 +226,7 @@ export class ModuleAppCommerceModel {
   };
 
   refundOrder = async ({ actorUserId, orderId, reason }: { actorUserId: string; orderId: string; reason: string }) =>
-    this.db.transaction(async (tx) => {
-      if (!actorUserId.trim() || !reason.trim()) throw new Error('MODULE_APP_REFUND_AUDIT_REQUIRED');
-      const [existing] = await tx.select().from(moduleAppOrders).where(eq(moduleAppOrders.id, orderId)).for('update');
-      if (!existing) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-      if (existing.status === 'refunded') return existing;
-      if (existing.status !== 'paid') throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
-      const now = new Date();
-      const [order] = await tx.update(moduleAppOrders).set({ refundedAt: now, status: 'refunded', updatedAt: now }).where(eq(moduleAppOrders.id, orderId)).returning();
-      if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-      await tx.update(moduleAppLicenses).set({ revokedAt: now, status: 'revoked', updatedAt: now }).where(eq(moduleAppLicenses.orderId, orderId));
-      await tx.update(moduleAppSubscriptions).set({ status: 'cancelled', updatedAt: now }).where(eq(moduleAppSubscriptions.orderId, orderId));
-      return order;
-    });
+    this.db.transaction((tx) =>
+      this.refundOrderInTransaction(tx, { actorUserId, orderId, reason }),
+    );
 }
