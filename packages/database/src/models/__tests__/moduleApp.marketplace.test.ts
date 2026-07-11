@@ -248,6 +248,19 @@ describe('ModuleAppModel marketplace behavior', () => {
 
   it('isolates personal and workspace records and hides archived records', async () => {
     const app = await createRecordDesk();
+    const version = await serverDB.query.moduleAppVersions.findFirst({
+      where: eq(moduleAppVersions.appId, app.id),
+    });
+    if (!version) throw new Error('module_app_test_version_missing');
+    await model.installPersonalApp({ appId: app.id, userId });
+    await model.installPersonalApp({ appId: app.id, userId: otherUserId });
+    await model.installApp({
+      appId: app.id,
+      scopeType: 'workspace',
+      userId,
+      versionId: version.id,
+      workspaceId,
+    });
 
     const personal = await model.createRecord({
       appId: app.id,
@@ -314,6 +327,7 @@ describe('ModuleAppModel marketplace behavior', () => {
 
   it('persists run updates and lists artifacts by user scope', async () => {
     const app = await createRecordDesk();
+    await model.installPersonalApp({ appId: app.id, userId });
     const run = await model.createRun({
       actionId: 'create_record',
       appId: app.id,
@@ -331,6 +345,7 @@ describe('ModuleAppModel marketplace behavior', () => {
     await serverDB.insert(moduleAppArtifacts).values({
       appId: app.id,
       fileName: 'result.txt',
+      installationId: run.installationId,
       mimeType: 'text/plain',
       runId: run.id,
       scopeType: 'personal',
@@ -354,5 +369,19 @@ describe('ModuleAppModel marketplace behavior', () => {
         runId: run.id,
       }),
     ]);
+  });
+
+  it('rejects new records when no active installation owns the scope', async () => {
+    const app = await createRecordDesk();
+
+    await expect(
+      model.createRecord({
+        appId: app.id,
+        collectionKey: 'records',
+        data: { title: 'Unowned' },
+        scopeType: 'personal',
+        userId,
+      }),
+    ).rejects.toThrow('MODULE_APP_INSTALLATION_REQUIRED');
   });
 });

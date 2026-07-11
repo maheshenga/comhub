@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import path from 'node:path';
+
 import { getTableName } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 
@@ -9,17 +10,24 @@ import {
   moduleAppArtifacts,
   moduleAppAuditLogs,
   moduleAppBuilds,
+  moduleAppDataRows,
+  moduleAppDataSchemas,
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppInstallationSecrets,
-  moduleAppPages,
   moduleAppPackages,
   moduleAppPackageUploads,
+  moduleAppPages,
   moduleAppRecordEvents,
   moduleAppRecords,
   moduleAppRuns,
   moduleApps,
+  moduleAppSchedules,
   moduleAppVersions,
+  moduleAppWebhookDeliveries,
+  moduleAppWebhooks,
+  moduleAppWorkflowNodes,
+  moduleAppWorkflowRuns,
 } from './moduleApp';
 
 describe('module app schema exports', () => {
@@ -39,11 +47,19 @@ describe('module app schema exports', () => {
     expect(moduleAppPackageUploads).toBeDefined();
     expect(moduleAppBuilds).toBeDefined();
     expect(moduleAppInstallationSecrets).toBeDefined();
+    expect(moduleAppDataSchemas).toBeDefined();
+    expect(moduleAppDataRows).toBeDefined();
+    expect(moduleAppWorkflowRuns).toBeDefined();
+    expect(moduleAppWorkflowNodes).toBeDefined();
+    expect(moduleAppWorkflowNodes.installationId).toBeDefined();
+    expect(moduleAppSchedules).toBeDefined();
+    expect(moduleAppWebhooks).toBeDefined();
+    expect(moduleAppWebhookDeliveries).toBeDefined();
   });
 
   it('keeps database ownership constraints in the generated migration', () => {
     const migration = readFileSync(
-      resolve(__dirname, '../../migrations/0131_add_module_apps.sql'),
+      path.resolve(__dirname, '../../migrations/0131_add_module_apps.sql'),
       'utf8',
     );
 
@@ -62,7 +78,7 @@ describe('module app schema exports', () => {
   it('registers the module app migration in the journal', () => {
     const journal = JSON.parse(
       readFileSync(
-        resolve(__dirname, '../../migrations/meta/_journal.json'),
+        path.resolve(__dirname, '../../migrations/meta/_journal.json'),
         'utf8',
       ),
     ) as { entries: Array<{ tag: string }> };
@@ -74,12 +90,12 @@ describe('module app schema exports', () => {
 
   it('registers the module app package review migration', () => {
     const migration = readFileSync(
-      resolve(__dirname, '../../migrations/0132_add_module_app_packages.sql'),
+      path.resolve(__dirname, '../../migrations/0132_add_module_app_packages.sql'),
       'utf8',
     );
     const journal = JSON.parse(
       readFileSync(
-        resolve(__dirname, '../../migrations/meta/_journal.json'),
+        path.resolve(__dirname, '../../migrations/meta/_journal.json'),
         'utf8',
       ),
     ) as { entries: Array<{ tag: string }> };
@@ -94,11 +110,11 @@ describe('module app schema exports', () => {
 
   it('registers the module app source migration', () => {
     const migration = readFileSync(
-      resolve(__dirname, '../../migrations/0133_add_module_app_source.sql'),
+      path.resolve(__dirname, '../../migrations/0133_add_module_app_source.sql'),
       'utf8',
     );
     const journal = JSON.parse(
-      readFileSync(resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
 
     expect(migration).toContain(`ADD COLUMN IF NOT EXISTS "source" text DEFAULT 'admin' NOT NULL`);
@@ -109,11 +125,11 @@ describe('module app schema exports', () => {
 
   it('registers platform plugin table decommission migration without live schema exports', () => {
     const migration = readFileSync(
-      resolve(__dirname, '../../migrations/0134_drop_platform_plugin_tables.sql'),
+      path.resolve(__dirname, '../../migrations/0134_drop_platform_plugin_tables.sql'),
       'utf8',
     );
     const journal = JSON.parse(
-      readFileSync(resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
     const tableNames = Object.values(liveSchema).flatMap((value): string[] => {
       try {
@@ -135,11 +151,11 @@ describe('module app schema exports', () => {
 
   it('registers the module app package upload session migration', () => {
     const migration = readFileSync(
-      resolve(__dirname, '../../migrations/0135_add_module_app_package_uploads.sql'),
+      path.resolve(__dirname, '../../migrations/0135_add_module_app_package_uploads.sql'),
       'utf8',
     );
     const journal = JSON.parse(
-      readFileSync(resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
 
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_package_uploads"');
@@ -153,11 +169,11 @@ describe('module app schema exports', () => {
 
   it('registers immutable build and encrypted installation secret persistence', () => {
     const migration = readFileSync(
-      resolve(__dirname, '../../migrations/0136_add_module_app_build_runtime.sql'),
+      path.resolve(__dirname, '../../migrations/0136_add_module_app_build_runtime.sql'),
       'utf8',
     );
     const journal = JSON.parse(
-      readFileSync(resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
 
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_builds"');
@@ -168,5 +184,28 @@ describe('module app schema exports', () => {
     expect(
       journal.entries.some(({ tag }) => tag === '0136_add_module_app_build_runtime'),
     ).toBe(true);
+  });
+
+  it('registers installation-bound managed data and workflow persistence', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0137_add_module_app_data_workflows.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "installation_id" uuid');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_data_schemas"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_data_rows"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_workflow_runs"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_workflow_nodes"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_schedules"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_webhooks"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_webhook_deliveries"');
+    expect(migration).toContain('module_app_migration_quarantine');
+    expect(journal.entries.some(({ tag }) => tag === '0137_add_module_app_data_workflows')).toBe(
+      true,
+    );
   });
 });

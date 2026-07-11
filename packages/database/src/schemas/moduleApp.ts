@@ -16,12 +16,16 @@ import type {
   ModuleAppScopeType,
   ModuleAppSource,
   ModuleAppStatus,
+  ModuleAppTableSchema,
   ModuleAppType,
+  ModuleAppWorkflowNodeStatus,
+  ModuleAppWorkflowRunStatus,
 } from '@lobechat/types';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -301,6 +305,9 @@ export const moduleAppRecords = pgTable(
     appId: uuid('app_id')
       .references(() => moduleApps.id, { onDelete: 'cascade' })
       .notNull(),
+    installationId: uuid('installation_id').references(() => moduleAppInstallations.id, {
+      onDelete: 'cascade',
+    }),
     collectionKey: text('collection_key').notNull(),
     scopeType: text('scope_type').$type<ModuleAppScopeType>().notNull(),
     ownerUserId: text('owner_user_id').references(() => users.id, {
@@ -348,6 +355,10 @@ export const moduleAppRecords = pgTable(
       table.appId,
       table.collectionKey,
       table.recordKey,
+    ),
+    index('module_app_records_installation_updated_at_idx').on(
+      table.installationId,
+      table.updatedAt,
     ),
   ],
 );
@@ -406,6 +417,9 @@ export const moduleAppRuns = pgTable(
     appId: uuid('app_id')
       .references(() => moduleApps.id, { onDelete: 'cascade' })
       .notNull(),
+    installationId: uuid('installation_id').references(() => moduleAppInstallations.id, {
+      onDelete: 'cascade',
+    }),
     versionId: uuid('version_id').references(() => moduleAppVersions.id, {
       onDelete: 'set null',
     }),
@@ -457,6 +471,10 @@ export const moduleAppRuns = pgTable(
       table.appId,
       table.createdAt,
     ),
+    index('module_app_runs_installation_id_created_at_idx').on(
+      table.installationId,
+      table.createdAt,
+    ),
   ],
 );
 
@@ -470,6 +488,9 @@ export const moduleAppArtifacts = pgTable(
     appId: uuid('app_id')
       .references(() => moduleApps.id, { onDelete: 'cascade' })
       .notNull(),
+    installationId: uuid('installation_id').references(() => moduleAppInstallations.id, {
+      onDelete: 'cascade',
+    }),
     runId: uuid('run_id')
       .references(() => moduleAppRuns.id, { onDelete: 'cascade' })
       .notNull(),
@@ -491,7 +512,13 @@ export const moduleAppArtifacts = pgTable(
     downloadCount: integer('download_count').default(0).notNull(),
     createdAt: createdAt(),
   },
-  (table) => [index('module_app_artifacts_run_id_idx').on(table.runId)],
+  (table) => [
+    index('module_app_artifacts_run_id_idx').on(table.runId),
+    index('module_app_artifacts_installation_id_created_at_idx').on(
+      table.installationId,
+      table.createdAt,
+    ),
+  ],
 );
 
 export type NewModuleAppArtifact = typeof moduleAppArtifacts.$inferInsert;
@@ -647,6 +674,292 @@ export const moduleAppPackageUploads = pgTable(
 
 export type NewModuleAppPackageUpload = typeof moduleAppPackageUploads.$inferInsert;
 export type ModuleAppPackageUploadItem = typeof moduleAppPackageUploads.$inferSelect;
+
+export const moduleAppDataSchemas = pgTable(
+  'module_app_data_schemas',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    installationId: uuid('installation_id')
+      .references(() => moduleAppInstallations.id, { onDelete: 'cascade' })
+      .notNull(),
+    tableKey: text('table_key').notNull(),
+    version: integer('version').notNull(),
+    schemaSnapshot: jsonb('schema_snapshot').$type<ModuleAppTableSchema>().notNull(),
+    status: text('status').default('active').notNull(),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_data_schemas_installation_table_version_unique').on(
+      table.installationId,
+      table.tableKey,
+      table.version,
+    ),
+    index('module_app_data_schemas_installation_table_status_idx').on(
+      table.installationId,
+      table.tableKey,
+      table.status,
+    ),
+    check('module_app_data_schemas_version_check', sql`${table.version} > 0`),
+    check('module_app_data_schemas_status_check', sql`${table.status} IN ('active', 'retired')`),
+  ],
+);
+
+export type NewModuleAppDataSchema = typeof moduleAppDataSchemas.$inferInsert;
+export type ModuleAppDataSchemaItem = typeof moduleAppDataSchemas.$inferSelect;
+
+export const moduleAppDataRows = pgTable(
+  'module_app_data_rows',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    installationId: uuid('installation_id')
+      .references(() => moduleAppInstallations.id, { onDelete: 'cascade' })
+      .notNull(),
+    tableKey: text('table_key').notNull(),
+    rowKey: text('row_key').notNull(),
+    schemaVersion: integer('schema_version').notNull(),
+    values: jsonb('values').$type<Record<string, unknown>>().default({}).notNull(),
+    status: text('status').default('active').notNull(),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_data_rows_installation_table_row_unique').on(
+      table.installationId,
+      table.tableKey,
+      table.rowKey,
+    ),
+    foreignKey({
+      columns: [table.installationId, table.tableKey, table.schemaVersion],
+      foreignColumns: [
+        moduleAppDataSchemas.installationId,
+        moduleAppDataSchemas.tableKey,
+        moduleAppDataSchemas.version,
+      ],
+      name: 'module_app_data_rows_schema_version_fk',
+    }).onDelete('restrict'),
+    index('module_app_data_rows_installation_table_status_updated_idx').on(
+      table.installationId,
+      table.tableKey,
+      table.status,
+      table.updatedAt,
+    ),
+    check('module_app_data_rows_schema_version_check', sql`${table.schemaVersion} > 0`),
+    check('module_app_data_rows_status_check', sql`${table.status} IN ('active', 'archived')`),
+  ],
+);
+
+export type NewModuleAppDataRow = typeof moduleAppDataRows.$inferInsert;
+export type ModuleAppDataRowItem = typeof moduleAppDataRows.$inferSelect;
+
+export const moduleAppWorkflowRuns = pgTable(
+  'module_app_workflow_runs',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    installationId: uuid('installation_id')
+      .references(() => moduleAppInstallations.id, { onDelete: 'cascade' })
+      .notNull(),
+    workflowKey: text('workflow_key').notNull(),
+    workflowVersion: integer('workflow_version').notNull(),
+    status: text('status')
+      .$type<ModuleAppWorkflowRunStatus>()
+      .default('queued')
+      .notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    context: jsonb('context').$type<Record<string, unknown>>().default({}).notNull(),
+    outputSummary: jsonb('output_summary').$type<Record<string, unknown>>().default({}).notNull(),
+    errorCode: text('error_code'),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    startedAt: timestamptz('started_at'),
+    completedAt: timestamptz('completed_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_workflow_runs_installation_workflow_idempotency_unique').on(
+      table.installationId,
+      table.workflowKey,
+      table.idempotencyKey,
+    ),
+    uniqueIndex('module_app_workflow_runs_id_installation_unique').on(
+      table.id,
+      table.installationId,
+    ),
+    index('module_app_workflow_runs_installation_status_created_idx').on(
+      table.installationId,
+      table.status,
+      table.createdAt,
+    ),
+    check('module_app_workflow_runs_version_check', sql`${table.workflowVersion} > 0`),
+    check(
+      'module_app_workflow_runs_status_check',
+      sql`${table.status} IN ('queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled')`,
+    ),
+  ],
+);
+
+export type NewModuleAppWorkflowRun = typeof moduleAppWorkflowRuns.$inferInsert;
+export type ModuleAppWorkflowRunItem = typeof moduleAppWorkflowRuns.$inferSelect;
+
+export const moduleAppWorkflowNodes = pgTable(
+  'module_app_workflow_nodes',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    installationId: uuid('installation_id')
+      .references(() => moduleAppInstallations.id, { onDelete: 'cascade' })
+      .notNull(),
+    runId: uuid('run_id')
+      .references(() => moduleAppWorkflowRuns.id, { onDelete: 'cascade' })
+      .notNull(),
+    nodeKey: text('node_key').notNull(),
+    status: text('status')
+      .$type<ModuleAppWorkflowNodeStatus>()
+      .default('queued')
+      .notNull(),
+    attempt: integer('attempt').default(0).notNull(),
+    maxAttempts: integer('max_attempts').default(1).notNull(),
+    workerId: text('worker_id'),
+    availableAt: timestamptz('available_at').defaultNow().notNull(),
+    leaseExpiresAt: timestamptz('lease_expires_at'),
+    inputSummary: jsonb('input_summary').$type<Record<string, unknown>>().default({}).notNull(),
+    outputSummary: jsonb('output_summary').$type<Record<string, unknown>>().default({}).notNull(),
+    usage: jsonb('usage').$type<Record<string, unknown>>().default({}).notNull(),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    startedAt: timestamptz('started_at'),
+    completedAt: timestamptz('completed_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_workflow_nodes_run_node_unique').on(table.runId, table.nodeKey),
+    foreignKey({
+      columns: [table.runId, table.installationId],
+      foreignColumns: [moduleAppWorkflowRuns.id, moduleAppWorkflowRuns.installationId],
+      name: 'module_app_workflow_nodes_run_installation_fk',
+    }).onDelete('cascade'),
+    index('module_app_workflow_nodes_status_available_lease_idx').on(
+      table.status,
+      table.availableAt,
+      table.leaseExpiresAt,
+    ),
+    index('module_app_workflow_nodes_installation_status_idx').on(
+      table.installationId,
+      table.status,
+    ),
+    check(
+      'module_app_workflow_nodes_status_check',
+      sql`${table.status} IN ('pending', 'queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'skipped')`,
+    ),
+    check(
+      'module_app_workflow_nodes_attempt_check',
+      sql`${table.attempt} >= 0 AND ${table.maxAttempts} BETWEEN 1 AND 10`,
+    ),
+  ],
+);
+
+export type NewModuleAppWorkflowNode = typeof moduleAppWorkflowNodes.$inferInsert;
+export type ModuleAppWorkflowNodeItem = typeof moduleAppWorkflowNodes.$inferSelect;
+
+export const moduleAppSchedules = pgTable(
+  'module_app_schedules',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    installationId: uuid('installation_id')
+      .references(() => moduleAppInstallations.id, { onDelete: 'cascade' })
+      .notNull(),
+    scheduleKey: text('schedule_key').notNull(),
+    workflowKey: text('workflow_key').notNull(),
+    workflowVersion: integer('workflow_version').notNull(),
+    schedule: text('schedule').notNull(),
+    timezone: text('timezone').notNull(),
+    nextRunAt: timestamptz('next_run_at').notNull(),
+    enabled: boolean('enabled').default(true).notNull(),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_schedules_installation_key_unique').on(
+      table.installationId,
+      table.scheduleKey,
+    ),
+    index('module_app_schedules_enabled_next_run_idx').on(table.enabled, table.nextRunAt),
+    check('module_app_schedules_version_check', sql`${table.workflowVersion} > 0`),
+  ],
+);
+
+export type NewModuleAppSchedule = typeof moduleAppSchedules.$inferInsert;
+export type ModuleAppScheduleItem = typeof moduleAppSchedules.$inferSelect;
+
+export const moduleAppWebhooks = pgTable(
+  'module_app_webhooks',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    installationId: uuid('installation_id')
+      .references(() => moduleAppInstallations.id, { onDelete: 'cascade' })
+      .notNull(),
+    webhookKey: text('webhook_key').notNull(),
+    workflowKey: text('workflow_key').notNull(),
+    workflowVersion: integer('workflow_version').notNull(),
+    secretHash: text('secret_hash').notNull(),
+    replayWindowSeconds: integer('replay_window_seconds').default(300).notNull(),
+    status: text('status').default('active').notNull(),
+    lastDeliveryAt: timestamptz('last_delivery_at'),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_webhooks_installation_key_unique').on(
+      table.installationId,
+      table.webhookKey,
+    ),
+    check('module_app_webhooks_version_check', sql`${table.workflowVersion} > 0`),
+    check(
+      'module_app_webhooks_replay_window_check',
+      sql`${table.replayWindowSeconds} BETWEEN 30 AND 3600`,
+    ),
+    check('module_app_webhooks_status_check', sql`${table.status} IN ('active', 'disabled')`),
+  ],
+);
+
+export type NewModuleAppWebhook = typeof moduleAppWebhooks.$inferInsert;
+export type ModuleAppWebhookItem = typeof moduleAppWebhooks.$inferSelect;
+
+export const moduleAppWebhookDeliveries = pgTable(
+  'module_app_webhook_deliveries',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    webhookId: uuid('webhook_id')
+      .references(() => moduleAppWebhooks.id, { onDelete: 'cascade' })
+      .notNull(),
+    deliveryId: text('delivery_id').notNull(),
+    payloadSha256: text('payload_sha256').notNull(),
+    status: text('status').default('accepted').notNull(),
+    receivedAt: timestamptz('received_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('module_app_webhook_deliveries_webhook_delivery_unique').on(
+      table.webhookId,
+      table.deliveryId,
+    ),
+    index('module_app_webhook_deliveries_received_at_idx').on(table.receivedAt),
+    check(
+      'module_app_webhook_deliveries_payload_sha256_check',
+      sql`${table.payloadSha256} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'module_app_webhook_deliveries_status_check',
+      sql`${table.status} IN ('accepted', 'processed', 'failed')`,
+    ),
+  ],
+);
+
+export type NewModuleAppWebhookDelivery = typeof moduleAppWebhookDeliveries.$inferInsert;
+export type ModuleAppWebhookDeliveryItem = typeof moduleAppWebhookDeliveries.$inferSelect;
 
 export const moduleAppAuditLogs = pgTable(
   'module_app_audit_logs',

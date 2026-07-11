@@ -216,6 +216,42 @@ const artifactScopeWhere = (params: {
 export class ModuleAppModel {
   constructor(private readonly db: LobeChatDatabase) {}
 
+  private requireActiveInstallation = async (params: {
+    appId: string;
+    scopeType: ModuleAppScopeType;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    const installation = await this.db.query.moduleAppInstallations.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(moduleAppInstallations.appId, params.appId),
+        eq(moduleAppInstallations.scopeType, params.scopeType),
+        eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+        isNull(moduleAppInstallations.uninstalledAt),
+        params.scopeType === 'personal'
+          ? eq(moduleAppInstallations.userId, params.userId)
+          : eq(moduleAppInstallations.workspaceId, params.workspaceId ?? ''),
+      ),
+    });
+    if (!installation) throw new Error('MODULE_APP_INSTALLATION_REQUIRED');
+    return installation;
+  };
+
+  private assertInstallationActive = async (installationId?: null | string) => {
+    if (!installationId) throw new Error('MODULE_APP_INSTALLATION_REQUIRED');
+    const installation = await this.db.query.moduleAppInstallations.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(moduleAppInstallations.id, installationId),
+        eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+        isNull(moduleAppInstallations.uninstalledAt),
+      ),
+    });
+    if (!installation) throw new Error('MODULE_APP_INSTALLATION_REQUIRED');
+    return installation;
+  };
+
   private findAppBySlug = async (slug: string, db: DbExecutor = this.db) => {
     return db.query.moduleApps.findFirst({
       where: eq(moduleApps.slug, slug),
@@ -1310,6 +1346,7 @@ export class ModuleAppModel {
   };
 
   createRecord = async (params: ModuleAppRecordInput & { recordKey?: string; userId: string }) => {
+    const installation = await this.requireActiveInstallation(params);
     const [record] = await this.db
       .insert(moduleAppRecords)
       .values({
@@ -1317,6 +1354,7 @@ export class ModuleAppModel {
         collectionKey: params.collectionKey,
         createdBy: params.userId,
         data: params.data,
+        installationId: installation.id,
         ownerUserId: params.scopeType === 'personal' ? params.userId : undefined,
         recordKey: params.recordKey,
         scopeType: params.scopeType,
@@ -1353,6 +1391,7 @@ export class ModuleAppModel {
     });
 
     if (!existing) throw new Error('MODULE_APP_RECORD_NOT_FOUND');
+    await this.assertInstallationActive(existing.installationId);
 
     const [record] = await this.db
       .update(moduleAppRecords)
@@ -1389,6 +1428,7 @@ export class ModuleAppModel {
     });
 
     if (!existing) throw new Error('MODULE_APP_RECORD_NOT_FOUND');
+    await this.assertInstallationActive(existing.installationId);
 
     const [record] = await this.db
       .update(moduleAppRecords)
@@ -1416,6 +1456,7 @@ export class ModuleAppModel {
   };
 
   createRun = async (params: ModuleAppRunInput & { userId: string }) => {
+    const installation = await this.requireActiveInstallation(params);
     const action = await this.db.query.moduleAppActions.findFirst({
       where: and(
         eq(moduleAppActions.appId, params.appId),
@@ -1429,6 +1470,7 @@ export class ModuleAppModel {
         actionId: action?.id,
         appId: params.appId,
         inputSnapshot: params.input,
+        installationId: installation.id,
         recordId: params.recordId,
         scopeType: params.scopeType,
         status: 'running',
@@ -1450,6 +1492,12 @@ export class ModuleAppModel {
     runId: string;
     status: ModuleAppRunStatus;
   }) => {
+    const existing = await this.db.query.moduleAppRuns.findFirst({
+      columns: { installationId: true },
+      where: eq(moduleAppRuns.id, params.runId),
+    });
+    if (!existing) throw new Error('MODULE_APP_RUN_NOT_FOUND');
+    await this.assertInstallationActive(existing.installationId);
     await this.db
       .update(moduleAppRuns)
       .set({
@@ -1479,12 +1527,21 @@ export class ModuleAppModel {
     userId: string;
     workspaceId?: string;
   }) => {
+    const installation = await this.requireActiveInstallation(params);
+    const run = await this.db.query.moduleAppRuns.findFirst({
+      columns: { installationId: true },
+      where: and(eq(moduleAppRuns.id, params.runId), eq(moduleAppRuns.appId, params.appId)),
+    });
+    if (!run || run.installationId !== installation.id) {
+      throw new Error('MODULE_APP_ARTIFACT_RUN_SCOPE_MISMATCH');
+    }
     const [row] = await this.db
       .insert(moduleAppArtifacts)
       .values({
         appId: params.appId,
         expiresAt: params.expiresAt ?? null,
         fileName: params.fileName,
+        installationId: installation.id,
         mimeType: params.mimeType,
         recordId: params.recordId ?? null,
         runId: params.runId,

@@ -103,6 +103,7 @@ export const moduleAppTableSchema = z
     });
   });
 export type ModuleAppTableSchema = z.infer<typeof moduleAppTableSchema>;
+export type ModuleAppTableInput = z.input<typeof moduleAppTableSchema>;
 
 export const moduleAppDataFilterOperatorSchema = z.enum([
   'eq',

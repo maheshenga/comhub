@@ -107,7 +107,7 @@ git commit -m "feat: define module app data and workflow contracts"
 - Produces: `ModuleAppDataModel` and `ModuleAppWorkflowModel`.
 - Adds mandatory installation identity to records, runs, and artifacts without deleting existing rows.
 
-- [ ] **Step 1: Add failing isolation and transition tests**
+- [x] **Step 1: Add failing isolation and transition tests**
 
 ```ts
 await model.insertRow({ installationId: installA, rowKey: 'one', tableKey: 'jobs', values });
@@ -118,13 +118,13 @@ expect(claimed?.status).toBe('running');
 await expect(workflowModel.claimRunnableNode({ workerId: 'worker-b' })).resolves.toBeNull();
 ```
 
-- [ ] **Step 2: Run database tests and confirm RED**
+- [x] **Step 2: Run database tests and confirm RED**
 
 Run: `bunx vitest run --silent='passed-only' packages/database/src/models/__tests__/moduleAppData.test.ts packages/database/src/models/__tests__/moduleAppWorkflow.test.ts packages/database/src/schemas/moduleApp.schema.test.ts`
 
 Expected: FAIL because migration `0137` and models are absent.
 
-- [ ] **Step 3: Add schema and backfill installation IDs**
+- [x] **Step 3: Add schema and backfill installation IDs**
 
 Add `installation_id` to `module_app_records`, `module_app_runs`, and `module_app_artifacts`. Backfill only when one matching installation exists; quarantine ambiguous legacy rows in migration metadata and keep columns nullable for one release with model-level write enforcement.
 
@@ -139,13 +139,13 @@ Create:
 
 Use unique indexes for installation/table/row key and installation/workflow/idempotency key. Claim nodes with `FOR UPDATE SKIP LOCKED` and an expiring lease.
 
-- [ ] **Step 4: Verify migration and model behavior**
+- [x] **Step 4: Verify migration and model behavior**
 
 Run the command from Step 2.
 
 Expected: PASS, including cross-installation denial, unique constraints, leases, and retry limits.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/database/migrations/0137_add_module_app_data_workflows.sql packages/database/migrations/meta/_journal.json packages/database/src/schemas/moduleApp.ts packages/database/src/schemas/moduleApp.schema.test.ts packages/database/src/models/moduleAppData.ts packages/database/src/models/moduleAppWorkflow.ts packages/database/src/models/__tests__/moduleAppData.test.ts packages/database/src/models/__tests__/moduleAppWorkflow.test.ts
