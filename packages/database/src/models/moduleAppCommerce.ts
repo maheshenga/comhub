@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { moduleAppLicenses, moduleAppOrders, moduleAppPrices, moduleAppProducts } from '../schemas';
 import type { LobeChatDatabase } from '../type';
@@ -46,6 +46,19 @@ export class ModuleAppCommerceModel {
       }).returning();
       if (!order) throw new Error('MODULE_APP_ORDER_CREATE_FAILED');
       return order;
+    });
+
+  listOrders = async ({
+    limit = 50,
+    purchaserUserId,
+  }: {
+    limit?: number;
+    purchaserUserId: string;
+  }) =>
+    this.db.query.moduleAppOrders.findMany({
+      limit: Math.max(1, Math.min(100, Math.floor(limit))),
+      orderBy: desc(moduleAppOrders.createdAt),
+      where: eq(moduleAppOrders.purchaserUserId, purchaserUserId),
     });
 
   settleOrder = async ({ orderId, paymentReference }: { orderId: string; paymentReference: string }) =>

@@ -13,6 +13,7 @@ const {
   mockAppEnv,
   mockModuleAppGateway,
   mockRunModuleAppAction,
+  mockModuleAppCommerceModel,
   mockModuleAppModel,
   mockModuleAppWorkflowModel,
   mockSignModuleAppCapability,
@@ -33,6 +34,10 @@ const {
   },
   mockModuleAppGateway: { call: vi.fn() },
   mockRunModuleAppAction: vi.fn(),
+  mockModuleAppCommerceModel: {
+    listOrders: vi.fn(),
+    resolveLicense: vi.fn(),
+  },
   mockModuleAppModel: {
     assertInstallationAccess: vi.fn(),
     createRecord: vi.fn(),
@@ -95,6 +100,10 @@ vi.mock('@/database/models/moduleApp', () => ({
   ModuleAppModel: vi.fn(() => mockModuleAppModel),
 }));
 
+vi.mock('@/database/models/moduleAppCommerce', () => ({
+  ModuleAppCommerceModel: vi.fn(() => mockModuleAppCommerceModel),
+}));
+
 vi.mock('@/database/models/moduleAppWorkflow', () => ({
   ModuleAppWorkflowModel: vi.fn(() => mockModuleAppWorkflowModel),
 }));
@@ -118,6 +127,8 @@ describe('moduleApp router registration', () => {
     });
     mockModuleAppModel.installPersonalApp.mockResolvedValue(undefined);
     mockModuleAppModel.listMarketplaceApps.mockResolvedValue([]);
+    mockModuleAppCommerceModel.listOrders.mockResolvedValue([]);
+    mockModuleAppCommerceModel.resolveLicense.mockResolvedValue(null);
     mockCreateModuleAppTextGenerator.mockReturnValue(mockTextGenerator);
     mockRunModuleAppAction.mockResolvedValue({
       artifactIds: [],
@@ -744,5 +755,27 @@ describe('moduleApp router registration', () => {
     expect(result.items[0]).not.toHaveProperty('archive');
     expect(result.items[0]).not.toHaveProperty('manifestSnapshot');
     expect(result.items[0]).not.toHaveProperty('storageKey');
+  });
+
+  it('lists only orders owned by the authenticated user', async () => {
+    mockModuleAppCommerceModel.listOrders.mockResolvedValueOnce([{ id: 'order-1' }]);
+
+    await expect(createCaller().listOrders({ limit: 20 })).resolves.toEqual([{ id: 'order-1' }]);
+    expect(mockModuleAppCommerceModel.listOrders).toHaveBeenCalledWith({
+      limit: 20,
+      purchaserUserId: 'user-1',
+    });
+  });
+
+  it('resolves a personal license for the authenticated user only', async () => {
+    mockModuleAppCommerceModel.resolveLicense.mockResolvedValueOnce({ id: 'license-1' });
+
+    await expect(createCaller().getLicense({ appId: APP_ID })).resolves.toEqual({
+      id: 'license-1',
+    });
+    expect(mockModuleAppCommerceModel.resolveLicense).toHaveBeenCalledWith({
+      appId: APP_ID,
+      userId: 'user-1',
+    });
   });
 });

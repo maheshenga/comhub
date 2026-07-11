@@ -60,6 +60,7 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     getDetail: (input: { appIdOrSlug: string }) => client.moduleApp.getDetail.query!(input),
     getLaunchContext: (input: { appId: string; workspaceId?: string }) =>
       client.moduleApp.getLaunchContext.query!(input) as Promise<ModuleAppLaunchContext>,
+    getLicense: (input: { appId: string }) => client.moduleApp.getLicense.query!(input),
     getRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
       client.moduleApp.getRecord.query!(input),
     getRuntimeManifest: (input: { appId: string }) =>
@@ -71,6 +72,7 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     listMarketplace: (input?: ModuleAppMarketplaceListInput) =>
       client.moduleApp.listMarketplace.query!(input),
     listMyApps: () => client.moduleApp.listMyApps.query!(),
+    listOrders: (input: { limit?: number } = {}) => client.moduleApp.listOrders.query!(input),
     listMyPackageSubmissions: (input: ModuleAppPackageSubmissionListInput = {}) =>
       client.moduleApp.listMyPackageSubmissions.query!(
         input,

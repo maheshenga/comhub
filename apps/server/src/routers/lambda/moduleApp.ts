@@ -27,6 +27,7 @@ import {
 import { runModuleAppAction } from '@/business/server/module-apps/runModuleAppAction';
 import { getSubscriptionPlan } from '@/business/server/user';
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { ModuleAppPackageItem, ModuleAppRecordItem } from '@/database/schemas';
@@ -44,6 +45,10 @@ import { createModuleAppCapabilityGateway } from '@/server/services/moduleAppRun
 
 const AppIdInputSchema = z.object({
   appId: z.string().uuid(),
+});
+
+const ModuleAppOrderListInputSchema = z.object({
+  limit: z.number().int().min(1).max(100).optional(),
 });
 
 const ModuleAppLaunchInputSchema = AppIdInputSchema.extend({
@@ -571,6 +576,13 @@ export const moduleAppRouter = router({
     });
   }),
 
+  getLicense: moduleAppProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
+    return new ModuleAppCommerceModel(ctx.serverDB).resolveLicense({
+      appId: input.appId,
+      userId: ctx.userId,
+    });
+  }),
+
   getLaunchContext: moduleAppProcedure
     .input(ModuleAppLaunchInputSchema)
     .query(async ({ ctx, input }) => {
@@ -762,6 +774,13 @@ export const moduleAppRouter = router({
         }
       });
     }),
+
+  listOrders: moduleAppProcedure.input(ModuleAppOrderListInputSchema).query(async ({ ctx, input }) => {
+    return new ModuleAppCommerceModel(ctx.serverDB).listOrders({
+      limit: input.limit,
+      purchaserUserId: ctx.userId,
+    });
+  }),
 
   listMyApps: moduleAppProcedure.query(async ({ ctx }) => {
     return ctx.moduleAppModel.listInstalledApps({

@@ -130,4 +130,20 @@ describe('createModuleAppService', () => {
       uploadId: '00000000-0000-4000-8000-000000000010',
     });
   });
+
+  it('reads the authenticated user orders and personal app license', async () => {
+    const listOrders = vi.fn().mockResolvedValue([{ id: 'order-1' }]);
+    const getLicense = vi.fn().mockResolvedValue({ id: 'license-1' });
+    const service = createModuleAppService({
+      moduleApp: {
+        getLicense: { query: getLicense },
+        listOrders: { query: listOrders },
+      },
+    } as never);
+
+    await expect(service.listOrders({ limit: 20 })).resolves.toEqual([{ id: 'order-1' }]);
+    await expect(service.getLicense({ appId: 'app-1' })).resolves.toEqual({ id: 'license-1' });
+    expect(listOrders).toHaveBeenCalledWith({ limit: 20 });
+    expect(getLicense).toHaveBeenCalledWith({ appId: 'app-1' });
+  });
 });

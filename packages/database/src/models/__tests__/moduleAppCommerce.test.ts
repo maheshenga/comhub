@@ -15,6 +15,7 @@ import { ModuleAppCommerceModel } from '../moduleAppCommerce';
 
 const APP_ID = '10000000-0000-4000-8000-000000000001';
 const USER_ID = 'module-app-commerce-user';
+const OTHER_USER_ID = 'module-app-commerce-other-user';
 const serverDB: LobeChatDatabase = await getTestDB();
 
 beforeEach(async () => {
@@ -24,7 +25,7 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppProducts);
   await serverDB.delete(moduleApps);
   await serverDB.delete(users);
-  await serverDB.insert(users).values({ id: USER_ID });
+  await serverDB.insert(users).values([{ id: USER_ID }, { id: OTHER_USER_ID }]);
   await serverDB.insert(moduleApps).values({
     appType: 'standard_app',
     category: 'productivity',
@@ -68,5 +69,26 @@ describe('ModuleAppCommerceModel', () => {
 
     await model.refundOrder({ actorUserId: 'admin-1', orderId: order.id, reason: 'requested' });
     await expect(model.resolveLicense({ appId: APP_ID, userId: USER_ID })).resolves.toBeNull();
+  });
+
+  it('lists only the purchaser orders and resolves only the matching owner license', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'personal-isolation',
+      productType: 'one_time',
+    });
+    const ownOrder = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+    await model.createOrder({ productId: product.id, purchaserUserId: OTHER_USER_ID });
+    await model.settleOrder({ orderId: ownOrder.id, paymentReference: 'manual:isolation:1' });
+
+    await expect(model.listOrders({ purchaserUserId: USER_ID })).resolves.toEqual([
+      expect.objectContaining({ id: ownOrder.id, purchaserUserId: USER_ID }),
+    ]);
+    await expect(
+      model.resolveLicense({ appId: APP_ID, userId: OTHER_USER_ID }),
+    ).resolves.toBeNull();
   });
 });
