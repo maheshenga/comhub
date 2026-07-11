@@ -15,6 +15,11 @@ const moduleAppModelMocks = vi.hoisted(() => ({
   upsertAppForAdmin: vi.fn(),
 }));
 
+const moduleAppCommerceMocks = vi.hoisted(() => ({
+  refundOrder: vi.fn(),
+  settleOrder: vi.fn(),
+}));
+
 const lifecycleMocks = vi.hoisted(() => ({
   releaseRejectedPackage: vi.fn(),
   rescanLegacyPackage: vi.fn(),
@@ -30,6 +35,10 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('@/database/models/moduleApp', () => ({
   ModuleAppModel: vi.fn(() => moduleAppModelMocks),
+}));
+
+vi.mock('@/database/models/moduleAppCommerce', () => ({
+  ModuleAppCommerceModel: vi.fn(() => moduleAppCommerceMocks),
 }));
 
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
@@ -130,6 +139,7 @@ vi.mock('./users', async () => {
 
 const APP_ID = '00000000-0000-4000-8000-000000000001';
 const PACKAGE_ID = '00000000-0000-4000-8000-000000000011';
+const ORDER_ID = '00000000-0000-4000-8000-000000000021';
 
 const createDb = () =>
   ({
@@ -179,6 +189,8 @@ describe('admin module apps router', () => {
       cleanupQueued: false,
       package: { id: PACKAGE_ID, reviewStatus: 'rejected' },
     });
+    moduleAppCommerceMocks.settleOrder.mockResolvedValue({ id: ORDER_ID, status: 'paid' });
+    moduleAppCommerceMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
     lifecycleMocks.rescanLegacyPackage.mockResolvedValue({
       cleanupQueued: false,
       issueCodes: [],
@@ -383,6 +395,48 @@ describe('admin module apps router', () => {
         eventType: 'module_app.package_rejected',
         resourceId: PACKAGE_ID,
         resourceType: 'moduleAppPackage',
+      }),
+    );
+  });
+
+  it('settles a module app order through finance permission and audits it', async () => {
+    const caller = createCaller();
+    await expect(
+      caller.moduleApps.settleOrder({ orderId: ORDER_ID, paymentReference: 'manual:admin:1' }),
+    ).resolves.toMatchObject({ status: 'paid' });
+
+    expect(moduleAppCommerceMocks.settleOrder).toHaveBeenCalledWith({
+      orderId: ORDER_ID,
+      paymentReference: 'manual:admin:1',
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.order_settled',
+        resourceId: ORDER_ID,
+        resourceType: 'moduleAppOrder',
+      }),
+    );
+  });
+
+  it('refunds a paid order with an actor and reason audit snapshot', async () => {
+    const caller = createCaller();
+    await expect(
+      caller.moduleApps.refundOrder({ orderId: ORDER_ID, reason: 'customer_request' }),
+    ).resolves.toMatchObject({ status: 'refunded' });
+
+    expect(moduleAppCommerceMocks.refundOrder).toHaveBeenCalledWith({
+      actorUserId: 'admin-user',
+      orderId: ORDER_ID,
+      reason: 'customer_request',
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.order_refunded',
+        metadata: { reason: 'customer_request' },
+        resourceId: ORDER_ID,
+        resourceType: 'moduleAppOrder',
       }),
     );
   });

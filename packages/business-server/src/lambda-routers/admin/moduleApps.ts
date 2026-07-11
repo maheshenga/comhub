@@ -9,6 +9,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import type { LobeChatDatabase } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
@@ -47,6 +48,13 @@ const ListPackagesInputSchema = z
   .default({});
 const RejectPackageInputSchema = PackageIdInputSchema.extend({
   reason: z.string().min(1).max(1000).optional(),
+});
+const OrderIdInputSchema = z.object({ orderId: z.string().uuid() });
+const SettleOrderInputSchema = OrderIdInputSchema.extend({
+  paymentReference: z.string().min(1).max(240),
+});
+const RefundOrderInputSchema = OrderIdInputSchema.extend({
+  reason: z.string().min(1).max(1000),
 });
 
 const PagesInputSchema = z.object({
@@ -146,6 +154,32 @@ export const adminModuleAppsRouter = router({
 
   list: auditReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppModel(ctx.serverDB).listAdminApps(input);
+  }),
+
+  refundOrder: financeWriteProcedure.input(RefundOrderInputSchema).mutation(async ({ ctx, input }) => {
+    const result = await new ModuleAppCommerceModel(ctx.serverDB).refundOrder({
+      actorUserId: ctx.userId,
+      orderId: input.orderId,
+      reason: input.reason,
+    });
+    await writeAudit(ctx, {
+      eventType: 'module_app.order_refunded',
+      metadata: { reason: input.reason },
+      resourceId: input.orderId,
+      resourceType: 'moduleAppOrder',
+    });
+    return result;
+  }),
+
+  settleOrder: financeWriteProcedure.input(SettleOrderInputSchema).mutation(async ({ ctx, input }) => {
+    const result = await new ModuleAppCommerceModel(ctx.serverDB).settleOrder(input);
+    await writeAudit(ctx, {
+      eventType: 'module_app.order_settled',
+      metadata: { paymentReference: input.paymentReference },
+      resourceId: input.orderId,
+      resourceType: 'moduleAppOrder',
+    });
+    return result;
   }),
 
   getPackage: auditReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {

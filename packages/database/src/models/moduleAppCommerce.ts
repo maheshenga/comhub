@@ -63,7 +63,7 @@ export class ModuleAppCommerceModel {
 
   settleOrder = async ({ orderId, paymentReference }: { orderId: string; paymentReference: string }) =>
     this.db.transaction(async (tx) => {
-      const order = await tx.query.moduleAppOrders.findFirst({ where: eq(moduleAppOrders.id, orderId) });
+      const [order] = await tx.select().from(moduleAppOrders).where(eq(moduleAppOrders.id, orderId)).for('update');
       if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
       if (order.status === 'paid') {
         if (order.paymentReference !== paymentReference) throw new Error('MODULE_APP_ORDER_PAYMENT_CONFLICT');
@@ -80,8 +80,13 @@ export class ModuleAppCommerceModel {
   resolveLicense = async ({ appId, userId }: { appId: string; userId: string }) =>
     (await this.db.query.moduleAppLicenses.findFirst({ where: and(eq(moduleAppLicenses.appId, appId), eq(moduleAppLicenses.ownerUserId, userId), eq(moduleAppLicenses.status, 'active'), isNull(moduleAppLicenses.revokedAt), isNull(moduleAppLicenses.endsAt)) })) ?? null;
 
-  refundOrder = async ({ orderId }: { actorUserId: string; orderId: string; reason: string }) =>
+  refundOrder = async ({ actorUserId, orderId, reason }: { actorUserId: string; orderId: string; reason: string }) =>
     this.db.transaction(async (tx) => {
+      if (!actorUserId.trim() || !reason.trim()) throw new Error('MODULE_APP_REFUND_AUDIT_REQUIRED');
+      const [existing] = await tx.select().from(moduleAppOrders).where(eq(moduleAppOrders.id, orderId)).for('update');
+      if (!existing) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
+      if (existing.status === 'refunded') return existing;
+      if (existing.status !== 'paid') throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
       const now = new Date();
       const [order] = await tx.update(moduleAppOrders).set({ refundedAt: now, status: 'refunded', updatedAt: now }).where(eq(moduleAppOrders.id, orderId)).returning();
       if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');

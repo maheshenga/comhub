@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -90,5 +91,44 @@ describe('ModuleAppCommerceModel', () => {
     await expect(
       model.resolveLicense({ appId: APP_ID, userId: OTHER_USER_ID }),
     ).resolves.toBeNull();
+  });
+
+  it('creates one license when the same payment settlement races', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'concurrent-settlement',
+      productType: 'one_time',
+    });
+    const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+
+    await Promise.all([
+      model.settleOrder({ orderId: order.id, paymentReference: 'manual:race:1' }),
+      model.settleOrder({ orderId: order.id, paymentReference: 'manual:race:1' }),
+    ]);
+
+    await expect(
+      serverDB.query.moduleAppLicenses.findMany({
+        where: eq(moduleAppLicenses.orderId, order.id),
+      }),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('rejects refunds for pending orders', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'pending-refund',
+      productType: 'one_time',
+    });
+    const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+
+    await expect(
+      model.refundOrder({ actorUserId: 'admin-1', orderId: order.id, reason: 'invalid' }),
+    ).rejects.toThrow('MODULE_APP_ORDER_NOT_REFUNDABLE');
   });
 });
