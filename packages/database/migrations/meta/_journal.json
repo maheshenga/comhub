@@ -987,6 +987,13 @@
       "when": 1784050800000,
       "tag": "0137_add_module_app_data_workflows",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1784137200000,
+      "tag": "0138_add_module_app_commerce",
+      "breakpoints": true
     }
   ],
   "version": "6"

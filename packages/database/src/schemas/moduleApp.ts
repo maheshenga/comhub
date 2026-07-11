@@ -29,6 +29,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   uniqueIndex,
@@ -183,7 +184,9 @@ export const moduleAppActions = pgTable(
       .$type<Record<string, unknown>>()
       .default({})
       .notNull(),
-    moduleMultiplier: integer('module_multiplier').default(1).notNull(),
+    moduleMultiplier: numeric('module_multiplier', { mode: 'number', precision: 10, scale: 4 })
+      .default(1)
+      .notNull(),
     runtimeConfig: jsonb('runtime_config')
       .$type<Record<string, unknown>>()
       .default({})

@@ -208,4 +208,21 @@ describe('module app schema exports', () => {
       true,
     );
   });
+
+  it('registers module app commerce accounts, reservations, and ledger persistence', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0138_add_module_app_commerce.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "workspace_credit_accounts"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "workspace_credit_ledger_entries"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "credit_reservations"');
+    expect(migration).toContain('"idempotency_key" text NOT NULL UNIQUE');
+    expect(migration).toContain('credit_ledger_entries_module_app_reservation_unique_idx');
+    expect(journal.entries.some(({ tag }) => tag === '0138_add_module_app_commerce')).toBe(true);
+  });
 });

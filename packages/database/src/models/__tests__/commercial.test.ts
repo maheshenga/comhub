@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import {
+  appSettings,
   creditAccounts,
   creditLedgerEntries,
   planCatalog,
@@ -132,6 +133,13 @@ const seedCreditLedger = async (
 beforeEach(async () => {
   await serverDB.delete(users);
   await serverDB.insert(users).values([{ id: userId }]);
+  await serverDB
+    .insert(appSettings)
+    .values({ key: 'pricing.creditMultiplier', value: 1 })
+    .onConflictDoUpdate({
+      set: { updatedAt: new Date(), value: 1 },
+      target: appSettings.key,
+    });
 });
 
 afterEach(async () => {
@@ -145,6 +153,7 @@ afterEach(async () => {
   await serverDB.delete(referralProfiles).where(eq(referralProfiles.userId, userId));
   await serverDB.delete(planCatalog);
   await serverDB.delete(topUpPackages);
+  await serverDB.delete(appSettings).where(eq(appSettings.key, 'pricing.creditMultiplier'));
   await serverDB.delete(users).where(eq(users.id, userId));
 });
 
