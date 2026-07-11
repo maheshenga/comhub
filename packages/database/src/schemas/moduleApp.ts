@@ -34,6 +34,7 @@ import {
   text,
   uniqueIndex,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
 
 import { createdAt, timestamptz, updatedAt } from './_helpers';
@@ -963,6 +964,68 @@ export const moduleAppWebhookDeliveries = pgTable(
 
 export type NewModuleAppWebhookDelivery = typeof moduleAppWebhookDeliveries.$inferInsert;
 export type ModuleAppWebhookDeliveryItem = typeof moduleAppWebhookDeliveries.$inferSelect;
+
+export const moduleAppProducts = pgTable(
+  'module_app_products',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'cascade' }).notNull(),
+    productKey: text('product_key').notNull(),
+    productType: text('product_type').notNull(),
+    licenseScope: text('license_scope').notNull(),
+    status: text('status').default('active').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [uniqueIndex('module_app_products_app_key_unique').on(table.appId, table.productKey)],
+);
+
+export const moduleAppPrices = pgTable('module_app_prices', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  productId: uuid('product_id').references(() => moduleAppProducts.id, { onDelete: 'cascade' }).notNull(),
+  currency: varchar('currency', { length: 16 }).notNull(),
+  amount: numeric('amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
+  billingPeriod: text('billing_period'),
+  trialDays: integer('trial_days').default(0).notNull(),
+  promotion: jsonb('promotion').$type<Record<string, unknown>>(),
+  active: boolean('active').default(true).notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const moduleAppOrders = pgTable('module_app_orders', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
+  productId: uuid('product_id').references(() => moduleAppProducts.id, { onDelete: 'restrict' }).notNull(),
+  priceId: uuid('price_id').references(() => moduleAppPrices.id, { onDelete: 'restrict' }).notNull(),
+  purchaserUserId: text('purchaser_user_id').references(() => users.id, { onDelete: 'restrict' }).notNull(),
+  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'restrict' }),
+  status: text('status').default('pending').notNull(),
+  paymentReference: text('payment_reference'),
+  snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+  paidAt: timestamptz('paid_at'),
+  cancelledAt: timestamptz('cancelled_at'),
+  refundedAt: timestamptz('refunded_at'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const moduleAppLicenses = pgTable('module_app_licenses', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
+  orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'restrict' }).notNull(),
+  licenseScope: text('license_scope').notNull(),
+  ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'restrict' }),
+  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'restrict' }),
+  seatCount: integer('seat_count'),
+  status: text('status').default('active').notNull(),
+  startsAt: timestamptz('starts_at').defaultNow().notNull(),
+  endsAt: timestamptz('ends_at'),
+  revokedAt: timestamptz('revoked_at'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 export const moduleAppAuditLogs = pgTable(
   'module_app_audit_logs',
