@@ -1232,7 +1232,20 @@ export class ModuleAppModel {
       )
       .limit(1);
 
-    return row ?? null;
+    if (!row) return null;
+
+    const actions = await this.db.query.moduleAppActions.findMany({
+      orderBy: [asc(moduleAppActions.createdAt)],
+      where: and(
+        eq(moduleAppActions.appId, params.appId),
+        eq(moduleAppActions.versionId, row.versionId),
+      ),
+    });
+
+    return {
+      ...row,
+      actions: actions.map(toActionConfig),
+    };
   };
 
   getInstallationEntitlementSubject = async (params: { installationId: string }) => {

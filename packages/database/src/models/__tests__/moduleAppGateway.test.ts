@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import {
+  moduleAppActions,
   moduleAppBuilds,
   moduleAppInstallations,
   moduleAppInstallationSecrets,
@@ -24,6 +25,7 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppInstallations);
   await serverDB.delete(moduleAppBuilds);
   await serverDB.delete(moduleAppPackages);
+  await serverDB.delete(moduleAppActions);
   await serverDB.delete(moduleAppVersions);
   await serverDB.delete(moduleApps);
   await serverDB.delete(users);
@@ -153,6 +155,17 @@ describe('ModuleAppModel capability gateway isolation', () => {
       packageVersion: '1.0.0',
       runtime: runtimeManifest.runtime,
     });
+    await serverDB.insert(moduleAppActions).values({
+      actionKey: 'search',
+      appId: app.id,
+      inputSchema: { fields: [] },
+      moduleMultiplier: 1,
+      name: 'Search',
+      outputSchema: {},
+      runtimeConfig: { functionKey: 'search_jobs', timeoutMs: 10_000 },
+      runtimeType: 'executable_action',
+      versionId: version.id,
+    });
     const [packageRow] = await serverDB
       .insert(moduleAppPackages)
       .values({
@@ -195,6 +208,13 @@ describe('ModuleAppModel capability gateway isolation', () => {
     await expect(
       model.getLaunchInstallationContext({ appId: app.id, userId: USER_ID }),
     ).resolves.toMatchObject({
+      actions: [
+        expect.objectContaining({
+          id: 'search',
+          runtimeConfig: { functionKey: 'search_jobs', timeoutMs: 10_000 },
+          runtimeType: 'executable_action',
+        }),
+      ],
       artifactSha256,
       buildArtifactSha256: artifactSha256,
       buildStatus: 'ready',

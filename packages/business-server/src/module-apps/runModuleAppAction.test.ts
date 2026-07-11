@@ -36,6 +36,89 @@ describe('runModuleAppAction record actions', () => {
     expect(model.createRun).not.toHaveBeenCalled();
   });
 
+  it('runs executable actions through the injected runner and rechecks entitlement before success', async () => {
+    const assertEntitlement = vi.fn().mockResolvedValue(undefined);
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+    const runner = vi.fn().mockResolvedValue({
+      output: { matches: [{ id: 'job-1' }] },
+      preview: '',
+    });
+
+    await expect(
+      runModuleAppAction({
+        action: {
+          id: 'search',
+          inputSchema: { fields: [] },
+          moduleMultiplier: 1,
+          name: 'Search',
+          outputSchema: {},
+          runtimeConfig: { functionKey: 'search_jobs' },
+          runtimeType: 'executable_action',
+        },
+        appId: APP_ID,
+        assertEntitlement,
+        input: { query: 'jobs' },
+        model: model as never,
+        runner,
+        scopeType: 'personal',
+        userId: 'u1',
+      }),
+    ).resolves.toMatchObject({ status: 'succeeded' });
+    expect(runner).toHaveBeenCalledOnce();
+    expect(assertEntitlement).toHaveBeenCalledTimes(2);
+    expect(model.updateRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: { matches: [{ id: 'job-1' }] },
+        runId: 'run-1',
+        status: 'succeeded',
+      }),
+    );
+  });
+
+  it.each([
+    'MODULE_APP_RUNTIME_REQUEST_FAILED',
+    'MODULE_APP_RUNTIME_TIMEOUT',
+    'MODULE_APP_RUNTIME_OUTPUT_INVALID',
+  ])('persists executable action failure %s as a terminal run', async (message) => {
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    await expect(
+      runModuleAppAction({
+        action: {
+          id: 'search',
+          inputSchema: { fields: [] },
+          moduleMultiplier: 1,
+          name: 'Search',
+          outputSchema: {},
+          runtimeConfig: { functionKey: 'search_jobs' },
+          runtimeType: 'executable_action',
+        },
+        appId: APP_ID,
+        assertEntitlement: allowEntitlement,
+        input: { query: 'jobs' },
+        model: model as never,
+        runner: vi.fn().mockRejectedValue(new Error(message)),
+        scopeType: 'personal',
+        userId: 'u1',
+      }),
+    ).resolves.toMatchObject({ preview: 'module_app_run_failed', status: 'failed' });
+    expect(model.updateRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorMessage: message,
+        errorType: 'module_app_runtime_error',
+        output: {},
+        runId: 'run-1',
+        status: 'failed',
+      }),
+    );
+  });
+
   it('starts workflow actions as durable queued runs', async () => {
     const model = {
       createRun: vi.fn().mockResolvedValue({ id: 'legacy-run-1' }),

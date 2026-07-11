@@ -67,6 +67,24 @@ describe('module app type contracts', () => {
     expect(() => moduleAppRuntimeTypeSchema.parse('skill')).toThrow();
   });
 
+  it('accepts executable actions only with a reviewed function key', () => {
+    expect(
+      moduleAppActionConfigSchema.parse({
+        id: 'search',
+        name: 'Search',
+        runtimeConfig: { functionKey: 'search_jobs' },
+        runtimeType: 'executable_action',
+      }),
+    ).toMatchObject({ runtimeType: 'executable_action' });
+    expect(() =>
+      moduleAppActionConfigSchema.parse({
+        id: 'search',
+        name: 'Search',
+        runtimeType: 'executable_action',
+      }),
+    ).toThrow();
+  });
+
   it('defaults billing to free CRUD semantics', () => {
     expect(moduleAppBillingConfigSchema.parse({})).toEqual({
       chargeMode: 'free',

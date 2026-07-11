@@ -25,6 +25,7 @@ import {
   type ModuleAppWorkspaceMembership,
 } from '@/business/server/module-apps/permission';
 import { runModuleAppAction } from '@/business/server/module-apps/runModuleAppAction';
+import { runModuleAppExecutableAction } from '@/business/server/module-apps/runners/executableActionRunner';
 import { getSubscriptionPlan } from '@/business/server/user';
 import { ModuleAppModel } from '@/database/models/moduleApp';
 import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
@@ -41,6 +42,7 @@ import {
   signModuleAppCapability,
   verifyModuleAppCapability,
 } from '@/server/services/moduleAppRuntime/capability';
+import { ModuleAppRuntimeClient } from '@/server/services/moduleAppRuntime/client';
 import { createModuleAppCapabilityGateway } from '@/server/services/moduleAppRuntime/gateway';
 
 const AppIdInputSchema = z.object({
@@ -914,7 +916,7 @@ export const moduleAppRouter = router({
     }),
 
   runAction: moduleAppProcedure.input(moduleAppRunInputSchema).mutation(async ({ ctx, input }) => {
-    const detail = await assertRunnableApp({
+    await assertRunnableApp({
       appId: input.appId,
       currentPlan: ctx.currentPlan,
       db: ctx.serverDB,
@@ -923,7 +925,19 @@ export const moduleAppRouter = router({
       userId: ctx.userId,
     });
 
-    const action = detail.actions.find((item) => item.id === input.actionId);
+    const installation = await ctx.moduleAppModel.getLaunchInstallationContext({
+      appId: input.appId,
+      userId: ctx.userId,
+      workspaceId: input.workspaceId,
+    });
+    if (!installation) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'module_app_installation_required',
+      });
+    }
+
+    const action = installation.actions.find((item) => item.id === input.actionId);
     if (!action) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_action_not_found' });
 
     if (action.runtimeType === 'record_update' || action.runtimeType === 'record_archive') {
@@ -955,6 +969,83 @@ export const moduleAppRouter = router({
       });
     }
 
+    let executableRunner;
+    let installationId: string | undefined;
+    if (action.runtimeType === 'executable_action') {
+      if (!appEnv.MODULE_APP_EXECUTION_ENABLED) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_runtime_unavailable',
+        });
+      }
+      const manifest = ModuleAppLaunchRuntimeManifestSchema.safeParse(
+        installation.runtimeManifest,
+      );
+      const artifactReady =
+        installation.buildStatus === 'ready' &&
+        Boolean(installation.artifactKey) &&
+        Boolean(installation.artifactSha256) &&
+        installation.artifactKey === installation.buildArtifactKey &&
+        installation.artifactSha256 === installation.buildArtifactSha256;
+      if (!artifactReady || !manifest.success || !installation.artifactSha256) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_build_not_ready',
+        });
+      }
+      const functionKey = action.runtimeConfig.functionKey;
+      const runtimeFunction = manifest.data.runtime.functions.find(
+        (item) => item.key === functionKey,
+      );
+      if (!runtimeFunction) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_executable_function_not_found',
+        });
+      }
+      const configuredTimeout = action.runtimeConfig.timeoutMs;
+      const timeoutMs = configuredTimeout === undefined ? 60_000 : Number(configuredTimeout);
+      if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60_000) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_executable_timeout_invalid',
+        });
+      }
+      const capability = await signModuleAppCapability(
+        {
+          appId: input.appId,
+          artifactSha256: installation.artifactSha256,
+          installationId: installation.installationId,
+          permissions: manifest.data.runtime.permissions,
+          surface: 'runtime',
+          userId: ctx.userId,
+          versionId: installation.versionId,
+          workspaceId: installation.workspaceId ?? undefined,
+        },
+        { expiresInSeconds: 300 },
+      );
+      const runtimeClient = new ModuleAppRuntimeClient();
+      const invocationId = randomUUID();
+      installationId = installation.installationId;
+      executableRunner = () =>
+        runModuleAppExecutableAction({
+          action,
+          artifactSha256: installation.artifactSha256!,
+          input: input.input,
+          invocationId,
+          invoke: ({ artifactSha256, input: runtimeInput, invocationId: runtimeInvocationId }) =>
+            runtimeClient.invoke({
+              artifactSha256,
+              capability,
+              entry: runtimeFunction.entry,
+              input: runtimeInput,
+              invocationId: runtimeInvocationId,
+              runtime: runtimeFunction.runtime,
+              timeoutMs,
+            }),
+        });
+    }
+
     return runModuleAppAction({
       action,
       appId: input.appId,
@@ -968,8 +1059,10 @@ export const moduleAppRouter = router({
           workspaceId: input.workspaceId,
         }),
       input: input.input,
+      installationId,
       model: ctx.moduleAppModel,
       recordId: input.recordId,
+      runner: executableRunner,
       scopeType: input.scopeType,
       textGenerator: createModuleAppTextGenerator({
         db: ctx.serverDB,

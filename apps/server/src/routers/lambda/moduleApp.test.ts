@@ -12,6 +12,7 @@ const {
   mockCreateModuleAppTextGenerator,
   mockAppEnv,
   mockModuleAppGateway,
+  mockRuntimeClientInvoke,
   mockRunModuleAppAction,
   mockModuleAppCommerceModel,
   mockModuleAppModel,
@@ -24,6 +25,7 @@ const {
     MODULE_APP_EXECUTION_ENABLED: true,
     MODULE_APP_RUNTIME_PUBLIC_ORIGIN: 'https://module-runtime.example.com',
   },
+  mockRuntimeClientInvoke: vi.fn(),
   mockGetServerDB: vi.fn(),
   mockGetSubscriptionPlan: vi.fn(),
   mockGetWorkspaceMember: vi.fn(),
@@ -100,6 +102,10 @@ vi.mock('@/server/services/moduleAppRuntime/gateway', () => ({
   createModuleAppCapabilityGateway: vi.fn(() => mockModuleAppGateway),
 }));
 
+vi.mock('@/server/services/moduleAppRuntime/client', () => ({
+  ModuleAppRuntimeClient: vi.fn(() => ({ invoke: mockRuntimeClientInvoke })),
+}));
+
 vi.mock('@/database/models/moduleApp', () => ({
   ModuleAppModel: vi.fn(() => mockModuleAppModel),
 }));
@@ -138,7 +144,9 @@ describe('moduleApp router registration', () => {
     mockModuleAppCommerceModel.cancelOrder.mockResolvedValue({ id: 'order-1', status: 'cancelled' });
     mockModuleAppCommerceModel.resolveLicense.mockResolvedValue(null);
     mockCreateModuleAppTextGenerator.mockReturnValue(mockTextGenerator);
-    mockRunModuleAppAction.mockResolvedValue({
+    mockSignModuleAppCapability.mockReset();
+    mockRuntimeClientInvoke.mockReset().mockResolvedValue({ output: { matches: [] } });
+    mockRunModuleAppAction.mockReset().mockResolvedValue({
       artifactIds: [],
       billing: { chargedCredits: 0, fixedServiceFeeCharged: false },
       preview: 'Created',
@@ -178,7 +186,8 @@ describe('moduleApp router registration', () => {
       id: 'workflow-run-1',
       status: 'cancelled',
     });
-    mockModuleAppModel.getLaunchInstallationContext.mockResolvedValue({
+    mockModuleAppModel.getLaunchInstallationContext.mockReset().mockResolvedValue({
+      actions: [],
       artifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
       artifactSha256: 'a'.repeat(64),
       buildArtifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
@@ -259,20 +268,41 @@ describe('moduleApp router registration', () => {
   });
 
   it('passes a live entitlement check into interactive actions', async () => {
+    const action = {
+      id: 'create_record',
+      inputSchema: { fields: [] },
+      moduleMultiplier: 1,
+      name: 'Create',
+      outputSchema: {},
+      runtimeConfig: {},
+      runtimeType: 'record_create',
+    };
     mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
-      actions: [
-        {
-          id: 'create_record',
-          inputSchema: { fields: [] },
-          moduleMultiplier: 1,
-          name: 'Create',
-          outputSchema: {},
-          runtimeConfig: {},
-          runtimeType: 'record_create',
-        },
-      ],
+      actions: [action],
       id: APP_ID,
       planState: { installable: true, runnable: true, visible: true },
+    });
+    mockModuleAppModel.getLaunchInstallationContext.mockResolvedValue({
+      actions: [action],
+      artifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
+      artifactSha256: 'a'.repeat(64),
+      buildArtifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
+      buildArtifactSha256: 'a'.repeat(64),
+      buildStatus: 'ready',
+      displayName: 'Jobs Board',
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runtimeManifest: {
+        build: { frontend: { output: 'dist', profile: 'node22-static' } },
+        manifestVersion: 2,
+        runtime: {
+          functions: [],
+          kind: 'sandboxed_app',
+          outboundHosts: [],
+          permissions: ['context.read'],
+        },
+      },
+      versionId: '00000000-0000-4000-8000-000000000011',
+      workspaceId: null,
     });
     mockModuleAppModel.createRecord.mockResolvedValue({ id: 'record-1' });
 
@@ -569,6 +599,28 @@ describe('moduleApp router registration', () => {
       id: APP_ID,
       planState: { installable: true, runnable: true, visible: true },
     });
+    mockModuleAppModel.getLaunchInstallationContext.mockResolvedValue({
+      actions: [action],
+      artifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
+      artifactSha256: 'a'.repeat(64),
+      buildArtifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
+      buildArtifactSha256: 'a'.repeat(64),
+      buildStatus: 'ready',
+      displayName: 'Jobs Board',
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runtimeManifest: {
+        build: { frontend: { output: 'dist', profile: 'node22-static' } },
+        manifestVersion: 2,
+        runtime: {
+          functions: [],
+          kind: 'sandboxed_app',
+          outboundHosts: [],
+          permissions: ['context.read'],
+        },
+      },
+      versionId: '00000000-0000-4000-8000-000000000011',
+      workspaceId: null,
+    });
 
     await expect(
       createCaller().runAction({
@@ -591,6 +643,140 @@ describe('moduleApp router registration', () => {
     );
     expect(mockModuleAppModel.createRun).not.toHaveBeenCalled();
   });
+
+  it('builds executable action invocations only from the installed version snapshot', async () => {
+    const installedAction = {
+      id: 'search',
+      inputSchema: { fields: [] },
+      moduleMultiplier: 1,
+      name: 'Search',
+      outputSchema: {},
+      runtimeConfig: { functionKey: 'search_jobs', timeoutMs: 12_000 },
+      runtimeType: 'executable_action',
+    };
+    mockModuleAppModel.getAppDetail.mockResolvedValue({
+      actions: [
+        {
+          ...installedAction,
+          runtimeConfig: {},
+          runtimeType: 'record_create',
+        },
+      ],
+      id: APP_ID,
+      installed: true,
+      planState: { installable: true, runnable: true, visible: true },
+      status: 'published',
+    });
+    mockModuleAppModel.getLaunchInstallationContext.mockResolvedValue({
+      actions: [installedAction],
+      artifactKey: 'module-app-builds/build-1/' + 'a'.repeat(64) + '.tgz',
+      artifactSha256: 'a'.repeat(64),
+      buildArtifactKey: 'module-app-builds/build-1/' + 'a'.repeat(64) + '.tgz',
+      buildArtifactSha256: 'a'.repeat(64),
+      buildStatus: 'ready',
+      displayName: 'Search App',
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runtimeManifest: {
+        build: { frontend: { output: 'dist', profile: 'node22-static' } },
+        manifestVersion: 2,
+        runtime: {
+          functions: [{ entry: 'server/search.js', key: 'search_jobs', runtime: 'node22' }],
+          kind: 'sandboxed_app',
+          outboundHosts: [],
+          permissions: ['data.read'],
+        },
+      },
+      versionId: '00000000-0000-4000-8000-000000000011',
+      workspaceId: null,
+    });
+    mockSignModuleAppCapability.mockResolvedValue('runtime-capability');
+    mockRunModuleAppAction.mockImplementation(async (input) => ({
+      ...(await input.runner()),
+      runId: 'run-1',
+      status: 'succeeded',
+    }));
+
+    await expect(
+      createCaller().runAction({
+        actionId: 'search',
+        appId: APP_ID,
+        input: { query: 'jobs' },
+        scopeType: 'personal',
+      }),
+    ).resolves.toMatchObject({ runId: 'run-1', status: 'succeeded' });
+
+    expect(mockSignModuleAppCapability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: APP_ID,
+        artifactSha256: 'a'.repeat(64),
+        installationId: '00000000-0000-4000-8000-000000000010',
+        surface: 'runtime',
+        versionId: '00000000-0000-4000-8000-000000000011',
+      }),
+      expect.objectContaining({ expiresInSeconds: 300 }),
+    );
+    expect(mockRuntimeClientInvoke).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifactSha256: 'a'.repeat(64),
+        capability: 'runtime-capability',
+        entry: 'server/search.js',
+        input: { query: 'jobs' },
+        runtime: 'node22',
+        timeoutMs: 12_000,
+      }),
+    );
+  });
+
+  it.each(['record_create', 'api_action', 'content_generation'] as const)(
+    'does not invoke the runtime client for %s',
+    async (runtimeType) => {
+      const action = {
+        id: 'regular_action',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Regular action',
+        outputSchema: {},
+        runtimeConfig: {},
+        runtimeType,
+      };
+      mockModuleAppModel.getAppDetail.mockResolvedValue({
+        actions: [action],
+        id: APP_ID,
+        planState: { installable: true, runnable: true, visible: true },
+      });
+      mockModuleAppModel.getLaunchInstallationContext.mockResolvedValue({
+        actions: [action],
+        artifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
+        artifactSha256: 'a'.repeat(64),
+        buildArtifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
+        buildArtifactSha256: 'a'.repeat(64),
+        buildStatus: 'ready',
+        displayName: 'Jobs Board',
+        installationId: '00000000-0000-4000-8000-000000000010',
+        runtimeManifest: {
+          build: { frontend: { output: 'dist', profile: 'node22-static' } },
+          manifestVersion: 2,
+          runtime: {
+            functions: [],
+            kind: 'sandboxed_app',
+            outboundHosts: [],
+            permissions: [],
+          },
+        },
+        versionId: '00000000-0000-4000-8000-000000000011',
+        workspaceId: null,
+      });
+
+      await createCaller().runAction({
+        actionId: action.id,
+        appId: APP_ID,
+        input: {},
+        scopeType: 'personal',
+      });
+
+      expect(mockRuntimeClientInvoke).not.toHaveBeenCalled();
+    },
+  );
 
   it('delegates package upload issuance to the durable ingestion service', async () => {
     const caller = createCaller();

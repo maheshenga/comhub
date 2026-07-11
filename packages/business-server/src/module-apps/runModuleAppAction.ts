@@ -144,7 +144,12 @@ const defaultBilling: ModuleAppBillingConfig = {
   fixedServiceFeeCredits: 0,
 };
 
-const billableRuntimeTypes = new Set(['api_action', 'content_generation', 'workflow_step']);
+const billableRuntimeTypes = new Set([
+  'api_action',
+  'content_generation',
+  'executable_action',
+  'workflow_step',
+]);
 
 const getTextInput = (input: Record<string, unknown>, key: string) => {
   const value = input[key];
@@ -459,6 +464,10 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
         ...runnerResult.output,
         ...(artifactIds.length > 0 ? { artifactIds } : {}),
       };
+
+      if (params.action.runtimeType === 'executable_action') {
+        await params.assertEntitlement();
+      }
 
       await params.model.updateRun({
         billing: billingSnapshot,

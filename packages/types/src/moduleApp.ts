@@ -38,6 +38,7 @@ export const moduleAppRuntimeTypeSchema = z.enum([
   'server_action',
   'content_generation',
   'workflow_step',
+  'executable_action',
 ]);
 export type ModuleAppRuntimeType = z.infer<typeof moduleAppRuntimeTypeSchema>;
 
@@ -96,15 +97,29 @@ export const moduleAppBillingConfigSchema = z
   .default({});
 export type ModuleAppBillingConfig = z.infer<typeof moduleAppBillingConfigSchema>;
 
-export const moduleAppActionConfigSchema = z.object({
-  id: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
-  inputSchema: moduleAppInputSchema.default({ fields: [] }),
-  moduleMultiplier: moduleAppMultiplierSchema.default(1),
-  name: z.string().min(1).max(120),
-  outputSchema: z.record(z.string(), z.unknown()).default({}),
-  runtimeConfig: z.record(z.string(), z.unknown()).default({}),
-  runtimeType: moduleAppRuntimeTypeSchema,
-});
+export const moduleAppActionConfigSchema = z
+  .object({
+    id: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
+    inputSchema: moduleAppInputSchema.default({ fields: [] }),
+    moduleMultiplier: moduleAppMultiplierSchema.default(1),
+    name: z.string().min(1).max(120),
+    outputSchema: z.record(z.string(), z.unknown()).default({}),
+    runtimeConfig: z.record(z.string(), z.unknown()).default({}),
+    runtimeType: moduleAppRuntimeTypeSchema,
+  })
+  .superRefine((action, ctx) => {
+    if (
+      action.runtimeType === 'executable_action' &&
+      (typeof action.runtimeConfig.functionKey !== 'string' ||
+        !/^[a-z][a-z0-9_]{1,63}$/.test(action.runtimeConfig.functionKey))
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'module_app_executable_function_key_required',
+        path: ['runtimeConfig', 'functionKey'],
+      });
+    }
+  });
 export type ModuleAppActionConfig = z.infer<typeof moduleAppActionConfigSchema>;
 
 export const moduleAppPlanEntitlementSchema = z.object({

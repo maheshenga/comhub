@@ -49,4 +49,36 @@ describe('ModuleAppRuntimeClient', () => {
       }),
     );
   });
+
+  it('aborts a stalled runtime request at the invocation timeout', async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn((_input: string, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+      });
+    });
+    const client = new ModuleAppRuntimeClient({
+      baseUrl: 'http://module-runtime:3210',
+      enabled: true,
+      fetch,
+      internalToken: 'internal-token',
+    });
+
+    try {
+      const request = expect(client.invoke(invocation)).rejects.toThrow(
+        'MODULE_APP_RUNTIME_TIMEOUT',
+      );
+      await vi.advanceTimersByTimeAsync(invocation.timeoutMs);
+
+      await request;
+      expect(fetch).toHaveBeenCalledWith(
+        'http://module-runtime:3210/v1/invocations',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

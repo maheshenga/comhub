@@ -30,15 +30,28 @@ export class ModuleAppRuntimeClient {
     if (!this.baseUrl || !this.internalToken) throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
     const invocation = moduleAppInvocationSchema.parse(input);
     const endpoint = new URL('/v1/invocations', `${this.baseUrl.replace(/\/$/, '')}/`).toString();
-    const response = await this.fetch(endpoint, {
-      body: JSON.stringify(invocation),
-      headers: {
-        authorization: `Bearer ${this.internalToken}`,
-        'content-type': 'application/json',
-      },
-      method: 'POST',
-    });
-    if (!response.ok) throw new Error('MODULE_APP_RUNTIME_REQUEST_FAILED');
-    return response.json();
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), invocation.timeoutMs);
+
+    try {
+      const response = await this.fetch(endpoint, {
+        body: JSON.stringify(invocation),
+        headers: {
+          authorization: `Bearer ${this.internalToken}`,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+        signal: abortController.signal,
+      });
+      if (!response.ok) throw new Error('MODULE_APP_RUNTIME_REQUEST_FAILED');
+      return response.json();
+    } catch (error) {
+      if (abortController.signal.aborted) {
+        throw new Error('MODULE_APP_RUNTIME_TIMEOUT', { cause: error });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   };
 }

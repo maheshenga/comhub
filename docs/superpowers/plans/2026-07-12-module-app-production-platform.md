@@ -217,12 +217,12 @@ export type ModuleAppExecutableActionInvoker = (input: {
 }) => Promise<{ output?: Record<string, unknown>; stderr?: string; stdout?: string }>;
 ```
 
-- [ ] Add a failing routing test proving `executable_action` calls the runtime client, while `record_create`, `api_action`, and `content_generation` do not.
-- [ ] Validate that the action's entry, runtime, artifact hash, and timeout come from the ready server-side version snapshot, never from mutation input.
-- [ ] Add invocation and terminal run snapshots for runtime error, timeout, malformed output, and successful output.
-- [ ] Keep entitlement checks before creating the invocation and repeat them before committing terminal success.
-- [ ] Run focused business, router, runtime client, and type tests.
-- [ ] Commit: `feat: connect module app executable actions`
+- [x] Add a failing routing test proving `executable_action` calls the runtime client, while `record_create`, `api_action`, and `content_generation` do not.
+- [x] Validate that the action's entry, runtime, artifact hash, and timeout come from the ready server-side version snapshot, never from mutation input.
+- [x] Add invocation and terminal run snapshots for runtime error, timeout, malformed output, and successful output.
+- [x] Keep entitlement checks before creating the invocation and repeat them before committing terminal success.
+- [x] Run focused business, router, runtime client, and type tests.
+- [x] Commit: `feat: connect module app executable actions`
 
 ## Task 4: Workflow Executors, Schedules, And Webhook State
 
