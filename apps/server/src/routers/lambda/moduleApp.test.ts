@@ -15,6 +15,8 @@ const {
   mockRuntimeClientInvoke,
   mockRunModuleAppAction,
   mockModuleAppCommerceModel,
+  mockModuleAppPaymentService,
+  mockCreateConfiguredModuleAppAlipayClient,
   mockModuleAppModel,
   mockModuleAppWorkflowModel,
   mockSignModuleAppCapability,
@@ -22,6 +24,9 @@ const {
   mockTextGenerator,
 } = vi.hoisted(() => ({
   mockAppEnv: {
+    MODULE_APP_ALIPAY_ENABLED: false,
+    MODULE_APP_ALIPAY_NOTIFY_URL: 'https://app.example.com/api/webhooks/alipay/module-app',
+    MODULE_APP_ALIPAY_RETURN_URL: 'https://app.example.com/apps/order-return',
     MODULE_APP_EXECUTION_ENABLED: true,
     MODULE_APP_RUNTIME_PUBLIC_ORIGIN: 'https://module-runtime.example.com',
   },
@@ -44,6 +49,10 @@ const {
     quoteProduct: vi.fn(),
     resolveLicense: vi.fn(),
   },
+  mockModuleAppPaymentService: {
+    createPayment: vi.fn(),
+  },
+  mockCreateConfiguredModuleAppAlipayClient: vi.fn(() => ({ provider: 'alipay' })),
   mockModuleAppModel: {
     assertInstallationAccess: vi.fn(),
     createRecord: vi.fn(),
@@ -114,6 +123,14 @@ vi.mock('@/database/models/moduleAppCommerce', () => ({
   ModuleAppCommerceModel: vi.fn(() => mockModuleAppCommerceModel),
 }));
 
+vi.mock('@/business/server/module-apps/payments/service', () => ({
+  ModuleAppPaymentService: vi.fn(() => mockModuleAppPaymentService),
+}));
+
+vi.mock('@/server/services/moduleAppPayments/alipay/client', () => ({
+  createConfiguredModuleAppAlipayClient: mockCreateConfiguredModuleAppAlipayClient,
+}));
+
 vi.mock('@/database/models/moduleAppWorkflow', () => ({
   ModuleAppWorkflowModel: vi.fn(() => mockModuleAppWorkflowModel),
 }));
@@ -130,6 +147,11 @@ describe('moduleApp router registration', () => {
     mockGetWorkspaceMember.mockResolvedValue({ role: 'member', workspaceId: 'workspace-1' });
     mockAppEnv.MODULE_APP_EXECUTION_ENABLED = true;
     mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = 'https://module-runtime.example.com';
+    mockAppEnv.MODULE_APP_ALIPAY_ENABLED = false;
+    mockModuleAppPaymentService.createPayment.mockResolvedValue({
+      body: '<form></form>',
+      outTradeNo: 'out-1',
+    });
     mockModuleAppModel.getAppDetail.mockResolvedValue({
       actions: [],
       id: APP_ID,
@@ -981,6 +1003,32 @@ describe('moduleApp router registration', () => {
     expect(mockModuleAppCommerceModel.createOrder).toHaveBeenCalledWith({
       productId,
       purchaserUserId: 'user-1',
+    });
+  });
+
+  it('keeps Alipay checkout disabled until the server feature flag is enabled', async () => {
+    await expect(
+      createCaller().createPayment({
+        orderId: '00000000-0000-4000-8000-000000000021',
+        subject: 'Module App Pro',
+      }),
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+    expect(mockModuleAppPaymentService.createPayment).not.toHaveBeenCalled();
+  });
+
+  it('creates Alipay checkout from authenticated order and server callback URLs', async () => {
+    mockAppEnv.MODULE_APP_ALIPAY_ENABLED = true;
+    const orderId = '00000000-0000-4000-8000-000000000021';
+
+    await expect(
+      createCaller().createPayment({ orderId, subject: 'Module App Pro' }),
+    ).resolves.toMatchObject({ outTradeNo: 'out-1' });
+    expect(mockModuleAppPaymentService.createPayment).toHaveBeenCalledWith({
+      notifyUrl: mockAppEnv.MODULE_APP_ALIPAY_NOTIFY_URL,
+      orderId,
+      purchaserUserId: 'user-1',
+      returnUrl: mockAppEnv.MODULE_APP_ALIPAY_RETURN_URL,
+      subject: 'Module App Pro',
     });
   });
 

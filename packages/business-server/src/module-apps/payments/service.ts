@@ -2,7 +2,7 @@ import {
   moduleAppNormalizedPaymentEventSchema,
   moduleAppOrderSnapshotSchema,
 } from '@lobechat/types';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { ModuleAppPaymentModel } from '@/database/models/moduleAppPayment';
 import { moduleAppOrders } from '@/database/schemas';
@@ -38,23 +38,32 @@ export class ModuleAppPaymentService {
   createPayment = async (input: {
     notifyUrl: string;
     orderId: string;
+    purchaserUserId?: string;
     returnUrl: string;
     subject: string;
   }) => {
     const order = await this.db.query.moduleAppOrders.findFirst({
-      where: eq(moduleAppOrders.id, input.orderId),
+      where: and(
+        eq(moduleAppOrders.id, input.orderId),
+        input.purchaserUserId
+          ? eq(moduleAppOrders.purchaserUserId, input.purchaserUserId)
+          : undefined,
+      ),
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
     if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_PAYABLE');
     const snapshot = moduleAppOrderSnapshotSchema.parse(order.snapshot);
     const totalAmount = formatAmount(snapshot.price);
+    if (Number(totalAmount) <= 0) throw new Error('MODULE_APP_ORDER_NOT_PAYABLE');
+    const subject = input.subject.trim().slice(0, 240);
+    if (!subject) throw new Error('MODULE_APP_PAYMENT_SUBJECT_REQUIRED');
     const notifyUrl = assertPaymentUrl(input.notifyUrl);
     const returnUrl = assertPaymentUrl(input.returnUrl);
     const created = await this.adapter.create({
       notifyUrl,
       orderId: order.id,
       returnUrl,
-      subject: input.subject.trim().slice(0, 240),
+      subject,
       totalAmount,
     });
     if (!created.body || !created.outTradeNo) {
@@ -66,7 +75,7 @@ export class ModuleAppPaymentService {
       orderId: order.id,
       outTradeNo: created.outTradeNo,
       returnUrl,
-      subject: input.subject.trim().slice(0, 240),
+      subject,
       totalAmount,
     });
     return created;
@@ -74,7 +83,11 @@ export class ModuleAppPaymentService {
 
   handleNotification = async (input: { body: string; headers: Record<string, string> }) => {
     const verified = await this.adapter.verifyNotification(input);
-    const parsed = moduleAppNormalizedPaymentEventSchema.safeParse(verified);
+    return this.handleNormalizedEvent(verified);
+  };
+
+  handleNormalizedEvent = async (input: unknown) => {
+    const parsed = moduleAppNormalizedPaymentEventSchema.safeParse(input);
     if (!parsed.success) throw new Error('MODULE_APP_PAYMENT_NOTIFICATION_INVALID');
     const event = parsed.data;
     const recorded = await this.model.recordPaymentEvent({

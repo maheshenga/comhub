@@ -295,13 +295,13 @@ export interface ModuleAppPaymentAdapter {
 - Create: `src/app/(backend)/api/webhooks/alipay/module-app/route.ts`
 - Create: `src/app/(backend)/api/webhooks/alipay/module-app/route.test.ts`
 
-- [ ] Add environment parsing for sandbox/production gateway, app ID, merchant private key, Alipay public key or certificate mode, seller ID, return URL, notify URL, and feature flag.
-- [ ] Implement RSA2 signing with Node `crypto.sign('RSA-SHA256', ...)` over Alipay's sorted non-empty parameter string. Exclude `sign` from canonicalization and use URL encoding only at form/request boundaries.
-- [ ] Implement `alipay.trade.page.pay`, `alipay.trade.query`, `alipay.trade.refund`, and bill download query using a bounded HTTP client and strict response parsing.
-- [ ] Verify notification signature and compare app ID, seller ID, out trade number, total amount, trade status, and provider event identity before normalization.
-- [ ] Add callback route that returns Alipay's required success body only after the local event is durably accepted; return failure for invalid events without changing orders.
-- [ ] Add tests for signature vectors, duplicate notifications, amount mismatch, wrong seller, wrong app, delayed query, refund, and sandbox HTTP fixtures.
-- [ ] Commit: `feat: integrate alipay module app payments`
+- [x] Add environment parsing for sandbox/production gateway, app ID, merchant private key, Alipay public key or certificate mode, seller ID, return URL, notify URL, and feature flag.
+- [x] Implement RSA2 signing with Node `crypto.sign('RSA-SHA256', ...)` over Alipay's sorted non-empty parameter string. Exclude `sign` from canonicalization and use URL encoding only at form/request boundaries.
+- [x] Implement `alipay.trade.page.pay`, `alipay.trade.query`, `alipay.trade.refund`, and bill download query using a bounded HTTP client and strict response parsing.
+- [x] Verify notification signature and compare app ID, seller ID, out trade number, total amount, trade status, and provider event identity before normalization.
+- [x] Add callback route that returns Alipay's required success body only after the local event is durably accepted; return failure for invalid events without changing orders.
+- [x] Add tests for signature vectors, duplicate notifications, amount mismatch, wrong seller, wrong app, delayed query, refund, and sandbox HTTP fixtures.
+- [x] Commit: `feat: integrate alipay module app payments`
 
 ## Task 7: Reconciliation And Refund Operations
 

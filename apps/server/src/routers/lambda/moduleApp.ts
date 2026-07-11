@@ -19,6 +19,7 @@ import {
   assertModuleAppEntitlement,
   ModuleAppEntitlementError,
 } from '@/business/server/module-apps/entitlement';
+import { ModuleAppPaymentService } from '@/business/server/module-apps/payments/service';
 import {
   assertModuleAppRecordPermission,
   type ModuleAppRecordOperation,
@@ -38,6 +39,7 @@ import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { createModuleAppTextGenerator } from '@/server/services/moduleAppAi';
 import { ModuleAppPackageIngestionService } from '@/server/services/moduleAppPackage/ingestion';
+import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleAppPayments/alipay/client';
 import {
   signModuleAppCapability,
   verifyModuleAppCapability,
@@ -57,6 +59,9 @@ const ProductIdInputSchema = z.object({
   workspaceId: z.string().min(1).optional(),
 });
 const OrderIdInputSchema = z.object({ orderId: z.string().uuid() });
+const ModuleAppPaymentInputSchema = OrderIdInputSchema.extend({
+  subject: z.string().trim().min(1).max(240),
+});
 const ModuleAppCatalogInputSchema = z.object({ appId: z.string().uuid().optional() });
 
 const ModuleAppLaunchInputSchema = AppIdInputSchema.extend({
@@ -477,6 +482,33 @@ export const moduleAppRouter = router({
       workspaceId: input.workspaceId,
     });
   }),
+
+  createPayment: moduleAppProcedure
+    .input(ModuleAppPaymentInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_alipay_disabled',
+        });
+      }
+      if (!appEnv.MODULE_APP_ALIPAY_NOTIFY_URL || !appEnv.MODULE_APP_ALIPAY_RETURN_URL) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_alipay_url_required',
+        });
+      }
+      return new ModuleAppPaymentService(
+        ctx.serverDB,
+        createConfiguredModuleAppAlipayClient(),
+      ).createPayment({
+        notifyUrl: appEnv.MODULE_APP_ALIPAY_NOTIFY_URL,
+        orderId: input.orderId,
+        purchaserUserId: ctx.userId,
+        returnUrl: appEnv.MODULE_APP_ALIPAY_RETURN_URL,
+        subject: input.subject,
+      });
+    }),
   cancelWorkflowRun: moduleAppProcedure
     .input(ModuleAppWorkflowRunInputSchema)
     .mutation(async ({ ctx, input }) => {

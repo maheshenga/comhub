@@ -23,9 +23,24 @@ export class ModuleAppPaymentModel {
     const [attempt] = await this.db
       .insert(moduleAppPaymentAttempts)
       .values({ ...input, provider: 'alipay' })
+      .onConflictDoNothing({
+        target: [moduleAppPaymentAttempts.provider, moduleAppPaymentAttempts.outTradeNo],
+      })
       .returning();
-    if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_CREATE_FAILED');
-    return attempt;
+    if (attempt) return attempt;
+    const existing = await this.getPaymentAttemptByOutTradeNo(input.outTradeNo);
+    if (!existing) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_CREATE_FAILED');
+    if (
+      existing.currency !== input.currency ||
+      existing.notifyUrl !== input.notifyUrl ||
+      existing.orderId !== input.orderId ||
+      existing.returnUrl !== input.returnUrl ||
+      existing.subject !== input.subject ||
+      existing.totalAmount !== Number(input.totalAmount).toFixed(6)
+    ) {
+      throw new Error('MODULE_APP_PAYMENT_ATTEMPT_CONFLICT');
+    }
+    return existing;
   };
 
   getPaymentAttemptByOrderId = (orderId: string) =>

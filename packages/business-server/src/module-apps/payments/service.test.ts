@@ -91,6 +91,13 @@ describe('ModuleAppPaymentService', () => {
       orderId: order.id,
       totalAmount: '1234.000000',
     }));
+    await expect(service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+      subject: 'Payment test',
+    })).resolves.toMatchObject({ outTradeNo: payment.outTradeNo });
+    await expect(serverDB.query.moduleAppPaymentAttempts.findMany()).resolves.toHaveLength(1);
 
     (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
       currency: 'CNY',
