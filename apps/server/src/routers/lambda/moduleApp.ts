@@ -78,6 +78,8 @@ const ModuleAppGatewayCallInputSchema = z.object({
     'http.fetch',
     'notifications.create',
     'secrets.get',
+    'tasks.cancel',
+    'tasks.getRun',
   ]),
   requestId: z.string().min(1).max(160).optional(),
 });
@@ -199,6 +201,7 @@ const mapGatewayError = (error: unknown) => {
     identifier.startsWith('MODULE_APP_HTTP_') ||
     identifier.startsWith('MODULE_APP_NOTIFICATION_') ||
     identifier.startsWith('MODULE_APP_SECRET_') ||
+    identifier.startsWith('MODULE_APP_TASK_') ||
     identifier === 'MODULE_APP_CAPABILITY_REQUEST_ID_REQUIRED'
   ) {
     return new TRPCError({ cause: error, code: 'BAD_REQUEST', message: identifier });

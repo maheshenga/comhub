@@ -1,6 +1,7 @@
 import type { ModuleAppCapabilityClaims } from '@lobechat/types';
 
 import type { ModuleAppDataService } from '../data/service';
+import type { ModuleAppTaskService } from '../workflows/taskService';
 import {
   assertModuleAppContextScope,
   type ModuleAppContextResolver,
@@ -23,7 +24,9 @@ export type ModuleAppGatewayMethod =
   | 'files.createUpload'
   | 'http.fetch'
   | 'notifications.create'
-  | 'secrets.get';
+  | 'secrets.get'
+  | 'tasks.cancel'
+  | 'tasks.getRun';
 
 const requiredPermission: Record<ModuleAppGatewayMethod, null | string> = {
   'context.get': null,
@@ -38,6 +41,8 @@ const requiredPermission: Record<ModuleAppGatewayMethod, null | string> = {
   'http.fetch': 'http.fetch',
   'notifications.create': 'notifications.write',
   'secrets.get': 'secrets.read',
+  'tasks.cancel': 'tasks.write',
+  'tasks.getRun': 'tasks.read',
 };
 
 const mutationMethods = new Set<ModuleAppGatewayMethod>([
@@ -48,6 +53,7 @@ const mutationMethods = new Set<ModuleAppGatewayMethod>([
   'files.createUpload',
   'http.fetch',
   'notifications.create',
+  'tasks.cancel',
 ]);
 
 export class ModuleAppReplayGuard {
@@ -77,6 +83,7 @@ type GatewayOptions = {
   notifications: ModuleAppNotificationGateway;
   replayGuard: ModuleAppReplayGuard;
   secrets: ModuleAppSecretsGateway;
+  tasks: ModuleAppTaskService;
 };
 
 export class ModuleAppCapabilityGateway {
@@ -87,6 +94,7 @@ export class ModuleAppCapabilityGateway {
   private readonly notifications: ModuleAppNotificationGateway;
   private readonly replayGuard: ModuleAppReplayGuard;
   private readonly secrets: ModuleAppSecretsGateway;
+  private readonly tasks: ModuleAppTaskService;
 
   constructor(options: GatewayOptions) {
     this.context = options.context;
@@ -96,6 +104,7 @@ export class ModuleAppCapabilityGateway {
     this.notifications = options.notifications;
     this.replayGuard = options.replayGuard;
     this.secrets = options.secrets;
+    this.tasks = options.tasks;
   }
 
   call = async (params: {
@@ -155,6 +164,12 @@ export class ModuleAppCapabilityGateway {
       }
       case 'secrets.get': {
         return this.secrets.get(params.capability, params.input);
+      }
+      case 'tasks.cancel': {
+        return this.tasks.cancel({ capability: params.capability, input: params.input });
+      }
+      case 'tasks.getRun': {
+        return this.tasks.getRun({ capability: params.capability, input: params.input });
       }
     }
   };

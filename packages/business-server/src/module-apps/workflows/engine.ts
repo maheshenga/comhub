@@ -15,6 +15,8 @@ type WorkflowRun = {
   id: string;
   installationId: string;
   status: ModuleAppWorkflowRunStatus;
+  workflowDispatchIdle?: boolean;
+  workflowRetryAfterMs?: number;
 };
 
 type WorkflowNode = {
@@ -276,7 +278,7 @@ export class ModuleAppWorkflowEngine {
     if (!run) throw new Error('MODULE_APP_WORKFLOW_RUN_NOT_FOUND');
     if (['cancelled', 'failed', 'succeeded'].includes(run.status)) return run;
     const claimed = await this.repository.claimRunnableNode(input);
-    if (!claimed) return run;
+    if (!claimed) return { ...run, workflowDispatchIdle: true };
     const workflow = getWorkflow(run);
     const node = workflow.nodes.find((item) => item.key === claimed.nodeKey);
     if (!node) throw new Error('MODULE_APP_WORKFLOW_NODE_NOT_FOUND');
@@ -361,7 +363,10 @@ export class ModuleAppWorkflowEngine {
           });
         }
       }
-      return this.repository.getRun(input);
+      const currentRun = await this.repository.getRun(input);
+      return transition.status === 'queued' && currentRun
+        ? { ...currentRun, workflowRetryAfterMs: delayMs }
+        : currentRun;
     }
   };
 

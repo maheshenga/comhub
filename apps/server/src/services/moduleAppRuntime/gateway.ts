@@ -12,8 +12,10 @@ import {
   ModuleAppNotificationRateLimiter,
 } from '@/business/server/module-apps/sdk/notifications';
 import { ModuleAppSecretsGateway } from '@/business/server/module-apps/sdk/secrets';
+import { ModuleAppTaskService } from '@/business/server/module-apps/workflows/taskService';
 import { ModuleAppModel } from '@/database/models/moduleApp';
 import { ModuleAppDataModel } from '@/database/models/moduleAppData';
+import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { NotificationModel } from '@/database/models/notification';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { LobeChatDatabase } from '@/database/type';
@@ -91,5 +93,6 @@ export const createModuleAppCapabilityGateway = (params: {
       getEncryptedValue: ({ installationId, key }) =>
         model.getInstallationSecret({ installationId, key }),
     }),
+    tasks: new ModuleAppTaskService(new ModuleAppWorkflowModel(params.db)),
   });
 };

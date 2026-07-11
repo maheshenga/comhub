@@ -266,7 +266,7 @@ git commit -m "feat: execute durable module app workflows"
 - Produces: durable dispatch, signed webhook ingestion, schedule trigger, and `tasks.getRun`/`tasks.cancel` SDK methods.
 - Consumes: existing `workflowClient`/QStash configuration and workflow engine from Task 4.
 
-- [ ] **Step 1: Add failing replay and resume tests**
+- [x] **Step 1: Add failing replay and resume tests**
 
 ```ts
 await expect(postWebhook({ signature: oldSignature, timestamp: expired })).resolves.toMatchObject({ status: 401 });
@@ -274,17 +274,17 @@ await expect(postWebhook({ deliveryId: 'delivery-1', signature: valid })).resolv
 await expect(postWebhook({ deliveryId: 'delivery-1', signature: valid })).resolves.toMatchObject({ duplicate: true });
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `bunx vitest run --silent='passed-only' apps/server/src/workflows/moduleApp/run.test.ts 'src/app/(backend)/api/webhooks/module-app/[webhookId]/route.test.ts'`
 
 Expected: FAIL because routes and workflow dispatch are absent.
 
-- [ ] **Step 3: Implement dispatch and verification**
+- [x] **Step 3: Implement dispatch and verification**
 
 Use QStash signature verification for internal workflow delivery and HMAC-SHA256 over timestamp plus raw body for application webhooks. Store only a hash of the webhook secret. Accept schedules only from a bounded five-field cron parser, require timezone, and compute the next run server-side.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run the focused command from Step 2.
 

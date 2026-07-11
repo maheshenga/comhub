@@ -54,6 +54,10 @@ const createGateway = (httpOverride?: ModuleAppHttpGateway) => {
     transaction: vi.fn(),
     update: vi.fn(),
   };
+  const tasks = {
+    cancel: vi.fn().mockResolvedValue({ status: 'cancelled' }),
+    getRun: vi.fn().mockResolvedValue({ id: 'run-1', status: 'running' }),
+  };
   const gateway = new ModuleAppCapabilityGateway({
     context: {
       resolve: vi.fn().mockResolvedValue({
@@ -72,9 +76,10 @@ const createGateway = (httpOverride?: ModuleAppHttpGateway) => {
     notifications,
     replayGuard: new ModuleAppReplayGuard(),
     secrets,
+    tasks: tasks as never,
   });
 
-  return { data, gateway, storage };
+  return { data, gateway, storage, tasks };
 };
 
 describe('ModuleAppCapabilityGateway', () => {
@@ -241,5 +246,28 @@ describe('ModuleAppCapabilityGateway', () => {
     await expect(call()).resolves.toMatchObject({ rowKey: 'candidate-1' });
     await expect(call()).rejects.toThrow('MODULE_APP_CAPABILITY_REPLAYED');
     expect(data.insert).toHaveBeenCalledOnce();
+  });
+
+  it('routes installation-bound task reads and protects cancellation from replay', async () => {
+    const { gateway, tasks } = createGateway();
+    await expect(
+      gateway.call({
+        capability: claims(['tasks.read']),
+        input: { runId: 'run-1' },
+        method: 'tasks.getRun',
+      }),
+    ).resolves.toMatchObject({ id: 'run-1' });
+    const cancel = () =>
+      gateway.call({
+        capability: claims(['tasks.write']),
+        input: { runId: 'run-1' },
+        method: 'tasks.cancel' as const,
+        requestId: 'cancel-1',
+      });
+    await expect(cancel()).resolves.toMatchObject({ status: 'cancelled' });
+    await expect(cancel()).rejects.toThrow('MODULE_APP_CAPABILITY_REPLAYED');
+    expect(tasks.getRun).toHaveBeenCalledWith(
+      expect.objectContaining({ capability: expect.objectContaining({ installationId: INSTALLATION_ID }) }),
+    );
   });
 });

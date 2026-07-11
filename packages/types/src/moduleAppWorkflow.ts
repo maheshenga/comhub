@@ -192,3 +192,12 @@ export const moduleAppWorkflowDefinitionSchema = z
     }
   });
 export type ModuleAppWorkflowDefinition = z.infer<typeof moduleAppWorkflowDefinitionSchema>;
+
+export const moduleAppTaskRunInputSchema = z.object({ runId: z.string().uuid() }).strict();
+export type ModuleAppTaskRunInput = z.infer<typeof moduleAppTaskRunInputSchema>;
+
+export type ModuleAppTaskRun = {
+  id: string;
+  status: ModuleAppWorkflowRunStatus;
+  [key: string]: unknown;
+};

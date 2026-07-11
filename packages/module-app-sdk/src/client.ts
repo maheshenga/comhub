@@ -6,6 +6,8 @@ import type {
   ModuleAppDataRow,
   ModuleAppDataTransaction,
   ModuleAppDataUpdateInput,
+  ModuleAppTaskRun,
+  ModuleAppTaskRunInput,
 } from '@lobechat/types';
 
 import {
@@ -74,6 +76,10 @@ export interface ModuleAppSdk {
   dispose: () => void;
   invoke: <T = unknown>(method: string, input?: unknown) => Promise<T>;
   on: (event: ModuleAppSdkEvent, listener: ModuleAppSdkListener) => () => void;
+  tasks: {
+    cancel: (input: ModuleAppTaskRunInput) => Promise<ModuleAppTaskRun>;
+    getRun: (input: ModuleAppTaskRunInput) => Promise<ModuleAppTaskRun | null>;
+  };
 }
 
 export const waitForModuleAppLaunch = (
@@ -235,6 +241,10 @@ export const createModuleAppSdk = (options: ModuleAppSdkOptions): ModuleAppSdk =
       listeners.set(event, eventListeners);
 
       return () => eventListeners.delete(listener);
+    },
+    tasks: {
+      cancel: (input) => invoke<ModuleAppTaskRun>('tasks.cancel', input),
+      getRun: (input) => invoke<ModuleAppTaskRun | null>('tasks.getRun', input),
     },
   };
 };

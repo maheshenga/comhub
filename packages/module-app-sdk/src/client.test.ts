@@ -176,4 +176,26 @@ describe('createModuleAppSdk', () => {
     });
     await expect(request).resolves.toEqual({ items: [], nextCursor: null });
   });
+
+  it('exposes task status over the bridge', async () => {
+    const { dispatch, parentWindow, sdk } = createHarness();
+    const request = sdk.tasks.getRun({ runId: '00000000-0000-4000-8000-000000000001' });
+    expect(parentWindow.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'tasks.getRun', type: 'request' }),
+      RUNTIME_ORIGIN,
+    );
+    dispatch({
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        id: 'request-1',
+        nonce: NONCE,
+        ok: true,
+        result: { id: 'run-1', status: 'running' },
+        type: 'response',
+      },
+      origin: RUNTIME_ORIGIN,
+      source: parentWindow as never,
+    });
+    await expect(request).resolves.toMatchObject({ status: 'running' });
+  });
 });
