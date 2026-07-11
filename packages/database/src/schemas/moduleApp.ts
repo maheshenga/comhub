@@ -12,6 +12,12 @@ import type {
   ModuleAppPackageUploadStatus,
   ModuleAppPackageValidationIssue,
   ModuleAppPage,
+  ModuleAppPaymentAttemptStatus,
+  ModuleAppPaymentDiscrepancyKind,
+  ModuleAppPaymentEventStatus,
+  ModuleAppPaymentEventType,
+  ModuleAppPaymentProvider,
+  ModuleAppPaymentRefundStatus,
   ModuleAppRunStatus,
   ModuleAppScopeType,
   ModuleAppSource,
@@ -1012,6 +1018,154 @@ export const moduleAppOrders = pgTable('module_app_orders', {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+export const moduleAppPaymentAttempts = pgTable(
+  'module_app_payment_attempts',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    orderId: uuid('order_id')
+      .references(() => moduleAppOrders.id, { onDelete: 'restrict' })
+      .notNull(),
+    provider: text('provider').$type<ModuleAppPaymentProvider>().notNull(),
+    outTradeNo: text('out_trade_no').notNull(),
+    subject: text('subject').notNull(),
+    totalAmount: numeric('total_amount', { precision: 20, scale: 6 }).notNull(),
+    currency: varchar('currency', { length: 16 }).notNull(),
+    returnUrl: text('return_url').notNull(),
+    notifyUrl: text('notify_url').notNull(),
+    status: text('status').$type<ModuleAppPaymentAttemptStatus>().default('created').notNull(),
+    providerTransactionId: text('provider_transaction_id'),
+    lastError: text('last_error'),
+    paidAt: timestamptz('paid_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_payment_attempts_provider_out_trade_no_unique').on(
+      table.provider,
+      table.outTradeNo,
+    ),
+    index('module_app_payment_attempts_order_status_idx').on(table.orderId, table.status),
+    check('module_app_payment_attempts_provider_check', sql`${table.provider} IN ('alipay')`),
+    check(
+      'module_app_payment_attempts_status_check',
+      sql`${table.status} IN ('created', 'pending', 'paid', 'failed', 'refunded')`,
+    ),
+    check('module_app_payment_attempts_amount_check', sql`${table.totalAmount} > 0`),
+  ],
+);
+
+export const moduleAppPaymentEvents = pgTable(
+  'module_app_payment_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    provider: text('provider').$type<ModuleAppPaymentProvider>().notNull(),
+    providerEventId: text('provider_event_id').notNull(),
+    eventType: text('event_type').$type<ModuleAppPaymentEventType>().notNull(),
+    eventStatus: text('event_status').$type<ModuleAppPaymentEventStatus>().default('received').notNull(),
+    orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'set null' }),
+    outTradeNo: text('out_trade_no').notNull(),
+    paymentReference: text('payment_reference'),
+    providerTransactionId: text('provider_transaction_id'),
+    totalAmount: numeric('total_amount', { precision: 20, scale: 6 }).notNull(),
+    currency: varchar('currency', { length: 16 }).notNull(),
+    occurredAt: timestamptz('occurred_at').notNull(),
+    errorCode: text('error_code'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
+    createdAt: createdAt(),
+    processedAt: timestamptz('processed_at'),
+  },
+  (table) => [
+    uniqueIndex('module_app_payment_events_provider_event_unique').on(
+      table.provider,
+      table.providerEventId,
+    ),
+    index('module_app_payment_events_out_trade_no_created_idx').on(
+      table.outTradeNo,
+      table.createdAt,
+    ),
+    check('module_app_payment_events_provider_check', sql`${table.provider} IN ('alipay')`),
+    check(
+      'module_app_payment_events_type_check',
+      sql`${table.eventType} IN ('payment_succeeded', 'payment_failed', 'refund_succeeded')`,
+    ),
+    check(
+      'module_app_payment_events_status_check',
+      sql`${table.eventStatus} IN ('received', 'processed', 'ignored', 'rejected')`,
+    ),
+    check('module_app_payment_events_amount_check', sql`${table.totalAmount} >= 0`),
+  ],
+);
+
+export const moduleAppPaymentRefunds = pgTable(
+  'module_app_payment_refunds',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    orderId: uuid('order_id')
+      .references(() => moduleAppOrders.id, { onDelete: 'restrict' })
+      .notNull(),
+    provider: text('provider').$type<ModuleAppPaymentProvider>().notNull(),
+    providerRefundId: text('provider_refund_id').notNull(),
+    refundAmount: numeric('refund_amount', { precision: 20, scale: 6 }).notNull(),
+    currency: varchar('currency', { length: 16 }).notNull(),
+    reason: text('reason').notNull(),
+    status: text('status').$type<ModuleAppPaymentRefundStatus>().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_payment_refunds_provider_refund_unique').on(
+      table.provider,
+      table.providerRefundId,
+    ),
+    index('module_app_payment_refunds_order_created_idx').on(table.orderId, table.createdAt),
+    check('module_app_payment_refunds_provider_check', sql`${table.provider} IN ('alipay')`),
+    check(
+      'module_app_payment_refunds_status_check',
+      sql`${table.status} IN ('requested', 'succeeded', 'failed')`,
+    ),
+    check('module_app_payment_refunds_amount_check', sql`${table.refundAmount} > 0`),
+  ],
+);
+
+export const moduleAppPaymentDiscrepancies = pgTable(
+  'module_app_payment_discrepancies',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    provider: text('provider').$type<ModuleAppPaymentProvider>().notNull(),
+    discrepancyKey: text('discrepancy_key').notNull(),
+    kind: text('kind').$type<ModuleAppPaymentDiscrepancyKind>().notNull(),
+    orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'set null' }),
+    outTradeNo: text('out_trade_no').notNull(),
+    expectedAmount: numeric('expected_amount', { precision: 20, scale: 6 }),
+    actualAmount: numeric('actual_amount', { precision: 20, scale: 6 }),
+    expectedCurrency: varchar('expected_currency', { length: 16 }),
+    actualCurrency: varchar('actual_currency', { length: 16 }),
+    details: jsonb('details').$type<Record<string, unknown>>().default({}).notNull(),
+    status: text('status').default('open').notNull(),
+    createdAt: createdAt(),
+    resolvedAt: timestamptz('resolved_at'),
+  },
+  (table) => [
+    uniqueIndex('module_app_payment_discrepancies_provider_key_unique').on(
+      table.provider,
+      table.discrepancyKey,
+    ),
+    index('module_app_payment_discrepancies_status_created_idx').on(table.status, table.createdAt),
+    check(
+      'module_app_payment_discrepancies_provider_check',
+      sql`${table.provider} IN ('alipay')`,
+    ),
+    check(
+      'module_app_payment_discrepancies_kind_check',
+      sql`${table.kind} IN ('amount_mismatch', 'currency_mismatch', 'order_not_found', 'provider_mismatch', 'settlement_failed')`,
+    ),
+    check(
+      'module_app_payment_discrepancies_status_check',
+      sql`${table.status} IN ('open', 'resolved')`,
+    ),
+  ],
+);
 
 export const moduleAppLicenses = pgTable('module_app_licenses', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),

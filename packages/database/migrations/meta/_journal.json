@@ -1008,6 +1008,13 @@
       "when": 1784300000000,
       "tag": "0140_add_module_app_schedule_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1784386400000,
+      "tag": "0141_add_module_app_payments",
+      "breakpoints": true
     }
   ],
   "version": "6"

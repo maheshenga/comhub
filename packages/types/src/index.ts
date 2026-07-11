@@ -31,6 +31,7 @@ export * from './meta';
 export * from './moduleApp';
 export * from './moduleAppCommerce';
 export * from './moduleAppData';
+export * from './moduleAppPayment';
 export * from './moduleAppRuntime';
 export * from './moduleAppWorkflow';
 export * from './plugins';

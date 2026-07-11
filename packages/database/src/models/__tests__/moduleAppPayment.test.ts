@@ -1,0 +1,94 @@
+// @vitest-environment node
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { getTestDB } from '../../core/getTestDB';
+import {
+  moduleAppOrders,
+  moduleAppPaymentAttempts,
+  moduleAppPaymentEvents,
+  moduleAppPaymentRefunds,
+  moduleAppPrices,
+  moduleAppProducts,
+  moduleApps,
+  users,
+} from '../../schemas';
+import type { LobeChatDatabase } from '../../type';
+import { ModuleAppCommerceModel } from '../moduleAppCommerce';
+import { ModuleAppPaymentModel } from '../moduleAppPayment';
+
+const APP_ID = '30000000-0000-4000-8000-000000000001';
+const USER_ID = 'module-app-payment-model-user';
+const serverDB: LobeChatDatabase = await getTestDB();
+
+beforeEach(async () => {
+  await serverDB.delete(moduleAppPaymentRefunds);
+  await serverDB.delete(moduleAppPaymentEvents);
+  await serverDB.delete(moduleAppPaymentAttempts);
+  await serverDB.delete(moduleAppOrders);
+  await serverDB.delete(moduleAppPrices);
+  await serverDB.delete(moduleAppProducts);
+  await serverDB.delete(moduleApps);
+  await serverDB.delete(users);
+  await serverDB.insert(users).values({ id: USER_ID });
+  await serverDB.insert(moduleApps).values({
+    appType: 'standard_app',
+    category: 'commerce',
+    description: 'Payment model test app',
+    displayName: 'Payment model test app',
+    icon: 'CreditCard',
+    id: APP_ID,
+    slug: `payment-model-${crypto.randomUUID()}`,
+    status: 'published',
+  });
+});
+
+const createOrder = async () => {
+  const commerce = new ModuleAppCommerceModel(serverDB);
+  const product = await commerce.createProduct({
+    appId: APP_ID,
+    licenseScope: 'personal',
+    price: { amount: 1234, currency: 'CNY' },
+    productKey: `payment-${crypto.randomUUID()}`,
+    productType: 'one_time',
+  });
+  return commerce.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+};
+
+describe('ModuleAppPaymentModel', () => {
+  it('deduplicates provider events by provider-scoped event id', async () => {
+    const model = new ModuleAppPaymentModel(serverDB);
+    const input = {
+      currency: 'CNY',
+      eventId: 'notify-1',
+      eventType: 'payment_succeeded' as const,
+      outTradeNo: 'order-1',
+      paymentReference: 'trade-1',
+      provider: 'alipay' as const,
+      totalAmount: '12.340000',
+    };
+
+    await expect(model.recordPaymentEvent(input)).resolves.toMatchObject({ duplicate: false });
+    await expect(model.recordPaymentEvent(input)).resolves.toMatchObject({ duplicate: true });
+    await expect(model.recordPaymentEvent({ ...input, totalAmount: '99.000000' })).rejects.toThrow(
+      'MODULE_APP_PAYMENT_EVENT_CONFLICT',
+    );
+    await expect(serverDB.query.moduleAppPaymentEvents.findMany()).resolves.toHaveLength(1);
+  });
+
+  it('keeps refund creation idempotent by provider refund id', async () => {
+    const model = new ModuleAppPaymentModel(serverDB);
+    const order = await createOrder();
+    const input = {
+      currency: 'CNY',
+      orderId: order.id,
+      provider: 'alipay' as const,
+      providerRefundId: 'refund-1',
+      reason: 'customer request',
+      refundAmount: '12.340000',
+      status: 'succeeded' as const,
+    };
+
+    await expect(model.createRefund(input)).resolves.toMatchObject({ duplicate: false });
+    await expect(model.createRefund(input)).resolves.toMatchObject({ duplicate: true });
+  });
+});

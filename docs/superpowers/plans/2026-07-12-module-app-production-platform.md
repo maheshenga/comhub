@@ -275,11 +275,11 @@ export interface ModuleAppPaymentAdapter {
 }
 ```
 
-- [ ] Add tables for payment attempts, normalized provider events, refunds, and reconciliation discrepancies with unique provider-scoped identifiers.
-- [ ] Add tests for valid transitions, duplicate events, amount mismatch, provider mismatch, refund replay, and row-lock idempotency.
-- [ ] Implement `ModuleAppPaymentService` so it persists the provider event before calling order settlement and never trusts browser input for amount or status.
-- [ ] Run type, schema, model, and service tests with PostgreSQL integration cases included but clearly reported when `DATABASE_TEST_URL` is absent.
-- [ ] Commit: `feat: add module app payment state`
+- [x] Add tables for payment attempts, normalized provider events, refunds, and reconciliation discrepancies with unique provider-scoped identifiers.
+- [x] Add tests for valid transitions, duplicate events, amount mismatch, provider mismatch, refund replay, and row-lock idempotency.
+- [x] Implement `ModuleAppPaymentService` so it persists the provider event before calling order settlement and never trusts browser input for amount or status.
+- [x] Run type, schema, model, and service tests with PostgreSQL integration cases included but clearly reported when `DATABASE_TEST_URL` is absent.
+- [x] Commit: `feat: add module app payment state`
 
 ## Task 6: Alipay Computer Website Adapter
 
