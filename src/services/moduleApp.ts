@@ -57,12 +57,14 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       requestId?: string;
     }) => client.moduleApp.callSdk.mutate!(input),
     createPackageUpload,
-    createOrder: (input: { productId: string }) => client.moduleApp.createOrder.mutate!(input),
+    createOrder: (input: { productId: string; workspaceId?: string }) =>
+      client.moduleApp.createOrder.mutate!(input),
     createRecord: (input: ModuleAppRecordInput) => client.moduleApp.createRecord.mutate!(input),
     getDetail: (input: { appIdOrSlug: string }) => client.moduleApp.getDetail.query!(input),
     getLaunchContext: (input: { appId: string; workspaceId?: string }) =>
       client.moduleApp.getLaunchContext.query!(input) as Promise<ModuleAppLaunchContext>,
-    getLicense: (input: { appId: string }) => client.moduleApp.getLicense.query!(input),
+    getLicense: (input: { appId: string; workspaceId?: string }) =>
+      client.moduleApp.getLicense.query!(input),
     getRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
       client.moduleApp.getRecord.query!(input),
     getRuntimeManifest: (input: { appId: string }) =>

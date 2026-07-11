@@ -810,4 +810,22 @@ describe('moduleApp router registration', () => {
       purchaserUserId: 'user-1',
     });
   });
+
+  it('requires current workspace membership before workspace checkout and license lookup', async () => {
+    const productId = '00000000-0000-4000-8000-000000000031';
+    mockGetWorkspaceMember.mockResolvedValueOnce(null);
+    await expect(
+      createCaller().createOrder({ productId, workspaceId: 'workspace-1' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
+    expect(mockModuleAppCommerceModel.createOrder).not.toHaveBeenCalled();
+
+    mockGetWorkspaceMember.mockResolvedValueOnce({ role: 'member', workspaceId: 'workspace-1' });
+    await expect(
+      createCaller().getLicense({ appId: APP_ID, workspaceId: 'workspace-1' }),
+    ).resolves.toBeNull();
+    expect(mockModuleAppCommerceModel.resolveLicense).toHaveBeenCalledWith({
+      appId: APP_ID,
+      workspaceId: 'workspace-1',
+    });
+  });
 });

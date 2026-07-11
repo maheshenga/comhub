@@ -1027,6 +1027,18 @@ export const moduleAppLicenses = pgTable('module_app_licenses', {
   updatedAt: updatedAt(),
 });
 
+export const moduleAppSubscriptions = pgTable('module_app_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  licenseId: uuid('license_id').references(() => moduleAppLicenses.id, { onDelete: 'restrict' }).notNull(),
+  orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'restrict' }).notNull(),
+  status: text('status').notNull(),
+  currentPeriodStart: timestamptz('current_period_start').notNull(),
+  currentPeriodEnd: timestamptz('current_period_end').notNull(),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false).notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 export const moduleAppAuditLogs = pgTable(
   'module_app_audit_logs',
   {

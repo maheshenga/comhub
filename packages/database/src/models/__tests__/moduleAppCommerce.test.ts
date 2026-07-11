@@ -9,7 +9,9 @@ import {
   moduleAppPrices,
   moduleAppProducts,
   moduleApps,
+  moduleAppSubscriptions,
   users,
+  workspaces,
 } from '../../schemas';
 import type { LobeChatDatabase } from '../../type';
 import { ModuleAppCommerceModel } from '../moduleAppCommerce';
@@ -17,16 +19,25 @@ import { ModuleAppCommerceModel } from '../moduleAppCommerce';
 const APP_ID = '10000000-0000-4000-8000-000000000001';
 const USER_ID = 'module-app-commerce-user';
 const OTHER_USER_ID = 'module-app-commerce-other-user';
+const WORKSPACE_ID = 'module-app-commerce-workspace';
 const serverDB: LobeChatDatabase = await getTestDB();
 
 beforeEach(async () => {
+  await serverDB.delete(moduleAppSubscriptions);
   await serverDB.delete(moduleAppLicenses);
   await serverDB.delete(moduleAppOrders);
   await serverDB.delete(moduleAppPrices);
   await serverDB.delete(moduleAppProducts);
   await serverDB.delete(moduleApps);
+  await serverDB.delete(workspaces);
   await serverDB.delete(users);
   await serverDB.insert(users).values([{ id: USER_ID }, { id: OTHER_USER_ID }]);
+  await serverDB.insert(workspaces).values({
+    id: WORKSPACE_ID,
+    name: 'Commerce workspace',
+    primaryOwnerId: USER_ID,
+    slug: WORKSPACE_ID,
+  });
   await serverDB.insert(moduleApps).values({
     appType: 'standard_app',
     category: 'productivity',
@@ -189,5 +200,34 @@ describe('ModuleAppCommerceModel', () => {
     await expect(
       model.createOrder({ productId: product.id, purchaserUserId: USER_ID }),
     ).rejects.toThrow('MODULE_APP_PRODUCT_NOT_PURCHASABLE');
+  });
+
+  it('settles a yearly workspace subscription into a workspace license and period', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'workspace',
+      price: { amount: 1200, billingPeriod: 'yearly', currency: 'CNY', trialDays: 7 },
+      productKey: 'workspace-yearly',
+      productType: 'subscription',
+    });
+    await expect(
+      model.createOrder({ productId: product.id, purchaserUserId: USER_ID }),
+    ).rejects.toThrow('MODULE_APP_WORKSPACE_REQUIRED');
+
+    const order = await model.createOrder({
+      productId: product.id,
+      purchaserUserId: USER_ID,
+      workspaceId: WORKSPACE_ID,
+    });
+    await model.settleOrder({ orderId: order.id, paymentReference: 'manual:workspace:1' });
+
+    await expect(
+      model.resolveLicense({ appId: APP_ID, workspaceId: WORKSPACE_ID }),
+    ).resolves.toMatchObject({ ownerUserId: null, status: 'active', workspaceId: WORKSPACE_ID });
+    await expect(serverDB.query.moduleAppSubscriptions.findFirst()).resolves.toMatchObject({
+      cancelAtPeriodEnd: false,
+      status: 'trialing',
+    });
   });
 });

@@ -50,7 +50,10 @@ const AppIdInputSchema = z.object({
 const ModuleAppOrderListInputSchema = z.object({
   limit: z.number().int().min(1).max(100).optional(),
 });
-const ProductIdInputSchema = z.object({ productId: z.string().uuid() });
+const ProductIdInputSchema = z.object({
+  productId: z.string().uuid(),
+  workspaceId: z.string().min(1).optional(),
+});
 const OrderIdInputSchema = z.object({ orderId: z.string().uuid() });
 const ModuleAppCatalogInputSchema = z.object({ appId: z.string().uuid().optional() });
 
@@ -460,9 +463,16 @@ export const moduleAppRouter = router({
   }),
 
   createOrder: moduleAppProcedure.input(ProductIdInputSchema).mutation(async ({ ctx, input }) => {
+    if (input.workspaceId) {
+      const membership = await getWorkspaceMembership(ctx.serverDB, ctx.userId, input.workspaceId);
+      if (!membership) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
+      }
+    }
     return new ModuleAppCommerceModel(ctx.serverDB).createOrder({
       productId: input.productId,
       purchaserUserId: ctx.userId,
+      workspaceId: input.workspaceId,
     });
   }),
   cancelWorkflowRun: moduleAppProcedure
@@ -592,11 +602,18 @@ export const moduleAppRouter = router({
     });
   }),
 
-  getLicense: moduleAppProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
-    return new ModuleAppCommerceModel(ctx.serverDB).resolveLicense({
-      appId: input.appId,
-      userId: ctx.userId,
-    });
+  getLicense: moduleAppProcedure.input(ModuleAppLaunchInputSchema).query(async ({ ctx, input }) => {
+    if (input.workspaceId) {
+      const membership = await getWorkspaceMembership(ctx.serverDB, ctx.userId, input.workspaceId);
+      if (!membership) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
+      }
+    }
+    return new ModuleAppCommerceModel(ctx.serverDB).resolveLicense(
+      input.workspaceId
+        ? { appId: input.appId, workspaceId: input.workspaceId }
+        : { appId: input.appId, userId: ctx.userId },
+    );
   }),
 
   getLaunchContext: moduleAppProcedure

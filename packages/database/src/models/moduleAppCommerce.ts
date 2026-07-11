@@ -1,6 +1,6 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 
-import { moduleAppLicenses, moduleAppOrders, moduleAppPrices, moduleAppProducts, moduleApps } from '../schemas';
+import { moduleAppLicenses, moduleAppOrders, moduleAppPrices, moduleAppProducts, moduleApps,moduleAppSubscriptions } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 
 export class ModuleAppCommerceModel {
@@ -32,18 +32,21 @@ export class ModuleAppCommerceModel {
       return product;
     });
 
-  createOrder = async ({ productId, purchaserUserId }: { productId: string; purchaserUserId: string }) =>
+  createOrder = async ({ productId, purchaserUserId, workspaceId }: { productId: string; purchaserUserId: string; workspaceId?: string }) =>
     this.db.transaction(async (tx) => {
       const product = await tx.query.moduleAppProducts.findFirst({ where: and(eq(moduleAppProducts.id, productId), eq(moduleAppProducts.status, 'active')) });
       const price = await tx.query.moduleAppPrices.findFirst({ where: and(eq(moduleAppPrices.productId, productId), eq(moduleAppPrices.active, true)) });
       const app = product ? await tx.query.moduleApps.findFirst({ where: and(eq(moduleApps.id, product.appId), eq(moduleApps.status, 'published')) }) : null;
       if (!product || !price || !app) throw new Error('MODULE_APP_PRODUCT_NOT_PURCHASABLE');
+      if (product.licenseScope === 'personal' && workspaceId) throw new Error('MODULE_APP_WORKSPACE_FORBIDDEN');
+      if (product.licenseScope !== 'personal' && !workspaceId) throw new Error('MODULE_APP_WORKSPACE_REQUIRED');
       const [order] = await tx.insert(moduleAppOrders).values({
         appId: product.appId,
         priceId: price.id,
         productId,
         purchaserUserId,
-        snapshot: { billingPeriod: price.billingPeriod, currency: price.currency, licenseScope: product.licenseScope, price: price.amount, productType: product.productType },
+        snapshot: { billingPeriod: price.billingPeriod, currency: price.currency, licenseScope: product.licenseScope, price: price.amount, productType: product.productType, trialDays: price.trialDays },
+        workspaceId,
       }).returning();
       if (!order) throw new Error('MODULE_APP_ORDER_CREATE_FAILED');
       return order;
@@ -116,12 +119,38 @@ export class ModuleAppCommerceModel {
       const now = new Date();
       const [paid] = await tx.update(moduleAppOrders).set({ paidAt: now, paymentReference, status: 'paid', updatedAt: now }).where(eq(moduleAppOrders.id, orderId)).returning();
       if (!paid) throw new Error('MODULE_APP_ORDER_SETTLEMENT_FAILED');
-      await tx.insert(moduleAppLicenses).values({ appId: paid.appId, licenseScope: String(paid.snapshot.licenseScope), orderId: paid.id, ownerUserId: paid.purchaserUserId });
+      const billingPeriod = paid.snapshot.billingPeriod;
+      const trialDays = Number(paid.snapshot.trialDays ?? 0);
+      const isSubscription = paid.snapshot.productType === 'subscription';
+      const periodEnd = new Date(now);
+      if (trialDays > 0) periodEnd.setUTCDate(periodEnd.getUTCDate() + trialDays);
+      else if (billingPeriod === 'monthly') periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+      else if (billingPeriod === 'yearly') periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+      const [license] = await tx.insert(moduleAppLicenses).values({
+        appId: paid.appId,
+        endsAt: isSubscription ? periodEnd : null,
+        licenseScope: String(paid.snapshot.licenseScope),
+        orderId: paid.id,
+        ownerUserId: paid.workspaceId ? null : paid.purchaserUserId,
+        workspaceId: paid.workspaceId,
+      }).returning();
+      if (!license) throw new Error('MODULE_APP_LICENSE_CREATE_FAILED');
+      if (isSubscription) {
+        await tx.insert(moduleAppSubscriptions).values({
+          currentPeriodEnd: periodEnd,
+          currentPeriodStart: now,
+          licenseId: license.id,
+          orderId: paid.id,
+          status: trialDays > 0 ? 'trialing' : 'active',
+        });
+      }
       return paid;
     });
 
-  resolveLicense = async ({ appId, userId }: { appId: string; userId: string }) =>
-    (await this.db.query.moduleAppLicenses.findFirst({ where: and(eq(moduleAppLicenses.appId, appId), eq(moduleAppLicenses.ownerUserId, userId), eq(moduleAppLicenses.status, 'active'), isNull(moduleAppLicenses.revokedAt), isNull(moduleAppLicenses.endsAt)) })) ?? null;
+  resolveLicense = async ({ appId, userId, workspaceId }: { appId: string; userId?: string; workspaceId?: string }) => {
+    if ((!userId && !workspaceId) || (userId && workspaceId)) throw new Error('MODULE_APP_LICENSE_SCOPE_INVALID');
+    return (await this.db.query.moduleAppLicenses.findFirst({ where: and(eq(moduleAppLicenses.appId, appId), userId ? eq(moduleAppLicenses.ownerUserId, userId) : eq(moduleAppLicenses.workspaceId, workspaceId!), eq(moduleAppLicenses.status, 'active'), isNull(moduleAppLicenses.revokedAt), or(isNull(moduleAppLicenses.endsAt), gt(moduleAppLicenses.endsAt, new Date()))) })) ?? null;
+  };
 
   refundOrder = async ({ actorUserId, orderId, reason }: { actorUserId: string; orderId: string; reason: string }) =>
     this.db.transaction(async (tx) => {
@@ -134,6 +163,7 @@ export class ModuleAppCommerceModel {
       const [order] = await tx.update(moduleAppOrders).set({ refundedAt: now, status: 'refunded', updatedAt: now }).where(eq(moduleAppOrders.id, orderId)).returning();
       if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
       await tx.update(moduleAppLicenses).set({ revokedAt: now, status: 'revoked', updatedAt: now }).where(eq(moduleAppLicenses.orderId, orderId));
+      await tx.update(moduleAppSubscriptions).set({ status: 'cancelled', updatedAt: now }).where(eq(moduleAppSubscriptions.orderId, orderId));
       return order;
     });
 }
