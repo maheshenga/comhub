@@ -46,6 +46,14 @@ const createGateway = (httpOverride?: ModuleAppHttpGateway) => {
     decrypt: vi.fn().mockResolvedValue({ plaintext: 'secret-value', wasAuthentic: true }),
     getEncryptedValue: vi.fn().mockResolvedValue('encrypted-value'),
   });
+  const data = {
+    archive: vi.fn(),
+    get: vi.fn(),
+    insert: vi.fn(),
+    list: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    transaction: vi.fn(),
+    update: vi.fn(),
+  };
   const gateway = new ModuleAppCapabilityGateway({
     context: {
       resolve: vi.fn().mockResolvedValue({
@@ -58,6 +66,7 @@ const createGateway = (httpOverride?: ModuleAppHttpGateway) => {
         versionId: VERSION_ID,
       }),
     },
+    data: data as never,
     files,
     http: httpOverride ?? http,
     notifications,
@@ -65,7 +74,7 @@ const createGateway = (httpOverride?: ModuleAppHttpGateway) => {
     secrets,
   });
 
-  return { gateway, storage };
+  return { data, gateway, storage };
 };
 
 describe('ModuleAppCapabilityGateway', () => {
@@ -201,5 +210,36 @@ describe('ModuleAppCapabilityGateway', () => {
         requestId: 'request-large',
       }),
     ).rejects.toThrow('MODULE_APP_HTTP_RESPONSE_TOO_LARGE');
+  });
+
+  it('routes managed data reads through the installation capability', async () => {
+    const { data, gateway } = createGateway();
+    await expect(
+      gateway.call({
+        capability: claims(['data.read']),
+        input: { tableKey: 'candidates' },
+        method: 'data.list',
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(data.list).toHaveBeenCalledWith({
+      capability: expect.objectContaining({ installationId: INSTALLATION_ID }),
+      input: { tableKey: 'candidates' },
+    });
+  });
+
+  it('requires unique request ids for managed data mutations', async () => {
+    const { data, gateway } = createGateway();
+    data.insert.mockResolvedValue({ rowKey: 'candidate-1' });
+    const call = () =>
+      gateway.call({
+        capability: claims(['data.write']),
+        input: { tableKey: 'candidates', values: { email: 'one@example.com' } },
+        method: 'data.insert',
+        requestId: 'data-request-1',
+      });
+
+    await expect(call()).resolves.toMatchObject({ rowKey: 'candidate-1' });
+    await expect(call()).rejects.toThrow('MODULE_APP_CAPABILITY_REPLAYED');
+    expect(data.insert).toHaveBeenCalledOnce();
   });
 });

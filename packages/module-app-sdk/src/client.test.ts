@@ -153,4 +153,27 @@ describe('createModuleAppSdk', () => {
     sdk.dispose();
     expect(eventTarget.removeEventListener).toHaveBeenCalledOnce();
   });
+
+  it('exposes typed managed data methods over the bridge', async () => {
+    const { dispatch, parentWindow, sdk } = createHarness();
+    const request = sdk.data.list({ limit: 20, tableKey: 'candidates' });
+
+    expect(parentWindow.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'data.list', type: 'request' }),
+      RUNTIME_ORIGIN,
+    );
+    dispatch({
+      data: {
+        channel: MODULE_APP_BRIDGE_CHANNEL,
+        id: 'request-1',
+        nonce: NONCE,
+        ok: true,
+        result: { items: [], nextCursor: null },
+        type: 'response',
+      },
+      origin: RUNTIME_ORIGIN,
+      source: parentWindow as never,
+    });
+    await expect(request).resolves.toEqual({ items: [], nextCursor: null });
+  });
 });

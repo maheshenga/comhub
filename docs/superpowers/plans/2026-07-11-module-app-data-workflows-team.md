@@ -168,7 +168,7 @@ git commit -m "feat: persist isolated module app data and workflows"
 - Produces: SDK methods `data.list`, `data.get`, `data.insert`, `data.update`, `data.archive`, and `data.transaction`.
 - Consumes: verified installation capability and `ModuleAppDataModel`.
 
-- [ ] **Step 1: Add failing permission, constraint, and pagination tests**
+- [x] **Step 1: Add failing permission, constraint, and pagination tests**
 
 ```ts
 await expect(service.insert({ capability: readOnly, tableKey: 'jobs', values })).rejects.toThrow('MODULE_APP_CAPABILITY_DENIED');
@@ -176,13 +176,13 @@ await expect(service.insert({ capability: writer, tableKey: 'jobs', values: { em
 expect((await service.list({ capability: reader, limit: 20, tableKey: 'jobs' })).nextCursor).toBeDefined();
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `bunx vitest run --silent='passed-only' packages/business-server/src/module-apps/data/schemaValidator.test.ts packages/business-server/src/module-apps/data/service.test.ts packages/module-app-sdk/src/client.test.ts apps/server/src/routers/lambda/moduleApp.test.ts`
 
 Expected: FAIL because managed data handlers are absent.
 
-- [ ] **Step 3: Implement logical relational enforcement**
+- [x] **Step 3: Implement logical relational enforcement**
 
 ```ts
 export interface ModuleAppDataService {
@@ -194,7 +194,7 @@ export interface ModuleAppDataService {
 
 Validate required fields, types, unique indexes, and references inside one database transaction. Reject undeclared fields unless the schema explicitly allows additional JSON. Apply maximum 100 operations per transaction, 100 rows per page, and bounded response bytes.
 
-- [ ] **Step 4: Verify data service behavior and commit**
+- [x] **Step 4: Verify data service behavior and commit**
 
 Run the focused command from Step 2.
 

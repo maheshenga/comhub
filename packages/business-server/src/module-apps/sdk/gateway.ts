@@ -1,5 +1,6 @@
 import type { ModuleAppCapabilityClaims } from '@lobechat/types';
 
+import type { ModuleAppDataService } from '../data/service';
 import {
   assertModuleAppContextScope,
   type ModuleAppContextResolver,
@@ -12,6 +13,12 @@ import type { ModuleAppSecretsGateway } from './secrets';
 
 export type ModuleAppGatewayMethod =
   | 'context.get'
+  | 'data.archive'
+  | 'data.get'
+  | 'data.insert'
+  | 'data.list'
+  | 'data.transaction'
+  | 'data.update'
   | 'files.createDownload'
   | 'files.createUpload'
   | 'http.fetch'
@@ -20,6 +27,12 @@ export type ModuleAppGatewayMethod =
 
 const requiredPermission: Record<ModuleAppGatewayMethod, null | string> = {
   'context.get': null,
+  'data.archive': 'data.write',
+  'data.get': 'data.read',
+  'data.insert': 'data.write',
+  'data.list': 'data.read',
+  'data.transaction': 'data.write',
+  'data.update': 'data.write',
   'files.createDownload': 'files.read',
   'files.createUpload': 'files.write',
   'http.fetch': 'http.fetch',
@@ -28,6 +41,10 @@ const requiredPermission: Record<ModuleAppGatewayMethod, null | string> = {
 };
 
 const mutationMethods = new Set<ModuleAppGatewayMethod>([
+  'data.archive',
+  'data.insert',
+  'data.transaction',
+  'data.update',
   'files.createUpload',
   'http.fetch',
   'notifications.create',
@@ -54,6 +71,7 @@ export class ModuleAppReplayGuard {
 
 type GatewayOptions = {
   context: ModuleAppContextResolver;
+  data: ModuleAppDataService;
   files: ModuleAppFileGateway;
   http: ModuleAppHttpGateway;
   notifications: ModuleAppNotificationGateway;
@@ -63,6 +81,7 @@ type GatewayOptions = {
 
 export class ModuleAppCapabilityGateway {
   private readonly context: ModuleAppContextResolver;
+  private readonly data: ModuleAppDataService;
   private readonly files: ModuleAppFileGateway;
   private readonly http: ModuleAppHttpGateway;
   private readonly notifications: ModuleAppNotificationGateway;
@@ -71,6 +90,7 @@ export class ModuleAppCapabilityGateway {
 
   constructor(options: GatewayOptions) {
     this.context = options.context;
+    this.data = options.data;
     this.files = options.files;
     this.http = options.http;
     this.notifications = options.notifications;
@@ -98,6 +118,24 @@ export class ModuleAppCapabilityGateway {
     switch (params.method) {
       case 'context.get': {
         return serializeModuleAppContext(context);
+      }
+      case 'data.archive': {
+        return this.data.archive({ capability: params.capability, input: params.input });
+      }
+      case 'data.get': {
+        return this.data.get({ capability: params.capability, input: params.input });
+      }
+      case 'data.insert': {
+        return this.data.insert({ capability: params.capability, input: params.input });
+      }
+      case 'data.list': {
+        return this.data.list({ capability: params.capability, input: params.input });
+      }
+      case 'data.transaction': {
+        return this.data.transaction({ capability: params.capability, input: params.input });
+      }
+      case 'data.update': {
+        return this.data.update({ capability: params.capability, input: params.input });
       }
       case 'files.createDownload': {
         return this.files.createDownload(params.capability, params.input);

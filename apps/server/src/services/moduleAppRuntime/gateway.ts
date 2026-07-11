@@ -1,5 +1,6 @@
 import type { ModuleAppCapabilityClaims } from '@lobechat/types';
 
+import { ModuleAppDataService } from '@/business/server/module-apps/data/service';
 import { ModuleAppFileGateway } from '@/business/server/module-apps/sdk/files';
 import {
   ModuleAppCapabilityGateway,
@@ -12,6 +13,7 @@ import {
 } from '@/business/server/module-apps/sdk/notifications';
 import { ModuleAppSecretsGateway } from '@/business/server/module-apps/sdk/secrets';
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppDataModel } from '@/database/models/moduleAppData';
 import { NotificationModel } from '@/database/models/notification';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { LobeChatDatabase } from '@/database/type';
@@ -73,6 +75,7 @@ export const createModuleAppCapabilityGateway = (params: {
         };
       },
     },
+    data: new ModuleAppDataService({ repository: new ModuleAppDataModel(params.db) }),
     files: new ModuleAppFileGateway({ storage: new FileS3() }),
     http: new ModuleAppHttpGateway(),
     notifications: new ModuleAppNotificationGateway({

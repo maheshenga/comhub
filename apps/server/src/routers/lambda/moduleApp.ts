@@ -67,6 +67,12 @@ const ModuleAppGatewayCallInputSchema = z.object({
   input: z.unknown().optional(),
   method: z.enum([
     'context.get',
+    'data.archive',
+    'data.get',
+    'data.insert',
+    'data.list',
+    'data.transaction',
+    'data.update',
     'files.createDownload',
     'files.createUpload',
     'http.fetch',
@@ -189,6 +195,7 @@ const mapGatewayError = (error: unknown) => {
   }
   if (
     identifier.startsWith('MODULE_APP_FILE_') ||
+    identifier.startsWith('MODULE_APP_DATA_') ||
     identifier.startsWith('MODULE_APP_HTTP_') ||
     identifier.startsWith('MODULE_APP_NOTIFICATION_') ||
     identifier.startsWith('MODULE_APP_SECRET_') ||

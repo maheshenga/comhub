@@ -126,6 +126,7 @@ export const moduleAppDataFilterSchema = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_data_prefix_invalid' });
     }
   });
+export type ModuleAppDataFilter = z.infer<typeof moduleAppDataFilterSchema>;
 
 export const moduleAppDataSortSchema = z
   .object({
@@ -133,6 +134,7 @@ export const moduleAppDataSortSchema = z
     field: moduleAppDataKeySchema,
   })
   .strict();
+export type ModuleAppDataSort = z.infer<typeof moduleAppDataSortSchema>;
 
 export const moduleAppDataQuerySchema = z
   .object({
@@ -144,13 +146,50 @@ export const moduleAppDataQuerySchema = z
   })
   .strict();
 export type ModuleAppDataQuery = z.infer<typeof moduleAppDataQuerySchema>;
+export type ModuleAppDataQueryInput = z.input<typeof moduleAppDataQuerySchema>;
+
+const moduleAppDataValuesSchema = z.record(z.unknown());
+const moduleAppDataRowIdentitySchema = z
+  .object({
+    rowKey: z.string().min(1).max(160),
+    tableKey: moduleAppDataKeySchema,
+  })
+  .strict();
+
+export const moduleAppDataGetInputSchema = moduleAppDataRowIdentitySchema;
+export type ModuleAppDataGetInput = z.infer<typeof moduleAppDataGetInputSchema>;
+
+export const moduleAppDataArchiveInputSchema = moduleAppDataRowIdentitySchema;
+export type ModuleAppDataArchiveInput = z.infer<typeof moduleAppDataArchiveInputSchema>;
+
+export const moduleAppDataInsertInputSchema = z
+  .object({
+    rowKey: z.string().min(1).max(160).optional(),
+    tableKey: moduleAppDataKeySchema,
+    values: moduleAppDataValuesSchema,
+  })
+  .strict();
+export type ModuleAppDataInsertInput = z.infer<typeof moduleAppDataInsertInputSchema>;
+
+export const moduleAppDataUpdateInputSchema = z
+  .object({
+    rowKey: z.string().min(1).max(160),
+    tableKey: moduleAppDataKeySchema,
+    values: moduleAppDataValuesSchema,
+  })
+  .strict()
+  .refine((input) => Object.keys(input.values).length > 0, {
+    message: 'module_app_data_update_values_required',
+    path: ['values'],
+  });
+export type ModuleAppDataUpdateInput = z.infer<typeof moduleAppDataUpdateInputSchema>;
 
 const moduleAppDataInsertOperationSchema = z
   .object({
     operation: z.literal('insert'),
     rowKey: z.string().min(1).max(160).optional(),
     tableKey: moduleAppDataKeySchema,
-    values: z.record(z.unknown()),
+    values: moduleAppDataValuesSchema,
   })
   .strict();
 
@@ -159,7 +198,7 @@ const moduleAppDataUpdateOperationSchema = z
     operation: z.literal('update'),
     rowKey: z.string().min(1).max(160),
     tableKey: moduleAppDataKeySchema,
-    values: z.record(z.unknown()),
+    values: moduleAppDataValuesSchema,
   })
   .strict();
 

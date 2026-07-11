@@ -140,4 +140,141 @@ describe('ModuleAppDataModel', () => {
       }),
     ).resolves.toMatchObject({ rowKey: 'same-key' });
   });
+
+  it('selects the latest active schema and paginates active rows', async () => {
+    const installation = await createInstallation();
+    const model = new ModuleAppDataModel(serverDB);
+    const schema = {
+      fields: [
+        { key: 'email', required: true, type: 'string' as const },
+        { key: 'score', type: 'number' as const },
+      ],
+      indexes: [{ fields: ['score'] }],
+      key: 'candidates',
+    };
+    await model.createSchema({ installationId: installation.id, schema, tableKey: 'candidates', version: 1 });
+    await model.createSchema({ installationId: installation.id, schema, tableKey: 'candidates', version: 2 });
+    await expect(
+      model.getActiveSchema({ installationId: installation.id, tableKey: 'candidates' }),
+    ).resolves.toMatchObject({ version: 2 });
+
+    for (const [rowKey, score] of [
+      ['one', 10],
+      ['two', 20],
+      ['three', 30],
+    ] as const) {
+      await model.insertRow({
+        installationId: installation.id,
+        rowKey,
+        schemaVersion: 2,
+        schemaSnapshot: schema,
+        tableKey: 'candidates',
+        values: { email: `${rowKey}@example.com`, score },
+      });
+    }
+
+    const first = await model.listRows({
+      fieldTypes: { score: 'number' },
+      installationId: installation.id,
+      limit: 2,
+      sort: [{ direction: 'asc' as const, field: 'score' }],
+      tableKey: 'candidates',
+    });
+    expect(first.items.map((item) => item.rowKey)).toEqual(['one', 'two']);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    const second = await model.listRows({
+      cursor: first.nextCursor!,
+      fieldTypes: { score: 'number' },
+      installationId: installation.id,
+      limit: 2,
+      sort: [{ direction: 'asc' as const, field: 'score' }],
+      tableKey: 'candidates',
+    });
+    expect(second.items.map((item) => item.rowKey)).toEqual(['three']);
+
+    await model.archiveRow({ installationId: installation.id, rowKey: 'two', tableKey: 'candidates' });
+    const active = await model.listRows({
+      fieldTypes: {},
+      installationId: installation.id,
+      limit: 10,
+      tableKey: 'candidates',
+    });
+    expect(active.items.map((item) => item.rowKey).sort()).toEqual(['one', 'three']);
+  });
+
+  it('enforces logical unique indexes and references inside transactions', async () => {
+    const installation = await createInstallation();
+    const model = new ModuleAppDataModel(serverDB);
+    const candidates = {
+      fields: [{ key: 'email', required: true, type: 'string' as const }],
+      indexes: [{ fields: ['email'], unique: true }],
+      key: 'candidates',
+    };
+    const applications = {
+      fields: [
+        {
+          key: 'candidate',
+          reference: { field: 'id', tableKey: 'candidates' },
+          required: true,
+          type: 'reference' as const,
+        },
+      ],
+      indexes: [],
+      key: 'applications',
+    };
+    await model.createSchema({ installationId: installation.id, schema: candidates, tableKey: 'candidates', version: 1 });
+    await model.createSchema({ installationId: installation.id, schema: applications, tableKey: 'applications', version: 1 });
+    await model.insertRow({
+      installationId: installation.id,
+      rowKey: 'candidate-1',
+      schemaSnapshot: candidates,
+      schemaVersion: 1,
+      tableKey: 'candidates',
+      values: { email: 'one@example.com' },
+    });
+    await expect(
+      model.insertRow({
+        installationId: installation.id,
+        rowKey: 'candidate-duplicate',
+        schemaSnapshot: candidates,
+        schemaVersion: 1,
+        tableKey: 'candidates',
+        values: { email: 'one@example.com' },
+      }),
+    ).rejects.toThrow('MODULE_APP_DATA_UNIQUE_CONSTRAINT');
+    await expect(
+      model.insertRow({
+        installationId: installation.id,
+        rowKey: 'application-missing',
+        schemaSnapshot: applications,
+        schemaVersion: 1,
+        tableKey: 'applications',
+        values: { candidate: 'missing' },
+      }),
+    ).rejects.toThrow('MODULE_APP_DATA_REFERENCE_NOT_FOUND');
+
+    await expect(
+      model.transaction({
+        installationId: installation.id,
+        operations: [
+          {
+            operation: 'insert',
+            rowKey: 'candidate-2',
+            schemaSnapshot: candidates,
+            schemaVersion: 1,
+            tableKey: 'candidates',
+            values: { email: 'two@example.com' },
+          },
+          {
+            operation: 'insert',
+            rowKey: 'application-2',
+            schemaSnapshot: applications,
+            schemaVersion: 1,
+            tableKey: 'applications',
+            values: { candidate: 'candidate-2' },
+          },
+        ],
+      }),
+    ).resolves.toHaveLength(2);
+  });
 });

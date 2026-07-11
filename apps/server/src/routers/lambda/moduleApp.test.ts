@@ -270,6 +270,42 @@ describe('moduleApp router registration', () => {
     );
   });
 
+  it('accepts managed data gateway methods', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+    mockModuleAppGateway.call.mockResolvedValueOnce({ items: [], nextCursor: null });
+
+    await expect(
+      createCaller().callSdk({
+        capability: 'signed-capability',
+        input: { tableKey: 'candidates' },
+        method: 'data.list',
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+  });
+
+  it('maps managed data validation errors to bad requests', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+    mockModuleAppGateway.call.mockRejectedValueOnce(
+      new Error('MODULE_APP_DATA_SCHEMA_INVALID'),
+    );
+
+    await expect(
+      createCaller().callSdk({
+        capability: 'signed-capability',
+        input: { tableKey: 'candidates' },
+        method: 'data.list',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
   it('rechecks the current plan before a browser capability gateway call', async () => {
     await expect(
       createCaller().callSdk({

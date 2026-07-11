@@ -1,3 +1,13 @@
+import type {
+  ModuleAppDataArchiveInput,
+  ModuleAppDataGetInput,
+  ModuleAppDataInsertInput,
+  ModuleAppDataQueryInput,
+  ModuleAppDataRow,
+  ModuleAppDataTransaction,
+  ModuleAppDataUpdateInput,
+} from '@lobechat/types';
+
 import {
   isModuleAppBridgeEvent,
   isModuleAppBridgeLaunch,
@@ -50,6 +60,17 @@ export class ModuleAppSdkError extends Error {
 
 export interface ModuleAppSdk {
   context: <T extends Record<string, unknown> = Record<string, unknown>>() => Promise<T>;
+  data: {
+    archive: (input: ModuleAppDataArchiveInput) => Promise<ModuleAppDataRow>;
+    get: (input: ModuleAppDataGetInput) => Promise<ModuleAppDataRow | null>;
+    insert: (input: ModuleAppDataInsertInput) => Promise<ModuleAppDataRow>;
+    list: (input: ModuleAppDataQueryInput) => Promise<{
+      items: ModuleAppDataRow[];
+      nextCursor: null | string;
+    }>;
+    transaction: (input: ModuleAppDataTransaction) => Promise<ModuleAppDataRow[]>;
+    update: (input: ModuleAppDataUpdateInput) => Promise<ModuleAppDataRow>;
+  };
   dispose: () => void;
   invoke: <T = unknown>(method: string, input?: unknown) => Promise<T>;
   on: (event: ModuleAppSdkEvent, listener: ModuleAppSdkListener) => () => void;
@@ -187,6 +208,15 @@ export const createModuleAppSdk = (options: ModuleAppSdkOptions): ModuleAppSdk =
   return {
     context: <T extends Record<string, unknown> = Record<string, unknown>>() =>
       invoke<T>('context.get'),
+    data: {
+      archive: (input) => invoke<ModuleAppDataRow>('data.archive', input),
+      get: (input) => invoke<ModuleAppDataRow | null>('data.get', input),
+      insert: (input) => invoke<ModuleAppDataRow>('data.insert', input),
+      list: (input) =>
+        invoke<{ items: ModuleAppDataRow[]; nextCursor: null | string }>('data.list', input),
+      transaction: (input) => invoke<ModuleAppDataRow[]>('data.transaction', input),
+      update: (input) => invoke<ModuleAppDataRow>('data.update', input),
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;

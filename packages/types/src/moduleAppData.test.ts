@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  moduleAppDataArchiveInputSchema,
+  moduleAppDataGetInputSchema,
+  moduleAppDataInsertInputSchema,
   moduleAppDataQuerySchema,
   moduleAppDataTransactionSchema,
+  moduleAppDataUpdateInputSchema,
   moduleAppTableSchema,
 } from './moduleAppData';
 
@@ -74,6 +78,28 @@ describe('module app managed data contracts', () => {
     expect(moduleAppDataTransactionSchema.parse({ operations: [operation] }).operations).toHaveLength(1);
     expect(() =>
       moduleAppDataTransactionSchema.parse({ operations: Array.from({ length: 101 }, () => operation) }),
+    ).toThrow();
+  });
+
+  it('defines strict row mutation inputs', () => {
+    expect(
+      moduleAppDataInsertInputSchema.parse({
+        rowKey: 'candidate-1',
+        tableKey: 'candidates',
+        values: { email: 'candidate@example.com' },
+      }),
+    ).toMatchObject({ tableKey: 'candidates' });
+    expect(
+      moduleAppDataUpdateInputSchema.parse({
+        rowKey: 'candidate-1',
+        tableKey: 'candidates',
+        values: { score: 90 },
+      }),
+    ).toMatchObject({ rowKey: 'candidate-1' });
+    expect(moduleAppDataGetInputSchema.parse({ rowKey: 'candidate-1', tableKey: 'candidates' })).toBeDefined();
+    expect(moduleAppDataArchiveInputSchema.parse({ rowKey: 'candidate-1', tableKey: 'candidates' })).toBeDefined();
+    expect(() =>
+      moduleAppDataUpdateInputSchema.parse({ tableKey: 'candidates', values: {} }),
     ).toThrow();
   });
 });
