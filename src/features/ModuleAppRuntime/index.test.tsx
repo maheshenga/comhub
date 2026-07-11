@@ -14,6 +14,10 @@ vi.mock('./PageRenderer', () => ({
   ),
 }));
 
+vi.mock('./RecentRunResult', () => ({
+  default: () => <div data-testid="recent-run-result" />,
+}));
+
 const context: ModuleAppLaunchContext = {
   capability: 'signed-capability',
   displayName: 'Jobs Board',
@@ -29,6 +33,7 @@ describe('ModuleAppRuntimeView', () => {
     render(<ModuleAppRuntimeView context={context} loading={false} onRetry={vi.fn()} />);
 
     expect(screen.getByTestId('runtime-frame')).toHaveTextContent('Jobs Board');
+    expect(screen.getByTestId('recent-run-result')).toBeInTheDocument();
   });
 
   it.each([

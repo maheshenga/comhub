@@ -1,5 +1,16 @@
 # Internal Changelog
 
+## 2026-07-12
+
+### Module App Purchase And Usage UX
+
+- MODULE-APP-COMMERCE-011: Added append-only developer revenue accrual, refund reversal, delayed settlement batches, finance-permission administration, and audit-backed Commerce controls. Resource costs remain excluded from developer revenue share.
+- MODULE-APP-COMMERCE-012: Added server-catalog checkout UX with personal/team scope isolation, monthly/yearly product selection, immutable promotion breakdowns, pending-payment cancellation, paid activation blocking, cancelled/refunded status, and license-only authorization. The UI never presents a pending order as purchased and does not accept browser-supplied prices or settlement state.
+- MODULE-APP-COMMERCE-013: Added runtime cost visibility from persisted server snapshots, including AI base credits, module multiplier, fixed service fee, external API credits, total settled credits, model/provider output metadata, and artifact count. The browser does not recompute settled charges.
+- Payment boundary: online payment remains unavailable. Orders stay pending until the audited admin/manual settlement adapter or a future verified payment webhook settles them. Paid orders cannot be duplicated while license activation is pending.
+- Scope boundary: team products, orders, licenses, launch links, and runtime history require the explicit `workspaceId` context and current server-side workspace membership. Personal and team catalog/order state are not mixed in the detail page.
+- Configuration and deployment: no new app setting, environment variable, external service, Docker service, bind mount, or runtime enablement. Migrations `0138_add_module_app_commerce.sql` and `0139_add_module_app_revenue.sql` must be applied before enabling the commerce path. Production Module App execution remains disabled.
+
 ## 2026-07-11
 
 ### Module App Commerce And AI Settlement

@@ -11,6 +11,7 @@ import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import { moduleAppService } from '@/services/moduleApp';
 
 import PageRenderer from './PageRenderer';
+import RecentRunResult from './RecentRunResult';
 import WorkflowProgress from './WorkflowProgress';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -106,6 +107,7 @@ export const ModuleAppRuntimeView = memo<ModuleAppRuntimeViewProps>(
     return (
       <div className={styles.root} data-testid="module-app-runtime">
         <PageRenderer context={context} />
+        <RecentRunResult installationId={context.installationId} workspaceId={workspaceId} />
         {runId && (
           <WorkflowProgress
             installationId={context.installationId}
