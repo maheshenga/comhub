@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS "module_app_payment_discrepancies" (
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "resolved_at" timestamp with time zone,
   CONSTRAINT "module_app_payment_discrepancies_provider_check" CHECK ("provider" IN ('alipay')),
-  CONSTRAINT "module_app_payment_discrepancies_kind_check" CHECK ("kind" IN ('amount_mismatch', 'currency_mismatch', 'order_not_found', 'provider_mismatch', 'settlement_failed')),
+  CONSTRAINT "module_app_payment_discrepancies_kind_check" CHECK ("kind" IN ('amount_mismatch', 'currency_mismatch', 'duplicate_event', 'local_paid_provider_unpaid', 'local_unpaid_provider_paid', 'order_not_found', 'provider_mismatch', 'refund_mismatch', 'settlement_failed', 'wrong_seller')),
   CONSTRAINT "module_app_payment_discrepancies_status_check" CHECK ("status" IN ('open', 'resolved'))
 );
 --> statement-breakpoint

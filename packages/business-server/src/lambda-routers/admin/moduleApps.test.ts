@@ -30,6 +30,21 @@ const moduleAppOrderRevenueMocks = vi.hoisted(() => ({
   settleOrder: vi.fn(),
 }));
 
+const moduleAppPaymentMocks = vi.hoisted(() => ({
+  reconcilePayment: vi.fn(),
+  reconcilePendingPayments: vi.fn(),
+  reconcileRefund: vi.fn(),
+  refundOrder: vi.fn(),
+}));
+
+const moduleAppPaymentModelMocks = vi.hoisted(() => ({
+  acknowledgeDiscrepancy: vi.fn(),
+  listDiscrepancies: vi.fn(),
+}));
+
+const mockAppEnv = vi.hoisted(() => ({ MODULE_APP_ALIPAY_ENABLED: true }));
+const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
+
 const lifecycleMocks = vi.hoisted(() => ({
   releaseRejectedPackage: vi.fn(),
   rescanLegacyPackage: vi.fn(),
@@ -45,6 +60,20 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('@/database/models/moduleApp', () => ({
   ModuleAppModel: vi.fn(() => moduleAppModelMocks),
+}));
+
+vi.mock('@/database/models/moduleAppPayment', () => ({
+  ModuleAppPaymentModel: vi.fn(() => moduleAppPaymentModelMocks),
+}));
+
+vi.mock('@/envs/app', () => ({ appEnv: mockAppEnv }));
+
+vi.mock('@/server/services/moduleAppPayments/alipay/client', () => ({
+  createConfiguredModuleAppAlipayClient: mockCreateConfiguredModuleAppAlipayClient,
+}));
+
+vi.mock('../../module-apps/payments/service', () => ({
+  ModuleAppPaymentService: vi.fn(() => moduleAppPaymentMocks),
 }));
 
 vi.mock('@/database/models/moduleAppCommerce', () => ({
@@ -206,6 +235,13 @@ describe('admin module apps router', () => {
     });
     moduleAppOrderRevenueMocks.settleOrder.mockResolvedValue({ id: ORDER_ID, status: 'paid' });
     moduleAppOrderRevenueMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
+    mockAppEnv.MODULE_APP_ALIPAY_ENABLED = true;
+    moduleAppPaymentMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
+    moduleAppPaymentMocks.reconcilePayment.mockResolvedValue({ status: 'paid' });
+    moduleAppPaymentMocks.reconcilePendingPayments.mockResolvedValue({ count: 0, results: [] });
+    moduleAppPaymentMocks.reconcileRefund.mockResolvedValue({ status: 'succeeded' });
+    moduleAppPaymentModelMocks.acknowledgeDiscrepancy.mockResolvedValue({ status: 'resolved' });
+    moduleAppPaymentModelMocks.listDiscrepancies.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppRevenueMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppRevenueMocks.settleBatchWithAudit.mockResolvedValue({
       batchId: '00000000-0000-4000-8000-000000000031',
@@ -444,6 +480,61 @@ describe('admin module apps router', () => {
       orderId: ORDER_ID,
       reason: 'customer_request',
     });
+  });
+
+  it('requests an Alipay refund through the provider payment service', async () => {
+    const caller = createCaller();
+    await expect(
+      caller.moduleApps.refundPaymentOrder({ orderId: ORDER_ID, reason: 'customer_request' }),
+    ).resolves.toMatchObject({ status: 'refunded' });
+    expect(moduleAppPaymentMocks.refundOrder).toHaveBeenCalledWith({
+      actorUserId: 'admin-user',
+      orderId: ORDER_ID,
+      reason: 'customer_request',
+    });
+  });
+
+  it('runs bounded payment reconciliation operations through finance permission', async () => {
+    const caller = createCaller();
+    await expect(caller.moduleApps.retryPaymentQuery({ outTradeNo: 'out-1' })).resolves.toEqual({
+      status: 'paid',
+    });
+    await expect(caller.moduleApps.reconcilePendingPayments({ limit: 25 })).resolves.toEqual({
+      count: 0,
+      results: [],
+    });
+    await expect(caller.moduleApps.retryRefundStatus({ orderId: ORDER_ID })).resolves.toEqual({
+      status: 'succeeded',
+    });
+    expect(moduleAppPaymentMocks.reconcilePayment).toHaveBeenCalledWith({ outTradeNo: 'out-1' });
+    expect(moduleAppPaymentMocks.reconcilePendingPayments).toHaveBeenCalledWith({ limit: 25 });
+    expect(moduleAppPaymentMocks.reconcileRefund).toHaveBeenCalledWith({
+      actorUserId: 'admin-user',
+      orderId: ORDER_ID,
+    });
+  });
+
+  it('acknowledges and exports bounded payment discrepancies', async () => {
+    const caller = createCaller();
+    const discrepancyId = '00000000-0000-4000-8000-000000000041';
+    await expect(
+      caller.moduleApps.acknowledgePaymentDiscrepancy({ discrepancyId }),
+    ).resolves.toMatchObject({ status: 'resolved' });
+    await expect(
+      caller.moduleApps.exportPaymentReconciliation({ limit: 500, status: 'open' }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(moduleAppPaymentModelMocks.listDiscrepancies).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 500,
+      status: 'open',
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.payment_discrepancy_acknowledged',
+        resourceId: discrepancyId,
+      }),
+    );
   });
 
   it('lists bounded module app revenue entries', async () => {

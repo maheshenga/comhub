@@ -220,4 +220,65 @@ describe('ModuleAppPaymentService', () => {
     await expect(service.refundOrder({ orderId: order.id, reason: 'customer request' })).resolves.toMatchObject({ status: 'refunded' });
     expect(adapter.refund).toHaveBeenCalledOnce();
   });
+
+  it('reconciles a provider-paid pending order and records the state mismatch', async () => {
+    const adapter = createAdapter();
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+      subject: 'Payment test',
+    });
+    (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'query-paid-1',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      providerTransactionId: 'trade-query-1',
+      totalAmount: '1234.000000',
+    });
+
+    await expect(service.reconcilePayment({ outTradeNo: payment.outTradeNo })).resolves.toMatchObject({
+      status: 'paid',
+    });
+    await expect(serverDB.query.moduleAppPaymentDiscrepancies.findFirst()).resolves.toMatchObject({
+      kind: 'local_unpaid_provider_paid',
+    });
+  });
+
+  it('records local-paid provider-unpaid reconciliation drift', async () => {
+    const adapter = createAdapter();
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+      subject: 'Payment test',
+    });
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'notify-local-paid',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      providerTransactionId: 'trade-local-paid',
+      totalAmount: '1234.000000',
+    });
+    await service.handleNotification({ body: 'signed', headers: {} });
+    (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    await expect(service.reconcilePayment({ outTradeNo: payment.outTradeNo })).resolves.toMatchObject({
+      localStatus: 'paid',
+      providerStatus: 'pending',
+    });
+    await expect(serverDB.query.moduleAppPaymentDiscrepancies.findFirst()).resolves.toMatchObject({
+      kind: 'local_paid_provider_unpaid',
+    });
+  });
 });

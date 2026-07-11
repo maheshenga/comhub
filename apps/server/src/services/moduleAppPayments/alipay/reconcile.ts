@@ -11,3 +11,8 @@ export const reconcileModuleAppAlipayPayment = async (input: {
   if (!event) return null;
   return input.service.handleNormalizedEvent(event);
 };
+
+export const reconcilePendingModuleAppAlipayPayments = (input: {
+  limit?: number;
+  service: ModuleAppPaymentService;
+}) => input.service.reconcilePendingPayments({ limit: input.limit });

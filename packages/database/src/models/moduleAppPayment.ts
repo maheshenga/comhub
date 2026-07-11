@@ -1,6 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import {
+  moduleAppOrders,
   moduleAppPaymentAttempts,
   moduleAppPaymentDiscrepancies,
   moduleAppPaymentEvents,
@@ -195,6 +196,70 @@ export class ModuleAppPaymentModel {
       where: eq(moduleAppPaymentRefunds.orderId, orderId),
     });
 
+  updateRefundStatus = async (input: {
+    orderId: string;
+    status: 'requested' | 'succeeded' | 'failed';
+  }) => {
+    const [refund] = await this.db
+      .update(moduleAppPaymentRefunds)
+      .set({ status: input.status })
+      .where(eq(moduleAppPaymentRefunds.orderId, input.orderId))
+      .returning();
+    if (!refund) throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_FOUND');
+    return refund;
+  };
+
+  listPendingPaymentAttempts = (limit = 100) =>
+    this.db
+      .select({
+        orderId: moduleAppPaymentAttempts.orderId,
+        outTradeNo: moduleAppPaymentAttempts.outTradeNo,
+      })
+      .from(moduleAppPaymentAttempts)
+      .innerJoin(moduleAppOrders, eq(moduleAppOrders.id, moduleAppPaymentAttempts.orderId))
+      .where(
+        and(
+          eq(moduleAppOrders.status, 'pending'),
+          inArray(moduleAppPaymentAttempts.status, ['created', 'pending']),
+        ),
+      )
+      .orderBy(asc(moduleAppPaymentAttempts.createdAt))
+      .limit(Math.min(200, Math.max(1, limit)));
+
+  listDiscrepancies = async (input: {
+    cursor?: number;
+    limit?: number;
+    status?: 'open' | 'resolved';
+  } = {}) => {
+    const cursor = Math.max(0, Math.floor(input.cursor ?? 0));
+    const limit = Math.min(500, Math.max(1, Math.floor(input.limit ?? 50)));
+    const items = await this.db.query.moduleAppPaymentDiscrepancies.findMany({
+      limit: limit + 1,
+      offset: cursor,
+      orderBy: (rows, { desc }) => [desc(rows.createdAt), desc(rows.id)],
+      where: input.status ? eq(moduleAppPaymentDiscrepancies.status, input.status) : undefined,
+    });
+    return {
+      items: items.slice(0, limit),
+      nextCursor: items.length > limit ? cursor + limit : null,
+    };
+  };
+
+  acknowledgeDiscrepancy = async (input: { discrepancyId: string; resolvedAt?: Date }) => {
+    const [discrepancy] = await this.db
+      .update(moduleAppPaymentDiscrepancies)
+      .set({ resolvedAt: input.resolvedAt ?? new Date(), status: 'resolved' })
+      .where(
+        and(
+          eq(moduleAppPaymentDiscrepancies.id, input.discrepancyId),
+          eq(moduleAppPaymentDiscrepancies.status, 'open'),
+        ),
+      )
+      .returning();
+    if (!discrepancy) throw new Error('MODULE_APP_PAYMENT_DISCREPANCY_NOT_OPEN');
+    return discrepancy;
+  };
+
   createDiscrepancy = async (input: {
     actualAmount?: string;
     actualCurrency?: string;
@@ -205,9 +270,14 @@ export class ModuleAppPaymentModel {
     kind:
       | 'amount_mismatch'
       | 'currency_mismatch'
+      | 'duplicate_event'
+      | 'local_paid_provider_unpaid'
+      | 'local_unpaid_provider_paid'
       | 'order_not_found'
       | 'provider_mismatch'
-      | 'settlement_failed';
+      | 'refund_mismatch'
+      | 'settlement_failed'
+      | 'wrong_seller';
     orderId?: string;
     outTradeNo: string;
     provider: 'alipay';

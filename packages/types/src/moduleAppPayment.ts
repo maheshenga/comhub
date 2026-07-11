@@ -35,9 +35,14 @@ export type ModuleAppPaymentRefundStatus = z.infer<typeof moduleAppPaymentRefund
 export const moduleAppPaymentDiscrepancyKindSchema = z.enum([
   'amount_mismatch',
   'currency_mismatch',
+  'duplicate_event',
+  'local_paid_provider_unpaid',
+  'local_unpaid_provider_paid',
   'order_not_found',
   'provider_mismatch',
+  'refund_mismatch',
   'settlement_failed',
+  'wrong_seller',
 ]);
 export type ModuleAppPaymentDiscrepancyKind = z.infer<
   typeof moduleAppPaymentDiscrepancyKindSchema

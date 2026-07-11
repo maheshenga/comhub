@@ -5,6 +5,7 @@ import { getTestDB } from '../../core/getTestDB';
 import {
   moduleAppOrders,
   moduleAppPaymentAttempts,
+  moduleAppPaymentDiscrepancies,
   moduleAppPaymentEvents,
   moduleAppPaymentRefunds,
   moduleAppPrices,
@@ -21,6 +22,7 @@ const USER_ID = 'module-app-payment-model-user';
 const serverDB: LobeChatDatabase = await getTestDB();
 
 beforeEach(async () => {
+  await serverDB.delete(moduleAppPaymentDiscrepancies);
   await serverDB.delete(moduleAppPaymentRefunds);
   await serverDB.delete(moduleAppPaymentEvents);
   await serverDB.delete(moduleAppPaymentAttempts);
@@ -90,5 +92,26 @@ describe('ModuleAppPaymentModel', () => {
 
     await expect(model.createRefund(input)).resolves.toMatchObject({ duplicate: false });
     await expect(model.createRefund(input)).resolves.toMatchObject({ duplicate: true });
+  });
+
+  it('lists and acknowledges bounded reconciliation discrepancies', async () => {
+    const model = new ModuleAppPaymentModel(serverDB);
+    const discrepancy = await model.createDiscrepancy({
+      discrepancyKey: 'local-paid:out-1',
+      kind: 'local_paid_provider_unpaid',
+      outTradeNo: 'out-1',
+      provider: 'alipay',
+    });
+
+    await expect(model.listDiscrepancies({ limit: 500, status: 'open' })).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: discrepancy.id, status: 'open' })],
+      nextCursor: null,
+    });
+    await expect(
+      model.acknowledgeDiscrepancy({ discrepancyId: discrepancy.id }),
+    ).resolves.toMatchObject({ status: 'resolved' });
+    await expect(
+      model.acknowledgeDiscrepancy({ discrepancyId: discrepancy.id }),
+    ).rejects.toThrow('MODULE_APP_PAYMENT_DISCREPANCY_NOT_OPEN');
   });
 });

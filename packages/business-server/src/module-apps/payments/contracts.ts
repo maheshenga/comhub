@@ -12,6 +12,10 @@ export interface ModuleAppPaymentAdapter {
     totalAmount: string;
   }) => Promise<{ body: string; outTradeNo: string }>;
   query: (input: { outTradeNo: string }) => Promise<ModuleAppNormalizedPaymentEvent | null>;
+  queryRefund?: (input: {
+    outRequestNo: string;
+    outTradeNo: string;
+  }) => Promise<{ status: 'failed' | 'pending' | 'succeeded' }>;
   refund: (input: {
     outTradeNo: string;
     reason: string;

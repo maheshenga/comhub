@@ -124,7 +124,16 @@ export class ModuleAppPaymentService {
       where: eq(moduleAppOrders.id, attempt.orderId),
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-    if (recorded.duplicate) return { duplicate: true, status: order.status };
+    if (recorded.duplicate) {
+      await this.model.createDiscrepancy({
+        discrepancyKey: `duplicate:${event.eventId}`,
+        kind: 'duplicate_event',
+        orderId: order.id,
+        outTradeNo: event.outTradeNo,
+        provider: event.provider,
+      });
+      return { duplicate: true, status: order.status };
+    }
     if (event.orderId && event.orderId !== order.id) {
       await this.rejectEvent({
         eventId: event.eventId,
@@ -210,7 +219,102 @@ export class ModuleAppPaymentService {
     return { duplicate: false, status: settled.status };
   };
 
-  refundOrder = async (input: { orderId: string; reason: string }) => {
+  reconcilePayment = async (input: { outTradeNo: string }) => {
+    const attempt = await this.model.getPaymentAttemptByOutTradeNo(input.outTradeNo);
+    if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
+    const order = await this.db.query.moduleAppOrders.findFirst({
+      where: eq(moduleAppOrders.id, attempt.orderId),
+    });
+    if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
+    const event = await this.adapter.query({ outTradeNo: input.outTradeNo });
+    if (!event) {
+      if (order.status === 'paid') {
+        await this.model.createDiscrepancy({
+          discrepancyKey: `local-paid:${input.outTradeNo}`,
+          kind: 'local_paid_provider_unpaid',
+          orderId: order.id,
+          outTradeNo: input.outTradeNo,
+          provider: 'alipay',
+        });
+      }
+      return { localStatus: order.status, providerStatus: 'pending' as const };
+    }
+    if (event.eventType === 'payment_succeeded' && order.status === 'pending') {
+      await this.model.createDiscrepancy({
+        actualAmount: event.totalAmount,
+        actualCurrency: event.currency,
+        discrepancyKey: `provider-paid:${event.eventId}`,
+        kind: 'local_unpaid_provider_paid',
+        orderId: order.id,
+        outTradeNo: input.outTradeNo,
+        provider: 'alipay',
+      });
+    } else if (event.eventType === 'payment_failed' && order.status === 'paid') {
+      await this.model.createDiscrepancy({
+        discrepancyKey: `provider-unpaid:${event.eventId}`,
+        kind: 'local_paid_provider_unpaid',
+        orderId: order.id,
+        outTradeNo: input.outTradeNo,
+        provider: 'alipay',
+      });
+    }
+    const result = await this.handleNormalizedEvent(event);
+    return { ...result, providerStatus: event.eventType };
+  };
+
+  reconcilePendingPayments = async (input: { limit?: number } = {}) => {
+    const attempts = await this.model.listPendingPaymentAttempts(input.limit ?? 100);
+    const results = [];
+    for (const attempt of attempts) {
+      try {
+        results.push({
+          outTradeNo: attempt.outTradeNo,
+          result: await this.reconcilePayment({ outTradeNo: attempt.outTradeNo }),
+        });
+      } catch (error) {
+        results.push({
+          error: error instanceof Error ? error.message : 'MODULE_APP_PAYMENT_RECONCILE_FAILED',
+          outTradeNo: attempt.outTradeNo,
+        });
+      }
+    }
+    return { count: attempts.length, results };
+  };
+
+  reconcileRefund = async (input: { actorUserId: string; orderId: string }) => {
+    if (!this.adapter.queryRefund) throw new Error('MODULE_APP_PAYMENT_REFUND_QUERY_UNSUPPORTED');
+    const [attempt, refund, order] = await Promise.all([
+      this.model.getPaymentAttemptByOrderId(input.orderId),
+      this.model.getRefundByOrderId(input.orderId),
+      this.db.query.moduleAppOrders.findFirst({ where: eq(moduleAppOrders.id, input.orderId) }),
+    ]);
+    if (!attempt || !refund || !order) throw new Error('MODULE_APP_PAYMENT_REFUND_NOT_FOUND');
+    const result = await this.adapter.queryRefund({
+      outRequestNo: refund.providerRefundId,
+      outTradeNo: attempt.outTradeNo,
+    });
+    if (result.status !== 'succeeded') {
+      await this.model.createDiscrepancy({
+        discrepancyKey: `refund:${refund.providerRefundId}:${result.status}`,
+        kind: 'refund_mismatch',
+        orderId: order.id,
+        outTradeNo: attempt.outTradeNo,
+        provider: 'alipay',
+      });
+      return result;
+    }
+    await this.model.updateRefundStatus({ orderId: order.id, status: 'succeeded' });
+    if (order.status !== 'refunded') {
+      await new ModuleAppOrderRevenueService(this.db).refundOrder({
+        actorUserId: input.actorUserId,
+        orderId: order.id,
+        reason: refund.reason,
+      });
+    }
+    return result;
+  };
+
+  refundOrder = async (input: { actorUserId?: string; orderId: string; reason: string }) => {
     const order = await this.db.query.moduleAppOrders.findFirst({
       where: eq(moduleAppOrders.id, input.orderId),
     });
@@ -244,7 +348,7 @@ export class ModuleAppPaymentService {
       if (result.status !== 'succeeded') throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
     }
     return new ModuleAppOrderRevenueService(this.db).refundOrder({
-      actorUserId: order.purchaserUserId,
+      actorUserId: input.actorUserId ?? order.purchaserUserId,
       orderId: order.id,
       reason: input.reason,
     });

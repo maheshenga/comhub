@@ -9,12 +9,16 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppPaymentModel } from '@/database/models/moduleAppPayment';
 import type { LobeChatDatabase } from '@/database/type';
+import { appEnv } from '@/envs/app';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
+import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleAppPayments/alipay/client';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
+import { ModuleAppPaymentService } from '../../module-apps/payments/service';
 import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../module-apps/revenue';
 
 const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
@@ -56,6 +60,19 @@ const SettleOrderInputSchema = OrderIdInputSchema.extend({
 const RefundOrderInputSchema = OrderIdInputSchema.extend({
   reason: z.string().min(1).max(1000),
 });
+const PaymentQueryInputSchema = z.object({ outTradeNo: z.string().min(1).max(240) });
+const ReconcilePendingInputSchema = z.object({
+  limit: z.number().int().min(1).max(200).default(100),
+});
+const PaymentDiscrepancyListInputSchema = z
+  .object({
+    cursor: z.number().int().min(0).default(0),
+    limit: z.number().int().min(1).max(500).default(50),
+    status: z.enum(['open', 'resolved']).optional(),
+  })
+  .optional()
+  .default({});
+const PaymentDiscrepancyIdInputSchema = z.object({ discrepancyId: z.string().uuid() });
 const ListRevenueInputSchema = z
   .object({
     cursor: z.number().int().min(0).default(0),
@@ -160,6 +177,27 @@ const mapPublishError = (error: unknown) => {
 };
 
 export const adminModuleAppsRouter = router({
+  acknowledgePaymentDiscrepancy: financeWriteProcedure
+    .input(PaymentDiscrepancyIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppPaymentModel(ctx.serverDB).acknowledgeDiscrepancy(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.payment_discrepancy_acknowledged',
+        resourceId: input.discrepancyId,
+        resourceType: 'moduleAppPaymentDiscrepancy',
+      });
+      return result;
+    }),
+
+  exportPaymentReconciliation: auditReadProcedure
+    .input(PaymentDiscrepancyListInputSchema)
+    .query(async ({ ctx, input }) =>
+      new ModuleAppPaymentModel(ctx.serverDB).listDiscrepancies({
+        ...input,
+        limit: Math.min(500, input.limit),
+      }),
+    ),
+
   get: auditReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
     return requireAdminApp(ctx.serverDB, input.appId);
   }),
@@ -172,6 +210,18 @@ export const adminModuleAppsRouter = router({
     return new ModuleAppRevenueService(ctx.serverDB).listRevenue(input);
   }),
 
+  reconcilePendingPayments: financeWriteProcedure
+    .input(ReconcilePendingInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
+      }
+      return new ModuleAppPaymentService(
+        ctx.serverDB,
+        createConfiguredModuleAppAlipayClient(),
+      ).reconcilePendingPayments(input);
+    }),
+
   refundOrder: financeWriteProcedure.input(RefundOrderInputSchema).mutation(async ({ ctx, input }) => {
     return new ModuleAppOrderRevenueService(ctx.serverDB).refundOrder({
       actorUserId: ctx.userId,
@@ -179,6 +229,49 @@ export const adminModuleAppsRouter = router({
       reason: input.reason,
     });
   }),
+
+  refundPaymentOrder: financeWriteProcedure
+    .input(RefundOrderInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_alipay_disabled',
+        });
+      }
+      return new ModuleAppPaymentService(
+        ctx.serverDB,
+        createConfiguredModuleAppAlipayClient(),
+      ).refundOrder({
+        actorUserId: ctx.userId,
+        orderId: input.orderId,
+        reason: input.reason,
+      });
+    }),
+
+  retryPaymentQuery: financeWriteProcedure
+    .input(PaymentQueryInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
+      }
+      return new ModuleAppPaymentService(
+        ctx.serverDB,
+        createConfiguredModuleAppAlipayClient(),
+      ).reconcilePayment(input);
+    }),
+
+  retryRefundStatus: financeWriteProcedure
+    .input(OrderIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
+      }
+      return new ModuleAppPaymentService(
+        ctx.serverDB,
+        createConfiguredModuleAppAlipayClient(),
+      ).reconcileRefund({ actorUserId: ctx.userId, orderId: input.orderId });
+    }),
 
   settleOrder: financeWriteProcedure.input(SettleOrderInputSchema).mutation(async ({ ctx, input }) => {
     return new ModuleAppOrderRevenueService(ctx.serverDB).settleOrder({

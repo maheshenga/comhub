@@ -1158,7 +1158,7 @@ export const moduleAppPaymentDiscrepancies = pgTable(
     ),
     check(
       'module_app_payment_discrepancies_kind_check',
-      sql`${table.kind} IN ('amount_mismatch', 'currency_mismatch', 'order_not_found', 'provider_mismatch', 'settlement_failed')`,
+      sql`${table.kind} IN ('amount_mismatch', 'currency_mismatch', 'duplicate_event', 'local_paid_provider_unpaid', 'local_unpaid_provider_paid', 'order_not_found', 'provider_mismatch', 'refund_mismatch', 'settlement_failed', 'wrong_seller')`,
     ),
     check(
       'module_app_payment_discrepancies_status_check',

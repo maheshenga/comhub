@@ -133,6 +133,18 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     };
   };
 
+  queryRefund = async (input: { outRequestNo: string; outTradeNo: string }) => {
+    const response = await this.request('alipay.trade.fastpay.refund.query', {
+      out_request_no: input.outRequestNo,
+      out_trade_no: input.outTradeNo,
+    });
+    const status =
+      response.refund_status === 'REFUND_SUCCESS' || typeof response.refund_amount === 'string'
+        ? 'succeeded'
+        : 'pending';
+    return { status } as const;
+  };
+
   verifyNotification: ModuleAppPaymentAdapter['verifyNotification'] = async ({ body }) => {
     const parameters = Object.fromEntries(new URLSearchParams(body).entries());
     if (

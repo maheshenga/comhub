@@ -101,14 +101,19 @@ describe('AlipayModuleAppClient', () => {
           bill_download_url: 'https://download.example.com/bill.zip',
           code: '10000',
         },
-      ));
+      ))
+      .mockResolvedValueOnce(signedResponse('alipay_trade_fastpay_refund_query_response', {
+        code: '10000',
+        refund_amount: '12.34',
+      }));
     const client = createClient(fetch);
 
     await expect(client.query({ outTradeNo: 'out-1' })).resolves.toBeNull();
     await expect(client.query({ outTradeNo: 'out-1' })).resolves.toMatchObject({ eventType: 'payment_succeeded' });
     await expect(client.refund({ outTradeNo: 'out-1', reason: 'requested', refundAmount: '12.340000' })).resolves.toMatchObject({ status: 'succeeded' });
     await expect(client.queryBillDownloadUrl({ billDate: '2026-07-11', billType: 'trade' })).resolves.toBe('https://download.example.com/bill.zip');
-    expect(fetch).toHaveBeenCalledTimes(4);
+    await expect(client.queryRefund({ outRequestNo: 'refund-1', outTradeNo: 'out-1' })).resolves.toEqual({ status: 'succeeded' });
+    expect(fetch).toHaveBeenCalledTimes(5);
   });
 
   it('rejects unsigned API responses', async () => {

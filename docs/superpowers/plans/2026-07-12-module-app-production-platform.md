@@ -313,12 +313,12 @@ export interface ModuleAppPaymentAdapter {
 - Create: `packages/business-server/src/module-apps/payments/reconcile.test.ts`
 - Create: `packages/business-server/src/lambda-routers/admin/moduleApps.payment.test.ts`
 
-- [ ] Add authenticated order payment initiation that returns a provider form only when the order is pending and the product/app is published.
-- [ ] Keep the existing purchaser cancel path and add a finance-authorized refund request path with reason and audit event.
-- [ ] Add server-side trade query for pending orders and bounded daily reconciliation jobs.
-- [ ] Persist discrepancy types: missing local order, amount mismatch, wrong seller, local paid/provider unpaid, local unpaid/provider paid, refund mismatch, and duplicate event.
-- [ ] Add admin actions for retry query, retry refund status, acknowledge discrepancy, and export a bounded reconciliation report.
-- [ ] Commit: `feat: reconcile module app alipay payments`
+- [x] Add authenticated order payment initiation that returns a provider form only when the order is pending and the product/app is published.
+- [x] Keep the existing purchaser cancel path and add a finance-authorized refund request path with reason and audit event.
+- [x] Add server-side trade query for pending orders and bounded daily reconciliation jobs.
+- [x] Persist discrepancy types: missing local order, amount mismatch, wrong seller, local paid/provider unpaid, local unpaid/provider paid, refund mismatch, and duplicate event.
+- [x] Add admin actions for retry query, retry refund status, acknowledge discrepancy, and export a bounded reconciliation report.
+- [x] Commit: `feat: reconcile module app alipay payments`
 
 ## Task 8: Publisher Ownership And Manual Payouts
 
