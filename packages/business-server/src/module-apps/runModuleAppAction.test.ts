@@ -5,6 +5,119 @@ import { runModuleAppAction } from './runModuleAppAction';
 const APP_ID = '00000000-0000-4000-8000-000000000001';
 
 describe('runModuleAppAction record actions', () => {
+  it('starts workflow actions as durable queued runs', async () => {
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'legacy-run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+    const workflowEngine = {
+      start: vi.fn().mockResolvedValue({ id: 'workflow-run-1', status: 'queued' }),
+    };
+    const workflow = {
+      edges: [],
+      key: 'candidate_review',
+      nodes: [
+        {
+          config: {},
+          key: 'load',
+          retry: { initialDelayMs: 1000, maxAttempts: 1, multiplier: 2 },
+          timeoutMs: 30_000,
+          type: 'function' as const,
+        },
+      ],
+      startNodeKey: 'load',
+      version: 1,
+    };
+
+    await expect(
+      runModuleAppAction({
+        action: {
+          id: 'run_workflow',
+          inputSchema: { fields: [] },
+          moduleMultiplier: 1,
+          name: 'Run workflow',
+          outputSchema: {},
+          runtimeConfig: {},
+          runtimeType: 'workflow_step',
+        },
+        appId: APP_ID,
+        idempotencyKey: 'request-1',
+        input: { candidateId: 'candidate-1' },
+        installationId: '00000000-0000-4000-8000-000000000010',
+        model: model as never,
+        scopeType: 'personal',
+        userId: 'u1',
+        workflow,
+        workflowEngine,
+      }),
+    ).resolves.toMatchObject({ runId: 'workflow-run-1', status: 'queued' });
+    expect(workflowEngine.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: 'request-1',
+        input: { candidateId: 'candidate-1' },
+        workflow,
+      }),
+    );
+    expect(model.updateRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: { workflowRunId: 'workflow-run-1' },
+        runId: 'legacy-run-1',
+        status: 'queued',
+      }),
+    );
+  });
+
+  it('persists workflow start failures instead of leaving queued legacy runs', async () => {
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'legacy-run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+    const workflowEngine = { start: vi.fn().mockRejectedValue(new Error('dispatch unavailable')) };
+    const workflow = {
+      edges: [],
+      key: 'candidate_review',
+      nodes: [
+        {
+          config: {},
+          key: 'load',
+          retry: { initialDelayMs: 1000, maxAttempts: 1, multiplier: 2 },
+          timeoutMs: 30_000,
+          type: 'function' as const,
+        },
+      ],
+      startNodeKey: 'load',
+      version: 1,
+    };
+    await expect(
+      runModuleAppAction({
+        action: {
+          id: 'run_workflow',
+          inputSchema: { fields: [] },
+          moduleMultiplier: 1,
+          name: 'Run workflow',
+          outputSchema: {},
+          runtimeConfig: {},
+          runtimeType: 'workflow_step',
+        },
+        appId: APP_ID,
+        input: {},
+        installationId: '00000000-0000-4000-8000-000000000010',
+        model: model as never,
+        scopeType: 'personal',
+        userId: 'u1',
+        workflow,
+        workflowEngine,
+      }),
+    ).resolves.toMatchObject({ preview: 'module_app_run_failed', status: 'failed' });
+    expect(model.updateRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorMessage: 'dispatch unavailable',
+        runId: 'legacy-run-1',
+        status: 'failed',
+      }),
+    );
+  });
+
   it('does not charge credits for record_create', async () => {
     const model = {
       createRecord: vi.fn().mockResolvedValue({ id: 'record-1' }),

@@ -220,7 +220,7 @@ git commit -m "feat: expose managed module app data APIs"
 - Produces: `ModuleAppWorkflowEngine.start`, `executeClaimedNode`, `resume`, and `cancel`.
 - Node executors consume the runtime client, safe HTTP runner, AI runner, and managed data service.
 
-- [ ] **Step 1: Add failing persistence and retry tests**
+- [x] **Step 1: Add failing persistence and retry tests**
 
 ```ts
 const run = await engine.start({ idempotencyKey: 'install:action:request', installationId, workflow });
@@ -230,17 +230,17 @@ await engine.resume({ nodeKey: 'approval', runId: run.id, value: { approved: tru
 expect(await engine.drain(run.id)).toMatchObject({ status: 'succeeded' });
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `bunx vitest run --silent='passed-only' packages/business-server/src/module-apps/workflows/graph.test.ts packages/business-server/src/module-apps/workflows/engine.test.ts packages/business-server/src/module-apps/runModuleAppAction.test.ts`
 
 Expected: FAIL because the workflow engine is absent.
 
-- [ ] **Step 3: Implement deterministic node execution**
+- [x] **Step 3: Implement deterministic node execution**
 
 Persist node input before execution and output after success. Use node idempotency `runId:nodeKey:attempt`, bounded exponential retry, explicit terminal failure, and optional compensation nodes. Parallel branches join only when all required parents succeed. Wait and approval nodes persist without holding a worker.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run the focused command from Step 2.
 

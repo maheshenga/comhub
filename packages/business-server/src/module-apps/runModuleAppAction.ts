@@ -3,6 +3,7 @@ import type {
   ModuleAppBillingConfig,
   ModuleAppRunStatus,
   ModuleAppScopeType,
+  ModuleAppWorkflowDefinition,
 } from '@lobechat/types';
 
 import {
@@ -14,13 +15,13 @@ import {
   redactResolvedModuleAppSecretValues,
 } from './logRedaction';
 import {
-  runModuleAppApiAction,
   type ModuleAppFetch,
   type ModuleAppRunnerArtifactRequest,
+  runModuleAppApiAction,
 } from './runners/apiActionRunner';
 import {
-  runModuleAppContentGeneration,
   type ModuleAppTextGenerator,
+  runModuleAppContentGeneration,
 } from './runners/contentGenerationRunner';
 import type { ModuleAppUrlResolver } from './safeUrl';
 
@@ -95,7 +96,9 @@ export interface RunModuleAppActionInput {
   artifactStorage?: ModuleAppArtifactStorage;
   billing?: ModuleAppBillingConfig;
   fetchImpl?: ModuleAppFetch;
+  idempotencyKey?: string;
   input: Record<string, unknown>;
+  installationId?: string;
   model: ModuleAppRuntimeModel;
   recordId?: string;
   resolvedSecrets?: Record<string, string>;
@@ -104,6 +107,16 @@ export interface RunModuleAppActionInput {
   scopeType: ModuleAppScopeType;
   textGenerator?: ModuleAppTextGenerator;
   userId: string;
+  workflow?: ModuleAppWorkflowDefinition;
+  workflowEngine?: {
+    start: (input: {
+      createdBy?: string;
+      idempotencyKey: string;
+      input: Record<string, unknown>;
+      installationId: string;
+      workflow: ModuleAppWorkflowDefinition;
+    }) => Promise<{ id: string; status: string }>;
+  };
   workspaceId?: string;
 }
 
@@ -268,6 +281,12 @@ const writeArtifacts = async (
 };
 
 export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
+  if (
+    params.action.runtimeType === 'workflow_step' &&
+    (!params.workflowEngine || !params.workflow || !params.installationId)
+  ) {
+    throw new Error('MODULE_APP_WORKFLOW_RUNTIME_REQUIRED');
+  }
   const run = await params.model.createRun({
     actionId: params.action.id,
     appId: params.appId,
@@ -277,6 +296,48 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
     userId: params.userId,
     workspaceId: params.workspaceId,
   });
+
+  if (params.action.runtimeType === 'workflow_step') {
+    try {
+      const workflowRun = await params.workflowEngine!.start({
+        createdBy: params.userId,
+        idempotencyKey: params.idempotencyKey ?? `${run.id}:${params.action.id}`,
+        input: params.input,
+        installationId: params.installationId!,
+        workflow: params.workflow!,
+      });
+      await params.model.updateRun({
+        billing: freeBilling,
+        output: { workflowRunId: workflowRun.id },
+        runId: run.id,
+        status: 'queued',
+      });
+      return {
+        artifactIds: [],
+        billing: freeBilling,
+        preview: 'module_app_workflow_queued',
+        runId: workflowRun.id,
+        status: 'queued' as const,
+      };
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      await params.model.updateRun({
+        billing: freeBilling,
+        errorMessage,
+        errorType: 'module_app_workflow_start_error',
+        output: {},
+        runId: run.id,
+        status: 'failed',
+      });
+      return {
+        artifactIds: [],
+        billing: freeBilling,
+        preview: 'module_app_run_failed',
+        runId: run.id,
+        status: 'failed' as const,
+      };
+    }
+  }
 
   if (params.action.runtimeType === 'record_create') {
     const record = await params.model.createRecord({
@@ -386,7 +447,7 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
       const writtenArtifactIds = await writeArtifacts(params, run.id, runnerResult.artifacts);
       const artifactIds = [...(runnerResult.artifactIds ?? []), ...writtenArtifactIds];
       const output = {
-        ...(runnerResult.output ?? {}),
+        ...runnerResult.output,
         ...(artifactIds.length > 0 ? { artifactIds } : {}),
       };
 
