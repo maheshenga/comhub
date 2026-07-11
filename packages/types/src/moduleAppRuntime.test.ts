@@ -70,4 +70,32 @@ describe('module app executable runtime contracts', () => {
       }),
     ).toMatchObject({ displayName: 'Jobs Board' });
   });
+
+  it('accepts bounded data table and workflow declarations for executable apps', () => {
+    expect(
+      moduleAppExecutableRuntimeSchema.parse({
+        data: {
+          tables: [
+            {
+              fields: [{ key: 'email', required: true, type: 'string' }],
+              indexes: [{ fields: ['email'], unique: true }],
+              key: 'candidates',
+            },
+          ],
+        },
+        workflows: [
+          {
+            edges: [],
+            key: 'capture_candidate',
+            nodes: [{ config: {}, key: 'capture', type: 'function' }],
+            startNodeKey: 'capture',
+            version: 1,
+          },
+        ],
+      }),
+    ).toMatchObject({
+      data: { tables: [expect.objectContaining({ key: 'candidates' })] },
+      workflows: [expect.objectContaining({ key: 'capture_candidate' })],
+    });
+  });
 });

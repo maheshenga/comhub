@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+import { moduleAppTableSchema } from './moduleAppData';
+import { moduleAppWorkflowDefinitionSchema } from './moduleAppWorkflow';
+
 const moduleAppPackagePathSchema = z
   .string()
   .min(1)
@@ -50,6 +53,10 @@ export const moduleAppRuntimeFunctionSchema = z
 
 export const moduleAppExecutableRuntimeSchema = z
   .object({
+    data: z
+      .object({ tables: z.array(moduleAppTableSchema).max(50) })
+      .strict()
+      .optional(),
     functions: z.array(moduleAppRuntimeFunctionSchema).max(80).default([]),
     kind: z.literal('sandboxed_app').default('sandboxed_app'),
     outboundHosts: z.array(z.string().min(1).max(253)).max(80).default([]),
@@ -57,6 +64,7 @@ export const moduleAppExecutableRuntimeSchema = z
       .array(z.string().regex(/^[a-z][a-z0-9_.:-]{1,79}$/))
       .max(80)
       .default([]),
+    workflows: z.array(moduleAppWorkflowDefinitionSchema).max(50).optional(),
   })
   .strict();
 export type ModuleAppExecutableRuntime = z.infer<typeof moduleAppExecutableRuntimeSchema>;

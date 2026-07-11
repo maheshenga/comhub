@@ -48,7 +48,7 @@
 - Produces: `ModuleAppTableSchema`, `ModuleAppDataQuery`, `ModuleAppWorkflowDefinition`, `ModuleAppWorkflowNode`, and run-status schemas.
 - Consumes: capability permissions from plan 1.
 
-- [ ] **Step 1: Add failing contract tests**
+- [x] **Step 1: Add failing contract tests**
 
 ```ts
 expect(moduleAppTableSchema.parse({
@@ -61,13 +61,13 @@ expect(() => moduleAppDataQuerySchema.parse({ limit: 1001, tableKey: 'candidates
 expect(() => moduleAppWorkflowDefinitionSchema.parse({ nodes: [{ key: 'a', type: 'unknown' }] })).toThrow();
 ```
 
-- [ ] **Step 2: Run contract tests and confirm RED**
+- [x] **Step 2: Run contract tests and confirm RED**
 
 Run: `bunx vitest run --silent='passed-only' packages/types/src/moduleAppData.test.ts packages/types/src/moduleAppWorkflow.test.ts`
 
 Expected: FAIL because the schemas do not exist.
 
-- [ ] **Step 3: Implement bounded contracts**
+- [x] **Step 3: Implement bounded contracts**
 
 ```ts
 export const moduleAppWorkflowNodeTypeSchema = z.enum([
@@ -80,7 +80,7 @@ export const moduleAppWorkflowRunStatusSchema = z.enum([
 
 Table fields support string, number, boolean, date, JSON, and reference types. Queries support equality, range, prefix, declared sort keys, and cursor pagination only. Workflow definitions require unique node keys, valid edges, one start node, reachable nodes, bounded fan-out, and no unbounded cycles.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 Run: `bunx vitest run --silent='passed-only' packages/types/src/moduleAppData.test.ts packages/types/src/moduleAppWorkflow.test.ts packages/types/src/moduleAppRuntime.test.ts`
 
