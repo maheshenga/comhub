@@ -14,8 +14,8 @@ import {
   moduleAppPackageArchiveMetadataSchema,
   moduleAppPackageManifestSchema,
   moduleAppPackageManifestV2Schema,
-  moduleAppPackageSubmissionListInputSchema,
   moduleAppPackageScanStatusSchema,
+  moduleAppPackageSubmissionListInputSchema,
   moduleAppPackageSubmitSchema,
   moduleAppPackageUploadedSubmitSchema,
   moduleAppPackageUploadRequestSchema,
@@ -27,6 +27,19 @@ import {
 } from './moduleApp';
 
 describe('module app type contracts', () => {
+  it('rejects unsafe or over-precise module multipliers', () => {
+    expect(() => moduleAppBillingConfigSchema.parse({ defaultMultiplier: 101 })).toThrow();
+    expect(() => moduleAppBillingConfigSchema.parse({ defaultMultiplier: 1.00001 })).toThrow();
+    expect(() =>
+      moduleAppActionConfigSchema.parse({
+        id: 'generate',
+        moduleMultiplier: 101,
+        name: 'Generate',
+        runtimeType: 'content_generation',
+      }),
+    ).toThrow();
+  });
+
   it('accepts standard app pages and record actions', () => {
     expect(
       moduleAppPageSchema.parse({

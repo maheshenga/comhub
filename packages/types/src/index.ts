@@ -29,6 +29,7 @@ export * from './llm';
 export * from './message';
 export * from './meta';
 export * from './moduleApp';
+export * from './moduleAppCommerce';
 export * from './moduleAppData';
 export * from './moduleAppRuntime';
 export * from './moduleAppWorkflow';

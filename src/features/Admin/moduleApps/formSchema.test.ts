@@ -9,6 +9,37 @@ import {
 } from './formSchema';
 
 describe('module app admin form schema', () => {
+  it('rejects multipliers outside the shared commerce bounds', () => {
+    expect(() =>
+      parseModuleAppAdminForm({
+        appType: 'ai_app',
+        billing: { defaultMultiplier: '101' },
+        category: 'AI',
+        description: 'AI application',
+        displayName: 'AI App',
+        slug: 'ai-app',
+      }),
+    ).toThrow();
+
+    expect(() =>
+      parseModuleAppAdminForm({
+        actions: [
+          {
+            id: 'generate',
+            moduleMultiplier: '101',
+            name: 'Generate',
+            runtimeType: 'content_generation',
+          },
+        ],
+        appType: 'ai_app',
+        category: 'AI',
+        description: 'AI application',
+        displayName: 'AI App',
+        slug: 'ai-app',
+      }),
+    ).toThrow();
+  });
+
   it('creates a safe default draft app form', () => {
     expect(createDefaultModuleAppFormValues()).toMatchObject({
       actions: [],

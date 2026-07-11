@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { moduleAppMultiplierSchema } from './moduleAppCommerce';
 import { moduleAppBuildConfigSchema, moduleAppExecutableRuntimeSchema } from './moduleAppRuntime';
 
 const optionalTrimmedString = (max: number) =>
@@ -87,7 +88,7 @@ export const moduleAppChargeModeSchema = z.enum(['free', 'fixed', 'ai_usage', 'e
 export const moduleAppBillingConfigSchema = z
   .object({
     chargeMode: moduleAppChargeModeSchema.default('free'),
-    defaultMultiplier: z.coerce.number().finite().min(0).default(1),
+    defaultMultiplier: moduleAppMultiplierSchema.default(1),
     externalApiCostCredits: z.coerce.number().finite().min(0).default(0),
     failureFixedFeePolicy: moduleAppFailureFixedFeePolicySchema.default('do_not_charge'),
     fixedServiceFeeCredits: z.coerce.number().finite().min(0).default(0),
@@ -98,7 +99,7 @@ export type ModuleAppBillingConfig = z.infer<typeof moduleAppBillingConfigSchema
 export const moduleAppActionConfigSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
   inputSchema: moduleAppInputSchema.default({ fields: [] }),
-  moduleMultiplier: z.coerce.number().finite().min(0).default(1),
+  moduleMultiplier: moduleAppMultiplierSchema.default(1),
   name: z.string().min(1).max(120),
   outputSchema: z.record(z.string(), z.unknown()).default({}),
   runtimeConfig: z.record(z.string(), z.unknown()).default({}),
@@ -286,7 +287,7 @@ export const moduleAppPackageManifestV2Schema = z
     manifestVersion: z.literal(2),
     packageVersion: z
       .string()
-      .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
+      .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Z.-]+)?$/i)
       .max(80),
     runtime: moduleAppExecutableRuntimeSchema,
   })
