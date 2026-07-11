@@ -16,6 +16,10 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import {
+  assertModuleAppEntitlement,
+  ModuleAppEntitlementError,
+} from '@/business/server/module-apps/entitlement';
+import {
   assertModuleAppRecordPermission,
   type ModuleAppRecordOperation,
   type ModuleAppWorkspaceMembership,
@@ -328,23 +332,85 @@ const assertWorkflowRunAccess = async (params: {
   return run;
 };
 
+const assertDetailEntitlement = async (params: {
+  db: LobeChatDatabase;
+  detail: NonNullable<Awaited<ReturnType<ModuleAppModel['getAppDetail']>>>;
+  operation: 'install' | 'job' | 'launch' | 'run' | 'schedule' | 'webhook';
+  userId: string;
+  workspaceId?: string;
+}) => {
+  const membership = params.workspaceId
+    ? await getWorkspaceMembership(params.db, params.userId, params.workspaceId)
+    : undefined;
+  const planIncluded =
+    params.operation === 'install'
+      ? params.detail.planState.installable
+      : params.detail.planState.runnable;
+
+  try {
+    return assertModuleAppEntitlement({
+      appStatus: params.detail.status,
+      installation:
+        typeof params.detail.installed === 'boolean'
+          ? { active: params.detail.installed }
+          : undefined,
+      operation: params.operation,
+      planIncluded,
+      teamMembership: params.workspaceId ? { active: Boolean(membership) } : undefined,
+      workspaceScoped: Boolean(params.workspaceId),
+    });
+  } catch (error) {
+    if (!(error instanceof ModuleAppEntitlementError)) throw error;
+
+    if (error.reason === 'hidden') {
+      throw new TRPCError({ cause: error, code: 'NOT_FOUND', message: 'module_app_not_found' });
+    }
+    if (error.reason === 'purchase_required') {
+      throw new TRPCError({ cause: error, code: 'FORBIDDEN', message: 'module_app_purchase_required' });
+    }
+    if (error.reason === 'license_expired') {
+      throw new TRPCError({ cause: error, code: 'FORBIDDEN', message: 'module_app_license_expired' });
+    }
+    if (error.reason === 'suspended') {
+      throw new TRPCError({ cause: error, code: 'FORBIDDEN', message: 'module_app_suspended' });
+    }
+
+    const message =
+      params.operation === 'install'
+        ? 'plan_install_denied'
+        : planIncluded && params.detail.installed === false
+          ? 'module_app_installation_required'
+          : 'plan_run_denied';
+    throw new TRPCError({ cause: error, code: 'FORBIDDEN', message });
+  }
+};
+
 const assertRunnableApp = async (params: {
   appId: string;
   currentPlan: string;
   model: ModuleAppModel;
+  db: LobeChatDatabase;
+  operation?: 'launch' | 'run';
   userId: string;
+  workspaceId?: string;
 }) => {
   const detail = await params.model.getAppDetail({
     appIdOrSlug: params.appId,
+    includeHidden: true,
     plan: params.currentPlan,
     userId: params.userId,
+    workspaceId: params.workspaceId,
   });
 
   if (!detail) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_not_found' });
 
-  if (!detail.planState.runnable) {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'plan_run_denied' });
-  }
+  await assertDetailEntitlement({
+    db: params.db,
+    detail,
+    operation: params.operation ?? 'run',
+    userId: params.userId,
+    workspaceId: params.workspaceId,
+  });
 
   return detail;
 };
@@ -423,8 +489,10 @@ export const moduleAppRouter = router({
       await assertRunnableApp({
         appId: capability.appId,
         currentPlan: ctx.currentPlan,
+        db: ctx.serverDB,
         model: ctx.moduleAppModel,
         userId: ctx.userId,
+        workspaceId: capability.workspaceId,
       });
 
       try {
@@ -477,8 +545,10 @@ export const moduleAppRouter = router({
       await assertRunnableApp({
         appId: input.appId,
         currentPlan: ctx.currentPlan,
+        db: ctx.serverDB,
         model: ctx.moduleAppModel,
         userId: ctx.userId,
+        workspaceId: input.workspaceId,
       });
 
       await assertScopePermission({
@@ -530,8 +600,11 @@ export const moduleAppRouter = router({
       await assertRunnableApp({
         appId: input.appId,
         currentPlan: ctx.currentPlan,
+        db: ctx.serverDB,
         model: ctx.moduleAppModel,
         userId: ctx.userId,
+        operation: 'launch',
+        workspaceId: input.workspaceId,
       });
       const installation = await ctx.moduleAppModel.getLaunchInstallationContext({
         ...input,
@@ -631,6 +704,7 @@ export const moduleAppRouter = router({
   installPersonal: moduleAppProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     const detail = await ctx.moduleAppModel.getAppDetail({
       appIdOrSlug: input.appId,
+      includeHidden: true,
       plan: ctx.currentPlan,
       userId: ctx.userId,
     });
@@ -639,9 +713,12 @@ export const moduleAppRouter = router({
       throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_not_found' });
     }
 
-    if (!detail.planState.installable) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'plan_install_denied' });
-    }
+    await assertDetailEntitlement({
+      db: ctx.serverDB,
+      detail,
+      operation: 'install',
+      userId: ctx.userId,
+    });
 
     await ctx.moduleAppModel.installPersonalApp({ appId: detail.id, userId: ctx.userId });
 
@@ -663,10 +740,25 @@ export const moduleAppRouter = router({
   listMarketplace: moduleAppProcedure
     .input(moduleAppMarketplaceListInputSchema)
     .query(async ({ ctx, input }) => {
-      return ctx.moduleAppModel.listMarketplaceApps({
+      const items = await ctx.moduleAppModel.listMarketplaceApps({
         filters: input,
+        includeHidden: true,
         plan: ctx.currentPlan,
         userId: ctx.userId,
+      });
+
+      return items.filter((item) => {
+        try {
+          assertModuleAppEntitlement({
+            appStatus: item.status,
+            operation: 'visibility',
+            planIncluded: item.planState.visible,
+          });
+          return true;
+        } catch (error) {
+          if (error instanceof ModuleAppEntitlementError) return false;
+          throw error;
+        }
       });
     }),
 
@@ -764,7 +856,9 @@ export const moduleAppRouter = router({
     const detail = await assertRunnableApp({
       appId: input.appId,
       currentPlan: ctx.currentPlan,
+      db: ctx.serverDB,
       model: ctx.moduleAppModel,
+      workspaceId: input.workspaceId,
       userId: ctx.userId,
     });
 
@@ -803,6 +897,15 @@ export const moduleAppRouter = router({
     return runModuleAppAction({
       action,
       appId: input.appId,
+      assertEntitlement: () =>
+        assertRunnableApp({
+          appId: input.appId,
+          currentPlan: ctx.currentPlan,
+          db: ctx.serverDB,
+          model: ctx.moduleAppModel,
+          userId: ctx.userId,
+          workspaceId: input.workspaceId,
+        }),
       input: input.input,
       model: ctx.moduleAppModel,
       recordId: input.recordId,
@@ -835,8 +938,10 @@ export const moduleAppRouter = router({
       await assertRunnableApp({
         appId: input.appId,
         currentPlan: ctx.currentPlan,
+        db: ctx.serverDB,
         model: ctx.moduleAppModel,
         userId: ctx.userId,
+        workspaceId: input.workspaceId,
       });
 
       const record = await ctx.moduleAppModel.getRecord({

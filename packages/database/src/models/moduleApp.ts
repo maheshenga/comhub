@@ -929,6 +929,7 @@ export class ModuleAppModel {
 
   listMarketplaceApps = async (params: {
     filters?: ModuleAppMarketplaceListInput;
+    includeHidden?: boolean;
     plan: string;
     userId: string;
   }) => {
@@ -944,7 +945,7 @@ export class ModuleAppModel {
         and(
           eq(moduleAppEntitlements.appId, moduleApps.id),
           eq(moduleAppEntitlements.plan, params.plan),
-          eq(moduleAppEntitlements.visible, true),
+          params.includeHidden ? undefined : eq(moduleAppEntitlements.visible, true),
         ),
       )
       .leftJoin(
@@ -967,8 +968,10 @@ export class ModuleAppModel {
 
   getAppDetail = async (params: {
     appIdOrSlug: string;
+    includeHidden?: boolean;
     plan: string;
     userId: string;
+    workspaceId?: string;
   }) => {
     const app = await this.findAppByIdOrSlug(params.appIdOrSlug);
 
@@ -989,15 +992,22 @@ export class ModuleAppModel {
       this.db.query.moduleAppInstallations.findFirst({
         where: and(
           eq(moduleAppInstallations.appId, app.id),
-          eq(moduleAppInstallations.scopeType, 'personal'),
-          eq(moduleAppInstallations.userId, params.userId),
+          params.workspaceId
+            ? and(
+                eq(moduleAppInstallations.scopeType, 'workspace'),
+                eq(moduleAppInstallations.workspaceId, params.workspaceId),
+              )
+            : and(
+                eq(moduleAppInstallations.scopeType, 'personal'),
+                eq(moduleAppInstallations.userId, params.userId),
+              ),
           eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
           isNull(moduleAppInstallations.uninstalledAt),
         ),
       }),
     ]);
 
-    if (!planEntitlement?.visible || !version) return null;
+    if (!version || (!params.includeHidden && !planEntitlement?.visible)) return null;
 
     const [pages, actions] = await Promise.all([
       this.db.query.moduleAppPages.findMany({
@@ -1220,6 +1230,23 @@ export class ModuleAppModel {
               ),
         ),
       )
+      .limit(1);
+
+    return row ?? null;
+  };
+
+  getInstallationEntitlementSubject = async (params: { installationId: string }) => {
+    const [row] = await this.db
+      .select({
+        appId: moduleApps.id,
+        appStatus: moduleApps.status,
+        scopeType: moduleAppInstallations.scopeType,
+        userId: moduleAppInstallations.userId,
+        workspaceId: moduleAppInstallations.workspaceId,
+      })
+      .from(moduleAppInstallations)
+      .innerJoin(moduleApps, eq(moduleApps.id, moduleAppInstallations.appId))
+      .where(eq(moduleAppInstallations.id, params.installationId))
       .limit(1);
 
     return row ?? null;

@@ -3,6 +3,7 @@ import type { ModuleAppWorkflowEngine } from '@/business/server/module-apps/work
 import type { ModuleAppWorkflowJobPayload } from './index';
 
 export const runModuleAppWorkflowJob = async (input: {
+  assertEntitlement: () => Promise<unknown> | unknown;
   dispatch: (
     payload: ModuleAppWorkflowJobPayload,
     options?: { delayMs?: number },
@@ -11,6 +12,8 @@ export const runModuleAppWorkflowJob = async (input: {
   payload: ModuleAppWorkflowJobPayload;
   workerId: string;
 }) => {
+  await input.assertEntitlement();
+
   const run = await input.engine.executeClaimedNode({
     ...input.payload,
     workerId: input.workerId,

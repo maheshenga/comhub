@@ -46,9 +46,44 @@ describe('ModuleAppWorkflowDispatch', () => {
       installationId: '00000000-0000-4000-8000-000000000001',
       runId: '00000000-0000-4000-8000-000000000002',
     };
-    await runModuleAppWorkflowJob({ dispatch, engine: engine as never, payload, workerId: 'worker-1' });
-    await runModuleAppWorkflowJob({ dispatch, engine: engine as never, payload, workerId: 'worker-2' });
+    await runModuleAppWorkflowJob({
+      assertEntitlement: async () => undefined,
+      dispatch,
+      engine: engine as never,
+      payload,
+      workerId: 'worker-1',
+    });
+    await runModuleAppWorkflowJob({
+      assertEntitlement: async () => undefined,
+      dispatch,
+      engine: engine as never,
+      payload,
+      workerId: 'worker-2',
+    });
     expect(dispatch).toHaveBeenCalledOnce();
     expect(dispatch).toHaveBeenCalledWith(payload);
+  });
+
+  it('rechecks entitlement before executing a claimed node', async () => {
+    const { runModuleAppWorkflowJob } = await import('./run');
+    const assertEntitlement = vi
+      .fn()
+      .mockRejectedValue(new Error('MODULE_APP_ENTITLEMENT_LICENSE_EXPIRED'));
+    const engine = { executeClaimedNode: vi.fn().mockResolvedValue({ status: 'running' }) };
+
+    await expect(
+      runModuleAppWorkflowJob({
+        assertEntitlement,
+        dispatch: vi.fn(),
+        engine: engine as never,
+        payload: {
+          installationId: '00000000-0000-4000-8000-000000000001',
+          runId: '00000000-0000-4000-8000-000000000002',
+        },
+        workerId: 'worker-1',
+      }),
+    ).rejects.toThrow('MODULE_APP_ENTITLEMENT_LICENSE_EXPIRED');
+    expect(assertEntitlement).toHaveBeenCalledOnce();
+    expect(engine.executeClaimedNode).not.toHaveBeenCalled();
   });
 });

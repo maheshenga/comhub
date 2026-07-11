@@ -145,6 +145,13 @@ describe('ModuleAppModel marketplace behavior', () => {
       planState: { installable: true, runnable: true, visible: true },
       status: 'published',
     });
+
+    await expect(
+      model.listMarketplaceApps({ includeHidden: true, plan: 'free', userId }),
+    ).resolves.toEqual([
+      expect.objectContaining({ slug: 'hidden-desk' }),
+      expect.objectContaining({ slug: 'record-desk' }),
+    ]);
   });
 
   it('returns app detail with pages, actions, entitlements, and installation state', async () => {

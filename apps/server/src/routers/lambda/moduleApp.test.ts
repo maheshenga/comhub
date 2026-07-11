@@ -36,8 +36,10 @@ const {
     createRun: vi.fn(),
     getAppDetail: vi.fn(),
     getLaunchInstallationContext: vi.fn(),
+    installPersonalApp: vi.fn(),
     listAdminPackageSubmissions: vi.fn(),
     listArtifacts: vi.fn(),
+    listMarketplaceApps: vi.fn(),
   },
   mockModuleAppWorkflowModel: {
     cancelRun: vi.fn(),
@@ -106,6 +108,8 @@ describe('moduleApp router registration', () => {
       id: APP_ID,
       planState: { installable: true, runnable: false, visible: true },
     });
+    mockModuleAppModel.installPersonalApp.mockResolvedValue(undefined);
+    mockModuleAppModel.listMarketplaceApps.mockResolvedValue([]);
     mockRunModuleAppAction.mockResolvedValue({
       artifactIds: [],
       billing: { chargedCredits: 0, fixedServiceFeeCharged: false },
@@ -224,6 +228,78 @@ describe('moduleApp router registration', () => {
     await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+
+  it('passes a live entitlement check into interactive actions', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [
+        {
+          id: 'create_record',
+          inputSchema: { fields: [] },
+          moduleMultiplier: 1,
+          name: 'Create',
+          outputSchema: {},
+          runtimeConfig: {},
+          runtimeType: 'record_create',
+        },
+      ],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+    mockModuleAppModel.createRecord.mockResolvedValue({ id: 'record-1' });
+
+    await createCaller().runAction({
+      actionId: 'create_record',
+      appId: APP_ID,
+      input: {},
+      scopeType: 'personal',
+    });
+
+    expect(mockRunModuleAppAction).toHaveBeenCalledWith(
+      expect.objectContaining({ assertEntitlement: expect.any(Function) }),
+    );
+    const [{ assertEntitlement }] = mockRunModuleAppAction.mock.calls.at(-1)!;
+    await expect(assertEntitlement()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'plan_run_denied',
+    });
+    expect(mockModuleAppModel.getAppDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('filters marketplace candidates through the central visibility decision', async () => {
+    mockModuleAppModel.listMarketplaceApps.mockResolvedValueOnce([
+      {
+        id: APP_ID,
+        planState: { installable: true, runnable: true, visible: true },
+        status: 'published',
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000002',
+        planState: { installable: false, runnable: false, visible: false },
+        status: 'published',
+      },
+    ]);
+
+    await expect(createCaller().listMarketplace({})).resolves.toEqual([
+      expect.objectContaining({ id: APP_ID }),
+    ]);
+    expect(mockModuleAppModel.listMarketplaceApps).toHaveBeenCalledWith(
+      expect.objectContaining({ includeHidden: true, plan: 'free', userId: 'user-1' }),
+    );
+  });
+
+  it('uses the central install decision before creating an installation', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      id: APP_ID,
+      planState: { installable: false, runnable: false, visible: true },
+      status: 'published',
+    });
+
+    await expect(createCaller().installPersonal({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'plan_install_denied',
+    });
+    expect(mockModuleAppModel.installPersonalApp).not.toHaveBeenCalled();
   });
 
   it('rechecks runnable plan entitlement before launch', async () => {

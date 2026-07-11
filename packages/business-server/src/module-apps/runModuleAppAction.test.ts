@@ -3,8 +3,39 @@ import { describe, expect, it, vi } from 'vitest';
 import { runModuleAppAction } from './runModuleAppAction';
 
 const APP_ID = '00000000-0000-4000-8000-000000000001';
+const allowEntitlement = async () => undefined;
 
 describe('runModuleAppAction record actions', () => {
+  it('checks current entitlement before creating a run', async () => {
+    const assertEntitlement = vi.fn().mockRejectedValue(new Error('MODULE_APP_ENTITLEMENT_SUSPENDED'));
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    await expect(
+      runModuleAppAction({
+        action: {
+          id: 'run_action',
+          inputSchema: { fields: [] },
+          moduleMultiplier: 1,
+          name: 'Run',
+          outputSchema: {},
+          runtimeConfig: {},
+          runtimeType: 'record_create',
+        },
+        appId: APP_ID,
+        assertEntitlement,
+        input: {},
+        model: model as never,
+        scopeType: 'personal',
+        userId: 'u1',
+      }),
+    ).rejects.toThrow('MODULE_APP_ENTITLEMENT_SUSPENDED');
+    expect(assertEntitlement).toHaveBeenCalledOnce();
+    expect(model.createRun).not.toHaveBeenCalled();
+  });
+
   it('starts workflow actions as durable queued runs', async () => {
     const model = {
       createRun: vi.fn().mockResolvedValue({ id: 'legacy-run-1' }),
@@ -41,6 +72,7 @@ describe('runModuleAppAction record actions', () => {
           runtimeType: 'workflow_step',
         },
         appId: APP_ID,
+        assertEntitlement: allowEntitlement,
         idempotencyKey: 'request-1',
         input: { candidateId: 'candidate-1' },
         installationId: '00000000-0000-4000-8000-000000000010',
@@ -100,6 +132,7 @@ describe('runModuleAppAction record actions', () => {
           runtimeType: 'workflow_step',
         },
         appId: APP_ID,
+        assertEntitlement: allowEntitlement,
         input: {},
         installationId: '00000000-0000-4000-8000-000000000010',
         model: model as never,
@@ -136,6 +169,7 @@ describe('runModuleAppAction record actions', () => {
         runtimeType: 'record_create',
       },
       appId: APP_ID,
+      assertEntitlement: allowEntitlement,
       input: { title: 'A' },
       model: model as never,
       scopeType: 'personal',
@@ -187,6 +221,7 @@ describe('runModuleAppAction record actions', () => {
         runtimeType: 'record_update',
       },
       appId: APP_ID,
+      assertEntitlement: allowEntitlement,
       input: { title: 'Updated' },
       model: model as never,
       recordId: 'record-1',
@@ -222,6 +257,7 @@ describe('runModuleAppAction record actions', () => {
         runtimeType: 'record_archive',
       },
       appId: APP_ID,
+      assertEntitlement: allowEntitlement,
       input: {},
       model: model as never,
       recordId: 'record-1',
@@ -258,6 +294,7 @@ describe('runModuleAppAction record actions', () => {
         runtimeType: 'api_action',
       },
       appId: APP_ID,
+      assertEntitlement: allowEntitlement,
       billing: {
         chargeMode: 'external_api',
         defaultMultiplier: 1,
@@ -310,6 +347,7 @@ describe('runModuleAppAction record actions', () => {
         runtimeType: 'content_generation',
       },
       appId: APP_ID,
+      assertEntitlement: allowEntitlement,
       billing: {
         chargeMode: 'ai_usage',
         defaultMultiplier: 1.5,
@@ -366,6 +404,7 @@ describe('runModuleAppAction record actions', () => {
         runtimeType: 'api_action',
       },
       appId: APP_ID,
+      assertEntitlement: allowEntitlement,
       fetchImpl,
       input: { keyword: 'apple' },
       model: model as never,
@@ -412,6 +451,7 @@ describe('runModuleAppAction record actions', () => {
         runtimeType: 'content_generation',
       },
       appId: APP_ID,
+      assertEntitlement: allowEntitlement,
       artifactStorage,
       input: { topic: 'apple' },
       model: model as never,
@@ -469,6 +509,7 @@ describe('runModuleAppAction record actions', () => {
         runtimeType: 'api_action',
       },
       appId: APP_ID,
+      assertEntitlement: allowEntitlement,
       billing: {
         chargeMode: 'external_api',
         defaultMultiplier: 1,

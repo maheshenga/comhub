@@ -94,6 +94,7 @@ export interface RunModuleAppActionInput {
   action: ModuleAppActionConfig;
   appId: string;
   artifactStorage?: ModuleAppArtifactStorage;
+  assertEntitlement: () => Promise<unknown> | unknown;
   billing?: ModuleAppBillingConfig;
   fetchImpl?: ModuleAppFetch;
   idempotencyKey?: string;
@@ -281,6 +282,8 @@ const writeArtifacts = async (
 };
 
 export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
+  await params.assertEntitlement();
+
   if (
     params.action.runtimeType === 'workflow_step' &&
     (!params.workflowEngine || !params.workflow || !params.installationId)
