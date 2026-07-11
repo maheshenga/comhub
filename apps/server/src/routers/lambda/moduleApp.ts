@@ -50,6 +50,9 @@ const AppIdInputSchema = z.object({
 const ModuleAppOrderListInputSchema = z.object({
   limit: z.number().int().min(1).max(100).optional(),
 });
+const ProductIdInputSchema = z.object({ productId: z.string().uuid() });
+const OrderIdInputSchema = z.object({ orderId: z.string().uuid() });
+const ModuleAppCatalogInputSchema = z.object({ appId: z.string().uuid().optional() });
 
 const ModuleAppLaunchInputSchema = AppIdInputSchema.extend({
   workspaceId: z.string().min(1).optional(),
@@ -449,6 +452,19 @@ const assertRecordPermission = async (params: {
 };
 
 export const moduleAppRouter = router({
+  cancelOrder: moduleAppProcedure.input(OrderIdInputSchema).mutation(async ({ ctx, input }) => {
+    return new ModuleAppCommerceModel(ctx.serverDB).cancelOrder({
+      orderId: input.orderId,
+      purchaserUserId: ctx.userId,
+    });
+  }),
+
+  createOrder: moduleAppProcedure.input(ProductIdInputSchema).mutation(async ({ ctx, input }) => {
+    return new ModuleAppCommerceModel(ctx.serverDB).createOrder({
+      productId: input.productId,
+      purchaserUserId: ctx.userId,
+    });
+  }),
   cancelWorkflowRun: moduleAppProcedure
     .input(ModuleAppWorkflowRunInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -775,11 +791,19 @@ export const moduleAppRouter = router({
       });
     }),
 
+  listCatalog: moduleAppProcedure.input(ModuleAppCatalogInputSchema).query(async ({ ctx, input }) => {
+    return new ModuleAppCommerceModel(ctx.serverDB).listCatalog(input);
+  }),
+
   listOrders: moduleAppProcedure.input(ModuleAppOrderListInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppCommerceModel(ctx.serverDB).listOrders({
       limit: input.limit,
       purchaserUserId: ctx.userId,
     });
+  }),
+
+  quoteProduct: moduleAppProcedure.input(ProductIdInputSchema).query(async ({ ctx, input }) => {
+    return new ModuleAppCommerceModel(ctx.serverDB).quoteProduct(input);
   }),
 
   listMyApps: moduleAppProcedure.query(async ({ ctx }) => {

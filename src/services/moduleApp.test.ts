@@ -146,4 +146,28 @@ describe('createModuleAppService', () => {
     expect(listOrders).toHaveBeenCalledWith({ limit: 20 });
     expect(getLicense).toHaveBeenCalledWith({ appId: 'app-1' });
   });
+
+  it('uses server catalog inputs for quote, order creation, and cancellation', async () => {
+    const listCatalog = vi.fn().mockResolvedValue([{ productId: 'product-1' }]);
+    const quoteProduct = vi.fn().mockResolvedValue({ price: 88 });
+    const createOrder = vi.fn().mockResolvedValue({ id: 'order-1', status: 'pending' });
+    const cancelOrder = vi.fn().mockResolvedValue({ id: 'order-1', status: 'cancelled' });
+    const service = createModuleAppService({
+      moduleApp: {
+        cancelOrder: { mutate: cancelOrder },
+        createOrder: { mutate: createOrder },
+        listCatalog: { query: listCatalog },
+        quoteProduct: { query: quoteProduct },
+      },
+    } as never);
+
+    await service.listCatalog({ appId: 'app-1' });
+    await service.quoteProduct({ productId: 'product-1' });
+    await service.createOrder({ productId: 'product-1' });
+    await service.cancelOrder({ orderId: 'order-1' });
+    expect(listCatalog).toHaveBeenCalledWith({ appId: 'app-1' });
+    expect(quoteProduct).toHaveBeenCalledWith({ productId: 'product-1' });
+    expect(createOrder).toHaveBeenCalledWith({ productId: 'product-1' });
+    expect(cancelOrder).toHaveBeenCalledWith({ orderId: 'order-1' });
+  });
 });

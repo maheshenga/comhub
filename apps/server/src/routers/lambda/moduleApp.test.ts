@@ -35,7 +35,11 @@ const {
   mockModuleAppGateway: { call: vi.fn() },
   mockRunModuleAppAction: vi.fn(),
   mockModuleAppCommerceModel: {
+    cancelOrder: vi.fn(),
+    createOrder: vi.fn(),
+    listCatalog: vi.fn(),
     listOrders: vi.fn(),
+    quoteProduct: vi.fn(),
     resolveLicense: vi.fn(),
   },
   mockModuleAppModel: {
@@ -128,6 +132,10 @@ describe('moduleApp router registration', () => {
     mockModuleAppModel.installPersonalApp.mockResolvedValue(undefined);
     mockModuleAppModel.listMarketplaceApps.mockResolvedValue([]);
     mockModuleAppCommerceModel.listOrders.mockResolvedValue([]);
+    mockModuleAppCommerceModel.listCatalog.mockResolvedValue([]);
+    mockModuleAppCommerceModel.quoteProduct.mockResolvedValue({ price: 88 });
+    mockModuleAppCommerceModel.createOrder.mockResolvedValue({ id: 'order-1', status: 'pending' });
+    mockModuleAppCommerceModel.cancelOrder.mockResolvedValue({ id: 'order-1', status: 'cancelled' });
     mockModuleAppCommerceModel.resolveLicense.mockResolvedValue(null);
     mockCreateModuleAppTextGenerator.mockReturnValue(mockTextGenerator);
     mockRunModuleAppAction.mockResolvedValue({
@@ -776,6 +784,30 @@ describe('moduleApp router registration', () => {
     expect(mockModuleAppCommerceModel.resolveLicense).toHaveBeenCalledWith({
       appId: APP_ID,
       userId: 'user-1',
+    });
+  });
+
+  it('quotes and creates an order from server catalog data for the authenticated user', async () => {
+    const productId = '00000000-0000-4000-8000-000000000031';
+    await expect(createCaller().quoteProduct({ productId })).resolves.toEqual({ price: 88 });
+    await expect(createCaller().createOrder({ productId })).resolves.toMatchObject({ status: 'pending' });
+    expect(mockModuleAppCommerceModel.quoteProduct).toHaveBeenCalledWith({ productId });
+    expect(mockModuleAppCommerceModel.createOrder).toHaveBeenCalledWith({
+      productId,
+      purchaserUserId: 'user-1',
+    });
+  });
+
+  it('lists catalog items and cancels only as the authenticated purchaser', async () => {
+    const orderId = '00000000-0000-4000-8000-000000000021';
+    await expect(createCaller().listCatalog({ appId: APP_ID })).resolves.toEqual([]);
+    await expect(createCaller().cancelOrder({ orderId })).resolves.toMatchObject({
+      status: 'cancelled',
+    });
+    expect(mockModuleAppCommerceModel.listCatalog).toHaveBeenCalledWith({ appId: APP_ID });
+    expect(mockModuleAppCommerceModel.cancelOrder).toHaveBeenCalledWith({
+      orderId,
+      purchaserUserId: 'user-1',
     });
   });
 });

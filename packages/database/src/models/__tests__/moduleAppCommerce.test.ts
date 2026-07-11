@@ -131,4 +131,63 @@ describe('ModuleAppCommerceModel', () => {
       model.refundOrder({ actorUserId: 'admin-1', orderId: order.id, reason: 'invalid' }),
     ).rejects.toThrow('MODULE_APP_ORDER_NOT_REFUNDABLE');
   });
+
+  it('quotes active server catalog prices without accepting a client amount', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 88, currency: 'CNY' },
+      productKey: 'catalog-quote',
+      productType: 'one_time',
+    });
+
+    await expect(model.listCatalog({ appId: APP_ID })).resolves.toEqual([
+      expect.objectContaining({ amount: 88, currency: 'CNY', productId: product.id }),
+    ]);
+    await expect(model.quoteProduct({ productId: product.id })).resolves.toMatchObject({
+      currency: 'CNY',
+      price: 88,
+      productType: 'one_time',
+    });
+  });
+
+  it('allows only the purchaser to cancel a pending order', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 88, currency: 'CNY' },
+      productKey: 'cancel-pending',
+      productType: 'one_time',
+    });
+    const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+
+    await expect(
+      model.cancelOrder({ orderId: order.id, purchaserUserId: OTHER_USER_ID }),
+    ).rejects.toThrow('MODULE_APP_ORDER_NOT_FOUND');
+    await expect(
+      model.cancelOrder({ orderId: order.id, purchaserUserId: USER_ID }),
+    ).resolves.toMatchObject({ status: 'cancelled' });
+  });
+
+  it('does not sell an active product after its application is unpublished', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 88, currency: 'CNY' },
+      productKey: 'unpublished-product',
+      productType: 'one_time',
+    });
+    await serverDB.update(moduleApps).set({ status: 'unpublished' }).where(eq(moduleApps.id, APP_ID));
+
+    await expect(model.listCatalog({ appId: APP_ID })).resolves.toEqual([]);
+    await expect(model.quoteProduct({ productId: product.id })).rejects.toThrow(
+      'MODULE_APP_PRODUCT_NOT_PURCHASABLE',
+    );
+    await expect(
+      model.createOrder({ productId: product.id, purchaserUserId: USER_ID }),
+    ).rejects.toThrow('MODULE_APP_PRODUCT_NOT_PURCHASABLE');
+  });
 });

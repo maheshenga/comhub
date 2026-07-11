@@ -47,6 +47,7 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
   return {
     archiveRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
       client.moduleApp.archiveRecord.mutate!(input),
+    cancelOrder: (input: { orderId: string }) => client.moduleApp.cancelOrder.mutate!(input),
     cancelWorkflowRun: (input: ModuleAppWorkflowRunInput) =>
       client.moduleApp.cancelWorkflowRun.mutate!(input),
     callSdk: (input: {
@@ -56,6 +57,7 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       requestId?: string;
     }) => client.moduleApp.callSdk.mutate!(input),
     createPackageUpload,
+    createOrder: (input: { productId: string }) => client.moduleApp.createOrder.mutate!(input),
     createRecord: (input: ModuleAppRecordInput) => client.moduleApp.createRecord.mutate!(input),
     getDetail: (input: { appIdOrSlug: string }) => client.moduleApp.getDetail.query!(input),
     getLaunchContext: (input: { appId: string; workspaceId?: string }) =>
@@ -69,10 +71,12 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.getWorkflowRun.query!(input),
     installPersonal: (input: { appId: string }) => client.moduleApp.installPersonal.mutate!(input),
     listArtifacts: (input: ModuleAppHistoryInput) => client.moduleApp.listArtifacts.query!(input),
+    listCatalog: (input: { appId?: string } = {}) => client.moduleApp.listCatalog.query!(input),
     listMarketplace: (input?: ModuleAppMarketplaceListInput) =>
       client.moduleApp.listMarketplace.query!(input),
     listMyApps: () => client.moduleApp.listMyApps.query!(),
     listOrders: (input: { limit?: number } = {}) => client.moduleApp.listOrders.query!(input),
+    quoteProduct: (input: { productId: string }) => client.moduleApp.quoteProduct.query!(input),
     listMyPackageSubmissions: (input: ModuleAppPackageSubmissionListInput = {}) =>
       client.moduleApp.listMyPackageSubmissions.query!(
         input,

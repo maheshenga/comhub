@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
-import { moduleAppLicenses, moduleAppOrders, moduleAppPrices, moduleAppProducts } from '../schemas';
+import { moduleAppLicenses, moduleAppOrders, moduleAppPrices, moduleAppProducts, moduleApps } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 
 export class ModuleAppCommerceModel {
@@ -36,7 +36,8 @@ export class ModuleAppCommerceModel {
     this.db.transaction(async (tx) => {
       const product = await tx.query.moduleAppProducts.findFirst({ where: and(eq(moduleAppProducts.id, productId), eq(moduleAppProducts.status, 'active')) });
       const price = await tx.query.moduleAppPrices.findFirst({ where: and(eq(moduleAppPrices.productId, productId), eq(moduleAppPrices.active, true)) });
-      if (!product || !price) throw new Error('MODULE_APP_PRODUCT_NOT_PURCHASABLE');
+      const app = product ? await tx.query.moduleApps.findFirst({ where: and(eq(moduleApps.id, product.appId), eq(moduleApps.status, 'published')) }) : null;
+      if (!product || !price || !app) throw new Error('MODULE_APP_PRODUCT_NOT_PURCHASABLE');
       const [order] = await tx.insert(moduleAppOrders).values({
         appId: product.appId,
         priceId: price.id,
@@ -47,6 +48,32 @@ export class ModuleAppCommerceModel {
       if (!order) throw new Error('MODULE_APP_ORDER_CREATE_FAILED');
       return order;
     });
+
+  cancelOrder = async ({ orderId, purchaserUserId }: { orderId: string; purchaserUserId: string }) =>
+    this.db.transaction(async (tx) => {
+      const [order] = await tx.select().from(moduleAppOrders).where(and(eq(moduleAppOrders.id, orderId), eq(moduleAppOrders.purchaserUserId, purchaserUserId))).for('update');
+      if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
+      if (order.status === 'cancelled') return order;
+      if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_CANCELLABLE');
+      const now = new Date();
+      const [cancelled] = await tx.update(moduleAppOrders).set({ cancelledAt: now, status: 'cancelled', updatedAt: now }).where(eq(moduleAppOrders.id, order.id)).returning();
+      if (!cancelled) throw new Error('MODULE_APP_ORDER_CANCEL_FAILED');
+      return cancelled;
+    });
+
+  listCatalog = async ({ appId }: { appId?: string } = {}) =>
+    this.db.select({
+      amount: moduleAppPrices.amount,
+      appId: moduleAppProducts.appId,
+      billingPeriod: moduleAppPrices.billingPeriod,
+      currency: moduleAppPrices.currency,
+      licenseScope: moduleAppProducts.licenseScope,
+      productId: moduleAppProducts.id,
+      productKey: moduleAppProducts.productKey,
+      productType: moduleAppProducts.productType,
+      promotion: moduleAppPrices.promotion,
+      trialDays: moduleAppPrices.trialDays,
+    }).from(moduleAppProducts).innerJoin(moduleAppPrices, eq(moduleAppPrices.productId, moduleAppProducts.id)).innerJoin(moduleApps, eq(moduleApps.id, moduleAppProducts.appId)).where(and(eq(moduleApps.status, 'published'), eq(moduleAppProducts.status, 'active'), eq(moduleAppPrices.active, true), appId ? eq(moduleAppProducts.appId, appId) : undefined));
 
   listOrders = async ({
     limit = 50,
@@ -60,6 +87,22 @@ export class ModuleAppCommerceModel {
       orderBy: desc(moduleAppOrders.createdAt),
       where: eq(moduleAppOrders.purchaserUserId, purchaserUserId),
     });
+
+  quoteProduct = async ({ productId }: { productId: string }) => {
+    const product = await this.db.query.moduleAppProducts.findFirst({ where: and(eq(moduleAppProducts.id, productId), eq(moduleAppProducts.status, 'active')) });
+    const price = await this.db.query.moduleAppPrices.findFirst({ where: and(eq(moduleAppPrices.productId, productId), eq(moduleAppPrices.active, true)) });
+    const app = product ? await this.db.query.moduleApps.findFirst({ where: and(eq(moduleApps.id, product.appId), eq(moduleApps.status, 'published')) }) : null;
+    if (!product || !price || !app) throw new Error('MODULE_APP_PRODUCT_NOT_PURCHASABLE');
+    return {
+      billingPeriod: price.billingPeriod,
+      currency: price.currency,
+      licenseScope: product.licenseScope,
+      price: price.amount,
+      productType: product.productType,
+      promotion: price.promotion,
+      trialDays: price.trialDays,
+    };
+  };
 
   settleOrder = async ({ orderId, paymentReference }: { orderId: string; paymentReference: string }) =>
     this.db.transaction(async (tx) => {
