@@ -120,7 +120,6 @@
 - Create: `apps/server/src/services/moduleAppSandbox/policy.test.ts`
 - Create: `apps/server/src/services/moduleAppSandbox/lease.ts`
 - Create: `apps/server/src/services/moduleAppSandbox/lease.test.ts`
-- Modify: `packages/types/src/moduleAppRuntime.ts`
 
 **Interfaces:**
 
@@ -147,16 +146,16 @@ export interface ModuleAppInvocationLeaseStore {
 }
 ```
 
-- [ ] Write tests proving developer-provided image, command, mount, network, timeout, and resource overrides are rejected.
-- [ ] Write tests proving the Redis store uses `SET NX PX`, owner-checked release, and fails closed when Redis is absent.
-- [ ] Implement the pure policy parser and shared lease interface. Use existing Redis configuration and `ioredis`; do not alter Agent Runtime Redis behavior.
-- [ ] Run:
+- [x] Write tests proving developer-provided image, command, mount, network, timeout, and resource overrides are rejected.
+- [x] Write tests proving the Redis store uses `SET NX PX`, owner-checked release, and fails closed when Redis is absent.
+- [x] Implement the pure policy parser and shared lease interface. Use existing Redis configuration and `ioredis`; do not alter Agent Runtime Redis behavior.
+- [x] Run:
 
 ```powershell
 bunx vitest run --silent='passed-only' apps/server/src/services/moduleAppSandbox/policy.test.ts apps/server/src/services/moduleAppSandbox/lease.test.ts
 ```
 
-- [ ] Commit: `feat: add module app sandbox policy state`
+- [x] Commit: `feat: add module app sandbox policy state`
 
 ## Task 2: Disposable Container Engine
 
