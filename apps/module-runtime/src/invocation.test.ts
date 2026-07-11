@@ -1,6 +1,8 @@
+import path from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
-import { ModuleAppRuntimeInvoker } from './invocation';
+import { ContainerModuleAppLauncher, ModuleAppRuntimeInvoker } from './invocation';
 
 const request = {
   artifactSha256: 'a'.repeat(64),
@@ -32,6 +34,36 @@ describe('ModuleAppRuntimeInvoker', () => {
     });
     expect(launcher.invoke).toHaveBeenCalledWith(
       expect.objectContaining({ runtime: 'node22', timeoutMs: 1000 }),
+    );
+  });
+
+  it('runs a validated artifact through the disposable container engine', async () => {
+    const engine = {
+      run: vi.fn().mockResolvedValue({
+        exitCode: 0,
+        stderr: '',
+        stdout: '{"items":[]}',
+      }),
+    };
+    const launcher = new ContainerModuleAppLauncher({
+      artifactRoot: '/runtime/artifacts',
+      engine,
+      images: {
+        node22: `ghcr.io/comhub/module-app-node22@sha256:${'b'.repeat(64)}`,
+        python312: `ghcr.io/comhub/module-app-python312@sha256:${'c'.repeat(64)}`,
+      },
+    });
+
+    await expect(launcher.invoke(request)).resolves.toMatchObject({
+      output: { items: [] },
+    });
+    expect(engine.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifactDirectory: path.resolve('/runtime/artifacts', request.artifactSha256),
+        containerName: `module-app-${request.invocationId}`,
+        entry: request.entry,
+        runtime: 'node22',
+      }),
     );
   });
 

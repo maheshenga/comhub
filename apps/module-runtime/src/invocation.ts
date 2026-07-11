@@ -1,8 +1,11 @@
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 import type { ModuleAppInvocation } from '@lobechat/types';
 
+import {
+  DockerCliModuleAppContainerEngine,
+  type ModuleAppContainerEngine,
+} from './containerEngine';
 import { assertModuleAppRuntimePolicy } from './policy';
 
 const MODULE_APP_RUNTIME_MAX_LOG_BYTES = 64 * 1024;
@@ -41,70 +44,65 @@ export class ModuleAppRuntimeInvoker {
   };
 }
 
-export class FixedProcessModuleAppLauncher implements ModuleAppRuntimeLauncher {
-  constructor(private readonly artifactRoot = MODULE_APP_RUNTIME_ARTIFACT_ROOT) {}
+type RuntimeImages = Record<ModuleAppInvocation['runtime'], string>;
+
+const getRuntimeImages = (): RuntimeImages => {
+  const node22 = process.env.MODULE_APP_RUNTIME_NODE22_IMAGE;
+  const python312 = process.env.MODULE_APP_RUNTIME_PYTHON312_IMAGE;
+  if (!node22 || !python312) throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
+  return { node22, python312 };
+};
+
+export class ContainerModuleAppLauncher implements ModuleAppRuntimeLauncher {
+  private readonly artifactRoot: string;
+  private readonly engine: ModuleAppContainerEngine;
+  private readonly images: RuntimeImages;
+
+  constructor(options: {
+    artifactRoot?: string;
+    engine?: ModuleAppContainerEngine;
+    images?: RuntimeImages;
+  } = {}) {
+    this.artifactRoot = options.artifactRoot ?? MODULE_APP_RUNTIME_ARTIFACT_ROOT;
+    this.engine = options.engine ?? new DockerCliModuleAppContainerEngine();
+    this.images = options.images ?? getRuntimeImages();
+  }
 
   invoke = async (input: ModuleAppInvocation): Promise<LauncherResult> => {
     const artifactDirectory = path.resolve(this.artifactRoot, input.artifactSha256);
     const entry = path.resolve(artifactDirectory, input.entry);
-    if (!entry.startsWith(`${artifactDirectory}/`)) {
+    const relativeEntry = path.relative(artifactDirectory, entry);
+    if (!relativeEntry || relativeEntry.startsWith('..') || path.isAbsolute(relativeEntry)) {
       throw new Error('MODULE_APP_RUNTIME_POLICY_DENIED');
     }
 
-    const executable = input.runtime === 'node22' ? 'node' : 'python3';
-    const child = spawn(executable, [entry], {
-      cwd: artifactDirectory,
-      detached: true,
-      env: {
-        HOME: '/tmp',
-        LANG: 'C.UTF-8',
-        PATH: '/usr/local/bin:/usr/bin:/bin',
-        TMPDIR: '/tmp',
+    const result = await this.engine.run({
+      artifactDirectory,
+      containerName: `module-app-${input.invocationId}`,
+      entry: relativeEntry.replaceAll('\\', '/'),
+      imageDigest: this.images[input.runtime],
+      input: input.input,
+      limits: {
+        cpu: 1,
+        memoryBytes: 256 * 1024 * 1024,
+        pids: 64,
+        timeoutMs: input.timeoutMs,
       },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    child.stdin.end(JSON.stringify(input.input));
-
-    let stdout = '';
-    let stderr = '';
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      if (stdout.length < MODULE_APP_RUNTIME_MAX_LOG_BYTES) stdout += chunk;
-    });
-    child.stderr.on('data', (chunk: string) => {
-      if (stderr.length < MODULE_APP_RUNTIME_MAX_LOG_BYTES) stderr += chunk;
+      runtime: input.runtime,
     });
 
-    return new Promise((resolvePromise, reject) => {
-      const timer = setTimeout(() => {
-        try {
-          process.kill(-child.pid!, 'SIGKILL');
-        } catch {
-          child.kill('SIGKILL');
-        }
-        reject(new Error('MODULE_APP_RUNTIME_TIMEOUT'));
-      }, input.timeoutMs);
-
-      child.once('error', (error) => {
-        clearTimeout(timer);
-        reject(new Error('MODULE_APP_RUNTIME_LAUNCH_FAILED', { cause: error }));
-      });
-      child.once('exit', (code) => {
-        clearTimeout(timer);
-        if (code !== 0) {
-          reject(new Error('MODULE_APP_RUNTIME_PROCESS_FAILED'));
-          return;
-        }
-
-        let output: unknown;
-        try {
-          output = stdout.trim() ? JSON.parse(stdout) : undefined;
-        } catch {
-          output = undefined;
-        }
-        resolvePromise({ output, stderr: boundLog(stderr), stdout: boundLog(stdout) });
-      });
-    });
+    let output: unknown;
+    try {
+      output = result.stdout.trim() ? JSON.parse(result.stdout) : undefined;
+    } catch {
+      output = undefined;
+    }
+    return {
+      output,
+      stderr: boundLog(result.stderr),
+      stdout: boundLog(result.stdout),
+    };
   };
 }
+
+export class FixedProcessModuleAppLauncher extends ContainerModuleAppLauncher {}

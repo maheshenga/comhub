@@ -179,17 +179,17 @@ export interface ModuleAppContainerEngine {
 }
 ```
 
-- [ ] Add failing engine tests with a fake engine for fixed command construction, read-only artifact mount, `/tmp` tmpfs, no network, non-root user, `no-new-privileges`, CPU/memory/PID limits, bounded logs, timeout cleanup, and non-zero exit handling.
-- [ ] Implement a Docker Engine adapter with an allowlisted image digest and runtime executable chosen only from the parsed runtime enum. The command must be constructed from server-owned values.
-- [ ] Keep Docker access behind `ModuleAppContainerEngine`; unit tests must never require Docker.
-- [ ] Change `FixedProcessModuleAppLauncher` to use the engine interface. Preserve public invocation response fields and stable error codes.
-- [ ] Run:
+- [x] Add failing engine tests with a fake engine for fixed command construction, read-only artifact mount, `/tmp` tmpfs, no network, non-root user, `no-new-privileges`, CPU/memory/PID limits, bounded logs, timeout cleanup, and non-zero exit handling.
+- [x] Implement a Docker Engine adapter with an allowlisted image digest and runtime executable chosen only from the parsed runtime enum. The command must be constructed from server-owned values.
+- [x] Keep Docker access behind `ModuleAppContainerEngine`; unit tests must never require Docker.
+- [x] Change `FixedProcessModuleAppLauncher` to use the engine interface. Preserve public invocation response fields and stable error codes.
+- [x] Run:
 
 ```powershell
 bunx vitest run --silent='passed-only' apps/module-runtime/src/containerEngine.test.ts apps/module-runtime/src/invocation.test.ts apps/module-runtime/src/server.test.ts
 ```
 
-- [ ] Commit: `feat: isolate module app invocations in containers`
+- [x] Commit: `feat: isolate module app invocations in containers`
 
 ## Task 3: Executable Action Wiring
 
