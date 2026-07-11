@@ -1072,6 +1072,24 @@
 - Known limitation: production launch remains blocked until Phase 5 validates the runtime service image, content-addressed artifact bind mount, network namespace, seccomp profile, resource limits, multi-instance replay store, rollback, and browser E2E probes.
 - Docker deployment: no production compose service is added in this slice. Existing deployment remains unchanged and execution defaults off.
 
+#### Module App Platform P2 Managed Data, Durable Workflows, And Team History
+
+- Status: experimental. Contracts, persistence, APIs, dispatch, and user progress UI are active in source; privileged uploaded-code, arbitrary HTTP, and AI workflow executors remain disabled for production.
+- Description: Provides installation-isolated JSON collections and platform-managed logical tables, durable workflow runs/nodes, bounded schedules, signed webhooks, team-scoped run/artifact history, and persisted progress/cancellation UI.
+- Frontend entry: `/apps/:appId/app` and `/apps/:appId/app/:pageKey`; a `runId` query parameter displays persisted workflow progress, while optional `workspaceId` retains team scope.
+- Core components: `src/features/ModuleAppRuntime/WorkflowProgress.tsx`, `src/features/ModuleAppRuntime/index.tsx`, and `src/features/ModuleAppRuntime/RunResultPanel.tsx`.
+- Backend API and services: `lambda.moduleApp.listRuns`, `listArtifacts`, `getWorkflowRun`, `listWorkflowNodes`, `cancelWorkflowRun`, the Module App capability gateway `data.*` and `tasks.*` methods, `ModuleAppWorkflowEngine`, QStash dispatch, and signed webhook routes.
+- Database dependencies: migration `0137_add_module_app_data_workflows.sql`; `module_app_records`, `module_app_runs`, and `module_app_artifacts` installation bindings; `module_app_data_schemas`, `module_app_data_rows`, `module_app_workflow_runs`, `module_app_workflow_nodes`, `module_app_schedules`, `module_app_webhooks`, and webhook delivery persistence.
+- Configuration dependencies: reviewed Module App manifest capabilities, logical data schemas, workflow definitions, bounded cron/timezone settings, current plan entitlement, active installation, and current workspace membership.
+- Environment variables: existing QStash signing/dispatch configuration and existing Module App runtime variables. This phase adds no hardcoded API key, model name, base URL, or new Docker volume.
+- External services: Upstash QStash for durable dispatch and schedules; existing S3-compatible storage for artifacts; reviewed external webhook senders using HMAC-SHA256.
+- Main files: `packages/types/src/moduleAppData.ts`, `packages/types/src/moduleAppWorkflow.ts`, `packages/database/src/models/moduleAppData.ts`, `packages/database/src/models/moduleAppWorkflow.ts`, `packages/business-server/src/module-apps/data/`, `packages/business-server/src/module-apps/workflows/`, `apps/server/src/workflows/moduleApp/`, `apps/server/src/routers/lambda/moduleApp.ts`, and `src/features/ModuleAppRuntime/`.
+- Maintenance risk: high. Installation authorization, workspace membership, durable transitions, retries, webhook replay protection, QStash delivery, and billing-aware execution meet at this boundary.
+- Refactor recommendation: keep data policy, workflow state transitions, dispatch, executors, and UI polling as separate tested adapters. Do not merge them into a generic arbitrary-code runner.
+- Test coverage: contract bounds, database isolation and workflow transitions, data constraints/transactions, graph validation, retries/idempotency/cancellation, signed webhook replay protection, QStash dispatch, workspace denial, installation-scoped history, service contracts, progress UI, type-check, and targeted lint.
+- Security boundary: every row/run/node/schedule/webhook/artifact binds to `installationId`; team APIs recheck current workspace membership; list operations are bounded and cursor-paginated; external webhooks require timestamped HMAC and delivery deduplication; application SQL/DDL and unreviewed hosts are prohibited.
+- Docker deployment: no compose or volume change. Production Module App execution remains disabled until the separate runtime security acceptance gate passes.
+
 ## Governance Execution Notes
 
 | Date | Scope | Status | Note |

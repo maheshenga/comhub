@@ -23,6 +23,7 @@ import {
 import { runModuleAppAction } from '@/business/server/module-apps/runModuleAppAction';
 import { getSubscriptionPlan } from '@/business/server/user';
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { ModuleAppPackageItem, ModuleAppRecordItem } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
@@ -42,6 +43,20 @@ const AppIdInputSchema = z.object({
 
 const ModuleAppLaunchInputSchema = AppIdInputSchema.extend({
   workspaceId: z.string().min(1).optional(),
+});
+
+const ModuleAppHistoryInputSchema = z.object({
+  cursor: z.string().max(512).optional(),
+  installationId: z.string().uuid(),
+  limit: z.number().int().min(1).max(100).optional(),
+  workspaceId: z.string().min(1).optional(),
+});
+
+const ModuleAppWorkflowRunInputSchema = ModuleAppHistoryInputSchema.pick({
+  installationId: true,
+  workspaceId: true,
+}).extend({
+  runId: z.string().uuid(),
 });
 
 const ModuleAppLaunchRuntimeManifestSchema = z
@@ -217,6 +232,7 @@ const moduleAppProcedure = authedProcedure.use(serverDatabase).use(async (opts) 
     ctx: {
       currentPlan,
       moduleAppModel: new ModuleAppModel(opts.ctx.serverDB),
+      moduleAppWorkflowModel: new ModuleAppWorkflowModel(opts.ctx.serverDB),
     },
   });
 });
@@ -263,6 +279,53 @@ const assertScopePermission = async (params: {
       message: error instanceof Error ? error.message : 'module_app_permission_denied',
     });
   }
+};
+
+const assertInstallationAccess = async (params: {
+  db: LobeChatDatabase;
+  installationId: string;
+  model: ModuleAppModel;
+  userId: string;
+  workspaceId?: string;
+}) => {
+  if (params.workspaceId) {
+    const membership = await getWorkspaceMembership(params.db, params.userId, params.workspaceId);
+    if (!membership) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
+    }
+  }
+
+  try {
+    await params.model.assertInstallationAccess({
+      installationId: params.installationId,
+      userId: params.userId,
+      workspaceId: params.workspaceId,
+    });
+  } catch (error) {
+    throw new TRPCError({
+      cause: error,
+      code: 'FORBIDDEN',
+      message: 'module_app_installation_access_denied',
+    });
+  }
+};
+
+const assertWorkflowRunAccess = async (params: {
+  db: LobeChatDatabase;
+  installationId: string;
+  model: ModuleAppModel;
+  runId: string;
+  userId: string;
+  workflowModel: ModuleAppWorkflowModel;
+  workspaceId?: string;
+}) => {
+  await assertInstallationAccess(params);
+  const run = await params.workflowModel.getRun({
+    installationId: params.installationId,
+    runId: params.runId,
+  });
+  if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_workflow_run_not_found' });
+  return run;
 };
 
 const assertRunnableApp = async (params: {
@@ -314,6 +377,37 @@ const assertRecordPermission = async (params: {
 };
 
 export const moduleAppRouter = router({
+  cancelWorkflowRun: moduleAppProcedure
+    .input(ModuleAppWorkflowRunInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertWorkflowRunAccess({
+        db: ctx.serverDB,
+        ...input,
+        model: ctx.moduleAppModel,
+        userId: ctx.userId,
+        workflowModel: ctx.moduleAppWorkflowModel,
+      });
+      try {
+        return await ctx.moduleAppWorkflowModel.cancelRun({
+          installationId: input.installationId,
+          runId: input.runId,
+        });
+      } catch (error) {
+        const identifier = getPackageErrorIdentifier(error);
+        throw new TRPCError({
+          cause: error,
+          code:
+            identifier === 'MODULE_APP_WORKFLOW_RUN_NOT_CANCELLABLE'
+              ? 'CONFLICT'
+              : 'INTERNAL_SERVER_ERROR',
+          message:
+            identifier === 'MODULE_APP_WORKFLOW_RUN_NOT_CANCELLABLE'
+              ? 'module_app_workflow_run_not_cancellable'
+              : 'module_app_workflow_cancel_failed',
+        });
+      }
+    }),
+
   callSdk: moduleAppProcedure
     .input(ModuleAppGatewayCallInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -522,6 +616,18 @@ export const moduleAppRouter = router({
     });
   }),
 
+  getWorkflowRun: moduleAppProcedure
+    .input(ModuleAppWorkflowRunInputSchema)
+    .query(async ({ ctx, input }) => {
+      return assertWorkflowRunAccess({
+        db: ctx.serverDB,
+        ...input,
+        model: ctx.moduleAppModel,
+        userId: ctx.userId,
+        workflowModel: ctx.moduleAppWorkflowModel,
+      });
+    }),
+
   installPersonal: moduleAppProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     const detail = await ctx.moduleAppModel.getAppDetail({
       appIdOrSlug: input.appId,
@@ -542,9 +648,17 @@ export const moduleAppRouter = router({
     return { ok: true };
   }),
 
-  listArtifacts: moduleAppProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
-    return ctx.moduleAppModel.listArtifacts({ ...input, userId: ctx.userId });
-  }),
+  listArtifacts: moduleAppProcedure
+    .input(ModuleAppHistoryInputSchema)
+    .query(async ({ ctx, input }) => {
+      await assertInstallationAccess({
+        db: ctx.serverDB,
+        ...input,
+        model: ctx.moduleAppModel,
+        userId: ctx.userId,
+      });
+      return ctx.moduleAppModel.listArtifacts({ ...input, userId: ctx.userId });
+    }),
 
   listMarketplace: moduleAppProcedure
     .input(moduleAppMarketplaceListInputSchema)
@@ -602,9 +716,31 @@ export const moduleAppRouter = router({
       return ctx.moduleAppModel.listRecords({ ...input, userId: ctx.userId });
     }),
 
-  listRuns: moduleAppProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
+  listRuns: moduleAppProcedure.input(ModuleAppHistoryInputSchema).query(async ({ ctx, input }) => {
+    await assertInstallationAccess({
+      db: ctx.serverDB,
+      ...input,
+      model: ctx.moduleAppModel,
+      userId: ctx.userId,
+    });
     return ctx.moduleAppModel.listRuns({ ...input, userId: ctx.userId });
   }),
+
+  listWorkflowNodes: moduleAppProcedure
+    .input(ModuleAppWorkflowRunInputSchema)
+    .query(async ({ ctx, input }) => {
+      await assertWorkflowRunAccess({
+        db: ctx.serverDB,
+        ...input,
+        model: ctx.moduleAppModel,
+        userId: ctx.userId,
+        workflowModel: ctx.moduleAppWorkflowModel,
+      });
+      return ctx.moduleAppWorkflowModel.listNodes({
+        installationId: input.installationId,
+        runId: input.runId,
+      });
+    }),
 
   listTeamApps: moduleAppProcedure
     .input(z.object({ workspaceId: z.string().min(1) }))

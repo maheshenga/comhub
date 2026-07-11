@@ -11,9 +11,11 @@ import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import { moduleAppService } from '@/services/moduleApp';
 
 import PageRenderer from './PageRenderer';
+import WorkflowProgress from './WorkflowProgress';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   root: css`
+    position: relative;
     width: 100%;
     height: 100%;
     min-height: 480px;
@@ -60,10 +62,12 @@ interface ModuleAppRuntimeViewProps {
   error?: unknown;
   loading: boolean;
   onRetry: () => void;
+  runId?: string;
+  workspaceId?: string;
 }
 
 export const ModuleAppRuntimeView = memo<ModuleAppRuntimeViewProps>(
-  ({ context, error, loading, onRetry }) => {
+  ({ context, error, loading, onRetry, runId, workspaceId }) => {
     const { t } = useTranslation('common');
 
     if (loading) {
@@ -102,6 +106,13 @@ export const ModuleAppRuntimeView = memo<ModuleAppRuntimeViewProps>(
     return (
       <div className={styles.root} data-testid="module-app-runtime">
         <PageRenderer context={context} />
+        {runId && (
+          <WorkflowProgress
+            installationId={context.installationId}
+            runId={runId}
+            workspaceId={workspaceId}
+          />
+        )}
       </div>
     );
   },
@@ -113,6 +124,7 @@ const ModuleAppRuntime = memo(() => {
   const { appId } = useParams();
   const [searchParams] = useSearchParams();
   const workspaceId = searchParams.get('workspaceId') || undefined;
+  const runId = searchParams.get('runId') || undefined;
   const launch = useSWR<ModuleAppLaunchContext>(
     appId ? ['moduleApp.getLaunchContext', appId, workspaceId] : null,
     () => moduleAppService.getLaunchContext({ appId: appId!, workspaceId }),
@@ -124,6 +136,8 @@ const ModuleAppRuntime = memo(() => {
       context={launch.data}
       error={appId ? launch.error : new Error('module_app_installation_required')}
       loading={Boolean(appId && launch.isLoading)}
+      runId={runId}
+      workspaceId={workspaceId}
       onRetry={() => void launch.mutate()}
     />
   );

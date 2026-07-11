@@ -354,7 +354,7 @@ describe('ModuleAppModel marketplace behavior', () => {
       userId,
     });
 
-    const runs = await model.listRuns({ appId: app.id, userId });
+    const runs = await model.listRuns({ installationId: run.installationId!, userId });
     expect(runs.items).toEqual([
       expect.objectContaining({
         outputSnapshot: { preview: 'Created A' },
@@ -362,7 +362,7 @@ describe('ModuleAppModel marketplace behavior', () => {
       }),
     ]);
 
-    const artifacts = await model.listArtifacts({ appId: app.id, userId });
+    const artifacts = await model.listArtifacts({ installationId: run.installationId!, userId });
     expect(artifacts.items).toEqual([
       expect.objectContaining({
         fileName: 'result.txt',

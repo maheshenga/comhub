@@ -43,6 +43,52 @@ describe('createModuleAppService', () => {
     expect(query).toHaveBeenCalledWith({ appId: 'app-1', workspaceId: 'workspace-1' });
   });
 
+  it('lists installation-scoped runs with an opaque cursor', async () => {
+    const query = vi.fn().mockResolvedValue({ items: [], nextCursor: 'next' });
+    const service = createModuleAppService({ moduleApp: { listRuns: { query } } } as never);
+    await expect(
+      service.listRuns({
+        cursor: 'cursor-1',
+        installationId: '00000000-0000-4000-8000-000000000010',
+        limit: 20,
+        workspaceId: 'workspace-1',
+      }),
+    ).resolves.toEqual({ items: [], nextCursor: 'next' });
+    expect(query).toHaveBeenCalledWith({
+      cursor: 'cursor-1',
+      installationId: '00000000-0000-4000-8000-000000000010',
+      limit: 20,
+      workspaceId: 'workspace-1',
+    });
+  });
+
+  it('reads and cancels persisted workflow state', async () => {
+    const getRun = vi.fn().mockResolvedValue({ id: 'run-1', status: 'running' });
+    const listNodes = vi.fn().mockResolvedValue([{ nodeKey: 'start', status: 'running' }]);
+    const cancelRun = vi.fn().mockResolvedValue({ id: 'run-1', status: 'cancelled' });
+    const service = createModuleAppService({
+      moduleApp: {
+        cancelWorkflowRun: { mutate: cancelRun },
+        getWorkflowRun: { query: getRun },
+        listWorkflowNodes: { query: listNodes },
+      },
+    } as never);
+    const input = {
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runId: '00000000-0000-4000-8000-000000000020',
+      workspaceId: 'workspace-1',
+    };
+
+    await expect(service.getWorkflowRun(input)).resolves.toMatchObject({ status: 'running' });
+    await expect(service.listWorkflowNodes(input)).resolves.toEqual([
+      { nodeKey: 'start', status: 'running' },
+    ]);
+    await expect(service.cancelWorkflowRun(input)).resolves.toMatchObject({ status: 'cancelled' });
+    expect(getRun).toHaveBeenCalledWith(input);
+    expect(listNodes).toHaveBeenCalledWith(input);
+    expect(cancelRun).toHaveBeenCalledWith(input);
+  });
+
   it('uploads a ZIP to the server-issued target before submitting it for review', async () => {
     const createUpload = vi.fn().mockResolvedValue({
       expiresAt: '2026-07-11T02:00:00.000Z',

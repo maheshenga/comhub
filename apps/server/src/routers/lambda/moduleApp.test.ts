@@ -13,6 +13,7 @@ const {
   mockModuleAppGateway,
   mockRunModuleAppAction,
   mockModuleAppModel,
+  mockModuleAppWorkflowModel,
   mockSignModuleAppCapability,
   mockVerifyModuleAppCapability,
 } = vi.hoisted(() => ({
@@ -30,11 +31,18 @@ const {
   mockModuleAppGateway: { call: vi.fn() },
   mockRunModuleAppAction: vi.fn(),
   mockModuleAppModel: {
+    assertInstallationAccess: vi.fn(),
     createRecord: vi.fn(),
     createRun: vi.fn(),
     getAppDetail: vi.fn(),
     getLaunchInstallationContext: vi.fn(),
     listAdminPackageSubmissions: vi.fn(),
+    listArtifacts: vi.fn(),
+  },
+  mockModuleAppWorkflowModel: {
+    cancelRun: vi.fn(),
+    getRun: vi.fn(),
+    listNodes: vi.fn(),
   },
   mockSignModuleAppCapability: vi.fn(),
   mockVerifyModuleAppCapability: vi.fn(),
@@ -75,6 +83,10 @@ vi.mock('@/server/services/moduleAppRuntime/gateway', () => ({
 
 vi.mock('@/database/models/moduleApp', () => ({
   ModuleAppModel: vi.fn(() => mockModuleAppModel),
+}));
+
+vi.mock('@/database/models/moduleAppWorkflow', () => ({
+  ModuleAppWorkflowModel: vi.fn(() => mockModuleAppWorkflowModel),
 }));
 
 const APP_ID = '00000000-0000-4000-8000-000000000001';
@@ -126,6 +138,14 @@ describe('moduleApp router registration', () => {
       versionId: '00000000-0000-4000-8000-000000000011',
     });
     mockModuleAppGateway.call.mockResolvedValue({ appId: APP_ID });
+    mockModuleAppWorkflowModel.getRun.mockResolvedValue({ id: 'workflow-run-1', status: 'running' });
+    mockModuleAppWorkflowModel.listNodes.mockResolvedValue([
+      { nodeKey: 'start', status: 'succeeded' },
+    ]);
+    mockModuleAppWorkflowModel.cancelRun.mockResolvedValue({
+      id: 'workflow-run-1',
+      status: 'cancelled',
+    });
     mockModuleAppModel.getLaunchInstallationContext.mockResolvedValue({
       artifactKey: `module-app-builds/build/${'a'.repeat(64)}.tgz`,
       artifactSha256: 'a'.repeat(64),
@@ -339,6 +359,66 @@ describe('moduleApp router registration', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(mockModuleAppGateway.call).not.toHaveBeenCalled();
+  });
+
+  it('rejects team artifact history when workspace membership is missing', async () => {
+    mockGetWorkspaceMember.mockResolvedValueOnce(null);
+    await expect(
+      createCaller().listArtifacts({
+        installationId: '00000000-0000-4000-8000-000000000010',
+        workspaceId: 'workspace-denied',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(mockModuleAppModel.listArtifacts).not.toHaveBeenCalled();
+  });
+
+  it('returns persisted workflow state only after installation authorization', async () => {
+    const input = {
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runId: '00000000-0000-4000-8000-000000000020',
+    };
+
+    await expect(createCaller().getWorkflowRun(input)).resolves.toMatchObject({ status: 'running' });
+    await expect(createCaller().listWorkflowNodes(input)).resolves.toEqual([
+      { nodeKey: 'start', status: 'succeeded' },
+    ]);
+
+    expect(mockModuleAppModel.assertInstallationAccess).toHaveBeenCalledWith({
+      installationId: input.installationId,
+      userId: 'user-1',
+      workspaceId: undefined,
+    });
+    expect(mockModuleAppWorkflowModel.getRun).toHaveBeenCalledWith(input);
+    expect(mockModuleAppWorkflowModel.listNodes).toHaveBeenCalledWith(input);
+  });
+
+  it('cancels a workflow only through an explicit authorized mutation', async () => {
+    const input = {
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runId: '00000000-0000-4000-8000-000000000020',
+      workspaceId: 'workspace-1',
+    };
+
+    await expect(createCaller().cancelWorkflowRun(input)).resolves.toMatchObject({
+      status: 'cancelled',
+    });
+
+    expect(mockGetWorkspaceMember).toHaveBeenCalled();
+    expect(mockModuleAppWorkflowModel.cancelRun).toHaveBeenCalledWith({
+      installationId: input.installationId,
+      runId: input.runId,
+    });
+  });
+
+  it('does not misreport unexpected workflow cancellation failures as conflicts', async () => {
+    mockModuleAppWorkflowModel.cancelRun.mockRejectedValueOnce(new Error('DATABASE_UNAVAILABLE'));
+
+    await expect(
+      createCaller().cancelWorkflowRun({
+        installationId: '00000000-0000-4000-8000-000000000010',
+        runId: '00000000-0000-4000-8000-000000000020',
+      }),
+    ).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
   });
 
   it('denies record creation when the current plan cannot run the app', async () => {

@@ -313,7 +313,7 @@ git commit -m "feat: dispatch module app jobs schedules and webhooks"
 - Produces: cursor-paginated `listRuns`, `listArtifacts`, `getRun`, `cancelRun`, and progress polling for personal/team installations.
 - Consumes: workspace membership and installation-bound data.
 
-- [ ] **Step 1: Add failing team isolation and progress tests**
+- [x] **Step 1: Add failing team isolation and progress tests**
 
 ```ts
 await expect(router.listArtifacts({ appId, workspaceId: unauthorizedWorkspace })).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -321,17 +321,17 @@ expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
 expect(screen.getByText('2 / 5')).toBeVisible();
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `bunx vitest run --silent='passed-only' packages/database/src/models/__tests__/moduleApp.marketplace.test.ts apps/server/src/routers/lambda/moduleApp.test.ts src/services/moduleApp.test.ts src/features/ModuleAppRuntime/WorkflowProgress.test.tsx`
 
 Expected: FAIL because list APIs are app-only and progress UI is absent.
 
-- [ ] **Step 3: Complete installation and team scoping**
+- [x] **Step 3: Complete installation and team scoping**
 
 Change list inputs to installation plus cursor, verify workspace membership on every request, and return only artifacts from authorized runs. Poll persisted run state with SWR; stopping or navigating the page must not cancel the run. Add explicit cancel authorization and terminal-state handling.
 
-- [ ] **Step 4: Run plan verification**
+- [x] **Step 4: Run plan verification**
 
 Run the focused command from Step 2.
 
@@ -345,7 +345,7 @@ Run: `git diff --check`
 
 Expected: no output.
 
-- [ ] **Step 5: Update governance docs and commit**
+- [x] **Step 5: Update governance docs and commit**
 
 Update `docs/FEATURE_REGISTRY.md` and `docs/CHANGELOG_INTERNAL.md` with data modes, QStash dependency, team impact, and migration `0137`.
 

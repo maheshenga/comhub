@@ -26,6 +26,17 @@ type RecordListInput = Pick<
   'appId' | 'collectionKey' | 'scopeType' | 'workspaceId'
 >;
 
+type ModuleAppHistoryInput = {
+  cursor?: string;
+  installationId: string;
+  limit?: number;
+  workspaceId?: string;
+};
+
+type ModuleAppWorkflowRunInput = Pick<ModuleAppHistoryInput, 'installationId' | 'workspaceId'> & {
+  runId: string;
+};
+
 export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof fetch = fetch) => {
   const createPackageUpload = async (input: ModuleAppPackageUploadRequest) =>
     (await client.moduleApp.createPackageUpload.mutate!(input)) as ModuleAppPackageUploadTarget;
@@ -36,6 +47,8 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
   return {
     archiveRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
       client.moduleApp.archiveRecord.mutate!(input),
+    cancelWorkflowRun: (input: ModuleAppWorkflowRunInput) =>
+      client.moduleApp.cancelWorkflowRun.mutate!(input),
     callSdk: (input: {
       capability: string;
       input?: unknown;
@@ -51,8 +64,10 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.getRecord.query!(input),
     getRuntimeManifest: (input: { appId: string }) =>
       client.moduleApp.getRuntimeManifest.query!(input),
+    getWorkflowRun: (input: ModuleAppWorkflowRunInput) =>
+      client.moduleApp.getWorkflowRun.query!(input),
     installPersonal: (input: { appId: string }) => client.moduleApp.installPersonal.mutate!(input),
-    listArtifacts: (input: { appId: string }) => client.moduleApp.listArtifacts.query!(input),
+    listArtifacts: (input: ModuleAppHistoryInput) => client.moduleApp.listArtifacts.query!(input),
     listMarketplace: (input?: ModuleAppMarketplaceListInput) =>
       client.moduleApp.listMarketplace.query!(input),
     listMyApps: () => client.moduleApp.listMyApps.query!(),
@@ -61,7 +76,9 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
         input,
       ) as Promise<ModuleAppPackageSubmissionListResult>,
     listRecords: (input: RecordListInput) => client.moduleApp.listRecords.query!(input),
-    listRuns: (input: { appId: string }) => client.moduleApp.listRuns.query!(input),
+    listRuns: (input: ModuleAppHistoryInput) => client.moduleApp.listRuns.query!(input),
+    listWorkflowNodes: (input: ModuleAppWorkflowRunInput) =>
+      client.moduleApp.listWorkflowNodes.query!(input),
     listTeamApps: (input: { workspaceId: string }) => client.moduleApp.listTeamApps.query!(input),
     runAction: (input: ModuleAppRunInput) => client.moduleApp.runAction.mutate!(input),
     submitUploadedPackage,

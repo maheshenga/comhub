@@ -2,6 +2,17 @@
 
 ## 2026-07-11
 
+### Module App Data, Workflows, And Team History
+
+- MODULE-APP-DATA-P2-001: Added migration `0137_add_module_app_data_workflows.sql` with installation-bound managed data schemas/rows, workflow runs/nodes, schedules, webhooks, and delivery replay state. Existing records, runs, and artifacts gained installation bindings with compatibility backfill rules.
+- MODULE-APP-DATA-P2-002: Added bounded collection and logical-table APIs with schema validation, declared indexes/references, installation isolation, transactions, cursor pagination, and SDK `data.*` methods. Applications cannot execute SQL or query undeclared fields.
+- MODULE-APP-WORKFLOW-P2-001: Added durable workflow graph validation and persisted execution for condition, transform, parallel, wait, approval, retry, timeout, compensation, cancellation, and stale-claim handling.
+- MODULE-APP-WORKFLOW-P2-002: Added QStash dispatch, strict five-field schedules with server-side timezone calculation, QStash-signed internal delivery, HMAC external webhooks, replay-window validation, and durable delivery deduplication/reclaim.
+- MODULE-APP-TEAM-P2-001: Changed user run and artifact history to active `installationId` scope with bounded opaque cursors. Every team request rechecks current workspace membership, and artifact history requires a run from the same installation.
+- MODULE-APP-TEAM-P2-002: Added authorized persisted workflow run/node queries, explicit cancellation, and SWR progress polling. Navigation and component unmount do not cancel durable runs; polling stops only after a terminal state.
+- Data modes: legacy JSON collections remain available through `module_app_records`; reviewed applications can use platform-managed logical tables through `module_app_data_schemas` and `module_app_data_rows`.
+- External services and deployment: workflow dispatch reuses existing Upstash QStash configuration. No new Docker volume or production runtime service is enabled. Uploaded Module App execution remains disabled by default.
+
 ### Module App Executable Build Foundation
 
 - MODULE-APP-RUNTIME-P1-001: Added strict manifest v2 `module-app.yaml` contracts for fixed `node22-static` and `python312-assets` build profiles while preserving legacy manifest v1 JSON packages and rejecting mixed manifest formats or custom images.

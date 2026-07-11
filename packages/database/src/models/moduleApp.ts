@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import type {
   ModuleAppActionConfig,
   ModuleAppAdminUpsertInput,
@@ -43,6 +45,22 @@ import type { LobeChatDatabase, Transaction } from '../type';
 
 const DEFAULT_VERSION = '1.0.0';
 const INSTALL_STATUS_ACTIVE = 'installed';
+
+const encodeHistoryCursor = (offset: number) =>
+  Buffer.from(JSON.stringify({ offset }), 'utf8').toString('base64url');
+
+const decodeHistoryCursor = (cursor?: string) => {
+  if (!cursor) return 0;
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { offset?: unknown };
+    if (!Number.isInteger(value.offset) || Number(value.offset) < 0 || Number(value.offset) > 1_000_000) {
+      throw new Error('invalid module app history cursor offset');
+    }
+    return Number(value.offset);
+  } catch {
+    throw new Error('MODULE_APP_HISTORY_CURSOR_INVALID');
+  }
+};
 const INSTALL_STATUS_INACTIVE = 'uninstalled';
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -184,33 +202,6 @@ const recordScopeWhere = (params: {
     : and(
         eq(moduleAppRecords.scopeType, 'workspace'),
         eq(moduleAppRecords.workspaceId, params.workspaceId ?? ''),
-      );
-
-const runScopeWhere = (params: {
-  scopeType?: ModuleAppScopeType;
-  userId: string;
-  workspaceId?: string;
-}) =>
-  params.scopeType === 'workspace' || params.workspaceId
-    ? and(
-        eq(moduleAppRuns.scopeType, 'workspace'),
-        eq(moduleAppRuns.workspaceId, params.workspaceId ?? ''),
-      )
-    : and(eq(moduleAppRuns.scopeType, 'personal'), eq(moduleAppRuns.userId, params.userId));
-
-const artifactScopeWhere = (params: {
-  scopeType?: ModuleAppScopeType;
-  userId: string;
-  workspaceId?: string;
-}) =>
-  params.scopeType === 'workspace' || params.workspaceId
-    ? and(
-        eq(moduleAppArtifacts.scopeType, 'workspace'),
-        eq(moduleAppArtifacts.workspaceId, params.workspaceId ?? ''),
-      )
-    : and(
-        eq(moduleAppArtifacts.scopeType, 'personal'),
-        eq(moduleAppArtifacts.userId, params.userId),
       );
 
 export class ModuleAppModel {
@@ -1576,49 +1567,89 @@ export class ModuleAppModel {
     return { ok: true as const };
   };
 
-  listRuns = async (params: {
-    appId: string;
-    cursor?: number;
-    limit?: number;
-    scopeType?: ModuleAppScopeType;
+  assertInstallationAccess = async (params: {
+    installationId: string;
     userId: string;
     workspaceId?: string;
   }) => {
-    const limit = params.limit ?? 50;
-    const cursor = params.cursor ?? 0;
-    const items = await this.db.query.moduleAppRuns.findMany({
-      limit,
-      offset: cursor,
-      orderBy: [desc(moduleAppRuns.createdAt)],
-      where: and(eq(moduleAppRuns.appId, params.appId), runScopeWhere(params)),
+    const installation = await this.db.query.moduleAppInstallations.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(moduleAppInstallations.id, params.installationId),
+        eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+        params.workspaceId
+          ? and(
+              eq(moduleAppInstallations.scopeType, 'workspace'),
+              eq(moduleAppInstallations.workspaceId, params.workspaceId),
+            )
+          : and(
+              eq(moduleAppInstallations.scopeType, 'personal'),
+              eq(moduleAppInstallations.userId, params.userId),
+            ),
+      ),
     });
+    if (!installation) throw new Error('MODULE_APP_INSTALLATION_ACCESS_DENIED');
+  };
+
+  listRuns = async (params: {
+    cursor?: string;
+    installationId: string;
+    limit?: number;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    await this.assertInstallationAccess(params);
+    const limit = Math.min(100, Math.max(1, params.limit ?? 50));
+    const cursor = decodeHistoryCursor(params.cursor);
+    const items = await this.db.query.moduleAppRuns.findMany({
+      limit: limit + 1,
+      offset: cursor,
+      orderBy: [desc(moduleAppRuns.createdAt), desc(moduleAppRuns.id)],
+      where: eq(moduleAppRuns.installationId, params.installationId),
+    });
+    const hasMore = items.length > limit;
 
     return {
-      items,
-      nextCursor: items.length === limit ? cursor + limit : null,
+      items: hasMore ? items.slice(0, limit) : items,
+      nextCursor: hasMore ? encodeHistoryCursor(cursor + limit) : null,
     };
   };
 
   listArtifacts = async (params: {
-    appId: string;
-    cursor?: number;
+    cursor?: string;
+    installationId: string;
     limit?: number;
-    scopeType?: ModuleAppScopeType;
     userId: string;
     workspaceId?: string;
   }) => {
-    const limit = params.limit ?? 50;
-    const cursor = params.cursor ?? 0;
+    await this.assertInstallationAccess(params);
+    const limit = Math.min(100, Math.max(1, params.limit ?? 50));
+    const cursor = decodeHistoryCursor(params.cursor);
     const items = await this.db.query.moduleAppArtifacts.findMany({
-      limit,
+      limit: limit + 1,
       offset: cursor,
-      orderBy: [desc(moduleAppArtifacts.createdAt)],
-      where: and(eq(moduleAppArtifacts.appId, params.appId), artifactScopeWhere(params)),
+      orderBy: [desc(moduleAppArtifacts.createdAt), desc(moduleAppArtifacts.id)],
+      where: (artifacts, { and, eq, exists }) =>
+        and(
+          eq(artifacts.installationId, params.installationId),
+          exists(
+            this.db
+              .select({ id: moduleAppRuns.id })
+              .from(moduleAppRuns)
+              .where(
+                and(
+                  eq(moduleAppRuns.id, artifacts.runId),
+                  eq(moduleAppRuns.installationId, params.installationId),
+                ),
+              ),
+          ),
+        ),
     });
+    const hasMore = items.length > limit;
 
     return {
-      items,
-      nextCursor: items.length === limit ? cursor + limit : null,
+      items: hasMore ? items.slice(0, limit) : items,
+      nextCursor: hasMore ? encodeHistoryCursor(cursor + limit) : null,
     };
   };
 }
