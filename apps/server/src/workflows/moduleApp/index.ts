@@ -13,7 +13,10 @@ const getRunUrl = () => {
 };
 
 export class ModuleAppWorkflowDispatch {
-  static triggerRun(payload: ModuleAppWorkflowJobPayload, options?: { delayMs?: number }) {
+  static triggerRun(
+    payload: ModuleAppWorkflowJobPayload,
+    options?: { delayMs?: number; workflowRunId?: string },
+  ) {
     return workflowClient.trigger({
       body: payload,
       ...(options?.delayMs ? { delay: Math.max(1, Math.ceil(options.delayMs / 1000)) } : {}),
@@ -22,6 +25,7 @@ export class ModuleAppWorkflowDispatch {
         parallelism: 1,
       },
       url: getRunUrl(),
+      ...(options?.workflowRunId ? { workflowRunId: options.workflowRunId } : {}),
     });
   }
 }

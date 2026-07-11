@@ -880,6 +880,8 @@ export const moduleAppSchedules = pgTable(
     schedule: text('schedule').notNull(),
     timezone: text('timezone').notNull(),
     nextRunAt: timestamptz('next_run_at').notNull(),
+    claimToken: text('claim_token'),
+    claimExpiresAt: timestamptz('claim_expires_at'),
     enabled: boolean('enabled').default(true).notNull(),
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),

@@ -390,6 +390,9 @@ export class ModuleAppWorkflowEngine {
   cancel = (input: { installationId: string; runId: string }) =>
     this.repository.cancelRun(input);
 
+  fail = (input: { errorCode: string; installationId: string; runId: string }) =>
+    this.repository.updateRunStatus({ ...input, status: 'failed' });
+
   drain = async (input: {
     installationId: string;
     maxNodes?: number;

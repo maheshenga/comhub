@@ -1,4 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+
+import { and, asc, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 
 import {
   moduleAppInstallations,
@@ -106,6 +108,96 @@ export class ModuleAppTriggerModel {
   }) => {
     const [schedule] = await this.db.insert(moduleAppSchedules).values(input).returning();
     if (!schedule) throw new Error('MODULE_APP_SCHEDULE_CREATE_FAILED');
+    return schedule;
+  };
+
+  claimDueSchedules = async (input: { leaseMs: number; limit: number; now: Date }) => {
+    const limit = Math.min(100, Math.max(1, input.limit));
+    const leaseMs = Math.min(300_000, Math.max(100, input.leaseMs));
+    const claimExpiresAt = new Date(input.now.getTime() + leaseMs);
+    const claimToken = randomUUID();
+
+    return this.db.transaction(async (tx) => {
+      const candidates = await tx
+        .select({
+          id: moduleAppSchedules.id,
+          installationId: moduleAppSchedules.installationId,
+          runtimeManifest: moduleAppVersions.runtimeManifest,
+          schedule: moduleAppSchedules.schedule,
+          scheduledFor: moduleAppSchedules.nextRunAt,
+          timezone: moduleAppSchedules.timezone,
+          workflowKey: moduleAppSchedules.workflowKey,
+          workflowVersion: moduleAppSchedules.workflowVersion,
+        })
+        .from(moduleAppSchedules)
+        .innerJoin(
+          moduleAppInstallations,
+          eq(moduleAppInstallations.id, moduleAppSchedules.installationId),
+        )
+        .innerJoin(moduleAppVersions, eq(moduleAppVersions.id, moduleAppInstallations.versionId))
+        .where(
+          and(
+            eq(moduleAppSchedules.enabled, true),
+            lte(moduleAppSchedules.nextRunAt, input.now),
+            or(
+              isNull(moduleAppSchedules.claimExpiresAt),
+              lte(moduleAppSchedules.claimExpiresAt, input.now),
+            ),
+          ),
+        )
+        .orderBy(asc(moduleAppSchedules.nextRunAt), asc(moduleAppSchedules.createdAt))
+        .limit(limit)
+        .for('update', { skipLocked: true });
+      if (candidates.length === 0) return [];
+
+      await tx
+        .update(moduleAppSchedules)
+        .set({ claimExpiresAt, claimToken, updatedAt: input.now })
+        .where(inArray(moduleAppSchedules.id, candidates.map((item) => item.id)));
+
+      return candidates.map((candidate) => ({ ...candidate, claimExpiresAt, claimToken }));
+    });
+  };
+
+  completeScheduleClaim = async (input: {
+    claimToken: string;
+    claimExpiresAt: Date;
+    nextRunAt: Date;
+    scheduleId: string;
+  }) => {
+    const [schedule] = await this.db
+      .update(moduleAppSchedules)
+      .set({ claimExpiresAt: null, claimToken: null, nextRunAt: input.nextRunAt, updatedAt: new Date() })
+      .where(
+        and(
+          eq(moduleAppSchedules.id, input.scheduleId),
+          eq(moduleAppSchedules.claimToken, input.claimToken),
+          eq(moduleAppSchedules.claimExpiresAt, input.claimExpiresAt),
+        ),
+      )
+      .returning();
+    if (!schedule) throw new Error('MODULE_APP_SCHEDULE_STALE_CLAIM');
+    return schedule;
+  };
+
+  releaseScheduleClaim = async (input: {
+    claimToken: string;
+    claimExpiresAt: Date;
+    retryAt: Date;
+    scheduleId: string;
+  }) => {
+    const [schedule] = await this.db
+      .update(moduleAppSchedules)
+      .set({ claimExpiresAt: null, claimToken: null, nextRunAt: input.retryAt, updatedAt: input.retryAt })
+      .where(
+        and(
+          eq(moduleAppSchedules.id, input.scheduleId),
+          eq(moduleAppSchedules.claimToken, input.claimToken),
+          eq(moduleAppSchedules.claimExpiresAt, input.claimExpiresAt),
+        ),
+      )
+      .returning();
+    if (!schedule) throw new Error('MODULE_APP_SCHEDULE_STALE_CLAIM');
     return schedule;
   };
 

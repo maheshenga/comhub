@@ -1,5 +1,6 @@
 import type { ModuleAppWorkflowEngine } from '@/business/server/module-apps/workflows/engine';
 
+import { isModuleAppWorkflowEntitlementDeniedError } from './entitlementErrors';
 import type { ModuleAppWorkflowJobPayload } from './index';
 
 export const runModuleAppWorkflowJob = async (input: {
@@ -8,11 +9,19 @@ export const runModuleAppWorkflowJob = async (input: {
     payload: ModuleAppWorkflowJobPayload,
     options?: { delayMs?: number },
   ) => Promise<unknown>;
-  engine: Pick<ModuleAppWorkflowEngine, 'executeClaimedNode'>;
+  engine: Pick<ModuleAppWorkflowEngine, 'executeClaimedNode' | 'fail'>;
   payload: ModuleAppWorkflowJobPayload;
   workerId: string;
 }) => {
-  await input.assertEntitlement();
+  try {
+    await input.assertEntitlement();
+  } catch (error) {
+    if (!isModuleAppWorkflowEntitlementDeniedError(error)) throw error;
+    return input.engine.fail({
+      errorCode: 'MODULE_APP_WORKFLOW_ENTITLEMENT_DENIED',
+      ...input.payload,
+    });
+  }
 
   const run = await input.engine.executeClaimedNode({
     ...input.payload,

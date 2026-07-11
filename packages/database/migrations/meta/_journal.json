@@ -1001,6 +1001,13 @@
       "when": 1784223600000,
       "tag": "0139_add_module_app_revenue_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1784300000000,
+      "tag": "0140_add_module_app_schedule_claims",
+      "breakpoints": true
     }
   ],
   "version": "6"

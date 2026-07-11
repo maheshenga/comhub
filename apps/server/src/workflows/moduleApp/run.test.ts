@@ -19,7 +19,7 @@ describe('ModuleAppWorkflowDispatch', () => {
     await ModuleAppWorkflowDispatch.triggerRun({
       installationId: '00000000-0000-4000-8000-000000000001',
       runId: '00000000-0000-4000-8000-000000000002',
-    });
+    }, { workflowRunId: '00000000-0000-4000-8000-000000000002' });
     expect(trigger).toHaveBeenCalledWith({
       body: {
         installationId: '00000000-0000-4000-8000-000000000001',
@@ -30,6 +30,7 @@ describe('ModuleAppWorkflowDispatch', () => {
         parallelism: 1,
       },
       url: 'https://app.example.com/api/workflows/module-app/run',
+      workflowRunId: '00000000-0000-4000-8000-000000000002',
     });
   });
 
@@ -69,7 +70,13 @@ describe('ModuleAppWorkflowDispatch', () => {
     const assertEntitlement = vi
       .fn()
       .mockRejectedValue(new Error('MODULE_APP_ENTITLEMENT_LICENSE_EXPIRED'));
-    const engine = { executeClaimedNode: vi.fn().mockResolvedValue({ status: 'running' }) };
+    const engine = {
+      executeClaimedNode: vi.fn().mockResolvedValue({ status: 'running' }),
+      fail: vi.fn().mockResolvedValue({
+        errorCode: 'MODULE_APP_WORKFLOW_ENTITLEMENT_DENIED',
+        status: 'failed',
+      }),
+    };
 
     await expect(
       runModuleAppWorkflowJob({
@@ -82,8 +89,40 @@ describe('ModuleAppWorkflowDispatch', () => {
         },
         workerId: 'worker-1',
       }),
-    ).rejects.toThrow('MODULE_APP_ENTITLEMENT_LICENSE_EXPIRED');
+    ).resolves.toMatchObject({
+      errorCode: 'MODULE_APP_WORKFLOW_ENTITLEMENT_DENIED',
+      status: 'failed',
+    });
     expect(assertEntitlement).toHaveBeenCalledOnce();
     expect(engine.executeClaimedNode).not.toHaveBeenCalled();
+    expect(engine.fail).toHaveBeenCalledWith({
+      errorCode: 'MODULE_APP_WORKFLOW_ENTITLEMENT_DENIED',
+      installationId: '00000000-0000-4000-8000-000000000001',
+      runId: '00000000-0000-4000-8000-000000000002',
+    });
+  });
+
+  it('propagates infrastructure failures while resolving entitlement', async () => {
+    const { runModuleAppWorkflowJob } = await import('./run');
+    const engine = {
+      executeClaimedNode: vi.fn(),
+      fail: vi.fn(),
+    };
+
+    await expect(
+      runModuleAppWorkflowJob({
+        assertEntitlement: async () => {
+          throw new Error('database unavailable');
+        },
+        dispatch: vi.fn(),
+        engine: engine as never,
+        payload: {
+          installationId: '00000000-0000-4000-8000-000000000001',
+          runId: '00000000-0000-4000-8000-000000000002',
+        },
+        workerId: 'worker-1',
+      }),
+    ).rejects.toThrow('database unavailable');
+    expect(engine.fail).not.toHaveBeenCalled();
   });
 });

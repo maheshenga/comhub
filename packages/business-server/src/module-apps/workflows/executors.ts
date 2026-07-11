@@ -1,5 +1,7 @@
 import type { ModuleAppWorkflowNode } from '@lobechat/types';
 
+const MODULE_APP_WORKFLOW_OUTPUT_MAX_BYTES = 256 * 1024;
+
 export type ModuleAppWorkflowExecutionContext = {
   idempotencyKey: string;
   input: Record<string, unknown>;
@@ -16,6 +18,14 @@ export type ModuleAppWorkflowExecutionResult = {
 export type ModuleAppWorkflowNodeExecutor = (
   context: ModuleAppWorkflowExecutionContext,
 ) => Promise<ModuleAppWorkflowExecutionResult>;
+
+export const assertModuleAppWorkflowOutput = (output: Record<string, unknown>) => {
+  if (Buffer.byteLength(JSON.stringify(output), 'utf8') > MODULE_APP_WORKFLOW_OUTPUT_MAX_BYTES) {
+    throw new Error('MODULE_APP_WORKFLOW_OUTPUT_TOO_LARGE');
+  }
+
+  return output;
+};
 
 export const createModuleAppWorkflowExecutor = (options: {
   ai?: ModuleAppWorkflowNodeExecutor;

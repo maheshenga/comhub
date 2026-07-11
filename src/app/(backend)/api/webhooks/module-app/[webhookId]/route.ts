@@ -11,6 +11,10 @@ import { ModuleAppTriggerModel } from '@/database/models/moduleAppTrigger';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { getServerDB } from '@/database/server';
 import { ModuleAppWorkflowDispatch } from '@/server/workflows/moduleApp';
+import {
+  resolveModuleAppWorkflowEntitlement,
+} from '@/server/workflows/moduleApp/entitlement';
+import { isModuleAppWorkflowEntitlementDeniedError } from '@/server/workflows/moduleApp/entitlementErrors';
 
 type WebhookContext = {
   installationId: string;
@@ -47,7 +51,16 @@ export const createModuleAppWebhookHandler = (dependencies: {
     receivedAt: Date;
     webhookId: string;
   }) => Promise<{ duplicate: boolean }>;
-  dispatch: (input: { installationId: string; runId: string }) => Promise<unknown>;
+  assertEntitlement: (input: { installationId: string }) => Promise<unknown>;
+  dispatch: (
+    input: { installationId: string; runId: string },
+    options?: { workflowRunId?: string },
+  ) => Promise<unknown>;
+  failRun: (input: {
+    errorCode: string;
+    installationId: string;
+    runId: string;
+  }) => Promise<unknown>;
   getWebhook: (webhookId: string) => Promise<null | WebhookContext>;
   now?: () => Date;
   start: (input: {
@@ -100,19 +113,47 @@ export const createModuleAppWebhookHandler = (dependencies: {
   });
   if (accepted.duplicate) return Response.json({ duplicate: true }, { status: 202 });
   try {
-    const run = await dependencies.start({
+    await dependencies.assertEntitlement({ installationId: webhook.installationId });
+  } catch (error) {
+    if (!isModuleAppWorkflowEntitlementDeniedError(error)) throw error;
+    await dependencies.updateDelivery({ deliveryId, status: 'failed', webhookId });
+    return Response.json({ error: 'MODULE_APP_WORKFLOW_ENTITLEMENT_DENIED' }, { status: 403 });
+  }
+  let run: { id: string } | undefined;
+  try {
+    run = await dependencies.start({
       idempotencyKey: `${webhookId}:${deliveryId}`,
       input: payload,
       installationId: webhook.installationId,
-    workflow: webhook.workflow,
+      workflow: webhook.workflow,
     });
-    await dependencies.dispatch({ installationId: webhook.installationId, runId: run.id });
-    await dependencies.updateDelivery({ deliveryId, status: 'processed', webhookId });
-    return Response.json({ duplicate: false, runId: run.id }, { status: 202 });
   } catch {
     await dependencies.updateDelivery({ deliveryId, status: 'failed', webhookId });
     return Response.json({ error: 'dispatch_failed' }, { status: 500 });
   }
+  try {
+    await dependencies.dispatch(
+      { installationId: webhook.installationId, runId: run.id },
+      { workflowRunId: run.id },
+    );
+  } catch {
+    try {
+      await dependencies.failRun({
+        errorCode: 'MODULE_APP_WORKFLOW_DISPATCH_FAILED',
+        installationId: webhook.installationId,
+        runId: run.id,
+      });
+    } finally {
+      await dependencies.updateDelivery({ deliveryId, status: 'failed', webhookId });
+    }
+    return Response.json({ error: 'dispatch_failed' }, { status: 500 });
+  }
+  try {
+    await dependencies.updateDelivery({ deliveryId, status: 'processed', webhookId });
+  } catch {
+    return Response.json({ deliveryStatus: 'accepted', duplicate: false, runId: run.id }, { status: 202 });
+  }
+  return Response.json({ duplicate: false, runId: run.id }, { status: 202 });
 };
 
 export const POST = createModuleAppWebhookHandler({
@@ -120,7 +161,15 @@ export const POST = createModuleAppWebhookHandler({
     const db = await getServerDB();
     return new ModuleAppTriggerModel(db).acceptWebhookDelivery(input);
   },
-  dispatch: (input) => ModuleAppWorkflowDispatch.triggerRun(input),
+  assertEntitlement: async ({ installationId }) => {
+    const db = await getServerDB();
+    return resolveModuleAppWorkflowEntitlement({ db, installationId });
+  },
+  dispatch: (input, options) => ModuleAppWorkflowDispatch.triggerRun(input, options),
+  failRun: async (input) => {
+    const db = await getServerDB();
+    return new ModuleAppWorkflowModel(db).updateRunStatus({ ...input, status: 'failed' });
+  },
   getWebhook: async (webhookId) => {
     const db = await getServerDB();
     const row = await new ModuleAppTriggerModel(db).getWebhookContext(webhookId);

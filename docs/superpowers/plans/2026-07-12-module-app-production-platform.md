@@ -60,7 +60,7 @@
 
 - Create: `packages/types/src/moduleAppPayment.ts`
 - Create: `packages/types/src/moduleAppPayment.test.ts`
-- Create: `packages/database/migrations/0140_add_module_app_payments.sql`
+- Create: `packages/database/migrations/0141_add_module_app_payments.sql`
 - Modify: `packages/database/migrations/meta/_journal.json`
 - Modify: `packages/database/src/schemas/moduleApp.ts`
 - Create: `packages/database/src/models/moduleAppPayment.ts`
@@ -82,12 +82,12 @@
 ### Publisher And Admin Operations
 
 - Create: `packages/types/src/moduleAppPublisher.ts`
-- Create: `packages/database/migrations/0141_add_module_app_publishers.sql`
+- Create: `packages/database/migrations/0142_add_module_app_publishers.sql`
 - Modify: `packages/database/migrations/meta/_journal.json`
 - Modify: `packages/database/src/schemas/moduleApp.ts`
 - Create: `packages/database/src/models/moduleAppPublisher.ts`
 - Create: `packages/database/src/models/__tests__/moduleAppPublisher.test.ts`
-- Create: `packages/database/migrations/0142_add_module_app_payouts.sql`
+- Create: `packages/database/migrations/0143_add_module_app_payouts.sql`
 - Modify: `packages/database/migrations/meta/_journal.json`
 - Modify: `packages/database/src/schemas/moduleApp.ts`
 - Create: `packages/database/src/models/moduleAppPayout.ts`
@@ -238,21 +238,22 @@ export type ModuleAppExecutableActionInvoker = (input: {
 - Modify: `src/app/(backend)/api/workflows/module-app/run/route.ts`
 - Modify: `apps/server/src/workflows/moduleApp/run.ts`
 
-- [ ] Write tests for each executor's capability and entitlement boundary, idempotency key, bounded output, and stable failure code.
-- [ ] Implement AI executor through the existing Module App text generator and usage snapshot. Implement HTTP through the reviewed-host gateway. Implement function through a fixed server registry keyed by reviewed function key.
-- [ ] Write scheduler tests for due-row claim, lease expiry, duplicate worker prevention, next-run calculation, failed dispatch, and bounded batch size.
-- [ ] Implement `scheduleDispatcher` with database claims and QStash dispatch. Do not use an in-memory timer as the source of truth.
-- [ ] Update webhook route to resolve entitlement before `start`, and update failed/denied deliveries and run state explicitly.
-- [ ] Represent authorization failure with the existing `failed` workflow status and stable `MODULE_APP_WORKFLOW_ENTITLEMENT_DENIED` error code; do not add another terminal status.
-- [ ] Run workflow, trigger, router, and webhook tests.
-- [ ] Commit: `feat: complete module app workflow execution`
+- [x] Write tests for each executor's capability and entitlement boundary, idempotency key, bounded output, and stable failure code.
+- [x] Implement AI executor through the existing Module App text generator and usage snapshot. Implement HTTP through the reviewed-host gateway. Implement function through a fixed server registry keyed by reviewed function key.
+- [x] Write scheduler tests for due-row claim, lease expiry, duplicate worker prevention, next-run calculation, failed dispatch, and bounded batch size.
+- [x] Implement `scheduleDispatcher` with database claims and QStash dispatch. Do not use an in-memory timer as the source of truth.
+- [x] Update webhook route to resolve entitlement before `start`, and update failed/denied deliveries and run state explicitly.
+- [x] Represent authorization failure with the existing `failed` workflow status and stable `MODULE_APP_WORKFLOW_ENTITLEMENT_DENIED` error code; do not add another terminal status.
+- [x] Apply review hardening for claim CAS ownership, deterministic QStash run identity, post-dispatch bookkeeping failures, and entitlement error classification.
+- [x] Run workflow, trigger, router, and webhook tests.
+- [x] Commit: `feat: complete module app workflow execution`
 
 ## Task 5: Payment Contracts And Persistence
 
 **Files:**
 - Create: `packages/types/src/moduleAppPayment.ts`
 - Create: `packages/types/src/moduleAppPayment.test.ts`
-- Create: `packages/database/migrations/0140_add_module_app_payments.sql`
+- Create: `packages/database/migrations/0141_add_module_app_payments.sql`
 - Modify: `packages/database/migrations/meta/_journal.json`
 - Modify: `packages/database/src/schemas/moduleApp.ts`
 - Create: `packages/database/src/models/moduleAppPayment.ts`
@@ -323,12 +324,12 @@ export interface ModuleAppPaymentAdapter {
 
 **Files:**
 - Create: `packages/types/src/moduleAppPublisher.ts`
-- Create: `packages/database/migrations/0141_add_module_app_publishers.sql`
+- Create: `packages/database/migrations/0142_add_module_app_publishers.sql`
 - Modify: `packages/database/migrations/meta/_journal.json`
 - Modify: `packages/database/src/schemas/moduleApp.ts`
 - Create: `packages/database/src/models/moduleAppPublisher.ts`
 - Create: `packages/database/src/models/__tests__/moduleAppPublisher.test.ts`
-- Create: `packages/database/migrations/0142_add_module_app_payouts.sql`
+- Create: `packages/database/migrations/0143_add_module_app_payouts.sql`
 - Modify: `packages/database/migrations/meta/_journal.json`
 - Modify: `packages/database/src/schemas/moduleApp.ts`
 - Create: `packages/database/src/models/moduleAppPayout.ts`
