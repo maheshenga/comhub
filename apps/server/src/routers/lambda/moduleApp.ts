@@ -34,6 +34,7 @@ import type { LobeChatDatabase } from '@/database/type';
 import { appEnv } from '@/envs/app';
 import { authedProcedure, router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
+import { createModuleAppTextGenerator } from '@/server/services/moduleAppAi';
 import { ModuleAppPackageIngestionService } from '@/server/services/moduleAppPackage/ingestion';
 import {
   signModuleAppCapability,
@@ -910,6 +911,10 @@ export const moduleAppRouter = router({
       model: ctx.moduleAppModel,
       recordId: input.recordId,
       scopeType: input.scopeType,
+      textGenerator: createModuleAppTextGenerator({
+        db: ctx.serverDB,
+        workspaceId: input.workspaceId,
+      }),
       userId: ctx.userId,
       workspaceId: input.workspaceId,
     });

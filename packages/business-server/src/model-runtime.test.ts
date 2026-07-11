@@ -311,6 +311,22 @@ describe('getBusinessModelRuntimeHooks', () => {
     expect(mocks.recordCommercialChatUsage).not.toHaveBeenCalled();
   });
 
+  it('should keep policy checks but skip the legacy budget check for reservation billing', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
+    const payload = {
+      messages: [{ content: 'hello', role: 'user' }],
+      model: 'gpt-test',
+    } as any;
+
+    await hooks?.beforeChat?.(payload, {
+      metadata: { skipCommercialBilling: true },
+    });
+
+    expect(mocks.assertModelPolicyAllowed).toHaveBeenCalled();
+    expect(mocks.assertPlanModelAllowed).toHaveBeenCalled();
+    expect(mocks.assertCommercialChatBudget).not.toHaveBeenCalled();
+  });
+
   it('should record structured output usage with operation metadata', async () => {
     const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
 

@@ -210,7 +210,11 @@ const getIncurredAiCredits = (error: unknown) => {
   return getFiniteNumber(value);
 };
 
-const resolveActionRunner = (params: RunModuleAppActionInput): ModuleAppActionRunner => {
+const resolveActionRunner = (
+  params: RunModuleAppActionInput,
+  runId: string,
+  billing: ModuleAppBillingConfig,
+): ModuleAppActionRunner => {
   if (params.runner) return params.runner;
 
   if (params.action.runtimeType === 'api_action') {
@@ -228,6 +232,8 @@ const resolveActionRunner = (params: RunModuleAppActionInput): ModuleAppActionRu
     return () =>
       runModuleAppContentGeneration({
         action: params.action,
+        appMultiplier: billing.defaultMultiplier,
+        idempotencyKey: `${params.idempotencyKey ?? runId}:${params.action.id}`,
         input: params.input,
         textGenerator: params.textGenerator,
         userId: params.userId,
@@ -433,8 +439,8 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
 
   if (billableRuntimeTypes.has(params.action.runtimeType)) {
     const startedAt = Date.now();
-    const runner = resolveActionRunner(params);
     const billing = params.billing ?? defaultBilling;
+    const runner = resolveActionRunner(params, run.id, billing);
 
     try {
       const runnerResult = await runner();

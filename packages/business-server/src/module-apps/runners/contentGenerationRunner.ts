@@ -7,6 +7,9 @@ import {
 import type { ModuleAppRunnerResult } from './apiActionRunner';
 
 export type ModuleAppTextGenerator = (input: {
+  actionMultiplier: number;
+  appMultiplier: number;
+  idempotencyKey: string;
   model?: string;
   prompt: string;
   provider?: string;
@@ -19,6 +22,8 @@ export type ModuleAppTextGenerator = (input: {
 
 export interface RunModuleAppContentGenerationInput {
   action: ModuleAppActionConfig;
+  appMultiplier: number;
+  idempotencyKey: string;
   input: Record<string, unknown>;
   textGenerator?: ModuleAppTextGenerator;
   userId: string;
@@ -32,6 +37,8 @@ const getStringConfig = (config: Record<string, unknown>, key: string) => {
 
 export const runModuleAppContentGeneration = async ({
   action,
+  appMultiplier,
+  idempotencyKey,
   input,
   textGenerator,
   userId,
@@ -51,6 +58,9 @@ export const runModuleAppContentGeneration = async ({
   const model = getStringConfig(config, 'model');
   const prompt = renderModuleAppTemplateString(promptTemplate, input);
   const generated = await textGenerator({
+    actionMultiplier: action.moduleMultiplier,
+    appMultiplier,
+    idempotencyKey,
     model,
     prompt,
     provider,

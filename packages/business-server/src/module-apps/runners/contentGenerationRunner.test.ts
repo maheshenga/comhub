@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { ModuleAppActionConfig } from '@lobechat/types';
+import { describe, expect, it, vi } from 'vitest';
 
 import { runModuleAppContentGeneration } from './contentGenerationRunner';
 
@@ -29,13 +29,18 @@ describe('runModuleAppContentGeneration', () => {
 
     const result = await runModuleAppContentGeneration({
       action,
+      appMultiplier: 1.5,
+      idempotencyKey: 'run-1:generate',
       input: { topic: 'apple' },
       textGenerator,
       userId: 'user-1',
     });
 
     expect(textGenerator).toHaveBeenCalledWith({
+      actionMultiplier: 1,
+      appMultiplier: 1.5,
       model: 'gpt-test',
+      idempotencyKey: 'run-1:generate',
       prompt: 'Write about apple',
       provider: 'openai',
       userId: 'user-1',
@@ -63,6 +68,8 @@ describe('runModuleAppContentGeneration', () => {
     await expect(
       runModuleAppContentGeneration({
         action,
+        appMultiplier: 1,
+        idempotencyKey: 'run-2:generate',
         input: { topic: 'apple' },
         userId: 'user-1',
       }),

@@ -1090,6 +1090,23 @@
 - Security boundary: every row/run/node/schedule/webhook/artifact binds to `installationId`; team APIs recheck current workspace membership; list operations are bounded and cursor-paginated; external webhooks require timestamped HMAC and delivery deduplication; application SQL/DDL and unreviewed hosts are prohibited.
 - Docker deployment: no compose or volume change. Production Module App execution remains disabled until the separate runtime security acceptance gate passes.
 
+#### Module App Platform Commerce, Entitlements, And AI Settlement
+
+- Status: experimental
+- Description: Adds bounded app commerce contracts, personal/workspace credit reservations, one entitlement authority, and real content-generation execution through the current user's AI router. Platform-managed AI usage is quoted through the existing official/model pricing path and settled once after applying separate app and action multiplier snapshots. User-managed provider credentials remain outside platform AI charging.
+- Frontend entries: existing `/apps`, `/apps/my`, `/apps/team`, `/apps/:appId`, and `/apps/:appId/app/:pageKey` routes. This phase adds backend capability and does not add a new page component.
+- Core components: existing `src/features/ModuleAppMarket` and `src/features/ModuleAppRuntime`; no component contract changes in this phase.
+- Backend API and services: `lambda.moduleApp.runAction`, `createModuleAppTextGenerator`, `resolveModuleAppEntitlement`, ModelRuntime `onRouteResolved`, and quote-only `quoteCommercialAiUsage`.
+- Database dependencies: migration `0138_add_module_app_commerce.sql`, `credit_reservations`, workspace credit accounts/ledgers, existing personal credit accounts/ledgers, Module App entitlement/install/run tables, and model/provider pricing tables.
+- Configuration dependencies: Module App billing config, bounded default/action multipliers, plan model rules, provider/model catalog, NewAPI instance/group pricing, and current plan entitlements.
+- Environment variables: none added. AI provider credentials continue through the existing encrypted user/admin configuration path; no API key, base URL, or model name is hardcoded.
+- External services: the currently configured AI provider or NewAPI route. No application-supplied credential or endpoint is accepted.
+- Main files: `apps/server/src/services/moduleAppAi/index.ts`, `apps/server/src/modules/ModelRuntime/index.ts`, `apps/server/src/routers/lambda/moduleApp.ts`, `packages/business-server/src/commercialBilling.ts`, `packages/business-server/src/model-runtime.ts`, `packages/business-server/src/module-apps/entitlement.ts`, `packages/business-server/src/module-apps/runModuleAppAction.ts`, `packages/database/src/models/moduleAppCredit.ts`, `packages/database/src/models/commercial.ts`, and `packages/database/src/models/moduleApp.ts`.
+- Maintenance risk: high. Pricing, route failover, user credentials, workspace authorization, reservations, idempotency, and immutable settlement meet at this boundary.
+- Refactor recommendation: keep pricing quote, runtime routing, entitlement, and credit settlement as separate tested adapters. Do not let Module App manifests submit credentials, endpoints, raw prices, or settlement values.
+- Test coverage: entitlement matrix, router enforcement, policy-preserving billing bypass, NewAPI primary/failover route snapshots, multiplier precision, BYOK no-charge behavior, pre-provider release, reservation settlement/idempotency/concurrency, and focused type/lint verification.
+- Docker deployment: no compose or volume change. Apply migration `0138` before enabling this path; production Module App execution remains disabled until the separate runtime security acceptance gate passes.
+
 ## Governance Execution Notes
 
 | Date | Scope | Status | Note |

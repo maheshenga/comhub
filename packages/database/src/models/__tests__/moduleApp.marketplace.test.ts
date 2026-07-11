@@ -49,7 +49,7 @@ const createRecordDesk = async () => {
       {
         id: 'create_record',
         inputSchema: { fields: [] },
-        moduleMultiplier: 1,
+        moduleMultiplier: 1.35,
         name: 'Create',
         outputSchema: {},
         runtimeConfig: {},
@@ -180,7 +180,9 @@ describe('ModuleAppModel marketplace behavior', () => {
       slug: 'record-desk',
     });
     expect(detail?.pages.map((page) => page.key)).toEqual(['overview', 'records']);
-    expect(detail?.actions.map((action) => action.id)).toEqual(['create_record']);
+    expect(detail?.actions).toEqual([
+      expect.objectContaining({ id: 'create_record', moduleMultiplier: 1.35 }),
+    ]);
     expect(detail?.entitlements).toEqual(
       expect.arrayContaining([expect.objectContaining({ plan: 'free', visible: true })]),
     );

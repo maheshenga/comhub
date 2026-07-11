@@ -9,6 +9,7 @@ const {
   mockGetSubscriptionPlan,
   mockGetWorkspaceMember,
   mockIngestionService,
+  mockCreateModuleAppTextGenerator,
   mockAppEnv,
   mockModuleAppGateway,
   mockRunModuleAppAction,
@@ -16,6 +17,7 @@ const {
   mockModuleAppWorkflowModel,
   mockSignModuleAppCapability,
   mockVerifyModuleAppCapability,
+  mockTextGenerator,
 } = vi.hoisted(() => ({
   mockAppEnv: {
     MODULE_APP_EXECUTION_ENABLED: true,
@@ -24,6 +26,7 @@ const {
   mockGetServerDB: vi.fn(),
   mockGetSubscriptionPlan: vi.fn(),
   mockGetWorkspaceMember: vi.fn(),
+  mockCreateModuleAppTextGenerator: vi.fn(),
   mockIngestionService: {
     issueUpload: vi.fn(),
     submitUpload: vi.fn(),
@@ -47,6 +50,7 @@ const {
     listNodes: vi.fn(),
   },
   mockSignModuleAppCapability: vi.fn(),
+  mockTextGenerator: vi.fn(),
   mockVerifyModuleAppCapability: vi.fn(),
 }));
 
@@ -68,6 +72,10 @@ vi.mock('@/business/server/module-apps/runModuleAppAction', () => ({
 
 vi.mock('@/server/services/moduleAppPackage/ingestion', () => ({
   ModuleAppPackageIngestionService: vi.fn(() => mockIngestionService),
+}));
+
+vi.mock('@/server/services/moduleAppAi', () => ({
+  createModuleAppTextGenerator: mockCreateModuleAppTextGenerator,
 }));
 
 vi.mock('@/server/services/moduleAppRuntime/capability', () => ({
@@ -110,6 +118,7 @@ describe('moduleApp router registration', () => {
     });
     mockModuleAppModel.installPersonalApp.mockResolvedValue(undefined);
     mockModuleAppModel.listMarketplaceApps.mockResolvedValue([]);
+    mockCreateModuleAppTextGenerator.mockReturnValue(mockTextGenerator);
     mockRunModuleAppAction.mockResolvedValue({
       artifactIds: [],
       billing: { chargedCredits: 0, fixedServiceFeeCharged: false },
@@ -256,8 +265,12 @@ describe('moduleApp router registration', () => {
     });
 
     expect(mockRunModuleAppAction).toHaveBeenCalledWith(
-      expect.objectContaining({ assertEntitlement: expect.any(Function) }),
+      expect.objectContaining({
+        assertEntitlement: expect.any(Function),
+        textGenerator: mockTextGenerator,
+      }),
     );
+    expect(mockCreateModuleAppTextGenerator).toHaveBeenCalledWith({ db: {}, workspaceId: undefined });
     const [{ assertEntitlement }] = mockRunModuleAppAction.mock.calls.at(-1)!;
     await expect(assertEntitlement()).rejects.toMatchObject({
       code: 'FORBIDDEN',

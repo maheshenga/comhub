@@ -2,6 +2,15 @@
 
 ## 2026-07-11
 
+### Module App Commerce And AI Settlement
+
+- MODULE-APP-COMMERCE-001: Added bounded commerce contracts for products, pricing, licenses, orders, promotions, billing payers, and module multipliers.
+- MODULE-APP-COMMERCE-002: Added personal and workspace credit reservations with immutable settlement ledgers, release/expiry handling, concurrency protection, and audited workspace funding transfers.
+- MODULE-APP-COMMERCE-003: Centralized free, plan, purchase, trial, expiry, suspension, installation, and workspace entitlement decisions across marketplace, install, launch, interactive execution, jobs, schedules, and webhooks.
+- MODULE-APP-COMMERCE-004: Routed Module App content generation through the current user's model runtime, preserved model policy and plan-model checks, captured final NewAPI failover metadata, quoted official/model pricing without double-debiting, and settled app/action multipliers through one reservation ledger entry. User-managed provider credentials do not reserve or consume platform credits.
+- Impact: existing Module App pages and components are unchanged; `lambda.moduleApp.runAction`, ModelRuntime hooks, commercial pricing quotes, module app credit tables, and run billing snapshots are affected. No new configuration key, environment variable, external service, Docker service, volume, or production runtime enablement is introduced.
+- Deployment: migration `0138_add_module_app_commerce.sql` must be applied before enabling the commerce path. Production Module App execution remains disabled pending the separate runtime security acceptance gate.
+
 ### Module App Data, Workflows, And Team History
 
 - MODULE-APP-DATA-P2-001: Added migration `0137_add_module_app_data_workflows.sql` with installation-bound managed data schemas/rows, workflow runs/nodes, schedules, webhooks, and delivery replay state. Existing records, runs, and artifacts gained installation bindings with compatibility backfill rules.

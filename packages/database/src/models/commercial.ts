@@ -100,6 +100,14 @@ export type AiUsageRouteMetadata = {
   providerType?: string | null;
 };
 
+export type AiUsageCreditQuote = {
+  amount: number;
+  creditsPerDollar: number;
+  matchedPricingRule: AiUsagePricingRule | null;
+  pricingMultiplier: number;
+  usdCost: number;
+};
+
 export const resolveAiUsagePricing = ({
   globalMultiplier,
   groupKey,
@@ -1080,16 +1088,13 @@ export class CommercialModel {
     };
     usageType: 'chat' | 'embeddings' | 'generate_object';
   }) => {
-    const usdCost = usage?.cost ?? 0;
-    const pricing = await this.getAiUsagePricing({
-      groupKey: routeMetadata?.groupKey,
-      groupMultiplier: routeMetadata?.groupMultiplier,
-      instanceId: routeMetadata?.instanceId,
+    const quote = await this.quoteCreditsForAiUsage({
       model,
       provider,
-      providerType: routeMetadata?.providerType,
+      routeMetadata,
+      usage: { cost: usage?.cost ?? 0 },
     });
-    const amount = this.getChatUsageCreditAmount(usdCost, pricing);
+    const { amount, usdCost } = quote;
 
     if (amount <= 0) return null;
 
@@ -1148,7 +1153,7 @@ export class CommercialModel {
             allocations,
             billingMode: 'official_raw_credits',
             chargedCredits: amount,
-            creditsPerDollar: pricing.creditsPerDollar ?? CREDITS_PER_DOLLAR,
+            creditsPerDollar: quote.creditsPerDollar,
             ...(usage?.costSource ? { costSource: usage.costSource } : {}),
             ...(routeMetadata?.groupKey ? { groupKey: routeMetadata.groupKey } : {}),
             ...(routeMetadata?.groupMultiplier === null ||
@@ -1159,10 +1164,10 @@ export class CommercialModel {
             ...(routeMetadata?.instanceId ? { instanceId: routeMetadata.instanceId } : {}),
             ...(routeMetadata?.instanceName ? { instanceName: routeMetadata.instanceName } : {}),
             ...(routeMetadata?.providerType ? { providerType: routeMetadata.providerType } : {}),
-            matchedPricingRule: pricing.matchedRule ?? null,
+            matchedPricingRule: quote.matchedPricingRule,
             model,
             operationId,
-            pricingMultiplier: pricing.multiplier ?? 1,
+            pricingMultiplier: quote.pricingMultiplier,
             provider,
             totalInputTokens: usage?.totalInputTokens ?? 0,
             totalOutputTokens: usage?.totalOutputTokens ?? 0,
@@ -1184,6 +1189,36 @@ export class CommercialModel {
 
       return ledgerEntry;
     });
+  };
+
+  quoteCreditsForAiUsage = async ({
+    model,
+    provider,
+    routeMetadata,
+    usage,
+  }: {
+    model: string;
+    provider: string;
+    routeMetadata?: AiUsageRouteMetadata;
+    usage: { cost?: number };
+  }): Promise<AiUsageCreditQuote> => {
+    const usdCost = usage.cost ?? 0;
+    const pricing = await this.getAiUsagePricing({
+      groupKey: routeMetadata?.groupKey,
+      groupMultiplier: routeMetadata?.groupMultiplier,
+      instanceId: routeMetadata?.instanceId,
+      model,
+      provider,
+      providerType: routeMetadata?.providerType,
+    });
+
+    return {
+      amount: this.getChatUsageCreditAmount(usdCost, pricing),
+      creditsPerDollar: pricing.creditsPerDollar ?? CREDITS_PER_DOLLAR,
+      matchedPricingRule: pricing.matchedRule ?? null,
+      pricingMultiplier: pricing.multiplier ?? 1,
+      usdCost,
+    };
   };
 
   getAutoTopUpSetting = async (): Promise<AutoTopUpSetting> => {

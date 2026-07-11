@@ -221,9 +221,9 @@ export const assertCommercialChatBudget = async ({
 const FALLBACK_INPUT_RATE_USD_PER_M = 3;
 const FALLBACK_OUTPUT_RATE_USD_PER_M = 15;
 
-type CostSource = 'fallback-rate' | 'gateway' | 'local-pricing';
-type CommercialAiUsageType = 'chat' | 'embeddings' | 'generate_object';
-type CommercialUsagePayload = {
+export type CostSource = 'fallback-rate' | 'gateway' | 'local-pricing';
+export type CommercialAiUsageType = 'chat' | 'embeddings' | 'generate_object';
+export type CommercialUsagePayload = {
   cost?: number;
   totalInputTokens?: number;
   totalOutputTokens?: number;
@@ -378,6 +378,50 @@ export const recordCommercialAiUsage = async ({
     } as typeof usage & { costSource: CostSource },
     usageType,
   });
+};
+
+export const quoteCommercialAiUsage = async ({
+  db,
+  model,
+  provider,
+  routeMetadata,
+  usage,
+  usageType,
+  userId,
+}: {
+  db: LobeChatDatabase;
+  model: string;
+  provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
+  usage?: CommercialUsagePayload;
+  usageType: CommercialAiUsageType;
+  userId: string;
+}) => {
+  const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
+  if (!shouldCharge || !usage) return null;
+
+  const modelCard = await getProviderModelCard({ db, model, provider, userId });
+  const resolved = resolveEffectiveCost(usage, modelCard, usageType);
+  if (!resolved) return null;
+
+  const commercialModel = new CommercialModel(db, userId);
+  const quote = await commercialModel.quoteCreditsForAiUsage({
+    model,
+    provider,
+    routeMetadata,
+    usage: { cost: resolved.usdCost },
+  });
+
+  return {
+    credits: quote.amount,
+    costSource: resolved.costSource,
+    pricing: {
+      creditsPerDollar: quote.creditsPerDollar,
+      matchedPricingRule: quote.matchedPricingRule,
+      multiplier: quote.pricingMultiplier,
+    },
+    usdCost: quote.usdCost,
+  };
 };
 
 export const recordCommercialChatUsage = async ({
