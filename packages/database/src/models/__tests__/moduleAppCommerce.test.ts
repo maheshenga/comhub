@@ -230,4 +230,37 @@ describe('ModuleAppCommerceModel', () => {
       status: 'trialing',
     });
   });
+
+  it('freezes promotion, seats, multipliers, revenue share, and terms in the order snapshot', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'workspace_seat',
+      moduleMultiplier: '1.3500',
+      price: {
+        amount: 999,
+        billingPeriod: 'yearly',
+        currency: 'CNY',
+        promotion: { discountAmount: 100, discountPercent: 10, title: 'Launch' },
+      },
+      productKey: 'immutable-snapshot',
+      productType: 'subscription',
+      revenueShareRate: '0.2000',
+      seatCount: 12,
+      termsVersion: '2026-07',
+    });
+    const order = await model.createOrder({
+      productId: product.id,
+      purchaserUserId: USER_ID,
+      workspaceId: WORKSPACE_ID,
+    });
+
+    expect(order.snapshot).toMatchObject({
+      moduleMultiplier: '1.3500',
+      promotion: { discountAmount: 100, discountPercent: 10, title: 'Launch' },
+      revenueShareRate: '0.2000',
+      seatCount: 12,
+      termsVersion: '2026-07',
+    });
+  });
 });

@@ -1105,6 +1105,7 @@
 - Maintenance risk: high. Pricing, route failover, user credentials, workspace authorization, reservations, idempotency, and immutable settlement meet at this boundary.
 - Refactor recommendation: keep pricing quote, runtime routing, entitlement, and credit settlement as separate tested adapters. Do not let Module App manifests submit credentials, endpoints, raw prices, or settlement values.
 - Test coverage: entitlement matrix, router enforcement, policy-preserving billing bypass, NewAPI primary/failover route snapshots, multiplier precision, BYOK no-charge behavior, pre-provider release, reservation settlement/idempotency/concurrency, and focused type/lint verification.
+- Commerce snapshot boundary: every order freezes server-derived price, currency, billing period, trial, promotion, scope, seat count, app multiplier, revenue-share rate, and terms version. Applications and browsers cannot submit ledger amounts or settlement results. The idempotent settlement model is shared by manual admin and future payment-webhook adapters.
 - Docker deployment: no compose or volume change. Apply migration `0138` before enabling this path; production Module App execution remains disabled until the separate runtime security acceptance gate passes.
 
 ## Governance Execution Notes

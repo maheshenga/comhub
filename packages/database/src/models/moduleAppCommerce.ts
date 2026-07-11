@@ -1,7 +1,28 @@
+import { moduleAppOrderSnapshotSchema } from '@lobechat/types';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 
 import { moduleAppLicenses, moduleAppOrders, moduleAppPrices, moduleAppProducts, moduleApps,moduleAppSubscriptions } from '../schemas';
 import type { LobeChatDatabase } from '../type';
+
+const buildOrderSnapshot = (
+  product: typeof moduleAppProducts.$inferSelect,
+  price: typeof moduleAppPrices.$inferSelect,
+) =>
+  moduleAppOrderSnapshotSchema.parse({
+    ...(price.billingPeriod ? { billingPeriod: price.billingPeriod } : {}),
+    currency: price.currency,
+    licenseScope: product.licenseScope,
+    moduleMultiplier: String(product.metadata.moduleMultiplier ?? '1'),
+    price: price.amount,
+    productType: product.productType,
+    ...(price.promotion ? { promotion: price.promotion } : {}),
+    revenueShareRate: String(product.metadata.revenueShareRate ?? '0'),
+    ...(typeof product.metadata.seatCount === 'number'
+      ? { seatCount: product.metadata.seatCount }
+      : {}),
+    termsVersion: String(product.metadata.termsVersion ?? '1'),
+    trialDays: price.trialDays,
+  });
 
 export class ModuleAppCommerceModel {
   constructor(private readonly db: LobeChatDatabase) {}
@@ -9,14 +30,24 @@ export class ModuleAppCommerceModel {
   createProduct = async (input: {
     appId: string;
     licenseScope: string;
-    price: { amount: number; billingPeriod?: string; currency: string; trialDays?: number };
+    moduleMultiplier?: string;
+    price: { amount: number; billingPeriod?: string; currency: string; promotion?: Record<string, unknown>; trialDays?: number };
     productKey: string;
     productType: string;
+    revenueShareRate?: string;
+    seatCount?: number;
+    termsVersion?: string;
   }) =>
     this.db.transaction(async (tx) => {
       const [product] = await tx.insert(moduleAppProducts).values({
         appId: input.appId,
         licenseScope: input.licenseScope,
+        metadata: {
+          moduleMultiplier: input.moduleMultiplier ?? '1',
+          revenueShareRate: input.revenueShareRate ?? '0',
+          ...(input.seatCount ? { seatCount: input.seatCount } : {}),
+          termsVersion: input.termsVersion ?? '1',
+        },
         productKey: input.productKey,
         productType: input.productType,
       }).returning();
@@ -27,6 +58,7 @@ export class ModuleAppCommerceModel {
         billingPeriod: input.price.billingPeriod,
         currency: input.price.currency,
         productId: product.id,
+        promotion: input.price.promotion,
         trialDays: input.price.trialDays ?? 0,
       });
       return product;
@@ -45,7 +77,7 @@ export class ModuleAppCommerceModel {
         priceId: price.id,
         productId,
         purchaserUserId,
-        snapshot: { billingPeriod: price.billingPeriod, currency: price.currency, licenseScope: product.licenseScope, price: price.amount, productType: product.productType, trialDays: price.trialDays },
+        snapshot: buildOrderSnapshot(product, price),
         workspaceId,
       }).returning();
       if (!order) throw new Error('MODULE_APP_ORDER_CREATE_FAILED');
@@ -96,15 +128,7 @@ export class ModuleAppCommerceModel {
     const price = await this.db.query.moduleAppPrices.findFirst({ where: and(eq(moduleAppPrices.productId, productId), eq(moduleAppPrices.active, true)) });
     const app = product ? await this.db.query.moduleApps.findFirst({ where: and(eq(moduleApps.id, product.appId), eq(moduleApps.status, 'published')) }) : null;
     if (!product || !price || !app) throw new Error('MODULE_APP_PRODUCT_NOT_PURCHASABLE');
-    return {
-      billingPeriod: price.billingPeriod,
-      currency: price.currency,
-      licenseScope: product.licenseScope,
-      price: price.amount,
-      productType: product.productType,
-      promotion: price.promotion,
-      trialDays: price.trialDays,
-    };
+    return buildOrderSnapshot(product, price);
   };
 
   settleOrder = async ({ orderId, paymentReference }: { orderId: string; paymentReference: string }) =>
