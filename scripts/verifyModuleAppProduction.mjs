@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,7 +21,10 @@ const composeEnv = {
   MODULE_APP_ARTIFACT_ROOT: artifactRoot,
   MODULE_APP_DOCKER_GID: dockerGid,
 };
-writeFileSync(path.join(artifactRoot, '.verification-marker'), 'module-runtime-artifact-mount');
+const artifactMarker = path.join(artifactRoot, '.verification-marker');
+writeFileSync(artifactMarker, 'module-runtime-artifact-mount');
+chmodSync(artifactRoot, 0o755);
+chmodSync(artifactMarker, 0o444);
 
 const run = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
