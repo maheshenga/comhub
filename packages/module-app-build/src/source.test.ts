@@ -82,6 +82,29 @@ const setCentralAttributes = (archive: Uint8Array, externalAttributes: number) =
   return bytes;
 };
 
+const setEntryCentralAttributes = (
+  archive: Uint8Array,
+  entryName: string,
+  externalAttributes: number,
+) => {
+  const bytes = archive.slice();
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const decoder = new TextDecoder();
+  const offset = findSignatures(bytes, CENTRAL_SIGNATURE).find((centralOffset) => {
+    const fileNameLength = view.getUint16(centralOffset + 28, true);
+    const name = decoder.decode(
+      bytes.subarray(centralOffset + 46, centralOffset + 46 + fileNameLength),
+    );
+    return name === entryName;
+  });
+
+  if (offset === undefined) throw new Error(`ZIP entry not found: ${entryName}`);
+
+  view.setUint16(offset + 4, 0x0314, true);
+  view.setUint32(offset + 38, externalAttributes, true);
+  return bytes;
+};
+
 const setEncrypted = (archive: Uint8Array) => {
   const bytes = archive.slice();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -191,6 +214,7 @@ describe('validateModuleAppBuildSource', () => {
     ['/absolute.txt', 'absolute paths'],
     ['dist\\index.html', 'backslashes'],
     ['dist//index.html', 'empty path segments'],
+    ['dist/./index.html', 'dot path segments'],
     ['dist/../secret.txt', 'parent traversal'],
   ])('rejects %s (%s)', async (unsafePath) => {
     await expectCode(
@@ -233,6 +257,12 @@ describe('validateModuleAppBuildSource', () => {
 
   it.each([
     ['payload.zip', strToU8('PK\u0003\u0004')],
+    ['payload.bin', strToU8('PK\u0003\u0004')],
+    ['payload.bin', new Uint8Array([0x1f, 0x8b, 0x08])],
+    ['payload.bin', strToU8('BZh9')],
+    ['payload.bin', new Uint8Array([0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00])],
+    ['payload.bin', new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c])],
+    ['payload.bin', new Uint8Array([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00])],
     ['install.ps1', strToU8('Write-Host unsafe')],
     ['binary.bin', new Uint8Array([0x7f, 0x45, 0x4c, 0x46])],
     ['eicar.txt', strToU8('X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*')],
@@ -267,6 +297,34 @@ describe('validateModuleAppBuildSource', () => {
     await expectCode(
       validate(createArchive(withoutPython)),
       'MODULE_APP_BUILD_SOURCE_FUNCTION_OUTPUT_MISSING',
+    );
+  });
+
+  it('requires declared frontend HTML and function entries to be regular files', async () => {
+    await expectCode(
+      validate(setEntryCentralAttributes(createArchive(), 'dist/index.html', 0x41ff0000)),
+      'MODULE_APP_BUILD_SOURCE_FRONTEND_OUTPUT_MISSING',
+    );
+
+    await expectCode(
+      validate(setEntryCentralAttributes(createArchive(), 'server/index.ts', 0x41ff0000)),
+      'MODULE_APP_BUILD_SOURCE_FUNCTION_OUTPUT_MISSING',
+    );
+  });
+
+  it('enforces the 256 KiB manifest limit at the byte boundary', async () => {
+    const maxManifestBytes = 256 * 1024;
+    const baseManifest = stringify(manifest);
+    const manifestAtLimit = `${baseManifest}\n#${'x'.repeat(maxManifestBytes - strToU8(baseManifest).byteLength - 2)}`;
+    const manifestOverLimit = `${manifestAtLimit}x`;
+    const files = validFiles();
+
+    await expect(
+      validate(zipSync({ ...files, 'module-app.yaml': strToU8(manifestAtLimit) }, { level: 0 })),
+    ).resolves.toMatchObject({ manifest });
+    await expectCode(
+      validate(zipSync({ ...files, 'module-app.yaml': strToU8(manifestOverLimit) }, { level: 0 })),
+      'MODULE_APP_BUILD_SOURCE_MANIFEST_REJECTED',
     );
   });
 });
@@ -309,5 +367,20 @@ describe('unzipModuleAppPackage limits', () => {
       },
       'module_app_package_expanded_too_large',
     );
+  });
+
+  it('enforces the 25 MiB per-file limit at the byte boundary', async () => {
+    const maxFileSizeBytes = 25 * 1024 * 1024;
+
+    await expect(
+      unzipModuleAppPackage(
+        zipSync({ 'at-limit.bin': new Uint8Array(maxFileSizeBytes) }, { level: 0 }),
+      ),
+    ).resolves.toMatchObject({ 'at-limit.bin': expect.any(Uint8Array) });
+    await expect(
+      unzipModuleAppPackage(
+        zipSync({ 'over-limit.bin': new Uint8Array(maxFileSizeBytes + 1) }, { level: 0 }),
+      ),
+    ).rejects.toMatchObject({ code: 'module_app_package_file_too_large' });
   });
 });

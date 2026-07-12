@@ -51,6 +51,18 @@ const EXECUTABLE_MAGIC: number[][] = [
   [0x00, 0x61, 0x73, 0x6d],
 ];
 
+const NESTED_ARCHIVE_MAGIC: number[][] = [
+  [0x50, 0x4b, 0x03, 0x04],
+  [0x50, 0x4b, 0x05, 0x06],
+  [0x50, 0x4b, 0x07, 0x08],
+  [0x1f, 0x8b],
+  [0x42, 0x5a, 0x68],
+  [0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00],
+  [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c],
+  [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00],
+  [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00],
+];
+
 const extensionOf = (path: string) => {
   const fileName = path.toLowerCase().split('/').pop() ?? '';
   const dot = fileName.lastIndexOf('.');
@@ -72,6 +84,9 @@ const includesBytes = (data: Uint8Array, needle: Uint8Array) => {
 
   return false;
 };
+
+const hasNestedArchiveMagic = (data: Uint8Array) =>
+  NESTED_ARCHIVE_MAGIC.some((magic) => startsWith(data, magic));
 
 const issue = (code: string, path: string, message: string): ModuleAppPackageValidationIssue => ({
   code,
@@ -126,7 +141,7 @@ export const scanModuleAppPackage = (input: {
     if (issues.length >= MODULE_APP_PACKAGE_MAX_SCAN_ISSUES) break;
     const extension = extensionOf(path);
 
-    if (NESTED_ARCHIVE_EXTENSIONS.has(extension)) {
+    if (NESTED_ARCHIVE_EXTENSIONS.has(extension) || hasNestedArchiveMagic(data)) {
       add(
         issue(
           'module_app_package_nested_archive',

@@ -48,7 +48,9 @@ const isUnsafePath = (path: string) => {
   if (trimmed.startsWith('/') || trimmed.startsWith('\\')) return true;
   if (/^[a-z]:[\\/]/i.test(trimmed) || trimmed.includes('\\')) return true;
 
-  return trimmed.split('/').some((segment) => segment === '..' || segment === '');
+  return trimmed
+    .split('/')
+    .some((segment) => segment === '.' || segment === '..' || segment === '');
 };
 
 export const unzipModuleAppPackage = (
@@ -193,14 +195,16 @@ const parseSingleRootV2Manifest = (
 
 const assertDeclaredOutputs = (
   files: Record<string, Uint8Array>,
+  entries: ModuleAppZipEntry[],
   manifest: Extract<ModuleAppPackageManifest, { manifestVersion: 2 }>,
 ) => {
+  const entryTypes = new Map(entries.map((entry) => [entry.name, entry.type]));
   const frontendOutput = manifest.build.frontend.output;
   const frontendFile = frontendOutput.toLowerCase().endsWith('.html')
     ? frontendOutput
     : `${frontendOutput}/index.html`;
 
-  if (!files[frontendFile]) {
+  if (!files[frontendFile] || entryTypes.get(frontendFile) !== 'regular') {
     throw new ModuleAppBuildPolicyError(
       'MODULE_APP_BUILD_SOURCE_FRONTEND_OUTPUT_MISSING',
       `Declared frontend output is missing: ${frontendFile}`,
@@ -208,7 +212,7 @@ const assertDeclaredOutputs = (
   }
 
   for (const runtimeFunction of manifest.runtime.functions) {
-    if (!files[runtimeFunction.entry]) {
+    if (!files[runtimeFunction.entry] || entryTypes.get(runtimeFunction.entry) !== 'regular') {
       throw new ModuleAppBuildPolicyError(
         'MODULE_APP_BUILD_SOURCE_FUNCTION_OUTPUT_MISSING',
         `Declared ${runtimeFunction.runtime} function entry is missing: ${runtimeFunction.entry}`,
@@ -277,7 +281,7 @@ export const validateModuleAppBuildSource = async (
       'Build source manifest does not match the reviewed manifest snapshot.',
     );
   }
-  assertDeclaredOutputs(files, parsedManifest);
+  assertDeclaredOutputs(files, entries, parsedManifest);
 
   return { files, manifest: parsedManifest };
 };
