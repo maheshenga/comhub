@@ -1,30 +1,26 @@
 import { createHash } from 'node:crypto';
 
 import {
-  MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES,
+  DEFAULT_MODULE_APP_PACKAGE_LIMITS,
+  inspectModuleAppZipEntries,
+  ModuleAppPackageSafetyError,
+  ModuleAppZipMetadataError,
+  scanModuleAppPackage,
+  unzipModuleAppPackage,
+  type ModuleAppPackageArchiveLimits,
+} from '@lobechat/module-app-build';
+import {
   moduleAppPackageManifestV1Schema,
   moduleAppPackageManifestV2Schema,
   type ModuleAppPackageSubmitInput,
   type ModuleAppPackageValidationIssue,
 } from '@lobechat/types';
-import { unzip } from 'fflate';
 import { parse as parseYaml } from 'yaml';
 
 import { validateModuleAppPackageSubmission } from '@/business/server/module-apps/packageManifest';
 
-import { scanModuleAppPackage } from './scanner';
-import { inspectModuleAppZipEntries, ModuleAppZipMetadataError } from './zipMetadata';
-
-const DEFAULT_LIMITS = {
-  maxCompressionRatio: 200,
-  maxFileCount: 1000,
-  maxFileSizeBytes: 25 * 1024 * 1024,
-  maxManifestBytes: 256 * 1024,
-  maxPackageSizeBytes: MODULE_APP_PACKAGE_MAX_ARCHIVE_BYTES,
-  maxUncompressedBytes: 100 * 1024 * 1024,
-};
-
-export type ModuleAppPackageArchiveLimits = Partial<typeof DEFAULT_LIMITS>;
+const DEFAULT_LIMITS = DEFAULT_MODULE_APP_PACKAGE_LIMITS;
+export type { ModuleAppPackageArchiveLimits } from '@lobechat/module-app-build';
 
 export class ModuleAppPackageArchiveError extends Error {
   constructor(
@@ -38,107 +34,6 @@ export class ModuleAppPackageArchiveError extends Error {
 }
 
 const sha256 = (data: Uint8Array) => createHash('sha256').update(data).digest('hex');
-
-const isUnsafePath = (path: string) => {
-  const trimmed = path.trim();
-  if (!trimmed || trimmed.includes('\0')) return true;
-  if (trimmed.startsWith('/') || trimmed.startsWith('\\')) return true;
-  if (/^[a-z]:[\\/]/i.test(trimmed) || trimmed.includes('\\')) return true;
-
-  return trimmed.split('/').some((segment) => segment === '..' || segment === '');
-};
-
-const unzipPackage = (
-  bytes: Uint8Array,
-  limits: typeof DEFAULT_LIMITS,
-): Promise<Record<string, Uint8Array>> =>
-  new Promise((resolve, reject) => {
-    let fileCount = 0;
-    let totalUncompressedBytes = 0;
-    let validationError: ModuleAppPackageArchiveError | undefined;
-    const seenPaths = new Set<string>();
-
-    unzip(
-      bytes,
-      {
-        filter: (file) => {
-          if (validationError || file.name.endsWith('/')) return false;
-
-          fileCount += 1;
-          totalUncompressedBytes += file.originalSize;
-
-          if (isUnsafePath(file.name)) {
-            validationError = new ModuleAppPackageArchiveError(
-              'module_app_package_unsafe_path',
-              `Unsafe package path: ${file.name}`,
-            );
-            return false;
-          }
-
-          if (seenPaths.has(file.name)) {
-            validationError = new ModuleAppPackageArchiveError(
-              'module_app_package_duplicate_path',
-              `Duplicate package path: ${file.name}`,
-            );
-            return false;
-          }
-          seenPaths.add(file.name);
-
-          if (fileCount > limits.maxFileCount) {
-            validationError = new ModuleAppPackageArchiveError(
-              'module_app_package_too_many_files',
-              `Package contains more than ${limits.maxFileCount} files.`,
-            );
-            return false;
-          }
-
-          if (file.originalSize > limits.maxFileSizeBytes) {
-            validationError = new ModuleAppPackageArchiveError(
-              'module_app_package_file_too_large',
-              `Package file exceeds ${limits.maxFileSizeBytes} bytes: ${file.name}`,
-            );
-            return false;
-          }
-
-          if (totalUncompressedBytes > limits.maxUncompressedBytes) {
-            validationError = new ModuleAppPackageArchiveError(
-              'module_app_package_expanded_too_large',
-              `Expanded package exceeds ${limits.maxUncompressedBytes} bytes.`,
-            );
-            return false;
-          }
-
-          const compressionRatio = file.size === 0 ? file.originalSize : file.originalSize / file.size;
-          if (compressionRatio > limits.maxCompressionRatio) {
-            validationError = new ModuleAppPackageArchiveError(
-              'module_app_package_compression_ratio_exceeded',
-              `Package file compression ratio is too high: ${file.name}`,
-            );
-            return false;
-          }
-
-          return true;
-        },
-      },
-      (error, files) => {
-        if (validationError) {
-          reject(validationError);
-          return;
-        }
-        if (error) {
-          reject(
-            new ModuleAppPackageArchiveError(
-              'module_app_package_archive_invalid',
-              'Package archive could not be decompressed.',
-            ),
-          );
-          return;
-        }
-
-        resolve(files);
-      },
-    );
-  });
 
 export const parseModuleAppPackageArchive = async (
   input: {
@@ -168,7 +63,15 @@ export const parseModuleAppPackageArchive = async (
     throw error;
   }
 
-  const files = await unzipPackage(input.bytes, limits);
+  let files: Record<string, Uint8Array>;
+  try {
+    files = await unzipModuleAppPackage(input.bytes, limits);
+  } catch (error) {
+    if (error instanceof ModuleAppPackageSafetyError) {
+      throw new ModuleAppPackageArchiveError(error.code, error.message, error.issues);
+    }
+    throw error;
+  }
   const scanIssues = scanModuleAppPackage({ entries, files });
   if (scanIssues.length > 0) {
     const firstIssue = scanIssues[0];

@@ -177,6 +177,22 @@ describe('parseModuleAppPackageArchive', () => {
     );
   });
 
+  it('keeps server ingestion independent from worker-only declared output checks', async () => {
+    const bytes = createArchive({
+      'module-app.yaml': strToU8(stringify(validManifestV2)),
+    });
+
+    const result = await parseModuleAppPackageArchive({
+      bytes,
+      fileName: 'review-package.zip',
+      mimeType: 'application/zip',
+      storageKey: 'module-app-packages/user-scope/review-package.zip',
+    });
+
+    expect(result.manifest).toMatchObject({ manifestVersion: 2 });
+    expect(result.fileManifest).toEqual([expect.objectContaining({ path: 'module-app.yaml' })]);
+  });
+
   it('rejects packages that contain both manifest formats', async () => {
     const bytes = createArchive({
       'manifest.json': strToU8(JSON.stringify(validManifest)),

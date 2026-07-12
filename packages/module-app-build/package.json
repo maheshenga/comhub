@@ -1,0 +1,21 @@
+{
+  "name": "@lobechat/module-app-build",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "test": "bunx vitest run --silent='passed-only'"
+  },
+  "dependencies": {
+    "@lobechat/types": "workspace:*",
+    "fflate": "^0.8.2",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.6"
+  }
+}
