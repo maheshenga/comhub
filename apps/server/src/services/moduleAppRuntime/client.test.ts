@@ -26,6 +26,22 @@ describe('ModuleAppRuntimeClient', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('refuses invocation while the runtime invocation rollout is disabled', async () => {
+    const fetch = vi.fn();
+    const client = new ModuleAppRuntimeClient({
+      baseUrl: 'http://module-runtime:3210',
+      enabled: true,
+      fetch,
+      internalToken: 'internal-token',
+      invocationEnabled: false,
+    });
+
+    await expect(client.invoke(invocation)).rejects.toThrow(
+      'MODULE_APP_RUNTIME_INVOCATION_DISABLED',
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('sends an enabled invocation only to the configured internal endpoint', async () => {
     const fetch = vi.fn().mockResolvedValue(
       new Response(
@@ -38,6 +54,7 @@ describe('ModuleAppRuntimeClient', () => {
       enabled: true,
       fetch,
       internalToken: 'internal-token',
+      invocationEnabled: true,
     });
 
     await expect(client.invoke(invocation)).resolves.toMatchObject({ status: 'succeeded' });
@@ -64,6 +81,7 @@ describe('ModuleAppRuntimeClient', () => {
       enabled: true,
       fetch,
       internalToken: 'internal-token',
+      invocationEnabled: true,
     });
 
     try {

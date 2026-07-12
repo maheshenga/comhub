@@ -25,9 +25,14 @@ const {
 } = vi.hoisted(() => ({
   mockAppEnv: {
     MODULE_APP_ALIPAY_ENABLED: false,
+    MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED: false,
     MODULE_APP_ALIPAY_NOTIFY_URL: 'https://app.example.com/api/webhooks/alipay/module-app',
     MODULE_APP_ALIPAY_RETURN_URL: 'https://app.example.com/apps/order-return',
     MODULE_APP_EXECUTION_ENABLED: true,
+    MODULE_APP_PUBLIC_EXECUTION_ENABLED: true,
+    MODULE_APP_PUBLISHER_ALLOWLIST: [] as string[],
+    MODULE_APP_RUNTIME_APP_ALLOWLIST: ['00000000-0000-4000-8000-000000000001'],
+    MODULE_APP_RUNTIME_INVOCATION_ENABLED: true,
     MODULE_APP_RUNTIME_PUBLIC_ORIGIN: 'https://module-runtime.example.com',
   },
   mockRuntimeClientInvoke: vi.fn(),
@@ -146,8 +151,13 @@ describe('moduleApp router registration', () => {
     mockGetSubscriptionPlan.mockResolvedValue('free');
     mockGetWorkspaceMember.mockResolvedValue({ role: 'member', workspaceId: 'workspace-1' });
     mockAppEnv.MODULE_APP_EXECUTION_ENABLED = true;
+    mockAppEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED = true;
+    mockAppEnv.MODULE_APP_PUBLISHER_ALLOWLIST = [];
+    mockAppEnv.MODULE_APP_RUNTIME_APP_ALLOWLIST = [APP_ID];
+    mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED = true;
     mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = 'https://module-runtime.example.com';
     mockAppEnv.MODULE_APP_ALIPAY_ENABLED = false;
+    mockAppEnv.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED = false;
     mockModuleAppPaymentService.createPayment.mockResolvedValue({
       body: '<form></form>',
       outTradeNo: 'out-1',
@@ -217,6 +227,7 @@ describe('moduleApp router registration', () => {
       buildStatus: 'ready',
       displayName: 'Jobs Board',
       installationId: '00000000-0000-4000-8000-000000000010',
+      publisherId: null,
       runtimeManifest: {
         build: { frontend: { output: 'dist', profile: 'node22-static' } },
         manifestVersion: 2,
@@ -267,6 +278,32 @@ describe('moduleApp router registration', () => {
     await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
       code: 'PRECONDITION_FAILED',
       message: 'module_app_runtime_unavailable',
+    });
+    expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
+  });
+
+  it('rejects public launch while the public execution rollout is disabled', async () => {
+    mockAppEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED = false;
+
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_public_execution_disabled',
+    });
+    expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
+  });
+
+  it('rejects public launch outside the app and publisher rollout allowlists', async () => {
+    mockAppEnv.MODULE_APP_RUNTIME_APP_ALLOWLIST = [];
+    mockAppEnv.MODULE_APP_PUBLISHER_ALLOWLIST = [];
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+
+    await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'module_app_rollout_not_allowed',
     });
     expect(mockSignModuleAppCapability).not.toHaveBeenCalled();
   });
@@ -718,6 +755,22 @@ describe('moduleApp router registration', () => {
       status: 'succeeded',
     }));
 
+    mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED = false;
+    await expect(
+      createCaller().runAction({
+        actionId: 'search',
+        appId: APP_ID,
+        input: { query: 'jobs' },
+        scopeType: 'personal',
+      }),
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_runtime_invocation_disabled',
+    });
+    expect(mockRuntimeClientInvoke).not.toHaveBeenCalled();
+
+    mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED = true;
+
     await expect(
       createCaller().runAction({
         actionId: 'search',
@@ -1007,17 +1060,22 @@ describe('moduleApp router registration', () => {
   });
 
   it('keeps Alipay checkout disabled until the server feature flag is enabled', async () => {
+    mockAppEnv.MODULE_APP_ALIPAY_ENABLED = true;
     await expect(
       createCaller().createPayment({
         orderId: '00000000-0000-4000-8000-000000000021',
         subject: 'Module App Pro',
       }),
-    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_alipay_payment_creation_disabled',
+    });
     expect(mockModuleAppPaymentService.createPayment).not.toHaveBeenCalled();
   });
 
   it('creates Alipay checkout from authenticated order and server callback URLs', async () => {
     mockAppEnv.MODULE_APP_ALIPAY_ENABLED = true;
+    mockAppEnv.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED = true;
     const orderId = '00000000-0000-4000-8000-000000000021';
 
     await expect(
@@ -1028,6 +1086,10 @@ describe('moduleApp router registration', () => {
       orderId,
       purchaserUserId: 'user-1',
       returnUrl: mockAppEnv.MODULE_APP_ALIPAY_RETURN_URL,
+      rollout: {
+        appIds: [APP_ID],
+        publisherIds: [],
+      },
       subject: 'Module App Pro',
     });
   });

@@ -1,15 +1,42 @@
 import {
+  recordModuleAppOperationalAge,
+  recordModuleAppPaymentVerificationFailure,
+} from '@lobechat/observability-otel/modules/module-app';
+import {
   moduleAppNormalizedPaymentEventSchema,
   moduleAppOrderSnapshotSchema,
 } from '@lobechat/types';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { ModuleAppPaymentModel } from '@/database/models/moduleAppPayment';
-import { moduleAppOrders } from '@/database/schemas';
+import {
+  moduleAppOrders,
+  moduleAppPaymentDiscrepancies,
+  moduleAppPaymentRefunds,
+  moduleApps,
+} from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 
+import { assertModuleAppRolloutAllowed } from '../productionControls';
 import { ModuleAppOrderRevenueService } from '../revenue';
 import type { ModuleAppPaymentAdapter } from './contracts';
+
+type ModuleAppPaymentMetrics = {
+  recordOperationalAge: (kind: 'discrepancy' | 'refund', ageMs: number) => void;
+  recordVerificationFailure: (reason: string) => void;
+};
+
+const getVerificationFailureReason = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('SIGNATURE')) return 'signature_invalid';
+  if (message.includes('AMOUNT')) return 'amount_mismatch';
+  if (message.includes('CURRENCY')) return 'currency_mismatch';
+  if (message.includes('PROVIDER')) return 'provider_mismatch';
+  if (message.includes('ORDER_NOT_FOUND')) return 'order_not_found';
+  if (message.includes('SETTLEMENT')) return 'settlement_failed';
+  if (message.includes('NOTIFICATION')) return 'invalid_notification';
+  return 'other';
+};
 
 const formatAmount = (value: unknown) => {
   const amount = Number(value);
@@ -31,6 +58,10 @@ export class ModuleAppPaymentService {
   constructor(
     private readonly db: LobeChatDatabase,
     private readonly adapter: ModuleAppPaymentAdapter,
+    private readonly metrics: ModuleAppPaymentMetrics = {
+      recordOperationalAge: recordModuleAppOperationalAge,
+      recordVerificationFailure: recordModuleAppPaymentVerificationFailure,
+    },
   ) {
     this.model = new ModuleAppPaymentModel(db);
   }
@@ -40,6 +71,7 @@ export class ModuleAppPaymentService {
     orderId: string;
     purchaserUserId?: string;
     returnUrl: string;
+    rollout?: { appIds: string[]; publisherIds: string[] };
     subject: string;
   }) => {
     const order = await this.db.query.moduleAppOrders.findFirst({
@@ -52,6 +84,15 @@ export class ModuleAppPaymentService {
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
     if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_PAYABLE');
+    if (input.rollout) {
+      const app = await this.db.query.moduleApps.findFirst({
+        where: eq(moduleApps.id, order.appId),
+      });
+      assertModuleAppRolloutAllowed(
+        { appId: order.appId, publisherId: app?.publisherId },
+        input.rollout,
+      );
+    }
     const snapshot = moduleAppOrderSnapshotSchema.parse(order.snapshot);
     const totalAmount = formatAmount(snapshot.price);
     if (Number(totalAmount) <= 0) throw new Error('MODULE_APP_ORDER_NOT_PAYABLE');
@@ -82,13 +123,22 @@ export class ModuleAppPaymentService {
   };
 
   handleNotification = async (input: { body: string; headers: Record<string, string> }) => {
-    const verified = await this.adapter.verifyNotification(input);
+    let verified: unknown;
+    try {
+      verified = await this.adapter.verifyNotification(input);
+    } catch (error) {
+      this.metrics.recordVerificationFailure(getVerificationFailureReason(error));
+      throw error;
+    }
     return this.handleNormalizedEvent(verified);
   };
 
   handleNormalizedEvent = async (input: unknown) => {
     const parsed = moduleAppNormalizedPaymentEventSchema.safeParse(input);
-    if (!parsed.success) throw new Error('MODULE_APP_PAYMENT_NOTIFICATION_INVALID');
+    if (!parsed.success) {
+      this.metrics.recordVerificationFailure('invalid_notification');
+      throw new Error('MODULE_APP_PAYMENT_NOTIFICATION_INVALID');
+    }
     const event = parsed.data;
     const recorded = await this.model.recordPaymentEvent({
       currency: event.currency,
@@ -263,6 +313,7 @@ export class ModuleAppPaymentService {
   };
 
   reconcilePendingPayments = async (input: { limit?: number } = {}) => {
+    await this.recordOperationalAges();
     const attempts = await this.model.listPendingPaymentAttempts(input.limit ?? 100);
     const results = [];
     for (const attempt of attempts) {
@@ -279,6 +330,31 @@ export class ModuleAppPaymentService {
       }
     }
     return { count: attempts.length, results };
+  };
+
+  recordOperationalAges = async (now = new Date()) => {
+    const [discrepancy, refund] = await Promise.all([
+      this.db.query.moduleAppPaymentDiscrepancies.findFirst({
+        orderBy: [asc(moduleAppPaymentDiscrepancies.createdAt)],
+        where: eq(moduleAppPaymentDiscrepancies.status, 'open'),
+      }),
+      this.db.query.moduleAppPaymentRefunds.findFirst({
+        orderBy: [asc(moduleAppPaymentRefunds.createdAt)],
+        where: inArray(moduleAppPaymentRefunds.status, ['requested', 'failed']),
+      }),
+    ]);
+    if (discrepancy) {
+      this.metrics.recordOperationalAge(
+        'discrepancy',
+        Math.max(0, now.getTime() - discrepancy.createdAt.getTime()),
+      );
+    }
+    if (refund) {
+      this.metrics.recordOperationalAge(
+        'refund',
+        Math.max(0, now.getTime() - refund.createdAt.getTime()),
+      );
+    }
   };
 
   reconcileRefund = async (input: { actorUserId: string; orderId: string }) => {

@@ -2,6 +2,13 @@
 
 ## 2026-07-12
 
+### Module App Production Controls And Observability
+
+- MODULE-APP-OPS-001: Added independent fail-closed controls for sandbox invocation, privileged workflow executors, schedule dispatch, public execution, Alipay payment creation, verified-notification settlement, and Publisher payout recording. Read, query, reconciliation, refund-status, and audit paths remain available when mutation controls are disabled.
+- MODULE-APP-OPS-002: Added bounded application and Publisher rollout allowlists resolved from server-owned installation, order, application, and payout records. Empty allowlists deny production mutations; browser input cannot select rollout identity.
+- MODULE-APP-OPS-003: Added OpenTelemetry metrics for sandbox result and latency, timeout, OOM, cleanup failure, replay rejection, workflow backlog, payment verification failure, discrepancy/refund age, and payout state. Attributes use fixed enums only and omit application, Publisher, order, run, and invocation identifiers.
+- Verification status: focused environment, controls, observability, runtime client, sandbox engine/lease, router, workflow, payment, payout, webhook, and model tests plus root type-check passed. Production remains disabled pending real Node/Python container probes, required PostgreSQL/Redis CI services, Alipay sandbox, browser E2E, and staging blue-green deployment evidence.
+
 ### Module App Purchase And Usage UX
 
 - MODULE-APP-COMMERCE-011: Added append-only developer revenue accrual, refund reversal, delayed settlement batches, finance-permission administration, and audit-backed Commerce controls. Resource costs remain excluded from developer revenue share.

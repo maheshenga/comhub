@@ -25,6 +25,7 @@ import {
   type ModuleAppRecordOperation,
   type ModuleAppWorkspaceMembership,
 } from '@/business/server/module-apps/permission';
+import { assertModuleAppRolloutAllowed } from '@/business/server/module-apps/productionControls';
 import { runModuleAppAction } from '@/business/server/module-apps/runModuleAppAction';
 import { runModuleAppExecutableAction } from '@/business/server/module-apps/runners/executableActionRunner';
 import { getSubscriptionPlan } from '@/business/server/user';
@@ -246,6 +247,24 @@ const mapGatewayError = (error: unknown) => {
   }
 
   return new TRPCError({ cause: error, code: 'INTERNAL_SERVER_ERROR', message: 'module_app_gateway_failed' });
+};
+
+const assertRuntimeRolloutAllowed = (identity: {
+  appId?: null | string;
+  publisherId?: null | string;
+}) => {
+  try {
+    assertModuleAppRolloutAllowed(identity, {
+      appIds: appEnv.MODULE_APP_RUNTIME_APP_ALLOWLIST,
+      publisherIds: appEnv.MODULE_APP_PUBLISHER_ALLOWLIST,
+    });
+  } catch (error) {
+    throw new TRPCError({
+      cause: error,
+      code: 'FORBIDDEN',
+      message: 'module_app_rollout_not_allowed',
+    });
+  }
 };
 
 const moduleAppProcedure = authedProcedure.use(serverDatabase).use(async (opts) => {
@@ -492,6 +511,12 @@ export const moduleAppRouter = router({
           message: 'module_app_alipay_disabled',
         });
       }
+      if (!appEnv.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_alipay_payment_creation_disabled',
+        });
+      }
       if (!appEnv.MODULE_APP_ALIPAY_NOTIFY_URL || !appEnv.MODULE_APP_ALIPAY_RETURN_URL) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
@@ -506,6 +531,10 @@ export const moduleAppRouter = router({
         orderId: input.orderId,
         purchaserUserId: ctx.userId,
         returnUrl: appEnv.MODULE_APP_ALIPAY_RETURN_URL,
+        rollout: {
+          appIds: appEnv.MODULE_APP_RUNTIME_APP_ALLOWLIST,
+          publisherIds: appEnv.MODULE_APP_PUBLISHER_ALLOWLIST,
+        },
         subject: input.subject,
       });
     }),
@@ -662,6 +691,12 @@ export const moduleAppRouter = router({
           message: 'module_app_runtime_unavailable',
         });
       }
+      if (!appEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_public_execution_disabled',
+        });
+      }
 
       if (input.workspaceId) {
         const membership = await getWorkspaceMembership(
@@ -696,6 +731,10 @@ export const moduleAppRouter = router({
           message: 'module_app_installation_required',
         });
       }
+      assertRuntimeRolloutAllowed({
+        appId: input.appId,
+        publisherId: installation.publisherId,
+      });
 
       const manifest = ModuleAppLaunchRuntimeManifestSchema.safeParse(
         installation.runtimeManifest,
@@ -1010,6 +1049,16 @@ export const moduleAppRouter = router({
           message: 'module_app_runtime_unavailable',
         });
       }
+      if (!appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_runtime_invocation_disabled',
+        });
+      }
+      assertRuntimeRolloutAllowed({
+        appId: input.appId,
+        publisherId: installation.publisherId,
+      });
       const manifest = ModuleAppLaunchRuntimeManifestSchema.safeParse(
         installation.runtimeManifest,
       );

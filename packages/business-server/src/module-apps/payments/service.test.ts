@@ -77,6 +77,27 @@ const createPendingOrder = async () => {
 };
 
 describe('ModuleAppPaymentService', () => {
+  it('fails payment creation closed outside the server-resolved rollout allowlist', async () => {
+    const adapter = createAdapter();
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    const input = {
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+      subject: 'Payment test',
+    };
+
+    await expect(
+      service.createPayment({ ...input, rollout: { appIds: [], publisherIds: [] } }),
+    ).rejects.toThrow('MODULE_APP_ROLLOUT_NOT_ALLOWED');
+    expect(adapter.create).not.toHaveBeenCalled();
+
+    await expect(
+      service.createPayment({ ...input, rollout: { appIds: [APP_ID], publisherIds: [] } }),
+    ).resolves.toMatchObject({ outTradeNo: `out-${order.id}` });
+  });
+
   it('uses the server order snapshot and settles a verified event once', async () => {
     const adapter = createAdapter();
     const service = new ModuleAppPaymentService(serverDB, adapter);
@@ -280,5 +301,78 @@ describe('ModuleAppPaymentService', () => {
     await expect(serverDB.query.moduleAppPaymentDiscrepancies.findFirst()).resolves.toMatchObject({
       kind: 'local_paid_provider_unpaid',
     });
+  });
+
+  it('records bounded notification verification failures', async () => {
+    const adapter = createAdapter();
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('MODULE_APP_ALIPAY_SIGNATURE_INVALID'),
+    );
+    const metrics = {
+      recordOperationalAge: vi.fn(),
+      recordVerificationFailure: vi.fn(),
+    };
+    const service = new ModuleAppPaymentService(serverDB, adapter, metrics);
+
+    await expect(service.handleNotification({ body: 'invalid', headers: {} })).rejects.toThrow(
+      'MODULE_APP_ALIPAY_SIGNATURE_INVALID',
+    );
+    expect(metrics.recordVerificationFailure).toHaveBeenCalledWith('signature_invalid');
+  });
+
+  it('records a malformed normalized notification only once', async () => {
+    const adapter = createAdapter();
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({ invalid: true });
+    const metrics = {
+      recordOperationalAge: vi.fn(),
+      recordVerificationFailure: vi.fn(),
+    };
+    const service = new ModuleAppPaymentService(serverDB, adapter, metrics);
+
+    await expect(service.handleNotification({ body: 'invalid', headers: {} })).rejects.toThrow(
+      'MODULE_APP_PAYMENT_NOTIFICATION_INVALID',
+    );
+    expect(metrics.recordVerificationFailure).toHaveBeenCalledTimes(1);
+    expect(metrics.recordVerificationFailure).toHaveBeenCalledWith('invalid_notification');
+  });
+
+  it('records the age of the oldest unresolved discrepancy and refund', async () => {
+    const adapter = createAdapter();
+    const metrics = {
+      recordOperationalAge: vi.fn(),
+      recordVerificationFailure: vi.fn(),
+    };
+    const service = new ModuleAppPaymentService(serverDB, adapter, metrics);
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+      subject: 'Payment test',
+    });
+    const createdAt = new Date('2026-07-12T00:00:00.000Z');
+    await serverDB.insert(moduleAppPaymentDiscrepancies).values({
+      createdAt,
+      discrepancyKey: 'age-discrepancy',
+      kind: 'refund_mismatch',
+      orderId: order.id,
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      status: 'open',
+    });
+    await serverDB.insert(moduleAppPaymentRefunds).values({
+      createdAt,
+      currency: 'CNY',
+      orderId: order.id,
+      provider: 'alipay',
+      providerRefundId: 'age-refund',
+      reason: 'age test',
+      refundAmount: '1234.000000',
+      status: 'requested',
+    });
+
+    await service.recordOperationalAges(new Date('2026-07-12T01:00:00.000Z'));
+    expect(metrics.recordOperationalAge).toHaveBeenCalledWith('discrepancy', 3_600_000);
+    expect(metrics.recordOperationalAge).toHaveBeenCalledWith('refund', 3_600_000);
   });
 });

@@ -1,5 +1,11 @@
 import { spawn } from 'node:child_process';
 
+import {
+  type ModuleAppSandboxOutcome,
+  recordModuleAppSandboxCleanupFailure,
+  recordModuleAppSandboxInvocation,
+} from '@lobechat/observability-otel/modules/module-app';
+
 const MAX_LOG_BYTES = 64 * 1024;
 
 export type ModuleAppContainerRunInput = {
@@ -32,6 +38,15 @@ type DockerRunner = {
     stderr: string;
     stdout: string;
   }>;
+};
+
+type ModuleAppContainerMetrics = {
+  recordCleanupFailure: () => void;
+  recordInvocation: (input: {
+    durationMs: number;
+    outcome: ModuleAppSandboxOutcome;
+    runtime: 'node22' | 'python312';
+  }) => void;
 };
 
 const boundedAppend = (current: string, chunk: string) =>
@@ -78,9 +93,8 @@ const runDocker = (
 
 const defaultRunner: DockerRunner = {
   remove: async (containerName) => {
-    await runDocker(['rm', '--force', containerName], { timeoutMs: 15_000 }).catch(
-      () => undefined,
-    );
+    const result = await runDocker(['rm', '--force', containerName], { timeoutMs: 15_000 });
+    if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
   },
   run: ({ args, input, timeoutMs }) => runDocker(args, { input, timeoutMs }),
 };
@@ -131,24 +145,51 @@ export const buildDockerRunArgs = (input: ModuleAppContainerRunInput) => {
 };
 
 export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngine {
+  private readonly metrics: ModuleAppContainerMetrics;
   private readonly runner: DockerRunner;
 
-  constructor(options: { runner?: DockerRunner } = {}) {
+  constructor(options: { metrics?: ModuleAppContainerMetrics; runner?: DockerRunner } = {}) {
+    this.metrics = options.metrics ?? {
+      recordCleanupFailure: recordModuleAppSandboxCleanupFailure,
+      recordInvocation: recordModuleAppSandboxInvocation,
+    };
     this.runner = options.runner ?? defaultRunner;
   }
 
   run = async (input: ModuleAppContainerRunInput) => {
+    const startedAt = Date.now();
+    let outcome: ModuleAppSandboxOutcome = 'failed';
     try {
       const result = await this.runner.run({
         args: buildDockerRunArgs(input),
         input: JSON.stringify(input.input),
         timeoutMs: input.limits.timeoutMs,
       });
+      if (result.exitCode === 137) {
+        outcome = 'oom';
+        throw new Error('MODULE_APP_RUNTIME_OOM');
+      }
       if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_PROCESS_FAILED');
+      outcome = 'succeeded';
       return result;
     } catch (error) {
-      await this.runner.remove(input.containerName);
+      if (error instanceof Error && error.message === 'MODULE_APP_RUNTIME_TIMEOUT') {
+        outcome = 'timeout';
+      } else if (error instanceof Error && error.message === 'MODULE_APP_RUNTIME_OOM') {
+        outcome = 'oom';
+      }
+      try {
+        await this.runner.remove(input.containerName);
+      } catch {
+        this.metrics.recordCleanupFailure();
+      }
       throw error;
+    } finally {
+      this.metrics.recordInvocation({
+        durationMs: Date.now() - startedAt,
+        outcome,
+        runtime: input.runtime,
+      });
     }
   };
 }

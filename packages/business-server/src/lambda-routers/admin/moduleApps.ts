@@ -1,3 +1,4 @@
+import { recordModuleAppPayoutState } from '@lobechat/observability-otel/modules/module-app';
 import {
   moduleAppAdminUpsertSchema,
   moduleAppBillingConfigSchema,
@@ -23,12 +24,36 @@ import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleA
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
 import { ModuleAppPaymentService } from '../../module-apps/payments/service';
+import {
+  assertModuleAppMutationEnabled,
+  assertModuleAppRolloutAllowed,
+} from '../../module-apps/productionControls';
 import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../module-apps/revenue';
 import { ModuleAppAdminReadModel } from './moduleApps.readModels';
 
 const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
 const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+
+const assertPayoutRecordingEnabled = () =>
+  assertModuleAppMutationEnabled(
+    appEnv.MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED,
+    'MODULE_APP_PUBLISHER_PAYOUT_RECORDING_DISABLED',
+  );
+
+const assertPayoutPublisherAllowed = (publisherId: string) =>
+  assertModuleAppRolloutAllowed(
+    { publisherId },
+    { appIds: [], publisherIds: appEnv.MODULE_APP_PUBLISHER_ALLOWLIST },
+  );
+
+const requirePayoutBatchForMutation = async (db: LobeChatDatabase, batchId: string) => {
+  assertPayoutRecordingEnabled();
+  const batch = await new ModuleAppPayoutModel(db).getBatch(batchId);
+  if (!batch) throw new Error('MODULE_APP_PAYOUT_BATCH_NOT_FOUND');
+  assertPayoutPublisherAllowed(batch.publisherId);
+  return batch;
+};
 
 const AppIdInputSchema = z.object({ appId: z.string().uuid() });
 const PackageIdInputSchema = z.object({ packageId: z.string().uuid() });
@@ -276,7 +301,10 @@ export const adminModuleAppsRouter = router({
   createPayoutBatch: financeWriteProcedure
     .input(CreatePayoutBatchInputSchema)
     .mutation(async ({ ctx, input }) => {
+      assertPayoutRecordingEnabled();
+      assertPayoutPublisherAllowed(input.publisherId);
       const result = await new ModuleAppPayoutModel(ctx.serverDB).createEligibleBatch(input);
+      recordModuleAppPayoutState(result.status);
       await writeAudit(ctx, {
         eventType: 'module_app.payout_created',
         metadata: {
@@ -355,10 +383,12 @@ export const adminModuleAppsRouter = router({
   recordManualAlipayPayout: financeWriteProcedure
     .input(RecordManualAlipayPayoutInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await requirePayoutBatchForMutation(ctx.serverDB, input.batchId);
       const result = await new ModuleAppPayoutModel(ctx.serverDB).recordManualAlipayPayout({
         actorUserId: ctx.userId,
         ...input,
       });
+      recordModuleAppPayoutState(result.status);
       await writeAudit(ctx, {
         eventType: 'module_app.payout_paid',
         metadata: {
@@ -455,7 +485,9 @@ export const adminModuleAppsRouter = router({
   transitionPayoutBatch: financeWriteProcedure
     .input(TransitionPayoutBatchInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await requirePayoutBatchForMutation(ctx.serverDB, input.batchId);
       const result = await new ModuleAppPayoutModel(ctx.serverDB).transitionBatch(input);
+      recordModuleAppPayoutState(result.status);
       await writeAudit(ctx, {
         eventType: `module_app.payout_${input.status}`,
         metadata: { failureReason: input.failureReason },

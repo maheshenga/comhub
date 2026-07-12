@@ -7,6 +7,7 @@
     "test": "bunx vitest run --silent='passed-only'"
   },
   "dependencies": {
+    "@lobechat/observability-otel": "workspace:*",
     "@lobechat/types": "workspace:*",
     "jose": "^6.1.3"
   },

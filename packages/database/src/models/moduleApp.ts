@@ -1209,6 +1209,7 @@ export class ModuleAppModel {
         buildStatus: moduleAppBuilds.status,
         displayName: moduleApps.displayName,
         installationId: moduleAppInstallations.id,
+        publisherId: moduleApps.publisherId,
         runtimeManifest: moduleAppVersions.runtimeManifest,
         versionId: moduleAppVersions.id,
         workspaceId: moduleAppInstallations.workspaceId,

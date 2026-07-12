@@ -52,6 +52,7 @@ const moduleAppPublisherMocks = vi.hoisted(() => ({
 
 const moduleAppPayoutMocks = vi.hoisted(() => ({
   createEligibleBatch: vi.fn(),
+  getBatch: vi.fn(),
   listPayouts: vi.fn(),
   recordManualAlipayPayout: vi.fn(),
   transitionBatch: vi.fn(),
@@ -71,7 +72,12 @@ const moduleAppReadModelMocks = vi.hoisted(() => ({
   listRuns: vi.fn(),
 }));
 
-const mockAppEnv = vi.hoisted(() => ({ MODULE_APP_ALIPAY_ENABLED: true }));
+const mockAppEnv = vi.hoisted(() => ({
+  MODULE_APP_ALIPAY_ENABLED: true,
+  MODULE_APP_PUBLISHER_ALLOWLIST: [] as string[],
+  MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED: true,
+}));
+const recordModuleAppPayoutState = vi.hoisted(() => vi.fn());
 const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
 
 const lifecycleMocks = vi.hoisted(() => ({
@@ -108,6 +114,10 @@ vi.mock('./moduleApps.readModels', () => ({
 }));
 
 vi.mock('@/envs/app', () => ({ appEnv: mockAppEnv }));
+
+vi.mock('@lobechat/observability-otel/modules/module-app', () => ({
+  recordModuleAppPayoutState,
+}));
 
 vi.mock('@/server/services/moduleAppPayments/alipay/client', () => ({
   createConfiguredModuleAppAlipayClient: mockCreateConfiguredModuleAppAlipayClient,
@@ -280,6 +290,8 @@ describe('admin module apps router', () => {
     moduleAppOrderRevenueMocks.settleOrder.mockResolvedValue({ id: ORDER_ID, status: 'paid' });
     moduleAppOrderRevenueMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
     mockAppEnv.MODULE_APP_ALIPAY_ENABLED = true;
+    mockAppEnv.MODULE_APP_PUBLISHER_ALLOWLIST = [PUBLISHER_ID];
+    mockAppEnv.MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED = true;
     moduleAppPaymentMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
     moduleAppPaymentMocks.reconcilePayment.mockResolvedValue({ status: 'paid' });
     moduleAppPaymentMocks.reconcilePendingPayments.mockResolvedValue({ count: 0, results: [] });
@@ -299,6 +311,11 @@ describe('admin module apps router', () => {
     moduleAppPublisherMocks.listPublishers.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppPayoutMocks.createEligibleBatch.mockResolvedValue({
       id: PAYOUT_ID,
+      status: 'eligible',
+    });
+    moduleAppPayoutMocks.getBatch.mockResolvedValue({
+      id: PAYOUT_ID,
+      publisherId: PUBLISHER_ID,
       status: 'eligible',
     });
     moduleAppPayoutMocks.transitionBatch.mockResolvedValue({ id: PAYOUT_ID, status: 'processing' });
@@ -726,6 +743,9 @@ describe('admin module apps router', () => {
       recipientMask: 'ali***@example.com',
       transactionNo: 'alipay-txn-1',
     });
+    expect(recordModuleAppPayoutState).toHaveBeenCalledWith('eligible');
+    expect(recordModuleAppPayoutState).toHaveBeenCalledWith('processing');
+    expect(recordModuleAppPayoutState).toHaveBeenCalledWith('paid');
     expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'admin-user',
@@ -734,6 +754,34 @@ describe('admin module apps router', () => {
         resourceType: 'moduleAppPayout',
       }),
     );
+  });
+
+  it('keeps payout reads available while disabled and blocks mutations before model writes', async () => {
+    mockAppEnv.MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED = false;
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.listPayouts({ publisherId: PUBLISHER_ID })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(
+      caller.moduleApps.createPayoutBatch({
+        publisherId: PUBLISHER_ID,
+        requestedAmount: 80,
+        revenueEntryIds: [REVENUE_ID],
+      }),
+    ).rejects.toThrow('MODULE_APP_PUBLISHER_PAYOUT_RECORDING_DISABLED');
+    expect(moduleAppPayoutMocks.createEligibleBatch).not.toHaveBeenCalled();
+  });
+
+  it('rejects payout mutations outside the publisher rollout allowlist', async () => {
+    mockAppEnv.MODULE_APP_PUBLISHER_ALLOWLIST = [];
+    const caller = createCaller();
+
+    await expect(
+      caller.moduleApps.transitionPayoutBatch({ batchId: PAYOUT_ID, status: 'processing' }),
+    ).rejects.toThrow('MODULE_APP_ROLLOUT_NOT_ALLOWED');
+    expect(moduleAppPayoutMocks.transitionBatch).not.toHaveBeenCalled();
   });
 
   it('lists stable-cursor application and payment diagnostics with server filters', async () => {

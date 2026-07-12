@@ -35,6 +35,11 @@ const isTransactionIdentityConflict = (error: unknown): boolean => {
 export class ModuleAppPayoutModel {
   constructor(private readonly db: LobeChatDatabase) {}
 
+  getBatch = async (batchId: string) =>
+    (await this.db.query.moduleAppPayoutBatches.findFirst({
+      where: eq(moduleAppPayoutBatches.id, batchId),
+    })) ?? null;
+
   createEligibleBatch = async (input: {
     publisherId: string;
     requestedAmount: number;

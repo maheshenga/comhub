@@ -99,4 +99,42 @@ describe('DockerCliModuleAppContainerEngine', () => {
     await expect(engine.run(input)).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
     expect(runner.remove).toHaveBeenCalledWith('module-app-invocation-1');
   });
+
+  it('records bounded success, timeout, OOM, and cleanup outcomes', async () => {
+    const metrics = {
+      recordCleanupFailure: vi.fn(),
+      recordInvocation: vi.fn(),
+    };
+    const successRunner = {
+      remove: vi.fn(),
+      run: vi.fn().mockResolvedValue({ exitCode: 0, stderr: '', stdout: '{}' }),
+    };
+    await new DockerCliModuleAppContainerEngine({ metrics, runner: successRunner }).run(input);
+    expect(metrics.recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'succeeded', runtime: 'node22' }),
+    );
+
+    const oomRunner = {
+      remove: vi.fn().mockResolvedValue(undefined),
+      run: vi.fn().mockResolvedValue({ exitCode: 137, stderr: 'Killed', stdout: '' }),
+    };
+    await expect(
+      new DockerCliModuleAppContainerEngine({ metrics, runner: oomRunner }).run(input),
+    ).rejects.toThrow('MODULE_APP_RUNTIME_OOM');
+    expect(metrics.recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'oom', runtime: 'node22' }),
+    );
+
+    const timeoutRunner = {
+      remove: vi.fn().mockRejectedValue(new Error('cleanup failed')),
+      run: vi.fn().mockRejectedValue(new Error('MODULE_APP_RUNTIME_TIMEOUT')),
+    };
+    await expect(
+      new DockerCliModuleAppContainerEngine({ metrics, runner: timeoutRunner }).run(input),
+    ).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
+    expect(metrics.recordCleanupFailure).toHaveBeenCalledOnce();
+    expect(metrics.recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'timeout', runtime: 'node22' }),
+    );
+  });
 });

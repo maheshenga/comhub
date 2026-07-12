@@ -2,7 +2,10 @@
 import { moduleAppWorkflowDefinitionSchema } from '@lobechat/types';
 import { describe, expect, it, vi } from 'vitest';
 
-import { runModuleAppScheduleDispatcher } from './scheduleDispatcher';
+import {
+  dispatchDueModuleAppSchedules,
+  runModuleAppScheduleDispatcher,
+} from './scheduleDispatcher';
 
 const workflow = moduleAppWorkflowDefinitionSchema.parse({
   edges: [],
@@ -26,6 +29,12 @@ const claim = {
 };
 
 describe('runModuleAppScheduleDispatcher', () => {
+  it('fails before claiming work when schedule dispatch is disabled', async () => {
+    await expect(
+      dispatchDueModuleAppSchedules({ db: {} as any, enabled: false }),
+    ).rejects.toThrow('MODULE_APP_SCHEDULE_DISPATCH_DISABLED');
+  });
+
   it('claims a bounded batch, starts idempotently, dispatches, and advances next run', async () => {
     const repository = {
       claimDueSchedules: vi.fn().mockResolvedValue([claim]),
@@ -34,12 +43,14 @@ describe('runModuleAppScheduleDispatcher', () => {
     };
     const start = vi.fn().mockResolvedValue({ id: 'run-1' });
     const dispatch = vi.fn().mockResolvedValue({ workflowRunId: 'qstash-1' });
+    const recordBacklog = vi.fn();
 
     await expect(
       runModuleAppScheduleDispatcher({
         batchSize: 500,
         dispatch,
         now: new Date('2026-07-12T00:00:00.000Z'),
+        recordBacklog,
         repository,
         start,
       }),
@@ -47,6 +58,7 @@ describe('runModuleAppScheduleDispatcher', () => {
     expect(repository.claimDueSchedules).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 100 }),
     );
+    expect(recordBacklog).toHaveBeenCalledWith(1);
     expect(start).toHaveBeenCalledWith(
       expect.objectContaining({
         idempotencyKey: 'module-app-schedule:schedule-1:2026-07-12T00:00:00.000Z',

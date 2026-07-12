@@ -10,6 +10,7 @@ type ModuleAppRuntimeClientOptions = {
   enabled?: boolean;
   fetch?: FetchLike;
   internalToken?: string;
+  invocationEnabled?: boolean;
 };
 
 export class ModuleAppRuntimeClient {
@@ -17,16 +18,22 @@ export class ModuleAppRuntimeClient {
   private readonly enabled: boolean;
   private readonly fetch: FetchLike;
   private readonly internalToken?: string;
+  private readonly invocationEnabled: boolean;
 
   constructor(options: ModuleAppRuntimeClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? process.env.MODULE_APP_RUNTIME_INTERNAL_URL;
     this.enabled = options.enabled ?? process.env.MODULE_APP_EXECUTION_ENABLED === 'true';
     this.fetch = options.fetch ?? fetch;
     this.internalToken = options.internalToken ?? process.env.MODULE_APP_RUNTIME_INTERNAL_TOKEN;
+    this.invocationEnabled =
+      options.invocationEnabled ?? process.env.MODULE_APP_RUNTIME_INVOCATION_ENABLED === 'true';
   }
 
   invoke = async (input: ModuleAppInvocation) => {
     if (!this.enabled) throw new Error('MODULE_APP_EXECUTION_DISABLED');
+    if (!this.invocationEnabled) {
+      throw new Error('MODULE_APP_RUNTIME_INVOCATION_DISABLED');
+    }
     if (!this.baseUrl || !this.internalToken) throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
     const invocation = moduleAppInvocationSchema.parse(input);
     const endpoint = new URL('/v1/invocations', `${this.baseUrl.replace(/\/$/, '')}/`).toString();

@@ -220,6 +220,7 @@ describe('ModuleAppModel capability gateway isolation', () => {
       buildStatus: 'ready',
       displayName: 'Jobs Board',
       installationId: installation.id,
+      publisherId: null,
       runtimeManifest,
       versionId: version.id,
     });

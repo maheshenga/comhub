@@ -34,6 +34,17 @@ describe('RedisModuleAppInvocationLeaseStore', () => {
     ).resolves.toBe(false);
   });
 
+  it('records a replay rejection without adding invocation identifiers', async () => {
+    const redis = { eval: vi.fn(), set: vi.fn().mockResolvedValue(null) };
+    const recordReplayRejection = vi.fn();
+    const store = new RedisModuleAppInvocationLeaseStore(redis, { recordReplayRejection });
+
+    await expect(
+      store.acquire({ invocationId: 'invocation-1', ownerId: 'worker-2', ttlMs: 30_000 }),
+    ).resolves.toBe(false);
+    expect(recordReplayRejection).toHaveBeenCalledWith();
+  });
+
   it('releases only the lease owned by the caller', async () => {
     const redis = {
       eval: vi.fn().mockResolvedValue(1),

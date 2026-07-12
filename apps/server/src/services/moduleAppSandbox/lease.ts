@@ -1,3 +1,5 @@
+import { recordModuleAppSandboxReplayRejection } from '@lobechat/observability-otel/modules/module-app';
+
 import { getAgentRuntimeRedisClient } from '@/server/modules/AgentRuntime/redis';
 
 import type { ModuleAppInvocationLeaseStore } from './contracts';
@@ -33,6 +35,9 @@ export class RedisModuleAppInvocationLeaseStore implements ModuleAppInvocationLe
   constructor(
     private readonly redis: ModuleAppLeaseRedis | null =
       getAgentRuntimeRedisClient() as ModuleAppLeaseRedis | null,
+    private readonly metrics: { recordReplayRejection: () => void } = {
+      recordReplayRejection: recordModuleAppSandboxReplayRejection,
+    },
   ) {}
 
   acquire = async (input: { invocationId: string; ownerId: string; ttlMs: number }) => {
@@ -49,6 +54,7 @@ export class RedisModuleAppInvocationLeaseStore implements ModuleAppInvocationLe
       input.ttlMs,
       'NX',
     );
+    if (result !== 'OK') this.metrics.recordReplayRejection();
     return result === 'OK';
   };
 

@@ -1,3 +1,4 @@
+import { recordModuleAppWorkflowBacklog } from '@lobechat/observability-otel/modules/module-app';
 import {
   moduleAppExecutableRuntimeSchema,
   type ModuleAppWorkflowDefinition,
@@ -8,6 +9,7 @@ import { createModuleAppWorkflowExecutor } from '@/business/server/module-apps/w
 import { ModuleAppTriggerModel } from '@/database/models/moduleAppTrigger';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import type { LobeChatDatabase } from '@/database/type';
+import { appEnv } from '@/envs/app';
 
 import { ModuleAppWorkflowDispatch } from './index';
 import { getNextModuleAppScheduleTime } from './schedule';
@@ -70,6 +72,7 @@ export const runModuleAppScheduleDispatcher = async (input: {
   ) => Promise<unknown>;
   leaseMs?: number;
   now: Date;
+  recordBacklog?: (count: number) => void;
   repository: ScheduleRepository;
   start: (input: {
     idempotencyKey: string;
@@ -82,6 +85,7 @@ export const runModuleAppScheduleDispatcher = async (input: {
     limit: Math.min(100, Math.max(1, input.batchSize ?? 25)),
     now: input.now,
   });
+  (input.recordBacklog ?? recordModuleAppWorkflowBacklog)(claims.length);
   let dispatched = 0;
   let failed = 0;
   let bookkeepingFailed = 0;
@@ -140,12 +144,16 @@ export const runModuleAppScheduleDispatcher = async (input: {
   return { claimed: claims.length, dispatched, failed, bookkeepingFailed };
 };
 
-export const dispatchDueModuleAppSchedules = (input: {
+export const dispatchDueModuleAppSchedules = async (input: {
   batchSize?: number;
   db: LobeChatDatabase;
+  enabled?: boolean;
   leaseMs?: number;
   now?: Date;
 }) => {
+  if (!(input.enabled ?? appEnv.MODULE_APP_SCHEDULE_DISPATCH_ENABLED)) {
+    throw new Error('MODULE_APP_SCHEDULE_DISPATCH_DISABLED');
+  }
   const repository = new ModuleAppTriggerModel(input.db);
   const engine = new ModuleAppWorkflowEngine({
     execute: createModuleAppWorkflowExecutor({}),

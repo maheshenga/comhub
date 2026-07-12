@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
 import type { ModuleAppCapabilityClaims } from '@lobechat/types';
-import { z } from 'zod';
 
 import { ModuleAppHttpGateway } from '@/business/server/module-apps/sdk/http';
 import { ModuleAppWorkflowEngine } from '@/business/server/module-apps/workflows/engine';
@@ -11,40 +10,26 @@ import { createModuleAppFunctionWorkflowExecutor } from '@/business/server/modul
 import { createModuleAppHttpWorkflowExecutor } from '@/business/server/module-apps/workflows/executors/http';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { getServerDB } from '@/database/server';
+import { appEnv } from '@/envs/app';
 import { verifyQStashSignature } from '@/libs/qstash';
 import { createModuleAppTextGenerator } from '@/server/services/moduleAppAi';
 import { ModuleAppWorkflowDispatch } from '@/server/workflows/moduleApp';
 import { resolveModuleAppWorkflowEntitlement } from '@/server/workflows/moduleApp/entitlement';
 import { runModuleAppWorkflowJob } from '@/server/workflows/moduleApp/run';
 
-const payloadSchema = z.object({
-  installationId: z.string().uuid(),
-  runId: z.string().uuid(),
-});
+import { createModuleAppWorkflowRouteHandler } from './handler';
 
 const workflowFunctionRegistry = Object.freeze({
   passthrough: async (context: { input: Record<string, unknown> }) => context.input,
 });
 
-export const POST = async (request: Request) => {
-  const rawBody = await request.text();
-  if (!(await verifyQStashSignature(request, rawBody))) {
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
-  let json: unknown;
-  try {
-    json = JSON.parse(rawBody);
-  } catch {
-    return Response.json({ error: 'invalid_payload' }, { status: 400 });
-  }
-  const payload = payloadSchema.safeParse(json);
-  if (!payload.success) return Response.json({ error: 'invalid_payload' }, { status: 400 });
+const executeModuleAppWorkflow = async (payload: { installationId: string; runId: string }) => {
   const db = await getServerDB();
   let entitlement: Awaited<ReturnType<typeof resolveModuleAppWorkflowEntitlement>> | undefined;
   const assertEntitlement = async () => {
     entitlement = await resolveModuleAppWorkflowEntitlement({
       db,
-      installationId: payload.data.installationId,
+      installationId: payload.installationId,
     });
     return entitlement;
   };
@@ -106,8 +91,14 @@ export const POST = async (request: Request) => {
     assertEntitlement,
     dispatch: (input) => ModuleAppWorkflowDispatch.triggerRun(input),
     engine,
-    payload: payload.data,
+    payload,
     workerId: `qstash-${randomUUID()}`,
   });
-  return Response.json({ run });
+  return run;
 };
+
+export const POST = createModuleAppWorkflowRouteHandler({
+  enabled: appEnv.MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED,
+  execute: executeModuleAppWorkflow,
+  verify: verifyQStashSignature,
+});

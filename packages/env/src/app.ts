@@ -37,6 +37,16 @@ const MODULE_APP_ALIPAY_GATEWAY =
     ? 'https://openapi.alipay.com/gateway.do'
     : 'https://openapi-sandbox.dl.alipaydev.com/gateway.do');
 
+const parseModuleAppAllowlist = (value?: string) =>
+  Array.from(
+    new Set(
+      (value ?? '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0 && item.length <= 160),
+    ),
+  ).slice(0, 500);
+
 const ASSISTANT_INDEX_URL = 'https://registry.npmmirror.com/@lobehub/agents-index/v1/files/public';
 
 const PLUGINS_INDEX_URL = 'https://registry.npmmirror.com/@lobehub/plugins-index/v1/files/public';
@@ -85,6 +95,15 @@ export const getAppConfig = () => {
 
       MODULE_APP_EXECUTION_ENABLED: z.boolean().optional(),
       MODULE_APP_RUNTIME_PUBLIC_ORIGIN: z.string().url().optional(),
+      MODULE_APP_RUNTIME_INVOCATION_ENABLED: z.boolean(),
+      MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED: z.boolean(),
+      MODULE_APP_SCHEDULE_DISPATCH_ENABLED: z.boolean(),
+      MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED: z.boolean(),
+      MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED: z.boolean(),
+      MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED: z.boolean(),
+      MODULE_APP_PUBLIC_EXECUTION_ENABLED: z.boolean(),
+      MODULE_APP_RUNTIME_APP_ALLOWLIST: z.string().optional().transform(parseModuleAppAllowlist),
+      MODULE_APP_PUBLISHER_ALLOWLIST: z.string().optional().transform(parseModuleAppAllowlist),
       MODULE_APP_ALIPAY_APP_ID: z.string().optional(),
       MODULE_APP_ALIPAY_CERTIFICATE: z.string().optional(),
       MODULE_APP_ALIPAY_CERT_MODE: z.enum(['certificate', 'public_key']).optional(),
@@ -145,6 +164,22 @@ export const getAppConfig = () => {
 
       MODULE_APP_EXECUTION_ENABLED: process.env.MODULE_APP_EXECUTION_ENABLED === 'true',
       MODULE_APP_RUNTIME_PUBLIC_ORIGIN: process.env.MODULE_APP_RUNTIME_PUBLIC_ORIGIN,
+      MODULE_APP_RUNTIME_INVOCATION_ENABLED:
+        process.env.MODULE_APP_RUNTIME_INVOCATION_ENABLED === 'true',
+      MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED:
+        process.env.MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED === 'true',
+      MODULE_APP_SCHEDULE_DISPATCH_ENABLED:
+        process.env.MODULE_APP_SCHEDULE_DISPATCH_ENABLED === 'true',
+      MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED:
+        process.env.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED === 'true',
+      MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED:
+        process.env.MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED === 'true',
+      MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED:
+        process.env.MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED === 'true',
+      MODULE_APP_PUBLIC_EXECUTION_ENABLED:
+        process.env.MODULE_APP_PUBLIC_EXECUTION_ENABLED === 'true',
+      MODULE_APP_RUNTIME_APP_ALLOWLIST: process.env.MODULE_APP_RUNTIME_APP_ALLOWLIST,
+      MODULE_APP_PUBLISHER_ALLOWLIST: process.env.MODULE_APP_PUBLISHER_ALLOWLIST,
       MODULE_APP_ALIPAY_APP_ID: process.env.MODULE_APP_ALIPAY_APP_ID,
       MODULE_APP_ALIPAY_CERTIFICATE: process.env.MODULE_APP_ALIPAY_CERTIFICATE,
       MODULE_APP_ALIPAY_CERT_MODE:
