@@ -12,6 +12,7 @@ const scan = (
     isEncrypted: false,
     isSymbolicLink: false,
     name,
+    type: 'regular',
   })),
 ) => scanModuleAppPackage({ entries, files });
 
@@ -36,7 +37,13 @@ describe('scanModuleAppPackage', () => {
   it('blocks Unix symlinks and encrypted entries before review', () => {
     expect(
       scan({ 'link.txt': text('target') }, [
-        { isEncrypted: false, isSymbolicLink: true, name: 'link.txt', unixMode: 0xa1ff },
+        {
+          isEncrypted: false,
+          isSymbolicLink: true,
+          name: 'link.txt',
+          type: 'symlink',
+          unixMode: 0xa1ff,
+        },
       ]),
     ).toEqual([
       expect.objectContaining({ code: 'module_app_package_symbolic_link', path: 'link.txt' }),
@@ -44,7 +51,7 @@ describe('scanModuleAppPackage', () => {
 
     expect(
       scan({ 'secret.txt': text('secret') }, [
-        { isEncrypted: true, isSymbolicLink: false, name: 'secret.txt' },
+        { isEncrypted: true, isSymbolicLink: false, name: 'secret.txt', type: 'regular' },
       ]),
     ).toEqual([
       expect.objectContaining({ code: 'module_app_package_encrypted_entry', path: 'secret.txt' }),
