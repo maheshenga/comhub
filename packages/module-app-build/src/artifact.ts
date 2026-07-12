@@ -98,7 +98,7 @@ const createArtifactEntries = (files: Record<string, Uint8Array>): ArtifactEntry
     entries.set(path, { bytes, path, type: 'file' });
   }
 
-  for (const path of entries.keys()) {
+  for (const path of Object.keys(files)) {
     const segments = path.split('/');
     for (let index = 1; index < segments.length; index += 1) {
       const directoryPath = segments.slice(0, index).join('/');
@@ -113,6 +113,13 @@ const createArtifactEntries = (files: Record<string, Uint8Array>): ArtifactEntry
         entries.set(directoryPath, { bytes: new Uint8Array(), path: directoryPath, type: 'directory' });
       }
     }
+  }
+
+  if (entries.size > DEFAULT_MODULE_APP_PACKAGE_LIMITS.maxFileCount) {
+    throw safetyError(
+      'module_app_package_too_many_files',
+      `Package contains more than ${DEFAULT_MODULE_APP_PACKAGE_LIMITS.maxFileCount} entries.`,
+    );
   }
 
   return Array.from(entries.values()).sort((left, right) => comparePaths(left.path, right.path));

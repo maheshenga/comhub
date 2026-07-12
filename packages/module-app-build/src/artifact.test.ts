@@ -118,6 +118,18 @@ describe('module app artifacts', () => {
     });
   });
 
+  it(
+    'rejects a file whose synthesized parent directories exceed the archive entry limit',
+    async () => {
+      const path = `${Array.from({ length: 1000 }, (_, index) => `nested-${index}`).join('/')}/index.html`;
+
+      await expect(
+        buildDeterministicModuleAppArtifact({ files: { [path]: encoder.encode('<main>Hello</main>') } }),
+      ).rejects.toMatchObject({ code: 'module_app_package_too_many_files' });
+    },
+    20_000,
+  );
+
   it('rejects unsupported tar entry types', async () => {
     const bytes = await createTgz([{ linkname: 'target.txt', name: 'shortcut', type: 'symlink' }]);
 
