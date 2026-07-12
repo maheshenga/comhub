@@ -22,7 +22,7 @@ import {
   RUNTIME_CONFIG_SWR_KEY,
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
-import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
+import { APP_SETTING_KEYS, type AppSettingKey } from '@/const/appSettingsRegistry';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { type HelpMenuItem, normalizeHelpMenuItems } from '@/const/helpMenu';
@@ -196,6 +196,8 @@ export type AdminSettingsFormValues = {
 export type SettingUpdate = { key: string; value: unknown };
 
 export const normalizeText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+const normalizeTextWithFallback = (value: unknown, fallback: string) =>
+  normalizeText(value) || fallback;
 
 export const RECOMMENDED_HELP_MENU_ITEMS: HelpMenuItem[] = normalizeHelpMenuItems([
   {
@@ -400,13 +402,19 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   cronAuditRetentionDays: data?.cronAuditRetentionDays ?? 365,
   cronPendingOrderExpiryDays: data?.cronPendingOrderExpiryDays ?? 7,
   cronSecret: '',
-  defaultAgentAvatar: data?.defaultAgentAvatar ?? DEFAULT_COMHUB_AGENT_AVATAR,
+  defaultAgentAvatar: normalizeTextWithFallback(
+    data?.defaultAgentAvatar,
+    DEFAULT_COMHUB_AGENT_AVATAR,
+  ),
   defaultAgentModel: data?.defaultAgentModel ?? '',
-  defaultAgentName: data?.defaultAgentName ?? DEFAULT_COMHUB_AGENT_NAME,
+  defaultAgentName: normalizeTextWithFallback(data?.defaultAgentName, DEFAULT_COMHUB_AGENT_NAME),
   defaultAgentProvider: data?.defaultAgentProvider ?? '',
   defaultImageModel: data?.defaultImageModel ?? '',
   defaultImageProvider: data?.defaultImageProvider ?? '',
-  defaultSkillName: data?.defaultSkillName ?? data?.brandName ?? DEFAULT_RUNTIME_BRAND.name,
+  defaultSkillName:
+    normalizeText(data?.defaultSkillName) ||
+    normalizeText(data?.brandName) ||
+    DEFAULT_RUNTIME_BRAND.name,
   defaultVideoModel: data?.defaultVideoModel ?? '',
   defaultVideoProvider: data?.defaultVideoProvider ?? '',
   helpMenuItems: normalizeHelpMenuItems(data?.helpMenuItems),
@@ -458,13 +466,19 @@ export const normalizeFormValues = (
   cronPendingOrderExpiryDays:
     typeof values.cronPendingOrderExpiryDays === 'number' ? values.cronPendingOrderExpiryDays : 7,
   cronSecret: normalizeText(values.cronSecret),
-  defaultAgentAvatar: normalizeText(values.defaultAgentAvatar),
+  defaultAgentAvatar: normalizeTextWithFallback(
+    values.defaultAgentAvatar,
+    DEFAULT_COMHUB_AGENT_AVATAR,
+  ),
   defaultAgentModel: normalizeText(values.defaultAgentModel),
-  defaultAgentName: normalizeText(values.defaultAgentName),
+  defaultAgentName: normalizeTextWithFallback(values.defaultAgentName, DEFAULT_COMHUB_AGENT_NAME),
   defaultAgentProvider: normalizeText(values.defaultAgentProvider),
   defaultImageModel: normalizeText(values.defaultImageModel),
   defaultImageProvider: normalizeText(values.defaultImageProvider),
-  defaultSkillName: normalizeText(values.defaultSkillName),
+  defaultSkillName:
+    normalizeText(values.defaultSkillName) ||
+    normalizeText(values.brandName) ||
+    DEFAULT_RUNTIME_BRAND.name,
   defaultVideoModel: normalizeText(values.defaultVideoModel),
   defaultVideoProvider: normalizeText(values.defaultVideoProvider),
   helpMenuItems: normalizeHelpMenuItems(values.helpMenuItems),
@@ -532,7 +546,7 @@ const SITE_CUSTOMIZATION_FIELDS: Array<keyof AdminSettingsFormValues> = [
   'sidebarGenerationLabel',
 ];
 
-const SETTING_KEY_BY_FORM_FIELD: Record<keyof AdminSettingsFormValues, string> = {
+const SETTING_KEY_BY_FORM_FIELD: Record<keyof AdminSettingsFormValues, AppSettingKey> = {
   aboutLogoUrl: SETTING_KEYS.aboutLogoUrl,
   brandFaviconUrl: SETTING_KEYS.brandFaviconUrl,
   aboutLinks: SETTING_KEYS.aboutLinks,
@@ -584,12 +598,131 @@ const SETTING_KEY_BY_FORM_FIELD: Record<keyof AdminSettingsFormValues, string> =
   storageS3SetAcl: SETTING_KEYS.storageS3SetAcl,
 };
 
+export const ADMIN_SETTINGS_FORM_SETTING_KEYS = Array.from(
+  new Set(Object.values(SETTING_KEY_BY_FORM_FIELD)),
+).sort() as AppSettingKey[];
+
+export const ADMIN_SETTINGS_NON_FORM_SETTING_KEYS = [
+  SETTING_KEYS.authSignupDisabledMessage,
+  SETTING_KEYS.authSignupEnabled,
+  SETTING_KEYS.authSignupPhoneEnabled,
+  SETTING_KEYS.communityCreatorRewardBannerEnabled,
+  SETTING_KEYS.communityFeaturedAssistantPageSize,
+  SETTING_KEYS.communityFeaturedAssistantTitle,
+  SETTING_KEYS.communityFeaturedAssistantsEnabled,
+  SETTING_KEYS.communityFeaturedMcpPageSize,
+  SETTING_KEYS.communityFeaturedMcpTitle,
+  SETTING_KEYS.communityFeaturedMcpsEnabled,
+  SETTING_KEYS.communityFeaturedSkillCategory,
+  SETTING_KEYS.communityFeaturedSkillPageSize,
+  SETTING_KEYS.communityFeaturedSkillSort,
+  SETTING_KEYS.communityFeaturedSkillTitle,
+  SETTING_KEYS.communityFeaturedSkillsEnabled,
+  SETTING_KEYS.communityHomeAnnouncementContent,
+  SETTING_KEYS.communityHomeAnnouncementEnabled,
+  SETTING_KEYS.communityHomeAnnouncementTitle,
+  SETTING_KEYS.communityHomeAnnouncementType,
+  SETTING_KEYS.composioApiKey,
+  SETTING_KEYS.composioAuthConfigIds,
+  SETTING_KEYS.composioEnabled,
+  SETTING_KEYS.desktopDownloadLabel,
+  SETTING_KEYS.desktopDownloadUrl,
+  SETTING_KEYS.desktopLoginCloudButtonLabel,
+  SETTING_KEYS.desktopLoginDescription,
+  SETTING_KEYS.desktopLoginFooterText,
+  SETTING_KEYS.desktopLoginLogoUrl,
+  SETTING_KEYS.desktopLoginTitle,
+  SETTING_KEYS.desktopLoginWindowTitle,
+  SETTING_KEYS.desktopOssAccessKeyId,
+  SETTING_KEYS.desktopOssAccessKeySecret,
+  SETTING_KEYS.desktopOssBucket,
+  SETTING_KEYS.desktopOssEndpoint,
+  SETTING_KEYS.desktopOssPath,
+  SETTING_KEYS.desktopUpdateAutoCheck,
+  SETTING_KEYS.desktopUpdateChannel,
+  SETTING_KEYS.desktopUpdateCheckInterval,
+  SETTING_KEYS.desktopUpdateCurrentVersion,
+  SETTING_KEYS.desktopUpdateReleaseNotes,
+  SETTING_KEYS.desktopUpdateServerUrl,
+  SETTING_KEYS.docmeePptAllowPdfExport,
+  SETTING_KEYS.docmeePptAllowPptxDownload,
+  SETTING_KEYS.docmeePptApiKey,
+  SETTING_KEYS.docmeePptAuditEnabled,
+  SETTING_KEYS.docmeePptBaseUrl,
+  SETTING_KEYS.docmeePptCreatorVersion,
+  SETTING_KEYS.docmeePptDailyLimit,
+  SETTING_KEYS.docmeePptDefaultLang,
+  SETTING_KEYS.docmeePptEnabled,
+  SETTING_KEYS.docmeePptThemeColor,
+  SETTING_KEYS.docmeePptTokenTtlMinutes,
+  SETTING_KEYS.expertPlazaCards,
+  SETTING_KEYS.expertPlazaCategories,
+  SETTING_KEYS.expertPlazaDescription,
+  SETTING_KEYS.expertPlazaEnabled,
+  SETTING_KEYS.expertPlazaName,
+  SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+  SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+  SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+  SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+  SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+  SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+  SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+  SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+  SETTING_KEYS.notificationDesktopEnabled,
+  SETTING_KEYS.notificationEmailEnabled,
+  SETTING_KEYS.notificationEventDefaults,
+  SETTING_KEYS.notificationInboxEnabled,
+  SETTING_KEYS.notificationPushEnabled,
+  SETTING_KEYS.notificationRetentionDays,
+  SETTING_KEYS.notificationSystemActionLabel,
+  SETTING_KEYS.notificationSystemActionUrl,
+  SETTING_KEYS.notificationSystemContent,
+  SETTING_KEYS.notificationSystemEnabled,
+  SETTING_KEYS.notificationSystemTitle,
+  SETTING_KEYS.notificationSystemType,
+  SETTING_KEYS.profileAvatarPresets,
+  SETTING_KEYS.modelPolicyAllowlist,
+  SETTING_KEYS.modelPolicyApplyToEmbeddings,
+  SETTING_KEYS.modelPolicyApplyToGenerateObject,
+  SETTING_KEYS.modelPolicyBlocklist,
+  SETTING_KEYS.modelPolicyDefaultModelFallback,
+  SETTING_KEYS.modelPolicyDeniedMessage,
+  SETTING_KEYS.modelPolicyEnabled,
+  SETTING_KEYS.modelPolicyMode,
+  SETTING_KEYS.onboardingInitialCredits,
+  SETTING_KEYS.onboardingInitialCreditsEnabled,
+  SETTING_KEYS.pricingModelRules,
+  SETTING_KEYS.recommendationAssistantTags,
+  SETTING_KEYS.recommendationAssistantTitle,
+  SETTING_KEYS.recommendationAssistantsEnabled,
+  SETTING_KEYS.recommendationGeneralSkillCategories,
+  SETTING_KEYS.recommendationGeneralSkillTitle,
+  SETTING_KEYS.recommendationGeneralSkillsEnabled,
+  SETTING_KEYS.recommendationHotSkillSort,
+  SETTING_KEYS.recommendationHotSkillTitle,
+  SETTING_KEYS.recommendationHotSkillsEnabled,
+  SETTING_KEYS.recommendationMcpCategories,
+  SETTING_KEYS.recommendationMcpTitle,
+  SETTING_KEYS.recommendationMcpsEnabled,
+  SETTING_KEYS.recommendationSectionEnabled,
+  SETTING_KEYS.recommendationSelectedTags,
+  SETTING_KEYS.recommendationSkillCategories,
+  SETTING_KEYS.recommendationSkillTitle,
+  SETTING_KEYS.recommendationSkillsEnabled,
+  SETTING_KEYS.uploadMaxActualSizeMb,
+  SETTING_KEYS.uploadMaxInputSizeMb,
+  SETTING_KEYS.userGlobalSettingsDefaults,
+  SETTING_KEYS.vectorEmbeddingModel,
+  SETTING_KEYS.vectorEmbeddingProvider,
+  SETTING_KEYS.vectorQueryMode,
+  SETTING_KEYS.vectorRerankerModel,
+  SETTING_KEYS.vectorRerankerProvider,
+] as const satisfies readonly AppSettingKey[];
+
 export const buildSettingMaterializationUpdates = (
   values: Partial<AdminSettingsFormValues>,
 ): SettingUpdate[] => {
   const current = normalizeFormValues(values);
-  const helpMenuItems =
-    current.helpMenuItems.length > 0 ? current.helpMenuItems : RECOMMENDED_HELP_MENU_ITEMS;
 
   return [
     ...SITE_CUSTOMIZATION_FIELDS.map((key) => ({
@@ -598,7 +731,7 @@ export const buildSettingMaterializationUpdates = (
     })),
     { key: SETTING_KEYS.aboutLinks, value: current.aboutLinks },
     { key: SETTING_KEYS.aboutPage, value: current.aboutPage },
-    { key: SETTING_KEYS.helpMenuItems, value: helpMenuItems },
+    { key: SETTING_KEYS.helpMenuItems, value: current.helpMenuItems },
     { key: SETTING_KEYS.plansFaqItems, value: current.planFaqItems },
   ];
 };

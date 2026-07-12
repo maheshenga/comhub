@@ -4,6 +4,7 @@ export type AdminNavGroupKey =
   | 'overview'
   | 'user-plan'
   | 'model-billing'
+  | 'plugins'
   | 'brand-growth'
   | 'content'
   | 'client'
@@ -25,6 +26,7 @@ export type AdminNavIcon =
   | 'orders'
   | 'overview'
   | 'plans'
+  | 'plugins'
   | 'ppt'
   | 'pricing'
   | 'providers'
@@ -143,6 +145,20 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     ],
     key: 'model-billing',
     label: '模型与计费',
+  },
+  {
+    description: '模块应用、运行记录、产物、套餐权限、审核发布和商业计费',
+    icon: 'plugins',
+    items: [
+      {
+        description: '管理模块应用、页面、动作、套餐权限、计费配置、记录、运行产物和审计日志',
+        icon: 'plugins',
+        label: '模块应用',
+        path: `${ADMIN_BASE_PATH}/module-apps`,
+      },
+    ],
+    key: 'plugins',
+    label: '应用模块',
   },
   {
     description: '品牌、登录页、默认助手外观、注册、推荐和公开运营内容',

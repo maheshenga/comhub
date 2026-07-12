@@ -1,17 +1,20 @@
 import { TRPCError } from '@trpc/server';
 import { and, asc, eq, sql } from 'drizzle-orm';
+import { LOBE_DEFAULT_MODEL_LIST } from 'model-bank';
 import { z } from 'zod';
 
 import {
+  type AdminNewapiInstanceModelItem,
   type AdminNewapiInstanceItem,
   adminNewapiInstanceModels,
   adminNewapiInstances,
   NEWAPI_MODEL_TYPES,
 } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
-import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
 import { getModelCatalogDiagnostics } from '@/server/services/modelCatalog/diagnostics';
+import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
 import {
+  buildNewapiPricingSyncWarnings,
   fetchNewapiModels,
   fetchNewapiPricing,
   normalizeNewapiSyncRows,
@@ -44,6 +47,8 @@ const ProviderTypeSchema = z
     'siliconflow',
   ])
   .default('newapi');
+
+type AdminProviderType = z.infer<typeof ProviderTypeSchema>;
 
 const InstanceInputSchema = z.object({
   apiKey: z.string().min(1),
@@ -85,15 +90,8 @@ const ModelMetadataSchema = z
   })
   .passthrough();
 
-const supportsPricingSync = (providerType?: string | null) =>
-  !providerType || providerType === 'newapi';
-
-const buildPricingSyncWarnings = (providerType: string | null | undefined, pricingCount: number) =>
-  supportsPricingSync(providerType) && pricingCount === 0
-    ? ['Pricing endpoint unavailable or empty']
-    : [];
-
 const INVALID_API_KEY_MESSAGE = 'Instance API key is invalid. Please reset it before retrying.';
+const modelOpsWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsWrite);
 
 const normalizeInstanceInput = async <T extends { apiKey?: string; fetchOnClient?: boolean }>(
   input: T,
@@ -141,10 +139,102 @@ const assertInstanceApiKeyReady = <T extends { apiKeyStatus?: 'invalid' | 'ok' }
   }
 };
 
+const MODEL_PRICING_KEYS = [
+  'inputCostRate',
+  'inputRate',
+  'outputCostRate',
+  'outputRate',
+  'imageRate',
+  'videoRate',
+];
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const hasPositiveNumber = (value: unknown) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0;
+};
+
+const resolveModelPricingCompleteness = (
+  metadata: Record<string, unknown> | null | undefined,
+) => {
+  if (!isPlainRecord(metadata)) return false;
+  if (metadata.pricingAvailable === true) return true;
+  if (hasPositiveNumber(metadata.modelPrice) || hasPositiveNumber(metadata.modelRatio)) return true;
+
+  const manualPricing = metadata.manualPricing;
+  if (!isPlainRecord(manualPricing)) return false;
+
+  return MODEL_PRICING_KEYS.some((key) => hasPositiveNumber(manualPricing[key]));
+};
+
+const MODEL_BANK_PROVIDER_BY_ADMIN_PROVIDER_TYPE: Partial<Record<AdminProviderType, string>> = {
+  claude: 'anthropic',
+  deepseek: 'deepseek',
+  openai: 'openai',
+  siliconflow: 'siliconcloud',
+};
+
+const hasExactModelBankPricing = ({
+  modelId,
+  providerType,
+}: {
+  modelId: string;
+  providerType: string | null | undefined;
+}) => {
+  const modelBankProviderId =
+    MODEL_BANK_PROVIDER_BY_ADMIN_PROVIDER_TYPE[providerType as AdminProviderType];
+  if (!modelBankProviderId) return false;
+
+  return LOBE_DEFAULT_MODEL_LIST.some(
+    (item) => item.providerId === modelBankProviderId && item.id === modelId && Boolean(item.pricing),
+  );
+};
+
+type AdminEnabledProviderModelRow = {
+  baseUrl: AdminNewapiInstanceItem['baseUrl'];
+  displayName: AdminNewapiInstanceModelItem['displayName'];
+  groupKey: AdminNewapiInstanceItem['groupKey'];
+  groupName: AdminNewapiInstanceItem['groupName'];
+  instanceId: AdminNewapiInstanceItem['id'];
+  instanceName: AdminNewapiInstanceItem['name'];
+  metadata: AdminNewapiInstanceModelItem['metadata'];
+  modelId: AdminNewapiInstanceModelItem['modelId'];
+  modelType: AdminNewapiInstanceModelItem['modelType'];
+  priority: AdminNewapiInstanceItem['priority'];
+  providerType: AdminNewapiInstanceItem['providerType'];
+};
+
+const resolveModelPricingSource = ({
+  metadata,
+  modelId,
+  providerType,
+}: {
+  metadata: Record<string, unknown> | null | undefined;
+  modelId: string;
+  providerType: string | null | undefined;
+}) => {
+  if (resolveModelPricingCompleteness(metadata)) return 'database';
+
+  return hasExactModelBankPricing({ modelId, providerType }) ? 'model-bank' : 'missing';
+};
+
+const resolveModelAbilityCompleteness = (
+  metadata: Record<string, unknown> | null | undefined,
+) => {
+  if (!isPlainRecord(metadata)) return false;
+
+  const manualAbilities = metadata.manualAbilities;
+  if (!isPlainRecord(manualAbilities)) return false;
+
+  return Object.values(manualAbilities).some((value) => typeof value === 'boolean');
+};
+
 export const adminNewapiProvidersRouter = router({
   // ─── Instance CRUD ─────────────────────────────────────────────────────────
 
-  createInstance: adminProcedure.input(InstanceInputSchema).mutation(async ({ ctx, input }) => {
+  createInstance: modelOpsWriteProcedure.input(InstanceInputSchema).mutation(async ({ ctx, input }) => {
     const data = await normalizeInstanceInput(input);
     const [row] = await ctx.serverDB
       .insert(adminNewapiInstances)
@@ -161,7 +251,7 @@ export const adminNewapiProvidersRouter = router({
     return { id: row.id };
   }),
 
-  deleteInstance: adminProcedure
+  deleteInstance: modelOpsWriteProcedure
     .input(z.object({ id: z.string().uuid(), reason: z.string().max(500).optional() }))
     .mutation(async ({ ctx, input }) => {
       const reason = input.reason?.trim();
@@ -214,7 +304,7 @@ export const adminNewapiProvidersRouter = router({
     };
   }),
 
-  updateInstance: adminProcedure
+  updateInstance: modelOpsWriteProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -242,7 +332,7 @@ export const adminNewapiProvidersRouter = router({
       return { ok: true };
     }),
 
-  toggleInstanceEnabled: adminProcedure
+  toggleInstanceEnabled: modelOpsWriteProcedure
     .input(z.object({ enabled: z.boolean(), id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.serverDB
@@ -262,7 +352,7 @@ export const adminNewapiProvidersRouter = router({
 
   // ─── Instance Models CRUD ──────────────────────────────────────────────────
 
-  syncInstanceModels: adminProcedure
+  syncInstanceModels: modelOpsWriteProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const instance = await ctx.serverDB.query.adminNewapiInstances.findFirst({
@@ -330,7 +420,7 @@ export const adminNewapiProvidersRouter = router({
         modelsCount: models.length,
         ok: true,
         pricingCount: pricing.length,
-        warnings: buildPricingSyncWarnings(instance.providerType, pricing.length),
+        warnings: buildNewapiPricingSyncWarnings(instance.providerType, pricing.length),
       };
     }),
 
@@ -369,7 +459,7 @@ export const adminNewapiProvidersRouter = router({
           modelsCount: models.length,
           ok: true,
           pricingCount: pricing.length,
-          warnings: buildPricingSyncWarnings(instance.providerType, pricing.length),
+          warnings: buildNewapiPricingSyncWarnings(instance.providerType, pricing.length),
         };
       } catch (error) {
         return {
@@ -398,7 +488,7 @@ export const adminNewapiProvidersRouter = router({
     return getModelCatalogDiagnostics({ planRules, state });
   }),
 
-  refreshRuntimeCache: adminProcedure.mutation(async ({ ctx }) => {
+  refreshRuntimeCache: modelOpsWriteProcedure.mutation(async ({ ctx }) => {
     invalidateNewapiInstancesCache();
 
     await recordAdminAudit(ctx, {
@@ -410,7 +500,7 @@ export const adminNewapiProvidersRouter = router({
     return { refreshedAt: new Date().toISOString() };
   }),
 
-  addModels: adminProcedure
+  addModels: modelOpsWriteProcedure
     .input(
       z.object({
         instanceId: z.string().uuid(),
@@ -475,7 +565,7 @@ export const adminNewapiProvidersRouter = router({
       return { items };
     }),
 
-  removeModel: adminProcedure
+  removeModel: modelOpsWriteProcedure
     .input(
       z.object({
         instanceId: z.string().uuid(),
@@ -504,7 +594,7 @@ export const adminNewapiProvidersRouter = router({
       return { ok: true };
     }),
 
-  updateModel: adminProcedure
+  updateModel: modelOpsWriteProcedure
     .input(
       z.object({
         instanceId: z.string().uuid(),
@@ -571,6 +661,7 @@ export const adminNewapiProvidersRouter = router({
           groupName: adminNewapiInstances.groupName,
           instanceId: adminNewapiInstances.id,
           instanceName: adminNewapiInstances.name,
+          metadata: adminNewapiInstanceModels.metadata,
           modelId: adminNewapiInstanceModels.modelId,
           modelType: adminNewapiInstanceModels.modelType,
           priority: adminNewapiInstances.priority,
@@ -584,6 +675,23 @@ export const adminNewapiProvidersRouter = router({
         .where(and(...conditions))
         .orderBy(asc(adminNewapiInstances.priority), asc(adminNewapiInstanceModels.sortOrder));
 
-      return { items: rows };
+      const items = rows.map((row: AdminEnabledProviderModelRow) => {
+        const { metadata, ...item } = row;
+
+        return {
+          ...item,
+          hasModelAbilities: resolveModelAbilityCompleteness(metadata),
+          hasModelPricing: resolveModelPricingCompleteness(metadata),
+          pricingSource: resolveModelPricingSource({
+            metadata,
+            modelId: item.modelId,
+            providerType: item.providerType,
+          }),
+        };
+      });
+
+      return {
+        items,
+      };
     }),
 });

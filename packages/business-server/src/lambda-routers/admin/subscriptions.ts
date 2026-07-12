@@ -6,16 +6,17 @@ import { z } from 'zod';
 import { CommercialModel } from '@/database/models/commercial';
 import { subscriptionChangeRequests, userPlanSnapshots } from '@/database/schemas';
 import type { Transaction } from '@/database/type';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
 const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const;
+const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 export const adminSubscriptionsRouter = router({
-  assignPlan: adminProcedure
+  assignPlan: financeWriteProcedure
     .input(
       z.object({
         cycle: z.enum(SUBSCRIPTION_CYCLES),
@@ -57,7 +58,7 @@ export const adminSubscriptionsRouter = router({
       return { ok: true, requestId: request.id };
     }),
 
-  forceChange: adminProcedure
+  forceChange: financeWriteProcedure
     .input(
       z.object({
         cycle: z.enum(SUBSCRIPTION_CYCLES),
@@ -159,7 +160,7 @@ export const adminSubscriptionsRouter = router({
       };
     }),
 
-  approveChangeRequest: adminProcedure
+  approveChangeRequest: financeWriteProcedure
     .input(z.object({ requestId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const request = await ctx.serverDB.query.subscriptionChangeRequests.findFirst({
@@ -182,7 +183,7 @@ export const adminSubscriptionsRouter = router({
       return { ok: true };
     }),
 
-  rejectChangeRequest: adminProcedure
+  rejectChangeRequest: financeWriteProcedure
     .input(
       z.object({
         reason: z.string().max(500).optional(),
@@ -212,7 +213,7 @@ export const adminSubscriptionsRouter = router({
       return { ok: true };
     }),
 
-  bulkApproveChangeRequests: adminProcedure
+  bulkApproveChangeRequests: financeWriteProcedure
     .input(z.object({ requestIds: z.array(z.string().min(1)).min(1).max(50) }))
     .mutation(async ({ ctx, input }) => {
       const results: { error?: string; ok: boolean; requestId: string }[] = [];
@@ -242,7 +243,7 @@ export const adminSubscriptionsRouter = router({
       return { results };
     }),
 
-  bulkRejectChangeRequests: adminProcedure
+  bulkRejectChangeRequests: financeWriteProcedure
     .input(
       z.object({
         reason: z.string().max(500).optional(),

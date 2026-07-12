@@ -60,6 +60,23 @@ const normalizeNewapiApiBase = (baseUrl: string) => {
   return /\/v\d+[a-z]*$/i.test(trimmed) ? trimmed : urlJoin(trimmed, '/v1');
 };
 
+export const supportsNewapiPricingSync = (
+  providerType?: AdminModelApiProviderType | string | null,
+) => !providerType || providerType === 'newapi';
+
+export const buildNewapiPricingSyncWarnings = (
+  providerType: AdminModelApiProviderType | string | null | undefined,
+  pricingCount: number,
+) => {
+  if (!supportsNewapiPricingSync(providerType)) {
+    return [
+      `Pricing sync is not supported for provider type ${providerType}. Configure manual pricing in the model billing matrix.`,
+    ];
+  }
+
+  return pricingCount === 0 ? ['Pricing endpoint unavailable or empty'] : [];
+};
+
 const isClaudeApiProvider = (providerType?: AdminModelApiProviderType | string | null) =>
   providerType === 'claude';
 
@@ -198,14 +215,18 @@ export const fetchNewapiModels = async ({
 
   const contentType = response.headers?.get('content-type') ?? '';
   if (contentType && !contentType.toLowerCase().includes('application/json')) {
-    throw new Error('模型列表接口返回的不是 JSON，请检查 AI 服务商基础地址是否填写为 API 地址。');
+    throw new Error(
+      'AI provider models endpoint did not return JSON. Check that the base URL is an API endpoint.',
+    );
   }
 
   let body: { data?: unknown };
   try {
     body = await response.json();
   } catch {
-    throw new Error('模型列表接口返回的不是 JSON，请检查 AI 服务商基础地址是否填写为 API 地址。');
+    throw new Error(
+      'AI provider models endpoint did not return JSON. Check that the base URL is an API endpoint.',
+    );
   }
 
   return Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : [];
@@ -220,7 +241,7 @@ export const fetchNewapiPricing = async ({
   baseUrl: string;
   providerType?: AdminModelApiProviderType | string | null;
 }): Promise<NewapiRemotePricing[]> => {
-  if (providerType && providerType !== 'newapi') return [];
+  if (!supportsNewapiPricingSync(providerType)) return [];
 
   const response = await fetch(urlJoin(normalizeNewapiRoot(baseUrl), '/api/pricing'), {
     headers: {

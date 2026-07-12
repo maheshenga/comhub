@@ -10,6 +10,9 @@ vi.mock('@/libs/trpc/client', () => ({
       settings: {
         validateDefaultAgentSettings: { mutate: vi.fn() },
       },
+      moduleApps: {
+        list: { query: vi.fn() },
+      },
       newapiProviders: {
         getModelCatalogDiagnostics: { query: vi.fn() },
         syncInstanceModels: { mutate: vi.fn() },
@@ -48,6 +51,131 @@ describe('adminCommercialService NewAPI helpers', () => {
     expect(lambdaClient.admin.newapiProviders.testInstanceConnection.query).toHaveBeenCalledWith({
       id: 'instance-1',
     });
+  });
+
+  it('calls the module app admin list endpoint', async () => {
+    vi.mocked(lambdaClient.admin.moduleApps.list.query).mockResolvedValue({
+      items: [{ id: 'app1' } as any],
+      nextCursor: null,
+    });
+
+    await expect(adminCommercialService.moduleApps.list({ status: 'published' })).resolves.toEqual({
+      items: [{ id: 'app1' }],
+      nextCursor: null,
+    });
+
+    expect(lambdaClient.admin.moduleApps.list.query).toHaveBeenCalledWith({
+      status: 'published',
+    });
+  });
+
+  it('calls the module app admin detail endpoint', async () => {
+    (lambdaClient.admin.moduleApps as any).get = {
+      query: vi.fn().mockResolvedValue({ id: 'app1' }),
+    };
+
+    await expect(adminCommercialService.moduleApps.get({ appId: 'app1' })).resolves.toEqual({
+      id: 'app1',
+    });
+
+    expect((lambdaClient.admin.moduleApps as any).get.query).toHaveBeenCalledWith({
+      appId: 'app1',
+    });
+  });
+
+  it('calls the module app package review endpoints', async () => {
+    (lambdaClient.admin.moduleApps as any).listPackages = {
+      query: vi.fn().mockResolvedValue({ items: [{ id: 'package-1' }], nextCursor: null }),
+    };
+    (lambdaClient.admin.moduleApps as any).getPackage = {
+      query: vi.fn().mockResolvedValue({ id: 'package-1' }),
+    };
+    (lambdaClient.admin.moduleApps as any).approvePackage = {
+      mutate: vi.fn().mockResolvedValue({ appId: 'app-1', package: { id: 'package-1' } }),
+    };
+    (lambdaClient.admin.moduleApps as any).rejectPackage = {
+      mutate: vi.fn().mockResolvedValue({ package: { id: 'package-1', reviewStatus: 'rejected' } }),
+    };
+    (lambdaClient.admin.moduleApps as any).rescanPackage = {
+      mutate: vi.fn().mockResolvedValue({ packageId: 'package-1', scanStatus: 'clean' }),
+    };
+
+    await expect(
+      adminCommercialService.moduleApps.listPackages({ reviewStatus: 'pending_review' }),
+    ).resolves.toEqual({ items: [{ id: 'package-1' }], nextCursor: null });
+    await expect(adminCommercialService.moduleApps.getPackage({ packageId: 'package-1' })).resolves.toEqual({
+      id: 'package-1',
+    });
+    await expect(
+      adminCommercialService.moduleApps.approvePackage({ packageId: 'package-1' }),
+    ).resolves.toEqual({ appId: 'app-1', package: { id: 'package-1' } });
+    await expect(
+      adminCommercialService.moduleApps.rejectPackage({
+        packageId: 'package-1',
+        reason: 'Unsafe manifest',
+      }),
+    ).resolves.toEqual({ package: { id: 'package-1', reviewStatus: 'rejected' } });
+    await expect(
+      adminCommercialService.moduleApps.rescanPackage({ packageId: 'package-1' }),
+    ).resolves.toEqual({ packageId: 'package-1', scanStatus: 'clean' });
+
+    expect((lambdaClient.admin.moduleApps as any).listPackages.query).toHaveBeenCalledWith({
+      reviewStatus: 'pending_review',
+    });
+    expect((lambdaClient.admin.moduleApps as any).getPackage.query).toHaveBeenCalledWith({
+      packageId: 'package-1',
+    });
+    expect((lambdaClient.admin.moduleApps as any).approvePackage.mutate).toHaveBeenCalledWith({
+      packageId: 'package-1',
+    });
+    expect((lambdaClient.admin.moduleApps as any).rejectPackage.mutate).toHaveBeenCalledWith({
+      packageId: 'package-1',
+      reason: 'Unsafe manifest',
+    });
+    expect((lambdaClient.admin.moduleApps as any).rescanPackage.mutate).toHaveBeenCalledWith({
+      packageId: 'package-1',
+    });
+  });
+
+  it('calls the module app admin publish endpoint', async () => {
+    (lambdaClient.admin.moduleApps as any).publish = {
+      mutate: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    await expect(adminCommercialService.moduleApps.publish({ appId: 'app1' })).resolves.toEqual({
+      ok: true,
+    });
+
+    expect((lambdaClient.admin.moduleApps as any).publish.mutate).toHaveBeenCalledWith({
+      appId: 'app1',
+    });
+  });
+
+  it('calls the module app admin upsert endpoint', async () => {
+    (lambdaClient.admin.moduleApps as any).upsert = {
+      mutate: vi.fn().mockResolvedValue({ id: 'app1', slug: 'workbench' }),
+    };
+
+    const input = {
+      actions: [],
+      appType: 'standard_app',
+      billing: {},
+      category: 'office',
+      description: 'Simple workbench app.',
+      displayName: 'Workbench',
+      icon: 'Blocks',
+      pages: [{ key: 'overview', routePath: '/', title: 'Overview', type: 'overview' }],
+      slug: 'workbench',
+      status: 'draft',
+      tags: [],
+    };
+
+    await expect(adminCommercialService.moduleApps.upsert(input)).resolves.toEqual({
+      id: 'app1',
+      slug: 'workbench',
+    });
+
+    expect((lambdaClient.admin.moduleApps as any).upsert.mutate).toHaveBeenCalledWith(input);
   });
 
   it('calls the AI provider model sync endpoint', async () => {

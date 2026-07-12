@@ -69,7 +69,7 @@ export function getBusinessModelRuntimeHooks(
   });
 
   return {
-    beforeChat: async (payload) => {
+    beforeChat: async (payload, options) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
       await assertModelPolicyAllowed(policyParams(db, payload.model, 'chat'));
@@ -80,6 +80,7 @@ export function getBusinessModelRuntimeHooks(
         modelType: 'chat',
         userId,
       });
+      if (shouldSkipCommercialBilling(options?.metadata)) return;
       await assertCommercialChatBudget({ db, payload, provider, userId });
     },
     beforeEmbeddings: async (payload) => {

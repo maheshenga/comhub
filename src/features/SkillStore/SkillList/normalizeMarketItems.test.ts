@@ -65,4 +65,38 @@ describe('normalizeMarketItems', () => {
       }),
     );
   });
+
+  it('replaces placeholder UN labels with readable identifiers and description fallback', () => {
+    const result = normalizeMcpMarketItems([
+      {
+        description: ' ',
+        identifier: 'microsoft-playwright-mcp',
+        name: 'UN',
+      } as any,
+    ]);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        description: '内容暂不可用',
+        identifier: 'microsoft-playwright-mcp',
+        name: 'microsoft-playwright-mcp',
+      }),
+    ]);
+  });
+
+  it('normalizes placeholder labels for installed agent skills', () => {
+    const result = normalizeAgentSkillListItem({
+      id: 'skill-id',
+      identifier: 'market-skill',
+      name: 'UN',
+      source: 'market',
+    } as any);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        identifier: 'market-skill',
+        name: 'market-skill',
+      }),
+    );
+  });
 });

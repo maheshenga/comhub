@@ -4,6 +4,7 @@ packages:
   - e2e
   - apps/desktop/src/main
   - apps/server
+  - apps/module-runtime
 
 onlyBuiltDependencies:
   - '@google/genai'

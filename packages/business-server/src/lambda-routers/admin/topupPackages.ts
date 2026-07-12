@@ -6,8 +6,8 @@ import {
   normalizeTopUpPackagePromotion,
   serializeTopUpPackagePromotion,
 } from '@/const/billingPresentation';
-import { topUpPackages } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { redemptionCodes, topUpPackages } from '@/database/schemas';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
@@ -27,10 +27,24 @@ const PackageInputSchema = z.object({
   validityMonths: z.number().min(1).default(12),
 });
 
+const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+
 export const adminTopUpPackagesRouter = router({
-  delete: adminProcedure
+  delete: financeWriteProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const referencingCode = await ctx.serverDB.query.redemptionCodes.findFirst({
+        columns: { id: true },
+        where: eq(redemptionCodes.topupPackageId, input.id),
+      });
+
+      if (referencingCode) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'TOPUP_PACKAGE_HAS_REDEMPTION_CODES',
+        });
+      }
+
       await ctx.serverDB.delete(topUpPackages).where(eq(topUpPackages.id, input.id));
       await recordAdminAudit(ctx, {
         action: 'topupPackage.delete',
@@ -47,7 +61,7 @@ export const adminTopUpPackagesRouter = router({
     return { items };
   }),
 
-  setActive: adminProcedure
+  setActive: financeWriteProcedure
     .input(z.object({ id: z.string().min(1), isActive: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const result = await ctx.serverDB
@@ -67,14 +81,9 @@ export const adminTopUpPackagesRouter = router({
       return { ok: true };
     }),
 
-  upsert: adminProcedure.input(PackageInputSchema).mutation(async ({ ctx, input }) => {
-    const {
-      originalAmount,
-      promotionEnabled,
-      promotionLabel,
-      promotionNote,
-      ...packageInput
-    } = input;
+  upsert: financeWriteProcedure.input(PackageInputSchema).mutation(async ({ ctx, input }) => {
+    const { originalAmount, promotionEnabled, promotionLabel, promotionNote, ...packageInput } =
+      input;
     const existing = await ctx.serverDB.query.topUpPackages.findFirst({
       where: eq(topUpPackages.id, packageInput.id),
     });

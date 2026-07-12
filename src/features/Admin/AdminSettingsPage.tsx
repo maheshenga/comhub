@@ -22,6 +22,8 @@ import { HELP_MENU_ACTIONS, HELP_MENU_ICONS } from '@/const/helpMenu';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import AdminSettingsGovernanceCard from './AdminSettingsGovernanceCard';
+
 const { Text, Title } = Typography;
 
 const helpMenuActionOptions = HELP_MENU_ACTIONS.map((value) => ({ label: value, value }));
@@ -82,6 +84,8 @@ const AdminSettingsPage = memo(() => {
   };
 
   const handleMaterializeDefaults = async () => {
+    if (!data) return;
+
     try {
       const values = await form.validateFields();
       const updates = buildSettingMaterializationUpdates(values);
@@ -170,6 +174,8 @@ const AdminSettingsPage = memo(() => {
           '这里仅维护站点基础展示。默认模型请到“模型与计费矩阵”，文件存储请到“文件存储”，Cron 与记忆任务请到“系统维护”，客户端配置请到“客户端”。',
         )}
       />
+
+      <AdminSettingsGovernanceCard />
 
       <Form disabled={isLoading} form={form} layout="vertical">
         <Tabs
@@ -667,7 +673,7 @@ const AdminSettingsPage = memo(() => {
 
         <Space>
           <Button
-            disabled={!hasPendingChanges || materializing}
+            disabled={isLoading || !data || !hasPendingChanges || materializing}
             loading={submitting}
             type="primary"
             onClick={handleSave}
@@ -675,7 +681,11 @@ const AdminSettingsPage = memo(() => {
             {t('admin.settings.save', '保存设置')}
           </Button>
           {hasPendingChanges && <Text type="secondary">有 {pendingUpdates.length} 项待保存</Text>}
-          <Button disabled={submitting} loading={materializing} onClick={handleMaterializeDefaults}>
+          <Button
+            disabled={isLoading || !data || submitting}
+            loading={materializing}
+            onClick={handleMaterializeDefaults}
+          >
             {t('admin.settings.materializeDefaults', '同步推荐默认配置')}
           </Button>
         </Space>

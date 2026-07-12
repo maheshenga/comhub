@@ -20,6 +20,7 @@ import { ModelProvider } from 'model-bank';
 
 import { getBusinessModelRuntimeHooks } from '@/business/server/model-runtime';
 import { AiProviderModel } from '@/database/models/aiProvider';
+import type { AiUsageRouteMetadata } from '@/database/models/commercial';
 import { type LobeChatDatabase } from '@/database/type';
 import { getLLMConfig } from '@/envs/llm';
 import { createLLMGenerationTracingHook } from '@/server/services/llmGenerationTracing/hook';
@@ -27,8 +28,8 @@ import {
   type AdminModelApiProviderType,
   buildNewapiRouteMetadata,
   type NewapiModelType,
-  type ResolvedNewapiInstance,
   resolveDefaultNewapiInstance,
+  type ResolvedNewapiInstance,
   resolveNewapiInstanceByProviderId,
   resolveNewapiInstancesForModel,
 } from '@/server/services/newapiInstance';
@@ -41,6 +42,7 @@ export * from './trace';
 export interface InitModelRuntimeFromDBOptions {
   model?: string | null;
   modelType?: NewapiModelType;
+  onRouteResolved?: (routeMetadata: AiUsageRouteMetadata | undefined) => void;
   workspaceId?: string;
 }
 
@@ -408,6 +410,7 @@ const wrapNewapiRuntimeWithFailover = (
   userId: string,
   provider: string,
   workspaceId?: string,
+  onRouteResolved?: (routeMetadata: AiUsageRouteMetadata | undefined) => void,
 ): ModelRuntime => {
   const originalChat = runtime.chat.bind(runtime);
 
@@ -451,6 +454,7 @@ const wrapNewapiRuntimeWithFailover = (
           console.warn(
             `[newapi-failover] primary failed (${statusCode}), retrying on instance "${instance.instanceName}" (priority ${instance.priority})`,
           );
+          onRouteResolved?.(buildNewapiRouteMetadata(instance));
           return await fallbackRuntime.chat(chatPayload, options);
         } catch {
           // Continue to next fallback
@@ -529,7 +533,7 @@ export const initModelRuntimeFromDB = async (
   optionsOrWorkspaceId?: InitModelRuntimeFromDBOptions | string,
 ): Promise<ModelRuntime> => {
   const options = normalizeInitOptions(optionsOrWorkspaceId);
-  const { workspaceId } = options;
+  const { onRouteResolved, workspaceId } = options;
 
   // 1. Get user's provider configuration from database
   // NOTE: workspace-scoped ai_infra is deferred until the ai_infra surrogate-`_id`
@@ -595,10 +599,12 @@ export const initModelRuntimeFromDB = async (
     // 4. Compose business billing hooks with llm_generation_tracing. The tracing
     // hook is no-op when unconfigured, while business hooks receive NewAPI route
     // metadata for group-aware billing.
+    const routeMetadata = buildNewapiRouteMetadata(primary);
+    onRouteResolved?.(routeMetadata);
     const businessHooks = getBusinessModelRuntimeHooks(
       userId,
       provider,
-      buildNewapiRouteMetadata(primary),
+      routeMetadata,
       workspaceId,
     );
     const tracingHooks = createLLMGenerationTracingHook(userId, provider, workspaceId);
@@ -622,6 +628,7 @@ export const initModelRuntimeFromDB = async (
         userId,
         provider,
         workspaceId,
+        onRouteResolved,
       );
     }
 
@@ -629,6 +636,7 @@ export const initModelRuntimeFromDB = async (
   }
 
   // Non-NewAPI providers: standard path
+  onRouteResolved?.({ providerType: runtimeProvider });
   // 4. Get business hooks (billing in cloud, undefined in OSS)
   const businessHooks = getBusinessModelRuntimeHooks(userId, provider, undefined, workspaceId);
 

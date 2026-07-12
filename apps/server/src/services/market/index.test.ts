@@ -584,6 +584,23 @@ describe('MarketService', () => {
       expect(fetch).not.toHaveBeenCalled();
     });
 
+    it('should normalize placeholder skill detail fields when Market SDK succeeds', async () => {
+      const service = new MarketService();
+      const sdkResult = { description: ' ', identifier: 'sdk-skill', name: 'UN' };
+      (service as any).market.marketSkills.getSkillDetail = vi.fn().mockResolvedValue(sdkResult);
+
+      const result = await service.getSkillDetail('sdk-skill', { locale: 'en-US' });
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          description: '内容暂不可用',
+          identifier: 'sdk-skill',
+          name: 'sdk-skill',
+        }),
+      );
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
     it('should fall back to the public skill detail endpoint when the SDK rejects M2M auth', async () => {
       const service = new MarketService();
       (service as any).market.marketSkills.getSkillDetail = vi.fn().mockRejectedValue({

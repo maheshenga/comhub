@@ -117,6 +117,14 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.getAll.query();
   };
 
+  getAppSettingsGovernance = async () => {
+    return lambdaClient.admin.settings.getGovernance.query();
+  };
+
+  deleteUnknownAppSetting = async (params: { confirmKey: string; key: string }) => {
+    return lambdaClient.admin.settings.deleteUnknownSetting.mutate(params);
+  };
+
   setAppSetting = async (params: { key: string; value: unknown }) => {
     return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
   };
@@ -125,8 +133,8 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.setAppSettingsBatch.mutate(params as any);
   };
 
-  syncUserGlobalSettingsDefaultsToUsers = async () => {
-    return lambdaClient.admin.settings.syncUserGlobalSettingsDefaultsToUsers.mutate();
+  syncUserGlobalSettingsDefaultsToUsers = async (params?: { forceDefaultAgentMeta?: boolean }) => {
+    return lambdaClient.admin.settings.syncUserGlobalSettingsDefaultsToUsers.mutate(params);
   };
 
   refreshRuntimeCaches = async () => {
@@ -215,6 +223,89 @@ class AdminCommercialService {
     themeColor?: null | string;
     tokenTtlMinutes?: number;
   }) => lambdaClient.admin.ppt.saveSettings.mutate(params);
+
+  // Module apps
+  moduleApps = {
+    get: (input: { appId: string }) => lambdaClient.admin.moduleApps.get.query(input),
+    approvePackage: (input: { packageId: string }) =>
+      lambdaClient.admin.moduleApps.approvePackage.mutate(input),
+    getPackage: (input: { packageId: string }) =>
+      lambdaClient.admin.moduleApps.getPackage.query(input),
+    list: (input?: {
+      appId?: string;
+      category?: string;
+      cursor?: number | string;
+      limit?: number;
+      publisherId?: string;
+      status?: string;
+    }) =>
+      lambdaClient.admin.moduleApps.list.query(input as any),
+    listArtifacts: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listArtifacts.query(input as any),
+    listAuditEvents: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listAuditEvents.query(input as any),
+    listInstalls: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listInstalls.query(input as any),
+    listPackages: (input?: {
+      appId?: string;
+      buildStatus?: 'building' | 'failed' | 'queued' | 'ready';
+      cursor?: number | string;
+      limit?: number;
+      publisherId?: string;
+      reviewStatus?: string;
+      submittedByUserId?: string;
+    }) => lambdaClient.admin.moduleApps.listPackages.query(input as any),
+    listRevenue: (input?: {
+      appId?: string;
+      cursor?: number | string;
+      limit?: number;
+      publisherId?: string;
+      publisherUserId?: string;
+      status?: 'pending' | 'reversed' | 'settled';
+    }) => lambdaClient.admin.moduleApps.listRevenue.query(input as any),
+    listRecords: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listRecords.query(input as any),
+    listRuns: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listRuns.query(input as any),
+    listPublishers: (input?: {
+      cursor?: number | string;
+      limit?: number;
+      status?: 'pending' | 'suspended' | 'verified';
+      userId?: string;
+    }) => lambdaClient.admin.moduleApps.listPublishers.query(input as any),
+    listPayouts: (input?: {
+      cursor?: number | string;
+      limit?: number;
+      publisherId?: string;
+      status?: 'eligible' | 'failed' | 'paid' | 'pending' | 'processing' | 'reversed';
+    }) => lambdaClient.admin.moduleApps.listPayouts.query(input as any),
+    listPaymentDiagnostics: (input?: {
+      appId?: string;
+      cursor?: number | string;
+      discrepancyStatus?: 'open' | 'resolved';
+      limit?: number;
+      orderId?: string;
+      paymentStatus?: 'created' | 'failed' | 'paid' | 'pending' | 'refunded';
+      refundStatus?: 'failed' | 'requested' | 'succeeded';
+    }) => lambdaClient.admin.moduleApps.listPaymentDiagnostics.query(input as any),
+    publish: (input: { appId: string }) => lambdaClient.admin.moduleApps.publish.mutate(input),
+    rejectPackage: (input: { packageId: string; reason?: string }) =>
+      lambdaClient.admin.moduleApps.rejectPackage.mutate(input),
+    rescanPackage: (input: { packageId: string }) =>
+      lambdaClient.admin.moduleApps.rescanPackage.mutate(input),
+    settleRevenueBatch: (input: { entryIds: string[] }) =>
+      lambdaClient.admin.moduleApps.settleRevenueBatch.mutate(input),
+    unpublish: (input: { appId: string }) => lambdaClient.admin.moduleApps.unpublish.mutate(input),
+    upsert: (input: unknown) => lambdaClient.admin.moduleApps.upsert.mutate(input as any),
+    upsertActions: (input: { actions: unknown[]; appId: string }) =>
+      lambdaClient.admin.moduleApps.upsertActions.mutate(input as any),
+    upsertBilling: (input: { appId: string; billing: unknown }) =>
+      lambdaClient.admin.moduleApps.upsertBilling.mutate(input as any),
+    upsertEntitlements: (input: { appId: string; entitlements: unknown[] }) =>
+      lambdaClient.admin.moduleApps.upsertEntitlements.mutate(input as any),
+    upsertPages: (input: { appId: string; pages: unknown[] }) =>
+      lambdaClient.admin.moduleApps.upsertPages.mutate(input as any),
+  };
 
   // Orders
   listOrders = async (params: {
@@ -393,6 +484,7 @@ class AdminCommercialService {
     notificationRetentionDays?: number;
     pendingOrderExpiryDays?: number;
     skipAudit?: boolean;
+    skipModuleAppUploads?: boolean;
     skipNotifications?: boolean;
     skipOrders?: boolean;
   }) => lambdaClient.admin.settings.runMaintenance.mutate(params ?? {});

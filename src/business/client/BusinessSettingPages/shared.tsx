@@ -82,6 +82,40 @@ export const subscriptionPageStyles = createStaticStyles(({ css }) => ({
       padding: 16px;
     }
   `,
+  inlineValue: css`
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+    padding-block: 8px;
+    padding-inline: 12px;
+    border: 1px solid ${cssVar.colorBorderSecondary};
+    border-radius: 8px;
+
+    font-family: ${cssVar.fontFamilyCode};
+    font-size: 14px;
+    line-height: 1.5;
+    color: ${cssVar.colorText};
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    background: ${cssVar.colorBgContainer};
+  `,
+  inlineValueRow: css`
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+
+    @media (width <= 640px) {
+      flex-wrap: wrap;
+
+      > button,
+      > .ant-btn {
+        flex: 1;
+      }
+    }
+  `,
   metricRow: css`
     display: flex;
     flex-wrap: wrap;
@@ -115,6 +149,9 @@ export const subscriptionPageStyles = createStaticStyles(({ css }) => ({
       height: 100%;
       padding: 16px;
     }
+  `,
+  tableSection: css`
+    margin-block-start: 8px;
   `,
   tileTitle: css`
     font-size: 13px;

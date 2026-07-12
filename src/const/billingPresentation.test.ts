@@ -6,6 +6,7 @@ import {
   normalizePlanFaqSettings,
   normalizePlanCatalogPresentation,
   normalizeTopUpPackagePromotion,
+  serializeTopUpPackagePromotion,
 } from './billingPresentation';
 
 describe('billingPresentation', () => {
@@ -66,6 +67,35 @@ describe('billingPresentation', () => {
       label: 'Limited offer',
       note: 'Valid for 6 months',
       originalAmount: 30,
+    });
+  });
+
+  it('rejects invalid top-up promotion original amounts', () => {
+    expect(
+      normalizeTopUpPackagePromotion({
+        originalAmount: -30,
+        promotionEnabled: true,
+        promotionLabel: ' Sale ',
+        promotionNote: ' Use soon ',
+      }),
+    ).toStrictEqual({
+      enabled: true,
+      label: 'Sale',
+      note: 'Use soon',
+    });
+  });
+
+  it('omits undefined original amounts when serializing top-up promotion metadata', () => {
+    expect(
+      serializeTopUpPackagePromotion({
+        enabled: false,
+        label: '',
+        note: '',
+      }),
+    ).toStrictEqual({
+      promotionEnabled: false,
+      promotionLabel: '',
+      promotionNote: '',
     });
   });
 

@@ -285,7 +285,10 @@ const AdminSystemDefaultsPage = memo(() => {
     });
   }, [data, form, modelOptions]);
 
-  const handleSave = async ({ syncToUsers = false }: { syncToUsers?: boolean } = {}) => {
+  const handleSave = async ({
+    forceDefaultAgentMeta = false,
+    syncToUsers = false,
+  }: { forceDefaultAgentMeta?: boolean; syncToUsers?: boolean } = {}) => {
     setSubmitting(true);
     if (syncToUsers) setSyncing(true);
     try {
@@ -472,7 +475,9 @@ const AdminSystemDefaultsPage = memo(() => {
       await mutate(PROFILE_INTEREST_AREAS_SWR_KEY);
       await mutate(PROFILE_OPTIONS_SWR_KEY);
       if (syncToUsers) {
-        const result = await adminCommercialService.syncUserGlobalSettingsDefaultsToUsers();
+        const result = await adminCommercialService.syncUserGlobalSettingsDefaultsToUsers({
+          forceDefaultAgentMeta,
+        });
         await mutate(USER_STATE_SWR_KEY);
         message.success(
           `全局默认设置已保存，并已同步 ${result.syncedUsers} 个用户的 ${result.syncedFields.length} 个设置分类`,
@@ -941,7 +946,7 @@ const AdminSystemDefaultsPage = memo(() => {
                   okButtonProps: { danger: true },
                   okText: '保存并同步',
                   title: '同步后台默认值到用户设置？',
-                  onOk: () => handleSave({ syncToUsers: true }),
+                  onOk: () => handleSave({ forceDefaultAgentMeta: true, syncToUsers: true }),
                 });
               }}
             >

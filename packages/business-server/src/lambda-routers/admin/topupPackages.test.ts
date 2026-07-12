@@ -13,8 +13,11 @@ vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
 }));
 
-const createDb = () => {
+const createDb = ({
+  referencingRedemptionCode = undefined,
+}: { referencingRedemptionCode?: { id: string } } = {}) => {
   const where = vi.fn().mockResolvedValue(undefined);
+  const deleteFrom = vi.fn(() => ({ where }));
   const set = vi.fn(() => ({ where }));
   const update = vi.fn(() => ({ set }));
   const values = vi.fn().mockResolvedValue(undefined);
@@ -22,8 +25,12 @@ const createDb = () => {
 
   return {
     __mocks: { set, values },
+    delete: deleteFrom,
     insert,
     query: {
+      redemptionCodes: {
+        findFirst: vi.fn().mockResolvedValue(referencingRedemptionCode),
+      },
       topUpPackages: {
         findFirst: vi.fn().mockResolvedValue({
           id: 'growth',
@@ -41,6 +48,37 @@ const createDb = () => {
 describe('adminTopUpPackagesRouter', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  it('blocks deleting a top-up package referenced by redemption codes', async () => {
+    const db = createDb({ referencingRedemptionCode: { id: 'code-1' } });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminTopUpPackagesRouter.createCaller({ userId: 'admin-user' } as any).delete({
+        id: 'growth',
+      }),
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+
+    expect(db.delete).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('deletes a top-up package without redemption code references', async () => {
+    const db = createDb({ referencingRedemptionCode: undefined });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminTopUpPackagesRouter.createCaller({ userId: 'admin-user' } as any).delete({
+        id: 'growth',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(db.delete).toHaveBeenCalled();
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'topupPackage.delete', resourceId: 'growth' }),
+    );
   });
 
   it('saves promotion metadata when a top-up package is saved', async () => {

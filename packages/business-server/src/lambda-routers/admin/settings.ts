@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { normalizeAboutLinksConfig, normalizeAboutPageConfig } from '@/const/aboutLinks';
@@ -11,12 +11,12 @@ import { normalizeAvatarPresets } from '@/const/avatarPresets';
 import { normalizePlanFaqSettings } from '@/const/billingPresentation';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
-import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import {
   DEFAULT_EXPERT_PLAZA_CONFIG,
   normalizeExpertPlazaCards,
   normalizeExpertPlazaConfig,
 } from '@/const/expertPlaza';
+import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 import {
   adminAuditLogs,
@@ -28,7 +28,13 @@ import {
   userSettings,
 } from '@/database/schemas';
 import { type LobeChatDatabase, type Transaction } from '@/database/type';
-import { adminProcedure, publicProcedure, router } from '@/libs/trpc/lambda';
+import {
+  ADMIN_CAPABILITIES,
+  adminCapabilityProcedure,
+  adminProcedure,
+  publicProcedure,
+  router,
+} from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
@@ -42,7 +48,12 @@ import {
   normalizeS3FilePath,
   serializeModelIdList,
 } from '@/server/services/appSettings';
+import {
+  buildAppSettingsGovernance,
+  isUnknownAppSettingKey,
+} from '@/server/services/appSettings/governance';
 import { invalidateServerBrand } from '@/server/services/brand';
+import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
   getAllEnabledModels,
   invalidateNewapiInstancesCache,
@@ -53,6 +64,7 @@ import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
+const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
 
 const maskApiKey = (key: string | null | undefined): string | null => {
   if (!key) return null;
@@ -432,11 +444,20 @@ type NormalizedSettingUpdate = SettingUpdateInput & {
   isSensitive: boolean;
 };
 type UserSettingsSyncValues = Partial<typeof userSettings.$inferInsert>;
+type UserSettingsSyncOptions = {
+  forceDefaultAgentMeta?: boolean;
+};
 
 const appSettingUpdateInputSchema = z.object({
   key: z.enum(WRITABLE_SETTING_KEYS),
   value: z.unknown(),
 });
+
+const syncUserGlobalSettingsDefaultsInputSchema = z
+  .object({
+    forceDefaultAgentMeta: z.boolean().optional(),
+  })
+  .optional();
 
 const settingDraftString = (settings: AppSettingDraft, key: string) =>
   typeof settings[key] === 'string' ? (settings[key] as string).trim() : '';
@@ -465,6 +486,45 @@ export const buildUserGlobalSettingsSyncValues = (defaults: unknown): UserSettin
   }
 
   return values;
+};
+
+const mergeDefaultAgentSyncValue = (
+  existing: unknown,
+  incoming: unknown,
+  options: UserSettingsSyncOptions = {},
+) => {
+  const incomingDefaultAgent = getRecordValue(incoming);
+  if (!incomingDefaultAgent) return incoming;
+
+  const existingDefaultAgent = getRecordValue(existing) ?? {};
+  const incomingConfig = getRecordValue(incomingDefaultAgent.config);
+  const incomingMeta = getRecordValue(incomingDefaultAgent.meta);
+  const existingMeta = getNestedRecordValue(existingDefaultAgent, 'meta');
+  const shouldPreserveExistingMeta =
+    incomingMeta &&
+    existingMeta &&
+    Object.keys(existingMeta).length > 0 &&
+    !options.forceDefaultAgentMeta;
+
+  if (!incomingConfig) {
+    return {
+      ...existingDefaultAgent,
+      ...incomingDefaultAgent,
+      ...(shouldPreserveExistingMeta ? { meta: existingMeta } : {}),
+    };
+  }
+
+  const existingConfig = getNestedRecordValue(existingDefaultAgent, 'config') ?? {};
+
+  return {
+    ...existingDefaultAgent,
+    ...incomingDefaultAgent,
+    config: {
+      ...existingConfig,
+      ...incomingConfig,
+    },
+    ...(shouldPreserveExistingMeta ? { meta: existingMeta } : {}),
+  };
 };
 
 const getDefaultModelValidationTarget = (key: string): ModelValidationTarget | undefined => {
@@ -630,6 +690,8 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
     value = Boolean(value);
   } else if (input.key === SETTING_KEYS.plansFaqItems) {
     value = normalizePlanFaqSettings(value);
+  } else if (input.key === SETTING_KEYS.homeMessengerEnabled) {
+    value = Boolean(value);
   } else if ((OPERATIONS_KEYS as readonly string[]).includes(input.key)) {
     if (
       [
@@ -831,6 +893,7 @@ const upsertAppSetting = async (
 export const syncUserGlobalSettingsDefaultsToUserSettings = async (
   db: LobeChatDatabase,
   defaults: unknown,
+  options: UserSettingsSyncOptions = {},
 ) => {
   const syncValues = buildUserGlobalSettingsSyncValues(defaults);
   const syncedFields = Object.keys(syncValues).filter((key) => key !== 'id');
@@ -844,11 +907,45 @@ export const syncUserGlobalSettingsDefaultsToUserSettings = async (
     const batch = userRows.slice(index, index + USER_SETTINGS_SYNC_BATCH_SIZE);
     if (batch.length === 0) continue;
 
+    const defaultAgentSyncValue = syncValues.defaultAgent;
+    const shouldMergeDefaultAgent = defaultAgentSyncValue !== undefined;
+    let rows = batch.map((user) => ({ id: user.id, ...syncValues }));
+    let conflictSet = syncValues;
+
+    if (shouldMergeDefaultAgent) {
+      const existingRows = await db
+        .select({ defaultAgent: userSettings.defaultAgent, id: userSettings.id })
+        .from(userSettings)
+        .where(
+          inArray(
+            userSettings.id,
+            batch.map((user) => user.id),
+          ),
+        );
+      const existingDefaultAgentByUser = new Map(
+        existingRows.map((row) => [row.id, row.defaultAgent]),
+      );
+
+      rows = batch.map((user) => ({
+        id: user.id,
+        ...syncValues,
+        defaultAgent: mergeDefaultAgentSyncValue(
+          existingDefaultAgentByUser.get(user.id),
+          defaultAgentSyncValue,
+          options,
+        ),
+      }));
+      conflictSet = {
+        ...syncValues,
+        defaultAgent: sql`excluded.default_agent` as never,
+      };
+    }
+
     await db
       .insert(userSettings)
-      .values(batch.map((user) => ({ id: user.id, ...syncValues })))
+      .values(rows)
       .onConflictDoUpdate({
-        set: syncValues,
+        set: conflictSet,
         target: userSettings.id,
       });
     syncedUsers += batch.length;
@@ -1379,8 +1476,10 @@ export const adminSettingsRouter = router({
   }),
 
   getPublicHelpMenu: publicDbProcedure.query(async ({ ctx }) => {
-    const raw = await readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems);
-    return normalizeHelpMenuItems(raw);
+    const row = await ctx.serverDB.query.appSettings.findFirst({
+      where: eq(appSettings.key, SETTING_KEYS.helpMenuItems),
+    });
+    return row ? normalizeHelpMenuItems(row.value) : null;
   }),
 
   getPublicAboutLinks: publicDbProcedure.query(async ({ ctx }) => {
@@ -1453,6 +1552,55 @@ export const adminSettingsRouter = router({
       serverUrl: toString(serverUrl),
     };
   }),
+
+  getGovernance: adminProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.serverDB.query.appSettings.findMany({
+      columns: {
+        key: true,
+        updatedAt: true,
+        value: true,
+      },
+    });
+
+    return buildAppSettingsGovernance(rows);
+  }),
+
+  deleteUnknownSetting: systemWriteProcedure
+    .input(
+      z.object({
+        confirmKey: z.string().min(1),
+        key: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.confirmKey !== input.key) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'CONFIRMATION_KEY_MISMATCH',
+        });
+      }
+
+      if (!isUnknownAppSettingKey(input.key)) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'REGISTERED_SETTING_DELETE_BLOCKED',
+        });
+      }
+
+      const deleted = await ctx.serverDB
+        .delete(appSettings)
+        .where(eq(appSettings.key, input.key))
+        .returning({ key: appSettings.key });
+
+      await recordAdminAudit(ctx, {
+        action: 'settings.deleteUnknown',
+        payload: { key: input.key },
+        resourceId: input.key,
+        resourceType: 'app_setting',
+      });
+
+      return { deleted: deleted.length > 0, key: input.key };
+    }),
 
   getAll: adminProcedure.query(async ({ ctx }) => {
     const [
@@ -1927,7 +2075,7 @@ export const adminSettingsRouter = router({
       return { ok: true };
     }),
 
-  setAppSetting: adminProcedure
+  setAppSetting: systemWriteProcedure
     .input(appSettingUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
       const update = normalizeAppSettingUpdate(input);
@@ -1946,7 +2094,7 @@ export const adminSettingsRouter = router({
       return { ok: true };
     }),
 
-  setAppSettingsBatch: adminProcedure
+  setAppSettingsBatch: systemWriteProcedure
     .input(
       z.object({
         updates: z.array(appSettingUpdateInputSchema).min(1).max(100),
@@ -1976,37 +2124,70 @@ export const adminSettingsRouter = router({
       return { count: updates.length, ok: true };
     }),
 
-  syncUserGlobalSettingsDefaultsToUsers: adminProcedure.mutation(async ({ ctx }) => {
-    const defaults = await readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults);
-    await validateUserGlobalSettingsDefaults(ctx.serverDB, defaults);
-    const result = await syncUserGlobalSettingsDefaultsToUserSettings(ctx.serverDB, defaults);
+  syncUserGlobalSettingsDefaultsToUsers: systemWriteProcedure
+    .input(syncUserGlobalSettingsDefaultsInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const options = { forceDefaultAgentMeta: input?.forceDefaultAgentMeta === true };
+      const defaults = await readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults);
+      await validateUserGlobalSettingsDefaults(ctx.serverDB, defaults);
+      const result = await syncUserGlobalSettingsDefaultsToUserSettings(
+        ctx.serverDB,
+        defaults,
+        options,
+      );
+      const forceSyncAuditPayload = options.forceDefaultAgentMeta
+        ? { forceDefaultAgentMeta: true }
+        : {};
+      const scope = {
+        forceDefaultAgentMeta: options.forceDefaultAgentMeta,
+        target: 'all-users',
+      };
 
-    await recordAdminAudit(ctx, {
-      action: 'settings.syncUserDefaults',
-      payload: result,
-      resourceId: SETTING_KEYS.userGlobalSettingsDefaults,
-      resourceType: 'user_settings',
-    });
+      await recordAdminAudit(ctx, {
+        action: 'settings.syncUserDefaults',
+        payload: {
+          operation: 'syncUserGlobalSettingsDefaultsToUsers',
+          scope,
+          status: 'success',
+          ...result,
+          ...forceSyncAuditPayload,
+        },
+        resourceId: SETTING_KEYS.userGlobalSettingsDefaults,
+        resourceType: 'user_settings',
+      });
 
-    return { ok: true, ...result };
-  }),
+      return { ok: true, ...result, ...forceSyncAuditPayload };
+    }),
 
-  refreshRuntimeCaches: adminProcedure.mutation(async ({ ctx }) => {
+  refreshRuntimeCaches: systemWriteProcedure.mutation(async ({ ctx }) => {
     invalidateServerAppSettings();
     invalidateNewapiInstancesCache();
     invalidateFileS3RuntimeCache();
+    invalidateServerBrand();
 
-    const refreshed = ['app-settings', 'newapi-instances', 's3-runtime'] as const;
+    const results = [
+      { domain: 'app-settings', status: 'refreshed' },
+      { domain: 'newapi-instances', status: 'refreshed' },
+      { domain: 's3-runtime', status: 'refreshed' },
+      { domain: 'brand', status: 'refreshed' },
+    ] as const;
+    const refreshed = results.map(({ domain }) => domain);
     await recordAdminAudit(ctx, {
       action: 'settings.refreshRuntimeCaches',
-      payload: { refreshed },
+      payload: {
+        operation: 'refreshRuntimeCaches',
+        refreshed,
+        requestedDomains: refreshed,
+        results,
+        status: 'success',
+      },
       resourceType: 'app_setting',
     });
 
     return { ok: true, refreshed };
   }),
 
-  testS3Storage: adminProcedure.mutation(async ({ ctx }) => {
+  testS3Storage: systemWriteProcedure.mutation(async ({ ctx }) => {
     const config = await getServerFileS3Config(ctx.serverDB);
 
     if (!config.accessKeyId || !config.secretAccessKey || !config.endpoint || !config.bucket) {
@@ -2115,7 +2296,7 @@ export const adminSettingsRouter = router({
    * Manually trigger maintenance job (audit pruning + pending order expiry + notification cleanup).
    * Reuses the same DB-driven defaults as the public cron route.
    */
-  runMaintenance: adminProcedure
+  runMaintenance: systemWriteProcedure
     .input(
       z
         .object({
@@ -2123,6 +2304,7 @@ export const adminSettingsRouter = router({
           notificationRetentionDays: z.number().int().min(1).max(3650).optional(),
           pendingOrderExpiryDays: z.number().int().min(1).max(365).optional(),
           skipAudit: z.boolean().optional(),
+          skipModuleAppUploads: z.boolean().optional(),
           skipNotifications: z.boolean().optional(),
           skipOrders: z.boolean().optional(),
         })
@@ -2134,6 +2316,8 @@ export const adminSettingsRouter = router({
         auditCutoff?: string;
         auditLogsDeleted?: number;
         freeSnapshotsCreated?: number;
+        moduleAppUploadCleanupFailed?: number;
+        moduleAppUploadsExpired?: number;
         notificationRetentionCutoff?: string;
         notificationsDeleted?: number;
         pendingOrdersCutoff?: string;
@@ -2188,6 +2372,14 @@ export const adminSettingsRouter = router({
           .returning({ id: notifications.id });
         result.notificationRetentionCutoff = cutoff.toISOString();
         result.notificationsDeleted = deleted.length;
+      }
+
+      if (!opts.skipModuleAppUploads) {
+        const cleanup = await new ModuleAppPackageLifecycleService({
+          db: ctx.serverDB,
+        }).cleanupExpiredUploads({ limit: 100 });
+        result.moduleAppUploadCleanupFailed = cleanup.failed;
+        result.moduleAppUploadsExpired = cleanup.expired;
       }
 
       const subscriptionResult = await syncExpiredSubscriptionsToFree(ctx.serverDB);

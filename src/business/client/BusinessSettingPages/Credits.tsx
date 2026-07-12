@@ -9,15 +9,17 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
-import { Card } from '@/components/antd-compat/Card';
 import InlineTable from '@/components/InlineTable';
 import { normalizeTopUpPackagePromotion } from '@/const/billingPresentation';
+import { useBrand } from '@/features/Brand/BrandProvider';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 import { type CreditLedgerEntryItem, type TopUpOrderHistoryItem } from '@/types/business';
 
+import { formatLedgerAllocationText } from './creditsDisplay';
+import { formatCreditLedgerDescription } from './ledgerDisplay';
 import RedemptionPanel from './RedemptionPanel';
 import {
   formatBusinessDate,
@@ -74,12 +76,6 @@ const styles = createStaticStyles(({ css }) => ({
     display: flex;
     flex-direction: column;
     gap: 10px;
-
-    padding: 14px;
-    border: 1px solid ${cssVar.colorBorderSecondary};
-    border-radius: 8px;
-
-    background: ${cssVar.colorFillQuaternary};
   `,
 }));
 
@@ -101,6 +97,7 @@ const sourceLabels: Record<string, string> = {
 
 const Credits = memo<{ mobile?: boolean }>(() => {
   const { t } = useTranslation('subscription');
+  const brand = useBrand();
   const { accountSummary, currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
   const { data: ledgerResult, isLoading: isLedgerLoading } = useClientDataSWR(
     ['business-credit-ledger'],
@@ -139,27 +136,12 @@ const Credits = memo<{ mobile?: boolean }>(() => {
   );
 
   const getLedgerAllocationText = useCallback(
-    (record: CreditLedgerEntryItem) => {
-      if (record.type !== 'consume') return null;
-
-      const allocations = record.metadata?.allocations;
-      if (!Array.isArray(allocations) || allocations.length === 0) return null;
-
-      const normalizedAllocations = allocations.flatMap((item) => {
-        if (typeof item !== 'object' || item === null) return [];
-
-        const amount = (item as { amount?: unknown }).amount;
-        const source = (item as { source?: unknown }).source;
-
-        if (!Number.isFinite(amount) || typeof source !== 'string') return [];
-
-        return [`${t(getCreditSourceTranslationKey(source))} ${formatCredits(Number(amount))}`];
-      });
-
-      if (normalizedAllocations.length === 0) return null;
-
-      return `扣费来源：${normalizedAllocations.join(' · ')}`;
-    },
+    (record: CreditLedgerEntryItem) =>
+      formatLedgerAllocationText(
+        record,
+        (source) => t(getCreditSourceTranslationKey(source)),
+        formatCredits,
+      ),
     [t],
   );
 
@@ -200,7 +182,7 @@ const Credits = memo<{ mobile?: boolean }>(() => {
         key: 'description',
         render: (value, record) => {
           const allocationText = getLedgerAllocationText(record);
-          const description = value || '--';
+          const description = formatCreditLedgerDescription(value, record.metadata);
 
           if (!allocationText) return description;
 
@@ -271,139 +253,128 @@ const Credits = memo<{ mobile?: boolean }>(() => {
       <SettingHeader title={'积分'} />
       <div className={subscriptionPageStyles.pageStack}>
         <FormGroup collapsible={false} gap={16} title={'余额'} variant={'filled'}>
-          <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
-            <div className={styles.balanceGrid}>
-              <div className={styles.balancePanel}>
-                <div className={styles.balanceStats}>
-                  <div>
-                    <div className={subscriptionPageStyles.caption}>充值积分余额</div>
-                    <div className={styles.bigValue}>
-                      {formatCredits(accountSummary?.balance ?? 0)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className={subscriptionPageStyles.caption}>订阅积分</div>
-                    <div className={styles.bigValue}>
-                      {formatCredits(accountBreakdown?.subscription?.available ?? 0)} /{' '}
-                      {formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}
-                    </div>
+          <div className={styles.balanceGrid}>
+            <div className={styles.balancePanel}>
+              <div className={styles.balanceStats}>
+                <div>
+                  <div className={subscriptionPageStyles.caption}>可用积分余额</div>
+                  <div className={styles.bigValue}>{formatCredits(accountSummary?.balance ?? 0)}</div>
+                </div>
+                <div>
+                  <div className={subscriptionPageStyles.caption}>订阅积分</div>
+                  <div className={styles.bigValue}>
+                    {formatCredits(accountBreakdown?.subscription?.available ?? 0)} /{' '}
+                    {formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}
                   </div>
                 </div>
-                <div className={subscriptionPageStyles.caption}>
-                  优先使用订阅积分，其次使用充值积分。更新时间：
-                  {formatBusinessDate(accountSummary?.updatedAt)}
-                </div>
-                <Flexbox horizontal gap={8} wrap="wrap">
-                  <Button href="#credit-ledger" size="small">
-                    查看使用情况
-                  </Button>
-                  <Button href="#topup-orders" size="small">
-                    充值记录
-                  </Button>
-                </Flexbox>
               </div>
-              <div className={styles.subscriptionBox}>
-                <div className={subscriptionPageStyles.caption}>LOBEHUB CLOUD SUBSCRIPTION</div>
-                <PlanIcon plan={currentPlan} type={'combine'} />
-                <div className={subscriptionPageStyles.caption}>
-                  每月订阅积分 {formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}
-                </div>
+              <div className={subscriptionPageStyles.caption}>
+                优先使用订阅积分，其次使用充值积分。更新时间：
+                {formatBusinessDate(accountSummary?.updatedAt)}
+              </div>
+              <Flexbox horizontal gap={8} wrap="wrap">
+                <Button href="#credit-ledger" size="small">
+                  查看使用情况
+                </Button>
+                <Button href="#topup-orders" size="small">
+                  充值记录
+                </Button>
+              </Flexbox>
+            </div>
+            <div className={styles.subscriptionBox}>
+              <div className={subscriptionPageStyles.caption}>{brand.name} Subscription</div>
+              <PlanIcon plan={currentPlan} type={'combine'} />
+              <div className={subscriptionPageStyles.caption}>
+                每月订阅积分 {formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}
               </div>
             </div>
-          </Card>
+          </div>
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'购买积分'} variant={'filled'}>
-          <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
-            <Flexbox gap={16}>
-              <div>
-                <div style={{ marginBottom: 10 }}>选择积分包</div>
-                <Segmented
-                  options={packageOptions}
-                  value={selectedPackageId || topUpPackages[0]?.id || 'custom'}
-                  onChange={(value: string | number) => setSelectedPackageId(value as string)}
-                />
-              </div>
-              {selectedPackageId === 'custom' || topUpPackages.length === 0 ? (
-                <InputNumber
-                  addonAfter={'M'}
-                  max={5000}
-                  min={50}
-                  value={customCredits}
-                  onChange={(value: number | null) => setCustomCredits(Number(value || 50))}
-                />
+          <Flexbox gap={16}>
+            <div>
+              <div style={{ marginBottom: 10 }}>选择积分包</div>
+              <Segmented
+                options={packageOptions}
+                value={selectedPackageId || topUpPackages[0]?.id || 'custom'}
+                onChange={(value: string | number) => setSelectedPackageId(value as string)}
+              />
+            </div>
+            {selectedPackageId === 'custom' || topUpPackages.length === 0 ? (
+              <InputNumber
+                addonAfter={'M'}
+                max={5000}
+                min={50}
+                value={customCredits}
+                onChange={(value: number | null) => setCustomCredits(Number(value || 50))}
+              />
+            ) : null}
+            <div className={styles.purchaseMeta}>
+              {selectedPromotion.enabled ? (
+                <Flexbox horizontal align="center" gap={6} wrap="wrap">
+                  <Tag color="red" style={{ margin: 0 }}>
+                    {selectedPromotion.label || '限时优惠'}
+                  </Tag>
+                  {typeof selectedPromotion.originalAmount === 'number' ? (
+                    <span style={{ textDecoration: 'line-through' }}>
+                      原价 {formatCurrencyAmount(selectedPromotion.originalAmount, effectiveCurrency)}
+                    </span>
+                  ) : null}
+                  {selectedPromotion.note ? <span>{selectedPromotion.note}</span> : null}
+                </Flexbox>
               ) : null}
-              <div className={styles.purchaseMeta}>
-                {selectedPromotion.enabled ? (
-                  <Flexbox horizontal align="center" gap={6} wrap="wrap">
-                    <Tag color="red" style={{ margin: 0 }}>
-                      {selectedPromotion.label || '限时优惠'}
-                    </Tag>
-                    {typeof selectedPromotion.originalAmount === 'number' ? (
-                      <span style={{ textDecoration: 'line-through' }}>
-                        原价{' '}
-                        {formatCurrencyAmount(selectedPromotion.originalAmount, effectiveCurrency)}
-                      </span>
-                    ) : null}
-                    {selectedPromotion.note ? <span>{selectedPromotion.note}</span> : null}
-                  </Flexbox>
-                ) : null}
-                <div>
-                  {formatCurrencyAmount(
-                    effectiveAmount / Math.max(1, effectiveCredits / toRawCredits(1)),
-                    effectiveCurrency,
-                  )}{' '}
-                  / 每百万算力积分
-                  {selectedPackage?.validityMonths
-                    ? `（有效期 ${selectedPackage.validityMonths} 个月）`
-                    : ''}
-                </div>
+              <div>
+                {formatCurrencyAmount(
+                  effectiveAmount / Math.max(1, effectiveCredits / toRawCredits(1)),
+                  effectiveCurrency,
+                )}{' '}
+                / 每百万算力积分
+                {selectedPackage?.validityMonths
+                  ? `（有效期 ${selectedPackage.validityMonths} 个月）`
+                  : ''}
               </div>
-              <div className={subscriptionPageStyles.metricRow}>
-                <span>总计</span>
-                <strong style={{ fontSize: 24 }}>
-                  {formatCurrencyAmount(effectiveAmount, effectiveCurrency)}
-                </strong>
-                <span className={subscriptionPageStyles.caption}>
-                  {formatCredits(effectiveCredits)}
-                </span>
-              </div>
-              <Button
-                href={canPurchaseTopUp ? undefined : '/settings/plans'}
-                icon={<Icon icon={ShoppingCart} />}
-                type={'primary'}
-                onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
-              >
-                {canPurchaseTopUp ? '联系管理员充值' : '升级会员'}
-              </Button>
-            </Flexbox>
-          </Card>
+            </div>
+            <div className={subscriptionPageStyles.metricRow}>
+              <span>总计</span>
+              <strong style={{ fontSize: 24 }}>
+                {formatCurrencyAmount(effectiveAmount, effectiveCurrency)}
+              </strong>
+              <span className={subscriptionPageStyles.caption}>{formatCredits(effectiveCredits)}</span>
+            </div>
+            <Button
+              href={canPurchaseTopUp ? undefined : '/settings/plans'}
+              icon={<Icon icon={ShoppingCart} />}
+              type={'primary'}
+              onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
+            >
+              {canPurchaseTopUp ? '联系管理员充值' : '升级会员'}
+            </Button>
+          </Flexbox>
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'自动充值'} variant={'filled'}>
-          <Card className={subscriptionPageStyles.formCard} variant={'borderless'}>
-            <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
-              <div>
-                <strong>在线支付暂未接入</strong>
-                <div className={subscriptionPageStyles.caption}>
-                  自动充值将在支付网关接入后开放；当前可联系管理员或使用兑换码补充积分。
-                </div>
+          <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
+            <div>
+              <strong>在线支付暂未接入</strong>
+              <div className={subscriptionPageStyles.caption}>
+                自动充值将在支付网关接入后开放；当前可联系管理员或使用兑换码补充积分。
               </div>
-              <Button
-                href={canPurchaseTopUp ? undefined : '/settings/plans'}
-                onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
-              >
-                {canPurchaseTopUp ? '联系管理员' : '升级会员'}
-              </Button>
-            </Flexbox>
-          </Card>
+            </div>
+            <Button
+              href={canPurchaseTopUp ? undefined : '/settings/plans'}
+              onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
+            >
+              {canPurchaseTopUp ? '联系管理员' : '升级会员'}
+            </Button>
+          </Flexbox>
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'兑换码'} variant={'filled'}>
           <RedemptionPanel onSuccess={refreshCreditData} />
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'我的积分包'} variant={'filled'}>
           <InlineTable
-            id="topup-orders"
             columns={orderColumns as any}
             dataSource={topUpOrders}
+            id="topup-orders"
             loading={isOrdersLoading}
             locale={{ emptyText: <Empty description={'暂无积分包'} /> }}
             rowKey={(record) => record.id}
@@ -411,9 +382,9 @@ const Credits = memo<{ mobile?: boolean }>(() => {
         </FormGroup>
         <FormGroup collapsible={false} gap={16} title={'积分使用详情'} variant={'filled'}>
           <InlineTable
-            id="credit-ledger"
             columns={ledgerColumns as any}
             dataSource={ledgerResult?.items || []}
+            id="credit-ledger"
             loading={isLedgerLoading}
             locale={{ emptyText: <Empty description={'暂无积分明细'} /> }}
             rowKey={(record) => record.id}

@@ -116,6 +116,10 @@ vi.mock('@/routes/(main)/admin/model-policy', () => ({
   default: () => <div data-testid="admin-model-policy" />,
 }));
 
+vi.mock('@/routes/(main)/admin/module-apps', () => ({
+  default: () => <div data-testid="admin-module-apps" />,
+}));
+
 vi.mock('@/routes/(main)/admin/notifications', () => ({
   default: () => <div data-testid="admin-notifications" />,
 }));
@@ -304,6 +308,7 @@ describe('SettingsAdminPage', () => {
       ['/settings/admin/files', 'admin-files'],
       ['/settings/admin/documents', 'admin-documents'],
       ['/settings/admin/file-storage', 'admin-file-storage'],
+      ['/settings/admin/module-apps', 'admin-module-apps'],
       ['/settings/admin/system-defaults', 'admin-system-defaults'],
       ['/settings/admin/maintenance', 'admin-maintenance'],
     ] as const) {

@@ -75,15 +75,20 @@ import { MarketService } from '@/server/services/market';
 
 const log = debug('lobe-server:discover');
 
+const EMPTY_DESCRIPTION_FALLBACK = '内容暂不可用';
+
 const loadBuiltinModels = async () => {
   const { loadModels } = await import('@/business/client/model-bank/loadModels');
   return loadModels();
 };
 
+const isPlaceholderText = (text: string) => text.toUpperCase() === 'UN';
+
 const firstText = (...values: unknown[]) => {
   for (const value of values) {
     if (typeof value !== 'string') continue;
     const text = value.trim();
+    if (isPlaceholderText(text)) continue;
     if (text) return text;
   }
 };
@@ -95,9 +100,15 @@ const normalizeMcpListItem = (item: unknown, fallbackIdentifier?: unknown) => {
   const identifier = firstText(mcp.identifier, mcp.slug, fallbackIdentifier);
   if (!identifier) return;
 
+  const hasPlaceholderLabel = [mcp.name, mcp.title, mcp.displayName].some(
+    (value) => typeof value === 'string' && isPlaceholderText(value.trim()),
+  );
+  const hasDescriptionField = 'description' in mcp || 'summary' in mcp;
   const name = firstText(mcp.name, mcp.title, mcp.displayName, identifier);
   const title = firstText(mcp.title, mcp.displayName);
-  const description = firstText(mcp.description, mcp.summary);
+  const description =
+    firstText(mcp.description, mcp.summary) ||
+    (hasDescriptionField || hasPlaceholderLabel ? EMPTY_DESCRIPTION_FALLBACK : undefined);
   const icon = firstText(mcp.icon, mcp.avatar);
 
   if (

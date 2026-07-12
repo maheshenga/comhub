@@ -2,7 +2,11 @@ import type { AiProviderRuntimeState } from '@/types/aiProvider';
 
 import type { PlanModelRules } from '@/database/schemas';
 
-import { buildModelCatalog, getModelCatalogHealth } from './visibleModels';
+import {
+  buildModelCatalog,
+  getModelCatalogDuplicateModelGroups,
+  getModelCatalogHealth,
+} from './visibleModels';
 
 export interface ModelCatalogDiagnosticsParams {
   planRules?: PlanModelRules | null;
@@ -24,6 +28,7 @@ export const getModelCatalogDiagnostics = ({ planRules, state }: ModelCatalogDia
       return map;
     }, new Map<string, number>())
     .entries();
+  const duplicateModelGroups = getModelCatalogDuplicateModelGroups(catalog);
 
   return {
     catalog,
@@ -50,6 +55,13 @@ export const getModelCatalogDiagnostics = ({ planRules, state }: ModelCatalogDia
           level: 'warning' as const,
           message: `Model ${key} appears ${count} times. Confirm whether it should be split by group or merged.`,
         })) ?? []),
+      ...duplicateModelGroups.map((group) => ({
+        key: `duplicate:${group.key}`,
+        level: 'warning' as const,
+        message: `Model ${group.modelId} appears ${group.count} times across providers: ${group.providers.join(
+          ', ',
+        )}. Keep all enabled entries visible by provider group.`,
+      })),
     ],
   };
 };

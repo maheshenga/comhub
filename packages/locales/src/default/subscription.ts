@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   'balance.creditBalance': '可用积分',
   'balance.hobbyDesc': '{{hobby}} 不包含套餐积分，请配置模型 API 或充值后继续使用',
   'balance.link.history': '充值记录',
@@ -763,6 +763,12 @@ export default {
   'admin.assignPlan.success': '套餐已设置',
   'admin.assignPlan.title': '设置用户套餐',
   'admin.assignPlan.yearly': '年付',
+  'marketplace.featured': 'Featured',
+  'marketplace.filters.allCategories': 'All categories',
+  'marketplace.filters.allRuntimeTypes': 'All types',
+  'marketplace.status.installable': 'Installable',
+  'marketplace.status.runnable': 'Runnable',
+  'marketplace.status.upgradeRequired': 'Upgrade required',
   'admin.subscriptions.modal.lifetime': '终身',
   'admin.subscriptions.modal.monthly': '月付',
   'admin.subscriptions.modal.one_time': '一次性',

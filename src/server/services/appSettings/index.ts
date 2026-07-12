@@ -167,7 +167,7 @@ const normalizePublicHelpMenuItems = (items: unknown): PublicCustomizationConfig
     })
     .filter((item): item is { label: string; url?: string } => Boolean(item));
 
-  return normalized.length > 0 ? normalized : undefined;
+  return normalized;
 };
 
 export const getServerPublicCustomizationConfig = async (
@@ -182,7 +182,7 @@ export const getServerPublicCustomizationConfig = async (
   const helpMenuItems = normalizePublicHelpMenuItems(rawHelpMenuItems);
 
   return {
-    ...(helpMenuItems ? { helpMenuItems } : {}),
+    ...(Array.isArray(helpMenuItems) ? { helpMenuItems } : {}),
     ...(skillUseButtonLabel ? { skillUseButtonLabel } : {}),
   };
 };

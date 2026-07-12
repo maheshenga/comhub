@@ -364,6 +364,50 @@ export const sharedMainAreaChildren: RouteObject[] = [
     path: 'community',
   },
 
+  // Module app marketplace and runtime routes
+  {
+    children: [
+      {
+        element: dynamicElement(() => import('@/routes/(main)/apps'), 'Desktop > Apps'),
+        handle: {
+          meta: routeMeta({ icon: ShapesIcon, titleKey: 'navigation.apps' }),
+        },
+        index: true,
+      },
+      {
+        element: dynamicElement(() => import('@/routes/(main)/apps/my'), 'Desktop > Apps > My'),
+        path: 'my',
+      },
+      {
+        element: dynamicElement(() => import('@/routes/(main)/apps/team'), 'Desktop > Apps > Team'),
+        path: 'team',
+      },
+      {
+        element: dynamicElement(
+          () => import('@/routes/(main)/apps/[appId]'),
+          'Desktop > Apps > Detail',
+        ),
+        path: ':appId',
+      },
+      {
+        element: dynamicElement(
+          () => import('@/routes/(main)/apps/[appId]/app'),
+          'Desktop > Apps > Runtime',
+        ),
+        path: ':appId/app',
+      },
+      {
+        element: dynamicElement(
+          () => import('@/routes/(main)/apps/[appId]/app/[pageKey]'),
+          'Desktop > Apps > Runtime Page',
+        ),
+        path: ':appId/app/:pageKey',
+      },
+    ],
+    errorElement: <ErrorBoundary />,
+    path: 'apps',
+  },
+
   // Expert plaza routes
   {
     children: [

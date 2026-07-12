@@ -931,6 +931,104 @@
       "when": 1781883177374,
       "tag": "0129_workspace_device_and_ai_infra_surrogate_pk",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1783430406335,
+      "tag": "0130_add_platform_plugins",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1783544894973,
+      "tag": "0131_add_module_apps",
+      "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1783618800000,
+      "tag": "0132_add_module_app_packages",
+      "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1783705200000,
+      "tag": "0133_add_module_app_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1783791600000,
+      "tag": "0134_drop_platform_plugin_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1783878000000,
+      "tag": "0135_add_module_app_package_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1783964400000,
+      "tag": "0136_add_module_app_build_runtime",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1784050800000,
+      "tag": "0137_add_module_app_data_workflows",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1784137200000,
+      "tag": "0138_add_module_app_commerce",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1784223600000,
+      "tag": "0139_add_module_app_revenue_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1784300000000,
+      "tag": "0140_add_module_app_schedule_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1784386400000,
+      "tag": "0141_add_module_app_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1784472800000,
+      "tag": "0142_add_module_app_publishers",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1784559200000,
+      "tag": "0143_add_module_app_payouts",
+      "breakpoints": true
     }
   ],
   "version": "6"

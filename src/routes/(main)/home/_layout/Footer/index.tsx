@@ -94,7 +94,7 @@ const Footer = memo(() => {
   const [isAgentOnboardingCardOpen, setIsAgentOnboardingCardOpen] = useState(false);
   const [isProductHuntCardOpen, setIsProductHuntCardOpen] = useState(false);
 
-  const { data: configuredHelpMenuItems = [] } = useSWR(PUBLIC_HELP_MENU_SWR_KEY, () =>
+  const { data: configuredHelpMenuItems } = useSWR(PUBLIC_HELP_MENU_SWR_KEY, () =>
     adminCommercialService.getPublicHelpMenu(),
   );
   const [isAgentOnboardingPromoRead, isProductHuntNotificationRead, updateSystemStatus] =
@@ -372,7 +372,7 @@ const Footer = memo(() => {
 
   const configuredMenuItems: MenuProps['items'] = useMemo(
     () =>
-      configuredHelpMenuItems.length > 0
+      Array.isArray(configuredHelpMenuItems)
         ? createConfiguredHelpMenuItems(configuredHelpMenuItems, {
             onChangelog: handleOpenChangelogModal,
             onFeedback: handleOpenFeedbackModal,
@@ -384,14 +384,20 @@ const Footer = memo(() => {
 
   const helpMenuItems: MenuProps['items'] = useMemo(
     () => [
-      ...(configuredMenuItems && configuredMenuItems.length > 0
-        ? configuredMenuItems
+      ...(Array.isArray(configuredHelpMenuItems)
+        ? configuredMenuItems || []
         : defaultHelpMenuItems),
       ...(isHomeSidebar && billboardMenuItems && billboardMenuItems.length > 0
         ? [{ type: 'divider' as const }, ...billboardMenuItems]
         : []),
     ],
-    [billboardMenuItems, configuredMenuItems, defaultHelpMenuItems, isHomeSidebar],
+    [
+      billboardMenuItems,
+      configuredHelpMenuItems,
+      configuredMenuItems,
+      defaultHelpMenuItems,
+      isHomeSidebar,
+    ],
   );
   return (
     <>

@@ -204,7 +204,7 @@ describe('admin commercial flow pages', () => {
     const service = readRepoFile('src/services/adminCommercial.ts');
     const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
 
-    expect(router).toContain('refreshRuntimeCache: adminProcedure.mutation');
+    expect(router).toContain('refreshRuntimeCache: modelOpsWriteProcedure.mutation');
     expect(router).toContain('invalidateNewapiInstancesCache();');
     expect(router).toContain("action: 'newapiInstanceModels.refreshRuntimeCache'");
     expect(service).toContain('refreshAiProviderRuntimeCache');
@@ -295,6 +295,19 @@ describe('admin commercial flow pages', () => {
     expect(matrixPage).not.toContain('adminCommercialService.listAllEnabledNewapiModels');
   });
 
+  it('returns model pricing and ability completeness flags for billing diagnostics', () => {
+    const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
+    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+
+    expect(router).toContain('metadata: adminNewapiInstanceModels.metadata');
+    expect(router).toContain('hasModelPricing');
+    expect(router).toContain('hasModelAbilities');
+    expect(router).toContain('resolveModelPricingCompleteness');
+    expect(router).toContain('resolveModelAbilityCompleteness');
+    expect(matrixPage).toContain('hasModelPricing: item.hasModelPricing === true');
+    expect(matrixPage).toContain('hasModelAbilities: item.hasModelAbilities === true');
+  });
+
   it('surfaces AI service model access and billing health in the matrix page', () => {
     const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
     const matrixLogic = readRepoFile('src/features/Admin/adminModelBillingMatrix.ts');
@@ -364,6 +377,52 @@ describe('admin commercial flow pages', () => {
     expect(publicPlansPage).not.toContain('GPT-5.5');
   });
 
+  it('surfaces app settings governance in the admin settings page', () => {
+    const settingsRouter = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/settings.ts',
+    );
+    const service = readRepoFile('src/services/adminCommercial.ts');
+    const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
+    const governanceCard = readRepoFile('src/features/Admin/AdminSettingsGovernanceCard.tsx');
+
+    expect(settingsRouter).toContain('getGovernance: adminProcedure.query');
+    expect(settingsRouter).toContain('deleteUnknownSetting: systemWriteProcedure');
+    expect(service).toContain('getAppSettingsGovernance');
+    expect(service).toContain('admin.settings.getGovernance.query()');
+    expect(service).toContain('deleteUnknownAppSetting');
+    expect(service).toContain('admin.settings.deleteUnknownSetting.mutate(params)');
+    expect(settingsPage).toContain('AdminSettingsGovernanceCard');
+    expect(governanceCard).toContain('unknownKeys');
+    expect(governanceCard).toContain('deleteUnknownAppSetting');
+    expect(governanceCard).toContain('confirmKey');
+    expect(governanceCard).toContain('sensitiveConfiguredKeys');
+    expect(governanceCard).not.toContain('item.value');
+    expect(governanceCard).not.toContain('dataSource={data.registeredSettings}');
+  });
+
+  it('does not materialize admin settings before current data has loaded', () => {
+    const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
+
+    expect(settingsPage).toContain('if (!data) return;');
+    expect(settingsPage).toContain('disabled={isLoading || !data || submitting}');
+  });
+
+  it('does not materialize notification defaults before current data has loaded', () => {
+    const notificationsPage = readRepoFile('src/features/Admin/AdminNotificationsPage.tsx');
+
+    expect(notificationsPage).toContain('if (!data) return;');
+    expect(notificationsPage).toContain('disabled={isLoading || !data || submitting}');
+    expect(notificationsPage).toContain('disabled={isLoading || !data || materializing}');
+  });
+
+  it('does not fall back to built-in help links when admin explicitly clears the menu', () => {
+    const footer = readRepoFile('src/routes/(main)/home/_layout/Footer/index.tsx');
+
+    expect(footer).toContain('data: configuredHelpMenuItems');
+    expect(footer).not.toContain('configuredMenuItems.length > 0');
+    expect(footer).not.toContain('configuredHelpMenuItems.length > 0');
+  });
+
   it('shows admin-configured top-up promotion metadata in admin and user credit surfaces', () => {
     const topupPage = readRepoFile('src/features/Admin/AdminTopUpPackagesPage.tsx');
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
@@ -396,6 +455,17 @@ describe('admin commercial flow pages', () => {
     expect(adminTopupPage).toContain("currency: 'USD'");
     expect(adminTopupPage).toContain("values.currency || 'USD'");
     expect(adminPlansPage).toContain('留空时前台不展示');
+  });
+
+  it('uses configured brand and keeps a non-duplicative usable balance summary on credits page', () => {
+    const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
+
+    expect(creditsPage).toContain("import { useBrand } from '@/features/Brand/BrandProvider'");
+    expect(creditsPage).toContain('const brand = useBrand();');
+    expect(creditsPage).toContain('{brand.name} Subscription');
+    expect(creditsPage).toContain('formatCredits(accountSummary?.balance ?? 0)');
+    expect(creditsPage).not.toContain('LOBEHUB CLOUD SUBSCRIPTION');
+    expect(creditsPage).not.toContain('充值积分余额</div>');
   });
 
   it('uses provider-neutral file names for the admin provider page', () => {

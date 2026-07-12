@@ -17,17 +17,35 @@ const getVercelUrl = () => {
   return `https://${process.env.VERCEL_BRANCH_URL}`;
 };
 
-const APP_URL = process.env.APP_URL
-  ? process.env.APP_URL
-  : isInVercel
+const APP_URL =
+  process.env.APP_URL ||
+  (isInVercel
     ? getVercelUrl()
     : process.env.NODE_ENV === 'development'
       ? `http://localhost:${process.env.PORT || 3010}`
-      : `http://localhost:${process.env.PORT || 3210}`;
+      : `http://localhost:${process.env.PORT || 3210}`);
 
 // INTERNAL_APP_URL is used for server-to-server calls to bypass CDN/proxy
 // Falls back to APP_URL if not set
 const INTERNAL_APP_URL = process.env.INTERNAL_APP_URL || APP_URL;
+
+const MODULE_APP_ALIPAY_MODE =
+  process.env.MODULE_APP_ALIPAY_MODE === 'production' ? 'production' : 'sandbox';
+const MODULE_APP_ALIPAY_GATEWAY =
+  process.env.MODULE_APP_ALIPAY_GATEWAY ||
+  (MODULE_APP_ALIPAY_MODE === 'production'
+    ? 'https://openapi.alipay.com/gateway.do'
+    : 'https://openapi-sandbox.dl.alipaydev.com/gateway.do');
+
+const parseModuleAppAllowlist = (value?: string) =>
+  Array.from(
+    new Set(
+      (value ?? '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0 && item.length <= 160),
+    ),
+  ).slice(0, 500);
 
 const ASSISTANT_INDEX_URL = 'https://registry.npmmirror.com/@lobehub/agents-index/v1/files/public';
 
@@ -75,6 +93,29 @@ export const getAppConfig = () => {
        */
       MARKET_TRUSTED_CLIENT_ID: z.string().optional(),
 
+      MODULE_APP_EXECUTION_ENABLED: z.boolean().optional(),
+      MODULE_APP_RUNTIME_PUBLIC_ORIGIN: z.string().url().optional(),
+      MODULE_APP_RUNTIME_INVOCATION_ENABLED: z.boolean(),
+      MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED: z.boolean(),
+      MODULE_APP_SCHEDULE_DISPATCH_ENABLED: z.boolean(),
+      MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED: z.boolean(),
+      MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED: z.boolean(),
+      MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED: z.boolean(),
+      MODULE_APP_PUBLIC_EXECUTION_ENABLED: z.boolean(),
+      MODULE_APP_RUNTIME_APP_ALLOWLIST: z.string().optional().transform(parseModuleAppAllowlist),
+      MODULE_APP_PUBLISHER_ALLOWLIST: z.string().optional().transform(parseModuleAppAllowlist),
+      MODULE_APP_ALIPAY_APP_ID: z.string().optional(),
+      MODULE_APP_ALIPAY_CERTIFICATE: z.string().optional(),
+      MODULE_APP_ALIPAY_CERT_MODE: z.enum(['certificate', 'public_key']).optional(),
+      MODULE_APP_ALIPAY_ENABLED: z.boolean(),
+      MODULE_APP_ALIPAY_GATEWAY: z.string().url(),
+      MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY: z.string().optional(),
+      MODULE_APP_ALIPAY_MODE: z.enum(['production', 'sandbox']),
+      MODULE_APP_ALIPAY_NOTIFY_URL: z.string().url().optional(),
+      MODULE_APP_ALIPAY_PUBLIC_KEY: z.string().optional(),
+      MODULE_APP_ALIPAY_RETURN_URL: z.string().url().optional(),
+      MODULE_APP_ALIPAY_SELLER_ID: z.string().optional(),
+
       AGENT_GATEWAY_SERVICE_TOKEN: z.string().optional(),
       ENABLE_AGENT_GATEWAY: z.boolean().optional(),
       AGENT_GATEWAY_URL: z.string().url().optional(),
@@ -120,6 +161,40 @@ export const getAppConfig = () => {
 
       MARKET_TRUSTED_CLIENT_SECRET: process.env.MARKET_TRUSTED_CLIENT_SECRET,
       MARKET_TRUSTED_CLIENT_ID: process.env.MARKET_TRUSTED_CLIENT_ID,
+
+      MODULE_APP_EXECUTION_ENABLED: process.env.MODULE_APP_EXECUTION_ENABLED === 'true',
+      MODULE_APP_RUNTIME_PUBLIC_ORIGIN: process.env.MODULE_APP_RUNTIME_PUBLIC_ORIGIN,
+      MODULE_APP_RUNTIME_INVOCATION_ENABLED:
+        process.env.MODULE_APP_RUNTIME_INVOCATION_ENABLED === 'true',
+      MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED:
+        process.env.MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED === 'true',
+      MODULE_APP_SCHEDULE_DISPATCH_ENABLED:
+        process.env.MODULE_APP_SCHEDULE_DISPATCH_ENABLED === 'true',
+      MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED:
+        process.env.MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED === 'true',
+      MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED:
+        process.env.MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED === 'true',
+      MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED:
+        process.env.MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED === 'true',
+      MODULE_APP_PUBLIC_EXECUTION_ENABLED:
+        process.env.MODULE_APP_PUBLIC_EXECUTION_ENABLED === 'true',
+      MODULE_APP_RUNTIME_APP_ALLOWLIST: process.env.MODULE_APP_RUNTIME_APP_ALLOWLIST,
+      MODULE_APP_PUBLISHER_ALLOWLIST: process.env.MODULE_APP_PUBLISHER_ALLOWLIST,
+      MODULE_APP_ALIPAY_APP_ID: process.env.MODULE_APP_ALIPAY_APP_ID,
+      MODULE_APP_ALIPAY_CERTIFICATE: process.env.MODULE_APP_ALIPAY_CERTIFICATE,
+      MODULE_APP_ALIPAY_CERT_MODE:
+        process.env.MODULE_APP_ALIPAY_CERT_MODE === 'certificate'
+          ? 'certificate'
+          : 'public_key',
+      MODULE_APP_ALIPAY_ENABLED: process.env.MODULE_APP_ALIPAY_ENABLED === 'true',
+      MODULE_APP_ALIPAY_GATEWAY,
+      MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY:
+        process.env.MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY,
+      MODULE_APP_ALIPAY_MODE,
+      MODULE_APP_ALIPAY_NOTIFY_URL: process.env.MODULE_APP_ALIPAY_NOTIFY_URL,
+      MODULE_APP_ALIPAY_PUBLIC_KEY: process.env.MODULE_APP_ALIPAY_PUBLIC_KEY,
+      MODULE_APP_ALIPAY_RETURN_URL: process.env.MODULE_APP_ALIPAY_RETURN_URL,
+      MODULE_APP_ALIPAY_SELLER_ID: process.env.MODULE_APP_ALIPAY_SELLER_ID,
 
       AGENT_GATEWAY_SERVICE_TOKEN: process.env.AGENT_GATEWAY_SERVICE_TOKEN,
       ENABLE_AGENT_GATEWAY: process.env.ENABLE_AGENT_GATEWAY === '1',

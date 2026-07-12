@@ -9,6 +9,7 @@ import {
   getServerDefaultAgentSettingOverrides,
   getServerDefaultModelSuggestions,
   getServerFileS3Config,
+  getServerPublicCustomizationConfig,
   invalidateServerAppSettings,
   isSensitiveAppSettingKey,
   normalizeModelIdList,
@@ -133,6 +134,20 @@ describe('appSettings model helpers', () => {
       apiKey: 'ak_admin',
       authConfigIds: '{"gmail":"ac_admin"}',
       enabled: true,
+    });
+  });
+
+  it('preserves explicitly empty help menu items in public customization config', async () => {
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [{ key: APP_SETTING_KEYS.helpMenuItems, value: [] }],
+        },
+      },
+    } as any;
+
+    await expect(getServerPublicCustomizationConfig(db)).resolves.toEqual({
+      helpMenuItems: [],
     });
   });
 

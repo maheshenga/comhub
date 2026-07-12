@@ -4,6 +4,7 @@ import { adminAuditRouter } from './audit-router';
 import { adminContentRouter } from './content';
 import { adminCreditsRouter } from './credits';
 import { adminNewapiProvidersRouter } from './newapiProviders';
+import { adminModuleAppsRouter } from './moduleApps';
 import { adminOrdersRouter } from './orders';
 import { adminPlansRouter } from './plans';
 import { adminPptRouter } from './ppt';
@@ -19,6 +20,7 @@ export const adminRouter = router({
   audit: adminAuditRouter,
   content: adminContentRouter,
   credits: adminCreditsRouter,
+  moduleApps: adminModuleAppsRouter,
   newapiProviders: adminNewapiProvidersRouter,
   orders: adminOrdersRouter,
   plans: adminPlansRouter,

@@ -9,9 +9,10 @@ import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } 
 import { recordAdminAudit } from './audit';
 
 const OrderStatusSchema = z.enum(['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded']);
+const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 export const adminOrdersRouter = router({
-  cancel: adminProcedure
+  cancel: financeWriteProcedure
     .input(z.object({ orderId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const [order] = await ctx.serverDB
@@ -32,7 +33,7 @@ export const adminOrdersRouter = router({
       return { ok: true };
     }),
 
-  expire: adminProcedure
+  expire: financeWriteProcedure
     .input(z.object({ orderId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const [order] = await ctx.serverDB
@@ -105,7 +106,7 @@ export const adminOrdersRouter = router({
       return { ...order, redemptionCode };
     }),
 
-  settle: adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite)
+  settle: financeWriteProcedure
     .input(z.object({ orderId: z.string().min(1), reason: z.string().trim().min(1).max(500) }))
     .mutation(async ({ ctx, input }) => {
       const [order] = await ctx.serverDB

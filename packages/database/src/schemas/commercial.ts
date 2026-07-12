@@ -13,6 +13,7 @@ import { Plans } from '@lobechat/types';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   index,
   jsonb,
   pgTable,
@@ -25,6 +26,7 @@ import {
 import { amountNumeric, createdAt, timestamptz, updatedAt } from './_helpers';
 import type { PlanModelRules } from './newapiInstance';
 import { users } from './user';
+import { workspaces } from './workspace';
 
 export const userPlanSnapshots = pgTable(
   'user_plan_snapshots',
@@ -191,11 +193,126 @@ export const creditLedgerEntries = pgTable(
       .where(
         sql`${table.referenceType} = 'video_generation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
       ),
+    uniqueIndex('credit_ledger_entries_module_app_reservation_unique_idx')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'module_app_credit_reservation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
+      ),
+    uniqueIndex('credit_ledger_entries_module_app_workspace_transfer_unique_idx')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'module_app_workspace_transfer' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
+      ),
   ],
 );
 
 export type NewCreditLedgerEntry = typeof creditLedgerEntries.$inferInsert;
 export type CreditLedgerEntryItemRecord = typeof creditLedgerEntries.$inferSelect;
+
+export const workspaceCreditAccounts = pgTable(
+  'workspace_credit_accounts',
+  {
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .primaryKey()
+      .notNull(),
+    balance: amountNumeric('balance').default(0).notNull(),
+    totalCredited: amountNumeric('total_credited').default(0).notNull(),
+    totalDebited: amountNumeric('total_debited').default(0).notNull(),
+    currency: varchar('currency', { length: 16 }).default('CREDITS').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index('workspace_credit_accounts_updated_at_idx').on(table.updatedAt),
+    check('workspace_credit_accounts_balance_nonnegative', sql`${table.balance} >= 0`),
+  ],
+);
+
+export const workspaceCreditLedgerEntries = pgTable(
+  'workspace_credit_ledger_entries',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    type: text('type').$type<'adjustment' | 'consume' | 'funding' | 'refund'>().notNull(),
+    amount: amountNumeric('amount').notNull(),
+    balanceAfter: amountNumeric('balance_after').notNull(),
+    actorUserId: text('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+    title: text('title'),
+    description: text('description'),
+    referenceType: text('reference_type'),
+    referenceId: text('reference_id'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index('workspace_credit_ledger_entries_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+    ),
+    uniqueIndex('workspace_credit_ledger_entries_reference_unique').on(
+      table.workspaceId,
+      table.referenceType,
+      table.referenceId,
+      table.type,
+    ),
+  ],
+);
+
+export const creditReservations = pgTable(
+  'credit_reservations',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    payerScopeType: text('payer_scope_type').$type<'personal' | 'workspace'>().notNull(),
+    payerUserId: text('payer_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    payerWorkspaceId: text('payer_workspace_id').references(() => workspaces.id, {
+      onDelete: 'cascade',
+    }),
+    amount: amountNumeric('amount').notNull(),
+    actualAmount: amountNumeric('actual_amount'),
+    releasedAmount: amountNumeric('released_amount').default(0).notNull(),
+    status: text('status')
+      .$type<'active' | 'expired' | 'released' | 'settled'>()
+      .default('active')
+      .notNull(),
+    idempotencyKey: text('idempotency_key').notNull().unique(),
+    expiresAt: timestamptz('expires_at').notNull(),
+    settlementLedgerEntryId: uuid('settlement_ledger_entry_id'),
+    releaseReason: text('release_reason'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
+    settledAt: timestamptz('settled_at'),
+    releasedAt: timestamptz('released_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index('credit_reservations_user_status_expires_idx').on(
+      table.payerUserId,
+      table.status,
+      table.expiresAt,
+    ),
+    index('credit_reservations_workspace_status_expires_idx').on(
+      table.payerWorkspaceId,
+      table.status,
+      table.expiresAt,
+    ),
+    check('credit_reservations_amount_positive', sql`${table.amount} > 0`),
+    check(
+      'credit_reservations_payer_scope_check',
+      sql`(${table.payerScopeType} = 'personal' AND ${table.payerUserId} IS NOT NULL AND ${table.payerWorkspaceId} IS NULL) OR (${table.payerScopeType} = 'workspace' AND ${table.payerWorkspaceId} IS NOT NULL AND ${table.payerUserId} IS NULL)`,
+    ),
+    check(
+      'credit_reservations_status_check',
+      sql`${table.status} IN ('active', 'expired', 'released', 'settled')`,
+    ),
+  ],
+);
+
+export type CreditReservationItem = typeof creditReservations.$inferSelect;
+export type WorkspaceCreditAccountItem = typeof workspaceCreditAccounts.$inferSelect;
+export type WorkspaceCreditLedgerEntryItem = typeof workspaceCreditLedgerEntries.$inferSelect;
 
 export const topUpOrders = pgTable(
   'top_up_orders',

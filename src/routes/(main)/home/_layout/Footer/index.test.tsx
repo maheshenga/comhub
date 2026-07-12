@@ -1,7 +1,9 @@
 import type * as LobechatConst from '@lobechat/const';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { SWRConfig } from 'swr';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const analyticsTrack = vi.fn();
@@ -36,6 +38,7 @@ interface RenderFooterOptions {
   desktop?: boolean;
   enabled?: boolean;
   mobile?: boolean;
+  publicHelpMenu?: unknown;
   readSlugs?: string[];
   serverConfigInit?: boolean;
 }
@@ -72,6 +75,7 @@ const renderFooter = async ({
   desktop = false,
   enabled = true,
   mobile = false,
+  publicHelpMenu = [],
   readSlugs = [],
   serverConfigInit = true,
 }: RenderFooterOptions = {}) => {
@@ -116,6 +120,34 @@ const renderFooter = async ({
   vi.doMock('@lobehub/analytics/react', () => ({
     useAnalytics: createAnalyticsApi,
   }));
+  const renderMenuLabels = (items?: Array<{ key?: string; label?: ReactNode; type?: string }>) => (
+    <div data-testid="help-menu-items">
+      {(items || []).map((item, index) =>
+        item?.type === 'divider' ? null : (
+          <div key={item?.key || index}>{item?.label}</div>
+        ),
+      )}
+    </div>
+  );
+  vi.doMock('@lobehub/ui', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@lobehub/ui')>();
+
+    return {
+      ...actual,
+      DropdownMenu: ({
+        children,
+        items,
+      }: {
+        children?: ReactNode;
+        items?: Array<{ key?: string; label?: ReactNode; type?: string }>;
+      }) => (
+        <div>
+          {children}
+          {renderMenuLabels(items)}
+        </div>
+      ),
+    };
+  });
   vi.doMock('@/components/ChangelogModal', () => ({
     default: vi.fn(),
     openChangelogModal: vi.fn(),
@@ -220,19 +252,21 @@ const renderFooter = async ({
   }));
   vi.doMock('@/services/adminCommercial', () => ({
     adminCommercialService: {
-      getPublicHelpMenu: vi.fn().mockResolvedValue([]),
+      getPublicHelpMenu: vi.fn().mockResolvedValue(publicHelpMenu),
     },
   }));
 
   const { default: Footer } = await import('./index');
 
   render(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route element={<Footer />} path="/" />
-        <Route element={<div>Agent onboarding route</div>} path="/onboarding/agent" />
-      </Routes>
-    </MemoryRouter>,
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<Footer />} path="/" />
+          <Route element={<div>Agent onboarding route</div>} path="/onboarding/agent" />
+        </Routes>
+      </MemoryRouter>
+    </SWRConfig>,
   );
 };
 
@@ -241,6 +275,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.doUnmock('@lobechat/const');
   vi.doUnmock('@lobehub/analytics/react');
+  vi.doUnmock('@lobehub/ui');
   vi.doUnmock('@/components/ChangelogModal');
   vi.doUnmock('@/components/FeedbackModal');
   vi.doUnmock('@/components/HighlightNotification');
@@ -340,5 +375,23 @@ describe('Footer agent onboarding promotion', () => {
       'href',
       '/settings/plans',
     );
+  });
+
+  it('does not restore default help links when the public help menu is explicitly empty', async () => {
+    await renderFooter({ enabled: false, publicHelpMenu: [] });
+
+    expect(screen.queryByText('Docs')).not.toBeInTheDocument();
+    expect(screen.queryByText('Feedback')).not.toBeInTheDocument();
+    expect(screen.queryByText('Discord')).not.toBeInTheDocument();
+    expect(screen.queryByText('Changelog')).not.toBeInTheDocument();
+  });
+
+  it('uses default help links while the public help menu setting is missing', async () => {
+    await renderFooter({ enabled: false, publicHelpMenu: null });
+
+    expect(screen.getByText('Docs')).toBeInTheDocument();
+    expect(screen.getByText('Feedback')).toBeInTheDocument();
+    expect(screen.getByText('Discord')).toBeInTheDocument();
+    expect(screen.getByText('Changelog')).toBeInTheDocument();
   });
 });

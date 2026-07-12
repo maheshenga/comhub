@@ -27,6 +27,14 @@ on:
         options:
           - 'false'
           - 'true'
+      verify_module_app_full:
+        description: 'Require credentialed Alipay and authenticated staging probes before build'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   actions: write
@@ -42,12 +50,84 @@ env:
   NODEJS_VERSION: '22'
 
 jobs:
+  verify-module-app:
+    name: Verify Module App Production Gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: pnpm
+          node-version: ${{ env.NODEJS_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run required container, PostgreSQL, and Redis gates
+        run: pnpm verify:module-app-production
+
+  verify-module-app-full:
+    name: Verify Module App Credentialed Probes
+    needs: verify-module-app
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_module_app_full == 'true' }}
+    environment: module-app-staging
+    env:
+      MODULE_APP_ALIPAY_APP_ID: ${{ secrets.MODULE_APP_ALIPAY_APP_ID }}
+      MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY: ${{ secrets.MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY }}
+      MODULE_APP_ALIPAY_NOTIFY_URL: ${{ vars.MODULE_APP_ALIPAY_NOTIFY_URL }}
+      MODULE_APP_ALIPAY_PUBLIC_KEY: ${{ secrets.MODULE_APP_ALIPAY_PUBLIC_KEY }}
+      MODULE_APP_ALIPAY_RETURN_URL: ${{ vars.MODULE_APP_ALIPAY_RETURN_URL }}
+      MODULE_APP_ALIPAY_SELLER_ID: ${{ secrets.MODULE_APP_ALIPAY_SELLER_ID }}
+      MODULE_APP_E2E_APP_ID: ${{ vars.MODULE_APP_E2E_APP_ID }}
+      MODULE_APP_E2E_BASE_URL: ${{ vars.MODULE_APP_E2E_BASE_URL }}
+      MODULE_APP_E2E_DENIED_WORKSPACE_ID: ${{ vars.MODULE_APP_E2E_DENIED_WORKSPACE_ID }}
+      MODULE_APP_E2E_PAID_APP_ID: ${{ vars.MODULE_APP_E2E_PAID_APP_ID }}
+      MODULE_APP_E2E_PENDING_APP_ID: ${{ vars.MODULE_APP_E2E_PENDING_APP_ID }}
+      MODULE_APP_E2E_REFUNDED_APP_ID: ${{ vars.MODULE_APP_E2E_REFUNDED_APP_ID }}
+      MODULE_APP_E2E_REVOKED_APP_ID: ${{ vars.MODULE_APP_E2E_REVOKED_APP_ID }}
+      MODULE_APP_E2E_RUN_ID: ${{ vars.MODULE_APP_E2E_RUN_ID }}
+      MODULE_APP_E2E_TEAM_WORKSPACE_ID: ${{ vars.MODULE_APP_E2E_TEAM_WORKSPACE_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: pnpm
+          node-version: ${{ env.NODEJS_VERSION }}
+
+      - name: Install dependencies and browser
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @lobechat/e2e-tests exec playwright install --with-deps chromium
+
+      - name: Run credentialed Alipay and authenticated browser probes
+        run: pnpm verify:module-app-production:full
+
   build:
     name: Build and Push Image
+    needs: [verify-module-app, verify-module-app-full]
+    if: ${{ always() && needs.verify-module-app.result == 'success' && (needs.verify-module-app-full.result == 'success' || needs.verify-module-app-full.result == 'skipped') }}
     runs-on: ubuntu-latest
     outputs:
       image_ref: ${{ steps.image.outputs.image_ref }}
       image_tag: ${{ steps.image.outputs.image_tag }}
+      runtime_image_ref: ${{ steps.image.outputs.runtime_image_ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,22 +160,37 @@ jobs:
 
           sha_tag="sha-${GITHUB_SHA::12}"
           manual_tag="${{ inputs.image_tag || '' }}"
+          runtime_image_name="${IMAGE_NAME}-module-runtime"
 
           tags="${IMAGE_NAME}:${sha_tag}"
+          runtime_tags="${runtime_image_name}:${sha_tag}"
           if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
             tags="${tags}"$'\n'"${IMAGE_NAME}:latest"
+            runtime_tags="${runtime_tags}"$'\n'"${runtime_image_name}:latest"
           fi
           if [ -n "${manual_tag}" ]; then
             tags="${tags}"$'\n'"${IMAGE_NAME}:${manual_tag}"
+            runtime_tags="${runtime_tags}"$'\n'"${runtime_image_name}:${manual_tag}"
           fi
 
           {
             echo "image_tag=${sha_tag}"
             echo "image_ref=${IMAGE_NAME}:${sha_tag}"
+            echo "runtime_image_ref=${runtime_image_name}:${sha_tag}"
             echo "tags<<EOF"
             echo "${tags}"
             echo "EOF"
+            echo "runtime_tags<<EOF"
+            echo "${runtime_tags}"
+            echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve build metadata
+        id: build_meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "build_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -108,8 +203,24 @@ jobs:
           build-args: |
             NODEJS_VERSION=${{ env.NODEJS_VERSION }}
             USE_CN_MIRROR=${{ inputs.use_cn_mirror || 'true' }}
+            COMHUB_COMMIT_SHA=${{ github.sha }}
+            COMHUB_BUILD_BRANCH=${{ github.ref_name }}
+            COMHUB_BUILD_AT=${{ steps.build_meta.outputs.build_at }}
+            COMHUB_IMAGE_TAG=${{ steps.image.outputs.image_tag }}
+            COMHUB_IMAGE_REF=${{ steps.image.outputs.image_ref }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Build and push Module App runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/module-runtime/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.runtime_tags }}
+          cache-from: type=gha,scope=module-runtime
+          cache-to: type=gha,mode=max,scope=module-runtime
 
   deploy:
     name: Deploy Production
@@ -137,14 +248,67 @@ jobs:
           DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
           IMAGE_REF: ${{ needs.build.outputs.image_ref }}
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          REQUIRE_MODULE_RUNTIME: ${{ inputs.verify_module_app_full == 'true' }}
+          RUNTIME_IMAGE_REF: ${{ needs.build.outputs.runtime_image_ref }}
         run: |
           set -euo pipefail
 
           ssh -i ~/.ssh/comhub_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "DEPLOY_DIR='$DEPLOY_DIR' IMAGE_REF='$IMAGE_REF' IMAGE_TAG='$IMAGE_TAG' bash -s" <<'REMOTE_DEPLOY'
+            "DEPLOY_DIR='$DEPLOY_DIR' IMAGE_REF='$IMAGE_REF' IMAGE_TAG='$IMAGE_TAG' REQUIRE_MODULE_RUNTIME='$REQUIRE_MODULE_RUNTIME' RUNTIME_IMAGE_REF='$RUNTIME_IMAGE_REF' bash -s" <<'REMOTE_DEPLOY'
           set -euo pipefail
 
           cd "$DEPLOY_DIR"
+          export COMHUB_MODULE_RUNTIME_IMAGE="$RUNTIME_IMAGE_REF"
+
+          verify_module_runtime() {
+            local runtime_id
+            runtime_id="$(docker compose ps -q module-runtime)"
+            test -n "${runtime_id}"
+            test "$(docker inspect -f '{{.Config.Image}}' "${runtime_id}")" = "$RUNTIME_IMAGE_REF"
+            test "$(docker inspect -f '{{.Config.User}}' "${runtime_id}")" = "10001:10001"
+            test "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' "${runtime_id}")" = "true"
+            docker inspect -f '{{json .HostConfig.SecurityOpt}}' "${runtime_id}" | grep -q no-new-privileges
+            docker inspect -f '{{range .Mounts}}{{if eq .Destination "/runtime/artifacts"}}{{.RW}}{{end}}{{end}}' "${runtime_id}" | grep -qx false
+            docker compose exec -T module-runtime node -e "const http=require('http');http.get('http://127.0.0.1:3210/health',response=>process.exit(response.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+            docker compose exec -T module-runtime node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>process.exit(response.statusCode===503?0:1));request.end('{}')"
+          }
+
+          verify_runtime_auth_boundary() {
+            local probe_name="module-runtime-auth-probe-${IMAGE_TAG}"
+            docker rm -f "$probe_name" >/dev/null 2>&1 || true
+            docker run -d --name "$probe_name" --read-only --tmpfs /tmp:size=16m \
+              -e MODULE_APP_EXECUTION_ENABLED=true \
+              -e MODULE_APP_RUNTIME_INVOCATION_ENABLED=true \
+              -e MODULE_APP_RUNTIME_INTERNAL_TOKEN=deployment-auth-probe \
+              -e 'MODULE_APP_RUNTIME_JWKS={"keys":[]}' \
+              -e MODULE_APP_RUNTIME_NODE22_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+              -e MODULE_APP_RUNTIME_PYTHON312_IMAGE=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+              "$RUNTIME_IMAGE_REF" >/dev/null
+            for attempt in $(seq 1 30); do
+              probe_status="$(docker inspect -f '{{.State.Health.Status}}' "$probe_name")"
+              [ "$probe_status" = "healthy" ] && break
+              [ "$probe_status" = "unhealthy" ] && break
+              sleep 1
+            done
+            if [ "${probe_status:-missing}" != "healthy" ]; then
+              docker logs "$probe_name" || true
+              docker rm -f "$probe_name" >/dev/null 2>&1 || true
+              return 1
+            fi
+            if ! docker exec "$probe_name" node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>process.exit(response.statusCode===401?0:1));request.end('{}')"; then
+              docker logs "$probe_name" || true
+              docker rm -f "$probe_name" >/dev/null 2>&1 || true
+              return 1
+            fi
+            docker rm -f "$probe_name" >/dev/null
+          }
+
+          echo "Disk usage before deploy:"
+          df -h /
+          docker system df || true
+
+          echo "Pruning unused Docker images before pull to protect Redis persistence space..."
+          docker image prune -af || true
 
           if command -v ctr >/dev/null 2>&1; then
             echo "Pre-pulling image through containerd: $IMAGE_REF"
@@ -154,5 +318,61 @@ jobs:
             echo "containerd ctr not found; falling back to deploy.sh docker compose pull"
           fi
 
+          docker pull "$RUNTIME_IMAGE_REF"
+
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ] && ! docker compose config --services | grep -qx module-runtime; then
+            echo "Credentialed deployment requires a configured module-runtime service before traffic switching"
+            exit 1
+          fi
+
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
+            docker compose up -d --no-deps --wait module-runtime
+            verify_module_runtime
+            verify_runtime_auth_boundary
+          fi
+
           COMHUB_IMAGE="$IMAGE_REF" COMHUB_IMAGE_TAG="$IMAGE_TAG" ./deploy.sh "$IMAGE_REF"
+
+          echo "Running post-deploy runtime smoke checks..."
+          for path in / /api/auth/get-session /api/version; do
+            code="$(curl -sS -o /tmp/comhub-smoke.out -w '%{http_code}' "http://127.0.0.1:${COMHUB_PORT:-3213}${path}")"
+            echo "Smoke ${path}: HTTP ${code}"
+            if [ "$code" = "000" ] || [ "$code" -ge 500 ]; then
+              echo "Smoke check failed for ${path}; response preview:"
+              head -c 500 /tmp/comhub-smoke.out || true
+              exit 1
+            fi
+          done
+
+          version_json="$(curl -fsS "http://127.0.0.1:${COMHUB_PORT:-3213}/api/version")"
+          echo "Version evidence: ${version_json}"
+          echo "${version_json}" | grep -q "${IMAGE_TAG}"
+
+          for flag in \
+            MODULE_APP_RUNTIME_INVOCATION_ENABLED \
+            MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED \
+            MODULE_APP_SCHEDULE_DISPATCH_ENABLED \
+            MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED \
+            MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED \
+            MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED \
+            MODULE_APP_PUBLIC_EXECUTION_ENABLED; do
+            value="$(docker compose exec -T lobe printenv "$flag" 2>/dev/null || true)"
+            if [ "${value}" = "true" ]; then
+              echo "Production control ${flag} must remain disabled until full gate evidence exists"
+              exit 1
+            fi
+          done
+
+          if docker compose config --services | grep -qx module-runtime; then
+            verify_module_runtime
+          else
+            echo "module-runtime is not configured; production mutation flags remain disabled"
+          fi
+
+          echo "Pruning unused Docker images after deploy..."
+          docker image prune -af || true
+
+          echo "Disk usage after deploy:"
+          df -h /
+          docker system df || true
           REMOTE_DEPLOY

@@ -231,6 +231,12 @@ const SENSITIVE_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.storageS3SecretAccessKey,
 ]);
 
+const SECRET_LIKE_KEY_NAME_RE =
+  /(?:apiKey|secret|token|password|credential|credentials|accessKey|privateKey)/i;
+
+export const hasSecretLikeAppSettingKeyName = (key: AppSettingKey | string) =>
+  SECRET_LIKE_KEY_NAME_RE.test(key);
+
 const PUBLIC_PREFIXES = [
   'about.',
   'brand.',
@@ -284,8 +290,14 @@ export const APP_SETTING_REGISTRY: Record<AppSettingKey, AppSettingRegistryItem>
     ]),
   ) as Record<AppSettingKey, AppSettingRegistryItem>;
 
+export const listAppSettingRegistryItems = () =>
+  Object.values(APP_SETTING_REGISTRY).sort((a, b) => a.key.localeCompare(b.key));
+
 export const getAppSettingRegistryItem = (key: AppSettingKey | string) =>
   APP_SETTING_REGISTRY[key as AppSettingKey];
+
+export const isKnownAppSettingKey = (key: AppSettingKey | string) =>
+  Boolean(getAppSettingRegistryItem(key));
 
 export const isSensitiveAppSettingKey = (key: AppSettingKey | string) =>
   getAppSettingRegistryItem(key)?.sensitive === true;

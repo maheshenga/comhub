@@ -55,6 +55,7 @@ const iconMap: Record<AdminNavIcon, typeof Gauge> = {
   'orders': ReceiptText,
   'overview': Gauge,
   'plans': Package,
+  'plugins': Plug,
   'ppt': Presentation,
   'pricing': Tags,
   'providers': Plug,

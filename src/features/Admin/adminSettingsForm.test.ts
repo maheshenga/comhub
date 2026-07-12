@@ -4,12 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 
 import {
+  ADMIN_SETTINGS_FORM_SETTING_KEYS,
+  ADMIN_SETTINGS_NON_FORM_SETTING_KEYS,
   buildFormValues,
   buildSettingMaterializationUpdates,
   buildModelOptions,
   buildSettingUpdates,
   getAdminSettingsRefreshKeys,
-  RECOMMENDED_HELP_MENU_ITEMS,
   resolveModelOptionValue,
   resolveModelProviderLabel,
   SETTING_KEYS,
@@ -20,6 +21,21 @@ describe('adminSettingsForm', () => {
     expect(SETTING_KEYS.brandName).toBe('brand.name');
     expect(SETTING_KEYS.desktopDownloadUrl).toBe('desktop.download.url');
     expect(SETTING_KEYS.plansFaqItems).toBe('plans.faq.items');
+  });
+
+  it('classifies every registered app setting as form-managed or explicitly non-form', () => {
+    const allRegisteredKeys = Object.values(SETTING_KEYS).sort();
+    const formKeys = [...ADMIN_SETTINGS_FORM_SETTING_KEYS].sort();
+    const nonFormKeys = [...ADMIN_SETTINGS_NON_FORM_SETTING_KEYS].sort();
+    const nonFormKeySet = new Set<string>(nonFormKeys);
+    const coveredKeys = [...new Set([...formKeys, ...nonFormKeys])].sort();
+
+    expect(formKeys).toEqual([...new Set(formKeys)]);
+    expect(nonFormKeys).toEqual([...new Set(nonFormKeys)]);
+    expect(formKeys.filter((key) => nonFormKeySet.has(key))).toEqual([]);
+    expect(coveredKeys).toEqual(allRegisteredKeys);
+    expect(formKeys).toContain(SETTING_KEYS.brandName);
+    expect(nonFormKeys).toContain(SETTING_KEYS.composioApiKey);
   });
 
   it('builds default model options from enabled provider models and suggestions', () => {
@@ -304,6 +320,34 @@ describe('adminSettingsForm', () => {
       { key: SETTING_KEYS.defaultAgentName, value: '玄果 AI 助手' },
       { key: SETTING_KEYS.defaultAgentAvatar, value: '/images/brand/logo.svg' },
     ]);
+  });
+
+  it('falls back instead of materializing empty default assistant identity', () => {
+    const initial = buildFormValues({
+      brandName: 'ComHub',
+      defaultAgentAvatar: '',
+      defaultAgentName: '',
+      defaultSkillName: '',
+    });
+
+    expect(initial.defaultAgentName).toBe(DEFAULT_COMHUB_AGENT_NAME);
+    expect(initial.defaultAgentAvatar).toBe(DEFAULT_COMHUB_AGENT_AVATAR);
+    expect(initial.defaultSkillName).toBe('ComHub');
+
+    expect(
+      buildSettingMaterializationUpdates({
+        ...initial,
+        defaultAgentAvatar: '',
+        defaultAgentName: '',
+        defaultSkillName: '',
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        { key: SETTING_KEYS.defaultAgentName, value: DEFAULT_COMHUB_AGENT_NAME },
+        { key: SETTING_KEYS.defaultAgentAvatar, value: DEFAULT_COMHUB_AGENT_AVATAR },
+        { key: SETTING_KEYS.defaultSkillName, value: 'ComHub' },
+      ]),
+    );
   });
 
   it('includes default skill name in form values and updates', () => {
@@ -759,7 +803,7 @@ describe('adminSettingsForm', () => {
   });
 
 
-  it('materializes site customization defaults for newly introduced admin settings', () => {
+  it('materializes site customization defaults without restoring explicitly empty help menus', () => {
     const values = buildFormValues({
       brandLoadingText: 'Loading ComHub',
       brandName: 'ComHub',
@@ -772,7 +816,7 @@ describe('adminSettingsForm', () => {
         { key: SETTING_KEYS.brandLoadingText, value: 'Loading ComHub' },
         { key: SETTING_KEYS.sidebarMemberLabel, value: '会员' },
         { key: SETTING_KEYS.sidebarMemberUrl, value: '/settings/plans' },
-        { key: SETTING_KEYS.helpMenuItems, value: RECOMMENDED_HELP_MENU_ITEMS },
+        { key: SETTING_KEYS.helpMenuItems, value: [] },
       ]),
     );
   });

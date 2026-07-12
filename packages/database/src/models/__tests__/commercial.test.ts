@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import {
+  appSettings,
   creditAccounts,
   creditLedgerEntries,
   planCatalog,
@@ -132,6 +133,13 @@ const seedCreditLedger = async (
 beforeEach(async () => {
   await serverDB.delete(users);
   await serverDB.insert(users).values([{ id: userId }]);
+  await serverDB
+    .insert(appSettings)
+    .values({ key: 'pricing.creditMultiplier', value: 1 })
+    .onConflictDoUpdate({
+      set: { updatedAt: new Date(), value: 1 },
+      target: appSettings.key,
+    });
 });
 
 afterEach(async () => {
@@ -145,6 +153,7 @@ afterEach(async () => {
   await serverDB.delete(referralProfiles).where(eq(referralProfiles.userId, userId));
   await serverDB.delete(planCatalog);
   await serverDB.delete(topUpPackages);
+  await serverDB.delete(appSettings).where(eq(appSettings.key, 'pricing.creditMultiplier'));
   await serverDB.delete(users).where(eq(users.id, userId));
 });
 
@@ -656,10 +665,25 @@ describe('CommercialModel', () => {
       await serverDB.delete(topUpPackages);
     });
 
-    it('returns hardcoded defaults when DB is empty', async () => {
+    it('returns an empty list when DB is empty', async () => {
       const packages = await commercialModel.listTopUpPackages();
-      expect(packages.length).toBeGreaterThan(0);
-      expect(packages.some((p) => p.id === 'starter')).toBe(true);
+      expect(packages).toEqual([]);
+    });
+
+    it('returns an empty list when only inactive DB rows exist', async () => {
+      await serverDB.insert(topUpPackages).values({
+        amount: 200,
+        credits: 2000 * CREDITS_PER_DOLLAR,
+        currency: 'USD',
+        displayName: 'Inactive',
+        id: 'pkg-inactive',
+        isActive: false,
+        sortOrder: 0,
+        validityMonths: 12,
+      });
+
+      const packages = await commercialModel.listTopUpPackages();
+      expect(packages).toEqual([]);
     });
 
     it('returns active DB rows ordered by sortOrder', async () => {

@@ -10,17 +10,22 @@ import { useTranslation } from 'react-i18next';
 import { shallow } from 'zustand/shallow';
 
 import Menu from '@/components/Menu';
+import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { DEFAULT_AVATAR, DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { AgentSettings as Settings } from '@/features/AgentSetting';
+import { useBrand } from '@/features/Brand/BrandProvider';
 import { usePermission } from '@/hooks/usePermission';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { ChatSettingsTabs } from '@/store/global/initialState';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
+import { useUserStore } from '@/store/user';
+import { settingsSelectors } from '@/store/user/selectors';
 
 const Content = memo(() => {
   const { t } = useTranslation('setting');
   const theme = useTheme();
+  const brand = useBrand();
   const { allowed: canEdit } = usePermission('edit_own_content');
   const [agentId, isInbox] = useAgentStore(
     (s) => [s.activeAgentId, builtinAgentSelectors.isInboxAgent(s)],
@@ -28,6 +33,7 @@ const Content = memo(() => {
   );
   const config = useAgentStore(agentSelectors.currentAgentConfig, isEqual);
   const meta = useAgentStore(agentSelectors.currentAgentMeta, isEqual);
+  const defaultAgentMeta = useUserStore(settingsSelectors.defaultAgentMeta);
   const { enableAgentSelfIteration } = useServerConfigStore(featureFlagsSelectors);
   const [tab, setTab] = useState(ChatSettingsTabs.Opening);
 
@@ -86,7 +92,12 @@ const Content = memo(() => {
     [availableTabs, t],
   );
 
-  const displayTitle = isInbox ? 'Lobe AI' : meta.title || t('defaultSession', { ns: 'common' });
+  const displayTitle = isInbox
+    ? defaultAgentMeta.title || brand.name || DEFAULT_COMHUB_AGENT_NAME
+    : meta.title || t('defaultSession', { ns: 'common' });
+  const displayAvatar = isInbox
+    ? defaultAgentMeta.avatar || brand.logoUrl || DEFAULT_INBOX_AVATAR
+    : meta.avatar || DEFAULT_AVATAR;
 
   return (
     <Flexbox
@@ -119,7 +130,7 @@ const Content = memo(() => {
           }}
         >
           <Avatar
-            avatar={isInbox ? DEFAULT_INBOX_AVATAR : meta.avatar || DEFAULT_AVATAR}
+            avatar={displayAvatar}
             background={meta.backgroundColor || undefined}
             shape={'square'}
             size={28}
@@ -142,7 +153,7 @@ const Content = memo(() => {
         paddingInline={64}
         style={{ overflow: 'scroll', width: '100%' }}
       >
-        {activeTab && (
+        {activeTab ? (
           <Settings
             config={config}
             disabled={!canEdit}
@@ -153,6 +164,15 @@ const Content = memo(() => {
             onConfigChange={updateAgentConfig}
             onMetaChange={updateAgentMeta}
           />
+        ) : (
+          <Flexbox align="center" flex={1} gap={8} justify="center" style={{ textAlign: 'center' }}>
+            <Text weight={500}>
+              {t('agentTab.empty.title', { defaultValue: '暂无可配置项' })}
+            </Text>
+            <Text type="secondary">
+              {t('agentTab.empty.desc', { defaultValue: '默认 AI 当前没有开放的进阶配置。' })}
+            </Text>
+          </Flexbox>
         )}
       </Flexbox>
     </Flexbox>

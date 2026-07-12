@@ -7,6 +7,7 @@ import {
   assertCommercialChatBudget,
   assertCommercialMinimumBudget,
   estimateCommercialChatCredits,
+  quoteCommercialAiUsage,
   recordCommercialAiUsage,
   recordCommercialChatUsage,
 } from './commercialBilling';
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   getAiProviderById: vi.fn(),
   getCreditAccountSummary: vi.fn(),
   getServerGlobalConfig: vi.fn(),
+  quoteCreditsForAiUsage: vi.fn(),
 }));
 
 vi.mock('@/database/models/aiProvider', () => ({
@@ -33,6 +35,7 @@ vi.mock('@/database/models/commercial', () => ({
     consumeCreditsForAiUsage: mocks.consumeCreditsForAiUsage,
     consumeCreditsForChatUsage: mocks.consumeCreditsForChatUsage,
     getCreditAccountSummary: mocks.getCreditAccountSummary,
+    quoteCreditsForAiUsage: mocks.quoteCreditsForAiUsage,
   })),
 }));
 
@@ -212,6 +215,42 @@ describe('recordCommercialChatUsage', () => {
     ]);
     mocks.consumeCreditsForAiUsage.mockResolvedValue({ id: 'ledger-1' });
     mocks.consumeCreditsForChatUsage.mockResolvedValue({ id: 'ledger-1' });
+    mocks.quoteCreditsForAiUsage.mockResolvedValue({
+      amount: 338,
+      creditsPerDollar: 1000,
+      matchedPricingRule: null,
+      pricingMultiplier: 1.35,
+      usdCost: 0.25,
+    });
+  });
+
+  it('quotes commercial AI usage without writing a ledger entry', async () => {
+    const result = await quoteCommercialAiUsage({
+      db: {} as any,
+      model: 'gpt-test',
+      provider: 'openai',
+      usage: { cost: 0.25, totalInputTokens: 100, totalOutputTokens: 50 },
+      usageType: 'chat',
+      userId: 'user-1',
+    });
+
+    expect(mocks.quoteCreditsForAiUsage).toHaveBeenCalledWith({
+      model: 'gpt-test',
+      provider: 'openai',
+      routeMetadata: undefined,
+      usage: { cost: 0.25 },
+    });
+    expect(mocks.consumeCreditsForAiUsage).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      credits: 338,
+      costSource: 'gateway',
+      pricing: {
+        creditsPerDollar: 1000,
+        matchedPricingRule: null,
+        multiplier: 1.35,
+      },
+      usdCost: 0.25,
+    });
   });
 
   it('should trust positive gateway cost and record gateway costSource', async () => {

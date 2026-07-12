@@ -664,6 +664,28 @@ describe('DiscoverService', () => {
           }),
         );
       });
+
+      it('should replace placeholder MCP detail labels with readable fallbacks', async () => {
+        mockMarket.plugins.getPluginDetail.mockResolvedValue({
+          category: 'tools',
+          description: ' ',
+          identifier: 'mcp-1',
+          name: 'UN',
+        });
+
+        const result = await service.getMcpDetail({
+          identifier: 'mcp-1',
+        });
+
+        expect(result).toEqual(
+          expect.objectContaining({
+            description: '内容暂不可用',
+            identifier: 'mcp-1',
+            name: 'mcp-1',
+            related: expect.any(Array),
+          }),
+        );
+      });
     });
   });
 

@@ -27,6 +27,8 @@
       "@/locales/*": ["./packages/locales/src/*", "./src/locales/*"],
       "@/business/server/*": ["./packages/business-server/src/*", "./src/business/server/*"],
       "@/server/*": ["./apps/server/src/*", "./src/server/*"],
+      "@lobechat/types": ["./packages/types/src/index.ts"],
+      "@lobechat/types/*": ["./packages/types/src/*"],
       "@/*": ["./src/*"],
       "~test-utils": ["./tests/utils.tsx"]
     },

@@ -47,6 +47,8 @@ type MaintenanceResult = {
   auditCutoff?: string;
   auditLogsDeleted?: number;
   freeSnapshotsCreated?: number;
+  moduleAppUploadCleanupFailed?: number;
+  moduleAppUploadsExpired?: number;
   notificationRetentionCutoff?: string;
   notificationsDeleted?: number;
   pendingOrdersCutoff?: string;
@@ -304,6 +306,8 @@ const AdminSystemMaintenancePage = memo(() => {
           <div>归档通知清理时间点：{runResult?.notificationRetentionCutoff ?? '-'}</div>
           <div>已过期订阅快照：{runResult?.subscriptionSnapshotsExpired ?? 0}</div>
           <div>已补充免费套餐：{runResult?.freeSnapshotsCreated ?? 0}</div>
+          <div>已清理模块应用上传：{runResult?.moduleAppUploadsExpired ?? 0}</div>
+          <div>模块应用上传清理失败：{runResult?.moduleAppUploadCleanupFailed ?? 0}</div>
         </Flexbox>
       </Modal>
     </Flexbox>

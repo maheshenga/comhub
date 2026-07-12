@@ -90,6 +90,7 @@ describe('initModelRuntimeFromDB newapi routing', () => {
 
   it('should resolve newapi route by user plan and pass primary route metadata into hooks', async () => {
     const db = { id: 'db' } as any;
+    const onRouteResolved = vi.fn();
     const primaryRoute = {
       apiKey: 'sk-pro',
       baseUrl: 'https://newapi.example.com/v1',
@@ -107,6 +108,7 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
       model: 'gpt-test',
       modelType: 'chat',
+      onRouteResolved,
     });
 
     expect(mocks.resolveNewapiInstancesForModel).toHaveBeenCalledWith(db, {
@@ -126,6 +128,9 @@ describe('initModelRuntimeFromDB newapi routing', () => {
         providerType: 'newapi',
       },
       undefined,
+    );
+    expect(onRouteResolved).toHaveBeenCalledWith(
+      expect.objectContaining({ instanceId: 'instance-pro', providerType: 'newapi' }),
     );
     expect(mocks.createLLMGenerationTracingHook).toHaveBeenCalledWith(
       'user-1',
@@ -282,6 +287,7 @@ describe('initModelRuntimeFromDB newapi routing', () => {
 
   it('should preserve billing and tracing hooks when retrying on a fallback instance', async () => {
     const db = { id: 'db' } as any;
+    const onRouteResolved = vi.fn();
     const primaryChat = vi.fn().mockRejectedValue({ statusCode: 503 });
     const fallbackChat = vi.fn().mockResolvedValue({ text: 'ok' });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -324,6 +330,7 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     const runtime = await initModelRuntimeFromDB(db, 'user-1', 'newapi', {
       model: 'gpt-test',
       modelType: 'chat',
+      onRouteResolved,
       workspaceId: 'workspace-1',
     });
 
@@ -334,6 +341,9 @@ describe('initModelRuntimeFromDB newapi routing', () => {
     ).resolves.toEqual({ text: 'ok' });
 
     expect(fallbackChat).toHaveBeenCalledTimes(1);
+    expect(onRouteResolved).toHaveBeenLastCalledWith(
+      expect.objectContaining({ instanceId: 'instance-fallback', providerType: 'deepseek' }),
+    );
     expect(mocks.getBusinessModelRuntimeHooks).toHaveBeenLastCalledWith(
       'user-1',
       'newapi',

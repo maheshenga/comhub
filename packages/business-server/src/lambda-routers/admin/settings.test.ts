@@ -1,14 +1,15 @@
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import type { TRPCError } from '@trpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
+import { invalidateServerBrand } from '@/server/services/brand';
+import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
   getAllEnabledModels,
   invalidateNewapiInstancesCache,
@@ -19,6 +20,7 @@ import { recordAdminAudit } from './audit';
 import {
   adminSettingsRouter,
   buildUserGlobalSettingsSyncValues,
+  syncUserGlobalSettingsDefaultsToUserSettings,
   validateDefaultAgentModelUsability,
 } from './settings';
 
@@ -29,6 +31,14 @@ vi.mock('@/database/core/db-adaptor', () => ({
 vi.mock('@/server/services/newapiInstance', () => ({
   getAllEnabledModels: vi.fn(),
   invalidateNewapiInstancesCache: vi.fn(),
+}));
+
+vi.mock('@/server/services/brand', () => ({
+  invalidateServerBrand: vi.fn(),
+}));
+
+vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
+  ModuleAppPackageLifecycleService: vi.fn(),
 }));
 
 vi.mock('@/server/modules/S3', () => ({
@@ -54,10 +64,12 @@ const createDb = ({
   appSettings = [],
   appSettingsMany = [],
   modelRules = null,
+  role = 'admin',
 }: {
   appSettings?: Array<{ value: unknown } | null>;
   appSettingsMany?: Array<{ key: string; value: unknown }>;
   modelRules?: any;
+  role?: string | null;
 } = {}) => {
   const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
   const values = vi.fn(() => ({
@@ -85,7 +97,7 @@ const createDb = ({
         }),
       },
       users: {
-        findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        findFirst: vi.fn().mockResolvedValue({ banned: false, role }),
       },
     },
   } as any;
@@ -105,6 +117,12 @@ describe('admin settings default model validation', () => {
       expiredSnapshots: 0,
       freeSnapshotsCreated: 0,
     });
+    vi.mocked(ModuleAppPackageLifecycleService).mockImplementation(
+      () =>
+        ({
+          cleanupExpiredUploads: vi.fn().mockResolvedValue({ expired: 3, failed: 1 }),
+        }) as any,
+    );
   });
 
   afterEach(() => {
@@ -300,6 +318,22 @@ describe('admin settings default model validation', () => {
     expect(settings.pricingCreditMultiplier).toBe(DEFAULT_PRICING_CREDIT_MULTIPLIER);
   });
 
+  it('persists home messenger enabled as a boolean brand setting', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    await caller.setAppSetting({
+      key: APP_SETTING_KEYS.homeMessengerEnabled,
+      value: false,
+    });
+
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.homeMessengerEnabled,
+      value: false,
+    });
+  });
+
   it('returns enabled managed models with their runtime provider ids', async () => {
     vi.mocked(getAllEnabledModels).mockResolvedValue([
       {
@@ -324,6 +358,93 @@ describe('admin settings default model validation', () => {
         provider: 'toapi',
       }),
     );
+  });
+
+  it('distinguishes missing and explicitly empty public help menu settings', async () => {
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    vi.mocked(getServerDB).mockResolvedValue(createDb());
+    await expect(caller.getPublicHelpMenu()).resolves.toBeNull();
+
+    vi.mocked(getServerDB).mockResolvedValue(createDb({ appSettings: [{ value: [] }] }));
+    await expect(caller.getPublicHelpMenu()).resolves.toEqual([]);
+  });
+
+  it('returns app settings governance without exposing persisted values', async () => {
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.brandName, value: 'ComHub' },
+        { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: 'admin-secret-key' },
+        { key: 'legacy.unknown.key', value: 'legacy-value' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.getGovernance();
+
+    expect(result.summary.unknownCount).toBe(1);
+    expect(result.summary.sensitiveConfiguredCount).toBe(1);
+    expect(result.unknownKeys).toEqual([{ key: 'legacy.unknown.key' }]);
+    expect(result.sensitiveConfiguredKeys).toEqual([
+      expect.objectContaining({ key: APP_SETTING_KEYS.storageS3SecretAccessKey }),
+    ]);
+    expect(JSON.stringify(result)).not.toContain('admin-secret-key');
+    expect(JSON.stringify(result)).not.toContain('legacy-value');
+  });
+
+  it('deletes unknown app setting keys with exact confirmation and audit log', async () => {
+    const where = vi.fn(() => ({
+      returning: vi.fn().mockResolvedValue([{ key: 'legacy.unknown.key' }]),
+    }));
+    const db = {
+      delete: vi.fn(() => ({ where })),
+      query: {
+        users: { findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'system_admin' }) },
+      },
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
+        confirmKey: 'legacy.unknown.key',
+        key: 'legacy.unknown.key',
+      }),
+    ).resolves.toEqual({ deleted: true, key: 'legacy.unknown.key' });
+
+    expect(db.delete).toHaveBeenCalled();
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'settings.deleteUnknown',
+        resourceId: 'legacy.unknown.key',
+        resourceType: 'app_setting',
+      }),
+    );
+  });
+
+  it('rejects deleting registered app setting keys', async () => {
+    const db = createDb({ role: 'system_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
+        confirmKey: APP_SETTING_KEYS.brandName,
+        key: APP_SETTING_KEYS.brandName,
+      }),
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+  });
+
+  it('rejects unknown setting cleanup when confirmation does not match', async () => {
+    const db = createDb({ role: 'system_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
+        confirmKey: 'wrong',
+        key: 'legacy.unknown.key',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('returns public desktop update display fields for client download entries', async () => {
@@ -351,7 +472,9 @@ describe('admin settings default model validation', () => {
     const settings = await caller.getPublicDesktopUpdate();
 
     expect(settings).toMatchObject({
+      autoCheck: true,
       channel: 'canary',
+      checkIntervalMinutes: 30,
       currentVersion: '0.1.0-canary.6',
       downloadLabel: 'Download Qingyou Desktop',
       downloadUrl: 'https://comhubs.oss-cn-shanghai.aliyuncs.com/canary/0.1.0-canary.6/LobeHub.exe',
@@ -366,6 +489,62 @@ describe('admin settings default model validation', () => {
       releaseNotes: '- Fix auto update',
       serverUrl: 'https://comhubs.oss-cn-shanghai.aliyuncs.com',
     });
+    expect(Object.keys(settings).sort()).toEqual([
+      'autoCheck',
+      'channel',
+      'checkIntervalMinutes',
+      'currentVersion',
+      'downloadLabel',
+      'downloadUrl',
+      'loginConfig',
+      'releaseNotes',
+      'serverUrl',
+    ]);
+    expect(Object.keys(settings.loginConfig).sort()).toEqual([
+      'cloudButtonLabel',
+      'description',
+      'footerText',
+      'logoUrl',
+      'title',
+      'windowTitle',
+    ]);
+  });
+
+  it('does not expose sensitive desktop OSS settings through public desktop config', async () => {
+    const db = createDb({
+      appSettings: [
+        { value: 'https://updates.example.com' },
+        { value: 'stable' },
+        { value: true },
+        { value: 60 },
+        { value: 'https://downloads.example.com/app.exe' },
+        { value: 'Download Desktop' },
+        { value: '1.0.0' },
+        { value: 'Release notes' },
+        { value: 'Desktop' },
+        { value: '/logo.png' },
+        { value: 'Sign in' },
+        { value: 'Connect your account.' },
+        { value: 'Sign in to Cloud' },
+        { value: 'Copyright' },
+      ],
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.desktopOssAccessKeyId, value: 'desktop-oss-access-key' },
+        { key: APP_SETTING_KEYS.desktopOssAccessKeySecret, value: 'desktop-oss-secret-key' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const settings = await caller.getPublicDesktopUpdate();
+    const serialized = JSON.stringify(settings);
+
+    expect(settings).toMatchObject({
+      downloadUrl: 'https://downloads.example.com/app.exe',
+      serverUrl: 'https://updates.example.com',
+    });
+    expect(serialized).not.toContain('desktop-oss-access-key');
+    expect(serialized).not.toContain('desktop-oss-secret-key');
   });
 
   it('rejects non-positive global pricing multipliers', async () => {
@@ -396,18 +575,51 @@ describe('admin settings default model validation', () => {
 
     expect(result).toEqual({
       ok: true,
-      refreshed: ['app-settings', 'newapi-instances', 's3-runtime'],
+      refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
     });
     expect(invalidateFileS3RuntimeCache).toHaveBeenCalledTimes(1);
     expect(invalidateNewapiInstancesCache).toHaveBeenCalledTimes(1);
+    expect(invalidateServerBrand).toHaveBeenCalledTimes(1);
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         action: 'settings.refreshRuntimeCaches',
-        payload: { refreshed: ['app-settings', 'newapi-instances', 's3-runtime'] },
+        payload: {
+          operation: 'refreshRuntimeCaches',
+          refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
+          requestedDomains: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
+          results: [
+            { domain: 'app-settings', status: 'refreshed' },
+            { domain: 'newapi-instances', status: 'refreshed' },
+            { domain: 's3-runtime', status: 'refreshed' },
+            { domain: 'brand', status: 'refreshed' },
+          ],
+          status: 'success',
+        },
         resourceType: 'app_setting',
       }),
     );
+  });
+
+  it('allows scoped system admins to refresh runtime caches', async () => {
+    const db = createDb({ role: 'system_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).refreshRuntimeCaches(),
+    ).resolves.toEqual({
+      ok: true,
+      refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
+    });
+  });
+
+  it('rejects finance admins from refreshing runtime caches', async () => {
+    const db = createDb({ role: 'finance_admin' });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'finance-user' } as any).refreshRuntimeCaches(),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('cleans archived notifications during maintenance using the configured retention days', async () => {
@@ -452,7 +664,26 @@ describe('admin settings default model validation', () => {
 
     expect(result.notificationsDeleted).toBe(2);
     expect(result.notificationRetentionCutoff).toBeTruthy();
+    expect(result.moduleAppUploadsExpired).toBe(3);
+    expect(result.moduleAppUploadCleanupFailed).toBe(1);
     expect(deleteMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('can skip module app upload cleanup during manual maintenance', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .runMaintenance({
+        skipAudit: true,
+        skipModuleAppUploads: true,
+        skipNotifications: true,
+        skipOrders: true,
+      });
+
+    expect(result).not.toHaveProperty('moduleAppUploadsExpired');
+    expect(ModuleAppPackageLifecycleService).not.toHaveBeenCalled();
   });
 
   it('returns public notification config with channel defaults and system action metadata', async () => {
@@ -870,12 +1101,226 @@ describe('admin settings default model validation', () => {
       expect.objectContaining({
         action: 'settings.syncUserDefaults',
         payload: {
+          operation: 'syncUserGlobalSettingsDefaultsToUsers',
+          scope: { forceDefaultAgentMeta: false, target: 'all-users' },
+          status: 'success',
           syncedFields: ['languageModel', 'systemAgent', 'tool'],
           syncedUsers: 2,
         },
         resourceType: 'user_settings',
       }),
     );
+  });
+
+  it('records explicit force-sync when admin overwrites user default assistant meta', async () => {
+    const defaults = {
+      defaultAgent: {
+        config: { model: 'gpt-5.5', provider: 'newapi' },
+        meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+      },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }]);
+    const selectSettingsWhere = vi.fn().mockResolvedValue([
+      {
+        defaultAgent: {
+          config: { model: 'old-model', provider: 'old-provider' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    const selectSettingsFrom = vi.fn(() => ({ where: selectSettingsWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: selectUsersFrom })
+      .mockReturnValueOnce({ from: selectSettingsFrom });
+    const db = {
+      insert,
+      query: {
+        appSettings: {
+          findFirst: vi.fn().mockResolvedValue({ value: defaults }),
+        },
+        planCatalog: {
+          findFirst: vi.fn().mockResolvedValue({ modelRules: null, plan: Plans.Free }),
+        },
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      select,
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.syncUserGlobalSettingsDefaultsToUsers({
+      forceDefaultAgentMeta: true,
+    });
+
+    expect(result).toEqual({
+      forceDefaultAgentMeta: true,
+      ok: true,
+      syncedFields: ['defaultAgent'],
+      syncedUsers: 1,
+    });
+    expect(values).toHaveBeenCalledWith([
+      {
+        defaultAgent: {
+          config: { model: 'gpt-5.5', provider: 'newapi' },
+          meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'settings.syncUserDefaults',
+        payload: {
+          forceDefaultAgentMeta: true,
+          operation: 'syncUserGlobalSettingsDefaultsToUsers',
+          scope: { forceDefaultAgentMeta: true, target: 'all-users' },
+          status: 'success',
+          syncedFields: ['defaultAgent'],
+          syncedUsers: 1,
+        },
+        resourceType: 'user_settings',
+      }),
+    );
+  });
+
+  it('preserves user-customized default assistant meta when syncing default agent config', async () => {
+    const defaults = {
+      defaultAgent: { config: { model: 'gpt-5.5', provider: 'newapi' } },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]);
+    const selectSettingsWhere = vi.fn().mockResolvedValue([
+      {
+        defaultAgent: {
+          config: { model: 'old-model', provider: 'old-provider' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    const selectSettingsFrom = vi.fn(() => ({ where: selectSettingsWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: selectUsersFrom })
+      .mockReturnValueOnce({ from: selectSettingsFrom });
+    const db = { insert, select } as any;
+
+    await expect(syncUserGlobalSettingsDefaultsToUserSettings(db, defaults)).resolves.toEqual({
+      syncedFields: ['defaultAgent'],
+      syncedUsers: 2,
+    });
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        defaultAgent: {
+          config: { model: 'gpt-5.5', provider: 'newapi' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+      {
+        defaultAgent: { config: { model: 'gpt-5.5', provider: 'newapi' } },
+        id: 'user-2',
+      },
+    ]);
+    expect(onConflictDoUpdate).toHaveBeenCalledWith({
+      set: {
+        defaultAgent: expect.anything(),
+      },
+      target: expect.anything(),
+    });
+  });
+
+  it('preserves user default assistant meta when default agent meta sync is not forced', async () => {
+    const defaults = {
+      defaultAgent: {
+        config: { model: 'gpt-5.5', provider: 'newapi' },
+        meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+      },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }]);
+    const selectSettingsWhere = vi.fn().mockResolvedValue([
+      {
+        defaultAgent: {
+          config: { model: 'old-model', provider: 'old-provider' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    const selectSettingsFrom = vi.fn(() => ({ where: selectSettingsWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: selectUsersFrom })
+      .mockReturnValueOnce({ from: selectSettingsFrom });
+    const db = { insert, select } as any;
+
+    await syncUserGlobalSettingsDefaultsToUserSettings(db, defaults);
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        defaultAgent: {
+          config: { model: 'gpt-5.5', provider: 'newapi' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+  });
+
+  it('overwrites user default assistant meta when admin sync explicitly forces meta', async () => {
+    const defaults = {
+      defaultAgent: {
+        config: { model: 'gpt-5.5', provider: 'newapi' },
+        meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+      },
+    };
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const selectUsersFrom = vi.fn().mockResolvedValue([{ id: 'user-1' }]);
+    const selectSettingsWhere = vi.fn().mockResolvedValue([
+      {
+        defaultAgent: {
+          config: { model: 'old-model', provider: 'old-provider' },
+          meta: { avatar: '/avatars/custom.png', title: 'Custom assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
+    const selectSettingsFrom = vi.fn(() => ({ where: selectSettingsWhere }));
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ from: selectUsersFrom })
+      .mockReturnValueOnce({ from: selectSettingsFrom });
+    const db = { insert, select } as any;
+
+    await syncUserGlobalSettingsDefaultsToUserSettings(db, defaults, {
+      forceDefaultAgentMeta: true,
+    });
+
+    expect(values).toHaveBeenCalledWith([
+      {
+        defaultAgent: {
+          config: { model: 'gpt-5.5', provider: 'newapi' },
+          meta: { avatar: '/avatars/admin.png', title: 'Admin assistant' },
+        },
+        id: 'user-1',
+      },
+    ]);
   });
 
   it('rejects syncing saved user defaults when enabled input completion model is unavailable', async () => {

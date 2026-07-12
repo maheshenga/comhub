@@ -1,0 +1,69 @@
+name: comhub-module-app-verification
+
+services:
+  module-app-postgres:
+    image: paradedb/paradedb@sha256:f7061b0311ecffcbe33c673f632431cfc1f4e908a52461f525a677589dc37393
+    environment:
+      POSTGRES_DB: module_app_test
+      POSTGRES_PASSWORD: module_app_test
+      POSTGRES_USER: module_app_test
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U module_app_test -d module_app_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      - '${MODULE_APP_TEST_POSTGRES_PORT:-55432}:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  module-app-redis:
+    image: redis:7.4.5-alpine3.21
+    command: ['redis-server', '--appendonly', 'no', '--save', '']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      - '${MODULE_APP_TEST_REDIS_PORT:-56379}:6379'
+    tmpfs:
+      - /data
+
+  module-runtime:
+    build:
+      context: ../..
+      dockerfile: apps/module-runtime/Dockerfile
+    image: '${COMHUB_MODULE_RUNTIME_IMAGE:-comhub-module-runtime:local}'
+    cap_drop:
+      - ALL
+    environment:
+      MODULE_APP_EXECUTION_ENABLED: '${MODULE_APP_EXECUTION_ENABLED:-false}'
+      MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT: '${MODULE_APP_ARTIFACT_ROOT:-/tmp/comhub-module-app-artifacts}'
+      MODULE_APP_RUNTIME_INTERNAL_TOKEN: '${MODULE_APP_RUNTIME_INTERNAL_TOKEN:-}'
+      MODULE_APP_RUNTIME_INVOCATION_ENABLED: '${MODULE_APP_RUNTIME_INVOCATION_ENABLED:-false}'
+      MODULE_APP_RUNTIME_JWKS: '${MODULE_APP_RUNTIME_JWKS:-}'
+      MODULE_APP_RUNTIME_NODE22_IMAGE: '${MODULE_APP_RUNTIME_NODE22_IMAGE:-}'
+      MODULE_APP_RUNTIME_PYTHON312_IMAGE: '${MODULE_APP_RUNTIME_PYTHON312_IMAGE:-}'
+    group_add:
+      - '${MODULE_APP_DOCKER_GID:-0}'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://127.0.0.1:3210/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    profiles: ['runtime']
+    read_only: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    user: '10001:10001'
+    volumes:
+      - '${MODULE_APP_ARTIFACT_ROOT:-/tmp/comhub-module-app-artifacts}:/runtime/artifacts:ro'
+      - /var/run/docker.sock:/var/run/docker.sock

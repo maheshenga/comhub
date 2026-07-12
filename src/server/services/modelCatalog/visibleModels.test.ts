@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildModelCatalog,
+  getModelCatalogDuplicateModelGroups,
   getModelCatalogHealth,
+  resolveModelCatalogModelDisplayName,
+  resolveModelCatalogProviderDisplayName,
   resolveVisibleAiProviderRuntimeState,
 } from './visibleModels';
 
@@ -70,5 +73,74 @@ describe('visible model catalog', () => {
       totalCount: 3,
       visibleCount: 2,
     });
+  });
+
+  it('resolves readable provider and model display names without exposing UUID providers', () => {
+    const catalog = buildModelCatalog({
+      state: {
+        ...createState(),
+        enabledAiModels: [
+          {
+            displayName: 'DeepSeek V4 Pro',
+            enabled: true,
+            id: 'deepseek-v4-pro',
+            instanceName: 'ToAPI',
+            providerId: '757e1732-8478-4c93-a4dd-1e17489a9c48',
+            type: 'chat',
+          },
+          {
+            enabled: true,
+            id: 'deepseek-chat',
+            providerId: '757e1732-8478-4c93-a4dd-1e17489a9c48',
+            type: 'chat',
+          },
+        ],
+      } as any,
+    });
+
+    expect(resolveModelCatalogProviderDisplayName(catalog[0])).toBe('ToAPI');
+    expect(resolveModelCatalogModelDisplayName(catalog[0])).toBe('DeepSeek V4 Pro');
+    expect(resolveModelCatalogProviderDisplayName(catalog[1])).toBe('Custom provider');
+    expect(resolveModelCatalogModelDisplayName(catalog[1])).toBe('deepseek-chat');
+  });
+
+  it('groups duplicate model IDs across provider instances by type and model ID', () => {
+    const catalog = buildModelCatalog({
+      state: {
+        ...createState(),
+        enabledAiModels: [
+          {
+            enabled: true,
+            id: 'deepseek-chat',
+            instanceName: 'ToAPI',
+            providerId: 'toapi',
+            type: 'chat',
+          },
+          {
+            enabled: true,
+            id: 'deepseek-chat',
+            providerId: 'siliconflow',
+            providerType: 'SiliconFlow',
+            type: 'chat',
+          },
+          {
+            enabled: true,
+            id: 'deepseek-chat',
+            providerId: 'image-provider',
+            type: 'image',
+          },
+        ],
+      } as any,
+    });
+
+    expect(getModelCatalogDuplicateModelGroups(catalog)).toEqual([
+      {
+        count: 2,
+        key: 'chat:deepseek-chat',
+        modelId: 'deepseek-chat',
+        providers: ['ToAPI', 'SiliconFlow'],
+        type: 'chat',
+      },
+    ]);
   });
 });

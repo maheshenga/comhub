@@ -6,7 +6,7 @@ import { Rnd } from 'react-rnd';
 import { useBusinessModelPricingPrefetch } from '@/business/client/hooks/useBusinessModelPricing';
 import { useEnabledChatModels } from '@/hooks/useEnabledChatModels';
 import { useUserStore } from '@/store/user';
-import { userGeneralSettingsSelectors } from '@/store/user/slices/settings/selectors/general';
+import { userGeneralSettingsSelectors } from '@/store/user/selectors';
 import type { EnabledProviderWithModels } from '@/types/aiProvider';
 
 import { DEFAULT_WIDTH, ENABLE_RESIZING, MAX_WIDTH, MIN_WIDTH } from '../const';
@@ -56,7 +56,7 @@ export const PanelContent: FC<PanelContentProps> = ({
       <List
         ModelItemComponent={ModelItemComponent}
         enabledList={enabledList}
-        groupMode={isDevMode ? groupMode : 'byModel'}
+        groupMode={groupMode}
         model={modelProp}
         pricingMode={pricingMode}
         provider={providerProp}

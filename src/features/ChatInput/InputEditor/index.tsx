@@ -182,7 +182,6 @@ const InputEditor = memo<{
   const { allowed: canCreateContent } = usePermission('create_content');
   const hotkey = useUserStore(settingsSelectors.getHotkeyById(HotkeyEnum.AddUserMessage));
   const { enableScope, disableScope } = useHotkeysContext();
-
   const { compositionProps, isComposingRef } = useIMECompositionEvent();
 
   const shouldSendOnEnter = useEnterToSend();
@@ -469,26 +468,29 @@ const InputEditor = memo<{
     return `<mention name="${mention.label}" id="${mention.metadata.id}" />`;
   }, []);
 
-  const mentionOnSelect = useCallback((editor: any, option: any) => {
-    if (option.metadata?.type === 'topic') {
-      editor.dispatchCommand(INSERT_REFER_TOPIC_COMMAND, {
-        topicId: option.metadata.topicId as string,
-        topicTitle: String(option.metadata.topicTitle ?? option.label),
-      });
-    } else if (option.metadata?.type === 'skill' || option.metadata?.type === 'tool') {
-      const payload: InsertActionTagPayload = {
-        category: option.metadata.actionCategory as 'skill' | 'tool',
-        label: String(option.label),
-        type: String(option.metadata.actionType),
-      };
-      editor.dispatchCommand(INSERT_ACTION_TAG_COMMAND, payload);
-    } else {
-      editor.dispatchCommand(INSERT_MENTION_COMMAND, {
-        label: String(option.label),
-        metadata: option.metadata,
-      });
-    }
-  }, []);
+  const mentionOnSelect = useCallback(
+    (editor: any, option: any) => {
+      if (option.metadata?.type === 'topic') {
+        editor.dispatchCommand(INSERT_REFER_TOPIC_COMMAND, {
+          topicId: option.metadata.topicId as string,
+          topicTitle: String(option.metadata.topicTitle ?? option.label),
+        });
+      } else if (option.metadata?.type === 'skill' || option.metadata?.type === 'tool') {
+        const payload: InsertActionTagPayload = {
+          category: option.metadata.actionCategory as 'skill' | 'tool',
+          label: String(option.label),
+          type: String(option.metadata.actionType),
+        };
+        editor.dispatchCommand(INSERT_ACTION_TAG_COMMAND, payload);
+      } else {
+        editor.dispatchCommand(INSERT_MENTION_COMMAND, {
+          label: String(option.label),
+          metadata: option.metadata,
+        });
+      }
+    },
+    [],
+  );
 
   const mentionOption = useMemo(
     () =>
