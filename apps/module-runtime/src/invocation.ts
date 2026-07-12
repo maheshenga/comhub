@@ -55,15 +55,18 @@ const getRuntimeImages = (): RuntimeImages => {
 
 export class ContainerModuleAppLauncher implements ModuleAppRuntimeLauncher {
   private readonly artifactRoot: string;
+  private readonly dockerArtifactRoot: string;
   private readonly engine: ModuleAppContainerEngine;
   private readonly images: RuntimeImages;
 
   constructor(options: {
     artifactRoot?: string;
+    dockerArtifactRoot?: string;
     engine?: ModuleAppContainerEngine;
     images?: RuntimeImages;
   } = {}) {
     this.artifactRoot = options.artifactRoot ?? MODULE_APP_RUNTIME_ARTIFACT_ROOT;
+    this.dockerArtifactRoot = options.dockerArtifactRoot ?? this.artifactRoot;
     this.engine = options.engine ?? new DockerCliModuleAppContainerEngine();
     this.images = options.images ?? getRuntimeImages();
   }
@@ -77,7 +80,7 @@ export class ContainerModuleAppLauncher implements ModuleAppRuntimeLauncher {
     }
 
     const result = await this.engine.run({
-      artifactDirectory,
+      artifactDirectory: path.resolve(this.dockerArtifactRoot, input.artifactSha256),
       containerName: `module-app-${input.invocationId}`,
       entry: relativeEntry.replaceAll('\\', '/'),
       imageDigest: this.images[input.runtime],

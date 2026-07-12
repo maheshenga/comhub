@@ -1,0 +1,8 @@
+**
+!apps/module-runtime/src/**
+!apps/module-runtime/docker/orchestrator-package.json
+!apps/module-runtime/docker/orchestrator-package-lock.json
+!packages/observability-otel/src/modules/module-app/index.ts
+!packages/types/src/moduleAppData.ts
+!packages/types/src/moduleAppRuntime.ts
+!packages/types/src/moduleAppWorkflow.ts

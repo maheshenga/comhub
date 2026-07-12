@@ -103,15 +103,24 @@ const serveRuntimeAsset = async (
 export const createModuleAppRuntimeServer = (options: {
   artifactRoot?: string;
   internalToken: string;
-  invoker: ModuleAppRuntimeInvoker;
+  invocationEnabled?: boolean;
+  invoker?: ModuleAppRuntimeInvoker;
   runtimeJwks: string;
   verifyCapability?: typeof verifyRuntimeCapability;
 }) => {
-  if (!options.internalToken.trim() || !options.runtimeJwks.trim()) {
+  const invocationEnabled = options.invocationEnabled ?? true;
+  if (
+    invocationEnabled &&
+    (!options.internalToken.trim() || !options.runtimeJwks.trim() || !options.invoker)
+  ) {
     throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
   }
 
   return createServer(async (request, response) => {
+    if (request.method === 'GET' && request.url === '/health') {
+      sendJson(response, 200, { status: 'ok' });
+      return;
+    }
     if (
       await serveRuntimeAsset(
         request,
@@ -123,6 +132,10 @@ export const createModuleAppRuntimeServer = (options: {
     }
     if (request.method !== 'POST' || request.url !== '/v1/invocations') {
       sendNotFound(response);
+      return;
+    }
+    if (!invocationEnabled) {
+      sendJson(response, 503, { error: 'MODULE_APP_RUNTIME_INVOCATION_DISABLED' });
       return;
     }
     if (request.headers.authorization !== `Bearer ${options.internalToken}`) {
@@ -137,7 +150,7 @@ export const createModuleAppRuntimeServer = (options: {
         options.runtimeJwks,
         { artifactSha256: input.artifactSha256 },
       );
-      sendJson(response, 200, await options.invoker.invoke(input));
+      sendJson(response, 200, await options.invoker!.invoke(input));
     } catch (error) {
       const code = error instanceof Error ? error.message : 'MODULE_APP_RUNTIME_FAILED';
       sendJson(response, 400, { error: code });
@@ -146,17 +159,23 @@ export const createModuleAppRuntimeServer = (options: {
 };
 
 export const startModuleAppRuntimeServerFromEnv = () => {
-  if (process.env.MODULE_APP_EXECUTION_ENABLED !== 'true') {
-    throw new Error('MODULE_APP_EXECUTION_DISABLED');
-  }
-  const internalToken = process.env.MODULE_APP_RUNTIME_INTERNAL_TOKEN;
-  const runtimeJwks = process.env.MODULE_APP_RUNTIME_JWKS;
-  if (!internalToken || !runtimeJwks) throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
+  const invocationEnabled =
+    process.env.MODULE_APP_EXECUTION_ENABLED === 'true' &&
+    process.env.MODULE_APP_RUNTIME_INVOCATION_ENABLED === 'true';
 
   const server = createModuleAppRuntimeServer({
-    internalToken,
-    invoker: new ModuleAppRuntimeInvoker({ launcher: new FixedProcessModuleAppLauncher() }),
-    runtimeJwks,
+    internalToken: process.env.MODULE_APP_RUNTIME_INTERNAL_TOKEN ?? '',
+    invocationEnabled,
+    invoker: invocationEnabled
+      ? new ModuleAppRuntimeInvoker({
+          launcher: new FixedProcessModuleAppLauncher({
+            dockerArtifactRoot:
+              process.env.MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT ??
+              MODULE_APP_RUNTIME_ARTIFACT_ROOT,
+          }),
+        })
+      : undefined,
+    runtimeJwks: process.env.MODULE_APP_RUNTIME_JWKS ?? '',
   });
   server.listen(Number(process.env.PORT ?? 3210), '0.0.0.0');
   return server;

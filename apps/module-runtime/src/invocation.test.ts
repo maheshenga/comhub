@@ -47,6 +47,7 @@ describe('ModuleAppRuntimeInvoker', () => {
     };
     const launcher = new ContainerModuleAppLauncher({
       artifactRoot: '/runtime/artifacts',
+      dockerArtifactRoot: '/srv/comhub/module-app-artifacts',
       engine,
       images: {
         node22: `ghcr.io/comhub/module-app-node22@sha256:${'b'.repeat(64)}`,
@@ -59,7 +60,10 @@ describe('ModuleAppRuntimeInvoker', () => {
     });
     expect(engine.run).toHaveBeenCalledWith(
       expect.objectContaining({
-        artifactDirectory: path.resolve('/runtime/artifacts', request.artifactSha256),
+        artifactDirectory: path.resolve(
+          '/srv/comhub/module-app-artifacts',
+          request.artifactSha256,
+        ),
         containerName: `module-app-${request.invocationId}`,
         entry: request.entry,
         runtime: 'node22',

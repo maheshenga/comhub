@@ -67,6 +67,12 @@ describe('buildDockerRunArgs', () => {
       buildDockerRunArgs({ ...input, imageDigest: 'ghcr.io/comhub/module-app-node22:latest' }),
     ).toThrow('MODULE_APP_RUNTIME_IMAGE_INVALID');
   });
+
+  it('accepts an immutable local Docker image id for verification probes', () => {
+    expect(
+      buildDockerRunArgs({ ...input, imageDigest: `sha256:${'c'.repeat(64)}` }),
+    ).toContain(`sha256:${'c'.repeat(64)}`);
+  });
 });
 
 describe('DockerCliModuleAppContainerEngine', () => {

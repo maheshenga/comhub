@@ -2,12 +2,20 @@
 
 ## 2026-07-12
 
+### Module App Production Verification Gates
+
+- MODULE-APP-VERIFY-001: Added required real-container probes for fixed Node 22 and Python 3.12 images, non-root UID, disabled network, read-only artifacts, writable bounded tmpfs, CPU/memory/PID limits, process exhaustion, bounded logs, malformed JSON, path traversal, timeout, and cleanup.
+- MODULE-APP-VERIFY-002: Added reproducible PostgreSQL and Redis Compose services plus a fail-closed verification runner. The current core gate passed 5 real-container tests, 6 Redis lease tests, and 8 PostgreSQL gateway/payment/Publisher/payout integration tests.
+- MODULE-APP-VERIFY-003: Added a production-shaped runtime orchestrator image with a 202.5 KB bundled service, Docker CLI, UID/GID 10001, read-only root filesystem, no added capabilities, `no-new-privileges`, read-only artifact mount, Docker socket access, health check, and disabled-invocation 503 behavior. The built image is 67,614,869 bytes and its Docker build context is approximately 1.5 KB after caching.
+- MODULE-APP-VERIFY-004: Added CI core gates, explicit credentialed probes, Alipay sandbox probes, authenticated browser fixture scenarios, runtime image publication, conditional production runtime preflight/smoke assertions, and required-environment validation. The current credentialed probes do not yet cover a complete live notification/refund/reconciliation lifecycle or user-triggered install/action flow. Alipay sandbox, authenticated browser E2E, and staging blue-green deploy/rollback evidence were not run locally because credentials, fixture IDs, staging URL/session, and production SSH environment are unavailable.
+- Release boundary: all production mutation flags remain disabled. Core Docker/PostgreSQL/Redis evidence is complete, but production readiness must not be claimed until the credentialed Alipay, browser, and staging deployment gates pass.
+
 ### Module App Production Controls And Observability
 
 - MODULE-APP-OPS-001: Added independent fail-closed controls for sandbox invocation, privileged workflow executors, schedule dispatch, public execution, Alipay payment creation, verified-notification settlement, and Publisher payout recording. Read, query, reconciliation, refund-status, and audit paths remain available when mutation controls are disabled.
 - MODULE-APP-OPS-002: Added bounded application and Publisher rollout allowlists resolved from server-owned installation, order, application, and payout records. Empty allowlists deny production mutations; browser input cannot select rollout identity.
 - MODULE-APP-OPS-003: Added OpenTelemetry metrics for sandbox result and latency, timeout, OOM, cleanup failure, replay rejection, workflow backlog, payment verification failure, discrepancy/refund age, and payout state. Attributes use fixed enums only and omit application, Publisher, order, run, and invocation identifiers.
-- Verification status: focused environment, controls, observability, runtime client, sandbox engine/lease, router, workflow, payment, payout, webhook, and model tests plus root type-check passed. Production remains disabled pending real Node/Python container probes, required PostgreSQL/Redis CI services, Alipay sandbox, browser E2E, and staging blue-green deployment evidence.
+- Verification status: focused environment, controls, observability, runtime client, sandbox engine/lease, router, workflow, payment, payout, webhook, and model tests plus root type-check passed. Required real Node/Python container, PostgreSQL, Redis, and orchestrator smoke gates now pass. Production remains disabled pending credentialed Alipay sandbox, browser E2E, and staging blue-green deployment evidence.
 
 ### Module App Purchase And Usage UX
 

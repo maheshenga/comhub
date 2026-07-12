@@ -373,11 +373,11 @@ export interface ModuleAppPaymentAdapter {
 - Modify: `docs/FEATURE_REGISTRY.md`
 - Modify: `docs/CHANGELOG_INTERNAL.md`
 
-- [ ] Emit bounded metrics for sandbox invocation count, latency, timeout, OOM, cleanup failure, replay rejection, workflow backlog, payment verification failure, reconciliation discrepancy age, refund age, and payout state.
-- [ ] Add independent flags for runtime invocation, privileged workflow executors, schedule dispatch, Alipay payment creation, Alipay automatic settlement, publisher payout recording, and public execution.
-- [ ] Ensure disabled flags stop new mutations but keep read, query, refund-status, reconciliation, and audit paths available.
-- [ ] Add allowlist checks for the initial runtime and publisher rollout.
-- [ ] Commit: `feat: add module app production controls`
+- [x] Emit bounded metrics for sandbox invocation count, latency, timeout, OOM, cleanup failure, replay rejection, workflow backlog, payment verification failure, reconciliation discrepancy age, refund age, and payout state.
+- [x] Add independent flags for runtime invocation, privileged workflow executors, schedule dispatch, Alipay payment creation, Alipay automatic settlement, publisher payout recording, and public execution.
+- [x] Ensure disabled flags stop new mutations but keep read, query, refund-status, reconciliation, and audit paths available.
+- [x] Add allowlist checks for the initial runtime and publisher rollout.
+- [x] Commit: `feat: add module app production controls`
 
 ## Task 11: Runtime And Payment Verification Gates
 
@@ -388,8 +388,8 @@ export interface ModuleAppPaymentAdapter {
 - Modify: `.github/workflows/comhub-deploy.yml`
 - Modify: runtime Docker and deployment files.
 
-- [ ] Add real-container probes for Node and Python fixtures, path traversal, forbidden network, process/PID exhaustion, memory limit, CPU limit, log flood, malformed JSON, timeout, and cleanup.
-- [ ] Add PostgreSQL and Redis integration setup that is reproducible in CI; do not silently skip required gates when environment variables are absent.
+- [x] Add real-container probes for Node and Python fixtures, path traversal, forbidden network, process/PID exhaustion, memory limit, CPU limit, log flood, malformed JSON, timeout, and cleanup.
+- [x] Add PostgreSQL and Redis integration setup that is reproducible in CI; do not silently skip required gates when environment variables are absent.
 - [ ] Add Alipay sandbox E2E for payment creation, return-page polling, verified notification, duplicate notification, refund, delayed query, and reconciliation discrepancy.
 - [ ] Add browser E2E for install, launch, executable action, workflow progress, team scope, denied workspace, revoked license, payment pending, paid confirmation, and refund state.
 - [ ] Add deployment smoke checks for runtime health, artifact mount, internal authorization, feature flags, blue-green switch, rollback, and `/api/version` evidence.

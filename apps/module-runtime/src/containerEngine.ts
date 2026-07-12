@@ -100,7 +100,7 @@ const defaultRunner: DockerRunner = {
 };
 
 export const buildDockerRunArgs = (input: ModuleAppContainerRunInput) => {
-  if (!/^.+@sha256:[a-f0-9]{64}$/.test(input.imageDigest)) {
+  if (!/^(?:sha256:|.+@sha256:)[a-f0-9]{64}$/.test(input.imageDigest)) {
     throw new Error('MODULE_APP_RUNTIME_IMAGE_INVALID');
   }
 

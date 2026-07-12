@@ -7,7 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ModuleAppRuntimeInvoker } from './invocation';
-import { createModuleAppRuntimeServer, isModuleAppRuntimeMain } from './server';
+import {
+  createModuleAppRuntimeServer,
+  isModuleAppRuntimeMain,
+  startModuleAppRuntimeServerFromEnv,
+} from './server';
 
 const createInvoker = () =>
   new ModuleAppRuntimeInvoker({
@@ -47,6 +51,88 @@ afterEach(async () => {
 });
 
 describe('createModuleAppRuntimeServer', () => {
+  it('exposes a secret-free health check without invocation authorization', async () => {
+    const server = createModuleAppRuntimeServer({
+      internalToken: 'internal-token',
+      invoker: createInvoker(),
+      runtimeJwks: '{"keys":[]}',
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('test_server_address_missing');
+
+    try {
+      const response = await requestServer(`http://127.0.0.1:${address.port}/health`);
+      expect(response.status).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({ status: 'ok' });
+      expect(response.body).not.toContain('internal-token');
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it('keeps health available while invocation mutations are disabled', async () => {
+    const launcher = { invoke: vi.fn() };
+    const server = createModuleAppRuntimeServer({
+      internalToken: '',
+      invocationEnabled: false,
+      invoker: new ModuleAppRuntimeInvoker({ launcher }),
+      runtimeJwks: '',
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('test_server_address_missing');
+
+    try {
+      const health = await requestServer(`http://127.0.0.1:${address.port}/health`);
+      expect(health.status).toBe(200);
+      const invocation = await requestServer(
+        `http://127.0.0.1:${address.port}/v1/invocations`,
+        { body: '{}', method: 'POST' },
+      );
+      expect(invocation.status).toBe(503);
+      expect(JSON.parse(invocation.body)).toEqual({
+        error: 'MODULE_APP_RUNTIME_INVOCATION_DISABLED',
+      });
+      expect(launcher.invoke).not.toHaveBeenCalled();
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it('starts a health-only server without runtime credentials or images when disabled', async () => {
+    vi.stubEnv('MODULE_APP_EXECUTION_ENABLED', 'false');
+    vi.stubEnv('MODULE_APP_RUNTIME_INVOCATION_ENABLED', 'false');
+    vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_TOKEN', '');
+    vi.stubEnv('MODULE_APP_RUNTIME_JWKS', '');
+    vi.stubEnv('MODULE_APP_RUNTIME_NODE22_IMAGE', '');
+    vi.stubEnv('MODULE_APP_RUNTIME_PYTHON312_IMAGE', '');
+    vi.stubEnv('PORT', '0');
+
+    let server: ReturnType<typeof startModuleAppRuntimeServerFromEnv> | undefined;
+    try {
+      server = startModuleAppRuntimeServerFromEnv();
+      await new Promise<void>((resolve) => server!.once('listening', resolve));
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('test_server_address_missing');
+
+      const response = await requestServer(`http://127.0.0.1:${address.port}/health`);
+      expect(response.status).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({ status: 'ok' });
+    } finally {
+      vi.unstubAllEnvs();
+      if (server) {
+        await new Promise<void>((resolve, reject) =>
+          server!.close((error) => (error ? reject(error) : resolve())),
+        );
+      }
+    }
+  });
+
   it.each([
     { internalToken: '', runtimeJwks: '{"keys":[]}' },
     { internalToken: 'internal-token', runtimeJwks: '' },

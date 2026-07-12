@@ -918,6 +918,15 @@
 - Maintenance risk: high. A real payment adapter and verified publisher ownership are still pending. Production Module App execution remains disabled, and pending orders must not be presented as paid.
 - Test coverage: revenue arithmetic, idempotent accrual/reversal, settlement eligibility, transaction rollback, admin route permissions/contracts, BillingEditor messaging, and CommerceTable selection are covered by focused tests. Browser-level finance workflow and migration-on-production rehearsal remain required before release.
 
+#### Module App Production Verification
+
+- Status: experimental, production mutations disabled.
+- Core gate: `bun run verify:module-app-production` provisions isolated PostgreSQL and Redis services, runs required real Node/Python container probes, executes shared-state and database integration tests, builds the runtime orchestrator, and verifies non-root execution, Docker access, read-only artifacts, health, and disabled invocation behavior.
+- Runtime deployment boundary: the orchestrator image contains Node, Docker CLI, and a bundled runtime server only. It uses UID/GID 10001, a read-only root filesystem, dropped capabilities, `no-new-privileges`, bounded tmpfs, a read-only artifact mount, and an operator-supplied Docker socket group. Docker socket access is a privileged deployment boundary even when the orchestrator itself is non-root.
+- Credentialed probes: `bun run verify:module-app-production:full` requires Alipay sandbox credentials, all browser fixture IDs including an allowed team workspace, an authenticated staging session, and a staging base URL. Missing values or an unauthenticated session fail instead of silently skipping. These probes are not yet a complete live payment-lifecycle or user-triggered install/action acceptance gate.
+- Evidence: real-container 5/5, Redis 6/6, and PostgreSQL gateway/payment/Publisher/payout 8/8 passed locally. The runtime image built at 67,614,869 bytes with a KB-scale context and passed Compose health, UID, socket, and artifact-mount checks.
+- Remaining release blockers: live Alipay notification/refund/reconciliation evidence, authenticated browser install/runtime/workflow/team/license/payment scenarios, and staging blue-green switch/rollback smoke evidence. Runtime invocation, privileged workflow, schedule dispatch, Alipay mutation, payout recording, and public execution flags must remain disabled until those gates pass.
+
 ## 待人工确认清单
 
 | 项目 | 需要确认的问题 | 建议动作 |
