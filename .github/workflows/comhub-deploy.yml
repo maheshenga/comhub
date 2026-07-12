@@ -65,11 +65,10 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          cache: pnpm
           node-version: ${{ env.NODEJS_VERSION }}
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run required container, PostgreSQL, and Redis gates
         run: pnpm verify:module-app-production
@@ -108,12 +107,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          cache: pnpm
           node-version: ${{ env.NODEJS_VERSION }}
 
       - name: Install dependencies and browser
         run: |
-          pnpm install --frozen-lockfile
+          pnpm install --no-frozen-lockfile
           pnpm --filter @lobechat/e2e-tests exec playwright install --with-deps chromium
 
       - name: Run credentialed Alipay and authenticated browser probes
