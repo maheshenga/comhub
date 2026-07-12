@@ -10,6 +10,7 @@ import {
   moduleAppPackages,
   moduleAppPackageUploads,
   moduleAppPages,
+  moduleAppPublishers,
   moduleApps,
   moduleAppVersions,
   users,
@@ -53,12 +54,34 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppPages);
   await serverDB.delete(moduleAppVersions);
   await serverDB.delete(moduleApps);
+  await serverDB.delete(moduleAppPublishers);
   await serverDB.delete(users);
   await serverDB.insert(users).values([{ id: DEVELOPER_ID }, { id: ADMIN_ID }]);
 });
 
 describe('ModuleAppModel executable package approval', () => {
   it('queues a build and keeps a reviewed executable app unpublished', async () => {
+    const [publisher] = await serverDB
+      .insert(moduleAppPublishers)
+      .values({
+        displayName: 'Approval Developer',
+        status: 'verified',
+        userId: DEVELOPER_ID,
+      })
+      .returning();
+    const [ownedApp] = await serverDB
+      .insert(moduleApps)
+      .values({
+        appType: 'hybrid_app',
+        category: 'business',
+        description: 'Executable approval test.',
+        displayName: 'Executable Approval',
+        icon: 'Package',
+        publisherId: publisher.id,
+        slug: 'executable-approval',
+        status: 'draft',
+      })
+      .returning();
     const [packageRow] = await serverDB
       .insert(moduleAppPackages)
       .values({
@@ -96,7 +119,12 @@ describe('ModuleAppModel executable package approval', () => {
     });
 
     expect(result.build).toMatchObject({ status: 'queued', sourceSha256: 'a'.repeat(64) });
-    expect(await serverDB.query.moduleApps.findFirst()).toMatchObject({ status: 'draft' });
+    expect(result.appId).toBe(ownedApp.id);
+    expect(await serverDB.query.moduleApps.findFirst()).toMatchObject({
+      publisherId: publisher.id,
+      status: 'draft',
+    });
+    expect(result.package).toMatchObject({ publisherId: publisher.id });
     expect(await serverDB.query.moduleAppVersions.findFirst()).toMatchObject({
       runtimeManifest: expect.objectContaining({ manifestVersion: 2 }),
       version: '2.1.0',

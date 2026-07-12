@@ -2,7 +2,9 @@ import {
   moduleAppAdminUpsertSchema,
   moduleAppBillingConfigSchema,
   moduleAppPackageReviewStatusSchema,
+  moduleAppPayoutStatusSchema,
   moduleAppPlanEntitlementSchema,
+  moduleAppPublisherStatusSchema,
   moduleAppStatusSchema,
 } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
@@ -10,6 +12,8 @@ import { z } from 'zod';
 
 import { ModuleAppModel } from '@/database/models/moduleApp';
 import { ModuleAppPaymentModel } from '@/database/models/moduleAppPayment';
+import { ModuleAppPayoutModel } from '@/database/models/moduleAppPayout';
+import { ModuleAppPublisherModel } from '@/database/models/moduleAppPublisher';
 import type { LobeChatDatabase } from '@/database/type';
 import { appEnv } from '@/envs/app';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
@@ -85,6 +89,52 @@ const ListRevenueInputSchema = z
 const SettleRevenueBatchInputSchema = z.object({
   entryIds: z.array(z.string().uuid()).min(1).max(500),
 });
+const PublisherIdInputSchema = z.object({ publisherId: z.string().uuid() });
+const CreatePublisherInputSchema = z.object({
+  displayName: z.string().trim().min(1).max(200),
+  recipientMask: z.string().trim().min(3).max(200).refine((value) => value.includes('*')).optional(),
+  userId: z.string().trim().min(1).max(255),
+});
+const VerifyPublisherInputSchema = PublisherIdInputSchema.extend({
+  verificationMetadata: z
+    .record(z.string().max(80), z.unknown())
+    .refine((value) => Object.keys(value).length <= 50)
+    .optional(),
+});
+const AssignPublisherInputSchema = AppIdInputSchema.extend({
+  publisherId: z.string().uuid(),
+});
+const ListPublishersInputSchema = z
+  .object({
+    cursor: z.number().int().min(0).default(0),
+    limit: z.number().int().min(1).max(200).default(50),
+    status: moduleAppPublisherStatusSchema.optional(),
+  })
+  .optional()
+  .default({});
+const CreatePayoutBatchInputSchema = PublisherIdInputSchema.extend({
+  requestedAmount: z.number().finite().positive().max(1_000_000_000_000),
+  revenueEntryIds: z.array(z.string().uuid()).min(1).max(500),
+});
+const PayoutBatchIdInputSchema = z.object({ batchId: z.string().uuid() });
+const TransitionPayoutBatchInputSchema = PayoutBatchIdInputSchema.extend({
+  failureReason: z.string().trim().min(1).max(1000).optional(),
+  status: moduleAppPayoutStatusSchema.exclude(['paid']),
+});
+const RecordManualAlipayPayoutInputSchema = PayoutBatchIdInputSchema.extend({
+  evidenceReference: z.string().trim().min(1).max(1000),
+  recipientMask: z.string().trim().min(3).max(200).refine((value) => value.includes('*')),
+  transactionNo: z.string().trim().min(1).max(240),
+});
+const ListPayoutsInputSchema = z
+  .object({
+    cursor: z.number().int().min(0).default(0),
+    limit: z.number().int().min(1).max(200).default(50),
+    publisherId: z.string().uuid().optional(),
+    status: moduleAppPayoutStatusSchema.optional(),
+  })
+  .optional()
+  .default({});
 
 const PagesInputSchema = z.object({
   appId: z.string().uuid(),
@@ -177,6 +227,19 @@ const mapPublishError = (error: unknown) => {
 };
 
 export const adminModuleAppsRouter = router({
+  assignPublisher: contentWriteProcedure
+    .input(AssignPublisherInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppPublisherModel(ctx.serverDB).assignApplication(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.publisher_assigned',
+        metadata: { appId: input.appId },
+        resourceId: input.publisherId,
+        resourceType: 'moduleAppPublisher',
+      });
+      return result;
+    }),
+
   acknowledgePaymentDiscrepancy: financeWriteProcedure
     .input(PaymentDiscrepancyIdInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -185,6 +248,36 @@ export const adminModuleAppsRouter = router({
         eventType: 'module_app.payment_discrepancy_acknowledged',
         resourceId: input.discrepancyId,
         resourceType: 'moduleAppPaymentDiscrepancy',
+      });
+      return result;
+    }),
+
+  createPayoutBatch: financeWriteProcedure
+    .input(CreatePayoutBatchInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppPayoutModel(ctx.serverDB).createEligibleBatch(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.payout_created',
+        metadata: {
+          publisherId: input.publisherId,
+          requestedAmount: input.requestedAmount,
+          revenueEntryIds: input.revenueEntryIds,
+        },
+        resourceId: result.id,
+        resourceType: 'moduleAppPayout',
+      });
+      return result;
+    }),
+
+  createPublisher: contentWriteProcedure
+    .input(CreatePublisherInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppPublisherModel(ctx.serverDB).createPublisher(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.publisher_created',
+        metadata: { userId: input.userId },
+        resourceId: result.id,
+        resourceType: 'moduleAppPublisher',
       });
       return result;
     }),
@@ -206,6 +299,16 @@ export const adminModuleAppsRouter = router({
     return new ModuleAppModel(ctx.serverDB).listAdminApps(input);
   }),
 
+  listPayouts: auditReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
+    return new ModuleAppPayoutModel(ctx.serverDB).listPayouts(input);
+  }),
+
+  listPublishers: auditReadProcedure
+    .input(ListPublishersInputSchema)
+    .query(async ({ ctx, input }) => {
+      return new ModuleAppPublisherModel(ctx.serverDB).listPublishers(input);
+    }),
+
   listRevenue: auditReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppRevenueService(ctx.serverDB).listRevenue(input);
   }),
@@ -220,6 +323,27 @@ export const adminModuleAppsRouter = router({
         ctx.serverDB,
         createConfiguredModuleAppAlipayClient(),
       ).reconcilePendingPayments(input);
+    }),
+
+  recordManualAlipayPayout: financeWriteProcedure
+    .input(RecordManualAlipayPayoutInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppPayoutModel(ctx.serverDB).recordManualAlipayPayout({
+        actorUserId: ctx.userId,
+        ...input,
+      });
+      await writeAudit(ctx, {
+        eventType: 'module_app.payout_paid',
+        metadata: {
+          evidenceReference: input.evidenceReference,
+          recipientMask: input.recipientMask,
+          totalAmount: result.totalAmount,
+          transactionNo: input.transactionNo,
+        },
+        resourceId: input.batchId,
+        resourceType: 'moduleAppPayout',
+      });
+      return result;
     }),
 
   refundOrder: financeWriteProcedure.input(RefundOrderInputSchema).mutation(async ({ ctx, input }) => {
@@ -287,6 +411,31 @@ export const adminModuleAppsRouter = router({
         actorUserId: ctx.userId,
         entryIds: input.entryIds,
       });
+    }),
+
+  suspendPublisher: contentWriteProcedure
+    .input(PublisherIdInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppPublisherModel(ctx.serverDB).suspendPublisher(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.publisher_suspended',
+        resourceId: input.publisherId,
+        resourceType: 'moduleAppPublisher',
+      });
+      return result;
+    }),
+
+  transitionPayoutBatch: financeWriteProcedure
+    .input(TransitionPayoutBatchInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppPayoutModel(ctx.serverDB).transitionBatch(input);
+      await writeAudit(ctx, {
+        eventType: `module_app.payout_${input.status}`,
+        metadata: { failureReason: input.failureReason },
+        resourceId: input.batchId,
+        resourceType: 'moduleAppPayout',
+      });
+      return result;
     }),
 
   getPackage: auditReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {
@@ -506,4 +655,16 @@ export const adminModuleAppsRouter = router({
 
     return result;
   }),
+
+  verifyPublisher: contentWriteProcedure
+    .input(VerifyPublisherInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppPublisherModel(ctx.serverDB).verifyPublisher(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.publisher_verified',
+        resourceId: input.publisherId,
+        resourceType: 'moduleAppPublisher',
+      });
+      return result;
+    }),
 });

@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
-import { moduleAppOrders, moduleAppPackages, moduleAppRevenueEntries } from '@/database/schemas';
+import {
+  moduleAppOrders,
+  moduleAppPublishers,
+  moduleAppRevenueEntries,
+  moduleApps,
+} from '@/database/schemas';
 import type { LobeChatDatabase, Transaction } from '@/database/type';
 
 import { writeModuleAppAuditLog } from './audit';
@@ -92,16 +97,15 @@ export class ModuleAppRevenueService {
         where: and(eq(moduleAppOrders.id, orderId), eq(moduleAppOrders.status, 'paid')),
       });
       if (!order) throw new Error('MODULE_APP_REVENUE_ORDER_NOT_PAID');
-      const approvedPackage = publisherUserId
-        ? null
-        : await tx.query.moduleAppPackages.findFirst({
-            orderBy: desc(moduleAppPackages.createdAt),
-            where: and(
-              eq(moduleAppPackages.appId, order.appId),
-              eq(moduleAppPackages.reviewStatus, 'approved'),
-            ),
-          });
-      const resolvedPublisherUserId = publisherUserId ?? approvedPackage?.submittedByUserId ?? null;
+      const app = await tx.query.moduleApps.findFirst({
+        where: eq(moduleApps.id, order.appId),
+      });
+      const publisher = app?.publisherId
+        ? await tx.query.moduleAppPublishers.findFirst({
+            where: eq(moduleAppPublishers.id, app.publisherId),
+          })
+        : null;
+      const resolvedPublisherUserId = publisher?.userId ?? publisherUserId ?? null;
       const gross = Number(order.snapshot.price);
       const revenueShareRate = String(order.snapshot.revenueShareRate ?? '0');
       const platformRate = String(roundMoney(1 - parseRate(revenueShareRate, 'SHARE_RATE')));
@@ -116,6 +120,7 @@ export class ModuleAppRevenueService {
           metadata: { platformRate, refundableReserveRate, revenueShareRate },
           orderId,
           platformFee: calculated.platformFee,
+          publisherId: publisher?.id,
           publisherUserId: resolvedPublisherUserId,
           reserveAmount: calculated.reserve,
           type: 'accrual',
@@ -157,6 +162,7 @@ export class ModuleAppRevenueService {
           metadata: { accrualEntryId: accrual.id, reason },
           orderId,
           platformFee: -accrual.platformFee,
+          publisherId: accrual.publisherId,
           publisherUserId: accrual.publisherUserId,
           reserveAmount: -accrual.reserveAmount,
           status: 'reversed',

@@ -337,13 +337,13 @@ export interface ModuleAppPaymentAdapter {
 - Modify: `packages/business-server/src/module-apps/revenue.ts`
 - Modify: `packages/business-server/src/lambda-routers/admin/moduleApps.ts`
 
-- [ ] Add Publisher verification and suspension transitions with admin-only mutation permissions.
-- [ ] Link applications and approved packages to a stable publisher ID; preserve historical revenue publisher snapshots.
-- [ ] Replace fallback publisher inference for new revenue accruals while keeping legacy rows readable.
-- [ ] Add payout batch and payout entry transitions: `pending`, `eligible`, `processing`, `paid`, `failed`, `reversed`.
-- [ ] Add manual Alipay payout record with masked recipient metadata, amount, transaction number, evidence reference, actor, and audit event.
-- [ ] Enforce unique payout transaction identity and prevent payout above eligible unsettled revenue.
-- [ ] Commit: `feat: add module app publisher operations`
+- [x] Add Publisher verification and suspension transitions with admin-only mutation permissions.
+- [x] Link applications and approved packages to a stable publisher ID; preserve historical revenue publisher snapshots.
+- [x] Replace fallback publisher inference for new revenue accruals while keeping legacy rows readable.
+- [x] Add payout batch and payout entry transitions: `pending`, `eligible`, `processing`, `paid`, `failed`, `reversed`.
+- [x] Add manual Alipay payout record with masked recipient metadata, amount, transaction number, evidence reference, actor, and audit event.
+- [x] Enforce unique payout transaction identity and prevent payout above eligible unsettled revenue.
+- [x] Commit: `feat: add module app publisher operations`
 
 ## Task 9: Admin Read Models And Pagination
 

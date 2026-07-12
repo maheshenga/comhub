@@ -42,6 +42,21 @@ const moduleAppPaymentModelMocks = vi.hoisted(() => ({
   listDiscrepancies: vi.fn(),
 }));
 
+const moduleAppPublisherMocks = vi.hoisted(() => ({
+  assignApplication: vi.fn(),
+  createPublisher: vi.fn(),
+  listPublishers: vi.fn(),
+  suspendPublisher: vi.fn(),
+  verifyPublisher: vi.fn(),
+}));
+
+const moduleAppPayoutMocks = vi.hoisted(() => ({
+  createEligibleBatch: vi.fn(),
+  listPayouts: vi.fn(),
+  recordManualAlipayPayout: vi.fn(),
+  transitionBatch: vi.fn(),
+}));
+
 const mockAppEnv = vi.hoisted(() => ({ MODULE_APP_ALIPAY_ENABLED: true }));
 const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
 
@@ -64,6 +79,14 @@ vi.mock('@/database/models/moduleApp', () => ({
 
 vi.mock('@/database/models/moduleAppPayment', () => ({
   ModuleAppPaymentModel: vi.fn(() => moduleAppPaymentModelMocks),
+}));
+
+vi.mock('@/database/models/moduleAppPublisher', () => ({
+  ModuleAppPublisherModel: vi.fn(() => moduleAppPublisherMocks),
+}));
+
+vi.mock('@/database/models/moduleAppPayout', () => ({
+  ModuleAppPayoutModel: vi.fn(() => moduleAppPayoutMocks),
 }));
 
 vi.mock('@/envs/app', () => ({ appEnv: mockAppEnv }));
@@ -184,6 +207,9 @@ vi.mock('./users', async () => {
 const APP_ID = '00000000-0000-4000-8000-000000000001';
 const PACKAGE_ID = '00000000-0000-4000-8000-000000000011';
 const ORDER_ID = '00000000-0000-4000-8000-000000000021';
+const PUBLISHER_ID = '00000000-0000-4000-8000-000000000051';
+const PAYOUT_ID = '00000000-0000-4000-8000-000000000061';
+const REVENUE_ID = '00000000-0000-4000-8000-000000000071';
 
 const createDb = () =>
   ({
@@ -242,6 +268,28 @@ describe('admin module apps router', () => {
     moduleAppPaymentMocks.reconcileRefund.mockResolvedValue({ status: 'succeeded' });
     moduleAppPaymentModelMocks.acknowledgeDiscrepancy.mockResolvedValue({ status: 'resolved' });
     moduleAppPaymentModelMocks.listDiscrepancies.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppPublisherMocks.createPublisher.mockResolvedValue({ id: PUBLISHER_ID, status: 'pending' });
+    moduleAppPublisherMocks.verifyPublisher.mockResolvedValue({ id: PUBLISHER_ID, status: 'verified' });
+    moduleAppPublisherMocks.suspendPublisher.mockResolvedValue({
+      id: PUBLISHER_ID,
+      status: 'suspended',
+    });
+    moduleAppPublisherMocks.assignApplication.mockResolvedValue({
+      id: APP_ID,
+      publisherId: PUBLISHER_ID,
+    });
+    moduleAppPublisherMocks.listPublishers.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppPayoutMocks.createEligibleBatch.mockResolvedValue({
+      id: PAYOUT_ID,
+      status: 'eligible',
+    });
+    moduleAppPayoutMocks.transitionBatch.mockResolvedValue({ id: PAYOUT_ID, status: 'processing' });
+    moduleAppPayoutMocks.recordManualAlipayPayout.mockResolvedValue({
+      id: PAYOUT_ID,
+      status: 'paid',
+      transactionNo: 'alipay-txn-1',
+    });
+    moduleAppPayoutMocks.listPayouts.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppRevenueMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppRevenueMocks.settleBatchWithAudit.mockResolvedValue({
       batchId: '00000000-0000-4000-8000-000000000031',
@@ -568,5 +616,77 @@ describe('admin module apps router', () => {
       actorUserId: 'admin-user',
       entryIds,
     });
+  });
+
+  it('manages stable publisher ownership through admin procedures and audits mutations', async () => {
+    const caller = createCaller();
+
+    await caller.moduleApps.createPublisher({
+      displayName: 'Verified Studio',
+      recipientMask: 'ali***@example.com',
+      userId: 'publisher-user',
+    });
+    await caller.moduleApps.verifyPublisher({
+      publisherId: PUBLISHER_ID,
+      verificationMetadata: { ticket: 'review-1' },
+    });
+    await caller.moduleApps.assignPublisher({ appId: APP_ID, publisherId: PUBLISHER_ID });
+    await caller.moduleApps.suspendPublisher({ publisherId: PUBLISHER_ID });
+    await expect(caller.moduleApps.listPublishers({ limit: 25, status: 'verified' })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+
+    expect(moduleAppPublisherMocks.assignApplication).toHaveBeenCalledWith({
+      appId: APP_ID,
+      publisherId: PUBLISHER_ID,
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.publisher_suspended',
+        resourceId: PUBLISHER_ID,
+        resourceType: 'moduleAppPublisher',
+      }),
+    );
+  });
+
+  it('creates, transitions, and records manual Alipay payouts with audit evidence', async () => {
+    const caller = createCaller();
+
+    await caller.moduleApps.createPayoutBatch({
+      publisherId: PUBLISHER_ID,
+      requestedAmount: 80,
+      revenueEntryIds: [REVENUE_ID],
+    });
+    await caller.moduleApps.transitionPayoutBatch({
+      batchId: PAYOUT_ID,
+      status: 'processing',
+    });
+    await caller.moduleApps.recordManualAlipayPayout({
+      batchId: PAYOUT_ID,
+      evidenceReference: 's3://evidence/payout-1.pdf',
+      recipientMask: 'ali***@example.com',
+      transactionNo: 'alipay-txn-1',
+    });
+    await expect(
+      caller.moduleApps.listPayouts({ publisherId: PUBLISHER_ID, status: 'paid' }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+
+    expect(moduleAppPayoutMocks.recordManualAlipayPayout).toHaveBeenCalledWith({
+      actorUserId: 'admin-user',
+      batchId: PAYOUT_ID,
+      evidenceReference: 's3://evidence/payout-1.pdf',
+      recipientMask: 'ali***@example.com',
+      transactionNo: 'alipay-txn-1',
+    });
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.payout_paid',
+        resourceId: PAYOUT_ID,
+        resourceType: 'moduleAppPayout',
+      }),
+    );
   });
 });

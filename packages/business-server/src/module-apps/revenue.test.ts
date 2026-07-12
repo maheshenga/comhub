@@ -10,6 +10,7 @@ import {
   moduleAppPackages,
   moduleAppPrices,
   moduleAppProducts,
+  moduleAppPublishers,
   moduleAppRevenueEntries,
   moduleApps,
   moduleAppSubscriptions,
@@ -29,6 +30,7 @@ const PRODUCT_ID = '20000000-0000-4000-8000-000000000003';
 const PRICE_ID = '20000000-0000-4000-8000-000000000004';
 const USER_ID = 'module-app-revenue-user';
 const PUBLISHER_ID = 'module-app-revenue-publisher';
+const PUBLISHER_RECORD_ID = '20000000-0000-4000-8000-000000000005';
 const serverDB: LobeChatDatabase = await getTestDB();
 
 describe('module app revenue', () => {
@@ -41,6 +43,7 @@ describe('module app revenue', () => {
     await serverDB.delete(moduleAppPrices);
     await serverDB.delete(moduleAppProducts);
     await serverDB.delete(moduleApps);
+    await serverDB.delete(moduleAppPublishers);
     await serverDB.delete(users);
     await serverDB.insert(users).values([{ id: USER_ID }, { id: PUBLISHER_ID }]);
     await serverDB.insert(moduleApps).values({
@@ -178,35 +181,25 @@ describe('module app revenue', () => {
     ).rejects.toThrow('MODULE_APP_REVENUE_SETTLEMENT_INPUT_INVALID');
   });
 
-  it('resolves the publisher from the approved package submitter', async () => {
-    await serverDB.insert(moduleAppPackages).values({
-      appId: APP_ID,
-      archive: {
-        fileName: 'revenue.zip',
-        mimeType: 'application/zip',
-        sha256: 'a'.repeat(64),
-        sizeBytes: 100,
-        storageKey: 'module-app-packages/revenue.zip',
-      },
-      manifestSnapshot: {
-        app: {
-          appType: 'standard_app',
-          category: 'productivity',
-          description: 'Revenue test app',
-          displayName: 'Revenue test app',
-          icon: 'R',
-          slug: 'revenue-test-app',
-          status: 'published',
-          tags: [],
-        },
-        packageVersion: '1.0.0',
-      } as never,
-      reviewStatus: 'approved',
-      submittedByUserId: PUBLISHER_ID,
+  it('snapshots the stable assigned publisher even after suspension', async () => {
+    await serverDB.insert(moduleAppPublishers).values({
+      displayName: 'Revenue Publisher',
+      id: PUBLISHER_RECORD_ID,
+      status: 'verified',
+      userId: PUBLISHER_ID,
     });
+    await serverDB
+      .update(moduleApps)
+      .set({ publisherId: PUBLISHER_RECORD_ID })
+      .where(eq(moduleApps.id, APP_ID));
+    await serverDB
+      .update(moduleAppPublishers)
+      .set({ status: 'suspended', suspendedAt: new Date() })
+      .where(eq(moduleAppPublishers.id, PUBLISHER_RECORD_ID));
     const service = new ModuleAppRevenueService(serverDB, { settlementDelayMs: 0 });
 
     await expect(service.accrueOrder({ orderId: ORDER_ID })).resolves.toMatchObject({
+      publisherId: PUBLISHER_RECORD_ID,
       publisherUserId: PUBLISHER_ID,
     });
   });

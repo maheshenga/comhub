@@ -591,6 +591,9 @@ export class ModuleAppModel {
         status: normalized.manifestVersion === 2 ? ('draft' as const) : normalized.app.status,
       };
       const app = await this.upsertAppForAdminWithExecutor(appInput, tx);
+      const ownedApp = await tx.query.moduleApps.findFirst({
+        where: eq(moduleApps.id, app.id),
+      });
       await this.replaceEntitlementsForAdmin(
         { appId: app.id, entitlements: normalized.entitlements },
         tx,
@@ -632,6 +635,7 @@ export class ModuleAppModel {
         .update(moduleAppPackages)
         .set({
           appId: app.id,
+          publisherId: ownedApp?.publisherId,
           publishedAt: appInput.status === 'published' ? (version.publishedAt ?? now) : null,
           rejectionReason: null,
           reviewStatus: 'approved',

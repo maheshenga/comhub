@@ -18,6 +18,8 @@ import type {
   ModuleAppPaymentEventType,
   ModuleAppPaymentProvider,
   ModuleAppPaymentRefundStatus,
+  ModuleAppPayoutStatus,
+  ModuleAppPublisherStatus,
   ModuleAppRunStatus,
   ModuleAppScopeType,
   ModuleAppSource,
@@ -55,10 +57,40 @@ const DEFAULT_MODULE_APP_BILLING: ModuleAppBillingConfig = {
   fixedServiceFeeCredits: 0,
 };
 
+export const moduleAppPublishers = pgTable(
+  'module_app_publishers',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'restrict' }).notNull(),
+    displayName: text('display_name').notNull(),
+    status: text('status').$type<ModuleAppPublisherStatus>().default('pending').notNull(),
+    recipientMask: text('recipient_mask'),
+    verificationMetadata: jsonb('verification_metadata')
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
+    verifiedAt: timestamptz('verified_at'),
+    suspendedAt: timestamptz('suspended_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_publishers_user_unique').on(table.userId),
+    index('module_app_publishers_status_created_idx').on(table.status, table.createdAt),
+    check(
+      'module_app_publishers_status_check',
+      sql`${table.status} IN ('pending', 'verified', 'suspended')`,
+    ),
+  ],
+);
+
 export const moduleApps = pgTable(
   'module_apps',
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
+    publisherId: uuid('publisher_id').references(() => moduleAppPublishers.id, {
+      onDelete: 'set null',
+    }),
     slug: text('slug').notNull().unique(),
     displayName: text('display_name').notNull(),
     icon: text('icon').notNull(),
@@ -86,6 +118,7 @@ export const moduleApps = pgTable(
       table.category,
       table.sortOrder,
     ),
+    index('module_apps_publisher_status_idx').on(table.publisherId, table.status),
   ],
 );
 
@@ -538,6 +571,9 @@ export const moduleAppPackages = pgTable(
   'module_app_packages',
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
+    publisherId: uuid('publisher_id').references(() => moduleAppPublishers.id, {
+      onDelete: 'set null',
+    }),
     appId: uuid('app_id').references(() => moduleApps.id, {
       onDelete: 'set null',
     }),
@@ -586,6 +622,10 @@ export const moduleAppPackages = pgTable(
     index('module_app_packages_app_id_created_at_idx').on(
       table.appId,
       table.createdAt,
+    ),
+    index('module_app_packages_publisher_review_idx').on(
+      table.publisherId,
+      table.reviewStatus,
     ),
   ],
 );
@@ -1202,6 +1242,9 @@ export const moduleAppRevenueEntries = pgTable(
     appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
     orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'restrict' }).notNull(),
     publisherUserId: text('publisher_user_id').references(() => users.id, { onDelete: 'set null' }),
+    publisherId: uuid('publisher_id').references(() => moduleAppPublishers.id, {
+      onDelete: 'set null',
+    }),
     type: text('type').notNull(),
     grossAmount: numeric('gross_amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
     platformFee: numeric('platform_fee', { mode: 'number', precision: 20, scale: 6 }).notNull(),
@@ -1221,6 +1264,73 @@ export const moduleAppRevenueEntries = pgTable(
       table.status,
       table.createdAt,
     ),
+    index('module_app_revenue_entries_publisher_id_status_idx').on(
+      table.publisherId,
+      table.status,
+    ),
+  ],
+);
+
+export const moduleAppPayoutBatches = pgTable(
+  'module_app_payout_batches',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    publisherId: uuid('publisher_id')
+      .references(() => moduleAppPublishers.id, { onDelete: 'restrict' })
+      .notNull(),
+    status: text('status').$type<ModuleAppPayoutStatus>().default('pending').notNull(),
+    currency: varchar('currency', { length: 16 }).notNull(),
+    totalAmount: numeric('total_amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
+    paymentMethod: text('payment_method').default('alipay').notNull(),
+    recipientMask: text('recipient_mask'),
+    transactionNo: text('transaction_no'),
+    evidenceReference: text('evidence_reference'),
+    actorUserId: text('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+    failureReason: text('failure_reason'),
+    processedAt: timestamptz('processed_at'),
+    paidAt: timestamptz('paid_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_payout_batches_transaction_unique').on(table.transactionNo),
+    index('module_app_payout_batches_publisher_status_created_idx').on(
+      table.publisherId,
+      table.status,
+      table.createdAt,
+    ),
+    check(
+      'module_app_payout_batches_status_check',
+      sql`${table.status} IN ('pending', 'eligible', 'processing', 'paid', 'failed', 'reversed')`,
+    ),
+    check('module_app_payout_batches_amount_check', sql`${table.totalAmount} > 0`),
+    check('module_app_payout_batches_method_check', sql`${table.paymentMethod} IN ('alipay')`),
+  ],
+);
+
+export const moduleAppPayoutEntries = pgTable(
+  'module_app_payout_entries',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    batchId: uuid('batch_id')
+      .references(() => moduleAppPayoutBatches.id, { onDelete: 'cascade' })
+      .notNull(),
+    revenueEntryId: uuid('revenue_entry_id')
+      .references(() => moduleAppRevenueEntries.id, { onDelete: 'restrict' })
+      .notNull(),
+    amount: numeric('amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
+    status: text('status').$type<ModuleAppPayoutStatus>().default('eligible').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_payout_entries_revenue_unique').on(table.revenueEntryId),
+    index('module_app_payout_entries_batch_status_idx').on(table.batchId, table.status),
+    check(
+      'module_app_payout_entries_status_check',
+      sql`${table.status} IN ('pending', 'eligible', 'processing', 'paid', 'failed', 'reversed')`,
+    ),
+    check('module_app_payout_entries_amount_check', sql`${table.amount} > 0`),
   ],
 );
 

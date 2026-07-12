@@ -1015,6 +1015,20 @@
       "when": 1784386400000,
       "tag": "0141_add_module_app_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1784472800000,
+      "tag": "0142_add_module_app_publishers",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1784559200000,
+      "tag": "0143_add_module_app_payouts",
+      "breakpoints": true
     }
   ],
   "version": "6"
