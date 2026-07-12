@@ -1,7 +1,8 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { promisify } from 'node:util';
-import { gunzip as gunzipCallback, gzip as gzipCallback } from 'node:zlib';
+import { createGunzip, gzip as gzipCallback } from 'node:zlib';
 
 import { extract, pack, type Headers, type Pack } from 'tar-stream';
 
@@ -9,7 +10,6 @@ import { ModuleAppPackageSafetyError } from './errors';
 import { DEFAULT_MODULE_APP_PACKAGE_LIMITS } from './source';
 
 const gzip = promisify(gzipCallback);
-const gunzip = promisify(gunzipCallback);
 const EPOCH = new Date(0);
 
 type ArtifactEntryType = 'directory' | 'file';
@@ -158,7 +158,9 @@ const packEntries = (entries: ArtifactEntry[]) =>
 
 const toGzipBytes = async (tarBytes: Uint8Array) => {
   const options = { level: 9, mtime: 0 } as unknown as Parameters<typeof gzipCallback>[1];
-  return new Uint8Array(await gzip(tarBytes, options));
+  const bytes = new Uint8Array(await gzip(tarBytes, options));
+  bytes[9] = 255;
+  return bytes;
 };
 
 const toArtifactEntry = (header: Headers, type: ArtifactEntryType): ModuleAppArtifactEntry => ({
@@ -172,14 +174,16 @@ const toArtifactEntry = (header: Headers, type: ArtifactEntryType): ModuleAppArt
   uname: header.uname ?? '',
 });
 
-const inspectTarEntries = (tarBytes: Uint8Array): Promise<ModuleAppArtifactEntry[]> =>
+const inspectTarEntries = (bytes: Uint8Array): Promise<ModuleAppArtifactEntry[]> =>
   new Promise((resolve, reject) => {
+    const input = Readable.from([Buffer.from(bytes)]);
+    const gunzip = createGunzip();
     const archive = extract();
     const entries: ModuleAppArtifactEntry[] = [];
     const types = new Map<string, ArtifactEntryType>();
     const { maxFileCount, maxFileSizeBytes, maxUncompressedBytes } =
       DEFAULT_MODULE_APP_PACKAGE_LIMITS;
-    let fileCount = 0;
+    let entryCount = 0;
     let totalBytes = 0;
     let settled = false;
 
@@ -193,7 +197,19 @@ const inspectTarEntries = (tarBytes: Uint8Array): Promise<ModuleAppArtifactEntry
       );
     };
 
-    archive.once('error', rejectOnce);
+    const abort = (error: ModuleAppPackageSafetyError) => {
+      rejectOnce(error);
+      input.destroy();
+      gunzip.destroy();
+      archive.destroy();
+    };
+
+    const abortMalformedArchive = () =>
+      abort(safetyError('module_app_package_archive_invalid', 'Artifact archive could not be decompressed.'));
+
+    input.once('error', abortMalformedArchive);
+    gunzip.once('error', abortMalformedArchive);
+    archive.once('error', abortMalformedArchive);
     archive.once('finish', () => {
       if (settled) return;
       for (const [path, type] of types) {
@@ -217,9 +233,8 @@ const inspectTarEntries = (tarBytes: Uint8Array): Promise<ModuleAppArtifactEntry
 
     archive.on('entry', (header: Headers, stream, next) => {
       const fail = (error: ModuleAppPackageSafetyError) => {
-        stream.resume();
-        rejectOnce(error);
-        next(error);
+        stream.destroy();
+        abort(error);
       };
 
       const type = header.type;
@@ -237,6 +252,15 @@ const inspectTarEntries = (tarBytes: Uint8Array): Promise<ModuleAppArtifactEntry
       if (types.has(header.name)) {
         return fail(safetyError('module_app_package_duplicate_path', `Duplicate package path: ${header.name}`));
       }
+      entryCount += 1;
+      if (entryCount > maxFileCount) {
+        return fail(
+          safetyError(
+            'module_app_package_too_many_files',
+            `Package contains more than ${maxFileCount} entries.`,
+          ),
+        );
+      }
       const entrySize = header.size;
       if (typeof entrySize !== 'number' || !Number.isSafeInteger(entrySize) || entrySize < 0) {
         return fail(safetyError('module_app_package_archive_invalid', `Invalid artifact size: ${header.name}`));
@@ -248,15 +272,6 @@ const inspectTarEntries = (tarBytes: Uint8Array): Promise<ModuleAppArtifactEntry
         );
       }
       if (type === 'file') {
-        fileCount += 1;
-        if (fileCount > maxFileCount) {
-          return fail(
-            safetyError(
-              'module_app_package_too_many_files',
-              `Package contains more than ${maxFileCount} files.`,
-            ),
-          );
-        }
         if (declaredSize > maxFileSizeBytes) {
           return fail(
             safetyError(
@@ -269,16 +284,13 @@ const inspectTarEntries = (tarBytes: Uint8Array): Promise<ModuleAppArtifactEntry
 
       let size = 0;
       stream.on('data', (chunk: Buffer) => {
-        size += chunk.byteLength;
-      });
-      stream.once('error', rejectOnce);
-      stream.once('end', () => {
         if (settled) return;
-        if (size !== declaredSize) {
-          return fail(safetyError('module_app_package_archive_invalid', `Invalid artifact size: ${header.name}`));
+        size += chunk.byteLength;
+        if (size > declaredSize || (type === 'file' && size > maxFileSizeBytes)) {
+          return fail(safetyError('module_app_package_file_too_large', `Package file exceeds ${maxFileSizeBytes} bytes: ${header.name}`));
         }
         if (type === 'file') {
-          totalBytes += size;
+          totalBytes += chunk.byteLength;
           if (totalBytes > maxUncompressedBytes) {
             return fail(
               safetyError(
@@ -288,7 +300,13 @@ const inspectTarEntries = (tarBytes: Uint8Array): Promise<ModuleAppArtifactEntry
             );
           }
         }
-
+      });
+      stream.once('error', abortMalformedArchive);
+      stream.once('end', () => {
+        if (settled) return;
+        if (size !== declaredSize) {
+          return fail(safetyError('module_app_package_archive_invalid', `Invalid artifact size: ${header.name}`));
+        }
         types.set(header.name, type);
         entries.push(toArtifactEntry(header, type));
         next();
@@ -296,7 +314,7 @@ const inspectTarEntries = (tarBytes: Uint8Array): Promise<ModuleAppArtifactEntry
       stream.resume();
     });
 
-    archive.end(Buffer.from(tarBytes));
+    input.pipe(gunzip).pipe(archive);
   });
 
 export const buildDeterministicModuleAppArtifact = async (
@@ -312,7 +330,7 @@ export const buildDeterministicModuleAppArtifact = async (
 
 export const inspectModuleAppArtifact = async (bytes: Uint8Array): Promise<ModuleAppArtifactEntry[]> => {
   try {
-    return await inspectTarEntries(new Uint8Array(await gunzip(bytes)));
+    return await inspectTarEntries(bytes);
   } catch (error) {
     if (error instanceof ModuleAppPackageSafetyError) throw error;
     throw safetyError('module_app_package_archive_invalid', 'Artifact archive could not be decompressed.');
