@@ -35,9 +35,10 @@ describe('ModuleAppBuildService', () => {
     };
     const storage = {
       prepareWorkerRequest: vi.fn().mockResolvedValue({
-        artifactKey: 'module-app-build-staging/build-1.tgz',
+        artifactKey: 'module-app-build-staging/build-1/claim-token-1.tgz',
         buildId: 'build-1',
         buildProfile: 'node22-static',
+        claimToken: 'claim-token-1',
         sourceDownloadUrl: 'https://storage.example.com/source',
         sourceSha256: 'a'.repeat(64),
         uploadHeaders: {},
@@ -67,7 +68,7 @@ describe('ModuleAppBuildService', () => {
     await expect(
       service.claimBuild({ leaseDurationMs: 60_000, workerId: 'worker-1' }),
     ).resolves.toMatchObject({
-      artifactKey: 'module-app-build-staging/build-1.tgz',
+      artifactKey: 'module-app-build-staging/build-1/claim-token-1.tgz',
       buildId: 'build-1',
       claimToken: 'claim-token-1',
       sourceDownloadUrl: 'https://storage.example.com/source',
@@ -84,7 +85,7 @@ describe('ModuleAppBuildService', () => {
 
     await expect(
       service.recordBuildResult({
-        artifactKey: 'module-app-build-staging/build-1.tgz',
+        artifactKey: 'module-app-build-staging/build-1/claim-token-1.tgz',
         artifactSha256: 'b'.repeat(64),
         buildId: 'build-1',
         claimToken: 'claim-token-1',
@@ -101,6 +102,31 @@ describe('ModuleAppBuildService', () => {
       buildId: 'build-1',
       claimToken: 'claim-token-1',
     });
+  });
+
+  it('rejects a stale result before reading or deleting the active claim staging object', async () => {
+    const { buildModel, service, storage } = createMocks();
+    buildModel.getById.mockResolvedValueOnce({
+      buildProfile: 'node22-static',
+      claimToken: 'claim-token-2',
+      id: 'build-1',
+      sourceSha256: 'a'.repeat(64),
+      status: 'building',
+    });
+
+    await expect(
+      service.recordBuildResult({
+        artifactKey: 'module-app-build-staging/build-1/claim-token-1.tgz',
+        artifactSha256: 'b'.repeat(64),
+        buildId: 'build-1',
+        claimToken: 'claim-token-1',
+        status: 'ready',
+      }),
+    ).rejects.toThrow('MODULE_APP_BUILD_LEASE_LOST');
+
+    expect(storage.promoteVerifiedArtifact).not.toHaveBeenCalled();
+    expect(buildModel.complete).not.toHaveBeenCalled();
+    expect(buildModel.fail).not.toHaveBeenCalled();
   });
 
   it('fails a claimed build when storage signing cannot prepare the worker request', async () => {
@@ -125,7 +151,7 @@ describe('ModuleAppBuildService', () => {
 
     await expect(
       service.recordBuildResult({
-        artifactKey: 'module-app-build-staging/build-1.tgz',
+        artifactKey: 'module-app-build-staging/build-1/claim-token-1.tgz',
         artifactSha256: 'b'.repeat(64),
         buildId: 'build-1',
         claimToken: 'claim-token-1',

@@ -10,9 +10,11 @@ import {
 } from './storage';
 
 const BUILD_ID = '00000000-0000-4000-8000-000000000001';
+const CLAIM_TOKEN = 'claim-token-1';
 const SOURCE_SHA256 = 'a'.repeat(64);
 const build = {
   buildProfile: 'node22-static' as const,
+  claimToken: CLAIM_TOKEN,
   id: BUILD_ID,
   sourceSha256: SOURCE_SHA256,
   sourceStorageKey: 'module-app-packages/source.zip',
@@ -31,14 +33,15 @@ const createStorage = () => ({
 });
 
 describe('ModuleAppBuildStorageService', () => {
-  it('signs only the reviewed source and the build-scoped staging key', async () => {
+  it('signs only the reviewed source and the claim-scoped staging key', async () => {
     const storage = createStorage();
     const service = new ModuleAppBuildStorageService({ storage: storage as never });
 
     await expect(service.prepareWorkerRequest(build)).resolves.toEqual({
-      artifactKey: getModuleAppBuildStagingKey(BUILD_ID),
+      artifactKey: getModuleAppBuildStagingKey(BUILD_ID, CLAIM_TOKEN),
       buildId: BUILD_ID,
       buildProfile: 'node22-static',
+      claimToken: CLAIM_TOKEN,
       sourceDownloadUrl: 'https://storage.example.com/source',
       sourceSha256: SOURCE_SHA256,
       uploadHeaders: { 'x-amz-acl': 'private' },
@@ -49,7 +52,7 @@ describe('ModuleAppBuildStorageService', () => {
       900,
     );
     expect(storage.createPreSignedUpload).toHaveBeenCalledWith(
-      getModuleAppBuildStagingKey(BUILD_ID),
+      getModuleAppBuildStagingKey(BUILD_ID, CLAIM_TOKEN),
     );
   });
 
@@ -63,7 +66,7 @@ describe('ModuleAppBuildStorageService', () => {
 
     await expect(
       service.promoteVerifiedArtifact({
-        artifactKey: getModuleAppBuildStagingKey(BUILD_ID),
+        artifactKey: getModuleAppBuildStagingKey(BUILD_ID, CLAIM_TOKEN),
         artifactSha256: sha256,
         build,
       }),
@@ -77,7 +80,29 @@ describe('ModuleAppBuildStorageService', () => {
       'application/gzip',
       'private, max-age=31536000, immutable',
     );
-    expect(storage.deleteFile).toHaveBeenCalledWith(getModuleAppBuildStagingKey(BUILD_ID));
+    expect(storage.deleteFile).toHaveBeenCalledWith(
+      getModuleAppBuildStagingKey(BUILD_ID, CLAIM_TOKEN),
+    );
+  });
+
+  it('rejects a stale claim staging key before reading or deleting the active claim object', async () => {
+    const storage = createStorage();
+    const service = new ModuleAppBuildStorageService({ storage: storage as never });
+
+    await expect(
+      service.promoteVerifiedArtifact({
+        artifactKey: getModuleAppBuildStagingKey(BUILD_ID, 'stale-claim-token'),
+        artifactSha256: 'b'.repeat(64),
+        build,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ModuleAppBuildStorageError>>({
+        code: 'MODULE_APP_BUILD_ARTIFACT_KEY_MISMATCH',
+      }),
+    );
+    expect(storage.getFileMetadata).not.toHaveBeenCalled();
+    expect(storage.getFileByteArray).not.toHaveBeenCalled();
+    expect(storage.deleteFile).not.toHaveBeenCalled();
   });
 
   it('rejects an artifact outside the build staging key before reading storage', async () => {
@@ -108,7 +133,7 @@ describe('ModuleAppBuildStorageService', () => {
 
     await expect(
       service.promoteVerifiedArtifact({
-        artifactKey: getModuleAppBuildStagingKey(BUILD_ID),
+        artifactKey: getModuleAppBuildStagingKey(BUILD_ID, CLAIM_TOKEN),
         artifactSha256: 'b'.repeat(64),
         build,
       }),

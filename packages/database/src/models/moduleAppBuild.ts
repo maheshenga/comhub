@@ -1,6 +1,7 @@
-import type { ModuleAppBuildProfile } from '@lobechat/types';
 import { randomUUID } from 'node:crypto';
-import { and, asc, eq, lt, lte, or, sql } from 'drizzle-orm';
+
+import type { ModuleAppBuildProfile } from '@lobechat/types';
+import { and, asc, eq, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import { moduleAppBuilds, moduleAppPackages, moduleAppVersions } from '../schemas';
 import type { LobeChatDatabase } from '../type';
@@ -73,7 +74,11 @@ export class ModuleAppBuildModel {
             ),
             and(
               eq(moduleAppBuilds.status, 'building'),
-              lte(moduleAppBuilds.claimExpiresAt, now),
+              or(
+                isNull(moduleAppBuilds.claimToken),
+                isNull(moduleAppBuilds.claimExpiresAt),
+                lte(moduleAppBuilds.claimExpiresAt, now),
+              ),
               lt(moduleAppBuilds.attemptCount, 4),
             ),
           ),
@@ -157,11 +162,35 @@ export class ModuleAppBuildModel {
           eq(moduleAppBuilds.id, input.buildId),
           eq(moduleAppBuilds.status, 'building'),
           eq(moduleAppBuilds.claimToken, input.claimToken),
+          lt(moduleAppBuilds.attemptCount, 4),
         ),
       )
       .returning();
-    if (!retried) throw new Error('MODULE_APP_BUILD_LEASE_LOST');
-    return retried;
+    if (retried) return retried;
+
+    const [exhausted] = await this.db
+      .update(moduleAppBuilds)
+      .set({
+        claimExpiresAt: null,
+        claimToken: null,
+        claimedAt: null,
+        completedAt: now,
+        failureCode: 'MODULE_APP_BUILD_RETRY_EXHAUSTED',
+        status: 'failed',
+        updatedAt: now,
+        workerId: null,
+      })
+      .where(
+        and(
+          eq(moduleAppBuilds.id, input.buildId),
+          eq(moduleAppBuilds.status, 'building'),
+          eq(moduleAppBuilds.claimToken, input.claimToken),
+          eq(moduleAppBuilds.attemptCount, 4),
+        ),
+      )
+      .returning();
+    if (!exhausted) throw new Error('MODULE_APP_BUILD_LEASE_LOST');
+    return exhausted;
   };
 
   complete = async (input: {

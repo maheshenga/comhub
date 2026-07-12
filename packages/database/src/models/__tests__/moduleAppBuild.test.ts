@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { moduleAppPackageManifestSchema } from '@lobechat/types';
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -313,5 +314,70 @@ describe('ModuleAppBuildModel', () => {
       workerId: null,
     });
     await expect(model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-5' })).resolves.toBeNull();
+  });
+
+  it('terminalizes an active fourth attempt instead of returning it to queued', async () => {
+    const ids = await createPackageVersion();
+    const clock = createClock();
+    const model = new ModuleAppBuildModel(serverDB, { now: clock.now });
+    const build = await model.create({
+      buildProfile: 'node22-static',
+      packageId: ids.packageId,
+      sourceSha256: '4'.repeat(64),
+      versionId: ids.versionId,
+    });
+
+    let claim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-1' });
+    for (let attempt = 1; attempt < 4; attempt++) {
+      const retryAt = new Date(clock.now().getTime() + 1);
+      await model.retry({
+        buildId: build.id,
+        claimToken: claim!.claimToken,
+        failureCode: `MODULE_APP_BUILD_RETRY_${attempt}`,
+        nextAttemptAt: retryAt,
+      });
+      clock.set(retryAt);
+      claim = await model.claimNext({ leaseDurationMs: 60_000, workerId: `worker-${attempt + 1}` });
+    }
+
+    await expect(
+      model.retry({
+        buildId: build.id,
+        claimToken: claim!.claimToken,
+        failureCode: 'MODULE_APP_BUILD_TEMPORARY_FAILURE',
+        nextAttemptAt: new Date(clock.now().getTime() + 60_000),
+      }),
+    ).resolves.toMatchObject({
+      attemptCount: 4,
+      claimToken: null,
+      failureCode: 'MODULE_APP_BUILD_RETRY_EXHAUSTED',
+      status: 'failed',
+      workerId: null,
+    });
+    await expect(model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-5' })).resolves.toBeNull();
+  });
+
+  it('reclaims a legacy building row with null claim token and expiry', async () => {
+    const ids = await createPackageVersion();
+    const model = new ModuleAppBuildModel(serverDB, { now: () => NOW });
+    const build = await model.create({
+      buildProfile: 'node22-static',
+      packageId: ids.packageId,
+      sourceSha256: '5'.repeat(64),
+      versionId: ids.versionId,
+    });
+    await serverDB
+      .update(moduleAppBuilds)
+      .set({ claimExpiresAt: null, claimToken: null, status: 'building', workerId: 'legacy-worker' })
+      .where(eq(moduleAppBuilds.id, build.id));
+
+    await expect(
+      model.claimNext({ leaseDurationMs: 60_000, workerId: 'replacement-worker' }),
+    ).resolves.toMatchObject({
+      attemptCount: 1,
+      id: build.id,
+      status: 'building',
+      workerId: 'replacement-worker',
+    });
   });
 });

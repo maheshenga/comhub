@@ -45,8 +45,7 @@ export class ModuleAppBuildService {
     if (!build) return null;
 
     try {
-      const request = await this.storage.prepareWorkerRequest(build);
-      return { ...request, claimToken: build.claimToken };
+      return await this.storage.prepareWorkerRequest(build);
     } catch (error) {
       const failureCode = 'MODULE_APP_BUILD_STORAGE_SIGNING_FAILED';
       await this.buildModel
@@ -70,12 +69,14 @@ export class ModuleAppBuildService {
     const build = await this.buildModel.getById(input.buildId);
     if (!build) throw new Error('MODULE_APP_BUILD_NOT_FOUND');
     if (build.status !== 'building') throw new Error('MODULE_APP_BUILD_NOT_BUILDING');
+    if (build.claimToken !== input.claimToken) throw new Error('MODULE_APP_BUILD_LEASE_LOST');
+    const activeBuild = { ...build, claimToken: input.claimToken };
 
     try {
       const artifact = await this.storage.promoteVerifiedArtifact({
         artifactKey: input.artifactKey,
         artifactSha256: input.artifactSha256,
-        build,
+        build: activeBuild,
       });
 
       return this.buildModel.complete({ ...artifact, buildId: input.buildId, claimToken: input.claimToken });

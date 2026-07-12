@@ -21,6 +21,7 @@ export type ModuleAppBuildStorage = Pick<
 
 export type ClaimedModuleAppBuild = {
   buildProfile: ModuleAppBuildProfile;
+  claimToken: string;
   id: string;
   sourceSha256: string;
   sourceStorageKey: string;
@@ -38,8 +39,8 @@ export class ModuleAppBuildStorageError extends Error {
   }
 }
 
-export const getModuleAppBuildStagingKey = (buildId: string) =>
-  `module-app-build-staging/${buildId}.tgz`;
+export const getModuleAppBuildStagingKey = (buildId: string, claimToken: string) =>
+  `module-app-build-staging/${buildId}/${claimToken}.tgz`;
 
 export const getModuleAppBuildArtifactKey = (buildId: string, artifactSha256: string) =>
   `module-app-builds/${buildId}/${artifactSha256}.tgz`;
@@ -53,8 +54,8 @@ export class ModuleAppBuildStorageService {
 
   prepareWorkerRequest = async (
     build: ClaimedModuleAppBuild,
-  ): Promise<Omit<ModuleAppBuildWorkerRequest, 'claimToken'>> => {
-    const artifactKey = getModuleAppBuildStagingKey(build.id);
+  ): Promise<ModuleAppBuildWorkerRequest> => {
+    const artifactKey = getModuleAppBuildStagingKey(build.id, build.claimToken);
     const [sourceDownloadUrl, upload] = await Promise.all([
       this.storage.createPreSignedUrlForPreview(
         build.sourceStorageKey,
@@ -67,6 +68,7 @@ export class ModuleAppBuildStorageService {
       artifactKey,
       buildId: build.id,
       buildProfile: build.buildProfile,
+      claimToken: build.claimToken,
       sourceDownloadUrl,
       sourceSha256: build.sourceSha256,
       uploadHeaders: upload.headers ?? {},
@@ -79,7 +81,7 @@ export class ModuleAppBuildStorageService {
     artifactSha256: string;
     build: StoredModuleAppBuild;
   }) => {
-    const stagingKey = getModuleAppBuildStagingKey(input.build.id);
+    const stagingKey = getModuleAppBuildStagingKey(input.build.id, input.build.claimToken);
     if (input.artifactKey !== stagingKey) {
       throw new ModuleAppBuildStorageError('MODULE_APP_BUILD_ARTIFACT_KEY_MISMATCH');
     }
