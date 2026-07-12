@@ -80,9 +80,38 @@ describe('ModuleAppBuildStorageService', () => {
       'application/gzip',
       'private, max-age=31536000, immutable',
     );
+    expect(storage.uploadBuffer).toHaveBeenCalledTimes(1);
     expect(storage.deleteFile).toHaveBeenCalledWith(
       getModuleAppBuildStagingKey(BUILD_ID, CLAIM_TOKEN),
     );
+    expect(storage.getFileByteArray).toHaveBeenCalledWith(
+      getModuleAppBuildArtifactKey(BUILD_ID, sha256),
+    );
+  });
+
+  it('rejects promoted bytes that do not survive the destination re-read', async () => {
+    const storage = createStorage();
+    const bytes = new TextEncoder().encode('verified artifact');
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    storage.getFileMetadata.mockResolvedValue({ contentLength: bytes.byteLength });
+    storage.getFileByteArray
+      .mockResolvedValueOnce(bytes)
+      .mockResolvedValueOnce(bytes)
+      .mockResolvedValueOnce(new TextEncoder().encode('tampered'));
+    const service = new ModuleAppBuildStorageService({ storage: storage as never });
+
+    await expect(
+      service.promoteVerifiedArtifact({
+        artifactKey: getModuleAppBuildStagingKey(BUILD_ID, CLAIM_TOKEN),
+        artifactSha256: sha256,
+        build,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ModuleAppBuildStorageError>>({
+        code: 'MODULE_APP_BUILD_ARTIFACT_PROMOTION_FAILED',
+      }),
+    );
+    expect(storage.deleteFile).not.toHaveBeenCalled();
   });
 
   it('rejects a stale claim staging key before reading or deleting the active claim object', async () => {

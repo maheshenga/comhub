@@ -1,5 +1,8 @@
-import { createHash } from 'node:crypto';
-
+import {
+  ModuleAppArtifactStorageError,
+  type ModuleAppObjectStorage,
+  publishVerifiedModuleAppArtifact,
+} from '@lobechat/module-app-build';
 import type { ModuleAppBuildProfile } from '@lobechat/types';
 
 import { FileS3 } from '@/server/modules/S3';
@@ -106,25 +109,31 @@ export class ModuleAppBuildStorageService {
       throw new ModuleAppBuildStorageError('MODULE_APP_BUILD_ARTIFACT_SIZE_MISMATCH');
     }
 
-    const artifactSha256 = createHash('sha256').update(bytes).digest('hex');
-    if (artifactSha256 !== input.artifactSha256) {
-      throw new ModuleAppBuildStorageError('MODULE_APP_BUILD_ARTIFACT_HASH_MISMATCH');
-    }
+    const storage: ModuleAppObjectStorage = {
+      deleteObject: async ({ key }) => {
+        await this.storage.deleteFile(key);
+      },
+      getObject: ({ key }) => this.storage.getFileByteArray(key),
+      headObject: ({ key }) => this.storage.getFileMetadata(key),
+      putObject: async ({ body, cacheControl, contentType, key }) => {
+        if (key === stagingKey) return;
+        await this.storage.uploadBuffer(key, Buffer.from(body), contentType, cacheControl);
+      },
+    };
 
-    const artifactKey = getModuleAppBuildArtifactKey(input.build.id, artifactSha256);
-    await this.storage
-      .uploadBuffer(
-        artifactKey,
-        Buffer.from(bytes),
-        'application/gzip',
-        'private, max-age=31536000, immutable',
-      )
-      .catch((error) => {
-        throw new ModuleAppBuildStorageError('MODULE_APP_BUILD_ARTIFACT_PROMOTION_FAILED', error);
+    try {
+      return await publishVerifiedModuleAppArtifact({
+        artifactBytes: bytes,
+        artifactSha256: input.artifactSha256,
+        buildId: input.build.id,
+        claimToken: input.build.claimToken,
+        storage,
       });
-
-    await this.storage.deleteFile(stagingKey).catch(() => undefined);
-
-    return { artifactKey, artifactSha256 };
+    } catch (error) {
+      if (error instanceof ModuleAppArtifactStorageError) {
+        throw new ModuleAppBuildStorageError(error.code, error);
+      }
+      throw error;
+    }
   };
 }
