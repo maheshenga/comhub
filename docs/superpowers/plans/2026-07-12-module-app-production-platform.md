@@ -426,4 +426,4 @@ Evidence: router ownership commit `cd5342313d`, model ownership commit `677044f6
 - [ ] Run browser E2E and deployment smoke checks against a staging blue-green deployment. The dry-run discovers 4 scenarios/23 steps; authenticated staging and rollback evidence remain external blockers.
 - [x] Confirm production flags remain disabled until all gates have evidence.
 - [x] Update feature registry and internal changelog with actual verification status and blockers.
-- [ ] Push branch and report commit SHAs, test commands, deployment probe results, and any remaining external credential or environment blockers.
+- [x] Push branch and report commit SHAs, test commands, deployment probe results, and any remaining external credential or environment blockers.
