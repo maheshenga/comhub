@@ -140,3 +140,73 @@ After the user stop request, `Get-Process` showed no `bun` or `vitest` process. 
 - POSIX directory mode `0555` is requested with `chmod`. Windows reports the resulting read-only directory mode as `0444`; the test accounts for the platform representation while verifying the requested immutable behavior.
 - Full repository type-check remains blocked by unrelated missing dependencies and existing diagnostics listed above.
 
+## Review Remediation: Snapshot, Extraction, Durability, Collision, And Promotion Length
+
+### Changes
+
+- Snapshot the caller-owned artifact `Uint8Array` once at materializer entry and use only that snapshot for SHA-256, inspection, and extraction.
+- Revalidate safe paths, supported types, duplicate paths, entry count, declared/actual per-file size, total expanded bytes, and file-parent conflicts inside the actual extraction stream.
+- Retain writable file handles through marker creation and chmod, then fsync artifact files and marker through those handles, fsync directories, close handles, and atomically rename.
+- Keep inspector/limit overrides package-internal to the sibling test module; the public materializer always uses the shared bounded inspector and default limits.
+- After any rename error, including Windows `EPERM`, check whether the destination appeared. Reuse only after marker identity and declared regular-file validation; otherwise fail closed without deleting the destination.
+- Normalize invalid promoted-object `Content-Length` to `MODULE_APP_BUILD_ARTIFACT_PROMOTION_FAILED`.
+- Handle partial filesystem writes and propagate file-handle close failures before rename.
+
+### RED Evidence
+
+Command:
+
+```powershell
+bunx vitest run --config packages/module-app-build/vitest.config.mts --silent='passed-only' packages/module-app-build/src/storage.test.ts packages/module-app-build/src/materializer.test.ts
+```
+
+Initial review result: exit code 1, 2 failed files, 7 failed and 23 passed tests.
+
+```text
+mutation regression: archive inspection observed caller mutation and rejected decompression
+entry-count extraction regression: received MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_INVALID
+per-file extraction regression: received MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_INVALID
+expanded-size extraction regression: received MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_INVALID
+durability-order regression: marker write event was absent
+EPERM collision regression: returned reused: false
+promoted Content-Length regression: received MODULE_APP_BUILD_ARTIFACT_SIZE_INVALID
+```
+
+Unsafe-path and unsupported-type extraction tests were already green because the original extraction pass independently rejected those two cases. They remain in the suite with pre-inspection bypassed to prevent regression.
+
+The first retained-handle implementation exposed a separate deterministic hang. The same command completed after 42.6 seconds with 8 materializer tests timing out at 5 seconds and Node warning that file descriptors were closed by garbage collection. Root cause: `pipeline()` waited for a write-stream close event while `autoClose: false` intentionally retained the descriptor for post-chmod fsync. Extraction was changed to validate and write each stream chunk directly through the retained `FileHandle`, eliminating the lifecycle deadlock.
+
+### GREEN Evidence
+
+Shared artifact/storage/materializer command:
+
+```powershell
+bunx vitest run --config packages/module-app-build/vitest.config.mts --silent='passed-only' packages/module-app-build/src/artifact.test.ts packages/module-app-build/src/storage.test.ts packages/module-app-build/src/materializer.test.ts
+```
+
+Result: exit code 0, 3 test files passed, 40 tests passed.
+
+Server regression command:
+
+```powershell
+bunx vitest run --silent='passed-only' apps/server/src/services/moduleAppBuild/storage.test.ts apps/server/src/services/moduleAppBuild/service.test.ts
+```
+
+Result: exit code 0, 2 test files passed, 12 tests passed.
+
+Targeted lint and whitespace validation:
+
+```powershell
+bunx eslint packages/module-app-build/src/storage.ts packages/module-app-build/src/storage.test.ts packages/module-app-build/src/materializer.ts packages/module-app-build/src/materializer.test.ts packages/module-app-build/src/index.ts apps/server/src/services/moduleAppBuild/storage.ts apps/server/src/services/moduleAppBuild/storage.test.ts
+git diff --check
+```
+
+Result: both commands exited 0.
+
+Package type check:
+
+```powershell
+bunx tsc --noEmit -p packages/module-app-build/tsconfig.json
+```
+
+Result: exit code 1 with only the previously documented unrelated `__ELECTRON__`, `replicate`, and `request-filtering-agent` diagnostics. No Task 4 diagnostic remains.

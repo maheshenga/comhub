@@ -1,6 +1,10 @@
 export * from './artifact';
 export * from './errors';
-export * from './materializer';
+export {
+  materializeModuleAppArtifact,
+  type MaterializeModuleAppArtifactInput,
+  ModuleAppArtifactMaterializationError,
+} from './materializer';
 export * from './scanner';
 export * from './source';
 export * from './storage';

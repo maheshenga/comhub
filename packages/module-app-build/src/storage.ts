@@ -42,13 +42,16 @@ const assertSafeKeySegment = (value: string) => {
   }
 };
 
-const assertArtifactSize = (contentLength: number) => {
+const assertArtifactSize = (
+  contentLength: number,
+  errorCode = 'MODULE_APP_BUILD_ARTIFACT_SIZE_INVALID',
+) => {
   if (
     !Number.isSafeInteger(contentLength) ||
     contentLength <= 0 ||
     contentLength > MODULE_APP_BUILD_MAX_ARTIFACT_BYTES
   ) {
-    throw new ModuleAppArtifactStorageError('MODULE_APP_BUILD_ARTIFACT_SIZE_INVALID');
+    throw new ModuleAppArtifactStorageError(errorCode);
   }
 };
 
@@ -68,7 +71,12 @@ const readVerifiedObject = async (input: {
   } catch (error) {
     throw new ModuleAppArtifactStorageError(failureCode, failureCode, error);
   }
-  assertArtifactSize(metadata.contentLength);
+  assertArtifactSize(
+    metadata.contentLength,
+    input.promotion
+      ? 'MODULE_APP_BUILD_ARTIFACT_PROMOTION_FAILED'
+      : 'MODULE_APP_BUILD_ARTIFACT_SIZE_INVALID',
+  );
 
   let bytes: Uint8Array;
   try {

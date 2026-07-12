@@ -108,6 +108,30 @@ describe('publishVerifiedModuleAppArtifact', () => {
     expect(storage.deleteObject).not.toHaveBeenCalled();
   });
 
+  it('normalizes an invalid promoted Content-Length to promotion failure', async () => {
+    const artifactBytes = new TextEncoder().encode('verified artifact');
+    const artifactSha256 = sha256(artifactBytes);
+    const { objects, storage } = createStorage();
+    vi.mocked(storage.headObject).mockImplementation(async ({ key }) => {
+      const bytes = objects.get(key);
+      if (!bytes) throw new Error(`missing object: ${key}`);
+      return {
+        contentLength: key.startsWith('module-app-builds/') ? 0 : bytes.byteLength,
+      };
+    });
+
+    await expect(
+      publishVerifiedModuleAppArtifact({
+        artifactBytes,
+        artifactSha256,
+        buildId: BUILD_ID,
+        claimToken: CLAIM_TOKEN,
+        storage,
+      }),
+    ).rejects.toMatchObject({ code: 'MODULE_APP_BUILD_ARTIFACT_PROMOTION_FAILED' });
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
   it('treats staging cleanup as best-effort after verified promotion', async () => {
     const artifactBytes = new TextEncoder().encode('verified artifact');
     const artifactSha256 = sha256(artifactBytes);

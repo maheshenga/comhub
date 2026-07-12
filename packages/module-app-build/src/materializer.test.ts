@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, cp, lstat, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -15,6 +15,11 @@ import {
 } from '@lobechat/types';
 import { type Headers, type Pack,pack } from 'tar-stream';
 import { afterEach, describe, expect, it } from 'vitest';
+
+import {
+  materializeModuleAppArtifactWithDependencies,
+  type ModuleAppArtifactMaterializerDependencies,
+} from './materializer';
 
 type ManifestV2 = Extract<ModuleAppPackageManifest, { manifestVersion: 2 }>;
 
@@ -111,11 +116,204 @@ const materialize = async (artifactRoot: string, artifactBytes: Uint8Array, inpu
     manifest: inputManifest,
   });
 
+const materializeWithDependencies = (
+  input: Parameters<typeof materializeModuleAppArtifact>[0],
+  dependencies: ModuleAppArtifactMaterializerDependencies,
+) => materializeModuleAppArtifactWithDependencies(input, dependencies);
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
 });
 
 describe('materializeModuleAppArtifact', () => {
+  it('snapshots caller-owned artifact bytes before the first asynchronous boundary', async () => {
+    const artifactRoot = await createRoot();
+    const artifact = await buildDeterministicModuleAppArtifact({ files });
+    const callerBytes = artifact.bytes.slice();
+
+    const result = materialize(artifactRoot, callerBytes);
+    callerBytes.fill(0);
+
+    await expect(result).resolves.toEqual({
+      directory: path.join(artifactRoot, artifact.sha256),
+      reused: false,
+    });
+    expect(await readFile(path.join(artifactRoot, artifact.sha256, 'dist/index.html'), 'utf8')).toContain(
+      'Materialized',
+    );
+  });
+
+  it.each([
+    {
+      code: 'module_app_package_too_many_files',
+      entries: [
+        { name: 'one', type: 'directory' as const },
+        { name: 'two', type: 'directory' as const },
+      ],
+      limits: { maxFileCount: 1 },
+      name: 'entry count',
+    },
+    {
+      code: 'module_app_package_file_too_large',
+      entries: [{ bytes: encoder.encode('1234'), name: 'file.bin', type: 'file' as const }],
+      limits: { maxFileSizeBytes: 3 },
+      name: 'per-file bytes',
+    },
+    {
+      code: 'module_app_package_expanded_too_large',
+      entries: [
+        { bytes: encoder.encode('12'), name: 'one.bin', type: 'file' as const },
+        { bytes: encoder.encode('34'), name: 'two.bin', type: 'file' as const },
+      ],
+      limits: { maxFileSizeBytes: 10, maxUncompressedBytes: 3 },
+      name: 'total expanded bytes',
+    },
+  ])('enforces $name during extraction even when pre-inspection is bypassed', async ({ code, entries, limits }) => {
+    const artifactRoot = await createRoot();
+    const artifactBytes = await createTgz(entries);
+
+    await expect(
+      materializeWithDependencies(
+        {
+          artifactBytes,
+          artifactRoot,
+          artifactSha256: sha256(artifactBytes),
+          buildId: BUILD_ID,
+          claimToken: CLAIM_TOKEN,
+          manifest,
+        },
+        { inspectArtifact: async () => [], limits },
+      ),
+    ).rejects.toMatchObject({ code });
+  });
+
+  it.each([
+    {
+      code: 'module_app_package_unsafe_path',
+      entry: { bytes: encoder.encode('unsafe'), name: '../escape.txt', type: 'file' as const },
+      name: 'unsafe paths',
+    },
+    {
+      code: 'module_app_package_archive_invalid',
+      entry: { linkname: 'target', name: 'link', type: 'symlink' as const },
+      name: 'unsupported types',
+    },
+  ])('enforces $name during extraction even when pre-inspection is bypassed', async ({ code, entry }) => {
+    const artifactRoot = await createRoot();
+    const artifactBytes = await createTgz([entry]);
+
+    await expect(
+      materializeWithDependencies(
+        {
+          artifactBytes,
+          artifactRoot,
+          artifactSha256: sha256(artifactBytes),
+          buildId: BUILD_ID,
+          claimToken: CLAIM_TOKEN,
+          manifest,
+        },
+        { inspectArtifact: async () => [] },
+      ),
+    ).rejects.toMatchObject({ code });
+  });
+
+  it('orders marker write, chmod, fsync, and rename durability operations', async () => {
+    const artifactRoot = await createRoot();
+    const artifact = await buildDeterministicModuleAppArtifact({ files });
+    const events: string[] = [];
+
+    await materializeWithDependencies(
+      {
+        artifactBytes: artifact.bytes,
+        artifactRoot,
+        artifactSha256: artifact.sha256,
+        buildId: BUILD_ID,
+        claimToken: CLAIM_TOKEN,
+        manifest,
+      },
+      {
+        fileSystem: {
+          chmod: async (filePath: string, mode: number) => {
+            events.push(`chmod:${path.basename(filePath)}:${mode.toString(8)}`);
+            await chmod(filePath, mode);
+          },
+          openFileForWrite: async (filePath: string) => {
+            const handle = await open(filePath, 'wx', 0o600);
+            return {
+              close: () => handle.close(),
+              sync: async () => {
+                events.push(`fsync-file:${path.basename(filePath)}`);
+                await handle.sync();
+              },
+              write: async (data: Uint8Array) => {
+                await handle.write(data);
+              },
+              writeFile: async (data: string) => {
+                events.push(`write:${path.basename(filePath)}`);
+                await handle.writeFile(data);
+              },
+            };
+          },
+          rename: async (from: string, to: string) => {
+            events.push('rename');
+            await rename(from, to);
+          },
+          syncDirectory: async (directory: string) => {
+            events.push(`fsync-directory:${path.basename(directory)}`);
+          },
+        },
+      },
+    );
+
+    const markerWrite = events.indexOf('write:.module-app-artifact.json');
+    const chmodIndexes = events.flatMap((event, index) => (event.startsWith('chmod:') ? [index] : []));
+    const fileSyncIndexes = events.flatMap((event, index) =>
+      event.startsWith('fsync-file:') ? [index] : [],
+    );
+    const directorySyncIndexes = events.flatMap((event, index) =>
+      event.startsWith('fsync-directory:') ? [index] : [],
+    );
+    const renameIndex = events.indexOf('rename');
+
+    expect(markerWrite).toBeGreaterThanOrEqual(0);
+    expect(events).toContain('chmod:.module-app-artifact.json:444');
+    expect(events).toContain('fsync-file:.module-app-artifact.json');
+    expect(events.indexOf('chmod:.module-app-artifact.json:444')).toBe(Math.max(...chmodIndexes));
+    expect(Math.min(...chmodIndexes)).toBeGreaterThan(markerWrite);
+    expect(Math.min(...fileSyncIndexes)).toBeGreaterThan(Math.max(...chmodIndexes));
+    expect(Math.min(...directorySyncIndexes)).toBeGreaterThan(Math.max(...fileSyncIndexes));
+    expect(renameIndex).toBeGreaterThan(Math.max(...directorySyncIndexes));
+  });
+
+  it('validates and reuses a destination that appears during an EPERM rename collision', async () => {
+    const artifactRoot = await createRoot();
+    const artifact = await buildDeterministicModuleAppArtifact({ files });
+
+    await expect(
+      materializeWithDependencies(
+        {
+          artifactBytes: artifact.bytes,
+          artifactRoot,
+          artifactSha256: artifact.sha256,
+          buildId: BUILD_ID,
+          claimToken: CLAIM_TOKEN,
+          manifest,
+        },
+        {
+          fileSystem: {
+            rename: async (from: string, to: string) => {
+              await cp(from, to, { recursive: true });
+              throw Object.assign(new Error('destination collision'), { code: 'EPERM' });
+            },
+          },
+        },
+      ),
+    ).resolves.toEqual({
+      directory: path.join(artifactRoot, artifact.sha256),
+      reused: true,
+    });
+  });
+
   it('extracts through claim staging, writes identity marker, and applies read-only modes', async () => {
     const artifactRoot = await createRoot();
     const artifact = await buildDeterministicModuleAppArtifact({ files });

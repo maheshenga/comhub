@@ -1,26 +1,29 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import type { Dirent, Stats } from 'node:fs';
 import {
-  chmod,
-  lstat,
-  mkdir,
-  open,
-  readdir,
-  readFile,
-  rename,
-  rm,
-  writeFile,
+  chmod as fsChmod,
+  lstat as fsLstat,
+  mkdir as fsMkdir,
+  open as fsOpen,
+  readdir as fsReaddir,
+  readFile as fsReadFile,
+  rename as fsRename,
+  rm as fsRm,
 } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { createGunzip } from 'node:zlib';
 
 import type { ModuleAppPackageManifest } from '@lobechat/types';
 import { extract, type Headers } from 'tar-stream';
 
 import { inspectModuleAppArtifact, type ModuleAppArtifactEntry } from './artifact';
+import { ModuleAppPackageSafetyError } from './errors';
+import {
+  DEFAULT_MODULE_APP_PACKAGE_LIMITS,
+  type ModuleAppPackageArchiveLimits,
+} from './source';
 
 type ManifestV2 = Extract<ModuleAppPackageManifest, { manifestVersion: 2 }>;
 
@@ -29,6 +32,31 @@ type ArtifactMarker = {
   buildId: string;
   manifestSha256: string;
   schemaVersion: 1;
+};
+
+type ArtifactFileHandle = {
+  close: () => Promise<void>;
+  sync: () => Promise<void>;
+  write: (data: Uint8Array) => Promise<void>;
+  writeFile: (data: string) => Promise<void>;
+};
+
+type MaterializerFileSystem = {
+  chmod: (filePath: string, mode: number) => Promise<void>;
+  lstat: (filePath: string) => Promise<Stats>;
+  mkdir: (directory: string) => Promise<void>;
+  openFileForWrite: (filePath: string) => Promise<ArtifactFileHandle>;
+  readDirectory: (directory: string) => Promise<Dirent[]>;
+  readTextFile: (filePath: string) => Promise<string>;
+  removeDirectory: (directory: string) => Promise<void>;
+  rename: (from: string, to: string) => Promise<void>;
+  syncDirectory: (directory: string) => Promise<void>;
+};
+
+export type ModuleAppArtifactMaterializerDependencies = {
+  fileSystem?: Partial<MaterializerFileSystem>;
+  inspectArtifact?: typeof inspectModuleAppArtifact;
+  limits?: ModuleAppPackageArchiveLimits;
 };
 
 export type MaterializeModuleAppArtifactInput = {
@@ -87,35 +115,26 @@ const assertSafeIdentity = (value: string, label: string) => {
 
 const resolveEntryPath = (root: string, entryPath: string) => {
   if (!isSafePath(entryPath)) {
-    throw new ModuleAppArtifactMaterializationError(
-      'MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_INVALID',
-      `Unsafe artifact path: ${entryPath}`,
+    throw new ModuleAppPackageSafetyError(
+      'module_app_package_unsafe_path',
+      `Unsafe package path: ${entryPath}`,
     );
   }
   const resolved = path.resolve(root, ...entryPath.split('/'));
   const prefix = `${path.resolve(root)}${path.sep}`;
   if (!resolved.startsWith(prefix)) {
-    throw new ModuleAppArtifactMaterializationError(
-      'MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_INVALID',
-      `Unsafe artifact path: ${entryPath}`,
+    throw new ModuleAppPackageSafetyError(
+      'module_app_package_unsafe_path',
+      `Unsafe package path: ${entryPath}`,
     );
   }
   return resolved;
 };
 
-const syncFile = async (filePath: string) => {
-  const handle = await open(filePath, 'r+');
-  try {
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-};
-
-const syncDirectory = async (directory: string) => {
+const defaultSyncDirectory = async (directory: string) => {
   let handle;
   try {
-    handle = await open(directory, 'r');
+    handle = await fsOpen(directory, 'r');
     await handle.sync();
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
@@ -125,59 +144,177 @@ const syncDirectory = async (directory: string) => {
   }
 };
 
-const extractArtifact = async (artifactBytes: Uint8Array, stagingDirectory: string) =>
-  new Promise<void>((resolve, reject) => {
-    const input = Readable.from([Buffer.from(artifactBytes)]);
+const defaultFileSystem: MaterializerFileSystem = {
+  chmod: fsChmod,
+  lstat: fsLstat,
+  mkdir: async (directory) => {
+    await fsMkdir(directory, { recursive: true });
+  },
+  openFileForWrite: async (filePath) => {
+    const handle = await fsOpen(filePath, 'wx', 0o600);
+    return {
+      close: () => handle.close(),
+      sync: () => handle.sync(),
+      write: async (data) => {
+        let offset = 0;
+        while (offset < data.byteLength) {
+          const { bytesWritten } = await handle.write(data, offset, data.byteLength - offset);
+          if (bytesWritten <= 0) throw new Error(`Unable to write artifact file: ${filePath}`);
+          offset += bytesWritten;
+        }
+      },
+      writeFile: async (data) => {
+        await handle.writeFile(data);
+      },
+    };
+  },
+  readDirectory: (directory) => fsReaddir(directory, { withFileTypes: true }),
+  readTextFile: (filePath) => fsReadFile(filePath, 'utf8'),
+  removeDirectory: async (directory) => {
+    await fsRm(directory, { force: true, recursive: true });
+  },
+  rename: fsRename,
+  syncDirectory: defaultSyncDirectory,
+};
+
+const closeArtifactFiles = async (handles: ArtifactFileHandle[], ignoreErrors = false) => {
+  const results = await Promise.allSettled(handles.map((handle) => handle.close()));
+  handles.length = 0;
+  if (ignoreErrors) return;
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure?.status === 'rejected') throw failure.reason;
+};
+
+const extractArtifact = async (input: {
+  artifactBytes: Uint8Array;
+  fileSystem: MaterializerFileSystem;
+  limits: typeof DEFAULT_MODULE_APP_PACKAGE_LIMITS;
+  stagingDirectory: string;
+}): Promise<ArtifactFileHandle[]> =>
+  new Promise((resolve, reject) => {
+    const source = Readable.from([Buffer.from(input.artifactBytes)]);
     const gunzip = createGunzip();
     const archive = extract();
+    const handles: ArtifactFileHandle[] = [];
+    const types = new Map<string, 'directory' | 'file'>();
+    let entryCount = 0;
     let settled = false;
+    let totalBytes = 0;
 
     const fail = (error: unknown) => {
       if (settled) return;
       settled = true;
-      input.destroy();
+      source.destroy();
       gunzip.destroy();
       archive.destroy();
-      reject(error);
+      void closeArtifactFiles(handles, true).then(() => reject(error));
     };
 
-    input.once('error', fail);
-    gunzip.once('error', fail);
-    archive.once('error', fail);
+    const invalidArchive = (message: string) =>
+      new ModuleAppPackageSafetyError('module_app_package_archive_invalid', message);
+
+    source.once('error', () => fail(invalidArchive('Artifact archive could not be decompressed.')));
+    gunzip.once('error', () => fail(invalidArchive('Artifact archive could not be decompressed.')));
+    archive.once('error', () => fail(invalidArchive('Artifact archive could not be decompressed.')));
     archive.once('finish', () => {
       if (settled) return;
+      for (const [entryPath, type] of types) {
+        if (type !== 'file') continue;
+        const segments = entryPath.split('/');
+        for (let index = 1; index < segments.length; index += 1) {
+          const parent = segments.slice(0, index).join('/');
+          if (types.get(parent) === 'file') {
+            fail(invalidArchive(`Artifact file conflicts with parent directory: ${parent}`));
+            return;
+          }
+        }
+      }
       settled = true;
-      resolve();
+      resolve(handles);
     });
 
     archive.on('entry', (header: Headers, stream, next) => {
       void (async () => {
-        if (header.type !== 'file' && header.type !== 'directory') {
-          throw new ModuleAppArtifactMaterializationError(
-            'MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_INVALID',
-            `Unsupported artifact entry: ${header.type ?? 'unknown'}`,
+        const type = header.type;
+        if (type !== 'file' && type !== 'directory') {
+          throw invalidArchive(`Artifact contains unsupported entry type: ${type ?? 'unknown'}`);
+        }
+        const destination = resolveEntryPath(input.stagingDirectory, header.name);
+        if (types.has(header.name)) {
+          throw new ModuleAppPackageSafetyError(
+            'module_app_package_duplicate_path',
+            `Duplicate package path: ${header.name}`,
           );
         }
-        const destination = resolveEntryPath(stagingDirectory, header.name);
-        if (header.type === 'directory') {
-          await mkdir(destination, { recursive: true });
+        entryCount += 1;
+        if (entryCount > input.limits.maxFileCount) {
+          throw new ModuleAppPackageSafetyError(
+            'module_app_package_too_many_files',
+            `Package contains more than ${input.limits.maxFileCount} entries.`,
+          );
+        }
+
+        const declaredSize = header.size;
+        if (
+          typeof declaredSize !== 'number' ||
+          !Number.isSafeInteger(declaredSize) ||
+          declaredSize < 0
+        ) {
+          throw invalidArchive(`Invalid artifact size: ${header.name}`);
+        }
+        if (type === 'directory' && declaredSize !== 0) {
+          throw invalidArchive(`Directory contains data: ${header.name}`);
+        }
+        if (type === 'file' && declaredSize > input.limits.maxFileSizeBytes) {
+          throw new ModuleAppPackageSafetyError(
+            'module_app_package_file_too_large',
+            `Package file exceeds ${input.limits.maxFileSizeBytes} bytes: ${header.name}`,
+          );
+        }
+
+        if (type === 'directory') {
+          await input.fileSystem.mkdir(destination);
           stream.resume();
           await new Promise<void>((entryResolve, entryReject) => {
             stream.once('end', entryResolve);
             stream.once('error', entryReject);
           });
+          types.set(header.name, type);
           next();
           return;
         }
 
-        await mkdir(path.dirname(destination), { recursive: true });
-        await pipeline(stream, createWriteStream(destination, { flags: 'wx', mode: 0o600 }));
-        await syncFile(destination);
+        await input.fileSystem.mkdir(path.dirname(destination));
+        const handle = await input.fileSystem.openFileForWrite(destination);
+        handles.push(handle);
+        let actualSize = 0;
+        for await (const chunk of stream) {
+          const bytes = chunk instanceof Uint8Array ? chunk : Buffer.from(chunk);
+          actualSize += bytes.byteLength;
+          totalBytes += bytes.byteLength;
+          if (actualSize > declaredSize || actualSize > input.limits.maxFileSizeBytes) {
+            throw new ModuleAppPackageSafetyError(
+              'module_app_package_file_too_large',
+              `Package file exceeds ${input.limits.maxFileSizeBytes} bytes: ${header.name}`,
+            );
+          }
+          if (totalBytes > input.limits.maxUncompressedBytes) {
+            throw new ModuleAppPackageSafetyError(
+              'module_app_package_expanded_too_large',
+              `Expanded package exceeds ${input.limits.maxUncompressedBytes} bytes.`,
+            );
+          }
+          await handle.write(bytes);
+        }
+        if (actualSize !== declaredSize) {
+          throw invalidArchive(`Invalid artifact size: ${header.name}`);
+        }
+        types.set(header.name, type);
         next();
       })().catch(fail);
     });
 
-    input.pipe(gunzip).pipe(archive);
+    source.pipe(gunzip).pipe(archive);
   });
 
 const declaredRegularFiles = (manifest: ManifestV2) => {
@@ -188,11 +325,15 @@ const declaredRegularFiles = (manifest: ManifestV2) => {
   return [frontendFile, ...manifest.runtime.functions.map((runtimeFunction) => runtimeFunction.entry)];
 };
 
-const assertDeclaredRegularFiles = async (directory: string, manifest: ManifestV2) => {
+const assertDeclaredRegularFiles = async (
+  directory: string,
+  manifest: ManifestV2,
+  fileSystem: MaterializerFileSystem,
+) => {
   for (const declaredPath of declaredRegularFiles(manifest)) {
     let metadata;
     try {
-      metadata = await lstat(resolveEntryPath(directory, declaredPath));
+      metadata = await fileSystem.lstat(resolveEntryPath(directory, declaredPath));
     } catch (error) {
       throw new ModuleAppArtifactMaterializationError(
         'MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_INVALID',
@@ -213,12 +354,13 @@ const validateExistingDestination = async (
   directory: string,
   marker: ArtifactMarker,
   manifest: ManifestV2,
+  fileSystem: MaterializerFileSystem,
 ) => {
   try {
-    if (!(await lstat(directory)).isDirectory()) return false;
+    if (!(await fileSystem.lstat(directory)).isDirectory()) return false;
     const markerPath = path.join(directory, '.module-app-artifact.json');
-    if (!(await lstat(markerPath)).isFile()) return false;
-    const existing = JSON.parse(await readFile(markerPath, 'utf8')) as Partial<ArtifactMarker>;
+    if (!(await fileSystem.lstat(markerPath)).isFile()) return false;
+    const existing = JSON.parse(await fileSystem.readTextFile(markerPath)) as Partial<ArtifactMarker>;
     if (
       existing.schemaVersion !== 1 ||
       existing.artifactSha256 !== marker.artifactSha256 ||
@@ -227,7 +369,7 @@ const validateExistingDestination = async (
     ) {
       return false;
     }
-    await assertDeclaredRegularFiles(directory, manifest);
+    await assertDeclaredRegularFiles(directory, manifest, fileSystem);
     return true;
   } catch {
     return false;
@@ -248,53 +390,74 @@ const collectDirectories = (entries: ModuleAppArtifactEntry[], stagingDirectory:
   return Array.from(directories).sort((left, right) => right.length - left.length);
 };
 
-const makeImmutable = async (
-  entries: ModuleAppArtifactEntry[],
-  stagingDirectory: string,
-  markerPath: string,
-) => {
-  for (const entry of entries) {
-    if (entry.type === 'file') await chmod(resolveEntryPath(stagingDirectory, entry.path), 0o444);
+const applyImmutableModes = async (input: {
+  entries: ModuleAppArtifactEntry[];
+  fileSystem: MaterializerFileSystem;
+  markerPath: string;
+  stagingDirectory: string;
+}) => {
+  for (const entry of input.entries) {
+    if (entry.type === 'file') {
+      await input.fileSystem.chmod(resolveEntryPath(input.stagingDirectory, entry.path), 0o444);
+    }
   }
-  await chmod(markerPath, 0o444);
+  for (const directory of collectDirectories(input.entries, input.stagingDirectory)) {
+    await input.fileSystem.chmod(directory, 0o555);
+  }
+  await input.fileSystem.chmod(input.markerPath, 0o444);
+};
 
-  for (const directory of collectDirectories(entries, stagingDirectory)) {
-    await syncDirectory(directory);
-    await chmod(directory, 0o555);
+const syncMaterializedTree = async (input: {
+  entries: ModuleAppArtifactEntry[];
+  fileHandles: ArtifactFileHandle[];
+  fileSystem: MaterializerFileSystem;
+  stagingDirectory: string;
+}) => {
+  for (const handle of input.fileHandles) await handle.sync();
+  for (const directory of collectDirectories(input.entries, input.stagingDirectory)) {
+    await input.fileSystem.syncDirectory(directory);
   }
 };
 
-const makeDirectoriesWritable = async (directory: string): Promise<void> => {
-  const metadata = await lstat(directory).catch(() => undefined);
+const makeDirectoriesWritable = async (
+  directory: string,
+  fileSystem: MaterializerFileSystem,
+): Promise<void> => {
+  const metadata = await fileSystem.lstat(directory).catch(() => undefined);
   if (!metadata?.isDirectory()) return;
-  await chmod(directory, 0o755).catch(() => undefined);
-  const children = await readdir(directory, { withFileTypes: true }).catch(() => []);
+  await fileSystem.chmod(directory, 0o755).catch(() => undefined);
+  const children = await fileSystem.readDirectory(directory).catch(() => []);
   await Promise.all(
     children
       .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
-      .map((entry) => makeDirectoriesWritable(path.join(directory, entry.name))),
+      .map((entry) => makeDirectoriesWritable(path.join(directory, entry.name), fileSystem)),
   );
 };
 
-const removeOwnedDirectory = async (directory: string) => {
+const removeOwnedDirectory = async (directory: string, fileSystem: MaterializerFileSystem) => {
   try {
-    await rm(directory, { force: true, recursive: true });
+    await fileSystem.removeDirectory(directory);
   } catch {
-    await makeDirectoriesWritable(directory);
-    await rm(directory, { force: true, recursive: true });
+    await makeDirectoriesWritable(directory, fileSystem);
+    await fileSystem.removeDirectory(directory);
   }
 };
 
-export const materializeModuleAppArtifact = async (
+export const materializeModuleAppArtifactWithDependencies = async (
   input: MaterializeModuleAppArtifactInput,
+  dependencies: ModuleAppArtifactMaterializerDependencies = {},
 ): Promise<{ directory: string; reused: boolean }> => {
+  const artifactBytes = Uint8Array.from(input.artifactBytes);
   const artifactSha256 = input.artifactSha256.toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(artifactSha256) || sha256(input.artifactBytes) !== artifactSha256) {
+  if (!/^[a-f0-9]{64}$/.test(artifactSha256) || sha256(artifactBytes) !== artifactSha256) {
     throw new ModuleAppArtifactMaterializationError('MODULE_APP_BUILD_ARTIFACT_HASH_MISMATCH');
   }
   assertSafeIdentity(input.buildId, 'build ID');
   assertSafeIdentity(input.claimToken, 'claim token');
 
+  const fileSystem = { ...defaultFileSystem, ...dependencies.fileSystem };
+  const inspectArtifact = dependencies.inspectArtifact ?? inspectModuleAppArtifact;
+  const limits = { ...DEFAULT_MODULE_APP_PACKAGE_LIMITS, ...dependencies.limits };
   const artifactRoot = path.resolve(input.artifactRoot);
   const stagingDirectory = path.join(
     artifactRoot,
@@ -309,8 +472,8 @@ export const materializeModuleAppArtifact = async (
     schemaVersion: 1,
   };
 
-  if (await lstat(directory).then(() => true).catch(() => false)) {
-    if (await validateExistingDestination(directory, marker, input.manifest)) {
+  if (await fileSystem.lstat(directory).then(() => true).catch(() => false)) {
+    if (await validateExistingDestination(directory, marker, input.manifest, fileSystem)) {
       return { directory, reused: true };
     }
     throw new ModuleAppArtifactMaterializationError(
@@ -318,16 +481,19 @@ export const materializeModuleAppArtifact = async (
     );
   }
 
-  await mkdir(path.dirname(stagingDirectory), { recursive: true });
-  await removeOwnedDirectory(stagingDirectory);
+  await fileSystem.mkdir(path.dirname(stagingDirectory));
+  await removeOwnedDirectory(stagingDirectory, fileSystem);
+  const fileHandles: ArtifactFileHandle[] = [];
 
   try {
-    const entries = await inspectModuleAppArtifact(input.artifactBytes);
-    await mkdir(stagingDirectory, { recursive: true });
-    await extractArtifact(input.artifactBytes, stagingDirectory);
+    const entries = await inspectArtifact(artifactBytes);
+    await fileSystem.mkdir(stagingDirectory);
+    fileHandles.push(
+      ...(await extractArtifact({ artifactBytes, fileSystem, limits, stagingDirectory })),
+    );
 
     for (const entry of entries) {
-      const metadata = await lstat(resolveEntryPath(stagingDirectory, entry.path));
+      const metadata = await fileSystem.lstat(resolveEntryPath(stagingDirectory, entry.path));
       if (
         (entry.type === 'file' && !metadata.isFile()) ||
         (entry.type === 'directory' && !metadata.isDirectory())
@@ -338,20 +504,23 @@ export const materializeModuleAppArtifact = async (
         );
       }
     }
-    await assertDeclaredRegularFiles(stagingDirectory, input.manifest);
+    await assertDeclaredRegularFiles(stagingDirectory, input.manifest, fileSystem);
 
     const markerPath = path.join(stagingDirectory, '.module-app-artifact.json');
-    await writeFile(markerPath, `${JSON.stringify(marker)}\n`, { flag: 'wx', mode: 0o600 });
-    await syncFile(markerPath);
-    await makeImmutable(entries, stagingDirectory, markerPath);
+    const markerHandle = await fileSystem.openFileForWrite(markerPath);
+    fileHandles.push(markerHandle);
+    await markerHandle.writeFile(`${JSON.stringify(marker)}\n`);
+    await applyImmutableModes({ entries, fileSystem, markerPath, stagingDirectory });
+    await syncMaterializedTree({ entries, fileHandles, fileSystem, stagingDirectory });
+    await closeArtifactFiles(fileHandles);
 
     try {
-      await rename(stagingDirectory, directory);
+      await fileSystem.rename(stagingDirectory, directory);
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'EEXIST' || code === 'ENOTEMPTY') {
-        if (await validateExistingDestination(directory, marker, input.manifest)) {
-          await removeOwnedDirectory(stagingDirectory);
+      const destinationExists = await fileSystem.lstat(directory).then(() => true).catch(() => false);
+      if (destinationExists) {
+        if (await validateExistingDestination(directory, marker, input.manifest, fileSystem)) {
+          await removeOwnedDirectory(stagingDirectory, fileSystem);
           return { directory, reused: true };
         }
         throw new ModuleAppArtifactMaterializationError(
@@ -362,16 +531,13 @@ export const materializeModuleAppArtifact = async (
       }
       throw error;
     }
-    try {
-      await syncDirectory(artifactRoot);
-    } catch (error) {
-      await removeOwnedDirectory(directory);
-      await syncDirectory(artifactRoot).catch(() => undefined);
-      throw error;
-    }
     return { directory, reused: false };
   } catch (error) {
-    await removeOwnedDirectory(stagingDirectory);
+    await closeArtifactFiles(fileHandles);
+    await removeOwnedDirectory(stagingDirectory, fileSystem);
     throw error;
   }
 };
+
+export const materializeModuleAppArtifact = (input: MaterializeModuleAppArtifactInput) =>
+  materializeModuleAppArtifactWithDependencies(input);
