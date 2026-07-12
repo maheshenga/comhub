@@ -53,7 +53,7 @@ export class ModuleAppBuildStorageService {
 
   prepareWorkerRequest = async (
     build: ClaimedModuleAppBuild,
-  ): Promise<ModuleAppBuildWorkerRequest> => {
+  ): Promise<Omit<ModuleAppBuildWorkerRequest, 'claimToken'>> => {
     const artifactKey = getModuleAppBuildStagingKey(build.id);
     const [sourceDownloadUrl, upload] = await Promise.all([
       this.storage.createPreSignedUrlForPreview(

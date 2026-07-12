@@ -4,6 +4,7 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
+    "./models/moduleAppBuild": "./src/models/moduleAppBuild.ts",
     "./schemas": "./src/schemas/index.ts",
     "./test-utils": "./tests/test-utils.ts"
   },

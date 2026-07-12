@@ -650,6 +650,10 @@ export const moduleAppBuilds = pgTable(
     buildProfile: text('build_profile').$type<ModuleAppBuildProfile>().notNull(),
     workerId: text('worker_id'),
     claimedAt: timestamptz('claimed_at'),
+    claimToken: text('claim_token'),
+    claimExpiresAt: timestamptz('claim_expires_at'),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    nextAttemptAt: timestamptz('next_attempt_at').defaultNow().notNull(),
     completedAt: timestamptz('completed_at'),
     failureCode: text('failure_code'),
     createdAt: createdAt(),
@@ -658,6 +662,12 @@ export const moduleAppBuilds = pgTable(
   (table) => [
     uniqueIndex('module_app_builds_version_id_unique').on(table.versionId),
     index('module_app_builds_status_created_at_idx').on(table.status, table.createdAt),
+    index('module_app_builds_claimable_idx').on(
+      table.status,
+      table.nextAttemptAt,
+      table.claimExpiresAt,
+      table.createdAt,
+    ),
     check(
       'module_app_builds_status_check',
       sql`${table.status} IN ('queued', 'building', 'ready', 'failed')`,
@@ -665,6 +675,10 @@ export const moduleAppBuilds = pgTable(
     check(
       'module_app_builds_source_sha256_check',
       sql`${table.sourceSha256} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'module_app_builds_attempt_count_check',
+      sql`${table.attemptCount} >= 0 AND ${table.attemptCount} <= 4`,
     ),
   ],
 );

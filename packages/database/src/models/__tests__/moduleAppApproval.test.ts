@@ -136,11 +136,12 @@ describe('ModuleAppModel executable package approval', () => {
     );
 
     const buildModel = new ModuleAppBuildModel(serverDB);
-    const claimed = await buildModel.claimNext({ workerId: 'builder-1' });
+    const claimed = await buildModel.claimNext({ leaseDurationMs: 60_000, workerId: 'builder-1' });
     await buildModel.complete({
       artifactKey: `module-app-builds/${claimed!.id}/${'b'.repeat(64)}.tgz`,
       artifactSha256: 'b'.repeat(64),
       buildId: claimed!.id,
+      claimToken: claimed!.claimToken,
     });
 
     await expect(model.setStatus({ appId: result.appId, status: 'published' })).resolves.toEqual({

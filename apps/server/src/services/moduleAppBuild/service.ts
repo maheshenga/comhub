@@ -40,22 +40,31 @@ export class ModuleAppBuildService {
   approvePackage = (input: { packageId: string; reviewedByUserId: string }) =>
     this.appModel.approvePackageSubmissionForAdmin(input);
 
-  claimBuild = async (input: { workerId: string }) => {
+  claimBuild = async (input: { leaseDurationMs: number; workerId: string }) => {
     const build = await this.buildModel.claimNext(input);
     if (!build) return null;
 
     try {
-      return await this.storage.prepareWorkerRequest(build);
+      const request = await this.storage.prepareWorkerRequest(build);
+      return { ...request, claimToken: build.claimToken };
     } catch (error) {
       const failureCode = 'MODULE_APP_BUILD_STORAGE_SIGNING_FAILED';
-      await this.buildModel.fail({ buildId: build.id, failureCode }).catch(() => undefined);
+      await this.buildModel
+        .fail({ buildId: build.id, claimToken: build.claimToken, failureCode })
+        .catch(() => undefined);
       throw new ModuleAppBuildStorageError(failureCode, error);
     }
   };
 
   recordBuildResult = async (input: ModuleAppBuildResult) => {
+    if (!input.claimToken) throw new Error('MODULE_APP_BUILD_LEASE_LOST');
+
     if (input.status === 'failed') {
-      return this.buildModel.fail({ buildId: input.buildId, failureCode: input.failureCode });
+      return this.buildModel.fail({
+        buildId: input.buildId,
+        claimToken: input.claimToken,
+        failureCode: input.failureCode,
+      });
     }
 
     const build = await this.buildModel.getById(input.buildId);
@@ -69,13 +78,15 @@ export class ModuleAppBuildService {
         build,
       });
 
-      return this.buildModel.complete({ ...artifact, buildId: input.buildId });
+      return this.buildModel.complete({ ...artifact, buildId: input.buildId, claimToken: input.claimToken });
     } catch (error) {
       const failureCode =
         error instanceof ModuleAppBuildStorageError
           ? error.code
           : 'MODULE_APP_BUILD_ARTIFACT_VERIFICATION_FAILED';
-      await this.buildModel.fail({ buildId: input.buildId, failureCode }).catch(() => undefined);
+      await this.buildModel
+        .fail({ buildId: input.buildId, claimToken: input.claimToken, failureCode })
+        .catch(() => undefined);
       throw error instanceof ModuleAppBuildStorageError
         ? error
         : new ModuleAppBuildStorageError(failureCode, error);

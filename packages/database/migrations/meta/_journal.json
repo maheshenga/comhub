@@ -1029,6 +1029,13 @@
       "when": 1784559200000,
       "tag": "0143_add_module_app_payouts",
       "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1784645600000,
+      "tag": "0144_add_module_app_build_leases",
+      "breakpoints": true
     }
   ],
   "version": "6"
