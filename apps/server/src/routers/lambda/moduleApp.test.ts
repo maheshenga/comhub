@@ -1,10 +1,20 @@
 // @vitest-environment node
-import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
+import type { AnyTRPCProcedure } from '@trpc/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z, type ZodTypeAny } from 'zod';
+
+import { authedProcedure } from '@/libs/trpc/lambda';
+import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 
 import { lambdaRouter } from './index';
 import { moduleAppRouter } from './moduleApp';
+import { moduleAppCommerceProcedures } from './moduleApp/commerce';
+import { moduleAppDataProcedures, moduleAppProcedure } from './moduleApp/data';
+import { moduleAppMarketProcedures } from './moduleApp/market';
+import { moduleAppRuntimeProcedures } from './moduleApp/runtime';
+import { moduleAppWorkflowProcedures } from './moduleApp/workflow';
 
 const {
   mockGetServerDB,
@@ -145,6 +155,64 @@ vi.mock('@/database/models/moduleAppWorkflow', () => ({
 const APP_ID = '00000000-0000-4000-8000-000000000001';
 
 const createCaller = () => moduleAppRouter.createCaller({ userId: 'user-1' } as any);
+const moduleAppProcedureRecord = moduleAppRouter._def.record as unknown as Record<
+  string,
+  AnyTRPCProcedure
+>;
+
+const serializeParserContract = (
+  value: unknown,
+  seen = new Map<object, number>(),
+  key?: PropertyKey,
+): string => {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'bigint') {
+    return `${typeof value}:${String(value)}`;
+  }
+  if (typeof value === 'string') return `string:${JSON.stringify(value)}`;
+  if (typeof value === 'symbol') return `symbol:${String(value)}`;
+  if (typeof value === 'function') {
+    if (key === 'shape') return `shape:${serializeParserContract(value(), seen)}`;
+    return `function:${value.toString()}`;
+  }
+
+  const object = value as Record<PropertyKey, unknown>;
+  const reference = seen.get(object);
+  if (reference !== undefined) return `reference:${reference}`;
+  seen.set(object, seen.size);
+
+  if (value instanceof Date) return `date:${value.toISOString()}`;
+  if (value instanceof RegExp) return `regexp:${value.toString()}`;
+  if (Array.isArray(value)) {
+    return `array:[${value.map((item) => serializeParserContract(item, seen)).join(',')}]`;
+  }
+  if (value instanceof Map) {
+    const entries = [...value.entries()]
+      .map(
+        ([entryKey, entryValue]) =>
+          `${serializeParserContract(entryKey, seen)}=>${serializeParserContract(entryValue, seen)}`,
+      )
+      .sort();
+    return `map:{${entries.join(',')}}`;
+  }
+  if (value instanceof Set) {
+    const entries = [...value].map((item) => serializeParserContract(item, seen)).sort();
+    return `set:{${entries.join(',')}}`;
+  }
+
+  const constructorName = Object.getPrototypeOf(value)?.constructor?.name ?? 'Object';
+  const entries = Reflect.ownKeys(object)
+    .sort((left, right) => String(left).localeCompare(String(right)))
+    .map(
+      (entryKey) =>
+        `${String(entryKey)}:${serializeParserContract(object[entryKey], seen, entryKey)}`,
+    );
+  return `${constructorName}:{${entries.join(',')}}`;
+};
+
+const fingerprintParser = (parser: ZodTypeAny) =>
+  createHash('sha256').update(serializeParserContract(parser)).digest('hex');
 
 describe('moduleApp router registration', () => {
   beforeEach(() => {
@@ -251,52 +319,145 @@ describe('moduleApp router registration', () => {
   });
 
   it('composes the root router exclusively from domain procedure records', () => {
-    const rootPath = new URL('./moduleApp.ts', import.meta.url);
-    const rootSource = readFileSync(rootPath, 'utf8');
-    const domains = ['market', 'runtime', 'data', 'workflow', 'commerce'] as const;
+    const domainRecords = [
+      moduleAppMarketProcedures,
+      moduleAppRuntimeProcedures,
+      moduleAppDataProcedures,
+      moduleAppWorkflowProcedures,
+      moduleAppCommerceProcedures,
+    ];
+    const domainEntries = domainRecords.flatMap((record) => Object.entries(record));
+    const domainKeys = domainEntries.map(([key]) => key);
 
-    for (const domain of domains) {
-      expect(existsSync(new URL(`./moduleApp/${domain}.ts`, import.meta.url))).toBe(true);
-      expect(rootSource).toContain(`./moduleApp/${domain}`);
-      expect(rootSource).toContain(`...moduleApp${domain[0].toUpperCase()}${domain.slice(1)}Procedures`);
+    expect(new Set(domainKeys).size).toBe(domainKeys.length);
+    expect(Object.keys(moduleAppProcedureRecord).sort()).toEqual(domainKeys.sort());
+    for (const [key, procedure] of domainEntries) {
+      expect(moduleAppProcedureRecord[key]).toBe(procedure);
     }
-
-    expect(rootSource).not.toContain('moduleAppProcedure');
   });
 
-  it('preserves the public Module App procedure key contract', () => {
-    expect(Object.keys(moduleAppRouter._def.record).sort()).toEqual([
-      'archiveRecord',
-      'callSdk',
-      'cancelOrder',
-      'cancelWorkflowRun',
-      'createOrder',
-      'createPackageUpload',
-      'createPayment',
-      'createRecord',
-      'getDetail',
-      'getLaunchContext',
-      'getLicense',
-      'getRecord',
-      'getRuntimeManifest',
-      'getWorkflowRun',
-      'installPersonal',
-      'listArtifacts',
-      'listCatalog',
-      'listMarketplace',
-      'listMyApps',
-      'listMyPackageSubmissions',
-      'listOrders',
-      'listRecords',
-      'listRuns',
-      'listTeamApps',
-      'listWorkflowNodes',
-      'quoteProduct',
-      'runAction',
-      'submitUploadedPackage',
-      'uninstallPersonal',
-      'updateRecord',
-    ]);
+  it('preserves the public Module App procedure contract', () => {
+    const contract: Record<string, { inputs: number; type: 'mutation' | 'query' }> = {
+      archiveRecord: { inputs: 1, type: 'mutation' },
+      callSdk: { inputs: 1, type: 'mutation' },
+      cancelOrder: { inputs: 1, type: 'mutation' },
+      cancelWorkflowRun: { inputs: 1, type: 'mutation' },
+      createOrder: { inputs: 1, type: 'mutation' },
+      createPackageUpload: { inputs: 1, type: 'mutation' },
+      createPayment: { inputs: 1, type: 'mutation' },
+      createRecord: { inputs: 1, type: 'mutation' },
+      getDetail: { inputs: 1, type: 'query' },
+      getLaunchContext: { inputs: 1, type: 'query' },
+      getLicense: { inputs: 1, type: 'query' },
+      getRecord: { inputs: 1, type: 'query' },
+      getRuntimeManifest: { inputs: 1, type: 'query' },
+      getWorkflowRun: { inputs: 1, type: 'query' },
+      installPersonal: { inputs: 1, type: 'mutation' },
+      listArtifacts: { inputs: 1, type: 'query' },
+      listCatalog: { inputs: 1, type: 'query' },
+      listMarketplace: { inputs: 1, type: 'query' },
+      listMyApps: { inputs: 0, type: 'query' },
+      listMyPackageSubmissions: { inputs: 1, type: 'query' },
+      listOrders: { inputs: 1, type: 'query' },
+      listRecords: { inputs: 1, type: 'query' },
+      listRuns: { inputs: 1, type: 'query' },
+      listTeamApps: { inputs: 1, type: 'query' },
+      listWorkflowNodes: { inputs: 1, type: 'query' },
+      quoteProduct: { inputs: 1, type: 'query' },
+      runAction: { inputs: 1, type: 'mutation' },
+      submitUploadedPackage: { inputs: 1, type: 'mutation' },
+      uninstallPersonal: { inputs: 1, type: 'mutation' },
+      updateRecord: { inputs: 1, type: 'mutation' },
+    };
+    const inputSchemaContract: Record<string, null | string> = {
+      archiveRecord: '854df8f9f82f8626a7382dce00b8145f17645b5d5e0363dcfd066b64fc7c2c49',
+      callSdk: 'bc51dc2b9504f9c2ed731dd8f98671de81c2eb91af74762ac0ae46390570c671',
+      cancelOrder: '3130fc6ed9a08d9fc1d6295ff15adb99797d435765068b31a02cf3f4b580bc7b',
+      cancelWorkflowRun: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
+      createOrder: 'a9cb754e0714fabb188d6dd9d2af27b1ee6f8bdafeceb7700ba08bd7299d7adc',
+      createPackageUpload: '93f1a0509a31e23a1e66b6a220165f5bd931503fc148bf8a0e2b7f213ca5a969',
+      createPayment: 'ebe3b1afa36f2514174957f1ba37d6baadf21e2c82a244f0e117b484160c132e',
+      createRecord: '6e9a074dc84ace871f6347bdc0833bc657d4ad409e99a71ae06de10f91deb29a',
+      getDetail: '38287e537e621cb56c626d7a9040bd54b0dda034b507934e9c737747289a5a06',
+      getLaunchContext: '73c92b6fc5923def54e2595f57fc567802693d056634a75bd7031c1cf78971c8',
+      getLicense: '73c92b6fc5923def54e2595f57fc567802693d056634a75bd7031c1cf78971c8',
+      getRecord: '854df8f9f82f8626a7382dce00b8145f17645b5d5e0363dcfd066b64fc7c2c49',
+      getRuntimeManifest: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
+      getWorkflowRun: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
+      installPersonal: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
+      listArtifacts: '43e4cea8d4d8a7d47b62b6d42cea3420a57d4f67d0def09fd90f4f48e51a41f7',
+      listCatalog: 'fbed6b4881d01ef729f244ed5b4795c427f4dfdba7a910b909ba8c0f364714f1',
+      listMarketplace: '7699c86549809458043fa74a895e3ac49562495b1bdac9c2e3514c3ea5f227af',
+      listMyApps: null,
+      listMyPackageSubmissions:
+        '92ca0a7abe13012bc74d99c1ec6a61f85d12e583360292a35d15f05281bebec5',
+      listOrders: 'f1cd8d8ac045d434ef05ccbd4a304bcd7ab3a4e5eceae386b412e1f533fa3cf2',
+      listRecords: '956ae18f3614b2d43ea2b468947e45491b2c79282a4ef3eb5cb94e0d0bff2e53',
+      listRuns: '43e4cea8d4d8a7d47b62b6d42cea3420a57d4f67d0def09fd90f4f48e51a41f7',
+      listTeamApps: 'dba8eab472ae20562fef13dcf47022b1da58000b4be5fbbf3737cfab2168c125',
+      listWorkflowNodes: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
+      quoteProduct: 'a9cb754e0714fabb188d6dd9d2af27b1ee6f8bdafeceb7700ba08bd7299d7adc',
+      runAction: 'd68bc0413b5fcedfd583eb96330011dfb30aadddb4add64d30d12ebc4f297984',
+      submitUploadedPackage:
+        '74eff14aff88a2463579fec57327dd724b23d3decda13a51d038eb7c6e4da43f',
+      uninstallPersonal: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
+      updateRecord: '6b12c59563a0e4a4ce7df592bf5d65c0b2df02ffaba10e8dbeaa0ed7e06e1bb1',
+    };
+    const baseMiddlewares = moduleAppProcedure._def.middlewares;
+    const authMiddlewares = authedProcedure._def.middlewares;
+    const databaseMiddlewares = serverDatabase._middlewares;
+
+    expect(Object.keys(moduleAppProcedureRecord).sort()).toEqual(Object.keys(contract).sort());
+    expect(Object.keys(inputSchemaContract).sort()).toEqual(Object.keys(contract).sort());
+    expect(baseMiddlewares.slice(0, authMiddlewares.length)).toEqual(authMiddlewares);
+    expect(
+      baseMiddlewares.slice(
+        authMiddlewares.length,
+        authMiddlewares.length + databaseMiddlewares.length,
+      ),
+    ).toEqual(databaseMiddlewares);
+    expect(baseMiddlewares).toHaveLength(
+      authMiddlewares.length + databaseMiddlewares.length + 1,
+    );
+    expect(fingerprintParser(z.string())).not.toBe(fingerprintParser(z.string().trim()));
+    expect(fingerprintParser(z.string())).not.toBe(
+      fingerprintParser(z.string().transform((value) => value.trim())),
+    );
+    for (const [key, expected] of Object.entries(contract)) {
+      const procedure = moduleAppProcedureRecord[key];
+      const middlewares = (procedure._def as typeof procedure._def & { middlewares: unknown[] })
+        .middlewares;
+      const input = procedure._def.inputs[0];
+      const inputSchemaSha256 = input ? fingerprintParser(input as ZodTypeAny) : null;
+
+      expect(procedure._def.type, key).toBe(expected.type);
+      expect(procedure._def.inputs, key).toHaveLength(expected.inputs);
+      expect(inputSchemaSha256, key).toBe(inputSchemaContract[key]);
+      expect(middlewares.slice(0, baseMiddlewares.length), key).toEqual(baseMiddlewares);
+      expect(middlewares, key).toHaveLength(baseMiddlewares.length + expected.inputs + 1);
+    }
+  });
+
+  it('preserves the database, plan, model, and workflow-model context middleware', async () => {
+    const database = {};
+    mockGetServerDB.mockResolvedValueOnce(database);
+
+    await expect(
+      createCaller().getWorkflowRun({
+        installationId: '00000000-0000-4000-8000-000000000010',
+        runId: '00000000-0000-4000-8000-000000000012',
+      }),
+    ).resolves.toMatchObject({ id: 'workflow-run-1' });
+
+    expect(mockGetServerDB).toHaveBeenCalledOnce();
+    expect(mockGetSubscriptionPlan).toHaveBeenCalledWith(database, 'user-1');
+    expect(mockModuleAppModel.assertInstallationAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+    );
+    expect(mockModuleAppWorkflowModel.getRun).toHaveBeenCalledWith({
+      installationId: '00000000-0000-4000-8000-000000000010',
+      runId: '00000000-0000-4000-8000-000000000012',
+    });
   });
 
   it('returns a scoped launch context for an installed entitled ready application', async () => {

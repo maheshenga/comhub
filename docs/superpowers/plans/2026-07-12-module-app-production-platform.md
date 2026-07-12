@@ -410,18 +410,20 @@ export interface ModuleAppPaymentAdapter {
 - Create: `apps/server/src/routers/lambda/moduleApp/commerce.ts`
 - Modify: `apps/server/src/routers/lambda/moduleApp.ts`
 
-- [ ] Move one responsibility at a time behind the existing model/router exports.
-- [ ] Preserve existing TRPC procedure names and input/output schemas.
-- [ ] Add contract tests that compare the root router record before and after decomposition.
-- [ ] Run the complete targeted Module App test set after each moved boundary.
-- [ ] Commit: `refactor: split module app ownership boundaries`
+- [x] Move one responsibility at a time behind the existing model/router exports.
+- [x] Preserve existing TRPC procedure names and input/output schemas.
+- [x] Add contract tests that compare the root router record before and after decomposition.
+- [x] Run the complete targeted Module App test set after each moved boundary.
+- [x] Commit: `refactor: split module app ownership boundaries`
+
+Evidence: router ownership commit `cd5342313d`, model ownership commit `677044f6f6`, 30-procedure identity/type/input-schema/middleware contract coverage, router 46/46, database 73/73, and business-server Module App 124/124.
 
 ## Final Acceptance And Push
 
-- [ ] Run all targeted Module App tests, package tests, type checking, targeted ESLint, locale validation, and `git diff --check`.
-- [ ] Run PostgreSQL and Redis integration suites with `DATABASE_TEST_URL` and Redis enabled.
-- [ ] Run real-container security probes and Alipay sandbox verification.
-- [ ] Run browser E2E and deployment smoke checks against a staging blue-green deployment.
-- [ ] Confirm production flags remain disabled until all gates have evidence.
-- [ ] Update feature registry and internal changelog with actual verification status and blockers.
+- [x] Run all targeted Module App tests, package tests, type checking, targeted ESLint, locale validation, and `git diff --check`.
+- [x] Run PostgreSQL and Redis integration suites with `DATABASE_TEST_URL` and Redis enabled.
+- [ ] Run real-container security probes and Alipay sandbox verification. Real-container probes passed 5/5; the live Alipay lifecycle remains blocked by missing sandbox credentials.
+- [ ] Run browser E2E and deployment smoke checks against a staging blue-green deployment. The dry-run discovers 4 scenarios/23 steps; authenticated staging and rollback evidence remain external blockers.
+- [x] Confirm production flags remain disabled until all gates have evidence.
+- [x] Update feature registry and internal changelog with actual verification status and blockers.
 - [ ] Push branch and report commit SHAs, test commands, deployment probe results, and any remaining external credential or environment blockers.

@@ -10,6 +10,7 @@ import { ModuleAppSecretsGateway } from './secrets';
 const INSTALLATION_ID = '00000000-0000-4000-8000-000000000001';
 const APP_ID = '00000000-0000-4000-8000-000000000002';
 const VERSION_ID = '00000000-0000-4000-8000-000000000003';
+const NOW_SECONDS = Math.floor(Date.now() / 1000);
 
 const claims = (
   permissions: string[],
@@ -17,8 +18,8 @@ const claims = (
 ): ModuleAppCapabilityClaims => ({
   appId: APP_ID,
   aud: 'module-runtime',
-  exp: 1_783_760_300,
-  iat: 1_783_760_000,
+  exp: NOW_SECONDS + 300,
+  iat: NOW_SECONDS,
   installationId: INSTALLATION_ID,
   nonce: '0123456789abcdef0123456789abcdef',
   permissions,
