@@ -6,7 +6,9 @@ import type {
   ModuleAppPackageReviewStatus,
   ModuleAppPackageScanStatus,
   ModuleAppPage,
+  ModuleAppPayoutStatus,
   ModuleAppPlanEntitlement,
+  ModuleAppPublisherStatus,
   ModuleAppStatus,
 } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
@@ -32,8 +34,14 @@ import AppEditorModal from './AppEditorModal';
 import ArtifactsTable from './ArtifactsTable';
 import AuditEventsTable from './AuditEventsTable';
 import CommerceTable, { type ModuleAppRevenueRow } from './CommerceTable';
+import CursorPager from './CursorPager';
 import { buildModuleAppPublishWarnings } from './formSchema';
 import InstallsTable from './InstallsTable';
+import PaymentReconciliationTable, {
+  type ModuleAppPaymentDiagnosticRow,
+} from './PaymentReconciliationTable';
+import PayoutTable, { type ModuleAppPayoutRow } from './PayoutTable';
+import PublisherTable, { type ModuleAppPublisherRow } from './PublisherTable';
 import RecordsTable from './RecordsTable';
 import RunsTable from './RunsTable';
 import type {
@@ -42,17 +50,25 @@ import type {
   AdminModuleAppPackageRow,
   AdminModuleAppUpsertResult,
 } from './types';
+import { useCursorPagination } from './useCursorPagination';
 
 const { Text, Title } = Typography;
 
 type ListResponse<T> = {
   items?: T[];
-  nextCursor?: null | number;
+  nextCursor?: null | number | string;
 };
+
+const ADMIN_PAGE_SIZE = 25;
 
 type StatusFilter = 'all' | ModuleAppStatus;
 type PackageStatusFilter = 'all' | ModuleAppPackageReviewStatus;
 type RevenueStatusFilter = 'all' | 'pending' | 'reversed' | 'settled';
+type PublisherStatusFilter = 'all' | ModuleAppPublisherStatus;
+type PayoutStatusFilter = 'all' | ModuleAppPayoutStatus;
+type PaymentStatusFilter = 'all' | 'created' | 'failed' | 'paid' | 'pending' | 'refunded';
+type RefundStatusFilter = 'all' | 'failed' | 'requested' | 'succeeded';
+type DiscrepancyStatusFilter = 'all' | 'open' | 'resolved';
 
 type ModuleAppRecordRow = {
   collectionKey: string;
@@ -117,6 +133,45 @@ const revenueStatusOptions: Array<{ label: string; value: RevenueStatusFilter }>
   { label: 'Reversed', value: 'reversed' },
 ];
 
+const publisherStatusOptions: Array<{ label: string; value: PublisherStatusFilter }> = [
+  { label: 'All publishers', value: 'all' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Verified', value: 'verified' },
+  { label: 'Suspended', value: 'suspended' },
+];
+
+const payoutStatusOptions: Array<{ label: string; value: PayoutStatusFilter }> = [
+  { label: 'All payouts', value: 'all' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Eligible', value: 'eligible' },
+  { label: 'Processing', value: 'processing' },
+  { label: 'Paid', value: 'paid' },
+  { label: 'Failed', value: 'failed' },
+  { label: 'Reversed', value: 'reversed' },
+];
+
+const paymentStatusOptions: Array<{ label: string; value: PaymentStatusFilter }> = [
+  { label: 'All payments', value: 'all' },
+  { label: 'Created', value: 'created' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Paid', value: 'paid' },
+  { label: 'Failed', value: 'failed' },
+  { label: 'Refunded', value: 'refunded' },
+];
+
+const refundStatusOptions: Array<{ label: string; value: RefundStatusFilter }> = [
+  { label: 'All refunds', value: 'all' },
+  { label: 'Requested', value: 'requested' },
+  { label: 'Succeeded', value: 'succeeded' },
+  { label: 'Failed', value: 'failed' },
+];
+
+const discrepancyStatusOptions: Array<{ label: string; value: DiscrepancyStatusFilter }> = [
+  { label: 'All discrepancies', value: 'all' },
+  { label: 'Open', value: 'open' },
+  { label: 'Resolved', value: 'resolved' },
+];
+
 const statusColor: Record<ModuleAppStatus, string> = {
   draft: 'default',
   published: 'green',
@@ -175,58 +230,125 @@ const AdminModuleAppsPage = memo(() => {
   const [packageStatusFilter, setPackageStatusFilter] =
     useState<PackageStatusFilter>('pending_review');
   const [revenueStatusFilter, setRevenueStatusFilter] = useState<RevenueStatusFilter>('pending');
+  const [publisherStatusFilter, setPublisherStatusFilter] =
+    useState<PublisherStatusFilter>('all');
+  const [payoutStatusFilter, setPayoutStatusFilter] = useState<PayoutStatusFilter>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>('all');
+  const [refundStatusFilter, setRefundStatusFilter] = useState<RefundStatusFilter>('all');
+  const [discrepancyStatusFilter, setDiscrepancyStatusFilter] =
+    useState<DiscrepancyStatusFilter>('all');
   const [selectedAppId, setSelectedAppId] = useState<string>();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<AdminModuleAppDetail | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const listKey = useMemo(() => ['admin-module-apps', statusFilter], [statusFilter]);
+  const appPager = useCursorPagination(statusFilter);
+  const packagePager = useCursorPagination(packageStatusFilter);
+  const revenuePager = useCursorPagination(revenueStatusFilter);
+  const publisherPager = useCursorPagination(publisherStatusFilter);
+  const payoutPager = useCursorPagination(payoutStatusFilter);
+  const paymentPager = useCursorPagination(
+    [selectedAppId, paymentStatusFilter, refundStatusFilter, discrepancyStatusFilter].join(':'),
+  );
+  const recordsPager = useCursorPagination(selectedAppId ?? 'none');
+  const runsPager = useCursorPagination(selectedAppId ?? 'none');
+  const artifactsPager = useCursorPagination(selectedAppId ?? 'none');
+  const installsPager = useCursorPagination(selectedAppId ?? 'none');
+  const auditPager = useCursorPagination(selectedAppId ?? 'none');
+
+  const listKey = useMemo(
+    () => ['admin-module-apps', statusFilter, appPager.cursor],
+    [appPager.cursor, statusFilter],
+  );
   const packagesKey = useMemo(
-    () => ['admin-module-app-packages', packageStatusFilter],
-    [packageStatusFilter],
+    () => ['admin-module-app-packages', packageStatusFilter, packagePager.cursor],
+    [packagePager.cursor, packageStatusFilter],
   );
   const revenueKey = useMemo(
-    () => ['admin-module-app-revenue', revenueStatusFilter],
-    [revenueStatusFilter],
+    () => ['admin-module-app-revenue', revenueStatusFilter, revenuePager.cursor],
+    [revenuePager.cursor, revenueStatusFilter],
+  );
+  const publishersKey = useMemo(
+    () => ['admin-module-app-publishers', publisherStatusFilter, publisherPager.cursor],
+    [publisherPager.cursor, publisherStatusFilter],
+  );
+  const payoutsKey = useMemo(
+    () => ['admin-module-app-payouts', payoutStatusFilter, payoutPager.cursor],
+    [payoutPager.cursor, payoutStatusFilter],
+  );
+  const paymentsKey = useMemo(
+    () => [
+      'admin-module-app-payments',
+      selectedAppId,
+      paymentStatusFilter,
+      refundStatusFilter,
+      discrepancyStatusFilter,
+      paymentPager.cursor,
+    ],
+    [
+      discrepancyStatusFilter,
+      paymentPager.cursor,
+      paymentStatusFilter,
+      refundStatusFilter,
+      selectedAppId,
+    ],
   );
   const detailKey = useMemo(
     () => (selectedAppId ? ['admin-module-app-detail', selectedAppId] : null),
     [selectedAppId],
   );
   const recordsKey = useMemo(
-    () => (selectedAppId ? ['admin-module-app-records', selectedAppId] : null),
-    [selectedAppId],
+    () =>
+      selectedAppId
+        ? ['admin-module-app-records', selectedAppId, recordsPager.cursor]
+        : null,
+    [recordsPager.cursor, selectedAppId],
   );
   const runsKey = useMemo(
-    () => (selectedAppId ? ['admin-module-app-runs', selectedAppId] : null),
-    [selectedAppId],
+    () => (selectedAppId ? ['admin-module-app-runs', selectedAppId, runsPager.cursor] : null),
+    [runsPager.cursor, selectedAppId],
   );
   const artifactsKey = useMemo(
-    () => (selectedAppId ? ['admin-module-app-artifacts', selectedAppId] : null),
-    [selectedAppId],
+    () =>
+      selectedAppId
+        ? ['admin-module-app-artifacts', selectedAppId, artifactsPager.cursor]
+        : null,
+    [artifactsPager.cursor, selectedAppId],
   );
   const installsKey = useMemo(
-    () => (selectedAppId ? ['admin-module-app-installs', selectedAppId] : null),
-    [selectedAppId],
+    () =>
+      selectedAppId
+        ? ['admin-module-app-installs', selectedAppId, installsPager.cursor]
+        : null,
+    [installsPager.cursor, selectedAppId],
   );
   const auditKey = useMemo(
-    () => (selectedAppId ? ['admin-module-app-audit-events', selectedAppId] : null),
-    [selectedAppId],
+    () =>
+      selectedAppId
+        ? ['admin-module-app-audit-events', selectedAppId, auditPager.cursor]
+        : null,
+    [auditPager.cursor, selectedAppId],
   );
 
   const { data: listData, error: listError, isLoading: listLoading } = useClientDataSWR(
     listKey,
     () =>
       adminCommercialService.moduleApps.list({
-        limit: 100,
+        cursor: appPager.cursor,
+        limit: ADMIN_PAGE_SIZE,
         status: statusFilter === 'all' ? undefined : statusFilter,
       }) as Promise<ListResponse<AdminModuleAppItem>>,
   );
-  const { data: packagesData, isLoading: packagesLoading } = useClientDataSWR(
+  const {
+    data: packagesData,
+    error: packagesError,
+    isLoading: packagesLoading,
+  } = useClientDataSWR(
     packagesKey,
     () =>
       adminCommercialService.moduleApps.listPackages({
-        limit: 100,
+        cursor: packagePager.cursor,
+        limit: ADMIN_PAGE_SIZE,
         reviewStatus: packageStatusFilter === 'all' ? undefined : packageStatusFilter,
       }) as Promise<ListResponse<AdminModuleAppPackageRow>>,
   );
@@ -234,7 +356,8 @@ const AdminModuleAppsPage = memo(() => {
     revenueKey,
     () =>
       adminCommercialService.moduleApps.listRevenue({
-        limit: 200,
+        cursor: revenuePager.cursor,
+        limit: ADMIN_PAGE_SIZE,
         status: revenueStatusFilter === 'all' ? undefined : revenueStatusFilter,
       }) as Promise<ListResponse<ModuleAppRevenueRow>>,
   );
@@ -250,7 +373,8 @@ const AdminModuleAppsPage = memo(() => {
     () =>
       adminCommercialService.moduleApps.listRecords({
         appId: selectedAppId!,
-        limit: 100,
+        cursor: recordsPager.cursor,
+        limit: ADMIN_PAGE_SIZE,
       }) as Promise<ListResponse<ModuleAppRecordRow>>,
   );
   const { data: runsData, isLoading: runsLoading } = useClientDataSWR(
@@ -258,7 +382,8 @@ const AdminModuleAppsPage = memo(() => {
     () =>
       adminCommercialService.moduleApps.listRuns({
         appId: selectedAppId!,
-        limit: 100,
+        cursor: runsPager.cursor,
+        limit: ADMIN_PAGE_SIZE,
       }) as Promise<ListResponse<ModuleAppRunRow>>,
   );
   const { data: artifactsData, isLoading: artifactsLoading } = useClientDataSWR(
@@ -266,7 +391,8 @@ const AdminModuleAppsPage = memo(() => {
     () =>
       adminCommercialService.moduleApps.listArtifacts({
         appId: selectedAppId!,
-        limit: 100,
+        cursor: artifactsPager.cursor,
+        limit: ADMIN_PAGE_SIZE,
       }) as Promise<ListResponse<ModuleAppArtifactRow>>,
   );
   const { data: installsData, isLoading: installsLoading } = useClientDataSWR(
@@ -274,7 +400,8 @@ const AdminModuleAppsPage = memo(() => {
     () =>
       adminCommercialService.moduleApps.listInstalls({
         appId: selectedAppId!,
-        limit: 100,
+        cursor: installsPager.cursor,
+        limit: ADMIN_PAGE_SIZE,
       }) as Promise<ListResponse<ModuleAppInstallRow>>,
   );
   const { data: auditData, isLoading: auditLoading } = useClientDataSWR(
@@ -282,8 +409,52 @@ const AdminModuleAppsPage = memo(() => {
     () =>
       adminCommercialService.moduleApps.listAuditEvents({
         appId: selectedAppId!,
-        limit: 100,
+        cursor: auditPager.cursor,
+        limit: ADMIN_PAGE_SIZE,
       }) as Promise<ListResponse<ModuleAppAuditRow>>,
+  );
+  const {
+    data: publishersData,
+    error: publishersError,
+    isLoading: publishersLoading,
+  } = useClientDataSWR(
+    publishersKey,
+    () =>
+      adminCommercialService.moduleApps.listPublishers({
+        cursor: publisherPager.cursor,
+        limit: ADMIN_PAGE_SIZE,
+        status: publisherStatusFilter === 'all' ? undefined : publisherStatusFilter,
+      }) as Promise<ListResponse<ModuleAppPublisherRow>>,
+  );
+  const {
+    data: payoutsData,
+    error: payoutsError,
+    isLoading: payoutsLoading,
+  } = useClientDataSWR(
+    payoutsKey,
+    () =>
+      adminCommercialService.moduleApps.listPayouts({
+        cursor: payoutPager.cursor,
+        limit: ADMIN_PAGE_SIZE,
+        status: payoutStatusFilter === 'all' ? undefined : payoutStatusFilter,
+      }) as Promise<ListResponse<ModuleAppPayoutRow>>,
+  );
+  const {
+    data: paymentsData,
+    error: paymentsError,
+    isLoading: paymentsLoading,
+  } = useClientDataSWR(
+    paymentsKey,
+    () =>
+      adminCommercialService.moduleApps.listPaymentDiagnostics({
+        appId: selectedAppId,
+        cursor: paymentPager.cursor,
+        discrepancyStatus:
+          discrepancyStatusFilter === 'all' ? undefined : discrepancyStatusFilter,
+        limit: ADMIN_PAGE_SIZE,
+        paymentStatus: paymentStatusFilter === 'all' ? undefined : paymentStatusFilter,
+        refundStatus: refundStatusFilter === 'all' ? undefined : refundStatusFilter,
+      }) as Promise<ListResponse<ModuleAppPaymentDiagnosticRow>>,
   );
 
   const items = useMemo(() => listData?.items ?? [], [listData?.items]);
@@ -297,6 +468,9 @@ const AdminModuleAppsPage = memo(() => {
   const artifacts = artifactsData?.items ?? [];
   const installs = installsData?.items ?? [];
   const auditEvents = auditData?.items ?? [];
+  const publishers = publishersData?.items ?? [];
+  const payouts = payoutsData?.items ?? [];
+  const paymentDiagnostics = paymentsData?.items ?? [];
 
   useEffect(() => {
     if (items.length === 0) {
@@ -700,6 +874,13 @@ const AdminModuleAppsPage = memo(() => {
             loading={packagesLoading}
             rowKey="id"
           />
+          {packagesError && <Alert showIcon message="Packages failed to load" type="error" />}
+          <CursorPager
+            hasNext={Boolean(packagesData?.nextCursor)}
+            hasPrevious={packagePager.hasPrevious}
+            onNext={() => packagePager.next(packagesData?.nextCursor)}
+            onPrevious={packagePager.previous}
+          />
         </Flexbox>
       ),
       key: 'packages',
@@ -780,33 +961,179 @@ const AdminModuleAppsPage = memo(() => {
             loading={revenueLoading}
             onSettle={handleSettleRevenue}
           />
+          <CursorPager
+            hasNext={Boolean(revenueData?.nextCursor)}
+            hasPrevious={revenuePager.hasPrevious}
+            onNext={() => revenuePager.next(revenueData?.nextCursor)}
+            onPrevious={revenuePager.previous}
+          />
         </Flexbox>
       ),
       key: 'commerce',
       label: 'Commerce',
     },
     {
-      children: <InstallsTable items={installs} loading={installsLoading} />,
+      children: (
+        <Flexbox gap={12}>
+          <Flexbox horizontal gap={8} justify="flex-end" wrap="wrap">
+            <Select<PaymentStatusFilter>
+              options={paymentStatusOptions}
+              style={{ width: 160 }}
+              value={paymentStatusFilter}
+              onChange={setPaymentStatusFilter}
+            />
+            <Select<RefundStatusFilter>
+              options={refundStatusOptions}
+              style={{ width: 160 }}
+              value={refundStatusFilter}
+              onChange={setRefundStatusFilter}
+            />
+            <Select<DiscrepancyStatusFilter>
+              options={discrepancyStatusOptions}
+              style={{ width: 180 }}
+              value={discrepancyStatusFilter}
+              onChange={setDiscrepancyStatusFilter}
+            />
+          </Flexbox>
+          <PaymentReconciliationTable
+            error={paymentsError}
+            hasNext={Boolean(paymentsData?.nextCursor)}
+            hasPrevious={paymentPager.hasPrevious}
+            items={paymentDiagnostics}
+            loading={paymentsLoading}
+            onNext={() => paymentPager.next(paymentsData?.nextCursor)}
+            onPrevious={paymentPager.previous}
+            onRetry={() => mutate(paymentsKey)}
+          />
+        </Flexbox>
+      ),
+      key: 'payments',
+      label: 'Payments',
+    },
+    {
+      children: (
+        <Flexbox gap={12}>
+          <Flexbox horizontal justify="flex-end">
+            <Select<PublisherStatusFilter>
+              options={publisherStatusOptions}
+              style={{ width: 170 }}
+              value={publisherStatusFilter}
+              onChange={setPublisherStatusFilter}
+            />
+          </Flexbox>
+          <PublisherTable
+            error={publishersError}
+            hasNext={Boolean(publishersData?.nextCursor)}
+            hasPrevious={publisherPager.hasPrevious}
+            items={publishers}
+            loading={publishersLoading}
+            onNext={() => publisherPager.next(publishersData?.nextCursor)}
+            onPrevious={publisherPager.previous}
+            onRetry={() => mutate(publishersKey)}
+          />
+        </Flexbox>
+      ),
+      key: 'publishers',
+      label: 'Publishers',
+    },
+    {
+      children: (
+        <Flexbox gap={12}>
+          <Flexbox horizontal justify="flex-end">
+            <Select<PayoutStatusFilter>
+              options={payoutStatusOptions}
+              style={{ width: 170 }}
+              value={payoutStatusFilter}
+              onChange={setPayoutStatusFilter}
+            />
+          </Flexbox>
+          <PayoutTable
+            error={payoutsError}
+            hasNext={Boolean(payoutsData?.nextCursor)}
+            hasPrevious={payoutPager.hasPrevious}
+            items={payouts}
+            loading={payoutsLoading}
+            onNext={() => payoutPager.next(payoutsData?.nextCursor)}
+            onPrevious={payoutPager.previous}
+            onRetry={() => mutate(payoutsKey)}
+          />
+        </Flexbox>
+      ),
+      key: 'payouts',
+      label: 'Payouts',
+    },
+    {
+      children: (
+        <Flexbox gap={10}>
+          <InstallsTable items={installs} loading={installsLoading} />
+          <CursorPager
+            hasNext={Boolean(installsData?.nextCursor)}
+            hasPrevious={installsPager.hasPrevious}
+            onNext={() => installsPager.next(installsData?.nextCursor)}
+            onPrevious={installsPager.previous}
+          />
+        </Flexbox>
+      ),
       key: 'installs',
       label: 'Installs',
     },
     {
-      children: <RecordsTable items={records} loading={recordsLoading} />,
+      children: (
+        <Flexbox gap={10}>
+          <RecordsTable items={records} loading={recordsLoading} />
+          <CursorPager
+            hasNext={Boolean(recordsData?.nextCursor)}
+            hasPrevious={recordsPager.hasPrevious}
+            onNext={() => recordsPager.next(recordsData?.nextCursor)}
+            onPrevious={recordsPager.previous}
+          />
+        </Flexbox>
+      ),
       key: 'records',
       label: 'Records',
     },
     {
-      children: <RunsTable items={runs} loading={runsLoading} />,
+      children: (
+        <Flexbox gap={10}>
+          <RunsTable items={runs} loading={runsLoading} />
+          <CursorPager
+            hasNext={Boolean(runsData?.nextCursor)}
+            hasPrevious={runsPager.hasPrevious}
+            onNext={() => runsPager.next(runsData?.nextCursor)}
+            onPrevious={runsPager.previous}
+          />
+        </Flexbox>
+      ),
       key: 'runs',
       label: 'Runs',
     },
     {
-      children: <ArtifactsTable items={artifacts} loading={artifactsLoading} />,
+      children: (
+        <Flexbox gap={10}>
+          <ArtifactsTable items={artifacts} loading={artifactsLoading} />
+          <CursorPager
+            hasNext={Boolean(artifactsData?.nextCursor)}
+            hasPrevious={artifactsPager.hasPrevious}
+            onNext={() => artifactsPager.next(artifactsData?.nextCursor)}
+            onPrevious={artifactsPager.previous}
+          />
+        </Flexbox>
+      ),
       key: 'artifacts',
       label: 'Artifacts',
     },
     {
-      children: <AuditEventsTable items={auditEvents} loading={auditLoading} />,
+      children: (
+        <Flexbox gap={10}>
+          <AuditEventsTable items={auditEvents} loading={auditLoading} />
+          <CursorPager
+            hasNext={Boolean(auditData?.nextCursor)}
+            hasPrevious={auditPager.hasPrevious}
+            onNext={() => auditPager.next(auditData?.nextCursor)}
+            onPrevious={auditPager.previous}
+          />
+        </Flexbox>
+      ),
       key: 'audit',
       label: 'Audit',
     },
@@ -857,12 +1184,20 @@ const AdminModuleAppsPage = memo(() => {
       ) : items.length === 0 ? (
         <Empty description="No module apps" />
       ) : (
-        <InlineTable
-          columns={appColumns as any}
-          dataSource={items}
-          loading={listLoading}
-          rowKey="id"
-        />
+        <Flexbox gap={10}>
+          <InlineTable
+            columns={appColumns as any}
+            dataSource={items}
+            loading={listLoading}
+            rowKey="id"
+          />
+          <CursorPager
+            hasNext={Boolean(listData?.nextCursor)}
+            hasPrevious={appPager.hasPrevious}
+            onNext={() => appPager.next(listData?.nextCursor)}
+            onPrevious={appPager.previous}
+          />
+        </Flexbox>
       )}
 
       <Tabs items={tabItems} />

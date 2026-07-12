@@ -57,6 +57,20 @@ const moduleAppPayoutMocks = vi.hoisted(() => ({
   transitionBatch: vi.fn(),
 }));
 
+const moduleAppReadModelMocks = vi.hoisted(() => ({
+  listApplications: vi.fn(),
+  listArtifacts: vi.fn(),
+  listAuditEvents: vi.fn(),
+  listInstalls: vi.fn(),
+  listPackages: vi.fn(),
+  listPaymentDiagnostics: vi.fn(),
+  listPayouts: vi.fn(),
+  listPublishers: vi.fn(),
+  listRecords: vi.fn(),
+  listRevenue: vi.fn(),
+  listRuns: vi.fn(),
+}));
+
 const mockAppEnv = vi.hoisted(() => ({ MODULE_APP_ALIPAY_ENABLED: true }));
 const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
 
@@ -87,6 +101,10 @@ vi.mock('@/database/models/moduleAppPublisher', () => ({
 
 vi.mock('@/database/models/moduleAppPayout', () => ({
   ModuleAppPayoutModel: vi.fn(() => moduleAppPayoutMocks),
+}));
+
+vi.mock('./moduleApps.readModels', () => ({
+  ModuleAppAdminReadModel: vi.fn(() => moduleAppReadModelMocks),
 }));
 
 vi.mock('@/envs/app', () => ({ appEnv: mockAppEnv }));
@@ -290,6 +308,23 @@ describe('admin module apps router', () => {
       transactionNo: 'alipay-txn-1',
     });
     moduleAppPayoutMocks.listPayouts.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listApplications.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listArtifacts.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listAuditEvents.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listInstalls.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listPackages.mockResolvedValue({
+      items: [{ id: PACKAGE_ID }],
+      nextCursor: null,
+    });
+    moduleAppReadModelMocks.listPaymentDiagnostics.mockResolvedValue({
+      items: [],
+      nextCursor: null,
+    });
+    moduleAppReadModelMocks.listPayouts.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listPublishers.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listRecords.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
+    moduleAppReadModelMocks.listRuns.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppRevenueMocks.listRevenue.mockResolvedValue({ items: [], nextCursor: null });
     moduleAppRevenueMocks.settleBatchWithAudit.mockResolvedValue({
       batchId: '00000000-0000-4000-8000-000000000031',
@@ -398,7 +433,7 @@ describe('admin module apps router', () => {
       nextCursor: null,
     });
 
-    expect(moduleAppModelMocks.listAdminPackageSubmissions).toHaveBeenCalledWith({
+    expect(moduleAppReadModelMocks.listPackages).toHaveBeenCalledWith({
       cursor: 0,
       limit: 50,
       reviewStatus: 'pending_review',
@@ -592,7 +627,7 @@ describe('admin module apps router', () => {
       caller.moduleApps.listRevenue({ limit: 25, publisherUserId: 'publisher-1', status: 'pending' }),
     ).resolves.toEqual({ items: [], nextCursor: null });
 
-    expect(moduleAppRevenueMocks.listRevenue).toHaveBeenCalledWith({
+    expect(moduleAppReadModelMocks.listRevenue).toHaveBeenCalledWith({
       cursor: 0,
       limit: 25,
       publisherUserId: 'publisher-1',
@@ -636,6 +671,11 @@ describe('admin module apps router', () => {
       items: [],
       nextCursor: null,
     });
+    expect(moduleAppReadModelMocks.listPublishers).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 25,
+      status: 'verified',
+    });
 
     expect(moduleAppPublisherMocks.assignApplication).toHaveBeenCalledWith({
       appId: APP_ID,
@@ -672,6 +712,12 @@ describe('admin module apps router', () => {
     await expect(
       caller.moduleApps.listPayouts({ publisherId: PUBLISHER_ID, status: 'paid' }),
     ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(moduleAppReadModelMocks.listPayouts).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 50,
+      publisherId: PUBLISHER_ID,
+      status: 'paid',
+    });
 
     expect(moduleAppPayoutMocks.recordManualAlipayPayout).toHaveBeenCalledWith({
       actorUserId: 'admin-user',
@@ -688,5 +734,33 @@ describe('admin module apps router', () => {
         resourceType: 'moduleAppPayout',
       }),
     );
+  });
+
+  it('lists stable-cursor application and payment diagnostics with server filters', async () => {
+    const caller = createCaller();
+    const cursor = Buffer.from('cursor').toString('base64url');
+
+    await caller.moduleApps.list({ cursor, publisherId: PUBLISHER_ID, status: 'published' });
+    await caller.moduleApps.listPaymentDiagnostics({
+      appId: APP_ID,
+      discrepancyStatus: 'open',
+      paymentStatus: 'paid',
+      refundStatus: 'succeeded',
+    });
+
+    expect(moduleAppReadModelMocks.listApplications).toHaveBeenCalledWith({
+      cursor,
+      limit: 50,
+      publisherId: PUBLISHER_ID,
+      status: 'published',
+    });
+    expect(moduleAppReadModelMocks.listPaymentDiagnostics).toHaveBeenCalledWith({
+      appId: APP_ID,
+      cursor: 0,
+      discrepancyStatus: 'open',
+      limit: 50,
+      paymentStatus: 'paid',
+      refundStatus: 'succeeded',
+    });
   });
 });

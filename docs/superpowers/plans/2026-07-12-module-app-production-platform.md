@@ -356,12 +356,12 @@ export interface ModuleAppPaymentAdapter {
 - Create: `src/features/Admin/moduleApps/PayoutTable.tsx`
 - Modify or create focused component tests beside each table.
 
-- [ ] Replace fixed `limit: 100` and `limit: 200` admin fetches with cursor pagination and stable sort keys.
-- [ ] Add server filters for application, package, publisher, build status, payment status, refund status, discrepancy status, and payout status.
-- [ ] Add loading, empty, error, retry, and permission-denied states to each new table.
-- [ ] Link payment event, order, license, revenue, payout, runtime invocation, and audit IDs without exposing private keys, raw secrets, or full signatures.
-- [ ] Run admin router and component tests with a synthetic dataset larger than one page.
-- [ ] Commit: `feat: scale module app admin operations`
+- [x] Replace fixed `limit: 100` and `limit: 200` admin fetches with cursor pagination and stable sort keys.
+- [x] Add server filters for application, package, publisher, build status, payment status, refund status, discrepancy status, and payout status.
+- [x] Add loading, empty, error, retry, and permission-denied states to each new table.
+- [x] Link payment event, order, license, revenue, payout, runtime invocation, and audit IDs without exposing private keys, raw secrets, or full signatures.
+- [x] Run admin router and component tests with a synthetic dataset larger than one page.
+- [x] Commit: `feat: scale module app admin operations`
 
 ## Task 10: Observability And Feature Flags
 

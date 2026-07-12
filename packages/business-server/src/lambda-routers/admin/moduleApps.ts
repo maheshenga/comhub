@@ -24,6 +24,7 @@ import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleA
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
 import { ModuleAppPaymentService } from '../../module-apps/payments/service';
 import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../module-apps/revenue';
+import { ModuleAppAdminReadModel } from './moduleApps.readModels';
 
 const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
 const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
@@ -31,24 +32,29 @@ const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financ
 
 const AppIdInputSchema = z.object({ appId: z.string().uuid() });
 const PackageIdInputSchema = z.object({ packageId: z.string().uuid() });
+const AdminCursorSchema = z.union([z.number().int().min(0), z.string().min(1).max(512)]).default(0);
 const ListInputSchema = z
   .object({
+    appId: z.string().uuid().optional(),
     category: z.string().min(1).max(80).optional(),
-    cursor: z.number().int().min(0).default(0),
+    cursor: AdminCursorSchema,
     limit: z.number().int().min(1).max(200).default(50),
+    publisherId: z.string().uuid().optional(),
     status: moduleAppStatusSchema.optional(),
   })
   .optional()
   .default({});
 const ListByAppInputSchema = AppIdInputSchema.extend({
-  cursor: z.number().int().min(0).default(0),
+  cursor: AdminCursorSchema,
   limit: z.number().int().min(1).max(200).default(50),
 });
 const ListPackagesInputSchema = z
   .object({
     appId: z.string().uuid().optional(),
-    cursor: z.number().int().min(0).default(0),
+    buildStatus: z.enum(['building', 'failed', 'queued', 'ready']).optional(),
+    cursor: AdminCursorSchema,
     limit: z.number().int().min(1).max(200).default(50),
+    publisherId: z.string().uuid().optional(),
     reviewStatus: moduleAppPackageReviewStatusSchema.optional(),
     submittedByUserId: z.string().min(1).max(255).optional(),
   })
@@ -79,8 +85,10 @@ const PaymentDiscrepancyListInputSchema = z
 const PaymentDiscrepancyIdInputSchema = z.object({ discrepancyId: z.string().uuid() });
 const ListRevenueInputSchema = z
   .object({
-    cursor: z.number().int().min(0).default(0),
+    appId: z.string().uuid().optional(),
+    cursor: AdminCursorSchema,
     limit: z.number().int().min(1).max(200).default(50),
+    publisherId: z.string().uuid().optional(),
     publisherUserId: z.string().min(1).max(255).optional(),
     status: z.enum(['pending', 'reversed', 'settled']).optional(),
   })
@@ -106,9 +114,10 @@ const AssignPublisherInputSchema = AppIdInputSchema.extend({
 });
 const ListPublishersInputSchema = z
   .object({
-    cursor: z.number().int().min(0).default(0),
+    cursor: AdminCursorSchema,
     limit: z.number().int().min(1).max(200).default(50),
     status: moduleAppPublisherStatusSchema.optional(),
+    userId: z.string().trim().min(1).max(255).optional(),
   })
   .optional()
   .default({});
@@ -128,10 +137,22 @@ const RecordManualAlipayPayoutInputSchema = PayoutBatchIdInputSchema.extend({
 });
 const ListPayoutsInputSchema = z
   .object({
-    cursor: z.number().int().min(0).default(0),
+    cursor: AdminCursorSchema,
     limit: z.number().int().min(1).max(200).default(50),
     publisherId: z.string().uuid().optional(),
     status: moduleAppPayoutStatusSchema.optional(),
+  })
+  .optional()
+  .default({});
+const ListPaymentDiagnosticsInputSchema = z
+  .object({
+    appId: z.string().uuid().optional(),
+    cursor: AdminCursorSchema,
+    discrepancyStatus: z.enum(['open', 'resolved']).optional(),
+    limit: z.number().int().min(1).max(200).default(50),
+    orderId: z.string().uuid().optional(),
+    paymentStatus: z.enum(['created', 'failed', 'paid', 'pending', 'refunded']).optional(),
+    refundStatus: z.enum(['failed', 'requested', 'succeeded']).optional(),
   })
   .optional()
   .default({});
@@ -296,21 +317,27 @@ export const adminModuleAppsRouter = router({
   }),
 
   list: auditReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {
-    return new ModuleAppModel(ctx.serverDB).listAdminApps(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listApplications(input);
   }),
 
   listPayouts: auditReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
-    return new ModuleAppPayoutModel(ctx.serverDB).listPayouts(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listPayouts(input);
   }),
+
+  listPaymentDiagnostics: auditReadProcedure
+    .input(ListPaymentDiagnosticsInputSchema)
+    .query(async ({ ctx, input }) => {
+      return new ModuleAppAdminReadModel(ctx.serverDB).listPaymentDiagnostics(input);
+    }),
 
   listPublishers: auditReadProcedure
     .input(ListPublishersInputSchema)
     .query(async ({ ctx, input }) => {
-      return new ModuleAppPublisherModel(ctx.serverDB).listPublishers(input);
+      return new ModuleAppAdminReadModel(ctx.serverDB).listPublishers(input);
     }),
 
   listRevenue: auditReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
-    return new ModuleAppRevenueService(ctx.serverDB).listRevenue(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listRevenue(input);
   }),
 
   reconcilePendingPayments: financeWriteProcedure
@@ -451,35 +478,35 @@ export const adminModuleAppsRouter = router({
   listArtifacts: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
-    return new ModuleAppModel(ctx.serverDB).listAdminArtifacts(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listArtifacts(input);
   }),
 
   listAuditEvents: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
-    return new ModuleAppModel(ctx.serverDB).listAdminAuditEvents(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listAuditEvents(input);
   }),
 
   listPackages: auditReadProcedure.input(ListPackagesInputSchema).query(async ({ ctx, input }) => {
-    return new ModuleAppModel(ctx.serverDB).listAdminPackageSubmissions(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listPackages(input);
   }),
 
   listInstalls: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
-    return new ModuleAppModel(ctx.serverDB).listAdminInstalls(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listInstalls(input);
   }),
 
   listRecords: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
-    return new ModuleAppModel(ctx.serverDB).listAdminRecords(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listRecords(input);
   }),
 
   listRuns: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
-    return new ModuleAppModel(ctx.serverDB).listAdminRuns(input);
+    return new ModuleAppAdminReadModel(ctx.serverDB).listRuns(input);
   }),
 
   publish: contentWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {

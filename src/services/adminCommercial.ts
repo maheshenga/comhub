@@ -231,31 +231,63 @@ class AdminCommercialService {
       lambdaClient.admin.moduleApps.approvePackage.mutate(input),
     getPackage: (input: { packageId: string }) =>
       lambdaClient.admin.moduleApps.getPackage.query(input),
-    list: (input?: { category?: string; cursor?: number; limit?: number; status?: string }) =>
+    list: (input?: {
+      appId?: string;
+      category?: string;
+      cursor?: number | string;
+      limit?: number;
+      publisherId?: string;
+      status?: string;
+    }) =>
       lambdaClient.admin.moduleApps.list.query(input as any),
-    listArtifacts: (input: { appId: string; cursor?: number; limit?: number }) =>
-      lambdaClient.admin.moduleApps.listArtifacts.query(input),
-    listAuditEvents: (input: { appId: string; cursor?: number; limit?: number }) =>
-      lambdaClient.admin.moduleApps.listAuditEvents.query(input),
-    listInstalls: (input: { appId: string; cursor?: number; limit?: number }) =>
-      lambdaClient.admin.moduleApps.listInstalls.query(input),
+    listArtifacts: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listArtifacts.query(input as any),
+    listAuditEvents: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listAuditEvents.query(input as any),
+    listInstalls: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listInstalls.query(input as any),
     listPackages: (input?: {
       appId?: string;
-      cursor?: number;
+      buildStatus?: 'building' | 'failed' | 'queued' | 'ready';
+      cursor?: number | string;
       limit?: number;
+      publisherId?: string;
       reviewStatus?: string;
       submittedByUserId?: string;
     }) => lambdaClient.admin.moduleApps.listPackages.query(input as any),
     listRevenue: (input?: {
-      cursor?: number;
+      appId?: string;
+      cursor?: number | string;
       limit?: number;
+      publisherId?: string;
       publisherUserId?: string;
       status?: 'pending' | 'reversed' | 'settled';
-    }) => lambdaClient.admin.moduleApps.listRevenue.query(input),
-    listRecords: (input: { appId: string; cursor?: number; limit?: number }) =>
-      lambdaClient.admin.moduleApps.listRecords.query(input),
-    listRuns: (input: { appId: string; cursor?: number; limit?: number }) =>
-      lambdaClient.admin.moduleApps.listRuns.query(input),
+    }) => lambdaClient.admin.moduleApps.listRevenue.query(input as any),
+    listRecords: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listRecords.query(input as any),
+    listRuns: (input: { appId: string; cursor?: number | string; limit?: number }) =>
+      lambdaClient.admin.moduleApps.listRuns.query(input as any),
+    listPublishers: (input?: {
+      cursor?: number | string;
+      limit?: number;
+      status?: 'pending' | 'suspended' | 'verified';
+      userId?: string;
+    }) => lambdaClient.admin.moduleApps.listPublishers.query(input as any),
+    listPayouts: (input?: {
+      cursor?: number | string;
+      limit?: number;
+      publisherId?: string;
+      status?: 'eligible' | 'failed' | 'paid' | 'pending' | 'processing' | 'reversed';
+    }) => lambdaClient.admin.moduleApps.listPayouts.query(input as any),
+    listPaymentDiagnostics: (input?: {
+      appId?: string;
+      cursor?: number | string;
+      discrepancyStatus?: 'open' | 'resolved';
+      limit?: number;
+      orderId?: string;
+      paymentStatus?: 'created' | 'failed' | 'paid' | 'pending' | 'refunded';
+      refundStatus?: 'failed' | 'requested' | 'succeeded';
+    }) => lambdaClient.admin.moduleApps.listPaymentDiagnostics.query(input as any),
     publish: (input: { appId: string }) => lambdaClient.admin.moduleApps.publish.mutate(input),
     rejectPackage: (input: { packageId: string; reason?: string }) =>
       lambdaClient.admin.moduleApps.rejectPackage.mutate(input),
