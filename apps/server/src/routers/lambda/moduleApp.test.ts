@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { existsSync, readFileSync } from 'node:fs';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { lambdaRouter } from './index';
@@ -246,6 +248,55 @@ describe('moduleApp router registration', () => {
 
   it('registers the moduleApp router on lambda root', () => {
     expect(lambdaRouter._def.record.moduleApp).toBeDefined();
+  });
+
+  it('composes the root router exclusively from domain procedure records', () => {
+    const rootPath = new URL('./moduleApp.ts', import.meta.url);
+    const rootSource = readFileSync(rootPath, 'utf8');
+    const domains = ['market', 'runtime', 'data', 'workflow', 'commerce'] as const;
+
+    for (const domain of domains) {
+      expect(existsSync(new URL(`./moduleApp/${domain}.ts`, import.meta.url))).toBe(true);
+      expect(rootSource).toContain(`./moduleApp/${domain}`);
+      expect(rootSource).toContain(`...moduleApp${domain[0].toUpperCase()}${domain.slice(1)}Procedures`);
+    }
+
+    expect(rootSource).not.toContain('moduleAppProcedure');
+  });
+
+  it('preserves the public Module App procedure key contract', () => {
+    expect(Object.keys(moduleAppRouter._def.record).sort()).toEqual([
+      'archiveRecord',
+      'callSdk',
+      'cancelOrder',
+      'cancelWorkflowRun',
+      'createOrder',
+      'createPackageUpload',
+      'createPayment',
+      'createRecord',
+      'getDetail',
+      'getLaunchContext',
+      'getLicense',
+      'getRecord',
+      'getRuntimeManifest',
+      'getWorkflowRun',
+      'installPersonal',
+      'listArtifacts',
+      'listCatalog',
+      'listMarketplace',
+      'listMyApps',
+      'listMyPackageSubmissions',
+      'listOrders',
+      'listRecords',
+      'listRuns',
+      'listTeamApps',
+      'listWorkflowNodes',
+      'quoteProduct',
+      'runAction',
+      'submitUploadedPackage',
+      'uninstallPersonal',
+      'updateRecord',
+    ]);
   });
 
   it('returns a scoped launch context for an installed entitled ready application', async () => {
