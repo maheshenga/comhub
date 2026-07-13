@@ -17,17 +17,19 @@ describe('Docker workspace manifests', () => {
     );
   });
 
-  it('uses raw workflow-dispatch inputs for production deploy conditions', () => {
+  it('normalizes workflow-dispatch inputs before production job conditions', () => {
     const workflow = readFileSync(
       path.join(root, '.github', 'workflows', 'comhub-deploy.yml'),
       'utf8',
     );
 
-    expect(workflow).toContain("github.event.inputs.deploy == 'true'");
-    expect(workflow).toContain('github.event.inputs.deploy == true');
-    expect(workflow).toContain("github.event.inputs.deploy_module_worker == 'true'");
-    expect(workflow).toContain('github.event.inputs.deploy_module_worker == true');
-    expect(workflow).toContain("github.event.inputs.verify_module_app_full == 'true'");
-    expect(workflow).toContain('github.event.inputs.verify_module_app_full == true');
+    expect(workflow).toContain('resolve-deployment:');
+    expect(workflow).toContain("needs.resolve-deployment.outputs.deploy == 'true'");
+    expect(workflow).toContain(
+      "needs.resolve-deployment.outputs.deploy_module_worker == 'true'",
+    );
+    expect(workflow).toContain(
+      "needs.resolve-deployment.outputs.verify_module_app_full == 'true'",
+    );
   });
 });

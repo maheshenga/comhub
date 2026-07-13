@@ -62,6 +62,36 @@ env:
   NODEJS_VERSION: '22'
 
 jobs:
+  resolve-deployment:
+    name: Resolve Deployment Request
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.request.outputs.deploy }}
+      deploy_module_worker: ${{ steps.request.outputs.deploy_module_worker }}
+      verify_module_app_full: ${{ steps.request.outputs.verify_module_app_full }}
+    steps:
+      - name: Normalize workflow inputs
+        id: request
+        shell: bash
+        env:
+          DEPLOY_REQUESTED: ${{ github.event.inputs.deploy || 'false' }}
+          DEPLOY_MODULE_WORKER_REQUESTED: ${{ github.event.inputs.deploy_module_worker || 'false' }}
+          VERIFY_MODULE_APP_FULL_REQUESTED: ${{ github.event.inputs.verify_module_app_full || 'false' }}
+        run: |
+          set -euo pipefail
+
+          normalize_boolean() {
+            if [ "${1,,}" = 'true' ]; then
+              printf 'true'
+            else
+              printf 'false'
+            fi
+          }
+
+          echo "deploy=$(normalize_boolean "$DEPLOY_REQUESTED")" >> "$GITHUB_OUTPUT"
+          echo "deploy_module_worker=$(normalize_boolean "$DEPLOY_MODULE_WORKER_REQUESTED")" >> "$GITHUB_OUTPUT"
+          echo "verify_module_app_full=$(normalize_boolean "$VERIFY_MODULE_APP_FULL_REQUESTED")" >> "$GITHUB_OUTPUT"
+
   verify-module-app:
     name: Verify Module App Production Gates
     runs-on: ubuntu-latest
@@ -87,9 +117,9 @@ jobs:
 
   verify-module-app-full:
     name: Verify Module App Credentialed Probes
-    needs: verify-module-app
+    needs: [verify-module-app, resolve-deployment]
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.verify_module_app_full == true || github.event.inputs.verify_module_app_full == 'true') }}
+    if: ${{ needs.resolve-deployment.outputs.verify_module_app_full == 'true' }}
     environment: module-app-staging
     env:
       MODULE_APP_ALIPAY_APP_ID: ${{ secrets.MODULE_APP_ALIPAY_APP_ID }}
@@ -260,9 +290,9 @@ jobs:
 
   deploy:
     name: Deploy Production
-    needs: build
+    needs: [build, resolve-deployment]
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy == true || github.event.inputs.deploy == 'true') }}
+    if: ${{ needs.resolve-deployment.outputs.deploy == 'true' }}
     environment: production
     concurrency:
       group: comhub-production-deploy
@@ -288,7 +318,7 @@ jobs:
           DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
           IMAGE_REF: ${{ needs.build.outputs.image_ref }}
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-          REQUIRE_MODULE_RUNTIME: ${{ github.event.inputs.verify_module_app_full == true || github.event.inputs.verify_module_app_full == 'true' }}
+          REQUIRE_MODULE_RUNTIME: ${{ needs.resolve-deployment.outputs.verify_module_app_full == 'true' }}
           RUNTIME_IMAGE_REF: ${{ needs.build.outputs.runtime_image_ref }}
         run: |
           set -euo pipefail
@@ -419,9 +449,9 @@ jobs:
 
   deploy-module-worker:
     name: Deploy Module App Worker
-    needs: [verify-module-app, build]
+    needs: [verify-module-app, build, resolve-deployment]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_module_worker == true || github.event.inputs.deploy_module_worker == 'true')
+    if: needs.resolve-deployment.outputs.deploy_module_worker == 'true'
     environment: production
     concurrency:
       group: comhub-production-deploy
