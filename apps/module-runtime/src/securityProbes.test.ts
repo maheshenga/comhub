@@ -19,17 +19,26 @@ if (productionGatesRequired && !realContainerEnabled) {
 const docker = (...args: string[]) =>
   execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
+const dockerContainerExists = (
+  containerName: string,
+  inspect: (...args: string[]) => string = docker,
+) => {
+  try {
+    inspect('inspect', containerName);
+    return true;
+  } catch (error) {
+    const stderr = String((error as { stderr?: unknown }).stderr ?? error);
+    if (stderr.includes('No such object') || stderr.includes('No such container')) return false;
+    throw error;
+  }
+};
+
 const waitForStableContainerAbsence = async (containerName: string) => {
   const deadline = Date.now() + 5000;
   let absentSince: number | undefined;
 
   while (Date.now() < deadline) {
-    let exists = true;
-    try {
-      docker('inspect', containerName);
-    } catch {
-      exists = false;
-    }
+    const exists = dockerContainerExists(containerName);
 
     if (exists) {
       absentSince = undefined;
@@ -42,6 +51,28 @@ const waitForStableContainerAbsence = async (containerName: string) => {
 
   throw new Error(`MODULE_APP_PROBE_CONTAINER_LEAKED:${containerName}`);
 };
+
+describe('Docker container probe classification', () => {
+  it('accepts only an explicit missing-container response as absence', () => {
+    const missing = Object.assign(new Error('missing'), {
+      stderr: 'Error: No such object: module-app-probe-missing',
+    });
+    expect(
+      dockerContainerExists('module-app-probe-missing', () => {
+        throw missing;
+      }),
+    ).toBe(false);
+
+    const unavailable = Object.assign(new Error('daemon unavailable'), {
+      stderr: 'Cannot connect to the Docker daemon',
+    });
+    expect(() =>
+      dockerContainerExists('module-app-probe-unknown', () => {
+        throw unavailable;
+      }),
+    ).toThrow('daemon unavailable');
+  });
+});
 
 const writeFixture = (directory: string, name: string, source: string) => {
   writeFileSync(path.join(directory, name), source, 'utf8');

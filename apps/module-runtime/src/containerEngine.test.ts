@@ -175,16 +175,20 @@ describe('DockerCliModuleAppContainerEngine', () => {
 
   it('bounds all cleanup commands by one total deadline', async () => {
     const runner = {
-      inspect: vi.fn(),
-      remove: vi.fn().mockRejectedValue(new Error('docker unavailable')),
+      inspect: vi.fn().mockRejectedValue(new Error('docker unavailable')),
+      remove: vi.fn().mockResolvedValue(absentContainer),
       run: vi.fn().mockRejectedValue(new Error('MODULE_APP_RUNTIME_TIMEOUT')),
     };
     const engine = new DockerCliModuleAppContainerEngine({ runner });
 
+    const startedAt = Date.now();
     await expect(engine.run(input)).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
+    expect(Date.now() - startedAt).toBeLessThan(3500);
     expect(runner.remove.mock.calls.length).toBeGreaterThan(1);
+    expect(runner.inspect.mock.calls.length).toBe(runner.remove.mock.calls.length);
+    const calls = [...runner.remove.mock.calls, ...runner.inspect.mock.calls];
     expect(
-      runner.remove.mock.calls.every(
+      calls.every(
         ([containerName, timeoutMs]) =>
           containerName === 'module-app-invocation-1' &&
           typeof timeoutMs === 'number' &&
@@ -192,6 +196,8 @@ describe('DockerCliModuleAppContainerEngine', () => {
           timeoutMs <= 3000,
       ),
     ).toBe(true);
+    const timeoutArguments = calls.map(([, timeoutMs]) => timeoutMs);
+    expect(Math.min(...timeoutArguments)).toBeLessThan(Math.max(...timeoutArguments) - 1000);
   });
 
   it('records bounded success, timeout, OOM, and cleanup outcomes', async () => {
