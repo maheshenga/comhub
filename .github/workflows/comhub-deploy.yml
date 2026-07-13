@@ -62,7 +62,7 @@ env:
   NODEJS_VERSION: '22'
 
 jobs:
-  resolve-deployment:
+  resolve_deployment:
     name: Resolve Deployment Request
     runs-on: ubuntu-latest
     outputs:
@@ -117,9 +117,9 @@ jobs:
 
   verify-module-app-full:
     name: Verify Module App Credentialed Probes
-    needs: [verify-module-app, resolve-deployment]
+    needs: [verify-module-app, resolve_deployment]
     runs-on: ubuntu-latest
-    if: ${{ needs.resolve-deployment.outputs.verify_module_app_full == 'true' }}
+    if: ${{ needs.resolve_deployment.outputs.verify_module_app_full == 'true' }}
     environment: module-app-staging
     env:
       MODULE_APP_ALIPAY_APP_ID: ${{ secrets.MODULE_APP_ALIPAY_APP_ID }}
@@ -290,9 +290,9 @@ jobs:
 
   deploy:
     name: Deploy Production
-    needs: [build, resolve-deployment]
+    needs: [build, resolve_deployment]
     runs-on: ubuntu-latest
-    if: ${{ needs.resolve-deployment.outputs.deploy == 'true' }}
+    if: ${{ needs.resolve_deployment.outputs.deploy == 'true' }}
     environment: production
     concurrency:
       group: comhub-production-deploy
@@ -318,7 +318,7 @@ jobs:
           DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
           IMAGE_REF: ${{ needs.build.outputs.image_ref }}
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-          REQUIRE_MODULE_RUNTIME: ${{ needs.resolve-deployment.outputs.verify_module_app_full == 'true' }}
+          REQUIRE_MODULE_RUNTIME: ${{ needs.resolve_deployment.outputs.verify_module_app_full == 'true' }}
           RUNTIME_IMAGE_REF: ${{ needs.build.outputs.runtime_image_ref }}
         run: |
           set -euo pipefail
@@ -449,9 +449,9 @@ jobs:
 
   deploy-module-worker:
     name: Deploy Module App Worker
-    needs: [verify-module-app, build, resolve-deployment]
+    needs: [verify-module-app, build, resolve_deployment]
     runs-on: ubuntu-latest
-    if: needs.resolve-deployment.outputs.deploy_module_worker == 'true'
+    if: needs.resolve_deployment.outputs.deploy_module_worker == 'true'
     environment: production
     concurrency:
       group: comhub-production-deploy

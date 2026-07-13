@@ -23,13 +23,13 @@ describe('Docker workspace manifests', () => {
       'utf8',
     );
 
-    expect(workflow).toContain('resolve-deployment:');
-    expect(workflow).toContain("needs.resolve-deployment.outputs.deploy == 'true'");
+    expect(workflow).toContain('resolve_deployment:');
+    expect(workflow).toContain("needs.resolve_deployment.outputs.deploy == 'true'");
     expect(workflow).toContain(
-      "needs.resolve-deployment.outputs.deploy_module_worker == 'true'",
+      "needs.resolve_deployment.outputs.deploy_module_worker == 'true'",
     );
     expect(workflow).toContain(
-      "needs.resolve-deployment.outputs.verify_module_app_full == 'true'",
+      "needs.resolve_deployment.outputs.verify_module_app_full == 'true'",
     );
   });
 });
