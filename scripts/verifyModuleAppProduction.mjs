@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -16,6 +17,11 @@ const vitest = path.join(root, 'node_modules', 'vitest', 'vitest.mjs');
 const full = process.argv.includes('--full');
 const workerOnly = process.argv.includes('--worker-only');
 const keepInfrastructure = process.argv.includes('--keep-infrastructure');
+const runIdentity = `${process.pid}-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
+const composeProject = `comhub-module-app-verify-${runIdentity}`;
+const workerImage = `comhub-module-worker:verify-${runIdentity}`;
+const runtimeImage = `comhub-module-runtime:verify-${runIdentity}`;
+assert.match(composeProject, /^[a-z0-9][a-z0-9_-]*$/);
 const usedPorts = new Set();
 const canListenOn = (port, host) =>
   new Promise((resolve) => {
@@ -67,6 +73,8 @@ const dockerGid =
   process.env.MODULE_APP_DOCKER_GID ??
   (process.platform === 'linux' ? String(statSync('/var/run/docker.sock').gid) : '0');
 const composeEnv = {
+  COMHUB_MODULE_RUNTIME_IMAGE: runtimeImage,
+  COMHUB_MODULE_WORKER_IMAGE: workerImage,
   MODULE_APP_DOCKER_GID: dockerGid,
   MODULE_APP_TEST_ARTIFACT_VOLUME: artifactVolume,
   MODULE_APP_TEST_POSTGRES_PORT: String(postgresPort),
@@ -110,15 +118,105 @@ const run = (command, args, options = {}) => execute(command, args, options);
 const capture = (command, args, options = {}) =>
   execute(command, args, { ...options, capture: true });
 const compose = (args, options = {}) =>
-  run('docker', ['compose', '-f', composeFile, ...args], {
+  run('docker', ['compose', '--project-name', composeProject, '-f', composeFile, ...args], {
     ...options,
     env: { ...composeEnv, ...options.env },
   });
 const composeCapture = (args, options = {}) =>
-  capture('docker', ['compose', '-f', composeFile, ...args], {
+  capture('docker', ['compose', '--project-name', composeProject, '-f', composeFile, ...args], {
     ...options,
     env: { ...composeEnv, ...options.env },
   });
+
+const describeError = (error) =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+const cleanupInfrastructure = () => {
+  const failures = [];
+  const downArgs = [
+    'compose',
+    '--project-name',
+    composeProject,
+    '-f',
+    composeFile,
+    '--profile',
+    'worker',
+    '--profile',
+    'runtime',
+    '--profile',
+    'probe',
+    'down',
+    '-v',
+    '--remove-orphans',
+  ];
+  const downResult = spawnSync('docker', downArgs, {
+    cwd: root,
+    env: { ...process.env, ...composeEnv },
+    stdio: 'inherit',
+  });
+  if (downResult.error) {
+    failures.push(downResult.error);
+  } else if (downResult.status !== 0) {
+    failures.push(
+      new Error(`docker ${downArgs.join(' ')} failed with exit code ${downResult.status}`),
+    );
+  }
+
+  for (const image of [workerImage, runtimeImage]) {
+    const inspectResult = spawnSync('docker', ['image', 'inspect', image], {
+      cwd: root,
+      encoding: 'utf8',
+      env: process.env,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    if (inspectResult.error) {
+      failures.push(inspectResult.error);
+      continue;
+    }
+    if (inspectResult.status !== 0) {
+      if (!/No such (?:image|object)/i.test(inspectResult.stderr ?? '')) {
+        failures.push(
+          new Error(
+            `docker image inspect ${image} failed with exit code ${inspectResult.status}: ${inspectResult.stderr?.trim()}`,
+          ),
+        );
+      }
+      continue;
+    }
+    const removeResult = spawnSync('docker', ['image', 'rm', '--force', image], {
+      cwd: root,
+      env: process.env,
+      stdio: 'inherit',
+    });
+    if (removeResult.error) {
+      failures.push(removeResult.error);
+    } else if (removeResult.status !== 0) {
+      failures.push(
+        new Error(`docker image rm --force ${image} failed with exit code ${removeResult.status}`),
+      );
+    }
+  }
+
+  try {
+    rmSync(artifactRoot, { force: true, recursive: true });
+  } catch (error) {
+    failures.push(error);
+  }
+
+  return failures.length > 0
+    ? new AggregateError(failures, 'MODULE_APP_VERIFICATION_CLEANUP_FAILED')
+    : undefined;
+};
+
+const combineGateAndCleanupErrors = (primaryError, cleanupError) => {
+  if (!primaryError) return cleanupError;
+  if (!cleanupError) return primaryError;
+  return new AggregateError(
+    [primaryError, cleanupError],
+    `Primary failure: ${describeError(primaryError)}\nMODULE_APP_VERIFICATION_CLEANUP_FAILED: ${describeError(cleanupError)}`,
+    { cause: primaryError },
+  );
+};
 
 const waitForPort = (port, timeoutMs = 120_000) =>
   new Promise((resolve, reject) => {
@@ -222,21 +320,45 @@ const assertMutationFlagsDisabled = (service, inspect) => {
 
 const assertWorkerContainer = () => {
   const inspect = inspectService('worker', 'module-app-worker');
+  assert.equal(inspect.Config.Labels?.['com.docker.compose.project'], composeProject);
+  assert.equal(inspect.Config.Image, workerImage);
   assert.equal(inspect.Config.User, '10001:10001');
   assert.equal(inspect.HostConfig.Privileged, false);
   assert.equal(inspect.HostConfig.ReadonlyRootfs, true);
   assert.ok(inspect.HostConfig.CapDrop?.includes('ALL'));
   assert.equal(inspect.HostConfig.CapAdd?.length ?? 0, 0);
   assert.ok(inspect.HostConfig.SecurityOpt?.includes('no-new-privileges:true'));
-  assert.match(inspect.HostConfig.Tmpfs?.['/tmp'] ?? '', /noexec/);
-  assert.match(inspect.HostConfig.Tmpfs?.['/tmp'] ?? '', /nosuid/);
+  const tmpfsOptions = new Set((inspect.HostConfig.Tmpfs?.['/tmp'] ?? '').split(','));
+  assert.ok(tmpfsOptions.has('noexec'));
+  assert.ok(tmpfsOptions.has('nosuid'));
+  assert.ok(
+    tmpfsOptions.has('size=64m') || tmpfsOptions.has('size=67108864'),
+    'worker /tmp must be bounded to exactly 64 MiB',
+  );
   assert.equal(Object.keys(inspect.HostConfig.PortBindings ?? {}).length, 0);
+  assert.deepEqual(
+    inspect.Mounts.filter((mount) => mount.RW).map((mount) => mount.Destination),
+    ['/runtime/artifacts'],
+  );
   const artifactMount = inspect.Mounts.find((mount) => mount.Destination === '/runtime/artifacts');
   assert.equal(artifactMount?.RW, true);
   assert.equal(
     inspect.Mounts.some((mount) => mount.Destination === '/var/run/docker.sock'),
     false,
   );
+  const workerNetworks = Object.keys(inspect.NetworkSettings.Networks ?? {});
+  assert.deepEqual(workerNetworks, [`${composeProject}_module-app-worker-internal`]);
+  const workerNetwork = JSON.parse(capture('docker', ['network', 'inspect', workerNetworks[0]]))[0];
+  assert.equal(workerNetwork.Internal, true);
+  assert.equal(workerNetwork.Labels?.['com.docker.compose.project'], composeProject);
+  if (!workerOnly) {
+    const redisInspect = inspectService(undefined, 'module-app-redis');
+    const redisNetworks = Object.keys(redisInspect.NetworkSettings.Networks ?? {});
+    assert.equal(
+      redisNetworks.some((network) => workerNetworks.includes(network)),
+      false,
+    );
+  }
   assertMutationFlagsDisabled('module-app-worker', inspect);
   compose([
     '--profile',
@@ -246,12 +368,19 @@ const assertWorkerContainer = () => {
     'module-app-worker',
     'sh',
     '-ec',
-    'test "$(id -u):$(id -g)" = "10001:10001" && ! touch /root-write-probe && test ! -e /var/run/docker.sock',
+    [
+      'test "$(id -u):$(id -g)" = "10001:10001"',
+      '! touch /root-write-probe',
+      'test ! -e /var/run/docker.sock',
+      `node -e "const net=require('net');const socket=net.createConnection({host:'module-app-redis',port:6379});const unreachable=()=>process.exit(0);socket.setTimeout(2000);socket.once('connect',()=>process.exit(1));socket.once('error',unreachable);socket.once('timeout',unreachable)"`,
+    ].join(' && '),
   ]);
 };
 
 const assertRuntimeContainer = () => {
   const inspect = inspectService('runtime', 'module-runtime');
+  assert.equal(inspect.Config.Labels?.['com.docker.compose.project'], composeProject);
+  assert.equal(inspect.Config.Image, runtimeImage);
   const artifactMount = inspect.Mounts.find((mount) => mount.Destination === '/runtime/artifacts');
   assert.equal(artifactMount?.RW, false);
   assertMutationFlagsDisabled('module-runtime', inspect);
@@ -263,6 +392,7 @@ const runWorkerIntegrationPhase = (phase) =>
       DATABASE_URL: databaseUrl,
       MODULE_APP_RUNTIME_URL: `http://127.0.0.1:${runtimePort}`,
       MODULE_APP_WORKER_COMPOSE_FILE: composeFile,
+      MODULE_APP_WORKER_COMPOSE_PROJECT: composeProject,
       MODULE_APP_WORKER_FIXTURE_STATE: fixtureState,
       MODULE_APP_WORKER_INTEGRATION_PHASE: phase,
       MODULE_APP_WORKER_INTEGRATION_REQUIRED: 'true',
@@ -297,6 +427,7 @@ const databaseTests = [
   'src/models/__tests__/moduleAppPayout.test.ts',
 ];
 
+let primaryError;
 try {
   if (full) requireFullEnvironment();
   run('docker', ['info', '--format', '{{.ServerVersion}}']);
@@ -385,31 +516,10 @@ try {
       });
     }
   }
-} finally {
-  if (!keepInfrastructure) {
-    spawnSync(
-      'docker',
-      [
-        'compose',
-        '-f',
-        composeFile,
-        '--profile',
-        'worker',
-        '--profile',
-        'runtime',
-        '--profile',
-        'probe',
-        'down',
-        '-v',
-        '--remove-orphans',
-      ],
-      {
-        cwd: root,
-        env: { ...process.env, ...composeEnv },
-        stdio: 'inherit',
-      },
-    );
-    rmSync(artifactRoot, { force: true, recursive: true });
-  }
-  rmSync(path.join(root, 'pnpm-lock.yaml'), { force: true });
+} catch (error) {
+  primaryError = error;
 }
+
+const cleanupError = keepInfrastructure ? undefined : cleanupInfrastructure();
+const gateError = combineGateAndCleanupErrors(primaryError, cleanupError);
+if (gateError) throw gateError;

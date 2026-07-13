@@ -1,5 +1,3 @@
-name: comhub-module-app-verification
-
 services:
   module-app-postgres:
     image: paradedb/paradedb@sha256:f7061b0311ecffcbe33c673f632431cfc1f4e908a52461f525a677589dc37393
@@ -12,6 +10,9 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    networks:
+      - module-app-worker-internal
+      - module-app-seed
     ports:
       - '${MODULE_APP_TEST_POSTGRES_PORT:-55432}:5432'
     tmpfs:
@@ -31,7 +32,7 @@ services:
       - /data
 
   module-app-s3:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs@sha256:fa19210ac4697c79d7ccca1ec9b0eb91aebacc6691991ffb14014bb3c67e6cc3
     command:
       [
         '--access-key',
@@ -49,13 +50,16 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    networks:
+      - module-app-worker-internal
+      - module-app-seed
     ports:
       - '${MODULE_APP_TEST_S3_PORT:-59000}:9000'
     tmpfs:
       - /data:uid=10001,gid=10001,mode=0770
 
   module-app-s3-init:
-    image: minio/mc:latest
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     entrypoint: /bin/sh
     command:
       - -ec
@@ -65,6 +69,8 @@ services:
     depends_on:
       module-app-s3:
         condition: service_healthy
+    networks:
+      - module-app-worker-internal
 
   module-app-artifact-init:
     image: node:22.22.0-alpine3.23
@@ -76,6 +82,7 @@ services:
         printf 'module-runtime-artifact-mount' > /runtime/artifacts/.verification-marker
         chown -R 10001:10001 /runtime/artifacts
         chmod 0444 /runtime/artifacts/.verification-marker
+    network_mode: none
     user: '0:0'
     volumes:
       - module-app-artifacts:/runtime/artifacts:rw
@@ -114,6 +121,8 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 20
+    networks:
+      - module-app-worker-internal
     privileged: false
     profiles: ['worker']
     read_only: true
@@ -204,3 +213,8 @@ services:
 volumes:
   module-app-artifacts:
     name: '${MODULE_APP_TEST_ARTIFACT_VOLUME:-comhub-module-app-verification-artifacts}'
+
+networks:
+  module-app-seed:
+  module-app-worker-internal:
+    internal: true

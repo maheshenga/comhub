@@ -7,11 +7,19 @@ import path from 'node:path';
 import { GetObjectCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import pg from 'pg';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 import type { ModuleAppWorkerFixtureState } from '../../../scripts/fixtures/moduleAppWorkerFixture.mts';
 
 const { Pool } = pg;
 const deadlineMs = 120_000;
+const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..');
+const composeDefinitionPath = path.join(
+  repositoryRoot,
+  'docker-compose',
+  'deploy',
+  'module-runtime.yml',
+);
 const integrationRequired = process.env.MODULE_APP_WORKER_INTEGRATION_REQUIRED === 'true';
 const phase = process.env.MODULE_APP_WORKER_INTEGRATION_PHASE;
 
@@ -69,11 +77,22 @@ const createS3 = () =>
     region: 'auto',
   });
 
+const isExactS3NotFound = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { $metadata?: { httpStatusCode?: number }; name?: string };
+  return (
+    candidate.$metadata?.httpStatusCode === 404 &&
+    (candidate.name === 'NoSuchKey' || candidate.name === 'NotFound')
+  );
+};
+
 const runWorkerContainerCommand = (args: string[]) => {
   const result = spawnSync(
     'docker',
     [
       'compose',
+      '--project-name',
+      requireEnvironment('MODULE_APP_WORKER_COMPOSE_PROJECT'),
       '-f',
       requireEnvironment('MODULE_APP_WORKER_COMPOSE_FILE'),
       '--profile',
@@ -88,6 +107,67 @@ const runWorkerContainerCommand = (args: string[]) => {
   if (result.error) throw result.error;
   return result;
 };
+
+describe('module worker verification definition', () => {
+  it('uses pinned S3 images and a dedicated internal Worker network without a fixed project name', async () => {
+    const definition = parse(await readFile(composeDefinitionPath, 'utf8')) as {
+      name?: string;
+      networks?: Record<string, { internal?: boolean }>;
+      services: Record<
+        string,
+        {
+          image?: string;
+          network_mode?: string;
+          networks?: string[];
+          tmpfs?: string[];
+          volumes?: string[];
+        }
+      >;
+    };
+    const workerNetwork = 'module-app-worker-internal';
+    const seedNetwork = 'module-app-seed';
+
+    expect(definition.name).toBeUndefined();
+    expect(definition.networks?.[workerNetwork]?.internal).toBe(true);
+    expect(definition.networks?.[seedNetwork]?.internal ?? false).toBe(false);
+    expect(definition.services['module-app-postgres'].networks).toEqual([
+      workerNetwork,
+      seedNetwork,
+    ]);
+    expect(definition.services['module-app-s3'].networks).toEqual([workerNetwork, seedNetwork]);
+    expect(definition.services['module-app-s3-init'].networks).toEqual([workerNetwork]);
+    expect(definition.services['module-app-worker'].networks).toEqual([workerNetwork]);
+    expect(definition.services['module-app-redis'].networks ?? ['default']).not.toContain(
+      workerNetwork,
+    );
+    expect(definition.services['module-runtime'].networks ?? ['default']).not.toContain(
+      workerNetwork,
+    );
+    expect(definition.services['module-app-worker'].networks).not.toContain(seedNetwork);
+    expect(definition.services['module-app-artifact-init'].network_mode).toBe('none');
+    expect(definition.services['module-app-s3'].image).toBe(
+      'rustfs/rustfs@sha256:fa19210ac4697c79d7ccca1ec9b0eb91aebacc6691991ffb14014bb3c67e6cc3',
+    );
+    expect(definition.services['module-app-s3-init'].image).toBe(
+      'minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727',
+    );
+    expect(definition.services['module-app-worker'].tmpfs).toEqual(['/tmp:size=64m,noexec,nosuid']);
+    expect(definition.services['module-app-worker'].volumes).toEqual([
+      'module-app-artifacts:/runtime/artifacts:rw',
+    ]);
+  });
+});
+
+describe('exact S3 absence classification', () => {
+  it('accepts only a 404 NoSuchKey or NotFound response', () => {
+    expect(isExactS3NotFound({ $metadata: { httpStatusCode: 404 }, name: 'NoSuchKey' })).toBe(true);
+    expect(isExactS3NotFound({ $metadata: { httpStatusCode: 404 }, name: 'NotFound' })).toBe(true);
+    expect(isExactS3NotFound({ $metadata: { httpStatusCode: 500 }, name: 'InternalError' })).toBe(
+      false,
+    );
+    expect(isExactS3NotFound(new Error('connection refused'))).toBe(false);
+  });
+});
 
 describe.skipIf(!integrationRequired || phase !== 'worker')(
   'module worker real integration',
@@ -134,14 +214,18 @@ describe.skipIf(!integrationRequired || phase !== 'worker')(
         expect(row.failure_code).toMatch(/^MODULE_APP_[A-Z0-9_]{1,96}$/);
         expect(row.artifact_key).toBeNull();
         expect(row.artifact_sha256).toBeNull();
-        await expect(
-          createS3().send(
+        let missingObjectError: unknown;
+        try {
+          await createS3().send(
             new HeadObjectCommand({
               Bucket: requireEnvironment('S3_BUCKET'),
               Key: state.tampered.expectedArtifactKey,
             }),
-          ),
-        ).rejects.toBeDefined();
+          );
+        } catch (error) {
+          missingObjectError = error;
+        }
+        expect(isExactS3NotFound(missingObjectError)).toBe(true);
         const contentDirectory = path.posix.join(
           '/runtime/artifacts',
           state.tampered.expectedArtifactSha256,

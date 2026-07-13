@@ -54,6 +54,7 @@ export type ModuleAppArtifactMaterializerDependencies = {
   fileSystem?: Partial<MaterializerFileSystem>;
   inspectArtifact?: typeof inspectModuleAppArtifact;
   limits?: ModuleAppPackageArchiveLimits;
+  platform?: NodeJS.Platform;
 };
 
 export type MaterializeModuleAppArtifactInput = {
@@ -358,9 +359,17 @@ const validateExistingDestination = async (
   marker: ArtifactMarker,
   manifest: ManifestV2,
   fileSystem: MaterializerFileSystem,
+  platform: NodeJS.Platform,
 ) => {
   try {
-    if (!(await fileSystem.lstat(directory)).isDirectory()) return false;
+    const rootMetadata = await fileSystem.lstat(directory);
+    if (!rootMetadata.isDirectory()) return false;
+    if (
+      platform !== 'win32' &&
+      !(await validateImmutableTree(directory, fileSystem, rootMetadata))
+    ) {
+      return false;
+    }
     const markerPath = path.join(directory, '.module-app-artifact.json');
     if (!(await fileSystem.lstat(markerPath)).isFile()) return false;
     const existing = JSON.parse(
@@ -379,6 +388,28 @@ const validateExistingDestination = async (
   } catch {
     return false;
   }
+};
+
+const validateImmutableTree = async (
+  directory: string,
+  fileSystem: MaterializerFileSystem,
+  metadata?: Stats,
+): Promise<boolean> => {
+  const directoryMetadata = metadata ?? (await fileSystem.lstat(directory));
+  if (!directoryMetadata.isDirectory() || (directoryMetadata.mode & 0o7777) !== 0o555) {
+    return false;
+  }
+  for (const entry of await fileSystem.readDirectory(directory)) {
+    if (entry.isSymbolicLink()) return false;
+    const entryPath = path.join(directory, entry.name);
+    const entryMetadata = await fileSystem.lstat(entryPath);
+    if (entryMetadata.isDirectory()) {
+      if (!(await validateImmutableTree(entryPath, fileSystem, entryMetadata))) return false;
+      continue;
+    }
+    if (!entryMetadata.isFile() || (entryMetadata.mode & 0o7777) !== 0o444) return false;
+  }
+  return true;
 };
 
 const collectDirectories = (entries: ModuleAppArtifactEntry[], stagingDirectory: string) => {
@@ -449,6 +480,43 @@ const removeOwnedDirectory = async (directory: string, fileSystem: MaterializerF
   }
 };
 
+const attachRollbackErrors = (primary: unknown, rollbackErrors: unknown[]) => {
+  if (rollbackErrors.length === 0 || !(primary instanceof Error)) return;
+  const existing = (primary as Error & { rollbackErrors?: unknown[] }).rollbackErrors ?? [];
+  Object.defineProperty(primary, 'rollbackErrors', {
+    configurable: true,
+    value: [...existing, ...rollbackErrors],
+  });
+};
+
+const runCleanupWithoutHidingPrimary = async (
+  primary: unknown,
+  actions: Array<() => Promise<void>>,
+) => {
+  const rollbackErrors: unknown[] = [];
+  for (const action of actions) {
+    try {
+      await action();
+    } catch (error) {
+      rollbackErrors.push(error);
+    }
+  }
+  attachRollbackErrors(primary, rollbackErrors);
+};
+
+const rollbackPromotedDirectory = async (input: {
+  artifactRoot: string;
+  directory: string;
+  fileSystem: MaterializerFileSystem;
+  primary: unknown;
+  stagingParent: string;
+}) =>
+  runCleanupWithoutHidingPrimary(input.primary, [
+    () => removeOwnedDirectory(input.directory, input.fileSystem),
+    () => input.fileSystem.syncDirectory(input.artifactRoot),
+    () => input.fileSystem.syncDirectory(input.stagingParent),
+  ]);
+
 export const materializeModuleAppArtifactWithDependencies = async (
   input: MaterializeModuleAppArtifactInput,
   dependencies: ModuleAppArtifactMaterializerDependencies = {},
@@ -464,6 +532,7 @@ export const materializeModuleAppArtifactWithDependencies = async (
   const fileSystem = { ...defaultFileSystem, ...dependencies.fileSystem };
   const inspectArtifact = dependencies.inspectArtifact ?? inspectModuleAppArtifact;
   const limits = { ...DEFAULT_MODULE_APP_PACKAGE_LIMITS, ...dependencies.limits };
+  const platform = dependencies.platform ?? process.platform;
   const artifactRoot = path.resolve(input.artifactRoot);
   const stagingDirectory = path.join(
     artifactRoot,
@@ -484,7 +553,9 @@ export const materializeModuleAppArtifactWithDependencies = async (
       .then(() => true)
       .catch(() => false)
   ) {
-    if (await validateExistingDestination(directory, marker, input.manifest, fileSystem)) {
+    if (
+      await validateExistingDestination(directory, marker, input.manifest, fileSystem, platform)
+    ) {
       return { directory, reused: true };
     }
     throw new ModuleAppArtifactMaterializationError(
@@ -533,7 +604,9 @@ export const materializeModuleAppArtifactWithDependencies = async (
         .then(() => true)
         .catch(() => false);
       if (destinationExists) {
-        if (await validateExistingDestination(directory, marker, input.manifest, fileSystem)) {
+        if (
+          await validateExistingDestination(directory, marker, input.manifest, fileSystem, platform)
+        ) {
           await removeOwnedDirectory(stagingDirectory, fileSystem);
           return { directory, reused: true };
         }
@@ -545,29 +618,28 @@ export const materializeModuleAppArtifactWithDependencies = async (
       }
       throw error;
     }
+    const stagingParent = path.dirname(stagingDirectory);
     try {
       await fileSystem.chmod(directory, 0o555);
       await fileSystem.syncDirectory(directory);
-    } catch (error) {
-      await removeOwnedDirectory(directory, fileSystem);
-      throw error;
-    }
-    const stagingParent = path.dirname(stagingDirectory);
-    try {
       await fileSystem.syncDirectory(artifactRoot);
       await fileSystem.syncDirectory(stagingParent);
     } catch (error) {
-      await removeOwnedDirectory(directory, fileSystem);
-      await Promise.allSettled([
-        fileSystem.syncDirectory(artifactRoot),
-        fileSystem.syncDirectory(stagingParent),
-      ]);
+      await rollbackPromotedDirectory({
+        artifactRoot,
+        directory,
+        fileSystem,
+        primary: error,
+        stagingParent,
+      });
       throw error;
     }
     return { directory, reused: false };
   } catch (error) {
-    await closeArtifactFiles(fileHandles);
-    await removeOwnedDirectory(stagingDirectory, fileSystem);
+    await runCleanupWithoutHidingPrimary(error, [
+      () => closeArtifactFiles(fileHandles),
+      () => removeOwnedDirectory(stagingDirectory, fileSystem),
+    ]);
     throw error;
   }
 };

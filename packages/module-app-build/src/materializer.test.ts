@@ -349,6 +349,166 @@ describe('materializeModuleAppArtifact', () => {
     await expect(lstat(directory)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it.each([
+    { failurePoint: 'chmod' as const, name: 'final root chmod' },
+    { failurePoint: 'fsync' as const, name: 'final root fsync' },
+  ])('durably rolls back a promoted destination when $name fails', async ({ failurePoint }) => {
+    const artifactRoot = await createRoot();
+    const artifact = await buildDeterministicModuleAppArtifact({ files });
+    const directory = path.join(artifactRoot, artifact.sha256);
+    const stagingParent = path.join(artifactRoot, '.staging');
+    const primary = Object.assign(new Error(`${failurePoint} failed`), { code: 'EIO' });
+    const events: string[] = [];
+    let rollbackStarted = false;
+
+    const result = materializeWithDependencies(
+      {
+        artifactBytes: artifact.bytes,
+        artifactRoot,
+        artifactSha256: artifact.sha256,
+        buildId: BUILD_ID,
+        claimToken: CLAIM_TOKEN,
+        manifest,
+      },
+      {
+        fileSystem: {
+          chmod: async (filePath: string, mode: number) => {
+            if (filePath === directory && failurePoint === 'chmod') {
+              rollbackStarted = true;
+              throw primary;
+            }
+            await chmod(filePath, mode);
+          },
+          removeDirectory: async (removePath: string) => {
+            if (rollbackStarted && removePath === directory) events.push('remove-destination');
+            await rm(removePath, { force: true, recursive: true });
+          },
+          syncDirectory: async (syncPath: string) => {
+            if (syncPath === directory && failurePoint === 'fsync') {
+              rollbackStarted = true;
+              throw primary;
+            }
+            if (rollbackStarted && syncPath === artifactRoot) events.push('sync-artifact-root');
+            if (rollbackStarted && syncPath === stagingParent) events.push('sync-staging-parent');
+          },
+        },
+      },
+    );
+
+    await expect(result).rejects.toBe(primary);
+    expect(events).toEqual(['remove-destination', 'sync-artifact-root', 'sync-staging-parent']);
+    await expect(lstat(directory)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('syncs both rename parents after removing a promotion rejected by parent fsync', async () => {
+    const artifactRoot = await createRoot();
+    const artifact = await buildDeterministicModuleAppArtifact({ files });
+    const directory = path.join(artifactRoot, artifact.sha256);
+    const stagingParent = path.join(artifactRoot, '.staging');
+    const primary = Object.assign(new Error('parent fsync failed'), { code: 'EIO' });
+    const events: string[] = [];
+    let artifactRootSyncs = 0;
+    let rollbackStarted = false;
+
+    const result = materializeWithDependencies(
+      {
+        artifactBytes: artifact.bytes,
+        artifactRoot,
+        artifactSha256: artifact.sha256,
+        buildId: BUILD_ID,
+        claimToken: CLAIM_TOKEN,
+        manifest,
+      },
+      {
+        fileSystem: {
+          removeDirectory: async (removePath: string) => {
+            if (rollbackStarted && removePath === directory) events.push('remove-destination');
+            await rm(removePath, { force: true, recursive: true });
+          },
+          syncDirectory: async (syncPath: string) => {
+            if (syncPath === artifactRoot) {
+              artifactRootSyncs += 1;
+              if (artifactRootSyncs === 1) {
+                rollbackStarted = true;
+                throw primary;
+              }
+              if (rollbackStarted) {
+                events.push('sync-artifact-root-start');
+                await new Promise((resolve) => setTimeout(resolve, 10));
+                events.push('sync-artifact-root-end');
+              }
+            }
+            if (rollbackStarted && syncPath === stagingParent) events.push('sync-staging-parent');
+          },
+        },
+      },
+    );
+
+    await expect(result).rejects.toBe(primary);
+    expect(events).toEqual([
+      'remove-destination',
+      'sync-artifact-root-start',
+      'sync-artifact-root-end',
+      'sync-staging-parent',
+    ]);
+  });
+
+  it.each([
+    { failurePoint: 'cleanup' as const, name: 'destination cleanup' },
+    { failurePoint: 'sync' as const, name: 'rollback parent sync' },
+  ])('preserves the promotion failure when $name also fails', async ({ failurePoint }) => {
+    const artifactRoot = await createRoot();
+    const artifact = await buildDeterministicModuleAppArtifact({ files });
+    const directory = path.join(artifactRoot, artifact.sha256);
+    const stagingParent = path.join(artifactRoot, '.staging');
+    const primary = Object.assign(new Error('promotion chmod failed'), { code: 'EIO' });
+    const secondary = Object.assign(new Error(`${failurePoint} failed`), { code: 'EACCES' });
+    const events: string[] = [];
+    let rollbackStarted = false;
+
+    const result = materializeWithDependencies(
+      {
+        artifactBytes: artifact.bytes,
+        artifactRoot,
+        artifactSha256: artifact.sha256,
+        buildId: BUILD_ID,
+        claimToken: CLAIM_TOKEN,
+        manifest,
+      },
+      {
+        fileSystem: {
+          chmod: async (filePath: string, mode: number) => {
+            if (filePath === directory) {
+              rollbackStarted = true;
+              throw primary;
+            }
+            await chmod(filePath, mode);
+          },
+          removeDirectory: async (removePath: string) => {
+            if (rollbackStarted && removePath === directory) {
+              events.push('remove-destination');
+              if (failurePoint === 'cleanup') throw secondary;
+            }
+            await rm(removePath, { force: true, recursive: true });
+          },
+          syncDirectory: async (syncPath: string) => {
+            if (rollbackStarted && syncPath === artifactRoot) {
+              events.push('sync-artifact-root');
+              if (failurePoint === 'sync') throw secondary;
+            }
+            if (rollbackStarted && syncPath === stagingParent) events.push('sync-staging-parent');
+          },
+        },
+      },
+    );
+
+    await expect(result).rejects.toBe(primary);
+    expect(events).toContain('remove-destination');
+    expect(events).toContain('sync-artifact-root');
+    expect(events).toContain('sync-staging-parent');
+    expect((primary as Error & { rollbackErrors?: unknown[] }).rollbackErrors).toContain(secondary);
+  });
+
   it('validates and reuses a destination that appears during an EPERM rename collision', async () => {
     const artifactRoot = await createRoot();
     const artifact = await buildDeterministicModuleAppArtifact({ files });
@@ -442,6 +602,51 @@ describe('materializeModuleAppArtifact', () => {
     expect(
       (await lstat(path.join(artifactRoot, artifact.sha256, 'server/index.js'))).isDirectory(),
     ).toBe(true);
+  });
+
+  it.each([
+    { mode: 0o755, name: 'root', relativePath: '' },
+    { mode: 0o755, name: 'nested directory', relativePath: 'dist' },
+    { mode: 0o644, name: 'artifact file', relativePath: 'dist/index.html' },
+    { mode: 0o644, name: 'identity marker', relativePath: '.module-app-artifact.json' },
+  ])('rejects reuse when the existing POSIX $name is writable', async ({ mode, relativePath }) => {
+    const artifactRoot = await createRoot();
+    const artifact = await buildDeterministicModuleAppArtifact({ files });
+    const directory = path.join(artifactRoot, artifact.sha256);
+    const writablePath = path.join(directory, relativePath);
+
+    await materialize(artifactRoot, artifact.bytes);
+
+    await expect(
+      materializeWithDependencies(
+        {
+          artifactBytes: artifact.bytes,
+          artifactRoot,
+          artifactSha256: artifact.sha256,
+          buildId: BUILD_ID,
+          claimToken: CLAIM_TOKEN,
+          manifest,
+        },
+        {
+          fileSystem: {
+            lstat: async (filePath: string) => {
+              const metadata = await lstat(filePath);
+              const expectedMode = metadata.isDirectory() ? 0o555 : 0o444;
+              Object.defineProperty(metadata, 'mode', {
+                configurable: true,
+                value:
+                  (metadata.mode & ~0o777) |
+                  (path.resolve(filePath) === writablePath ? mode : expectedMode),
+              });
+              return metadata;
+            },
+          },
+          platform: 'linux',
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_MISMATCH',
+    });
   });
 
   it('fails closed on an existing marker mismatch without deleting the destination', async () => {
