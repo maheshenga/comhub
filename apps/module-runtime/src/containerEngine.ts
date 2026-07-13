@@ -44,6 +44,7 @@ type DockerRunner = {
     containerName: string,
     timeoutMs: number,
   ) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
+  list?: (timeoutMs: number) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
   remove: (
     containerName: string,
     timeoutMs: number,
@@ -109,6 +110,18 @@ const runDocker = (
 const defaultRunner: DockerRunner = {
   create: ({ args, timeoutMs }) => runDocker(args, { timeoutMs }),
   inspect: (containerName, timeoutMs) => runDocker(['inspect', containerName], { timeoutMs }),
+  list: (timeoutMs) =>
+    runDocker(
+      [
+        'ps',
+        '--all',
+        '--filter',
+        'label=comhub.module-app.runtime=true',
+        '--format',
+        '{{.ID}}|{{.Label "comhub.module-app.expires-at"}}',
+      ],
+      { timeoutMs },
+    ),
   remove: (containerName, timeoutMs) =>
     runDocker(['rm', '--force', containerName], { timeoutMs }),
   start: ({ args, input, timeoutMs }) => runDocker(args, { input, timeoutMs }),
@@ -135,13 +148,21 @@ const dockerInspectShowsContainer = (result: {
   return true;
 };
 
-export const buildDockerCreateArgs = (input: ModuleAppContainerRunInput) => {
+export const buildDockerCreateArgs = (
+  input: ModuleAppContainerRunInput,
+  expiresAtMs: number,
+) => {
   if (!/^(?:sha256:|.+@sha256:)[a-f0-9]{64}$/.test(input.imageDigest)) {
     throw new Error('MODULE_APP_RUNTIME_IMAGE_INVALID');
   }
 
   return [
     'create',
+    '--rm',
+    '--label',
+    'comhub.module-app.runtime=true',
+    '--label',
+    `comhub.module-app.expires-at=${expiresAtMs}`,
     '--name',
     input.containerName,
     '--network',
@@ -234,6 +255,36 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
     return clean;
   };
 
+  reconcileStaleContainers = async (nowMs = Date.now()) => {
+    if (!this.runner.list) return { failed: 0, removed: 0 };
+
+    let listed: { exitCode: number; stderr: string; stdout: string };
+    try {
+      listed = await this.runner.list(CLEANUP_TIMEOUT_MS);
+      if (listed.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
+    } catch (error) {
+      this.metrics.recordCleanupFailure();
+      throw error;
+    }
+
+    let failed = 0;
+    let removed = 0;
+    for (const line of listed.stdout.split(/\r?\n/)) {
+      const [containerId, rawExpiresAt] = line.trim().split('|');
+      const expiresAt = Number(rawExpiresAt);
+      if (!containerId || !Number.isFinite(expiresAt) || expiresAt > nowMs) continue;
+
+      if (await this.cleanupContainer(containerId, true)) {
+        removed++;
+      } else {
+        failed++;
+        this.metrics.recordCleanupFailure();
+      }
+    }
+
+    return { failed, removed };
+  };
+
   run = async (input: ModuleAppContainerRunInput) => {
     const startedAt = Date.now();
     let outcome: ModuleAppSandboxOutcome = 'failed';
@@ -243,7 +294,9 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
     let result: { exitCode: number; stderr: string; stdout: string } | undefined;
 
     try {
-      const createArgs = buildDockerCreateArgs(input);
+      const expiresAtMs =
+        Date.now() + CONTAINER_CREATE_TIMEOUT_MS + input.limits.timeoutMs + CLEANUP_TIMEOUT_MS;
+      const createArgs = buildDockerCreateArgs(input, expiresAtMs);
       cleanupRequired = true;
       const created = await this.runner.create({
         args: createArgs,

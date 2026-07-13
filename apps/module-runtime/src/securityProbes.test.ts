@@ -166,6 +166,36 @@ describe.skipIf(!realContainerEnabled)('Module App real container security probe
     });
   }, 60_000);
 
+  it('reconciles an expired managed container through Docker labels', async () => {
+    const containerName = `module-app-stale-${crypto.randomUUID()}`;
+    docker(
+      'create',
+      '--rm',
+      '--name',
+      containerName,
+      '--label',
+      'comhub.module-app.runtime=true',
+      '--label',
+      'comhub.module-app.expires-at=1',
+      nodeImage,
+      '-e',
+      'setInterval(()=>{},1000)',
+    );
+
+    try {
+      await expect(
+        new DockerCliModuleAppContainerEngine().reconcileStaleContainers(Date.now()),
+      ).resolves.toEqual({ failed: 0, removed: 1 });
+      expect(dockerContainerExists(containerName)).toBe(false);
+    } finally {
+      try {
+        docker('rm', '--force', containerName);
+      } catch {
+        // The reconciler normally removes it before this fail-safe cleanup.
+      }
+    }
+  }, 30_000);
+
   it('denies network and artifact writes while keeping bounded tmp storage writable', async () => {
     const entry = writeFixture(
       nodeArtifacts,

@@ -5,11 +5,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { verifyRuntimeCapability } from './capability';
+import { DockerCliModuleAppContainerEngine } from './containerEngine';
 import { FixedProcessModuleAppLauncher, ModuleAppRuntimeInvoker } from './invocation';
 import { assertModuleAppRuntimePolicy } from './policy';
 
 const MAX_REQUEST_BYTES = 1024 * 1024 + 16 * 1024;
 const MODULE_APP_RUNTIME_ARTIFACT_ROOT = '/runtime/artifacts';
+const MODULE_APP_RUNTIME_RECONCILE_INTERVAL_MS = 10_000;
 
 const contentTypes: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -163,6 +165,7 @@ export const startModuleAppRuntimeServerFromEnv = () => {
     process.env.MODULE_APP_EXECUTION_ENABLED === 'true' &&
     process.env.MODULE_APP_RUNTIME_INVOCATION_ENABLED === 'true';
 
+  const engine = invocationEnabled ? new DockerCliModuleAppContainerEngine() : undefined;
   const server = createModuleAppRuntimeServer({
     internalToken: process.env.MODULE_APP_RUNTIME_INTERNAL_TOKEN ?? '',
     invocationEnabled,
@@ -172,11 +175,19 @@ export const startModuleAppRuntimeServerFromEnv = () => {
             dockerArtifactRoot:
               process.env.MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT ??
               MODULE_APP_RUNTIME_ARTIFACT_ROOT,
+            engine,
           }),
         })
       : undefined,
     runtimeJwks: process.env.MODULE_APP_RUNTIME_JWKS ?? '',
   });
+  if (engine) {
+    const reconcile = () => void engine.reconcileStaleContainers().catch(() => undefined);
+    reconcile();
+    const reconcileTimer = setInterval(reconcile, MODULE_APP_RUNTIME_RECONCILE_INTERVAL_MS);
+    reconcileTimer.unref();
+    server.once('close', () => clearInterval(reconcileTimer));
+  }
   server.listen(Number(process.env.PORT ?? 3210), '0.0.0.0');
   return server;
 };

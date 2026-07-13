@@ -49,8 +49,13 @@ const createdContainer = {
 
 describe('Docker lifecycle commands', () => {
   it('builds a fixed isolated create command before timed execution', () => {
-    expect(buildDockerCreateArgs(input)).toEqual([
+    expect(buildDockerCreateArgs(input, 123_456)).toEqual([
       'create',
+      '--rm',
+      '--label',
+      'comhub.module-app.runtime=true',
+      '--label',
+      'comhub.module-app.expires-at=123456',
       '--name',
       'module-app-invocation-1',
       '--network',
@@ -99,13 +104,13 @@ describe('Docker lifecycle commands', () => {
       buildDockerCreateArgs({
         ...input,
         imageDigest: 'ghcr.io/comhub/module-app-node22:latest',
-      }),
+      }, 123_456),
     ).toThrow('MODULE_APP_RUNTIME_IMAGE_INVALID');
   });
 
   it('accepts an immutable local Docker image id for verification probes', () => {
     expect(
-      buildDockerCreateArgs({ ...input, imageDigest: `sha256:${'c'.repeat(64)}` }),
+      buildDockerCreateArgs({ ...input, imageDigest: `sha256:${'c'.repeat(64)}` }, 123_456),
     ).toContain(`sha256:${'c'.repeat(64)}`);
   });
 });
@@ -125,10 +130,13 @@ describe('DockerCliModuleAppContainerEngine', () => {
       stderr: '',
       stdout: '{"ok":true}',
     });
-    expect(runner.create).toHaveBeenCalledWith({
-      args: buildDockerCreateArgs(input),
-      timeoutMs: 15_000,
-    });
+    expect(runner.create).toHaveBeenCalledWith(
+      expect.objectContaining({ timeoutMs: 15_000 }),
+    );
+    const createArgs = runner.create.mock.calls[0][0].args as string[];
+    expect(createArgs).toContain('--rm');
+    expect(createArgs).toContain('comhub.module-app.runtime=true');
+    expect(createArgs).toContainEqual(expect.stringMatching(/^comhub\.module-app\.expires-at=\d+$/));
     expect(runner.start).toHaveBeenCalledWith({
       args: buildDockerStartArgs(input.containerName),
       input: JSON.stringify(input.input),
@@ -218,6 +226,29 @@ describe('DockerCliModuleAppContainerEngine', () => {
     expect(metrics.recordInvocation).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: 'failed', runtime: 'node22' }),
     );
+  });
+
+  it('reconciles only expired labeled runtime containers', async () => {
+    const runner = {
+      create: vi.fn(),
+      inspect: vi.fn().mockResolvedValue(absentContainerInspect),
+      list: vi.fn().mockResolvedValue({
+        exitCode: 0,
+        stderr: '',
+        stdout: 'expired-container|1000\nactive-container|5000\ninvalid-container|invalid\n',
+      }),
+      remove: vi.fn().mockResolvedValue(removedContainer),
+      start: vi.fn(),
+    };
+    const engine = new DockerCliModuleAppContainerEngine({ runner });
+
+    await expect(engine.reconcileStaleContainers(2000)).resolves.toEqual({
+      failed: 0,
+      removed: 1,
+    });
+    expect(runner.remove).toHaveBeenCalledWith('expired-container', expect.any(Number));
+    expect(runner.remove).not.toHaveBeenCalledWith('active-container', expect.any(Number));
+    expect(runner.remove).not.toHaveBeenCalledWith('invalid-container', expect.any(Number));
   });
 
   it('bounds all cleanup commands by one total deadline', async () => {
