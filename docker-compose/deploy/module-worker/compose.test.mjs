@@ -89,6 +89,7 @@ const toBashPath = (windowsPath) =>
 
 const runDeployWithFakes = ({
   currentWorkerImage,
+  deployCommand = './deploy.sh',
   deployDirectory = directory,
   envContents,
   envFilePath = envFile,
@@ -245,7 +246,7 @@ process.stdout.write('4');
     'bash',
     [
       '-lc',
-      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec ./deploy.sh '${workerImage}'`,
+      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec '${deployCommand}' '${workerImage}'`,
     ],
     {
       cwd: deployDirectory,
@@ -470,6 +471,59 @@ try {
     removeTempDirectory(releaseStateRoot);
   }
 
+  const currentStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-current-state-'));
+  try {
+    const comhubDirectory = join(currentStateRoot, 'comhub');
+    const workerDeployDirectory = join(comhubDirectory, 'module-worker');
+    const releaseDirectory = join(workerDeployDirectory, 'releases', 'sha-test-release');
+    const rootEnvFile = join(workerDeployDirectory, '.env');
+    const rootPreviousImage = join(workerDeployDirectory, '.previous-image');
+    const parentPreviousImage = join(comhubDirectory, '.previous-image');
+    mkdirSync(releaseDirectory, { recursive: true });
+    copyFileSync(resolve(directory, 'compose.yml'), join(releaseDirectory, 'compose.yml'));
+    copyFileSync(resolve(directory, 'deploy.sh'), join(releaseDirectory, 'deploy.sh'));
+    chmodSync(join(releaseDirectory, 'deploy.sh'), 0o750);
+    symlinkSync('../../.env', join(releaseDirectory, '.env'));
+    symlinkSync('../../.previous-image', join(releaseDirectory, '.previous-image'));
+    symlinkSync('releases/sha-test-release', join(workerDeployDirectory, 'current'), 'dir');
+    writeFileSync(rootPreviousImage, 'example.invalid/worker:sha-older-state\n');
+
+    const currentDeploy = runDeployWithFakes({
+      currentWorkerImage: 'example.invalid/worker:sha-current-image',
+      deployCommand: './current/deploy.sh',
+      deployDirectory: workerDeployDirectory,
+      envContents: [
+        'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+        'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+        'S3_ACCESS_KEY_ID=worker-access',
+        'S3_BUCKET=module-artifacts',
+        'S3_ENDPOINT=https://s3.example.com',
+        'S3_SECRET_ACCESS_KEY=worker-secret',
+      ].join('\n'),
+      envFilePath: rootEnvFile,
+      expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+      home: '/tmp/fake-home',
+      skipPreviousImage: false,
+      user: 'fake-user',
+    });
+
+    assert.equal(currentDeploy.result.status, 0, currentDeploy.result.stderr);
+    assert.equal(
+      readFileSync(rootPreviousImage, 'utf8'),
+      'example.invalid/worker:sha-current-image\n',
+    );
+    assert.equal(existsSync(parentPreviousImage), false);
+    assert.equal(lstatSync(join(releaseDirectory, '.env')).isSymbolicLink(), true);
+    assert.equal(readlinkSync(join(releaseDirectory, '.env')).replace(/\\/gu, '/'), '../../.env');
+    assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
+    assert.equal(
+      readlinkSync(join(releaseDirectory, '.previous-image')).replace(/\\/gu, '/'),
+      '../../.previous-image',
+    );
+  } finally {
+    removeTempDirectory(currentStateRoot);
+  }
+
   const absoluteStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-absolute-state-'));
   try {
     const releaseDirectory = join(absoluteStateRoot, 'releases', 'sha-test-release');
@@ -545,6 +599,55 @@ try {
     );
   } finally {
     removeTempDirectory(standaloneStateRoot);
+  }
+
+  const chainedStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-chained-state-'));
+  try {
+    const releaseDirectory = join(chainedStateRoot, 'releases', 'sha-test-release');
+    const rootEnvFile = join(chainedStateRoot, '.env');
+    const rootPreviousImage = join(chainedStateRoot, '.previous-image');
+    const chainedStateTarget = join(chainedStateRoot, '.previous-image-target');
+    mkdirSync(releaseDirectory, { recursive: true });
+    copyFileSync(resolve(directory, 'compose.yml'), join(releaseDirectory, 'compose.yml'));
+    copyFileSync(resolve(directory, 'deploy.sh'), join(releaseDirectory, 'deploy.sh'));
+    chmodSync(join(releaseDirectory, 'deploy.sh'), 0o750);
+    symlinkSync('../../.env', join(releaseDirectory, '.env'));
+    symlinkSync('../../.previous-image', join(releaseDirectory, '.previous-image'));
+    symlinkSync('.previous-image-target', rootPreviousImage);
+    writeFileSync(chainedStateTarget, 'example.invalid/worker:sha-chained-state\n');
+
+    const chainedStateDeploy = runDeployWithFakes({
+      currentWorkerImage: 'example.invalid/worker:sha-current-image',
+      deployDirectory: releaseDirectory,
+      envContents: [
+        'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+        'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+        'S3_ACCESS_KEY_ID=worker-access',
+        'S3_BUCKET=module-artifacts',
+        'S3_ENDPOINT=https://s3.example.com',
+        'S3_SECRET_ACCESS_KEY=worker-secret',
+      ].join('\n'),
+      envFilePath: rootEnvFile,
+      expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+      home: '/tmp/fake-home',
+      skipPreviousImage: false,
+      user: 'fake-user',
+    });
+
+    assert.notEqual(chainedStateDeploy.result.status, 0);
+    assert.match(chainedStateDeploy.result.stderr, /must not be another symlink/);
+    assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
+    assert.equal(
+      readlinkSync(join(releaseDirectory, '.previous-image')).replace(/\\/gu, '/'),
+      '../../.previous-image',
+    );
+    assert.equal(lstatSync(rootPreviousImage).isSymbolicLink(), true);
+    assert.equal(
+      readFileSync(chainedStateTarget, 'utf8'),
+      'example.invalid/worker:sha-chained-state\n',
+    );
+  } finally {
+    removeTempDirectory(chainedStateRoot);
   }
 
   const escapedStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-escaped-state-'));

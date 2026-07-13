@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly COMPOSE_FILE="$SCRIPT_DIR/compose.yml"
 readonly ENV_FILE="$SCRIPT_DIR/.env"
 readonly PREVIOUS_IMAGE_FILE="$SCRIPT_DIR/.previous-image"
@@ -149,17 +149,21 @@ run_psql() {
 
 resolve_symlink_target() {
   local link_path="$1"
-  local raw_target target_directory target_name target_path
-  raw_target="$(readlink "$link_path")" || die "failed to read symlink target: $link_path"
+  local link_directory link_name raw_target target_directory target_name target_path
+  link_directory="$(cd -P "$(dirname "$link_path")" && pwd -P)" || \
+    die "symlink directory is unavailable: $link_path"
+  link_name="$(basename "$link_path")"
+  raw_target="$(readlink "$link_directory/$link_name")" || \
+    die "failed to read symlink target: $link_path"
   [[ -n "$raw_target" ]] || die "symlink target must not be empty: $link_path"
 
   if [[ "$raw_target" == /* ]]; then
     target_path="$raw_target"
   else
-    target_path="$(dirname "$link_path")/$raw_target"
+    target_path="$link_directory/$raw_target"
   fi
 
-  target_directory="$(cd "$(dirname "$target_path")" && pwd -P)" || \
+  target_directory="$(cd -P "$(dirname "$target_path")" && pwd -P)" || \
     die "symlink target directory is unavailable: $link_path"
   target_name="$(basename "$target_path")"
   [[ -n "$target_name" && "$target_name" != '.' && "$target_name" != '..' ]] || \
@@ -177,7 +181,7 @@ resolve_state_directory() {
     return
   fi
 
-  cd "$SCRIPT_DIR" && pwd -P
+  cd -P "$SCRIPT_DIR" && pwd -P
 }
 
 sync_file_if_supported() {

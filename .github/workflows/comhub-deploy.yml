@@ -52,6 +52,7 @@ permissions:
 concurrency:
   group: comhub-production-${{ github.ref }}
   cancel-in-progress: false
+  queue: max
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
@@ -528,10 +529,14 @@ jobs:
                 echo "warning: failed to clean exact bootstrap staging directory: $bootstrap_staging_dir" >&2
             fi
             [ -z "$current_temp_link" ] || rm -f -- "$current_temp_link" || true
-            if [ "$current_promotion_active" = true ] && [ -n "$previous_target" ]; then
+            if [ "$current_promotion_active" = true ]; then
               if restore_current; then
                 current_promotion_active=false
-                echo "warning: restored previous Worker current target after unexpected failure: $previous_target" >&2
+                if [ -n "$previous_target" ]; then
+                  echo "warning: restored previous Worker current target after unexpected failure: $previous_target" >&2
+                else
+                  echo 'warning: removed Worker current after unexpected clean-host failure' >&2
+                fi
               else
                 echo "error: failed to restore previous Worker current target after unexpected failure: $previous_target" >&2
               fi
@@ -585,7 +590,13 @@ jobs:
           }
 
           restore_current() {
-            atomic_set_current "$previous_target"
+            if [ -n "$previous_target" ]; then
+              atomic_set_current "$previous_target"
+              return
+            fi
+
+            rm -f -- "$worker_deploy_dir/current" || return
+            [ ! -e "$worker_deploy_dir/current" ] && [ ! -L "$worker_deploy_dir/current" ]
           }
 
           restore_previous_image_state() {
@@ -652,22 +663,40 @@ jobs:
             echo 'error: Worker current path exists but is not a symlink' >&2
             exit 1
           else
-            bootstrap_cleanup_enabled=true
-            [ ! -e "$bootstrap_staging_dir" ]
-            [ ! -e "$bootstrap_release_dir" ]
-            install -d -m 0750 "$bootstrap_staging_dir"
+            legacy_asset_count=0
             for file in compose.yml deploy.sh rollback.sh; do
-              [ -s "$worker_deploy_dir/$file" ]
-              cp -L -- "$worker_deploy_dir/$file" "$bootstrap_staging_dir/$file"
+              if [ -e "$worker_deploy_dir/$file" ] || [ -L "$worker_deploy_dir/$file" ]; then
+                legacy_asset_count=$((legacy_asset_count + 1))
+              fi
             done
-            chmod 0640 "$bootstrap_staging_dir/compose.yml"
-            chmod 0750 "$bootstrap_staging_dir/deploy.sh" "$bootstrap_staging_dir/rollback.sh"
-            validate_asset_set "$bootstrap_staging_dir"
-            link_release_state "$bootstrap_staging_dir"
-            mv "$bootstrap_staging_dir" "$bootstrap_release_dir"
-            bootstrap_cleanup_enabled=false
-            previous_target="releases/bootstrap-$release_id"
-            atomic_set_current "$previous_target"
+
+            case "$legacy_asset_count" in
+              0)
+                previous_target=''
+                ;;
+              3)
+                bootstrap_cleanup_enabled=true
+                [ ! -e "$bootstrap_staging_dir" ]
+                [ ! -e "$bootstrap_release_dir" ]
+                install -d -m 0750 "$bootstrap_staging_dir"
+                for file in compose.yml deploy.sh rollback.sh; do
+                  [ -s "$worker_deploy_dir/$file" ]
+                  cp -L -- "$worker_deploy_dir/$file" "$bootstrap_staging_dir/$file"
+                done
+                chmod 0640 "$bootstrap_staging_dir/compose.yml"
+                chmod 0750 "$bootstrap_staging_dir/deploy.sh" "$bootstrap_staging_dir/rollback.sh"
+                validate_asset_set "$bootstrap_staging_dir"
+                link_release_state "$bootstrap_staging_dir"
+                mv "$bootstrap_staging_dir" "$bootstrap_release_dir"
+                bootstrap_cleanup_enabled=false
+                previous_target="releases/bootstrap-$release_id"
+                atomic_set_current "$previous_target"
+                ;;
+              *)
+                echo 'error: partial legacy Worker deployment assets require operator repair' >&2
+                exit 1
+                ;;
+            esac
           fi
 
           chmod 0640 "$staging_dir/compose.yml"
@@ -752,13 +781,19 @@ jobs:
             exit 0
           fi
 
+          rollback_status=0
+          if [ "$root_previous_image_created" = true ] && [ -z "$previous_target" ]; then
+            "$worker_deploy_dir/current/rollback.sh"
+            rollback_status=$?
+          fi
+
           restore_current
           restore_current_status=$?
           if [ "$restore_current_status" -eq 0 ]; then
             current_promotion_active=false
           fi
-          rollback_status=0
-          if [ "$root_previous_image_created" = true ] && [ "$restore_current_status" -eq 0 ]; then
+          if [ "$root_previous_image_created" = true ] && \
+            [ -n "$previous_target" ] && [ "$restore_current_status" -eq 0 ]; then
             "$worker_deploy_dir/current/rollback.sh"
             rollback_status=$?
           fi
