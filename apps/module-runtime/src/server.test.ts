@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { DockerCliModuleAppContainerEngine } from './containerEngine';
 import { ModuleAppRuntimeInvoker } from './invocation';
 import {
   createModuleAppRuntimeServer,
@@ -105,6 +106,11 @@ describe('createModuleAppRuntimeServer', () => {
   });
 
   it('starts a health-only server without runtime credentials or images when disabled', async () => {
+    vi.useFakeTimers();
+    const engine = new DockerCliModuleAppContainerEngine();
+    const reconcile = vi
+      .spyOn(engine, 'reconcileStaleContainers')
+      .mockResolvedValue({ failed: 0, removed: 0 });
     vi.stubEnv('MODULE_APP_EXECUTION_ENABLED', 'false');
     vi.stubEnv('MODULE_APP_RUNTIME_INVOCATION_ENABLED', 'false');
     vi.stubEnv('MODULE_APP_RUNTIME_INTERNAL_TOKEN', '');
@@ -115,7 +121,7 @@ describe('createModuleAppRuntimeServer', () => {
 
     let server: ReturnType<typeof startModuleAppRuntimeServerFromEnv> | undefined;
     try {
-      server = startModuleAppRuntimeServerFromEnv();
+      server = startModuleAppRuntimeServerFromEnv({ engine, reconcileIntervalMs: 10_000 });
       await new Promise<void>((resolve) => server!.once('listening', resolve));
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('test_server_address_missing');
@@ -123,6 +129,9 @@ describe('createModuleAppRuntimeServer', () => {
       const response = await requestServer(`http://127.0.0.1:${address.port}/health`);
       expect(response.status).toBe(200);
       expect(JSON.parse(response.body)).toEqual({ status: 'ok' });
+      expect(reconcile).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(reconcile).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllEnvs();
       if (server) {
@@ -130,6 +139,8 @@ describe('createModuleAppRuntimeServer', () => {
           server!.close((error) => (error ? reject(error) : resolve())),
         );
       }
+      reconcile.mockRestore();
+      vi.useRealTimers();
     }
   });
 
