@@ -252,6 +252,36 @@ describe('ModuleAppWorker', () => {
     expect(shutdownComplete).toBe(true);
   });
 
+  it('drains a claim in flight during shutdown before returning', async () => {
+    const pendingClaim = deferred<ClaimedModuleAppBuild | null>();
+    let processingSignal: AbortSignal | undefined;
+    const processBuild = vi.fn(
+      async (_claim: ClaimedModuleAppBuild, input: { signal: AbortSignal }) => {
+        processingSignal = input.signal;
+        return { failureCode: 'MODULE_APP_BUILD_LEASE_LOST', outcome: 'failed' as const };
+      },
+    );
+    const { buildModel, worker } = createWorker({ processBuild });
+    buildModel.claimNext.mockImplementationOnce(() => pendingClaim.promise);
+    const shutdown = new AbortController();
+
+    let shutdownComplete = false;
+    const run = worker.run(shutdown.signal).then(() => {
+      shutdownComplete = true;
+    });
+    await vi.waitFor(() => expect(buildModel.claimNext).toHaveBeenCalledTimes(1));
+    shutdown.abort();
+    await Promise.resolve();
+
+    expect(shutdownComplete).toBe(false);
+
+    pendingClaim.resolve(claim);
+    await run;
+    expect(processBuild).toHaveBeenCalledTimes(1);
+    expect(processingSignal?.aborted).toBe(true);
+    expect(shutdownComplete).toBe(true);
+  });
+
   it('runs cleanup at startup and every ten minutes while idle polls wait five seconds', async () => {
     vi.useFakeTimers();
     const cleanup = vi.fn(async () => ({ failed: 0, removed: 0 }));

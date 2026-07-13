@@ -87,17 +87,24 @@ export class ModuleAppWorker {
   private activeAbortController?: AbortController;
   private activePromise?: Promise<unknown>;
   private readonly now: () => Date;
+  private pollingPromise?: Promise<unknown>;
 
   constructor(private readonly dependencies: ModuleAppWorkerDependencies) {
     this.now = dependencies.now ?? (() => new Date());
   }
 
-  pollOnce = async (): Promise<boolean> => {
-    if (this.activePromise) throw new Error('MODULE_APP_WORKER_ALREADY_PROCESSING');
+  pollOnce = async (signal?: AbortSignal): Promise<boolean> => {
+    if (this.activePromise || this.pollingPromise) {
+      throw new Error('MODULE_APP_WORKER_ALREADY_PROCESSING');
+    }
 
     await this.dependencies.buildModel.failExpiredExhausted();
     const queue = await this.dependencies.buildModel.getQueueStats();
     this.dependencies.metrics.recordQueue(queue);
+    if (signal?.aborted) {
+      await this.recordHealth();
+      return false;
+    }
 
     const claim = await this.dependencies.buildModel.claimNext({
       leaseDurationMs: this.dependencies.leaseDurationMs,
@@ -114,6 +121,7 @@ export class ModuleAppWorker {
       claim.attemptCount > 1 ? 'recovered' : 'claimed',
     );
     const controller = new AbortController();
+    if (signal?.aborted) controller.abort();
     this.activeAbortController = controller;
     let processingFinished = false;
     let renewalInProgress = false;
@@ -170,14 +178,19 @@ export class ModuleAppWorker {
 
     try {
       while (!signal.aborted) {
-        const polling = this.pollOnce();
-        const result = await raceWithShutdown(polling, signal);
-        if (result.shutdown) {
-          await this.waitForActiveBuild();
-          return;
-        }
-        if (!result.value) {
-          await sleep(this.dependencies.pollIntervalMs, signal);
+        const polling = this.pollOnce(signal);
+        this.pollingPromise = polling;
+        try {
+          const result = await raceWithShutdown(polling, signal);
+          if (result.shutdown) {
+            await this.waitForActiveBuild();
+            return;
+          }
+          if (!result.value) {
+            await sleep(this.dependencies.pollIntervalMs, signal);
+          }
+        } finally {
+          if (this.pollingPromise === polling) this.pollingPromise = undefined;
         }
       }
       await this.waitForActiveBuild();
@@ -202,7 +215,7 @@ export class ModuleAppWorker {
   };
 
   private waitForActiveBuild = async () => {
-    const active = this.activePromise;
+    const active = this.pollingPromise ?? this.activePromise;
     if (!active) return;
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
