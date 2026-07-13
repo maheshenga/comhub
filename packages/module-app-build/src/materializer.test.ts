@@ -259,7 +259,7 @@ describe('materializeModuleAppArtifact', () => {
             await rename(from, to);
           },
           syncDirectory: async (directory: string) => {
-            events.push(`fsync-directory:${path.basename(directory)}`);
+            events.push(`fsync-directory:${directory}`);
           },
         },
       },
@@ -270,8 +270,14 @@ describe('materializeModuleAppArtifact', () => {
     const fileSyncIndexes = events.flatMap((event, index) =>
       event.startsWith('fsync-file:') ? [index] : [],
     );
-    const directorySyncIndexes = events.flatMap((event, index) =>
-      event.startsWith('fsync-directory:') ? [index] : [],
+    const artifactRootSync = events.indexOf(`fsync-directory:${artifactRoot}`);
+    const stagingParentSync = events.indexOf(
+      `fsync-directory:${path.join(artifactRoot, '.staging')}`,
+    );
+    const preRenameDirectorySyncIndexes = events.flatMap((event, index) =>
+      event.startsWith('fsync-directory:') && index !== artifactRootSync && index !== stagingParentSync
+        ? [index]
+        : [],
     );
     const renameIndex = events.indexOf('rename');
 
@@ -281,8 +287,39 @@ describe('materializeModuleAppArtifact', () => {
     expect(events.indexOf('chmod:.module-app-artifact.json:444')).toBe(Math.max(...chmodIndexes));
     expect(Math.min(...chmodIndexes)).toBeGreaterThan(markerWrite);
     expect(Math.min(...fileSyncIndexes)).toBeGreaterThan(Math.max(...chmodIndexes));
-    expect(Math.min(...directorySyncIndexes)).toBeGreaterThan(Math.max(...fileSyncIndexes));
-    expect(renameIndex).toBeGreaterThan(Math.max(...directorySyncIndexes));
+    expect(Math.min(...preRenameDirectorySyncIndexes)).toBeGreaterThan(Math.max(...fileSyncIndexes));
+    expect(renameIndex).toBeGreaterThan(Math.max(...preRenameDirectorySyncIndexes));
+    expect(artifactRootSync).toBeGreaterThan(renameIndex);
+    expect(stagingParentSync).toBeGreaterThan(renameIndex);
+  });
+
+  it('rolls back a newly renamed final directory when parent fsync fails', async () => {
+    const artifactRoot = await createRoot();
+    const artifact = await buildDeterministicModuleAppArtifact({ files });
+    const directory = path.join(artifactRoot, artifact.sha256);
+
+    await expect(
+      materializeWithDependencies(
+        {
+          artifactBytes: artifact.bytes,
+          artifactRoot,
+          artifactSha256: artifact.sha256,
+          buildId: BUILD_ID,
+          claimToken: CLAIM_TOKEN,
+          manifest,
+        },
+        {
+          fileSystem: {
+            syncDirectory: async (syncPath: string) => {
+              if (syncPath === artifactRoot) {
+                throw Object.assign(new Error('parent fsync failed'), { code: 'EIO' });
+              }
+            },
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'EIO' });
+    await expect(lstat(directory)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('validates and reuses a destination that appears during an EPERM rename collision', async () => {

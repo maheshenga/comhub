@@ -531,6 +531,18 @@ export const materializeModuleAppArtifactWithDependencies = async (
       }
       throw error;
     }
+    const stagingParent = path.dirname(stagingDirectory);
+    try {
+      await fileSystem.syncDirectory(artifactRoot);
+      await fileSystem.syncDirectory(stagingParent);
+    } catch (error) {
+      await removeOwnedDirectory(directory, fileSystem);
+      await Promise.allSettled([
+        fileSystem.syncDirectory(artifactRoot),
+        fileSystem.syncDirectory(stagingParent),
+      ]);
+      throw error;
+    }
     return { directory, reused: false };
   } catch (error) {
     await closeArtifactFiles(fileHandles);

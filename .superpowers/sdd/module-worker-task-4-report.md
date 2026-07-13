@@ -210,3 +210,56 @@ bunx tsc --noEmit -p packages/module-app-build/tsconfig.json
 ```
 
 Result: exit code 1 with only the previously documented unrelated `__ELECTRON__`, `replicate`, and `request-filtering-agent` diagnostics. No Task 4 diagnostic remains.
+
+## Final Durability Remediation: Rename Parent Fsync And Rollback
+
+### Changes
+
+- After this invocation successfully renames claim staging to the final SHA-256 directory, fsync `artifactRoot` and `<artifactRoot>/.staging` so the final addition and staging removal directory entries are durable.
+- Parent fsync is not run on the concurrent-collision reuse branch because that invocation did not create or remove either directory entry.
+- If a supported post-rename parent fsync fails, remove the newly created immutable final directory, retry both parent fsyncs best-effort to persist the rollback, and rethrow the original failure.
+- Existing valid concurrent destination reuse after `EPERM` remains unchanged and covered.
+
+### RED Evidence
+
+Command:
+
+```powershell
+bunx vitest run --config packages/module-app-build/vitest.config.mts --silent='passed-only' packages/module-app-build/src/materializer.test.ts -t "orders marker write|rolls back a newly renamed|validates and reuses a destination"
+```
+
+Result before implementation: exit code 1, 2 failed, 1 passed, and 21 skipped.
+
+```text
+parent ordering: artifactRoot fsync event was absent after rename
+rollback: injected post-rename EIO resolved with reused: false instead of rejecting
+concurrent EPERM destination reuse remained green
+```
+
+### GREEN Evidence
+
+Focused durability command:
+
+```powershell
+bunx vitest run --config packages/module-app-build/vitest.config.mts --silent='passed-only' packages/module-app-build/src/materializer.test.ts -t "orders marker write|rolls back a newly renamed|validates and reuses a destination"
+```
+
+Result: exit code 0, 3 passed and 21 skipped.
+
+Full shared command:
+
+```powershell
+bunx vitest run --config packages/module-app-build/vitest.config.mts --silent='passed-only' packages/module-app-build/src/artifact.test.ts packages/module-app-build/src/storage.test.ts packages/module-app-build/src/materializer.test.ts
+```
+
+Result: exit code 0, 3 test files passed, 41 tests passed.
+
+Server regression command:
+
+```powershell
+bunx vitest run --silent='passed-only' apps/server/src/services/moduleAppBuild/storage.test.ts apps/server/src/services/moduleAppBuild/service.test.ts
+```
+
+Result: exit code 0, 2 test files passed, 12 tests passed.
+
+Targeted lint and whitespace validation both exited 0. Package type-check still reports only the previously documented unrelated `__ELECTRON__`, `replicate`, and `request-filtering-agent` diagnostics, with no Task 4 diagnostic.
