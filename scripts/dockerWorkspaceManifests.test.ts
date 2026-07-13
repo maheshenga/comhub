@@ -16,4 +16,15 @@ describe('Docker workspace manifests', () => {
       /^COPY apps\/server\/package\.json \.\/apps\/server\/package\.json$/m,
     );
   });
+
+  it('uses raw workflow-dispatch inputs for production deploy conditions', () => {
+    const workflow = readFileSync(
+      path.join(root, '.github', 'workflows', 'comhub-deploy.yml'),
+      'utf8',
+    );
+
+    expect(workflow).toContain("github.event.inputs.deploy == 'true'");
+    expect(workflow).toContain("github.event.inputs.deploy_module_worker == 'true'");
+    expect(workflow).toContain("github.event.inputs.verify_module_app_full == 'true'");
+  });
 });
