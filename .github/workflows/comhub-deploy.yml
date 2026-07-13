@@ -263,6 +263,7 @@ jobs:
     concurrency:
       group: comhub-production-deploy
       cancel-in-progress: false
+      queue: max
     steps:
       - name: Install SSH key
         shell: bash
@@ -421,6 +422,7 @@ jobs:
     concurrency:
       group: comhub-production-deploy
       cancel-in-progress: false
+      queue: max
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -454,6 +456,7 @@ jobs:
 
           release_id="sha-${GITHUB_SHA::12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           staging_dir="$WORKER_DEPLOY_DIR/releases/.incoming-$release_id"
+          cleanup_remote_incoming_enabled=true
           ssh_options=(
             -i "$HOME/.ssh/comhub_deploy_key"
             -p "$SSH_PORT"
@@ -467,6 +470,19 @@ jobs:
             -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
           )
 
+          cleanup_remote_incoming() {
+            local status=$?
+            trap - EXIT
+            if [ "$cleanup_remote_incoming_enabled" = true ]; then
+              if ! ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
+                "rm -rf -- '$staging_dir'"; then
+                echo "warning: failed to clean exact Worker staging directory: $staging_dir" >&2
+              fi
+            fi
+            exit "$status"
+          }
+          trap cleanup_remote_incoming EXIT
+
           ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
             "umask 027; install -d -m 0750 '$WORKER_DEPLOY_DIR' '$WORKER_DEPLOY_DIR/releases' '$staging_dir'"
 
@@ -479,6 +495,7 @@ jobs:
           ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
             "bash -s -- '$WORKER_DEPLOY_DIR' '$release_id' '$WORKER_IMAGE_REF'" <<'REMOTE_WORKER_DEPLOY'
           set -Eeuo pipefail
+          umask 027
 
           worker_deploy_dir="$1"
           release_id="$2"
@@ -487,42 +504,251 @@ jobs:
           staging_dir="$releases_dir/.incoming-$release_id"
           release_dir="$releases_dir/$release_id"
           lock_file="$worker_deploy_dir/.deploy.lock"
+          bootstrap_staging_dir="$releases_dir/.bootstrap-incoming-$release_id"
+          bootstrap_release_dir="$releases_dir/bootstrap-$release_id"
+          bootstrap_cleanup_enabled=false
+          current_temp_link=''
+          incoming_cleanup_enabled=true
+          previous_image_backup=''
+          previous_image_temp=''
+
+          cleanup_incoming() {
+            local status=$?
+            trap - EXIT
+            if [ "$incoming_cleanup_enabled" = true ]; then
+              rm -rf -- "$staging_dir" || \
+                echo "warning: failed to clean exact Worker staging directory: $staging_dir" >&2
+            fi
+            if [ "$bootstrap_cleanup_enabled" = true ]; then
+              rm -rf -- "$bootstrap_staging_dir" || \
+                echo "warning: failed to clean exact bootstrap staging directory: $bootstrap_staging_dir" >&2
+            fi
+            [ -z "$current_temp_link" ] || rm -f -- "$current_temp_link" || true
+            [ -z "$previous_image_temp" ] || rm -f -- "$previous_image_temp" || true
+            [ -z "$previous_image_backup" ] || rm -f -- "$previous_image_backup" || true
+            exit "$status"
+          }
+          trap cleanup_incoming EXIT
+
+          validate_release_target() {
+            [[ "$1" =~ ^releases/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]
+          }
+
+          validate_asset_set() {
+            local asset_dir="$1"
+            for file in compose.yml deploy.sh rollback.sh; do
+              [ -s "$asset_dir/$file" ]
+              [ ! -L "$asset_dir/$file" ]
+            done
+            bash -n "$asset_dir/deploy.sh" "$asset_dir/rollback.sh"
+            COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
+              --project-directory "$worker_deploy_dir" \
+              --env-file "$worker_deploy_dir/.env" \
+              -f "$asset_dir/compose.yml" \
+              config --quiet
+          }
+
+          link_release_state() {
+            local target_dir="$1"
+            local state_name expected_target
+            for state_name in .env .previous-image; do
+              expected_target="../../$state_name"
+              if [ -L "$target_dir/$state_name" ]; then
+                [ "$(readlink "$target_dir/$state_name")" = "$expected_target" ]
+              else
+                [ ! -e "$target_dir/$state_name" ]
+                ln -s "$expected_target" "$target_dir/$state_name"
+              fi
+            done
+          }
+
+          atomic_set_current() {
+            local target="$1"
+            validate_release_target "$target" || return
+            current_temp_link="$worker_deploy_dir/.current-$release_id-$$"
+            rm -f -- "$current_temp_link" || return
+            ln -s "$target" "$current_temp_link" || return
+            mv -Tf "$current_temp_link" "$worker_deploy_dir/current" || return
+            current_temp_link=''
+            [ "$(readlink "$worker_deploy_dir/current")" = "$target" ]
+          }
+
+          restore_current() {
+            atomic_set_current "$previous_target"
+          }
+
+          install_recorded_previous_image() {
+            local recorded_file="$release_dir/.previous-image"
+            [ -f "$recorded_file" ] || return
+            [ ! -L "$recorded_file" ] || return
+            previous_image_temp="$worker_deploy_dir/.previous-image.recorded-$release_id"
+            cp -- "$recorded_file" "$previous_image_temp" || return
+            chmod 0640 "$previous_image_temp" || return
+            mv -Tf "$previous_image_temp" "$worker_deploy_dir/.previous-image" || return
+            previous_image_temp=''
+            rm -f -- "$recorded_file" || return
+            ln -s '../../.previous-image' "$recorded_file"
+          }
+
+          restore_previous_image_state() {
+            if [ "$previous_image_existed" = true ]; then
+              previous_image_temp="$worker_deploy_dir/.previous-image.restore-$release_id"
+              cp -- "$previous_image_backup" "$previous_image_temp" || return
+              chmod 0640 "$previous_image_temp" || return
+              mv -Tf "$previous_image_temp" "$worker_deploy_dir/.previous-image" || return
+              previous_image_temp=''
+            else
+              rm -f -- "$worker_deploy_dir/.previous-image"
+            fi
+          }
 
           exec 9>"$lock_file"
           flock -x 9
 
+          [ -f "$worker_deploy_dir/.env" ]
+          [ ! -L "$worker_deploy_dir/.env" ]
+
           expected_files=$'compose.yml\ndeploy.sh\nrollback.sh'
           actual_files="$(find "$staging_dir" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)"
           [ "$actual_files" = "$expected_files" ]
-          for file in compose.yml deploy.sh rollback.sh; do
-            [ -s "$staging_dir/$file" ]
-            [ ! -L "$staging_dir/$file" ]
-          done
           [ ! -e "$release_dir" ]
-          [ -f "$worker_deploy_dir/.env" ]
+          validate_asset_set "$staging_dir"
 
-          bash -n "$staging_dir/deploy.sh" "$staging_dir/rollback.sh"
-          COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
-            --project-directory "$worker_deploy_dir" \
-            --env-file "$worker_deploy_dir/.env" \
-            -f "$staging_dir/compose.yml" \
-            config --quiet
+          previous_target=''
+          if [ -L "$worker_deploy_dir/current" ]; then
+            previous_target="$(readlink "$worker_deploy_dir/current")"
+            validate_release_target "$previous_target"
+            previous_release_dir="$worker_deploy_dir/$previous_target"
+            [ -d "$previous_release_dir" ]
+            validate_asset_set "$previous_release_dir"
+            link_release_state "$previous_release_dir"
+          elif [ -e "$worker_deploy_dir/current" ]; then
+            echo 'error: Worker current path exists but is not a symlink' >&2
+            exit 1
+          else
+            bootstrap_cleanup_enabled=true
+            [ ! -e "$bootstrap_staging_dir" ]
+            [ ! -e "$bootstrap_release_dir" ]
+            install -d -m 0750 "$bootstrap_staging_dir"
+            for file in compose.yml deploy.sh rollback.sh; do
+              [ -s "$worker_deploy_dir/$file" ]
+              cp -L -- "$worker_deploy_dir/$file" "$bootstrap_staging_dir/$file"
+            done
+            chmod 0640 "$bootstrap_staging_dir/compose.yml"
+            chmod 0750 "$bootstrap_staging_dir/deploy.sh" "$bootstrap_staging_dir/rollback.sh"
+            validate_asset_set "$bootstrap_staging_dir"
+            link_release_state "$bootstrap_staging_dir"
+            mv "$bootstrap_staging_dir" "$bootstrap_release_dir"
+            bootstrap_cleanup_enabled=false
+            previous_target="releases/bootstrap-$release_id"
+            atomic_set_current "$previous_target"
+          fi
 
           chmod 0640 "$staging_dir/compose.yml"
           chmod 0750 "$staging_dir/deploy.sh" "$staging_dir/rollback.sh"
+          link_release_state "$staging_dir"
           mv "$staging_dir" "$release_dir"
 
-          current_link="$worker_deploy_dir/.current-$release_id"
-          ln -s "releases/$release_id" "$current_link"
-          mv -Tf "$current_link" "$worker_deploy_dir/current"
+          previous_image_existed=false
+          previous_image_backup="$worker_deploy_dir/.previous-image.before-$release_id"
+          if [ -e "$worker_deploy_dir/.previous-image" ]; then
+            [ -f "$worker_deploy_dir/.previous-image" ]
+            [ ! -L "$worker_deploy_dir/.previous-image" ]
+            cp -- "$worker_deploy_dir/.previous-image" "$previous_image_backup"
+            chmod 0640 "$previous_image_backup"
+            previous_image_existed=true
+          fi
 
-          for file in compose.yml deploy.sh rollback.sh; do
-            stable_link="$worker_deploy_dir/.$file-$release_id"
-            ln -s "current/$file" "$stable_link"
-            mv -Tf "$stable_link" "$worker_deploy_dir/$file"
-            [ "$(readlink "$worker_deploy_dir/$file")" = "current/$file" ]
-          done
+          set +e
+          atomic_set_current "releases/$release_id"
+          primary_status=$?
+          deploy_reached_image_recording=false
+          primary_message="Worker current promotion failed with status $primary_status"
 
-          cd "$worker_deploy_dir"
-          ./deploy.sh "$worker_image_ref"
+          if [ "$primary_status" -eq 0 ]; then
+            incoming_cleanup_enabled=false
+            "$worker_deploy_dir/current/deploy.sh" "$worker_image_ref"
+            primary_status=$?
+            primary_message="Worker deploy failed with status $primary_status"
+
+            if [ -f "$release_dir/.previous-image" ] && [ ! -L "$release_dir/.previous-image" ]; then
+              deploy_reached_image_recording=true
+            elif [ ! -L "$release_dir/.previous-image" ] || \
+              [ "$(readlink "$release_dir/.previous-image")" != '../../.previous-image' ]; then
+              if [ "$primary_status" -eq 0 ]; then
+                primary_status=1
+                primary_message='Worker deploy left invalid previous-image release state'
+              else
+                echo 'error: Worker deploy failure also left invalid previous-image release state' >&2
+              fi
+            fi
+
+            if [ "$primary_status" -eq 0 ] && [ "$deploy_reached_image_recording" = true ]; then
+              install_recorded_previous_image
+              state_install_status=$?
+              if [ "$state_install_status" -ne 0 ]; then
+                primary_status=1
+                primary_message='Worker deploy succeeded but previous-image state promotion failed'
+              fi
+            fi
+          fi
+
+          if [ "$primary_status" -eq 0 ]; then
+            rm -f -- "$previous_image_backup"
+            previous_image_backup=''
+            trap - EXIT
+            exit 0
+          fi
+
+          restore_current
+          restore_current_status=$?
+          rollback_status=0
+          if [ "$deploy_reached_image_recording" = true ] && [ "$restore_current_status" -eq 0 ]; then
+            install_recorded_previous_image
+            recorded_state_status=$?
+            if [ "$recorded_state_status" -eq 0 ]; then
+              "$worker_deploy_dir/current/rollback.sh"
+              rollback_status=$?
+            else
+              rollback_status=$recorded_state_status
+            fi
+          fi
+
+          restore_previous_image_state
+          previous_image_restore_status=$?
+
+          release_state_repair_status=0
+          if [ -f "$release_dir/.previous-image" ] && [ ! -L "$release_dir/.previous-image" ]; then
+            rm -f -- "$release_dir/.previous-image"
+            release_state_repair_status=$?
+            if [ "$release_state_repair_status" -eq 0 ]; then
+              ln -s '../../.previous-image' "$release_dir/.previous-image"
+              release_state_repair_status=$?
+            fi
+          fi
+
+          if [ "$previous_image_restore_status" -eq 0 ]; then
+            rm -f -- "$previous_image_backup"
+            previous_image_backup=''
+          fi
+          trap - EXIT
+
+          echo "error: $primary_message" >&2
+          if [ "$restore_current_status" -ne 0 ]; then
+            echo "error: failed to restore previous Worker current target: $previous_target" >&2
+          fi
+          if [ "$rollback_status" -ne 0 ]; then
+            echo "error: Worker rollback failed with status $rollback_status" >&2
+          fi
+          if [ "$previous_image_restore_status" -ne 0 ]; then
+            echo 'error: failed to restore pre-deploy .previous-image state' >&2
+            echo "error: pre-deploy .previous-image backup preserved at $previous_image_backup" >&2
+          fi
+          if [ "$release_state_repair_status" -ne 0 ]; then
+            echo 'error: failed to restore the promoted release .previous-image state symlink' >&2
+          fi
+          exit "$primary_status"
           REMOTE_WORKER_DEPLOY
+
+          cleanup_remote_incoming_enabled=false
+          trap - EXIT
