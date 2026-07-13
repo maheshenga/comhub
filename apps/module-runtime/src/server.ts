@@ -165,7 +165,7 @@ export const startModuleAppRuntimeServerFromEnv = () => {
     process.env.MODULE_APP_EXECUTION_ENABLED === 'true' &&
     process.env.MODULE_APP_RUNTIME_INVOCATION_ENABLED === 'true';
 
-  const engine = invocationEnabled ? new DockerCliModuleAppContainerEngine() : undefined;
+  const engine = new DockerCliModuleAppContainerEngine();
   const server = createModuleAppRuntimeServer({
     internalToken: process.env.MODULE_APP_RUNTIME_INTERNAL_TOKEN ?? '',
     invocationEnabled,
@@ -181,13 +181,11 @@ export const startModuleAppRuntimeServerFromEnv = () => {
       : undefined,
     runtimeJwks: process.env.MODULE_APP_RUNTIME_JWKS ?? '',
   });
-  if (engine) {
-    const reconcile = () => void engine.reconcileStaleContainers().catch(() => undefined);
-    reconcile();
-    const reconcileTimer = setInterval(reconcile, MODULE_APP_RUNTIME_RECONCILE_INTERVAL_MS);
-    reconcileTimer.unref();
-    server.once('close', () => clearInterval(reconcileTimer));
-  }
+  const reconcile = () => void engine.reconcileStaleContainers().catch(() => undefined);
+  reconcile();
+  const reconcileTimer = setInterval(reconcile, MODULE_APP_RUNTIME_RECONCILE_INTERVAL_MS);
+  reconcileTimer.unref();
+  server.once('close', () => clearInterval(reconcileTimer));
   server.listen(Number(process.env.PORT ?? 3210), '0.0.0.0');
   return server;
 };
