@@ -26,19 +26,17 @@ This confirmed the new worker behavior was absent before implementation.
 
 ## GREEN Evidence
 
-The repository has no links for the newly added workspace package, so the worker-owned Vitest config provides source aliases without installing dependencies or generating a lockfile.
-
 Command:
 
 ```text
-bunx vitest run --config apps/module-worker/vitest.config.mts --silent='passed-only' apps/module-worker/src/processor.test.ts
+bunx vitest run --silent='passed-only' apps/module-worker/src/processor.test.ts
 ```
 
 Result:
 
 ```text
 Test Files 1 passed (1)
-Tests 11 passed (11)
+Tests 19 passed (19)
 ```
 
 Covered behavior:
@@ -51,7 +49,20 @@ Covered behavior:
 - attempt 4 retry exhaustion
 - unknown internal failure bounding without stack or secret logging
 - lease-loss stop without subsequent state writes
+- lease loss from retry and fail transitions without another state write
+- real shared publisher staging put/head/get, final put/head/get, cleanup, and promoted-object re-download order
+- retryable shared publisher artifact-read failure classification
+- PostgreSQL DNS and network availability code classification
 - no package process spawn or package-controlled fetch
+
+Review RED evidence before the fixes:
+
+```text
+Test Files 1 failed (1)
+Tests 7 failed | 12 passed (19)
+```
+
+The seven expected failures covered artifact-read classification, lease loss from retry/fail transitions, and `ENOTFOUND`, `EAI_AGAIN`, `EHOSTUNREACH`, and `ENETUNREACH` PostgreSQL availability codes.
 
 ## Additional Verification
 
@@ -69,32 +80,14 @@ Result: exit 0.
 
 Static forbidden-operation scan found no process execution or general package-network calls in production worker files. JSON manifests parsed successfully. `pnpm-lock.yaml` remains absent.
 
-## Dependency Linking Required
-
-The exact brief command without `--config` currently fails to resolve `@lobechat/module-app-build` because no install/link operation was permitted. The controller should perform a filtered no-lock install for `@lobechat/module-worker`.
-
-Exact package list:
+TypeScript command:
 
 ```text
-@aws-sdk/client-s3
-@lobechat/database
-@lobechat/module-app-build
-@lobechat/types
-drizzle-orm
-pg
-@types/pg
-vitest
+bunx tsc --noEmit -p apps/module-worker/tsconfig.json
 ```
 
-Suggested controller command:
-
-```text
-pnpm install --filter @lobechat/module-worker... --lockfile=false
-```
-
-After linking, rerun the exact brief test command and the worker TypeScript check.
+Result: exit 0. The worker keeps a local ambient type boundary for transitive source-export globals/modules that are not runtime dependencies of the worker.
 
 ## Concerns
 
-- The exact root Vitest command and standalone TypeScript check remain blocked until the filtered workspace links are created.
-- PostgreSQL and S3 adapters passed targeted lint and static review, but their standalone TypeScript check requires the filtered workspace links; real PostgreSQL/S3 integration is intentionally deferred to Task 9.
+- Real PostgreSQL/S3 integration remains intentionally deferred to Task 9.

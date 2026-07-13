@@ -10,7 +10,7 @@ import type { ModuleAppPackageManifest } from '@lobechat/types';
 import { describe, expect, it, vi } from 'vitest';
 
 import { loadModuleAppWorkerConfig } from './config';
-import { ModuleAppWorkerError } from './errors';
+import { classifyModuleAppBuildFailure, ModuleAppWorkerError } from './errors';
 import {
   processModuleAppBuild,
   type ProcessModuleAppBuildDependencies,
@@ -191,6 +191,103 @@ describe('processModuleAppBuild', () => {
     expect(buildModel.retry).not.toHaveBeenCalled();
   });
 
+  it('uses the shared publisher for staging, promotion, cleanup, and promoted re-download order', async () => {
+    const artifactBytes = new TextEncoder().encode('artifact');
+    const { artifactKey, buildModel, dependencies, order } = createDependencies(
+      {
+        publishArtifact: undefined,
+      },
+    );
+    const objects = new Map<string, Uint8Array>();
+    let finalReads = 0;
+    dependencies.storage = {
+      deleteObject: vi.fn(async ({ key }) => {
+        order.push('cleanup-staging');
+        objects.delete(key);
+      }),
+      getObject: vi.fn(async ({ key }) => {
+        if (key === claim.sourceStorageKey) {
+          order.push('download-source');
+          return new TextEncoder().encode('source');
+        }
+        if (key.startsWith('module-app-build-staging/')) {
+          order.push('staging-get');
+        } else {
+          finalReads += 1;
+          order.push(finalReads === 1 ? 'final-get' : 'download-promoted');
+        }
+        return objects.get(key) ?? artifactBytes;
+      }),
+      headObject: vi.fn(async ({ key }) => {
+        order.push(
+          key.startsWith('module-app-build-staging/')
+            ? 'staging-head'
+            : 'final-head',
+        );
+        return {
+          contentLength: (objects.get(key) ?? artifactBytes).byteLength,
+        };
+      }),
+      putObject: vi.fn(async ({ body, key }) => {
+        order.push(
+          key.startsWith('module-app-build-staging/')
+            ? 'staging-put'
+            : 'final-put',
+        );
+        objects.set(key, body);
+      }),
+    };
+
+    await expect(processModuleAppBuild(claim, dependencies)).resolves.toBe(
+      'ready',
+    );
+
+    expect(order).toEqual([
+      'download-source',
+      'validate-source',
+      'build-artifact',
+      'staging-put',
+      'staging-head',
+      'staging-get',
+      'final-put',
+      'final-head',
+      'final-get',
+      'cleanup-staging',
+      'download-promoted',
+      'materialize',
+      'complete',
+    ]);
+    expect(buildModel.complete).toHaveBeenCalledWith(
+      expect.objectContaining({ artifactKey }),
+    );
+  });
+
+  it('retries a shared publisher artifact read failure', async () => {
+    const { buildModel, dependencies } = createDependencies({
+      publishArtifact: undefined,
+    });
+    dependencies.storage = {
+      deleteObject: vi.fn(async () => undefined),
+      getObject: vi.fn(async ({ key }) => {
+        if (key === claim.sourceStorageKey)
+          return new TextEncoder().encode('source');
+        throw new Error('temporary object read failure');
+      }),
+      headObject: vi.fn(async () => ({ contentLength: 8 })),
+      putObject: vi.fn(async () => undefined),
+    };
+
+    await expect(processModuleAppBuild(claim, dependencies)).resolves.toBe(
+      'retried',
+    );
+    expect(buildModel.retry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failureCode: 'MODULE_APP_BUILD_ARTIFACT_READ_FAILED',
+      }),
+    );
+    expect(buildModel.fail).not.toHaveBeenCalled();
+  });
+
   it('fails a permanent validation error with only its bounded code', async () => {
     const { buildModel, dependencies } = createDependencies({
       validateSource: vi.fn(async () => {
@@ -315,6 +412,60 @@ describe('processModuleAppBuild', () => {
     });
   });
 
+  it('bounds lease loss from the retry transition without another state write', async () => {
+    const { buildModel, dependencies } = createDependencies({
+      validateSource: vi.fn(async () => {
+        throw new ModuleAppWorkerError(
+          'MODULE_APP_BUILD_SOURCE_DOWNLOAD_FAILED',
+          'retryable',
+        );
+      }),
+    });
+    buildModel.retry.mockRejectedValueOnce(
+      new Error('MODULE_APP_BUILD_LEASE_LOST'),
+    );
+
+    await expect(processModuleAppBuild(claim, dependencies)).resolves.toBe(
+      'failed',
+    );
+
+    expect(buildModel.retry).toHaveBeenCalledTimes(1);
+    expect(buildModel.fail).not.toHaveBeenCalled();
+    expect(dependencies.logger!.error).toHaveBeenCalledWith({
+      attempt: 1,
+      buildId: claim.id,
+      code: 'MODULE_APP_BUILD_LEASE_LOST',
+      outcome: 'lease_lost',
+    });
+  });
+
+  it('bounds lease loss from the fail transition without another state write', async () => {
+    const { buildModel, dependencies } = createDependencies({
+      validateSource: vi.fn(async () => {
+        throw new ModuleAppBuildPolicyError(
+          'MODULE_APP_BUILD_SOURCE_POLICY_REJECTED',
+          'rejected',
+        );
+      }),
+    });
+    buildModel.fail.mockRejectedValueOnce(
+      new Error('MODULE_APP_BUILD_LEASE_LOST'),
+    );
+
+    await expect(processModuleAppBuild(claim, dependencies)).resolves.toBe(
+      'failed',
+    );
+
+    expect(buildModel.fail).toHaveBeenCalledTimes(1);
+    expect(buildModel.retry).not.toHaveBeenCalled();
+    expect(dependencies.logger!.error).toHaveBeenCalledWith({
+      attempt: 1,
+      buildId: claim.id,
+      code: 'MODULE_APP_BUILD_LEASE_LOST',
+      outcome: 'lease_lost',
+    });
+  });
+
   it('does not start package processes or package-controlled network requests', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const { dependencies } = createDependencies();
@@ -325,4 +476,16 @@ describe('processModuleAppBuild', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
+});
+
+describe('classifyModuleAppBuildFailure', () => {
+  it.each(['ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH'])(
+    'classifies PostgreSQL availability code %s as retryable',
+    (code) => {
+      expect(classifyModuleAppBuildFailure({ code })).toMatchObject({
+        code: 'MODULE_APP_BUILD_POSTGRESQL_UNAVAILABLE',
+        disposition: 'retryable',
+      });
+    },
+  );
 });

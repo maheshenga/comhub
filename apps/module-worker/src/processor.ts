@@ -223,12 +223,20 @@ export const processModuleAppBuild = async (
     if (failure.disposition === 'retryable' && claim.attemptCount < 4) {
       const delayMs = RETRY_DELAYS_MS[claim.attemptCount - 1];
       if (delayMs !== undefined) {
-        await dependencies.buildModel.retry({
-          buildId: claim.id,
-          claimToken: claim.claimToken,
-          failureCode: failure.code,
-          nextAttemptAt: new Date(now().getTime() + delayMs),
-        });
+        try {
+          await dependencies.buildModel.retry({
+            buildId: claim.id,
+            claimToken: claim.claimToken,
+            failureCode: failure.code,
+            nextAttemptAt: new Date(now().getTime() + delayMs),
+          });
+        } catch (transitionError) {
+          if (isModuleAppBuildLeaseLost(transitionError)) {
+            log('MODULE_APP_BUILD_LEASE_LOST', 'lease_lost');
+            return 'failed';
+          }
+          throw transitionError;
+        }
         log(failure.code, 'retried');
         return 'retried';
       }
@@ -238,11 +246,19 @@ export const processModuleAppBuild = async (
       failure.disposition === 'retryable'
         ? 'MODULE_APP_BUILD_RETRY_EXHAUSTED'
         : failure.code;
-    await dependencies.buildModel.fail({
-      buildId: claim.id,
-      claimToken: claim.claimToken,
-      failureCode,
-    });
+    try {
+      await dependencies.buildModel.fail({
+        buildId: claim.id,
+        claimToken: claim.claimToken,
+        failureCode,
+      });
+    } catch (transitionError) {
+      if (isModuleAppBuildLeaseLost(transitionError)) {
+        log('MODULE_APP_BUILD_LEASE_LOST', 'lease_lost');
+        return 'failed';
+      }
+      throw transitionError;
+    }
     log(failureCode, 'failed');
     return 'failed';
   }
