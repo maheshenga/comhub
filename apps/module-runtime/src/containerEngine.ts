@@ -7,6 +7,7 @@ import {
 } from '@lobechat/observability-otel/modules/module-app';
 
 const MAX_LOG_BYTES = 64 * 1024;
+const CONTAINER_CREATE_TIMEOUT_MS = 15_000;
 const CLEANUP_TIMEOUT_MS = 3000;
 const CLEANUP_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 800] as const;
 
@@ -34,6 +35,11 @@ export interface ModuleAppContainerEngine {
 }
 
 type DockerRunner = {
+  create: (input: { args: string[]; timeoutMs: number }) => Promise<{
+    exitCode: number;
+    stderr: string;
+    stdout: string;
+  }>;
   inspect: (
     containerName: string,
     timeoutMs: number,
@@ -42,7 +48,7 @@ type DockerRunner = {
     containerName: string,
     timeoutMs: number,
   ) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
-  run: (input: { args: string[]; input: string; timeoutMs: number }) => Promise<{
+  start: (input: { args: string[]; input: string; timeoutMs: number }) => Promise<{
     exitCode: number;
     stderr: string;
     stdout: string;
@@ -101,10 +107,11 @@ const runDocker = (
   });
 
 const defaultRunner: DockerRunner = {
+  create: ({ args, timeoutMs }) => runDocker(args, { timeoutMs }),
   inspect: (containerName, timeoutMs) => runDocker(['inspect', containerName], { timeoutMs }),
   remove: (containerName, timeoutMs) =>
     runDocker(['rm', '--force', containerName], { timeoutMs }),
-  run: ({ args, input, timeoutMs }) => runDocker(args, { input, timeoutMs }),
+  start: ({ args, input, timeoutMs }) => runDocker(args, { input, timeoutMs }),
 };
 
 const wait = (durationMs: number) =>
@@ -114,7 +121,7 @@ const classifyDockerRemoval = (result: {
   exitCode: number;
   stderr: string;
 }): 'absent' | 'removed' => {
-  if (result.stderr.includes('No such container')) return 'absent';
+  if (/no such container/i.test(result.stderr)) return 'absent';
   if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
   return 'removed';
 };
@@ -123,21 +130,18 @@ const dockerInspectShowsContainer = (result: {
   exitCode: number;
   stderr: string;
 }): boolean => {
-  if (result.stderr.includes('No such object') || result.stderr.includes('No such container')) {
-    return false;
-  }
+  if (/no such (?:object|container)/i.test(result.stderr)) return false;
   if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
   return true;
 };
 
-export const buildDockerRunArgs = (input: ModuleAppContainerRunInput) => {
+export const buildDockerCreateArgs = (input: ModuleAppContainerRunInput) => {
   if (!/^(?:sha256:|.+@sha256:)[a-f0-9]{64}$/.test(input.imageDigest)) {
     throw new Error('MODULE_APP_RUNTIME_IMAGE_INVALID');
   }
 
   return [
-    'run',
-    '--rm',
+    'create',
     '--name',
     input.containerName,
     '--network',
@@ -174,6 +178,13 @@ export const buildDockerRunArgs = (input: ModuleAppContainerRunInput) => {
     input.entry,
   ];
 };
+
+export const buildDockerStartArgs = (containerName: string) => [
+  'start',
+  '--attach',
+  '--interactive',
+  containerName,
+];
 
 export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngine {
   private readonly metrics: ModuleAppContainerMetrics;
@@ -226,9 +237,23 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
   run = async (input: ModuleAppContainerRunInput) => {
     const startedAt = Date.now();
     let outcome: ModuleAppSandboxOutcome = 'failed';
+    let cleanupRequired = false;
+    let containerCreated = false;
+    let failure: unknown;
+    let result: { exitCode: number; stderr: string; stdout: string } | undefined;
+
     try {
-      const result = await this.runner.run({
-        args: buildDockerRunArgs(input),
+      const createArgs = buildDockerCreateArgs(input);
+      cleanupRequired = true;
+      const created = await this.runner.create({
+        args: createArgs,
+        timeoutMs: CONTAINER_CREATE_TIMEOUT_MS,
+      });
+      if (created.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_LAUNCH_FAILED');
+      containerCreated = true;
+
+      result = await this.runner.start({
+        args: buildDockerStartArgs(input.containerName),
         input: JSON.stringify(input.input),
         timeoutMs: input.limits.timeoutMs,
       });
@@ -238,28 +263,38 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
       }
       if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_PROCESS_FAILED');
       outcome = 'succeeded';
-      return result;
     } catch (error) {
+      failure = error;
       if (error instanceof Error && error.message === 'MODULE_APP_RUNTIME_TIMEOUT') {
         outcome = 'timeout';
       } else if (error instanceof Error && error.message === 'MODULE_APP_RUNTIME_OOM') {
         outcome = 'oom';
       }
-      // Docker may finish creating the named container after its CLI process times out.
+    }
+
+    if (cleanupRequired) {
+      // A timed-out create may still register its name; a created container must always be removed.
       const cleaned = await this.cleanupContainer(
         input.containerName,
-        error instanceof Error && error.message === 'MODULE_APP_RUNTIME_TIMEOUT',
+        containerCreated ||
+          (failure instanceof Error && failure.message === 'MODULE_APP_RUNTIME_TIMEOUT'),
       );
       if (!cleaned) {
         this.metrics.recordCleanupFailure();
+        if (!failure) {
+          failure = new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
+          outcome = 'failed';
+        }
       }
-      throw error;
-    } finally {
-      this.metrics.recordInvocation({
-        durationMs: Date.now() - startedAt,
-        outcome,
-        runtime: input.runtime,
-      });
     }
+
+    this.metrics.recordInvocation({
+      durationMs: Date.now() - startedAt,
+      outcome,
+      runtime: input.runtime,
+    });
+
+    if (failure) throw failure;
+    return result!;
   };
 }

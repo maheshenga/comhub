@@ -28,7 +28,7 @@ const dockerContainerExists = (
     return true;
   } catch (error) {
     const stderr = String((error as { stderr?: unknown }).stderr ?? error);
-    if (stderr.includes('No such object') || stderr.includes('No such container')) return false;
+    if (/no such (?:object|container)/i.test(stderr)) return false;
     throw error;
   }
 };
@@ -55,7 +55,7 @@ const waitForStableContainerAbsence = async (containerName: string) => {
 describe('Docker container probe classification', () => {
   it('accepts only an explicit missing-container response as absence', () => {
     const missing = Object.assign(new Error('missing'), {
-      stderr: 'Error: No such object: module-app-probe-missing',
+      stderr: 'error: no such object: module-app-probe-missing',
     });
     expect(
       dockerContainerExists('module-app-probe-missing', () => {
