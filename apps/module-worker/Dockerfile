@@ -19,7 +19,7 @@ RUN --mount=type=cache,id=comhub-module-worker-pnpm,target=/pnpm/store \
 FROM node:22.22.0-alpine3.23
 
 RUN apk add --no-cache tini \
-  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+  && rm -rf /usr/local/lib/node_modules \
   && rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/pnpm /usr/local/bin/yarn \
   && addgroup -S -g 10001 moduleworker \
   && adduser -S -D -H -u 10001 -G moduleworker moduleworker \

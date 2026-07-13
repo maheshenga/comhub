@@ -54,6 +54,7 @@ for (const path of [
   '/usr/local/bin/pnpm',
   '/usr/local/bin/corepack',
   '/usr/local/bin/yarn',
+  '/usr/local/lib/node_modules',
   '/usr/local/lib/node_modules/npm',
   '/usr/local/lib/node_modules/corepack',
   '/usr/bin/gcc',
