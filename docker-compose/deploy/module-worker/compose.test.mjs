@@ -30,6 +30,9 @@ const exampleKeys = [
   'S3_ENDPOINT',
   'S3_SECRET_ACCESS_KEY',
 ];
+const exampleDefaults = {
+  COMHUB_PLATFORM_COMPOSE_PROJECT: 'comhub',
+};
 
 if (createdEnvFile) writeFileSync(envFile, 'DATABASE_URL=postgresql://test:test@localhost:5432/test\n');
 
@@ -54,11 +57,18 @@ const writeExecutable = (filePath, contents) => {
 const toBashPath = (windowsPath) =>
   windowsPath.replace(/^([A-Za-z]):\\/u, (_, drive) => `/${drive.toLowerCase()}/`).replace(/\\/gu, '/');
 
-const runDeployWithFakes = ({ envContents, expectedArtifactRoot, home, user, markers = [] }) => {
+const runDeployWithFakes = ({
+  envContents,
+  expectedArtifactRoot,
+  expectedPlatformProject = 'comhub',
+  home,
+  user,
+  markers = [],
+}) => {
   const fakeBinDir = mkdtempSync(join(tmpdir(), 'module-worker-compose-'));
   const dockerLog = join(fakeBinDir, 'docker.log');
   const psqlLog = join(fakeBinDir, 'psql.log');
-  const nodeBin = 'node.exe';
+  const nodeBin = process.platform === 'win32' ? 'node.exe' : 'node';
   const nodePath = toBashPath(dirname(process.execPath));
   const fakeDockerScript = join(fakeBinDir, 'fake-docker.mjs').replace(/\\/gu, '/');
   const fakePsqlScript = join(fakeBinDir, 'fake-psql.mjs').replace(/\\/gu, '/');
@@ -86,19 +96,14 @@ if (args[0] === 'ps') {
   const joined = args.join(' ');
   if (
     joined.includes('--filter status=running') &&
-    joined.includes('--filter label=com.docker.compose.project') &&
+    joined.includes(
+      \`--filter label=com.docker.compose.project=\${process.env.EXPECTED_PLATFORM_PROJECT}\`,
+    ) &&
     joined.includes('--filter label=com.docker.compose.service=module-runtime')
   ) {
     process.stdout.write('runtime-compose-1\\n');
     process.exit(0);
   }
-
-  if (joined.includes('name=module-runtime')) {
-    process.stdout.write('runtime-stopped\\nruntime-unrelated\\n');
-    process.exit(0);
-  }
-
-  process.exit(0);
 }
 
 if (args[0] === 'inspect' && args[1] === '--format') {
@@ -199,7 +204,7 @@ process.stdout.write('4');
     'bash',
     [
       '-lc',
-      `export PATH='${nodePath}':"$PATH"; export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec ./deploy.sh '${workerImage}'`,
+      `export PATH='${nodePath}':"$PATH"; export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec ./deploy.sh '${workerImage}'`,
     ],
     {
       cwd: directory,
@@ -207,6 +212,7 @@ process.stdout.write('4');
       env: {
         ...process.env,
         EXPECTED_ARTIFACT_ROOT: expectedArtifactRoot,
+        EXPECTED_PLATFORM_PROJECT: expectedPlatformProject,
         EXPECTED_WORKER_IMAGE: workerImage,
         FAKE_DOCKER_LOG: dockerLog,
         FAKE_PSQL_LOG: psqlLog,
@@ -229,6 +235,17 @@ process.stdout.write('4');
   rmSync(fakeBinDir, { force: true, recursive: true });
 
   return { dockerCalls, markerState, psqlCalls, result };
+};
+
+const assertExactRuntimeProjectFilter = (dockerCalls, project) => {
+  const runtimeLookup = dockerCalls
+    .split(/\r?\n/u)
+    .find((line) => line.startsWith('ps --filter status=running '));
+  assert.ok(runtimeLookup, 'deploy must query the running module-runtime container');
+  assert.ok(
+    runtimeLookup.includes(`--filter label=com.docker.compose.project=${project}`),
+    `runtime lookup must filter the exact Compose project ${project}: ${runtimeLookup}`,
+  );
 };
 
 try {
@@ -291,6 +308,9 @@ try {
     assert.ok(exampleEnv[key], `.env.example must define ${key}`);
     assert.match(exampleEnv[key], /^<[^>]+>$/u, `${key} must remain a placeholder-only example value`);
   }
+  for (const [key, value] of Object.entries(exampleDefaults)) {
+    assert.equal(exampleEnv[key], value, `.env.example must default ${key} to ${value}`);
+  }
 
   for (const script of ['deploy.sh', 'rollback.sh']) {
     const source = readFileSync(resolve(directory, script), 'utf8');
@@ -327,6 +347,63 @@ try {
   const ignoredMarker = resolve(directory, ignoredMarkerName);
   rmSync(commandMarker, { force: true });
   rmSync(ignoredMarker, { force: true });
+  const defaultPlatformProject = runDeployWithFakes({
+    envContents: [
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    home: '/tmp/fake-home',
+    user: 'fake-user',
+  });
+  assert.equal(defaultPlatformProject.result.status, 0, defaultPlatformProject.result.stderr);
+  assertExactRuntimeProjectFilter(defaultPlatformProject.dockerCalls, 'comhub');
+
+  const configuredPlatformProject = runDeployWithFakes({
+    envContents: [
+      'COMHUB_PLATFORM_COMPOSE_PROJECT=comhub-production',
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    expectedPlatformProject: 'comhub-production',
+    home: '/tmp/fake-home',
+    user: 'fake-user',
+  });
+  assert.equal(configuredPlatformProject.result.status, 0, configuredPlatformProject.result.stderr);
+  assertExactRuntimeProjectFilter(configuredPlatformProject.dockerCalls, 'comhub-production');
+
+  const unsafePlatformProject = runDeployWithFakes({
+    envContents: [
+      'COMHUB_PLATFORM_COMPOSE_PROJECT=comhub,staging',
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    expectedPlatformProject: 'comhub,staging',
+    home: '/tmp/fake-home',
+    user: 'fake-user',
+  });
+  assert.notEqual(unsafePlatformProject.result.status, 0);
+  assert.match(
+    unsafePlatformProject.result.stderr,
+    /COMHUB_PLATFORM_COMPOSE_PROJECT must match \[a-z0-9\]\[a-z0-9_-\]\*/,
+  );
+  assert.equal(unsafePlatformProject.dockerCalls, '');
+  assert.equal(unsafePlatformProject.psqlCalls, '');
+
   const missingSetting = runDeployWithFakes({
     envContents: [
       'DATABASE_URL=postgresql://test:test@localhost:5432/test',

@@ -19,6 +19,9 @@ readonly REQUIRED_ENV_KEYS=(
   S3_ENDPOINT
   S3_SECRET_ACCESS_KEY
 )
+readonly OPTIONAL_ENV_KEYS=(
+  COMHUB_PLATFORM_COMPOSE_PROJECT
+)
 
 die() {
   printf '%s\n' "error: $*" >&2
@@ -33,16 +36,16 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "required command is unavailable: $1"
 }
 
-is_required_env_key() {
+is_env_key() {
   local candidate="$1"
   local key
-  for key in "${REQUIRED_ENV_KEYS[@]}"; do
+  for key in "${REQUIRED_ENV_KEYS[@]}" "${OPTIONAL_ENV_KEYS[@]}"; do
     [[ "$candidate" == "$key" ]] && return 0
   done
   return 1
 }
 
-assign_required_env_value() {
+assign_env_value() {
   local key="$1"
   local raw_value="$2"
   local value="$raw_value"
@@ -78,15 +81,15 @@ load_environment() {
     if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
       key="${BASH_REMATCH[1]}"
       raw_value="${BASH_REMATCH[2]}"
-      is_required_env_key "$key" || continue
-      assign_required_env_value "$key" "$raw_value"
+      is_env_key "$key" || continue
+      assign_env_value "$key" "$raw_value"
       seen["$key"]=1
       continue
     fi
 
     potential_key="${line%%=*}"
     potential_key="${potential_key//[[:space:]]/}"
-    if is_required_env_key "$potential_key"; then
+    if is_env_key "$potential_key"; then
       die "unsupported dotenv syntax for $potential_key in $ENV_FILE"
     fi
   done < "$ENV_FILE"
@@ -94,6 +97,11 @@ load_environment() {
   for key in "${REQUIRED_ENV_KEYS[@]}"; do
     [[ -n "${seen[$key]:-}" ]] || die "$key must be set in .env"
   done
+
+  COMHUB_PLATFORM_COMPOSE_PROJECT="${COMHUB_PLATFORM_COMPOSE_PROJECT:-comhub}"
+  [[ "$COMHUB_PLATFORM_COMPOSE_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || \
+    die 'COMHUB_PLATFORM_COMPOSE_PROJECT must match [a-z0-9][a-z0-9_-]*'
+  export COMHUB_PLATFORM_COMPOSE_PROJECT
 }
 
 compose() {
@@ -102,7 +110,7 @@ compose() {
 
 run_docker() {
   if [[ -n "$DOCKER_BIN_SCRIPT" ]]; then
-    "$DOCKER_BIN" "$DOCKER_BIN_SCRIPT" "$@"
+    "$DOCKER_BIN" -- "$DOCKER_BIN_SCRIPT" "$@"
     return
   fi
 
@@ -132,7 +140,7 @@ verify_migration() {
 
 run_psql() {
   if [[ -n "$PSQL_BIN_SCRIPT" ]]; then
-    "$PSQL_BIN" "$PSQL_BIN_SCRIPT" "$@"
+    "$PSQL_BIN" -- "$PSQL_BIN_SCRIPT" "$@"
     return
   fi
 
@@ -195,7 +203,7 @@ verify_runtime_artifact_mount() {
   mapfile -t runtime_ids < <(
     run_docker ps \
       --filter 'status=running' \
-      --filter 'label=com.docker.compose.project' \
+      --filter "label=com.docker.compose.project=$COMHUB_PLATFORM_COMPOSE_PROJECT" \
       --filter 'label=com.docker.compose.service=module-runtime' \
       --format '{{.ID}}'
   )
