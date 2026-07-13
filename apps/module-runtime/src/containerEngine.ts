@@ -7,6 +7,7 @@ import {
 } from '@lobechat/observability-otel/modules/module-app';
 
 const MAX_LOG_BYTES = 64 * 1024;
+const CLEANUP_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 800] as const;
 
 export type ModuleAppContainerRunInput = {
   artifactDirectory: string;
@@ -94,10 +95,15 @@ const runDocker = (
 const defaultRunner: DockerRunner = {
   remove: async (containerName) => {
     const result = await runDocker(['rm', '--force', containerName], { timeoutMs: 15_000 });
-    if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
+    if (result.exitCode !== 0 || result.stderr.includes('No such container')) {
+      throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
+    }
   },
   run: ({ args, input, timeoutMs }) => runDocker(args, { input, timeoutMs }),
 };
+
+const wait = (durationMs: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, durationMs));
 
 export const buildDockerRunArgs = (input: ModuleAppContainerRunInput) => {
   if (!/^(?:sha256:|.+@sha256:)[a-f0-9]{64}$/.test(input.imageDigest)) {
@@ -178,9 +184,18 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
       } else if (error instanceof Error && error.message === 'MODULE_APP_RUNTIME_OOM') {
         outcome = 'oom';
       }
-      try {
-        await this.runner.remove(input.containerName);
-      } catch {
+      let cleaned = false;
+      for (const retryDelayMs of [0, ...CLEANUP_RETRY_DELAYS_MS]) {
+        if (retryDelayMs > 0) await wait(retryDelayMs);
+        try {
+          await this.runner.remove(input.containerName);
+          cleaned = true;
+          break;
+        } catch {
+          // Docker may finish creating the named container after its CLI process times out.
+        }
+      }
+      if (!cleaned) {
         this.metrics.recordCleanupFailure();
       }
       throw error;

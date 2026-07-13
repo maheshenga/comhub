@@ -106,6 +106,21 @@ describe('DockerCliModuleAppContainerEngine', () => {
     expect(runner.remove).toHaveBeenCalledWith('module-app-invocation-1');
   });
 
+  it('retries cleanup when container creation races command timeout', async () => {
+    const runner = {
+      remove: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED'))
+        .mockResolvedValue(undefined),
+      run: vi.fn().mockRejectedValue(new Error('MODULE_APP_RUNTIME_TIMEOUT')),
+    };
+    const engine = new DockerCliModuleAppContainerEngine({ runner });
+
+    await expect(engine.run(input)).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
+    expect(runner.remove).toHaveBeenCalledTimes(2);
+    expect(runner.remove).toHaveBeenNthCalledWith(2, 'module-app-invocation-1');
+  });
+
   it('records bounded success, timeout, OOM, and cleanup outcomes', async () => {
     const metrics = {
       recordCleanupFailure: vi.fn(),

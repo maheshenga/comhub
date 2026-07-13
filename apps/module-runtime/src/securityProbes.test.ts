@@ -220,5 +220,7 @@ console.log(JSON.stringify({cpu:read('cpu.max'),memory:read('memory.max'),pids:r
       }),
     ).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
     expect(() => docker('inspect', containerName)).toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(() => docker('inspect', containerName)).toThrow();
   }, 30_000);
 });
