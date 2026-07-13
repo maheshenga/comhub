@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bunx vitest run --silent='passed-only'"
+    "test": "pnpm run test:unit && pnpm run test:image",
+    "test:image": "node ./scripts/verify-image.mjs",
+    "test:unit": "bunx vitest run --silent='passed-only'"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "~3.932.0",
@@ -13,6 +15,7 @@
     "@lobechat/observability-otel": "workspace:*",
     "@lobechat/types": "workspace:*",
     "drizzle-orm": "^0.45.1",
+    "esbuild": "^0.27.2",
     "pg": "^8.17.2"
   },
   "devDependencies": {
