@@ -287,10 +287,11 @@ describe('DockerCliModuleAppContainerEngine', () => {
     const successRunner = {
       create: vi.fn().mockResolvedValue(createdContainer),
       inspect: vi.fn().mockResolvedValue(absentContainerInspect),
-      remove: vi.fn().mockResolvedValue(removedContainer),
+      remove: vi.fn().mockResolvedValue(absentContainer),
       start: vi.fn().mockResolvedValue({ exitCode: 0, stderr: '', stdout: '{}' }),
     };
     await new DockerCliModuleAppContainerEngine({ metrics, runner: successRunner }).run(input);
+    expect(successRunner.remove).toHaveBeenCalledOnce();
     expect(metrics.recordInvocation).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: 'succeeded', runtime: 'node22' }),
     );
@@ -298,12 +299,13 @@ describe('DockerCliModuleAppContainerEngine', () => {
     const oomRunner = {
       create: vi.fn().mockResolvedValue(createdContainer),
       inspect: vi.fn().mockResolvedValue(absentContainerInspect),
-      remove: vi.fn().mockResolvedValue(removedContainer),
+      remove: vi.fn().mockResolvedValue(absentContainer),
       start: vi.fn().mockResolvedValue({ exitCode: 137, stderr: 'Killed', stdout: '' }),
     };
     await expect(
       new DockerCliModuleAppContainerEngine({ metrics, runner: oomRunner }).run(input),
     ).rejects.toThrow('MODULE_APP_RUNTIME_OOM');
+    expect(oomRunner.remove).toHaveBeenCalledOnce();
     expect(metrics.recordInvocation).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: 'oom', runtime: 'node22' }),
     );

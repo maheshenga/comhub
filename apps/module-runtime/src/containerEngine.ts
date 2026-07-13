@@ -289,7 +289,6 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
     const startedAt = Date.now();
     let outcome: ModuleAppSandboxOutcome = 'failed';
     let cleanupRequired = false;
-    let containerCreated = false;
     let failure: unknown;
     let result: { exitCode: number; stderr: string; stdout: string } | undefined;
 
@@ -303,7 +302,6 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
         timeoutMs: CONTAINER_CREATE_TIMEOUT_MS,
       });
       if (created.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_LAUNCH_FAILED');
-      containerCreated = true;
 
       result = await this.runner.start({
         args: buildDockerStartArgs(input.containerName),
@@ -329,8 +327,7 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
       // A timed-out create may still register its name; a created container must always be removed.
       const cleaned = await this.cleanupContainer(
         input.containerName,
-        containerCreated ||
-          (failure instanceof Error && failure.message === 'MODULE_APP_RUNTIME_TIMEOUT'),
+        failure instanceof Error && failure.message === 'MODULE_APP_RUNTIME_TIMEOUT',
       );
       if (!cleaned) {
         this.metrics.recordCleanupFailure();
