@@ -216,6 +216,9 @@ export class ModuleAppWorker {
       }),
     ]);
     if (timeout) clearTimeout(timeout);
-    if (timedOut) this.activeAbortController?.abort();
+    if (timedOut) {
+      this.activeAbortController?.abort();
+      await active.catch(() => undefined);
+    }
   };
 }

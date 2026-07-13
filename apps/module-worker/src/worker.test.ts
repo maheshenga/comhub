@@ -219,6 +219,39 @@ describe('ModuleAppWorker', () => {
     expect(processingSignal?.aborted).toBe(true);
   });
 
+  it('waits for abort cleanup before shutdown completes after the timeout', async () => {
+    vi.useFakeTimers();
+    const abortCleanup = deferred<void>();
+    const abortStarted = deferred<void>();
+    const processBuild = vi.fn(
+      async (_claim: ClaimedModuleAppBuild, input: { signal: AbortSignal }) =>
+        new Promise<{ failureCode: string; outcome: 'failed' }>((resolve) => {
+          input.signal.addEventListener('abort', async () => {
+            abortStarted.resolve();
+            await abortCleanup.promise;
+            resolve({ failureCode: 'MODULE_APP_BUILD_LEASE_LOST', outcome: 'failed' });
+          });
+        }),
+    );
+    const { worker } = createWorker({ processBuild });
+    const shutdown = new AbortController();
+
+    let shutdownComplete = false;
+    const run = worker.run(shutdown.signal).then(() => {
+      shutdownComplete = true;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    shutdown.abort();
+    await vi.advanceTimersByTimeAsync(40_000);
+    await abortStarted.promise;
+
+    expect(shutdownComplete).toBe(false);
+
+    abortCleanup.resolve();
+    await run;
+    expect(shutdownComplete).toBe(true);
+  });
+
   it('runs cleanup at startup and every ten minutes while idle polls wait five seconds', async () => {
     vi.useFakeTimers();
     const cleanup = vi.fn(async () => ({ failed: 0, removed: 0 }));
