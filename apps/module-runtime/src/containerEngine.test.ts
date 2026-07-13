@@ -200,6 +200,26 @@ describe('DockerCliModuleAppContainerEngine', () => {
     expect(metrics.recordCleanupFailure).not.toHaveBeenCalled();
   });
 
+  it('fails closed when successful execution cleanup cannot be confirmed', async () => {
+    const metrics = {
+      recordCleanupFailure: vi.fn(),
+      recordInvocation: vi.fn(),
+    };
+    const runner = {
+      create: vi.fn().mockResolvedValue(createdContainer),
+      inspect: vi.fn(),
+      remove: vi.fn().mockRejectedValue(new Error('docker unavailable')),
+      start: vi.fn().mockResolvedValue({ exitCode: 0, stderr: '', stdout: '{"ok":true}' }),
+    };
+    const engine = new DockerCliModuleAppContainerEngine({ metrics, runner });
+
+    await expect(engine.run(input)).rejects.toThrow('MODULE_APP_RUNTIME_CLEANUP_FAILED');
+    expect(metrics.recordCleanupFailure).toHaveBeenCalledOnce();
+    expect(metrics.recordInvocation).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'failed', runtime: 'node22' }),
+    );
+  });
+
   it('bounds all cleanup commands by one total deadline', async () => {
     const runner = {
       create: vi.fn().mockRejectedValue(new Error('MODULE_APP_RUNTIME_TIMEOUT')),
