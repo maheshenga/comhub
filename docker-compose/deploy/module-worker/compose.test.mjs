@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,12 +70,16 @@ const toBashPath = (windowsPath) =>
   windowsPath.replace(/^([A-Za-z]):\\/u, (_, drive) => `/${drive.toLowerCase()}/`).replace(/\\/gu, '/');
 
 const runDeployWithFakes = ({
+  currentWorkerImage,
+  deployDirectory = directory,
   envContents,
+  envFilePath = envFile,
   expectedArtifactRoot,
   expectedPlatformProject = 'comhub',
   home,
   user,
   markers = [],
+  skipPreviousImage = true,
 }) => {
   const fakeBinDir = mkdtempSync(join(tmpdir(), 'module-worker-compose-'));
   const dockerLog = join(fakeBinDir, 'docker.log');
@@ -72,11 +88,12 @@ const runDeployWithFakes = ({
   const nodePath = toBashPath(dirname(process.execPath));
   const fakeDockerScript = join(fakeBinDir, 'fake-docker.mjs').replace(/\\/gu, '/');
   const fakePsqlScript = join(fakeBinDir, 'fake-psql.mjs').replace(/\\/gu, '/');
+  const currentImageMarker = join(fakeBinDir, 'current-image-recorded');
 
   writeExecutable(
     join(fakeBinDir, 'fake-docker.mjs'),
     `#!/usr/bin/env node
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
 appendFileSync(process.env.FAKE_DOCKER_LOG, \`\${args.join(' ')}\\n\`);
@@ -113,6 +130,11 @@ if (args[0] === 'inspect' && args[1] === '--format') {
   if (target === 'worker-ctr') {
     switch (format) {
       case '{{.Config.Image}}':
+        if (process.env.CURRENT_WORKER_IMAGE && !existsSync(process.env.CURRENT_IMAGE_MARKER)) {
+          writeFileSync(process.env.CURRENT_IMAGE_MARKER, 'recorded');
+          process.stdout.write(process.env.CURRENT_WORKER_IMAGE);
+          process.exit(0);
+        }
         process.stdout.write(process.env.EXPECTED_WORKER_IMAGE);
         process.exit(0);
       case '{{.Config.User}}':
@@ -197,23 +219,26 @@ process.stdout.write('4');
 `,
   );
 
-  const backupEnvSource = createdEnvFile ? null : readFileSync(envFile, 'utf8');
-  writeFileSync(envFile, envContents);
+  const hadEnvFile = existsSync(envFilePath);
+  const backupEnvSource = hadEnvFile ? readFileSync(envFilePath, 'utf8') : null;
+  writeFileSync(envFilePath, envContents);
 
   const result = spawnSync(
     'bash',
     [
       '-lc',
-      `export PATH='${nodePath}':"$PATH"; export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec ./deploy.sh '${workerImage}'`,
+      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec ./deploy.sh '${workerImage}'`,
     ],
     {
-      cwd: directory,
+      cwd: deployDirectory,
       encoding: 'utf8',
       env: {
         ...process.env,
         EXPECTED_ARTIFACT_ROOT: expectedArtifactRoot,
         EXPECTED_PLATFORM_PROJECT: expectedPlatformProject,
         EXPECTED_WORKER_IMAGE: workerImage,
+        CURRENT_IMAGE_MARKER: currentImageMarker,
+        CURRENT_WORKER_IMAGE: currentWorkerImage ?? '',
         FAKE_DOCKER_LOG: dockerLog,
         FAKE_PSQL_LOG: psqlLog,
         HOME: home,
@@ -225,10 +250,10 @@ process.stdout.write('4');
   const dockerCalls = existsSync(dockerLog) ? readFileSync(dockerLog, 'utf8').trim() : '';
   const psqlCalls = existsSync(psqlLog) ? readFileSync(psqlLog, 'utf8').trim() : '';
 
-  if (backupEnvSource === null) {
-    rmSync(envFile, { force: true });
+  if (!hadEnvFile) {
+    rmSync(envFilePath, { force: true });
   } else {
-    writeFileSync(envFile, backupEnvSource);
+    writeFileSync(envFilePath, backupEnvSource);
   }
 
   const markerState = Object.fromEntries(markers.map((marker) => [marker, existsSync(marker)]));
@@ -327,6 +352,7 @@ try {
   assert.match(deploySource, /next_attempt_at/);
   assert.match(deploySource, /compose pull "\$SERVICE"/);
   assert.match(deploySource, /compose up --no-deps --wait "\$SERVICE"/);
+  assert.match(deploySource, /mv -Tf -- "\$temporary_file" "\$previous_image_target"/);
   assert.doesNotMatch(deploySource, /\bsource "\$ENV_FILE"\b/);
   assert.doesNotMatch(deploySource, /\beval\b/);
   assert.match(deploySource, /label=com\.docker\.compose\.project/);
@@ -380,6 +406,174 @@ try {
   });
   assert.equal(configuredPlatformProject.result.status, 0, configuredPlatformProject.result.stderr);
   assertExactRuntimeProjectFilter(configuredPlatformProject.dockerCalls, 'comhub-production');
+
+  const releaseStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-release-state-'));
+  try {
+    const releaseDirectory = join(releaseStateRoot, 'releases', 'sha-test-release');
+    const rootEnvFile = join(releaseStateRoot, '.env');
+    const rootPreviousImage = join(releaseStateRoot, '.previous-image');
+    mkdirSync(releaseDirectory, { recursive: true });
+    copyFileSync(resolve(directory, 'compose.yml'), join(releaseDirectory, 'compose.yml'));
+    copyFileSync(resolve(directory, 'deploy.sh'), join(releaseDirectory, 'deploy.sh'));
+    chmodSync(join(releaseDirectory, 'deploy.sh'), 0o750);
+    symlinkSync('../../.env', join(releaseDirectory, '.env'));
+    symlinkSync('../../.previous-image', join(releaseDirectory, '.previous-image'));
+    writeFileSync(rootPreviousImage, 'example.invalid/worker:sha-older-state\n');
+
+    const releaseDeploy = runDeployWithFakes({
+      currentWorkerImage: 'example.invalid/worker:sha-current-image',
+      deployDirectory: releaseDirectory,
+      envContents: [
+        'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+        'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+        'S3_ACCESS_KEY_ID=worker-access',
+        'S3_BUCKET=module-artifacts',
+        'S3_ENDPOINT=https://s3.example.com',
+        'S3_SECRET_ACCESS_KEY=worker-secret',
+      ].join('\n'),
+      envFilePath: rootEnvFile,
+      expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+      home: '/tmp/fake-home',
+      skipPreviousImage: false,
+      user: 'fake-user',
+    });
+
+    assert.equal(releaseDeploy.result.status, 0, releaseDeploy.result.stderr);
+    assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
+    assert.equal(
+      readlinkSync(join(releaseDirectory, '.previous-image')).replace(/\\/gu, '/'),
+      '../../.previous-image',
+    );
+    assert.equal(
+      readFileSync(rootPreviousImage, 'utf8'),
+      'example.invalid/worker:sha-current-image\n',
+    );
+  } finally {
+    rmSync(releaseStateRoot, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+  }
+
+  const absoluteStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-absolute-state-'));
+  try {
+    const releaseDirectory = join(absoluteStateRoot, 'releases', 'sha-test-release');
+    const rootEnvFile = join(absoluteStateRoot, '.env');
+    const rootPreviousImage = join(absoluteStateRoot, '.previous-image');
+    mkdirSync(releaseDirectory, { recursive: true });
+    copyFileSync(resolve(directory, 'compose.yml'), join(releaseDirectory, 'compose.yml'));
+    copyFileSync(resolve(directory, 'deploy.sh'), join(releaseDirectory, 'deploy.sh'));
+    chmodSync(join(releaseDirectory, 'deploy.sh'), 0o750);
+    symlinkSync('../../.env', join(releaseDirectory, '.env'));
+    symlinkSync(rootPreviousImage, join(releaseDirectory, '.previous-image'));
+    writeFileSync(rootPreviousImage, 'example.invalid/worker:sha-older-state\n');
+
+    const absoluteStateDeploy = runDeployWithFakes({
+      currentWorkerImage: 'example.invalid/worker:sha-current-image',
+      deployDirectory: releaseDirectory,
+      envContents: [
+        'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+        'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+        'S3_ACCESS_KEY_ID=worker-access',
+        'S3_BUCKET=module-artifacts',
+        'S3_ENDPOINT=https://s3.example.com',
+        'S3_SECRET_ACCESS_KEY=worker-secret',
+      ].join('\n'),
+      envFilePath: rootEnvFile,
+      expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+      home: '/tmp/fake-home',
+      skipPreviousImage: false,
+      user: 'fake-user',
+    });
+
+    assert.equal(absoluteStateDeploy.result.status, 0, absoluteStateDeploy.result.stderr);
+    assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
+    assert.equal(
+      readFileSync(rootPreviousImage, 'utf8'),
+      'example.invalid/worker:sha-current-image\n',
+    );
+  } finally {
+    rmSync(absoluteStateRoot, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+  }
+
+  const standaloneStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-standalone-state-'));
+  try {
+    const standaloneEnvFile = join(standaloneStateRoot, '.env');
+    const standalonePreviousImage = join(standaloneStateRoot, '.previous-image');
+    copyFileSync(resolve(directory, 'compose.yml'), join(standaloneStateRoot, 'compose.yml'));
+    copyFileSync(resolve(directory, 'deploy.sh'), join(standaloneStateRoot, 'deploy.sh'));
+    chmodSync(join(standaloneStateRoot, 'deploy.sh'), 0o750);
+
+    const standaloneDeploy = runDeployWithFakes({
+      currentWorkerImage: 'example.invalid/worker:sha-current-image',
+      deployDirectory: standaloneStateRoot,
+      envContents: [
+        'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+        'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+        'S3_ACCESS_KEY_ID=worker-access',
+        'S3_BUCKET=module-artifacts',
+        'S3_ENDPOINT=https://s3.example.com',
+        'S3_SECRET_ACCESS_KEY=worker-secret',
+      ].join('\n'),
+      envFilePath: standaloneEnvFile,
+      expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+      home: '/tmp/fake-home',
+      skipPreviousImage: false,
+      user: 'fake-user',
+    });
+
+    assert.equal(standaloneDeploy.result.status, 0, standaloneDeploy.result.stderr);
+    assert.equal(lstatSync(standalonePreviousImage).isSymbolicLink(), false);
+    assert.equal(
+      readFileSync(standalonePreviousImage, 'utf8'),
+      'example.invalid/worker:sha-current-image\n',
+    );
+  } finally {
+    rmSync(standaloneStateRoot, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+  }
+
+  const escapedStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-escaped-state-'));
+  const escapedStateTarget = join(
+    tmpdir(),
+    `module-worker-outside-state-${process.pid}-${Date.now()}`,
+  );
+  try {
+    const releaseDirectory = join(escapedStateRoot, 'releases', 'sha-test-release');
+    const rootEnvFile = join(escapedStateRoot, '.env');
+    mkdirSync(releaseDirectory, { recursive: true });
+    copyFileSync(resolve(directory, 'compose.yml'), join(releaseDirectory, 'compose.yml'));
+    copyFileSync(resolve(directory, 'deploy.sh'), join(releaseDirectory, 'deploy.sh'));
+    chmodSync(join(releaseDirectory, 'deploy.sh'), 0o750);
+    symlinkSync('../../.env', join(releaseDirectory, '.env'));
+    symlinkSync(
+      `../../../${escapedStateTarget.split(/[\\/]/u).at(-1)}`,
+      join(releaseDirectory, '.previous-image'),
+    );
+    writeFileSync(escapedStateTarget, 'outside-state-must-not-change\n');
+
+    const escapedStateDeploy = runDeployWithFakes({
+      currentWorkerImage: 'example.invalid/worker:sha-current-image',
+      deployDirectory: releaseDirectory,
+      envContents: [
+        'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+        'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+        'S3_ACCESS_KEY_ID=worker-access',
+        'S3_BUCKET=module-artifacts',
+        'S3_ENDPOINT=https://s3.example.com',
+        'S3_SECRET_ACCESS_KEY=worker-secret',
+      ].join('\n'),
+      envFilePath: rootEnvFile,
+      expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+      home: '/tmp/fake-home',
+      skipPreviousImage: false,
+      user: 'fake-user',
+    });
+
+    assert.notEqual(escapedStateDeploy.result.status, 0);
+    assert.match(escapedStateDeploy.result.stderr, /previous image target must remain within/);
+    assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
+    assert.equal(readFileSync(escapedStateTarget, 'utf8'), 'outside-state-must-not-change\n');
+  } finally {
+    rmSync(escapedStateRoot, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+    rmSync(escapedStateTarget, { force: true });
+  }
 
   const unsafePlatformProject = runDeployWithFakes({
     envContents: [

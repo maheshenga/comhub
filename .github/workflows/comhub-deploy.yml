@@ -508,9 +508,13 @@ jobs:
           bootstrap_release_dir="$releases_dir/bootstrap-$release_id"
           bootstrap_cleanup_enabled=false
           current_temp_link=''
+          current_promotion_active=false
           incoming_cleanup_enabled=true
           previous_image_backup=''
-          previous_image_temp=''
+          previous_image_existed=false
+          previous_image_recovery_complete=false
+          previous_image_state_active=false
+          previous_target=''
 
           cleanup_incoming() {
             local status=$?
@@ -524,8 +528,15 @@ jobs:
                 echo "warning: failed to clean exact bootstrap staging directory: $bootstrap_staging_dir" >&2
             fi
             [ -z "$current_temp_link" ] || rm -f -- "$current_temp_link" || true
-            [ -z "$previous_image_temp" ] || rm -f -- "$previous_image_temp" || true
-            [ -z "$previous_image_backup" ] || rm -f -- "$previous_image_backup" || true
+            if [ "$current_promotion_active" = true ] && [ -n "$previous_target" ]; then
+              if restore_current; then
+                current_promotion_active=false
+                echo "warning: restored previous Worker current target after unexpected failure: $previous_target" >&2
+              else
+                echo "error: failed to restore previous Worker current target after unexpected failure: $previous_target" >&2
+              fi
+            fi
+            recover_unexpected_previous_image_state || true
             exit "$status"
           }
           trap cleanup_incoming EXIT
@@ -577,29 +588,45 @@ jobs:
             atomic_set_current "$previous_target"
           }
 
-          install_recorded_previous_image() {
-            local recorded_file="$release_dir/.previous-image"
-            [ -f "$recorded_file" ] || return
-            [ ! -L "$recorded_file" ] || return
-            previous_image_temp="$worker_deploy_dir/.previous-image.recorded-$release_id"
-            cp -- "$recorded_file" "$previous_image_temp" || return
-            chmod 0640 "$previous_image_temp" || return
-            mv -Tf "$previous_image_temp" "$worker_deploy_dir/.previous-image" || return
-            previous_image_temp=''
-            rm -f -- "$recorded_file" || return
-            ln -s '../../.previous-image' "$recorded_file"
-          }
-
           restore_previous_image_state() {
             if [ "$previous_image_existed" = true ]; then
-              previous_image_temp="$worker_deploy_dir/.previous-image.restore-$release_id"
-              cp -- "$previous_image_backup" "$previous_image_temp" || return
-              chmod 0640 "$previous_image_temp" || return
-              mv -Tf "$previous_image_temp" "$worker_deploy_dir/.previous-image" || return
-              previous_image_temp=''
+              [ -f "$previous_image_backup" ] || return
+              [ ! -L "$previous_image_backup" ] || return
+              mv -Tf "$previous_image_backup" "$worker_deploy_dir/.previous-image" || return
+              previous_image_backup=''
             else
-              rm -f -- "$worker_deploy_dir/.previous-image"
+              rm -f -- "$worker_deploy_dir/.previous-image" || return
             fi
+            previous_image_recovery_complete=true
+            previous_image_state_active=false
+          }
+
+          recover_unexpected_previous_image_state() {
+            [ "$previous_image_state_active" = true ] || return 0
+            [ "$previous_image_recovery_complete" = false ] || return 0
+
+            if [ "$previous_image_existed" = true ]; then
+              if [ -f "$previous_image_backup" ] && [ ! -e "$worker_deploy_dir/.previous-image" ]; then
+                if mv -Tf "$previous_image_backup" "$worker_deploy_dir/.previous-image"; then
+                  previous_image_backup=''
+                  previous_image_recovery_complete=true
+                  previous_image_state_active=false
+                  echo 'warning: restored pre-deploy .previous-image after unexpected failure' >&2
+                  return 0
+                fi
+              fi
+              echo "error: pre-deploy .previous-image backup preserved at $previous_image_backup" >&2
+              return 1
+            fi
+
+            if [ ! -e "$worker_deploy_dir/.previous-image" ]; then
+              previous_image_recovery_complete=true
+              previous_image_state_active=false
+              return 0
+            fi
+
+            echo "error: unexpected root previous-image state preserved at $worker_deploy_dir/.previous-image" >&2
+            return 1
           }
 
           exec 9>"$lock_file"
@@ -614,7 +641,6 @@ jobs:
           [ ! -e "$release_dir" ]
           validate_asset_set "$staging_dir"
 
-          previous_target=''
           if [ -L "$worker_deploy_dir/current" ]; then
             previous_target="$(readlink "$worker_deploy_dir/current")"
             validate_release_target "$previous_target"
@@ -649,32 +675,46 @@ jobs:
           link_release_state "$staging_dir"
           mv "$staging_dir" "$release_dir"
 
-          previous_image_existed=false
           previous_image_backup="$worker_deploy_dir/.previous-image.before-$release_id"
+          [ ! -e "$previous_image_backup" ]
+          [ ! -L "$previous_image_backup" ]
           if [ -e "$worker_deploy_dir/.previous-image" ]; then
             [ -f "$worker_deploy_dir/.previous-image" ]
             [ ! -L "$worker_deploy_dir/.previous-image" ]
-            cp -- "$worker_deploy_dir/.previous-image" "$previous_image_backup"
-            chmod 0640 "$previous_image_backup"
+            mv -Tf "$worker_deploy_dir/.previous-image" "$previous_image_backup"
             previous_image_existed=true
           fi
+          previous_image_state_active=true
 
           set +e
           atomic_set_current "releases/$release_id"
           primary_status=$?
-          deploy_reached_image_recording=false
+          root_previous_image_created=false
+          release_state_status=0
           primary_message="Worker current promotion failed with status $primary_status"
 
           if [ "$primary_status" -eq 0 ]; then
+            current_promotion_active=true
             incoming_cleanup_enabled=false
             "$worker_deploy_dir/current/deploy.sh" "$worker_image_ref"
             primary_status=$?
             primary_message="Worker deploy failed with status $primary_status"
 
-            if [ -f "$release_dir/.previous-image" ] && [ ! -L "$release_dir/.previous-image" ]; then
-              deploy_reached_image_recording=true
-            elif [ ! -L "$release_dir/.previous-image" ] || \
+            if [ -e "$worker_deploy_dir/.previous-image" ]; then
+              if [ -f "$worker_deploy_dir/.previous-image" ] && \
+                [ ! -L "$worker_deploy_dir/.previous-image" ]; then
+                root_previous_image_created=true
+              elif [ "$primary_status" -eq 0 ]; then
+                primary_status=1
+                primary_message='Worker deploy left invalid root previous-image state'
+              else
+                echo 'error: Worker deploy failure also left invalid root previous-image state' >&2
+              fi
+            fi
+
+            if [ ! -L "$release_dir/.previous-image" ] || \
               [ "$(readlink "$release_dir/.previous-image")" != '../../.previous-image' ]; then
+              release_state_status=1
               if [ "$primary_status" -eq 0 ]; then
                 primary_status=1
                 primary_message='Worker deploy left invalid previous-image release state'
@@ -683,54 +723,49 @@ jobs:
               fi
             fi
 
-            if [ "$primary_status" -eq 0 ] && [ "$deploy_reached_image_recording" = true ]; then
-              install_recorded_previous_image
-              state_install_status=$?
-              if [ "$state_install_status" -ne 0 ]; then
-                primary_status=1
-                primary_message='Worker deploy succeeded but previous-image state promotion failed'
+            if [ "$primary_status" -eq 0 ]; then
+              if [ "$root_previous_image_created" = true ]; then
+                rm -f -- "$previous_image_backup"
+                state_finalize_status=$?
+                if [ "$state_finalize_status" -eq 0 ]; then
+                  previous_image_backup=''
+                  previous_image_recovery_complete=true
+                  previous_image_state_active=false
+                else
+                  primary_status=1
+                  primary_message='Worker deploy succeeded but pre-state backup cleanup failed'
+                fi
+              else
+                restore_previous_image_state
+                state_finalize_status=$?
+                if [ "$state_finalize_status" -ne 0 ]; then
+                  primary_status=1
+                  primary_message='Worker deploy succeeded without a recordable current image but pre-state restoration failed'
+                fi
               fi
             fi
           fi
 
           if [ "$primary_status" -eq 0 ]; then
-            rm -f -- "$previous_image_backup"
-            previous_image_backup=''
+            current_promotion_active=false
             trap - EXIT
             exit 0
           fi
 
           restore_current
           restore_current_status=$?
+          if [ "$restore_current_status" -eq 0 ]; then
+            current_promotion_active=false
+          fi
           rollback_status=0
-          if [ "$deploy_reached_image_recording" = true ] && [ "$restore_current_status" -eq 0 ]; then
-            install_recorded_previous_image
-            recorded_state_status=$?
-            if [ "$recorded_state_status" -eq 0 ]; then
-              "$worker_deploy_dir/current/rollback.sh"
-              rollback_status=$?
-            else
-              rollback_status=$recorded_state_status
-            fi
+          if [ "$root_previous_image_created" = true ] && [ "$restore_current_status" -eq 0 ]; then
+            "$worker_deploy_dir/current/rollback.sh"
+            rollback_status=$?
           fi
 
           restore_previous_image_state
           previous_image_restore_status=$?
 
-          release_state_repair_status=0
-          if [ -f "$release_dir/.previous-image" ] && [ ! -L "$release_dir/.previous-image" ]; then
-            rm -f -- "$release_dir/.previous-image"
-            release_state_repair_status=$?
-            if [ "$release_state_repair_status" -eq 0 ]; then
-              ln -s '../../.previous-image' "$release_dir/.previous-image"
-              release_state_repair_status=$?
-            fi
-          fi
-
-          if [ "$previous_image_restore_status" -eq 0 ]; then
-            rm -f -- "$previous_image_backup"
-            previous_image_backup=''
-          fi
           trap - EXIT
 
           echo "error: $primary_message" >&2
@@ -742,10 +777,12 @@ jobs:
           fi
           if [ "$previous_image_restore_status" -ne 0 ]; then
             echo 'error: failed to restore pre-deploy .previous-image state' >&2
-            echo "error: pre-deploy .previous-image backup preserved at $previous_image_backup" >&2
+            if [ -n "$previous_image_backup" ] && [ -f "$previous_image_backup" ]; then
+              echo "error: pre-deploy .previous-image backup preserved at $previous_image_backup" >&2
+            fi
           fi
-          if [ "$release_state_repair_status" -ne 0 ]; then
-            echo 'error: failed to restore the promoted release .previous-image state symlink' >&2
+          if [ "$release_state_status" -ne 0 ]; then
+            echo 'error: promoted release .previous-image symlink is invalid' >&2
           fi
           exit "$primary_status"
           REMOTE_WORKER_DEPLOY

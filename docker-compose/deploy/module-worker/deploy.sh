@@ -147,16 +147,79 @@ run_psql() {
   "$PSQL_BIN" "$@"
 }
 
+resolve_symlink_target() {
+  local link_path="$1"
+  local raw_target target_directory target_name target_path
+  raw_target="$(readlink "$link_path")" || die "failed to read symlink target: $link_path"
+  [[ -n "$raw_target" ]] || die "symlink target must not be empty: $link_path"
+
+  if [[ "$raw_target" == /* ]]; then
+    target_path="$raw_target"
+  else
+    target_path="$(dirname "$link_path")/$raw_target"
+  fi
+
+  target_directory="$(cd "$(dirname "$target_path")" && pwd -P)" || \
+    die "symlink target directory is unavailable: $link_path"
+  target_name="$(basename "$target_path")"
+  [[ -n "$target_name" && "$target_name" != '.' && "$target_name" != '..' ]] || \
+    die "symlink target must name a file: $link_path"
+  printf '%s/%s\n' "$target_directory" "$target_name"
+}
+
+resolve_state_directory() {
+  local resolved_env
+  if [[ -L "$ENV_FILE" ]]; then
+    resolved_env="$(resolve_symlink_target "$ENV_FILE")"
+    [[ "$(basename "$resolved_env")" == '.env' ]] || \
+      die 'release .env symlink must resolve to the root .env file'
+    dirname "$resolved_env"
+    return
+  fi
+
+  cd "$SCRIPT_DIR" && pwd -P
+}
+
+sync_file_if_supported() {
+  local file_path="$1"
+  if command -v sync >/dev/null 2>&1 && sync --help 2>&1 | grep -q -- '--file-system'; then
+    sync -f "$file_path"
+  fi
+}
+
 record_current_image() {
-  local container_id current_image temporary_file
+  local container_id current_image intended_state_directory previous_image_target temporary_file
   [[ "${COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE:-false}" == 'true' ]] && return
   container_id="$(compose ps -q "$SERVICE" || true)"
   [[ -n "$container_id" ]] || return
   current_image="$(run_docker inspect --format '{{.Config.Image}}' "$container_id")"
   require_immutable_image "$current_image"
-  temporary_file="${PREVIOUS_IMAGE_FILE}.tmp.$$"
-  printf '%s\n' "$current_image" >"$temporary_file"
-  mv "$temporary_file" "$PREVIOUS_IMAGE_FILE"
+
+  previous_image_target="$PREVIOUS_IMAGE_FILE"
+  if [[ -L "$PREVIOUS_IMAGE_FILE" ]]; then
+    previous_image_target="$(resolve_symlink_target "$PREVIOUS_IMAGE_FILE")"
+    intended_state_directory="$(resolve_state_directory)"
+    [[ "$(dirname "$previous_image_target")" == "$intended_state_directory" ]] || \
+      die 'previous image target must remain within the intended root state directory'
+    [[ "$(basename "$previous_image_target")" == '.previous-image' ]] || \
+      die 'previous image target must remain the root .previous-image file'
+    [[ ! -L "$previous_image_target" ]] || \
+      die 'resolved previous image target must not be another symlink'
+  fi
+
+  temporary_file="${previous_image_target}.tmp.$$"
+  if ! printf '%s\n' "$current_image" >"$temporary_file"; then
+    rm -f -- "$temporary_file"
+    die 'failed to write previous image state'
+  fi
+  if ! sync_file_if_supported "$temporary_file"; then
+    rm -f -- "$temporary_file"
+    die 'failed to sync previous image state'
+  fi
+  if ! mv -Tf -- "$temporary_file" "$previous_image_target"; then
+    rm -f -- "$temporary_file"
+    die 'failed to atomically replace previous image state'
+  fi
 }
 
 verify_container() {
