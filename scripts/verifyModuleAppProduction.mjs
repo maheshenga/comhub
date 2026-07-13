@@ -430,6 +430,7 @@ const databaseTests = [
 let primaryError;
 try {
   if (full) requireFullEnvironment();
+  runVitest(['scripts/dockerWorkspaceManifests.test.ts']);
   run('docker', ['info', '--format', '{{.ServerVersion}}']);
   compose([
     'up',
