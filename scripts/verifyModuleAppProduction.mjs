@@ -1,5 +1,6 @@
+import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,38 +9,118 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const composeFile = path.join(root, 'docker-compose', 'deploy', 'module-runtime.yml');
+const fixtureScript = path.join(root, 'scripts', 'fixtures', 'moduleAppWorkerFixture.mts');
+const migrationScript = path.join(root, 'scripts', 'migrateServerDB', 'index.ts');
+const tsx = path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const vitest = path.join(root, 'node_modules', 'vitest', 'vitest.mjs');
 const full = process.argv.includes('--full');
+const workerOnly = process.argv.includes('--worker-only');
 const keepInfrastructure = process.argv.includes('--keep-infrastructure');
-const postgresPort = Number(process.env.MODULE_APP_TEST_POSTGRES_PORT ?? 55432);
-const redisPort = Number(process.env.MODULE_APP_TEST_REDIS_PORT ?? 56379);
+const usedPorts = new Set();
+const canListenOn = (port, host) =>
+  new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', () => resolve(false));
+    server.listen(port, host, () => server.close(() => resolve(true)));
+  });
+const canListen = async (port) =>
+  (await canListenOn(port, '0.0.0.0')) && (await canListenOn(port, '::'));
+const findAvailablePort = () =>
+  new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen({ host: '::', ipv6Only: false, port: 0 }, () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      server.close(() => (port > 0 ? resolve(port) : reject(new Error('No port allocated'))));
+    });
+  });
+const selectPort = async (environmentKey, preferred) => {
+  const configured = process.env[environmentKey];
+  if (configured) {
+    const port = Number(configured);
+    if (!Number.isInteger(port) || port < 1 || port > 65_535 || usedPorts.has(port)) {
+      throw new Error(`Invalid ${environmentKey}`);
+    }
+    usedPorts.add(port);
+    return port;
+  }
+  if (!usedPorts.has(preferred) && (await canListen(preferred))) {
+    usedPorts.add(preferred);
+    return preferred;
+  }
+  let port;
+  do {
+    port = await findAvailablePort();
+  } while (usedPorts.has(port));
+  usedPorts.add(port);
+  return port;
+};
+const postgresPort = await selectPort('MODULE_APP_TEST_POSTGRES_PORT', 55432);
+const redisPort = await selectPort('MODULE_APP_TEST_REDIS_PORT', 56379);
+const runtimePort = await selectPort('MODULE_APP_TEST_RUNTIME_PORT', 53210);
+const s3Port = await selectPort('MODULE_APP_TEST_S3_PORT', 59000);
 const artifactRoot = mkdtempSync(path.join(os.tmpdir(), 'module-app-runtime-artifacts-'));
+const artifactVolume = `comhub-module-app-artifacts-${process.pid}-${Date.now()}`;
+const fixtureState = path.join(artifactRoot, '.module-app-worker-fixture.json');
 const dockerGid =
   process.env.MODULE_APP_DOCKER_GID ??
   (process.platform === 'linux' ? String(statSync('/var/run/docker.sock').gid) : '0');
 const composeEnv = {
-  MODULE_APP_ARTIFACT_ROOT: artifactRoot,
   MODULE_APP_DOCKER_GID: dockerGid,
+  MODULE_APP_TEST_ARTIFACT_VOLUME: artifactVolume,
+  MODULE_APP_TEST_POSTGRES_PORT: String(postgresPort),
+  MODULE_APP_TEST_REDIS_PORT: String(redisPort),
+  MODULE_APP_TEST_RUNTIME_PORT: String(runtimePort),
+  MODULE_APP_TEST_S3_PORT: String(s3Port),
 };
-const artifactMarker = path.join(artifactRoot, '.verification-marker');
-writeFileSync(artifactMarker, 'module-runtime-artifact-mount');
-chmodSync(artifactRoot, 0o755);
-chmodSync(artifactMarker, 0o444);
-
-const run = (command, args, options = {}) => {
+const databaseUrl = `postgresql://module_app_test:module_app_test@127.0.0.1:${postgresPort}/module_app_test`;
+const s3Environment = {
+  S3_ACCESS_KEY_ID: 'module_app_worker_test',
+  S3_BUCKET: 'module-app-worker-test',
+  S3_ENDPOINT: `http://127.0.0.1:${s3Port}`,
+  S3_SECRET_ACCESS_KEY: 'module_app_worker_test_secret',
+};
+const mutationFlags = [
+  'MODULE_APP_EXECUTION_ENABLED',
+  'MODULE_APP_RUNTIME_INVOCATION_ENABLED',
+  'MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED',
+  'MODULE_APP_SCHEDULE_DISPATCH_ENABLED',
+  'MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED',
+  'MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED',
+  'MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED',
+  'MODULE_APP_PUBLIC_EXECUTION_ENABLED',
+];
+const execute = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     env: { ...process.env, ...options.env },
-    stdio: 'inherit',
+    stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}`);
+    const output = options.capture ? `\n${result.stdout}${result.stderr}` : '';
+    throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}${output}`);
   }
+  return options.capture ? result.stdout.trim() : '';
 };
 
-const waitForPort = (port, timeoutMs = 60_000) =>
+const run = (command, args, options = {}) => execute(command, args, options);
+const capture = (command, args, options = {}) =>
+  execute(command, args, { ...options, capture: true });
+const compose = (args, options = {}) =>
+  run('docker', ['compose', '-f', composeFile, ...args], {
+    ...options,
+    env: { ...composeEnv, ...options.env },
+  });
+const composeCapture = (args, options = {}) =>
+  capture('docker', ['compose', '-f', composeFile, ...args], {
+    ...options,
+    env: { ...composeEnv, ...options.env },
+  });
+
+const waitForPort = (port, timeoutMs = 120_000) =>
   new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
     const attempt = () => {
@@ -67,27 +148,31 @@ const runVitest = (files, options = {}) =>
   run(process.execPath, [vitest, 'run', '--silent=passed-only', ...files], options);
 
 const resetDatabase = () =>
-  run(
-    'docker',
-    [
-      'compose',
-      '-f',
-      composeFile,
-      'exec',
-      '-T',
-      'module-app-postgres',
-      'psql',
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-U',
-      'module_app_test',
-      '-d',
-      'module_app_test',
-      '-c',
-      'DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;',
-    ],
-    { env: composeEnv },
-  );
+  compose([
+    'exec',
+    '-T',
+    'module-app-postgres',
+    'psql',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-U',
+    'module_app_test',
+    '-d',
+    'module_app_test',
+    '-c',
+    'DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;',
+  ]);
+
+const migrateDatabase = () =>
+  run(process.execPath, [tsx, migrationScript], {
+    env: {
+      DATABASE_DRIVER: 'node',
+      DATABASE_URL: databaseUrl,
+      KEY_VAULTS_SECRET: 'J3VydhHWbPiz9z7QAZq6bsMhyh0w3UyYQ9gYYcyshmA=',
+      MIGRATION_DB: '1',
+      NODE_ENV: 'module-app-verification',
+    },
+  });
 
 const requireFullEnvironment = () => {
   const required = [
@@ -113,6 +198,98 @@ const requireFullEnvironment = () => {
   }
 };
 
+const inspectService = (profile, service) => {
+  const profileArgs = profile ? ['--profile', profile] : [];
+  const id = composeCapture([...profileArgs, 'ps', '-q', service]);
+  assert.ok(id, `${service} container must be running`);
+  return JSON.parse(capture('docker', ['inspect', id]))[0];
+};
+
+const environmentMap = (inspect) =>
+  new Map(
+    (inspect.Config.Env ?? []).map((entry) => {
+      const index = entry.indexOf('=');
+      return [entry.slice(0, index), entry.slice(index + 1)];
+    }),
+  );
+
+const assertMutationFlagsDisabled = (service, inspect) => {
+  const environment = environmentMap(inspect);
+  for (const flag of mutationFlags) {
+    assert.notEqual(environment.get(flag), 'true', `${service} must not enable ${flag}`);
+  }
+};
+
+const assertWorkerContainer = () => {
+  const inspect = inspectService('worker', 'module-app-worker');
+  assert.equal(inspect.Config.User, '10001:10001');
+  assert.equal(inspect.HostConfig.Privileged, false);
+  assert.equal(inspect.HostConfig.ReadonlyRootfs, true);
+  assert.ok(inspect.HostConfig.CapDrop?.includes('ALL'));
+  assert.equal(inspect.HostConfig.CapAdd?.length ?? 0, 0);
+  assert.ok(inspect.HostConfig.SecurityOpt?.includes('no-new-privileges:true'));
+  assert.match(inspect.HostConfig.Tmpfs?.['/tmp'] ?? '', /noexec/);
+  assert.match(inspect.HostConfig.Tmpfs?.['/tmp'] ?? '', /nosuid/);
+  assert.equal(Object.keys(inspect.HostConfig.PortBindings ?? {}).length, 0);
+  const artifactMount = inspect.Mounts.find((mount) => mount.Destination === '/runtime/artifacts');
+  assert.equal(artifactMount?.RW, true);
+  assert.equal(
+    inspect.Mounts.some((mount) => mount.Destination === '/var/run/docker.sock'),
+    false,
+  );
+  assertMutationFlagsDisabled('module-app-worker', inspect);
+  compose([
+    '--profile',
+    'worker',
+    'exec',
+    '-T',
+    'module-app-worker',
+    'sh',
+    '-ec',
+    'test "$(id -u):$(id -g)" = "10001:10001" && ! touch /root-write-probe && test ! -e /var/run/docker.sock',
+  ]);
+};
+
+const assertRuntimeContainer = () => {
+  const inspect = inspectService('runtime', 'module-runtime');
+  const artifactMount = inspect.Mounts.find((mount) => mount.Destination === '/runtime/artifacts');
+  assert.equal(artifactMount?.RW, false);
+  assertMutationFlagsDisabled('module-runtime', inspect);
+};
+
+const runWorkerIntegrationPhase = (phase) =>
+  runVitest(['apps/module-worker/src/integration.test.ts'], {
+    env: {
+      DATABASE_URL: databaseUrl,
+      MODULE_APP_RUNTIME_URL: `http://127.0.0.1:${runtimePort}`,
+      MODULE_APP_WORKER_COMPOSE_FILE: composeFile,
+      MODULE_APP_WORKER_FIXTURE_STATE: fixtureState,
+      MODULE_APP_WORKER_INTEGRATION_PHASE: phase,
+      MODULE_APP_WORKER_INTEGRATION_REQUIRED: 'true',
+      ...s3Environment,
+    },
+  });
+
+const runWorkerGate = async () => {
+  run(process.execPath, [tsx, fixtureScript, 'seed', fixtureState], {
+    env: { DATABASE_URL: databaseUrl, ...s3Environment },
+  });
+
+  compose(['--profile', 'worker', 'up', '-d', '--build', 'module-app-worker']);
+  try {
+    runWorkerIntegrationPhase('worker');
+    assertWorkerContainer();
+  } finally {
+    compose(['--profile', 'worker', 'stop', '-t', '45', 'module-app-worker']);
+  }
+
+  compose(['--profile', 'runtime', 'up', '-d', '--build', '--wait', 'module-runtime']);
+  await waitForPort(runtimePort);
+  runWorkerIntegrationPhase('runtime');
+  assertRuntimeContainer();
+  compose(['--profile', 'probe', 'run', '--rm', '--no-deps', 'module-app-main-probe']);
+};
+
 const databaseTests = [
   'src/models/__tests__/moduleAppGateway.test.ts',
   'src/models/__tests__/moduleAppPayment.test.ts',
@@ -123,64 +300,54 @@ const databaseTests = [
 try {
   if (full) requireFullEnvironment();
   run('docker', ['info', '--format', '{{.ServerVersion}}']);
-  run('docker', [
-    'compose',
-    '-f',
-    composeFile,
+  compose([
     'up',
     '-d',
     '--wait',
     'module-app-postgres',
-    'module-app-redis',
-  ], { env: composeEnv });
-  await Promise.all([waitForPort(postgresPort), waitForPort(redisPort)]);
+    'module-app-s3',
+    ...(workerOnly ? [] : ['module-app-redis']),
+  ]);
+  compose(['run', '--rm', '--no-deps', 'module-app-s3-init']);
+  compose(['run', '--rm', '--no-deps', 'module-app-artifact-init']);
+  await Promise.all([
+    waitForPort(postgresPort),
+    waitForPort(s3Port),
+    ...(workerOnly ? [] : [waitForPort(redisPort)]),
+  ]);
+  resetDatabase();
+  migrateDatabase();
+  await runWorkerGate();
 
-  runVitest(['apps/module-runtime/src/securityProbes.test.ts'], {
-    env: {
-      MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
-      MODULE_APP_REAL_CONTAINER_TESTS: 'true',
-    },
-  });
-  runVitest(['apps/server/src/services/moduleAppSandbox/lease.test.ts'], {
-    env: {
-      MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
-      REDIS_TEST_URL: `redis://127.0.0.1:${redisPort}`,
-    },
-  });
-
-  for (const testFile of databaseTests) {
-    resetDatabase();
-    runVitest([testFile], {
-      cwd: path.join(root, 'packages', 'database'),
+  if (!workerOnly) {
+    runVitest(['apps/module-runtime/src/securityProbes.test.ts'], {
       env: {
-        DATABASE_TEST_URL: `postgresql://module_app_test:module_app_test@127.0.0.1:${postgresPort}/module_app_test`,
-        TEST_SERVER_DB: '1',
+        MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
+        MODULE_APP_REAL_CONTAINER_TESTS: 'true',
       },
     });
-  }
+    runVitest(['apps/server/src/services/moduleAppSandbox/lease.test.ts'], {
+      env: {
+        MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
+        REDIS_TEST_URL: `redis://127.0.0.1:${redisPort}`,
+      },
+    });
 
-  run(
-    'docker',
-    [
-      'compose',
-      '-f',
-      composeFile,
+    for (const testFile of databaseTests) {
+      resetDatabase();
+      runVitest([testFile], {
+        cwd: path.join(root, 'packages', 'database'),
+        env: {
+          DATABASE_TEST_URL: databaseUrl,
+          TEST_SERVER_DB: '1',
+        },
+      });
+    }
+
+    compose(['--profile', 'runtime', 'up', '-d', '--build', '--wait', 'module-runtime']);
+    compose([
       '--profile',
       'runtime',
-      'up',
-      '-d',
-      '--build',
-      '--wait',
-      'module-runtime',
-    ],
-    { env: composeEnv },
-  );
-  run(
-    'docker',
-    [
-      'compose',
-      '-f',
-      composeFile,
       'exec',
       '-T',
       'module-runtime',
@@ -193,39 +360,56 @@ try {
         'docker version >/dev/null',
         `node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>{let body='';response.on('data',chunk=>body+=chunk);response.on('end',()=>process.exit(response.statusCode===503&&body.includes('MODULE_APP_RUNTIME_INVOCATION_DISABLED')?0:1))});request.end('{}')"`,
       ].join(' && '),
-    ],
-    { env: composeEnv },
-  );
+    ]);
 
-  if (full) {
-    runVitest(['apps/server/src/services/moduleAppPayments/alipay/sandbox.test.ts'], {
-      env: {
-        MODULE_APP_ALIPAY_SANDBOX_TESTS: 'true',
-        MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
-      },
-    });
-    const cucumber = path.join(
-      root,
-      'e2e',
-      'node_modules',
-      '.bin',
-      process.platform === 'win32' ? 'cucumber-js.CMD' : 'cucumber-js',
-    );
-    run(cucumber, ['--config', 'cucumber.config.js', '--tags', '@module-app-production'], {
-      cwd: path.join(root, 'e2e'),
-      env: {
-        BASE_URL: process.env.MODULE_APP_E2E_BASE_URL,
-        MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
-      },
-    });
+    if (full) {
+      runVitest(['apps/server/src/services/moduleAppPayments/alipay/sandbox.test.ts'], {
+        env: {
+          MODULE_APP_ALIPAY_SANDBOX_TESTS: 'true',
+          MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
+        },
+      });
+      const cucumber = path.join(
+        root,
+        'e2e',
+        'node_modules',
+        '.bin',
+        process.platform === 'win32' ? 'cucumber-js.CMD' : 'cucumber-js',
+      );
+      run(cucumber, ['--config', 'cucumber.config.js', '--tags', '@module-app-production'], {
+        cwd: path.join(root, 'e2e'),
+        env: {
+          BASE_URL: process.env.MODULE_APP_E2E_BASE_URL,
+          MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
+        },
+      });
+    }
   }
 } finally {
   if (!keepInfrastructure) {
-    spawnSync('docker', ['compose', '-f', composeFile, '--profile', 'runtime', 'down'], {
-      cwd: root,
-      env: { ...process.env, ...composeEnv },
-      stdio: 'inherit',
-    });
+    spawnSync(
+      'docker',
+      [
+        'compose',
+        '-f',
+        composeFile,
+        '--profile',
+        'worker',
+        '--profile',
+        'runtime',
+        '--profile',
+        'probe',
+        'down',
+        '-v',
+        '--remove-orphans',
+      ],
+      {
+        cwd: root,
+        env: { ...process.env, ...composeEnv },
+        stdio: 'inherit',
+      },
+    );
     rmSync(artifactRoot, { force: true, recursive: true });
   }
+  rmSync(path.join(root, 'pnpm-lock.yaml'), { force: true });
 }

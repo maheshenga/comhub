@@ -27,7 +27,9 @@ run('docker', ['build', '-f', 'apps/module-worker/Dockerfile', '-t', image, '.']
   stdio: 'inherit',
 });
 
-const config = JSON.parse(run('docker', ['image', 'inspect', image, '--format', '{{json .Config}}']));
+const config = JSON.parse(
+  run('docker', ['image', 'inspect', image, '--format', '{{json .Config}}']),
+);
 
 assert.equal(config.User, '10001:10001');
 assert.equal(config.ExposedPorts, undefined);
@@ -83,3 +85,33 @@ if (failures.length > 0) {
 run('docker', ['run', '--rm', '--entrypoint', 'node', image, '-e', runtimePolicy], {
   stdio: 'inherit',
 });
+
+const healthcheck = spawnSync(
+  'docker',
+  [
+    'run',
+    '--rm',
+    '--env',
+    'DATABASE_URL=postgresql://worker:secret@127.0.0.1:5432/module-worker',
+    '--env',
+    'MODULE_APP_ARTIFACT_ROOT=/runtime/artifacts',
+    '--env',
+    'S3_ACCESS_KEY_ID=worker',
+    '--env',
+    'S3_BUCKET=module-app-worker-test',
+    '--env',
+    'S3_ENDPOINT=http://127.0.0.1:9000',
+    '--env',
+    'S3_SECRET_ACCESS_KEY=secret',
+    image,
+    'node',
+    '/app/worker.mjs',
+    'healthcheck',
+  ],
+  { cwd: repositoryRoot, encoding: 'utf8' },
+);
+const healthcheckOutput = `${healthcheck.stdout}${healthcheck.stderr}`.trim();
+
+assert.notEqual(healthcheck.status, 0, 'healthcheck without a health file must fail closed');
+assert.doesNotMatch(healthcheckOutput, /Dynamic require/);
+assert.match(healthcheckOutput, /^MODULE_APP_WORKER_HEALTH_INVALID$/);

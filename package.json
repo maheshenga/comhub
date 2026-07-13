@@ -112,6 +112,7 @@
     "test:e2e:smoke": "pnpm --filter @lobechat/e2e-tests test:smoke",
     "verify:module-app-production": "node scripts/verifyModuleAppProduction.mjs",
     "verify:module-app-production:full": "node scripts/verifyModuleAppProduction.mjs --full",
+    "verify:module-app-worker": "node scripts/verifyModuleAppProduction.mjs --worker-only",
     "test:update": "vitest -u",
     "test-app": "vitest run",
     "test-app:coverage": "vitest --coverage --silent='passed-only'",

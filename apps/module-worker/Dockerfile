@@ -12,6 +12,7 @@ RUN --mount=type=cache,id=comhub-module-worker-pnpm,target=/pnpm/store \
   && pnpm --filter @lobechat/module-worker exec esbuild src/index.ts \
     --bundle \
     --format=esm \
+    --banner:js="import { createRequire as __moduleCreateRequire } from 'node:module'; const require = __moduleCreateRequire(import.meta.url);" \
     --outfile=/workspace/worker.mjs \
     --platform=node \
     --target=node22

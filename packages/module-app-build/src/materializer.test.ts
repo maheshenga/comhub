@@ -1,6 +1,17 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { chmod, cp, lstat, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -9,11 +20,8 @@ import {
   buildDeterministicModuleAppArtifact,
   materializeModuleAppArtifact,
 } from '@lobechat/module-app-build';
-import {
-  type ModuleAppPackageManifest,
-  moduleAppPackageManifestV2Schema,
-} from '@lobechat/types';
-import { type Headers, type Pack,pack } from 'tar-stream';
+import { type ModuleAppPackageManifest, moduleAppPackageManifestV2Schema } from '@lobechat/types';
+import { type Headers, type Pack, pack } from 'tar-stream';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -106,7 +114,11 @@ const createTgz = async (entries: Array<Headers & { bytes?: Uint8Array }>) => {
   return new Uint8Array(gzipSync(tarBytes));
 };
 
-const materialize = async (artifactRoot: string, artifactBytes: Uint8Array, inputManifest = manifest) =>
+const materialize = async (
+  artifactRoot: string,
+  artifactBytes: Uint8Array,
+  inputManifest = manifest,
+) =>
   materializeModuleAppArtifact({
     artifactBytes,
     artifactRoot,
@@ -138,9 +150,9 @@ describe('materializeModuleAppArtifact', () => {
       directory: path.join(artifactRoot, artifact.sha256),
       reused: false,
     });
-    expect(await readFile(path.join(artifactRoot, artifact.sha256, 'dist/index.html'), 'utf8')).toContain(
-      'Materialized',
-    );
+    expect(
+      await readFile(path.join(artifactRoot, artifact.sha256, 'dist/index.html'), 'utf8'),
+    ).toContain('Materialized');
   });
 
   it.each([
@@ -168,24 +180,27 @@ describe('materializeModuleAppArtifact', () => {
       limits: { maxFileSizeBytes: 10, maxUncompressedBytes: 3 },
       name: 'total expanded bytes',
     },
-  ])('enforces $name during extraction even when pre-inspection is bypassed', async ({ code, entries, limits }) => {
-    const artifactRoot = await createRoot();
-    const artifactBytes = await createTgz(entries);
+  ])(
+    'enforces $name during extraction even when pre-inspection is bypassed',
+    async ({ code, entries, limits }) => {
+      const artifactRoot = await createRoot();
+      const artifactBytes = await createTgz(entries);
 
-    await expect(
-      materializeWithDependencies(
-        {
-          artifactBytes,
-          artifactRoot,
-          artifactSha256: sha256(artifactBytes),
-          buildId: BUILD_ID,
-          claimToken: CLAIM_TOKEN,
-          manifest,
-        },
-        { inspectArtifact: async () => [], limits },
-      ),
-    ).rejects.toMatchObject({ code });
-  });
+      await expect(
+        materializeWithDependencies(
+          {
+            artifactBytes,
+            artifactRoot,
+            artifactSha256: sha256(artifactBytes),
+            buildId: BUILD_ID,
+            claimToken: CLAIM_TOKEN,
+            manifest,
+          },
+          { inspectArtifact: async () => [], limits },
+        ),
+      ).rejects.toMatchObject({ code });
+    },
+  );
 
   it.each([
     {
@@ -198,24 +213,27 @@ describe('materializeModuleAppArtifact', () => {
       entry: { linkname: 'target', name: 'link', type: 'symlink' as const },
       name: 'unsupported types',
     },
-  ])('enforces $name during extraction even when pre-inspection is bypassed', async ({ code, entry }) => {
-    const artifactRoot = await createRoot();
-    const artifactBytes = await createTgz([entry]);
+  ])(
+    'enforces $name during extraction even when pre-inspection is bypassed',
+    async ({ code, entry }) => {
+      const artifactRoot = await createRoot();
+      const artifactBytes = await createTgz([entry]);
 
-    await expect(
-      materializeWithDependencies(
-        {
-          artifactBytes,
-          artifactRoot,
-          artifactSha256: sha256(artifactBytes),
-          buildId: BUILD_ID,
-          claimToken: CLAIM_TOKEN,
-          manifest,
-        },
-        { inspectArtifact: async () => [] },
-      ),
-    ).rejects.toMatchObject({ code });
-  });
+      await expect(
+        materializeWithDependencies(
+          {
+            artifactBytes,
+            artifactRoot,
+            artifactSha256: sha256(artifactBytes),
+            buildId: BUILD_ID,
+            claimToken: CLAIM_TOKEN,
+            manifest,
+          },
+          { inspectArtifact: async () => [] },
+        ),
+      ).rejects.toMatchObject({ code });
+    },
+  );
 
   it('orders marker write, chmod, fsync, and rename durability operations', async () => {
     const artifactRoot = await createRoot();
@@ -266,7 +284,10 @@ describe('materializeModuleAppArtifact', () => {
     );
 
     const markerWrite = events.indexOf('write:.module-app-artifact.json');
-    const chmodIndexes = events.flatMap((event, index) => (event.startsWith('chmod:') ? [index] : []));
+    const renameIndex = events.indexOf('rename');
+    const chmodIndexes = events.flatMap((event, index) =>
+      event.startsWith('chmod:') && index < renameIndex ? [index] : [],
+    );
     const fileSyncIndexes = events.flatMap((event, index) =>
       event.startsWith('fsync-file:') ? [index] : [],
     );
@@ -275,11 +296,14 @@ describe('materializeModuleAppArtifact', () => {
       `fsync-directory:${path.join(artifactRoot, '.staging')}`,
     );
     const preRenameDirectorySyncIndexes = events.flatMap((event, index) =>
-      event.startsWith('fsync-directory:') && index !== artifactRootSync && index !== stagingParentSync
+      event.startsWith('fsync-directory:') &&
+      index < renameIndex &&
+      index !== artifactRootSync &&
+      index !== stagingParentSync
         ? [index]
         : [],
     );
-    const renameIndex = events.indexOf('rename');
+    const finalRootChmod = events.indexOf(`chmod:${artifact.sha256}:555`);
 
     expect(markerWrite).toBeGreaterThanOrEqual(0);
     expect(events).toContain('chmod:.module-app-artifact.json:444');
@@ -287,10 +311,13 @@ describe('materializeModuleAppArtifact', () => {
     expect(events.indexOf('chmod:.module-app-artifact.json:444')).toBe(Math.max(...chmodIndexes));
     expect(Math.min(...chmodIndexes)).toBeGreaterThan(markerWrite);
     expect(Math.min(...fileSyncIndexes)).toBeGreaterThan(Math.max(...chmodIndexes));
-    expect(Math.min(...preRenameDirectorySyncIndexes)).toBeGreaterThan(Math.max(...fileSyncIndexes));
+    expect(Math.min(...preRenameDirectorySyncIndexes)).toBeGreaterThan(
+      Math.max(...fileSyncIndexes),
+    );
     expect(renameIndex).toBeGreaterThan(Math.max(...preRenameDirectorySyncIndexes));
-    expect(artifactRootSync).toBeGreaterThan(renameIndex);
-    expect(stagingParentSync).toBeGreaterThan(renameIndex);
+    expect(finalRootChmod).toBeGreaterThan(renameIndex);
+    expect(artifactRootSync).toBeGreaterThan(finalRootChmod);
+    expect(stagingParentSync).toBeGreaterThan(finalRootChmod);
   });
 
   it('rolls back a newly renamed final directory when parent fsync fails', async () => {
@@ -361,8 +388,12 @@ describe('materializeModuleAppArtifact', () => {
     });
 
     const directory = path.join(artifactRoot, artifact.sha256);
-    expect(await readFile(path.join(directory, 'dist/index.html'), 'utf8')).toContain('Materialized');
-    expect(JSON.parse(await readFile(path.join(directory, '.module-app-artifact.json'), 'utf8'))).toEqual(
+    expect(await readFile(path.join(directory, 'dist/index.html'), 'utf8')).toContain(
+      'Materialized',
+    );
+    expect(
+      JSON.parse(await readFile(path.join(directory, '.module-app-artifact.json'), 'utf8')),
+    ).toEqual(
       expect.objectContaining({
         artifactSha256: artifact.sha256,
         buildId: BUILD_ID,
@@ -372,7 +403,9 @@ describe('materializeModuleAppArtifact', () => {
     );
     expect((await stat(directory)).mode & 0o777).toBe(process.platform === 'win32' ? 0o444 : 0o555);
     expect((await stat(path.join(directory, 'dist/index.html'))).mode & 0o777).toBe(0o444);
-    await expect(lstat(path.join(artifactRoot, '.staging', `${BUILD_ID}-${CLAIM_TOKEN}`))).rejects.toMatchObject({
+    await expect(
+      lstat(path.join(artifactRoot, '.staging', `${BUILD_ID}-${CLAIM_TOKEN}`)),
+    ).rejects.toMatchObject({
       code: 'ENOENT',
     });
   });
@@ -384,7 +417,9 @@ describe('materializeModuleAppArtifact', () => {
     await writeFile(path.join(staging, 'partial.txt'), 'partial');
     const artifact = await buildDeterministicModuleAppArtifact({ files });
 
-    await expect(materialize(artifactRoot, artifact.bytes)).resolves.toMatchObject({ reused: false });
+    await expect(materialize(artifactRoot, artifact.bytes)).resolves.toMatchObject({
+      reused: false,
+    });
     await expect(lstat(staging)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
@@ -404,7 +439,9 @@ describe('materializeModuleAppArtifact', () => {
     await expect(materialize(artifactRoot, artifact.bytes)).rejects.toMatchObject({
       code: 'MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_MISMATCH',
     });
-    expect((await lstat(path.join(artifactRoot, artifact.sha256, 'server/index.js'))).isDirectory()).toBe(true);
+    expect(
+      (await lstat(path.join(artifactRoot, artifact.sha256, 'server/index.js'))).isDirectory(),
+    ).toBe(true);
   });
 
   it('fails closed on an existing marker mismatch without deleting the destination', async () => {
@@ -414,7 +451,12 @@ describe('materializeModuleAppArtifact', () => {
     await mkdir(destination, { recursive: true });
     await writeFile(
       path.join(destination, '.module-app-artifact.json'),
-      JSON.stringify({ artifactSha256: '0'.repeat(64), buildId: BUILD_ID, manifestSha256: '0'.repeat(64), schemaVersion: 1 }),
+      JSON.stringify({
+        artifactSha256: '0'.repeat(64),
+        buildId: BUILD_ID,
+        manifestSha256: '0'.repeat(64),
+        schemaVersion: 1,
+      }),
     );
 
     await expect(materialize(artifactRoot, artifact.bytes)).rejects.toMatchObject({
@@ -427,12 +469,16 @@ describe('materializeModuleAppArtifact', () => {
     'rejects unsafe archive path %s without creating a final directory',
     async (entryPath) => {
       const artifactRoot = await createRoot();
-      const bytes = await createTgz([{ bytes: encoder.encode('unsafe'), name: entryPath, type: 'file' }]);
+      const bytes = await createTgz([
+        { bytes: encoder.encode('unsafe'), name: entryPath, type: 'file' },
+      ]);
 
       await expect(materialize(artifactRoot, bytes)).rejects.toMatchObject({
         code: 'module_app_package_unsafe_path',
       });
-      await expect(lstat(path.join(artifactRoot, sha256(bytes)))).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(lstat(path.join(artifactRoot, sha256(bytes)))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
     },
   );
 
@@ -447,7 +493,9 @@ describe('materializeModuleAppArtifact', () => {
       await expect(materialize(artifactRoot, bytes)).rejects.toMatchObject({
         code: 'module_app_package_archive_invalid',
       });
-      await expect(lstat(path.join(artifactRoot, sha256(bytes)))).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(lstat(path.join(artifactRoot, sha256(bytes)))).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
     },
   );
 
@@ -460,7 +508,9 @@ describe('materializeModuleAppArtifact', () => {
     await expect(materialize(artifactRoot, artifact.bytes)).rejects.toMatchObject({
       code: 'MODULE_APP_BUILD_MATERIALIZED_ARTIFACT_INVALID',
     });
-    await expect(lstat(path.join(artifactRoot, artifact.sha256))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(lstat(path.join(artifactRoot, artifact.sha256))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
     await expect(
       lstat(path.join(artifactRoot, '.staging', `${BUILD_ID}-${CLAIM_TOKEN}`)),
     ).rejects.toMatchObject({ code: 'ENOENT' });

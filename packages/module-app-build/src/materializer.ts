@@ -20,10 +20,7 @@ import { extract, type Headers } from 'tar-stream';
 
 import { inspectModuleAppArtifact, type ModuleAppArtifactEntry } from './artifact';
 import { ModuleAppPackageSafetyError } from './errors';
-import {
-  DEFAULT_MODULE_APP_PACKAGE_LIMITS,
-  type ModuleAppPackageArchiveLimits,
-} from './source';
+import { DEFAULT_MODULE_APP_PACKAGE_LIMITS, type ModuleAppPackageArchiveLimits } from './source';
 
 type ManifestV2 = Extract<ModuleAppPackageManifest, { manifestVersion: 2 }>;
 
@@ -93,15 +90,16 @@ const canonicalize = (value: unknown): unknown => {
   return value;
 };
 
-const getManifestSha256 = (manifest: ManifestV2) =>
-  sha256(JSON.stringify(canonicalize(manifest)));
+const getManifestSha256 = (manifest: ManifestV2) => sha256(JSON.stringify(canonicalize(manifest)));
 
 const isSafePath = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed || trimmed.includes('\0')) return false;
   if (trimmed.startsWith('/') || trimmed.startsWith('\\')) return false;
   if (/^[a-z]:[\\/]/i.test(trimmed) || trimmed.includes('\\')) return false;
-  return !trimmed.split('/').some((segment) => segment === '' || segment === '.' || segment === '..');
+  return !trimmed
+    .split('/')
+    .some((segment) => segment === '' || segment === '.' || segment === '..');
 };
 
 const assertSafeIdentity = (value: string, label: string) => {
@@ -215,7 +213,9 @@ const extractArtifact = async (input: {
 
     source.once('error', () => fail(invalidArchive('Artifact archive could not be decompressed.')));
     gunzip.once('error', () => fail(invalidArchive('Artifact archive could not be decompressed.')));
-    archive.once('error', () => fail(invalidArchive('Artifact archive could not be decompressed.')));
+    archive.once('error', () =>
+      fail(invalidArchive('Artifact archive could not be decompressed.')),
+    );
     archive.once('finish', () => {
       if (settled) return;
       for (const [entryPath, type] of types) {
@@ -322,7 +322,10 @@ const declaredRegularFiles = (manifest: ManifestV2) => {
   const frontendFile = frontendOutput.toLowerCase().endsWith('.html')
     ? frontendOutput
     : `${frontendOutput}/index.html`;
-  return [frontendFile, ...manifest.runtime.functions.map((runtimeFunction) => runtimeFunction.entry)];
+  return [
+    frontendFile,
+    ...manifest.runtime.functions.map((runtimeFunction) => runtimeFunction.entry),
+  ];
 };
 
 const assertDeclaredRegularFiles = async (
@@ -360,7 +363,9 @@ const validateExistingDestination = async (
     if (!(await fileSystem.lstat(directory)).isDirectory()) return false;
     const markerPath = path.join(directory, '.module-app-artifact.json');
     if (!(await fileSystem.lstat(markerPath)).isFile()) return false;
-    const existing = JSON.parse(await fileSystem.readTextFile(markerPath)) as Partial<ArtifactMarker>;
+    const existing = JSON.parse(
+      await fileSystem.readTextFile(markerPath),
+    ) as Partial<ArtifactMarker>;
     if (
       existing.schemaVersion !== 1 ||
       existing.artifactSha256 !== marker.artifactSha256 ||
@@ -402,6 +407,7 @@ const applyImmutableModes = async (input: {
     }
   }
   for (const directory of collectDirectories(input.entries, input.stagingDirectory)) {
+    if (directory === input.stagingDirectory) continue;
     await input.fileSystem.chmod(directory, 0o555);
   }
   await input.fileSystem.chmod(input.markerPath, 0o444);
@@ -472,7 +478,12 @@ export const materializeModuleAppArtifactWithDependencies = async (
     schemaVersion: 1,
   };
 
-  if (await fileSystem.lstat(directory).then(() => true).catch(() => false)) {
+  if (
+    await fileSystem
+      .lstat(directory)
+      .then(() => true)
+      .catch(() => false)
+  ) {
     if (await validateExistingDestination(directory, marker, input.manifest, fileSystem)) {
       return { directory, reused: true };
     }
@@ -517,7 +528,10 @@ export const materializeModuleAppArtifactWithDependencies = async (
     try {
       await fileSystem.rename(stagingDirectory, directory);
     } catch (error) {
-      const destinationExists = await fileSystem.lstat(directory).then(() => true).catch(() => false);
+      const destinationExists = await fileSystem
+        .lstat(directory)
+        .then(() => true)
+        .catch(() => false);
       if (destinationExists) {
         if (await validateExistingDestination(directory, marker, input.manifest, fileSystem)) {
           await removeOwnedDirectory(stagingDirectory, fileSystem);
@@ -529,6 +543,13 @@ export const materializeModuleAppArtifactWithDependencies = async (
           error,
         );
       }
+      throw error;
+    }
+    try {
+      await fileSystem.chmod(directory, 0o555);
+      await fileSystem.syncDirectory(directory);
+    } catch (error) {
+      await removeOwnedDirectory(directory, fileSystem);
       throw error;
     }
     const stagingParent = path.dirname(stagingDirectory);
