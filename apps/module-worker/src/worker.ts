@@ -230,8 +230,9 @@ export class ModuleAppWorker {
     ]);
     if (timeout) clearTimeout(timeout);
     if (timedOut) {
-      this.activeAbortController?.abort();
-      await active.catch(() => undefined);
+      const controller = this.activeAbortController;
+      controller?.abort();
+      if (controller) await active.catch(() => undefined);
     }
   };
 }

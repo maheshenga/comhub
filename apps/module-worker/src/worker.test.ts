@@ -282,6 +282,26 @@ describe('ModuleAppWorker', () => {
     expect(shutdownComplete).toBe(true);
   });
 
+  it('keeps the 40 second shutdown bound when a claim never settles', async () => {
+    vi.useFakeTimers();
+    const pendingClaim = deferred<ClaimedModuleAppBuild | null>();
+    const { buildModel, worker } = createWorker();
+    buildModel.claimNext.mockImplementationOnce(() => pendingClaim.promise);
+    const shutdown = new AbortController();
+
+    let shutdownComplete = false;
+    void worker.run(shutdown.signal).then(() => {
+      shutdownComplete = true;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    shutdown.abort();
+    await vi.advanceTimersByTimeAsync(39_999);
+    expect(shutdownComplete).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(shutdownComplete).toBe(true);
+  });
+
   it('runs cleanup at startup and every ten minutes while idle polls wait five seconds', async () => {
     vi.useFakeTimers();
     const cleanup = vi.fn(async () => ({ failed: 0, removed: 0 }));

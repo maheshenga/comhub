@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createModuleAppWorkerReadModel } from './database';
+import {
+  createModuleAppWorkerPoolConfig,
+  createModuleAppWorkerReadModel,
+} from './database';
 
 describe('createModuleAppWorkerReadModel', () => {
   it('returns bounded eligible queue depth and oldest age', async () => {
@@ -33,5 +36,25 @@ describe('createModuleAppWorkerReadModel', () => {
       'build-id',
       'active-token',
     ]);
+  });
+});
+
+describe('createModuleAppWorkerPoolConfig', () => {
+  it('bounds claim database waits inside the 40 second shutdown window', () => {
+    const config = createModuleAppWorkerPoolConfig({
+      databaseUrl: 'postgresql://worker:secret@postgres/module-worker',
+      shutdownTimeoutMs: 40_000,
+    });
+
+    expect(config).toMatchObject({
+      connectionTimeoutMillis: 5000,
+      idle_in_transaction_session_timeout: 5000,
+      lock_timeout: 2500,
+      query_timeout: 5000,
+      statement_timeout: 5000,
+    });
+    expect(
+      Number(config.connectionTimeoutMillis) + Number(config.statement_timeout) * 5,
+    ).toBeLessThan(40_000);
   });
 });

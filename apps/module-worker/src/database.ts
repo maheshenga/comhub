@@ -2,7 +2,7 @@ import type { LobeChatDatabase } from '@lobechat/database';
 import { ModuleAppBuildModel } from '@lobechat/database/models/moduleAppBuild';
 import * as schema from '@lobechat/database/schemas';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { Pool, type PoolConfig } from 'pg';
 
 import type { ModuleAppWorkerConfig } from './config';
 import { ModuleAppWorkerError } from './errors';
@@ -72,17 +72,28 @@ export const createModuleAppWorkerReadModel = (query: Query) => ({
   },
 });
 
+export const createModuleAppWorkerPoolConfig = (
+  config: Pick<ModuleAppWorkerConfig, 'databaseUrl' | 'shutdownTimeoutMs'>,
+): PoolConfig => {
+  const queryTimeoutMs = Math.max(1, Math.floor(config.shutdownTimeoutMs / 8));
+
+  return {
+    application_name: 'comhub-module-worker',
+    connectionString: config.databaseUrl,
+    connectionTimeoutMillis: queryTimeoutMs,
+    idle_in_transaction_session_timeout: queryTimeoutMs,
+    idleTimeoutMillis: 30_000,
+    lock_timeout: Math.max(1, Math.floor(queryTimeoutMs / 2)),
+    max: 4,
+    query_timeout: queryTimeoutMs,
+    statement_timeout: queryTimeoutMs,
+  };
+};
+
 export const createModuleAppWorkerDatabase = (
   config: ModuleAppWorkerConfig,
 ) => {
-  const pool = new Pool({
-    application_name: 'comhub-module-worker',
-    connectionString: config.databaseUrl,
-    connectionTimeoutMillis: 10_000,
-    idleTimeoutMillis: 30_000,
-    max: 4,
-    statement_timeout: 120_000,
-  });
+  const pool = new Pool(createModuleAppWorkerPoolConfig(config));
   pool.on('error', () => undefined);
 
   const database = drizzle(pool, { schema }) as unknown as LobeChatDatabase;
