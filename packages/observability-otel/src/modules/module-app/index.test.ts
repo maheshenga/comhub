@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  recordModuleAppWorkerArtifactBytes,
+  recordModuleAppWorkerBuildDuration,
+  recordModuleAppWorkerBuildOutcome,
+  recordModuleAppWorkerClaim,
+  recordModuleAppWorkerCleanup,
+  recordModuleAppWorkerLeaseRenewal,
+  recordModuleAppWorkerMaterializationDuration,
+  recordModuleAppWorkerQueue,
   recordModuleAppOperationalAge,
   recordModuleAppPaymentVerificationFailure,
   recordModuleAppPayoutState,
@@ -68,5 +76,58 @@ describe('module app observability', () => {
     expect(instruments.get('module_app_payout_state_total')).toHaveBeenCalledWith(1, {
       state: 'paid',
     });
+  });
+
+  it('records worker operations with bounded attributes and values', () => {
+    recordModuleAppWorkerClaim('recovered');
+    recordModuleAppWorkerLeaseRenewal('lost');
+    recordModuleAppWorkerBuildOutcome({
+      failureCode: 'MODULE_APP_BUILD_SOURCE_POLICY_REJECTED',
+      outcome: 'failed',
+    });
+    recordModuleAppWorkerBuildDuration(321);
+    recordModuleAppWorkerQueue({ depth: 7.9, oldestEligibleAgeMs: 456 });
+    recordModuleAppWorkerArtifactBytes(Number.POSITIVE_INFINITY);
+    recordModuleAppWorkerMaterializationDuration(-1);
+    recordModuleAppWorkerCleanup({ failed: 2, removed: 3 });
+
+    expect(instruments.get('module_app_worker_claims_total')).toHaveBeenCalledWith(1, {
+      outcome: 'recovered',
+    });
+    expect(instruments.get('module_app_worker_lease_renewals_total')).toHaveBeenCalledWith(1, {
+      outcome: 'lost',
+    });
+    expect(instruments.get('module_app_worker_build_outcomes_total')).toHaveBeenCalledWith(1, {
+      failure_code: 'MODULE_APP_BUILD_SOURCE_POLICY_REJECTED',
+      outcome: 'failed',
+    });
+    expect(instruments.get('module_app_worker_build_duration_ms')).toHaveBeenCalledWith(321);
+    expect(instruments.get('module_app_worker_queue_depth')).toHaveBeenCalledWith(7);
+    expect(instruments.get('module_app_worker_queue_oldest_eligible_age_ms')).toHaveBeenCalledWith(
+      456,
+    );
+    expect(instruments.get('module_app_worker_artifact_bytes')).toHaveBeenCalledWith(0);
+    expect(instruments.get('module_app_worker_materialization_duration_ms')).toHaveBeenCalledWith(
+      0,
+    );
+    expect(instruments.get('module_app_worker_cleanup_total')).toHaveBeenCalledWith(3, {
+      outcome: 'removed',
+    });
+    expect(instruments.get('module_app_worker_cleanup_total')).toHaveBeenCalledWith(2, {
+      outcome: 'failed',
+    });
+  });
+
+  it('maps unknown worker failure codes to other without identifier attributes', () => {
+    recordModuleAppWorkerBuildOutcome({
+      failureCode: 'build-id=user-id-storage-key',
+      outcome: 'failed',
+    });
+
+    const call = instruments.get('module_app_worker_build_outcomes_total')!.mock.calls[0];
+    expect(call).toEqual([1, { failure_code: 'other', outcome: 'failed' }]);
+    expect(JSON.stringify(call)).not.toMatch(
+      /build_id|package|version|worker|application|user|storage/i,
+    );
   });
 });

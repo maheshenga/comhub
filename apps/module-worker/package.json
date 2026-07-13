@@ -10,6 +10,7 @@
     "@aws-sdk/client-s3": "~3.932.0",
     "@lobechat/database": "workspace:*",
     "@lobechat/module-app-build": "workspace:*",
+    "@lobechat/observability-otel": "workspace:*",
     "@lobechat/types": "workspace:*",
     "drizzle-orm": "^0.45.1",
     "pg": "^8.17.2"
