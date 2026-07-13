@@ -88,7 +88,6 @@ const createDependencies = (
       };
     }),
     metrics: { recordStagingCleanupFailure: vi.fn() },
-    now: () => new Date('2026-07-13T00:00:00.000Z'),
     publishArtifact: vi.fn(async () => {
       order.push('publish-artifact');
       return { artifactKey, artifactSha256 };
@@ -340,9 +339,7 @@ describe('processModuleAppBuild', () => {
         buildId: claim.id,
         claimToken: claim.claimToken,
         failureCode: 'MODULE_APP_BUILD_SOURCE_DOWNLOAD_FAILED',
-        nextAttemptAt: new Date(
-          `2026-07-13T00:${delayMs === 30_000 ? '00:30' : delayMs === 120_000 ? '02:00' : '10:00'}.000Z`,
-        ),
+        retryDelayMs: delayMs,
       });
     },
   );

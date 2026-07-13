@@ -13,7 +13,16 @@ SET
 WHERE "status" = 'building'
   AND ("claim_token" IS NULL OR "claim_expires_at" IS NULL);
 --> statement-breakpoint
-ALTER TABLE "module_app_builds" ADD CONSTRAINT "module_app_builds_attempt_count_check" CHECK ("attempt_count" >= 0 AND "attempt_count" <= 4);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'module_app_builds_attempt_count_check'
+      AND conrelid = 'module_app_builds'::regclass
+  ) THEN
+    ALTER TABLE "module_app_builds" ADD CONSTRAINT "module_app_builds_attempt_count_check" CHECK ("attempt_count" >= 0 AND "attempt_count" <= 4);
+  END IF;
+END
+$$;
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "module_app_builds_claimable_idx"
   ON "module_app_builds" ("status", "next_attempt_at", "claim_expires_at", "created_at");

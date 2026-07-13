@@ -6,10 +6,6 @@ import { and, asc, eq, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { moduleAppBuilds, moduleAppPackages, moduleAppVersions } from '../schemas';
 import type { LobeChatDatabase } from '../type';
 
-type ModuleAppBuildModelOptions = {
-  now?: () => Date;
-};
-
 export type ClaimedModuleAppBuild = {
   attemptCount: number;
   buildProfile: ModuleAppBuildProfile;
@@ -24,14 +20,7 @@ export type ClaimedModuleAppBuild = {
 };
 
 export class ModuleAppBuildModel {
-  private readonly now: () => Date;
-
-  constructor(
-    private readonly db: LobeChatDatabase,
-    options: ModuleAppBuildModelOptions = {},
-  ) {
-    this.now = options.now ?? (() => new Date());
-  }
+  constructor(private readonly db: LobeChatDatabase) {}
 
   create = async (input: {
     buildProfile: ModuleAppBuildProfile;
@@ -41,7 +30,7 @@ export class ModuleAppBuildModel {
   }) => {
     const [created] = await this.db
       .insert(moduleAppBuilds)
-      .values({ ...input, nextAttemptAt: this.now() })
+      .values(input)
       .returning();
 
     if (!created) throw new Error('MODULE_APP_BUILD_CREATE_FAILED');
@@ -52,8 +41,8 @@ export class ModuleAppBuildModel {
     leaseDurationMs: number;
     workerId: string;
   }): Promise<ClaimedModuleAppBuild | null> => {
-    const now = this.now();
-    const claimExpiresAt = new Date(now.getTime() + input.leaseDurationMs);
+    const databaseNow = sql<Date>`NOW()`;
+    const claimExpiresAt = sql<Date>`NOW() + (${input.leaseDurationMs} * INTERVAL '1 millisecond')`;
     const claimToken = randomUUID();
 
     return this.db.transaction(async (tx) => {
@@ -69,7 +58,7 @@ export class ModuleAppBuildModel {
           or(
             and(
               eq(moduleAppBuilds.status, 'queued'),
-              lte(moduleAppBuilds.nextAttemptAt, now),
+              lte(moduleAppBuilds.nextAttemptAt, databaseNow),
               lt(moduleAppBuilds.attemptCount, 4),
             ),
             and(
@@ -77,7 +66,7 @@ export class ModuleAppBuildModel {
               or(
                 isNull(moduleAppBuilds.claimToken),
                 isNull(moduleAppBuilds.claimExpiresAt),
-                lte(moduleAppBuilds.claimExpiresAt, now),
+                lte(moduleAppBuilds.claimExpiresAt, databaseNow),
               ),
               lt(moduleAppBuilds.attemptCount, 4),
             ),
@@ -93,12 +82,12 @@ export class ModuleAppBuildModel {
         .update(moduleAppBuilds)
         .set({
           attemptCount: sql`${moduleAppBuilds.attemptCount} + 1`,
-          claimedAt: now,
+          claimedAt: databaseNow,
           claimExpiresAt,
           claimToken,
           failureCode: null,
           status: 'building',
-          updatedAt: now,
+          updatedAt: databaseNow,
           workerId: input.workerId,
         })
         .where(eq(moduleAppBuilds.id, candidate.id))
@@ -107,7 +96,7 @@ export class ModuleAppBuildModel {
       return claimed
         ? {
             ...claimed,
-            claimExpiresAt,
+            claimExpiresAt: claimed.claimExpiresAt,
             claimToken,
             manifestSnapshot: candidate.manifestSnapshot,
             sourceStorageKey: candidate.archive.storageKey,
@@ -121,11 +110,11 @@ export class ModuleAppBuildModel {
     claimToken: string;
     leaseDurationMs: number;
   }) => {
-    const now = this.now();
-    const claimExpiresAt = new Date(now.getTime() + input.leaseDurationMs);
+    const databaseNow = sql<Date>`NOW()`;
+    const claimExpiresAt = sql<Date>`NOW() + (${input.leaseDurationMs} * INTERVAL '1 millisecond')`;
     const [renewed] = await this.db
       .update(moduleAppBuilds)
-      .set({ claimExpiresAt, updatedAt: now })
+      .set({ claimExpiresAt, updatedAt: databaseNow })
       .where(
         and(
           eq(moduleAppBuilds.id, input.buildId),
@@ -142,9 +131,9 @@ export class ModuleAppBuildModel {
     buildId: string;
     claimToken: string;
     failureCode: string;
-    nextAttemptAt: Date;
+    retryDelayMs: number;
   }) => {
-    const now = this.now();
+    const databaseNow = sql<Date>`NOW()`;
     const [retried] = await this.db
       .update(moduleAppBuilds)
       .set({
@@ -152,9 +141,9 @@ export class ModuleAppBuildModel {
         claimToken: null,
         claimedAt: null,
         failureCode: input.failureCode,
-        nextAttemptAt: input.nextAttemptAt,
+        nextAttemptAt: sql<Date>`NOW() + (${input.retryDelayMs} * INTERVAL '1 millisecond')`,
         status: 'queued',
-        updatedAt: now,
+        updatedAt: databaseNow,
         workerId: null,
       })
       .where(
@@ -174,10 +163,10 @@ export class ModuleAppBuildModel {
         claimExpiresAt: null,
         claimToken: null,
         claimedAt: null,
-        completedAt: now,
+        completedAt: databaseNow,
         failureCode: 'MODULE_APP_BUILD_RETRY_EXHAUSTED',
         status: 'failed',
-        updatedAt: now,
+        updatedAt: databaseNow,
         workerId: null,
       })
       .where(
@@ -199,7 +188,7 @@ export class ModuleAppBuildModel {
     buildId: string;
     claimToken: string;
   }) => {
-    const now = this.now();
+    const databaseNow = sql<Date>`NOW()`;
 
     return this.db.transaction(async (tx) => {
       const [completed] = await tx
@@ -210,10 +199,10 @@ export class ModuleAppBuildModel {
           claimExpiresAt: null,
           claimToken: null,
           claimedAt: null,
-          completedAt: now,
+          completedAt: databaseNow,
           failureCode: null,
           status: 'ready',
-          updatedAt: now,
+          updatedAt: databaseNow,
           workerId: null,
         })
         .where(
@@ -246,17 +235,17 @@ export class ModuleAppBuildModel {
   };
 
   fail = async (input: { buildId: string; claimToken: string; failureCode: string }) => {
-    const now = this.now();
+    const databaseNow = sql<Date>`NOW()`;
     const [failed] = await this.db
       .update(moduleAppBuilds)
       .set({
         claimExpiresAt: null,
         claimToken: null,
         claimedAt: null,
-        completedAt: now,
+        completedAt: databaseNow,
         failureCode: input.failureCode,
         status: 'failed',
-        updatedAt: now,
+        updatedAt: databaseNow,
         workerId: null,
       })
       .where(
@@ -273,24 +262,24 @@ export class ModuleAppBuildModel {
   };
 
   failExpiredExhausted = async () => {
-    const now = this.now();
+    const databaseNow = sql<Date>`NOW()`;
     return this.db
       .update(moduleAppBuilds)
       .set({
         claimExpiresAt: null,
         claimToken: null,
         claimedAt: null,
-        completedAt: now,
+        completedAt: databaseNow,
         failureCode: 'MODULE_APP_BUILD_RETRY_EXHAUSTED',
         status: 'failed',
-        updatedAt: now,
+        updatedAt: databaseNow,
         workerId: null,
       })
       .where(
         and(
           eq(moduleAppBuilds.status, 'building'),
           eq(moduleAppBuilds.attemptCount, 4),
-          lte(moduleAppBuilds.claimExpiresAt, now),
+          lte(moduleAppBuilds.claimExpiresAt, databaseNow),
         ),
       )
       .returning();

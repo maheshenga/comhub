@@ -7,6 +7,7 @@ import {
 } from '@lobechat/observability-otel/modules/module-app';
 
 const MAX_LOG_BYTES = 64 * 1024;
+const CLEANUP_TIMEOUT_MS = 3000;
 const CLEANUP_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 800] as const;
 
 export type ModuleAppContainerRunInput = {
@@ -33,7 +34,14 @@ export interface ModuleAppContainerEngine {
 }
 
 type DockerRunner = {
-  remove: (containerName: string) => Promise<void>;
+  inspect: (
+    containerName: string,
+    timeoutMs: number,
+  ) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
+  remove: (
+    containerName: string,
+    timeoutMs: number,
+  ) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
   run: (input: { args: string[]; input: string; timeoutMs: number }) => Promise<{
     exitCode: number;
     stderr: string;
@@ -93,17 +101,34 @@ const runDocker = (
   });
 
 const defaultRunner: DockerRunner = {
-  remove: async (containerName) => {
-    const result = await runDocker(['rm', '--force', containerName], { timeoutMs: 15_000 });
-    if (result.exitCode !== 0 || result.stderr.includes('No such container')) {
-      throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
-    }
-  },
+  inspect: (containerName, timeoutMs) => runDocker(['inspect', containerName], { timeoutMs }),
+  remove: (containerName, timeoutMs) =>
+    runDocker(['rm', '--force', containerName], { timeoutMs }),
   run: ({ args, input, timeoutMs }) => runDocker(args, { input, timeoutMs }),
 };
 
 const wait = (durationMs: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, durationMs));
+
+const classifyDockerRemoval = (result: {
+  exitCode: number;
+  stderr: string;
+}): 'absent' | 'removed' => {
+  if (result.stderr.includes('No such container')) return 'absent';
+  if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
+  return 'removed';
+};
+
+const dockerInspectShowsContainer = (result: {
+  exitCode: number;
+  stderr: string;
+}): boolean => {
+  if (result.stderr.includes('No such object') || result.stderr.includes('No such container')) {
+    return false;
+  }
+  if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
+  return true;
+};
 
 export const buildDockerRunArgs = (input: ModuleAppContainerRunInput) => {
   if (!/^(?:sha256:|.+@sha256:)[a-f0-9]{64}$/.test(input.imageDigest)) {
@@ -162,6 +187,42 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
     this.runner = options.runner ?? defaultRunner;
   }
 
+  private cleanupContainer = async (containerName: string, retryAbsent: boolean) => {
+    const deadline = Date.now() + CLEANUP_TIMEOUT_MS;
+    const retryDelays = retryAbsent ? [0, ...CLEANUP_RETRY_DELAYS_MS] : [0];
+    let clean = false;
+    let removed = false;
+
+    for (const retryDelayMs of retryDelays) {
+      if (retryDelayMs > 0) {
+        const remainingBeforeDelay = deadline - Date.now();
+        if (remainingBeforeDelay <= 0) break;
+        await wait(Math.min(retryDelayMs, remainingBeforeDelay));
+      }
+
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) break;
+      try {
+        const outcome = classifyDockerRemoval(
+          await this.runner.remove(containerName, remainingMs),
+        );
+        removed ||= outcome === 'removed';
+
+        const remainingAfterRemoveMs = deadline - Date.now();
+        if (remainingAfterRemoveMs <= 0) break;
+        clean = !dockerInspectShowsContainer(
+          await this.runner.inspect(containerName, remainingAfterRemoveMs),
+        );
+        if (clean && (!retryAbsent || removed)) return true;
+      } catch {
+        clean = false;
+        if (!retryAbsent) return false;
+      }
+    }
+
+    return clean;
+  };
+
   run = async (input: ModuleAppContainerRunInput) => {
     const startedAt = Date.now();
     let outcome: ModuleAppSandboxOutcome = 'failed';
@@ -184,17 +245,11 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
       } else if (error instanceof Error && error.message === 'MODULE_APP_RUNTIME_OOM') {
         outcome = 'oom';
       }
-      let cleaned = false;
-      for (const retryDelayMs of [0, ...CLEANUP_RETRY_DELAYS_MS]) {
-        if (retryDelayMs > 0) await wait(retryDelayMs);
-        try {
-          await this.runner.remove(input.containerName);
-          cleaned = true;
-          break;
-        } catch {
-          // Docker may finish creating the named container after its CLI process times out.
-        }
-      }
+      // Docker may finish creating the named container after its CLI process times out.
+      const cleaned = await this.cleanupContainer(
+        input.containerName,
+        error instanceof Error && error.message === 'MODULE_APP_RUNTIME_TIMEOUT',
+      );
       if (!cleaned) {
         this.metrics.recordCleanupFailure();
       }

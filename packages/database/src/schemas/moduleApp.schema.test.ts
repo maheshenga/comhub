@@ -225,4 +225,22 @@ describe('module app schema exports', () => {
     expect(migration).toContain('credit_ledger_entries_module_app_reservation_unique_idx');
     expect(journal.entries.some(({ tag }) => tag === '0138_add_module_app_commerce')).toBe(true);
   });
+
+  it('registers an idempotent module app build lease migration', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0144_add_module_app_build_leases.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain("FROM pg_constraint WHERE conname = 'module_app_builds_attempt_count_check'");
+    expect(migration).toContain(
+      'ALTER TABLE "module_app_builds" ADD CONSTRAINT "module_app_builds_attempt_count_check"',
+    );
+    expect(
+      journal.entries.some(({ tag }) => tag === '0144_add_module_app_build_leases'),
+    ).toBe(true);
+  });
 });

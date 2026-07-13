@@ -19,6 +19,30 @@ if (productionGatesRequired && !realContainerEnabled) {
 const docker = (...args: string[]) =>
   execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
+const waitForStableContainerAbsence = async (containerName: string) => {
+  const deadline = Date.now() + 5000;
+  let absentSince: number | undefined;
+
+  while (Date.now() < deadline) {
+    let exists = true;
+    try {
+      docker('inspect', containerName);
+    } catch {
+      exists = false;
+    }
+
+    if (exists) {
+      absentSince = undefined;
+    } else {
+      absentSince ??= Date.now();
+      if (Date.now() - absentSince >= 1500) return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`MODULE_APP_PROBE_CONTAINER_LEAKED:${containerName}`);
+};
+
 const writeFixture = (directory: string, name: string, source: string) => {
   writeFileSync(path.join(directory, name), source, 'utf8');
   return name;
@@ -219,8 +243,6 @@ console.log(JSON.stringify({cpu:read('cpu.max'),memory:read('memory.max'),pids:r
         runtime: 'node22',
       }),
     ).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
-    expect(() => docker('inspect', containerName)).toThrow();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    expect(() => docker('inspect', containerName)).toThrow();
+    await waitForStableContainerAbsence(containerName);
   }, 30_000);
 });

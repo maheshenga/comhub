@@ -20,6 +20,27 @@ const input = {
   runtime: 'node22' as const,
 };
 
+const absentContainer = {
+  exitCode: 0,
+  stderr: 'Error response from daemon: No such container: module-app-invocation-1\n',
+  stdout: '',
+};
+const removedContainer = {
+  exitCode: 0,
+  stderr: '',
+  stdout: 'module-app-invocation-1\n',
+};
+const absentContainerInspect = {
+  exitCode: 1,
+  stderr: 'Error: No such object: module-app-invocation-1\n',
+  stdout: '[]',
+};
+const presentContainerInspect = {
+  exitCode: 0,
+  stderr: '',
+  stdout: '[{"State":{"Status":"created"}}]',
+};
+
 describe('buildDockerRunArgs', () => {
   it('builds a fixed isolated container command', () => {
     expect(buildDockerRunArgs(input)).toEqual([
@@ -78,6 +99,7 @@ describe('buildDockerRunArgs', () => {
 describe('DockerCliModuleAppContainerEngine', () => {
   it('passes bounded JSON input to the fixed Docker command', async () => {
     const runner = {
+      inspect: vi.fn(),
       remove: vi.fn(),
       run: vi.fn().mockResolvedValue({ exitCode: 0, stderr: '', stdout: '{"ok":true}' }),
     };
@@ -97,28 +119,79 @@ describe('DockerCliModuleAppContainerEngine', () => {
 
   it('force-removes the named container when command execution fails', async () => {
     const runner = {
-      remove: vi.fn().mockResolvedValue(undefined),
+      inspect: vi.fn().mockResolvedValue(absentContainerInspect),
+      remove: vi.fn().mockResolvedValue(removedContainer),
       run: vi.fn().mockRejectedValue(new Error('MODULE_APP_RUNTIME_TIMEOUT')),
     };
     const engine = new DockerCliModuleAppContainerEngine({ runner });
 
     await expect(engine.run(input)).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
-    expect(runner.remove).toHaveBeenCalledWith('module-app-invocation-1');
+    expect(runner.remove).toHaveBeenCalledOnce();
+    expect(runner.inspect).toHaveBeenCalledOnce();
+    expect(runner.remove).toHaveBeenCalledWith('module-app-invocation-1', expect.any(Number));
   });
 
-  it('retries cleanup when container creation races command timeout', async () => {
+  it('retries exit-zero absent cleanup when container creation races command timeout', async () => {
     const runner = {
+      inspect: vi
+        .fn()
+        .mockResolvedValueOnce(presentContainerInspect)
+        .mockResolvedValue(absentContainerInspect),
       remove: vi
         .fn()
-        .mockRejectedValueOnce(new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED'))
-        .mockResolvedValue(undefined),
+        .mockResolvedValueOnce(absentContainer)
+        .mockResolvedValue(removedContainer),
       run: vi.fn().mockRejectedValue(new Error('MODULE_APP_RUNTIME_TIMEOUT')),
     };
     const engine = new DockerCliModuleAppContainerEngine({ runner });
 
     await expect(engine.run(input)).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
     expect(runner.remove).toHaveBeenCalledTimes(2);
-    expect(runner.remove).toHaveBeenNthCalledWith(2, 'module-app-invocation-1');
+    expect(runner.inspect).toHaveBeenCalledTimes(2);
+    expect(runner.remove).toHaveBeenNthCalledWith(
+      2,
+      'module-app-invocation-1',
+      expect.any(Number),
+    );
+  });
+
+  it('does not retry an absent container after a completed process failure', async () => {
+    const metrics = {
+      recordCleanupFailure: vi.fn(),
+      recordInvocation: vi.fn(),
+    };
+    const runner = {
+      inspect: vi.fn().mockResolvedValue(absentContainerInspect),
+      remove: vi.fn().mockResolvedValue(absentContainer),
+      run: vi.fn().mockResolvedValue({ exitCode: 1, stderr: 'failed', stdout: '' }),
+    };
+    const engine = new DockerCliModuleAppContainerEngine({ metrics, runner });
+
+    await expect(engine.run(input)).rejects.toThrow('MODULE_APP_RUNTIME_PROCESS_FAILED');
+    expect(runner.remove).toHaveBeenCalledOnce();
+    expect(runner.inspect).toHaveBeenCalledOnce();
+    expect(metrics.recordCleanupFailure).not.toHaveBeenCalled();
+  });
+
+  it('bounds all cleanup commands by one total deadline', async () => {
+    const runner = {
+      inspect: vi.fn(),
+      remove: vi.fn().mockRejectedValue(new Error('docker unavailable')),
+      run: vi.fn().mockRejectedValue(new Error('MODULE_APP_RUNTIME_TIMEOUT')),
+    };
+    const engine = new DockerCliModuleAppContainerEngine({ runner });
+
+    await expect(engine.run(input)).rejects.toThrow('MODULE_APP_RUNTIME_TIMEOUT');
+    expect(runner.remove.mock.calls.length).toBeGreaterThan(1);
+    expect(
+      runner.remove.mock.calls.every(
+        ([containerName, timeoutMs]) =>
+          containerName === 'module-app-invocation-1' &&
+          typeof timeoutMs === 'number' &&
+          timeoutMs > 0 &&
+          timeoutMs <= 3000,
+      ),
+    ).toBe(true);
   });
 
   it('records bounded success, timeout, OOM, and cleanup outcomes', async () => {
@@ -127,6 +200,7 @@ describe('DockerCliModuleAppContainerEngine', () => {
       recordInvocation: vi.fn(),
     };
     const successRunner = {
+      inspect: vi.fn(),
       remove: vi.fn(),
       run: vi.fn().mockResolvedValue({ exitCode: 0, stderr: '', stdout: '{}' }),
     };
@@ -136,7 +210,8 @@ describe('DockerCliModuleAppContainerEngine', () => {
     );
 
     const oomRunner = {
-      remove: vi.fn().mockResolvedValue(undefined),
+      inspect: vi.fn().mockResolvedValue(absentContainerInspect),
+      remove: vi.fn().mockResolvedValue(absentContainer),
       run: vi.fn().mockResolvedValue({ exitCode: 137, stderr: 'Killed', stdout: '' }),
     };
     await expect(
@@ -147,6 +222,7 @@ describe('DockerCliModuleAppContainerEngine', () => {
     );
 
     const timeoutRunner = {
+      inspect: vi.fn(),
       remove: vi.fn().mockRejectedValue(new Error('cleanup failed')),
       run: vi.fn().mockRejectedValue(new Error('MODULE_APP_RUNTIME_TIMEOUT')),
     };

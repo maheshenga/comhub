@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { moduleAppPackageManifestSchema } from '@lobechat/types';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -15,19 +15,7 @@ import type { LobeChatDatabase } from '../../type';
 import { ModuleAppBuildModel } from '../moduleAppBuild';
 
 const USER_ID = 'module-app-build-user';
-const NOW = new Date('2026-07-11T01:00:00.000Z');
 const serverDB: LobeChatDatabase = await getTestDB();
-
-const createClock = () => {
-  let value = NOW;
-
-  return {
-    now: () => value,
-    set: (next: Date) => {
-      value = next;
-    },
-  };
-};
 
 const buildManifest = moduleAppPackageManifestSchema.parse({
   app: {
@@ -103,8 +91,7 @@ beforeEach(async () => {
 describe('ModuleAppBuildModel', () => {
   it('claims a queued build with a lease and completes it immutably', async () => {
     const ids = await createPackageVersion();
-    const clock = createClock();
-    const model = new ModuleAppBuildModel(serverDB, { now: clock.now });
+    const model = new ModuleAppBuildModel(serverDB);
     const build = await model.create({
       buildProfile: 'node22-static',
       packageId: ids.packageId,
@@ -112,15 +99,18 @@ describe('ModuleAppBuildModel', () => {
       versionId: ids.versionId,
     });
 
+    const beforeClaim = Date.now();
     const claim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'builder-1' });
+    const afterClaim = Date.now();
     expect(claim).toMatchObject({
       attemptCount: 1,
       id: build.id,
-      claimExpiresAt: new Date(NOW.getTime() + 60_000),
       sourceStorageKey: 'module-app-packages/build.zip',
       status: 'building',
       workerId: 'builder-1',
     });
+    expect(claim!.claimExpiresAt.getTime()).toBeGreaterThanOrEqual(beforeClaim + 55_000);
+    expect(claim!.claimExpiresAt.getTime()).toBeLessThanOrEqual(afterClaim + 65_000);
     expect(claim?.claimToken).toEqual(expect.any(String));
     await expect(model.getById(build.id)).resolves.toMatchObject({ id: build.id });
     await expect(model.claimNext({ leaseDurationMs: 60_000, workerId: 'builder-2' })).resolves.toBeNull();
@@ -150,7 +140,7 @@ describe('ModuleAppBuildModel', () => {
 
   it('does not return the same queued row to concurrent claimers', async () => {
     const ids = await createPackageVersion();
-    const model = new ModuleAppBuildModel(serverDB, { now: () => NOW });
+    const model = new ModuleAppBuildModel(serverDB);
     await model.create({
       buildProfile: 'node22-static',
       packageId: ids.packageId,
@@ -166,10 +156,61 @@ describe('ModuleAppBuildModel', () => {
     expect(results.filter(Boolean)).toHaveLength(1);
   });
 
+  it('does not let an ahead worker clock reclaim an active database lease', async () => {
+    const ids = await createPackageVersion();
+    const model = new ModuleAppBuildModel(serverDB);
+    await model.create({
+      buildProfile: 'node22-static',
+      packageId: ids.packageId,
+      sourceSha256: '6'.repeat(64),
+      versionId: ids.versionId,
+    });
+    const claim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-a' });
+
+    const aheadModel = Reflect.construct(ModuleAppBuildModel, [
+      serverDB,
+      { now: () => new Date(claim!.claimExpiresAt.getTime() + 90_000) },
+    ]) as ModuleAppBuildModel;
+    await expect(
+      aheadModel.claimNext({
+        leaseDurationMs: 60_000,
+        workerId: 'worker-ahead',
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('does not let a behind worker clock renew a lease into the database past', async () => {
+    const ids = await createPackageVersion();
+    const model = new ModuleAppBuildModel(serverDB);
+    await model.create({
+      buildProfile: 'node22-static',
+      packageId: ids.packageId,
+      sourceSha256: '7'.repeat(64),
+      versionId: ids.versionId,
+    });
+    const claim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-a' });
+
+    const behindModel = Reflect.construct(ModuleAppBuildModel, [
+      serverDB,
+      { now: () => new Date('2000-01-01T00:00:00.000Z') },
+    ]) as ModuleAppBuildModel;
+    await behindModel.renewLease({
+      buildId: claim!.id,
+      claimToken: claim!.claimToken,
+      leaseDurationMs: 60_000,
+    });
+
+    await expect(
+      new ModuleAppBuildModel(serverDB).claimNext({
+        leaseDurationMs: 60_000,
+        workerId: 'worker-b',
+      }),
+    ).resolves.toBeNull();
+  });
+
   it('reclaims an expired lease with a fresh token and denies stale mutations', async () => {
     const ids = await createPackageVersion();
-    const clock = createClock();
-    const model = new ModuleAppBuildModel(serverDB, { now: clock.now });
+    const model = new ModuleAppBuildModel(serverDB);
     const build = await model.create({
       buildProfile: 'node22-static',
       packageId: ids.packageId,
@@ -192,7 +233,7 @@ describe('ModuleAppBuildModel', () => {
         buildId: first!.id,
         claimToken: 'stale-token',
         failureCode: 'MODULE_APP_BUILD_TEMPORARY_FAILURE',
-        nextAttemptAt: new Date(clock.now().getTime() + 30_000),
+        retryDelayMs: 30_000,
       }),
     ).rejects.toThrow('MODULE_APP_BUILD_LEASE_LOST');
     await expect(
@@ -203,7 +244,10 @@ describe('ModuleAppBuildModel', () => {
       }),
     ).rejects.toThrow('MODULE_APP_BUILD_LEASE_LOST');
 
-    clock.set(new Date(first!.claimExpiresAt.getTime() + 1));
+    await serverDB
+      .update(moduleAppBuilds)
+      .set({ claimExpiresAt: sql`NOW() - INTERVAL '1 millisecond'` })
+      .where(eq(moduleAppBuilds.id, build.id));
     const reclaimed = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-b' });
     expect(reclaimed).toMatchObject({
       attemptCount: 2,
@@ -222,19 +266,21 @@ describe('ModuleAppBuildModel', () => {
       }),
     ).rejects.toThrow('MODULE_APP_BUILD_LEASE_LOST');
 
+    const beforeRenewal = Date.now();
     const renewed = await model.renewLease({
       buildId: build.id,
       claimToken: reclaimed!.claimToken,
       leaseDurationMs: 120_000,
     });
-    expect(renewed.claimExpiresAt).toEqual(new Date(clock.now().getTime() + 120_000));
+    const afterRenewal = Date.now();
+    expect(renewed.claimExpiresAt!.getTime()).toBeGreaterThanOrEqual(beforeRenewal + 115_000);
+    expect(renewed.claimExpiresAt!.getTime()).toBeLessThanOrEqual(afterRenewal + 125_000);
   });
 
   it('orders due retries before later queued builds and clears the lease when retrying', async () => {
     const firstIds = await createPackageVersion();
     const secondIds = await createPackageVersion();
-    const clock = createClock();
-    const model = new ModuleAppBuildModel(serverDB, { now: clock.now });
+    const model = new ModuleAppBuildModel(serverDB);
     const firstBuild = await model.create({
       buildProfile: 'node22-static',
       packageId: firstIds.packageId,
@@ -249,12 +295,11 @@ describe('ModuleAppBuildModel', () => {
     });
 
     const firstClaim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-a' });
-    const retryAt = new Date(clock.now().getTime() + 60_000);
     const retried = await model.retry({
       buildId: firstClaim!.id,
       claimToken: firstClaim!.claimToken,
       failureCode: 'MODULE_APP_BUILD_TEMPORARY_FAILURE',
-      nextAttemptAt: retryAt,
+      retryDelayMs: 60_000,
     });
     expect(retried).toMatchObject({
       claimExpiresAt: null,
@@ -268,7 +313,17 @@ describe('ModuleAppBuildModel', () => {
     const secondClaim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-b' });
     expect(secondClaim?.id).toBe(secondBuild.id);
 
-    clock.set(retryAt);
+    await serverDB
+      .update(moduleAppBuilds)
+      .set({
+        claimExpiresAt: sql`NOW() - INTERVAL '1 millisecond'`,
+        nextAttemptAt: sql`NOW() - INTERVAL '2 seconds'`,
+      })
+      .where(eq(moduleAppBuilds.id, secondBuild.id));
+    await serverDB
+      .update(moduleAppBuilds)
+      .set({ nextAttemptAt: sql`NOW() - INTERVAL '1 second'` })
+      .where(eq(moduleAppBuilds.id, firstBuild.id));
     const earlierDueClaim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-c' });
     expect(earlierDueClaim).toMatchObject({ attemptCount: 2, id: secondBuild.id });
     const retryClaim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-d' });
@@ -277,8 +332,7 @@ describe('ModuleAppBuildModel', () => {
 
   it('allows three retries and terminalizes an expired fourth attempt', async () => {
     const ids = await createPackageVersion();
-    const clock = createClock();
-    const model = new ModuleAppBuildModel(serverDB, { now: clock.now });
+    const model = new ModuleAppBuildModel(serverDB);
     const build = await model.create({
       buildProfile: 'node22-static',
       packageId: ids.packageId,
@@ -290,21 +344,26 @@ describe('ModuleAppBuildModel', () => {
     const retryDelays = [30_000, 120_000, 600_000];
     for (const [index, retryDelay] of retryDelays.entries()) {
       const attempt = index + 1;
-      const retryAt = new Date(clock.now().getTime() + retryDelay);
       await expect(
         model.retry({
           buildId: build.id,
           claimToken: claim!.claimToken,
           failureCode: `MODULE_APP_BUILD_RETRY_${attempt}`,
-          nextAttemptAt: retryAt,
+          retryDelayMs: retryDelay,
         }),
       ).resolves.toMatchObject({ attemptCount: attempt, status: 'queued' });
-      clock.set(retryAt);
+      await serverDB
+        .update(moduleAppBuilds)
+        .set({ nextAttemptAt: sql`NOW() - INTERVAL '1 millisecond'` })
+        .where(eq(moduleAppBuilds.id, build.id));
       claim = await model.claimNext({ leaseDurationMs: 60_000, workerId: `worker-${attempt + 1}` });
       expect(claim).toMatchObject({ attemptCount: attempt + 1, status: 'building' });
     }
 
-    clock.set(new Date(claim!.claimExpiresAt.getTime() + 1));
+    await serverDB
+      .update(moduleAppBuilds)
+      .set({ claimExpiresAt: sql`NOW() - INTERVAL '1 millisecond'` })
+      .where(eq(moduleAppBuilds.id, build.id));
     await expect(model.failExpiredExhausted()).resolves.toHaveLength(1);
     await expect(model.getById(build.id)).resolves.toMatchObject({
       claimExpiresAt: null,
@@ -318,8 +377,7 @@ describe('ModuleAppBuildModel', () => {
 
   it('terminalizes an active fourth attempt instead of returning it to queued', async () => {
     const ids = await createPackageVersion();
-    const clock = createClock();
-    const model = new ModuleAppBuildModel(serverDB, { now: clock.now });
+    const model = new ModuleAppBuildModel(serverDB);
     const build = await model.create({
       buildProfile: 'node22-static',
       packageId: ids.packageId,
@@ -329,14 +387,16 @@ describe('ModuleAppBuildModel', () => {
 
     let claim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-1' });
     for (let attempt = 1; attempt < 4; attempt++) {
-      const retryAt = new Date(clock.now().getTime() + 1);
       await model.retry({
         buildId: build.id,
         claimToken: claim!.claimToken,
         failureCode: `MODULE_APP_BUILD_RETRY_${attempt}`,
-        nextAttemptAt: retryAt,
+        retryDelayMs: 1,
       });
-      clock.set(retryAt);
+      await serverDB
+        .update(moduleAppBuilds)
+        .set({ nextAttemptAt: sql`NOW() - INTERVAL '1 millisecond'` })
+        .where(eq(moduleAppBuilds.id, build.id));
       claim = await model.claimNext({ leaseDurationMs: 60_000, workerId: `worker-${attempt + 1}` });
     }
 
@@ -345,7 +405,7 @@ describe('ModuleAppBuildModel', () => {
         buildId: build.id,
         claimToken: claim!.claimToken,
         failureCode: 'MODULE_APP_BUILD_TEMPORARY_FAILURE',
-        nextAttemptAt: new Date(clock.now().getTime() + 60_000),
+        retryDelayMs: 60_000,
       }),
     ).resolves.toMatchObject({
       attemptCount: 4,
@@ -359,7 +419,7 @@ describe('ModuleAppBuildModel', () => {
 
   it('reclaims a legacy building row with null claim token and expiry', async () => {
     const ids = await createPackageVersion();
-    const model = new ModuleAppBuildModel(serverDB, { now: () => NOW });
+    const model = new ModuleAppBuildModel(serverDB);
     const build = await model.create({
       buildProfile: 'node22-static',
       packageId: ids.packageId,

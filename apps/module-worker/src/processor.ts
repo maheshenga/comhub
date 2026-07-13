@@ -51,7 +51,6 @@ export type ProcessModuleAppBuildDependencies = {
       code: string;
     }) => void;
   };
-  now?: () => Date;
   publishArtifact?: typeof publishVerifiedModuleAppArtifact;
   signal?: AbortSignal;
   storage: ModuleAppObjectStorage;
@@ -118,7 +117,6 @@ export const processModuleAppBuild = async (
     dependencies.buildArtifact ?? buildDeterministicModuleAppArtifact;
   const materializeArtifact =
     dependencies.materializeArtifact ?? materializeModuleAppArtifact;
-  const now = dependencies.now ?? (() => new Date());
   const publishArtifact =
     dependencies.publishArtifact ?? publishVerifiedModuleAppArtifact;
   const validateSource =
@@ -228,7 +226,7 @@ export const processModuleAppBuild = async (
             buildId: claim.id,
             claimToken: claim.claimToken,
             failureCode: failure.code,
-            nextAttemptAt: new Date(now().getTime() + delayMs),
+            retryDelayMs: delayMs,
           });
         } catch (transitionError) {
           if (isModuleAppBuildLeaseLost(transitionError)) {
