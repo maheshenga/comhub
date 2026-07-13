@@ -154,7 +154,7 @@ describe('ModuleAppWorker', () => {
 
   it('ignores an in-flight renewal failure after processing has finished', async () => {
     vi.useFakeTimers();
-    const renewal = deferred<unknown>();
+    const renewal = deferred<{}>();
     const processing = deferred<{ outcome: 'ready' }>();
     const { buildModel, metrics, worker } = createWorker({
       processBuild: vi.fn(() => processing.promise),

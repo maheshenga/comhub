@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  recordModuleAppOperationalAge,
+  recordModuleAppPaymentVerificationFailure,
+  recordModuleAppPayoutState,
+  recordModuleAppSandboxInvocation,
+  recordModuleAppSandboxReplayRejection,
   recordModuleAppWorkerArtifactBytes,
   recordModuleAppWorkerBuildDuration,
   recordModuleAppWorkerBuildOutcome,
@@ -9,11 +14,6 @@ import {
   recordModuleAppWorkerLeaseRenewal,
   recordModuleAppWorkerMaterializationDuration,
   recordModuleAppWorkerQueue,
-  recordModuleAppOperationalAge,
-  recordModuleAppPaymentVerificationFailure,
-  recordModuleAppPayoutState,
-  recordModuleAppSandboxInvocation,
-  recordModuleAppSandboxReplayRejection,
   recordModuleAppWorkflowBacklog,
 } from './index';
 
