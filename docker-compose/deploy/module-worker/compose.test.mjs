@@ -66,6 +66,24 @@ const writeExecutable = (filePath, contents) => {
   chmodSync(filePath, 0o755);
 };
 
+const tempCleanupWaiter = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+const removeTempDirectory = (directoryPath) => {
+  const deadline = Date.now() + 5_000;
+
+  while (true) {
+    try {
+      rmSync(directoryPath, { recursive: true });
+      return;
+    } catch (error) {
+      if (error?.code !== 'EBUSY') throw error;
+
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw error;
+      Atomics.wait(tempCleanupWaiter, 0, 0, Math.min(100, remaining));
+    }
+  }
+};
+
 const toBashPath = (windowsPath) =>
   windowsPath.replace(/^([A-Za-z]):\\/u, (_, drive) => `/${drive.toLowerCase()}/`).replace(/\\/gu, '/');
 
@@ -449,7 +467,7 @@ try {
       'example.invalid/worker:sha-current-image\n',
     );
   } finally {
-    rmSync(releaseStateRoot, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+    removeTempDirectory(releaseStateRoot);
   }
 
   const absoluteStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-absolute-state-'));
@@ -490,7 +508,7 @@ try {
       'example.invalid/worker:sha-current-image\n',
     );
   } finally {
-    rmSync(absoluteStateRoot, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+    removeTempDirectory(absoluteStateRoot);
   }
 
   const standaloneStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-standalone-state-'));
@@ -526,7 +544,7 @@ try {
       'example.invalid/worker:sha-current-image\n',
     );
   } finally {
-    rmSync(standaloneStateRoot, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+    removeTempDirectory(standaloneStateRoot);
   }
 
   const escapedStateRoot = mkdtempSync(join(tmpdir(), 'module-worker-escaped-state-'));
@@ -571,7 +589,7 @@ try {
     assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
     assert.equal(readFileSync(escapedStateTarget, 'utf8'), 'outside-state-must-not-change\n');
   } finally {
-    rmSync(escapedStateRoot, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 });
+    removeTempDirectory(escapedStateRoot);
     rmSync(escapedStateTarget, { force: true });
   }
 
