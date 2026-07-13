@@ -162,11 +162,17 @@ jobs:
       - name: Resolve image tags
         id: image
         shell: bash
+        env:
+          MANUAL_IMAGE_TAG: ${{ inputs.image_tag || '' }}
         run: |
           set -euo pipefail
 
           sha_tag="sha-${GITHUB_SHA::12}"
-          manual_tag="${{ inputs.image_tag || '' }}"
+          manual_tag="$MANUAL_IMAGE_TAG"
+          if [ -n "$manual_tag" ] && [[ ! "$manual_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo 'image_tag must match [A-Za-z0-9_][A-Za-z0-9_.-]{0,127}' >&2
+            exit 1
+          fi
           runtime_image_name="${IMAGE_NAME}-module-runtime"
           worker_image_name="${IMAGE_NAME}-module-worker"
 
@@ -254,6 +260,9 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == 'true' }}
     environment: production
+    concurrency:
+      group: comhub-production-deploy
+      cancel-in-progress: false
     steps:
       - name: Install SSH key
         shell: bash
@@ -409,19 +418,28 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_module_worker == 'true'
     environment: production
+    concurrency:
+      group: comhub-production-deploy
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install SSH key
         shell: bash
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.COMHUB_SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.COMHUB_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          grep -q '[^[:space:]]' <<< "$SSH_KNOWN_HOSTS"
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.COMHUB_SSH_PRIVATE_KEY }}" > ~/.ssh/comhub_deploy_key
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/comhub_deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/comhub_deploy_key
-          ssh-keyscan -p "${{ secrets.COMHUB_SSH_PORT || '22' }}" "${{ secrets.COMHUB_SSH_HOST }}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy independent Module App worker
         shell: bash
@@ -434,14 +452,77 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -i ~/.ssh/comhub_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "install -d -m 0750 '$WORKER_DEPLOY_DIR'"
+          release_id="sha-${GITHUB_SHA::12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          staging_dir="$WORKER_DEPLOY_DIR/releases/.incoming-$release_id"
+          ssh_options=(
+            -i "$HOME/.ssh/comhub_deploy_key"
+            -p "$SSH_PORT"
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          )
+          scp_options=(
+            -i "$HOME/.ssh/comhub_deploy_key"
+            -P "$SSH_PORT"
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          )
 
-          scp -i ~/.ssh/comhub_deploy_key -P "$SSH_PORT" \
+          ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
+            "umask 027; install -d -m 0750 '$WORKER_DEPLOY_DIR' '$WORKER_DEPLOY_DIR/releases' '$staging_dir'"
+
+          scp "${scp_options[@]}" \
             docker-compose/deploy/module-worker/compose.yml \
             docker-compose/deploy/module-worker/deploy.sh \
             docker-compose/deploy/module-worker/rollback.sh \
-            "$SSH_USER@$SSH_HOST:$WORKER_DEPLOY_DIR/"
+            "$SSH_USER@$SSH_HOST:$staging_dir/"
 
-          ssh -i ~/.ssh/comhub_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "chmod 0750 '$WORKER_DEPLOY_DIR/deploy.sh' '$WORKER_DEPLOY_DIR/rollback.sh' && cd '$WORKER_DEPLOY_DIR' && ./deploy.sh '$WORKER_IMAGE_REF'"
+          ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
+            "bash -s -- '$WORKER_DEPLOY_DIR' '$release_id' '$WORKER_IMAGE_REF'" <<'REMOTE_WORKER_DEPLOY'
+          set -Eeuo pipefail
+
+          worker_deploy_dir="$1"
+          release_id="$2"
+          worker_image_ref="$3"
+          releases_dir="$worker_deploy_dir/releases"
+          staging_dir="$releases_dir/.incoming-$release_id"
+          release_dir="$releases_dir/$release_id"
+          lock_file="$worker_deploy_dir/.deploy.lock"
+
+          exec 9>"$lock_file"
+          flock -x 9
+
+          expected_files=$'compose.yml\ndeploy.sh\nrollback.sh'
+          actual_files="$(find "$staging_dir" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)"
+          [ "$actual_files" = "$expected_files" ]
+          for file in compose.yml deploy.sh rollback.sh; do
+            [ -s "$staging_dir/$file" ]
+            [ ! -L "$staging_dir/$file" ]
+          done
+          [ ! -e "$release_dir" ]
+          [ -f "$worker_deploy_dir/.env" ]
+
+          bash -n "$staging_dir/deploy.sh" "$staging_dir/rollback.sh"
+          COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
+            --project-directory "$worker_deploy_dir" \
+            --env-file "$worker_deploy_dir/.env" \
+            -f "$staging_dir/compose.yml" \
+            config --quiet
+
+          chmod 0640 "$staging_dir/compose.yml"
+          chmod 0750 "$staging_dir/deploy.sh" "$staging_dir/rollback.sh"
+          mv "$staging_dir" "$release_dir"
+
+          current_link="$worker_deploy_dir/.current-$release_id"
+          ln -s "releases/$release_id" "$current_link"
+          mv -Tf "$current_link" "$worker_deploy_dir/current"
+
+          for file in compose.yml deploy.sh rollback.sh; do
+            stable_link="$worker_deploy_dir/.$file-$release_id"
+            ln -s "current/$file" "$stable_link"
+            mv -Tf "$stable_link" "$worker_deploy_dir/$file"
+            [ "$(readlink "$worker_deploy_dir/$file")" = "current/$file" ]
+          done
+
+          cd "$worker_deploy_dir"
+          ./deploy.sh "$worker_image_ref"
+          REMOTE_WORKER_DEPLOY
