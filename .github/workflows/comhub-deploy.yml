@@ -1,7 +1,7 @@
 name: ComHub Build and Deploy
 run-name: >-
-  ComHub Build and Deploy (deploy=${{ github.event.inputs.deploy || 'false' }},
-  worker=${{ github.event.inputs.deploy_module_worker || 'false' }})
+  ComHub Build and Deploy (deploy=${{ toJSON(github.event.inputs.deploy) }},
+  worker=${{ toJSON(github.event.inputs.deploy_module_worker) }})
 
 on:
   push:
@@ -89,7 +89,7 @@ jobs:
     name: Verify Module App Credentialed Probes
     needs: verify-module-app
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.verify_module_app_full == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.verify_module_app_full == true || github.event.inputs.verify_module_app_full == 'true') }}
     environment: module-app-staging
     env:
       MODULE_APP_ALIPAY_APP_ID: ${{ secrets.MODULE_APP_ALIPAY_APP_ID }}
@@ -262,7 +262,7 @@ jobs:
     name: Deploy Production
     needs: build
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy == true || github.event.inputs.deploy == 'true') }}
     environment: production
     concurrency:
       group: comhub-production-deploy
@@ -288,7 +288,7 @@ jobs:
           DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
           IMAGE_REF: ${{ needs.build.outputs.image_ref }}
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-          REQUIRE_MODULE_RUNTIME: ${{ github.event.inputs.verify_module_app_full == 'true' }}
+          REQUIRE_MODULE_RUNTIME: ${{ github.event.inputs.verify_module_app_full == true || github.event.inputs.verify_module_app_full == 'true' }}
           RUNTIME_IMAGE_REF: ${{ needs.build.outputs.runtime_image_ref }}
         run: |
           set -euo pipefail
@@ -421,7 +421,7 @@ jobs:
     name: Deploy Module App Worker
     needs: [verify-module-app, build]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_module_worker == 'true'
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.deploy_module_worker == true || github.event.inputs.deploy_module_worker == 'true')
     environment: production
     concurrency:
       group: comhub-production-deploy

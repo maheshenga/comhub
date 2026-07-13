@@ -24,7 +24,10 @@ describe('Docker workspace manifests', () => {
     );
 
     expect(workflow).toContain("github.event.inputs.deploy == 'true'");
+    expect(workflow).toContain('github.event.inputs.deploy == true');
     expect(workflow).toContain("github.event.inputs.deploy_module_worker == 'true'");
+    expect(workflow).toContain('github.event.inputs.deploy_module_worker == true');
     expect(workflow).toContain("github.event.inputs.verify_module_app_full == 'true'");
+    expect(workflow).toContain('github.event.inputs.verify_module_app_full == true');
   });
 });
