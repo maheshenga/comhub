@@ -15,6 +15,14 @@ on:
         options:
           - 'false'
           - 'true'
+      deploy_module_worker:
+        description: 'Deploy the independent Module App worker after its image is pushed'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
       image_tag:
         description: 'Optional extra image tag, for example 20260527-001'
         required: false
@@ -126,6 +134,7 @@ jobs:
       image_ref: ${{ steps.image.outputs.image_ref }}
       image_tag: ${{ steps.image.outputs.image_tag }}
       runtime_image_ref: ${{ steps.image.outputs.runtime_image_ref }}
+      worker_image_ref: ${{ steps.image.outputs.worker_image_ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -159,27 +168,35 @@ jobs:
           sha_tag="sha-${GITHUB_SHA::12}"
           manual_tag="${{ inputs.image_tag || '' }}"
           runtime_image_name="${IMAGE_NAME}-module-runtime"
+          worker_image_name="${IMAGE_NAME}-module-worker"
 
           tags="${IMAGE_NAME}:${sha_tag}"
           runtime_tags="${runtime_image_name}:${sha_tag}"
+          worker_tags="${worker_image_name}:${sha_tag}"
           if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
             tags="${tags}"$'\n'"${IMAGE_NAME}:latest"
             runtime_tags="${runtime_tags}"$'\n'"${runtime_image_name}:latest"
+            worker_tags="${worker_tags}"$'\n'"${worker_image_name}:latest"
           fi
           if [ -n "${manual_tag}" ]; then
             tags="${tags}"$'\n'"${IMAGE_NAME}:${manual_tag}"
             runtime_tags="${runtime_tags}"$'\n'"${runtime_image_name}:${manual_tag}"
+            worker_tags="${worker_tags}"$'\n'"${worker_image_name}:${manual_tag}"
           fi
 
           {
             echo "image_tag=${sha_tag}"
             echo "image_ref=${IMAGE_NAME}:${sha_tag}"
             echo "runtime_image_ref=${runtime_image_name}:${sha_tag}"
+            echo "worker_image_ref=${worker_image_name}:${sha_tag}"
             echo "tags<<EOF"
             echo "${tags}"
             echo "EOF"
             echo "runtime_tags<<EOF"
             echo "${runtime_tags}"
+            echo "EOF"
+            echo "worker_tags<<EOF"
+            echo "${worker_tags}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -219,6 +236,17 @@ jobs:
           tags: ${{ steps.image.outputs.runtime_tags }}
           cache-from: type=gha,scope=module-runtime
           cache-to: type=gha,mode=max,scope=module-runtime
+
+      - name: Build and push Module App worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/module-worker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.worker_tags }}
+          cache-from: type=gha,scope=module-worker
+          cache-to: type=gha,mode=max,scope=module-worker
 
   deploy:
     name: Deploy Production
@@ -374,3 +402,46 @@ jobs:
           df -h /
           docker system df || true
           REMOTE_DEPLOY
+
+  deploy-module-worker:
+    name: Deploy Module App Worker
+    needs: [verify-module-app, build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_module_worker == 'true'
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.COMHUB_SSH_PRIVATE_KEY }}" > ~/.ssh/comhub_deploy_key
+          chmod 600 ~/.ssh/comhub_deploy_key
+          ssh-keyscan -p "${{ secrets.COMHUB_SSH_PORT || '22' }}" "${{ secrets.COMHUB_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy independent Module App worker
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
+          SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
+          WORKER_DEPLOY_DIR: /www/compose/comhub/module-worker
+          WORKER_IMAGE_REF: ${{ needs.build.outputs.worker_image_ref }}
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/comhub_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "install -d -m 0750 '$WORKER_DEPLOY_DIR'"
+
+          scp -i ~/.ssh/comhub_deploy_key -P "$SSH_PORT" \
+            docker-compose/deploy/module-worker/compose.yml \
+            docker-compose/deploy/module-worker/deploy.sh \
+            docker-compose/deploy/module-worker/rollback.sh \
+            "$SSH_USER@$SSH_HOST:$WORKER_DEPLOY_DIR/"
+
+          ssh -i ~/.ssh/comhub_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "chmod 0750 '$WORKER_DEPLOY_DIR/deploy.sh' '$WORKER_DEPLOY_DIR/rollback.sh' && cd '$WORKER_DEPLOY_DIR' && ./deploy.sh '$WORKER_IMAGE_REF'"
