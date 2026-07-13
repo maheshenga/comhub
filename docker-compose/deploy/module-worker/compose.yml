@@ -1,0 +1,44 @@
+name: comhub-module-worker
+
+services:
+  module-app-worker:
+    image: '${COMHUB_MODULE_WORKER_IMAGE:?immutable worker image required}'
+    env_file: .env
+    environment:
+      MODULE_APP_EXECUTION_ENABLED: 'false'
+      MODULE_APP_RUNTIME_INVOCATION_ENABLED: 'false'
+      MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED: 'false'
+      MODULE_APP_SCHEDULE_DISPATCH_ENABLED: 'false'
+      MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED: 'false'
+      MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED: 'false'
+      MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED: 'false'
+      MODULE_APP_PUBLIC_EXECUTION_ENABLED: 'false'
+    user: '10001:10001'
+    privileged: false
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    restart: unless-stopped
+    stop_grace_period: 45s
+    healthcheck:
+      test: ['CMD', 'node', '/app/worker.mjs', 'healthcheck']
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    volumes:
+      - type: bind
+        source: '${MODULE_APP_ARTIFACT_ROOT:?module app artifact root required}'
+        target: /runtime/artifacts
+        read_only: false
+    networks:
+      - platform
+
+networks:
+  platform:
+    name: '${COMHUB_PLATFORM_NETWORK:-comhub_default}'
+    external: true
