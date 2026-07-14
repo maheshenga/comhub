@@ -292,7 +292,7 @@ jobs:
     name: Deploy Production
     needs: [build, resolve_deployment]
     runs-on: ubuntu-latest
-    if: ${{ needs.resolve_deployment.outputs.deploy == 'true' }}
+    if: ${{ always() && needs.build.result == 'success' && needs.resolve_deployment.result == 'success' && needs.resolve_deployment.outputs.deploy == 'true' }}
     environment: production
     concurrency:
       group: comhub-production-deploy
@@ -451,7 +451,7 @@ jobs:
     name: Deploy Module App Worker
     needs: [verify-module-app, build, resolve_deployment]
     runs-on: ubuntu-latest
-    if: needs.resolve_deployment.outputs.deploy_module_worker == 'true'
+    if: ${{ always() && needs.verify-module-app.result == 'success' && needs.build.result == 'success' && needs.resolve_deployment.result == 'success' && needs.resolve_deployment.outputs.deploy_module_worker == 'true' }}
     environment: production
     concurrency:
       group: comhub-production-deploy

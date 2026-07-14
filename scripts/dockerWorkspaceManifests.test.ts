@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -31,5 +32,11 @@ describe('Docker workspace manifests', () => {
     expect(workflow).toContain(
       "needs.resolve_deployment.outputs.verify_module_app_full == 'true'",
     );
+
+    const jobs = parse(workflow).jobs as Record<string, { if?: string }>;
+    expect(jobs.deploy.if).toContain('always()');
+    expect(jobs.deploy.if).toContain("needs.build.result == 'success'");
+    expect(jobs['deploy-module-worker'].if).toContain('always()');
+    expect(jobs['deploy-module-worker'].if).toContain("needs.build.result == 'success'");
   });
 });
