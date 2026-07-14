@@ -15,9 +15,11 @@ const ModuleAppOrderListInputSchema = z.object({
   limit: z.number().int().min(1).max(100).optional(),
 });
 const ProductIdInputSchema = z.object({
+  idempotencyKey: z.string().uuid(),
   productId: z.string().uuid(),
   workspaceId: z.string().min(1).optional(),
 });
+const ProductQuoteInputSchema = ProductIdInputSchema.omit({ idempotencyKey: true });
 const OrderIdInputSchema = z.object({ orderId: z.string().uuid() });
 const ModuleAppPaymentInputSchema = OrderIdInputSchema.extend({
   subject: z.string().trim().min(1).max(240),
@@ -43,6 +45,7 @@ export const moduleAppCommerceProcedures = {
       }
     }
     return new ModuleAppCommerceModel(ctx.serverDB).createOrder({
+      idempotencyKey: input.idempotencyKey,
       productId: input.productId,
       purchaserUserId: ctx.userId,
       workspaceId: input.workspaceId,
@@ -100,18 +103,22 @@ export const moduleAppCommerceProcedures = {
     );
   }),
 
-  listCatalog: moduleAppProcedure.input(ModuleAppCatalogInputSchema).query(async ({ ctx, input }) => {
+  listCatalog: moduleAppProcedure
+    .input(ModuleAppCatalogInputSchema)
+    .query(async ({ ctx, input }) => {
     return new ModuleAppCommerceModel(ctx.serverDB).listCatalog(input);
   }),
 
-  listOrders: moduleAppProcedure.input(ModuleAppOrderListInputSchema).query(async ({ ctx, input }) => {
+  listOrders: moduleAppProcedure
+    .input(ModuleAppOrderListInputSchema)
+    .query(async ({ ctx, input }) => {
     return new ModuleAppCommerceModel(ctx.serverDB).listOrders({
       limit: input.limit,
       purchaserUserId: ctx.userId,
     });
   }),
 
-  quoteProduct: moduleAppProcedure.input(ProductIdInputSchema).query(async ({ ctx, input }) => {
+  quoteProduct: moduleAppProcedure.input(ProductQuoteInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppCommerceModel(ctx.serverDB).quoteProduct(input);
   }),
 };

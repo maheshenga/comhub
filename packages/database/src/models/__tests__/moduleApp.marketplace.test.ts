@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -8,6 +8,7 @@ import {
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppRecordEvents,
+  moduleAppRecords,
   moduleApps,
   moduleAppVersions,
   users,
@@ -99,6 +100,33 @@ const createRecordDesk = async () => {
   });
 
   return app;
+};
+
+const withFailingRecordEventInsert = async <T>(operation: () => Promise<T>) => {
+  await serverDB.execute(
+    sql.raw(`
+    CREATE OR REPLACE FUNCTION fail_module_app_record_event_insert()
+    RETURNS trigger AS $$
+    BEGIN
+      RAISE EXCEPTION 'module_app_record_event_failure';
+    END;
+    $$ LANGUAGE plpgsql;
+    CREATE TRIGGER fail_module_app_record_event_insert
+    BEFORE INSERT ON module_app_record_events
+    FOR EACH ROW EXECUTE FUNCTION fail_module_app_record_event_insert();
+  `),
+  );
+
+  try {
+    return await operation();
+  } finally {
+    await serverDB.execute(
+      sql.raw(`
+      DROP TRIGGER IF EXISTS fail_module_app_record_event_insert ON module_app_record_events;
+      DROP FUNCTION IF EXISTS fail_module_app_record_event_insert();
+    `),
+    );
+  }
 };
 
 describe('ModuleAppModel marketplace behavior', () => {
@@ -211,6 +239,32 @@ describe('ModuleAppModel marketplace behavior', () => {
     ).resolves.toMatchObject({ status: 'uninstalled' });
   });
 
+  it('installs, resolves, lists, and uninstalls workspace module apps', async () => {
+    const app = await createRecordDesk();
+
+    await model.installWorkspaceApp({ appId: app.id, userId, workspaceId });
+
+    await expect(
+      model.getAppDetail({
+        appIdOrSlug: app.id,
+        plan: 'free',
+        userId,
+        workspaceId,
+      }),
+    ).resolves.toMatchObject({ installed: true });
+    await expect(
+      model.listInstalledApps({ scopeType: 'workspace', userId, workspaceId }),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: app.id, installed: true, slug: 'record-desk' }),
+    ]);
+
+    await model.uninstallWorkspaceApp({ appId: app.id, workspaceId });
+
+    await expect(
+      model.listInstalledApps({ scopeType: 'workspace', userId, workspaceId }),
+    ).resolves.toEqual([]);
+  });
+
   it('returns admin list/detail data and updates status/entitlements', async () => {
     const app = await createRecordDesk();
 
@@ -299,7 +353,9 @@ describe('ModuleAppModel marketplace behavior', () => {
 
     await model.archiveRecord({ appId: app.id, recordId: personal.id, userId });
 
-    await expect(model.getRecord({ appId: app.id, recordId: personal.id, userId })).resolves.toBeNull();
+    await expect(
+      model.getRecord({ appId: app.id, recordId: personal.id, userId }),
+    ).resolves.toBeNull();
     await expect(
       model.getRecord({ appId: app.id, recordId: workspace.id, userId, workspaceId }),
     ).resolves.toMatchObject({ id: workspace.id, scopeType: 'workspace' });
@@ -339,6 +395,65 @@ describe('ModuleAppModel marketplace behavior', () => {
       'created',
       'created',
     ]);
+  });
+
+  it('rolls back record creates, updates, and archives when the audit event insert fails', async () => {
+    const app = await createRecordDesk();
+    await model.installPersonalApp({ appId: app.id, userId });
+    const record = await model.createRecord({
+      appId: app.id,
+      collectionKey: 'records',
+      data: { title: 'Original' },
+      scopeType: 'personal',
+      title: 'Original',
+      userId,
+    });
+
+    await expect(
+      withFailingRecordEventInsert(() =>
+        model.createRecord({
+          appId: app.id,
+          collectionKey: 'records',
+          data: { title: 'Create should roll back' },
+          scopeType: 'personal',
+          title: 'Create should roll back',
+          userId,
+        }),
+      ),
+    ).rejects.toThrow('module_app_record_event_failure');
+    await expect(
+      serverDB.query.moduleAppRecords.findMany({ where: eq(moduleAppRecords.appId, app.id) }),
+    ).resolves.toEqual([expect.objectContaining({ id: record.id, title: 'Original' })]);
+
+    await expect(
+      withFailingRecordEventInsert(() =>
+        model.updateRecord({
+          appId: app.id,
+          collectionKey: 'records',
+          data: { title: 'Updated' },
+          recordId: record.id,
+          scopeType: 'personal',
+          title: 'Updated',
+          userId,
+        }),
+      ),
+    ).rejects.toThrow('module_app_record_event_failure');
+    await expect(
+      serverDB.query.moduleAppRecords.findFirst({
+        where: eq(moduleAppRecords.id, record.id),
+      }),
+    ).resolves.toMatchObject({ data: { title: 'Original' }, status: 'active', title: 'Original' });
+
+    await expect(
+      withFailingRecordEventInsert(() =>
+        model.archiveRecord({ appId: app.id, recordId: record.id, userId }),
+      ),
+    ).rejects.toThrow('module_app_record_event_failure');
+    await expect(
+      serverDB.query.moduleAppRecords.findFirst({
+        where: eq(moduleAppRecords.id, record.id),
+      }),
+    ).resolves.toMatchObject({ status: 'active' });
   });
 
   it('persists run updates and lists artifacts by user scope', async () => {

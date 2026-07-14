@@ -23,8 +23,14 @@ const encodeHistoryCursor = (offset: number) =>
 const decodeHistoryCursor = (cursor?: string) => {
   if (!cursor) return 0;
   try {
-    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { offset?: unknown };
-    if (!Number.isInteger(value.offset) || Number(value.offset) < 0 || Number(value.offset) > 1_000_000) {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      offset?: unknown;
+    };
+    if (
+      !Number.isInteger(value.offset) ||
+      Number(value.offset) < 0 ||
+      Number(value.offset) > 1_000_000
+    ) {
       throw new Error('invalid module app history cursor offset');
     }
     return Number(value.offset);
@@ -48,7 +54,6 @@ const recordScopeWhere = (params: {
         eq(moduleAppRecords.scopeType, 'workspace'),
         eq(moduleAppRecords.workspaceId, params.workspaceId ?? ''),
       );
-
 
 export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
   listAdminRecords = async (params: { appId: string; cursor?: number; limit?: number }) => {
@@ -153,7 +158,8 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
 
   createRecord = async (params: ModuleAppRecordInput & { recordKey?: string; userId: string }) => {
     const installation = await this.requireActiveInstallation(params);
-    const [record] = await this.db
+    return this.db.transaction(async (tx) => {
+      const [record] = await tx
       .insert(moduleAppRecords)
       .values({
         appId: params.appId,
@@ -170,7 +176,7 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
       })
       .returning();
 
-    await this.db.insert(moduleAppRecordEvents).values({
+      await tx.insert(moduleAppRecordEvents).values({
       actorUserId: params.userId,
       afterSnapshot: record,
       appId: params.appId,
@@ -183,14 +189,16 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
     });
 
     return record;
+    });
   };
 
   updateRecord = async (params: ModuleAppRecordInput & { userId: string }) => {
     if (!params.recordId) throw new Error('MODULE_APP_RECORD_ID_REQUIRED');
+    const recordId = params.recordId;
 
     const existing = await this.db.query.moduleAppRecords.findFirst({
       where: and(
-        eq(moduleAppRecords.id, params.recordId),
+        eq(moduleAppRecords.id, recordId),
         eq(moduleAppRecords.appId, params.appId),
         recordScopeWhere(params),
       ),
@@ -199,7 +207,8 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
     if (!existing) throw new Error('MODULE_APP_RECORD_NOT_FOUND');
     await this.assertInstallationActive(existing.installationId);
 
-    const [record] = await this.db
+    return this.db.transaction(async (tx) => {
+      const [record] = await tx
       .update(moduleAppRecords)
       .set({
         data: params.data,
@@ -207,10 +216,10 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
         updatedAt: new Date(),
         updatedBy: params.userId,
       })
-      .where(eq(moduleAppRecords.id, params.recordId))
+        .where(eq(moduleAppRecords.id, recordId))
       .returning();
 
-    await this.db.insert(moduleAppRecordEvents).values({
+      await tx.insert(moduleAppRecordEvents).values({
       actorUserId: params.userId,
       afterSnapshot: record,
       appId: params.appId,
@@ -223,6 +232,7 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
     });
 
     return record;
+    });
   };
 
   archiveRecord = async (params: { appId: string; recordId: string; userId: string }) => {
@@ -236,7 +246,8 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
     if (!existing) throw new Error('MODULE_APP_RECORD_NOT_FOUND');
     await this.assertInstallationActive(existing.installationId);
 
-    const [record] = await this.db
+    await this.db.transaction(async (tx) => {
+      const [record] = await tx
       .update(moduleAppRecords)
       .set({
         status: 'archived',
@@ -246,7 +257,7 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
       .where(eq(moduleAppRecords.id, params.recordId))
       .returning();
 
-    await this.db.insert(moduleAppRecordEvents).values({
+      await tx.insert(moduleAppRecordEvents).values({
       actorUserId: params.userId,
       afterSnapshot: record,
       appId: params.appId,
@@ -256,6 +267,7 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
       recordId: record.id,
       scopeType: record.scopeType,
       workspaceId: record.workspaceId,
+    });
     });
 
     return { ok: true as const };

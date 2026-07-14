@@ -53,19 +53,16 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     cancelOrder: (input: { orderId: string }) => client.moduleApp.cancelOrder.mutate!(input),
     cancelWorkflowRun: (input: ModuleAppWorkflowRunInput) =>
       client.moduleApp.cancelWorkflowRun.mutate!(input),
-    callSdk: (input: {
-      capability: string;
-      input?: unknown;
-      method: string;
-      requestId?: string;
-    }) => client.moduleApp.callSdk.mutate!(input),
+    callSdk: (input: { capability: string; input?: unknown; method: string; requestId?: string }) =>
+      client.moduleApp.callSdk.mutate!(input),
     createPackageUpload,
-    createOrder: (input: { productId: string; workspaceId?: string }) =>
+    createOrder: (input: { idempotencyKey: string; productId: string; workspaceId?: string }) =>
       client.moduleApp.createOrder.mutate!(input),
     createPayment: (input: { orderId: string; subject: string }) =>
       client.moduleApp.createPayment.mutate!(input),
     createRecord: (input: ModuleAppRecordInput) => client.moduleApp.createRecord.mutate!(input),
-    getDetail: (input: { appIdOrSlug: string }) => client.moduleApp.getDetail.query!(input),
+    getDetail: (input: { appIdOrSlug: string; workspaceId?: string }) =>
+      client.moduleApp.getDetail.query!(input),
     getLaunchContext: (input: { appId: string; workspaceId?: string }) =>
       client.moduleApp.getLaunchContext.query!(input) as Promise<ModuleAppLaunchContext>,
     getLicense: (input: { appId: string; workspaceId?: string }) =>
@@ -77,6 +74,8 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     getWorkflowRun: (input: ModuleAppWorkflowRunInput) =>
       client.moduleApp.getWorkflowRun.query!(input),
     installPersonal: (input: { appId: string }) => client.moduleApp.installPersonal.mutate!(input),
+    installWorkspace: (input: { appId: string; workspaceId: string }) =>
+      client.moduleApp.installWorkspace.mutate!(input),
     listArtifacts: (input: ModuleAppHistoryInput) => client.moduleApp.listArtifacts.query!(input),
     listCatalog: (input: { appId?: string } = {}) => client.moduleApp.listCatalog.query!(input),
     listMarketplace: (input?: ModuleAppMarketplaceListInput) =>
@@ -97,6 +96,8 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     submitUploadedPackage,
     uninstallPersonal: (input: { appId: string }) =>
       client.moduleApp.uninstallPersonal.mutate!(input),
+    uninstallWorkspace: (input: { appId: string; workspaceId: string }) =>
+      client.moduleApp.uninstallWorkspace.mutate!(input),
     updateRecord: (input: ModuleAppRecordInput & { recordId: string }) =>
       client.moduleApp.updateRecord.mutate!(input),
     uploadPackage: async (file: File) => {

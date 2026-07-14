@@ -1056,22 +1056,32 @@ export const moduleAppPrices = pgTable('module_app_prices', {
   updatedAt: updatedAt(),
 });
 
-export const moduleAppOrders = pgTable('module_app_orders', {
-  id: uuid('id').defaultRandom().primaryKey().notNull(),
-  appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
-  productId: uuid('product_id').references(() => moduleAppProducts.id, { onDelete: 'restrict' }).notNull(),
-  priceId: uuid('price_id').references(() => moduleAppPrices.id, { onDelete: 'restrict' }).notNull(),
-  purchaserUserId: text('purchaser_user_id').references(() => users.id, { onDelete: 'restrict' }).notNull(),
-  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'restrict' }),
-  status: text('status').default('pending').notNull(),
-  paymentReference: text('payment_reference'),
-  snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
-  paidAt: timestamptz('paid_at'),
-  cancelledAt: timestamptz('cancelled_at'),
-  refundedAt: timestamptz('refunded_at'),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const moduleAppOrders = pgTable(
+  'module_app_orders',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
+    productId: uuid('product_id').references(() => moduleAppProducts.id, { onDelete: 'restrict' }).notNull(),
+    priceId: uuid('price_id').references(() => moduleAppPrices.id, { onDelete: 'restrict' }).notNull(),
+    purchaserUserId: text('purchaser_user_id').references(() => users.id, { onDelete: 'restrict' }).notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'restrict' }),
+    idempotencyKey: text('idempotency_key').default(sql`gen_random_uuid()::text`).notNull(),
+    status: text('status').default('pending').notNull(),
+    paymentReference: text('payment_reference'),
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+    paidAt: timestamptz('paid_at'),
+    cancelledAt: timestamptz('cancelled_at'),
+    refundedAt: timestamptz('refunded_at'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_orders_purchaser_idempotency_unique').on(
+      table.purchaserUserId,
+      table.idempotencyKey,
+    ),
+  ],
+);
 
 export const moduleAppPaymentAttempts = pgTable(
   'module_app_payment_attempts',

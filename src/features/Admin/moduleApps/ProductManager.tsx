@@ -17,7 +17,7 @@ type ProductStatus = 'active' | 'inactive';
 type ProductRow = {
   amount: number;
   billingPeriod?: 'monthly' | 'yearly';
-  currency: string;
+  currency: 'CNY' | 'USD';
   licenseScope: LicenseScope;
   metadata?: Record<string, unknown>;
   productId: string;
@@ -31,13 +31,13 @@ type ProductRow = {
 type ProductFormValues = {
   amount: number;
   billingPeriod?: 'monthly' | 'yearly';
-  currency: string;
+  currency: 'CNY' | 'USD';
   licenseScope: LicenseScope;
-  moduleMultiplier?: string;
+  moduleMultiplier?: number;
   productKey: string;
   productType: ProductType;
   promotionTitle?: string;
-  revenueShareRate?: string;
+  revenueShareRate?: number;
   seatCount?: number;
   status: ProductStatus;
   termsVersion?: string;
@@ -53,11 +53,22 @@ const initialValues: ProductFormValues = {
   amount: 0,
   currency: 'CNY',
   licenseScope: 'personal',
+  moduleMultiplier: 1,
   productKey: '',
   productType: 'one_time',
+  revenueShareRate: 0,
   status: 'active',
+  termsVersion: '1',
   trialDays: 0,
 };
+
+const normalizeOptionalText = (value?: string) => {
+  const normalized = value?.trim();
+  return normalized || undefined;
+};
+
+const normalizeOptionalDecimal = (value?: number) =>
+  typeof value === 'number' ? String(value) : undefined;
 
 const ProductManager = memo<{
   appId?: string;
@@ -65,12 +76,15 @@ const ProductManager = memo<{
 }>(({ appId, service = adminCommercialService.moduleApps }) => {
   const { t } = useTranslation('common');
   const [form] = Form.useForm<ProductFormValues>();
+  const licenseScope = Form.useWatch('licenseScope', form);
+  const productType = Form.useWatch('productType', form);
   const [editing, setEditing] = useState<ProductRow>();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const key = useMemo(() => (appId ? ['admin-module-app-products', appId] : null), [appId]);
-  const { data = [], isLoading } = useClientDataSWR(key, () =>
-    service.listProducts({ appId: appId! }) as Promise<ProductRow[]>,
+  const { data = [], isLoading } = useClientDataSWR(
+    key,
+    () => service.listProducts({ appId: appId! }) as Promise<ProductRow[]>,
   );
 
   const close = () => {
@@ -86,14 +100,12 @@ const ProductManager = memo<{
       billingPeriod: row.billingPeriod,
       currency: row.currency,
       licenseScope: row.licenseScope,
-      moduleMultiplier: String(row.metadata?.moduleMultiplier ?? '1'),
+      moduleMultiplier: Number(row.metadata?.moduleMultiplier ?? 1),
       productKey: row.productKey,
       productType: row.productType,
-      promotionTitle:
-        typeof row.promotion?.title === 'string' ? row.promotion.title : undefined,
-      revenueShareRate: String(row.metadata?.revenueShareRate ?? '0'),
-      seatCount:
-        typeof row.metadata?.seatCount === 'number' ? row.metadata.seatCount : undefined,
+      promotionTitle: typeof row.promotion?.title === 'string' ? row.promotion.title : undefined,
+      revenueShareRate: Number(row.metadata?.revenueShareRate ?? 0),
+      seatCount: typeof row.metadata?.seatCount === 'number' ? row.metadata.seatCount : undefined,
       status: row.status,
       termsVersion: String(row.metadata?.termsVersion ?? '1'),
       trialDays: row.trialDays ?? 0,
@@ -104,39 +116,41 @@ const ProductManager = memo<{
   const save = async (values: ProductFormValues) => {
     if (!appId) return;
     setSaving(true);
+    const promotionTitle = normalizeOptionalText(values.promotionTitle);
     const price = {
       amount: Number(values.amount),
       ...(values.billingPeriod ? { billingPeriod: values.billingPeriod } : {}),
-      currency: values.currency.trim().toUpperCase(),
-      ...(values.promotionTitle
-        ? { promotion: { title: values.promotionTitle.trim() } }
-        : {}),
+      currency: values.currency,
+      ...(promotionTitle ? { promotion: { title: promotionTitle } } : {}),
       trialDays: values.trialDays ?? 0,
     };
+    const moduleMultiplier = normalizeOptionalDecimal(values.moduleMultiplier);
+    const revenueShareRate = normalizeOptionalDecimal(values.revenueShareRate);
+    const termsVersion = normalizeOptionalText(values.termsVersion);
     try {
       if (editing) {
         await service.updateProduct({
           licenseScope: values.licenseScope,
-          moduleMultiplier: values.moduleMultiplier,
+          moduleMultiplier,
           price,
           productId: editing.productId,
           productType: values.productType,
-          revenueShareRate: values.revenueShareRate,
+          revenueShareRate,
           seatCount: values.seatCount,
           status: values.status,
-          termsVersion: values.termsVersion,
+          termsVersion,
         });
       } else {
         await service.createProduct({
           appId,
           licenseScope: values.licenseScope,
-          moduleMultiplier: values.moduleMultiplier,
+          moduleMultiplier,
           price,
           productKey: values.productKey.trim(),
           productType: values.productType,
-          revenueShareRate: values.revenueShareRate,
+          revenueShareRate,
           seatCount: values.seatCount,
-          termsVersion: values.termsVersion,
+          termsVersion,
         });
       }
       await mutate(key);
@@ -230,9 +244,7 @@ const ProductManager = memo<{
         destroyOnHidden
         footer={null}
         open={open}
-        title={t(
-          editing ? 'moduleApps.admin.products.edit' : 'moduleApps.admin.products.add',
-        )}
+        title={t(editing ? 'moduleApps.admin.products.edit' : 'moduleApps.admin.products.add')}
         onCancel={close}
       >
         <Form<ProductFormValues>
@@ -241,54 +253,147 @@ const ProductManager = memo<{
           layout="vertical"
           onFinish={save}
         >
-          <Form.Item label={t('moduleApps.admin.products.productKey')} name="productKey" rules={[{ required: true }]}>
+          <Form.Item
+            label={t('moduleApps.admin.products.productKey')}
+            name="productKey"
+            rules={[{ required: true }]}
+          >
             <Input disabled={Boolean(editing)} />
           </Form.Item>
           <Flexbox horizontal gap={12}>
-            <Form.Item label={t('moduleApps.admin.products.type')} name="productType" style={{ flex: 1 }}>
+            <Form.Item
+              label={t('moduleApps.admin.products.type')}
+              name="productType"
+              style={{ flex: 1 }}
+            >
               <Select
                 options={[
                   { label: t('moduleApps.admin.products.type.free'), value: 'free' },
                   { label: t('moduleApps.admin.products.type.oneTime'), value: 'one_time' },
-                  { label: t('moduleApps.admin.products.type.subscription'), value: 'subscription' },
+                  {
+                    label: t('moduleApps.admin.products.type.subscription'),
+                    value: 'subscription',
+                  },
                 ]}
+                onChange={(value: ProductType) => {
+                  if (value === 'free') form.setFieldValue('amount', 0);
+                  if (value !== 'subscription') form.setFieldValue('billingPeriod', undefined);
+                }}
               />
             </Form.Item>
-            <Form.Item label={t('moduleApps.admin.products.scope')} name="licenseScope" style={{ flex: 1 }}>
+            <Form.Item
+              label={t('moduleApps.admin.products.scope')}
+              name="licenseScope"
+              style={{ flex: 1 }}
+            >
               <Select
                 options={[
                   { label: t('moduleApps.admin.products.scope.personal'), value: 'personal' },
                   { label: t('moduleApps.admin.products.scope.workspace'), value: 'workspace' },
-                  { label: t('moduleApps.admin.products.scope.workspaceSeat'), value: 'workspace_seat' },
+                  {
+                    label: t('moduleApps.admin.products.scope.workspaceSeat'),
+                    value: 'workspace_seat',
+                  },
                 ]}
               />
             </Form.Item>
           </Flexbox>
           <Flexbox horizontal gap={12}>
-            <Form.Item label={t('moduleApps.admin.products.amount')} name="amount" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <InputNumber min={0} precision={6} style={{ width: '100%' }} />
+            <Form.Item
+              label={t('moduleApps.admin.products.amount')}
+              name="amount"
+              rules={[{ required: true }]}
+              style={{ flex: 1 }}
+            >
+              <InputNumber
+                disabled={productType === 'free'}
+                min={0}
+                precision={0}
+                step={1}
+                style={{ width: '100%' }}
+              />
             </Form.Item>
-            <Form.Item label={t('moduleApps.admin.products.currency')} name="currency" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <Input maxLength={16} />
+            <Form.Item
+              label={t('moduleApps.admin.products.currency')}
+              name="currency"
+              rules={[{ required: true }]}
+              style={{ flex: 1 }}
+            >
+              <Select
+                options={[
+                  { label: 'CNY', value: 'CNY' },
+                  { label: 'USD', value: 'USD' },
+                ]}
+              />
             </Form.Item>
           </Flexbox>
           <Flexbox horizontal gap={12}>
-            <Form.Item label={t('moduleApps.admin.products.billingPeriod')} name="billingPeriod" style={{ flex: 1 }}>
+            <Form.Item
+              label={t('moduleApps.admin.products.billingPeriod')}
+              name="billingPeriod"
+              rules={[{ required: productType === 'subscription' }]}
+              style={{ flex: 1 }}
+            >
               <Select
                 allowClear
+                disabled={productType !== 'subscription'}
                 options={[
                   { label: t('moduleApps.admin.products.period.monthly'), value: 'monthly' },
                   { label: t('moduleApps.admin.products.period.yearly'), value: 'yearly' },
                 ]}
               />
             </Form.Item>
-            <Form.Item label={t('moduleApps.admin.products.trialDays')} name="trialDays" style={{ flex: 1 }}>
-              <InputNumber max={3650} min={0} style={{ width: '100%' }} />
+            <Form.Item
+              label={t('moduleApps.admin.products.trialDays')}
+              name="trialDays"
+              style={{ flex: 1 }}
+            >
+              <InputNumber max={365} min={0} precision={0} step={1} style={{ width: '100%' }} />
             </Form.Item>
           </Flexbox>
           <Form.Item label={t('moduleApps.admin.products.promotionTitle')} name="promotionTitle">
-            <Input maxLength={200} />
+            <Input maxLength={160} />
           </Form.Item>
+          <Flexbox horizontal gap={12}>
+            <Form.Item
+              label={t('moduleApps.admin.products.moduleMultiplier')}
+              name="moduleMultiplier"
+              style={{ flex: 1 }}
+            >
+              <InputNumber
+                max={100}
+                min={0}
+                precision={4}
+                step={0.0001}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+            <Form.Item
+              label={t('moduleApps.admin.products.revenueShareRate')}
+              name="revenueShareRate"
+              style={{ flex: 1 }}
+            >
+              <InputNumber max={1} min={0} precision={4} step={0.0001} style={{ width: '100%' }} />
+            </Form.Item>
+          </Flexbox>
+          <Flexbox horizontal gap={12}>
+            <Form.Item
+              label={t('moduleApps.admin.products.seatCount')}
+              name="seatCount"
+              rules={[{ required: licenseScope === 'workspace_seat' }]}
+              style={{ flex: 1 }}
+            >
+              <InputNumber max={100_000} min={1} precision={0} step={1} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              label={t('moduleApps.admin.products.termsVersion')}
+              name="termsVersion"
+              rules={[{ required: true }]}
+              style={{ flex: 1 }}
+            >
+              <Input maxLength={80} />
+            </Form.Item>
+          </Flexbox>
           {editing && (
             <Form.Item label={t('moduleApps.admin.products.status')} name="status">
               <Select

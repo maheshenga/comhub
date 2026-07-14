@@ -64,6 +64,7 @@ const {
     listCatalog: vi.fn(),
     listOrders: vi.fn(),
     quoteProduct: vi.fn(),
+    resolveEntitlementContext: vi.fn(),
     resolveLicense: vi.fn(),
   },
   mockModuleAppPaymentService: {
@@ -77,9 +78,11 @@ const {
     getAppDetail: vi.fn(),
     getLaunchInstallationContext: vi.fn(),
     installPersonalApp: vi.fn(),
+    installWorkspaceApp: vi.fn(),
     listAdminPackageSubmissions: vi.fn(),
     listArtifacts: vi.fn(),
     listMarketplaceApps: vi.fn(),
+    uninstallWorkspaceApp: vi.fn(),
   },
   mockModuleAppWorkflowModel: {
     cancelRun: vi.fn(),
@@ -238,13 +241,22 @@ describe('moduleApp router registration', () => {
       planState: { installable: true, runnable: false, visible: true },
     });
     mockModuleAppModel.installPersonalApp.mockResolvedValue(undefined);
+    mockModuleAppModel.installWorkspaceApp.mockResolvedValue(undefined);
+    mockModuleAppModel.uninstallWorkspaceApp.mockResolvedValue({ ok: true });
     mockModuleAppModel.listMarketplaceApps.mockResolvedValue([]);
     mockModuleAppCommerceModel.listOrders.mockResolvedValue([]);
     mockModuleAppCommerceModel.listCatalog.mockResolvedValue([]);
     mockModuleAppCommerceModel.quoteProduct.mockResolvedValue({ price: 88 });
     mockModuleAppCommerceModel.createOrder.mockResolvedValue({ id: 'order-1', status: 'pending' });
-    mockModuleAppCommerceModel.cancelOrder.mockResolvedValue({ id: 'order-1', status: 'cancelled' });
+    mockModuleAppCommerceModel.cancelOrder.mockResolvedValue({
+      id: 'order-1',
+      status: 'cancelled',
+    });
     mockModuleAppCommerceModel.resolveLicense.mockResolvedValue(null);
+    mockModuleAppCommerceModel.resolveEntitlementContext.mockResolvedValue({
+      license: null,
+      productType: undefined,
+    });
     mockCreateModuleAppTextGenerator.mockReturnValue(mockTextGenerator);
     mockSignModuleAppCapability.mockReset();
     mockRuntimeClientInvoke.mockReset().mockResolvedValue({ output: { matches: [] } });
@@ -280,7 +292,10 @@ describe('moduleApp router registration', () => {
       versionId: '00000000-0000-4000-8000-000000000011',
     });
     mockModuleAppGateway.call.mockResolvedValue({ appId: APP_ID });
-    mockModuleAppWorkflowModel.getRun.mockResolvedValue({ id: 'workflow-run-1', status: 'running' });
+    mockModuleAppWorkflowModel.getRun.mockResolvedValue({
+      id: 'workflow-run-1',
+      status: 'running',
+    });
     mockModuleAppWorkflowModel.listNodes.mockResolvedValue([
       { nodeKey: 'start', status: 'succeeded' },
     ]);
@@ -353,6 +368,7 @@ describe('moduleApp router registration', () => {
       getRuntimeManifest: { inputs: 1, type: 'query' },
       getWorkflowRun: { inputs: 1, type: 'query' },
       installPersonal: { inputs: 1, type: 'mutation' },
+      installWorkspace: { inputs: 1, type: 'mutation' },
       listArtifacts: { inputs: 1, type: 'query' },
       listCatalog: { inputs: 1, type: 'query' },
       listMarketplace: { inputs: 1, type: 'query' },
@@ -367,6 +383,7 @@ describe('moduleApp router registration', () => {
       runAction: { inputs: 1, type: 'mutation' },
       submitUploadedPackage: { inputs: 1, type: 'mutation' },
       uninstallPersonal: { inputs: 1, type: 'mutation' },
+      uninstallWorkspace: { inputs: 1, type: 'mutation' },
       updateRecord: { inputs: 1, type: 'mutation' },
     };
     const inputSchemaContract: Record<string, null | string> = {
@@ -374,33 +391,33 @@ describe('moduleApp router registration', () => {
       callSdk: 'bc51dc2b9504f9c2ed731dd8f98671de81c2eb91af74762ac0ae46390570c671',
       cancelOrder: '3130fc6ed9a08d9fc1d6295ff15adb99797d435765068b31a02cf3f4b580bc7b',
       cancelWorkflowRun: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
-      createOrder: 'a9cb754e0714fabb188d6dd9d2af27b1ee6f8bdafeceb7700ba08bd7299d7adc',
+      createOrder: 'cf24b73b30375897e4a9fa81e9a54c7de4a7247ef4c4dba6a9d4f9e35913c210',
       createPackageUpload: '93f1a0509a31e23a1e66b6a220165f5bd931503fc148bf8a0e2b7f213ca5a969',
       createPayment: 'ebe3b1afa36f2514174957f1ba37d6baadf21e2c82a244f0e117b484160c132e',
       createRecord: '6e9a074dc84ace871f6347bdc0833bc657d4ad409e99a71ae06de10f91deb29a',
-      getDetail: '38287e537e621cb56c626d7a9040bd54b0dda034b507934e9c737747289a5a06',
+      getDetail: '181ce63c50f354d33e38e7a1aacad923df4ee451bb755cd3d664f4f6890047b0',
       getLaunchContext: '73c92b6fc5923def54e2595f57fc567802693d056634a75bd7031c1cf78971c8',
       getLicense: '73c92b6fc5923def54e2595f57fc567802693d056634a75bd7031c1cf78971c8',
       getRecord: '854df8f9f82f8626a7382dce00b8145f17645b5d5e0363dcfd066b64fc7c2c49',
       getRuntimeManifest: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
       getWorkflowRun: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
       installPersonal: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
+      installWorkspace: 'dad62ad0a3953ccbb0f9da06a741fbfc319be708e14d4da4e35c668b56564f97',
       listArtifacts: '43e4cea8d4d8a7d47b62b6d42cea3420a57d4f67d0def09fd90f4f48e51a41f7',
       listCatalog: 'fbed6b4881d01ef729f244ed5b4795c427f4dfdba7a910b909ba8c0f364714f1',
       listMarketplace: '7699c86549809458043fa74a895e3ac49562495b1bdac9c2e3514c3ea5f227af',
       listMyApps: null,
-      listMyPackageSubmissions:
-        '92ca0a7abe13012bc74d99c1ec6a61f85d12e583360292a35d15f05281bebec5',
+      listMyPackageSubmissions: '92ca0a7abe13012bc74d99c1ec6a61f85d12e583360292a35d15f05281bebec5',
       listOrders: 'f1cd8d8ac045d434ef05ccbd4a304bcd7ab3a4e5eceae386b412e1f533fa3cf2',
-      listRecords: '956ae18f3614b2d43ea2b468947e45491b2c79282a4ef3eb5cb94e0d0bff2e53',
+      listRecords: '143ebe78721eeeb03dfc77f8a247647a5ef8ec4f890020bb3266fb522c398a71',
       listRuns: '43e4cea8d4d8a7d47b62b6d42cea3420a57d4f67d0def09fd90f4f48e51a41f7',
       listTeamApps: 'dba8eab472ae20562fef13dcf47022b1da58000b4be5fbbf3737cfab2168c125',
       listWorkflowNodes: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
       quoteProduct: 'a9cb754e0714fabb188d6dd9d2af27b1ee6f8bdafeceb7700ba08bd7299d7adc',
       runAction: 'd68bc0413b5fcedfd583eb96330011dfb30aadddb4add64d30d12ebc4f297984',
-      submitUploadedPackage:
-        '74eff14aff88a2463579fec57327dd724b23d3decda13a51d038eb7c6e4da43f',
+      submitUploadedPackage: '74eff14aff88a2463579fec57327dd724b23d3decda13a51d038eb7c6e4da43f',
       uninstallPersonal: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
+      uninstallWorkspace: 'dad62ad0a3953ccbb0f9da06a741fbfc319be708e14d4da4e35c668b56564f97',
       updateRecord: '6b12c59563a0e4a4ce7df592bf5d65c0b2df02ffaba10e8dbeaa0ed7e06e1bb1',
     };
     const baseMiddlewares = moduleAppProcedure._def.middlewares;
@@ -416,9 +433,7 @@ describe('moduleApp router registration', () => {
         authMiddlewares.length + databaseMiddlewares.length,
       ),
     ).toEqual(databaseMiddlewares);
-    expect(baseMiddlewares).toHaveLength(
-      authMiddlewares.length + databaseMiddlewares.length + 1,
-    );
+    expect(baseMiddlewares).toHaveLength(authMiddlewares.length + databaseMiddlewares.length + 1);
     expect(fingerprintParser(z.string())).not.toBe(fingerprintParser(z.string().trim()));
     expect(fingerprintParser(z.string())).not.toBe(
       fingerprintParser(z.string().transform((value) => value.trim())),
@@ -590,7 +605,10 @@ describe('moduleApp router registration', () => {
         textGenerator: mockTextGenerator,
       }),
     );
-    expect(mockCreateModuleAppTextGenerator).toHaveBeenCalledWith({ db: {}, workspaceId: undefined });
+    expect(mockCreateModuleAppTextGenerator).toHaveBeenCalledWith({
+      db: {},
+      workspaceId: undefined,
+    });
     const [{ assertEntitlement }] = mockRunModuleAppAction.mock.calls.at(-1)!;
     await expect(assertEntitlement()).rejects.toMatchObject({
       code: 'FORBIDDEN',
@@ -633,6 +651,43 @@ describe('moduleApp router registration', () => {
       message: 'plan_install_denied',
     });
     expect(mockModuleAppModel.installPersonalApp).not.toHaveBeenCalled();
+  });
+
+  it('resolves workspace detail and installs or uninstalls only for a current member', async () => {
+    const workspaceId = 'workspace-1';
+
+    await expect(
+      createCaller().getDetail({ appIdOrSlug: APP_ID, workspaceId }),
+    ).resolves.toMatchObject({
+      id: APP_ID,
+    });
+    expect(mockModuleAppModel.getAppDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId }),
+    );
+
+    await expect(createCaller().installWorkspace({ appId: APP_ID, workspaceId })).resolves.toEqual({
+      ok: true,
+    });
+    expect(mockModuleAppModel.installWorkspaceApp).toHaveBeenCalledWith({
+      appId: APP_ID,
+      userId: 'user-1',
+      workspaceId,
+    });
+
+    await expect(
+      createCaller().uninstallWorkspace({ appId: APP_ID, workspaceId }),
+    ).resolves.toEqual({
+      ok: true,
+    });
+    expect(mockModuleAppModel.uninstallWorkspaceApp).toHaveBeenCalledWith({
+      appId: APP_ID,
+      workspaceId,
+    });
+
+    mockGetWorkspaceMember.mockResolvedValueOnce(null);
+    await expect(
+      createCaller().installWorkspace({ appId: APP_ID, workspaceId: 'workspace-denied' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
   });
 
   it('rechecks runnable plan entitlement before launch', async () => {
@@ -722,9 +777,7 @@ describe('moduleApp router registration', () => {
       id: APP_ID,
       planState: { installable: true, runnable: true, visible: true },
     });
-    mockModuleAppGateway.call.mockRejectedValueOnce(
-      new Error('MODULE_APP_DATA_SCHEMA_INVALID'),
-    );
+    mockModuleAppGateway.call.mockRejectedValueOnce(new Error('MODULE_APP_DATA_SCHEMA_INVALID'));
 
     await expect(
       createCaller().callSdk({
@@ -787,7 +840,9 @@ describe('moduleApp router registration', () => {
       runId: '00000000-0000-4000-8000-000000000020',
     };
 
-    await expect(createCaller().getWorkflowRun(input)).resolves.toMatchObject({ status: 'running' });
+    await expect(createCaller().getWorkflowRun(input)).resolves.toMatchObject({
+      status: 'running',
+    });
     await expect(createCaller().listWorkflowNodes(input)).resolves.toEqual([
       { nodeKey: 'start', status: 'succeeded' },
     ]);
@@ -1262,10 +1317,14 @@ describe('moduleApp router registration', () => {
 
   it('quotes and creates an order from server catalog data for the authenticated user', async () => {
     const productId = '00000000-0000-4000-8000-000000000031';
+    const idempotencyKey = '00000000-0000-4000-8000-000000000032';
     await expect(createCaller().quoteProduct({ productId })).resolves.toEqual({ price: 88 });
-    await expect(createCaller().createOrder({ productId })).resolves.toMatchObject({ status: 'pending' });
+    await expect(createCaller().createOrder({ idempotencyKey, productId })).resolves.toMatchObject({
+      status: 'pending',
+    });
     expect(mockModuleAppCommerceModel.quoteProduct).toHaveBeenCalledWith({ productId });
     expect(mockModuleAppCommerceModel.createOrder).toHaveBeenCalledWith({
+      idempotencyKey,
       productId,
       purchaserUserId: 'user-1',
     });
@@ -1321,9 +1380,10 @@ describe('moduleApp router registration', () => {
 
   it('requires current workspace membership before workspace checkout and license lookup', async () => {
     const productId = '00000000-0000-4000-8000-000000000031';
+    const idempotencyKey = '00000000-0000-4000-8000-000000000032';
     mockGetWorkspaceMember.mockResolvedValueOnce(null);
     await expect(
-      createCaller().createOrder({ productId, workspaceId: 'workspace-1' }),
+      createCaller().createOrder({ idempotencyKey, productId, workspaceId: 'workspace-1' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
     expect(mockModuleAppCommerceModel.createOrder).not.toHaveBeenCalled();
 

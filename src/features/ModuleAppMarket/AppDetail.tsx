@@ -34,13 +34,8 @@ type ModuleAppOrderData = {
   workspaceId?: null | string;
 };
 
-const isOrderInScope = (
-  order: ModuleAppOrderData,
-  appId?: string,
-  workspaceId?: string,
-) =>
-  order.appId === appId &&
-  (workspaceId ? order.workspaceId === workspaceId : !order.workspaceId);
+const isOrderInScope = (order: ModuleAppOrderData, appId?: string, workspaceId?: string) =>
+  order.appId === appId && (workspaceId ? order.workspaceId === workspaceId : !order.workspaceId);
 
 export const submitModuleAppPaymentForm = (body: string) => {
   const parsed = new DOMParser().parseFromString(body, 'text/html');
@@ -87,8 +82,13 @@ const ModuleAppDetail = memo(() => {
   const { t } = useTranslation('common');
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [installationLoading, setInstallationLoading] = useState(false);
-  const detail = useSWR<ModuleAppDetailData>(appId ? ['moduleApp.getDetail', appId] : null, () =>
-    moduleAppService.getDetail({ appIdOrSlug: appId! }) as Promise<ModuleAppDetailData>,
+  const detail = useSWR<ModuleAppDetailData>(
+    appId ? ['moduleApp.getDetail', appId, workspaceId] : null,
+    () =>
+      moduleAppService.getDetail({
+        appIdOrSlug: appId!,
+        workspaceId,
+      }) as Promise<ModuleAppDetailData>,
   );
   const catalog = useSWR<ModuleAppCatalogItem[]>(
     appId ? ['moduleApp.listCatalog', appId] : null,
@@ -97,7 +97,10 @@ const ModuleAppDetail = memo(() => {
   const license = useSWR<ModuleAppLicenseData | null>(
     appId ? ['moduleApp.getLicense', appId, workspaceId] : null,
     () =>
-      moduleAppService.getLicense({ appId: appId!, workspaceId }) as Promise<ModuleAppLicenseData | null>,
+      moduleAppService.getLicense({
+        appId: appId!,
+        workspaceId,
+      }) as Promise<ModuleAppLicenseData | null>,
   );
   const orders = useSWR<ModuleAppOrderData[]>(
     appId ? ['moduleApp.listOrders', appId, workspaceId] : null,
@@ -121,8 +124,7 @@ const ModuleAppDetail = memo(() => {
     [catalog.data, workspaceId],
   );
   const latestOrder = useMemo(
-    () =>
-      orders.data?.find((order) => isOrderInScope(order, detail.data?.id, workspaceId)),
+    () => orders.data?.find((order) => isOrderInScope(order, detail.data?.id, workspaceId)),
     [detail.data?.id, orders.data, workspaceId],
   );
   const licenseData = license.data;
@@ -136,13 +138,22 @@ const ModuleAppDetail = memo(() => {
     }
   }, [latestOrder?.status, licenseData, licenseLoading, refreshLicense]);
 
-  if (detail.isLoading) return <Flexbox align="center" justify="center" padding={48}><Spin /></Flexbox>;
+  if (detail.isLoading)
+    return (
+      <Flexbox align="center" justify="center" padding={48}>
+        <Spin />
+      </Flexbox>
+    );
   if (detail.error || !detail.data) {
     return <Typography.Text type="danger">{t('moduleApps.market.loadError')}</Typography.Text>;
   }
   const detailData = detail.data;
 
-  const createOrder = async (input: { productId: string; workspaceId?: string }) => {
+  const createOrder = async (input: {
+    idempotencyKey: string;
+    productId: string;
+    workspaceId?: string;
+  }) => {
     const order = (await moduleAppService.createOrder(input)) as ModuleAppOrderData;
     await orders.mutate();
     return order;
@@ -151,20 +162,36 @@ const ModuleAppDetail = memo(() => {
     const payment = (await moduleAppService.createPayment(input)) as ModuleAppPaymentData;
     submitModuleAppPaymentForm(payment.body);
   };
-  const install = async ({ appId: installAppId }: { appId: string }) => {
+  const install = async ({
+    appId: installAppId,
+    workspaceId: installWorkspaceId,
+  }: {
+    appId: string;
+    workspaceId?: string;
+  }) => {
     setInstallationLoading(true);
     try {
+      if (installWorkspaceId) {
+        await moduleAppService.installWorkspace({
+          appId: installAppId,
+          workspaceId: installWorkspaceId,
+        });
+      } else {
       await moduleAppService.installPersonal({ appId: installAppId });
+      }
       await detail.mutate();
     } finally {
       setInstallationLoading(false);
     }
   };
   const uninstall = async () => {
-    if (workspaceId) return;
     setInstallationLoading(true);
     try {
+      if (workspaceId) {
+        await moduleAppService.uninstallWorkspace({ appId: detailData.id, workspaceId });
+      } else {
       await moduleAppService.uninstallPersonal({ appId: detailData.id });
+      }
       await detail.mutate();
       await refreshLicense();
     } finally {
@@ -180,7 +207,9 @@ const ModuleAppDetail = memo(() => {
     <Flexbox data-testid="module-app-detail" gap={20} padding={24}>
       <Flexbox horizontal align="center" justify="space-between">
         <Flexbox gap={4}>
-          <Typography.Title level={2} style={{ margin: 0 }}>{detailData.displayName}</Typography.Title>
+          <Typography.Title level={2} style={{ margin: 0 }}>
+            {detailData.displayName}
+          </Typography.Title>
           <Typography.Text type="secondary">{detailData.description}</Typography.Text>
         </Flexbox>
         {detailData.installed ? (
@@ -191,14 +220,16 @@ const ModuleAppDetail = memo(() => {
             >
               {t('moduleApps.market.open')}
             </Button>
-            {!workspaceId && (
               <Button danger loading={installationLoading} onClick={uninstall}>
                 {t('moduleApps.market.uninstall')}
               </Button>
-            )}
           </Flexbox>
-        ) : licenseData && !workspaceId ? (
-          <Button loading={installationLoading} type="primary" onClick={() => install({ appId: detailData.id })}>
+        ) : licenseData ? (
+          <Button
+            loading={installationLoading}
+            type="primary"
+            onClick={() => install({ appId: detailData.id, workspaceId })}
+          >
             {t('moduleApps.purchase.install')}
           </Button>
         ) : (
@@ -215,10 +246,18 @@ const ModuleAppDetail = memo(() => {
         )}
       </Flexbox>
       <Descriptions bordered column={2} size="small">
-        <Descriptions.Item label={t('moduleApps.market.category')}>{detailData.category}</Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.version')}>{detailData.version}</Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.source')}><Tag>{detailData.source ?? 'admin'}</Tag></Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.actions')}>{detailData.actions.length}</Descriptions.Item>
+        <Descriptions.Item label={t('moduleApps.market.category')}>
+          {detailData.category}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('moduleApps.market.version')}>
+          {detailData.version}
+        </Descriptions.Item>
+        <Descriptions.Item label={t('moduleApps.market.source')}>
+          <Tag>{detailData.source ?? 'admin'}</Tag>
+        </Descriptions.Item>
+        <Descriptions.Item label={t('moduleApps.market.actions')}>
+          {detailData.actions.length}
+        </Descriptions.Item>
       </Descriptions>
       <PurchaseModal
         catalog={scopedCatalog}

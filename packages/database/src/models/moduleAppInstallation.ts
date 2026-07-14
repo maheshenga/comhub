@@ -147,6 +147,16 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     });
   };
 
+  installWorkspaceApp = async (params: { appId: string; userId: string; workspaceId: string }) => {
+    const versionId = await this.getLatestVersionId(params.appId);
+
+    await this.installApp({
+      ...params,
+      scopeType: 'workspace',
+      versionId,
+    });
+  };
+
   uninstallPersonalApp = async (params: { appId: string; userId: string }) => {
     await this.db
       .update(moduleAppInstallations)
@@ -160,6 +170,25 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
           eq(moduleAppInstallations.appId, params.appId),
           eq(moduleAppInstallations.scopeType, 'personal'),
           eq(moduleAppInstallations.userId, params.userId),
+        ),
+      );
+
+    return { ok: true as const };
+  };
+
+  uninstallWorkspaceApp = async (params: { appId: string; workspaceId: string }) => {
+    await this.db
+      .update(moduleAppInstallations)
+      .set({
+        status: INSTALL_STATUS_INACTIVE,
+        uninstalledAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(moduleAppInstallations.appId, params.appId),
+          eq(moduleAppInstallations.scopeType, 'workspace'),
+          eq(moduleAppInstallations.workspaceId, params.workspaceId),
         ),
       );
 

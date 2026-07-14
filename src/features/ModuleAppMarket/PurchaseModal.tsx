@@ -34,11 +34,12 @@ type PurchaseModalProps = {
   onCancelOrder: (orderId: string) => Promise<void>;
   onClose: () => void;
   onCreateOrder: (input: {
+    idempotencyKey: string;
     productId: string;
     workspaceId?: string;
   }) => Promise<{ id: string } | void>;
   onCreatePayment?: (input: { orderId: string; subject: string }) => Promise<void>;
-  onInstall?: (input: { appId: string }) => Promise<void>;
+  onInstall?: (input: { appId: string; workspaceId?: string }) => Promise<void>;
   subject?: string;
   workspaceId?: string;
 };
@@ -72,6 +73,9 @@ const PurchaseModal = memo<PurchaseModalProps>(
   }) => {
     const { t } = useTranslation('common');
     const [error, setError] = useState<string>();
+    const [orderIdempotencyKey, setOrderIdempotencyKey] = useState(() =>
+      globalThis.crypto.randomUUID(),
+    );
     const [selectedProductId, setSelectedProductId] = useState<string>();
     const [submitting, setSubmitting] = useState(false);
     const selected = useMemo(
@@ -82,12 +86,19 @@ const PurchaseModal = memo<PurchaseModalProps>(
       open && selected && !license && !['paid', 'pending'].includes(order?.status ?? '')
         ? ['moduleApp.quoteProduct', selected.productId]
         : null,
-      () => moduleAppService.quoteProduct({ productId: selected!.productId }) as Promise<ModuleAppQuote>,
+      () =>
+        moduleAppService.quoteProduct({
+          productId: selected!.productId,
+        }) as Promise<ModuleAppQuote>,
     );
 
     useEffect(() => {
       if (!selectedProductId && catalog[0]) setSelectedProductId(catalog[0].productId);
     }, [catalog, selectedProductId]);
+
+    useEffect(() => {
+      if (open && selected?.productId) setOrderIdempotencyKey(globalThis.crypto.randomUUID());
+    }, [open, order?.id, order?.status, selected?.productId, workspaceId]);
 
     const options = catalog.map((item) => ({
       label: item.billingPeriod ?? item.productType,
@@ -111,12 +122,16 @@ const PurchaseModal = memo<PurchaseModalProps>(
       try {
         if (isFree) {
           if (!onInstall) throw new Error('module_app_install_unavailable');
-          await onInstall({ appId: selected.appId });
+          await onInstall({
+            appId: selected.appId,
+            ...(requiresWorkspace && workspaceId ? { workspaceId } : {}),
+          });
           onClose();
           return;
         }
 
         const created = await onCreateOrder({
+          idempotencyKey: orderIdempotencyKey,
           productId: selected.productId,
           ...(requiresWorkspace && workspaceId ? { workspaceId } : {}),
         });
@@ -148,7 +163,9 @@ const PurchaseModal = memo<PurchaseModalProps>(
             </Flexbox>
           ) : pendingOrder ? (
             <Flexbox gap={12}>
-              {error && <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />}
+              {error && (
+                <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />
+              )}
               <Typography.Text>{t('moduleApps.purchase.pending')}</Typography.Text>
               <Typography.Text code>{pendingOrder.id}</Typography.Text>
               {onCreatePayment && (
@@ -191,13 +208,13 @@ const PurchaseModal = memo<PurchaseModalProps>(
             </Typography.Text>
           ) : (
             <>
-              {error && <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />}
+              {error && (
+                <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />
+              )}
               {order?.status === 'refunded' && (
                 <Tag color="orange">{t('moduleApps.purchase.refunded')}</Tag>
               )}
-              {order?.status === 'cancelled' && (
-                <Tag>{t('moduleApps.purchase.cancelled')}</Tag>
-              )}
+              {order?.status === 'cancelled' && <Tag>{t('moduleApps.purchase.cancelled')}</Tag>}
               {options.length > 1 && (
                 <Segmented
                   block

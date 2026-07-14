@@ -1036,6 +1036,13 @@
       "when": 1784645600000,
       "tag": "0144_add_module_app_build_leases",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1784732000000,
+      "tag": "0145_add_module_app_order_idempotency",
+      "breakpoints": true
     }
   ],
   "version": "6"

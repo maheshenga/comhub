@@ -62,6 +62,10 @@ export class ModuleAppPaymentService {
       recordOperationalAge: recordModuleAppOperationalAge,
       recordVerificationFailure: recordModuleAppPaymentVerificationFailure,
     },
+    private readonly orderRevenueService: Pick<
+      ModuleAppOrderRevenueService,
+      'refundOrder' | 'settleOrder'
+    > = new ModuleAppOrderRevenueService(db),
   ) {
     this.model = new ModuleAppPaymentModel(db);
   }
@@ -174,14 +178,7 @@ export class ModuleAppPaymentService {
       where: eq(moduleAppOrders.id, attempt.orderId),
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-    if (recorded.duplicate) {
-      await this.model.createDiscrepancy({
-        discrepancyKey: `duplicate:${event.eventId}`,
-        kind: 'duplicate_event',
-        orderId: order.id,
-        outTradeNo: event.outTradeNo,
-        provider: event.provider,
-      });
+    if (recorded.duplicate && order.status !== 'pending') {
       return { duplicate: true, status: order.status };
     }
     if (event.orderId && event.orderId !== order.id) {
@@ -231,13 +228,13 @@ export class ModuleAppPaymentService {
         processedAt: new Date(),
         provider: event.provider,
       });
-      return { duplicate: false, status: order.status };
+      return { duplicate: recorded.duplicate, status: order.status };
     }
     const paymentReference =
       event.paymentReference ?? event.providerTransactionId ?? event.outTradeNo;
     let settled: Awaited<ReturnType<ModuleAppOrderRevenueService['settleOrder']>>;
     try {
-      settled = await new ModuleAppOrderRevenueService(this.db).settleOrder({
+      settled = await this.orderRevenueService.settleOrder({
         actorUserId: order.purchaserUserId,
         orderId: order.id,
         paymentReference,
@@ -266,7 +263,7 @@ export class ModuleAppPaymentService {
       processedAt: new Date(),
       provider: event.provider,
     });
-    return { duplicate: false, status: settled.status };
+    return { duplicate: recorded.duplicate, status: settled.status };
   };
 
   reconcilePayment = async (input: { outTradeNo: string }) => {
@@ -381,7 +378,7 @@ export class ModuleAppPaymentService {
     }
     await this.model.updateRefundStatus({ orderId: order.id, status: 'succeeded' });
     if (order.status !== 'refunded') {
-      await new ModuleAppOrderRevenueService(this.db).refundOrder({
+      await this.orderRevenueService.refundOrder({
         actorUserId: input.actorUserId,
         orderId: order.id,
         reason: refund.reason,
@@ -423,7 +420,7 @@ export class ModuleAppPaymentService {
       });
       if (result.status !== 'succeeded') throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
     }
-    return new ModuleAppOrderRevenueService(this.db).refundOrder({
+    return this.orderRevenueService.refundOrder({
       actorUserId: input.actorUserId ?? order.purchaserUserId,
       orderId: order.id,
       reason: input.reason,
@@ -437,11 +434,7 @@ export class ModuleAppPaymentService {
     eventId: string;
     expectedAmount?: string;
     expectedCurrency?: string;
-    kind:
-      | 'amount_mismatch'
-      | 'currency_mismatch'
-      | 'provider_mismatch'
-      | 'settlement_failed';
+    kind: 'amount_mismatch' | 'currency_mismatch' | 'provider_mismatch' | 'settlement_failed';
     orderId: string;
     outTradeNo: string;
     provider: 'alipay';

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { moduleAppOrderSnapshotSchema } from '@lobechat/types';
 import { and, desc, eq, gt, isNotNull, isNull, ne, or } from 'drizzle-orm';
 
@@ -336,8 +338,34 @@ export class ModuleAppCommerceModel {
       return { price, product };
     });
 
-  createOrder = async ({ productId, purchaserUserId, workspaceId }: { productId: string; purchaserUserId: string; workspaceId?: string }) =>
+  createOrder = async ({
+    idempotencyKey = randomUUID(),
+    productId,
+    purchaserUserId,
+    workspaceId,
+  }: {
+    idempotencyKey?: string;
+    productId: string;
+    purchaserUserId: string;
+    workspaceId?: string;
+  }) =>
     this.db.transaction(async (tx) => {
+      const findIdempotentOrder = () =>
+        tx.query.moduleAppOrders.findFirst({
+          where: and(
+            eq(moduleAppOrders.purchaserUserId, purchaserUserId),
+            eq(moduleAppOrders.idempotencyKey, idempotencyKey),
+          ),
+        });
+      const assertCompatibleOrder = (order: typeof moduleAppOrders.$inferSelect) => {
+        if (order.productId !== productId || (order.workspaceId ?? undefined) !== workspaceId) {
+          throw new Error('MODULE_APP_ORDER_IDEMPOTENCY_CONFLICT');
+        }
+        return order;
+      };
+      const existing = await findIdempotentOrder();
+      if (existing) return assertCompatibleOrder(existing);
+
       const product = await tx.query.moduleAppProducts.findFirst({ where: and(eq(moduleAppProducts.id, productId), eq(moduleAppProducts.status, 'active')) });
       const price = await tx.query.moduleAppPrices.findFirst({ where: and(eq(moduleAppPrices.productId, productId), eq(moduleAppPrices.active, true)) });
       const app = product ? await tx.query.moduleApps.findFirst({ where: and(eq(moduleApps.id, product.appId), eq(moduleApps.status, 'published')) }) : null;
@@ -346,13 +374,20 @@ export class ModuleAppCommerceModel {
       if (product.licenseScope !== 'personal' && !workspaceId) throw new Error('MODULE_APP_WORKSPACE_REQUIRED');
       const [order] = await tx.insert(moduleAppOrders).values({
         appId: product.appId,
+        idempotencyKey,
         priceId: price.id,
         productId,
         purchaserUserId,
         snapshot: buildOrderSnapshot(product, price),
         workspaceId,
+      }).onConflictDoNothing({
+        target: [moduleAppOrders.purchaserUserId, moduleAppOrders.idempotencyKey],
       }).returning();
-      if (!order) throw new Error('MODULE_APP_ORDER_CREATE_FAILED');
+      if (!order) {
+        const concurrent = await findIdempotentOrder();
+        if (!concurrent) throw new Error('MODULE_APP_ORDER_CREATE_FAILED');
+        return assertCompatibleOrder(concurrent);
+      }
       return order;
     });
 
@@ -424,19 +459,30 @@ export class ModuleAppCommerceModel {
       throw new Error('MODULE_APP_LICENSE_SCOPE_INVALID');
     }
 
-    const [activeLicense, product] = await Promise.all([
+    const productScope = workspaceId
+      ? ne(moduleAppProducts.licenseScope, 'personal')
+      : eq(moduleAppProducts.licenseScope, 'personal');
+    const [activeLicense, freeProduct, latestProduct] = await Promise.all([
       this.resolveLicense({ appId, userId, workspaceId }),
       this.db.query.moduleAppProducts.findFirst({
         orderBy: desc(moduleAppProducts.createdAt),
         where: and(
           eq(moduleAppProducts.appId, appId),
+          eq(moduleAppProducts.productType, 'free'),
           eq(moduleAppProducts.status, 'active'),
-          workspaceId
-            ? ne(moduleAppProducts.licenseScope, 'personal')
-            : eq(moduleAppProducts.licenseScope, 'personal'),
+          productScope,
+        ),
+      }),
+      this.db.query.moduleAppProducts.findFirst({
+        orderBy: desc(moduleAppProducts.createdAt),
+        where: and(
+          eq(moduleAppProducts.appId, appId),
+          eq(moduleAppProducts.status, 'active'),
+          productScope,
         ),
       }),
     ]);
+    const product = freeProduct ?? latestProduct;
     const license =
       activeLicense ??
       (await this.db.query.moduleAppLicenses.findFirst({

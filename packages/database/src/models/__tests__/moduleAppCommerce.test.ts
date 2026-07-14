@@ -59,6 +59,68 @@ beforeEach(async () => {
 });
 
 describe('ModuleAppCommerceModel', () => {
+  it('deduplicates purchaser order creation by idempotency key and rejects conflicting reuse', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const firstProduct = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'idempotent-first',
+      productType: 'one_time',
+    });
+    const secondProduct = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 240, currency: 'CNY' },
+      productKey: 'idempotent-second',
+      productType: 'one_time',
+    });
+    const idempotencyKey = '10000000-0000-4000-8000-000000000099';
+
+    const first = await model.createOrder({
+      idempotencyKey,
+      productId: firstProduct.id,
+      purchaserUserId: USER_ID,
+    });
+    const replay = await model.createOrder({
+      idempotencyKey,
+      productId: firstProduct.id,
+      purchaserUserId: USER_ID,
+    });
+
+    expect(replay.id).toBe(first.id);
+    await expect(serverDB.query.moduleAppOrders.findMany()).resolves.toHaveLength(1);
+    await expect(
+      model.createOrder({
+        idempotencyKey,
+        productId: secondProduct.id,
+        purchaserUserId: USER_ID,
+      }),
+    ).rejects.toThrow('MODULE_APP_ORDER_IDEMPOTENCY_CONFLICT');
+  });
+
+  it('resolves a free entitlement regardless of newer paid products in the same scope', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 0, currency: 'CNY' },
+      productKey: 'free-tier',
+      productType: 'free',
+    });
+    await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'paid-tier',
+      productType: 'one_time',
+    });
+
+    await expect(
+      model.resolveEntitlementContext({ appId: APP_ID, userId: USER_ID }),
+    ).resolves.toMatchObject({ license: null, productType: 'free' });
+  });
+
   it('creates a pending order, settles it once, and revokes its license on refund', async () => {
     const model = new ModuleAppCommerceModel(serverDB);
     const product = await model.createProduct({
@@ -204,7 +266,10 @@ describe('ModuleAppCommerceModel', () => {
       serverDB.query.moduleAppInstallations.findFirst({
         where: eq(moduleAppInstallations.appId, APP_ID),
       }),
-    ).resolves.toMatchObject({ installedAt: installed?.installedAt, versionId: installed?.versionId });
+    ).resolves.toMatchObject({
+      installedAt: installed?.installedAt,
+      versionId: installed?.versionId,
+    });
     expect(installed?.versionId).not.toBe(newVersion.id);
   });
 
@@ -349,7 +414,10 @@ describe('ModuleAppCommerceModel', () => {
       productKey: 'unpublished-product',
       productType: 'one_time',
     });
-    await serverDB.update(moduleApps).set({ status: 'unpublished' }).where(eq(moduleApps.id, APP_ID));
+    await serverDB
+      .update(moduleApps)
+      .set({ status: 'unpublished' })
+      .where(eq(moduleApps.id, APP_ID));
 
     await expect(model.listCatalog({ appId: APP_ID })).resolves.toEqual([]);
     await expect(model.quoteProduct({ productId: product.id })).rejects.toThrow(
