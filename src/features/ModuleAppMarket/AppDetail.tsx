@@ -15,9 +15,12 @@ type ModuleAppDetailData = {
   description?: string;
   displayName: string;
   id: string;
+  installed?: boolean;
   source?: string;
   version?: string;
 };
+
+type ModuleAppPaymentData = { body: string; outTradeNo: string };
 
 type ModuleAppLicenseData = {
   endsAt?: Date | string | null;
@@ -39,12 +42,51 @@ const isOrderInScope = (
   order.appId === appId &&
   (workspaceId ? order.workspaceId === workspaceId : !order.workspaceId);
 
+export const submitModuleAppPaymentForm = (body: string) => {
+  const parsed = new DOMParser().parseFromString(body, 'text/html');
+  const sourceForm = parsed.querySelector('form');
+  if (!sourceForm) throw new Error('module_app_payment_form_invalid');
+
+  const rawAction = sourceForm.getAttribute('action');
+  if (!rawAction || sourceForm.method.toLowerCase() !== 'post') {
+    throw new Error('module_app_payment_form_invalid');
+  }
+  const action = new URL(rawAction);
+  if (action.protocol !== 'https:' || action.username || action.password) {
+    throw new Error('module_app_payment_form_invalid');
+  }
+
+  const sourceFields = [...sourceForm.querySelectorAll<HTMLInputElement>('input[name]')];
+  if (sourceFields.length === 0 || sourceFields.length > 100) {
+    throw new Error('module_app_payment_form_invalid');
+  }
+  const form = document.createElement('form');
+  form.action = action.toString();
+  form.method = 'post';
+  form.style.display = 'none';
+  for (const sourceField of sourceFields) {
+    const name = sourceField.name;
+    const value = sourceField.value;
+    if (!/^[A-Z]\w{0,79}$/i.test(name) || value.length > 100_000) {
+      throw new Error('module_app_payment_form_invalid');
+    }
+    const field = document.createElement('input');
+    field.name = name;
+    field.type = 'hidden';
+    field.value = value;
+    form.append(field);
+  }
+  document.body.append(form);
+  form.submit();
+};
+
 const ModuleAppDetail = memo(() => {
   const { appId } = useParams();
   const [searchParams] = useSearchParams();
   const workspaceId = searchParams.get('workspaceId') || undefined;
   const { t } = useTranslation('common');
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [installationLoading, setInstallationLoading] = useState(false);
   const detail = useSWR<ModuleAppDetailData>(appId ? ['moduleApp.getDetail', appId] : null, () =>
     moduleAppService.getDetail({ appIdOrSlug: appId! }) as Promise<ModuleAppDetailData>,
   );
@@ -98,10 +140,36 @@ const ModuleAppDetail = memo(() => {
   if (detail.error || !detail.data) {
     return <Typography.Text type="danger">{t('moduleApps.market.loadError')}</Typography.Text>;
   }
+  const detailData = detail.data;
 
   const createOrder = async (input: { productId: string; workspaceId?: string }) => {
-    await moduleAppService.createOrder(input);
+    const order = (await moduleAppService.createOrder(input)) as ModuleAppOrderData;
     await orders.mutate();
+    return order;
+  };
+  const createPayment = async (input: { orderId: string; subject: string }) => {
+    const payment = (await moduleAppService.createPayment(input)) as ModuleAppPaymentData;
+    submitModuleAppPaymentForm(payment.body);
+  };
+  const install = async ({ appId: installAppId }: { appId: string }) => {
+    setInstallationLoading(true);
+    try {
+      await moduleAppService.installPersonal({ appId: installAppId });
+      await detail.mutate();
+    } finally {
+      setInstallationLoading(false);
+    }
+  };
+  const uninstall = async () => {
+    if (workspaceId) return;
+    setInstallationLoading(true);
+    try {
+      await moduleAppService.uninstallPersonal({ appId: detailData.id });
+      await detail.mutate();
+      await refreshLicense();
+    } finally {
+      setInstallationLoading(false);
+    }
   };
   const cancelOrder = async (orderId: string) => {
     await moduleAppService.cancelOrder({ orderId });
@@ -112,15 +180,26 @@ const ModuleAppDetail = memo(() => {
     <Flexbox data-testid="module-app-detail" gap={20} padding={24}>
       <Flexbox horizontal align="center" justify="space-between">
         <Flexbox gap={4}>
-          <Typography.Title level={2} style={{ margin: 0 }}>{detail.data.displayName}</Typography.Title>
-          <Typography.Text type="secondary">{detail.data.description}</Typography.Text>
+          <Typography.Title level={2} style={{ margin: 0 }}>{detailData.displayName}</Typography.Title>
+          <Typography.Text type="secondary">{detailData.description}</Typography.Text>
         </Flexbox>
-        {licenseData ? (
-          <Button
-            href={`/apps/${detail.data.id}/app${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`}
-            type="primary"
-          >
-            {t('moduleApps.market.open')}
+        {detailData.installed ? (
+          <Flexbox horizontal gap={8}>
+            <Button
+              href={`/apps/${detailData.id}/app${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`}
+              type="primary"
+            >
+              {t('moduleApps.market.open')}
+            </Button>
+            {!workspaceId && (
+              <Button danger loading={installationLoading} onClick={uninstall}>
+                {t('moduleApps.market.uninstall')}
+              </Button>
+            )}
+          </Flexbox>
+        ) : licenseData && !workspaceId ? (
+          <Button loading={installationLoading} type="primary" onClick={() => install({ appId: detailData.id })}>
+            {t('moduleApps.purchase.install')}
           </Button>
         ) : (
           <Button
@@ -136,10 +215,10 @@ const ModuleAppDetail = memo(() => {
         )}
       </Flexbox>
       <Descriptions bordered column={2} size="small">
-        <Descriptions.Item label={t('moduleApps.market.category')}>{detail.data.category}</Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.version')}>{detail.data.version}</Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.source')}><Tag>{detail.data.source ?? 'admin'}</Tag></Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.actions')}>{detail.data.actions.length}</Descriptions.Item>
+        <Descriptions.Item label={t('moduleApps.market.category')}>{detailData.category}</Descriptions.Item>
+        <Descriptions.Item label={t('moduleApps.market.version')}>{detailData.version}</Descriptions.Item>
+        <Descriptions.Item label={t('moduleApps.market.source')}><Tag>{detailData.source ?? 'admin'}</Tag></Descriptions.Item>
+        <Descriptions.Item label={t('moduleApps.market.actions')}>{detailData.actions.length}</Descriptions.Item>
       </Descriptions>
       <PurchaseModal
         catalog={scopedCatalog}
@@ -147,10 +226,13 @@ const ModuleAppDetail = memo(() => {
         loading={orders.isValidating}
         open={purchaseOpen}
         order={latestOrder}
+        subject={detailData.displayName}
         workspaceId={workspaceId}
         onCancelOrder={cancelOrder}
         onClose={() => setPurchaseOpen(false)}
         onCreateOrder={createOrder}
+        onCreatePayment={createPayment}
+        onInstall={install}
       />
     </Flexbox>
   );

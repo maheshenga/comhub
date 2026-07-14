@@ -419,6 +419,7 @@ jobs:
           echo "${version_json}" | grep -q "${IMAGE_TAG}"
 
           for flag in \
+            MODULE_APP_EXECUTION_ENABLED \
             MODULE_APP_RUNTIME_INVOCATION_ENABLED \
             MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED \
             MODULE_APP_SCHEDULE_DISPATCH_ENABLED \
@@ -673,9 +674,62 @@ jobs:
             return 1
           }
 
+          bootstrap_worker_environment() (
+            local app_environment preflight_database_url worker_database_url
+            local s3_access_key_id s3_bucket s3_endpoint s3_secret_access_key
+            local temporary_env
+
+            docker inspect comhub-app >/dev/null
+            app_environment="$(
+              docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' comhub-app
+            )"
+
+            read_app_environment() {
+              local key="$1"
+              local line
+              while IFS= read -r line; do
+                if [[ "$line" == "$key="* ]]; then
+                  printf '%s' "${line#*=}"
+                  return 0
+                fi
+              done <<< "$app_environment"
+              return 1
+            }
+
+            preflight_database_url="$(read_app_environment DATABASE_URL)"
+            s3_access_key_id="$(read_app_environment S3_ACCESS_KEY_ID)"
+            s3_bucket="$(read_app_environment S3_BUCKET)"
+            s3_endpoint="$(read_app_environment S3_ENDPOINT)"
+            s3_secret_access_key="$(read_app_environment S3_SECRET_ACCESS_KEY)"
+
+            worker_database_url="${preflight_database_url//@127.0.0.1:15432\//@comhub-paradedb:5432/}"
+            worker_database_url="${worker_database_url//@localhost:15432\//@comhub-paradedb:5432/}"
+            [[ "$worker_database_url" == *'@comhub-paradedb:5432/'* ]]
+
+            temporary_env="$worker_deploy_dir/.env.tmp-$release_id-$$"
+            trap 'rm -f -- "$temporary_env"' EXIT
+            umask 077
+            {
+              printf '%s\n' 'COMHUB_PLATFORM_COMPOSE_PROJECT=comhub'
+              printf '%s\n' 'COMHUB_PLATFORM_NETWORK=paradedb_default'
+              printf '%s\n' "COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL=$preflight_database_url"
+              printf '%s\n' "DATABASE_URL=$worker_database_url"
+              printf '%s\n' 'MODULE_APP_ARTIFACT_ROOT=/www/compose/comhub/module-worker/artifacts'
+              printf '%s\n' "S3_ACCESS_KEY_ID=$s3_access_key_id"
+              printf '%s\n' "S3_BUCKET=$s3_bucket"
+              printf '%s\n' "S3_ENDPOINT=$s3_endpoint"
+              printf '%s\n' "S3_SECRET_ACCESS_KEY=$s3_secret_access_key"
+            } > "$temporary_env"
+            chmod 0600 "$temporary_env"
+            mv -Tf "$temporary_env" "$worker_deploy_dir/.env"
+            chmod 0600 "$worker_deploy_dir/.env"
+            trap - EXIT
+          )
+
           exec 9>"$lock_file"
           flock -x 9
 
+          [ -f "$worker_deploy_dir/.env" ] || bootstrap_worker_environment
           [ -f "$worker_deploy_dir/.env" ]
           [ ! -L "$worker_deploy_dir/.env" ]
 

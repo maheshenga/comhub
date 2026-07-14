@@ -47,7 +47,7 @@ export class ModuleAppNotificationGateway {
       throw new Error('MODULE_APP_NOTIFICATION_ACTION_DENIED');
     }
 
-    this.rateLimiter.consume(capability.installationId);
+    await this.rateLimiter.consume(capability.installationId);
 
     const created = await this.create({
       actionUrl,
@@ -64,8 +64,19 @@ export class ModuleAppNotificationGateway {
 
 export class ModuleAppNotificationRateLimiter {
   private readonly recent = new Map<string, number[]>();
+  private readonly backend?: ModuleAppNotificationRateLimitBackend;
 
-  consume = (installationId: string) => {
+  constructor(options: { backend?: ModuleAppNotificationRateLimitBackend } = {}) {
+    this.backend = options.backend;
+  }
+
+  consume = async (installationId: string) => {
+    if (this.backend) {
+      const consumed = await this.backend.consume(installationId, 10, 60_000);
+      if (!consumed) throw new Error('MODULE_APP_NOTIFICATION_RATE_LIMITED');
+      return;
+    }
+
     const now = Date.now();
     const recent = (this.recent.get(installationId) ?? []).filter(
       (timestamp) => timestamp > now - 60_000,
@@ -74,4 +85,8 @@ export class ModuleAppNotificationRateLimiter {
     recent.push(now);
     this.recent.set(installationId, recent);
   };
+}
+
+export interface ModuleAppNotificationRateLimitBackend {
+  consume: (installationId: string, limit: number, windowMs: number) => Promise<boolean>;
 }

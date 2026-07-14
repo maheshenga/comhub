@@ -308,20 +308,27 @@ describe('ModuleAppModel marketplace behavior', () => {
       model.listRecords({
         appId: app.id,
         collectionKey: 'records',
+        limit: 20,
+        offset: 0,
         scopeType: 'personal',
         userId,
       }),
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ items: [], total: 0 });
 
     await expect(
       model.listRecords({
         appId: app.id,
         collectionKey: 'records',
+        limit: 20,
+        offset: 0,
         scopeType: 'workspace',
         userId,
         workspaceId,
       }),
-    ).resolves.toEqual([expect.objectContaining({ id: workspace.id, title: 'Team A' })]);
+    ).resolves.toEqual({
+      items: [expect.objectContaining({ id: workspace.id, title: 'Team A' })],
+      total: 1,
+    });
 
     const events = await serverDB.query.moduleAppRecordEvents.findMany({
       where: eq(moduleAppRecordEvents.appId, app.id),

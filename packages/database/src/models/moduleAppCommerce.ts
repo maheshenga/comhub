@@ -1,7 +1,16 @@
 import { moduleAppOrderSnapshotSchema } from '@lobechat/types';
-import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull, ne, or } from 'drizzle-orm';
 
-import { moduleAppLicenses, moduleAppOrders, moduleAppPrices, moduleAppProducts, moduleApps,moduleAppSubscriptions } from '../schemas';
+import {
+  moduleAppInstallations,
+  moduleAppLicenses,
+  moduleAppOrders,
+  moduleAppPrices,
+  moduleAppProducts,
+  moduleApps,
+  moduleAppSubscriptions,
+  moduleAppVersions,
+} from '../schemas';
 import type { LobeChatDatabase, Transaction } from '../type';
 
 const buildOrderSnapshot = (
@@ -27,6 +36,81 @@ const buildOrderSnapshot = (
 export class ModuleAppCommerceModel {
   constructor(private readonly db: LobeChatDatabase) {}
 
+  private ensureInstallationInTransaction = async (
+    tx: Transaction,
+    order: typeof moduleAppOrders.$inferSelect,
+  ) => {
+    const version = await tx.query.moduleAppVersions.findFirst({
+      orderBy: desc(moduleAppVersions.createdAt),
+      where: eq(moduleAppVersions.appId, order.appId),
+    });
+    if (!version) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+
+    const scopeType = order.workspaceId ? 'workspace' : 'personal';
+    const existing = await tx.query.moduleAppInstallations.findFirst({
+      where: and(
+        eq(moduleAppInstallations.appId, order.appId),
+        eq(moduleAppInstallations.scopeType, scopeType),
+        order.workspaceId
+          ? eq(moduleAppInstallations.workspaceId, order.workspaceId)
+          : eq(moduleAppInstallations.userId, order.purchaserUserId),
+      ),
+    });
+    const now = new Date();
+    if (existing) {
+      if (existing.status === 'installed' && !existing.uninstalledAt) return;
+      await tx
+        .update(moduleAppInstallations)
+        .set({
+          installedAt: now,
+          status: 'installed',
+          uninstalledAt: null,
+          updatedAt: now,
+          versionId: version.id,
+        })
+        .where(eq(moduleAppInstallations.id, existing.id));
+      return;
+    }
+
+    const [created] = await tx
+      .insert(moduleAppInstallations)
+      .values({
+        appId: order.appId,
+        installedAt: now,
+        scopeType,
+        status: 'installed',
+        userId: order.purchaserUserId,
+        versionId: version.id,
+        workspaceId: order.workspaceId,
+      })
+      .onConflictDoNothing()
+      .returning({ id: moduleAppInstallations.id });
+    if (created) return;
+
+    await tx
+      .update(moduleAppInstallations)
+      .set({
+        installedAt: now,
+        status: 'installed',
+        uninstalledAt: null,
+        updatedAt: now,
+        versionId: version.id,
+      })
+      .where(
+        and(
+          eq(moduleAppInstallations.appId, order.appId),
+          eq(moduleAppInstallations.scopeType, scopeType),
+          order.workspaceId
+            ? eq(moduleAppInstallations.workspaceId, order.workspaceId)
+            : eq(moduleAppInstallations.userId, order.purchaserUserId),
+          or(
+            ne(moduleAppInstallations.status, 'installed'),
+            isNotNull(moduleAppInstallations.uninstalledAt),
+          ),
+        ),
+      );
+  };
+
   settleOrderInTransaction = async (
     tx: Transaction,
     { orderId, paymentReference }: { orderId: string; paymentReference: string },
@@ -41,6 +125,7 @@ export class ModuleAppCommerceModel {
       if (order.paymentReference !== paymentReference) {
         throw new Error('MODULE_APP_ORDER_PAYMENT_CONFLICT');
       }
+      await this.ensureInstallationInTransaction(tx, order);
       return order;
     }
     if (order.status !== 'pending') throw new Error('MODULE_APP_ORDER_NOT_SETTLEABLE');
@@ -79,6 +164,7 @@ export class ModuleAppCommerceModel {
         status: trialDays > 0 ? 'trialing' : 'active',
       });
     }
+    await this.ensureInstallationInTransaction(tx, paid);
     return paid;
   };
 
@@ -148,6 +234,106 @@ export class ModuleAppCommerceModel {
         trialDays: input.price.trialDays ?? 0,
       });
       return product;
+    });
+
+  listProducts = async ({ appId }: { appId: string }) =>
+    this.db
+      .select({
+        amount: moduleAppPrices.amount,
+        appId: moduleAppProducts.appId,
+        billingPeriod: moduleAppPrices.billingPeriod,
+        currency: moduleAppPrices.currency,
+        licenseScope: moduleAppProducts.licenseScope,
+        metadata: moduleAppProducts.metadata,
+        priceId: moduleAppPrices.id,
+        productId: moduleAppProducts.id,
+        productKey: moduleAppProducts.productKey,
+        productType: moduleAppProducts.productType,
+        promotion: moduleAppPrices.promotion,
+        status: moduleAppProducts.status,
+        trialDays: moduleAppPrices.trialDays,
+      })
+      .from(moduleAppProducts)
+      .innerJoin(
+        moduleAppPrices,
+        and(eq(moduleAppPrices.productId, moduleAppProducts.id), eq(moduleAppPrices.active, true)),
+      )
+      .where(eq(moduleAppProducts.appId, appId))
+      .orderBy(desc(moduleAppProducts.createdAt));
+
+  updateProduct = async (input: {
+    licenseScope: string;
+    moduleMultiplier?: string;
+    price?: {
+      amount: number;
+      billingPeriod?: string;
+      currency: string;
+      promotion?: Record<string, unknown>;
+      trialDays?: number;
+    };
+    productId: string;
+    productType: string;
+    revenueShareRate?: string;
+    seatCount?: number;
+    status: string;
+    termsVersion?: string;
+  }) =>
+    this.db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(moduleAppProducts)
+        .where(eq(moduleAppProducts.id, input.productId))
+        .for('update');
+      if (!existing) throw new Error('MODULE_APP_PRODUCT_NOT_FOUND');
+
+      const [product] = await tx
+        .update(moduleAppProducts)
+        .set({
+          licenseScope: input.licenseScope,
+          metadata: {
+            ...existing.metadata,
+            moduleMultiplier:
+              input.moduleMultiplier ?? String(existing.metadata.moduleMultiplier ?? '1'),
+            revenueShareRate:
+              input.revenueShareRate ?? String(existing.metadata.revenueShareRate ?? '0'),
+            ...(typeof input.seatCount === 'number' ? { seatCount: input.seatCount } : {}),
+            termsVersion: input.termsVersion ?? String(existing.metadata.termsVersion ?? '1'),
+          },
+          productType: input.productType,
+          status: input.status,
+          updatedAt: new Date(),
+        })
+        .where(eq(moduleAppProducts.id, input.productId))
+        .returning();
+      if (!product) throw new Error('MODULE_APP_PRODUCT_UPDATE_FAILED');
+
+      let price: typeof moduleAppPrices.$inferSelect | undefined;
+      if (input.price) {
+        await tx
+          .update(moduleAppPrices)
+          .set({ active: false, updatedAt: new Date() })
+          .where(
+            and(
+              eq(moduleAppPrices.productId, input.productId),
+              eq(moduleAppPrices.active, true),
+            ),
+          );
+        [price] = await tx
+          .insert(moduleAppPrices)
+          .values({
+            active: true,
+            amount: input.price.amount,
+            billingPeriod: input.price.billingPeriod,
+            currency: input.price.currency,
+            productId: input.productId,
+            promotion: input.price.promotion,
+            trialDays: input.price.trialDays ?? 0,
+          })
+          .returning();
+        if (!price) throw new Error('MODULE_APP_PRICE_CREATE_FAILED');
+      }
+
+      return { price, product };
     });
 
   createOrder = async ({ productId, purchaserUserId, workspaceId }: { productId: string; purchaserUserId: string; workspaceId?: string }) =>
@@ -223,6 +409,75 @@ export class ModuleAppCommerceModel {
   resolveLicense = async ({ appId, userId, workspaceId }: { appId: string; userId?: string; workspaceId?: string }) => {
     if ((!userId && !workspaceId) || (userId && workspaceId)) throw new Error('MODULE_APP_LICENSE_SCOPE_INVALID');
     return (await this.db.query.moduleAppLicenses.findFirst({ where: and(eq(moduleAppLicenses.appId, appId), userId ? eq(moduleAppLicenses.ownerUserId, userId) : eq(moduleAppLicenses.workspaceId, workspaceId!), eq(moduleAppLicenses.status, 'active'), isNull(moduleAppLicenses.revokedAt), or(isNull(moduleAppLicenses.endsAt), gt(moduleAppLicenses.endsAt, new Date()))) })) ?? null;
+  };
+
+  resolveEntitlementContext = async ({
+    appId,
+    userId,
+    workspaceId,
+  }: {
+    appId: string;
+    userId?: string;
+    workspaceId?: string;
+  }) => {
+    if ((!userId && !workspaceId) || (userId && workspaceId)) {
+      throw new Error('MODULE_APP_LICENSE_SCOPE_INVALID');
+    }
+
+    const [activeLicense, product] = await Promise.all([
+      this.resolveLicense({ appId, userId, workspaceId }),
+      this.db.query.moduleAppProducts.findFirst({
+        orderBy: desc(moduleAppProducts.createdAt),
+        where: and(
+          eq(moduleAppProducts.appId, appId),
+          eq(moduleAppProducts.status, 'active'),
+          workspaceId
+            ? ne(moduleAppProducts.licenseScope, 'personal')
+            : eq(moduleAppProducts.licenseScope, 'personal'),
+        ),
+      }),
+    ]);
+    const license =
+      activeLicense ??
+      (await this.db.query.moduleAppLicenses.findFirst({
+        orderBy: desc(moduleAppLicenses.createdAt),
+        where: and(
+          eq(moduleAppLicenses.appId, appId),
+          userId
+            ? eq(moduleAppLicenses.ownerUserId, userId)
+            : eq(moduleAppLicenses.workspaceId, workspaceId!),
+        ),
+      }));
+    const order = license
+      ? await this.db.query.moduleAppOrders.findFirst({
+          where: eq(moduleAppOrders.id, license.orderId),
+        })
+      : null;
+    const productType = String(order?.snapshot.productType ?? product?.productType ?? '');
+    const normalizedProductType: 'free' | 'one_time' | 'subscription' | undefined =
+      productType === 'free' || productType === 'one_time' || productType === 'subscription'
+        ? productType
+        : undefined;
+    if (!license) return { license: null, productType: normalizedProductType };
+
+    const now = new Date();
+    const status: 'active' | 'expired' | 'revoked' =
+      license.status === 'revoked' || license.revokedAt
+        ? 'revoked'
+        : license.status === 'expired' || (license.endsAt && license.endsAt <= now)
+          ? 'expired'
+          : 'active';
+    const source: 'purchase' | 'trial' =
+      Number(order?.snapshot.trialDays ?? 0) > 0 ? 'trial' : 'purchase';
+
+    return {
+      license: {
+        ...license,
+        source,
+        status,
+      },
+      productType: normalizedProductType,
+    };
   };
 
   refundOrder = async ({ actorUserId, orderId, reason }: { actorUserId: string; orderId: string; reason: string }) =>

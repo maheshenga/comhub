@@ -58,21 +58,36 @@ const mutationMethods = new Set<ModuleAppGatewayMethod>([
 
 export class ModuleAppReplayGuard {
   private readonly consumed = new Map<string, number>();
+  private readonly backend?: ModuleAppReplayGuardBackend;
 
-  consume = (capability: ModuleAppCapabilityClaims, requestId?: string) => {
+  constructor(options: { backend?: ModuleAppReplayGuardBackend } = {}) {
+    this.backend = options.backend;
+  }
+
+  consume = async (capability: ModuleAppCapabilityClaims, requestId?: string) => {
     if (!requestId || requestId.length < 1 || requestId.length > 160) {
       throw new Error('MODULE_APP_CAPABILITY_REQUEST_ID_REQUIRED');
     }
 
     const now = Math.floor(Date.now() / 1000);
+    const key = `${capability.installationId}:${capability.nonce}:${requestId}`;
+    if (this.backend) {
+      const consumed = await this.backend.consume(key, Math.max(1, capability.exp - now));
+      if (!consumed) throw new Error('MODULE_APP_CAPABILITY_REPLAYED');
+      return;
+    }
+
     for (const [key, expiresAt] of this.consumed) {
       if (expiresAt <= now) this.consumed.delete(key);
     }
 
-    const key = `${capability.installationId}:${capability.nonce}:${requestId}`;
     if (this.consumed.has(key)) throw new Error('MODULE_APP_CAPABILITY_REPLAYED');
     this.consumed.set(key, capability.exp);
   };
+}
+
+export interface ModuleAppReplayGuardBackend {
+  consume: (key: string, ttlSeconds: number) => Promise<boolean>;
 }
 
 type GatewayOptions = {
@@ -121,7 +136,7 @@ export class ModuleAppCapabilityGateway {
     const context = await this.context.resolve(params.capability);
     assertModuleAppContextScope(params.capability, context);
     if (mutationMethods.has(params.method)) {
-      this.replayGuard.consume(params.capability, params.requestId);
+      await this.replayGuard.consume(params.capability, params.requestId);
     }
 
     switch (params.method) {

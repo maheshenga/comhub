@@ -242,6 +242,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
       .select({
         artifactKey: moduleAppVersions.runtimeArtifactKey,
         artifactSha256: moduleAppVersions.runtimeArtifactSha256,
+        billing: moduleApps.billing,
         buildArtifactKey: moduleAppBuilds.artifactKey,
         buildArtifactSha256: moduleAppBuilds.artifactSha256,
         buildStatus: moduleAppBuilds.status,

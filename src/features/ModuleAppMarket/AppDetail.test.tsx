@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import AppDetail from './AppDetail';
+import AppDetail, { submitModuleAppPaymentForm } from './AppDetail';
 
 const commerceState = vi.hoisted(() => ({
   licenseLoading: false,
@@ -163,5 +163,37 @@ describe('ModuleAppDetail', () => {
     );
 
     await waitFor(() => expect(commerceState.licenseMutate).toHaveBeenCalled());
+  });
+
+  it('submits the signed HTTPS payment form returned by the server', () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+
+    submitModuleAppPaymentForm(
+      '<form action="https://openapi.alipay.com/gateway.do" method="post"><input type="hidden" name="sign" value="signed" /></form>',
+    );
+
+    expect(submit).toHaveBeenCalledTimes(1);
+    const form = document.body.querySelector('form[action="https://openapi.alipay.com/gateway.do"]');
+    expect(form).toHaveAttribute('method', 'post');
+    expect(form?.querySelector('input[name="sign"]')).toHaveAttribute('value', 'signed');
+    form?.remove();
+  });
+
+  it('rebuilds the payment form without executable attributes or arbitrary elements', () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+
+    submitModuleAppPaymentForm(
+      '<form action="https://openapi.alipay.com/gateway.do" method="post" onsubmit="alert(1)">' +
+        '<input type="hidden" name="sign" value="signed" onfocus="alert(1)" />' +
+        '<button name="unexpected">Run</button><script>alert(1)</script></form>',
+    );
+
+    const form = document.body.querySelector('form[action="https://openapi.alipay.com/gateway.do"]');
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(form).not.toHaveAttribute('onsubmit');
+    expect(form?.querySelector('input[name="sign"]')).not.toHaveAttribute('onfocus');
+    expect(form?.querySelector('button')).toBeNull();
+    expect(form?.querySelector('script')).toBeNull();
+    form?.remove();
   });
 });

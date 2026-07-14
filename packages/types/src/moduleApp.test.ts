@@ -10,6 +10,7 @@ import {
   moduleAppActionConfigSchema,
   moduleAppAdminUpsertSchema,
   moduleAppBillingConfigSchema,
+  moduleAppInputSchema,
   moduleAppMarketplaceListInputSchema,
   moduleAppPackageArchiveMetadataSchema,
   moduleAppPackageManifestSchema,
@@ -58,6 +59,33 @@ describe('module app type contracts', () => {
         runtimeType: 'record_create',
       }),
     ).toMatchObject({ id: 'create_record', runtimeType: 'record_create' });
+  });
+
+  it('accepts explicit bounded options for schema-driven select fields', () => {
+    expect(
+      moduleAppInputSchema.parse({
+        fields: [
+          {
+            key: 'priority',
+            label: 'Priority',
+            options: [
+              { label: 'High', value: 'high' },
+              { label: 'Low', value: 'low' },
+            ],
+            type: 'select',
+          },
+        ],
+      }),
+    ).toMatchObject({
+      fields: [
+        {
+          options: [
+            { label: 'High', value: 'high' },
+            { label: 'Low', value: 'low' },
+          ],
+        },
+      ],
+    });
   });
 
   it('keeps unsafe P1 runtimes out of the runtime enum', () => {

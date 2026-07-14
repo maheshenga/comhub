@@ -40,5 +40,5 @@ services:
 
 networks:
   platform:
-    name: '${COMHUB_PLATFORM_NETWORK:-comhub_default}'
+    name: '${COMHUB_PLATFORM_NETWORK:-paradedb_default}'
     external: true

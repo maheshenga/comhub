@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import {
+  moduleAppInstallations,
   moduleAppLicenses,
   moduleAppOrders,
   moduleAppPrices,
   moduleAppProducts,
   moduleApps,
   moduleAppSubscriptions,
+  moduleAppVersions,
   users,
   workspaces,
 } from '../../schemas';
@@ -24,6 +26,7 @@ const serverDB: LobeChatDatabase = await getTestDB();
 
 beforeEach(async () => {
   await serverDB.delete(moduleAppSubscriptions);
+  await serverDB.delete(moduleAppInstallations);
   await serverDB.delete(moduleAppLicenses);
   await serverDB.delete(moduleAppOrders);
   await serverDB.delete(moduleAppPrices);
@@ -47,6 +50,11 @@ beforeEach(async () => {
     id: APP_ID,
     slug: 'commerce-test-app',
     status: 'published',
+  });
+  await serverDB.insert(moduleAppVersions).values({
+    appId: APP_ID,
+    publishedAt: new Date('2026-07-14T00:00:00.000Z'),
+    version: '1.0.0',
   });
 });
 
@@ -77,6 +85,21 @@ describe('ModuleAppCommerceModel', () => {
     expect(await model.resolveLicense({ appId: APP_ID, userId: USER_ID })).toMatchObject({
       orderId: paid.id,
       status: 'active',
+    });
+    await expect(
+      serverDB.query.moduleAppInstallations.findFirst({
+        where: eq(moduleAppInstallations.appId, APP_ID),
+      }),
+    ).resolves.toMatchObject({
+      scopeType: 'personal',
+      status: 'installed',
+      userId: USER_ID,
+    });
+    await expect(
+      model.resolveEntitlementContext({ appId: APP_ID, userId: USER_ID }),
+    ).resolves.toMatchObject({
+      license: { orderId: paid.id, source: 'purchase', status: 'active' },
+      productType: 'one_time',
     });
 
     await model.refundOrder({ actorUserId: 'admin-1', orderId: order.id, reason: 'requested' });
@@ -127,6 +150,107 @@ describe('ModuleAppCommerceModel', () => {
     ).resolves.toHaveLength(1);
   });
 
+  it('settles different concurrent orders without racing installation creation', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'concurrent-orders',
+      productType: 'one_time',
+    });
+    const first = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+    const second = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+
+    await Promise.all([
+      model.settleOrder({ orderId: first.id, paymentReference: 'manual:orders:1' }),
+      model.settleOrder({ orderId: second.id, paymentReference: 'manual:orders:2' }),
+    ]);
+
+    await expect(
+      serverDB.query.moduleAppLicenses.findMany({
+        where: eq(moduleAppLicenses.appId, APP_ID),
+      }),
+    ).resolves.toHaveLength(2);
+    await expect(
+      serverDB.query.moduleAppInstallations.findMany({
+        where: eq(moduleAppInstallations.appId, APP_ID),
+      }),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('keeps payment settlement replay idempotent for an active installation', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'idempotent-installation',
+      productType: 'one_time',
+    });
+    const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+    await model.settleOrder({ orderId: order.id, paymentReference: 'manual:idempotent:1' });
+    const installed = await serverDB.query.moduleAppInstallations.findFirst({
+      where: eq(moduleAppInstallations.appId, APP_ID),
+    });
+    const [newVersion] = await serverDB
+      .insert(moduleAppVersions)
+      .values({ appId: APP_ID, version: '2.0.0' })
+      .returning();
+
+    await model.settleOrder({ orderId: order.id, paymentReference: 'manual:idempotent:1' });
+
+    await expect(
+      serverDB.query.moduleAppInstallations.findFirst({
+        where: eq(moduleAppInstallations.appId, APP_ID),
+      }),
+    ).resolves.toMatchObject({ installedAt: installed?.installedAt, versionId: installed?.versionId });
+    expect(installed?.versionId).not.toBe(newVersion.id);
+  });
+
+  it('prefers an older active license over a newer expired license', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const activeProduct = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'active-entitlement',
+      productType: 'one_time',
+    });
+    const expiredProduct = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 10, billingPeriod: 'monthly', currency: 'CNY' },
+      productKey: 'expired-entitlement',
+      productType: 'subscription',
+    });
+    const activeOrder = await model.createOrder({
+      productId: activeProduct.id,
+      purchaserUserId: USER_ID,
+    });
+    const expiredOrder = await model.createOrder({
+      productId: expiredProduct.id,
+      purchaserUserId: USER_ID,
+    });
+    await model.settleOrder({ orderId: activeOrder.id, paymentReference: 'manual:active:1' });
+    await model.settleOrder({ orderId: expiredOrder.id, paymentReference: 'manual:expired:1' });
+    await serverDB
+      .update(moduleAppLicenses)
+      .set({
+        createdAt: new Date('2030-01-01T00:00:00.000Z'),
+        endsAt: new Date('2020-01-01T00:00:00.000Z'),
+        status: 'expired',
+      })
+      .where(eq(moduleAppLicenses.orderId, expiredOrder.id));
+
+    await expect(
+      model.resolveEntitlementContext({ appId: APP_ID, userId: USER_ID }),
+    ).resolves.toMatchObject({
+      license: { orderId: activeOrder.id, status: 'active' },
+      productType: 'one_time',
+    });
+  });
+
   it('rejects refunds for pending orders', async () => {
     const model = new ModuleAppCommerceModel(serverDB);
     const product = await model.createProduct({
@@ -161,6 +285,40 @@ describe('ModuleAppCommerceModel', () => {
       price: 88,
       productType: 'one_time',
     });
+  });
+
+  it('updates product metadata and replaces the active price without rewriting history', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 88, currency: 'CNY' },
+      productKey: 'managed-price',
+      productType: 'one_time',
+    });
+
+    await model.updateProduct({
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY', promotion: { title: 'Launch' } },
+      productId: product.id,
+      productType: 'one_time',
+      status: 'active',
+    });
+
+    await expect(model.listProducts({ appId: APP_ID })).resolves.toEqual([
+      expect.objectContaining({
+        amount: 120,
+        currency: 'CNY',
+        productId: product.id,
+        promotion: { title: 'Launch' },
+      }),
+    ]);
+    const prices = await serverDB.query.moduleAppPrices.findMany({
+      where: eq(moduleAppPrices.productId, product.id),
+    });
+    expect(prices).toHaveLength(2);
+    expect(prices.filter((price) => price.active)).toHaveLength(1);
+    expect(prices.find((price) => !price.active)?.amount).toBe(88);
   });
 
   it('allows only the purchaser to cancel a pending order', async () => {
@@ -225,6 +383,15 @@ describe('ModuleAppCommerceModel', () => {
     await expect(
       model.resolveLicense({ appId: APP_ID, workspaceId: WORKSPACE_ID }),
     ).resolves.toMatchObject({ ownerUserId: null, status: 'active', workspaceId: WORKSPACE_ID });
+    await expect(
+      serverDB.query.moduleAppInstallations.findFirst({
+        where: eq(moduleAppInstallations.appId, APP_ID),
+      }),
+    ).resolves.toMatchObject({
+      scopeType: 'workspace',
+      status: 'installed',
+      workspaceId: WORKSPACE_ID,
+    });
     await expect(serverDB.query.moduleAppSubscriptions.findFirst()).resolves.toMatchObject({
       cancelAtPeriodEnd: false,
       status: 'trialing',

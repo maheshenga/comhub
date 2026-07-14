@@ -106,6 +106,16 @@ export interface RunModuleAppActionInput {
   resolveHostname?: ModuleAppUrlResolver;
   runner?: ModuleAppActionRunner;
   scopeType: ModuleAppScopeType;
+  serverAction?: (input: {
+    action: ModuleAppActionConfig;
+    actionKey: string;
+    appId: string;
+    idempotencyKey: string;
+    input: Record<string, unknown>;
+    installationId: string;
+    userId: string;
+    workspaceId?: string;
+  }) => Promise<ModuleAppRunnerResult>;
   textGenerator?: ModuleAppTextGenerator;
   userId: string;
   workflow?: ModuleAppWorkflowDefinition;
@@ -148,6 +158,7 @@ const billableRuntimeTypes = new Set([
   'api_action',
   'content_generation',
   'executable_action',
+  'server_action',
   'workflow_step',
 ]);
 
@@ -242,6 +253,24 @@ const resolveActionRunner = (
         input: params.input,
         textGenerator: params.textGenerator,
         userId: params.userId,
+      });
+  }
+
+  if (params.action.runtimeType === 'server_action') {
+    const actionKey = getTextInput(params.action.runtimeConfig, 'actionKey');
+    if (!params.serverAction || !params.installationId || !actionKey) {
+      throw new Error('MODULE_APP_SERVER_ACTION_REQUIRED');
+    }
+    return () =>
+      params.serverAction!({
+        action: params.action,
+        actionKey,
+        appId: params.appId,
+        idempotencyKey: params.idempotencyKey ?? runId,
+        input: params.input,
+        installationId: params.installationId!,
+        userId: params.userId,
+        workspaceId: params.workspaceId,
       });
   }
 

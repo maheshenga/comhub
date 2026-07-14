@@ -6,7 +6,7 @@ import type {
   ModuleAppRunStatus,
   ModuleAppScopeType,
 } from '@lobechat/types';
-import { and, desc, eq, isNull, ne, or } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, ne, or } from 'drizzle-orm';
 
 import {
   moduleAppActions,
@@ -93,19 +93,29 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
   listRecords = async (params: {
     appId: string;
     collectionKey: string;
+    limit: number;
+    offset: number;
     scopeType: ModuleAppScopeType;
     userId: string;
     workspaceId?: string;
   }) => {
-    return this.db.query.moduleAppRecords.findMany({
-      orderBy: [desc(moduleAppRecords.updatedAt)],
-      where: and(
-        eq(moduleAppRecords.appId, params.appId),
-        eq(moduleAppRecords.collectionKey, params.collectionKey),
-        ne(moduleAppRecords.status, 'archived'),
-        recordScopeWhere(params),
-      ),
-    });
+    const where = and(
+      eq(moduleAppRecords.appId, params.appId),
+      eq(moduleAppRecords.collectionKey, params.collectionKey),
+      ne(moduleAppRecords.status, 'archived'),
+      recordScopeWhere(params),
+    );
+    const [items, [total]] = await Promise.all([
+      this.db.query.moduleAppRecords.findMany({
+        limit: params.limit,
+        offset: params.offset,
+        orderBy: [desc(moduleAppRecords.updatedAt)],
+        where,
+      }),
+      this.db.select({ value: count() }).from(moduleAppRecords).where(where),
+    ]);
+
+    return { items, total: Number(total?.value ?? 0) };
   };
 
   getRecord = async (params: {

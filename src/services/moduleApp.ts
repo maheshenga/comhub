@@ -24,7 +24,10 @@ type ModuleAppClient = {
 type RecordListInput = Pick<
   ModuleAppRecordInput,
   'appId' | 'collectionKey' | 'scopeType' | 'workspaceId'
->;
+> & {
+  limit?: number;
+  offset?: number;
+};
 
 type ModuleAppHistoryInput = {
   cursor?: string;
@@ -59,6 +62,8 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     createPackageUpload,
     createOrder: (input: { productId: string; workspaceId?: string }) =>
       client.moduleApp.createOrder.mutate!(input),
+    createPayment: (input: { orderId: string; subject: string }) =>
+      client.moduleApp.createPayment.mutate!(input),
     createRecord: (input: ModuleAppRecordInput) => client.moduleApp.createRecord.mutate!(input),
     getDetail: (input: { appIdOrSlug: string }) => client.moduleApp.getDetail.query!(input),
     getLaunchContext: (input: { appId: string; workspaceId?: string }) =>

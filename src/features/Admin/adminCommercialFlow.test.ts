@@ -537,6 +537,15 @@ describe('admin commercial flow pages', () => {
     expect(redemptionPage).toContain('actionId="redemption.bulkDelete"');
   });
 
+  it('exposes module app product and price management from the selected app view', () => {
+    const moduleAppsPage = readRepoFile('src/features/Admin/moduleApps/index.tsx');
+
+    expect(moduleAppsPage).toContain("import ProductManager from './ProductManager'");
+    expect(moduleAppsPage).toContain('<ProductManager appId={selectedAppId} />');
+    expect(moduleAppsPage).toContain("key: 'products'");
+    expect(moduleAppsPage).toContain("label: 'Products'");
+  });
+
   it('localizes centralized dangerous action confirmation microcopy', () => {
     const dangerousButton = readRepoFile('src/features/Admin/AdminDangerousActionButton.tsx');
     const enSubscription = readRepoFile('locales/en-US/subscription.json');

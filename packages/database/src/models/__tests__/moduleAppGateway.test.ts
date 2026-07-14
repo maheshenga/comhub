@@ -38,6 +38,13 @@ describe('ModuleAppModel capability gateway isolation', () => {
       .insert(moduleApps)
       .values({
         appType: 'hybrid_app',
+        billing: {
+          chargeMode: 'external_api',
+          defaultMultiplier: 2,
+          externalApiCostCredits: 3,
+          failureFixedFeePolicy: 'do_not_charge',
+          fixedServiceFeeCredits: 1,
+        },
         category: 'business',
         description: 'Gateway test app.',
         displayName: 'Gateway App',
@@ -106,6 +113,13 @@ describe('ModuleAppModel capability gateway isolation', () => {
       .insert(moduleApps)
       .values({
         appType: 'hybrid_app',
+        billing: {
+          chargeMode: 'external_api',
+          defaultMultiplier: 2,
+          externalApiCostCredits: 3,
+          failureFixedFeePolicy: 'do_not_charge',
+          fixedServiceFeeCredits: 1,
+        },
         category: 'business',
         description: 'Launch context app.',
         displayName: 'Jobs Board',
@@ -216,6 +230,10 @@ describe('ModuleAppModel capability gateway isolation', () => {
         }),
       ],
       artifactSha256,
+      billing: expect.objectContaining({
+        chargeMode: 'external_api',
+        defaultMultiplier: 2,
+      }),
       buildArtifactSha256: artifactSha256,
       buildStatus: 'ready',
       displayName: 'Jobs Board',

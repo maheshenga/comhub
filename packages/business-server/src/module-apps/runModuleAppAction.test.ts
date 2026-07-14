@@ -634,4 +634,44 @@ describe('runModuleAppAction record actions', () => {
       }),
     );
   });
+
+  it('runs approved server actions through an injected host adapter', async () => {
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+    const serverAction = vi.fn().mockResolvedValue({
+      output: { notificationId: 'notification-1' },
+      preview: 'Notification created',
+    });
+
+    await expect(
+      runModuleAppAction({
+        action: {
+          id: 'notify',
+          inputSchema: { fields: [] },
+          moduleMultiplier: 1,
+          name: 'Notify',
+          outputSchema: {},
+          runtimeConfig: { actionKey: 'notifications.create' },
+          runtimeType: 'server_action',
+        },
+        appId: APP_ID,
+        assertEntitlement: allowEntitlement,
+        input: { content: 'Finished', title: 'Module App' },
+        installationId: '00000000-0000-4000-8000-000000000010',
+        model: model as never,
+        scopeType: 'personal',
+        serverAction,
+        userId: 'u1',
+      }),
+    ).resolves.toMatchObject({ preview: 'Notification created', status: 'succeeded' });
+    expect(serverAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionKey: 'notifications.create',
+        input: { content: 'Finished', title: 'Module App' },
+        installationId: '00000000-0000-4000-8000-000000000010',
+      }),
+    );
+  });
 });

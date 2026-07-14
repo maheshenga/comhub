@@ -2,20 +2,28 @@ import { recordModuleAppPayoutState } from '@lobechat/observability-otel/modules
 import {
   moduleAppAdminUpsertSchema,
   moduleAppBillingConfigSchema,
+  moduleAppCurrencySchema,
+  moduleAppDecimalStringSchema,
+  moduleAppLicenseScopeSchema,
   moduleAppPackageReviewStatusSchema,
   moduleAppPayoutStatusSchema,
   moduleAppPlanEntitlementSchema,
+  moduleAppProductSchema,
+  moduleAppProductTypeSchema,
+  moduleAppPromotionSnapshotSchema,
   moduleAppPublisherStatusSchema,
+  moduleAppRateStringSchema,
   moduleAppStatusSchema,
 } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import { ModuleAppPaymentModel } from '@/database/models/moduleAppPayment';
 import { ModuleAppPayoutModel } from '@/database/models/moduleAppPayout';
 import { ModuleAppPublisherModel } from '@/database/models/moduleAppPublisher';
-import type { LobeChatDatabase } from '@/database/type';
+import type { LobeChatDatabase, Transaction } from '@/database/type';
 import { appEnv } from '@/envs/app';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
@@ -202,8 +210,59 @@ const EntitlementsInputSchema = z.object({
   entitlements: z.array(moduleAppPlanEntitlementSchema).max(100),
 });
 
+const ModuleAppProductPriceSchema = z.object({
+  amount: z.number().int().nonnegative().max(1_000_000_000),
+  billingPeriod: z.enum(['monthly', 'yearly']).optional(),
+  currency: moduleAppCurrencySchema,
+  promotion: moduleAppPromotionSnapshotSchema.optional(),
+  trialDays: z.number().int().min(0).max(365).optional(),
+});
+const ModuleAppProductFieldsSchema = z.object({
+  licenseScope: moduleAppLicenseScopeSchema,
+  moduleMultiplier: moduleAppDecimalStringSchema.optional(),
+  price: ModuleAppProductPriceSchema,
+  productType: moduleAppProductTypeSchema,
+  revenueShareRate: moduleAppRateStringSchema.optional(),
+  seatCount: z.number().int().positive().max(100_000).optional(),
+  termsVersion: z.string().trim().min(1).max(80).optional(),
+});
+const validateProductFields = (
+  input: z.infer<typeof ModuleAppProductFieldsSchema>,
+  ctx: z.RefinementCtx,
+) => {
+  const result = moduleAppProductSchema.safeParse({
+    billingPeriod: input.price.billingPeriod,
+    currency: input.price.currency,
+    licenseScope: input.licenseScope,
+    price: input.price.amount,
+    productType: input.productType,
+    seatCount: input.seatCount,
+    trialDays: input.price.trialDays,
+  });
+  if (result.success) return;
+
+  for (const issue of result.error.issues) {
+    const [field, ...rest] = issue.path;
+    const path =
+      field === 'price'
+        ? ['price', 'amount', ...rest]
+        : field === 'billingPeriod' || field === 'trialDays'
+          ? ['price', field, ...rest]
+          : issue.path;
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path });
+  }
+};
+const CreateProductInputSchema = AppIdInputSchema.extend({
+  ...ModuleAppProductFieldsSchema.shape,
+  productKey: z.string().trim().min(1).max(120).regex(/^[a-z0-9][a-z0-9_-]*$/),
+}).superRefine(validateProductFields);
+const UpdateProductInputSchema = ModuleAppProductFieldsSchema.extend({
+  productId: z.string().uuid(),
+  status: z.enum(['active', 'inactive']),
+}).superRefine(validateProductFields);
+
 const writeAudit = async (
-  ctx: { serverDB: LobeChatDatabase; userId: string },
+  ctx: { serverDB: LobeChatDatabase | Transaction; userId: string },
   input: {
     eventType: string;
     metadata?: null | Record<string, unknown>;
@@ -340,12 +399,35 @@ export const adminModuleAppsRouter = router({
       }),
     ),
 
+  createProduct: contentWriteProcedure
+    .input(CreateProductInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
+      return ctx.serverDB.transaction(async (tx: Transaction) => {
+        const result = await new ModuleAppCommerceModel(
+          tx as LobeChatDatabase,
+        ).createProduct(input);
+        await writeAudit({ serverDB: tx, userId: ctx.userId }, {
+          eventType: 'module_app.product_created',
+          metadata: { appId: input.appId, productKey: input.productKey },
+          resourceId: result.id,
+          resourceType: 'moduleAppProduct',
+        });
+        return result;
+      });
+    }),
+
   get: auditReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
     return requireAdminApp(ctx.serverDB, input.appId);
   }),
 
   list: auditReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listApplications(input);
+  }),
+
+  listProducts: auditReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
+    await requireAdminApp(ctx.serverDB, input.appId);
+    return new ModuleAppCommerceModel(ctx.serverDB).listProducts(input);
   }),
 
   listPayouts: auditReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
@@ -495,6 +577,23 @@ export const adminModuleAppsRouter = router({
         resourceType: 'moduleAppPayout',
       });
       return result;
+    }),
+
+  updateProduct: contentWriteProcedure
+    .input(UpdateProductInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.serverDB.transaction(async (tx: Transaction) => {
+        const result = await new ModuleAppCommerceModel(
+          tx as LobeChatDatabase,
+        ).updateProduct(input);
+        await writeAudit({ serverDB: tx, userId: ctx.userId }, {
+          eventType: 'module_app.product_updated',
+          metadata: { status: input.status },
+          resourceId: input.productId,
+          resourceType: 'moduleAppProduct',
+        });
+        return result;
+      });
     }),
 
   getPackage: auditReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {

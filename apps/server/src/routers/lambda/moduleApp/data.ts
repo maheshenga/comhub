@@ -13,6 +13,7 @@ import {
 } from '@/business/server/module-apps/permission';
 import { getSubscriptionPlan } from '@/business/server/user';
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { ModuleAppRecordItem } from '@/database/schemas';
@@ -112,6 +113,7 @@ export const assertInstallationAccess = async (params: {
 };
 
 export const assertDetailEntitlement = async (params: {
+  commerceModel?: Pick<ModuleAppCommerceModel, 'resolveEntitlementContext'>;
   db: LobeChatDatabase;
   detail: NonNullable<Awaited<ReturnType<ModuleAppModel['getAppDetail']>>>;
   operation: 'install' | 'job' | 'launch' | 'run' | 'schedule' | 'webhook';
@@ -125,6 +127,13 @@ export const assertDetailEntitlement = async (params: {
     params.operation === 'install'
       ? params.detail.planState.installable
       : params.detail.planState.runnable;
+  const commerce =
+    params.commerceModel ?? new ModuleAppCommerceModel(params.db);
+  const commerceContext = await commerce.resolveEntitlementContext(
+    params.workspaceId
+      ? { appId: params.detail.id, workspaceId: params.workspaceId }
+      : { appId: params.detail.id, userId: params.userId },
+  );
 
   try {
     return assertModuleAppEntitlement({
@@ -133,8 +142,10 @@ export const assertDetailEntitlement = async (params: {
         typeof params.detail.installed === 'boolean'
           ? { active: params.detail.installed }
           : undefined,
+      license: commerceContext.license,
       operation: params.operation,
       planIncluded,
+      productType: commerceContext.productType,
       teamMembership: params.workspaceId ? { active: Boolean(membership) } : undefined,
       workspaceScoped: Boolean(params.workspaceId),
     });
@@ -282,6 +293,9 @@ export const moduleAppDataProcedures = {
         collectionKey: true,
         scopeType: true,
         workspaceId: true,
+      }).extend({
+        limit: z.number().int().min(1).max(100).default(20),
+        offset: z.number().int().min(0).max(1_000_000).default(0),
       }),
     )
     .query(async ({ ctx, input }) => {
