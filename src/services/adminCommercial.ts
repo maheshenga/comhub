@@ -1,4 +1,4 @@
-import type { Plans } from '@lobechat/types';
+import type { AdminRole, Plans } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
 import type { SubscriptionCycleType } from '@/types/business';
@@ -69,7 +69,7 @@ class AdminCommercialService {
     return lambdaClient.admin.users.unban.mutate({ userId });
   };
 
-  setUserRole = async (params: { role: 'admin' | 'user' | null; userId: string }) => {
+  setUserRole = async (params: { role: AdminRole | 'user' | null; userId: string }) => {
     return lambdaClient.admin.users.setRole.mutate(params);
   };
 

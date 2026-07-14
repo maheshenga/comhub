@@ -12,12 +12,19 @@ import {
   topUpPackages,
 } from '@/database/schemas';
 import type { Transaction } from '@/database/type';
-import { adminProcedure, authedProcedure, router } from '@/libs/trpc/lambda';
+import {
+  ADMIN_CAPABILITIES,
+  adminCapabilityProcedure,
+  authedProcedure,
+  router,
+} from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 
 import { recordAdminAudit } from './audit';
 
 const userDbProcedure = authedProcedure.use(serverDatabase);
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
+const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 /** Friendly base32 alphabet without ambiguous chars (no I/L/O/0/1). */
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -84,7 +91,7 @@ const assertTopUpPackageRewardIsRedeemable = async (db: any, packageId: string) 
 };
 
 export const adminRedemptionRouter = router({
-  generate: adminProcedure
+  generate: financeWriteProcedure
     .input(
       z.intersection(
         RewardSchema,
@@ -155,7 +162,7 @@ export const adminRedemptionRouter = router({
       return { batchId, codes: created };
     }),
 
-  list: adminProcedure
+  list: financeReadProcedure
     .input(
       z.object({
         batchId: z.string().optional(),
@@ -196,7 +203,7 @@ export const adminRedemptionRouter = router({
       };
     }),
 
-  disable: adminProcedure
+  disable: financeWriteProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.serverDB.query.redemptionCodes.findFirst({
@@ -220,7 +227,7 @@ export const adminRedemptionRouter = router({
       return { ok: true };
     }),
 
-  enable: adminProcedure
+  enable: financeWriteProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.serverDB.query.redemptionCodes.findFirst({
@@ -245,7 +252,7 @@ export const adminRedemptionRouter = router({
     }),
 
   /** Mark all expired codes whose expiresAt has passed and status='active' as 'expired'. */
-  expireOverdue: adminProcedure.mutation(async ({ ctx }) => {
+  expireOverdue: financeWriteProcedure.mutation(async ({ ctx }) => {
     const now = new Date();
     const updated = await ctx.serverDB
       .update(redemptionCodes)
@@ -271,7 +278,7 @@ export const adminRedemptionRouter = router({
    * Disable many codes at once. Already-redeemed rows are silently skipped so
    * partial batches don't leak ledger inconsistencies.
    */
-  bulkDisable: adminProcedure
+  bulkDisable: financeWriteProcedure
     .input(z.object({ ids: z.array(z.string().min(1)).min(1).max(500) }))
     .mutation(async ({ ctx, input }) => {
       const updated = await ctx.serverDB
@@ -292,7 +299,7 @@ export const adminRedemptionRouter = router({
    * Delete unredeemed codes permanently. Redeemed codes are kept to preserve
    * the ledger trail.
    */
-  bulkDelete: adminProcedure
+  bulkDelete: financeWriteProcedure
     .input(
       z.object({
         ids: z.array(z.string().min(1)).min(1).max(500),

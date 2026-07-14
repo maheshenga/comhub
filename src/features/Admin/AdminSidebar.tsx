@@ -10,12 +10,11 @@ import {
   Compass,
   CreditCard,
   Download,
-  HardDrive,
   FileArchive,
   FileText,
   FolderOpen,
   Gauge,
-  Wrench,
+  HardDrive,
   Megaphone,
   MessageSquareText,
   Package,
@@ -28,13 +27,17 @@ import {
   Tags,
   Ticket,
   Users,
+  Wrench,
 } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
+
 import {
-  ADMIN_NAV_GROUPS,
   type AdminNavIcon,
+  getAdminNavGroupsForRole,
   getAdminOpenKeys,
   getAdminSelectedKey,
 } from './adminNavigation';
@@ -70,8 +73,8 @@ const iconMap: Record<AdminNavIcon, typeof Gauge> = {
   'users': Users,
 };
 
-const buildMenuItems = (): MenuProps['items'] =>
-  ADMIN_NAV_GROUPS.map((group) => ({
+const buildMenuItems = (role?: string | null): MenuProps['items'] =>
+  getAdminNavGroupsForRole(role).map((group) => ({
     children: group.items.map((item) => ({
       icon: <Icon icon={iconMap[item.icon]} />,
       key: item.path,
@@ -87,8 +90,9 @@ const buildMenuItems = (): MenuProps['items'] =>
 const AdminSidebar = memo(() => {
   const navigate = useNavigate();
   const location = useLocation();
+  const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
 
-  const items = useMemo(() => buildMenuItems(), []);
+  const items = useMemo(() => buildMenuItems(role), [role]);
   const selectedKey = getAdminSelectedKey(location.pathname);
 
   return (

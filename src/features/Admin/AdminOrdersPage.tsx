@@ -8,6 +8,7 @@ import { Link } from 'react-router';
 
 import InlineTable from '@/components/InlineTable';
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
+import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -126,7 +127,7 @@ const AdminOrdersPage = memo(() => {
         {t('admin.orders.settleConfirmAmount', '金额')}：{row.currency || 'CNY'} {row.amount}
       </span>
       <span>
-        {t('admin.orders.settleConfirmCredits', '积分')}：{row.credits}
+        {t('admin.orders.settleConfirmCredits', '积分')}：{formatAdminCredits(row.credits)}
       </span>
       <span>
         {t('admin.orders.settleConfirmProvider', '渠道')}：{row.provider || '-'} /{' '}
@@ -165,6 +166,7 @@ const AdminOrdersPage = memo(() => {
     {
       dataIndex: 'credits',
       key: 'credits',
+      render: (value: number | string) => formatAdminCredits(value),
       title: t('admin.orders.col.credits', '积分'),
     },
     {
@@ -196,31 +198,31 @@ const AdminOrdersPage = memo(() => {
           {row.status === 'pending' ? (
             <>
               <AdminDangerousActionButton
-                actionId="order.settle"
                 danger
-                loading={actingId === row.id}
-                size="small"
+                actionId="order.settle"
                 confirmDescription={renderSettleConfirmDescription(row)}
                 confirmTitle={t('admin.orders.settleConfirm', '确认手动结算这个待支付订单？')}
+                loading={actingId === row.id}
+                size="small"
                 onConfirm={(input) => handlePendingAction(row.id, 'settle', input)}
               >
                 {t('admin.orders.settle', '手动结算')}
               </AdminDangerousActionButton>
               <AdminDangerousActionButton
                 actionId="order.expire"
+                confirmTitle={t('admin.orders.expireConfirm', '确认将这个待支付订单设为过期？')}
                 loading={actingId === row.id}
                 size="small"
-                confirmTitle={t('admin.orders.expireConfirm', '确认将这个待支付订单设为过期？')}
                 onConfirm={() => handlePendingAction(row.id, 'expire')}
               >
                 {t('admin.orders.expire', '设为过期')}
               </AdminDangerousActionButton>
               <AdminDangerousActionButton
-                actionId="order.cancel"
                 danger
+                actionId="order.cancel"
+                confirmTitle={t('admin.orders.cancelConfirm', '确认取消这个待支付订单？')}
                 loading={actingId === row.id}
                 size="small"
-                confirmTitle={t('admin.orders.cancelConfirm', '确认取消这个待支付订单？')}
                 onConfirm={() => handlePendingAction(row.id, 'cancel')}
               >
                 {t('admin.orders.cancel', '取消订单')}
@@ -319,7 +321,7 @@ const AdminOrdersPage = memo(() => {
                 {orderDetail.currency || 'CNY'} {orderDetail.amount}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.orders.detail.credits', '积分')}>
-                {orderDetail.credits}
+                {formatAdminCredits(orderDetail.credits)}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.orders.detail.provider', '渠道')}>
                 {orderDetail.provider || '-'} / {orderDetail.source || '-'}
@@ -360,13 +362,13 @@ const AdminOrdersPage = memo(() => {
 
             <Alert
               showIcon
+              message={t('admin.orders.detail.auditHint', '如需追踪后台操作，请在审计日志中按订单 ID 检索。')}
+              type="info"
               action={
                 <Link style={{ whiteSpace: 'nowrap' }} to={buildOrderAuditUrl(orderDetail.id)}>
                   {t('admin.orders.detail.viewAudit', '查看审计日志')}
                 </Link>
               }
-              message={t('admin.orders.detail.auditHint', '如需追踪后台操作，请在审计日志中按订单 ID 检索。')}
-              type="info"
             />
           </Flexbox>
         )}

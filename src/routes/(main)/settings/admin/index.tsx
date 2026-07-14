@@ -1,10 +1,12 @@
 'use client';
 
+import { isAdminRole } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useLocation } from 'react-router';
 
 import { AdminSidebar } from '@/features/Admin';
+import { canAccessAdminPath, getAdminDefaultPath } from '@/features/Admin/adminNavigation';
 import AdminAuditPage from '@/routes/(main)/admin/audit';
 import AdminCreditsPage from '@/routes/(main)/admin/credits';
 import AdminDesktopUpdatePage from '@/routes/(main)/admin/desktop-update';
@@ -87,7 +89,10 @@ const SettingsAdminPage = () => {
   const Page = getAdminPage(location.pathname);
 
   if (!isUserStateInit) return null;
-  if (role !== 'admin') return <Navigate replace to="/" />;
+  if (!isAdminRole(role)) return <Navigate replace to="/" />;
+  if (!canAccessAdminPath(role, location.pathname)) {
+    return <Navigate replace to={getAdminDefaultPath(role)} />;
+  }
 
   return (
     <>

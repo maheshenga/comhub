@@ -385,7 +385,7 @@ describe('admin commercial flow pages', () => {
     const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
     const governanceCard = readRepoFile('src/features/Admin/AdminSettingsGovernanceCard.tsx');
 
-    expect(settingsRouter).toContain('getGovernance: adminProcedure.query');
+    expect(settingsRouter).toContain('getGovernance: systemReadProcedure.query');
     expect(settingsRouter).toContain('deleteUnknownSetting: systemWriteProcedure');
     expect(service).toContain('getAppSettingsGovernance');
     expect(service).toContain('admin.settings.getGovernance.query()');

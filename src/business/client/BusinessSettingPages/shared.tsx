@@ -1,6 +1,6 @@
 'use client';
 
-import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
+import { DISPLAY_CREDITS_UNIT, toAtomicCredits, toDisplayCredits } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { createStaticStyles, cssVar } from 'antd-style';
@@ -189,11 +189,9 @@ const createReferralCode = () => String(Math.floor(1_000_000 + Math.random() * 9
 export const formatBusinessNumber = (value: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 
-export const DISPLAY_CREDITS_UNIT = CREDITS_PER_DOLLAR;
+export { DISPLAY_CREDITS_UNIT, toDisplayCredits };
 
-export const toDisplayCredits = (value: number) => value / DISPLAY_CREDITS_UNIT;
-
-export const toRawCredits = (value: number) => Math.round(value * DISPLAY_CREDITS_UNIT);
+export const toRawCredits = toAtomicCredits;
 
 export const formatCredits = (value: number) =>
   `${formatBusinessNumber(toDisplayCredits(value))} M`;

@@ -108,16 +108,19 @@ async function ensureDefaultFreePlanSnapshot(
   if (existed) return;
 
   const startedAt = createdAt ?? new Date();
-  await db.insert(userPlanSnapshots).values({
-    cycle: 'monthly',
-    externalSubscriptionId: `default-free-${userId}`,
-    metadata: { source: 'registration_default' },
-    monthlyCredits: 0,
-    monthlyPrice: 0,
-    plan: Plans.Free,
-    provider: 'system_default',
-    startedAt,
-    status: 'active',
-    userId,
-  });
+  await db
+    .insert(userPlanSnapshots)
+    .values({
+      cycle: 'monthly',
+      externalSubscriptionId: `default-free-${userId}`,
+      metadata: { source: 'registration_default' },
+      monthlyCredits: 0,
+      monthlyPrice: 0,
+      plan: Plans.Free,
+      provider: 'system_default',
+      startedAt,
+      status: 'active',
+      userId,
+    })
+    .onConflictDoNothing();
 }

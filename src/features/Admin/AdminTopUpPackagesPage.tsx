@@ -7,6 +7,11 @@ import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import { normalizeTopUpPackagePromotion } from '@/const/billingPresentation';
+import {
+  formatAdminCredits,
+  toAdminAtomicCredits,
+  toAdminDisplayCredits,
+} from '@/features/Admin/adminCreditUnits';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -56,6 +61,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
     setEditing(init);
     form.setFieldsValue({
       ...init,
+      credits: toAdminDisplayCredits(init.credits),
       originalAmount: promotion.originalAmount,
       promotionEnabled: promotion.enabled,
       promotionLabel: promotion.label,
@@ -69,7 +75,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
       setSubmitting(true);
       await adminCommercialService.upsertPackage({
         amount: Number(values.amount || 0),
-        credits: Number(values.credits || 0),
+        credits: toAdminAtomicCredits(values.credits),
         currency: values.currency || 'USD',
         displayName: values.displayName,
         id: values.id,
@@ -115,7 +121,12 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
   const columns = [
     { dataIndex: 'id', key: 'id', title: t('admin.topup.col.id', 'ID') },
     { dataIndex: 'displayName', key: 'displayName', title: t('admin.topup.col.name', '套餐名称') },
-    { dataIndex: 'credits', key: 'credits', title: t('admin.topup.col.credits', '积分') },
+    {
+      dataIndex: 'credits',
+      key: 'credits',
+      render: (value: number) => formatAdminCredits(value),
+      title: t('admin.topup.col.credits', '积分'),
+    },
     {
       dataIndex: 'amount',
       key: 'amount',
@@ -225,7 +236,7 @@ const AdminTopUpPackagesPage = memo<AdminTopUpPackagesPageProps>(({ embedded = f
               name="credits"
               style={{ flex: 1 }}
             >
-              <InputNumber min={0} style={{ width: '100%' }} />
+              <InputNumber addonAfter={'M'} min={0} precision={6} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
               label={t('admin.topup.field.amount', '金额')}

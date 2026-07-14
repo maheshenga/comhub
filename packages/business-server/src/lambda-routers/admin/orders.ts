@@ -4,11 +4,12 @@ import { z } from 'zod';
 
 import { CommercialModel } from '@/database/models/commercial';
 import { redemptionCodes, topUpOrders, users } from '@/database/schemas';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
 const OrderStatusSchema = z.enum(['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded']);
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 export const adminOrdersRouter = router({
@@ -54,7 +55,7 @@ export const adminOrdersRouter = router({
       return { ok: true };
     }),
 
-  getDetail: adminProcedure
+  getDetail: financeReadProcedure
     .input(z.object({ orderId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const db = ctx.serverDB;
@@ -148,7 +149,7 @@ export const adminOrdersRouter = router({
       return result;
     }),
 
-  list: adminProcedure
+  list: financeReadProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),

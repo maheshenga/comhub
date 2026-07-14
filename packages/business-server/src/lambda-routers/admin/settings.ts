@@ -31,7 +31,6 @@ import { type LobeChatDatabase, type Transaction } from '@/database/type';
 import {
   ADMIN_CAPABILITIES,
   adminCapabilityProcedure,
-  adminProcedure,
   publicProcedure,
   router,
 } from '@/libs/trpc/lambda';
@@ -65,6 +64,7 @@ import { recordAdminAudit } from './audit';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
 const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
+const systemReadProcedure = systemWriteProcedure;
 
 const maskApiKey = (key: string | null | undefined): string | null => {
   if (!key) return null;
@@ -1553,7 +1553,7 @@ export const adminSettingsRouter = router({
     };
   }),
 
-  getGovernance: adminProcedure.query(async ({ ctx }) => {
+  getGovernance: systemReadProcedure.query(async ({ ctx }) => {
     const rows = await ctx.serverDB.query.appSettings.findMany({
       columns: {
         key: true,
@@ -1602,7 +1602,7 @@ export const adminSettingsRouter = router({
       return { deleted: deleted.length > 0, key: input.key };
     }),
 
-  getAll: adminProcedure.query(async ({ ctx }) => {
+  getAll: systemReadProcedure.query(async ({ ctx }) => {
     const [
       referralReward,
       cronSecret,
@@ -2037,7 +2037,7 @@ export const adminSettingsRouter = router({
     };
   }),
 
-  validateDefaultAgentSettings: adminProcedure
+  validateDefaultAgentSettings: systemReadProcedure
     .input(
       z.object({
         model: z.string().optional(),

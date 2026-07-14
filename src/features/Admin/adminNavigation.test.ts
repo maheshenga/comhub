@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   ADMIN_BASE_PATH,
   ADMIN_NAV_GROUPS,
+  canAccessAdminPath,
+  getAdminDefaultPath,
+  getAdminNavGroupsForRole,
   getAdminOpenKeys,
   getAdminSelectedKey,
 } from './adminNavigation';
@@ -11,6 +14,37 @@ const collectPaths = () =>
   ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.path));
 
 describe('adminNavigation', () => {
+  it('filters scoped admin navigation by domain capability', () => {
+    const financePaths = getAdminNavGroupsForRole('finance_admin').flatMap((group) =>
+      group.items.map((item) => item.path),
+    );
+
+    expect(financePaths).toEqual(
+      expect.arrayContaining([
+        `${ADMIN_BASE_PATH}/subscriptions`,
+        `${ADMIN_BASE_PATH}/plans`,
+        `${ADMIN_BASE_PATH}/orders`,
+        `${ADMIN_BASE_PATH}/credits`,
+        `${ADMIN_BASE_PATH}/stats`,
+        `${ADMIN_BASE_PATH}/audit`,
+      ]),
+    );
+    expect(financePaths).not.toContain(`${ADMIN_BASE_PATH}/users`);
+    expect(financePaths).not.toContain(`${ADMIN_BASE_PATH}/providers`);
+    expect(financePaths).not.toContain(`${ADMIN_BASE_PATH}/settings`);
+  });
+
+  it('resolves safe default pages and rejects cross-domain direct navigation', () => {
+    expect(getAdminDefaultPath('finance_admin')).toBe(`${ADMIN_BASE_PATH}/subscriptions`);
+    expect(getAdminDefaultPath('support_admin')).toBe(`${ADMIN_BASE_PATH}/users`);
+    expect(getAdminDefaultPath('model_ops')).toBe(`${ADMIN_BASE_PATH}/providers`);
+    expect(getAdminDefaultPath('system_admin')).toBe(`${ADMIN_BASE_PATH}/settings`);
+    expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/plans`)).toBe(true);
+    expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/settings`)).toBe(false);
+    expect(canAccessAdminPath('admin', `${ADMIN_BASE_PATH}/settings`)).toBe(true);
+    expect(canAccessAdminPath('user', `${ADMIN_BASE_PATH}/plans`)).toBe(false);
+  });
+
   it('organizes admin pages into the planned management modules', () => {
     expect(ADMIN_NAV_GROUPS.map((group) => group.key)).toEqual([
       'overview',
@@ -145,9 +179,7 @@ describe('adminNavigation', () => {
         path: `${ADMIN_BASE_PATH}/desktop-update`,
       }),
     );
-    expect(systemItems.map((item) => item.path)).not.toContain(
-      `${ADMIN_BASE_PATH}/desktop-update`,
-    );
+    expect(systemItems.map((item) => item.path)).not.toContain(`${ADMIN_BASE_PATH}/desktop-update`);
     expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client']);
   });
 

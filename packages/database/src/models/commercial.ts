@@ -350,6 +350,28 @@ export class CommercialModel {
     return db.insert(creditAccounts).values({ userId }).onConflictDoNothing();
   };
 
+  private lockCommercialUserForUpdate = async (tx: Transaction) => {
+    const [user] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, this.userId))
+      .for('update');
+
+    if (!user) throw new Error('COMMERCIAL_USER_NOT_FOUND');
+  };
+
+  private lockCreditAccountForUpdate = async (userId: string, tx: Transaction) => {
+    await this.ensureCreditAccountForUser(userId, tx);
+
+    const [account] = await tx
+      .select({ userId: creditAccounts.userId })
+      .from(creditAccounts)
+      .where(eq(creditAccounts.userId, userId))
+      .for('update');
+
+    if (!account) throw new Error('CREDIT_ACCOUNT_NOT_FOUND');
+  };
+
   private grantCreditsToUser = async ({
     amount,
     description,
@@ -783,6 +805,8 @@ export class CommercialModel {
     const duePeriods = this.listDueSubscriptionGrantPeriods(snapshot);
     if (duePeriods.length === 0) return 0;
 
+    await this.lockCreditAccountForUpdate(this.userId, tx);
+
     // Batch-fetch existing referenceIds to avoid N+1 queries
     const existingEntries = await tx
       .select({ referenceId: creditLedgerEntries.referenceId })
@@ -901,9 +925,15 @@ export class CommercialModel {
         status: 'active',
         userId: this.userId,
       })
+      .onConflictDoNothing()
       .returning();
 
-    return freeSnapshot;
+    if (freeSnapshot) return freeSnapshot;
+
+    return db.query.userPlanSnapshots.findFirst({
+      orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+      where: and(eq(userPlanSnapshots.userId, this.userId), eq(userPlanSnapshots.status, 'active')),
+    });
   };
 
   private syncLatestSubscriptionCredits = async () => {
@@ -1592,6 +1622,7 @@ export class CommercialModel {
     await this.getRequiredPlanCatalogEntry(input.targetPlan);
 
     return this.db.transaction(async (tx) => {
+      await this.lockCommercialUserForUpdate(tx);
       const summary = await this.getSubscriptionSummary(tx);
       const existingPending = await this.getPendingSubscriptionChangeRequest(tx);
 
@@ -1660,6 +1691,7 @@ export class CommercialModel {
     },
   ): Promise<SubscriptionChangeRequestItem> => {
     return this.db.transaction(async (tx) => {
+      await this.lockCommercialUserForUpdate(tx);
       await this.syncExpiredPlanSnapshots(tx);
 
       const request = await tx.query.subscriptionChangeRequests.findFirst({
@@ -1787,6 +1819,7 @@ export class CommercialModel {
     tx: Transaction;
   }): Promise<SubscriptionChangeRequestItem> => {
     this.assertSupportedPlan(targetPlan);
+    await this.lockCommercialUserForUpdate(tx);
     await this.syncExpiredPlanSnapshots(tx);
 
     const activatedAt = new Date();

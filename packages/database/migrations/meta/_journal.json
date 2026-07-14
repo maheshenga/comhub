@@ -1043,6 +1043,13 @@
       "when": 1784732000000,
       "tag": "0145_add_module_app_order_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1784818400000,
+      "tag": "0146_harden_commercial_invariants",
+      "breakpoints": true
     }
   ],
   "version": "6"

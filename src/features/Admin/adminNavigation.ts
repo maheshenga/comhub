@@ -1,3 +1,12 @@
+import {
+  ADMIN_CAPABILITIES,
+  type AdminCapability,
+  type AdminRole,
+  hasAdminCapability,
+  isAdminRole,
+  isFullAdminRole,
+} from '@lobechat/types';
+
 export const ADMIN_BASE_PATH = '/settings/admin';
 
 export type AdminNavGroupKey =
@@ -290,6 +299,45 @@ const ADMIN_NAV_ALIASES: Record<string, string> = {
   [`${ADMIN_BASE_PATH}/topup`]: `${ADMIN_BASE_PATH}/orders`,
 };
 
+const ADMIN_PATH_CAPABILITIES: Record<string, AdminCapability> = {
+  [ADMIN_BASE_PATH]: ADMIN_CAPABILITIES.adminAccess,
+  [`${ADMIN_BASE_PATH}/audit`]: ADMIN_CAPABILITIES.auditRead,
+  [`${ADMIN_BASE_PATH}/credits`]: ADMIN_CAPABILITIES.financeRead,
+  [`${ADMIN_BASE_PATH}/desktop-update`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/documents`]: ADMIN_CAPABILITIES.contentWrite,
+  [`${ADMIN_BASE_PATH}/expert-plaza`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/file-storage`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/files`]: ADMIN_CAPABILITIES.contentWrite,
+  [`${ADMIN_BASE_PATH}/growth`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/maintenance`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/model-billing-matrix`]: ADMIN_CAPABILITIES.adminAccess,
+  [`${ADMIN_BASE_PATH}/model-policy`]: ADMIN_CAPABILITIES.adminAccess,
+  [`${ADMIN_BASE_PATH}/module-apps`]: ADMIN_CAPABILITIES.adminAccess,
+  [`${ADMIN_BASE_PATH}/notifications`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/operations`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/orders`]: ADMIN_CAPABILITIES.financeRead,
+  [`${ADMIN_BASE_PATH}/plans`]: ADMIN_CAPABILITIES.financeRead,
+  [`${ADMIN_BASE_PATH}/ppt`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/providers`]: ADMIN_CAPABILITIES.modelOpsWrite,
+  [`${ADMIN_BASE_PATH}/recommendations`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/redemption`]: ADMIN_CAPABILITIES.financeRead,
+  [`${ADMIN_BASE_PATH}/settings`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/stats`]: ADMIN_CAPABILITIES.financeRead,
+  [`${ADMIN_BASE_PATH}/subscriptions`]: ADMIN_CAPABILITIES.financeRead,
+  [`${ADMIN_BASE_PATH}/system-defaults`]: ADMIN_CAPABILITIES.systemWrite,
+  [`${ADMIN_BASE_PATH}/topics`]: ADMIN_CAPABILITIES.contentWrite,
+  [`${ADMIN_BASE_PATH}/users`]: ADMIN_CAPABILITIES.userWrite,
+};
+
+const ADMIN_ROLE_DEFAULT_PATHS: Record<AdminRole, string> = {
+  admin: ADMIN_BASE_PATH,
+  content_admin: `${ADMIN_BASE_PATH}/topics`,
+  finance_admin: `${ADMIN_BASE_PATH}/subscriptions`,
+  model_ops: `${ADMIN_BASE_PATH}/providers`,
+  support_admin: `${ADMIN_BASE_PATH}/users`,
+  system_admin: `${ADMIN_BASE_PATH}/settings`,
+};
+
 export const normalizeAdminPath = (pathname: string) => {
   const cleanPath = pathname.replace(/\/+$/, '') || ADMIN_BASE_PATH;
 
@@ -299,6 +347,28 @@ export const normalizeAdminPath = (pathname: string) => {
 
   return cleanPath;
 };
+
+export const canAccessAdminPath = (role: string | null | undefined, pathname: string) => {
+  if (!isAdminRole(role)) return false;
+  if (isFullAdminRole(role)) return true;
+
+  const selectedPath = getAdminSelectedKey(pathname);
+  const capability = ADMIN_PATH_CAPABILITIES[selectedPath];
+
+  return !!capability && hasAdminCapability(role, capability);
+};
+
+export const getAdminDefaultPath = (role: string | null | undefined) => {
+  if (!isAdminRole(role)) return '/';
+
+  return ADMIN_ROLE_DEFAULT_PATHS[role];
+};
+
+export const getAdminNavGroupsForRole = (role: string | null | undefined): AdminNavGroup[] =>
+  ADMIN_NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => canAccessAdminPath(role, item.path)),
+  })).filter((group) => group.items.length > 0);
 
 const allAdminItems = ADMIN_NAV_GROUPS.flatMap((group) =>
   group.items.map((item) => ({ ...item, groupKey: group.key })),

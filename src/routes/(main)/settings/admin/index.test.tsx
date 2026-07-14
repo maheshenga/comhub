@@ -36,17 +36,17 @@ const userStoreMock = vi.hoisted(() => {
     user: undefined,
   };
   const state: Record<string, any> = { ...initialState };
-  const useUserStore = ((selector?: (value: typeof state) => any) =>
+  const selectUserStore = ((selector?: (value: typeof state) => any) =>
     typeof selector === 'function' ? selector(state) : state) as any;
 
-  useUserStore.setState = (patch: Record<string, any>) => {
+  selectUserStore.setState = (patch: Record<string, any>) => {
     Object.assign(state, patch);
   };
-  useUserStore.reset = () => {
+  selectUserStore.reset = () => {
     Object.assign(state, initialState);
   };
 
-  return { useUserStore };
+  return { useUserStore: selectUserStore };
 });
 
 vi.mock('react-i18next', () => ({
@@ -230,6 +230,41 @@ describe('SettingsAdminPage', () => {
 
     expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('admin-overview')).toBeInTheDocument();
+  });
+
+  it('renders an allowed finance page for a finance admin', () => {
+    act(() => {
+      locationMock.pathname = '/settings/admin/plans';
+      userStoreMock.useUserStore.setState({
+        isSignedIn: true,
+        isUserStateInit: true,
+        user: { id: 'finance-1', role: 'finance_admin', username: 'finance' } as any,
+      });
+    });
+
+    render(<SettingsAdminPage />);
+
+    expect(screen.getByTestId('admin-plans')).toBeInTheDocument();
+    expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
+  });
+
+  it('redirects a scoped admin away from a cross-domain page', () => {
+    act(() => {
+      locationMock.pathname = '/settings/admin/settings';
+      userStoreMock.useUserStore.setState({
+        isSignedIn: true,
+        isUserStateInit: true,
+        user: { id: 'finance-1', role: 'finance_admin', username: 'finance' } as any,
+      });
+    });
+
+    render(<SettingsAdminPage />);
+
+    expect(screen.getByTestId('navigate')).toHaveAttribute(
+      'data-to',
+      '/settings/admin/subscriptions',
+    );
+    expect(screen.queryByTestId('admin-settings')).not.toBeInTheDocument();
   });
 
   it('renders site settings for the settings admin sub-route', () => {

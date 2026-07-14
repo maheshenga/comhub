@@ -2,12 +2,14 @@ import { count, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { referralRelations, referralRewards, users } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
+
 export const adminReferralRouter = router({
-  getReferralStats: adminProcedure.query(async ({ ctx }) => {
+  getReferralStats: financeReadProcedure.query(async ({ ctx }) => {
     const db = ctx.serverDB;
 
     const [totalResult] = await db.select({ count: count() }).from(referralRelations);
@@ -33,7 +35,7 @@ export const adminReferralRouter = router({
     };
   }),
 
-  listReferralRelations: adminProcedure
+  listReferralRelations: financeReadProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),

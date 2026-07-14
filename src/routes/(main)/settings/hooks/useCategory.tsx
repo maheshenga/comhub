@@ -1,4 +1,5 @@
 import { isDesktop } from '@lobechat/const';
+import { isAdminRole } from '@lobechat/types';
 import { Avatar } from '@lobehub/ui';
 import { SkillsIcon } from '@lobehub/ui/icons';
 import {
@@ -82,7 +83,7 @@ export const useCategory = () => {
     return avatar;
   }, [avatar, remoteServerUrl]);
   const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
-  const isAdmin = (user as any)?.role === 'admin';
+  const isAdmin = isAdminRole((user as any)?.role);
   const categoryGroups: CategoryGroup[] = useMemo(() => {
     const groups: CategoryGroup[] = [];
 

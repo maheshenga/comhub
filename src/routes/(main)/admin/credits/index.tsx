@@ -5,8 +5,8 @@ import { Button, Empty, Form, Input, InputNumber, message, Modal, Select, Switch
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { formatCredits } from '@/business/client/BusinessSettingPages/shared';
 import InlineTable from '@/components/InlineTable';
+import { formatAdminCredits, toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import AdminDangerousActionButton from '@/features/Admin/AdminDangerousActionButton';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -59,9 +59,9 @@ const AdminCreditsPage = memo(() => {
       });
       const header = [
         'userId',
-        'balance',
-        'totalCredited',
-        'totalDebited',
+        'balanceAtomic',
+        'totalCreditedAtomic',
+        'totalDebitedAtomic',
         'currency',
         'updatedAt',
       ];
@@ -103,7 +103,7 @@ const AdminCreditsPage = memo(() => {
     try {
       const values = await form.validateFields();
       await adminCommercialService.adjustCredits({
-        amount: values.amount,
+        amount: toAdminAtomicCredits(values.amount),
         reason: normalizedReason,
         userId: values.userId.trim(),
       });
@@ -133,20 +133,20 @@ const AdminCreditsPage = memo(() => {
       dataIndex: 'balance',
       key: 'balance',
       render: (v: number) => (
-        <Tag color={v < 0 ? 'red' : v === 0 ? 'default' : 'green'}>{formatCredits(v)}</Tag>
+        <Tag color={v < 0 ? 'red' : v === 0 ? 'default' : 'green'}>{formatAdminCredits(v)}</Tag>
       ),
       title: t('admin.credits.col.balance', '余额'),
     },
     {
       dataIndex: 'totalCredited',
       key: 'totalCredited',
-      render: (v: number) => formatCredits(v),
+      render: (v: number) => formatAdminCredits(v),
       title: t('admin.credits.col.credited', '累计增加'),
     },
     {
       dataIndex: 'totalDebited',
       key: 'totalDebited',
-      render: (v: number) => formatCredits(v),
+      render: (v: number) => formatAdminCredits(v),
       title: t('admin.credits.col.debited', '累计扣减'),
     },
     {
@@ -225,13 +225,15 @@ const AdminCreditsPage = memo(() => {
       <AdminUserDetailDrawer userId={drawerUser} onClose={() => setDrawerUser(null)} />
 
       <Modal
+        open={rechargeOpen}
+        title={t('admin.credits.recharge', '充值积分')}
         footer={[
           <Button key="cancel" onClick={() => setRechargeOpen(false)}>
             {t('cancel', '取消')}
           </Button>,
           <AdminDangerousActionButton
-            key="confirm"
             actionId="credits.adjust"
+            key="confirm"
             loading={recharging}
             type="primary"
             onConfirm={({ reason }) => handleRecharge(reason)}
@@ -239,8 +241,6 @@ const AdminCreditsPage = memo(() => {
             {t('admin.credits.recharge', '充值积分')}
           </AdminDangerousActionButton>,
         ]}
-        open={rechargeOpen}
-        title={t('admin.credits.recharge', '充值积分')}
         onCancel={() => setRechargeOpen(false)}
       >
         <Form form={form} layout="vertical">
@@ -252,11 +252,11 @@ const AdminCreditsPage = memo(() => {
             <Input placeholder="用户 ID" />
           </Form.Item>
           <Form.Item
-            label={t('admin.adjustCredits.amount', '数量（正数增加，负数扣减）')}
+            label={t('admin.adjustCredits.amount', '数量（M Credits）')}
             name="amount"
             rules={[{ required: true }]}
           >
-            <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            <InputNumber addonAfter={'M'} min={0.000_001} precision={6} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>

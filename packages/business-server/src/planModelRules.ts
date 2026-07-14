@@ -106,9 +106,17 @@ const ensureActivePlanSnapshot = async (db: LobeChatDatabase, userId: string) =>
       status: 'active',
       userId,
     })
+    .onConflictDoNothing()
     .returning();
 
-  return freeSnapshot ?? null;
+  if (freeSnapshot) return freeSnapshot;
+
+  return (
+    (await db.query.userPlanSnapshots.findFirst({
+      orderBy: [desc(userPlanSnapshots.startedAt), desc(userPlanSnapshots.createdAt)],
+      where: and(eq(userPlanSnapshots.userId, userId), eq(userPlanSnapshots.status, 'active')),
+    })) ?? null
+  );
 };
 
 interface AssertPlanModelAllowedParams {

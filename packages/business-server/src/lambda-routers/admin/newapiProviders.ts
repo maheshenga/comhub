@@ -4,13 +4,13 @@ import { LOBE_DEFAULT_MODEL_LIST } from 'model-bank';
 import { z } from 'zod';
 
 import {
-  type AdminNewapiInstanceModelItem,
   type AdminNewapiInstanceItem,
+  type AdminNewapiInstanceModelItem,
   adminNewapiInstanceModels,
   adminNewapiInstances,
   NEWAPI_MODEL_TYPES,
 } from '@/database/schemas';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { getModelCatalogDiagnostics } from '@/server/services/modelCatalog/diagnostics';
 import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
 import {
@@ -273,7 +273,7 @@ export const adminNewapiProvidersRouter = router({
       return { ok: true };
     }),
 
-  getInstance: adminProcedure
+  getInstance: modelOpsWriteProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const instance = await ctx.serverDB.query.adminNewapiInstances.findFirst({
@@ -289,7 +289,7 @@ export const adminNewapiProvidersRouter = router({
       };
     }),
 
-  listInstances: adminProcedure.query(async ({ ctx }) => {
+  listInstances: modelOpsWriteProcedure.query(async ({ ctx }) => {
     const items = await ctx.serverDB.query.adminNewapiInstances.findMany({
       orderBy: asc(adminNewapiInstances.priority),
     });
@@ -424,7 +424,7 @@ export const adminNewapiProvidersRouter = router({
       };
     }),
 
-  testInstanceConnection: adminProcedure
+  testInstanceConnection: modelOpsWriteProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const instance = await ctx.serverDB.query.adminNewapiInstances.findFirst({
@@ -472,7 +472,7 @@ export const adminNewapiProvidersRouter = router({
       }
     }),
 
-  getModelCatalogDiagnostics: adminProcedure.query(async ({ ctx }) => {
+  getModelCatalogDiagnostics: modelOpsWriteProcedure.query(async ({ ctx }) => {
     const { AiInfraRepos } = await import('@/database/repositories/aiInfra');
     const { getServerGlobalConfig } = await import('@/server/globalConfig');
     const { resolvePlanModelRules } = await import('@/business/server/planModelRules');
@@ -540,7 +540,7 @@ export const adminNewapiProvidersRouter = router({
       return { ok: true };
     }),
 
-  listModels: adminProcedure
+  listModels: modelOpsWriteProcedure
     .input(
       z.object({
         instanceId: z.string().uuid(),
@@ -636,7 +636,7 @@ export const adminNewapiProvidersRouter = router({
 
   // ─── Aggregated view for runtime usage ─────────────────────────────────────
 
-  getAllEnabledModels: adminProcedure
+  getAllEnabledModels: modelOpsWriteProcedure
     .input(
       z
         .object({
