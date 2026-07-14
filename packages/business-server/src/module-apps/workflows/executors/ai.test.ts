@@ -28,6 +28,7 @@ describe('createModuleAppAiWorkflowExecutor', () => {
     const execute = createModuleAppAiWorkflowExecutor({
       appMultiplier: 2,
       assertEntitlement,
+      chargeAiUsage: true,
       textGenerator,
       userId: 'user-1',
     });
@@ -51,6 +52,7 @@ describe('createModuleAppAiWorkflowExecutor', () => {
     expect(assertEntitlement).toHaveBeenCalledOnce();
     expect(textGenerator).toHaveBeenCalledWith(
       expect.objectContaining({
+        chargeAiUsage: true,
         idempotencyKey: 'run-1:review:1',
         prompt: 'Review candidate-1',
         userId: 'user-1',
@@ -63,6 +65,7 @@ describe('createModuleAppAiWorkflowExecutor', () => {
     const execute = createModuleAppAiWorkflowExecutor({
       appMultiplier: 1,
       assertEntitlement: vi.fn(),
+      chargeAiUsage: false,
       textGenerator: vi.fn(),
       userId: 'user-1',
     });

@@ -40,6 +40,7 @@ describe.skipIf(!sandboxEnabled || missing.length > 0)('Alipay Module App sandbo
   it('creates a signed computer website payment form from server values', async () => {
     const client = createClient();
     const result = await client.create({
+      currency: 'CNY',
       notifyUrl: process.env.MODULE_APP_ALIPAY_NOTIFY_URL!,
       orderId: crypto.randomUUID(),
       returnUrl: process.env.MODULE_APP_ALIPAY_RETURN_URL!,

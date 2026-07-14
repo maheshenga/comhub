@@ -54,6 +54,7 @@ const signedResponse = (key: string, data: Record<string, unknown>) => {
 describe('AlipayModuleAppClient', () => {
   it('creates a signed computer website payment form', async () => {
     const result = await createClient().create({
+      currency: 'CNY',
       notifyUrl: 'https://app.example.com/api/webhooks/alipay/module-app',
       orderId: '00000000-0000-4000-8000-000000000001',
       returnUrl: 'https://app.example.com/apps/order-return',
@@ -65,6 +66,19 @@ describe('AlipayModuleAppClient', () => {
     expect(result.body).toContain('alipay.trade.page.pay');
     expect(result.body).toContain('https://openapi-sandbox.dl.alipaydev.com/gateway.do');
     expect(result.body).toContain('name="sign"');
+  });
+
+  it('rejects unsupported currencies before creating a payment form', async () => {
+    await expect(
+      createClient().create({
+        currency: 'USD',
+        notifyUrl: 'https://app.example.com/api/webhooks/alipay/module-app',
+        orderId: '00000000-0000-4000-8000-000000000001',
+        returnUrl: 'https://app.example.com/apps/order-return',
+        subject: 'Module App Pro',
+        totalAmount: '12.340000',
+      }),
+    ).rejects.toThrow('MODULE_APP_ALIPAY_CURRENCY_UNSUPPORTED');
   });
 
   it('verifies notifications and rejects wrong app or seller identities', async () => {

@@ -118,8 +118,9 @@ describe('ModuleAppPaymentService', () => {
     });
     expect(adapter.create).toHaveBeenCalledWith(
       expect.objectContaining({
-      orderId: order.id,
-      totalAmount: '1234.000000',
+        currency: 'CNY',
+        orderId: order.id,
+        totalAmount: '1234.000000',
       }),
     );
     await expect(

@@ -13,6 +13,7 @@ const stringConfig = (config: Record<string, unknown>, key: string) => {
 export const createModuleAppAiWorkflowExecutor = (options: {
   appMultiplier: number;
   assertEntitlement: () => Promise<unknown> | unknown;
+  chargeAiUsage: boolean;
   textGenerator: ModuleAppTextGenerator;
   userId: string;
 }): ModuleAppWorkflowNodeExecutor => async (context) => {
@@ -27,6 +28,7 @@ export const createModuleAppAiWorkflowExecutor = (options: {
   const generated = await options.textGenerator({
     actionMultiplier: 1,
     appMultiplier: options.appMultiplier,
+    chargeAiUsage: options.chargeAiUsage,
     idempotencyKey: context.idempotencyKey,
     model,
     prompt: renderModuleAppTemplateString(promptTemplate, context.input),

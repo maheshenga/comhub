@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  resolveModuleAppActionOutboundHosts,
   resolveModuleAppActionSecrets,
   resolveModuleAppWorkflowAction,
 } from './actionDependencies';
@@ -22,6 +23,17 @@ const workflow = {
 };
 
 describe('module app action dependencies', () => {
+  it('resolves reviewed outbound hosts from the immutable runtime manifest', () => {
+    expect(
+      resolveModuleAppActionOutboundHosts({
+        runtimeManifest: { runtime: { outboundHosts: ['api.example.com'] } },
+      }),
+    ).toEqual(['api.example.com']);
+    expect(
+      resolveModuleAppActionOutboundHosts({ runtimeManifest: { runtime: { outboundHosts: [] } } }),
+    ).toEqual([]);
+  });
+
   it('resolves the configured workflow from the immutable runtime manifest', () => {
     expect(
       resolveModuleAppWorkflowAction({

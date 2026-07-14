@@ -84,6 +84,9 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
   }
 
   create: ModuleAppPaymentAdapter['create'] = async (input) => {
+    if (input.currency !== 'CNY') {
+      throw new Error('MODULE_APP_ALIPAY_CURRENCY_UNSUPPORTED');
+    }
     const outTradeNo = moduleAppOrderIdToAlipayTradeNo(input.orderId);
     const parameters = this.signRequest(
       'alipay.trade.page.pay',

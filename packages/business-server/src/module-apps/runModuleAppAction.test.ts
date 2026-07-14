@@ -7,7 +7,9 @@ const allowEntitlement = async () => undefined;
 
 describe('runModuleAppAction record actions', () => {
   it('checks current entitlement before creating a run', async () => {
-    const assertEntitlement = vi.fn().mockRejectedValue(new Error('MODULE_APP_ENTITLEMENT_SUSPENDED'));
+    const assertEntitlement = vi
+      .fn()
+      .mockRejectedValue(new Error('MODULE_APP_ENTITLEMENT_SUSPENDED'));
     const model = {
       createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
       updateRun: vi.fn().mockResolvedValue({ ok: true }),
@@ -361,6 +363,11 @@ describe('runModuleAppAction record actions', () => {
   });
 
   it('builds fixed and external API billing snapshots for api_action', async () => {
+    const creditAdapter = {
+      release: vi.fn().mockResolvedValue({ status: 'released' }),
+      reserve: vi.fn().mockResolvedValue({ id: 'reservation-1', status: 'active' }),
+      settle: vi.fn().mockResolvedValue({ status: 'settled' }),
+    };
     const model = {
       createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
       updateRun: vi.fn().mockResolvedValue({ ok: true }),
@@ -385,6 +392,7 @@ describe('runModuleAppAction record actions', () => {
         failureFixedFeePolicy: 'do_not_charge',
         fixedServiceFeeCredits: 5,
       },
+      creditAdapter,
       input: { keyword: 'apple' },
       model: model as never,
       runner: vi.fn().mockResolvedValue({
@@ -393,20 +401,31 @@ describe('runModuleAppAction record actions', () => {
         output: { definition: 'fruit' },
         preview: 'fruit',
       }),
-      scopeType: 'personal',
+      scopeType: 'workspace',
       userId: 'u1',
+      workspaceId: 'workspace-1',
     });
 
     expect(result.billing).toMatchObject({
-      chargedCredits: 12,
+      chargedCredits: 7,
       chargeMode: 'external_api',
       externalApiCostCredits: 7,
-      fixedServiceFeeCharged: true,
+      fixedServiceFeeCharged: false,
       fixedServiceFeeCredits: 5,
     });
+    expect(creditAdapter.reserve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 7,
+        payer: { scopeType: 'workspace', workspaceId: 'workspace-1' },
+      }),
+    );
+    expect(creditAdapter.settle).toHaveBeenCalledWith(
+      expect.objectContaining({ actualAmount: 7, reservationId: 'reservation-1' }),
+    );
+    expect(creditAdapter.release).not.toHaveBeenCalled();
     expect(model.updateRun).toHaveBeenCalledWith(
       expect.objectContaining({
-        billing: expect.objectContaining({ chargedCredits: 12 }),
+        billing: expect.objectContaining({ chargedCredits: 7 }),
         output: { definition: 'fruit' },
         status: 'succeeded',
       }),
@@ -452,11 +471,217 @@ describe('runModuleAppAction record actions', () => {
 
     expect(result.billing).toMatchObject({
       actualAiCredits: 10,
-      chargedCredits: 32,
+      chargedCredits: 30,
       chargeMode: 'ai_usage',
+      fixedServiceFeeCharged: false,
       fixedServiceFeeCredits: 2,
       multiplier: 3,
     });
+  });
+
+  it('settles only the external component when a hybrid action fails', async () => {
+    const creditAdapter = {
+      release: vi.fn().mockResolvedValue({ status: 'released' }),
+      reserve: vi.fn().mockResolvedValue({ id: 'reservation-1', status: 'active' }),
+      settle: vi.fn().mockResolvedValue({ status: 'settled' }),
+    };
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'lookup',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Lookup',
+        outputSchema: {},
+        runtimeConfig: {},
+        runtimeType: 'api_action',
+      },
+      appId: APP_ID,
+      assertEntitlement: allowEntitlement,
+      billing: {
+        chargeMode: 'hybrid',
+        defaultMultiplier: 1,
+        externalApiCostCredits: 7,
+        failureFixedFeePolicy: 'do_not_charge',
+        fixedServiceFeeCredits: 5,
+      },
+      creditAdapter,
+      input: {},
+      model: model as never,
+      runner: vi.fn().mockRejectedValue(new Error('upstream failed')),
+      scopeType: 'personal',
+      userId: 'u1',
+    });
+
+    expect(result).toMatchObject({
+      billing: expect.objectContaining({
+        chargedCredits: 7,
+        externalApiCostCredits: 7,
+        fixedServiceFeeCharged: false,
+      }),
+      status: 'failed',
+    });
+    expect(creditAdapter.reserve).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 12, payer: { scopeType: 'personal', userId: 'u1' } }),
+    );
+    expect(creditAdapter.settle).toHaveBeenCalledWith(
+      expect.objectContaining({ actualAmount: 7, reservationId: 'reservation-1' }),
+    );
+  });
+
+  it('does not charge the fixed component when artifact persistence fails', async () => {
+    const creditAdapter = {
+      release: vi.fn().mockResolvedValue({ status: 'released' }),
+      reserve: vi.fn().mockResolvedValue({ id: 'reservation-1', status: 'active' }),
+      settle: vi.fn().mockResolvedValue({ status: 'settled' }),
+    };
+    const model = {
+      createArtifact: vi.fn().mockResolvedValue({ id: 'artifact-1' }),
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'generate',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Generate',
+        outputSchema: {},
+        runtimeConfig: {},
+        runtimeType: 'content_generation',
+      },
+      appId: APP_ID,
+      artifactStorage: {
+        uploadBuffer: vi.fn().mockRejectedValue(new Error('artifact storage failed')),
+      },
+      assertEntitlement: allowEntitlement,
+      billing: {
+        chargeMode: 'hybrid',
+        defaultMultiplier: 1,
+        externalApiCostCredits: 7,
+        failureFixedFeePolicy: 'do_not_charge',
+        fixedServiceFeeCredits: 5,
+      },
+      creditAdapter,
+      input: {},
+      model: model as never,
+      runner: vi.fn().mockResolvedValue({
+        actualAiCredits: 3,
+        artifacts: [{ content: 'result', fileName: 'result.txt', mimeType: 'text/plain' }],
+      }),
+      scopeType: 'personal',
+      userId: 'u1',
+    });
+
+    expect(result).toMatchObject({
+      billing: expect.objectContaining({
+        actualAiCredits: 3,
+        chargedCredits: 10,
+        fixedServiceFeeCharged: false,
+      }),
+      status: 'failed',
+    });
+    expect(creditAdapter.settle).toHaveBeenCalledWith(
+      expect.objectContaining({ actualAmount: 7, reservationId: 'reservation-1' }),
+    );
+  });
+
+  it('releases a fixed-only reservation when the action fails without a charge', async () => {
+    const creditAdapter = {
+      release: vi.fn().mockResolvedValue({ status: 'released' }),
+      reserve: vi.fn().mockResolvedValue({ id: 'reservation-1', status: 'active' }),
+      settle: vi.fn().mockResolvedValue({ status: 'settled' }),
+    };
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'fixed_action',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Fixed action',
+        outputSchema: {},
+        runtimeConfig: {},
+        runtimeType: 'server_action',
+      },
+      appId: APP_ID,
+      assertEntitlement: allowEntitlement,
+      billing: {
+        chargeMode: 'fixed',
+        defaultMultiplier: 1,
+        externalApiCostCredits: 7,
+        failureFixedFeePolicy: 'do_not_charge',
+        fixedServiceFeeCredits: 5,
+      },
+      creditAdapter,
+      input: {},
+      model: model as never,
+      runner: vi.fn().mockRejectedValue(new Error('action failed')),
+      scopeType: 'personal',
+      userId: 'u1',
+    });
+
+    expect(result).toMatchObject({
+      billing: expect.objectContaining({ chargedCredits: 0, externalApiCostCredits: 0 }),
+      status: 'failed',
+    });
+    expect(creditAdapter.reserve).toHaveBeenCalledWith(expect.objectContaining({ amount: 5 }));
+    expect(creditAdapter.release).toHaveBeenCalledWith({
+      reason: 'run_completed_without_non_ai_charge',
+      reservationId: 'reservation-1',
+    });
+    expect(creditAdapter.settle).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before execution when a non-AI charge has no credit adapter', async () => {
+    const runner = vi.fn().mockResolvedValue({ output: {}, preview: 'should not run' });
+    const model = {
+      createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      updateRun: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const result = await runModuleAppAction({
+      action: {
+        id: 'fixed_action',
+        inputSchema: { fields: [] },
+        moduleMultiplier: 1,
+        name: 'Fixed action',
+        outputSchema: {},
+        runtimeConfig: {},
+        runtimeType: 'server_action',
+      },
+      appId: APP_ID,
+      assertEntitlement: allowEntitlement,
+      billing: {
+        chargeMode: 'fixed',
+        defaultMultiplier: 1,
+        externalApiCostCredits: 0,
+        failureFixedFeePolicy: 'do_not_charge',
+        fixedServiceFeeCredits: 5,
+      },
+      input: {},
+      model: model as never,
+      runner,
+      scopeType: 'personal',
+      userId: 'u1',
+    });
+
+    expect(result).toMatchObject({
+      billing: expect.objectContaining({ chargedCredits: 0 }),
+      status: 'failed',
+    });
+    expect(runner).not.toHaveBeenCalled();
+    expect(model.updateRun).toHaveBeenCalledWith(
+      expect.objectContaining({ errorMessage: 'MODULE_APP_ACTION_CREDIT_ADAPTER_REQUIRED' }),
+    );
   });
 
   it('uses the built-in API action runner when no explicit runner is provided', async () => {
@@ -482,15 +707,16 @@ describe('runModuleAppAction record actions', () => {
         runtimeConfig: {
           bodyTemplate: { keyword: '{{keyword}}' },
           responsePath: 'data.summary',
-          url: 'https://api.example.com/search',
+          url: 'https://{{host}}/search',
         },
         runtimeType: 'api_action',
       },
       appId: APP_ID,
       assertEntitlement: allowEntitlement,
       fetchImpl,
-      input: { keyword: 'apple' },
+      input: { host: 'api.example.com', keyword: 'apple' },
       model: model as never,
+      outboundHosts: ['api.example.com'],
       resolveHostname: () => ['93.184.216.34'],
       scopeType: 'personal',
       userId: 'u1',
@@ -520,6 +746,10 @@ describe('runModuleAppAction record actions', () => {
       writeAuditLog: vi.fn().mockResolvedValue({ ok: true }),
     };
 
+    const textGenerator = vi.fn().mockResolvedValue({
+      actualAiCredits: 4,
+      text: 'Apple note',
+    });
     const result = await runModuleAppAction({
       action: {
         id: 'generate',
@@ -539,10 +769,7 @@ describe('runModuleAppAction record actions', () => {
       input: { topic: 'apple' },
       model: model as never,
       scopeType: 'personal',
-      textGenerator: vi.fn().mockResolvedValue({
-        actualAiCredits: 4,
-        text: 'Apple note',
-      }),
+      textGenerator,
       userId: 'u1',
     });
 
@@ -551,8 +778,11 @@ describe('runModuleAppAction record actions', () => {
       preview: 'Apple note',
       status: 'succeeded',
     });
+    expect(textGenerator).toHaveBeenCalledWith(expect.objectContaining({ chargeAiUsage: false }));
     expect(artifactStorage.uploadBuffer).toHaveBeenCalledWith(
-      expect.stringMatching(/^module-apps\/00000000-0000-4000-8000-000000000001\/run-1\/.+-apple\.md$/),
+      expect.stringMatching(
+        /^module-apps\/00000000-0000-4000-8000-000000000001\/run-1\/.+-apple\.md$/,
+      ),
       expect.any(Buffer),
       'text/markdown',
     );
@@ -575,6 +805,11 @@ describe('runModuleAppAction record actions', () => {
   });
 
   it('persists failed billable runs with redacted errors and audit events', async () => {
+    const creditAdapter = {
+      release: vi.fn().mockResolvedValue({ status: 'released' }),
+      reserve: vi.fn().mockResolvedValue({ id: 'reservation-1', status: 'active' }),
+      settle: vi.fn().mockResolvedValue({ status: 'settled' }),
+    };
     const model = {
       createRun: vi.fn().mockResolvedValue({ id: 'run-1' }),
       updateRun: vi.fn().mockResolvedValue({ ok: true }),
@@ -600,6 +835,7 @@ describe('runModuleAppAction record actions', () => {
         failureFixedFeePolicy: 'do_not_charge',
         fixedServiceFeeCredits: 5,
       },
+      creditAdapter,
       input: { keyword: 'apple' },
       model: model as never,
       resolvedSecrets: { apiKey: 'secret-token' },

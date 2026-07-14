@@ -15,6 +15,9 @@ describe('module app runtime dependency wiring', () => {
       'artifactStorage: {',
       'await artifactStorage.uploadBuffer(key, buffer, contentType)',
       'billing: installation.billing',
+      'const creditAdapter = new ModuleAppCreditModel(ctx.serverDB)',
+      'creditAdapter,',
+      'outboundHosts,',
       'resolvedSecrets,',
       'serverAction: createModuleAppServerAction({ db: ctx.serverDB })',
       'workflow,',
@@ -25,6 +28,7 @@ describe('module app runtime dependency wiring', () => {
   });
 
   it('loads only declared installation secrets and exact manifest workflows', () => {
+    expect(source).toContain('resolveModuleAppActionOutboundHosts({');
     expect(source).toContain('resolveModuleAppActionSecrets({');
     expect(source).toContain('getInstallationSecret({');
     expect(source).toContain('resolveModuleAppWorkflowAction({ action, runtimeManifest: installation.runtimeManifest })');

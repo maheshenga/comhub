@@ -13,12 +13,14 @@ import { runModuleAppAction } from '@/business/server/module-apps/runModuleAppAc
 import { runModuleAppExecutableAction } from '@/business/server/module-apps/runners/executableActionRunner';
 import { ModuleAppWorkflowEngine } from '@/business/server/module-apps/workflows/engine';
 import { createModuleAppWorkflowExecutor } from '@/business/server/module-apps/workflows/executors';
+import { ModuleAppCreditModel } from '@/database/models/moduleAppCredit';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { appEnv } from '@/envs/app';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { FileS3 } from '@/server/modules/S3';
 import { createModuleAppTextGenerator } from '@/server/services/moduleAppAi';
 import {
+  resolveModuleAppActionOutboundHosts,
   resolveModuleAppActionSecrets,
   resolveModuleAppWorkflowAction,
 } from '@/server/services/moduleAppRuntime/actionDependencies';
@@ -397,6 +399,10 @@ export const moduleAppRuntimeProcedures = {
           repository: new ModuleAppWorkflowModel(ctx.serverDB),
         })
       : undefined;
+    const outboundHosts =
+      action.runtimeType === 'api_action'
+        ? resolveModuleAppActionOutboundHosts({ runtimeManifest: installation.runtimeManifest })
+        : undefined;
     let gateKeeperPromise: ReturnType<typeof KeyVaultsGateKeeper.initWithEnvKey> | undefined;
     const resolvedSecrets =
       action.runtimeType === 'api_action'
@@ -414,6 +420,7 @@ export const moduleAppRuntimeProcedures = {
             installationId,
           })
         : undefined;
+    const creditAdapter = new ModuleAppCreditModel(ctx.serverDB);
     const artifactStorage = new FileS3();
 
     return runModuleAppAction({
@@ -436,7 +443,9 @@ export const moduleAppRuntimeProcedures = {
       input: input.input,
       installationId,
       billing: installation.billing,
+      creditAdapter,
       model: ctx.moduleAppModel,
+      outboundHosts,
       recordId: input.recordId,
       resolvedSecrets,
       runner: executableRunner,

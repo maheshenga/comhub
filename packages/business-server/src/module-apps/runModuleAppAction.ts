@@ -1,19 +1,14 @@
 import type {
   ModuleAppActionConfig,
   ModuleAppBillingConfig,
+  ModuleAppBillingPayer,
   ModuleAppRunStatus,
   ModuleAppScopeType,
   ModuleAppWorkflowDefinition,
 } from '@lobechat/types';
 
-import {
-  type ModuleAppArtifactStorage,
-  writeModuleAppArtifact,
-} from './artifactWriter';
-import {
-  redactModuleAppLogValue,
-  redactResolvedModuleAppSecretValues,
-} from './logRedaction';
+import { type ModuleAppArtifactStorage, writeModuleAppArtifact } from './artifactWriter';
+import { redactModuleAppLogValue, redactResolvedModuleAppSecretValues } from './logRedaction';
 import {
   type ModuleAppFetch,
   type ModuleAppRunnerArtifactRequest,
@@ -26,11 +21,7 @@ import {
 import type { ModuleAppUrlResolver } from './safeUrl';
 
 export interface ModuleAppRuntimeModel {
-  archiveRecord: (input: {
-    appId: string;
-    recordId: string;
-    userId: string;
-  }) => Promise<unknown>;
+  archiveRecord: (input: { appId: string; recordId: string; userId: string }) => Promise<unknown>;
   createArtifact?: (input: {
     appId: string;
     expiresAt?: Date | null;
@@ -96,11 +87,13 @@ export interface RunModuleAppActionInput {
   artifactStorage?: ModuleAppArtifactStorage;
   assertEntitlement: () => Promise<unknown> | unknown;
   billing?: ModuleAppBillingConfig;
+  creditAdapter?: ModuleAppActionCreditAdapter;
   fetchImpl?: ModuleAppFetch;
   idempotencyKey?: string;
   input: Record<string, unknown>;
   installationId?: string;
   model: ModuleAppRuntimeModel;
+  outboundHosts?: string[];
   recordId?: string;
   resolvedSecrets?: Record<string, string>;
   resolveHostname?: ModuleAppUrlResolver;
@@ -137,6 +130,21 @@ export interface ModuleAppRunnerResult {
   artifacts?: ModuleAppRunnerArtifactRequest[];
   output?: Record<string, unknown>;
   preview?: string;
+}
+
+export interface ModuleAppActionCreditAdapter {
+  release: (input: { reason: string; reservationId: string }) => Promise<unknown>;
+  reserve: (input: {
+    amount: number;
+    idempotencyKey: string;
+    metadata?: Record<string, unknown>;
+    payer: ModuleAppBillingPayer;
+  }) => Promise<{ id: string; status: string }>;
+  settle: (input: {
+    actualAmount: number;
+    metadata: Record<string, unknown>;
+    reservationId: string;
+  }) => Promise<unknown>;
 }
 
 export type ModuleAppActionRunner = () => Promise<ModuleAppRunnerResult>;
@@ -183,34 +191,94 @@ const getRecordId = (input: Record<string, unknown>, fallback?: string) =>
 const getFiniteNumber = (value: unknown, fallback = 0) =>
   typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : fallback;
 
+const CREDIT_SCALE = 1_000_000;
+const roundCredits = (value: number) => Math.round(value * CREDIT_SCALE) / CREDIT_SCALE;
+
+const chargeModeIncludes = (
+  chargeMode: ModuleAppBillingConfig['chargeMode'],
+  component: 'ai_usage' | 'external_api' | 'fixed',
+) => chargeMode === component || chargeMode === 'hybrid';
+
+const getMaximumNonAiCharge = (billing: ModuleAppBillingConfig) =>
+  roundCredits(
+    (chargeModeIncludes(billing.chargeMode, 'fixed') ? billing.fixedServiceFeeCredits : 0) +
+      (chargeModeIncludes(billing.chargeMode, 'external_api') ? billing.externalApiCostCredits : 0),
+  );
+
 const buildBillingSnapshot = (input: {
   actualAiCredits?: number;
-  chargeMode: string;
+  chargeMode: ModuleAppBillingConfig['chargeMode'];
   externalApiCostCredits?: number;
   failureFixedFeePolicy?: ModuleAppBillingConfig['failureFixedFeePolicy'];
   fixedServiceFeeCredits?: number;
   multiplier?: number;
+  executionStarted?: boolean;
   runSucceeded?: boolean;
 }) => {
   const fixedServiceFeeCredits = input.fixedServiceFeeCredits ?? 0;
-  const externalApiCostCredits = input.externalApiCostCredits ?? 0;
+  const externalApiCostCredits =
+    input.executionStarted !== false && chargeModeIncludes(input.chargeMode, 'external_api')
+      ? (input.externalApiCostCredits ?? 0)
+      : 0;
   const actualAiCredits = input.actualAiCredits ?? 0;
   const multiplier = input.multiplier ?? 1;
-  const aiCredits = actualAiCredits * multiplier;
+  const aiCredits = chargeModeIncludes(input.chargeMode, 'ai_usage')
+    ? actualAiCredits * multiplier
+    : 0;
   const fixedServiceFeeCharged =
+    chargeModeIncludes(input.chargeMode, 'fixed') &&
     fixedServiceFeeCredits > 0 &&
     (input.runSucceeded !== false || input.failureFixedFeePolicy !== 'do_not_charge');
   const fixedServiceFee = fixedServiceFeeCharged ? fixedServiceFeeCredits : 0;
 
   return {
     actualAiCredits,
-    chargedCredits: fixedServiceFee + externalApiCostCredits + aiCredits,
+    chargedCredits: roundCredits(fixedServiceFee + externalApiCostCredits + aiCredits),
     chargeMode: input.chargeMode,
     externalApiCostCredits,
     fixedServiceFeeCharged,
     fixedServiceFeeCredits,
     multiplier,
   };
+};
+
+type ModuleAppBillingSnapshot = ReturnType<typeof buildBillingSnapshot>;
+
+const getNonAiChargedCredits = (snapshot: ModuleAppBillingSnapshot) =>
+  roundCredits(
+    snapshot.externalApiCostCredits +
+      (snapshot.fixedServiceFeeCharged ? snapshot.fixedServiceFeeCredits : 0),
+  );
+
+const settleActionCreditReservation = async (input: {
+  adapter?: ModuleAppActionCreditAdapter;
+  reservation?: { id: string };
+  runId: string;
+  snapshot: ModuleAppBillingSnapshot;
+  status: 'failed' | 'succeeded';
+}) => {
+  if (!input.reservation) return;
+  if (!input.adapter) throw new Error('MODULE_APP_ACTION_CREDIT_ADAPTER_REQUIRED');
+  const actualAmount = getNonAiChargedCredits(input.snapshot);
+  if (actualAmount === 0) {
+    await input.adapter.release({
+      reason: 'run_completed_without_non_ai_charge',
+      reservationId: input.reservation.id,
+    });
+    return;
+  }
+  await input.adapter.settle({
+    actualAmount,
+    metadata: {
+      chargeMode: input.snapshot.chargeMode,
+      externalApiCostCredits: input.snapshot.externalApiCostCredits,
+      fixedServiceFeeCharged: input.snapshot.fixedServiceFeeCharged,
+      fixedServiceFeeCredits: input.snapshot.fixedServiceFeeCredits,
+      runId: input.runId,
+      status: input.status,
+    },
+    reservationId: input.reservation.id,
+  });
 };
 
 const getErrorMessage = (error: unknown) =>
@@ -239,6 +307,7 @@ const resolveActionRunner = (
         action: params.action,
         fetchImpl: params.fetchImpl,
         input: params.input,
+        outboundHosts: params.outboundHosts,
         resolvedSecrets: params.resolvedSecrets,
         resolveHostname: params.resolveHostname,
       });
@@ -249,6 +318,7 @@ const resolveActionRunner = (
       runModuleAppContentGeneration({
         action: params.action,
         appMultiplier: billing.defaultMultiplier,
+        chargeAiUsage: chargeModeIncludes(billing.chargeMode, 'ai_usage'),
         idempotencyKey: `${params.idempotencyKey ?? runId}:${params.action.id}`,
         input: params.input,
         textGenerator: params.textGenerator,
@@ -475,11 +545,40 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
     const startedAt = Date.now();
     const billing = params.billing ?? defaultBilling;
     const runner = resolveActionRunner(params, run.id, billing);
+    const maximumNonAiCharge = getMaximumNonAiCharge(billing);
+    let creditReservation: { id: string } | undefined;
+    let executionStarted = false;
+    let completedAiCredits: number | undefined;
+    let settledBillingSnapshot: ModuleAppBillingSnapshot | undefined;
 
     try {
+      if (maximumNonAiCharge > 0) {
+        if (!params.creditAdapter) {
+          throw new Error('MODULE_APP_ACTION_CREDIT_ADAPTER_REQUIRED');
+        }
+        const reservation = await params.creditAdapter.reserve({
+          amount: maximumNonAiCharge,
+          idempotencyKey: `module-app-action:${run.id}`,
+          metadata: {
+            actionId: params.action.id,
+            appId: params.appId,
+            chargeMode: billing.chargeMode,
+            runId: run.id,
+          },
+          payer: params.workspaceId
+            ? { scopeType: 'workspace', workspaceId: params.workspaceId }
+            : { scopeType: 'personal', userId: params.userId },
+        });
+        if (reservation.status !== 'active') {
+          throw new Error('MODULE_APP_ACTION_CREDIT_IDEMPOTENCY_REPLAY');
+        }
+        creditReservation = reservation;
+      }
+      executionStarted = true;
       const runnerResult = await runner();
+      completedAiCredits = getFiniteNumber(runnerResult.actualAiCredits);
       const billingSnapshot = buildBillingSnapshot({
-        actualAiCredits: getFiniteNumber(runnerResult.actualAiCredits),
+        actualAiCredits: completedAiCredits,
         chargeMode: billing.chargeMode,
         externalApiCostCredits: billing.externalApiCostCredits,
         failureFixedFeePolicy: billing.failureFixedFeePolicy,
@@ -497,6 +596,15 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
       if (params.action.runtimeType === 'executable_action') {
         await params.assertEntitlement();
       }
+
+      await settleActionCreditReservation({
+        adapter: params.creditAdapter,
+        reservation: creditReservation,
+        runId: run.id,
+        snapshot: billingSnapshot,
+        status: 'succeeded',
+      });
+      if (creditReservation) settledBillingSnapshot = billingSnapshot;
 
       await params.model.updateRun({
         billing: billingSnapshot,
@@ -523,20 +631,30 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
       };
     } catch (error) {
       const safeMessage = String(
-        redactResolvedModuleAppSecretValues(
-          getErrorMessage(error),
-          params.resolvedSecrets ?? {},
-        ),
+        redactResolvedModuleAppSecretValues(getErrorMessage(error), params.resolvedSecrets ?? {}),
       );
-      const billingSnapshot = buildBillingSnapshot({
-        actualAiCredits: getIncurredAiCredits(error),
-        chargeMode: billing.chargeMode,
-        externalApiCostCredits: billing.externalApiCostCredits,
-        failureFixedFeePolicy: billing.failureFixedFeePolicy,
-        fixedServiceFeeCredits: billing.fixedServiceFeeCredits,
-        multiplier: billing.defaultMultiplier * params.action.moduleMultiplier,
-        runSucceeded: false,
-      });
+      const billingSnapshot =
+        settledBillingSnapshot ??
+        buildBillingSnapshot({
+          actualAiCredits: completedAiCredits ?? getIncurredAiCredits(error),
+          chargeMode: billing.chargeMode,
+          externalApiCostCredits: billing.externalApiCostCredits,
+          failureFixedFeePolicy: billing.failureFixedFeePolicy,
+          fixedServiceFeeCredits: billing.fixedServiceFeeCredits,
+          multiplier: billing.defaultMultiplier * params.action.moduleMultiplier,
+          executionStarted,
+          runSucceeded: false,
+        });
+
+      if (!settledBillingSnapshot) {
+        await settleActionCreditReservation({
+          adapter: params.creditAdapter,
+          reservation: creditReservation,
+          runId: run.id,
+          snapshot: billingSnapshot,
+          status: 'failed',
+        });
+      }
 
       await params.model.updateRun({
         billing: billingSnapshot,

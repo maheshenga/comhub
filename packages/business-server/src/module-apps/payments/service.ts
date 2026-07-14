@@ -105,6 +105,7 @@ export class ModuleAppPaymentService {
     const notifyUrl = assertPaymentUrl(input.notifyUrl);
     const returnUrl = assertPaymentUrl(input.returnUrl);
     const created = await this.adapter.create({
+      currency: snapshot.currency,
       notifyUrl,
       orderId: order.id,
       returnUrl,

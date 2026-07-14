@@ -1,13 +1,11 @@
 import type { ModuleAppActionConfig } from '@lobechat/types';
 
 import { redactResolvedModuleAppSecretValues } from '../logRedaction';
-import {
-  assertSafeModuleAppApiUrl,
-  type ModuleAppUrlResolver,
-} from '../safeUrl';
 import { renderModuleAppTemplateString, renderModuleAppTemplateValue } from '../runtimeTemplate';
+import { assertSafeModuleAppApiUrl, type ModuleAppUrlResolver } from '../safeUrl';
 
 type FetchResponse = {
+  body?: null | ReadableStream<Uint8Array>;
   headers?: { get: (name: string) => string | null };
   ok: boolean;
   status: number;
@@ -15,10 +13,7 @@ type FetchResponse = {
   text: () => Promise<string>;
 };
 
-export type ModuleAppFetch = (
-  input: string,
-  init: RequestInit,
-) => Promise<FetchResponse>;
+export type ModuleAppFetch = (input: string, init: RequestInit) => Promise<FetchResponse>;
 
 export type ModuleAppRunnerArtifactRequest = {
   content: Buffer | string;
@@ -38,9 +33,27 @@ export interface RunModuleAppApiActionInput {
   action: ModuleAppActionConfig;
   fetchImpl?: ModuleAppFetch;
   input: Record<string, unknown>;
+  outboundHosts?: string[];
   resolvedSecrets?: Record<string, string>;
   resolveHostname?: ModuleAppUrlResolver;
 }
+
+const MODULE_APP_API_MAX_BODY_BYTES = 256 * 1024;
+const MODULE_APP_API_MAX_RESPONSE_BYTES = 1024 * 1024;
+const MODULE_APP_API_MAX_HEADERS = 32;
+const MODULE_APP_API_MAX_HEADER_VALUE_BYTES = 4096;
+const forbiddenTransportHeaders = new Set([
+  'connection',
+  'content-length',
+  'cookie',
+  'host',
+  'proxy-authorization',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+]);
 
 const getStringConfig = (config: Record<string, unknown>, key: string) => {
   const value = config[key];
@@ -72,13 +85,83 @@ const getHeadersConfig = (config: Record<string, unknown>) => {
   );
 };
 
-const buildHeaders = (headers: Record<string, string>, values: Record<string, unknown>) =>
-  Object.fromEntries(
-    Object.entries(headers).map(([key, value]) => [
-      key,
-      renderModuleAppTemplateString(value, values),
-    ]),
+const buildHeaders = (headers: Record<string, string>, values: Record<string, unknown>) => {
+  const entries = Object.entries(headers);
+  if (entries.length > MODULE_APP_API_MAX_HEADERS) {
+    throw new Error('MODULE_APP_API_HEADERS_INVALID');
+  }
+
+  const names = new Set<string>();
+  return Object.fromEntries(
+    entries.map(([key, template]) => {
+      const normalized = key.toLowerCase();
+      const value = renderModuleAppTemplateString(template, values);
+      if (
+        names.has(normalized) ||
+        !/^[a-z0-9-]{1,80}$/.test(normalized) ||
+        forbiddenTransportHeaders.has(normalized) ||
+        /[\r\n]/.test(value) ||
+        new TextEncoder().encode(value).byteLength > MODULE_APP_API_MAX_HEADER_VALUE_BYTES
+      ) {
+        throw new Error('MODULE_APP_API_HEADERS_INVALID');
+      }
+      names.add(normalized);
+      return [key, value];
+    }),
   );
+};
+
+const normalizeReviewedHost = (value: string) => {
+  const host = value.trim().toLowerCase().replace(/\.$/, '');
+  if (!host) throw new Error('MODULE_APP_API_OUTBOUND_HOSTS_INVALID');
+
+  let parsed: URL;
+  try {
+    parsed = new URL(`https://${host}`);
+  } catch {
+    throw new Error('MODULE_APP_API_OUTBOUND_HOSTS_INVALID');
+  }
+  const normalizedHostname = parsed.hostname.toLowerCase().replace(/\.$/, '');
+  if (
+    normalizedHostname !== host ||
+    parsed.port ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== '/' ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error('MODULE_APP_API_OUTBOUND_HOSTS_INVALID');
+  }
+  return normalizedHostname;
+};
+
+const getLegacyConfiguredHost = (configuredUrl: string) => {
+  const authority = configuredUrl.match(/^https?:\/\/([^/?#]+)/i)?.[1];
+  if (!authority || authority.includes('{{')) return undefined;
+
+  try {
+    const parsed = new URL(configuredUrl.replaceAll(/\{\{[^{}]+\}\}/g, 'template'));
+    return normalizeReviewedHost(parsed.hostname);
+  } catch {
+    return undefined;
+  }
+};
+
+const getReviewedHosts = (configuredUrl: string, outboundHosts?: string[]) => {
+  const legacyHost = getLegacyConfiguredHost(configuredUrl);
+  const hosts = outboundHosts ?? (legacyHost ? [legacyHost] : []);
+  if (hosts.length > 80) throw new Error('MODULE_APP_API_OUTBOUND_HOSTS_INVALID');
+  return new Set(hosts.map(normalizeReviewedHost));
+};
+
+const ensureJsonContentType = (headers: Record<string, string>) => {
+  if (Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')) return;
+  if (Object.keys(headers).length >= MODULE_APP_API_MAX_HEADERS) {
+    throw new Error('MODULE_APP_API_HEADERS_INVALID');
+  }
+  headers['Content-Type'] = 'application/json';
+};
 
 const getByPath = (value: unknown, path?: string) => {
   if (!path) return value;
@@ -97,8 +180,45 @@ const stringifyPreview = (value: unknown) => {
   return JSON.stringify(value);
 };
 
+const readBoundedResponseText = async (response: FetchResponse) => {
+  const declaredLength = Number(response.headers?.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > MODULE_APP_API_MAX_RESPONSE_BYTES) {
+    throw new Error('MODULE_APP_API_RESPONSE_TOO_LARGE');
+  }
+
+  if (!response.body) {
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > MODULE_APP_API_MAX_RESPONSE_BYTES) {
+      throw new Error('MODULE_APP_API_RESPONSE_TOO_LARGE');
+    }
+    return text;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MODULE_APP_API_MAX_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new Error('MODULE_APP_API_RESPONSE_TOO_LARGE');
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+};
+
 const parseResponseBody = async (response: FetchResponse) => {
-  const text = await response.text();
+  const text = await readBoundedResponseText(response);
   const contentType = response.headers?.get('content-type') ?? '';
 
   if (contentType.toLowerCase().includes('json')) {
@@ -116,6 +236,7 @@ export const runModuleAppApiAction = async ({
   action,
   fetchImpl = fetch as unknown as ModuleAppFetch,
   input,
+  outboundHosts,
   resolvedSecrets = {},
   resolveHostname,
 }: RunModuleAppApiActionInput): Promise<ModuleAppRunnerResult> => {
@@ -128,6 +249,16 @@ export const runModuleAppApiAction = async ({
 
   const values = { ...input, ...resolvedSecrets };
   const renderedUrl = renderModuleAppTemplateString(configuredUrl, values);
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(renderedUrl);
+  } catch {
+    throw new Error('MODULE_APP_UNSAFE_API_URL');
+  }
+  const reviewedHosts = getReviewedHosts(configuredUrl, outboundHosts);
+  if (!reviewedHosts.has(parsedUrl.hostname.toLowerCase().replace(/\.$/, ''))) {
+    throw new Error('MODULE_APP_API_HOST_DENIED');
+  }
   const url = await assertSafeModuleAppApiUrl(renderedUrl, { resolveHostname });
   const method = getMethodConfig(config);
   const headers = buildHeaders(getHeadersConfig(config), values);
@@ -137,12 +268,19 @@ export const runModuleAppApiAction = async ({
     const bodyTemplate = config.bodyTemplate ?? input;
     const body = renderModuleAppTemplateValue(bodyTemplate, values);
     init.body = JSON.stringify(body);
-    headers['Content-Type'] ??= 'application/json';
+    if (new TextEncoder().encode(init.body).byteLength > MODULE_APP_API_MAX_BODY_BYTES) {
+      throw new Error('MODULE_APP_API_BODY_TOO_LARGE');
+    }
+    ensureJsonContentType(headers);
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), getNumberConfig(config, 'timeoutMs', 30_000));
+  const timeout = setTimeout(
+    () => controller.abort(),
+    getNumberConfig(config, 'timeoutMs', 30_000),
+  );
   init.signal = controller.signal;
+  init.redirect = 'error';
 
   try {
     const response = await fetchImpl(url, init);

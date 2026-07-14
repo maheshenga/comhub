@@ -18,6 +18,9 @@ const CREDIT_SCALE = 1_000_000;
 const roundCredits = (value: number) => Math.round(value * CREDIT_SCALE) / CREDIT_SCALE;
 
 const assertGeneratorInput = (input: Parameters<ModuleAppTextGenerator>[0]) => {
+  if (typeof input.chargeAiUsage !== 'boolean') {
+    throw new Error('MODULE_APP_AI_CHARGE_MODE_REQUIRED');
+  }
   if (!input.provider?.trim() || !input.model?.trim()) {
     throw new Error('MODULE_APP_AI_ROUTE_REQUIRED');
   }
@@ -53,11 +56,13 @@ export const createModuleAppTextGenerator = (dependencies: {
     const model = input.model!.trim();
     const provider = input.provider!.trim();
     const combinedMultiplier = roundCredits(input.appMultiplier * input.actionMultiplier);
-    const shouldCharge = await shouldChargeCommercialUsage({
-      db: dependencies.db,
-      provider,
-      userId: input.userId,
-    });
+    const shouldCharge =
+      input.chargeAiUsage &&
+      (await shouldChargeCommercialUsage({
+        db: dependencies.db,
+        provider,
+        userId: input.userId,
+      }));
     const estimatedBaseCredits = shouldCharge
       ? ((await estimateCommercialChatCredits({
           db: dependencies.db,

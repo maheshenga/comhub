@@ -55,6 +55,9 @@ const executeModuleAppWorkflow = async (payload: { installationId: string; runId
         ai: createModuleAppAiWorkflowExecutor({
           appMultiplier: current.detail.billing.defaultMultiplier,
           assertEntitlement,
+          chargeAiUsage:
+            current.detail.billing.chargeMode === 'ai_usage' ||
+            current.detail.billing.chargeMode === 'hybrid',
           textGenerator: createModuleAppTextGenerator({
             db,
             workspaceId: current.subject.workspaceId ?? undefined,

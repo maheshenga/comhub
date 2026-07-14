@@ -12,6 +12,23 @@ const getRuntime = (runtimeManifest: unknown) => {
   return runtime && typeof runtime === 'object' ? (runtime as Record<string, unknown>) : null;
 };
 
+export const resolveModuleAppActionOutboundHosts = (input: { runtimeManifest: unknown }) => {
+  const runtime = getRuntime(input.runtimeManifest);
+  if (!runtime || !('outboundHosts' in runtime)) return undefined;
+  const outboundHosts = runtime.outboundHosts;
+  if (
+    !Array.isArray(outboundHosts) ||
+    outboundHosts.length > 80 ||
+    outboundHosts.some(
+      (host) => typeof host !== 'string' || !host.trim() || host.trim().length > 253,
+    )
+  ) {
+    throw new Error('MODULE_APP_API_OUTBOUND_HOSTS_INVALID');
+  }
+
+  return [...new Set(outboundHosts.map((host) => (host as string).trim().toLowerCase()))];
+};
+
 export const resolveModuleAppWorkflowAction = (input: {
   action: ModuleAppActionConfig;
   runtimeManifest: unknown;

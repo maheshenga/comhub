@@ -1,10 +1,12 @@
 import type {
   ModuleAppNormalizedPaymentEvent,
+  ModuleAppOrderSnapshot,
   ModuleAppPaymentProvider,
 } from '@lobechat/types';
 
 export interface ModuleAppPaymentAdapter {
   create: (input: {
+    currency: ModuleAppOrderSnapshot['currency'];
     notifyUrl: string;
     orderId: string;
     returnUrl: string;

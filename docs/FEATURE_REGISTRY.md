@@ -937,6 +937,13 @@
 - Multi-replica guards: browser capability mutations use a Redis `SET NX` replay lock with capability-bounded TTL, and notification creation uses an atomic Redis sorted-set sliding window. Redis keys contain SHA-256 digests instead of installation, nonce, or request identifiers. When Redis is intentionally unavailable the same adapters retain process-local protection; multi-replica production therefore requires configured Redis.
 - Release boundary: all eight production mutation flags remain `false`. No flag may be enabled until credentialed Alipay, authenticated browser, runtime, and staging rollback gates pass.
 
+#### Module App Production Gate Hardening (2026-07-15)
+
+- Payment boundary: the immutable order currency now crosses the payment-adapter contract. Alipay computer-website payment rejects every non-`CNY` order before provider form signing, so a `USD` snapshot cannot enter a flow whose notifications always settle as CNY.
+- API Action boundary: rendered URLs must match reviewed `runtime.outboundHosts`, redirects are denied, forbidden transport headers and oversized request bodies are rejected, and response reads stop at 1 MiB. A legacy action without a manifest allowlist may use only its literal configured URL host; a templated host requires an explicit reviewed host.
+- Credit settlement: `chargeMode` now selects fixed, external API, and AI components independently. Enabled non-AI charges are reserved before privileged execution and settled or released through `ModuleAppCreditModel`; persisted non-AI `chargedCredits` therefore matches the immutable personal/workspace ledger debit. Content actions and durable workflow AI nodes invoke platform AI billing only for `ai_usage` or `hybrid` modes.
+- Remaining limitation: `freeQuotaCredits` and plan `discountPercent` are still descriptive fields and are not applied to Module App action settlement. They must not be presented as enforced until a concurrency-safe quota and discount accounting design is implemented.
+- Release boundary: all eight production mutation flags remain `false`; this hardening does not enable payment creation, automatic settlement, runtime invocation, workflows, schedules, payouts, or public execution.
 #### Module App Build Worker
 
 - Status: experimental, published by CI and deployed only by an explicit independent manual action. Normal pushes publish the immutable worker image but never deploy it.
