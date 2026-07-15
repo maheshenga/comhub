@@ -22,7 +22,7 @@ const userStoreMock = vi.hoisted(() => {
   return { useUserStore: selectUserStore };
 });
 
-const locationMock = vi.hoisted(() => ({ pathname: '/admin' }));
+const locationMock = vi.hoisted(() => ({ pathname: '/settings/admin' }));
 
 vi.mock('react-router', () => ({
   Navigate: ({ replace, to }: { replace?: boolean; to: string }) => (
@@ -49,7 +49,7 @@ vi.mock('@/store/user/selectors', () => ({
 afterEach(() => {
   act(() => {
     userStoreMock.useUserStore.reset();
-    locationMock.pathname = '/admin';
+    locationMock.pathname = '/settings/admin';
   });
 });
 
@@ -106,7 +106,7 @@ describe('AdminLayout', () => {
 
   it('renders the admin shell for recognized scoped admin roles', () => {
     act(() => {
-      locationMock.pathname = '/admin/plans';
+      locationMock.pathname = '/settings/admin/plans';
       userStoreMock.useUserStore.setState({
         isUserStateInit: true,
         user: { id: 'finance-1', role: 'finance_admin', username: 'finance' },
@@ -120,9 +120,9 @@ describe('AdminLayout', () => {
     expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
   });
 
-  it('redirects scoped roles away from cross-domain legacy admin routes', () => {
+  it('redirects scoped roles away from cross-domain admin routes', () => {
     act(() => {
-      locationMock.pathname = '/admin/settings';
+      locationMock.pathname = '/settings/admin/settings';
       userStoreMock.useUserStore.setState({
         isUserStateInit: true,
         user: { id: 'finance-1', role: 'finance_admin', username: 'finance' },

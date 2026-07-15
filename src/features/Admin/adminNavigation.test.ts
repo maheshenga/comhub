@@ -27,6 +27,7 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/credits`,
         `${ADMIN_BASE_PATH}/stats`,
         `${ADMIN_BASE_PATH}/audit`,
+        `${ADMIN_BASE_PATH}/module-apps`,
       ]),
     );
     expect(financePaths).not.toContain(`${ADMIN_BASE_PATH}/users`);
@@ -43,6 +44,23 @@ describe('adminNavigation', () => {
     expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/settings`)).toBe(false);
     expect(canAccessAdminPath('admin', `${ADMIN_BASE_PATH}/settings`)).toBe(true);
     expect(canAccessAdminPath('user', `${ADMIN_BASE_PATH}/plans`)).toBe(false);
+  });
+
+  it.each([
+    ['content_admin', `${ADMIN_BASE_PATH}/topics`, `${ADMIN_BASE_PATH}/plans`],
+    ['finance_admin', `${ADMIN_BASE_PATH}/subscriptions`, `${ADMIN_BASE_PATH}/settings`],
+    ['model_ops', `${ADMIN_BASE_PATH}/providers`, `${ADMIN_BASE_PATH}/users`],
+    ['support_admin', `${ADMIN_BASE_PATH}/users`, `${ADMIN_BASE_PATH}/providers`],
+    ['system_admin', `${ADMIN_BASE_PATH}/settings`, `${ADMIN_BASE_PATH}/credits`],
+  ] as const)('keeps %s inside its default domain', (role, allowedPath, deniedPath) => {
+    expect(getAdminDefaultPath(role)).toBe(allowedPath);
+    expect(canAccessAdminPath(role, allowedPath)).toBe(true);
+    expect(canAccessAdminPath(role, deniedPath)).toBe(false);
+  });
+
+  it('keeps Module App finance visibility read-only at the navigation boundary', () => {
+    expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/module-apps`)).toBe(true);
+    expect(canAccessAdminPath('content_admin', `${ADMIN_BASE_PATH}/module-apps`)).toBe(false);
   });
 
   it('organizes admin pages into the planned management modules', () => {

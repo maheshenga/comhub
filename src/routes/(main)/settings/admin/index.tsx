@@ -78,6 +78,10 @@ const getAdminPage = (pathname: string) => {
   return adminPageMap[segment as keyof typeof adminPageMap] ?? AdminOverviewPage;
 };
 
+/**
+ * @deprecated The declarative desktop router mounts AdminLayout and catalog routes directly.
+ * Keep this unregistered renderer only until compatibility usage has been audited.
+ */
 const SettingsAdminPage = () => {
   const { t } = useTranslation('subscription');
   const location = useLocation();
