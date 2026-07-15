@@ -48,13 +48,13 @@ describe('adminNavigation', () => {
   it('organizes admin pages into the planned management modules', () => {
     expect(ADMIN_NAV_GROUPS.map((group) => group.key)).toEqual([
       'overview',
-      'user-plan',
-      'model-billing',
-      'plugins',
-      'brand-growth',
-      'content',
-      'client',
-      'system',
+      'user-access',
+      'commercial',
+      'ai-platform',
+      'module-apps',
+      'content-operations',
+      'client-integrations',
+      'system-security',
     ]);
   });
 
@@ -97,7 +97,7 @@ describe('adminNavigation', () => {
 
   it('labels model pricing and policy tasks as part of the model center', () => {
     const modelApiItems =
-      ADMIN_NAV_GROUPS.find((group) => group.key === 'model-billing')?.items ?? [];
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'ai-platform')?.items ?? [];
 
     expect(
       modelApiItems.find((item) => item.path === `${ADMIN_BASE_PATH}/model-billing-matrix`),
@@ -112,7 +112,7 @@ describe('adminNavigation', () => {
   });
 
   it('describes the model center using current admin concepts', () => {
-    const modelApiGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'model-billing');
+    const modelApiGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'ai-platform');
     const providerItem = modelApiGroup?.items.find(
       (item) => item.path === `${ADMIN_BASE_PATH}/providers`,
     );
@@ -126,7 +126,7 @@ describe('adminNavigation', () => {
   });
 
   it('keeps module apps in the extensibility admin module after platform plugin removal', () => {
-    const pluginGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'plugins');
+    const pluginGroup = ADMIN_NAV_GROUPS.find((group) => group.key === 'module-apps');
 
     expect(pluginGroup).toMatchObject({
       icon: 'plugins',
@@ -145,14 +145,17 @@ describe('adminNavigation', () => {
     expect(getAdminSelectedKey('/settings/admin/module-apps')).toBe(
       `${ADMIN_BASE_PATH}/module-apps`,
     );
-    expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['plugins']);
+    expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['module-apps']);
   });
 
-  it('keeps storage and maintenance settings in the system module', () => {
-    const systemItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'system')?.items ?? [];
+  it('keeps storage and maintenance settings in their approved modules', () => {
+    const clientItems =
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'client-integrations')?.items ?? [];
+    const systemItems =
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'system-security')?.items ?? [];
 
     expect(
-      systemItems.find((item) => item.path === `${ADMIN_BASE_PATH}/file-storage`),
+      clientItems.find((item) => item.path === `${ADMIN_BASE_PATH}/file-storage`),
     ).toMatchObject({
       icon: 'file-storage',
     });
@@ -169,18 +172,20 @@ describe('adminNavigation', () => {
   });
 
   it('moves desktop client settings into the client module', () => {
-    const clientItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'client')?.items ?? [];
-    const systemItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'system')?.items ?? [];
+    const clientItems =
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'client-integrations')?.items ?? [];
+    const systemItems =
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'system-security')?.items ?? [];
 
     expect(clientItems).toContainEqual(
       expect.objectContaining({
         icon: 'desktop',
-        label: '客户端',
+        label: '桌面客户端',
         path: `${ADMIN_BASE_PATH}/desktop-update`,
       }),
     );
     expect(systemItems.map((item) => item.path)).not.toContain(`${ADMIN_BASE_PATH}/desktop-update`);
-    expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client']);
+    expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client-integrations']);
   });
 
   it('maps legacy billing routes to their merged sidebar entries', () => {
@@ -197,7 +202,7 @@ describe('adminNavigation', () => {
     expect(getAdminSelectedKey('/admin')).toBe(ADMIN_BASE_PATH);
     expect(getAdminSelectedKey('/admin/users')).toBe(`${ADMIN_BASE_PATH}/users`);
     expect(getAdminSelectedKey('/admin/pricing')).toBe(`${ADMIN_BASE_PATH}/model-billing-matrix`);
-    expect(getAdminOpenKeys('/admin/pricing')).toEqual(['model-billing']);
+    expect(getAdminOpenKeys('/admin/pricing')).toEqual(['ai-platform']);
   });
 
   it('selects the nearest admin item for nested URLs and opens its module', () => {
@@ -235,18 +240,18 @@ describe('adminNavigation', () => {
       `${ADMIN_BASE_PATH}/desktop-update`,
     );
 
-    expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['model-billing']);
-    expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['model-billing']);
-    expect(getAdminOpenKeys('/settings/admin/ppt')).toEqual(['model-billing']);
-    expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['plugins']);
-    expect(getAdminOpenKeys('/settings/admin/notifications')).toEqual(['brand-growth']);
-    expect(getAdminOpenKeys('/settings/admin/expert-plaza')).toEqual(['brand-growth']);
-    expect(getAdminOpenKeys('/settings/admin/topics')).toEqual(['content']);
-    expect(getAdminOpenKeys('/settings/admin/files')).toEqual(['content']);
-    expect(getAdminOpenKeys('/settings/admin/file-storage')).toEqual(['system']);
-    expect(getAdminOpenKeys('/settings/admin/documents')).toEqual(['content']);
-    expect(getAdminOpenKeys('/settings/admin/system-defaults')).toEqual(['system']);
-    expect(getAdminOpenKeys('/settings/admin/maintenance')).toEqual(['system']);
-    expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client']);
+    expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['ai-platform']);
+    expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['ai-platform']);
+    expect(getAdminOpenKeys('/settings/admin/ppt')).toEqual(['ai-platform']);
+    expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['module-apps']);
+    expect(getAdminOpenKeys('/settings/admin/notifications')).toEqual(['content-operations']);
+    expect(getAdminOpenKeys('/settings/admin/expert-plaza')).toEqual(['content-operations']);
+    expect(getAdminOpenKeys('/settings/admin/topics')).toEqual(['content-operations']);
+    expect(getAdminOpenKeys('/settings/admin/files')).toEqual(['content-operations']);
+    expect(getAdminOpenKeys('/settings/admin/file-storage')).toEqual(['client-integrations']);
+    expect(getAdminOpenKeys('/settings/admin/documents')).toEqual(['content-operations']);
+    expect(getAdminOpenKeys('/settings/admin/system-defaults')).toEqual(['ai-platform']);
+    expect(getAdminOpenKeys('/settings/admin/maintenance')).toEqual(['system-security']);
+    expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client-integrations']);
   });
 });

@@ -11,6 +11,7 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const readRepoFile = (filePath: string) => readFileSync(path.resolve(repoRoot, filePath), 'utf8');
 
 const filesWithAdminCopy = [
+  'src/features/Admin/adminCatalog.ts',
   'src/features/Admin/adminNavigation.ts',
   'src/features/Admin/AdminDesktopUpdatePage.tsx',
   'src/features/Admin/AdminUserDetailDrawer.tsx',
@@ -51,16 +52,17 @@ describe('admin Chinese copy', () => {
   });
 
   it('uses readable Chinese navigation labels for billing pages', () => {
-    const userPlanItems = ADMIN_NAV_GROUPS.find((group) => group.key === 'user-plan')?.items ?? [];
+    const commercialItems =
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'commercial')?.items ?? [];
 
-    expect(userPlanItems.find((item) => item.path.endsWith('/subscriptions'))).toMatchObject({
+    expect(commercialItems.find((item) => item.path.endsWith('/subscriptions'))).toMatchObject({
       label: '订阅管理',
     });
-    expect(userPlanItems.find((item) => item.path.endsWith('/redemption'))).toMatchObject({
+    expect(commercialItems.find((item) => item.path.endsWith('/redemption'))).toMatchObject({
       label: '兑换码',
     });
-    expect(userPlanItems.find((item) => item.path.endsWith('/orders'))).toMatchObject({
-      label: '订单与充值',
+    expect(commercialItems.find((item) => item.path.endsWith('/orders'))).toMatchObject({
+      label: '平台订单与充值',
     });
   });
 
@@ -225,13 +227,13 @@ describe('admin Chinese copy', () => {
   });
 
   it('includes readable copy for content governance and system defaults pages', () => {
-    const navigation = readRepoFile('src/features/Admin/adminNavigation.ts');
+    const catalog = readRepoFile('src/features/Admin/adminCatalog.ts');
     const contentPages = readRepoFile('src/features/Admin/AdminContentPages.tsx');
     const expertPlazaPage = readRepoFile('src/features/Admin/AdminExpertPlazaPage.tsx');
     const systemDefaultsPage = readRepoFile('src/features/Admin/AdminSystemDefaultsPage.tsx');
 
-    expect(navigation).toContain("label: '内容治理'");
-    expect(navigation).toContain("label: '系统默认值'");
+    expect(catalog).toContain("label: '内容与运营'");
+    expect(catalog).toContain("label: '默认模型与运行默认值'");
     expect(contentPages).toContain('话题管理');
     expect(contentPages).toContain('资源文件管理');
     expect(contentPages).toContain('用户文稿管理');
