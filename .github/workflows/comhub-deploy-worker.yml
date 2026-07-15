@@ -636,3 +636,52 @@ jobs:
 
           cleanup_remote_incoming_enabled=false
           trap - EXIT
+
+      - name: Diagnose failed Worker deployment
+        if: ${{ failure() }}
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
+          SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
+        run: |
+          set -u
+
+          if [ ! -s "$HOME/.ssh/comhub_deploy_key" ]; then
+            echo 'warning: Worker diagnostics unavailable because the SSH key was not installed' >&2
+            exit 0
+          fi
+
+          ssh_options=(
+            -i "$HOME/.ssh/comhub_deploy_key"
+            -p "$SSH_PORT"
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=4
+            -o ConnectTimeout=30
+          )
+
+          if ! ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" 'bash -s' <<'REMOTE_WORKER_DIAGNOSTICS'
+          set -u
+
+          container_ids="$(docker ps -aq --filter 'label=com.docker.compose.project=comhub-module-worker')"
+          if [ -z "$container_ids" ]; then
+            echo 'Worker diagnostics: no Compose-managed Worker container found' >&2
+          else
+            for container_id in $container_ids; do
+              docker inspect --format \
+                'worker name={{.Name}} image={{.Config.Image}} state={{.State.Status}} restart={{.RestartCount}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+                "$container_id" >&2 || true
+              docker inspect --format \
+                '{{if .State.Health}}{{range .State.Health.Log}}health end={{.End}} exit={{.ExitCode}} output={{json .Output}}{{println}}{{end}}{{else}}health unavailable{{println}}{{end}}' \
+                "$container_id" >&2 || true
+            done
+          fi
+
+          df -h / >&2 || true
+          docker system df >&2 || true
+          REMOTE_WORKER_DIAGNOSTICS
+          then
+            echo 'warning: failed to collect remote Worker diagnostics' >&2
+          fi
