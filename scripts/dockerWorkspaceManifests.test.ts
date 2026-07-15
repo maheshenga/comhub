@@ -18,27 +18,54 @@ describe('Docker workspace manifests', () => {
     );
   });
 
-  it('normalizes workflow-dispatch inputs before production job conditions', () => {
-    const workflow = readFileSync(
+  it('separates image publication from manual production deployments', () => {
+    const buildWorkflow = readFileSync(
+      path.join(root, '.github', 'workflows', 'comhub-build.yml'),
+      'utf8',
+    );
+    const mainWorkflow = readFileSync(
       path.join(root, '.github', 'workflows', 'comhub-deploy.yml'),
       'utf8',
     );
+    const workerWorkflow = readFileSync(
+      path.join(root, '.github', 'workflows', 'comhub-deploy-worker.yml'),
+      'utf8',
+    );
 
-    expect(workflow).toContain('resolve_deployment:');
-    expect(workflow).toContain("needs.resolve_deployment.outputs.deploy == 'true'");
-    expect(workflow).toContain("needs.resolve_deployment.outputs.deploy_module_worker == 'true'");
-    expect(workflow).toContain("needs.resolve_deployment.outputs.verify_module_app_full == 'true'");
+    const build = parse(buildWorkflow) as {
+      concurrency: { 'cancel-in-progress': boolean };
+      jobs: Record<string, unknown>;
+      on: Record<string, unknown>;
+    };
+    const main = parse(mainWorkflow) as {
+      jobs: Record<string, { if?: string; needs?: string[] }>;
+      on: Record<string, unknown>;
+    };
+    const worker = parse(workerWorkflow) as {
+      jobs: Record<string, { needs?: string[] }>;
+      on: Record<string, unknown>;
+    };
 
-    const jobs = parse(workflow).jobs as Record<string, { if?: string }>;
-    expect(jobs.deploy.if).toContain('always()');
-    expect(jobs.deploy.if).toContain("needs.build.result == 'success'");
-    expect(jobs['deploy-module-worker'].if).toContain('always()');
-    expect(jobs['deploy-module-worker'].if).toContain("needs.build.result == 'success'");
+    expect(build.on.push).toBeDefined();
+    expect(build.concurrency['cancel-in-progress']).toBe(true);
+    expect(Object.keys(main.on)).toEqual(['workflow_dispatch']);
+    expect(Object.keys(worker.on)).toEqual(['workflow_dispatch']);
+    expect(buildWorkflow.match(/docker\/build-push-action@v6/g)).toHaveLength(3);
+    expect(mainWorkflow).not.toContain('docker/build-push-action');
+    expect(workerWorkflow).not.toContain('docker/build-push-action');
+    expect(main.jobs.deploy.needs).toEqual([
+      'resolve-source',
+      'resolve-images',
+      'verify-module-app-full',
+    ]);
+    expect(main.jobs.deploy.if).toContain('always()');
+    expect(worker.jobs.deploy.needs).toEqual(['resolve-source', 'verify-worker', 'resolve-image']);
+    expect(workerWorkflow).toContain('pnpm verify:module-app-worker');
   });
 
   it('bootstraps an absent worker environment from the running production app', () => {
     const workflow = readFileSync(
-      path.join(root, '.github', 'workflows', 'comhub-deploy.yml'),
+      path.join(root, '.github', 'workflows', 'comhub-deploy-worker.yml'),
       'utf8',
     );
 

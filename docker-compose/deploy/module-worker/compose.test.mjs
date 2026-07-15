@@ -23,6 +23,7 @@ const composeFile = resolve(directory, 'compose.yml');
 const envFile = resolve(directory, '.env');
 const createdEnvFile = !existsSync(envFile);
 const workerImage = 'example.invalid/comhub-module-worker:sha-0123456789ab';
+const digestWorkerImage = `example.invalid/comhub-module-worker@sha256:${'a'.repeat(64)}`;
 const mutationFlags = [
   'MODULE_APP_EXECUTION_ENABLED',
   'MODULE_APP_RUNTIME_INVOCATION_ENABLED',
@@ -100,8 +101,10 @@ const runDeployWithFakes = ({
   failDockerCallIncludes,
   failDockerMessage = 'fake docker failure',
   home,
+  initialWorkerContainer = true,
   user,
   markers = [],
+  requestedWorkerImage = workerImage,
   skipPreviousImage = true,
 }) => {
   const fakeBinDir = mkdtempSync(join(tmpdir(), 'module-worker-compose-'));
@@ -112,7 +115,7 @@ const runDeployWithFakes = ({
   const fakeDockerScript = join(fakeBinDir, 'fake-docker.mjs').replaceAll('\\', '/');
   const fakeInstallScript = join(fakeBinDir, 'fake-install.mjs').replaceAll('\\', '/');
   const fakePsqlScript = join(fakeBinDir, 'fake-psql.mjs').replaceAll('\\', '/');
-  const currentImageMarker = join(fakeBinDir, 'current-image-recorded');
+  const workerDeployedMarker = join(fakeBinDir, 'worker-deployed');
 
   writeExecutable(
     join(fakeBinDir, 'fake-docker.mjs'),
@@ -135,8 +138,17 @@ if (args[0] === 'compose') {
   const joined = \` \${args.join(' ')} \`;
   if (joined.includes(' config --format json ')) process.exit(0);
   if (joined.includes(' pull module-app-worker ')) process.exit(0);
-  if (joined.includes(' up --no-deps --wait module-app-worker ')) process.exit(0);
+  if (joined.includes(' up --no-deps --wait module-app-worker ')) {
+    writeFileSync(process.env.WORKER_DEPLOYED_MARKER, 'deployed');
+    process.exit(0);
+  }
   if (joined.includes(' ps -q module-app-worker ')) {
+    if (
+      process.env.INITIAL_WORKER_CONTAINER === 'false' &&
+      !existsSync(process.env.WORKER_DEPLOYED_MARKER)
+    ) {
+      process.exit(0);
+    }
     process.stdout.write('worker-ctr\\n');
     process.exit(0);
   }
@@ -177,8 +189,7 @@ if (args[0] === 'inspect' && args[1] === '--format') {
   if (target === 'worker-ctr') {
     switch (format) {
       case '{{.Config.Image}}':
-        if (process.env.CURRENT_WORKER_IMAGE && !existsSync(process.env.CURRENT_IMAGE_MARKER)) {
-          writeFileSync(process.env.CURRENT_IMAGE_MARKER, 'recorded');
+        if (process.env.CURRENT_WORKER_IMAGE && !existsSync(process.env.WORKER_DEPLOYED_MARKER)) {
           process.stdout.write(process.env.CURRENT_WORKER_IMAGE);
           process.exit(0);
         }
@@ -279,7 +290,7 @@ process.stdout.write('4');
     'bash',
     [
       '-lc',
-      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export INSTALL_BIN='${nodeBin}'; export INSTALL_BIN_SCRIPT='${fakeInstallScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec '${deployCommand}' '${workerImage}'`,
+      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export INSTALL_BIN='${nodeBin}'; export INSTALL_BIN_SCRIPT='${fakeInstallScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec '${deployCommand}' '${requestedWorkerImage}'`,
     ],
     {
       cwd: deployDirectory,
@@ -288,15 +299,16 @@ process.stdout.write('4');
         ...process.env,
         EXPECTED_ARTIFACT_ROOT: expectedArtifactRoot,
         EXPECTED_PLATFORM_PROJECT: expectedPlatformProject,
-        EXPECTED_WORKER_IMAGE: workerImage,
+        EXPECTED_WORKER_IMAGE: requestedWorkerImage,
         FAIL_DOCKER_CALL_INCLUDES: failDockerCallIncludes ?? '',
         FAIL_DOCKER_MESSAGE: failDockerMessage,
-        CURRENT_IMAGE_MARKER: currentImageMarker,
         CURRENT_WORKER_IMAGE: currentWorkerImage ?? '',
         FAKE_DOCKER_LOG: dockerLog,
         FAKE_PSQL_LOG: psqlLog,
         HOME: home,
+        INITIAL_WORKER_CONTAINER: String(initialWorkerContainer),
         USER: user,
+        WORKER_DEPLOYED_MARKER: workerDeployedMarker,
       },
     },
   );
@@ -344,6 +356,20 @@ try {
   );
   const config = JSON.parse(output);
   const services = config.services;
+
+  const digestConfig = JSON.parse(
+    execFileSync('docker', ['compose', '-f', composeFile, 'config', '--format', 'json'], {
+      cwd: directory,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        COMHUB_MODULE_WORKER_IMAGE: digestWorkerImage,
+        COMHUB_PLATFORM_NETWORK: 'paradedb_default',
+        MODULE_APP_ARTIFACT_ROOT: '/var/lib/comhub/module-worker-artifacts',
+      },
+    }),
+  );
+  assert.equal(digestConfig.services['module-app-worker'].image, digestWorkerImage);
 
   assert.deepEqual(Object.keys(services), ['module-app-worker']);
   assert.equal(config.name, 'comhub-module-worker');
@@ -453,6 +479,80 @@ try {
     defaultPlatformProject.dockerCalls,
     /ALTER TABLE "module_app_builds" ADD COLUMN IF NOT EXISTS "claim_token" text/s,
   );
+
+  const digestDeploy = runDeployWithFakes({
+    envContents: [
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    home: '/tmp/fake-home',
+    requestedWorkerImage: digestWorkerImage,
+    user: 'fake-user',
+  });
+  assert.equal(digestDeploy.result.status, 0, digestDeploy.result.stderr);
+
+  const firstDeployDirectory = mkdtempSync(join(tmpdir(), 'module-worker-first-deploy-'));
+  try {
+    copyFileSync(composeFile, join(firstDeployDirectory, 'compose.yml'));
+    copyFileSync(resolve(directory, 'deploy.sh'), join(firstDeployDirectory, 'deploy.sh'));
+    chmodSync(join(firstDeployDirectory, 'deploy.sh'), 0o750);
+
+    const firstDeploy = runDeployWithFakes({
+      deployDirectory: firstDeployDirectory,
+      envContents: [
+        'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+        'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+        'S3_ACCESS_KEY_ID=worker-access',
+        'S3_BUCKET=module-artifacts',
+        'S3_ENDPOINT=https://s3.example.com',
+        'S3_SECRET_ACCESS_KEY=worker-secret',
+      ].join('\n'),
+      envFilePath: join(firstDeployDirectory, '.env'),
+      expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+      home: '/tmp/fake-home',
+      initialWorkerContainer: false,
+      skipPreviousImage: false,
+      user: 'fake-user',
+    });
+
+    assert.equal(firstDeploy.result.status, 0, firstDeploy.result.stderr);
+    assert.match(firstDeploy.dockerCalls, /pull module-app-worker/);
+    assert.equal(existsSync(join(firstDeployDirectory, '.previous-image')), false);
+  } finally {
+    removeTempDirectory(firstDeployDirectory);
+  }
+
+  const digestRollbackDirectory = mkdtempSync(join(tmpdir(), 'module-worker-rollback-digest-'));
+  for (const file of ['compose.yml', 'deploy.sh', 'rollback.sh']) {
+    copyFileSync(resolve(directory, file), join(digestRollbackDirectory, file));
+  }
+  chmodSync(join(digestRollbackDirectory, 'deploy.sh'), 0o755);
+  chmodSync(join(digestRollbackDirectory, 'rollback.sh'), 0o755);
+  writeFileSync(join(digestRollbackDirectory, '.previous-image'), `${digestWorkerImage}\n`);
+  const digestRollback = runDeployWithFakes({
+    deployCommand: './rollback.sh',
+    deployDirectory: digestRollbackDirectory,
+    envContents: [
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    envFilePath: join(digestRollbackDirectory, '.env'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    home: '/tmp/fake-home',
+    requestedWorkerImage: digestWorkerImage,
+    user: 'fake-user',
+  });
+  assert.equal(digestRollback.result.status, 0, digestRollback.result.stderr);
+  removeTempDirectory(digestRollbackDirectory);
   assert.match(
     defaultPlatformProject.dockerCalls,
     /CREATE INDEX IF NOT EXISTS "module_app_builds_claimable_idx"/s,
@@ -486,6 +586,32 @@ try {
   });
   assert.notEqual(failedPull.result.status, 0);
   assert.match(failedPull.result.stderr, /compose pull failed: fake pull failure/);
+
+  const failedPreDeployContainerLookup = runDeployWithFakes({
+    envContents: [
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    failDockerCallIncludes: 'ps -q module-app-worker',
+    failDockerMessage: 'fake pre-deploy ps failure',
+    home: '/tmp/fake-home',
+    skipPreviousImage: false,
+    user: 'fake-user',
+  });
+  assert.notEqual(failedPreDeployContainerLookup.result.status, 0);
+  assert.match(
+    failedPreDeployContainerLookup.result.stderr,
+    /current module-app-worker container lookup failed: fake pre-deploy ps failure/,
+  );
+  assert.doesNotMatch(
+    failedPreDeployContainerLookup.dockerCalls,
+    /(?:pull|up .*--wait) module-app-worker/,
+  );
 
   const failedContainerLookup = runDeployWithFakes({
     envContents: [
@@ -844,6 +970,7 @@ try {
 
   const rollbackSource = readFileSync(resolve(directory, 'rollback.sh'), 'utf8');
   assert.match(rollbackSource, /\.previous-image/);
+  assert.match(rollbackSource, /sha256:/);
   assert.match(rollbackSource, /COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE=true exec/);
 
   console.info('module worker Compose policy: PASS');

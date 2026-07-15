@@ -1,44 +1,15 @@
-name: ComHub Build and Deploy
-run-name: >-
-  ComHub Build and Deploy (deploy=${{ toJSON(github.event.inputs.deploy) }}, worker=${{ toJSON(github.event.inputs.deploy_module_worker) }})
+name: ComHub Deploy Production
+run-name: ComHub Deploy Production (source=${{ inputs.source_sha || github.sha }}, full=${{ inputs.verify_module_app_full }})
 
 on:
-  push:
-    branches:
-      - main
-      - upgrade/upstream-v2.2.6-comhub-merge
   workflow_dispatch:
     inputs:
-      deploy:
-        description: 'Deploy to production after the image is pushed'
-        required: true
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
-      deploy_module_worker:
-        description: 'Deploy the independent Module App worker after its image is pushed'
-        required: true
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
-      image_tag:
-        description: 'Optional extra image tag, for example 20260527-001'
+      source_sha:
+        description: 'Optional full commit SHA from main; defaults to the selected workflow ref SHA'
         required: false
         type: string
-      use_cn_mirror:
-        description: 'Use China npm/apt mirrors during Docker build'
-        required: true
-        default: 'true'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
       verify_module_app_full:
-        description: 'Require credentialed Alipay and authenticated staging probes before build'
+        description: 'Require credentialed Alipay and authenticated staging probes before deploy'
         required: true
         default: 'false'
         type: choice
@@ -47,78 +18,62 @@ on:
           - 'true'
 
 permissions:
-  actions: write
   contents: read
-  packages: write
-
-concurrency:
-  group: comhub-production-${{ github.ref }}
-  cancel-in-progress: false
-  queue: max
+  packages: read
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
   NODEJS_VERSION: '22'
 
 jobs:
-  resolve_deployment:
-    name: Resolve Deployment Request
+  resolve-source:
+    name: Resolve Deployment Source
     runs-on: ubuntu-latest
     outputs:
-      deploy: ${{ steps.request.outputs.deploy }}
-      deploy_module_worker: ${{ steps.request.outputs.deploy_module_worker }}
-      verify_module_app_full: ${{ steps.request.outputs.verify_module_app_full }}
+      image_tag: ${{ steps.source.outputs.image_tag }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - name: Normalize workflow inputs
-        id: request
+      - name: Checkout main history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Validate source commit
+        id: source
         shell: bash
         env:
-          DEPLOY_REQUESTED: ${{ github.event.inputs.deploy || 'false' }}
-          DEPLOY_MODULE_WORKER_REQUESTED: ${{ github.event.inputs.deploy_module_worker || 'false' }}
-          VERIFY_MODULE_APP_FULL_REQUESTED: ${{ github.event.inputs.verify_module_app_full || 'false' }}
+          REQUESTED_SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
 
-          normalize_boolean() {
-            if [ "${1,,}" = 'true' ]; then
-              printf 'true'
-            else
-              printf 'false'
-            fi
+          [[ "$GITHUB_REF" = 'refs/heads/main' ]] || {
+            echo 'production deployment workflows must be dispatched from main' >&2
+            exit 1
           }
 
-          echo "deploy=$(normalize_boolean "$DEPLOY_REQUESTED")" >> "$GITHUB_OUTPUT"
-          echo "deploy_module_worker=$(normalize_boolean "$DEPLOY_MODULE_WORKER_REQUESTED")" >> "$GITHUB_OUTPUT"
-          echo "verify_module_app_full=$(normalize_boolean "$VERIFY_MODULE_APP_FULL_REQUESTED")" >> "$GITHUB_OUTPUT"
+          source_sha="${REQUESTED_SOURCE_SHA:-$GITHUB_SHA}"
+          source_sha="${source_sha,,}"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo 'source_sha must be a full 40-character commit SHA' >&2
+            exit 1
+          }
 
-  verify-module-app:
-    name: Verify Module App Production Gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git cat-file -e "${source_sha}^{commit}"
+          git merge-base --is-ancestor "$source_sha" origin/main || {
+            echo 'source_sha must belong to origin/main history' >&2
+            exit 1
+          }
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODEJS_VERSION }}
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Run required commercial, container, PostgreSQL, and Redis gates
-        run: pnpm verify:module-app-production
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "image_tag=sha-${source_sha:0:12}" >> "$GITHUB_OUTPUT"
 
   verify-module-app-full:
     name: Verify Module App Credentialed Probes
-    needs: [verify-module-app, resolve_deployment]
+    needs: [resolve-source]
     runs-on: ubuntu-latest
-    if: ${{ needs.resolve_deployment.outputs.verify_module_app_full == 'true' }}
+    if: ${{ inputs.verify_module_app_full == 'true' }}
     environment: module-app-staging
     env:
       MODULE_APP_ALIPAY_APP_ID: ${{ secrets.MODULE_APP_ALIPAY_APP_ID }}
@@ -141,8 +96,10 @@ jobs:
       MODULE_APP_E2E_RUN_ID: ${{ vars.MODULE_APP_E2E_RUN_ID }}
       MODULE_APP_E2E_TEAM_WORKSPACE_ID: ${{ vars.MODULE_APP_E2E_TEAM_WORKSPACE_ID }}
     steps:
-      - name: Checkout
+      - name: Checkout deployment source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-source.outputs.source_sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -162,19 +119,18 @@ jobs:
       - name: Run credentialed Alipay and authenticated browser probes
         run: pnpm verify:module-app-production:full
 
-  build:
-    name: Build and Push Image
-    needs: [verify-module-app, verify-module-app-full]
-    if: ${{ always() && needs.verify-module-app.result == 'success' && (needs.verify-module-app-full.result == 'success' || needs.verify-module-app-full.result == 'skipped') }}
+  resolve-images:
+    name: Resolve Existing Image Digests
+    needs: [resolve-source]
     runs-on: ubuntu-latest
     outputs:
-      image_ref: ${{ steps.image.outputs.image_ref }}
-      image_tag: ${{ steps.image.outputs.image_tag }}
-      runtime_image_ref: ${{ steps.image.outputs.runtime_image_ref }}
-      worker_image_ref: ${{ steps.image.outputs.worker_image_ref }}
+      image_ref: ${{ steps.images.outputs.image_ref }}
+      runtime_image_ref: ${{ steps.images.outputs.runtime_image_ref }}
     steps:
-      - name: Checkout
+      - name: Checkout deployment tooling
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -186,132 +142,45 @@ jobs:
           username: ${{ vars.COMHUB_GHCR_USERNAME || github.repository_owner }}
           password: ${{ secrets.COMHUB_GHCR_TOKEN || github.token }}
 
-      - name: Report GHCR credential source
+      - name: Resolve immutable image references
+        id: images
         shell: bash
         env:
-          GHCR_USERNAME: ${{ vars.COMHUB_GHCR_USERNAME || github.repository_owner }}
-          HAS_CUSTOM_GHCR_TOKEN: ${{ secrets.COMHUB_GHCR_TOKEN != '' }}
-        run: |
-          set -euo pipefail
-          echo "GHCR username: ${GHCR_USERNAME}"
-          echo "Using custom COMHUB_GHCR_TOKEN: ${HAS_CUSTOM_GHCR_TOKEN}"
-
-      - name: Resolve image tags
-        id: image
-        shell: bash
-        env:
-          MANUAL_IMAGE_TAG: ${{ github.event.inputs.image_tag || '' }}
+          IMAGE_TAG: ${{ needs.resolve-source.outputs.image_tag }}
         run: |
           set -euo pipefail
 
-          sha_tag="sha-${GITHUB_SHA::12}"
-          manual_tag="$MANUAL_IMAGE_TAG"
-          if [ -n "$manual_tag" ] && [[ ! "$manual_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
-            echo 'image_tag must match [A-Za-z0-9_][A-Za-z0-9_.-]{0,127}' >&2
-            exit 1
-          fi
-          runtime_image_name="${IMAGE_NAME}-module-runtime"
-          worker_image_name="${IMAGE_NAME}-module-worker"
-
-          tags="${IMAGE_NAME}:${sha_tag}"
-          runtime_tags="${runtime_image_name}:${sha_tag}"
-          worker_tags="${worker_image_name}:${sha_tag}"
-          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-            tags="${tags}"$'\n'"${IMAGE_NAME}:latest"
-            runtime_tags="${runtime_tags}"$'\n'"${runtime_image_name}:latest"
-            worker_tags="${worker_tags}"$'\n'"${worker_image_name}:latest"
-          fi
-          if [ -n "${manual_tag}" ]; then
-            tags="${tags}"$'\n'"${IMAGE_NAME}:${manual_tag}"
-            runtime_tags="${runtime_tags}"$'\n'"${runtime_image_name}:${manual_tag}"
-            worker_tags="${worker_tags}"$'\n'"${worker_image_name}:${manual_tag}"
-          fi
-
-          {
-            echo "image_tag=${sha_tag}"
-            echo "image_ref=${IMAGE_NAME}:${sha_tag}"
-            echo "runtime_image_ref=${runtime_image_name}:${sha_tag}"
-            echo "worker_image_ref=${worker_image_name}:${sha_tag}"
-            echo "tags<<EOF"
-            echo "${tags}"
-            echo "EOF"
-            echo "runtime_tags<<EOF"
-            echo "${runtime_tags}"
-            echo "EOF"
-            echo "worker_tags<<EOF"
-            echo "${worker_tags}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Resolve build metadata
-        id: build_meta
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "build_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.image.outputs.tags }}
-          build-args: |
-            NODEJS_VERSION=${{ env.NODEJS_VERSION }}
-            USE_CN_MIRROR=${{ github.event.inputs.use_cn_mirror || 'true' }}
-            COMHUB_COMMIT_SHA=${{ github.sha }}
-            COMHUB_BUILD_BRANCH=${{ github.ref_name }}
-            COMHUB_BUILD_AT=${{ steps.build_meta.outputs.build_at }}
-            COMHUB_IMAGE_TAG=${{ steps.image.outputs.image_tag }}
-            COMHUB_IMAGE_REF=${{ steps.image.outputs.image_ref }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push Module App runtime image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./apps/module-runtime/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.image.outputs.runtime_tags }}
-          cache-from: type=gha,scope=module-runtime
-          cache-to: type=gha,mode=max,scope=module-runtime
-
-      - name: Build and push Module App worker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./apps/module-worker/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.image.outputs.worker_tags }}
-          cache-from: type=gha,scope=module-worker
-          cache-to: type=gha,mode=max,scope=module-worker
+          image_ref="$(node .github/scripts/resolveImageReference.mjs "${IMAGE_NAME}:${IMAGE_TAG}")"
+          runtime_image_ref="$(node .github/scripts/resolveImageReference.mjs "${IMAGE_NAME}-module-runtime:${IMAGE_TAG}")"
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+          echo "runtime_image_ref=$runtime_image_ref" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy Production
-    needs: [build, resolve_deployment]
+    needs: [resolve-source, resolve-images, verify-module-app-full]
     runs-on: ubuntu-latest
-    if: ${{ always() && needs.build.result == 'success' && needs.resolve_deployment.result == 'success' && needs.resolve_deployment.outputs.deploy == 'true' }}
+    if: ${{ always() && needs.resolve-source.result == 'success' && needs.resolve-images.result == 'success' && (needs.verify-module-app-full.result == 'success' || needs.verify-module-app-full.result == 'skipped') }}
     timeout-minutes: 45
     environment: production
     concurrency:
       group: comhub-production-deploy
       cancel-in-progress: false
-      queue: max
     steps:
       - name: Install SSH key
         shell: bash
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.COMHUB_SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.COMHUB_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          grep -q '[^[:space:]]' <<< "$SSH_KNOWN_HOSTS"
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.COMHUB_SSH_PRIVATE_KEY }}" > ~/.ssh/comhub_deploy_key
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/comhub_deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/comhub_deploy_key
-          ssh-keyscan -p "${{ secrets.COMHUB_SSH_PORT || '22' }}" "${{ secrets.COMHUB_SSH_HOST }}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Run remote blue-green deploy
         shell: bash
@@ -320,16 +189,18 @@ jobs:
           SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
           DEPLOY_DIR: ${{ vars.COMHUB_DEPLOY_DIR || '/www/compose/comhub' }}
-          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
-          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-          REQUIRE_MODULE_RUNTIME: ${{ needs.resolve_deployment.outputs.verify_module_app_full == 'true' }}
-          RUNTIME_IMAGE_REF: ${{ needs.build.outputs.runtime_image_ref }}
+          IMAGE_REF: ${{ needs.resolve-images.outputs.image_ref }}
+          IMAGE_TAG: ${{ needs.resolve-source.outputs.image_tag }}
+          REQUIRE_MODULE_RUNTIME: ${{ inputs.verify_module_app_full == 'true' }}
+          RUNTIME_IMAGE_REF: ${{ needs.resolve-images.outputs.runtime_image_ref }}
         run: |
           set -euo pipefail
 
           ssh_options=(
-            -i ~/.ssh/comhub_deploy_key
+            -i "$HOME/.ssh/comhub_deploy_key"
             -p "$SSH_PORT"
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
             -o ServerAliveInterval=30
             -o ServerAliveCountMax=6
             -o ConnectTimeout=30
@@ -467,507 +338,3 @@ jobs:
           df -h /
           docker system df || true
           REMOTE_DEPLOY
-
-  deploy-module-worker:
-    name: Deploy Module App Worker
-    needs: [verify-module-app, build, resolve_deployment]
-    runs-on: ubuntu-latest
-    if: ${{ always() && needs.verify-module-app.result == 'success' && needs.build.result == 'success' && needs.resolve_deployment.result == 'success' && needs.resolve_deployment.outputs.deploy_module_worker == 'true' }}
-    timeout-minutes: 20
-    environment: production
-    concurrency:
-      group: comhub-production-deploy
-      cancel-in-progress: false
-      queue: max
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install SSH key
-        shell: bash
-        env:
-          SSH_KNOWN_HOSTS: ${{ secrets.COMHUB_SSH_KNOWN_HOSTS }}
-          SSH_PRIVATE_KEY: ${{ secrets.COMHUB_SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          test -n "$SSH_PRIVATE_KEY"
-          grep -q '[^[:space:]]' <<< "$SSH_KNOWN_HOSTS"
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/comhub_deploy_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/comhub_deploy_key
-          chmod 600 ~/.ssh/known_hosts
-
-      - name: Deploy independent Module App worker
-        shell: bash
-        env:
-          SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
-          SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
-          SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
-          WORKER_DEPLOY_DIR: /www/compose/comhub/module-worker
-          WORKER_IMAGE_REF: ${{ needs.build.outputs.worker_image_ref }}
-        run: |
-          set -euo pipefail
-
-          release_id="sha-${GITHUB_SHA::12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          staging_dir="$WORKER_DEPLOY_DIR/releases/.incoming-$release_id"
-          cleanup_remote_incoming_enabled=true
-          ssh_options=(
-            -i "$HOME/.ssh/comhub_deploy_key"
-            -p "$SSH_PORT"
-            -o StrictHostKeyChecking=yes
-            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=4
-            -o ConnectTimeout=30
-          )
-          scp_options=(
-            -i "$HOME/.ssh/comhub_deploy_key"
-            -P "$SSH_PORT"
-            -o StrictHostKeyChecking=yes
-            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=4
-            -o ConnectTimeout=30
-          )
-
-          cleanup_remote_incoming() {
-            local status=$?
-            trap - EXIT
-            if [ "$cleanup_remote_incoming_enabled" = true ]; then
-              if ! ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
-                "rm -rf -- '$staging_dir'"; then
-                echo "warning: failed to clean exact Worker staging directory: $staging_dir" >&2
-              fi
-            fi
-            exit "$status"
-          }
-          trap cleanup_remote_incoming EXIT
-
-          ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
-            "umask 027; install -d -m 0750 '$WORKER_DEPLOY_DIR' '$WORKER_DEPLOY_DIR/releases' '$staging_dir'"
-
-          scp "${scp_options[@]}" \
-            docker-compose/deploy/module-worker/compose.yml \
-            docker-compose/deploy/module-worker/deploy.sh \
-            docker-compose/deploy/module-worker/rollback.sh \
-            "$SSH_USER@$SSH_HOST:$staging_dir/"
-
-          ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
-            "bash -s -- '$WORKER_DEPLOY_DIR' '$release_id' '$WORKER_IMAGE_REF'" <<'REMOTE_WORKER_DEPLOY'
-          set -Eeuo pipefail
-          umask 027
-
-          worker_deploy_dir="$1"
-          release_id="$2"
-          worker_image_ref="$3"
-          releases_dir="$worker_deploy_dir/releases"
-          staging_dir="$releases_dir/.incoming-$release_id"
-          release_dir="$releases_dir/$release_id"
-          lock_file="$worker_deploy_dir/.deploy.lock"
-          bootstrap_staging_dir="$releases_dir/.bootstrap-incoming-$release_id"
-          bootstrap_release_dir="$releases_dir/bootstrap-$release_id"
-          bootstrap_cleanup_enabled=false
-          current_temp_link=''
-          current_promotion_active=false
-          incoming_cleanup_enabled=true
-          previous_image_backup=''
-          previous_image_existed=false
-          previous_image_recovery_complete=false
-          previous_image_state_active=false
-          previous_target=''
-
-          cleanup_incoming() {
-            local status=$?
-            trap - EXIT
-            if [ "$incoming_cleanup_enabled" = true ]; then
-              rm -rf -- "$staging_dir" || \
-                echo "warning: failed to clean exact Worker staging directory: $staging_dir" >&2
-            fi
-            if [ "$bootstrap_cleanup_enabled" = true ]; then
-              rm -rf -- "$bootstrap_staging_dir" || \
-                echo "warning: failed to clean exact bootstrap staging directory: $bootstrap_staging_dir" >&2
-            fi
-            [ -z "$current_temp_link" ] || rm -f -- "$current_temp_link" || true
-            if [ "$current_promotion_active" = true ]; then
-              if restore_current; then
-                current_promotion_active=false
-                if [ -n "$previous_target" ]; then
-                  echo "warning: restored previous Worker current target after unexpected failure: $previous_target" >&2
-                else
-                  echo 'warning: removed Worker current after unexpected clean-host failure' >&2
-                fi
-              else
-                echo "error: failed to restore previous Worker current target after unexpected failure: $previous_target" >&2
-              fi
-            fi
-            recover_unexpected_previous_image_state || true
-            exit "$status"
-          }
-          trap cleanup_incoming EXIT
-
-          validate_release_target() {
-            [[ "$1" =~ ^releases/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]
-          }
-
-          validate_asset_set() {
-            local asset_dir="$1"
-            for file in compose.yml deploy.sh rollback.sh; do
-              [ -s "$asset_dir/$file" ]
-              [ ! -L "$asset_dir/$file" ]
-            done
-            bash -n "$asset_dir/deploy.sh" "$asset_dir/rollback.sh"
-            COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
-              --project-directory "$worker_deploy_dir" \
-              --env-file "$worker_deploy_dir/.env" \
-              -f "$asset_dir/compose.yml" \
-              config --quiet
-          }
-
-          link_release_state() {
-            local target_dir="$1"
-            local state_name expected_target
-            for state_name in .env .previous-image; do
-              expected_target="../../$state_name"
-              if [ -L "$target_dir/$state_name" ]; then
-                [ "$(readlink "$target_dir/$state_name")" = "$expected_target" ]
-              else
-                [ ! -e "$target_dir/$state_name" ]
-                ln -s "$expected_target" "$target_dir/$state_name"
-              fi
-            done
-          }
-
-          atomic_set_current() {
-            local target="$1"
-            validate_release_target "$target" || return
-            current_temp_link="$worker_deploy_dir/.current-$release_id-$$"
-            rm -f -- "$current_temp_link" || return
-            ln -s "$target" "$current_temp_link" || return
-            mv -Tf "$current_temp_link" "$worker_deploy_dir/current" || return
-            current_temp_link=''
-            [ "$(readlink "$worker_deploy_dir/current")" = "$target" ]
-          }
-
-          restore_current() {
-            if [ -n "$previous_target" ]; then
-              atomic_set_current "$previous_target"
-              return
-            fi
-
-            rm -f -- "$worker_deploy_dir/current" || return
-            [ ! -e "$worker_deploy_dir/current" ] && [ ! -L "$worker_deploy_dir/current" ]
-          }
-
-          restore_previous_image_state() {
-            if [ "$previous_image_existed" = true ]; then
-              [ -f "$previous_image_backup" ] || return
-              [ ! -L "$previous_image_backup" ] || return
-              mv -Tf "$previous_image_backup" "$worker_deploy_dir/.previous-image" || return
-              previous_image_backup=''
-            else
-              rm -f -- "$worker_deploy_dir/.previous-image" || return
-            fi
-            previous_image_recovery_complete=true
-            previous_image_state_active=false
-          }
-
-          recover_unexpected_previous_image_state() {
-            [ "$previous_image_state_active" = true ] || return 0
-            [ "$previous_image_recovery_complete" = false ] || return 0
-
-            if [ "$previous_image_existed" = true ]; then
-              if [ -f "$previous_image_backup" ] && [ ! -e "$worker_deploy_dir/.previous-image" ]; then
-                if mv -Tf "$previous_image_backup" "$worker_deploy_dir/.previous-image"; then
-                  previous_image_backup=''
-                  previous_image_recovery_complete=true
-                  previous_image_state_active=false
-                  echo 'warning: restored pre-deploy .previous-image after unexpected failure' >&2
-                  return 0
-                fi
-              fi
-              echo "error: pre-deploy .previous-image backup preserved at $previous_image_backup" >&2
-              return 1
-            fi
-
-            if [ ! -e "$worker_deploy_dir/.previous-image" ]; then
-              previous_image_recovery_complete=true
-              previous_image_state_active=false
-              return 0
-            fi
-
-            echo "error: unexpected root previous-image state preserved at $worker_deploy_dir/.previous-image" >&2
-            return 1
-          }
-
-          report_worker_diagnostics() {
-            local status="$1"
-            echo "Worker diagnostics after failure status $status:" >&2
-            df -h / >&2 || true
-            docker system df >&2 || true
-            COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
-              --project-directory "$worker_deploy_dir" \
-              --env-file "$worker_deploy_dir/.env" \
-              -f "$worker_deploy_dir/current/compose.yml" \
-              ps >&2 || true
-            COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
-              --project-directory "$worker_deploy_dir" \
-              --env-file "$worker_deploy_dir/.env" \
-              -f "$worker_deploy_dir/current/compose.yml" \
-              logs --tail=120 module-app-worker >&2 || true
-          }
-
-          bootstrap_worker_environment() (
-            local app_environment preflight_database_url worker_database_url
-            local s3_access_key_id s3_bucket s3_endpoint s3_secret_access_key
-            local temporary_env
-
-            docker inspect comhub-app >/dev/null
-            app_environment="$(
-              docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' comhub-app
-            )"
-
-            read_app_environment() {
-              local key="$1"
-              local line
-              while IFS= read -r line; do
-                if [[ "$line" == "$key="* ]]; then
-                  printf '%s' "${line#*=}"
-                  return 0
-                fi
-              done <<< "$app_environment"
-              return 1
-            }
-
-            preflight_database_url="$(read_app_environment DATABASE_URL)"
-            s3_access_key_id="$(read_app_environment S3_ACCESS_KEY_ID)"
-            s3_bucket="$(read_app_environment S3_BUCKET)"
-            s3_endpoint="$(read_app_environment S3_ENDPOINT)"
-            s3_secret_access_key="$(read_app_environment S3_SECRET_ACCESS_KEY)"
-
-            worker_database_url="${preflight_database_url//@127.0.0.1:15432\//@comhub-paradedb:5432/}"
-            worker_database_url="${worker_database_url//@localhost:15432\//@comhub-paradedb:5432/}"
-            [[ "$worker_database_url" == *'@comhub-paradedb:5432/'* ]]
-
-            temporary_env="$worker_deploy_dir/.env.tmp-$release_id-$$"
-            trap 'rm -f -- "$temporary_env"' EXIT
-            umask 077
-            {
-              printf '%s\n' 'COMHUB_PLATFORM_COMPOSE_PROJECT=comhub'
-              printf '%s\n' 'COMHUB_PLATFORM_NETWORK=paradedb_default'
-              printf '%s\n' "COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL=$preflight_database_url"
-              printf '%s\n' "DATABASE_URL=$worker_database_url"
-              printf '%s\n' 'MODULE_APP_ARTIFACT_ROOT=/www/compose/comhub/module-worker/artifacts'
-              printf '%s\n' "S3_ACCESS_KEY_ID=$s3_access_key_id"
-              printf '%s\n' "S3_BUCKET=$s3_bucket"
-              printf '%s\n' "S3_ENDPOINT=$s3_endpoint"
-              printf '%s\n' "S3_SECRET_ACCESS_KEY=$s3_secret_access_key"
-            } > "$temporary_env"
-            chmod 0600 "$temporary_env"
-            mv -Tf "$temporary_env" "$worker_deploy_dir/.env"
-            chmod 0600 "$worker_deploy_dir/.env"
-            trap - EXIT
-          )
-
-          exec 9>"$lock_file"
-          flock -x 9
-
-          [ -f "$worker_deploy_dir/.env" ] || bootstrap_worker_environment
-          [ -f "$worker_deploy_dir/.env" ]
-          [ ! -L "$worker_deploy_dir/.env" ]
-
-          expected_files=$'compose.yml\ndeploy.sh\nrollback.sh'
-          actual_files="$(find "$staging_dir" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)"
-          [ "$actual_files" = "$expected_files" ]
-          [ ! -e "$release_dir" ]
-          validate_asset_set "$staging_dir"
-
-          echo "Running production database migrations before Worker deploy..."
-          docker exec comhub-app node /app/docker.cjs
-
-          if [ -L "$worker_deploy_dir/current" ]; then
-            previous_target="$(readlink "$worker_deploy_dir/current")"
-            validate_release_target "$previous_target"
-            previous_release_dir="$worker_deploy_dir/$previous_target"
-            [ -d "$previous_release_dir" ]
-            validate_asset_set "$previous_release_dir"
-            link_release_state "$previous_release_dir"
-          elif [ -e "$worker_deploy_dir/current" ]; then
-            echo 'error: Worker current path exists but is not a symlink' >&2
-            exit 1
-          else
-            legacy_asset_count=0
-            for file in compose.yml deploy.sh rollback.sh; do
-              if [ -e "$worker_deploy_dir/$file" ] || [ -L "$worker_deploy_dir/$file" ]; then
-                legacy_asset_count=$((legacy_asset_count + 1))
-              fi
-            done
-
-            case "$legacy_asset_count" in
-              0)
-                previous_target=''
-                ;;
-              3)
-                bootstrap_cleanup_enabled=true
-                [ ! -e "$bootstrap_staging_dir" ]
-                [ ! -e "$bootstrap_release_dir" ]
-                install -d -m 0750 "$bootstrap_staging_dir"
-                for file in compose.yml deploy.sh rollback.sh; do
-                  [ -s "$worker_deploy_dir/$file" ]
-                  cp -L -- "$worker_deploy_dir/$file" "$bootstrap_staging_dir/$file"
-                done
-                chmod 0640 "$bootstrap_staging_dir/compose.yml"
-                chmod 0750 "$bootstrap_staging_dir/deploy.sh" "$bootstrap_staging_dir/rollback.sh"
-                validate_asset_set "$bootstrap_staging_dir"
-                link_release_state "$bootstrap_staging_dir"
-                mv "$bootstrap_staging_dir" "$bootstrap_release_dir"
-                bootstrap_cleanup_enabled=false
-                previous_target="releases/bootstrap-$release_id"
-                atomic_set_current "$previous_target"
-                ;;
-              *)
-                echo 'error: partial legacy Worker deployment assets require operator repair' >&2
-                exit 1
-                ;;
-            esac
-          fi
-
-          chmod 0640 "$staging_dir/compose.yml"
-          chmod 0750 "$staging_dir/deploy.sh" "$staging_dir/rollback.sh"
-          link_release_state "$staging_dir"
-          mv "$staging_dir" "$release_dir"
-
-          previous_image_backup="$worker_deploy_dir/.previous-image.before-$release_id"
-          [ ! -e "$previous_image_backup" ]
-          [ ! -L "$previous_image_backup" ]
-          if [ -e "$worker_deploy_dir/.previous-image" ]; then
-            [ -f "$worker_deploy_dir/.previous-image" ]
-            [ ! -L "$worker_deploy_dir/.previous-image" ]
-            mv -Tf "$worker_deploy_dir/.previous-image" "$previous_image_backup"
-            previous_image_existed=true
-          fi
-          previous_image_state_active=true
-
-          set +e
-          atomic_set_current "releases/$release_id"
-          primary_status=$?
-          root_previous_image_created=false
-          release_state_status=0
-          primary_message="Worker current promotion failed with status $primary_status"
-
-          if [ "$primary_status" -eq 0 ]; then
-            current_promotion_active=true
-            incoming_cleanup_enabled=false
-            echo "Disk usage before Worker deploy:"
-            df -h /
-            docker system df || true
-            echo "Pruning unused Docker images before Worker deploy..."
-            docker image prune -af || true
-            echo "Disk usage after Worker pre-prune:"
-            df -h /
-            docker system df || true
-            "$worker_deploy_dir/current/deploy.sh" "$worker_image_ref"
-            primary_status=$?
-            primary_message="Worker deploy failed with status $primary_status"
-            if [ "$primary_status" -ne 0 ]; then
-              report_worker_diagnostics "$primary_status"
-            fi
-            echo "Pruning unused Docker images after Worker deploy..."
-            docker image prune -af || true
-
-            if [ -e "$worker_deploy_dir/.previous-image" ]; then
-              if [ -f "$worker_deploy_dir/.previous-image" ] && \
-                [ ! -L "$worker_deploy_dir/.previous-image" ]; then
-                root_previous_image_created=true
-              elif [ "$primary_status" -eq 0 ]; then
-                primary_status=1
-                primary_message='Worker deploy left invalid root previous-image state'
-              else
-                echo 'error: Worker deploy failure also left invalid root previous-image state' >&2
-              fi
-            fi
-
-            if [ ! -L "$release_dir/.previous-image" ] || \
-              [ "$(readlink "$release_dir/.previous-image")" != '../../.previous-image' ]; then
-              release_state_status=1
-              if [ "$primary_status" -eq 0 ]; then
-                primary_status=1
-                primary_message='Worker deploy left invalid previous-image release state'
-              else
-                echo 'error: Worker deploy failure also left invalid previous-image release state' >&2
-              fi
-            fi
-
-            if [ "$primary_status" -eq 0 ]; then
-              if [ "$root_previous_image_created" = true ]; then
-                rm -f -- "$previous_image_backup"
-                state_finalize_status=$?
-                if [ "$state_finalize_status" -eq 0 ]; then
-                  previous_image_backup=''
-                  previous_image_recovery_complete=true
-                  previous_image_state_active=false
-                else
-                  primary_status=1
-                  primary_message='Worker deploy succeeded but pre-state backup cleanup failed'
-                fi
-              else
-                restore_previous_image_state
-                state_finalize_status=$?
-                if [ "$state_finalize_status" -ne 0 ]; then
-                  primary_status=1
-                  primary_message='Worker deploy succeeded without a recordable current image but pre-state restoration failed'
-                fi
-              fi
-            fi
-          fi
-
-          if [ "$primary_status" -eq 0 ]; then
-            current_promotion_active=false
-            trap - EXIT
-            exit 0
-          fi
-
-          rollback_status=0
-          if [ "$root_previous_image_created" = true ] && [ -z "$previous_target" ]; then
-            "$worker_deploy_dir/current/rollback.sh"
-            rollback_status=$?
-          fi
-
-          restore_current
-          restore_current_status=$?
-          if [ "$restore_current_status" -eq 0 ]; then
-            current_promotion_active=false
-          fi
-          if [ "$root_previous_image_created" = true ] && \
-            [ -n "$previous_target" ] && [ "$restore_current_status" -eq 0 ]; then
-            "$worker_deploy_dir/current/rollback.sh"
-            rollback_status=$?
-          fi
-
-          restore_previous_image_state
-          previous_image_restore_status=$?
-
-          trap - EXIT
-
-          echo "error: $primary_message" >&2
-          if [ "$restore_current_status" -ne 0 ]; then
-            echo "error: failed to restore previous Worker current target: $previous_target" >&2
-          fi
-          if [ "$rollback_status" -ne 0 ]; then
-            echo "error: Worker rollback failed with status $rollback_status" >&2
-          fi
-          if [ "$previous_image_restore_status" -ne 0 ]; then
-            echo 'error: failed to restore pre-deploy .previous-image state' >&2
-            if [ -n "$previous_image_backup" ] && [ -f "$previous_image_backup" ]; then
-              echo "error: pre-deploy .previous-image backup preserved at $previous_image_backup" >&2
-            fi
-          fi
-          if [ "$release_state_status" -ne 0 ]; then
-            echo 'error: promoted release .previous-image symlink is invalid' >&2
-          fi
-          exit "$primary_status"
-          REMOTE_WORKER_DEPLOY
-
-          cleanup_remote_incoming_enabled=false
-          trap - EXIT

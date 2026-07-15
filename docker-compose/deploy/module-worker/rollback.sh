@@ -11,7 +11,11 @@ die() {
 
 [[ -s "$PREVIOUS_IMAGE_FILE" ]] || die "missing previous immutable image: $PREVIOUS_IMAGE_FILE"
 previous_image="$(<"$PREVIOUS_IMAGE_FILE")"
-[[ "$previous_image" == *:* && "${previous_image##*:}" == sha-* && "${previous_image##*:}" != 'sha-' ]] || \
-  die 'previous image must use a non-empty sha-* tag'
+previous_image_tag="${previous_image##*:}"
+if [[ ! "$previous_image" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]; then
+  [[ "$previous_image" != *'@'* && "$previous_image" == *:* && \
+    "$previous_image_tag" == sha-* && "$previous_image_tag" != 'sha-' ]] || \
+    die 'previous image must use a sha256 digest or non-empty sha-* tag'
+fi
 
 COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE=true exec "$SCRIPT_DIR/deploy.sh" "$previous_image"
