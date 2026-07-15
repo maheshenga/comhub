@@ -84,17 +84,20 @@ export const runHealthcheck = async (config: {
   const healthFilePath =
     config.healthFilePath ?? DEFAULT_MODULE_APP_WORKER_HEALTH_FILE;
   await readFreshHealth(healthFilePath, (config.now ?? (() => new Date()))());
-  await config.ping();
+  try {
+    await config.ping();
+  } catch {
+    throw new Error('MODULE_APP_WORKER_HEALTH_POSTGRESQL_UNAVAILABLE');
+  }
 
   const healthDirectory = path.join(config.artifactRoot, '.health');
   const probePath = path.join(
     healthDirectory,
     `${(config.randomUUID ?? createRandomUUID)()}.probe`,
   );
-  await mkdir(healthDirectory, { recursive: true });
-
   let file;
   try {
+    await mkdir(healthDirectory, { recursive: true });
     file = await open(probePath, 'wx', 0o600);
     await file.writeFile('ok\n', 'utf8');
     await file.sync();

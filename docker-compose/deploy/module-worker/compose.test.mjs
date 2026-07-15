@@ -396,6 +396,7 @@ try {
   assert.equal(mounts.length, 1);
   const artifactMount = mounts[0];
   assert.equal(artifactMount.type, 'bind');
+  assert.equal(artifactMount.source, '/var/lib/comhub/module-worker-artifacts');
   assert.equal(artifactMount.target, '/runtime/artifacts');
   assert.notEqual(artifactMount.read_only, true);
   assert.ok(!JSON.stringify(mounts).includes('/var/run/docker.sock'));
@@ -405,6 +406,7 @@ try {
   assert.equal(config.networks?.platform?.name, 'paradedb_default');
 
   for (const flag of mutationFlags) assert.equal(service.environment?.[flag], 'false');
+  assert.equal(service.environment?.MODULE_APP_ARTIFACT_ROOT, '/runtime/artifacts');
 
   const composeSource = readFileSync(composeFile, 'utf8');
   assert.match(composeSource, /\$\{COMHUB_MODULE_WORKER_IMAGE:\?immutable worker image required\}/);
