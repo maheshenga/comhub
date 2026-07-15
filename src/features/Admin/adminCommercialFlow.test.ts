@@ -484,6 +484,7 @@ describe('admin commercial flow pages', () => {
   });
 
   it('uses the provider-neutral admin route for service provider management', () => {
+    const adminCatalog = readRepoFile('src/features/Admin/adminCatalog.ts');
     const desktopRouteRegistry = readRepoFile('src/business/client/adminSettingsRouteRegistry.ts');
 
     expect(existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/providers/index.tsx'))).toBe(
@@ -493,7 +494,7 @@ describe('admin commercial flow pages', () => {
       existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/newapi-providers/index.tsx')),
     ).toBe(false);
     expect(desktopRouteRegistry).toContain("import('@/routes/(main)/admin/providers')");
-    expect(desktopRouteRegistry).toContain("segment: 'providers'");
+    expect(adminCatalog).toContain("segment: 'providers'");
     expect(desktopRouteRegistry).not.toContain('newapi-providers');
   });
 

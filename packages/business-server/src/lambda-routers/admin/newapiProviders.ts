@@ -91,6 +91,7 @@ const ModelMetadataSchema = z
   .passthrough();
 
 const INVALID_API_KEY_MESSAGE = 'Instance API key is invalid. Please reset it before retrying.';
+const modelOpsReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsRead);
 const modelOpsWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsWrite);
 
 const normalizeInstanceInput = async <T extends { apiKey?: string; fetchOnClient?: boolean }>(
@@ -272,7 +273,7 @@ export const adminNewapiProvidersRouter = router({
       return { ok: true };
     }),
 
-  getInstance: modelOpsWriteProcedure
+  getInstance: modelOpsReadProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const instance = await ctx.serverDB.query.adminNewapiInstances.findFirst({
@@ -288,7 +289,7 @@ export const adminNewapiProvidersRouter = router({
       };
     }),
 
-  listInstances: modelOpsWriteProcedure.query(async ({ ctx }) => {
+  listInstances: modelOpsReadProcedure.query(async ({ ctx }) => {
     const items = await ctx.serverDB.query.adminNewapiInstances.findMany({
       orderBy: asc(adminNewapiInstances.priority),
     });
@@ -489,7 +490,7 @@ export const adminNewapiProvidersRouter = router({
       }
     }),
 
-  getModelCatalogDiagnostics: modelOpsWriteProcedure.query(async ({ ctx }) => {
+  getModelCatalogDiagnostics: modelOpsReadProcedure.query(async ({ ctx }) => {
     const { AiInfraRepos } = await import('@/database/repositories/aiInfra');
     const { getServerGlobalConfig } = await import('@/server/globalConfig');
     const { resolvePlanModelRules } = await import('@/business/server/planModelRules');
@@ -557,7 +558,7 @@ export const adminNewapiProvidersRouter = router({
       return { ok: true };
     }),
 
-  listModels: modelOpsWriteProcedure
+  listModels: modelOpsReadProcedure
     .input(
       z.object({
         instanceId: z.string().uuid(),
@@ -653,7 +654,7 @@ export const adminNewapiProvidersRouter = router({
 
   // ─── Aggregated view for runtime usage ─────────────────────────────────────
 
-  getAllEnabledModels: modelOpsWriteProcedure
+  getAllEnabledModels: modelOpsReadProcedure
     .input(
       z
         .object({

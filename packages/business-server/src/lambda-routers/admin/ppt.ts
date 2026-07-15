@@ -8,7 +8,8 @@ import { normalizeDocmeePptSettings } from '@/server/services/docmee/config';
 
 import { recordAdminAudit } from './audit';
 
-const systemProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
+const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
+const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
 
 const PPT_SETTING_KEYS = [
   APP_SETTING_KEYS.docmeePptAllowPdfExport,
@@ -65,7 +66,7 @@ const inputSchema = z.object({
 });
 
 export const adminPptRouter = router({
-  getSettings: systemProcedure.query(async ({ ctx }) => {
+  getSettings: systemReadProcedure.query(async ({ ctx }) => {
     const raw = await readSettings(ctx.serverDB);
     const settings = normalizeDocmeePptSettings(raw);
 
@@ -77,7 +78,7 @@ export const adminPptRouter = router({
     };
   }),
 
-  saveSettings: systemProcedure.input(inputSchema).mutation(async ({ ctx, input }) => {
+  saveSettings: systemWriteProcedure.input(inputSchema).mutation(async ({ ctx, input }) => {
     const raw = await readSettings(ctx.serverDB);
     const previous = normalizeDocmeePptSettings(raw);
     const next = {

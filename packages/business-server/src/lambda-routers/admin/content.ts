@@ -55,10 +55,11 @@ const getDocumentForAction = async (ctx: any, documentId: string) => {
   return document;
 };
 
-const contentProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
+const contentReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentRead);
+const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
 
 export const adminContentRouter = router({
-  archiveTopic: contentProcedure
+  archiveTopic: contentWriteProcedure
     .input(z.object({ topicId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const topic = await getTopicForAction(ctx, input.topicId);
@@ -79,7 +80,7 @@ export const adminContentRouter = router({
       return { ok: true };
     }),
 
-  deleteDocument: contentProcedure
+  deleteDocument: contentWriteProcedure
     .input(z.object({ documentId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const document = await getDocumentForAction(ctx, input.documentId);
@@ -98,7 +99,7 @@ export const adminContentRouter = router({
       return { ok: true };
     }),
 
-  deleteFile: contentProcedure
+  deleteFile: contentWriteProcedure
     .input(z.object({ fileId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const file = await getFileForAction(ctx, input.fileId);
@@ -122,7 +123,7 @@ export const adminContentRouter = router({
       return { ok: true };
     }),
 
-  deleteTopic: contentProcedure
+  deleteTopic: contentWriteProcedure
     .input(z.object({ topicId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const topic = await getTopicForAction(ctx, input.topicId);
@@ -140,7 +141,7 @@ export const adminContentRouter = router({
       return { ok: true };
     }),
 
-  listDocuments: contentProcedure
+  listDocuments: contentReadProcedure
     .input(
       pageInput.extend({
         sourceType: z.enum(['file', 'web', 'api', 'topic', 'agent', 'agent-signal']).optional(),
@@ -203,7 +204,7 @@ export const adminContentRouter = router({
       };
     }),
 
-  listFiles: contentProcedure.input(pageInput).query(async ({ ctx, input }) => {
+  listFiles: contentReadProcedure.input(pageInput).query(async ({ ctx, input }) => {
     const searchWhere = input.query
       ? or(
           like(files.name, `%${escapeLike(input.query)}%`),
@@ -256,7 +257,7 @@ export const adminContentRouter = router({
     };
   }),
 
-  listTopics: contentProcedure
+  listTopics: contentReadProcedure
     .input(
       pageInput.extend({
         status: z.enum(['active', 'completed', 'archived']).optional(),

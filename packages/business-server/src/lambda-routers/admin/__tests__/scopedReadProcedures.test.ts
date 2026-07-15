@@ -31,33 +31,36 @@ describe('scoped admin read procedures', () => {
     }
   });
 
-  it('uses the matching capability for user, model, content, audit, and system reads', () => {
+  it('uses read capabilities for user, model, content, audit, and system reads', () => {
     const expectations: Array<[string, string, string[]]> = [
       [
         'users',
-        'ADMIN_CAPABILITIES.userWrite',
+        'ADMIN_CAPABILITIES.userRead',
         [
-          'detail: userWriteProcedure',
-          'fullDetail: userWriteProcedure',
-          'list: userWriteProcedure',
+          'detail: userReadProcedure',
+          'fullDetail: userReadProcedure',
+          'list: userReadProcedure',
+          'exportAll: userReadProcedure',
         ],
       ],
       [
         'newapiProviders',
-        'ADMIN_CAPABILITIES.modelOpsWrite',
+        'ADMIN_CAPABILITIES.modelOpsRead',
         [
-          'getInstance: modelOpsWriteProcedure',
-          'listInstances: modelOpsWriteProcedure',
-          'listModels: modelOpsWriteProcedure',
+          'getInstance: modelOpsReadProcedure',
+          'listInstances: modelOpsReadProcedure',
+          'getModelCatalogDiagnostics: modelOpsReadProcedure',
+          'listModels: modelOpsReadProcedure',
+          'getAllEnabledModels: modelOpsReadProcedure',
         ],
       ],
       [
         'content',
-        'ADMIN_CAPABILITIES.contentWrite',
+        'ADMIN_CAPABILITIES.contentRead',
         [
-          'listDocuments: contentProcedure',
-          'listFiles: contentProcedure',
-          'listTopics: contentProcedure',
+          'listDocuments: contentReadProcedure',
+          'listFiles: contentReadProcedure',
+          'listTopics: contentReadProcedure',
         ],
       ],
       [
@@ -67,8 +70,17 @@ describe('scoped admin read procedures', () => {
       ],
       [
         'settings',
-        'ADMIN_CAPABILITIES.systemWrite',
-        ['getGovernance: systemReadProcedure', 'getAll: systemReadProcedure'],
+        'ADMIN_CAPABILITIES.systemRead',
+        [
+          'getGovernance: systemReadProcedure',
+          'getAll: systemReadProcedure',
+          'validateDefaultAgentSettings: systemReadProcedure',
+        ],
+      ],
+      [
+        'ppt',
+        'ADMIN_CAPABILITIES.systemRead',
+        ['getSettings: systemReadProcedure'],
       ],
     ];
 
@@ -77,5 +89,17 @@ describe('scoped admin read procedures', () => {
       expect(source).toContain(capability);
       for (const fragment of fragments) expect(source).toContain(fragment);
     }
+  });
+
+  it('keeps side-effecting diagnostics and cache operations write-bound', () => {
+    const providers = readRouter('newapiProviders');
+    const settings = readRouter('settings');
+
+    expect(providers).toContain('testInstanceConnection: modelOpsWriteProcedure');
+    expect(providers).toContain('refreshRuntimeCache: modelOpsWriteProcedure');
+    expect(providers).toContain('syncInstanceModels: modelOpsWriteProcedure');
+    expect(settings).toContain('refreshRuntimeCaches: systemWriteProcedure');
+    expect(settings).toContain('testS3Storage: systemWriteProcedure');
+    expect(settings).toContain('runMaintenance: systemWriteProcedure');
   });
 });

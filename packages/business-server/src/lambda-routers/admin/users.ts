@@ -217,7 +217,7 @@ export const resetAllUsersToFreePlan = async (
 };
 
 const supportWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.supportWrite);
-const userWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userWrite);
+const userReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userRead);
 
 export const adminUsersRouter = router({
   ban: supportWriteProcedure
@@ -241,7 +241,7 @@ export const adminUsersRouter = router({
       return { ok: true };
     }),
 
-  detail: userWriteProcedure
+  detail: userReadProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const u = await ctx.serverDB.query.users.findFirst({
@@ -251,7 +251,7 @@ export const adminUsersRouter = router({
       return u;
     }),
 
-  fullDetail: userWriteProcedure
+  fullDetail: userReadProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const { userId } = input;
@@ -295,7 +295,7 @@ export const adminUsersRouter = router({
       };
     }),
 
-  list: userWriteProcedure
+  list: userReadProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),
@@ -453,7 +453,7 @@ export const adminUsersRouter = router({
       return { ok: true };
     }),
 
-  exportAll: userWriteProcedure
+  exportAll: userReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(50_000).default(10_000),

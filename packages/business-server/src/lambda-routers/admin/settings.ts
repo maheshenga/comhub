@@ -63,8 +63,8 @@ import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
+const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
 const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
-const systemReadProcedure = systemWriteProcedure;
 
 const maskApiKey = (key: string | null | undefined): string | null => {
   if (!key) return null;
