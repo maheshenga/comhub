@@ -40,8 +40,9 @@ import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../mod
 import { ModuleAppAdminReadModel } from './moduleApps.readModels';
 
 const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
-const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+const moduleAppReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppRead);
+const moduleAppWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppWrite);
 
 const assertPayoutRecordingEnabled = () =>
   assertModuleAppMutationEnabled(
@@ -351,7 +352,7 @@ const mapPublishError = (error: unknown) => {
 };
 
 export const adminModuleAppsRouter = router({
-  assignPublisher: contentWriteProcedure
+  assignPublisher: moduleAppWriteProcedure
     .input(AssignPublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppPublisherModel(ctx.serverDB).assignApplication(input);
@@ -396,7 +397,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  createPublisher: contentWriteProcedure
+  createPublisher: moduleAppWriteProcedure
     .input(CreatePublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppPublisherModel(ctx.serverDB).createPublisher(input);
@@ -418,7 +419,7 @@ export const adminModuleAppsRouter = router({
       }),
     ),
 
-  createProduct: contentWriteProcedure
+  createProduct: moduleAppWriteProcedure
     .input(CreateProductInputSchema)
     .mutation(async ({ ctx, input }) => {
       await requireAdminApp(ctx.serverDB, input.appId);
@@ -439,36 +440,36 @@ export const adminModuleAppsRouter = router({
       });
     }),
 
-  get: auditReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
+  get: moduleAppReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
     return requireAdminApp(ctx.serverDB, input.appId);
   }),
 
-  list: auditReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {
+  list: moduleAppReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listApplications(input);
   }),
 
-  listProducts: auditReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
+  listProducts: moduleAppReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
     return new ModuleAppCommerceModel(ctx.serverDB).listProducts(input);
   }),
 
-  listPayouts: auditReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
+  listPayouts: moduleAppReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listPayouts(input);
   }),
 
-  listPaymentDiagnostics: auditReadProcedure
+  listPaymentDiagnostics: moduleAppReadProcedure
     .input(ListPaymentDiagnosticsInputSchema)
     .query(async ({ ctx, input }) => {
       return new ModuleAppAdminReadModel(ctx.serverDB).listPaymentDiagnostics(input);
     }),
 
-  listPublishers: auditReadProcedure
+  listPublishers: moduleAppReadProcedure
     .input(ListPublishersInputSchema)
     .query(async ({ ctx, input }) => {
       return new ModuleAppAdminReadModel(ctx.serverDB).listPublishers(input);
     }),
 
-  listRevenue: auditReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
+  listRevenue: moduleAppReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listRevenue(input);
   }),
 
@@ -579,7 +580,7 @@ export const adminModuleAppsRouter = router({
       });
     }),
 
-  suspendPublisher: contentWriteProcedure
+  suspendPublisher: moduleAppWriteProcedure
     .input(PublisherIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppPublisherModel(ctx.serverDB).suspendPublisher(input);
@@ -606,7 +607,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  updateProduct: contentWriteProcedure
+  updateProduct: moduleAppWriteProcedure
     .input(UpdateProductInputSchema)
     .mutation(async ({ ctx, input }) => {
       return ctx.serverDB.transaction(async (tx: Transaction) => {
@@ -626,7 +627,7 @@ export const adminModuleAppsRouter = router({
       });
     }),
 
-  getPackage: auditReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {
+  getPackage: moduleAppReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {
     const submission = await new ModuleAppModel(ctx.serverDB).getAdminPackageSubmission(input);
 
     if (!submission) {
@@ -636,7 +637,7 @@ export const adminModuleAppsRouter = router({
     return submission;
   }),
 
-  listArtifacts: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
+  listArtifacts: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppAdminReadModel(ctx.serverDB).listArtifacts(input);
@@ -648,29 +649,29 @@ export const adminModuleAppsRouter = router({
     return new ModuleAppAdminReadModel(ctx.serverDB).listAuditEvents(input);
   }),
 
-  listPackages: auditReadProcedure.input(ListPackagesInputSchema).query(async ({ ctx, input }) => {
+  listPackages: moduleAppReadProcedure.input(ListPackagesInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listPackages(input);
   }),
 
-  listInstalls: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
+  listInstalls: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppAdminReadModel(ctx.serverDB).listInstalls(input);
   }),
 
-  listRecords: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
+  listRecords: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppAdminReadModel(ctx.serverDB).listRecords(input);
   }),
 
-  listRuns: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
+  listRuns: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppAdminReadModel(ctx.serverDB).listRuns(input);
   }),
 
-  publish: contentWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
+  publish: moduleAppWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     try {
@@ -683,7 +684,7 @@ export const adminModuleAppsRouter = router({
     return { ok: true };
   }),
 
-  approvePackage: contentWriteProcedure
+  approvePackage: moduleAppWriteProcedure
     .input(PackageIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       let result;
@@ -711,7 +712,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  rescanPackage: contentWriteProcedure
+  rescanPackage: moduleAppWriteProcedure
     .input(PackageIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       let result;
@@ -740,7 +741,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  rejectPackage: contentWriteProcedure
+  rejectPackage: moduleAppWriteProcedure
     .input(RejectPackageInputSchema)
     .mutation(async ({ ctx, input }) => {
       let result;
@@ -769,7 +770,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  unpublish: contentWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
+  unpublish: moduleAppWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     await new ModuleAppModel(ctx.serverDB).setStatus({ appId: input.appId, status: 'unpublished' });
@@ -778,7 +779,7 @@ export const adminModuleAppsRouter = router({
     return { ok: true };
   }),
 
-  upsert: contentWriteProcedure
+  upsert: moduleAppWriteProcedure
     .input(moduleAppAdminUpsertSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppModel(ctx.serverDB).upsertAppForAdmin(input);
@@ -792,7 +793,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  upsertActions: contentWriteProcedure
+  upsertActions: moduleAppWriteProcedure
     .input(ActionsInputSchema)
     .mutation(async ({ ctx, input }) => {
       await requireAdminApp(ctx.serverDB, input.appId);
@@ -837,7 +838,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  upsertPages: contentWriteProcedure.input(PagesInputSchema).mutation(async ({ ctx, input }) => {
+  upsertPages: moduleAppWriteProcedure.input(PagesInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     const result = await new ModuleAppModel(ctx.serverDB).upsertPagesForAdmin(input);
@@ -850,7 +851,7 @@ export const adminModuleAppsRouter = router({
     return result;
   }),
 
-  verifyPublisher: contentWriteProcedure
+  verifyPublisher: moduleAppWriteProcedure
     .input(VerifyPublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppPublisherModel(ctx.serverDB).verifyPublisher(input);

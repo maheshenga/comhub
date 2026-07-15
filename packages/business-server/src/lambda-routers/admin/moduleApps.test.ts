@@ -25,6 +25,7 @@ const moduleAppCommerceMocks = vi.hoisted(() => ({
 
 const transactionDb = { transaction: 'module-app-product-audit' };
 const dbMocks = vi.hoisted(() => ({ transaction: vi.fn() }));
+const authState = vi.hoisted(() => ({ role: 'admin' }));
 
 const moduleAppRevenueMocks = vi.hoisted(() => ({
   listRevenue: vi.fn(),
@@ -250,7 +251,9 @@ const createDb = () =>
   ({
     query: {
       users: {
-        findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        findFirst: vi
+          .fn()
+          .mockImplementation(async () => ({ banned: false, role: authState.role })),
       },
     },
     transaction: dbMocks.transaction,
@@ -265,6 +268,7 @@ const createCaller = () => {
 describe('admin module apps router', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.role = 'admin';
     dbMocks.transaction.mockImplementation(async (callback) => callback(transactionDb));
     moduleAppModelMocks.getAdminApp.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
     moduleAppModelMocks.getAdminPackageSubmission.mockResolvedValue({
@@ -382,6 +386,18 @@ describe('admin module apps router', () => {
     expect(adminRouter._def.record.moduleApps).toBeDefined();
   });
 
+  it('rejects content admins from Module App governance procedures', async () => {
+    authState.role = 'content_admin';
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.list({ limit: 20 })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
   it('writes an audit log when upserting a module app', async () => {
     const caller = createCaller();
 
@@ -419,7 +435,7 @@ describe('admin module apps router', () => {
     );
   });
 
-  it('creates, lists, and updates module app products through content permission', async () => {
+  it('creates, lists, and updates module app products through Module App permissions', async () => {
     const caller = createCaller();
     const price = { amount: 88, currency: 'CNY' as const };
 

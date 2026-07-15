@@ -131,6 +131,73 @@ describe('scoped admin read procedures', () => {
     );
   });
 
+  it('isolates Module App reads and edits from content administration', () => {
+    const source = readRouter('moduleApps');
+    const moduleAppReads = [
+      'get',
+      'list',
+      'getPackage',
+      'listArtifacts',
+      'listInstalls',
+      'listPackages',
+      'listPaymentDiagnostics',
+      'listPayouts',
+      'listProducts',
+      'listPublishers',
+      'listRecords',
+      'listRevenue',
+      'listRuns',
+    ];
+    const auditReads = ['exportPaymentReconciliation', 'listAuditEvents'];
+    const moduleAppWrites = [
+      'assignPublisher',
+      'createProduct',
+      'createPublisher',
+      'publish',
+      'approvePackage',
+      'rejectPackage',
+      'rescanPackage',
+      'suspendPublisher',
+      'unpublish',
+      'updateProduct',
+      'upsert',
+      'upsertActions',
+      'upsertPages',
+      'verifyPublisher',
+    ];
+    const financeWrites = [
+      'acknowledgePaymentDiscrepancy',
+      'createPayoutBatch',
+      'reconcilePendingPayments',
+      'recordManualAlipayPayout',
+      'refundOrder',
+      'refundPaymentOrder',
+      'retryPaymentQuery',
+      'retryRefundStatus',
+      'settleOrder',
+      'settleRevenueBatch',
+      'transitionPayoutBatch',
+      'upsertBilling',
+      'upsertEntitlements',
+    ];
+
+    expect(source).toContain('ADMIN_CAPABILITIES.moduleAppRead');
+    expect(source).toContain('ADMIN_CAPABILITIES.moduleAppWrite');
+    for (const procedure of moduleAppReads) {
+      expect(source).toContain(`${procedure}: moduleAppReadProcedure`);
+    }
+    for (const procedure of auditReads) {
+      expect(source).toContain(`${procedure}: auditReadProcedure`);
+    }
+    for (const procedure of moduleAppWrites) {
+      expect(source).toContain(`${procedure}: moduleAppWriteProcedure`);
+    }
+    for (const procedure of financeWrites) {
+      expect(source).toContain(`${procedure}: financeWriteProcedure`);
+    }
+    expect(source).not.toContain('const contentWriteProcedure =');
+  });
+
   it('keeps side-effecting diagnostics and cache operations write-bound', () => {
     const providers = readRouter('newapiProviders');
     const settings = readRouter('settings');
