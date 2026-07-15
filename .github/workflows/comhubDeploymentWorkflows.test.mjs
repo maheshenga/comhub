@@ -77,6 +77,16 @@ test('Worker deployment is manual, targeted, and build-free', () => {
   assert.match(source, /SOURCE_SHA/);
   assertPinnedMainTooling(source, workflow, 'deploy');
   assertProductionLock(workflow.jobs.deploy);
+
+  const failedDeployDiagnostics = workflow.jobs.deploy.steps.find(
+    (step) => step.name === 'Diagnose failed Worker deployment',
+  );
+  assert.equal(failedDeployDiagnostics?.if, '${{ failure() }}');
+  assert.match(failedDeployDiagnostics?.run ?? '', /\.State\.Health\.Log/);
+  assert.match(
+    failedDeployDiagnostics?.run ?? '',
+    /label=com\.docker\.compose\.project=comhub-module-worker/,
+  );
 });
 
 test('deployment workflows never trigger from push', () => {
