@@ -290,7 +290,7 @@ process.stdout.write('4');
     'bash',
     [
       '-lc',
-      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export INSTALL_BIN='${nodeBin}'; export INSTALL_BIN_SCRIPT='${fakeInstallScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec '${deployCommand}' '${requestedWorkerImage}'`,
+      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export INSTALL_BIN='${nodeBin}'; export INSTALL_BIN_SCRIPT='${fakeInstallScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec bash '${deployCommand}' '${requestedWorkerImage}'`,
     ],
     {
       cwd: deployDirectory,
