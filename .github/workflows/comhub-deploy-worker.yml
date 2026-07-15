@@ -676,6 +676,42 @@ jobs:
               docker inspect --format \
                 '{{if .State.Health}}{{range .State.Health.Log}}health end={{.End}} exit={{.ExitCode}} output={{json .Output}}{{println}}{{end}}{{else}}health unavailable{{println}}{{end}}' \
                 "$container_id" >&2 || true
+              if docker exec "$container_id" sh -c \
+                'test -s /tmp/module-app-worker-health.json'; then
+                echo 'health-file=present' >&2
+              else
+                echo 'health-file=absent' >&2
+              fi
+              if docker exec "$container_id" sh -c \
+                'test -d /runtime/artifacts && test -w /runtime/artifacts'; then
+                echo 'artifact-root=writable' >&2
+              else
+                echo 'artifact-root=unavailable' >&2
+              fi
+              if docker exec "$container_id" node -e '
+                const net = require("node:net");
+                let databaseUrl;
+                try {
+                  databaseUrl = new URL(process.env.DATABASE_URL);
+                } catch {
+                  process.exit(1);
+                }
+                const socket = net.createConnection({
+                  host: databaseUrl.hostname,
+                  port: Number(databaseUrl.port || 5432),
+                });
+                const finish = (status) => {
+                  socket.destroy();
+                  process.exit(status);
+                };
+                socket.setTimeout(3000, () => finish(1));
+                socket.once("connect", () => finish(0));
+                socket.once("error", () => finish(1));
+              '; then
+                echo 'database-tcp=reachable' >&2
+              else
+                echo 'database-tcp=unavailable' >&2
+              fi
             done
           fi
 
