@@ -150,6 +150,44 @@ verify_migration() {
   [[ "$column_count" == '4' ]] || die 'migration 0144 columns are not present'
 }
 
+ensure_build_lease_migration() {
+  local migration_output migration_status
+  set +e
+  migration_output="$(run_docker run --rm --network host \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --tmpfs /tmp:size=16m,noexec,nosuid \
+    postgres:17-alpine \
+    psql "$COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL" -X -v ON_ERROR_STOP=1 -qc '
+      ALTER TABLE "module_app_builds" ADD COLUMN IF NOT EXISTS "claim_token" text;
+      ALTER TABLE "module_app_builds" ADD COLUMN IF NOT EXISTS "claim_expires_at" timestamp with time zone;
+      ALTER TABLE "module_app_builds" ADD COLUMN IF NOT EXISTS "attempt_count" integer DEFAULT 0 NOT NULL;
+      ALTER TABLE "module_app_builds" ADD COLUMN IF NOT EXISTS "next_attempt_at" timestamp with time zone DEFAULT now() NOT NULL;
+      UPDATE "module_app_builds"
+      SET
+        "claim_token" = COALESCE("claim_token", '"'legacy-'"' || "id"::text),
+        "claim_expires_at" = COALESCE("claim_expires_at", now())
+      WHERE "status" = '"'building'"'
+        AND ("claim_token" IS NULL OR "claim_expires_at" IS NULL);
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = '"'module_app_builds_attempt_count_check'"'
+            AND conrelid = '"'module_app_builds'"'::regclass
+        ) THEN
+          ALTER TABLE "module_app_builds" ADD CONSTRAINT "module_app_builds_attempt_count_check" CHECK ("attempt_count" >= 0 AND "attempt_count" <= 4);
+        END IF;
+      END
+      $$;
+      CREATE INDEX IF NOT EXISTS "module_app_builds_claimable_idx"
+        ON "module_app_builds" ("status", "next_attempt_at", "claim_expires_at", "created_at");
+    ' 2>&1)"
+  migration_status=$?
+  set -e
+  [[ "$migration_status" -eq 0 ]] || die "migration 0144 repair failed: $migration_output"
+}
+
 prepare_artifact_root() {
   [[ "$MODULE_APP_ARTIFACT_ROOT" == /* ]] || die 'MODULE_APP_ARTIFACT_ROOT must be absolute'
   run_install -d -o 10001 -g 10001 -m 0750 -- "$MODULE_APP_ARTIFACT_ROOT"
@@ -324,6 +362,7 @@ main() {
   require_command "$INSTALL_BIN"
   load_environment
   export COMHUB_MODULE_WORKER_IMAGE="$1"
+  ensure_build_lease_migration
   verify_migration
   prepare_artifact_root
   record_current_image
