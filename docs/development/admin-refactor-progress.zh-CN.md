@@ -1,6 +1,6 @@
 # 后台重构进度记录
 
-更新时间：2026-05-11
+更新时间：2026-07-15
 
 ## 当前进度
 
@@ -68,7 +68,15 @@
 - 后台菜单、可见路由、功能状态、负责人、后端域和读取权限已收敛到统一 Admin catalog，并按「工作台 / 用户与权限 / 商业化 / AI 平台 / 模块应用 / 内容与运营 / 客户端与集成 / 系统与安全」八组展示。
 - `pricing`、`topup`、`change-requests` 继续作为兼容页面注册，但不出现在主菜单中；所有可见 catalog 路由与懒加载 registry 保持一一对应。
 - 用户、内容、模型、系统设置和 PPT 的纯读取 procedure 已使用独立 read capability；用户列表和完整详情因仍会同步过期订阅并写入额度，继续要求 `support.write`。
-- Module App 通用读取和治理写入分别使用 `moduleApp.read`、`moduleApp.write`。财务管理员获得统一页面所需的只读 Module App 可见性，但不获得治理写权限。
+- Module App 通用读取和治理写入分别使用 `moduleApp.read`、`moduleApp.write`。财务管理员不再获得这两项能力，共享页面入口与后端领域权限分别判定。
 - Module App 支付诊断、收入、提现批次和支付对账导出使用 `finance.read`；支付、支付宝退款与查询、对账写入、收入结算、提现、计费和权益变更继续使用 `finance.write`；通用审计事件继续使用 `audit.read`。
 - 本阶段未改动 tRPC procedure 名称、输入输出 Schema、数据库结构或支付状态机，也未新增数据库迁移。
 - 平台套餐和充值支付仍未接入支付宝；模块应用的支付宝电脑网站支付继续保持独立业务域和原有环境变量开关。
+
+## 2026-07-15 Module App 财务隔离增量
+
+- `/settings/admin/module-apps` 继续作为唯一 Module App 后台入口；完整管理员通过 `moduleApp.read` 进入治理页面，财务管理员通过 `finance.read` 进入同一路由。
+- `finance_admin` 不再拥有 `moduleApp.read` 或 `moduleApp.write`，不能调用通用 Module App 列表、详情、审核、发布和治理写入 procedure。
+- 路由内新增按角色独立懒加载的页面边界：完整管理员保持原治理页面，财务管理员只加载收入、支付诊断、发布方财务信息和提现页面，不下载或渲染治理页面代码。
+- 发布方列表已归属 `finance.read`；收入结算等财务写操作继续要求 `finance.write`，未扩大财务管理员的治理权限。
+- 本增量未改动 tRPC procedure 名称、输入输出 Schema、支付宝适配器、支付与退款状态流转、数据库 Schema 或迁移，也未改变完整管理员的 Module App 治理流程。
