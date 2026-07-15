@@ -8,6 +8,7 @@ import {
 } from '@/features/Admin/adminCatalog';
 
 type ImportPage = () => Promise<{ default: ComponentType } | ComponentType>;
+type AdminLegacyRouteSegment = (typeof ADMIN_LEGACY_ROUTES)[number]['segment'];
 
 const ADMIN_PAGE_IMPORTS: Record<AdminCatalogId, ImportPage> = {
   audit: () => import('@/routes/(main)/admin/audit'),
@@ -39,7 +40,7 @@ const ADMIN_PAGE_IMPORTS: Record<AdminCatalogId, ImportPage> = {
   users: () => import('@/routes/(main)/admin/users'),
 };
 
-const ADMIN_LEGACY_PAGE_IMPORTS: Record<string, ImportPage> = {
+const ADMIN_LEGACY_PAGE_IMPORTS: Record<AdminLegacyRouteSegment, ImportPage> = {
   'change-requests': () => import('@/routes/(main)/admin/change-requests'),
   pricing: () => import('@/routes/(main)/admin/pricing'),
   topup: () => import('@/routes/(main)/admin/topup'),
