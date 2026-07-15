@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -65,6 +65,54 @@ describe('module worker health', () => {
 
     expect(ping).toHaveBeenCalledOnce();
     expect(await readdir(path.join(artifactRoot, '.health'))).toEqual([]);
+  });
+
+  it('maps PostgreSQL ping failures to a bounded health code', async () => {
+    const directory = await createTemporaryDirectory();
+    const healthFilePath = path.join(directory, 'health.json');
+    await writeWorkerHealth({
+      healthFilePath,
+      state: {
+        eventLoopAt: new Date('2026-07-13T00:00:00.000Z'),
+        lastSuccessfulPollAt: new Date('2026-07-13T00:00:00.000Z'),
+        workerId: 'worker-1',
+      },
+    });
+
+    await expect(
+      runHealthcheck({
+        artifactRoot: directory,
+        healthFilePath,
+        now: () => new Date('2026-07-13T00:00:01.000Z'),
+        ping: async () => {
+          throw new Error('sensitive database detail');
+        },
+      }),
+    ).rejects.toThrow(/^MODULE_APP_WORKER_HEALTH_POSTGRESQL_UNAVAILABLE$/);
+  });
+
+  it('maps artifact directory creation failures to a bounded health code', async () => {
+    const directory = await createTemporaryDirectory();
+    const artifactRoot = path.join(directory, 'artifact-file');
+    const healthFilePath = path.join(directory, 'health.json');
+    await writeFile(artifactRoot, 'not a directory');
+    await writeWorkerHealth({
+      healthFilePath,
+      state: {
+        eventLoopAt: new Date('2026-07-13T00:00:00.000Z'),
+        lastSuccessfulPollAt: new Date('2026-07-13T00:00:00.000Z'),
+        workerId: 'worker-1',
+      },
+    });
+
+    await expect(
+      runHealthcheck({
+        artifactRoot,
+        healthFilePath,
+        now: () => new Date('2026-07-13T00:00:01.000Z'),
+        ping: async () => undefined,
+      }),
+    ).rejects.toThrow(/^MODULE_APP_WORKER_HEALTH_ARTIFACT_UNAVAILABLE$/);
   });
 
   it('rejects health older than 30 seconds with a bounded code', async () => {

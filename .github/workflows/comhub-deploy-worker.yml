@@ -242,6 +242,7 @@ jobs:
           previous_image_recovery_complete=false
           previous_image_state_active=false
           previous_target=''
+          untracked_worker_preserved=false
 
           cleanup_incoming() {
             local status=$?
@@ -383,6 +384,18 @@ jobs:
               logs --tail=120 module-app-worker >&2 || true
           }
 
+          worker_release_compose() {
+            COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
+              --project-directory "$worker_deploy_dir" \
+              --env-file "$worker_deploy_dir/.env" \
+              -f "$release_dir/compose.yml" \
+              "$@"
+          }
+
+          should_remove_failed_clean_host_worker() {
+            [ "$1" = false ] && [ "$2" = false ] && [ "$3" = false ]
+          }
+
           bootstrap_worker_environment() (
             local app_environment preflight_database_url worker_database_url
             local s3_access_key_id s3_bucket s3_endpoint s3_secret_access_key
@@ -503,6 +516,23 @@ jobs:
           link_release_state "$staging_dir"
           mv "$staging_dir" "$release_dir"
 
+          if [ -z "$previous_target" ]; then
+            untracked_worker_id="$(worker_release_compose ps -q module-app-worker)"
+            if [ -n "$untracked_worker_id" ]; then
+              untracked_worker_health="$(
+                docker inspect --format \
+                  '{{if .State.Health}}{{.State.Health.Status}}{{else}}unavailable{{end}}' \
+                  "$untracked_worker_id"
+              )"
+              if [ "$untracked_worker_health" = unhealthy ]; then
+                echo 'warning: removing untracked unhealthy Worker before deployment' >&2
+                worker_release_compose rm --force --stop module-app-worker
+              else
+                untracked_worker_preserved=true
+              fi
+            fi
+          fi
+
           previous_image_backup="$worker_deploy_dir/.previous-image.before-$release_id"
           [ ! -e "$previous_image_backup" ]
           [ ! -L "$previous_image_backup" ]
@@ -594,9 +624,21 @@ jobs:
           fi
 
           rollback_status=0
+          clean_host_cleanup_status=0
           if [ "$root_previous_image_created" = true ] && [ -z "$previous_target" ]; then
             "$worker_deploy_dir/current/rollback.sh"
             rollback_status=$?
+          fi
+          previous_target_present=false
+          if [ -n "$previous_target" ]; then
+            previous_target_present=true
+          fi
+          if should_remove_failed_clean_host_worker \
+            "$root_previous_image_created" \
+            "$previous_target_present" \
+            "$untracked_worker_preserved"; then
+            worker_release_compose rm --force --stop module-app-worker
+            clean_host_cleanup_status=$?
           fi
 
           restore_current
@@ -621,6 +663,9 @@ jobs:
           fi
           if [ "$rollback_status" -ne 0 ]; then
             echo "error: Worker rollback failed with status $rollback_status" >&2
+          fi
+          if [ "$clean_host_cleanup_status" -ne 0 ]; then
+            echo "error: failed to remove clean-host Worker with status $clean_host_cleanup_status" >&2
           fi
           if [ "$previous_image_restore_status" -ne 0 ]; then
             echo 'error: failed to restore pre-deploy .previous-image state' >&2

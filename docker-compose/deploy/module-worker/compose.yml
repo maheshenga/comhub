@@ -5,6 +5,7 @@ services:
     image: '${COMHUB_MODULE_WORKER_IMAGE:?immutable worker image required}'
     env_file: .env
     environment:
+      MODULE_APP_ARTIFACT_ROOT: /runtime/artifacts
       MODULE_APP_EXECUTION_ENABLED: 'false'
       MODULE_APP_RUNTIME_INVOCATION_ENABLED: 'false'
       MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED: 'false'

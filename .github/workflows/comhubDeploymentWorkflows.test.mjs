@@ -78,6 +78,64 @@ test('Worker deployment is manual, targeted, and build-free', () => {
   assertPinnedMainTooling(source, workflow, 'deploy');
   assertProductionLock(workflow.jobs.deploy);
 
+  const workerDeploy = workflow.jobs.deploy.steps.find(
+    (step) => step.name === 'Deploy independent Module App worker',
+  );
+  assert.match(
+    workerDeploy?.run ?? '',
+    /if \[ "\$untracked_worker_health" = unhealthy \]; then[\s\S]*?rm --force --stop module-app-worker/,
+  );
+  assert.match(
+    workerDeploy?.run ?? '',
+    /if should_remove_failed_clean_host_worker[\s\S]*?"\$untracked_worker_preserved"; then[\s\S]*?rm --force --stop module-app-worker/,
+  );
+
+  const cleanupPredicate = (workerDeploy?.run ?? '').match(
+    /^should_remove_failed_clean_host_worker\(\) \{\n[\s\S]*?^\}/mu,
+  )?.[0];
+  assert.ok(cleanupPredicate, 'Worker deployment must define a clean-host cleanup predicate');
+
+  for (const scenario of [
+    {
+      expected: 0,
+      preserved: 'false',
+      previousImage: 'false',
+      previousTargetPresent: 'false',
+    },
+    {
+      expected: 1,
+      preserved: 'false',
+      previousImage: 'true',
+      previousTargetPresent: 'false',
+    },
+    {
+      expected: 1,
+      preserved: 'false',
+      previousImage: 'false',
+      previousTargetPresent: 'true',
+    },
+    {
+      expected: 1,
+      preserved: 'true',
+      previousImage: 'false',
+      previousTargetPresent: 'false',
+    },
+  ]) {
+    const result = spawnSync(
+      'bash',
+      [],
+      {
+        encoding: 'utf8',
+        input: `${cleanupPredicate}\nshould_remove_failed_clean_host_worker '${scenario.previousImage}' '${scenario.previousTargetPresent}' '${scenario.preserved}'`,
+      },
+    );
+    assert.equal(
+      result.status,
+      scenario.expected,
+      `unexpected cleanup decision for ${JSON.stringify(scenario)}: ${result.stderr}`,
+    );
+  }
+
   const failedDeployDiagnostics = workflow.jobs.deploy.steps.find(
     (step) => step.name === 'Diagnose failed Worker deployment',
   );
