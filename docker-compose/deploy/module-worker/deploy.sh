@@ -299,8 +299,13 @@ record_current_image() {
 }
 
 verify_container() {
-  local cap_add cap_drop mounts ports security_opt tmpfs
-  container_id="$(compose ps -q "$SERVICE")"
+  local cap_add cap_drop container_id container_lookup_status mounts ports security_opt tmpfs
+  set +e
+  container_id="$(compose ps -q "$SERVICE" 2>&1)"
+  container_lookup_status=$?
+  set -e
+  [[ "$container_lookup_status" -eq 0 ]] || \
+    die "module-app-worker container lookup failed: $container_id"
   [[ -n "$container_id" ]] || die 'module-app-worker container was not created'
 
   [[ "$(run_docker inspect --format '{{.Config.Image}}' "$container_id")" == "$COMHUB_MODULE_WORKER_IMAGE" ]] || die 'container image does not match requested immutable image'

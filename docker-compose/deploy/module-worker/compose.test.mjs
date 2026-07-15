@@ -487,6 +487,27 @@ try {
   assert.notEqual(failedPull.result.status, 0);
   assert.match(failedPull.result.stderr, /compose pull failed: fake pull failure/);
 
+  const failedContainerLookup = runDeployWithFakes({
+    envContents: [
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    failDockerCallIncludes: 'ps -q module-app-worker',
+    failDockerMessage: 'fake ps failure',
+    home: '/tmp/fake-home',
+    user: 'fake-user',
+  });
+  assert.notEqual(failedContainerLookup.result.status, 0);
+  assert.match(
+    failedContainerLookup.result.stderr,
+    /module-app-worker container lookup failed: fake ps failure/,
+  );
+
   const configuredPlatformProject = runDeployWithFakes({
     envContents: [
       'COMHUB_PLATFORM_COMPOSE_PROJECT=comhub-production',
