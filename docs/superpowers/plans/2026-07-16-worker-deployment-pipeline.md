@@ -198,7 +198,7 @@ Update `require_immutable_image` to accept either a legacy non-empty `sha-*` tag
 Reuse the source validation and image-resolution pattern from main deployment. Before SSH access run:
 
 ```yaml
-- run: pnpm install --frozen-lockfile
+- run: pnpm install --no-frozen-lockfile
 - run: pnpm verify:module-app-worker
 - run: bash -n docker-compose/deploy/module-worker/deploy.sh docker-compose/deploy/module-worker/rollback.sh
 - run: node docker-compose/deploy/module-worker/compose.test.mjs

@@ -138,8 +138,11 @@ run_docker() {
 require_immutable_image() {
   local image_ref="$1"
   local image_tag="${image_ref##*:}"
-  [[ "$image_ref" == *:* && "$image_tag" == sha-* && "$image_tag" != 'sha-' ]] || \
-    die 'image must use a non-empty sha-* tag'
+  if [[ "$image_ref" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]; then
+    return
+  fi
+  [[ "$image_ref" != *'@'* && "$image_ref" == *:* && "$image_tag" == sha-* && "$image_tag" != 'sha-' ]] || \
+    die 'image must use a sha256 digest or non-empty sha-* tag'
 }
 
 verify_migration() {

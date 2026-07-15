@@ -23,6 +23,7 @@ const composeFile = resolve(directory, 'compose.yml');
 const envFile = resolve(directory, '.env');
 const createdEnvFile = !existsSync(envFile);
 const workerImage = 'example.invalid/comhub-module-worker:sha-0123456789ab';
+const digestWorkerImage = `example.invalid/comhub-module-worker@sha256:${'a'.repeat(64)}`;
 const mutationFlags = [
   'MODULE_APP_EXECUTION_ENABLED',
   'MODULE_APP_RUNTIME_INVOCATION_ENABLED',
@@ -102,6 +103,7 @@ const runDeployWithFakes = ({
   home,
   user,
   markers = [],
+  requestedWorkerImage = workerImage,
   skipPreviousImage = true,
 }) => {
   const fakeBinDir = mkdtempSync(join(tmpdir(), 'module-worker-compose-'));
@@ -279,7 +281,7 @@ process.stdout.write('4');
     'bash',
     [
       '-lc',
-      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export INSTALL_BIN='${nodeBin}'; export INSTALL_BIN_SCRIPT='${fakeInstallScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec '${deployCommand}' '${workerImage}'`,
+      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export INSTALL_BIN='${nodeBin}'; export INSTALL_BIN_SCRIPT='${fakeInstallScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec '${deployCommand}' '${requestedWorkerImage}'`,
     ],
     {
       cwd: deployDirectory,
@@ -288,7 +290,7 @@ process.stdout.write('4');
         ...process.env,
         EXPECTED_ARTIFACT_ROOT: expectedArtifactRoot,
         EXPECTED_PLATFORM_PROJECT: expectedPlatformProject,
-        EXPECTED_WORKER_IMAGE: workerImage,
+        EXPECTED_WORKER_IMAGE: requestedWorkerImage,
         FAIL_DOCKER_CALL_INCLUDES: failDockerCallIncludes ?? '',
         FAIL_DOCKER_MESSAGE: failDockerMessage,
         CURRENT_IMAGE_MARKER: currentImageMarker,
@@ -344,6 +346,20 @@ try {
   );
   const config = JSON.parse(output);
   const services = config.services;
+
+  const digestConfig = JSON.parse(
+    execFileSync('docker', ['compose', '-f', composeFile, 'config', '--format', 'json'], {
+      cwd: directory,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        COMHUB_MODULE_WORKER_IMAGE: digestWorkerImage,
+        COMHUB_PLATFORM_NETWORK: 'paradedb_default',
+        MODULE_APP_ARTIFACT_ROOT: '/var/lib/comhub/module-worker-artifacts',
+      },
+    }),
+  );
+  assert.equal(digestConfig.services['module-app-worker'].image, digestWorkerImage);
 
   assert.deepEqual(Object.keys(services), ['module-app-worker']);
   assert.equal(config.name, 'comhub-module-worker');
@@ -453,6 +469,49 @@ try {
     defaultPlatformProject.dockerCalls,
     /ALTER TABLE "module_app_builds" ADD COLUMN IF NOT EXISTS "claim_token" text/s,
   );
+
+  const digestDeploy = runDeployWithFakes({
+    envContents: [
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    home: '/tmp/fake-home',
+    requestedWorkerImage: digestWorkerImage,
+    user: 'fake-user',
+  });
+  assert.equal(digestDeploy.result.status, 0, digestDeploy.result.stderr);
+
+  const digestRollbackDirectory = mkdtempSync(join(tmpdir(), 'module-worker-rollback-digest-'));
+  for (const file of ['compose.yml', 'deploy.sh', 'rollback.sh']) {
+    copyFileSync(resolve(directory, file), join(digestRollbackDirectory, file));
+  }
+  chmodSync(join(digestRollbackDirectory, 'deploy.sh'), 0o755);
+  chmodSync(join(digestRollbackDirectory, 'rollback.sh'), 0o755);
+  writeFileSync(join(digestRollbackDirectory, '.previous-image'), `${digestWorkerImage}\n`);
+  const digestRollback = runDeployWithFakes({
+    deployCommand: './rollback.sh',
+    deployDirectory: digestRollbackDirectory,
+    envContents: [
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    envFilePath: join(digestRollbackDirectory, '.env'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    home: '/tmp/fake-home',
+    requestedWorkerImage: digestWorkerImage,
+    user: 'fake-user',
+  });
+  assert.equal(digestRollback.result.status, 0, digestRollback.result.stderr);
+  removeTempDirectory(digestRollbackDirectory);
   assert.match(
     defaultPlatformProject.dockerCalls,
     /CREATE INDEX IF NOT EXISTS "module_app_builds_claimable_idx"/s,
@@ -844,6 +903,7 @@ try {
 
   const rollbackSource = readFileSync(resolve(directory, 'rollback.sh'), 'utf8');
   assert.match(rollbackSource, /\.previous-image/);
+  assert.match(rollbackSource, /sha256:/);
   assert.match(rollbackSource, /COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE=true exec/);
 
   console.info('module worker Compose policy: PASS');

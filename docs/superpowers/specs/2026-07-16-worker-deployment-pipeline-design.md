@@ -45,7 +45,7 @@ The workflow resolves the existing main and Module Runtime `sha-*` tags to regis
 
 ### Module App Worker Deployment
 
-`.github/workflows/comhub-deploy-worker.yml` is manual-only. It validates the requested source commit, installs dependencies with the lockfile enforced, runs `pnpm verify:module-app-worker`, and executes the standalone Worker deployment contract tests.
+`.github/workflows/comhub-deploy-worker.yml` is manual-only. It validates the requested source commit, installs dependencies under the repository's explicit `lockfile=false` pnpm policy, runs `pnpm verify:module-app-worker`, and executes the standalone Worker deployment contract tests.
 
 The workflow resolves the existing Worker image tag to a registry digest before SSH access. It then uses the existing release-directory promotion, lock, rollback, health, and container-hardening checks. Main application deployment is not present in this workflow.
 
