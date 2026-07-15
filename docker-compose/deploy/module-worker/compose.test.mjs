@@ -436,6 +436,24 @@ try {
   assert.equal(defaultPlatformProject.result.status, 0, defaultPlatformProject.result.stderr);
   assertExactRuntimeProjectFilter(defaultPlatformProject.dockerCalls, 'comhub');
   assert.match(defaultPlatformProject.dockerCalls, /run --rm --network host .*postgres:17-alpine.*psql/);
+  assert.match(
+    defaultPlatformProject.dockerCalls,
+    /ALTER TABLE "module_app_builds" ADD COLUMN IF NOT EXISTS "claim_token" text/s,
+  );
+  assert.match(
+    defaultPlatformProject.dockerCalls,
+    /CREATE INDEX IF NOT EXISTS "module_app_builds_claimable_idx"/s,
+  );
+  assert.match(
+    defaultPlatformProject.dockerCalls,
+    /module_app_builds_attempt_count_check/s,
+  );
+  assert.match(defaultPlatformProject.dockerCalls, /WHERE "status" = 'building'/s);
+  assert.ok(
+    defaultPlatformProject.dockerCalls.indexOf('ADD COLUMN IF NOT EXISTS "claim_token"') <
+      defaultPlatformProject.dockerCalls.indexOf('BEGIN READ ONLY'),
+    'deploy must repair migration 0144 before the read-only migration preflight',
+  );
   assert.equal(defaultPlatformProject.psqlCalls, '');
 
   const configuredPlatformProject = runDeployWithFakes({
