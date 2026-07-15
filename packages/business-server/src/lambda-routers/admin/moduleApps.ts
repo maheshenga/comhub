@@ -464,7 +464,7 @@ export const adminModuleAppsRouter = router({
       return new ModuleAppAdminReadModel(ctx.serverDB).listPaymentDiagnostics(input);
     }),
 
-  listPublishers: moduleAppReadProcedure
+  listPublishers: financeReadProcedure
     .input(ListPublishersInputSchema)
     .query(async ({ ctx, input }) => {
       return new ModuleAppAdminReadModel(ctx.serverDB).listPublishers(input);

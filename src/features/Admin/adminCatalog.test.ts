@@ -46,5 +46,9 @@ describe('adminCatalog', () => {
     expect(byId.topics.readCapability).toBe(ADMIN_CAPABILITIES.contentRead);
     expect(byId.settings.readCapability).toBe(ADMIN_CAPABILITIES.systemRead);
     expect(byId['module-apps'].readCapability).toBe(ADMIN_CAPABILITIES.moduleAppRead);
+    expect(byId['module-apps'].accessCapabilities).toEqual([
+      ADMIN_CAPABILITIES.moduleAppRead,
+      ADMIN_CAPABILITIES.financeRead,
+    ]);
   });
 });

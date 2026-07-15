@@ -141,7 +141,6 @@ describe('scoped admin read procedures', () => {
       'listInstalls',
       'listPackages',
       'listProducts',
-      'listPublishers',
       'listRecords',
       'listRuns',
     ];
@@ -150,6 +149,7 @@ describe('scoped admin read procedures', () => {
       'exportPaymentReconciliation',
       'listPaymentDiagnostics',
       'listPayouts',
+      'listPublishers',
       'listRevenue',
     ];
     const moduleAppWrites = [

@@ -57,6 +57,7 @@ export type AdminCatalogGroup = {
 };
 
 export type AdminCatalogItem = {
+  accessCapabilities?: AdminCapability[];
   backendDomains: string[];
   debugId: string;
   description: string;
@@ -331,6 +332,7 @@ export const ADMIN_CATALOG = [
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {
+    accessCapabilities: [ADMIN_CAPABILITIES.moduleAppRead, ADMIN_CAPABILITIES.financeRead],
     backendDomains: ['moduleApps'],
     debugId: 'Desktop > Admin > module-apps',
     description: '治理模块应用、审核、商业化和运行数据',
@@ -545,6 +547,9 @@ export const ADMIN_CATALOG = [
     writeCapabilities: [],
   },
 ] as const satisfies readonly AdminCatalogItem[];
+
+export const getAdminCatalogAccessCapabilities = (item: AdminCatalogItem) =>
+  item.accessCapabilities ?? [item.readCapability];
 
 export const ADMIN_LEGACY_ROUTES = [
   { segment: 'pricing', targetSegment: 'model-billing-matrix' },

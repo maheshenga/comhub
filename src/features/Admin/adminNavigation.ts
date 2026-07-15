@@ -10,6 +10,7 @@ import {
   ADMIN_CATALOG,
   ADMIN_CATALOG_GROUPS,
   ADMIN_LEGACY_ROUTES,
+  getAdminCatalogAccessCapabilities,
   type AdminNavGroupKey,
   type AdminNavIcon,
 } from './adminCatalog';
@@ -42,7 +43,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = ADMIN_CATALOG_GROUPS.map((group
 }));
 
 const ADMIN_PATH_CAPABILITIES = new Map(
-  ADMIN_CATALOG.map((item) => [item.path, item.readCapability] as const),
+  ADMIN_CATALOG.map((item) => [item.path, getAdminCatalogAccessCapabilities(item)] as const),
 );
 
 const ADMIN_NAV_ALIASES = Object.fromEntries(
@@ -76,9 +77,9 @@ export const canAccessAdminPath = (role: string | null | undefined, pathname: st
   if (isFullAdminRole(role)) return true;
 
   const selectedPath = getAdminSelectedKey(pathname);
-  const capability = ADMIN_PATH_CAPABILITIES.get(selectedPath);
+  const capabilities = ADMIN_PATH_CAPABILITIES.get(selectedPath);
 
-  return !!capability && hasAdminCapability(role, capability);
+  return !!capabilities && capabilities.some((capability) => hasAdminCapability(role, capability));
 };
 
 export const getAdminDefaultPath = (role: string | null | undefined) => {

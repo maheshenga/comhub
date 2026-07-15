@@ -405,7 +405,10 @@ describe('admin module apps router', () => {
     authState.role = 'finance_admin';
     const caller = createCaller();
 
-    await expect(caller.moduleApps.list({ limit: 20 })).resolves.toEqual({
+    await expect(caller.moduleApps.list({ limit: 20 })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.moduleApps.listPublishers({ limit: 20 })).resolves.toEqual({
       items: [],
       nextCursor: null,
     });
