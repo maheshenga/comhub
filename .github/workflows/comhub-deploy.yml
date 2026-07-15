@@ -783,6 +783,9 @@ jobs:
           [ ! -e "$release_dir" ]
           validate_asset_set "$staging_dir"
 
+          echo "Running production database migrations before Worker deploy..."
+          docker exec comhub-app node /app/docker.cjs
+
           if [ -L "$worker_deploy_dir/current" ]; then
             previous_target="$(readlink "$worker_deploy_dir/current")"
             validate_release_target "$previous_target"
