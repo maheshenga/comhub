@@ -52,7 +52,6 @@ export const ADMIN_ROLE_CAPABILITIES: Record<AdminRole, AdminRoleCapabilitySet> 
     ADMIN_CAPABILITIES.supportRead,
     ADMIN_CAPABILITIES.supportWrite,
     ADMIN_CAPABILITIES.userRead,
-    ADMIN_CAPABILITIES.userWrite,
     ADMIN_CAPABILITIES.auditRead,
   ],
   system_admin: [

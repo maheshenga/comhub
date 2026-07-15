@@ -71,12 +71,12 @@ describe('shared admin roles', () => {
       ]),
     );
     expect(getAdminRoleCapabilities('support_admin')).toEqual(
-      expect.arrayContaining([
-        ADMIN_CAPABILITIES.auditRead,
+      [
         ADMIN_CAPABILITIES.supportRead,
         ADMIN_CAPABILITIES.supportWrite,
         ADMIN_CAPABILITIES.userRead,
-      ]),
+        ADMIN_CAPABILITIES.auditRead,
+      ],
     );
     expect(getAdminRoleCapabilities('system_admin')).toEqual(
       expect.arrayContaining([
