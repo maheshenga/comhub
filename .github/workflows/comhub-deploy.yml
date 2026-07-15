@@ -401,16 +401,23 @@ jobs:
             echo "containerd ctr not found; falling back to deploy.sh docker compose pull"
           fi
 
-          docker pull "$RUNTIME_IMAGE_REF"
+          module_runtime_configured=false
+          if docker compose config --services | grep -qx module-runtime; then
+            module_runtime_configured=true
+          fi
 
-          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ] && ! docker compose config --services | grep -qx module-runtime; then
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ] && [ "$module_runtime_configured" != "true" ]; then
             echo "Credentialed deployment requires a configured module-runtime service before traffic switching"
             exit 1
           fi
 
-          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
+          if [ "$module_runtime_configured" = "true" ]; then
+            docker pull "$RUNTIME_IMAGE_REF"
             docker compose up -d --no-deps --wait module-runtime
             verify_module_runtime
+          fi
+
+          if [ "$REQUIRE_MODULE_RUNTIME" = "true" ]; then
             verify_runtime_auth_boundary
           fi
 
@@ -447,7 +454,7 @@ jobs:
             fi
           done
 
-          if docker compose config --services | grep -qx module-runtime; then
+          if [ "$module_runtime_configured" = "true" ]; then
             verify_module_runtime
           else
             echo "module-runtime is not configured; production mutation flags remain disabled"
