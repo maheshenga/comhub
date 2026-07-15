@@ -267,10 +267,15 @@ sync_file_if_supported() {
 }
 
 record_current_image() {
-  local container_id current_image intended_state_directory previous_image_target temporary_file
+  local container_id container_lookup_status current_image intended_state_directory previous_image_target temporary_file
   [[ "${COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE:-false}" == 'true' ]] && return
-  container_id="$(compose ps -q "$SERVICE" || true)"
-  [[ -n "$container_id" ]] || return
+  set +e
+  container_id="$(compose ps -q "$SERVICE" 2>&1)"
+  container_lookup_status=$?
+  set -e
+  [[ "$container_lookup_status" -eq 0 ]] || \
+    die "current module-app-worker container lookup failed: $container_id"
+  [[ -n "$container_id" ]] || return 0
   current_image="$(run_docker inspect --format '{{.Config.Image}}' "$container_id")"
   require_immutable_image "$current_image"
 
