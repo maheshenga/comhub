@@ -87,6 +87,10 @@ test('Worker deployment is manual, targeted, and build-free', () => {
     failedDeployDiagnostics?.run ?? '',
     /label=com\.docker\.compose\.project=comhub-module-worker/,
   );
+  assert.match(failedDeployDiagnostics?.run ?? '', /health-file=/);
+  assert.match(failedDeployDiagnostics?.run ?? '', /artifact-root=/);
+  assert.match(failedDeployDiagnostics?.run ?? '', /database-tcp=/);
+  assert.doesNotMatch(failedDeployDiagnostics?.run ?? '', /\.Config\.Env|printenv/);
 });
 
 test('deployment workflows never trigger from push', () => {
