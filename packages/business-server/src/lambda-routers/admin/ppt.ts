@@ -2,11 +2,14 @@ import { inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { appSettings } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { APP_SETTING_KEYS, invalidateServerAppSettings } from '@/server/services/appSettings';
 import { normalizeDocmeePptSettings } from '@/server/services/docmee/config';
 
 import { recordAdminAudit } from './audit';
+
+const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
+const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
 
 const PPT_SETTING_KEYS = [
   APP_SETTING_KEYS.docmeePptAllowPdfExport,
@@ -63,7 +66,7 @@ const inputSchema = z.object({
 });
 
 export const adminPptRouter = router({
-  getSettings: adminProcedure.query(async ({ ctx }) => {
+  getSettings: systemReadProcedure.query(async ({ ctx }) => {
     const raw = await readSettings(ctx.serverDB);
     const settings = normalizeDocmeePptSettings(raw);
 
@@ -75,7 +78,7 @@ export const adminPptRouter = router({
     };
   }),
 
-  saveSettings: adminProcedure.input(inputSchema).mutation(async ({ ctx, input }) => {
+  saveSettings: systemWriteProcedure.input(inputSchema).mutation(async ({ ctx, input }) => {
     const raw = await readSettings(ctx.serverDB);
     const previous = normalizeDocmeePptSettings(raw);
     const next = {

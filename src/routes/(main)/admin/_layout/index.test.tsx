@@ -9,24 +9,27 @@ const userStoreMock = vi.hoisted(() => {
     user: undefined,
   };
   const state: Record<string, any> = { ...initialState };
-  const useUserStore = ((selector?: (value: typeof state) => any) =>
+  const selectUserStore = ((selector?: (value: typeof state) => any) =>
     typeof selector === 'function' ? selector(state) : state) as any;
 
-  useUserStore.setState = (patch: Record<string, any>) => {
+  selectUserStore.setState = (patch: Record<string, any>) => {
     Object.assign(state, patch);
   };
-  useUserStore.reset = () => {
+  selectUserStore.reset = () => {
     Object.assign(state, initialState);
   };
 
-  return { useUserStore };
+  return { useUserStore: selectUserStore };
 });
+
+const locationMock = vi.hoisted(() => ({ pathname: '/settings/admin' }));
 
 vi.mock('react-router', () => ({
   Navigate: ({ replace, to }: { replace?: boolean; to: string }) => (
     <div data-replace={String(Boolean(replace))} data-testid="navigate" data-to={to} />
   ),
   Outlet: () => <div data-testid="admin-outlet" />,
+  useLocation: () => locationMock,
 }));
 
 vi.mock('@/features/Admin', () => ({
@@ -46,6 +49,7 @@ vi.mock('@/store/user/selectors', () => ({
 afterEach(() => {
   act(() => {
     userStoreMock.useUserStore.reset();
+    locationMock.pathname = '/settings/admin';
   });
 });
 
@@ -98,5 +102,39 @@ describe('AdminLayout', () => {
     expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('admin-outlet')).toBeInTheDocument();
     expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
+  });
+
+  it('renders the admin shell for recognized scoped admin roles', () => {
+    act(() => {
+      locationMock.pathname = '/settings/admin/plans';
+      userStoreMock.useUserStore.setState({
+        isUserStateInit: true,
+        user: { id: 'finance-1', role: 'finance_admin', username: 'finance' },
+      });
+    });
+
+    render(<AdminLayout />);
+
+    expect(screen.getByTestId('admin-sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId('admin-outlet')).toBeInTheDocument();
+    expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
+  });
+
+  it('redirects scoped roles away from cross-domain admin routes', () => {
+    act(() => {
+      locationMock.pathname = '/settings/admin/settings';
+      userStoreMock.useUserStore.setState({
+        isUserStateInit: true,
+        user: { id: 'finance-1', role: 'finance_admin', username: 'finance' },
+      });
+    });
+
+    render(<AdminLayout />);
+
+    expect(screen.getByTestId('navigate')).toHaveAttribute(
+      'data-to',
+      '/settings/admin/subscriptions',
+    );
+    expect(screen.queryByTestId('admin-outlet')).not.toBeInTheDocument();
   });
 });

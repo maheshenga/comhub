@@ -41,6 +41,7 @@ import PaymentReconciliationTable, {
   type ModuleAppPaymentDiagnosticRow,
 } from './PaymentReconciliationTable';
 import PayoutTable, { type ModuleAppPayoutRow } from './PayoutTable';
+import ProductManager from './ProductManager';
 import PublisherTable, { type ModuleAppPublisherRow } from './PublisherTable';
 import RecordsTable from './RecordsTable';
 import RunsTable from './RunsTable';
@@ -944,6 +945,11 @@ const AdminModuleAppsPage = memo(() => {
       ),
       key: 'billing',
       label: 'Billing',
+    },
+    {
+      children: <ProductManager appId={selectedAppId} />,
+      key: 'products',
+      label: 'Products',
     },
     {
       children: (

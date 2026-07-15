@@ -7,16 +7,19 @@ import { useTranslation } from 'react-i18next';
 
 import {
   formatBusinessDate,
-  formatCredits,
   formatCurrencyAmount,
 } from '@/business/client/BusinessSettingPages/shared';
 import InlineTable from '@/components/InlineTable';
+import { formatAdminCredits } from '@/features/Admin/adminCreditUnits';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminChangeRequestsPage from './AdminChangeRequestsPage';
 import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
-import { ADMIN_SUBSCRIPTION_CYCLES, getAdminSubscriptionCycleLabel } from './adminSubscriptionCycles';
+import {
+  ADMIN_SUBSCRIPTION_CYCLES,
+  getAdminSubscriptionCycleLabel,
+} from './adminSubscriptionCycles';
 
 type PlanFilter = 'all' | 'free' | 'hobby' | 'starter' | 'premium' | 'ultimate';
 
@@ -127,7 +130,7 @@ const AdminSubscriptionsPage = memo(() => {
       {
         dataIndex: 'monthlyCredits',
         key: 'monthlyCredits',
-        render: (value: number) => (value != null ? formatCredits(value) : '--'),
+        render: (value: number) => (value != null ? formatAdminCredits(value) : '--'),
         title: t('admin.subscriptions.columns.monthlyCredits', '每月积分'),
       },
       {

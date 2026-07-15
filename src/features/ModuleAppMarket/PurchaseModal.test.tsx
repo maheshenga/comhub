@@ -81,23 +81,140 @@ describe('PurchaseModal', () => {
   });
 
   it('creates an order with the selected server catalog product', async () => {
-    const onCreateOrder = vi.fn().mockResolvedValue(undefined);
+    const onCreateOrder = vi.fn().mockResolvedValue({ id: 'order-1' });
+    const onCreatePayment = vi.fn().mockResolvedValue(undefined);
     render(
       <PurchaseModal
         open
         catalog={catalog}
+        subject="Recruiting Desk"
         onCancelOrder={vi.fn()}
         onClose={vi.fn()}
         onCreateOrder={onCreateOrder}
+        onCreatePayment={onCreatePayment}
       />,
     );
 
     fireEvent.click(
-      await screen.findByRole('button', { name: /moduleApps\.purchase\.createOrder/ }),
+      await screen.findByRole('button', { name: /moduleApps\.purchase\.payWithAlipay/ }),
     );
     await waitFor(() =>
-      expect(onCreateOrder).toHaveBeenCalledWith({ productId: catalog[0].productId }),
+      expect(onCreateOrder).toHaveBeenCalledWith({
+        idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+        productId: catalog[0].productId,
+      }),
     );
+    expect(onCreatePayment).toHaveBeenCalledWith({
+      orderId: 'order-1',
+      subject: 'Recruiting Desk',
+    });
+  });
+
+  it('reuses the same order idempotency key after an uncertain request failure', async () => {
+    const onCreateOrder = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network timeout'))
+      .mockResolvedValueOnce({ id: 'order-recovered' });
+    render(
+      <PurchaseModal
+        open
+        catalog={catalog}
+        subject="Recruiting Desk"
+        onCancelOrder={vi.fn()}
+        onClose={vi.fn()}
+        onCreateOrder={onCreateOrder}
+        onCreatePayment={vi.fn()}
+      />,
+    );
+
+    const pay = await screen.findByRole('button', { name: /moduleApps\.purchase\.payWithAlipay/ });
+    fireEvent.click(pay);
+    await waitFor(() => expect(onCreateOrder).toHaveBeenCalledTimes(1));
+    expect(onCreateOrder.mock.calls[0][0].idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
+    fireEvent.click(pay);
+    await waitFor(() => expect(onCreateOrder).toHaveBeenCalledTimes(2));
+
+    expect(onCreateOrder.mock.calls[1][0].idempotencyKey).toBe(
+      onCreateOrder.mock.calls[0][0].idempotencyKey,
+    );
+  });
+
+  it('installs a free personal product without creating a payment order', async () => {
+    const onInstall = vi.fn().mockResolvedValue(undefined);
+    const onCreateOrder = vi.fn();
+    render(
+      <PurchaseModal
+        open
+        catalog={[{ ...catalog[0], amount: 0, productType: 'free' }]}
+        subject="Free Desk"
+        onCancelOrder={vi.fn()}
+        onClose={vi.fn()}
+        onCreateOrder={onCreateOrder}
+        onCreatePayment={vi.fn()}
+        onInstall={onInstall}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /moduleApps\.purchase\.install/ }));
+    await waitFor(() => expect(onInstall).toHaveBeenCalledWith({ appId: 'app-1' }));
+    expect(onCreateOrder).not.toHaveBeenCalled();
+  });
+
+  it('installs a free workspace product in the selected workspace', async () => {
+    const onInstall = vi.fn().mockResolvedValue(undefined);
+    const onCreateOrder = vi.fn();
+    render(
+      <PurchaseModal
+        open
+        workspaceId="workspace-1"
+        catalog={[
+          {
+            ...catalog[0],
+            amount: 0,
+            licenseScope: 'workspace',
+            productType: 'free',
+          },
+        ]}
+        onCancelOrder={vi.fn()}
+        onClose={vi.fn()}
+        onCreateOrder={onCreateOrder}
+        onInstall={onInstall}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /moduleApps\.purchase\.install/ }));
+    await waitFor(() =>
+      expect(onInstall).toHaveBeenCalledWith({ appId: 'app-1', workspaceId: 'workspace-1' }),
+    );
+    expect(onCreateOrder).not.toHaveBeenCalled();
+  });
+
+  it('creates a payment order for a zero-price non-free product', async () => {
+    const onCreateOrder = vi.fn().mockResolvedValue({ id: 'order-zero' });
+    const onCreatePayment = vi.fn().mockResolvedValue(undefined);
+    const onInstall = vi.fn();
+    render(
+      <PurchaseModal
+        open
+        catalog={[{ ...catalog[0], amount: 0, productType: 'one_time' }]}
+        subject="Promotional Desk"
+        onCancelOrder={vi.fn()}
+        onClose={vi.fn()}
+        onCreateOrder={onCreateOrder}
+        onCreatePayment={onCreatePayment}
+        onInstall={onInstall}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /moduleApps\.purchase\.payWithAlipay/ }),
+    );
+    await waitFor(() => expect(onCreateOrder).toHaveBeenCalled());
+    expect(onCreatePayment).toHaveBeenCalledWith({
+      orderId: 'order-zero',
+      subject: 'Promotional Desk',
+    });
+    expect(onInstall).not.toHaveBeenCalled();
   });
 
   it('requires a workspace context for team products', async () => {
@@ -120,7 +237,7 @@ describe('PurchaseModal', () => {
     expect(screen.getByText('moduleApps.purchase.scope.workspace:')).toBeInTheDocument();
     expect(screen.getByText('moduleApps.purchase.workspaceRequired:')).toBeInTheDocument();
     expect(
-      await screen.findByRole('button', { name: /moduleApps\.purchase\.createOrder/ }),
+      await screen.findByRole('button', { name: /moduleApps\.purchase\.payWithAlipay/ }),
     ).toBeDisabled();
   });
 
@@ -154,13 +271,16 @@ describe('PurchaseModal', () => {
     expect(screen.getByText('Launch offer')).toBeInTheDocument();
     expect(screen.getByText('moduleApps.purchase.discountAmount:120')).toBeInTheDocument();
     expect(screen.getByText('moduleApps.purchase.discountPercent:10')).toBeInTheDocument();
-    expect(screen.getByText('moduleApps.purchase.validUntil:2026-08-01T00:00:00.000Z')).toBeInTheDocument();
+    expect(
+      screen.getByText('moduleApps.purchase.validUntil:2026-08-01T00:00:00.000Z'),
+    ).toBeInTheDocument();
 
     fireEvent.click(
-      await screen.findByRole('button', { name: /moduleApps\.purchase\.createOrder/ }),
+      await screen.findByRole('button', { name: /moduleApps\.purchase\.payWithAlipay/ }),
     );
     await waitFor(() =>
       expect(onCreateOrder).toHaveBeenCalledWith({
+        idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/i),
         productId: '00000000-0000-4000-8000-000000000002',
         workspaceId: 'workspace-1',
       }),

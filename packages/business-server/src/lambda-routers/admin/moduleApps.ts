@@ -2,20 +2,28 @@ import { recordModuleAppPayoutState } from '@lobechat/observability-otel/modules
 import {
   moduleAppAdminUpsertSchema,
   moduleAppBillingConfigSchema,
+  moduleAppCurrencySchema,
+  moduleAppDecimalStringSchema,
+  moduleAppLicenseScopeSchema,
   moduleAppPackageReviewStatusSchema,
   moduleAppPayoutStatusSchema,
   moduleAppPlanEntitlementSchema,
+  moduleAppProductSchema,
+  moduleAppProductTypeSchema,
+  moduleAppPromotionSnapshotSchema,
   moduleAppPublisherStatusSchema,
+  moduleAppRateStringSchema,
   moduleAppStatusSchema,
 } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import { ModuleAppPaymentModel } from '@/database/models/moduleAppPayment';
 import { ModuleAppPayoutModel } from '@/database/models/moduleAppPayout';
 import { ModuleAppPublisherModel } from '@/database/models/moduleAppPublisher';
-import type { LobeChatDatabase } from '@/database/type';
+import type { LobeChatDatabase, Transaction } from '@/database/type';
 import { appEnv } from '@/envs/app';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
@@ -32,8 +40,10 @@ import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../mod
 import { ModuleAppAdminReadModel } from './moduleApps.readModels';
 
 const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
-const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+const moduleAppReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppRead);
+const moduleAppWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppWrite);
 
 const assertPayoutRecordingEnabled = () =>
   assertModuleAppMutationEnabled(
@@ -95,6 +105,9 @@ const SettleOrderInputSchema = OrderIdInputSchema.extend({
 const RefundOrderInputSchema = OrderIdInputSchema.extend({
   reason: z.string().min(1).max(1000),
 });
+const OfflineRefundOrderInputSchema = RefundOrderInputSchema.extend({
+  offlineRefundReference: z.string().trim().min(1).max(240),
+});
 const PaymentQueryInputSchema = z.object({ outTradeNo: z.string().min(1).max(240) });
 const ReconcilePendingInputSchema = z.object({
   limit: z.number().int().min(1).max(200).default(100),
@@ -125,7 +138,13 @@ const SettleRevenueBatchInputSchema = z.object({
 const PublisherIdInputSchema = z.object({ publisherId: z.string().uuid() });
 const CreatePublisherInputSchema = z.object({
   displayName: z.string().trim().min(1).max(200),
-  recipientMask: z.string().trim().min(3).max(200).refine((value) => value.includes('*')).optional(),
+  recipientMask: z
+    .string()
+    .trim()
+    .min(3)
+    .max(200)
+    .refine((value) => value.includes('*'))
+    .optional(),
   userId: z.string().trim().min(1).max(255),
 });
 const VerifyPublisherInputSchema = PublisherIdInputSchema.extend({
@@ -157,7 +176,12 @@ const TransitionPayoutBatchInputSchema = PayoutBatchIdInputSchema.extend({
 });
 const RecordManualAlipayPayoutInputSchema = PayoutBatchIdInputSchema.extend({
   evidenceReference: z.string().trim().min(1).max(1000),
-  recipientMask: z.string().trim().min(3).max(200).refine((value) => value.includes('*')),
+  recipientMask: z
+    .string()
+    .trim()
+    .min(3)
+    .max(200)
+    .refine((value) => value.includes('*')),
   transactionNo: z.string().trim().min(1).max(240),
 });
 const ListPayoutsInputSchema = z
@@ -202,8 +226,64 @@ const EntitlementsInputSchema = z.object({
   entitlements: z.array(moduleAppPlanEntitlementSchema).max(100),
 });
 
+const ModuleAppProductPriceSchema = z.object({
+  amount: z.number().int().nonnegative().max(1_000_000_000),
+  billingPeriod: z.enum(['monthly', 'yearly']).optional(),
+  currency: moduleAppCurrencySchema,
+  promotion: moduleAppPromotionSnapshotSchema.optional(),
+  trialDays: z.number().int().min(0).max(365).optional(),
+});
+const ModuleAppProductFieldsSchema = z.object({
+  licenseScope: moduleAppLicenseScopeSchema,
+  moduleMultiplier: moduleAppDecimalStringSchema.optional(),
+  price: ModuleAppProductPriceSchema,
+  productType: moduleAppProductTypeSchema,
+  revenueShareRate: moduleAppRateStringSchema.optional(),
+  seatCount: z.number().int().positive().max(100_000).optional(),
+  termsVersion: z.string().trim().min(1).max(80).optional(),
+});
+const validateProductFields = (
+  input: z.infer<typeof ModuleAppProductFieldsSchema>,
+  ctx: z.RefinementCtx,
+) => {
+  const result = moduleAppProductSchema.safeParse({
+    billingPeriod: input.price.billingPeriod,
+    currency: input.price.currency,
+    licenseScope: input.licenseScope,
+    price: input.price.amount,
+    productType: input.productType,
+    seatCount: input.seatCount,
+    trialDays: input.price.trialDays,
+  });
+  if (result.success) return;
+
+  for (const issue of result.error.issues) {
+    const [field, ...rest] = issue.path;
+    const path =
+      field === 'price'
+        ? ['price', 'amount', ...rest]
+        : field === 'billingPeriod' || field === 'trialDays'
+          ? ['price', field, ...rest]
+          : issue.path;
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path });
+  }
+};
+const CreateProductInputSchema = AppIdInputSchema.extend({
+  ...ModuleAppProductFieldsSchema.shape,
+  productKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9][a-z0-9_-]*$/),
+}).superRefine(validateProductFields);
+const UpdateProductInputSchema = ModuleAppProductFieldsSchema.extend({
+  productId: z.string().uuid(),
+  status: z.enum(['active', 'inactive']),
+}).superRefine(validateProductFields);
+
 const writeAudit = async (
-  ctx: { serverDB: LobeChatDatabase; userId: string },
+  ctx: { serverDB: LobeChatDatabase | Transaction; userId: string },
   input: {
     eventType: string;
     metadata?: null | Record<string, unknown>;
@@ -273,7 +353,7 @@ const mapPublishError = (error: unknown) => {
 };
 
 export const adminModuleAppsRouter = router({
-  assignPublisher: contentWriteProcedure
+  assignPublisher: moduleAppWriteProcedure
     .input(AssignPublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppPublisherModel(ctx.serverDB).assignApplication(input);
@@ -318,7 +398,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  createPublisher: contentWriteProcedure
+  createPublisher: moduleAppWriteProcedure
     .input(CreatePublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppPublisherModel(ctx.serverDB).createPublisher(input);
@@ -331,7 +411,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  exportPaymentReconciliation: auditReadProcedure
+  exportPaymentReconciliation: financeReadProcedure
     .input(PaymentDiscrepancyListInputSchema)
     .query(async ({ ctx, input }) =>
       new ModuleAppPaymentModel(ctx.serverDB).listDiscrepancies({
@@ -340,31 +420,57 @@ export const adminModuleAppsRouter = router({
       }),
     ),
 
-  get: auditReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
+  createProduct: moduleAppWriteProcedure
+    .input(CreateProductInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
+      return ctx.serverDB.transaction(async (tx: Transaction) => {
+        const result = await new ModuleAppCommerceModel(tx as LobeChatDatabase).createProduct(
+          input,
+        );
+        await writeAudit(
+          { serverDB: tx, userId: ctx.userId },
+          {
+            eventType: 'module_app.product_created',
+            metadata: { appId: input.appId, productKey: input.productKey },
+            resourceId: result.id,
+            resourceType: 'moduleAppProduct',
+          },
+        );
+        return result;
+      });
+    }),
+
+  get: moduleAppReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
     return requireAdminApp(ctx.serverDB, input.appId);
   }),
 
-  list: auditReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {
+  list: moduleAppReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listApplications(input);
   }),
 
-  listPayouts: auditReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
+  listProducts: moduleAppReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
+    await requireAdminApp(ctx.serverDB, input.appId);
+    return new ModuleAppCommerceModel(ctx.serverDB).listProducts(input);
+  }),
+
+  listPayouts: financeReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listPayouts(input);
   }),
 
-  listPaymentDiagnostics: auditReadProcedure
+  listPaymentDiagnostics: financeReadProcedure
     .input(ListPaymentDiagnosticsInputSchema)
     .query(async ({ ctx, input }) => {
       return new ModuleAppAdminReadModel(ctx.serverDB).listPaymentDiagnostics(input);
     }),
 
-  listPublishers: auditReadProcedure
+  listPublishers: financeReadProcedure
     .input(ListPublishersInputSchema)
     .query(async ({ ctx, input }) => {
       return new ModuleAppAdminReadModel(ctx.serverDB).listPublishers(input);
     }),
 
-  listRevenue: auditReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
+  listRevenue: financeReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listRevenue(input);
   }),
 
@@ -403,13 +509,16 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  refundOrder: financeWriteProcedure.input(RefundOrderInputSchema).mutation(async ({ ctx, input }) => {
-    return new ModuleAppOrderRevenueService(ctx.serverDB).refundOrder({
-      actorUserId: ctx.userId,
-      orderId: input.orderId,
-      reason: input.reason,
-    });
-  }),
+  refundOrder: financeWriteProcedure
+    .input(OfflineRefundOrderInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return new ModuleAppOrderRevenueService(ctx.serverDB).refundOrder({
+        actorUserId: ctx.userId,
+        orderId: input.orderId,
+        reason: input.reason,
+        refundReference: `offline:${input.offlineRefundReference}`,
+      });
+    }),
 
   refundPaymentOrder: financeWriteProcedure
     .input(RefundOrderInputSchema)
@@ -454,12 +563,14 @@ export const adminModuleAppsRouter = router({
       ).reconcileRefund({ actorUserId: ctx.userId, orderId: input.orderId });
     }),
 
-  settleOrder: financeWriteProcedure.input(SettleOrderInputSchema).mutation(async ({ ctx, input }) => {
-    return new ModuleAppOrderRevenueService(ctx.serverDB).settleOrder({
-      actorUserId: ctx.userId,
-      ...input,
-    });
-  }),
+  settleOrder: financeWriteProcedure
+    .input(SettleOrderInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return new ModuleAppOrderRevenueService(ctx.serverDB).settleOrder({
+        actorUserId: ctx.userId,
+        ...input,
+      });
+    }),
 
   settleRevenueBatch: financeWriteProcedure
     .input(SettleRevenueBatchInputSchema)
@@ -470,7 +581,7 @@ export const adminModuleAppsRouter = router({
       });
     }),
 
-  suspendPublisher: contentWriteProcedure
+  suspendPublisher: moduleAppWriteProcedure
     .input(PublisherIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppPublisherModel(ctx.serverDB).suspendPublisher(input);
@@ -497,7 +608,27 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  getPackage: auditReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {
+  updateProduct: moduleAppWriteProcedure
+    .input(UpdateProductInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.serverDB.transaction(async (tx: Transaction) => {
+        const result = await new ModuleAppCommerceModel(tx as LobeChatDatabase).updateProduct(
+          input,
+        );
+        await writeAudit(
+          { serverDB: tx, userId: ctx.userId },
+          {
+            eventType: 'module_app.product_updated',
+            metadata: { status: input.status },
+            resourceId: input.productId,
+            resourceType: 'moduleAppProduct',
+          },
+        );
+        return result;
+      });
+    }),
+
+  getPackage: moduleAppReadProcedure.input(PackageIdInputSchema).query(async ({ ctx, input }) => {
     const submission = await new ModuleAppModel(ctx.serverDB).getAdminPackageSubmission(input);
 
     if (!submission) {
@@ -507,7 +638,7 @@ export const adminModuleAppsRouter = router({
     return submission;
   }),
 
-  listArtifacts: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
+  listArtifacts: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppAdminReadModel(ctx.serverDB).listArtifacts(input);
@@ -519,29 +650,29 @@ export const adminModuleAppsRouter = router({
     return new ModuleAppAdminReadModel(ctx.serverDB).listAuditEvents(input);
   }),
 
-  listPackages: auditReadProcedure.input(ListPackagesInputSchema).query(async ({ ctx, input }) => {
+  listPackages: moduleAppReadProcedure.input(ListPackagesInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listPackages(input);
   }),
 
-  listInstalls: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
+  listInstalls: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppAdminReadModel(ctx.serverDB).listInstalls(input);
   }),
 
-  listRecords: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
+  listRecords: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppAdminReadModel(ctx.serverDB).listRecords(input);
   }),
 
-  listRuns: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
+  listRuns: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     return new ModuleAppAdminReadModel(ctx.serverDB).listRuns(input);
   }),
 
-  publish: contentWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
+  publish: moduleAppWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     try {
@@ -554,7 +685,7 @@ export const adminModuleAppsRouter = router({
     return { ok: true };
   }),
 
-  approvePackage: contentWriteProcedure
+  approvePackage: moduleAppWriteProcedure
     .input(PackageIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       let result;
@@ -582,7 +713,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  rescanPackage: contentWriteProcedure
+  rescanPackage: moduleAppWriteProcedure
     .input(PackageIdInputSchema)
     .mutation(async ({ ctx, input }) => {
       let result;
@@ -611,7 +742,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  rejectPackage: contentWriteProcedure
+  rejectPackage: moduleAppWriteProcedure
     .input(RejectPackageInputSchema)
     .mutation(async ({ ctx, input }) => {
       let result;
@@ -640,7 +771,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  unpublish: contentWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
+  unpublish: moduleAppWriteProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     await new ModuleAppModel(ctx.serverDB).setStatus({ appId: input.appId, status: 'unpublished' });
@@ -649,43 +780,49 @@ export const adminModuleAppsRouter = router({
     return { ok: true };
   }),
 
-  upsert: contentWriteProcedure.input(moduleAppAdminUpsertSchema).mutation(async ({ ctx, input }) => {
-    const result = await new ModuleAppModel(ctx.serverDB).upsertAppForAdmin(input);
+  upsert: moduleAppWriteProcedure
+    .input(moduleAppAdminUpsertSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppModel(ctx.serverDB).upsertAppForAdmin(input);
 
-    await writeAudit(ctx, {
-      eventType: 'module_app.upserted',
-      metadata: { slug: input.slug, status: input.status },
-      resourceId: result.id,
-    });
+      await writeAudit(ctx, {
+        eventType: 'module_app.upserted',
+        metadata: { slug: input.slug, status: input.status },
+        resourceId: result.id,
+      });
 
-    return result;
-  }),
+      return result;
+    }),
 
-  upsertActions: contentWriteProcedure.input(ActionsInputSchema).mutation(async ({ ctx, input }) => {
-    await requireAdminApp(ctx.serverDB, input.appId);
+  upsertActions: moduleAppWriteProcedure
+    .input(ActionsInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
 
-    const result = await new ModuleAppModel(ctx.serverDB).upsertActionsForAdmin(input);
-    await writeAudit(ctx, {
-      eventType: 'module_app.actions_upserted',
-      metadata: { count: input.actions.length },
-      resourceId: input.appId,
-    });
+      const result = await new ModuleAppModel(ctx.serverDB).upsertActionsForAdmin(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.actions_upserted',
+        metadata: { count: input.actions.length },
+        resourceId: input.appId,
+      });
 
-    return result;
-  }),
+      return result;
+    }),
 
-  upsertBilling: financeWriteProcedure.input(BillingInputSchema).mutation(async ({ ctx, input }) => {
-    await requireAdminApp(ctx.serverDB, input.appId);
+  upsertBilling: financeWriteProcedure
+    .input(BillingInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
 
-    const result = await new ModuleAppModel(ctx.serverDB).upsertBillingForAdmin(input);
-    await writeAudit(ctx, {
-      eventType: 'module_app.billing_upserted',
-      metadata: { chargeMode: input.billing.chargeMode },
-      resourceId: input.appId,
-    });
+      const result = await new ModuleAppModel(ctx.serverDB).upsertBillingForAdmin(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.billing_upserted',
+        metadata: { chargeMode: input.billing.chargeMode },
+        resourceId: input.appId,
+      });
 
-    return result;
-  }),
+      return result;
+    }),
 
   upsertEntitlements: financeWriteProcedure
     .input(EntitlementsInputSchema)
@@ -702,7 +839,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  upsertPages: contentWriteProcedure.input(PagesInputSchema).mutation(async ({ ctx, input }) => {
+  upsertPages: moduleAppWriteProcedure.input(PagesInputSchema).mutation(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
 
     const result = await new ModuleAppModel(ctx.serverDB).upsertPagesForAdmin(input);
@@ -715,7 +852,7 @@ export const adminModuleAppsRouter = router({
     return result;
   }),
 
-  verifyPublisher: contentWriteProcedure
+  verifyPublisher: moduleAppWriteProcedure
     .input(VerifyPublisherInputSchema)
     .mutation(async ({ ctx, input }) => {
       const result = await new ModuleAppPublisherModel(ctx.serverDB).verifyPublisher(input);

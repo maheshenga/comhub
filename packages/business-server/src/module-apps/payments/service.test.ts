@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestDB } from '@/database/core/getTestDB';
@@ -16,10 +17,12 @@ import {
   moduleAppRevenueEntries,
   moduleApps,
   moduleAppSubscriptions,
+  moduleAppVersions,
   users,
 } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 
+import { ModuleAppOrderRevenueService } from '../revenue';
 import type { ModuleAppPaymentAdapter } from './contracts';
 import { ModuleAppPaymentService } from './service';
 
@@ -38,6 +41,7 @@ const createAdapter = (): ModuleAppPaymentAdapter => ({
 });
 
 beforeEach(async () => {
+  vi.restoreAllMocks();
   await serverDB.delete(moduleAppPaymentDiscrepancies);
   await serverDB.delete(moduleAppPaymentRefunds);
   await serverDB.delete(moduleAppPaymentEvents);
@@ -49,6 +53,7 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppOrders);
   await serverDB.delete(moduleAppPrices);
   await serverDB.delete(moduleAppProducts);
+  await serverDB.delete(moduleAppVersions);
   await serverDB.delete(moduleApps);
   await serverDB.delete(users);
   await serverDB.insert(users).values({ id: USER_ID });
@@ -62,6 +67,18 @@ beforeEach(async () => {
     slug: `payment-test-${crypto.randomUUID()}`,
     status: 'published',
   });
+  const [publishedVersion] = await serverDB
+    .insert(moduleAppVersions)
+    .values({
+      appId: APP_ID,
+      publishedAt: new Date('2026-07-14T00:00:00.000Z'),
+      version: '1.0.0',
+    })
+    .returning();
+  await serverDB
+    .update(moduleApps)
+    .set({ currentPublishedVersionId: publishedVersion.id })
+    .where(eq(moduleApps.id, APP_ID));
 });
 
 const createPendingOrder = async () => {
@@ -108,16 +125,21 @@ describe('ModuleAppPaymentService', () => {
       returnUrl: 'https://app.example.com/return',
       subject: 'Payment test',
     });
-    expect(adapter.create).toHaveBeenCalledWith(expect.objectContaining({
-      orderId: order.id,
-      totalAmount: '1234.000000',
-    }));
-    await expect(service.createPayment({
-      notifyUrl: 'https://app.example.com/notify',
-      orderId: order.id,
-      returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
-    })).resolves.toMatchObject({ outTradeNo: payment.outTradeNo });
+    expect(adapter.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currency: 'CNY',
+        orderId: order.id,
+        totalAmount: '1234.000000',
+      }),
+    );
+    await expect(
+      service.createPayment({
+        notifyUrl: 'https://app.example.com/notify',
+        orderId: order.id,
+        returnUrl: 'https://app.example.com/return',
+        subject: 'Payment test',
+      }),
+    ).resolves.toMatchObject({ outTradeNo: payment.outTradeNo });
     await expect(serverDB.query.moduleAppPaymentAttempts.findMany()).resolves.toHaveLength(1);
 
     (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -130,8 +152,54 @@ describe('ModuleAppPaymentService', () => {
       providerTransactionId: 'trade-1',
       totalAmount: '1234.000000',
     });
-    await expect(service.handleNotification({ body: 'signed', headers: {} })).resolves.toMatchObject({ duplicate: false, status: 'paid' });
-    await expect(service.handleNotification({ body: 'signed', headers: {} })).resolves.toMatchObject({ duplicate: true, status: 'paid' });
+    await expect(
+      service.handleNotification({ body: 'signed', headers: {} }),
+    ).resolves.toMatchObject({ duplicate: false, status: 'paid' });
+    await expect(
+      service.handleNotification({ body: 'signed', headers: {} }),
+    ).resolves.toMatchObject({ duplicate: true, status: 'paid' });
+  });
+
+  it('retries settlement when the same verified event previously failed to settle', async () => {
+    const adapter = createAdapter();
+    const settleOrder = vi
+      .fn<ModuleAppOrderRevenueService['settleOrder']>()
+      .mockRejectedValueOnce(new Error('temporary settlement failure'))
+      .mockImplementation((input) => new ModuleAppOrderRevenueService(serverDB).settleOrder(input));
+    const orderRevenueService = new ModuleAppOrderRevenueService(serverDB);
+    const service = new ModuleAppPaymentService(serverDB, adapter, undefined, {
+      refundOrder: orderRevenueService.refundOrder,
+      settleOrder,
+    });
+    const order = await createPendingOrder();
+    const payment = await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+      subject: 'Payment test',
+    });
+    (adapter.verifyNotification as ReturnType<typeof vi.fn>).mockResolvedValue({
+      currency: 'CNY',
+      eventId: 'notify-retry-settlement',
+      eventType: 'payment_succeeded',
+      occurredAt: new Date(),
+      outTradeNo: payment.outTradeNo,
+      provider: 'alipay',
+      providerTransactionId: 'trade-retry-settlement',
+      totalAmount: '1234.000000',
+    });
+    await expect(service.handleNotification({ body: 'signed', headers: {} })).rejects.toThrow(
+      'temporary settlement failure',
+    );
+
+    await expect(
+      service.handleNotification({ body: 'signed', headers: {} }),
+    ).resolves.toMatchObject({
+      duplicate: true,
+      status: 'paid',
+    });
+    expect(settleOrder).toHaveBeenCalledTimes(2);
+    await expect(serverDB.query.moduleAppLicenses.findMany()).resolves.toHaveLength(1);
   });
 
   it('records an amount discrepancy without settling the order', async () => {
@@ -154,9 +222,13 @@ describe('ModuleAppPaymentService', () => {
       totalAmount: '99.000000',
     });
 
-    await expect(service.handleNotification({ body: 'signed', headers: {} })).rejects.toThrow('MODULE_APP_PAYMENT_AMOUNT_MISMATCH');
+    await expect(service.handleNotification({ body: 'signed', headers: {} })).rejects.toThrow(
+      'MODULE_APP_PAYMENT_AMOUNT_MISMATCH',
+    );
     await expect(serverDB.query.moduleAppPaymentDiscrepancies.findMany()).resolves.toHaveLength(1);
-    await expect(serverDB.query.moduleAppOrders.findFirst()).resolves.toMatchObject({ status: 'pending' });
+    await expect(serverDB.query.moduleAppOrders.findFirst()).resolves.toMatchObject({
+      status: 'pending',
+    });
   });
 
   it('rejects a provider order id that does not match the server attempt', async () => {
@@ -209,10 +281,12 @@ describe('ModuleAppPaymentService', () => {
       .mockResolvedValueOnce({ ...event, eventId: 'notify-concurrent-1' })
       .mockResolvedValueOnce({ ...event, eventId: 'notify-concurrent-2' });
 
-    await expect(Promise.all([
-      service.handleNotification({ body: 'signed-1', headers: {} }),
-      service.handleNotification({ body: 'signed-2', headers: {} }),
-    ])).resolves.toHaveLength(2);
+    await expect(
+      Promise.all([
+        service.handleNotification({ body: 'signed-1', headers: {} }),
+        service.handleNotification({ body: 'signed-2', headers: {} }),
+      ]),
+    ).resolves.toHaveLength(2);
     await expect(serverDB.query.moduleAppLicenses.findMany()).resolves.toHaveLength(1);
   });
 
@@ -237,9 +311,30 @@ describe('ModuleAppPaymentService', () => {
       totalAmount: '1234.000000',
     });
     await service.handleNotification({ body: 'signed', headers: {} });
-    await expect(service.refundOrder({ orderId: order.id, reason: 'customer request' })).resolves.toMatchObject({ status: 'refunded' });
-    await expect(service.refundOrder({ orderId: order.id, reason: 'customer request' })).resolves.toMatchObject({ status: 'refunded' });
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'customer request' }),
+    ).resolves.toMatchObject({ status: 'refunded' });
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'customer request' }),
+    ).resolves.toMatchObject({ status: 'refunded' });
     expect(adapter.refund).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a pending order before calling the refund provider', async () => {
+    const adapter = createAdapter();
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+      subject: 'Payment test',
+    });
+
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'customer request' }),
+    ).rejects.toThrow('MODULE_APP_ORDER_NOT_REFUNDABLE');
+    expect(adapter.refund).not.toHaveBeenCalled();
   });
 
   it('reconciles a provider-paid pending order and records the state mismatch', async () => {
@@ -263,7 +358,9 @@ describe('ModuleAppPaymentService', () => {
       totalAmount: '1234.000000',
     });
 
-    await expect(service.reconcilePayment({ outTradeNo: payment.outTradeNo })).resolves.toMatchObject({
+    await expect(
+      service.reconcilePayment({ outTradeNo: payment.outTradeNo }),
+    ).resolves.toMatchObject({
       status: 'paid',
     });
     await expect(serverDB.query.moduleAppPaymentDiscrepancies.findFirst()).resolves.toMatchObject({
@@ -294,7 +391,9 @@ describe('ModuleAppPaymentService', () => {
     await service.handleNotification({ body: 'signed', headers: {} });
     (adapter.query as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-    await expect(service.reconcilePayment({ outTradeNo: payment.outTradeNo })).resolves.toMatchObject({
+    await expect(
+      service.reconcilePayment({ outTradeNo: payment.outTradeNo }),
+    ).resolves.toMatchObject({
       localStatus: 'paid',
       providerStatus: 'pending',
     });

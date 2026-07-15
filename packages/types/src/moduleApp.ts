@@ -61,6 +61,15 @@ export const moduleAppInputFieldSchema = z.object({
   helpText: z.string().max(500).optional(),
   key: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
   label: z.string().min(1).max(80),
+  options: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(80),
+        value: z.union([z.string().max(240), z.number().finite(), z.boolean()]),
+      }),
+    )
+    .max(100)
+    .optional(),
   required: z.boolean().default(false),
   type: z.enum(['text', 'textarea', 'number', 'boolean', 'select', 'date']),
   validationPattern: z.string().max(300).optional(),

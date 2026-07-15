@@ -1,4 +1,4 @@
-import { Plans } from '@lobechat/types';
+import { ADMIN_ROLE_IDS, Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, asc, count, desc, eq, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -12,7 +12,12 @@ import {
   users,
 } from '@/database/schemas';
 import type { Transaction } from '@/database/type';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import {
+  ADMIN_CAPABILITIES,
+  adminCapabilityProcedure,
+  adminProcedure,
+  router,
+} from '@/libs/trpc/lambda';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
@@ -211,8 +216,11 @@ export const resetAllUsersToFreePlan = async (
   });
 };
 
+const supportWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.supportWrite);
+const userReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userRead);
+
 export const adminUsersRouter = router({
-  ban: adminProcedure
+  ban: supportWriteProcedure
     .input(
       z.object({
         banReason: z.string().max(500).optional(),
@@ -233,7 +241,7 @@ export const adminUsersRouter = router({
       return { ok: true };
     }),
 
-  detail: adminProcedure
+  detail: userReadProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const u = await ctx.serverDB.query.users.findFirst({
@@ -243,7 +251,7 @@ export const adminUsersRouter = router({
       return u;
     }),
 
-  fullDetail: adminProcedure
+  fullDetail: supportWriteProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const { userId } = input;
@@ -287,7 +295,7 @@ export const adminUsersRouter = router({
       };
     }),
 
-  list: adminProcedure
+  list: supportWriteProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),
@@ -411,7 +419,7 @@ export const adminUsersRouter = router({
   setRole: adminProcedure
     .input(
       z.object({
-        role: z.enum(['admin', 'user']).nullable(),
+        role: z.enum([...ADMIN_ROLE_IDS, 'user']).nullable(),
         userId: z.string().min(1),
       }),
     )
@@ -430,7 +438,7 @@ export const adminUsersRouter = router({
       return { ok: true };
     }),
 
-  unban: adminProcedure
+  unban: supportWriteProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       await ctx.serverDB
@@ -445,7 +453,7 @@ export const adminUsersRouter = router({
       return { ok: true };
     }),
 
-  exportAll: adminProcedure
+  exportAll: userReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(50_000).default(10_000),
@@ -506,7 +514,7 @@ export const adminUsersRouter = router({
       return { ok: true, ...result };
     }),
 
-  recordImpersonationAttempt: adminProcedure
+  recordImpersonationAttempt: supportWriteProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       if (input.userId === ctx.userId) {

@@ -8,10 +8,11 @@ readonly PREVIOUS_IMAGE_FILE="$SCRIPT_DIR/.previous-image"
 readonly PROJECT_NAME='comhub-module-worker'
 readonly SERVICE='module-app-worker'
 readonly DOCKER_BIN="${DOCKER_BIN:-docker}"
-readonly PSQL_BIN="${PSQL_BIN:-psql}"
+readonly INSTALL_BIN="${INSTALL_BIN:-install}"
 readonly DOCKER_BIN_SCRIPT="${DOCKER_BIN_SCRIPT:-}"
-readonly PSQL_BIN_SCRIPT="${PSQL_BIN_SCRIPT:-}"
+readonly INSTALL_BIN_SCRIPT="${INSTALL_BIN_SCRIPT:-}"
 readonly REQUIRED_ENV_KEYS=(
+  COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL
   DATABASE_URL
   MODULE_APP_ARTIFACT_ROOT
   S3_ACCESS_KEY_ID
@@ -126,7 +127,14 @@ require_immutable_image() {
 
 verify_migration() {
   local column_count
-  column_count="$(PGOPTIONS='-c default_transaction_read_only=on' run_psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "
+  column_count="$(run_docker run --rm --network host \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --tmpfs /tmp:size=16m,noexec,nosuid \
+    -e 'PGOPTIONS=-c default_transaction_read_only=on' \
+    postgres:17-alpine \
+    psql "$COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc "
     BEGIN READ ONLY;
     SELECT count(*)
     FROM information_schema.columns
@@ -138,13 +146,18 @@ verify_migration() {
   [[ "$column_count" == '4' ]] || die 'migration 0144 columns are not present'
 }
 
-run_psql() {
-  if [[ -n "$PSQL_BIN_SCRIPT" ]]; then
-    "$PSQL_BIN" -- "$PSQL_BIN_SCRIPT" "$@"
+prepare_artifact_root() {
+  [[ "$MODULE_APP_ARTIFACT_ROOT" == /* ]] || die 'MODULE_APP_ARTIFACT_ROOT must be absolute'
+  run_install -d -o 10001 -g 10001 -m 0750 -- "$MODULE_APP_ARTIFACT_ROOT"
+}
+
+run_install() {
+  if [[ -n "$INSTALL_BIN_SCRIPT" ]]; then
+    "$INSTALL_BIN" -- "$INSTALL_BIN_SCRIPT" "$@"
     return
   fi
 
-  "$PSQL_BIN" "$@"
+  "$INSTALL_BIN" "$@"
 }
 
 resolve_symlink_target() {
@@ -304,10 +317,11 @@ main() {
   [[ $# -eq 1 ]] || die "usage: $0 <immutable-image-ref>"
   require_immutable_image "$1"
   require_command "$DOCKER_BIN"
-  require_command "$PSQL_BIN"
+  require_command "$INSTALL_BIN"
   load_environment
   export COMHUB_MODULE_WORKER_IMAGE="$1"
   verify_migration
+  prepare_artifact_root
   record_current_image
   compose config --format json >/dev/null
   compose pull "$SERVICE"

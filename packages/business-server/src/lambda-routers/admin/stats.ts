@@ -1,12 +1,14 @@
 import { and, count, eq, gte, sql } from 'drizzle-orm';
 
 import { redemptionCodes, topUpOrders, userPlanSnapshots, users } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
+
 export const adminStatsRouter = router({
-  overview: adminProcedure.query(async ({ ctx }) => {
+  overview: financeReadProcedure.query(async ({ ctx }) => {
     await syncExpiredSubscriptionsToFree(ctx.serverDB);
 
     const now = new Date();
@@ -62,7 +64,7 @@ export const adminStatsRouter = router({
     };
   }),
 
-  dauTrend: adminProcedure.query(async ({ ctx }) => {
+  dauTrend: financeReadProcedure.query(async ({ ctx }) => {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -83,7 +85,7 @@ export const adminStatsRouter = router({
     }));
   }),
 
-  subscriptionsByPlan: adminProcedure.query(async ({ ctx }) => {
+  subscriptionsByPlan: financeReadProcedure.query(async ({ ctx }) => {
     await syncExpiredSubscriptionsToFree(ctx.serverDB);
 
     const rows = await ctx.serverDB
@@ -98,7 +100,7 @@ export const adminStatsRouter = router({
     }));
   }),
 
-  revenueByMonth: adminProcedure.query(async ({ ctx }) => {
+  revenueByMonth: financeReadProcedure.query(async ({ ctx }) => {
     await syncExpiredSubscriptionsToFree(ctx.serverDB);
 
     const now = new Date();
@@ -161,7 +163,7 @@ export const adminStatsRouter = router({
    * authoritative on credits-type codes; topup_package values are excluded
    * because the underlying package credits live elsewhere).
    */
-  redemptionOverview: adminProcedure.query(async ({ ctx }) => {
+  redemptionOverview: financeReadProcedure.query(async ({ ctx }) => {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const [

@@ -6,13 +6,14 @@ import { z } from 'zod';
 import { CommercialModel } from '@/database/models/commercial';
 import { subscriptionChangeRequests, userPlanSnapshots } from '@/database/schemas';
 import type { Transaction } from '@/database/type';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
 const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const;
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 export const adminSubscriptionsRouter = router({
@@ -83,7 +84,7 @@ export const adminSubscriptionsRouter = router({
       return { ok: true };
     }),
 
-  getUserSubscription: adminProcedure
+  getUserSubscription: financeReadProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       await syncExpiredSubscriptionsToFree(ctx.serverDB);
@@ -95,7 +96,7 @@ export const adminSubscriptionsRouter = router({
       return snapshot ?? null;
     }),
 
-  list: adminProcedure
+  list: financeReadProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),
@@ -126,7 +127,7 @@ export const adminSubscriptionsRouter = router({
     }),
 
   // ---- Subscription Change Requests ----
-  listChangeRequests: adminProcedure
+  listChangeRequests: financeReadProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),

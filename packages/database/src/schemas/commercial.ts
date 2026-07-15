@@ -59,6 +59,9 @@ export const userPlanSnapshots = pgTable(
   (table) => [
     index('user_plan_snapshots_user_id_idx').on(table.userId),
     index('user_plan_snapshots_user_started_at_idx').on(table.userId, table.startedAt),
+    uniqueIndex('user_plan_snapshots_one_active_per_user_unique')
+      .on(table.userId)
+      .where(sql`${table.status} = 'active'`),
   ],
 );
 
@@ -89,6 +92,9 @@ export const subscriptionChangeRequests = pgTable(
   (table) => [
     index('subscription_change_requests_user_id_idx').on(table.userId),
     index('subscription_change_requests_user_status_idx').on(table.userId, table.status),
+    uniqueIndex('subscription_change_requests_one_pending_per_user_unique')
+      .on(table.userId)
+      .where(sql`${table.status} = 'pending'`),
   ],
 );
 
@@ -193,6 +199,11 @@ export const creditLedgerEntries = pgTable(
       .where(
         sql`${table.referenceType} = 'video_generation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
       ),
+    uniqueIndex('credit_ledger_entries_ai_usage_reservation_unique_idx')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'ai_usage_reservation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
+      ),
     uniqueIndex('credit_ledger_entries_module_app_reservation_unique_idx')
       .on(table.userId, table.referenceType, table.referenceId, table.type)
       .where(
@@ -202,6 +213,11 @@ export const creditLedgerEntries = pgTable(
       .on(table.userId, table.referenceType, table.referenceId, table.type)
       .where(
         sql`${table.referenceType} = 'module_app_workspace_transfer' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
+      ),
+    uniqueIndex('credit_ledger_entries_subscription_period_unique')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'subscription_snapshot_period' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'subscription_grant'`,
       ),
   ],
 );
@@ -341,6 +357,9 @@ export const topUpOrders = pgTable(
   (table) => [
     index('top_up_orders_user_id_idx').on(table.userId),
     uniqueIndex('top_up_orders_external_order_id_idx').on(table.provider, table.externalOrderId),
+    uniqueIndex('top_up_orders_redemption_code_unique')
+      .on(table.redemptionCodeId)
+      .where(sql`${table.redemptionCodeId} IS NOT NULL`),
   ],
 );
 

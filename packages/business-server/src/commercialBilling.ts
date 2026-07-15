@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import { AgentRuntimeError, type ChatStreamPayload } from '@lobechat/model-runtime';
 import { ChatErrorType } from '@lobechat/types';
@@ -6,6 +8,7 @@ import { type AiProviderModelListItem } from 'model-bank';
 
 import { AiProviderModel } from '@/database/models/aiProvider';
 import { type AiUsageRouteMetadata, CommercialModel } from '@/database/models/commercial';
+import { ModuleAppCreditModel } from '@/database/models/moduleAppCredit';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
 import { type LobeChatDatabase } from '@/database/type';
 import { getServerGlobalConfig } from '@/server/globalConfig';
@@ -29,6 +32,18 @@ const APPROX_VIDEO_INPUT_TOKENS = 2048;
 const DEFAULT_ESTIMATED_OUTPUT_TOKENS = 1024;
 const MIN_ESTIMATED_OUTPUT_TOKENS = 256;
 const MAX_ESTIMATED_OUTPUT_TOKENS = 8192;
+const MAX_RESERVATION_IDEMPOTENCY_KEY_LENGTH = 240;
+
+const buildCommercialReservationIdempotencyKey = (
+  userId: string,
+  usageType: CommercialAiUsageType,
+  operationId: string,
+) => {
+  const key = `commercial-ai:${userId}:${usageType}:${operationId}`;
+  if (key.length <= MAX_RESERVATION_IDEMPOTENCY_KEY_LENGTH) return key;
+
+  return `commercial-ai:${createHash('sha256').update(key).digest('hex')}`;
+};
 
 const hasUserManagedCredential = (keyVaults?: Record<string, unknown>) =>
   USER_MANAGED_CREDENTIAL_FIELDS.some((field) => {
@@ -115,17 +130,19 @@ const estimatePayloadCreditsFromPricing = (
 const getProviderModelCard = async ({
   db,
   model,
+  modelType = 'chat',
   provider,
   userId,
 }: {
   db: LobeChatDatabase;
   model: string;
+  modelType?: 'chat' | 'embedding';
   provider: string;
   userId: string;
 }) => {
   const { aiProvider } = await getServerGlobalConfig(db);
   const aiInfraRepos = new AiInfraRepos(db, userId, aiProvider as Record<string, ProviderConfig>);
-  const models = await aiInfraRepos.getAiProviderModelList(provider, { type: 'chat' });
+  const models = await aiInfraRepos.getAiProviderModelList(provider, { type: modelType });
 
   return models.find((item) => item.id === model);
 };
@@ -149,6 +166,40 @@ export const estimateCommercialChatCredits = async ({
   });
 
   return estimatePayloadCreditsFromPricing(payload, modelCard);
+};
+
+const estimateEmbeddingInputTokens = (input: unknown): number => {
+  if (typeof input === 'string') return estimateTextTokens(input);
+  if (!Array.isArray(input)) return 0;
+  if (input.every((item) => typeof item === 'number')) return input.length;
+
+  return input.reduce<number>((sum, item) => sum + estimateEmbeddingInputTokens(item), 0);
+};
+
+export const estimateCommercialEmbeddingsCredits = async ({
+  db,
+  input,
+  model,
+  provider,
+  userId,
+}: {
+  db: LobeChatDatabase;
+  input: unknown;
+  model: string;
+  provider: string;
+  userId: string;
+}) => {
+  const modelCard = await getProviderModelCard({
+    db,
+    model,
+    modelType: 'embedding',
+    provider,
+    userId,
+  });
+  const inputRate = getTextInputUnitRate(modelCard?.pricing);
+  if (!inputRate) return undefined;
+
+  return Math.max(1, Math.ceil(estimateEmbeddingInputTokens(input) * inputRate));
 };
 
 export const shouldChargeCommercialUsage = async ({
@@ -379,6 +430,144 @@ export const recordCommercialAiUsage = async ({
     usageType,
   });
 };
+
+export const reserveCommercialAiUsage = async ({
+  db,
+  estimatedCredits,
+  model,
+  operationId,
+  provider,
+  routeMetadata,
+  usageType,
+  userId,
+}: {
+  db: LobeChatDatabase;
+  estimatedCredits?: number;
+  model: string;
+  operationId: string;
+  provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
+  usageType: CommercialAiUsageType;
+  userId: string;
+}) => {
+  const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
+  if (!shouldCharge) return null;
+
+  const amount = Math.max(
+    1,
+    Math.ceil(
+      typeof estimatedCredits === 'number' && Number.isFinite(estimatedCredits)
+        ? estimatedCredits
+        : 1,
+    ),
+  );
+  const creditModel = new ModuleAppCreditModel(db);
+
+  return creditModel.reserve({
+    amount,
+    idempotencyKey: buildCommercialReservationIdempotencyKey(userId, usageType, operationId),
+    metadata: {
+      model,
+      operationId,
+      provider,
+      ...(routeMetadata ? { routeMetadata } : {}),
+      usageType,
+    },
+    payer: { scopeType: 'personal', userId },
+    requireNew: true,
+  });
+};
+
+export const settleCommercialAiUsageReservation = async ({
+  db,
+  estimatedCredits,
+  model,
+  operationId,
+  provider,
+  reservationId,
+  routeMetadata,
+  title = 'AI Usage',
+  usage,
+  usageType,
+  userId,
+}: {
+  db: LobeChatDatabase;
+  estimatedCredits?: number;
+  model: string;
+  operationId: string;
+  provider: string;
+  reservationId: string;
+  routeMetadata?: AiUsageRouteMetadata;
+  title?: string;
+  usage?: CommercialUsagePayload;
+  usageType: CommercialAiUsageType;
+  userId: string;
+}) => {
+  let actualAmount = Math.max(1, Math.ceil(estimatedCredits ?? 1));
+  let billingMetadata: Record<string, unknown> = {
+    costSource: 'estimated-reservation',
+  };
+
+  if (usage) {
+    const modelCard = await getProviderModelCard({
+      db,
+      model,
+      modelType: usageType === 'embeddings' ? 'embedding' : 'chat',
+      provider,
+      userId,
+    });
+    const resolved = resolveEffectiveCost(usage, modelCard, usageType);
+    if (resolved) {
+      const quote = await new CommercialModel(db, userId).quoteCreditsForAiUsage({
+        model,
+        provider,
+        routeMetadata,
+        usage: { cost: resolved.usdCost },
+      });
+      actualAmount = Math.max(0, quote.amount);
+      billingMetadata = {
+        chargedCredits: actualAmount,
+        costSource: resolved.costSource,
+        creditsPerDollar: quote.creditsPerDollar,
+        matchedPricingRule: quote.matchedPricingRule,
+        pricingMultiplier: quote.pricingMultiplier,
+        usdCost: resolved.usdCost,
+      };
+    }
+  }
+
+  return new ModuleAppCreditModel(db).settle({
+    actualAmount,
+    ledger: {
+      description: `Consumed on ${provider}/${model}`,
+      referenceType: 'ai_usage_reservation',
+      title,
+    },
+    metadata: {
+      ...billingMetadata,
+      estimatedCredits: Math.max(1, Math.ceil(estimatedCredits ?? 1)),
+      model,
+      operationId,
+      provider,
+      ...(routeMetadata ? { routeMetadata } : {}),
+      totalInputTokens: usage?.totalInputTokens ?? 0,
+      totalOutputTokens: usage?.totalOutputTokens ?? 0,
+      totalTokens: usage?.totalTokens ?? 0,
+      usageType,
+    },
+    reservationId,
+  });
+};
+
+export const releaseCommercialAiUsageReservation = async ({
+  db,
+  reason,
+  reservationId,
+}: {
+  db: LobeChatDatabase;
+  reason: string;
+  reservationId: string;
+}) => new ModuleAppCreditModel(db).release({ reason, reservationId });
 
 export const quoteCommercialAiUsage = async ({
   db,

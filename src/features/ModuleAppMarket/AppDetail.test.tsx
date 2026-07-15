@@ -2,9 +2,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import AppDetail from './AppDetail';
+import AppDetail, { submitModuleAppPaymentForm } from './AppDetail';
 
 const commerceState = vi.hoisted(() => ({
+  installed: false,
   licenseLoading: false,
   licenseMutate: vi.fn(),
   orderStatus: 'pending',
@@ -25,6 +26,7 @@ vi.mock('swr', () => ({
           description: 'Recruitment workflow',
           displayName: 'Recruiting Desk',
           id: 'app-1',
+          installed: commerceState.installed,
           source: 'developer',
           version: '1.0.0',
         },
@@ -65,7 +67,12 @@ vi.mock('swr', () => ({
       return {
         data: [
           { appId: 'app-1', id: 'order-1', status: commerceState.orderStatus, workspaceId: null },
-          { appId: 'app-1', id: 'order-team', status: commerceState.orderStatus, workspaceId: 'workspace-1' },
+          {
+            appId: 'app-1',
+            id: 'order-team',
+            status: commerceState.orderStatus,
+            workspaceId: 'workspace-1',
+          },
         ],
         isLoading: false,
         isValidating: false,
@@ -100,6 +107,7 @@ vi.mock('./PurchaseModal', () => ({
 describe('ModuleAppDetail', () => {
   beforeEach(() => {
     commerceState.licenseLoading = false;
+    commerceState.installed = false;
     commerceState.licenseMutate.mockReset();
     commerceState.orderStatus = 'pending';
   });
@@ -137,6 +145,20 @@ describe('ModuleAppDetail', () => {
     expect(screen.getByText('workspace-1')).toBeInTheDocument();
   });
 
+  it('shows open and uninstall actions for an installed workspace app', () => {
+    commerceState.installed = true;
+    render(
+      <MemoryRouter initialEntries={['/apps/app-1?workspaceId=workspace-1']}>
+        <Routes>
+          <Route element={<AppDetail />} path="/apps/:appId" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'moduleApps.market.open' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'moduleApps.market.uninstall' })).toBeInTheDocument();
+  });
+
   it('blocks checkout while commerce state is loading', () => {
     commerceState.licenseLoading = true;
     render(
@@ -147,9 +169,7 @@ describe('ModuleAppDetail', () => {
       </MemoryRouter>,
     );
 
-    expect(
-      screen.getByRole('button', { name: /moduleApps\.purchase\.pending/ }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: /moduleApps\.purchase\.pending/ })).toBeDisabled();
   });
 
   it('refreshes the license after an order becomes paid', async () => {
@@ -163,5 +183,41 @@ describe('ModuleAppDetail', () => {
     );
 
     await waitFor(() => expect(commerceState.licenseMutate).toHaveBeenCalled());
+  });
+
+  it('submits the signed HTTPS payment form returned by the server', () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+
+    submitModuleAppPaymentForm(
+      '<form action="https://openapi.alipay.com/gateway.do" method="post"><input type="hidden" name="sign" value="signed" /></form>',
+    );
+
+    expect(submit).toHaveBeenCalledTimes(1);
+    const form = document.body.querySelector(
+      'form[action="https://openapi.alipay.com/gateway.do"]',
+    );
+    expect(form).toHaveAttribute('method', 'post');
+    expect(form?.querySelector('input[name="sign"]')).toHaveAttribute('value', 'signed');
+    form?.remove();
+  });
+
+  it('rebuilds the payment form without executable attributes or arbitrary elements', () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+
+    submitModuleAppPaymentForm(
+      '<form action="https://openapi.alipay.com/gateway.do" method="post" onsubmit="alert(1)">' +
+        '<input type="hidden" name="sign" value="signed" onfocus="alert(1)" />' +
+        '<button name="unexpected">Run</button><script>alert(1)</script></form>',
+    );
+
+    const form = document.body.querySelector(
+      'form[action="https://openapi.alipay.com/gateway.do"]',
+    );
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(form).not.toHaveAttribute('onsubmit');
+    expect(form?.querySelector('input[name="sign"]')).not.toHaveAttribute('onfocus');
+    expect(form?.querySelector('button')).toBeNull();
+    expect(form?.querySelector('script')).toBeNull();
+    form?.remove();
   });
 });

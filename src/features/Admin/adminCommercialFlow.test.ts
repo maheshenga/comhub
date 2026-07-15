@@ -385,7 +385,7 @@ describe('admin commercial flow pages', () => {
     const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
     const governanceCard = readRepoFile('src/features/Admin/AdminSettingsGovernanceCard.tsx');
 
-    expect(settingsRouter).toContain('getGovernance: adminProcedure.query');
+    expect(settingsRouter).toContain('getGovernance: systemReadProcedure.query');
     expect(settingsRouter).toContain('deleteUnknownSetting: systemWriteProcedure');
     expect(service).toContain('getAppSettingsGovernance');
     expect(service).toContain('admin.settings.getGovernance.query()');
@@ -484,6 +484,7 @@ describe('admin commercial flow pages', () => {
   });
 
   it('uses the provider-neutral admin route for service provider management', () => {
+    const adminCatalog = readRepoFile('src/features/Admin/adminCatalog.ts');
     const desktopRouteRegistry = readRepoFile('src/business/client/adminSettingsRouteRegistry.ts');
 
     expect(existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/providers/index.tsx'))).toBe(
@@ -493,7 +494,7 @@ describe('admin commercial flow pages', () => {
       existsSync(path.resolve(repoRoot, 'src/routes/(main)/admin/newapi-providers/index.tsx')),
     ).toBe(false);
     expect(desktopRouteRegistry).toContain("import('@/routes/(main)/admin/providers')");
-    expect(desktopRouteRegistry).toContain("segment: 'providers'");
+    expect(adminCatalog).toContain("segment: 'providers'");
     expect(desktopRouteRegistry).not.toContain('newapi-providers');
   });
 
@@ -535,6 +536,15 @@ describe('admin commercial flow pages', () => {
     expect(redemptionPage).toContain('AdminBulkActionFlow');
     expect(redemptionPage).toContain('actionId="redemption.bulkDisable"');
     expect(redemptionPage).toContain('actionId="redemption.bulkDelete"');
+  });
+
+  it('exposes module app product and price management from the selected app view', () => {
+    const moduleAppsPage = readRepoFile('src/features/Admin/moduleApps/index.tsx');
+
+    expect(moduleAppsPage).toContain("import ProductManager from './ProductManager'");
+    expect(moduleAppsPage).toContain('<ProductManager appId={selectedAppId} />');
+    expect(moduleAppsPage).toContain("key: 'products'");
+    expect(moduleAppsPage).toContain("label: 'Products'");
   });
 
   it('localizes centralized dangerous action confirmation microcopy', () => {

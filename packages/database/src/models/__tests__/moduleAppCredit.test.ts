@@ -65,6 +65,19 @@ describe('ModuleAppCreditModel', () => {
     ).resolves.toHaveLength(0);
   });
 
+  it('can require a fresh reservation before dispatching an external side effect', async () => {
+    const model = new ModuleAppCreditModel(serverDB);
+    const input = {
+      amount: 60,
+      idempotencyKey: 'external-side-effect',
+      payer: { scopeType: 'personal' as const, userId: USER_ID },
+      requireNew: true,
+    };
+
+    await expect(model.reserve(input)).resolves.toMatchObject({ status: 'active' });
+    await expect(model.reserve(input)).rejects.toThrow('MODULE_APP_CREDIT_IDEMPOTENCY_REPLAY');
+  });
+
   it('prevents active reservations from exceeding available user balance', async () => {
     const model = new ModuleAppCreditModel(serverDB);
     const results = await Promise.allSettled([
@@ -146,8 +159,16 @@ describe('ModuleAppCreditModel', () => {
     });
 
     const [first, second] = await Promise.all([
-      model.settle({ actualAmount: 65, metadata: { runId: 'run-1' }, reservationId: reservation.id }),
-      model.settle({ actualAmount: 65, metadata: { runId: 'run-1' }, reservationId: reservation.id }),
+      model.settle({
+        actualAmount: 65,
+        metadata: { runId: 'run-1' },
+        reservationId: reservation.id,
+      }),
+      model.settle({
+        actualAmount: 65,
+        metadata: { runId: 'run-1' },
+        reservationId: reservation.id,
+      }),
     ]);
 
     expect(second.ledgerEntryId).toBe(first.ledgerEntryId);
@@ -165,6 +186,40 @@ describe('ModuleAppCreditModel', () => {
         ),
       }),
     ).toHaveLength(1);
+  });
+
+  it('supports a general AI ledger identity without changing reservation semantics', async () => {
+    const model = new ModuleAppCreditModel(serverDB);
+    const reservation = await model.reserve({
+      amount: 30,
+      idempotencyKey: 'commercial-ai:user:chat:operation-1',
+      payer: { scopeType: 'personal', userId: USER_ID },
+    });
+
+    await model.settle({
+      actualAmount: 20,
+      ledger: {
+        description: 'Consumed on openai/gpt-test',
+        referenceType: 'ai_usage_reservation',
+        title: 'AI Chat Usage',
+      },
+      metadata: { operationId: 'operation-1' },
+      reservationId: reservation.id,
+    });
+
+    await expect(
+      serverDB.query.creditLedgerEntries.findFirst({
+        where: and(
+          eq(creditLedgerEntries.userId, USER_ID),
+          eq(creditLedgerEntries.referenceType, 'ai_usage_reservation'),
+          eq(creditLedgerEntries.referenceId, reservation.id),
+        ),
+      }),
+    ).resolves.toMatchObject({
+      amount: -20,
+      description: 'Consumed on openai/gpt-test',
+      title: 'AI Chat Usage',
+    });
   });
 
   it('releases a reservation without debiting the payer', async () => {

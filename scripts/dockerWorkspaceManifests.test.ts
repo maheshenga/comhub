@@ -26,17 +26,63 @@ describe('Docker workspace manifests', () => {
 
     expect(workflow).toContain('resolve_deployment:');
     expect(workflow).toContain("needs.resolve_deployment.outputs.deploy == 'true'");
-    expect(workflow).toContain(
-      "needs.resolve_deployment.outputs.deploy_module_worker == 'true'",
-    );
-    expect(workflow).toContain(
-      "needs.resolve_deployment.outputs.verify_module_app_full == 'true'",
-    );
+    expect(workflow).toContain("needs.resolve_deployment.outputs.deploy_module_worker == 'true'");
+    expect(workflow).toContain("needs.resolve_deployment.outputs.verify_module_app_full == 'true'");
 
     const jobs = parse(workflow).jobs as Record<string, { if?: string }>;
     expect(jobs.deploy.if).toContain('always()');
     expect(jobs.deploy.if).toContain("needs.build.result == 'success'");
     expect(jobs['deploy-module-worker'].if).toContain('always()');
     expect(jobs['deploy-module-worker'].if).toContain("needs.build.result == 'success'");
+  });
+
+  it('bootstraps an absent worker environment from the running production app', () => {
+    const workflow = readFileSync(
+      path.join(root, '.github', 'workflows', 'comhub-deploy.yml'),
+      'utf8',
+    );
+
+    expect(workflow).toContain('bootstrap_worker_environment()');
+    expect(workflow).toContain('docker inspect comhub-app');
+    expect(workflow).toContain('COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL');
+    expect(workflow).toContain('DATABASE_URL=$worker_database_url');
+    expect(workflow).toContain('COMHUB_PLATFORM_NETWORK=paradedb_default');
+    expect(workflow).toContain(
+      'MODULE_APP_ARTIFACT_ROOT=/www/compose/comhub/module-worker/artifacts',
+    );
+    expect(workflow).toContain('chmod 0600 "$worker_deploy_dir/.env"');
+    expect(workflow).toContain('[ -f "$worker_deploy_dir/.env" ] || bootstrap_worker_environment');
+  });
+
+  it('keeps every Module App mutation flag closed in the main post-deploy gate', () => {
+    const workflow = readFileSync(
+      path.join(root, '.github', 'workflows', 'comhub-deploy.yml'),
+      'utf8',
+    );
+    const gateStart = workflow.indexOf('Running post-deploy runtime smoke checks');
+    const gateEnd = workflow.indexOf('if docker compose config --services', gateStart);
+    const gate = workflow.slice(gateStart, gateEnd);
+
+    expect(gate).toContain('MODULE_APP_EXECUTION_ENABLED');
+    expect(gate).toContain('MODULE_APP_RUNTIME_INVOCATION_ENABLED');
+    expect(gate.match(/MODULE_APP_[A-Z_]+_ENABLED/g)).toHaveLength(8);
+  });
+
+  it('requires commercial and certificate-aware production verification gates', () => {
+    const workflow = readFileSync(
+      path.join(root, '.github', 'workflows', 'comhub-deploy.yml'),
+      'utf8',
+    );
+    const verification = readFileSync(
+      path.join(root, 'scripts', 'verifyModuleAppProduction.mjs'),
+      'utf8',
+    );
+
+    expect(workflow).toContain('MODULE_APP_ALIPAY_APP_CERT_SN');
+    expect(workflow).toContain('MODULE_APP_ALIPAY_ROOT_CERT_SN');
+    expect(verification).toContain("'src/commercialBilling.test.ts'");
+    expect(verification).toContain("'src/models/__tests__/commercial.test.ts'");
+    expect(verification).toContain("'src/models/__tests__/moduleAppCommerce.test.ts'");
+    expect(verification).toContain("TEST_SERVER_DB: '1'");
   });
 });

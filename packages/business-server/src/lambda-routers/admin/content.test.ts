@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import path from 'node:path';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -166,10 +166,7 @@ describe('admin content router', () => {
   });
 
   it('does not select document body content for admin list rows', () => {
-    const source = readFileSync(
-      join(process.cwd(), 'src/business/server/lambda-routers/admin/content.ts'),
-      'utf8',
-    );
+    const source = readFileSync(path.join(__dirname, 'content.ts'), 'utf8');
 
     expect(source).not.toContain('content: documents.content');
   });

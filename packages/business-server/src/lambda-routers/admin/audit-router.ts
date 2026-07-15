@@ -2,7 +2,7 @@ import { and, count, desc, eq, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { adminAuditLogs } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 const auditFilterInput = z.object({
   action: z.string().optional(),
@@ -38,8 +38,10 @@ const buildAuditWhere = ({
   return conditions.length > 0 ? and(...conditions) : undefined;
 };
 
+const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
+
 export const adminAuditRouter = router({
-  list: adminProcedure
+  list: auditReadProcedure
     .input(
       auditFilterInput.extend({
         cursor: z.number().int().min(0).default(0),
@@ -67,7 +69,7 @@ export const adminAuditRouter = router({
       };
     }),
 
-  exportAll: adminProcedure
+  exportAll: auditReadProcedure
     .input(
       auditFilterInput.extend({
         limit: z.number().int().min(1).max(10_000).default(5000),

@@ -1,4 +1,4 @@
-import type { Plans } from '@lobechat/types';
+import type { AdminRole, Plans } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
 import type { SubscriptionCycleType } from '@/types/business';
@@ -69,7 +69,7 @@ class AdminCommercialService {
     return lambdaClient.admin.users.unban.mutate({ userId });
   };
 
-  setUserRole = async (params: { role: 'admin' | 'user' | null; userId: string }) => {
+  setUserRole = async (params: { role: AdminRole | 'user' | null; userId: string }) => {
     return lambdaClient.admin.users.setRole.mutate(params);
   };
 
@@ -226,6 +226,23 @@ class AdminCommercialService {
 
   // Module apps
   moduleApps = {
+    createProduct: (input: {
+      appId: string;
+      licenseScope: 'personal' | 'workspace' | 'workspace_seat';
+      moduleMultiplier?: string;
+      price: {
+        amount: number;
+        billingPeriod?: 'monthly' | 'yearly';
+        currency: string;
+        promotion?: Record<string, unknown>;
+        trialDays?: number;
+      };
+      productKey: string;
+      productType: 'free' | 'one_time' | 'subscription';
+      revenueShareRate?: string;
+      seatCount?: number;
+      termsVersion?: string;
+    }) => lambdaClient.admin.moduleApps.createProduct.mutate(input as any),
     get: (input: { appId: string }) => lambdaClient.admin.moduleApps.get.query(input),
     approvePackage: (input: { packageId: string }) =>
       lambdaClient.admin.moduleApps.approvePackage.mutate(input),
@@ -288,6 +305,8 @@ class AdminCommercialService {
       paymentStatus?: 'created' | 'failed' | 'paid' | 'pending' | 'refunded';
       refundStatus?: 'failed' | 'requested' | 'succeeded';
     }) => lambdaClient.admin.moduleApps.listPaymentDiagnostics.query(input as any),
+    listProducts: (input: { appId: string }) =>
+      lambdaClient.admin.moduleApps.listProducts.query(input),
     publish: (input: { appId: string }) => lambdaClient.admin.moduleApps.publish.mutate(input),
     rejectPackage: (input: { packageId: string; reason?: string }) =>
       lambdaClient.admin.moduleApps.rejectPackage.mutate(input),
@@ -305,6 +324,23 @@ class AdminCommercialService {
       lambdaClient.admin.moduleApps.upsertEntitlements.mutate(input as any),
     upsertPages: (input: { appId: string; pages: unknown[] }) =>
       lambdaClient.admin.moduleApps.upsertPages.mutate(input as any),
+    updateProduct: (input: {
+      licenseScope: 'personal' | 'workspace' | 'workspace_seat';
+      moduleMultiplier?: string;
+      price: {
+        amount: number;
+        billingPeriod?: 'monthly' | 'yearly';
+        currency: string;
+        promotion?: Record<string, unknown>;
+        trialDays?: number;
+      };
+      productId: string;
+      productType: 'free' | 'one_time' | 'subscription';
+      revenueShareRate?: string;
+      seatCount?: number;
+      status: 'active' | 'inactive';
+      termsVersion?: string;
+    }) => lambdaClient.admin.moduleApps.updateProduct.mutate(input as any),
   };
 
   // Orders

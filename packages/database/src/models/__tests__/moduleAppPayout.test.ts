@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -11,6 +12,7 @@ import {
   moduleAppPublishers,
   moduleAppRevenueEntries,
   moduleApps,
+  moduleAppVersions,
   users,
 } from '../../schemas';
 import type { LobeChatDatabase } from '../../type';
@@ -31,29 +33,43 @@ beforeEach(async () => {
   await serverDB.delete(moduleApps);
   await serverDB.delete(moduleAppPublishers);
   await serverDB.delete(users);
-  await serverDB.insert(users).values([
-    { id: PUBLISHER_USER_ID },
-    { id: ADMIN_USER_ID },
-  ]);
+  await serverDB.insert(users).values([{ id: PUBLISHER_USER_ID }, { id: ADMIN_USER_ID }]);
 });
 
-const createEligibleRevenue = async () => {
-  const [publisher] = await serverDB.insert(moduleAppPublishers).values({
-    displayName: 'Payout Studio',
-    recipientMask: 'ali***@example.com',
-    status: 'verified',
-    userId: PUBLISHER_USER_ID,
-  }).returning();
-  const [app] = await serverDB.insert(moduleApps).values({
-    appType: 'standard_app',
-    category: 'commerce',
-    description: 'Payout app',
-    displayName: 'Payout app',
-    icon: 'Store',
-    publisherId: publisher.id,
-    slug: `payout-${crypto.randomUUID()}`,
-    status: 'published',
-  }).returning();
+const createEligibleRevenue = async ({
+  createdAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+  reserveAmount = 0,
+}: { createdAt?: Date; reserveAmount?: number } = {}) => {
+  const [publisher] = await serverDB
+    .insert(moduleAppPublishers)
+    .values({
+      displayName: 'Payout Studio',
+      recipientMask: 'ali***@example.com',
+      status: 'verified',
+      userId: PUBLISHER_USER_ID,
+    })
+    .returning();
+  const [app] = await serverDB
+    .insert(moduleApps)
+    .values({
+      appType: 'standard_app',
+      category: 'commerce',
+      description: 'Payout app',
+      displayName: 'Payout app',
+      icon: 'Store',
+      publisherId: publisher.id,
+      slug: `payout-${crypto.randomUUID()}`,
+      status: 'published',
+    })
+    .returning();
+  const [publishedVersion] = await serverDB
+    .insert(moduleAppVersions)
+    .values({ appId: app.id, publishedAt: createdAt, version: '1.0.0' })
+    .returning();
+  await serverDB
+    .update(moduleApps)
+    .set({ currentPublishedVersionId: publishedVersion.id })
+    .where(eq(moduleApps.id, app.id));
   const commerce = new ModuleAppCommerceModel(serverDB);
   const product = await commerce.createProduct({
     appId: app.id,
@@ -66,30 +82,36 @@ const createEligibleRevenue = async () => {
     productId: product.id,
     purchaserUserId: ADMIN_USER_ID,
   });
-  const [revenue] = await serverDB.insert(moduleAppRevenueEntries).values({
-    appId: app.id,
-    currency: 'CNY',
-    developerAmount: 80,
-    grossAmount: 100,
-    orderId: order.id,
-    platformFee: 20,
-    publisherId: publisher.id,
-    publisherUserId: PUBLISHER_USER_ID,
-    reserveAmount: 0,
-    type: 'accrual',
-  }).returning();
+  const [revenue] = await serverDB
+    .insert(moduleAppRevenueEntries)
+    .values({
+      appId: app.id,
+      currency: 'CNY',
+      createdAt,
+      developerAmount: 80,
+      grossAmount: 100,
+      orderId: order.id,
+      platformFee: 20,
+      publisherId: publisher.id,
+      publisherUserId: PUBLISHER_USER_ID,
+      reserveAmount,
+      type: 'accrual',
+    })
+    .returning();
   return { app, publisher, revenue };
 };
 
 describe('ModuleAppPayoutModel', () => {
   it('runs the payout state machine and records one manual Alipay transaction', async () => {
-    const { app, publisher, revenue } = await createEligibleRevenue();
+    const { publisher, revenue } = await createEligibleRevenue();
     const model = new ModuleAppPayoutModel(serverDB);
-    await expect(model.createEligibleBatch({
-      publisherId: publisher.id,
-      requestedAmount: 81,
-      revenueEntryIds: [revenue.id],
-    })).rejects.toThrow('MODULE_APP_PAYOUT_AMOUNT_EXCEEDS_ELIGIBLE');
+    await expect(
+      model.createEligibleBatch({
+        publisherId: publisher.id,
+        requestedAmount: 81,
+        revenueEntryIds: [revenue.id],
+      }),
+    ).rejects.toThrow('MODULE_APP_PAYOUT_AMOUNT_EXCEEDS_ELIGIBLE');
 
     const batch = await model.createEligibleBatch({
       publisherId: publisher.id,
@@ -109,20 +131,24 @@ describe('ModuleAppPayoutModel', () => {
     await expect(
       model.transitionBatch({ batchId: batch.id, status: 'processing' }),
     ).resolves.toMatchObject({ failureReason: null, status: 'processing' });
-    await expect(model.recordManualAlipayPayout({
-      actorUserId: ADMIN_USER_ID,
-      batchId: batch.id,
-      evidenceReference: 's3://evidence/payout-1.pdf',
-      recipientMask: 'ali***@example.com',
-      transactionNo: 'alipay-txn-1',
-    })).resolves.toMatchObject({ status: 'paid', transactionNo: 'alipay-txn-1' });
-    await expect(model.recordManualAlipayPayout({
-      actorUserId: ADMIN_USER_ID,
-      batchId: batch.id,
-      evidenceReference: 's3://evidence/payout-1.pdf',
-      recipientMask: 'ali***@example.com',
-      transactionNo: 'alipay-txn-1',
-    })).resolves.toMatchObject({ status: 'paid' });
+    await expect(
+      model.recordManualAlipayPayout({
+        actorUserId: ADMIN_USER_ID,
+        batchId: batch.id,
+        evidenceReference: 's3://evidence/payout-1.pdf',
+        recipientMask: 'ali***@example.com',
+        transactionNo: 'alipay-txn-1',
+      }),
+    ).resolves.toMatchObject({ status: 'paid', transactionNo: 'alipay-txn-1' });
+    await expect(
+      model.recordManualAlipayPayout({
+        actorUserId: ADMIN_USER_ID,
+        batchId: batch.id,
+        evidenceReference: 's3://evidence/payout-1.pdf',
+        recipientMask: 'ali***@example.com',
+        transactionNo: 'alipay-txn-1',
+      }),
+    ).resolves.toMatchObject({ status: 'paid' });
     await expect(
       model.transitionBatch({ batchId: batch.id, status: 'reversed' }),
     ).resolves.toMatchObject({ status: 'reversed' });
@@ -136,38 +162,10 @@ describe('ModuleAppPayoutModel', () => {
         where: (rows, { eq }) => eq(rows.batchId, batch.id),
       }),
     ).resolves.toMatchObject({ status: 'reversed' });
-
-    const commerce = new ModuleAppCommerceModel(serverDB);
-    const secondProduct = await commerce.createProduct({
-      appId: app.id,
-      licenseScope: 'personal',
-      price: { amount: 50, currency: 'CNY' },
-      productKey: `payout-second-${crypto.randomUUID()}`,
-      productType: 'one_time',
-    });
-    const secondOrder = await commerce.createOrder({
-      productId: secondProduct.id,
-      purchaserUserId: ADMIN_USER_ID,
-    });
-    const [secondRevenue] = await serverDB
-      .insert(moduleAppRevenueEntries)
-      .values({
-        appId: app.id,
-        currency: 'CNY',
-        developerAmount: 40,
-        grossAmount: 50,
-        orderId: secondOrder.id,
-        platformFee: 10,
-        publisherId: publisher.id,
-        publisherUserId: PUBLISHER_USER_ID,
-        reserveAmount: 0,
-        type: 'accrual',
-      })
-      .returning();
     const secondBatch = await model.createEligibleBatch({
       publisherId: publisher.id,
-      requestedAmount: 40,
-      revenueEntryIds: [secondRevenue.id],
+      requestedAmount: 80,
+      revenueEntryIds: [revenue.id],
     });
     await expect(
       model.recordManualAlipayPayout({
@@ -203,5 +201,35 @@ describe('ModuleAppPayoutModel', () => {
         revenueEntryIds: [revenue.id],
       }),
     ).rejects.toThrow('MODULE_APP_PAYOUT_REVENUE_NOT_ELIGIBLE');
+  });
+
+  it('enforces the payout delay and releases refundable reserve when eligible', async () => {
+    const fresh = await createEligibleRevenue({ createdAt: new Date(), reserveAmount: 10 });
+    const model = new ModuleAppPayoutModel(serverDB);
+
+    await expect(
+      model.createEligibleBatch({
+        publisherId: fresh.publisher.id,
+        requestedAmount: 90,
+        revenueEntryIds: [fresh.revenue.id],
+      }),
+    ).rejects.toThrow('MODULE_APP_PAYOUT_REVENUE_NOT_ELIGIBLE');
+
+    await serverDB
+      .update(moduleAppRevenueEntries)
+      .set({ createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) })
+      .where(eq(moduleAppRevenueEntries.id, fresh.revenue.id));
+
+    const batch = await model.createEligibleBatch({
+      publisherId: fresh.publisher.id,
+      requestedAmount: 90,
+      revenueEntryIds: [fresh.revenue.id],
+    });
+    expect(batch.totalAmount).toBe(90);
+    await expect(
+      serverDB.query.moduleAppPayoutEntries.findFirst({
+        where: (rows, { eq }) => eq(rows.batchId, batch.id),
+      }),
+    ).resolves.toMatchObject({ amount: 90 });
   });
 });

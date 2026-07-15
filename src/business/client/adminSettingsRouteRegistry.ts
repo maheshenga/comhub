@@ -1,170 +1,82 @@
 import type { ComponentType } from 'react';
 
-export type AdminSettingsRouteRegistryItem = {
-  debugId: string;
-  importPage: () => Promise<{ default: ComponentType } | ComponentType>;
-  segment: string;
+import {
+  ADMIN_CATALOG,
+  type AdminCatalogId,
+  type AdminFeatureStatus,
+  ADMIN_LEGACY_ROUTES,
+} from '@/features/Admin/adminCatalog';
+
+type ImportPage = () => Promise<{ default: ComponentType } | ComponentType>;
+type AdminLegacyRouteSegment = (typeof ADMIN_LEGACY_ROUTES)[number]['segment'];
+
+const ADMIN_PAGE_IMPORTS: Record<AdminCatalogId, ImportPage> = {
+  audit: () => import('@/routes/(main)/admin/audit'),
+  credits: () => import('@/routes/(main)/admin/credits'),
+  'desktop-update': () => import('@/routes/(main)/admin/desktop-update'),
+  documents: () => import('@/routes/(main)/admin/documents'),
+  'expert-plaza': () => import('@/routes/(main)/admin/expert-plaza'),
+  'file-storage': () => import('@/routes/(main)/admin/file-storage'),
+  files: () => import('@/routes/(main)/admin/files'),
+  growth: () => import('@/routes/(main)/admin/growth'),
+  maintenance: () => import('@/routes/(main)/admin/maintenance'),
+  'model-billing-matrix': () => import('@/routes/(main)/admin/model-billing-matrix'),
+  'model-policy': () => import('@/routes/(main)/admin/model-policy'),
+  'module-apps': () => import('@/routes/(main)/admin/module-apps'),
+  notifications: () => import('@/routes/(main)/admin/notifications'),
+  operations: () => import('@/routes/(main)/admin/operations'),
+  orders: () => import('@/routes/(main)/admin/orders'),
+  overview: () => import('@/routes/(main)/admin/overview'),
+  plans: () => import('@/routes/(main)/admin/plans'),
+  ppt: () => import('@/routes/(main)/admin/ppt'),
+  providers: () => import('@/routes/(main)/admin/providers'),
+  recommendations: () => import('@/routes/(main)/admin/recommendations'),
+  redemption: () => import('@/routes/(main)/admin/redemption'),
+  settings: () => import('@/routes/(main)/admin/settings'),
+  stats: () => import('@/routes/(main)/admin/stats'),
+  subscriptions: () => import('@/routes/(main)/admin/subscriptions'),
+  'system-defaults': () => import('@/routes/(main)/admin/system-defaults'),
+  topics: () => import('@/routes/(main)/admin/topics'),
+  users: () => import('@/routes/(main)/admin/users'),
 };
 
-export const ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS = [
-  'topup',
-  'pricing',
-  'change-requests',
-] as const;
+const ADMIN_LEGACY_PAGE_IMPORTS: Record<AdminLegacyRouteSegment, ImportPage> = {
+  'change-requests': () => import('@/routes/(main)/admin/change-requests'),
+  pricing: () => import('@/routes/(main)/admin/pricing'),
+  topup: () => import('@/routes/(main)/admin/topup'),
+};
 
-export const ADMIN_SETTINGS_ROUTE_REGISTRY = [
-  {
-    debugId: 'Desktop > Admin > Overview',
-    importPage: () => import('@/routes/(main)/admin/overview'),
-    segment: '',
-  },
-  {
-    debugId: 'Desktop > Admin > Users',
-    importPage: () => import('@/routes/(main)/admin/users'),
-    segment: 'users',
-  },
-  {
-    debugId: 'Desktop > Admin > Plans',
-    importPage: () => import('@/routes/(main)/admin/plans'),
-    segment: 'plans',
-  },
-  {
-    debugId: 'Desktop > Admin > TopUp',
-    importPage: () => import('@/routes/(main)/admin/topup'),
-    segment: 'topup',
-  },
-  {
-    debugId: 'Desktop > Admin > Orders',
-    importPage: () => import('@/routes/(main)/admin/orders'),
-    segment: 'orders',
-  },
-  {
-    debugId: 'Desktop > Admin > Credits',
-    importPage: () => import('@/routes/(main)/admin/credits'),
-    segment: 'credits',
-  },
-  {
-    debugId: 'Desktop > Admin > Pricing',
-    importPage: () => import('@/routes/(main)/admin/pricing'),
-    segment: 'pricing',
-  },
-  {
-    debugId: 'Desktop > Admin > Recommendations',
-    importPage: () => import('@/routes/(main)/admin/recommendations'),
-    segment: 'recommendations',
-  },
-  {
-    debugId: 'Desktop > Admin > Operations',
-    importPage: () => import('@/routes/(main)/admin/operations'),
-    segment: 'operations',
-  },
-  {
-    debugId: 'Desktop > Admin > Growth',
-    importPage: () => import('@/routes/(main)/admin/growth'),
-    segment: 'growth',
-  },
-  {
-    debugId: 'Desktop > Admin > Model Policy',
-    importPage: () => import('@/routes/(main)/admin/model-policy'),
-    segment: 'model-policy',
-  },
-  {
-    debugId: 'Desktop > Admin > Providers',
-    importPage: () => import('@/routes/(main)/admin/providers'),
-    segment: 'providers',
-  },
-  {
-    debugId: 'Desktop > Admin > Model Billing Matrix',
-    importPage: () => import('@/routes/(main)/admin/model-billing-matrix'),
-    segment: 'model-billing-matrix',
-  },
-  {
-    debugId: 'Desktop > Admin > PPT',
-    importPage: () => import('@/routes/(main)/admin/ppt'),
-    segment: 'ppt',
-  },
-  {
-    debugId: 'Desktop > Admin > Module Apps',
-    importPage: () => import('@/routes/(main)/admin/module-apps'),
-    segment: 'module-apps',
-  },
-  {
-    debugId: 'Desktop > Admin > Subscriptions',
-    importPage: () => import('@/routes/(main)/admin/subscriptions'),
-    segment: 'subscriptions',
-  },
-  {
-    debugId: 'Desktop > Admin > Change Requests',
-    importPage: () => import('@/routes/(main)/admin/change-requests'),
-    segment: 'change-requests',
-  },
-  {
-    debugId: 'Desktop > Admin > Redemption',
-    importPage: () => import('@/routes/(main)/admin/redemption'),
-    segment: 'redemption',
-  },
-  {
-    debugId: 'Desktop > Admin > Settings',
-    importPage: () => import('@/routes/(main)/admin/settings'),
-    segment: 'settings',
-  },
-  {
-    debugId: 'Desktop > Admin > Notifications',
-    importPage: () => import('@/routes/(main)/admin/notifications'),
-    segment: 'notifications',
-  },
-  {
-    debugId: 'Desktop > Admin > Expert Plaza',
-    importPage: () => import('@/routes/(main)/admin/expert-plaza'),
-    segment: 'expert-plaza',
-  },
-  {
-    debugId: 'Desktop > Admin > Stats',
-    importPage: () => import('@/routes/(main)/admin/stats'),
-    segment: 'stats',
-  },
-  {
-    debugId: 'Desktop > Admin > Audit',
-    importPage: () => import('@/routes/(main)/admin/audit'),
-    segment: 'audit',
-  },
-  {
-    debugId: 'Desktop > Admin > File Storage',
-    importPage: () => import('@/routes/(main)/admin/file-storage'),
-    segment: 'file-storage',
-  },
-  {
-    debugId: 'Desktop > Admin > System Defaults',
-    importPage: () => import('@/routes/(main)/admin/system-defaults'),
-    segment: 'system-defaults',
-  },
-  {
-    debugId: 'Desktop > Admin > Maintenance',
-    importPage: () => import('@/routes/(main)/admin/maintenance'),
-    segment: 'maintenance',
-  },
-  {
-    debugId: 'Desktop > Admin > Topics',
-    importPage: () => import('@/routes/(main)/admin/topics'),
-    segment: 'topics',
-  },
-  {
-    debugId: 'Desktop > Admin > Files',
-    importPage: () => import('@/routes/(main)/admin/files'),
-    segment: 'files',
-  },
-  {
-    debugId: 'Desktop > Admin > Documents',
-    importPage: () => import('@/routes/(main)/admin/documents'),
-    segment: 'documents',
-  },
-  {
-    debugId: 'Desktop > Admin > Desktop Update',
-    importPage: () => import('@/routes/(main)/admin/desktop-update'),
-    segment: 'desktop-update',
-  },
-] satisfies AdminSettingsRouteRegistryItem[];
+export type AdminSettingsRouteRegistryItem = {
+  debugId: string;
+  id: string;
+  importPage: ImportPage;
+  segment: string;
+  status: AdminFeatureStatus;
+};
 
+const visibleRoutes: AdminSettingsRouteRegistryItem[] = ADMIN_CATALOG.map((item) => ({
+  debugId: item.debugId,
+  id: item.id,
+  importPage: ADMIN_PAGE_IMPORTS[item.id],
+  segment: item.segment,
+  status: item.status,
+}));
+
+const compatibilityRoutes: AdminSettingsRouteRegistryItem[] = ADMIN_LEGACY_ROUTES.map(
+  ({ segment }) => ({
+    debugId: `Desktop > Admin > Legacy > ${segment}`,
+    id: `legacy-${segment}`,
+    importPage: ADMIN_LEGACY_PAGE_IMPORTS[segment],
+    segment,
+    status: 'compatibility',
+  }),
+);
+
+export const ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS = ADMIN_LEGACY_ROUTES.map(
+  (route) => route.segment,
+);
+
+export const ADMIN_SETTINGS_ROUTE_REGISTRY = [...visibleRoutes, ...compatibilityRoutes];
 export const ADMIN_SETTINGS_ROUTE_SEGMENTS = ADMIN_SETTINGS_ROUTE_REGISTRY.map(
   (route) => route.segment,
 );

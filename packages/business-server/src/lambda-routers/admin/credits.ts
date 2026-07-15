@@ -3,10 +3,11 @@ import { z } from 'zod';
 
 import { creditAccounts, creditLedgerEntries } from '@/database/schemas';
 import type { Transaction } from '@/database/type';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 const creditAccountAuditSnapshot = {
@@ -97,7 +98,7 @@ export const adminCreditsRouter = router({
       return { ok: true };
     }),
 
-  getBalance: adminProcedure
+  getBalance: financeReadProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.serverDB.query.creditAccounts.findFirst({
@@ -107,7 +108,7 @@ export const adminCreditsRouter = router({
       return { balance: row?.balance ?? 0, currency: row?.currency ?? 'credits' };
     }),
 
-  ledger: adminProcedure
+  ledger: financeReadProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),
@@ -135,7 +136,7 @@ export const adminCreditsRouter = router({
    * Global credit-account list, ordered by selected metric. Supports a
    * `negativeOnly` filter to surface anomalous accounts.
    */
-  listAccounts: adminProcedure
+  listAccounts: financeReadProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),

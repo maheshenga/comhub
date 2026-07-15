@@ -1,19 +1,24 @@
 // @vitest-environment node
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { describe, expect, it } from 'vitest';
 
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../../../migrations');
+const migrationsDir = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../migrations',
+);
 const migrationTag = '0129_workspace_device_and_ai_infra_surrogate_pk';
 
-const readMigration = () => readFileSync(join(migrationsDir, `${migrationTag}.sql`), 'utf8');
+const readMigration = () => readFileSync(path.join(migrationsDir, `${migrationTag}.sql`), 'utf8');
 
 describe('ComHub v2.2.7 workspace/device/aiInfra migration chain', () => {
   it('appends the upstream structural migration as a later ComHub migration', () => {
-    const journal = JSON.parse(readFileSync(join(migrationsDir, 'meta/_journal.json'), 'utf8')) as {
+    const journal = JSON.parse(
+      readFileSync(path.join(migrationsDir, 'meta/_journal.json'), 'utf8'),
+    ) as {
       entries: { idx: number; tag: string; when: number }[];
     };
 
@@ -30,14 +35,14 @@ describe('ComHub v2.2.7 workspace/device/aiInfra migration chain', () => {
     expect(entry.when).toBeGreaterThan(Math.max(...previousEntries.map((item) => item.when)));
 
     const migrations = readMigrationFiles({ migrationsFolder: migrationsDir });
-    const lastMigration = migrations.at(-1);
+    const migration = migrations.find((item) => item.folderMillis === entry.when);
 
-    expect(lastMigration?.folderMillis).toBe(entry.when);
-    expect(lastMigration?.sql[0]).toContain('ComHub carry-forward of upstream v2.2.7');
+    expect(migration?.folderMillis).toBe(entry.when);
+    expect(migration?.sql[0]).toContain('ComHub carry-forward of upstream v2.2.7');
   });
 
   it('contains the v2.2.7 aiInfra, device, and workspace structural changes', () => {
-    expect(existsSync(join(migrationsDir, `${migrationTag}.sql`))).toBe(true);
+    expect(existsSync(path.join(migrationsDir, `${migrationTag}.sql`))).toBe(true);
 
     const sql = readMigration();
 

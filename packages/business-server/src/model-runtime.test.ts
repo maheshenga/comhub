@@ -8,9 +8,14 @@ const mocks = vi.hoisted(() => ({
   assertCommercialMinimumBudget: vi.fn(),
   assertModelPolicyAllowed: vi.fn(),
   assertPlanModelAllowed: vi.fn(),
+  estimateCommercialChatCredits: vi.fn(),
+  estimateCommercialEmbeddingsCredits: vi.fn(),
   getServerDB: vi.fn(),
   recordCommercialAiUsage: vi.fn(),
   recordCommercialChatUsage: vi.fn(),
+  releaseCommercialAiUsageReservation: vi.fn(),
+  reserveCommercialAiUsage: vi.fn(),
+  settleCommercialAiUsageReservation: vi.fn(),
 }));
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -20,8 +25,13 @@ vi.mock('@/database/core/db-adaptor', () => ({
 vi.mock('./commercialBilling', () => ({
   assertCommercialChatBudget: mocks.assertCommercialChatBudget,
   assertCommercialMinimumBudget: mocks.assertCommercialMinimumBudget,
+  estimateCommercialChatCredits: mocks.estimateCommercialChatCredits,
+  estimateCommercialEmbeddingsCredits: mocks.estimateCommercialEmbeddingsCredits,
   recordCommercialAiUsage: mocks.recordCommercialAiUsage,
   recordCommercialChatUsage: mocks.recordCommercialChatUsage,
+  releaseCommercialAiUsageReservation: mocks.releaseCommercialAiUsageReservation,
+  reserveCommercialAiUsage: mocks.reserveCommercialAiUsage,
+  settleCommercialAiUsageReservation: mocks.settleCommercialAiUsageReservation,
 }));
 
 vi.mock('./planModelRules', () => ({
@@ -36,9 +46,12 @@ describe('getBusinessModelRuntimeHooks', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getServerDB.mockResolvedValue({ id: 'db' });
+    mocks.estimateCommercialChatCredits.mockResolvedValue(25);
+    mocks.estimateCommercialEmbeddingsCredits.mockResolvedValue(5);
+    mocks.reserveCommercialAiUsage.mockResolvedValue({ id: 'reservation-1', status: 'active' });
   });
 
-  it('should check commercial budget before chat starts', async () => {
+  it('should reserve commercial budget before chat starts', async () => {
     const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi', {
       groupKey: 'pro',
       groupName: 'Pro Group',
@@ -52,10 +65,19 @@ describe('getBusinessModelRuntimeHooks', () => {
 
     await hooks?.beforeChat?.(payload);
 
-    expect(mocks.assertCommercialChatBudget).toHaveBeenCalledWith({
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith({
       db: { id: 'db' },
-      payload,
+      estimatedCredits: 25,
+      model: 'gpt-test',
+      operationId: expect.any(String),
       provider: 'newapi',
+      routeMetadata: {
+        groupKey: 'pro',
+        groupName: 'Pro Group',
+        instanceId: 'instance-pro',
+        instanceName: 'NewAPI Pro',
+      },
+      usageType: 'chat',
       userId: 'user-1',
     });
     expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
@@ -88,15 +110,24 @@ describe('getBusinessModelRuntimeHooks', () => {
       providerAliases: ['newapi'],
       usageType: 'chat',
     });
-    expect(mocks.assertCommercialChatBudget).toHaveBeenCalledWith({
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith({
       db: { id: 'db' },
-      payload,
+      estimatedCredits: 25,
+      model: 'gpt-test',
+      operationId: expect.any(String),
       provider: 'siliconflow-id',
+      routeMetadata: {
+        groupKey: 'pro',
+        instanceId: 'siliconflow-id',
+        instanceName: 'SiliconFlow',
+        providerType: 'newapi',
+      },
+      usageType: 'chat',
       userId: 'user-1',
     });
   });
 
-  it('should check commercial budget before structured output starts', async () => {
+  it('should reserve commercial budget before structured output starts', async () => {
     const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
     const payload = {
       messages: [{ content: 'hello', role: 'user' }],
@@ -106,10 +137,13 @@ describe('getBusinessModelRuntimeHooks', () => {
 
     await hooks?.beforeGenerateObject?.(payload);
 
-    expect(mocks.assertCommercialChatBudget).toHaveBeenCalledWith({
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith({
       db: { id: 'db' },
-      payload,
+      estimatedCredits: 25,
+      model: 'gpt-test',
+      operationId: expect.any(String),
       provider: 'newapi',
+      usageType: 'generate_object',
       userId: 'user-1',
     });
     expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
@@ -120,15 +154,18 @@ describe('getBusinessModelRuntimeHooks', () => {
     });
   });
 
-  it('should check minimum commercial budget before embeddings start', async () => {
+  it('should reserve commercial budget before embeddings start', async () => {
     const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
 
     await hooks?.beforeEmbeddings?.({ input: 'hello', model: 'embedding-test' });
 
-    expect(mocks.assertCommercialMinimumBudget).toHaveBeenCalledWith({
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith({
       db: { id: 'db' },
+      estimatedCredits: 5,
       model: 'embedding-test',
+      operationId: expect.any(String),
       provider: 'newapi',
+      usageType: 'embeddings',
       userId: 'user-1',
     });
     expect(mocks.assertPlanModelAllowed).toHaveBeenCalledWith({
@@ -325,6 +362,110 @@ describe('getBusinessModelRuntimeHooks', () => {
     expect(mocks.assertModelPolicyAllowed).toHaveBeenCalled();
     expect(mocks.assertPlanModelAllowed).toHaveBeenCalled();
     expect(mocks.assertCommercialChatBudget).not.toHaveBeenCalled();
+    expect(mocks.reserveCommercialAiUsage).not.toHaveBeenCalled();
+  });
+
+  it('should settle a reserved chat against final usage', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
+    const payload = {
+      messages: [{ content: 'hello', role: 'user' }],
+      model: 'gpt-test',
+    } as any;
+    const options = { metadata: { operationId: 'operation-chat-1' } };
+
+    await hooks?.beforeChat?.(payload, options);
+    await hooks?.onChatFinal?.(
+      { text: 'done', usage: { cost: 0.25, totalTokens: 150 } },
+      { options, payload },
+    );
+
+    expect(mocks.settleCommercialAiUsageReservation).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      estimatedCredits: 25,
+      model: 'gpt-test',
+      operationId: 'operation-chat-1',
+      provider: 'newapi',
+      reservationId: 'reservation-1',
+      title: 'AI Chat Usage',
+      usage: { cost: 0.25, totalTokens: 150 },
+      usageType: 'chat',
+      userId: 'user-1',
+    });
+    expect(mocks.recordCommercialChatUsage).not.toHaveBeenCalled();
+  });
+
+  it('should release a reserved chat when the stream finishes with an error event', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
+    const payload = {
+      messages: [{ content: 'hello', role: 'user' }],
+      model: 'gpt-test',
+    } as any;
+
+    await hooks?.beforeChat?.(payload);
+    await hooks?.onChatFinal?.(
+      {
+        error: { message: 'stream failed' },
+        text: '',
+        usage: { cost: 0.25, totalTokens: 150 },
+      },
+      { payload },
+    );
+
+    expect(mocks.releaseCommercialAiUsageReservation).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      reason: 'provider_error',
+      reservationId: 'reservation-1',
+    });
+    expect(mocks.settleCommercialAiUsageReservation).not.toHaveBeenCalled();
+    expect(mocks.recordCommercialChatUsage).not.toHaveBeenCalled();
+  });
+
+  it('should release a reserved chat when provider dispatch fails', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
+    const payload = {
+      messages: [{ content: 'hello', role: 'user' }],
+      model: 'gpt-test',
+    } as any;
+
+    await hooks?.beforeChat?.(payload);
+    await hooks?.onChatError?.(
+      { error: { message: 'provider failed' }, errorType: 'ProviderBizError' } as any,
+      { payload },
+    );
+
+    expect(mocks.releaseCommercialAiUsageReservation).toHaveBeenCalledWith({
+      db: { id: 'db' },
+      reason: 'provider_error',
+      reservationId: 'reservation-1',
+    });
+  });
+
+  it('should settle structured output once from the completion hook', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi');
+    const payload = {
+      messages: [{ content: 'hello', role: 'user' }],
+      model: 'gpt-test',
+    } as any;
+
+    await hooks?.beforeGenerateObject?.(payload);
+    await hooks?.onGenerateObjectComplete?.(
+      {
+        latencyMs: 10,
+        output: { ok: true },
+        success: true,
+        usage: { cost: 0.12, totalTokens: 80 },
+      },
+      { payload },
+    );
+
+    expect(mocks.settleCommercialAiUsageReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        estimatedCredits: 25,
+        model: 'gpt-test',
+        reservationId: 'reservation-1',
+        usageType: 'generate_object',
+      }),
+    );
   });
 
   it('should record structured output usage with operation metadata', async () => {

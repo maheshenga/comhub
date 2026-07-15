@@ -76,6 +76,7 @@ describe('createModuleAppTextGenerator', () => {
     const result = await generator({
       actionMultiplier: 1.35,
       appMultiplier: 1,
+      chargeAiUsage: true,
       idempotencyKey: 'run-1:generate',
       model: 'model-a',
       prompt: 'hello',
@@ -157,6 +158,7 @@ describe('createModuleAppTextGenerator', () => {
       generator({
         actionMultiplier: 1,
         appMultiplier: 1,
+        chargeAiUsage: true,
         idempotencyKey: 'run-2:generate',
         model: 'model-a',
         prompt: 'hello',
@@ -189,6 +191,7 @@ describe('createModuleAppTextGenerator', () => {
       generator({
         actionMultiplier: 1.35,
         appMultiplier: 2,
+        chargeAiUsage: true,
         idempotencyKey: 'run-byok:generate',
         model: 'model-a',
         prompt: 'hello',
@@ -211,6 +214,7 @@ describe('createModuleAppTextGenerator', () => {
       generator({
         actionMultiplier: 1,
         appMultiplier: 1,
+        chargeAiUsage: true,
         idempotencyKey: 'run-3:generate',
         model: 'model-a',
         prompt: 'hello',
@@ -218,6 +222,58 @@ describe('createModuleAppTextGenerator', () => {
         userId: 'user-1',
       }),
     ).rejects.toThrow('MODULE_APP_AI_IDEMPOTENCY_REPLAY');
+    expect(mocks.initModelRuntimeFromDB).not.toHaveBeenCalled();
+  });
+
+  it('skips platform AI billing when the action charge mode disables AI usage', async () => {
+    mocks.initModelRuntimeFromDB.mockResolvedValue({
+      chat: vi.fn(async (_payload, options) => {
+        await options.callback.onText('Uncharged response');
+        await options.callback.onCompletion({
+          usage: { totalInputTokens: 2, totalOutputTokens: 3, totalTokens: 5 },
+        });
+        return new Response('');
+      }),
+    });
+    const generator = createModuleAppTextGenerator({ db });
+
+    await expect(
+      generator({
+        actionMultiplier: 1,
+        appMultiplier: 1,
+        chargeAiUsage: false,
+        idempotencyKey: 'run-free:generate',
+        model: 'model-a',
+        prompt: 'hello',
+        provider: 'provider-a',
+        userId: 'user-1',
+      }),
+    ).resolves.toMatchObject({ actualAiCredits: 0, text: 'Uncharged response' });
+
+    expect(mocks.shouldChargeCommercialUsage).not.toHaveBeenCalled();
+    expect(mocks.estimateCommercialChatCredits).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.quoteCommercialAiUsage).not.toHaveBeenCalled();
+    expect(mocks.settle).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing AI charge-mode decision instead of silently bypassing billing', async () => {
+    mocks.initModelRuntimeFromDB.mockResolvedValue({
+      chat: vi.fn(async () => new Response('')),
+    });
+    const generator = createModuleAppTextGenerator({ db });
+
+    await expect(
+      generator({
+        actionMultiplier: 1,
+        appMultiplier: 1,
+        idempotencyKey: 'run-missing-charge-mode:generate',
+        model: 'model-a',
+        prompt: 'hello',
+        provider: 'provider-a',
+        userId: 'user-1',
+      } as never),
+    ).rejects.toThrow('MODULE_APP_AI_CHARGE_MODE_REQUIRED');
     expect(mocks.initModelRuntimeFromDB).not.toHaveBeenCalled();
   });
 });

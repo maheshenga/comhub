@@ -14,9 +14,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const { dirname, join, resolve } = path;
 const directory = dirname(fileURLToPath(import.meta.url));
 const composeFile = resolve(directory, 'compose.yml');
 const envFile = resolve(directory, '.env');
@@ -36,6 +37,7 @@ const exampleKeys = [
   'COMHUB_MODULE_WORKER_IMAGE',
   'MODULE_APP_ARTIFACT_ROOT',
   'COMHUB_PLATFORM_NETWORK',
+  'COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL',
   'DATABASE_URL',
   'S3_ACCESS_KEY_ID',
   'S3_BUCKET',
@@ -85,7 +87,7 @@ const removeTempDirectory = (directoryPath) => {
 };
 
 const toBashPath = (windowsPath) =>
-  windowsPath.replace(/^([A-Za-z]):\\/u, (_, drive) => `/${drive.toLowerCase()}/`).replace(/\\/gu, '/');
+  windowsPath.replace(/^([A-Za-z]):\\/u, (_, drive) => `/${drive.toLowerCase()}/`).replaceAll('\\', '/');
 
 const runDeployWithFakes = ({
   currentWorkerImage,
@@ -105,8 +107,9 @@ const runDeployWithFakes = ({
   const psqlLog = join(fakeBinDir, 'psql.log');
   const nodeBin = process.platform === 'win32' ? 'node.exe' : 'node';
   const nodePath = toBashPath(dirname(process.execPath));
-  const fakeDockerScript = join(fakeBinDir, 'fake-docker.mjs').replace(/\\/gu, '/');
-  const fakePsqlScript = join(fakeBinDir, 'fake-psql.mjs').replace(/\\/gu, '/');
+  const fakeDockerScript = join(fakeBinDir, 'fake-docker.mjs').replaceAll('\\', '/');
+  const fakeInstallScript = join(fakeBinDir, 'fake-install.mjs').replaceAll('\\', '/');
+  const fakePsqlScript = join(fakeBinDir, 'fake-psql.mjs').replaceAll('\\', '/');
   const currentImageMarker = join(fakeBinDir, 'current-image-recorded');
 
   writeExecutable(
@@ -124,6 +127,20 @@ if (args[0] === 'compose') {
   if (joined.includes(' up --no-deps --wait module-app-worker ')) process.exit(0);
   if (joined.includes(' ps -q module-app-worker ')) {
     process.stdout.write('worker-ctr\\n');
+    process.exit(0);
+  }
+}
+
+if (args[0] === 'run') {
+  const joined = \` \${args.join(' ')} \`;
+  if (
+    joined.includes(' --rm ') &&
+    joined.includes(' --network host ') &&
+    joined.includes(' postgres:17-alpine ') &&
+    joined.includes(' psql ') &&
+    joined.includes(' postgresql://test:test@127.0.0.1:15432/test ')
+  ) {
+    process.stdout.write('4');
     process.exit(0);
   }
 }
@@ -237,16 +254,21 @@ appendFileSync(
 process.stdout.write('4');
 `,
   );
+  writeExecutable(join(fakeBinDir, 'fake-install.mjs'), '#!/usr/bin/env node\nprocess.exit(0);\n');
 
   const hadEnvFile = existsSync(envFilePath);
   const backupEnvSource = hadEnvFile ? readFileSync(envFilePath, 'utf8') : null;
-  writeFileSync(envFilePath, envContents);
+  const effectiveEnvContents = `${envContents.replaceAll(
+    'postgresql://test:test@localhost:5432/test',
+    'postgresql://test:test@comhub-paradedb:5432/test',
+  )}\nCOMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL=postgresql://test:test@127.0.0.1:15432/test`;
+  writeFileSync(envFilePath, effectiveEnvContents);
 
   const result = spawnSync(
     'bash',
     [
       '-lc',
-      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec '${deployCommand}' '${workerImage}'`,
+      `export PATH='${nodePath}':"$PATH"; ${skipPreviousImage ? "export COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE='true'; " : ''}export DOCKER_BIN='${nodeBin}'; export DOCKER_BIN_SCRIPT='${fakeDockerScript}'; export INSTALL_BIN='${nodeBin}'; export INSTALL_BIN_SCRIPT='${fakeInstallScript}'; export PSQL_BIN='${nodeBin}'; export PSQL_BIN_SCRIPT='${fakePsqlScript}'; exec '${deployCommand}' '${workerImage}'`,
     ],
     {
       cwd: deployDirectory,
@@ -302,7 +324,7 @@ try {
       env: {
         ...process.env,
         COMHUB_MODULE_WORKER_IMAGE: workerImage,
-        COMHUB_PLATFORM_NETWORK: 'comhub_default',
+        COMHUB_PLATFORM_NETWORK: 'paradedb_default',
         MODULE_APP_ARTIFACT_ROOT: '/var/lib/comhub/module-worker-artifacts',
       },
     },
@@ -341,11 +363,13 @@ try {
 
   assert.deepEqual(Object.keys(service.networks ?? {}), ['platform']);
   assert.equal(config.networks?.platform?.external, true);
+  assert.equal(config.networks?.platform?.name, 'paradedb_default');
 
   for (const flag of mutationFlags) assert.equal(service.environment?.[flag], 'false');
 
   const composeSource = readFileSync(composeFile, 'utf8');
   assert.match(composeSource, /\$\{COMHUB_MODULE_WORKER_IMAGE:\?immutable worker image required\}/);
+  assert.match(composeSource, /\$\{COMHUB_PLATFORM_NETWORK:-paradedb_default\}/);
 
   const exampleEnv = parseDotenv(readFileSync(resolve(directory, '.env.example'), 'utf8'));
   for (const key of exampleKeys) {
@@ -378,6 +402,10 @@ try {
   assert.match(deploySource, /label=com\.docker\.compose\.service=module-runtime/);
   assert.match(deploySource, /status=running/);
   assert.doesNotMatch(deploySource, /name=module-runtime/);
+  assert.doesNotMatch(deploySource, /PSQL_BIN/);
+  assert.match(deploySource, /run_docker run --rm --network host/);
+  assert.match(deploySource, /COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL/);
+  assert.match(deploySource, /run_install -d -o 10001 -g 10001/);
 
   const mutableImage = spawnSync('bash', ['deploy.sh', 'example.invalid/worker:latest'], {
     cwd: directory,
@@ -407,6 +435,8 @@ try {
   });
   assert.equal(defaultPlatformProject.result.status, 0, defaultPlatformProject.result.stderr);
   assertExactRuntimeProjectFilter(defaultPlatformProject.dockerCalls, 'comhub');
+  assert.match(defaultPlatformProject.dockerCalls, /run --rm --network host .*postgres:17-alpine.*psql/);
+  assert.equal(defaultPlatformProject.psqlCalls, '');
 
   const configuredPlatformProject = runDeployWithFakes({
     envContents: [
@@ -460,7 +490,7 @@ try {
     assert.equal(releaseDeploy.result.status, 0, releaseDeploy.result.stderr);
     assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
     assert.equal(
-      readlinkSync(join(releaseDirectory, '.previous-image')).replace(/\\/gu, '/'),
+      readlinkSync(join(releaseDirectory, '.previous-image')).replaceAll('\\', '/'),
       '../../.previous-image',
     );
     assert.equal(
@@ -514,10 +544,10 @@ try {
     );
     assert.equal(existsSync(parentPreviousImage), false);
     assert.equal(lstatSync(join(releaseDirectory, '.env')).isSymbolicLink(), true);
-    assert.equal(readlinkSync(join(releaseDirectory, '.env')).replace(/\\/gu, '/'), '../../.env');
+    assert.equal(readlinkSync(join(releaseDirectory, '.env')).replaceAll('\\', '/'), '../../.env');
     assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
     assert.equal(
-      readlinkSync(join(releaseDirectory, '.previous-image')).replace(/\\/gu, '/'),
+      readlinkSync(join(releaseDirectory, '.previous-image')).replaceAll('\\', '/'),
       '../../.previous-image',
     );
   } finally {
@@ -638,7 +668,7 @@ try {
     assert.match(chainedStateDeploy.result.stderr, /must not be another symlink/);
     assert.equal(lstatSync(join(releaseDirectory, '.previous-image')).isSymbolicLink(), true);
     assert.equal(
-      readlinkSync(join(releaseDirectory, '.previous-image')).replace(/\\/gu, '/'),
+      readlinkSync(join(releaseDirectory, '.previous-image')).replaceAll('\\', '/'),
       '../../.previous-image',
     );
     assert.equal(lstatSync(rootPreviousImage).isSymbolicLink(), true);
@@ -746,7 +776,7 @@ try {
   assert.match(rollbackSource, /\.previous-image/);
   assert.match(rollbackSource, /COMHUB_MODULE_WORKER_SKIP_PREVIOUS_IMAGE=true exec/);
 
-  console.log('module worker Compose policy: PASS');
+  console.info('module worker Compose policy: PASS');
 } finally {
   if (createdEnvFile) rmSync(envFile, { force: true });
 }

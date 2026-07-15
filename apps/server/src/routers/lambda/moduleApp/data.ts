@@ -8,11 +8,13 @@ import {
 } from '@/business/server/module-apps/entitlement';
 import {
   assertModuleAppRecordPermission,
+  assertModuleAppWorkspaceManagementPermission,
   type ModuleAppRecordOperation,
   type ModuleAppWorkspaceMembership,
 } from '@/business/server/module-apps/permission';
 import { getSubscriptionPlan } from '@/business/server/user';
 import { ModuleAppModel } from '@/database/models/moduleApp';
+import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { ModuleAppRecordItem } from '@/database/schemas';
@@ -49,9 +51,36 @@ export const getWorkspaceMembership = async (
   if (!member) return null;
 
   return {
-    role: member.role === 'owner' ? 'owner' : 'member',
+    role: member.role === 'owner' ? 'owner' : member.role === 'admin' ? 'admin' : 'member',
     workspaceId: member.workspaceId,
   };
+};
+
+export const assertWorkspaceManagementPermission = async (params: {
+  db: LobeChatDatabase;
+  userId: string;
+  workspaceId: string;
+}) => {
+  const workspaceMembership = await getWorkspaceMembership(
+    params.db,
+    params.userId,
+    params.workspaceId,
+  );
+  if (!workspaceMembership) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
+  }
+
+  try {
+    assertModuleAppWorkspaceManagementPermission({
+      workspaceId: params.workspaceId,
+      workspaceMembership,
+    });
+  } catch (error) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: error instanceof Error ? error.message : 'module_app_workspace_denied',
+    });
+  }
 };
 
 export const assertScopePermission = async (params: {
@@ -112,6 +141,7 @@ export const assertInstallationAccess = async (params: {
 };
 
 export const assertDetailEntitlement = async (params: {
+  commerceModel?: Pick<ModuleAppCommerceModel, 'resolveEntitlementContext'>;
   db: LobeChatDatabase;
   detail: NonNullable<Awaited<ReturnType<ModuleAppModel['getAppDetail']>>>;
   operation: 'install' | 'job' | 'launch' | 'run' | 'schedule' | 'webhook';
@@ -125,6 +155,12 @@ export const assertDetailEntitlement = async (params: {
     params.operation === 'install'
       ? params.detail.planState.installable
       : params.detail.planState.runnable;
+  const commerce = params.commerceModel ?? new ModuleAppCommerceModel(params.db);
+  const commerceContext = await commerce.resolveEntitlementContext(
+    params.workspaceId
+      ? { appId: params.detail.id, workspaceId: params.workspaceId }
+      : { appId: params.detail.id, userId: params.userId },
+  );
 
   try {
     return assertModuleAppEntitlement({
@@ -133,8 +169,10 @@ export const assertDetailEntitlement = async (params: {
         typeof params.detail.installed === 'boolean'
           ? { active: params.detail.installed }
           : undefined,
+      license: commerceContext.license,
       operation: params.operation,
       planIncluded,
+      productType: commerceContext.productType,
       teamMembership: params.workspaceId ? { active: Boolean(membership) } : undefined,
       workspaceScoped: Boolean(params.workspaceId),
     });
@@ -145,10 +183,18 @@ export const assertDetailEntitlement = async (params: {
       throw new TRPCError({ cause: error, code: 'NOT_FOUND', message: 'module_app_not_found' });
     }
     if (error.reason === 'purchase_required') {
-      throw new TRPCError({ cause: error, code: 'FORBIDDEN', message: 'module_app_purchase_required' });
+      throw new TRPCError({
+        cause: error,
+        code: 'FORBIDDEN',
+        message: 'module_app_purchase_required',
+      });
     }
     if (error.reason === 'license_expired') {
-      throw new TRPCError({ cause: error, code: 'FORBIDDEN', message: 'module_app_license_expired' });
+      throw new TRPCError({
+        cause: error,
+        code: 'FORBIDDEN',
+        message: 'module_app_license_expired',
+      });
     }
     if (error.reason === 'suspended') {
       throw new TRPCError({ cause: error, code: 'FORBIDDEN', message: 'module_app_suspended' });
@@ -222,21 +268,19 @@ export const assertRecordPermission = async (params: {
 };
 
 export const moduleAppDataProcedures = {
-  archiveRecord: moduleAppProcedure
-    .input(RecordIdInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      const record = await ctx.moduleAppModel.getRecord({ ...input, userId: ctx.userId });
-      if (!record) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_record_not_found' });
+  archiveRecord: moduleAppProcedure.input(RecordIdInputSchema).mutation(async ({ ctx, input }) => {
+    const record = await ctx.moduleAppModel.getRecord({ ...input, userId: ctx.userId });
+    if (!record) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_record_not_found' });
 
-      await assertRecordPermission({
-        db: ctx.serverDB,
-        operation: 'archive',
-        record,
-        userId: ctx.userId,
-      });
+    await assertRecordPermission({
+      db: ctx.serverDB,
+      operation: 'archive',
+      record,
+      userId: ctx.userId,
+    });
 
-      return ctx.moduleAppModel.archiveRecord({ ...input, userId: ctx.userId });
-    }),
+    return ctx.moduleAppModel.archiveRecord({ ...input, userId: ctx.userId });
+  }),
 
   createRecord: moduleAppProcedure
     .input(moduleAppRecordInputSchema)
@@ -277,12 +321,17 @@ export const moduleAppDataProcedures = {
 
   listRecords: moduleAppProcedure
     .input(
-      moduleAppRecordInputSchema.pick({
-        appId: true,
-        collectionKey: true,
-        scopeType: true,
-        workspaceId: true,
-      }),
+      moduleAppRecordInputSchema
+        .pick({
+          appId: true,
+          collectionKey: true,
+          scopeType: true,
+          workspaceId: true,
+        })
+        .extend({
+          limit: z.number().int().min(1).max(100).default(20),
+          offset: z.number().int().min(0).max(1_000_000).default(0),
+        }),
     )
     .query(async ({ ctx, input }) => {
       await assertScopePermission({
@@ -314,7 +363,8 @@ export const moduleAppDataProcedures = {
         userId: ctx.userId,
         workspaceId: input.workspaceId,
       });
-      if (!record) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_record_not_found' });
+      if (!record)
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_record_not_found' });
 
       await assertRecordPermission({
         db: ctx.serverDB,

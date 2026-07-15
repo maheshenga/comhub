@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigation';
+import { ADMIN_CATALOG, ADMIN_LEGACY_ROUTES } from '@/features/Admin/adminCatalog';
 
-import { BusinessDesktopRoutesWithSettingsLayout } from './BusinessDesktopRoutes';
+import {
+  BusinessDesktopRoutesWithMainLayout,
+  BusinessDesktopRoutesWithSettingsLayout,
+} from './BusinessDesktopRoutes';
 import {
   ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS,
   ADMIN_SETTINGS_ROUTE_REGISTRY,
@@ -15,32 +18,34 @@ vi.mock('@/utils/router', () => ({
   ErrorBoundary: () => null,
 }));
 
-const routeSegmentFromAdminPath = (path: string) => {
-  if (path === ADMIN_BASE_PATH) return '';
-
-  return path.slice(`${ADMIN_BASE_PATH}/`.length);
-};
-
 describe('BusinessDesktopRoutes', () => {
-  it('keeps every admin navigation page reachable from the shared settings route registry', () => {
-    const adminPaths = ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.path));
-    const visibleSegments = adminPaths.map(routeSegmentFromAdminPath);
+  it('registers every visible catalog route exactly once', () => {
+    const visibleSegments = ADMIN_CATALOG.map((item) => item.segment);
+    const registryVisibleSegments = ADMIN_SETTINGS_ROUTE_REGISTRY.filter(
+      (item) => item.status !== 'compatibility',
+    ).map((item) => item.segment);
 
-    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toEqual(expect.arrayContaining(visibleSegments));
-    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).not.toContain('platform-plugins');
-    expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain('module-apps');
+    expect(registryVisibleSegments).toEqual(visibleSegments);
+    expect(new Set(registryVisibleSegments).size).toBe(registryVisibleSegments.length);
   });
 
-  it('keeps legacy merged admin aliases reachable without adding sidebar-only entries', () => {
-    expect(ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS).toEqual([
-      'topup',
-      'pricing',
-      'change-requests',
-    ]);
+  it('keeps legacy segments reachable but outside the visible catalog', () => {
+    expect(ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS).toEqual(
+      ADMIN_LEGACY_ROUTES.map((item) => item.segment),
+    );
 
     for (const segment of ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS) {
       expect(ADMIN_SETTINGS_ROUTE_SEGMENTS).toContain(segment);
+      expect(ADMIN_CATALOG.map((item) => item.segment)).not.toContain(segment);
     }
+  });
+
+  it('mounts admin only under the settings route tree', () => {
+    expect(BusinessDesktopRoutesWithMainLayout).not.toContainEqual(
+      expect.objectContaining({ path: 'admin' }),
+    );
+    expect(BusinessDesktopRoutesWithSettingsLayout).toHaveLength(1);
+    expect(BusinessDesktopRoutesWithSettingsLayout[0]?.path).toBe('admin');
   });
 
   it('builds the desktop settings admin route from the same registry order', () => {

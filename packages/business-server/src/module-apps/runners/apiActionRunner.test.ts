@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { ModuleAppActionConfig } from '@lobechat/types';
+import { describe, expect, it, vi } from 'vitest';
 
 import { runModuleAppApiAction } from './apiActionRunner';
 
@@ -32,6 +32,7 @@ describe('runModuleAppApiAction', () => {
       action,
       fetchImpl,
       input: { keyword: 'apple' },
+      outboundHosts: ['api.example.com'],
       resolvedSecrets: { apiKey: 'secret-token' },
       resolveHostname: () => ['93.184.216.34'],
     });
@@ -41,10 +42,11 @@ describe('runModuleAppApiAction', () => {
       expect.objectContaining({
         body: JSON.stringify({ keyword: 'apple', token: 'secret-token' }),
         headers: expect.objectContaining({
-          Authorization: 'Bearer secret-token',
+          'Authorization': 'Bearer secret-token',
           'Content-Type': 'application/json',
         }),
         method: 'POST',
+        redirect: 'error',
       }),
     );
     expect(result).toMatchObject({
@@ -55,7 +57,7 @@ describe('runModuleAppApiAction', () => {
     expect(result.output).toMatchObject({
       request: {
         body: JSON.stringify({ keyword: 'apple', token: '[REDACTED]' }),
-        headers: { Authorization: '[REDACTED]', 'Content-Type': 'application/json' },
+        headers: { 'Authorization': '[REDACTED]', 'Content-Type': 'application/json' },
         method: 'POST',
         url: 'https://api.example.com/search',
       },
@@ -75,5 +77,159 @@ describe('runModuleAppApiAction', () => {
         resolveHostname: () => ['93.184.216.34'],
       }),
     ).rejects.toThrow('MODULE_APP_API_ACTION_NOT_CONFIGURED');
+  });
+
+  it('rejects a rendered host outside the reviewed outbound host list', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      headers: { get: () => 'application/json' },
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    });
+
+    await expect(
+      runModuleAppApiAction({
+        action: {
+          ...action,
+          runtimeConfig: { ...action.runtimeConfig, url: 'https://{{host}}/search' },
+        },
+        fetchImpl,
+        input: { host: 'unreviewed.example.com' },
+        outboundHosts: ['api.example.com'],
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).rejects.toThrow('MODULE_APP_API_HOST_DENIED');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('rejects forbidden transport headers before dispatch', async () => {
+    const fetchImpl = vi.fn();
+
+    await expect(
+      runModuleAppApiAction({
+        action: {
+          ...action,
+          runtimeConfig: {
+            ...action.runtimeConfig,
+            headers: { Host: 'api.example.com' },
+          },
+        },
+        fetchImpl,
+        input: {},
+        outboundHosts: ['api.example.com'],
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).rejects.toThrow('MODULE_APP_API_HEADERS_INVALID');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('rejects header values containing line breaks before dispatch', async () => {
+    const fetchImpl = vi.fn();
+
+    await expect(
+      runModuleAppApiAction({
+        action: {
+          ...action,
+          runtimeConfig: {
+            ...action.runtimeConfig,
+            headers: { 'X-Module-App': 'safe\r\nHost: internal.example.com' },
+          },
+        },
+        fetchImpl,
+        input: {},
+        outboundHosts: ['api.example.com'],
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).rejects.toThrow('MODULE_APP_API_HEADERS_INVALID');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized rendered request bodies before dispatch', async () => {
+    const fetchImpl = vi.fn();
+
+    await expect(
+      runModuleAppApiAction({
+        action: {
+          ...action,
+          runtimeConfig: {
+            ...action.runtimeConfig,
+            bodyTemplate: { payload: 'x'.repeat(256 * 1024 + 1) },
+          },
+        },
+        fetchImpl,
+        input: {},
+        outboundHosts: ['api.example.com'],
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).rejects.toThrow('MODULE_APP_API_BODY_TOO_LARGE');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('stops reading responses larger than one MiB', async () => {
+    const response = new Response('x'.repeat(1024 * 1024 + 1), {
+      headers: { 'content-type': 'text/plain' },
+      status: 200,
+    });
+
+    await expect(
+      runModuleAppApiAction({
+        action,
+        fetchImpl: vi.fn().mockResolvedValue(response),
+        input: {},
+        outboundHosts: ['api.example.com'],
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).rejects.toThrow('MODULE_APP_API_RESPONSE_TOO_LARGE');
+  });
+
+  it('preserves the legacy literal-host fallback for public HTTP URLs', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      headers: { get: () => 'application/json' },
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    });
+
+    await expect(
+      runModuleAppApiAction({
+        action: {
+          ...action,
+          runtimeConfig: { ...action.runtimeConfig, url: 'http://api.example.com/search' },
+        },
+        fetchImpl,
+        input: {},
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).resolves.toMatchObject({ actualAiCredits: 0 });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://api.example.com/search',
+      expect.objectContaining({ redirect: 'error' }),
+    );
+  });
+
+  it('does not duplicate an explicitly configured content-type header', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      headers: { get: () => 'application/json' },
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    });
+
+    await runModuleAppApiAction({
+      action: {
+        ...action,
+        runtimeConfig: {
+          ...action.runtimeConfig,
+          headers: { 'content-type': 'application/vnd.module-app+json' },
+        },
+      },
+      fetchImpl,
+      input: {},
+      outboundHosts: ['api.example.com'],
+      resolveHostname: () => ['93.184.216.34'],
+    });
+
+    const headers = fetchImpl.mock.calls[0][1].headers as Record<string, string>;
+    expect(headers).toEqual({ 'content-type': 'application/vnd.module-app+json' });
   });
 });

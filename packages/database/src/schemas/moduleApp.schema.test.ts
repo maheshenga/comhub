@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { getTableName } from 'drizzle-orm';
+import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
 import * as liveSchema from './index';
@@ -15,14 +16,17 @@ import {
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppInstallationSecrets,
+  moduleAppOrders,
   moduleAppPackages,
   moduleAppPackageUploads,
   moduleAppPages,
+  moduleAppPayoutEntries,
   moduleAppRecordEvents,
   moduleAppRecords,
   moduleAppRuns,
   moduleApps,
   moduleAppSchedules,
+  moduleAppSubscriptions,
   moduleAppVersions,
   moduleAppWebhookDeliveries,
   moduleAppWebhooks,
@@ -65,27 +69,18 @@ describe('module app schema exports', () => {
 
     expect(migration).toContain('module_app_installations_scope_owner_check');
     expect(migration).toContain('module_app_records_scope_owner_check');
-    expect(migration).toContain(
-      `WHERE "scope_type" = 'personal' AND "user_id" IS NOT NULL`,
-    );
-    expect(migration).toContain(
-      `WHERE "scope_type" = 'workspace' AND "workspace_id" IS NOT NULL`,
-    );
+    expect(migration).toContain(`WHERE "scope_type" = 'personal' AND "user_id" IS NOT NULL`);
+    expect(migration).toContain(`WHERE "scope_type" = 'workspace' AND "workspace_id" IS NOT NULL`);
     expect(migration).toContain(`"owner_user_id" IS NOT NULL`);
     expect(migration).toContain(`AND "workspace_id" IS NULL`);
   });
 
   it('registers the module app migration in the journal', () => {
     const journal = JSON.parse(
-      readFileSync(
-        path.resolve(__dirname, '../../migrations/meta/_journal.json'),
-        'utf8',
-      ),
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
 
-    expect(journal.entries.some(({ tag }) => tag === '0131_add_module_apps')).toBe(
-      true,
-    );
+    expect(journal.entries.some(({ tag }) => tag === '0131_add_module_apps')).toBe(true);
   });
 
   it('registers the module app package review migration', () => {
@@ -94,18 +89,13 @@ describe('module app schema exports', () => {
       'utf8',
     );
     const journal = JSON.parse(
-      readFileSync(
-        path.resolve(__dirname, '../../migrations/meta/_journal.json'),
-        'utf8',
-      ),
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
 
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_packages"');
     expect(migration).toContain('"submitted_by_user_id" text');
     expect(migration).toContain('module_app_packages_review_status_created_at_idx');
-    expect(journal.entries.some(({ tag }) => tag === '0132_add_module_app_packages')).toBe(
-      true,
-    );
+    expect(journal.entries.some(({ tag }) => tag === '0132_add_module_app_packages')).toBe(true);
   });
 
   it('registers the module app source migration', () => {
@@ -162,9 +152,9 @@ describe('module app schema exports', () => {
     expect(migration).toContain('module_app_package_uploads_storage_key_unique');
     expect(migration).toContain('module_app_package_uploads_user_status_created_at_idx');
     expect(migration).toContain('module_app_package_uploads_status_expires_at_idx');
-    expect(
-      journal.entries.some(({ tag }) => tag === '0135_add_module_app_package_uploads'),
-    ).toBe(true);
+    expect(journal.entries.some(({ tag }) => tag === '0135_add_module_app_package_uploads')).toBe(
+      true,
+    );
   });
 
   it('registers immutable build and encrypted installation secret persistence', () => {
@@ -181,9 +171,9 @@ describe('module app schema exports', () => {
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "module_app_installation_secrets"');
     expect(migration).toContain('"encrypted_value" text NOT NULL');
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS "runtime_artifact_sha256" text');
-    expect(
-      journal.entries.some(({ tag }) => tag === '0136_add_module_app_build_runtime'),
-    ).toBe(true);
+    expect(journal.entries.some(({ tag }) => tag === '0136_add_module_app_build_runtime')).toBe(
+      true,
+    );
   });
 
   it('registers installation-bound managed data and workflow persistence', () => {
@@ -235,12 +225,59 @@ describe('module app schema exports', () => {
       readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
 
-    expect(migration).toContain("FROM pg_constraint WHERE conname = 'module_app_builds_attempt_count_check'");
+    expect(migration).toContain(
+      "FROM pg_constraint WHERE conname = 'module_app_builds_attempt_count_check'",
+    );
     expect(migration).toContain(
       'ALTER TABLE "module_app_builds" ADD CONSTRAINT "module_app_builds_attempt_count_check"',
     );
-    expect(
-      journal.entries.some(({ tag }) => tag === '0144_add_module_app_build_leases'),
-    ).toBe(true);
+    expect(journal.entries.some(({ tag }) => tag === '0144_add_module_app_build_leases')).toBe(
+      true,
+    );
+  });
+
+  it('registers an idempotent module app order idempotency migration', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0145_add_module_app_order_idempotency.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "idempotency_key" text');
+    expect(migration).toContain('SET "idempotency_key" = "id"::text');
+    expect(migration).toContain('ALTER COLUMN "idempotency_key" SET NOT NULL');
+    expect(migration).toContain(
+      'CREATE UNIQUE INDEX IF NOT EXISTS "module_app_orders_purchaser_idempotency_unique"',
+    );
+    expect(journal.entries.some(({ tag }) => tag === '0145_add_module_app_order_idempotency')).toBe(
+      true,
+    );
+  });
+
+  it('registers hardened subscription, refund, and payout transitions', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0147_harden_commercial_transactions.sql'),
+      'utf8',
+    );
+    const payoutIndex = getTableConfig(moduleAppPayoutEntries).indexes.find(
+      (index) => index.config.name === 'module_app_payout_entries_revenue_unique',
+    );
+
+    expect(moduleAppOrders.refundReference).toBeDefined();
+    expect(moduleApps.currentPublishedVersionId).toBeDefined();
+    expect(moduleAppSubscriptions.trialEndsAt).toBeDefined();
+    expect(payoutIndex?.config.where).toBeDefined();
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "refund_reference" text');
+    expect(migration).toContain(
+      'ADD COLUMN IF NOT EXISTS "trial_ends_at" timestamp with time zone',
+    );
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "current_published_version_id" uuid');
+    expect(migration).toContain(
+      'module_apps_current_published_version_id_module_app_versions_id_fk',
+    );
+    expect(migration).toContain('DROP INDEX IF EXISTS "module_app_payout_entries_revenue_unique"');
+    expect(migration).toContain(`WHERE "status" <> 'reversed'`);
   });
 });

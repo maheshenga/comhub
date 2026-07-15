@@ -16,9 +16,16 @@ const moduleAppModelMocks = vi.hoisted(() => ({
 }));
 
 const moduleAppCommerceMocks = vi.hoisted(() => ({
+  createProduct: vi.fn(),
+  listProducts: vi.fn(),
   refundOrder: vi.fn(),
   settleOrder: vi.fn(),
+  updateProduct: vi.fn(),
 }));
+
+const transactionDb = { transaction: 'module-app-product-audit' };
+const dbMocks = vi.hoisted(() => ({ transaction: vi.fn() }));
+const authState = vi.hoisted(() => ({ role: 'admin' }));
 
 const moduleAppRevenueMocks = vi.hoisted(() => ({
   listRevenue: vi.fn(),
@@ -238,14 +245,18 @@ const ORDER_ID = '00000000-0000-4000-8000-000000000021';
 const PUBLISHER_ID = '00000000-0000-4000-8000-000000000051';
 const PAYOUT_ID = '00000000-0000-4000-8000-000000000061';
 const REVENUE_ID = '00000000-0000-4000-8000-000000000071';
+const PRODUCT_ID = '00000000-0000-4000-8000-000000000081';
 
 const createDb = () =>
   ({
     query: {
       users: {
-        findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        findFirst: vi
+          .fn()
+          .mockImplementation(async () => ({ banned: false, role: authState.role })),
       },
     },
+    transaction: dbMocks.transaction,
   }) as any;
 
 const createCaller = () => {
@@ -257,6 +268,8 @@ const createCaller = () => {
 describe('admin module apps router', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.role = 'admin';
+    dbMocks.transaction.mockImplementation(async (callback) => callback(transactionDb));
     moduleAppModelMocks.getAdminApp.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
     moduleAppModelMocks.getAdminPackageSubmission.mockResolvedValue({
       id: PACKAGE_ID,
@@ -298,8 +311,14 @@ describe('admin module apps router', () => {
     moduleAppPaymentMocks.reconcileRefund.mockResolvedValue({ status: 'succeeded' });
     moduleAppPaymentModelMocks.acknowledgeDiscrepancy.mockResolvedValue({ status: 'resolved' });
     moduleAppPaymentModelMocks.listDiscrepancies.mockResolvedValue({ items: [], nextCursor: null });
-    moduleAppPublisherMocks.createPublisher.mockResolvedValue({ id: PUBLISHER_ID, status: 'pending' });
-    moduleAppPublisherMocks.verifyPublisher.mockResolvedValue({ id: PUBLISHER_ID, status: 'verified' });
+    moduleAppPublisherMocks.createPublisher.mockResolvedValue({
+      id: PUBLISHER_ID,
+      status: 'pending',
+    });
+    moduleAppPublisherMocks.verifyPublisher.mockResolvedValue({
+      id: PUBLISHER_ID,
+      status: 'verified',
+    });
     moduleAppPublisherMocks.suspendPublisher.mockResolvedValue({
       id: PUBLISHER_ID,
       status: 'suspended',
@@ -356,10 +375,53 @@ describe('admin module apps router', () => {
     });
     moduleAppModelMocks.setStatus.mockResolvedValue({ ok: true });
     moduleAppModelMocks.upsertAppForAdmin.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
+    moduleAppCommerceMocks.createProduct.mockResolvedValue({ id: PRODUCT_ID });
+    moduleAppCommerceMocks.listProducts.mockResolvedValue([{ productId: PRODUCT_ID }]);
+    moduleAppCommerceMocks.updateProduct.mockResolvedValue({
+      product: { id: PRODUCT_ID, status: 'active' },
+    });
   });
 
   it('registers admin.moduleApps', () => {
     expect(adminRouter._def.record.moduleApps).toBeDefined();
+  });
+
+  it('rejects content admins from Module App governance procedures', async () => {
+    authState.role = 'content_admin';
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.list({ limit: 20 })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      caller.moduleApps.exportPaymentReconciliation({ limit: 20 }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('allows finance admins to inspect finance views without governance writes', async () => {
+    authState.role = 'finance_admin';
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.list({ limit: 20 })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.moduleApps.listPublishers({ limit: 20 })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(caller.moduleApps.listPaymentDiagnostics({})).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(
+      caller.moduleApps.exportPaymentReconciliation({ limit: 20 }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 
   it('writes an audit log when upserting a module app', async () => {
@@ -397,6 +459,91 @@ describe('admin module apps router', () => {
         resourceType: 'moduleApp',
       }),
     );
+  });
+
+  it('creates, lists, and updates module app products through Module App permissions', async () => {
+    const caller = createCaller();
+    const price = { amount: 88, currency: 'CNY' as const };
+
+    await expect(
+      caller.moduleApps.createProduct({
+        appId: APP_ID,
+        licenseScope: 'personal',
+        price,
+        productKey: 'pro-lifetime',
+        productType: 'one_time',
+      }),
+    ).resolves.toEqual({ id: PRODUCT_ID });
+    await expect(caller.moduleApps.listProducts({ appId: APP_ID })).resolves.toEqual([
+      { productId: PRODUCT_ID },
+    ]);
+    await expect(
+      caller.moduleApps.updateProduct({
+        licenseScope: 'personal',
+        price: { amount: 120, currency: 'CNY' },
+        productId: PRODUCT_ID,
+        productType: 'one_time',
+        status: 'active',
+      }),
+    ).resolves.toMatchObject({ product: { id: PRODUCT_ID } });
+
+    expect(moduleAppCommerceMocks.createProduct).toHaveBeenCalledWith(
+      expect.objectContaining({ appId: APP_ID, price, productKey: 'pro-lifetime' }),
+    );
+    expect(moduleAppCommerceMocks.listProducts).toHaveBeenCalledWith({ appId: APP_ID });
+    expect(moduleAppCommerceMocks.updateProduct).toHaveBeenCalledWith(
+      expect.objectContaining({ price: { amount: 120, currency: 'CNY' }, productId: PRODUCT_ID }),
+    );
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        db: transactionDb,
+        eventType: 'module_app.product_created',
+        resourceId: PRODUCT_ID,
+      }),
+    );
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        db: transactionDb,
+        eventType: 'module_app.product_updated',
+        resourceId: PRODUCT_ID,
+      }),
+    );
+    expect(dbMocks.transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects product definitions that cannot produce a valid order snapshot', async () => {
+    const caller = createCaller();
+
+    await expect(
+      caller.moduleApps.createProduct({
+        appId: APP_ID,
+        licenseScope: 'personal',
+        price: { amount: 1, currency: 'CNY' },
+        productKey: 'invalid-free',
+        productType: 'free',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      caller.moduleApps.createProduct({
+        appId: APP_ID,
+        licenseScope: 'personal',
+        price: { amount: 10.5, currency: 'EUR' as 'CNY' },
+        productKey: 'invalid-subscription',
+        productType: 'subscription',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      caller.moduleApps.createProduct({
+        appId: APP_ID,
+        licenseScope: 'workspace_seat',
+        price: { amount: 10, currency: 'USD' },
+        productKey: 'invalid-seats',
+        productType: 'one_time',
+      }),
+    ).rejects.toThrow();
+    expect(moduleAppCommerceMocks.createProduct).not.toHaveBeenCalled();
   });
 
   it('writes an audit log when publishing a module app', async () => {
@@ -445,7 +592,9 @@ describe('admin module apps router', () => {
   it('lists module app package submissions for review', async () => {
     const caller = createCaller();
 
-    await expect(caller.moduleApps.listPackages({ reviewStatus: 'pending_review' })).resolves.toEqual({
+    await expect(
+      caller.moduleApps.listPackages({ reviewStatus: 'pending_review' }),
+    ).resolves.toEqual({
       items: [{ id: PACKAGE_ID }],
       nextCursor: null,
     });
@@ -488,10 +637,12 @@ describe('admin module apps router', () => {
     );
     const caller = createCaller();
 
-    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject({
-      code: 'PRECONDITION_FAILED',
-      message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
-    });
+    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject(
+      {
+        code: 'PRECONDITION_FAILED',
+        message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
+      },
+    );
   });
 
   it('rescans a legacy package and writes an audit log', async () => {
@@ -572,13 +723,21 @@ describe('admin module apps router', () => {
   it('refunds a paid order with an actor and reason audit snapshot', async () => {
     const caller = createCaller();
     await expect(
-      caller.moduleApps.refundOrder({ orderId: ORDER_ID, reason: 'customer_request' }),
+      caller.moduleApps.refundOrder({ orderId: ORDER_ID, reason: 'customer_request' } as any),
+    ).rejects.toBeTruthy();
+    await expect(
+      caller.moduleApps.refundOrder({
+        offlineRefundReference: 'bank-transfer-1',
+        orderId: ORDER_ID,
+        reason: 'customer_request',
+      } as any),
     ).resolves.toMatchObject({ status: 'refunded' });
 
     expect(moduleAppOrderRevenueMocks.refundOrder).toHaveBeenCalledWith({
       actorUserId: 'admin-user',
       orderId: ORDER_ID,
       reason: 'customer_request',
+      refundReference: 'offline:bank-transfer-1',
     });
   });
 
@@ -641,7 +800,11 @@ describe('admin module apps router', () => {
     const caller = createCaller();
 
     await expect(
-      caller.moduleApps.listRevenue({ limit: 25, publisherUserId: 'publisher-1', status: 'pending' }),
+      caller.moduleApps.listRevenue({
+        limit: 25,
+        publisherUserId: 'publisher-1',
+        status: 'pending',
+      }),
     ).resolves.toEqual({ items: [], nextCursor: null });
 
     expect(moduleAppReadModelMocks.listRevenue).toHaveBeenCalledWith({
@@ -684,7 +847,9 @@ describe('admin module apps router', () => {
     });
     await caller.moduleApps.assignPublisher({ appId: APP_ID, publisherId: PUBLISHER_ID });
     await caller.moduleApps.suspendPublisher({ publisherId: PUBLISHER_ID });
-    await expect(caller.moduleApps.listPublishers({ limit: 25, status: 'verified' })).resolves.toEqual({
+    await expect(
+      caller.moduleApps.listPublishers({ limit: 25, status: 'verified' }),
+    ).resolves.toEqual({
       items: [],
       nextCursor: null,
     });

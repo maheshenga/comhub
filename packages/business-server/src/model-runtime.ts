@@ -4,10 +4,14 @@ import { getServerDB } from '@/database/core/db-adaptor';
 import { type AiUsageRouteMetadata } from '@/database/models/commercial';
 
 import {
-  assertCommercialChatBudget,
   assertCommercialMinimumBudget,
+  estimateCommercialChatCredits,
+  estimateCommercialEmbeddingsCredits,
   recordCommercialAiUsage,
   recordCommercialChatUsage,
+  releaseCommercialAiUsageReservation,
+  reserveCommercialAiUsage,
+  settleCommercialAiUsageReservation,
 } from './commercialBilling';
 import { assertModelPolicyAllowed } from './modelPolicy';
 import { assertPlanModelAllowed } from './planModelRules';
@@ -18,10 +22,7 @@ const COMMERCIAL_BILLING_REFERENCE_KEYS = [
   'operationId',
 ] as const;
 
-const getStringMetadataValue = (
-  metadata: Record<string, unknown> | undefined,
-  key: (typeof COMMERCIAL_BILLING_REFERENCE_KEYS)[number],
-) => {
+const getStringMetadataValue = (metadata: Record<string, unknown> | undefined, key: string) => {
   const value = metadata?.[key];
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 };
@@ -38,12 +39,23 @@ const resolveCommercialBillingReferenceId = (metadata?: Record<string, unknown>)
 const shouldSkipCommercialBilling = (metadata?: Record<string, unknown>) =>
   metadata?.skipCommercialBilling === true;
 
-const createEphemeralBillingReferenceId = (
-  usageType: 'embeddings' | 'generate_object' | 'image' | 'video',
+const createBillingOperationId = (
+  usageType: 'chat' | 'embeddings' | 'generate_object' | 'image' | 'video',
 ) =>
-  `${usageType}:${
-    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  }`;
+  [
+    usageType,
+    globalThis.crypto?.randomUUID?.() ??
+      [Date.now(), Math.random().toString(36).slice(2)].join('-'),
+  ].join(':');
+
+const COMMERCIAL_RESERVATION_ID_KEY = 'commercialCreditReservationId';
+const COMMERCIAL_RESERVATION_ESTIMATE_KEY = 'commercialEstimatedCredits';
+
+type CommercialReservationContext = {
+  estimatedCredits: number;
+  operationId: string;
+  reservationId?: string;
+};
 
 export function getBusinessModelRuntimeHooks(
   userId: string,
@@ -53,6 +65,7 @@ export function getBusinessModelRuntimeHooks(
 ): ModelRuntimeHooks | undefined {
   const routeMetadata =
     typeof routeMetadataOrWorkspaceId === 'string' ? undefined : routeMetadataOrWorkspaceId;
+  const reservationByPayload = new WeakMap<object, CommercialReservationContext>();
   const policyProviderAliases = Array.from(
     new Set([routeMetadata?.providerType, routeMetadata ? 'newapi' : undefined].filter(Boolean)),
   ).filter((alias): alias is string => typeof alias === 'string' && alias !== provider);
@@ -67,6 +80,83 @@ export function getBusinessModelRuntimeHooks(
     ...(policyProviderAliases.length > 0 ? { providerAliases: policyProviderAliases } : {}),
     usageType,
   });
+  const resolveReservationContext = (
+    payload: object,
+    metadata?: Record<string, unknown>,
+  ): CommercialReservationContext | undefined => {
+    const operationId = resolveCommercialBillingReferenceId(metadata);
+    const reservationId = getStringMetadataValue(metadata, COMMERCIAL_RESERVATION_ID_KEY);
+    const estimatedCredits = Number(metadata?.[COMMERCIAL_RESERVATION_ESTIMATE_KEY]);
+    if (operationId && Number.isFinite(estimatedCredits) && estimatedCredits > 0) {
+      return {
+        estimatedCredits,
+        operationId,
+        ...(reservationId ? { reservationId } : {}),
+      };
+    }
+
+    return reservationByPayload.get(payload);
+  };
+  const storeReservationContext = (
+    payload: object,
+    options: { metadata?: Record<string, unknown> } | undefined,
+    context: CommercialReservationContext,
+  ) => {
+    reservationByPayload.set(payload, context);
+    if (!options) return;
+    options.metadata = {
+      ...options.metadata,
+      [COMMERCIAL_RESERVATION_ESTIMATE_KEY]: context.estimatedCredits,
+      ...(context.reservationId ? { [COMMERCIAL_RESERVATION_ID_KEY]: context.reservationId } : {}),
+      operationId: context.operationId,
+    };
+  };
+  const reserveUsage = async ({
+    db,
+    estimatedCredits,
+    model,
+    options,
+    payload,
+    usageType,
+  }: {
+    db: Awaited<ReturnType<typeof getServerDB>>;
+    estimatedCredits?: number;
+    model: string;
+    options?: { metadata?: Record<string, unknown> };
+    payload: object;
+    usageType: 'chat' | 'embeddings' | 'generate_object';
+  }) => {
+    const operationId =
+      resolveCommercialBillingReferenceId(options?.metadata) ?? createBillingOperationId(usageType);
+    const normalizedEstimate = Math.max(1, Math.ceil(estimatedCredits ?? 1));
+    const reservation = await reserveCommercialAiUsage({
+      db,
+      estimatedCredits: normalizedEstimate,
+      model,
+      operationId,
+      provider,
+      routeMetadata,
+      usageType,
+      userId,
+    });
+    storeReservationContext(payload, options, {
+      estimatedCredits: normalizedEstimate,
+      operationId,
+      ...(reservation?.id ? { reservationId: reservation.id } : {}),
+    });
+  };
+  const releaseReservation = async (payload: object, metadata?: Record<string, unknown>) => {
+    const context = resolveReservationContext(payload, metadata);
+    reservationByPayload.delete(payload);
+    if (!context?.reservationId) return false;
+    const db = await getServerDB();
+    await releaseCommercialAiUsageReservation({
+      db,
+      reason: 'provider_error',
+      reservationId: context.reservationId,
+    });
+    return true;
+  };
 
   return {
     beforeChat: async (payload, options) => {
@@ -81,9 +171,22 @@ export function getBusinessModelRuntimeHooks(
         userId,
       });
       if (shouldSkipCommercialBilling(options?.metadata)) return;
-      await assertCommercialChatBudget({ db, payload, provider, userId });
+      const estimatedCredits = await estimateCommercialChatCredits({
+        db,
+        payload,
+        provider,
+        userId,
+      });
+      await reserveUsage({
+        db,
+        estimatedCredits,
+        model: payload.model,
+        options,
+        payload,
+        usageType: 'chat',
+      });
     },
-    beforeEmbeddings: async (payload) => {
+    beforeEmbeddings: async (payload, options) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
       await assertModelPolicyAllowed(policyParams(db, payload.model, 'embeddings'));
@@ -94,9 +197,24 @@ export function getBusinessModelRuntimeHooks(
         modelType: 'embedding',
         userId,
       });
-      await assertCommercialMinimumBudget({ db, model: payload.model, provider, userId });
+      if (shouldSkipCommercialBilling(options?.metadata)) return;
+      const estimatedCredits = await estimateCommercialEmbeddingsCredits({
+        db,
+        input: payload.input,
+        model: payload.model,
+        provider,
+        userId,
+      });
+      await reserveUsage({
+        db,
+        estimatedCredits,
+        model: payload.model,
+        options,
+        payload,
+        usageType: 'embeddings',
+      });
     },
-    beforeGenerateObject: async (payload) => {
+    beforeGenerateObject: async (payload, options) => {
       const db = await getServerDB();
       const groupKey = routeMetadata?.groupKey ?? undefined;
       await assertModelPolicyAllowed(policyParams(db, payload.model, 'generate_object'));
@@ -107,7 +225,21 @@ export function getBusinessModelRuntimeHooks(
         modelType: 'chat',
         userId,
       });
-      await assertCommercialChatBudget({ db, payload: payload as any, provider, userId });
+      if (shouldSkipCommercialBilling(options?.metadata)) return;
+      const estimatedCredits = await estimateCommercialChatCredits({
+        db,
+        payload: payload as any,
+        provider,
+        userId,
+      });
+      await reserveUsage({
+        db,
+        estimatedCredits,
+        model: payload.model,
+        options,
+        payload,
+        usageType: 'generate_object',
+      });
     },
     beforeCreateImage: async (payload) => {
       const db = await getServerDB();
@@ -138,9 +270,34 @@ export function getBusinessModelRuntimeHooks(
     onChatFinal: async (data, { options, payload }) => {
       const metadata = options?.metadata;
       if (shouldSkipCommercialBilling(metadata)) return;
+      if (data.error) {
+        await releaseReservation(payload, metadata);
+        return;
+      }
+
+      const reservation = resolveReservationContext(payload, metadata);
+      reservationByPayload.delete(payload);
+      if (reservation?.reservationId) {
+        const db = await getServerDB();
+        await settleCommercialAiUsageReservation({
+          db,
+          estimatedCredits: reservation.estimatedCredits,
+          model: payload.model,
+          operationId: reservation.operationId,
+          provider,
+          reservationId: reservation.reservationId,
+          routeMetadata,
+          title: 'AI Chat Usage',
+          usage: data.usage,
+          usageType: 'chat',
+          userId,
+        });
+        return;
+      }
+
       if (!data.usage) return;
 
-      const messageId = resolveCommercialBillingReferenceId(metadata);
+      const messageId = resolveCommercialBillingReferenceId(metadata) ?? reservation?.operationId;
       if (!messageId) {
         console.warn('[billing] skip chat usage charge because no billing reference metadata', {
           model: payload.model,
@@ -161,14 +318,40 @@ export function getBusinessModelRuntimeHooks(
         userId,
       });
     },
+    onChatError: async (_error, { options, payload }) => {
+      if (shouldSkipCommercialBilling(options?.metadata)) return;
+      await releaseReservation(payload, options?.metadata);
+    },
     onEmbeddingsFinal: async (data, { options, payload }) => {
       const metadata = options?.metadata;
       if (shouldSkipCommercialBilling(metadata)) return;
+
+      const reservation = resolveReservationContext(payload, metadata);
+      reservationByPayload.delete(payload);
+      if (reservation?.reservationId) {
+        const db = await getServerDB();
+        await settleCommercialAiUsageReservation({
+          db,
+          estimatedCredits: reservation.estimatedCredits,
+          model: payload.model,
+          operationId: reservation.operationId,
+          provider,
+          reservationId: reservation.reservationId,
+          routeMetadata,
+          title: 'AI Embeddings Usage',
+          usage: data.usage,
+          usageType: 'embeddings',
+          userId,
+        });
+        return;
+      }
+
       if (!data.usage) return;
 
       const referenceId =
-        resolveCommercialBillingReferenceId(metadata) ||
-        createEphemeralBillingReferenceId('embeddings');
+        resolveCommercialBillingReferenceId(metadata) ??
+        reservation?.operationId ??
+        createBillingOperationId('embeddings');
       const db = await getServerDB();
 
       await recordCommercialAiUsage({
@@ -185,14 +368,54 @@ export function getBusinessModelRuntimeHooks(
         userId,
       });
     },
+    onEmbeddingsError: async (_error, { options, payload }) => {
+      if (shouldSkipCommercialBilling(options?.metadata)) return;
+      await releaseReservation(payload, options?.metadata);
+    },
+    onGenerateObjectComplete: async (data, { options, payload }) => {
+      const metadata = options?.metadata;
+      if (shouldSkipCommercialBilling(metadata)) return;
+      const reservation = resolveReservationContext(payload, metadata);
+      reservationByPayload.delete(payload);
+      if (!reservation?.reservationId) return;
+
+      if (!data.success) {
+        const db = await getServerDB();
+        await releaseCommercialAiUsageReservation({
+          db,
+          reason: 'provider_error',
+          reservationId: reservation.reservationId,
+        });
+        return;
+      }
+
+      const db = await getServerDB();
+      await settleCommercialAiUsageReservation({
+        db,
+        estimatedCredits: reservation.estimatedCredits,
+        model: payload.model,
+        operationId: reservation.operationId,
+        provider,
+        reservationId: reservation.reservationId,
+        routeMetadata,
+        title: 'AI Structured Output Usage',
+        usage: data.usage,
+        usageType: 'generate_object',
+        userId,
+      });
+    },
     onGenerateObjectFinal: async (data, { options, payload }) => {
       const metadata = options?.metadata;
       if (shouldSkipCommercialBilling(metadata)) return;
       if (!data.usage) return;
 
+      const reservation = resolveReservationContext(payload, metadata);
+      if (reservation?.reservationId) return;
+
       const referenceId =
-        resolveCommercialBillingReferenceId(metadata) ||
-        createEphemeralBillingReferenceId('generate_object');
+        resolveCommercialBillingReferenceId(metadata) ??
+        reservation?.operationId ??
+        createBillingOperationId('generate_object');
       const db = await getServerDB();
 
       await recordCommercialAiUsage({

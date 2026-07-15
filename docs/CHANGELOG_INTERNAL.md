@@ -1,5 +1,17 @@
 # Internal Changelog
 
+## 2026-07-14
+
+### Module App Production Completion
+
+- MODULE-APP-COMPLETE-001: Corrected the independent Compose Worker database boundary. `DATABASE_URL` is container-reachable on the external platform network, `COMHUB_MODULE_WORKER_PREFLIGHT_DATABASE_URL` is host-loopback-only, migration preflight runs in a hardened temporary PostgreSQL client container, artifact ownership is prepared as UID/GID `10001:10001`, and CI bootstraps only a missing worker `.env` from `comhub-app`.
+- MODULE-APP-COMPLETE-002: Completed strictly validated product and active-price administration, atomic product audit writes, idempotent paid license plus installation activation, ordinary purchased-license entitlement, free personal install, Alipay computer-website payment continuation, and personal uninstall. Price history remains append-only.
+- MODULE-APP-COMPLETE-003: Completed explicit action dependency injection for billing, FileS3 artifact persistence, declared installation secrets, immutable workflow version resolution, workflow execution, and allowlisted `notifications.create` server actions. Privileged action types remain gated by the master execution flag.
+- MODULE-APP-COMPLETE-004: Replaced Module App record placeholders with tested, server-paginated list, create/edit form, and URL-preserved scope controls. Reviewed `list` and `form` pages render through the host component path; unsupported/custom pages preserve the isolated sandbox path.
+- MODULE-APP-COMPLETE-005: Added injectable asynchronous replay and notification-rate contracts plus Redis-backed cross-replica adapters. Replay uses `SET NX` with capability TTL; notification limits use an atomic sorted-set sliding window; Redis keys hash identifying inputs. Redis-disabled development keeps bounded process-local fallback behavior.
+- Verification: focused Worker Compose/workflow tests, database commerce/gateway tests, business runtime/SDK tests, server entitlement/dependency/guard tests, market/admin/service/component tests, Module App type tests, locale JSON parsing, root TypeScript checking, and `git diff --check`.
+- Release boundary: all eight Module App production mutation flags remain disabled. Live Alipay lifecycle, authenticated browser acceptance, production runtime smoke, and staging switch/rollback evidence remain required before enablement.
+
 ## 2026-07-12
 
 ### Module App Build Worker

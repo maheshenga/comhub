@@ -76,11 +76,7 @@ export class ModuleAppCreditModel {
     }
   };
 
-  private expireReservations = async (
-    tx: Transaction,
-    payer: ModuleAppBillingPayer,
-    now: Date,
-  ) => {
+  private expireReservations = async (tx: Transaction, payer: ModuleAppBillingPayer, now: Date) => {
     await tx
       .update(creditReservations)
       .set({ status: 'expired', updatedAt: now })
@@ -141,6 +137,7 @@ export class ModuleAppCreditModel {
     idempotencyKey: string;
     metadata?: Record<string, unknown>;
     payer: ModuleAppBillingPayer;
+    requireNew?: boolean;
   }) => {
     assertAmount(input.amount);
     if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 240) {
@@ -154,6 +151,7 @@ export class ModuleAppCreditModel {
       });
       if (existingBeforeLock) {
         this.assertReservationIdentity(existingBeforeLock, { amount: input.amount, payer });
+        if (input.requireNew) throw new Error('MODULE_APP_CREDIT_IDEMPOTENCY_REPLAY');
         return existingBeforeLock;
       }
 
@@ -163,6 +161,7 @@ export class ModuleAppCreditModel {
       });
       if (existing) {
         this.assertReservationIdentity(existing, { amount: input.amount, payer });
+        if (input.requireNew) throw new Error('MODULE_APP_CREDIT_IDEMPOTENCY_REPLAY');
         return existing;
       }
 
@@ -192,6 +191,11 @@ export class ModuleAppCreditModel {
 
   settle = async (input: {
     actualAmount: number;
+    ledger?: {
+      description?: string;
+      referenceType?: string;
+      title?: string;
+    };
     metadata: Record<string, unknown>;
     reservationId: string;
   }) => {
@@ -232,12 +236,7 @@ export class ModuleAppCreditModel {
           .where(eq(creditReservations.id, reservation.id));
         throw new Error('MODULE_APP_CREDIT_RESERVATION_EXPIRED');
       }
-      const reservedByOthers = await this.getActiveReservedAmount(
-        tx,
-        payer,
-        now,
-        reservation.id,
-      );
+      const reservedByOthers = await this.getActiveReservedAmount(tx, payer, now, reservation.id);
       if (account.balance - reservedByOthers < input.actualAmount) {
         throw new Error('MODULE_APP_CREDIT_INSUFFICIENT_AVAILABLE_BALANCE');
       }
@@ -266,11 +265,15 @@ export class ModuleAppCreditModel {
           .values({
             amount: -input.actualAmount,
             balanceAfter,
-            description: 'Module App reserved usage settlement',
-            metadata: { ...reservation.metadata, ...input.metadata, reservedAmount: reservation.amount },
+            description: input.ledger?.description ?? 'Module App reserved usage settlement',
+            metadata: {
+              ...reservation.metadata,
+              ...input.metadata,
+              reservedAmount: reservation.amount,
+            },
             referenceId: reservation.id,
-            referenceType: 'module_app_credit_reservation',
-            title: 'Module App Usage',
+            referenceType: input.ledger?.referenceType ?? 'module_app_credit_reservation',
+            title: input.ledger?.title ?? 'Module App Usage',
             type: 'consume',
             userId: payer.userId,
           })
@@ -299,11 +302,15 @@ export class ModuleAppCreditModel {
           .values({
             amount: -input.actualAmount,
             balanceAfter,
-            description: 'Module App reserved usage settlement',
-            metadata: { ...reservation.metadata, ...input.metadata, reservedAmount: reservation.amount },
+            description: input.ledger?.description ?? 'Module App reserved usage settlement',
+            metadata: {
+              ...reservation.metadata,
+              ...input.metadata,
+              reservedAmount: reservation.amount,
+            },
             referenceId: reservation.id,
-            referenceType: 'module_app_credit_reservation',
-            title: 'Module App Usage',
+            referenceType: input.ledger?.referenceType ?? 'module_app_credit_reservation',
+            title: input.ledger?.title ?? 'Module App Usage',
             type: 'consume',
             workspaceId: payer.workspaceId,
           })

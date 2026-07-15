@@ -103,7 +103,9 @@ describe('adminCommercialService NewAPI helpers', () => {
     await expect(
       adminCommercialService.moduleApps.listPackages({ reviewStatus: 'pending_review' }),
     ).resolves.toEqual({ items: [{ id: 'package-1' }], nextCursor: null });
-    await expect(adminCommercialService.moduleApps.getPackage({ packageId: 'package-1' })).resolves.toEqual({
+    await expect(
+      adminCommercialService.moduleApps.getPackage({ packageId: 'package-1' }),
+    ).resolves.toEqual({
       id: 'package-1',
     });
     await expect(
@@ -178,12 +180,51 @@ describe('adminCommercialService NewAPI helpers', () => {
     expect((lambdaClient.admin.moduleApps as any).upsert.mutate).toHaveBeenCalledWith(input);
   });
 
+  it('calls module app product management endpoints', async () => {
+    (lambdaClient.admin.moduleApps as any).createProduct = {
+      mutate: vi.fn().mockResolvedValue({ id: 'product-1' }),
+    };
+    (lambdaClient.admin.moduleApps as any).listProducts = {
+      query: vi.fn().mockResolvedValue([{ productId: 'product-1' }]),
+    };
+    (lambdaClient.admin.moduleApps as any).updateProduct = {
+      mutate: vi.fn().mockResolvedValue({ product: { id: 'product-1' } }),
+    };
+    const createInput = {
+      appId: 'app1',
+      licenseScope: 'personal' as const,
+      price: { amount: 88, currency: 'CNY' },
+      productKey: 'pro',
+      productType: 'one_time' as const,
+    };
+    const updateInput = {
+      licenseScope: 'personal' as const,
+      price: { amount: 120, currency: 'CNY' },
+      productId: 'product-1',
+      productType: 'one_time' as const,
+      status: 'active' as const,
+    };
+
+    await expect(adminCommercialService.moduleApps.createProduct(createInput)).resolves.toEqual({
+      id: 'product-1',
+    });
+    await expect(
+      adminCommercialService.moduleApps.listProducts({ appId: 'app1' }),
+    ).resolves.toEqual([{ productId: 'product-1' }]);
+    await expect(
+      adminCommercialService.moduleApps.updateProduct(updateInput),
+    ).resolves.toMatchObject({
+      product: { id: 'product-1' },
+    });
+  });
+
   it('calls the AI provider model sync endpoint', async () => {
     vi.mocked(lambdaClient.admin.newapiProviders.syncInstanceModels.mutate).mockResolvedValue({
       importedCount: 1,
       modelsCount: 1,
       ok: true,
       pricingCount: 0,
+      staleCount: 0,
       warnings: [],
     });
 
@@ -195,14 +236,14 @@ describe('adminCommercialService NewAPI helpers', () => {
   });
 
   it('calls the AI provider model catalog diagnostics endpoint', async () => {
-    vi.mocked(lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query).mockResolvedValue(
-      {
-        catalog: [],
-        health: { hiddenByPlanCount: 0, modelTypeCount: 0, totalCount: 0, visibleCount: 0 },
-        hiddenByReason: {},
-        risks: [],
-      },
-    );
+    vi.mocked(
+      lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query,
+    ).mockResolvedValue({
+      catalog: [],
+      health: { hiddenByPlanCount: 0, modelTypeCount: 0, totalCount: 0, visibleCount: 0 },
+      hiddenByReason: {},
+      risks: [],
+    });
 
     await adminCommercialService.getAiProviderModelCatalogDiagnostics();
 

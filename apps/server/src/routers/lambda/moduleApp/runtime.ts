@@ -11,14 +11,26 @@ import { z } from 'zod';
 import { assertModuleAppRolloutAllowed } from '@/business/server/module-apps/productionControls';
 import { runModuleAppAction } from '@/business/server/module-apps/runModuleAppAction';
 import { runModuleAppExecutableAction } from '@/business/server/module-apps/runners/executableActionRunner';
+import { ModuleAppWorkflowEngine } from '@/business/server/module-apps/workflows/engine';
+import { createModuleAppWorkflowExecutor } from '@/business/server/module-apps/workflows/executors';
+import { ModuleAppCreditModel } from '@/database/models/moduleAppCredit';
+import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { appEnv } from '@/envs/app';
+import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
+import { FileS3 } from '@/server/modules/S3';
 import { createModuleAppTextGenerator } from '@/server/services/moduleAppAi';
+import {
+  resolveModuleAppActionOutboundHosts,
+  resolveModuleAppActionSecrets,
+  resolveModuleAppWorkflowAction,
+} from '@/server/services/moduleAppRuntime/actionDependencies';
 import {
   signModuleAppCapability,
   verifyModuleAppCapability,
 } from '@/server/services/moduleAppRuntime/capability';
 import { ModuleAppRuntimeClient } from '@/server/services/moduleAppRuntime/client';
 import { createModuleAppCapabilityGateway } from '@/server/services/moduleAppRuntime/gateway';
+import { createModuleAppServerAction } from '@/server/services/moduleAppRuntime/serverAction';
 
 import {
   assertRecordPermission,
@@ -269,6 +281,15 @@ export const moduleAppRuntimeProcedures = {
     const action = installation.actions.find((item) => item.id === input.actionId);
     if (!action) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_action_not_found' });
 
+    if (
+      ['api_action', 'content_generation', 'executable_action', 'server_action', 'workflow_step'].includes(
+        action.runtimeType,
+      ) &&
+      !appEnv.MODULE_APP_EXECUTION_ENABLED
+    ) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_runtime_unavailable' });
+    }
+
     if (action.runtimeType === 'record_update' || action.runtimeType === 'record_archive') {
       if (!input.recordId) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'module_app_record_id_required' });
@@ -299,11 +320,8 @@ export const moduleAppRuntimeProcedures = {
     }
 
     let executableRunner;
-    let installationId: string | undefined;
+    const installationId = installation.installationId;
     if (action.runtimeType === 'executable_action') {
-      if (!appEnv.MODULE_APP_EXECUTION_ENABLED) {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_runtime_unavailable' });
-      }
       if (!appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
@@ -352,7 +370,6 @@ export const moduleAppRuntimeProcedures = {
       );
       const runtimeClient = new ModuleAppRuntimeClient();
       const invocationId = randomUUID();
-      installationId = installation.installationId;
       executableRunner = () =>
         runModuleAppExecutableAction({
           action,
@@ -372,9 +389,48 @@ export const moduleAppRuntimeProcedures = {
         });
     }
 
+    const workflow =
+      action.runtimeType === 'workflow_step'
+        ? resolveModuleAppWorkflowAction({ action, runtimeManifest: installation.runtimeManifest })
+        : undefined;
+    const workflowEngine = workflow
+      ? new ModuleAppWorkflowEngine({
+          execute: createModuleAppWorkflowExecutor({}),
+          repository: new ModuleAppWorkflowModel(ctx.serverDB),
+        })
+      : undefined;
+    const outboundHosts =
+      action.runtimeType === 'api_action'
+        ? resolveModuleAppActionOutboundHosts({ runtimeManifest: installation.runtimeManifest })
+        : undefined;
+    let gateKeeperPromise: ReturnType<typeof KeyVaultsGateKeeper.initWithEnvKey> | undefined;
+    const resolvedSecrets =
+      action.runtimeType === 'api_action'
+        ? await resolveModuleAppActionSecrets({
+            action,
+            decrypt: async (encryptedValue) => {
+              gateKeeperPromise ??= KeyVaultsGateKeeper.initWithEnvKey();
+              return (await gateKeeperPromise).decrypt(encryptedValue);
+            },
+            getEncryptedValue: ({ installationId: secretInstallationId, key }) =>
+              ctx.moduleAppModel.getInstallationSecret({
+                installationId: secretInstallationId,
+                key,
+              }),
+            installationId,
+          })
+        : undefined;
+    const creditAdapter = new ModuleAppCreditModel(ctx.serverDB);
+    const artifactStorage = new FileS3();
+
     return runModuleAppAction({
       action,
       appId: input.appId,
+      artifactStorage: {
+        uploadBuffer: async (key, buffer, contentType) => {
+          await artifactStorage.uploadBuffer(key, buffer, contentType);
+        },
+      },
       assertEntitlement: () =>
         assertRunnableApp({
           appId: input.appId,
@@ -386,12 +442,19 @@ export const moduleAppRuntimeProcedures = {
         }),
       input: input.input,
       installationId,
+      billing: installation.billing,
+      creditAdapter,
       model: ctx.moduleAppModel,
+      outboundHosts,
       recordId: input.recordId,
+      resolvedSecrets,
       runner: executableRunner,
       scopeType: input.scopeType,
+      serverAction: createModuleAppServerAction({ db: ctx.serverDB }),
       textGenerator: createModuleAppTextGenerator({ db: ctx.serverDB, workspaceId: input.workspaceId }),
       userId: ctx.userId,
+      workflow,
+      workflowEngine,
       workspaceId: input.workspaceId,
     });
   }),

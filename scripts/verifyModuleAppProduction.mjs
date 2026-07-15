@@ -277,7 +277,6 @@ const requireFullEnvironment = () => {
     'MODULE_APP_ALIPAY_APP_ID',
     'MODULE_APP_ALIPAY_SELLER_ID',
     'MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY',
-    'MODULE_APP_ALIPAY_PUBLIC_KEY',
     'MODULE_APP_ALIPAY_RETURN_URL',
     'MODULE_APP_ALIPAY_NOTIFY_URL',
     'MODULE_APP_E2E_APP_ID',
@@ -289,6 +288,13 @@ const requireFullEnvironment = () => {
     'MODULE_APP_E2E_REVOKED_APP_ID',
     'MODULE_APP_E2E_RUN_ID',
     'MODULE_APP_E2E_TEAM_WORKSPACE_ID',
+    ...(process.env.MODULE_APP_ALIPAY_CERT_MODE === 'certificate'
+      ? [
+          'MODULE_APP_ALIPAY_CERTIFICATE',
+          'MODULE_APP_ALIPAY_APP_CERT_SN',
+          'MODULE_APP_ALIPAY_ROOT_CERT_SN',
+        ]
+      : ['MODULE_APP_ALIPAY_PUBLIC_KEY']),
   ];
   const missing = required.filter((key) => !process.env[key]?.trim());
   if (missing.length > 0) {
@@ -421,16 +427,29 @@ const runWorkerGate = async () => {
 };
 
 const databaseTests = [
+  'src/models/__tests__/commercial.test.ts',
+  'src/models/__tests__/commercial.topup.test.ts',
+  'src/models/__tests__/moduleAppCommerce.test.ts',
+  'src/models/__tests__/moduleAppCredit.test.ts',
   'src/models/__tests__/moduleAppGateway.test.ts',
+  'src/models/__tests__/moduleApp.marketplace.test.ts',
   'src/models/__tests__/moduleAppPayment.test.ts',
   'src/models/__tests__/moduleAppPublisher.test.ts',
   'src/models/__tests__/moduleAppPayout.test.ts',
+];
+
+const generalCommercialTests = [
+  'src/commercialBilling.test.ts',
+  'src/lambda-routers/admin/redemption.test.ts',
 ];
 
 let primaryError;
 try {
   if (full) requireFullEnvironment();
   runVitest(['scripts/dockerWorkspaceManifests.test.ts']);
+  runVitest(generalCommercialTests, {
+    cwd: path.join(root, 'packages', 'business-server'),
+  });
   run('docker', ['info', '--format', '{{.ServerVersion}}']);
   compose([
     'up',

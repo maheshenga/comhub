@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Modal, Segmented, Tag, Typography } from 'antd';
+import { Alert, Button, Modal, Segmented, Tag, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
@@ -33,7 +33,14 @@ type PurchaseModalProps = {
   order?: { id: string; status: string } | null;
   onCancelOrder: (orderId: string) => Promise<void>;
   onClose: () => void;
-  onCreateOrder: (input: { productId: string; workspaceId?: string }) => Promise<void>;
+  onCreateOrder: (input: {
+    idempotencyKey: string;
+    productId: string;
+    workspaceId?: string;
+  }) => Promise<{ id: string } | void>;
+  onCreatePayment?: (input: { orderId: string; subject: string }) => Promise<void>;
+  onInstall?: (input: { appId: string; workspaceId?: string }) => Promise<void>;
+  subject?: string;
   workspaceId?: string;
 };
 
@@ -50,9 +57,27 @@ const formatPrice = (currency?: string, price?: number) =>
     : '-';
 
 const PurchaseModal = memo<PurchaseModalProps>(
-  ({ catalog, license, loading, open, order, onCancelOrder, onClose, onCreateOrder, workspaceId }) => {
+  ({
+    catalog,
+    license,
+    loading,
+    open,
+    order,
+    onCancelOrder,
+    onClose,
+    onCreateOrder,
+    onCreatePayment,
+    onInstall,
+    subject = '',
+    workspaceId,
+  }) => {
     const { t } = useTranslation('common');
+    const [error, setError] = useState<string>();
+    const [orderIdempotencyKey, setOrderIdempotencyKey] = useState(() =>
+      globalThis.crypto.randomUUID(),
+    );
     const [selectedProductId, setSelectedProductId] = useState<string>();
+    const [submitting, setSubmitting] = useState(false);
     const selected = useMemo(
       () => catalog.find((item) => item.productId === selectedProductId) ?? catalog[0],
       [catalog, selectedProductId],
@@ -61,12 +86,19 @@ const PurchaseModal = memo<PurchaseModalProps>(
       open && selected && !license && !['paid', 'pending'].includes(order?.status ?? '')
         ? ['moduleApp.quoteProduct', selected.productId]
         : null,
-      () => moduleAppService.quoteProduct({ productId: selected!.productId }) as Promise<ModuleAppQuote>,
+      () =>
+        moduleAppService.quoteProduct({
+          productId: selected!.productId,
+        }) as Promise<ModuleAppQuote>,
     );
 
     useEffect(() => {
       if (!selectedProductId && catalog[0]) setSelectedProductId(catalog[0].productId);
     }, [catalog, selectedProductId]);
+
+    useEffect(() => {
+      if (open && selected?.productId) setOrderIdempotencyKey(globalThis.crypto.randomUUID());
+    }, [open, order?.id, order?.status, selected?.productId, workspaceId]);
 
     const options = catalog.map((item) => ({
       label: item.billingPeriod ?? item.productType,
@@ -76,6 +108,40 @@ const PurchaseModal = memo<PurchaseModalProps>(
     const selectedScope = selected?.licenseScope ?? quote.data?.licenseScope;
     const requiresWorkspace = Boolean(selectedScope && selectedScope !== 'personal');
     const promotion = quote.data?.promotion ?? selected?.promotion;
+    const isFree = selected?.productType === 'free';
+
+    const createPayment = async (orderId: string) => {
+      if (!onCreatePayment) return;
+      await onCreatePayment({ orderId, subject });
+    };
+
+    const submit = async () => {
+      if (!selected) return;
+      setError(undefined);
+      setSubmitting(true);
+      try {
+        if (isFree) {
+          if (!onInstall) throw new Error('module_app_install_unavailable');
+          await onInstall({
+            appId: selected.appId,
+            ...(requiresWorkspace && workspaceId ? { workspaceId } : {}),
+          });
+          onClose();
+          return;
+        }
+
+        const created = await onCreateOrder({
+          idempotencyKey: orderIdempotencyKey,
+          productId: selected.productId,
+          ...(requiresWorkspace && workspaceId ? { workspaceId } : {}),
+        });
+        if (created?.id) await createPayment(created.id);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'module_app_payment_failed');
+      } finally {
+        setSubmitting(false);
+      }
+    };
 
     return (
       <Modal
@@ -97,11 +163,35 @@ const PurchaseModal = memo<PurchaseModalProps>(
             </Flexbox>
           ) : pendingOrder ? (
             <Flexbox gap={12}>
+              {error && (
+                <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />
+              )}
               <Typography.Text>{t('moduleApps.purchase.pending')}</Typography.Text>
               <Typography.Text code>{pendingOrder.id}</Typography.Text>
+              {onCreatePayment && (
+                <Button
+                  loading={submitting}
+                  type="primary"
+                  onClick={async () => {
+                    setError(undefined);
+                    setSubmitting(true);
+                    try {
+                      await createPayment(pendingOrder.id);
+                    } catch (cause) {
+                      setError(
+                        cause instanceof Error ? cause.message : 'module_app_payment_failed',
+                      );
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                >
+                  {t('moduleApps.purchase.continuePayment')}
+                </Button>
+              )}
               <Button
                 danger
-                loading={loading}
+                loading={loading || submitting}
                 onClick={() => onCancelOrder(pendingOrder.id)}
               >
                 {t('moduleApps.purchase.cancel')}
@@ -118,12 +208,13 @@ const PurchaseModal = memo<PurchaseModalProps>(
             </Typography.Text>
           ) : (
             <>
+              {error && (
+                <Alert showIcon message={t('moduleApps.purchase.paymentFailed')} type="error" />
+              )}
               {order?.status === 'refunded' && (
                 <Tag color="orange">{t('moduleApps.purchase.refunded')}</Tag>
               )}
-              {order?.status === 'cancelled' && (
-                <Tag>{t('moduleApps.purchase.cancelled')}</Tag>
-              )}
+              {order?.status === 'cancelled' && <Tag>{t('moduleApps.purchase.cancelled')}</Tag>}
               {options.length > 1 && (
                 <Segmented
                   block
@@ -180,21 +271,12 @@ const PurchaseModal = memo<PurchaseModalProps>(
               <Button
                 block
                 disabled={!selected || (requiresWorkspace && !workspaceId)}
-                loading={loading || quote.isLoading}
+                loading={loading || quote.isLoading || submitting}
                 type="primary"
-                onClick={() =>
-                  selected &&
-                  onCreateOrder({
-                    productId: selected.productId,
-                    ...(requiresWorkspace && workspaceId ? { workspaceId } : {}),
-                  })
-                }
+                onClick={submit}
               >
-                {t('moduleApps.purchase.createOrder')}
+                {t(isFree ? 'moduleApps.purchase.install' : 'moduleApps.purchase.payWithAlipay')}
               </Button>
-              <Typography.Text type="secondary">
-                {t('moduleApps.purchase.noOnlinePayment')}
-              </Typography.Text>
             </>
           )}
         </Flexbox>

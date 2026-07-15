@@ -45,6 +45,7 @@ export const syncExpiredSubscriptionsToFree = async (
         status: 'active',
         userId,
       })
+      .onConflictDoNothing()
       .returning({ id: userPlanSnapshots.id });
 
     if (created) freeSnapshotsCreated += 1;

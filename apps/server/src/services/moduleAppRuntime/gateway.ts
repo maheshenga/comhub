@@ -22,8 +22,17 @@ import type { LobeChatDatabase } from '@/database/type';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { FileS3 } from '@/server/modules/S3';
 
-const replayGuard = new ModuleAppReplayGuard();
-const notificationRateLimiter = new ModuleAppNotificationRateLimiter();
+import {
+  createModuleAppNotificationRateLimitBackend,
+  createModuleAppReplayGuardBackend,
+} from './distributedGuards';
+
+const replayGuard = new ModuleAppReplayGuard({
+  backend: createModuleAppReplayGuardBackend(),
+});
+const notificationRateLimiter = new ModuleAppNotificationRateLimiter({
+  backend: createModuleAppNotificationRateLimitBackend(),
+});
 
 const resolveOutboundHosts = (runtimeManifest: unknown) => {
   if (!runtimeManifest || typeof runtimeManifest !== 'object' || !('runtime' in runtimeManifest)) {

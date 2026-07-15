@@ -18,6 +18,8 @@ import { ModuleAppPackageIngestionService } from '@/server/services/moduleAppPac
 import {
   assertDetailEntitlement,
   assertScopePermission,
+  assertWorkspaceManagementPermission,
+  getWorkspaceMembership,
   moduleAppProcedure,
 } from './data';
 
@@ -27,7 +29,23 @@ const AppIdInputSchema = z.object({
 
 const AppIdOrSlugInputSchema = z.object({
   appIdOrSlug: z.string().min(1).max(160),
+  workspaceId: z.string().min(1).optional(),
 });
+
+const WorkspaceAppInputSchema = AppIdInputSchema.extend({
+  workspaceId: z.string().min(1),
+});
+
+const assertWorkspaceMembership = async (params: {
+  db: Parameters<typeof getWorkspaceMembership>[0];
+  userId: string;
+  workspaceId: string;
+}) => {
+  const membership = await getWorkspaceMembership(params.db, params.userId, params.workspaceId);
+  if (!membership) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
+  }
+};
 
 const publicPackageArchiveSchema = moduleAppPackageArchiveMetadataSchema.pick({
   fileName: true,
@@ -134,10 +152,19 @@ export const moduleAppMarketProcedures = {
     }),
 
   getDetail: moduleAppProcedure.input(AppIdOrSlugInputSchema).query(async ({ ctx, input }) => {
+    if (input.workspaceId) {
+      await assertWorkspaceMembership({
+        db: ctx.serverDB,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+    }
+
     return ctx.moduleAppModel.getAppDetail({
       appIdOrSlug: input.appIdOrSlug,
       plan: ctx.currentPlan,
       userId: ctx.userId,
+      workspaceId: input.workspaceId,
     });
   }),
 
@@ -172,6 +199,42 @@ export const moduleAppMarketProcedures = {
 
     return { ok: true };
   }),
+
+  installWorkspace: moduleAppProcedure
+    .input(WorkspaceAppInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertWorkspaceManagementPermission({
+        db: ctx.serverDB,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+      const detail = await ctx.moduleAppModel.getAppDetail({
+        appIdOrSlug: input.appId,
+        includeHidden: true,
+        plan: ctx.currentPlan,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+
+      if (!detail) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_not_found' });
+      }
+
+      await assertDetailEntitlement({
+        db: ctx.serverDB,
+        detail,
+        operation: 'install',
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+      await ctx.moduleAppModel.installWorkspaceApp({
+        appId: detail.id,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+
+      return { ok: true };
+    }),
 
   listMarketplace: moduleAppProcedure
     .input(moduleAppMarketplaceListInputSchema)
@@ -216,9 +279,7 @@ export const moduleAppMarketProcedures = {
       });
 
       return {
-        items: result.items
-          .map(serializePublicPackageSubmission)
-          .filter((item) => item !== null),
+        items: result.items.map(serializePublicPackageSubmission).filter((item) => item !== null),
         nextCursor: result.nextCursor,
       };
     }),
@@ -257,4 +318,16 @@ export const moduleAppMarketProcedures = {
   uninstallPersonal: moduleAppProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     return ctx.moduleAppModel.uninstallPersonalApp({ ...input, userId: ctx.userId });
   }),
+
+  uninstallWorkspace: moduleAppProcedure
+    .input(WorkspaceAppInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertWorkspaceManagementPermission({
+        db: ctx.serverDB,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+
+      return ctx.moduleAppModel.uninstallWorkspaceApp(input);
+    }),
 };

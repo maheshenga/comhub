@@ -1,4 +1,4 @@
-import type { ModuleAppLaunchContext } from '@lobechat/types';
+import type { ModuleAppLaunchContext, ModuleAppScopeType } from '@lobechat/types';
 import { Button, Flexbox, Icon, Text } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { Clock3, RefreshCw, ServerOff, ShieldAlert, TriangleAlert } from 'lucide-react';
@@ -10,6 +10,7 @@ import useSWR from 'swr';
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import { moduleAppService } from '@/services/moduleApp';
 
+import type { ModuleAppRuntimeManifest } from './PageRenderer';
 import PageRenderer from './PageRenderer';
 import RecentRunResult from './RecentRunResult';
 import WorkflowProgress from './WorkflowProgress';
@@ -59,16 +60,21 @@ export const resolveModuleAppRuntimeState = (error: unknown): RuntimeState => {
 };
 
 interface ModuleAppRuntimeViewProps {
+  appId?: string;
   context?: ModuleAppLaunchContext;
   error?: unknown;
+  initialScopeType?: ModuleAppScopeType;
   loading: boolean;
+  manifest?: ModuleAppRuntimeManifest | null;
   onRetry: () => void;
+  pageKey?: string;
+  recordId?: string;
   runId?: string;
   workspaceId?: string;
 }
 
 export const ModuleAppRuntimeView = memo<ModuleAppRuntimeViewProps>(
-  ({ context, error, loading, onRetry, runId, workspaceId }) => {
+  ({ appId, context, error, initialScopeType, loading, manifest, onRetry, pageKey, recordId, runId, workspaceId }) => {
     const { t } = useTranslation('common');
 
     if (loading) {
@@ -106,7 +112,15 @@ export const ModuleAppRuntimeView = memo<ModuleAppRuntimeViewProps>(
 
     return (
       <div className={styles.root} data-testid="module-app-runtime">
-        <PageRenderer context={context} />
+        <PageRenderer
+          appId={appId}
+          context={context}
+          initialScopeType={initialScopeType}
+          manifest={manifest}
+          pageKey={pageKey}
+          recordId={recordId}
+          workspaceId={workspaceId}
+        />
         <RecentRunResult installationId={context.installationId} workspaceId={workspaceId} />
         {runId && (
           <WorkflowProgress
@@ -123,24 +137,44 @@ export const ModuleAppRuntimeView = memo<ModuleAppRuntimeViewProps>(
 ModuleAppRuntimeView.displayName = 'ModuleAppRuntimeView';
 
 const ModuleAppRuntime = memo(() => {
-  const { appId } = useParams();
+  const { appId, pageKey } = useParams();
   const [searchParams] = useSearchParams();
   const workspaceId = searchParams.get('workspaceId') || undefined;
   const runId = searchParams.get('runId') || undefined;
+  const recordId = searchParams.get('recordId') || undefined;
+  const requestedScopeType = searchParams.get('scopeType');
+  const initialScopeType: ModuleAppScopeType | undefined =
+    requestedScopeType === 'personal' ||
+    (requestedScopeType === 'workspace' && Boolean(workspaceId))
+      ? requestedScopeType
+      : undefined;
   const launch = useSWR<ModuleAppLaunchContext>(
     appId ? ['moduleApp.getLaunchContext', appId, workspaceId] : null,
     () => moduleAppService.getLaunchContext({ appId: appId!, workspaceId }),
     { refreshInterval: 240_000, revalidateOnFocus: true },
   );
+  const manifest = useSWR<ModuleAppRuntimeManifest | null>(
+    appId ? ['moduleApp.getRuntimeManifest', appId] : null,
+    () => moduleAppService.getRuntimeManifest({ appId: appId! }) as Promise<ModuleAppRuntimeManifest | null>,
+  );
 
   return (
     <ModuleAppRuntimeView
+      appId={appId}
       context={launch.data}
-      error={appId ? launch.error : new Error('module_app_installation_required')}
-      loading={Boolean(appId && launch.isLoading)}
+      initialScopeType={initialScopeType}
+      loading={Boolean(appId && (launch.isLoading || (pageKey && manifest.isLoading)))}
+      manifest={manifest.data}
+      pageKey={pageKey}
+      recordId={recordId}
       runId={runId}
       workspaceId={workspaceId}
-      onRetry={() => void launch.mutate()}
+      error={
+        appId
+          ? launch.error ?? (pageKey ? manifest.error : undefined)
+          : new Error('module_app_installation_required')
+      }
+      onRetry={() => void Promise.all([launch.mutate(), manifest.mutate()])}
     />
   );
 });

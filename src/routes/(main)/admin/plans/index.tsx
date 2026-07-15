@@ -22,6 +22,11 @@ import { useNavigate } from 'react-router';
 import InlineTable from '@/components/InlineTable';
 import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import {
+  formatAdminCredits,
+  toAdminAtomicCredits,
+  toAdminDisplayCredits,
+} from '@/features/Admin/adminCreditUnits';
+import {
   ADMIN_PLAN_MODEL_MATRIX_PATH,
   type AdminPlanModelRules,
   getPlanModelRulesSummaryInfo,
@@ -118,6 +123,7 @@ const AdminPlansPage = memo(() => {
       comparisonNote: presentation.comparisonNote,
       features: (init.features ?? []).join('\n'),
       lifetimePrice: metadata?.lifetimePrice ?? null,
+      monthlyCredits: toAdminDisplayCredits(init.monthlyCredits),
       oneTimePrice: metadata?.oneTimePrice ?? null,
       pptCreditCost: Number(metadata?.pptCreditCost ?? 0),
       pptEnabled: metadata?.pptEnabled === true,
@@ -149,7 +155,7 @@ const AdminPlansPage = memo(() => {
           values.lifetimePrice === null || values.lifetimePrice === undefined
             ? null
             : Number(values.lifetimePrice),
-        monthlyCredits: Number(values.monthlyCredits || 0),
+        monthlyCredits: toAdminAtomicCredits(values.monthlyCredits),
         monthlyPrice: Number(values.monthlyPrice || 0),
         oneTimePrice:
           values.oneTimePrice === null || values.oneTimePrice === undefined
@@ -208,6 +214,7 @@ const AdminPlansPage = memo(() => {
     {
       dataIndex: 'monthlyCredits',
       key: 'monthlyCredits',
+      render: (value: number) => formatAdminCredits(value),
       title: t('admin.plans.col.monthlyCredits', '每月积分'),
     },
     {
@@ -407,7 +414,7 @@ const AdminPlansPage = memo(() => {
               name="monthlyCredits"
               style={{ flex: 1 }}
             >
-              <InputNumber min={0} style={{ width: '100%' }} />
+              <InputNumber addonAfter={'M'} min={0} precision={6} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
               label={t('admin.plans.field.currency', '币种')}
@@ -501,13 +508,13 @@ const AdminPlansPage = memo(() => {
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
+              label={t('admin.plans.field.vectorQuota', '向量条数上限')}
+              name="vectorQuota"
+              style={{ flex: 1 }}
               extra={t(
                 'admin.plans.field.vectorQuotaHint',
                 '留空表示不限；按 embeddings 记录条数计算。',
               )}
-              label={t('admin.plans.field.vectorQuota', '向量条数上限')}
-              name="vectorQuota"
-              style={{ flex: 1 }}
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>

@@ -36,7 +36,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     workspaceId?: string;
   }) => {
     const installation = await this.db.query.moduleAppInstallations.findFirst({
-      columns: { id: true },
+      columns: { id: true, versionId: true },
       where: and(
         eq(moduleAppInstallations.appId, params.appId),
         eq(moduleAppInstallations.scopeType, params.scopeType),
@@ -137,12 +137,22 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
   };
 
   installPersonalApp = async (params: { appId: string; userId: string }) => {
-    const versionId = await this.getLatestVersionId(params.appId);
+    const versionId = await this.getCurrentPublishedVersionId(params.appId);
 
     await this.installApp({
       appId: params.appId,
       scopeType: 'personal',
       userId: params.userId,
+      versionId,
+    });
+  };
+
+  installWorkspaceApp = async (params: { appId: string; userId: string; workspaceId: string }) => {
+    const versionId = await this.getCurrentPublishedVersionId(params.appId);
+
+    await this.installApp({
+      ...params,
+      scopeType: 'workspace',
       versionId,
     });
   };
@@ -160,6 +170,25 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
           eq(moduleAppInstallations.appId, params.appId),
           eq(moduleAppInstallations.scopeType, 'personal'),
           eq(moduleAppInstallations.userId, params.userId),
+        ),
+      );
+
+    return { ok: true as const };
+  };
+
+  uninstallWorkspaceApp = async (params: { appId: string; workspaceId: string }) => {
+    await this.db
+      .update(moduleAppInstallations)
+      .set({
+        status: INSTALL_STATUS_INACTIVE,
+        uninstalledAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(moduleAppInstallations.appId, params.appId),
+          eq(moduleAppInstallations.scopeType, 'workspace'),
+          eq(moduleAppInstallations.workspaceId, params.workspaceId),
         ),
       );
 
@@ -242,6 +271,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
       .select({
         artifactKey: moduleAppVersions.runtimeArtifactKey,
         artifactSha256: moduleAppVersions.runtimeArtifactSha256,
+        billing: moduleApps.billing,
         buildArtifactKey: moduleAppBuilds.artifactKey,
         buildArtifactSha256: moduleAppBuilds.artifactSha256,
         buildStatus: moduleAppBuilds.status,

@@ -1,5 +1,12 @@
 'use client';
 
+import {
+  ADMIN_CAPABILITIES,
+  ADMIN_ROLE_IDS,
+  type AdminRole,
+  hasAdminCapability,
+  isFullAdminRole,
+} from '@lobechat/types';
 import { Avatar, Flexbox } from '@lobehub/ui';
 import { Button, Empty, Input, InputNumber, message, Modal, Select, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -9,10 +16,13 @@ import { useTranslation } from 'react-i18next';
 import InlineTable from '@/components/InlineTable';
 import { AdminDangerousActionButton, AdminUserDetailDrawer } from '@/features/Admin';
 import AdminAssignPlanModal from '@/features/Admin/AdminAssignPlanModal';
+import { toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import type { AdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { isFiniteAdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 
 type UserSubscription = {
   cycle: string;
@@ -37,21 +47,30 @@ type UserRow = {
 
 const EMPTY_TEXT = '-';
 
-const ROLE_OPTIONS = [
-  { label: '管理员（Admin）', value: 'admin' },
-  { label: '普通用户（User）', value: 'user' },
-  { label: '未设置', value: '__none__' },
-];
-
-const roleLabel = (role: string | null) => {
-  if (role === 'admin') return '管理员';
-  if (role === 'user') return '普通用户';
-
-  return EMPTY_TEXT;
-};
+type AssignableRole = AdminRole | 'user' | '__none__';
 
 const AdminUsersPage = memo(() => {
   const { t } = useTranslation('subscription');
+  const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
+  const canManageFinance = hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite);
+  const canManageSupport = hasAdminCapability(role, ADMIN_CAPABILITIES.supportWrite);
+  const canSetRoles = isFullAdminRole(role);
+  const roleLabels: Record<AdminRole | 'user', string> = {
+    admin: t('admin.roles.admin', '超级管理员'),
+    content_admin: t('admin.roles.contentAdmin', '内容管理员'),
+    finance_admin: t('admin.roles.financeAdmin', '财务管理员'),
+    model_ops: t('admin.roles.modelOps', '模型运营'),
+    support_admin: t('admin.roles.supportAdmin', '用户支持'),
+    system_admin: t('admin.roles.systemAdmin', '系统管理员'),
+    user: t('admin.roles.user', '普通用户'),
+  };
+  const roleOptions: Array<{ label: string; value: AssignableRole }> = [
+    ...ADMIN_ROLE_IDS.map((value) => ({ label: roleLabels[value], value })),
+    { label: roleLabels.user, value: 'user' },
+    { label: t('admin.roles.unset', '未设置'), value: '__none__' },
+  ];
+  const roleLabel = (value: string | null) =>
+    value && value in roleLabels ? roleLabels[value as AdminRole | 'user'] : EMPTY_TEXT;
   const [query, setQuery] = useState('');
   const [planFilter, setPlanFilter] = useState<string | undefined>();
   const [subscriptionStartedOrder, setSubscriptionStartedOrder] = useState<'asc' | 'desc'>();
@@ -70,8 +89,9 @@ const AdminUsersPage = memo(() => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const swrKey = ['admin-users', query, planFilter ?? '', subscriptionStartedOrder ?? '', cursor];
-  const { data: plansData } = useClientDataSWR(['admin-user-list-plan-options'], () =>
-    adminCommercialService.listPlans(),
+  const { data: plansData } = useClientDataSWR(
+    canManageFinance ? ['admin-user-list-plan-options'] : null,
+    () => adminCommercialService.listPlans(),
   );
 
   const { data, isLoading } = useClientDataSWR(
@@ -150,7 +170,7 @@ const AdminUsersPage = memo(() => {
   const handleSetRole = async (userId: string, value: string) => {
     setActionLoading(`${userId}-role`);
     try {
-      const role = value === '__none__' ? null : (value as 'admin' | 'user');
+      const role = value === '__none__' ? null : (value as AdminRole | 'user');
       await adminCommercialService.setUserRole({ role, userId });
       message.success(t('admin.setRole.success', '角色已更新'));
       invalidate();
@@ -170,7 +190,7 @@ const AdminUsersPage = memo(() => {
     setActionLoading(`${adjustTarget}-credits`);
     try {
       await adminCommercialService.adjustCredits({
-        amount: Math.round(adjustAmount),
+        amount: toAdminAtomicCredits(adjustAmount),
         reason: normalizedReason,
         userId: adjustTarget,
       });
@@ -383,49 +403,57 @@ const AdminUsersPage = memo(() => {
       key: 'actions',
       render: (_: unknown, row: UserRow) => (
         <Space>
-          {row.banned ? (
-            <Button
-              loading={actionLoading === row.id}
+          {canManageSupport ? (
+            row.banned ? (
+              <Button
+                loading={actionLoading === row.id}
+                size="small"
+                onClick={() => handleUnban(row.id)}
+              >
+                {t('admin.unban', '解封')}
+              </Button>
+            ) : (
+              <Button
+                danger
+                loading={actionLoading === row.id}
+                size="small"
+                onClick={() => setBanTarget(row.id)}
+              >
+                {t('admin.ban', '封禁')}
+              </Button>
+            )
+          ) : null}
+          {canSetRoles ? (
+            <Select
+              loading={actionLoading === `${row.id}-role`}
+              options={roleOptions}
+              placeholder={t('admin.setRole', '设置角色')}
               size="small"
-              onClick={() => handleUnban(row.id)}
-            >
-              {t('admin.unban', '解封')}
-            </Button>
-          ) : (
-            <Button
-              danger
-              loading={actionLoading === row.id}
-              size="small"
-              onClick={() => setBanTarget(row.id)}
-            >
-              {t('admin.ban', '封禁')}
-            </Button>
-          )}
-          <Select
-            loading={actionLoading === `${row.id}-role`}
-            options={ROLE_OPTIONS}
-            placeholder={t('admin.setRole', '设置角色')}
-            size="small"
-            style={{ width: 132 }}
-            value={(row.role ?? '__none__') as 'admin' | 'user' | '__none__'}
-            onChange={(value: 'admin' | 'user' | '__none__') => handleSetRole(row.id, value)}
-          />
-          <Button
-            size="small"
-            onClick={() => {
-              setAdjustTarget(row.id);
-              setAdjustAmount(0);
-            }}
-          >
-            {t('admin.adjustCredits', '调整积分')}
-          </Button>
-          <Button
-            loading={actionLoading === `${row.id}-plan`}
-            size="small"
-            onClick={() => openAssignPlan(row.id)}
-          >
-            {t('admin.assignPlan', '设置套餐')}
-          </Button>
+              style={{ width: 132 }}
+              value={(row.role ?? '__none__') as AssignableRole}
+              onChange={(value: AssignableRole) => handleSetRole(row.id, value)}
+            />
+          ) : null}
+          {canManageFinance ? (
+            <>
+              <Button
+                size="small"
+                onClick={() => {
+                  setAdjustTarget(row.id);
+                  setAdjustAmount(0);
+                }}
+              >
+                {t('admin.adjustCredits', '调整积分')}
+              </Button>
+              <Button
+                loading={actionLoading === `${row.id}-plan`}
+                size="small"
+                onClick={() => openAssignPlan(row.id)}
+              >
+                {t('admin.assignPlan', '设置套餐')}
+              </Button>
+            </>
+          ) : null}
           <Button
             loading={actionLoading === `${row.id}-impersonate`}
             size="small"
@@ -535,14 +563,18 @@ const AdminUsersPage = memo(() => {
         >
           {t('admin.exportCsv', '导出 CSV')}
         </Button>
-        <AdminDangerousActionButton
-          actionId="user.resetAllToFreePlan"
-          danger
-          loading={actionLoading === 'reset-all-free' || actionLoading === 'reset-all-free-preview'}
-          onConfirm={({ reason }) => handleResetAllToFreePlan(reason)}
-        >
-          {t('admin.resetAllToFreePlan', '重置所有用户为免费套餐')}
-        </AdminDangerousActionButton>
+        {canSetRoles ? (
+          <AdminDangerousActionButton
+            danger
+            actionId="user.resetAllToFreePlan"
+            loading={
+              actionLoading === 'reset-all-free' || actionLoading === 'reset-all-free-preview'
+            }
+            onConfirm={({ reason }) => handleResetAllToFreePlan(reason)}
+          >
+            {t('admin.resetAllToFreePlan', '重置所有用户为免费套餐')}
+          </AdminDangerousActionButton>
+        ) : null}
       </Flexbox>
       <InlineTable
         columns={columns as any}
@@ -575,6 +607,8 @@ const AdminUsersPage = memo(() => {
         />
       </Modal>
       <Modal
+        open={!!adjustTarget}
+        title={t('admin.adjustCredits', '调整积分')}
         footer={[
           <Button
             key="cancel"
@@ -586,8 +620,8 @@ const AdminUsersPage = memo(() => {
             {t('cancel', '取消')}
           </Button>,
           <AdminDangerousActionButton
-            key="confirm"
             actionId="credits.adjust"
+            key="confirm"
             loading={actionLoading === `${adjustTarget ?? ''}-credits`}
             type="primary"
             onConfirm={({ reason }) => handleAdjustCredits(reason)}
@@ -595,8 +629,6 @@ const AdminUsersPage = memo(() => {
             {t('admin.adjustCredits', '调整积分')}
           </AdminDangerousActionButton>,
         ]}
-        open={!!adjustTarget}
-        title={t('admin.adjustCredits', '调整积分')}
         onCancel={() => {
           setAdjustTarget(null);
           setAdjustAmount(0);
@@ -606,6 +638,8 @@ const AdminUsersPage = memo(() => {
           <Flexbox gap={4}>
             <div>{t('admin.adjustCredits.amount', '积分数量（可输入负数扣减）')}</div>
             <InputNumber
+              addonAfter={'M'}
+              precision={6}
               style={{ width: '100%' }}
               value={adjustAmount}
               onChange={(value: number | null) => setAdjustAmount(Number(value ?? 0))}
@@ -613,22 +647,24 @@ const AdminUsersPage = memo(() => {
           </Flexbox>
         </Flexbox>
       </Modal>
-      <AdminAssignPlanModal
-        confirmLoading={actionLoading === `${assignTarget ?? ''}-plan`}
-        cycle={assignCycle}
-        durationMonths={assignDurationMonths}
-        open={!!assignTarget}
-        plan={assignPlan}
-        plans={plansData?.items ?? []}
-        reason={assignReason}
-        title={t('admin.assignPlan.title', '设置用户套餐')}
-        onCancel={closeAssignPlan}
-        onCycleChange={setAssignCycle}
-        onDurationMonthsChange={setAssignDurationMonths}
-        onOk={handleAssignPlan}
-        onPlanChange={setAssignPlan}
-        onReasonChange={setAssignReason}
-      />
+      {canManageFinance ? (
+        <AdminAssignPlanModal
+          confirmLoading={actionLoading === `${assignTarget ?? ''}-plan`}
+          cycle={assignCycle}
+          durationMonths={assignDurationMonths}
+          open={!!assignTarget}
+          plan={assignPlan}
+          plans={plansData?.items ?? []}
+          reason={assignReason}
+          title={t('admin.assignPlan.title', '设置用户套餐')}
+          onCancel={closeAssignPlan}
+          onCycleChange={setAssignCycle}
+          onDurationMonthsChange={setAssignDurationMonths}
+          onOk={handleAssignPlan}
+          onPlanChange={setAssignPlan}
+          onReasonChange={setAssignReason}
+        />
+      ) : null}
       <AdminUserDetailDrawer userId={detailUserId} onClose={() => setDetailUserId(null)} />
     </Flexbox>
   );

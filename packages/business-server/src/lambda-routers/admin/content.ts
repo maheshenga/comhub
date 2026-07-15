@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { serverDBEnv } from '@/config/db';
 import { FileModel } from '@/database/models/file';
 import { documents, files, topics, users } from '@/database/schemas';
-import { adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { DocumentService } from '@/server/services/document';
 import { FileService } from '@/server/services/file';
 
@@ -55,8 +55,11 @@ const getDocumentForAction = async (ctx: any, documentId: string) => {
   return document;
 };
 
+const contentReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentRead);
+const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
+
 export const adminContentRouter = router({
-  archiveTopic: adminProcedure
+  archiveTopic: contentWriteProcedure
     .input(z.object({ topicId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const topic = await getTopicForAction(ctx, input.topicId);
@@ -77,7 +80,7 @@ export const adminContentRouter = router({
       return { ok: true };
     }),
 
-  deleteDocument: adminProcedure
+  deleteDocument: contentWriteProcedure
     .input(z.object({ documentId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const document = await getDocumentForAction(ctx, input.documentId);
@@ -96,7 +99,7 @@ export const adminContentRouter = router({
       return { ok: true };
     }),
 
-  deleteFile: adminProcedure
+  deleteFile: contentWriteProcedure
     .input(z.object({ fileId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const file = await getFileForAction(ctx, input.fileId);
@@ -120,7 +123,7 @@ export const adminContentRouter = router({
       return { ok: true };
     }),
 
-  deleteTopic: adminProcedure
+  deleteTopic: contentWriteProcedure
     .input(z.object({ topicId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const topic = await getTopicForAction(ctx, input.topicId);
@@ -138,7 +141,7 @@ export const adminContentRouter = router({
       return { ok: true };
     }),
 
-  listDocuments: adminProcedure
+  listDocuments: contentReadProcedure
     .input(
       pageInput.extend({
         sourceType: z.enum(['file', 'web', 'api', 'topic', 'agent', 'agent-signal']).optional(),
@@ -201,7 +204,7 @@ export const adminContentRouter = router({
       };
     }),
 
-  listFiles: adminProcedure.input(pageInput).query(async ({ ctx, input }) => {
+  listFiles: contentReadProcedure.input(pageInput).query(async ({ ctx, input }) => {
     const searchWhere = input.query
       ? or(
           like(files.name, `%${escapeLike(input.query)}%`),
@@ -254,7 +257,7 @@ export const adminContentRouter = router({
     };
   }),
 
-  listTopics: adminProcedure
+  listTopics: contentReadProcedure
     .input(
       pageInput.extend({
         status: z.enum(['active', 'completed', 'archived']).optional(),

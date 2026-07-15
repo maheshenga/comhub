@@ -62,6 +62,10 @@ export class ModuleAppPaymentService {
       recordOperationalAge: recordModuleAppOperationalAge,
       recordVerificationFailure: recordModuleAppPaymentVerificationFailure,
     },
+    private readonly orderRevenueService: Pick<
+      ModuleAppOrderRevenueService,
+      'refundOrder' | 'settleOrder'
+    > = new ModuleAppOrderRevenueService(db),
   ) {
     this.model = new ModuleAppPaymentModel(db);
   }
@@ -101,6 +105,7 @@ export class ModuleAppPaymentService {
     const notifyUrl = assertPaymentUrl(input.notifyUrl);
     const returnUrl = assertPaymentUrl(input.returnUrl);
     const created = await this.adapter.create({
+      currency: snapshot.currency,
       notifyUrl,
       orderId: order.id,
       returnUrl,
@@ -174,14 +179,7 @@ export class ModuleAppPaymentService {
       where: eq(moduleAppOrders.id, attempt.orderId),
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-    if (recorded.duplicate) {
-      await this.model.createDiscrepancy({
-        discrepancyKey: `duplicate:${event.eventId}`,
-        kind: 'duplicate_event',
-        orderId: order.id,
-        outTradeNo: event.outTradeNo,
-        provider: event.provider,
-      });
+    if (recorded.duplicate && order.status !== 'pending') {
       return { duplicate: true, status: order.status };
     }
     if (event.orderId && event.orderId !== order.id) {
@@ -231,13 +229,13 @@ export class ModuleAppPaymentService {
         processedAt: new Date(),
         provider: event.provider,
       });
-      return { duplicate: false, status: order.status };
+      return { duplicate: recorded.duplicate, status: order.status };
     }
     const paymentReference =
       event.paymentReference ?? event.providerTransactionId ?? event.outTradeNo;
     let settled: Awaited<ReturnType<ModuleAppOrderRevenueService['settleOrder']>>;
     try {
-      settled = await new ModuleAppOrderRevenueService(this.db).settleOrder({
+      settled = await this.orderRevenueService.settleOrder({
         actorUserId: order.purchaserUserId,
         orderId: order.id,
         paymentReference,
@@ -266,7 +264,7 @@ export class ModuleAppPaymentService {
       processedAt: new Date(),
       provider: event.provider,
     });
-    return { duplicate: false, status: settled.status };
+    return { duplicate: recorded.duplicate, status: settled.status };
   };
 
   reconcilePayment = async (input: { outTradeNo: string }) => {
@@ -381,10 +379,11 @@ export class ModuleAppPaymentService {
     }
     await this.model.updateRefundStatus({ orderId: order.id, status: 'succeeded' });
     if (order.status !== 'refunded') {
-      await new ModuleAppOrderRevenueService(this.db).refundOrder({
+      await this.orderRevenueService.refundOrder({
         actorUserId: input.actorUserId,
         orderId: order.id,
         reason: refund.reason,
+        refundReference: `alipay:${refund.providerRefundId}`,
       });
     }
     return result;
@@ -395,11 +394,23 @@ export class ModuleAppPaymentService {
       where: eq(moduleAppOrders.id, input.orderId),
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-    const existing = await this.model.getRefundByOrderId(order.id);
-    if (existing && existing.status !== 'succeeded') {
+    let refund = await this.model.getRefundByOrderId(order.id);
+    if (order.status === 'refunded') {
+      if (!refund || refund.status !== 'succeeded') {
+        throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
+      }
+      return this.orderRevenueService.refundOrder({
+        actorUserId: input.actorUserId ?? order.purchaserUserId,
+        orderId: order.id,
+        reason: input.reason,
+        refundReference: `alipay:${refund.providerRefundId}`,
+      });
+    }
+    if (order.status !== 'paid') throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
+    if (refund && refund.status !== 'succeeded') {
       throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
     }
-    if (!existing) {
+    if (!refund) {
       const attempt = await this.model.getPaymentAttemptByOrderId(order.id);
       if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
       const snapshot = moduleAppOrderSnapshotSchema.parse(order.snapshot);
@@ -408,7 +419,7 @@ export class ModuleAppPaymentService {
         reason: input.reason,
         refundAmount: formatAmount(snapshot.price),
       });
-      await this.model.createRefund({
+      const created = await this.model.createRefund({
         currency: snapshot.currency,
         orderId: order.id,
         provider: 'alipay',
@@ -417,16 +428,18 @@ export class ModuleAppPaymentService {
         refundAmount: formatAmount(snapshot.price),
         status: result.status === 'succeeded' ? 'succeeded' : 'failed',
       });
+      refund = created.refund;
       await this.model.updatePaymentAttempt({
         outTradeNo: attempt.outTradeNo,
         status: result.status === 'succeeded' ? 'refunded' : 'failed',
       });
       if (result.status !== 'succeeded') throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
     }
-    return new ModuleAppOrderRevenueService(this.db).refundOrder({
+    return this.orderRevenueService.refundOrder({
       actorUserId: input.actorUserId ?? order.purchaserUserId,
       orderId: order.id,
       reason: input.reason,
+      refundReference: `alipay:${refund.providerRefundId}`,
     });
   };
 
@@ -437,11 +450,7 @@ export class ModuleAppPaymentService {
     eventId: string;
     expectedAmount?: string;
     expectedCurrency?: string;
-    kind:
-      | 'amount_mismatch'
-      | 'currency_mismatch'
-      | 'provider_mismatch'
-      | 'settlement_failed';
+    kind: 'amount_mismatch' | 'currency_mismatch' | 'provider_mismatch' | 'settlement_failed';
     orderId: string;
     outTradeNo: string;
     provider: 'alipay';

@@ -43,6 +43,32 @@ describe('createModuleAppService', () => {
     expect(query).toHaveBeenCalledWith({ appId: 'app-1', workspaceId: 'workspace-1' });
   });
 
+  it('uses workspace scope for detail, install, and uninstall requests', async () => {
+    const getDetail = vi.fn().mockResolvedValue({ id: 'app-1', installed: true });
+    const installWorkspace = vi.fn().mockResolvedValue({ ok: true });
+    const uninstallWorkspace = vi.fn().mockResolvedValue({ ok: true });
+    const service = createModuleAppService({
+      moduleApp: {
+        getDetail: { query: getDetail },
+        installWorkspace: { mutate: installWorkspace },
+        uninstallWorkspace: { mutate: uninstallWorkspace },
+      },
+    } as never);
+    const input = { appId: 'app-1', workspaceId: 'workspace-1' };
+
+    await expect(
+      service.getDetail({ appIdOrSlug: input.appId, workspaceId: input.workspaceId }),
+    ).resolves.toMatchObject({ installed: true });
+    await expect(service.installWorkspace(input)).resolves.toEqual({ ok: true });
+    await expect(service.uninstallWorkspace(input)).resolves.toEqual({ ok: true });
+    expect(getDetail).toHaveBeenCalledWith({
+      appIdOrSlug: input.appId,
+      workspaceId: input.workspaceId,
+    });
+    expect(installWorkspace).toHaveBeenCalledWith(input);
+    expect(uninstallWorkspace).toHaveBeenCalledWith(input);
+  });
+
   it('lists installation-scoped runs with an opaque cursor', async () => {
     const query = vi.fn().mockResolvedValue({ items: [], nextCursor: 'next' });
     const service = createModuleAppService({ moduleApp: { listRuns: { query } } } as never);
@@ -99,12 +125,15 @@ describe('createModuleAppService', () => {
     });
     const submitUploadedPackage = vi.fn().mockResolvedValue({ id: 'package-1' });
     const fetcher = vi.fn().mockResolvedValue({ ok: true });
-    const service = createModuleAppService({
+    const service = createModuleAppService(
+      {
       moduleApp: {
         createPackageUpload: { mutate: createUpload },
         submitUploadedPackage: { mutate: submitUploadedPackage },
       },
-    } as never, fetcher as typeof fetch);
+      } as never,
+      fetcher as typeof fetch,
+    );
     const file = new File(['zip-content'], 'package-app.zip', { type: 'application/zip' });
 
     await expect(service.uploadPackage(file)).resolves.toEqual({ id: 'package-1' });
@@ -163,11 +192,35 @@ describe('createModuleAppService', () => {
 
     await service.listCatalog({ appId: 'app-1' });
     await service.quoteProduct({ productId: 'product-1' });
-    await service.createOrder({ productId: 'product-1' });
+    await service.createOrder({
+      idempotencyKey: '00000000-0000-4000-8000-000000000001',
+      productId: 'product-1',
+    });
     await service.cancelOrder({ orderId: 'order-1' });
     expect(listCatalog).toHaveBeenCalledWith({ appId: 'app-1' });
     expect(quoteProduct).toHaveBeenCalledWith({ productId: 'product-1' });
-    expect(createOrder).toHaveBeenCalledWith({ productId: 'product-1' });
+    expect(createOrder).toHaveBeenCalledWith({
+      idempotencyKey: '00000000-0000-4000-8000-000000000001',
+      productId: 'product-1',
+    });
     expect(cancelOrder).toHaveBeenCalledWith({ orderId: 'order-1' });
+  });
+
+  it('creates a server-owned Alipay computer website payment', async () => {
+    const createPayment = vi.fn().mockResolvedValue({
+      body: '<form action="https://openapi.alipay.com/gateway.do"></form>',
+      outTradeNo: 'mapp-order-1',
+    });
+    const service = createModuleAppService({
+      moduleApp: { createPayment: { mutate: createPayment } },
+    } as never);
+
+    await expect(
+      service.createPayment({ orderId: 'order-1', subject: 'Recruiting Desk' }),
+    ).resolves.toMatchObject({ outTradeNo: 'mapp-order-1' });
+    expect(createPayment).toHaveBeenCalledWith({
+      orderId: 'order-1',
+      subject: 'Recruiting Desk',
+    });
   });
 });

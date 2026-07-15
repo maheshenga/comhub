@@ -7,7 +7,7 @@ import {
   serializeTopUpPackagePromotion,
 } from '@/const/billingPresentation';
 import { redemptionCodes, topUpPackages } from '@/database/schemas';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
@@ -27,6 +27,7 @@ const PackageInputSchema = z.object({
   validityMonths: z.number().min(1).default(12),
 });
 
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 export const adminTopUpPackagesRouter = router({
@@ -54,7 +55,7 @@ export const adminTopUpPackagesRouter = router({
       return { ok: true };
     }),
 
-  list: adminProcedure.query(async ({ ctx }) => {
+  list: financeReadProcedure.query(async ({ ctx }) => {
     const items = await ctx.serverDB.query.topUpPackages.findMany({
       orderBy: asc(topUpPackages.sortOrder),
     });

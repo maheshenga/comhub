@@ -11,7 +11,7 @@ import {
   redemptionCodes,
   userPlanSnapshots,
 } from '@/database/schemas';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure, adminProcedure, router } from '@/libs/trpc/lambda';
+import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { recordAdminAudit } from './audit';
 
@@ -67,6 +67,7 @@ const toStorageQuotaBytes = (storageQuotaMb?: null | number) =>
     ? null
     : Math.floor(storageQuotaMb * 1024 * 1024);
 
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 
 type PlanCatalogAuditRow = Partial<typeof planCatalog.$inferSelect>;
@@ -139,7 +140,7 @@ export const adminPlansRouter = router({
       return { ok: true };
     }),
 
-  list: adminProcedure.query(async ({ ctx }) => {
+  list: financeReadProcedure.query(async ({ ctx }) => {
     const items = await ctx.serverDB.query.planCatalog.findMany({
       orderBy: asc(planCatalog.sortOrder),
     });

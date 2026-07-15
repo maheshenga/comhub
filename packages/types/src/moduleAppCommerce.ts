@@ -67,19 +67,19 @@ const validateProductConsistency = (
   },
   ctx: z.RefinementCtx,
 ) => {
-    if (value.productType === 'subscription' && !value.billingPeriod) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_billing_period_required' });
-    }
-    if (value.productType !== 'subscription' && value.billingPeriod) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_billing_period_forbidden' });
-    }
-    if (value.productType === 'free' && value.price !== 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_free_price_invalid' });
-    }
-    if (value.licenseScope === 'workspace_seat' && !value.seatCount) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_seat_count_required' });
-    }
-  };
+  if (value.productType === 'subscription' && !value.billingPeriod) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_billing_period_required' });
+  }
+  if (value.productType !== 'subscription' && value.billingPeriod) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_billing_period_forbidden' });
+  }
+  if (value.productType === 'free' && value.price !== 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_free_price_invalid' });
+  }
+  if (value.licenseScope === 'workspace_seat' && !value.seatCount) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_seat_count_required' });
+  }
+};
 
 export const moduleAppProductSchema = z
   .object(moduleAppProductShape)
@@ -119,6 +119,7 @@ export const moduleAppOrderSnapshotSchema = z
     promotion: moduleAppPromotionSnapshotSchema.optional(),
     revenueShareRate: moduleAppRateStringSchema,
     termsVersion: z.string().min(1).max(80).default('1'),
+    versionId: z.string().uuid().optional(),
   })
   .strict()
   .superRefine(validateProductConsistency);

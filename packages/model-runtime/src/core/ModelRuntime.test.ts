@@ -591,6 +591,49 @@ describe('ModelRuntime', () => {
         });
       });
 
+      it('forwards beforeChat metadata to onChatFinal when the caller omitted options', async () => {
+        const beforeChat: ModelRuntimeHooks['beforeChat'] = async (_payload, options) => {
+          if (options) options.metadata = { reservationId: 'reservation-chat-1' };
+        };
+        const onChatFinal = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeChat, onChatFinal });
+        mockRuntimeAI.chat.mockImplementation(async (_payload: any, options: any) => {
+          await options.callback.onFinal({ text: 'done' });
+          return new Response('');
+        });
+
+        await runtime.chat(chatPayload);
+
+        expect(onChatFinal).toHaveBeenCalledWith(
+          { text: 'done' },
+          {
+            options: expect.objectContaining({
+              metadata: { reservationId: 'reservation-chat-1' },
+            }),
+            payload: chatPayload,
+          },
+        );
+      });
+
+      it('forwards beforeChat metadata to onChatError after provider dispatch', async () => {
+        const beforeChat: ModelRuntimeHooks['beforeChat'] = async (_payload, options) => {
+          if (options) options.metadata = { reservationId: 'reservation-chat-error' };
+        };
+        const chatError = { errorType: 'ProviderBizError', error: new Error('fail') };
+        const onChatError = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeChat, onChatError });
+        mockRuntimeAI.chat.mockRejectedValue(chatError);
+
+        await expect(runtime.chat(chatPayload)).rejects.toBe(chatError);
+
+        expect(onChatError).toHaveBeenCalledWith(chatError, {
+          options: expect.objectContaining({
+            metadata: { reservationId: 'reservation-chat-error' },
+          }),
+          payload: chatPayload,
+        });
+      });
+
       it('beforeChat throwing aborts chat call', async () => {
         const beforeChat = vi.fn().mockRejectedValue(new Error('budget exceeded'));
         const { runtime, mockRuntimeAI } = createMockRuntime({ beforeChat });
@@ -698,6 +741,33 @@ describe('ModelRuntime', () => {
         expect(mockRuntimeAI.generateObject.mock.calls[0][1]).toMatchObject({
           metadata: { checked: true },
         });
+      });
+
+      it('forwards beforeGenerateObject metadata to completion hooks', async () => {
+        const beforeGenerateObject: ModelRuntimeHooks['beforeGenerateObject'] = async (
+          _payload,
+          options,
+        ) => {
+          if (options) options.metadata = { reservationId: 'reservation-object-1' };
+        };
+        const onGenerateObjectComplete = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({
+          beforeGenerateObject,
+          onGenerateObjectComplete,
+        });
+        mockRuntimeAI.generateObject.mockResolvedValue({ result: 'ok' });
+
+        await runtime.generateObject(genObjPayload);
+
+        expect(onGenerateObjectComplete).toHaveBeenCalledWith(
+          expect.objectContaining({ success: true }),
+          {
+            options: expect.objectContaining({
+              metadata: { reservationId: 'reservation-object-1' },
+            }),
+            payload: genObjPayload,
+          },
+        );
       });
 
       it('beforeGenerateObject throwing aborts generateObject call', async () => {
@@ -888,6 +958,47 @@ describe('ModelRuntime', () => {
 
         expect(beforeEmbeddings).toHaveBeenCalledWith(embeddingsPayload, {});
         expect(mockRuntimeAI.embeddings).toHaveBeenCalledWith(embeddingsPayload, {});
+      });
+
+      it('forwards beforeEmbeddings metadata to final and error hooks', async () => {
+        const beforeEmbeddings: ModelRuntimeHooks['beforeEmbeddings'] = async (
+          _payload,
+          options,
+        ) => {
+          if (options) options.metadata = { reservationId: 'reservation-embedding-1' };
+        };
+        const onEmbeddingsFinal = vi.fn();
+        const onEmbeddingsError = vi.fn();
+        const { runtime, mockRuntimeAI } = createMockRuntime({
+          beforeEmbeddings,
+          onEmbeddingsError,
+          onEmbeddingsFinal,
+        });
+        const usage = { totalInputTokens: 5, totalTokens: 5 };
+        mockRuntimeAI.embeddings
+          .mockImplementationOnce(async (_payload: any, options: any) => {
+            await options.onUsage(usage);
+            return [[0.1]];
+          })
+          .mockRejectedValueOnce(new Error('embedding provider failed'));
+
+        await runtime.embeddings(embeddingsPayload);
+        await expect(runtime.embeddings(embeddingsPayload)).rejects.toThrow(
+          'embedding provider failed',
+        );
+
+        expect(onEmbeddingsFinal).toHaveBeenCalledWith(expect.objectContaining({ usage }), {
+          options: expect.objectContaining({
+            metadata: { reservationId: 'reservation-embedding-1' },
+          }),
+          payload: embeddingsPayload,
+        });
+        expect(onEmbeddingsError).toHaveBeenCalledWith(expect.any(Error), {
+          options: expect.objectContaining({
+            metadata: { reservationId: 'reservation-embedding-1' },
+          }),
+          payload: embeddingsPayload,
+        });
       });
 
       it('beforeEmbeddings throwing triggers onEmbeddingsError before re-throwing', async () => {

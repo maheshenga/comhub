@@ -1,5 +1,6 @@
 'use client';
 
+import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import {
   Button,
@@ -19,11 +20,14 @@ import { useTranslation } from 'react-i18next';
 
 import { mutate as swrMutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 
 import AdminAssignPlanModal from './AdminAssignPlanModal';
+import { formatAdminCredits, toAdminAtomicCredits } from './adminCreditUnits';
+import AdminDangerousActionButton from './AdminDangerousActionButton';
 import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
 import { isFiniteAdminSubscriptionCycle } from './adminSubscriptionCycles';
-import AdminDangerousActionButton from './AdminDangerousActionButton';
 
 interface AdminUserDetailDrawerProps {
   onClose: () => void;
@@ -34,12 +38,15 @@ const EMPTY_TEXT = '-';
 
 const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userId }) => {
   const { t } = useTranslation('subscription');
+  const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
+  const canManageFinance = hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite);
   const swrKey = userId ? ['admin-user-full-detail', userId] : null;
   const { data, isLoading } = useClientDataSWR(swrKey, () =>
     adminCommercialService.getUserFullDetail(userId!),
   );
-  const { data: plansData } = useClientDataSWR(['admin-plan-catalog-options'], () =>
-    adminCommercialService.listPlans(),
+  const { data: plansData } = useClientDataSWR(
+    canManageFinance ? ['admin-plan-catalog-options'] : null,
+    () => adminCommercialService.listPlans(),
   );
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjustAmount, setAdjustAmount] = useState<number | null>(0);
@@ -60,7 +67,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
     setAdjusting(true);
     try {
       await adminCommercialService.adjustCredits({
-        amount: Math.round(adjustAmount),
+        amount: toAdminAtomicCredits(adjustAmount),
         reason: normalizedReason,
         userId,
       });
@@ -112,7 +119,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
       title={t('admin.userDetail.title', '用户详情')}
       width={720}
       extra={
-        userId ? (
+        userId && canManageFinance ? (
           <Space>
             <Button onClick={() => setAssignOpen(true)}>
               {t('admin.userDetail.assignPlan', '给用户分配套餐')}
@@ -169,13 +176,13 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
             title={t('admin.userDetail.balance', '积分余额')}
           >
             <Descriptions.Item label={t('admin.userDetail.balanceCurrent', '当前余额')}>
-              {data.creditAccount?.balance ?? 0}
+              {formatAdminCredits(data.creditAccount?.balance)}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.userDetail.totalCredited', '累计增加')}>
-              {data.creditAccount?.totalCredited ?? 0}
+              {formatAdminCredits(data.creditAccount?.totalCredited)}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.userDetail.totalDebited', '累计扣减')}>
-              {data.creditAccount?.totalDebited ?? 0}
+              {formatAdminCredits(data.creditAccount?.totalDebited)}
             </Descriptions.Item>
             <Descriptions.Item label={t('admin.userDetail.currency', '币种')}>
               {data.creditAccount?.currency ?? 'credits'}
@@ -199,7 +206,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
                 {data.subscription.status}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.userDetail.monthlyCredits', '每月积分')}>
-                {data.subscription.monthlyCredits}
+                {formatAdminCredits(data.subscription.monthlyCredits)}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.userDetail.cycleAmount', '周期金额')}>
                 {data.subscription.monthlyPrice} {data.subscription.currency}
@@ -231,11 +238,13 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
                 {
                   dataIndex: 'amount',
                   key: 'amount',
+                  render: (value: number) => formatAdminCredits(value),
                   title: t('admin.userDetail.ledgerAmount', '数量'),
                 },
                 {
                   dataIndex: 'balanceAfter',
                   key: 'balanceAfter',
+                  render: (value: number) => formatAdminCredits(value),
                   title: t('admin.userDetail.ledgerBalanceAfter', '变动后余额'),
                 },
                 {
@@ -270,6 +279,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
                 {
                   dataIndex: 'credits',
                   key: 'credits',
+                  render: (value: number) => formatAdminCredits(value),
                   title: t('admin.userDetail.orderCredits', '积分'),
                 },
                 {
@@ -342,56 +352,62 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
           </div>
         </Flexbox>
       )}
-      <AdminAssignPlanModal
-        confirmLoading={assigning}
-        cycle={assignCycle}
-        durationMonths={assignDurationMonths}
-        open={assignOpen}
-        plan={assignPlan}
-        plans={plansData?.items ?? []}
-        reason={assignReason}
-        title={t('admin.userDetail.assignPlan', '给用户分配套餐')}
-        onCancel={() => setAssignOpen(false)}
-        onCycleChange={setAssignCycle}
-        onDurationMonthsChange={setAssignDurationMonths}
-        onOk={handleAssignPlan}
-        onPlanChange={setAssignPlan}
-        onReasonChange={setAssignReason}
-      />
-      <Modal
-        footer={[
-          <Button
-            key="cancel"
-            onClick={() => {
-              setAdjustOpen(false);
-              setAdjustAmount(0);
-            }}
-          >
-            {t('cancel', '取消')}
-          </Button>,
-          <AdminDangerousActionButton
-            key="confirm"
-            actionId="credits.adjust"
-            loading={adjusting}
-            type="primary"
-            onConfirm={({ reason }) => handleAdjust(reason)}
-          >
-            {t('admin.adjustCredits', '调整积分')}
-          </AdminDangerousActionButton>,
-        ]}
-        open={adjustOpen}
-        title={t('admin.adjustCredits', '调整积分')}
-        onCancel={() => setAdjustOpen(false)}
-      >
-        <Flexbox gap={12}>
-          <div>{t('admin.adjustCredits.amount', '数量（正数增加，负数扣减）')}</div>
-          <InputNumber
-            style={{ width: '100%' }}
-            value={adjustAmount}
-            onChange={(value: number | null) => setAdjustAmount(value ?? 0)}
-          />
-        </Flexbox>
-      </Modal>
+      {canManageFinance ? (
+        <AdminAssignPlanModal
+          confirmLoading={assigning}
+          cycle={assignCycle}
+          durationMonths={assignDurationMonths}
+          open={assignOpen}
+          plan={assignPlan}
+          plans={plansData?.items ?? []}
+          reason={assignReason}
+          title={t('admin.userDetail.assignPlan', '给用户分配套餐')}
+          onCancel={() => setAssignOpen(false)}
+          onCycleChange={setAssignCycle}
+          onDurationMonthsChange={setAssignDurationMonths}
+          onOk={handleAssignPlan}
+          onPlanChange={setAssignPlan}
+          onReasonChange={setAssignReason}
+        />
+      ) : null}
+      {canManageFinance ? (
+        <Modal
+          open={adjustOpen}
+          title={t('admin.adjustCredits', '调整积分')}
+          footer={[
+            <Button
+              key="cancel"
+              onClick={() => {
+                setAdjustOpen(false);
+                setAdjustAmount(0);
+              }}
+            >
+              {t('cancel', '取消')}
+            </Button>,
+            <AdminDangerousActionButton
+              actionId="credits.adjust"
+              key="confirm"
+              loading={adjusting}
+              type="primary"
+              onConfirm={({ reason }) => handleAdjust(reason)}
+            >
+              {t('admin.adjustCredits', '调整积分')}
+            </AdminDangerousActionButton>,
+          ]}
+          onCancel={() => setAdjustOpen(false)}
+        >
+          <Flexbox gap={12}>
+            <div>{t('admin.adjustCredits.amount', '数量（正数增加，负数扣减）')}</div>
+            <InputNumber
+              addonAfter={'M'}
+              precision={6}
+              style={{ width: '100%' }}
+              value={adjustAmount}
+              onChange={(value: number | null) => setAdjustAmount(value ?? 0)}
+            />
+          </Flexbox>
+        </Modal>
+      ) : null}
     </Drawer>
   );
 });

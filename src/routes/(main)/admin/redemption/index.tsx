@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 
 import InlineTable from '@/components/InlineTable';
 import AdminBulkActionFlow from '@/features/Admin/AdminBulkActionFlow';
+import { formatAdminCredits, toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -100,7 +101,8 @@ const AdminRedemptionPage = memo(() => {
     [packagesData?.items],
   );
 
-  const handleBulkDisable = async () => adminCommercialService.bulkDisableRedemptionCodes(selectedIds);
+  const handleBulkDisable = async () =>
+    adminCommercialService.bulkDisableRedemptionCodes(selectedIds);
 
   const handleBulkDelete = async (reason?: null | string) =>
     adminCommercialService.bulkDeleteRedemptionCodes({
@@ -156,7 +158,7 @@ const AdminRedemptionPage = memo(() => {
         payload.planDurationMonths = v.planDurationMonths;
         payload.planKey = v.planKey;
       } else if (v.rewardType === 'credits') {
-        payload.creditsAmount = v.creditsAmount;
+        payload.creditsAmount = toAdminAtomicCredits(v.creditsAmount);
       } else {
         payload.topupPackageId = v.topupPackageId;
       }
@@ -224,7 +226,7 @@ const AdminRedemptionPage = memo(() => {
         r.rewardType === 'plan'
           ? `${r.planKey} / ${r.planCycle}${r.planDurationMonths ? ` / ${r.planDurationMonths} 个月` : ''}`
           : r.rewardType === 'credits'
-            ? `${r.creditsAmount} credits`
+            ? formatAdminCredits(r.creditsAmount)
             : r.topupPackageId,
       title: t('admin.redemption.col.reward', '奖励'),
     },
@@ -336,9 +338,10 @@ const AdminRedemptionPage = memo(() => {
           {selectedIds.length > 0 && (
             <>
               <AdminBulkActionFlow
+                danger
                 actionId="redemption.bulkDisable"
                 count={selectedIds.length}
-                danger
+                summary={formatBulkDisableResult}
                 confirmTitle={t(
                   'admin.redemption.confirmBulkDisable',
                   `确认停用 ${selectedIds.length} 个兑换码？`,
@@ -347,16 +350,16 @@ const AdminRedemptionPage = memo(() => {
                   'admin.redemption.bulkDisableProgress',
                   '正在停用选中的兑换码，请勿关闭页面。',
                 )}
-                summary={formatBulkDisableResult}
                 onRun={handleBulkDisable}
                 onSuccess={finishBulkAction}
               >
                 {t('admin.redemption.bulkDisable', `停用 ${selectedIds.length} 个`)}
               </AdminBulkActionFlow>
               <AdminBulkActionFlow
+                danger
                 actionId="redemption.bulkDelete"
                 count={selectedIds.length}
-                danger
+                summary={formatBulkDeleteResult}
                 confirmTitle={t(
                   'admin.redemption.confirmBulkDelete',
                   `确认删除 ${selectedIds.length} 个未兑换兑换码？`,
@@ -365,7 +368,6 @@ const AdminRedemptionPage = memo(() => {
                   'admin.redemption.bulkDeleteProgress',
                   '正在删除选中的未兑换兑换码，请勿关闭页面。',
                 )}
-                summary={formatBulkDeleteResult}
                 onRun={({ reason }) => handleBulkDelete(reason)}
                 onSuccess={finishBulkAction}
               >
@@ -498,7 +500,12 @@ const AdminRedemptionPage = memo(() => {
                     name="creditsAmount"
                     rules={[{ required: true }]}
                   >
-                    <InputNumber min={1} style={{ width: '100%' }} />
+                    <InputNumber
+                      addonAfter={'M'}
+                      min={0.000_001}
+                      precision={6}
+                      style={{ width: '100%' }}
+                    />
                   </Form.Item>
                 );
               return (

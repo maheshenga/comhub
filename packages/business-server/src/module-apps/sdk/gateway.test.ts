@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ModuleAppFileGateway } from './files';
 import { ModuleAppCapabilityGateway, ModuleAppReplayGuard } from './gateway';
 import { ModuleAppHttpGateway } from './http';
-import { ModuleAppNotificationGateway } from './notifications';
+import { ModuleAppNotificationGateway, ModuleAppNotificationRateLimiter } from './notifications';
 import { ModuleAppSecretsGateway } from './secrets';
 
 const INSTALLATION_ID = '00000000-0000-4000-8000-000000000001';
@@ -28,7 +28,13 @@ const claims = (
   versionId: VERSION_ID,
 });
 
-const createGateway = (httpOverride?: ModuleAppHttpGateway) => {
+const createGateway = (
+  httpOverride?: ModuleAppHttpGateway,
+  guards: {
+    notificationRateLimiter?: ModuleAppNotificationRateLimiter;
+    replayGuard?: ModuleAppReplayGuard;
+  } = {},
+) => {
   const storage = {
     createPrivatePreSignedUpload: vi.fn().mockResolvedValue({
       url: 'https://storage.example.com/upload',
@@ -42,6 +48,7 @@ const createGateway = (httpOverride?: ModuleAppHttpGateway) => {
   });
   const notifications = new ModuleAppNotificationGateway({
     create: vi.fn().mockResolvedValue({ id: 'notification-1' }),
+    rateLimiter: guards.notificationRateLimiter,
   });
   const secrets = new ModuleAppSecretsGateway({
     decrypt: vi.fn().mockResolvedValue({ plaintext: 'secret-value', wasAuthentic: true }),
@@ -75,7 +82,7 @@ const createGateway = (httpOverride?: ModuleAppHttpGateway) => {
     files,
     http: httpOverride ?? http,
     notifications,
-    replayGuard: new ModuleAppReplayGuard(),
+    replayGuard: guards.replayGuard ?? new ModuleAppReplayGuard(),
     secrets,
     tasks: tasks as never,
   });
@@ -192,6 +199,67 @@ describe('ModuleAppCapabilityGateway', () => {
         input: { content: 'One too many', title: 'Denied' },
         method: 'notifications.create',
         requestId: 'request-11',
+      }),
+    ).rejects.toThrow('MODULE_APP_NOTIFICATION_RATE_LIMITED');
+  });
+
+  it('rejects replay across gateway instances sharing a distributed guard backend', async () => {
+    const consumed = new Set<string>();
+    const backend = {
+      consume: vi.fn(async (key: string) => {
+        if (consumed.has(key)) return false;
+        consumed.add(key);
+        return true;
+      }),
+    };
+    const first = createGateway(undefined, {
+      replayGuard: new ModuleAppReplayGuard({ backend }),
+    }).gateway;
+    const second = createGateway(undefined, {
+      replayGuard: new ModuleAppReplayGuard({ backend }),
+    }).gateway;
+    const input = {
+      capability: claims(['notifications.write']),
+      input: { content: 'Build complete', title: 'Done' },
+      method: 'notifications.create' as const,
+      requestId: 'distributed-replay',
+    };
+
+    await expect(first.call(input)).resolves.toMatchObject({ id: 'notification-1' });
+    await expect(second.call(input)).rejects.toThrow('MODULE_APP_CAPABILITY_REPLAYED');
+  });
+
+  it('rate limits across gateway instances sharing a distributed limiter backend', async () => {
+    const counts = new Map<string, number>();
+    const backend = {
+      consume: vi.fn(async (installationId: string, limit: number) => {
+        const next = (counts.get(installationId) ?? 0) + 1;
+        counts.set(installationId, next);
+        return next <= limit;
+      }),
+    };
+    const first = createGateway(undefined, {
+      notificationRateLimiter: new ModuleAppNotificationRateLimiter({ backend }),
+    }).gateway;
+    const second = createGateway(undefined, {
+      notificationRateLimiter: new ModuleAppNotificationRateLimiter({ backend }),
+    }).gateway;
+
+    for (let index = 0; index < 10; index++) {
+      await (index % 2 === 0 ? first : second).call({
+        capability: claims(['notifications.write']),
+        input: { content: 'Build complete', title: 'Done' },
+        method: 'notifications.create',
+        requestId: `distributed-rate-${index}`,
+      });
+    }
+
+    await expect(
+      second.call({
+        capability: claims(['notifications.write']),
+        input: { content: 'One too many', title: 'Denied' },
+        method: 'notifications.create',
+        requestId: 'distributed-rate-11',
       }),
     ).rejects.toThrow('MODULE_APP_NOTIFICATION_RATE_LIMITED');
   });

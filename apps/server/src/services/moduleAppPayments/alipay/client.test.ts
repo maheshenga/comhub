@@ -17,14 +17,15 @@ const alipayKeys = generateKeyPairSync('rsa', {
   publicKeyEncoding: { format: 'pem', type: 'spki' },
 });
 
-const createClient = (fetch = vi.fn()) => new AlipayModuleAppClient({
-  alipayPublicKey: alipayKeys.publicKey,
-  appId: 'app-1',
-  fetch,
-  gateway: 'https://openapi-sandbox.dl.alipaydev.com/gateway.do',
-  merchantPrivateKey: merchantKeys.privateKey,
-  sellerId: 'seller-1',
-});
+const createClient = (fetch = vi.fn()) =>
+  new AlipayModuleAppClient({
+    alipayPublicKey: alipayKeys.publicKey,
+    appId: 'app-1',
+    fetch,
+    gateway: 'https://openapi-sandbox.dl.alipaydev.com/gateway.do',
+    merchantPrivateKey: merchantKeys.privateKey,
+    sellerId: 'seller-1',
+  });
 
 const signedNotification = (overrides: Record<string, string> = {}) => {
   const parameters = {
@@ -54,6 +55,7 @@ const signedResponse = (key: string, data: Record<string, unknown>) => {
 describe('AlipayModuleAppClient', () => {
   it('creates a signed computer website payment form', async () => {
     const result = await createClient().create({
+      currency: 'CNY',
       notifyUrl: 'https://app.example.com/api/webhooks/alipay/module-app',
       orderId: '00000000-0000-4000-8000-000000000001',
       returnUrl: 'https://app.example.com/apps/order-return',
@@ -65,66 +67,137 @@ describe('AlipayModuleAppClient', () => {
     expect(result.body).toContain('alipay.trade.page.pay');
     expect(result.body).toContain('https://openapi-sandbox.dl.alipaydev.com/gateway.do');
     expect(result.body).toContain('name="sign"');
+    expect(result.body).not.toContain('name="app_cert_sn"');
+    expect(result.body).not.toContain('name="alipay_root_cert_sn"');
+  });
+
+  it('includes certificate serial parameters in certificate mode requests', async () => {
+    const client = new AlipayModuleAppClient({
+      alipayPublicKey: alipayKeys.publicKey,
+      alipayRootCertSn: 'root-cert-sn-1',
+      appCertSn: 'app-cert-sn-1',
+      appId: 'app-1',
+      gateway: 'https://openapi.alipay.com/gateway.do',
+      merchantPrivateKey: merchantKeys.privateKey,
+      sellerId: 'seller-1',
+    } as any);
+
+    const result = await client.create({
+      currency: 'CNY',
+      notifyUrl: 'https://app.example.com/api/webhooks/alipay/module-app',
+      orderId: '00000000-0000-4000-8000-000000000001',
+      returnUrl: 'https://app.example.com/apps/order-return',
+      subject: 'Module App Pro',
+      totalAmount: '12.340000',
+    });
+
+    expect(result.body).toContain('name="app_cert_sn"');
+    expect(result.body).toContain('value="app-cert-sn-1"');
+    expect(result.body).toContain('name="alipay_root_cert_sn"');
+    expect(result.body).toContain('value="root-cert-sn-1"');
+  });
+
+  it('rejects unsupported currencies before creating a payment form', async () => {
+    await expect(
+      createClient().create({
+        currency: 'USD',
+        notifyUrl: 'https://app.example.com/api/webhooks/alipay/module-app',
+        orderId: '00000000-0000-4000-8000-000000000001',
+        returnUrl: 'https://app.example.com/apps/order-return',
+        subject: 'Module App Pro',
+        totalAmount: '12.340000',
+      }),
+    ).rejects.toThrow('MODULE_APP_ALIPAY_CURRENCY_UNSUPPORTED');
   });
 
   it('verifies notifications and rejects wrong app or seller identities', async () => {
     const client = createClient();
-    await expect(client.verifyNotification({ body: signedNotification(), headers: {} })).resolves.toMatchObject({
+    await expect(
+      client.verifyNotification({ body: signedNotification(), headers: {} }),
+    ).resolves.toMatchObject({
       eventId: 'notify-1',
       eventType: 'payment_succeeded',
       orderId: '00000000-0000-4000-8000-000000000001',
       totalAmount: '12.340000',
     });
-    await expect(client.verifyNotification({ body: signedNotification({ app_id: 'wrong' }), headers: {} })).resolves.toBeNull();
-    await expect(client.verifyNotification({ body: signedNotification({ seller_id: 'wrong' }), headers: {} })).resolves.toBeNull();
+    await expect(
+      client.verifyNotification({ body: signedNotification({ app_id: 'wrong' }), headers: {} }),
+    ).resolves.toBeNull();
+    await expect(
+      client.verifyNotification({ body: signedNotification({ seller_id: 'wrong' }), headers: {} }),
+    ).resolves.toBeNull();
   });
 
   it('queries delayed trades, refunds, and bill download URLs through bounded fixtures', async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(signedResponse('alipay_trade_query_response', {
-        code: '10000', out_trade_no: 'out-1', trade_status: 'WAIT_BUYER_PAY',
-      }))
-      .mockResolvedValueOnce(signedResponse('alipay_trade_query_response', {
+      .mockResolvedValueOnce(
+        signedResponse('alipay_trade_query_response', {
+          code: '10000',
+          out_trade_no: 'out-1',
+          trade_status: 'WAIT_BUYER_PAY',
+        }),
+      )
+      .mockResolvedValueOnce(
+        signedResponse('alipay_trade_query_response', {
           code: '10000',
           out_trade_no: 'out-1',
           total_amount: '12.34',
           trade_no: 'trade-1',
           trade_status: 'TRADE_SUCCESS',
-      }))
-      .mockResolvedValueOnce(signedResponse('alipay_trade_refund_response', {
-        code: '10000', out_trade_no: 'out-1', trade_no: 'trade-1',
-      }))
-      .mockResolvedValueOnce(signedResponse(
-        'alipay_data_dataservice_bill_downloadurl_query_response',
-        {
+        }),
+      )
+      .mockResolvedValueOnce(
+        signedResponse('alipay_trade_refund_response', {
+          code: '10000',
+          out_trade_no: 'out-1',
+          trade_no: 'trade-1',
+        }),
+      )
+      .mockResolvedValueOnce(
+        signedResponse('alipay_data_dataservice_bill_downloadurl_query_response', {
           bill_download_url: 'https://download.example.com/bill.zip',
           code: '10000',
-        },
-      ))
-      .mockResolvedValueOnce(signedResponse('alipay_trade_fastpay_refund_query_response', {
-        code: '10000',
-        refund_amount: '12.34',
-      }));
+        }),
+      )
+      .mockResolvedValueOnce(
+        signedResponse('alipay_trade_fastpay_refund_query_response', {
+          code: '10000',
+          refund_amount: '12.34',
+        }),
+      );
     const client = createClient(fetch);
 
     await expect(client.query({ outTradeNo: 'out-1' })).resolves.toBeNull();
-    await expect(client.query({ outTradeNo: 'out-1' })).resolves.toMatchObject({ eventType: 'payment_succeeded' });
-    await expect(client.refund({ outTradeNo: 'out-1', reason: 'requested', refundAmount: '12.340000' })).resolves.toMatchObject({ status: 'succeeded' });
-    await expect(client.queryBillDownloadUrl({ billDate: '2026-07-11', billType: 'trade' })).resolves.toBe('https://download.example.com/bill.zip');
-    await expect(client.queryRefund({ outRequestNo: 'refund-1', outTradeNo: 'out-1' })).resolves.toEqual({ status: 'succeeded' });
+    await expect(client.query({ outTradeNo: 'out-1' })).resolves.toMatchObject({
+      eventType: 'payment_succeeded',
+    });
+    await expect(
+      client.refund({ outTradeNo: 'out-1', reason: 'requested', refundAmount: '12.340000' }),
+    ).resolves.toMatchObject({ status: 'succeeded' });
+    await expect(
+      client.queryBillDownloadUrl({ billDate: '2026-07-11', billType: 'trade' }),
+    ).resolves.toBe('https://download.example.com/bill.zip');
+    await expect(
+      client.queryRefund({ outRequestNo: 'refund-1', outTradeNo: 'out-1' }),
+    ).resolves.toEqual({ status: 'succeeded' });
     expect(fetch).toHaveBeenCalledTimes(5);
   });
 
   it('rejects unsigned API responses', async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      alipay_trade_query_response: {
-        code: '10000',
-        out_trade_no: 'out-1',
-        total_amount: '12.34',
-        trade_status: 'TRADE_SUCCESS',
-      },
-    }), { status: 200 }));
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          alipay_trade_query_response: {
+            code: '10000',
+            out_trade_no: 'out-1',
+            total_amount: '12.34',
+            trade_status: 'TRADE_SUCCESS',
+          },
+        }),
+        { status: 200 },
+      ),
+    );
 
     await expect(createClient(fetch).query({ outTradeNo: 'out-1' })).rejects.toThrow(
       'MODULE_APP_ALIPAY_RESPONSE_SIGNATURE_INVALID',

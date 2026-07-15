@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertModuleAppRecordPermission,
   resolveModuleAppRecordPermission,
+  resolveModuleAppWorkspaceManagementPermission,
 } from './permission';
 
 describe('resolveModuleAppRecordPermission', () => {
@@ -147,5 +148,26 @@ describe('resolveModuleAppRecordPermission', () => {
         'view',
       ),
     ).not.toThrow();
+  });
+
+  it('allows only workspace owners or admins to manage purchases and installations', () => {
+    expect(
+      resolveModuleAppWorkspaceManagementPermission({
+        workspaceId: 'w1',
+        workspaceMembership: { role: 'member', workspaceId: 'w1' },
+      }),
+    ).toEqual({ allowed: false, reason: 'workspace_admin_required' });
+    expect(
+      resolveModuleAppWorkspaceManagementPermission({
+        workspaceId: 'w1',
+        workspaceMembership: { role: 'owner', workspaceId: 'w1' },
+      }).allowed,
+    ).toBe(true);
+    expect(
+      resolveModuleAppWorkspaceManagementPermission({
+        workspaceId: 'w1',
+        workspaceMembership: { role: 'admin', workspaceId: 'w1' },
+      }).allowed,
+    ).toBe(true);
   });
 });

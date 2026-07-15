@@ -30,6 +30,7 @@ describe('runModuleAppContentGeneration', () => {
     const result = await runModuleAppContentGeneration({
       action,
       appMultiplier: 1.5,
+      chargeAiUsage: true,
       idempotencyKey: 'run-1:generate',
       input: { topic: 'apple' },
       textGenerator,
@@ -39,6 +40,7 @@ describe('runModuleAppContentGeneration', () => {
     expect(textGenerator).toHaveBeenCalledWith({
       actionMultiplier: 1,
       appMultiplier: 1.5,
+      chargeAiUsage: true,
       model: 'gpt-test',
       idempotencyKey: 'run-1:generate',
       prompt: 'Write about apple',
@@ -69,6 +71,7 @@ describe('runModuleAppContentGeneration', () => {
       runModuleAppContentGeneration({
         action,
         appMultiplier: 1,
+        chargeAiUsage: false,
         idempotencyKey: 'run-2:generate',
         input: { topic: 'apple' },
         userId: 'user-1',
