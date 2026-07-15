@@ -856,12 +856,22 @@ jobs:
           if [ "$primary_status" -eq 0 ]; then
             current_promotion_active=true
             incoming_cleanup_enabled=false
+            echo "Disk usage before Worker deploy:"
+            df -h /
+            docker system df || true
+            echo "Pruning unused Docker images before Worker deploy..."
+            docker image prune -af || true
+            echo "Disk usage after Worker pre-prune:"
+            df -h /
+            docker system df || true
             "$worker_deploy_dir/current/deploy.sh" "$worker_image_ref"
             primary_status=$?
             primary_message="Worker deploy failed with status $primary_status"
             if [ "$primary_status" -ne 0 ]; then
               report_worker_diagnostics "$primary_status"
             fi
+            echo "Pruning unused Docker images after Worker deploy..."
+            docker image prune -af || true
 
             if [ -e "$worker_deploy_dir/.previous-image" ]; then
               if [ -f "$worker_deploy_dir/.previous-image" ] && \
