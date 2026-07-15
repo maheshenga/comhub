@@ -109,6 +109,23 @@ compose() {
   run_docker compose --project-name "$PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+run_checked() {
+  local label="$1"
+  shift
+
+  local output status
+  set +e
+  output="$("$@" 2>&1)"
+  status=$?
+  set -e
+
+  if [[ "$status" -ne 0 ]]; then
+    die "$label failed: $output"
+  fi
+
+  [[ -z "$output" ]] || printf '%s\n' "$output"
+}
+
 run_docker() {
   if [[ -n "$DOCKER_BIN_SCRIPT" ]]; then
     "$DOCKER_BIN" -- "$DOCKER_BIN_SCRIPT" "$@"
@@ -367,8 +384,8 @@ main() {
   prepare_artifact_root
   record_current_image
   compose config --format json >/dev/null
-  compose pull "$SERVICE"
-  compose up --no-deps --wait "$SERVICE"
+  run_checked 'compose pull' compose pull "$SERVICE"
+  run_checked 'compose up' compose up --no-deps --wait "$SERVICE"
   verify_container
   verify_runtime_artifact_mount
   printf '%s\n' 'module-app-worker deployment verified'

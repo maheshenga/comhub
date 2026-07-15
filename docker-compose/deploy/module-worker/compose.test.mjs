@@ -97,6 +97,8 @@ const runDeployWithFakes = ({
   envFilePath = envFile,
   expectedArtifactRoot,
   expectedPlatformProject = 'comhub',
+  failDockerCallIncludes,
+  failDockerMessage = 'fake docker failure',
   home,
   user,
   markers = [],
@@ -119,6 +121,15 @@ import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
 appendFileSync(process.env.FAKE_DOCKER_LOG, \`\${args.join(' ')}\\n\`);
+const joinedArgs = args.join(' ');
+
+if (
+  process.env.FAIL_DOCKER_CALL_INCLUDES &&
+  joinedArgs.includes(process.env.FAIL_DOCKER_CALL_INCLUDES)
+) {
+  process.stderr.write(process.env.FAIL_DOCKER_MESSAGE);
+  process.exit(1);
+}
 
 if (args[0] === 'compose') {
   const joined = \` \${args.join(' ')} \`;
@@ -278,6 +289,8 @@ process.stdout.write('4');
         EXPECTED_ARTIFACT_ROOT: expectedArtifactRoot,
         EXPECTED_PLATFORM_PROJECT: expectedPlatformProject,
         EXPECTED_WORKER_IMAGE: workerImage,
+        FAIL_DOCKER_CALL_INCLUDES: failDockerCallIncludes ?? '',
+        FAIL_DOCKER_MESSAGE: failDockerMessage,
         CURRENT_IMAGE_MARKER: currentImageMarker,
         CURRENT_WORKER_IMAGE: currentWorkerImage ?? '',
         FAKE_DOCKER_LOG: dockerLog,
@@ -455,6 +468,24 @@ try {
     'deploy must repair migration 0144 before the read-only migration preflight',
   );
   assert.equal(defaultPlatformProject.psqlCalls, '');
+
+  const failedPull = runDeployWithFakes({
+    envContents: [
+      'DATABASE_URL=postgresql://test:test@localhost:5432/test',
+      'MODULE_APP_ARTIFACT_ROOT=/var/lib/comhub/module-worker-artifacts',
+      'S3_ACCESS_KEY_ID=worker-access',
+      'S3_BUCKET=module-artifacts',
+      'S3_ENDPOINT=https://s3.example.com',
+      'S3_SECRET_ACCESS_KEY=worker-secret',
+    ].join('\n'),
+    expectedArtifactRoot: '/var/lib/comhub/module-worker-artifacts',
+    failDockerCallIncludes: 'pull module-app-worker',
+    failDockerMessage: 'fake pull failure',
+    home: '/tmp/fake-home',
+    user: 'fake-user',
+  });
+  assert.notEqual(failedPull.result.status, 0);
+  assert.match(failedPull.result.stderr, /compose pull failed: fake pull failure/);
 
   const configuredPlatformProject = runDeployWithFakes({
     envContents: [
