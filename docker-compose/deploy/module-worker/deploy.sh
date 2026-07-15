@@ -126,7 +126,8 @@ require_immutable_image() {
 }
 
 verify_migration() {
-  local column_count
+  local column_count migration_status
+  set +e
   column_count="$(run_docker run --rm --network host \
     --read-only \
     --cap-drop ALL \
@@ -142,7 +143,10 @@ verify_migration() {
       AND table_name = 'module_app_builds'
       AND column_name IN ('claim_token', 'claim_expires_at', 'attempt_count', 'next_attempt_at');
     COMMIT;
-  ")"
+  " 2>&1)"
+  migration_status=$?
+  set -e
+  [[ "$migration_status" -eq 0 ]] || die "migration preflight query failed: $column_count"
   [[ "$column_count" == '4' ]] || die 'migration 0144 columns are not present'
 }
 

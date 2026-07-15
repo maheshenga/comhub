@@ -708,7 +708,7 @@ jobs:
               --project-directory "$worker_deploy_dir" \
               --env-file "$worker_deploy_dir/.env" \
               -f "$worker_deploy_dir/current/compose.yml" \
-              logs --tail=120 module-worker >&2 || true
+              logs --tail=120 module-app-worker >&2 || true
           }
 
           bootstrap_worker_environment() (
