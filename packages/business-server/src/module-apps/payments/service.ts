@@ -383,6 +383,7 @@ export class ModuleAppPaymentService {
         actorUserId: input.actorUserId,
         orderId: order.id,
         reason: refund.reason,
+        refundReference: `alipay:${refund.providerRefundId}`,
       });
     }
     return result;
@@ -393,11 +394,23 @@ export class ModuleAppPaymentService {
       where: eq(moduleAppOrders.id, input.orderId),
     });
     if (!order) throw new Error('MODULE_APP_ORDER_NOT_FOUND');
-    const existing = await this.model.getRefundByOrderId(order.id);
-    if (existing && existing.status !== 'succeeded') {
+    let refund = await this.model.getRefundByOrderId(order.id);
+    if (order.status === 'refunded') {
+      if (!refund || refund.status !== 'succeeded') {
+        throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
+      }
+      return this.orderRevenueService.refundOrder({
+        actorUserId: input.actorUserId ?? order.purchaserUserId,
+        orderId: order.id,
+        reason: input.reason,
+        refundReference: `alipay:${refund.providerRefundId}`,
+      });
+    }
+    if (order.status !== 'paid') throw new Error('MODULE_APP_ORDER_NOT_REFUNDABLE');
+    if (refund && refund.status !== 'succeeded') {
       throw new Error('MODULE_APP_PAYMENT_REFUND_FAILED');
     }
-    if (!existing) {
+    if (!refund) {
       const attempt = await this.model.getPaymentAttemptByOrderId(order.id);
       if (!attempt) throw new Error('MODULE_APP_PAYMENT_ATTEMPT_NOT_FOUND');
       const snapshot = moduleAppOrderSnapshotSchema.parse(order.snapshot);
@@ -406,7 +419,7 @@ export class ModuleAppPaymentService {
         reason: input.reason,
         refundAmount: formatAmount(snapshot.price),
       });
-      await this.model.createRefund({
+      const created = await this.model.createRefund({
         currency: snapshot.currency,
         orderId: order.id,
         provider: 'alipay',
@@ -415,6 +428,7 @@ export class ModuleAppPaymentService {
         refundAmount: formatAmount(snapshot.price),
         status: result.status === 'succeeded' ? 'succeeded' : 'failed',
       });
+      refund = created.refund;
       await this.model.updatePaymentAttempt({
         outTradeNo: attempt.outTradeNo,
         status: result.status === 'succeeded' ? 'refunded' : 'failed',
@@ -425,6 +439,7 @@ export class ModuleAppPaymentService {
       actorUserId: input.actorUserId ?? order.purchaserUserId,
       orderId: order.id,
       reason: input.reason,
+      refundReference: `alipay:${refund.providerRefundId}`,
     });
   };
 

@@ -139,6 +139,7 @@ export interface ModuleAppActionCreditAdapter {
     idempotencyKey: string;
     metadata?: Record<string, unknown>;
     payer: ModuleAppBillingPayer;
+    requireNew?: boolean;
   }) => Promise<{ id: string; status: string }>;
   settle: (input: {
     actualAmount: number;
@@ -568,6 +569,7 @@ export const runModuleAppAction = async (params: RunModuleAppActionInput) => {
           payer: params.workspaceId
             ? { scopeType: 'workspace', workspaceId: params.workspaceId }
             : { scopeType: 'personal', userId: params.userId },
+          requireNew: true,
         });
         if (reservation.status !== 'active') {
           throw new Error('MODULE_APP_ACTION_CREDIT_IDEMPOTENCY_REPLAY');

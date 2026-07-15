@@ -16,7 +16,7 @@ import {
   moduleAppPackageSubmitSchema,
 } from '@lobechat/types';
 import type { SQL } from 'drizzle-orm';
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 
 import {
   moduleAppActions,
@@ -33,8 +33,7 @@ import type { LobeChatDatabase, Transaction } from '../type';
 
 const DEFAULT_VERSION = '1.0.0';
 const INSTALL_STATUS_ACTIVE = 'installed';
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type DbExecutor = LobeChatDatabase | Transaction;
 type ModuleAppRow = typeof moduleApps.$inferSelect;
@@ -118,9 +117,7 @@ const toActionConfig = (action: ModuleAppActionRow): ModuleAppActionConfig => ({
   runtimeType: action.runtimeType,
 });
 
-const toEntitlementConfig = (
-  entitlement: ModuleAppEntitlementRow,
-): ModuleAppPlanEntitlement => ({
+const toEntitlementConfig = (entitlement: ModuleAppEntitlementRow): ModuleAppPlanEntitlement => ({
   discountPercent: entitlement.discountPercent,
   freeQuotaCredits: entitlement.freeQuotaCredits,
   installable: entitlement.installable,
@@ -159,7 +156,6 @@ const matchesMarketplaceFilters = (
   return matchesCategory && matchesType && matchesQuery;
 };
 
-
 export class ModuleAppCatalogModel {
   constructor(protected readonly db: LobeChatDatabase) {}
 
@@ -183,10 +179,7 @@ export class ModuleAppCatalogModel {
     return this.findAppBySlug(appIdOrSlug, db);
   };
 
-  private findAppForUpsert = async (
-    input: ModuleAppAdminUpsertInput,
-    db: DbExecutor = this.db,
-  ) => {
+  private findAppForUpsert = async (input: ModuleAppAdminUpsertInput, db: DbExecutor = this.db) => {
     if (input.id) {
       const byId = await db.query.moduleApps.findFirst({
         where: eq(moduleApps.id, input.id),
@@ -205,6 +198,29 @@ export class ModuleAppCatalogModel {
     });
   };
 
+  protected getCurrentPublishedVersion = async (appId: string, db: DbExecutor = this.db) => {
+    const app = await db.query.moduleApps.findFirst({
+      where: and(eq(moduleApps.id, appId), eq(moduleApps.status, 'published')),
+    });
+    if (!app?.currentPublishedVersionId) return null;
+
+    return (
+      (await db.query.moduleAppVersions.findFirst({
+        where: and(
+          eq(moduleAppVersions.id, app.currentPublishedVersionId),
+          eq(moduleAppVersions.appId, appId),
+          isNotNull(moduleAppVersions.publishedAt),
+        ),
+      })) ?? null
+    );
+  };
+
+  protected getCurrentPublishedVersionId = async (appId: string) => {
+    const version = await this.getCurrentPublishedVersion(appId);
+    if (!version) throw new Error('MODULE_APP_PUBLISHED_VERSION_NOT_FOUND');
+    return version.id;
+  };
+
   protected getLatestVersionId = async (appId: string) => {
     const version = await this.getLatestVersion(appId);
 
@@ -219,7 +235,8 @@ export class ModuleAppCatalogModel {
     db: DbExecutor,
   ): Promise<ModuleAppVersionRow> => {
     const existingVersion = await this.getLatestVersion(appId, db);
-    const publishedAt = input.status === 'published' ? existingVersion?.publishedAt ?? new Date() : null;
+    const publishedAt =
+      input.status === 'published' ? (existingVersion?.publishedAt ?? new Date()) : null;
     const manifestSnapshot = {
       actions: input.actions,
       appType: input.appType,
@@ -235,7 +252,7 @@ export class ModuleAppCatalogModel {
       tags: input.tags,
     } satisfies Record<string, unknown>;
 
-    if (existingVersion) {
+    if (existingVersion && !existingVersion.publishedAt) {
       const [version] = await db
         .update(moduleAppVersions)
         .set({
@@ -258,12 +275,74 @@ export class ModuleAppCatalogModel {
         changelog: '',
         manifestSnapshot,
         publishedAt,
-        rollbackSourceVersionId: null,
-        version: DEFAULT_VERSION,
+        rollbackSourceVersionId: existingVersion?.id ?? null,
+        version: existingVersion?.version || DEFAULT_VERSION,
       })
       .returning();
 
     return version;
+  };
+
+  private ensureMutableDraftVersion = async (appId: string, db: DbExecutor) => {
+    const latest = await this.getLatestVersion(appId, db);
+    if (!latest) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+    if (!latest.publishedAt) return latest;
+
+    const [draft] = await db
+      .insert(moduleAppVersions)
+      .values({
+        appId,
+        changelog: latest.changelog,
+        manifestSnapshot: latest.manifestSnapshot,
+        publishedAt: null,
+        rollbackSourceVersionId: latest.id,
+        runtimeManifest: latest.runtimeManifest,
+        version: latest.version,
+      })
+      .returning();
+    if (!draft) throw new Error('MODULE_APP_VERSION_CREATE_FAILED');
+
+    const [pages, actions] = await Promise.all([
+      db.query.moduleAppPages.findMany({
+        where: and(eq(moduleAppPages.appId, appId), eq(moduleAppPages.versionId, latest.id)),
+      }),
+      db.query.moduleAppActions.findMany({
+        where: and(eq(moduleAppActions.appId, appId), eq(moduleAppActions.versionId, latest.id)),
+      }),
+    ]);
+    if (pages.length > 0) {
+      await db.insert(moduleAppPages).values(
+        pages.map((page) => ({
+          actionBindings: page.actionBindings,
+          appId,
+          dataSource: page.dataSource,
+          layoutSchema: page.layoutSchema,
+          pageKey: page.pageKey,
+          pageType: page.pageType,
+          routePath: page.routePath,
+          sortOrder: page.sortOrder,
+          title: page.title,
+          versionId: draft.id,
+        })),
+      );
+    }
+    if (actions.length > 0) {
+      await db.insert(moduleAppActions).values(
+        actions.map((action) => ({
+          actionKey: action.actionKey,
+          appId,
+          inputSchema: action.inputSchema,
+          moduleMultiplier: action.moduleMultiplier,
+          name: action.name,
+          outputSchema: action.outputSchema,
+          runtimeConfig: action.runtimeConfig,
+          runtimeType: action.runtimeType,
+          versionId: draft.id,
+        })),
+      );
+    }
+
+    return draft;
   };
 
   private replacePagesAndActions = async (
@@ -272,8 +351,12 @@ export class ModuleAppCatalogModel {
     input: ModuleAppAdminUpsertInput,
     db: DbExecutor,
   ) => {
-    await db.delete(moduleAppPages).where(eq(moduleAppPages.appId, appId));
-    await db.delete(moduleAppActions).where(eq(moduleAppActions.appId, appId));
+    await db
+      .delete(moduleAppPages)
+      .where(and(eq(moduleAppPages.appId, appId), eq(moduleAppPages.versionId, versionId)));
+    await db
+      .delete(moduleAppActions)
+      .where(and(eq(moduleAppActions.appId, appId), eq(moduleAppActions.versionId, versionId)));
 
     if (input.pages.length > 0) {
       await db.insert(moduleAppPages).values(
@@ -314,6 +397,10 @@ export class ModuleAppCatalogModel {
     db: DbExecutor,
   ): Promise<{ id: string; slug: string }> => {
     const existing = await this.findAppForUpsert(input, db);
+    const preserveCurrentPublication =
+      existing?.status === 'published' &&
+      input.status === 'draft' &&
+      Boolean(existing.currentPublishedVersionId);
     const appValues = {
       appType: input.appType,
       billing: input.billing,
@@ -324,7 +411,7 @@ export class ModuleAppCatalogModel {
       metadata: {},
       slug: input.slug,
       source: input.source,
-      status: input.status,
+      status: preserveCurrentPublication ? ('published' as const) : input.status,
       tags: input.tags,
     };
 
@@ -347,6 +434,18 @@ export class ModuleAppCatalogModel {
 
     const version = await this.ensureVersionSnapshot(app.id, input, db);
     await this.replacePagesAndActions(app.id, version.id, input, db);
+    await db
+      .update(moduleApps)
+      .set({
+        currentPublishedVersionId:
+          input.status === 'published'
+            ? version.id
+            : preserveCurrentPublication
+              ? existing?.currentPublishedVersionId
+              : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(moduleApps.id, app.id));
 
     return { id: app.id, slug: app.slug };
   };
@@ -651,16 +750,23 @@ export class ModuleAppCatalogModel {
 
     if (!app) return null;
 
-    const [version, pages, actions, entitlements] = await Promise.all([
-      this.getLatestVersion(app.id),
-      this.db.query.moduleAppPages.findMany({
-        orderBy: [asc(moduleAppPages.sortOrder), asc(moduleAppPages.createdAt)],
-        where: eq(moduleAppPages.appId, app.id),
-      }),
-      this.db.query.moduleAppActions.findMany({
-        orderBy: [asc(moduleAppActions.createdAt)],
-        where: eq(moduleAppActions.appId, app.id),
-      }),
+    const version = await this.getLatestVersion(app.id);
+    const [pages, actions, entitlements] = await Promise.all([
+      version
+        ? this.db.query.moduleAppPages.findMany({
+            orderBy: [asc(moduleAppPages.sortOrder), asc(moduleAppPages.createdAt)],
+            where: and(eq(moduleAppPages.appId, app.id), eq(moduleAppPages.versionId, version.id)),
+          })
+        : Promise.resolve([]),
+      version
+        ? this.db.query.moduleAppActions.findMany({
+            orderBy: [asc(moduleAppActions.createdAt)],
+            where: and(
+              eq(moduleAppActions.appId, app.id),
+              eq(moduleAppActions.versionId, version.id),
+            ),
+          })
+        : Promise.resolve([]),
       this.db.query.moduleAppEntitlements.findMany({
         orderBy: [asc(moduleAppEntitlements.plan)],
         where: eq(moduleAppEntitlements.appId, app.id),
@@ -679,6 +785,9 @@ export class ModuleAppCatalogModel {
   setStatus = async (params: { appId: string; status: ModuleAppStatus }) => {
     return this.db.transaction(async (tx) => {
       const version = await this.getLatestVersion(params.appId, tx);
+      if (params.status === 'published' && !version) {
+        throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+      }
       const runtimeManifest = version?.runtimeManifest as { manifestVersion?: unknown } | undefined;
 
       if (version && params.status === 'published' && runtimeManifest?.manifestVersion === 2) {
@@ -697,17 +806,18 @@ export class ModuleAppCatalogModel {
 
       await tx
         .update(moduleApps)
-        .set({ status: params.status, updatedAt: new Date() })
+        .set({
+          currentPublishedVersionId: params.status === 'published' ? version!.id : null,
+          status: params.status,
+          updatedAt: new Date(),
+        })
         .where(eq(moduleApps.id, params.appId));
 
-      if (version) {
+      if (version && params.status === 'published' && !version.publishedAt) {
         await tx
-        .update(moduleAppVersions)
-        .set({
-          publishedAt:
-            params.status === 'published' ? version.publishedAt ?? new Date() : null,
-        })
-        .where(eq(moduleAppVersions.id, version.id));
+          .update(moduleAppVersions)
+          .set({ publishedAt: new Date() })
+          .where(eq(moduleAppVersions.id, version.id));
       }
 
       return { ok: true as const };
@@ -715,55 +825,62 @@ export class ModuleAppCatalogModel {
   };
 
   upsertPagesForAdmin = async (params: { appId: string; pages: ModuleAppPage[] }) => {
-    const versionId = await this.getLatestVersionId(params.appId);
+    return this.db.transaction(async (tx) => {
+      const version = await this.ensureMutableDraftVersion(params.appId, tx);
+      await tx
+        .delete(moduleAppPages)
+        .where(
+          and(eq(moduleAppPages.appId, params.appId), eq(moduleAppPages.versionId, version.id)),
+        );
 
-    await this.db.delete(moduleAppPages).where(eq(moduleAppPages.appId, params.appId));
+      if (params.pages.length > 0) {
+        await tx.insert(moduleAppPages).values(
+          params.pages.map((page) => ({
+            actionBindings: page.actionBindings,
+            appId: params.appId,
+            dataSource: page.dataSource,
+            layoutSchema: page.layoutSchema,
+            pageKey: page.key,
+            pageType: page.type,
+            routePath: page.routePath,
+            sortOrder: page.sortOrder,
+            title: page.title,
+            versionId: version.id,
+          })),
+        );
+      }
 
-    if (params.pages.length > 0) {
-      await this.db.insert(moduleAppPages).values(
-        params.pages.map((page) => ({
-          actionBindings: page.actionBindings,
-          appId: params.appId,
-          dataSource: page.dataSource,
-          layoutSchema: page.layoutSchema,
-          pageKey: page.key,
-          pageType: page.type,
-          routePath: page.routePath,
-          sortOrder: page.sortOrder,
-          title: page.title,
-          versionId,
-        })),
-      );
-    }
-
-    return { ok: true as const };
+      return { ok: true as const };
+    });
   };
 
-  upsertActionsForAdmin = async (params: {
-    actions: ModuleAppActionConfig[];
-    appId: string;
-  }) => {
-    const versionId = await this.getLatestVersionId(params.appId);
+  upsertActionsForAdmin = async (params: { actions: ModuleAppActionConfig[]; appId: string }) => {
+    return this.db.transaction(async (tx) => {
+      const version = await this.ensureMutableDraftVersion(params.appId, tx);
+      await tx
+        .delete(moduleAppActions)
+        .where(
+          and(eq(moduleAppActions.appId, params.appId), eq(moduleAppActions.versionId, version.id)),
+        );
 
-    await this.db.delete(moduleAppActions).where(eq(moduleAppActions.appId, params.appId));
+      if (params.actions.length > 0) {
+        await tx.insert(moduleAppActions).values(
+          params.actions.map((action) => ({
+            actionKey: action.id,
+            appId: params.appId,
+            inputSchema: action.inputSchema,
+            moduleMultiplier: action.moduleMultiplier,
+            name: action.name,
+            outputSchema: action.outputSchema,
+            runtimeConfig: action.runtimeConfig,
+            runtimeType: action.runtimeType,
+            versionId: version.id,
+          })),
+        );
+      }
 
-    if (params.actions.length > 0) {
-      await this.db.insert(moduleAppActions).values(
-        params.actions.map((action) => ({
-          actionKey: action.id,
-          appId: params.appId,
-          inputSchema: action.inputSchema,
-          moduleMultiplier: action.moduleMultiplier,
-          name: action.name,
-          outputSchema: action.outputSchema,
-          runtimeConfig: action.runtimeConfig,
-          runtimeType: action.runtimeType,
-          versionId,
-        })),
-      );
-    }
-
-    return { ok: true as const };
+      return { ok: true as const };
+    });
   };
 
   upsertBillingForAdmin = async (params: {
@@ -818,7 +935,9 @@ export class ModuleAppCatalogModel {
           isNull(moduleAppInstallations.uninstalledAt),
         ),
       )
-      .where(eq(moduleApps.status, 'published'))
+      .where(
+        and(eq(moduleApps.status, 'published'), isNotNull(moduleApps.currentPublishedVersionId)),
+      )
       .orderBy(asc(moduleApps.sortOrder), asc(moduleApps.displayName));
 
     return rows
@@ -844,7 +963,7 @@ export class ModuleAppCatalogModel {
           eq(moduleAppEntitlements.plan, params.plan),
         ),
       }),
-      this.getLatestVersion(app.id),
+      this.getCurrentPublishedVersion(app.id),
       this.db.query.moduleAppEntitlements.findMany({
         orderBy: [asc(moduleAppEntitlements.plan)],
         where: eq(moduleAppEntitlements.appId, app.id),
@@ -872,17 +991,11 @@ export class ModuleAppCatalogModel {
     const [pages, actions] = await Promise.all([
       this.db.query.moduleAppPages.findMany({
         orderBy: [asc(moduleAppPages.sortOrder), asc(moduleAppPages.createdAt)],
-        where: and(
-          eq(moduleAppPages.appId, app.id),
-          eq(moduleAppPages.versionId, version.id),
-        ),
+        where: and(eq(moduleAppPages.appId, app.id), eq(moduleAppPages.versionId, version.id)),
       }),
       this.db.query.moduleAppActions.findMany({
         orderBy: [asc(moduleAppActions.createdAt)],
-        where: and(
-          eq(moduleAppActions.appId, app.id),
-          eq(moduleAppActions.versionId, version.id),
-        ),
+        where: and(eq(moduleAppActions.appId, app.id), eq(moduleAppActions.versionId, version.id)),
       }),
     ]);
 

@@ -90,6 +90,7 @@ export const createModuleAppTextGenerator = (dependencies: {
             payer: dependencies.workspaceId
               ? { scopeType: 'workspace', workspaceId: dependencies.workspaceId }
               : { scopeType: 'personal', userId: input.userId },
+            requireNew: true,
           })
         : null;
     if (reservation && reservation.status !== 'active') {
@@ -133,17 +134,18 @@ export const createModuleAppTextGenerator = (dependencies: {
       providerResponded = true;
       await consumeStreamUntilDone(response);
 
-      const quote = usage && shouldCharge
-        ? await quoteCommercialAiUsage({
-            db: dependencies.db,
-            model,
-            provider,
-            routeMetadata,
-            usage,
-            usageType: 'chat',
-            userId: input.userId,
-          })
-        : null;
+      const quote =
+        usage && shouldCharge
+          ? await quoteCommercialAiUsage({
+              db: dependencies.db,
+              model,
+              provider,
+              routeMetadata,
+              usage,
+              usageType: 'chat',
+              userId: input.userId,
+            })
+          : null;
       const baseCredits = quote?.credits ?? (usage ? 0 : estimatedBaseCredits);
       const actualAmount = roundCredits(Math.max(0, baseCredits) * combinedMultiplier);
 

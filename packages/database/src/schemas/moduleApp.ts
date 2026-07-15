@@ -30,6 +30,7 @@ import type {
   ModuleAppWorkflowRunStatus,
 } from '@lobechat/types';
 import { sql } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import {
   boolean,
   check,
@@ -61,7 +62,9 @@ export const moduleAppPublishers = pgTable(
   'module_app_publishers',
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
-    userId: text('user_id').references(() => users.id, { onDelete: 'restrict' }).notNull(),
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'restrict' })
+      .notNull(),
     displayName: text('display_name').notNull(),
     status: text('status').$type<ModuleAppPublisherStatus>().default('pending').notNull(),
     recipientMask: text('recipient_mask'),
@@ -99,26 +102,24 @@ export const moduleApps = pgTable(
     appType: text('app_type').$type<ModuleAppType>().notNull(),
     source: text('source').$type<ModuleAppSource>().default('admin').notNull(),
     status: text('status').$type<ModuleAppStatus>().default('draft').notNull(),
+    currentPublishedVersionId: uuid('current_published_version_id').references(
+      (): AnyPgColumn => moduleAppVersions.id,
+      { onDelete: 'set null' },
+    ),
     tags: jsonb('tags').$type<string[]>().default([]).notNull(),
     billing: jsonb('billing')
       .$type<ModuleAppBillingConfig>()
       .default(DEFAULT_MODULE_APP_BILLING)
       .notNull(),
-    metadata: jsonb('metadata')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (table) => [
-    index('module_apps_status_category_sort_idx').on(
-      table.status,
-      table.category,
-      table.sortOrder,
-    ),
+    index('module_apps_status_category_sort_idx').on(table.status, table.category, table.sortOrder),
     index('module_apps_publisher_status_idx').on(table.publisherId, table.status),
+    index('module_apps_current_published_version_idx').on(table.currentPublishedVersionId),
   ],
 );
 
@@ -148,12 +149,7 @@ export const moduleAppVersions = pgTable(
       .notNull(),
     createdAt: createdAt(),
   },
-  (table) => [
-    index('module_app_versions_app_id_version_idx').on(
-      table.appId,
-      table.version,
-    ),
-  ],
+  (table) => [index('module_app_versions_app_id_version_idx').on(table.appId, table.version)],
 );
 
 export type NewModuleAppVersion = typeof moduleAppVersions.$inferInsert;
@@ -177,10 +173,7 @@ export const moduleAppPages = pgTable(
       .$type<ModuleAppPage['layoutSchema']>()
       .default({})
       .notNull(),
-    dataSource: jsonb('data_source')
-      .$type<ModuleAppPage['dataSource']>()
-      .default({})
-      .notNull(),
+    dataSource: jsonb('data_source').$type<ModuleAppPage['dataSource']>().default({}).notNull(),
     actionBindings: jsonb('action_bindings')
       .$type<ModuleAppPage['actionBindings']>()
       .default([])
@@ -212,25 +205,17 @@ export const moduleAppActions = pgTable(
       .references(() => moduleAppVersions.id, { onDelete: 'cascade' })
       .notNull(),
     actionKey: text('action_key').notNull(),
-    runtimeType: text('runtime_type')
-      .$type<ModuleAppActionConfig['runtimeType']>()
-      .notNull(),
+    runtimeType: text('runtime_type').$type<ModuleAppActionConfig['runtimeType']>().notNull(),
     name: text('name').notNull(),
     inputSchema: jsonb('input_schema')
       .$type<ModuleAppInputSchema>()
       .default({ fields: [] })
       .notNull(),
-    outputSchema: jsonb('output_schema')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
+    outputSchema: jsonb('output_schema').$type<Record<string, unknown>>().default({}).notNull(),
     moduleMultiplier: numeric('module_multiplier', { mode: 'number', precision: 10, scale: 4 })
       .default(1)
       .notNull(),
-    runtimeConfig: jsonb('runtime_config')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
+    runtimeConfig: jsonb('runtime_config').$type<Record<string, unknown>>().default({}).notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -263,16 +248,12 @@ export const moduleAppEntitlements = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    uniqueIndex('module_app_entitlements_app_id_plan_unique').on(
-      table.appId,
-      table.plan,
-    ),
+    uniqueIndex('module_app_entitlements_app_id_plan_unique').on(table.appId, table.plan),
   ],
 );
 
 export type NewModuleAppEntitlement = typeof moduleAppEntitlements.$inferInsert;
-export type ModuleAppEntitlementItem =
-  typeof moduleAppEntitlements.$inferSelect;
+export type ModuleAppEntitlementItem = typeof moduleAppEntitlements.$inferSelect;
 
 export const moduleAppInstallations = pgTable(
   'module_app_installations',
@@ -312,10 +293,8 @@ export const moduleAppInstallations = pgTable(
   ],
 );
 
-export type NewModuleAppInstallation =
-  typeof moduleAppInstallations.$inferInsert;
-export type ModuleAppInstallationItem =
-  typeof moduleAppInstallations.$inferSelect;
+export type NewModuleAppInstallation = typeof moduleAppInstallations.$inferInsert;
+export type ModuleAppInstallationItem = typeof moduleAppInstallations.$inferSelect;
 
 export const moduleAppInstallationSecrets = pgTable(
   'module_app_installation_secrets',
@@ -427,31 +406,18 @@ export const moduleAppRecordEvents = pgTable(
     workspaceId: text('workspace_id').references(() => workspaces.id, {
       onDelete: 'set null',
     }),
-    beforeSnapshot: jsonb('before_snapshot')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
-    afterSnapshot: jsonb('after_snapshot')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
-    metadata: jsonb('metadata')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
+    beforeSnapshot: jsonb('before_snapshot').$type<Record<string, unknown>>().default({}).notNull(),
+    afterSnapshot: jsonb('after_snapshot').$type<Record<string, unknown>>().default({}).notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
     createdAt: createdAt(),
   },
   (table) => [
-    index('module_app_record_events_record_id_created_at_idx').on(
-      table.recordId,
-      table.createdAt,
-    ),
+    index('module_app_record_events_record_id_created_at_idx').on(table.recordId, table.createdAt),
   ],
 );
 
 export type NewModuleAppRecordEvent = typeof moduleAppRecordEvents.$inferInsert;
-export type ModuleAppRecordEventItem =
-  typeof moduleAppRecordEvents.$inferSelect;
+export type ModuleAppRecordEventItem = typeof moduleAppRecordEvents.$inferSelect;
 
 export const moduleAppRuns = pgTable(
   'module_app_runs',
@@ -479,18 +445,9 @@ export const moduleAppRuns = pgTable(
     workspaceId: text('workspace_id').references(() => workspaces.id, {
       onDelete: 'set null',
     }),
-    status: text('status')
-      .$type<ModuleAppRunStatus>()
-      .default('queued')
-      .notNull(),
-    inputSnapshot: jsonb('input_snapshot')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
-    outputSnapshot: jsonb('output_snapshot')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
+    status: text('status').$type<ModuleAppRunStatus>().default('queued').notNull(),
+    inputSnapshot: jsonb('input_snapshot').$type<Record<string, unknown>>().default({}).notNull(),
+    outputSnapshot: jsonb('output_snapshot').$type<Record<string, unknown>>().default({}).notNull(),
     billingSnapshot: jsonb('billing_snapshot')
       .$type<Record<string, unknown>>()
       .default({})
@@ -502,18 +459,9 @@ export const moduleAppRuns = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    index('module_app_runs_user_id_created_at_idx').on(
-      table.userId,
-      table.createdAt,
-    ),
-    index('module_app_runs_workspace_id_created_at_idx').on(
-      table.workspaceId,
-      table.createdAt,
-    ),
-    index('module_app_runs_app_id_created_at_idx').on(
-      table.appId,
-      table.createdAt,
-    ),
+    index('module_app_runs_user_id_created_at_idx').on(table.userId, table.createdAt),
+    index('module_app_runs_workspace_id_created_at_idx').on(table.workspaceId, table.createdAt),
+    index('module_app_runs_app_id_created_at_idx').on(table.appId, table.createdAt),
     index('module_app_runs_installation_id_created_at_idx').on(
       table.installationId,
       table.createdAt,
@@ -590,16 +538,12 @@ export const moduleAppPackages = pgTable(
       .$type<ModuleAppPackageReviewStatus>()
       .default('pending_review')
       .notNull(),
-    archive: jsonb('archive')
-      .$type<ModuleAppPackageArchiveMetadata>()
-      .notNull(),
+    archive: jsonb('archive').$type<ModuleAppPackageArchiveMetadata>().notNull(),
     fileManifest: jsonb('file_manifest')
       .$type<ModuleAppPackageFileManifestItem[]>()
       .default([])
       .notNull(),
-    manifestSnapshot: jsonb('manifest_snapshot')
-      .$type<ModuleAppPackageManifest>()
-      .notNull(),
+    manifestSnapshot: jsonb('manifest_snapshot').$type<ModuleAppPackageManifest>().notNull(),
     validationReport: jsonb('validation_report')
       .$type<ModuleAppPackageValidationIssue[]>()
       .default([])
@@ -619,14 +563,8 @@ export const moduleAppPackages = pgTable(
       table.submittedByUserId,
       table.createdAt,
     ),
-    index('module_app_packages_app_id_created_at_idx').on(
-      table.appId,
-      table.createdAt,
-    ),
-    index('module_app_packages_publisher_review_idx').on(
-      table.publisherId,
-      table.reviewStatus,
-    ),
+    index('module_app_packages_app_id_created_at_idx').on(table.appId, table.createdAt),
+    index('module_app_packages_publisher_review_idx').on(table.publisherId, table.reviewStatus),
   ],
 );
 
@@ -672,10 +610,7 @@ export const moduleAppBuilds = pgTable(
       'module_app_builds_status_check',
       sql`${table.status} IN ('queued', 'building', 'ready', 'failed')`,
     ),
-    check(
-      'module_app_builds_source_sha256_check',
-      sql`${table.sourceSha256} ~ '^[a-f0-9]{64}$'`,
-    ),
+    check('module_app_builds_source_sha256_check', sql`${table.sourceSha256} ~ '^[a-f0-9]{64}$'`),
     check(
       'module_app_builds_attempt_count_check',
       sql`${table.attemptCount} >= 0 AND ${table.attemptCount} <= 4`,
@@ -827,10 +762,7 @@ export const moduleAppWorkflowRuns = pgTable(
       .notNull(),
     workflowKey: text('workflow_key').notNull(),
     workflowVersion: integer('workflow_version').notNull(),
-    status: text('status')
-      .$type<ModuleAppWorkflowRunStatus>()
-      .default('queued')
-      .notNull(),
+    status: text('status').$type<ModuleAppWorkflowRunStatus>().default('queued').notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     context: jsonb('context').$type<Record<string, unknown>>().default({}).notNull(),
     outputSummary: jsonb('output_summary').$type<Record<string, unknown>>().default({}).notNull(),
@@ -878,10 +810,7 @@ export const moduleAppWorkflowNodes = pgTable(
       .references(() => moduleAppWorkflowRuns.id, { onDelete: 'cascade' })
       .notNull(),
     nodeKey: text('node_key').notNull(),
-    status: text('status')
-      .$type<ModuleAppWorkflowNodeStatus>()
-      .default('queued')
-      .notNull(),
+    status: text('status').$type<ModuleAppWorkflowNodeStatus>().default('queued').notNull(),
     attempt: integer('attempt').default(0).notNull(),
     maxAttempts: integer('max_attempts').default(1).notNull(),
     workerId: text('worker_id'),
@@ -1031,7 +960,9 @@ export const moduleAppProducts = pgTable(
   'module_app_products',
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
-    appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'cascade' }).notNull(),
+    appId: uuid('app_id')
+      .references(() => moduleApps.id, { onDelete: 'cascade' })
+      .notNull(),
     productKey: text('product_key').notNull(),
     productType: text('product_type').notNull(),
     licenseScope: text('license_scope').notNull(),
@@ -1045,7 +976,9 @@ export const moduleAppProducts = pgTable(
 
 export const moduleAppPrices = pgTable('module_app_prices', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
-  productId: uuid('product_id').references(() => moduleAppProducts.id, { onDelete: 'cascade' }).notNull(),
+  productId: uuid('product_id')
+    .references(() => moduleAppProducts.id, { onDelete: 'cascade' })
+    .notNull(),
   currency: varchar('currency', { length: 16 }).notNull(),
   amount: numeric('amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
   billingPeriod: text('billing_period'),
@@ -1060,18 +993,29 @@ export const moduleAppOrders = pgTable(
   'module_app_orders',
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
-    appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
-    productId: uuid('product_id').references(() => moduleAppProducts.id, { onDelete: 'restrict' }).notNull(),
-    priceId: uuid('price_id').references(() => moduleAppPrices.id, { onDelete: 'restrict' }).notNull(),
-    purchaserUserId: text('purchaser_user_id').references(() => users.id, { onDelete: 'restrict' }).notNull(),
+    appId: uuid('app_id')
+      .references(() => moduleApps.id, { onDelete: 'restrict' })
+      .notNull(),
+    productId: uuid('product_id')
+      .references(() => moduleAppProducts.id, { onDelete: 'restrict' })
+      .notNull(),
+    priceId: uuid('price_id')
+      .references(() => moduleAppPrices.id, { onDelete: 'restrict' })
+      .notNull(),
+    purchaserUserId: text('purchaser_user_id')
+      .references(() => users.id, { onDelete: 'restrict' })
+      .notNull(),
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'restrict' }),
-    idempotencyKey: text('idempotency_key').default(sql`gen_random_uuid()::text`).notNull(),
+    idempotencyKey: text('idempotency_key')
+      .default(sql`gen_random_uuid()::text`)
+      .notNull(),
     status: text('status').default('pending').notNull(),
     paymentReference: text('payment_reference'),
     snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
     paidAt: timestamptz('paid_at'),
     cancelledAt: timestamptz('cancelled_at'),
     refundedAt: timestamptz('refunded_at'),
+    refundReference: text('refund_reference'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1126,7 +1070,10 @@ export const moduleAppPaymentEvents = pgTable(
     provider: text('provider').$type<ModuleAppPaymentProvider>().notNull(),
     providerEventId: text('provider_event_id').notNull(),
     eventType: text('event_type').$type<ModuleAppPaymentEventType>().notNull(),
-    eventStatus: text('event_status').$type<ModuleAppPaymentEventStatus>().default('received').notNull(),
+    eventStatus: text('event_status')
+      .$type<ModuleAppPaymentEventStatus>()
+      .default('received')
+      .notNull(),
     orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'set null' }),
     outTradeNo: text('out_trade_no').notNull(),
     paymentReference: text('payment_reference'),
@@ -1216,10 +1163,7 @@ export const moduleAppPaymentDiscrepancies = pgTable(
       table.discrepancyKey,
     ),
     index('module_app_payment_discrepancies_status_created_idx').on(table.status, table.createdAt),
-    check(
-      'module_app_payment_discrepancies_provider_check',
-      sql`${table.provider} IN ('alipay')`,
-    ),
+    check('module_app_payment_discrepancies_provider_check', sql`${table.provider} IN ('alipay')`),
     check(
       'module_app_payment_discrepancies_kind_check',
       sql`${table.kind} IN ('amount_mismatch', 'currency_mismatch', 'duplicate_event', 'local_paid_provider_unpaid', 'local_unpaid_provider_paid', 'order_not_found', 'provider_mismatch', 'refund_mismatch', 'settlement_failed', 'wrong_seller')`,
@@ -1233,8 +1177,12 @@ export const moduleAppPaymentDiscrepancies = pgTable(
 
 export const moduleAppLicenses = pgTable('module_app_licenses', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
-  appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
-  orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'restrict' }).notNull(),
+  appId: uuid('app_id')
+    .references(() => moduleApps.id, { onDelete: 'restrict' })
+    .notNull(),
+  orderId: uuid('order_id')
+    .references(() => moduleAppOrders.id, { onDelete: 'restrict' })
+    .notNull(),
   licenseScope: text('license_scope').notNull(),
   ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'restrict' }),
   workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'restrict' }),
@@ -1249,11 +1197,16 @@ export const moduleAppLicenses = pgTable('module_app_licenses', {
 
 export const moduleAppSubscriptions = pgTable('module_app_subscriptions', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
-  licenseId: uuid('license_id').references(() => moduleAppLicenses.id, { onDelete: 'restrict' }).notNull(),
-  orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'restrict' }).notNull(),
+  licenseId: uuid('license_id')
+    .references(() => moduleAppLicenses.id, { onDelete: 'restrict' })
+    .notNull(),
+  orderId: uuid('order_id')
+    .references(() => moduleAppOrders.id, { onDelete: 'restrict' })
+    .notNull(),
   status: text('status').notNull(),
   currentPeriodStart: timestamptz('current_period_start').notNull(),
   currentPeriodEnd: timestamptz('current_period_end').notNull(),
+  trialEndsAt: timestamptz('trial_ends_at'),
   cancelAtPeriodEnd: boolean('cancel_at_period_end').default(false).notNull(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -1263,8 +1216,12 @@ export const moduleAppRevenueEntries = pgTable(
   'module_app_revenue_entries',
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
-    appId: uuid('app_id').references(() => moduleApps.id, { onDelete: 'restrict' }).notNull(),
-    orderId: uuid('order_id').references(() => moduleAppOrders.id, { onDelete: 'restrict' }).notNull(),
+    appId: uuid('app_id')
+      .references(() => moduleApps.id, { onDelete: 'restrict' })
+      .notNull(),
+    orderId: uuid('order_id')
+      .references(() => moduleAppOrders.id, { onDelete: 'restrict' })
+      .notNull(),
     publisherUserId: text('publisher_user_id').references(() => users.id, { onDelete: 'set null' }),
     publisherId: uuid('publisher_id').references(() => moduleAppPublishers.id, {
       onDelete: 'set null',
@@ -1273,7 +1230,11 @@ export const moduleAppRevenueEntries = pgTable(
     grossAmount: numeric('gross_amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
     platformFee: numeric('platform_fee', { mode: 'number', precision: 20, scale: 6 }).notNull(),
     reserveAmount: numeric('reserve_amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
-    developerAmount: numeric('developer_amount', { mode: 'number', precision: 20, scale: 6 }).notNull(),
+    developerAmount: numeric('developer_amount', {
+      mode: 'number',
+      precision: 20,
+      scale: 6,
+    }).notNull(),
     currency: varchar('currency', { length: 16 }).notNull(),
     status: text('status').default('pending').notNull(),
     settlementBatchId: uuid('settlement_batch_id'),
@@ -1288,10 +1249,7 @@ export const moduleAppRevenueEntries = pgTable(
       table.status,
       table.createdAt,
     ),
-    index('module_app_revenue_entries_publisher_id_status_idx').on(
-      table.publisherId,
-      table.status,
-    ),
+    index('module_app_revenue_entries_publisher_id_status_idx').on(table.publisherId, table.status),
   ],
 );
 
@@ -1348,7 +1306,9 @@ export const moduleAppPayoutEntries = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    uniqueIndex('module_app_payout_entries_revenue_unique').on(table.revenueEntryId),
+    uniqueIndex('module_app_payout_entries_revenue_unique')
+      .on(table.revenueEntryId)
+      .where(sql`${table.status} <> 'reversed'`),
     index('module_app_payout_entries_batch_status_idx').on(table.batchId, table.status),
     check(
       'module_app_payout_entries_status_check',
@@ -1368,10 +1328,7 @@ export const moduleAppAuditLogs = pgTable(
     actorUserId: text('actor_user_id').references(() => users.id, {
       onDelete: 'set null',
     }),
-    metadata: jsonb('metadata')
-      .$type<Record<string, unknown>>()
-      .default({})
-      .notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
     createdAt: createdAt(),
   },
   (table) => [

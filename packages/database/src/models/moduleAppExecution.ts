@@ -160,35 +160,35 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
     const installation = await this.requireActiveInstallation(params);
     return this.db.transaction(async (tx) => {
       const [record] = await tx
-      .insert(moduleAppRecords)
-      .values({
-        appId: params.appId,
-        collectionKey: params.collectionKey,
-        createdBy: params.userId,
-        data: params.data,
-        installationId: installation.id,
-        ownerUserId: params.scopeType === 'personal' ? params.userId : undefined,
-        recordKey: params.recordKey,
-        scopeType: params.scopeType,
-        title: params.title,
-        updatedBy: params.userId,
-        workspaceId: params.scopeType === 'workspace' ? params.workspaceId : undefined,
-      })
-      .returning();
+        .insert(moduleAppRecords)
+        .values({
+          appId: params.appId,
+          collectionKey: params.collectionKey,
+          createdBy: params.userId,
+          data: params.data,
+          installationId: installation.id,
+          ownerUserId: params.scopeType === 'personal' ? params.userId : undefined,
+          recordKey: params.recordKey,
+          scopeType: params.scopeType,
+          title: params.title,
+          updatedBy: params.userId,
+          workspaceId: params.scopeType === 'workspace' ? params.workspaceId : undefined,
+        })
+        .returning();
 
       await tx.insert(moduleAppRecordEvents).values({
-      actorUserId: params.userId,
-      afterSnapshot: record,
-      appId: params.appId,
-      beforeSnapshot: {},
-      eventType: 'created',
-      metadata: {},
-      recordId: record.id,
-      scopeType: params.scopeType,
-      workspaceId: params.scopeType === 'workspace' ? params.workspaceId : undefined,
-    });
+        actorUserId: params.userId,
+        afterSnapshot: record,
+        appId: params.appId,
+        beforeSnapshot: {},
+        eventType: 'created',
+        metadata: {},
+        recordId: record.id,
+        scopeType: params.scopeType,
+        workspaceId: params.scopeType === 'workspace' ? params.workspaceId : undefined,
+      });
 
-    return record;
+      return record;
     });
   };
 
@@ -209,29 +209,29 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
 
     return this.db.transaction(async (tx) => {
       const [record] = await tx
-      .update(moduleAppRecords)
-      .set({
-        data: params.data,
-        title: params.title,
-        updatedAt: new Date(),
-        updatedBy: params.userId,
-      })
+        .update(moduleAppRecords)
+        .set({
+          data: params.data,
+          title: params.title,
+          updatedAt: new Date(),
+          updatedBy: params.userId,
+        })
         .where(eq(moduleAppRecords.id, recordId))
-      .returning();
+        .returning();
 
       await tx.insert(moduleAppRecordEvents).values({
-      actorUserId: params.userId,
-      afterSnapshot: record,
-      appId: params.appId,
-      beforeSnapshot: existing,
-      eventType: 'updated',
-      metadata: {},
-      recordId: record.id,
-      scopeType: record.scopeType,
-      workspaceId: record.workspaceId,
-    });
+        actorUserId: params.userId,
+        afterSnapshot: record,
+        appId: params.appId,
+        beforeSnapshot: existing,
+        eventType: 'updated',
+        metadata: {},
+        recordId: record.id,
+        scopeType: record.scopeType,
+        workspaceId: record.workspaceId,
+      });
 
-    return record;
+      return record;
     });
   };
 
@@ -248,26 +248,26 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
 
     await this.db.transaction(async (tx) => {
       const [record] = await tx
-      .update(moduleAppRecords)
-      .set({
-        status: 'archived',
-        updatedAt: new Date(),
-        updatedBy: params.userId,
-      })
-      .where(eq(moduleAppRecords.id, params.recordId))
-      .returning();
+        .update(moduleAppRecords)
+        .set({
+          status: 'archived',
+          updatedAt: new Date(),
+          updatedBy: params.userId,
+        })
+        .where(eq(moduleAppRecords.id, params.recordId))
+        .returning();
 
       await tx.insert(moduleAppRecordEvents).values({
-      actorUserId: params.userId,
-      afterSnapshot: record,
-      appId: params.appId,
-      beforeSnapshot: existing,
-      eventType: 'archived',
-      metadata: {},
-      recordId: record.id,
-      scopeType: record.scopeType,
-      workspaceId: record.workspaceId,
-    });
+        actorUserId: params.userId,
+        afterSnapshot: record,
+        appId: params.appId,
+        beforeSnapshot: existing,
+        eventType: 'archived',
+        metadata: {},
+        recordId: record.id,
+        scopeType: record.scopeType,
+        workspaceId: record.workspaceId,
+      });
     });
 
     return { ok: true as const };
@@ -279,6 +279,7 @@ export class ModuleAppExecutionModel extends ModuleAppInstallationModel {
       where: and(
         eq(moduleAppActions.appId, params.appId),
         eq(moduleAppActions.actionKey, params.actionId),
+        eq(moduleAppActions.versionId, installation.versionId),
       ),
     });
 

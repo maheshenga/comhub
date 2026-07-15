@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestDB } from '@/database/core/getTestDB';
@@ -66,10 +67,18 @@ beforeEach(async () => {
     slug: `payment-test-${crypto.randomUUID()}`,
     status: 'published',
   });
-  await serverDB.insert(moduleAppVersions).values({
-    appId: APP_ID,
-    version: '1.0.0',
-  });
+  const [publishedVersion] = await serverDB
+    .insert(moduleAppVersions)
+    .values({
+      appId: APP_ID,
+      publishedAt: new Date('2026-07-14T00:00:00.000Z'),
+      version: '1.0.0',
+    })
+    .returning();
+  await serverDB
+    .update(moduleApps)
+    .set({ currentPublishedVersionId: publishedVersion.id })
+    .where(eq(moduleApps.id, APP_ID));
 });
 
 const createPendingOrder = async () => {
@@ -125,10 +134,10 @@ describe('ModuleAppPaymentService', () => {
     );
     await expect(
       service.createPayment({
-      notifyUrl: 'https://app.example.com/notify',
-      orderId: order.id,
-      returnUrl: 'https://app.example.com/return',
-      subject: 'Payment test',
+        notifyUrl: 'https://app.example.com/notify',
+        orderId: order.id,
+        returnUrl: 'https://app.example.com/return',
+        subject: 'Payment test',
       }),
     ).resolves.toMatchObject({ outTradeNo: payment.outTradeNo });
     await expect(serverDB.query.moduleAppPaymentAttempts.findMany()).resolves.toHaveLength(1);
@@ -274,8 +283,8 @@ describe('ModuleAppPaymentService', () => {
 
     await expect(
       Promise.all([
-      service.handleNotification({ body: 'signed-1', headers: {} }),
-      service.handleNotification({ body: 'signed-2', headers: {} }),
+        service.handleNotification({ body: 'signed-1', headers: {} }),
+        service.handleNotification({ body: 'signed-2', headers: {} }),
       ]),
     ).resolves.toHaveLength(2);
     await expect(serverDB.query.moduleAppLicenses.findMany()).resolves.toHaveLength(1);
@@ -309,6 +318,23 @@ describe('ModuleAppPaymentService', () => {
       service.refundOrder({ orderId: order.id, reason: 'customer request' }),
     ).resolves.toMatchObject({ status: 'refunded' });
     expect(adapter.refund).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a pending order before calling the refund provider', async () => {
+    const adapter = createAdapter();
+    const service = new ModuleAppPaymentService(serverDB, adapter);
+    const order = await createPendingOrder();
+    await service.createPayment({
+      notifyUrl: 'https://app.example.com/notify',
+      orderId: order.id,
+      returnUrl: 'https://app.example.com/return',
+      subject: 'Payment test',
+    });
+
+    await expect(
+      service.refundOrder({ orderId: order.id, reason: 'customer request' }),
+    ).rejects.toThrow('MODULE_APP_ORDER_NOT_REFUNDABLE');
+    expect(adapter.refund).not.toHaveBeenCalled();
   });
 
   it('reconciles a provider-paid pending order and records the state mismatch', async () => {

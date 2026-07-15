@@ -6,7 +6,11 @@ import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
 import { appEnv } from '@/envs/app';
 import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleAppPayments/alipay/client';
 
-import { getWorkspaceMembership, moduleAppProcedure } from './data';
+import {
+  assertWorkspaceManagementPermission,
+  getWorkspaceMembership,
+  moduleAppProcedure,
+} from './data';
 
 const AppIdInputSchema = z.object({
   appId: z.string().uuid(),
@@ -39,10 +43,11 @@ export const moduleAppCommerceProcedures = {
 
   createOrder: moduleAppProcedure.input(ProductIdInputSchema).mutation(async ({ ctx, input }) => {
     if (input.workspaceId) {
-      const membership = await getWorkspaceMembership(ctx.serverDB, ctx.userId, input.workspaceId);
-      if (!membership) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
-      }
+      await assertWorkspaceManagementPermission({
+        db: ctx.serverDB,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
     }
     return new ModuleAppCommerceModel(ctx.serverDB).createOrder({
       idempotencyKey: input.idempotencyKey,
@@ -106,17 +111,17 @@ export const moduleAppCommerceProcedures = {
   listCatalog: moduleAppProcedure
     .input(ModuleAppCatalogInputSchema)
     .query(async ({ ctx, input }) => {
-    return new ModuleAppCommerceModel(ctx.serverDB).listCatalog(input);
-  }),
+      return new ModuleAppCommerceModel(ctx.serverDB).listCatalog(input);
+    }),
 
   listOrders: moduleAppProcedure
     .input(ModuleAppOrderListInputSchema)
     .query(async ({ ctx, input }) => {
-    return new ModuleAppCommerceModel(ctx.serverDB).listOrders({
-      limit: input.limit,
-      purchaserUserId: ctx.userId,
-    });
-  }),
+      return new ModuleAppCommerceModel(ctx.serverDB).listOrders({
+        limit: input.limit,
+        purchaserUserId: ctx.userId,
+      });
+    }),
 
   quoteProduct: moduleAppProcedure.input(ProductQuoteInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppCommerceModel(ctx.serverDB).quoteProduct(input);

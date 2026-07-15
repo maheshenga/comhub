@@ -430,7 +430,7 @@ export const redemptionRouter = router({
           if (!pkg.isActive)
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'TOPUP_PACKAGE_INACTIVE' });
 
-          const commercial = new CommercialModel(ctx.serverDB, userId);
+          const commercial = new CommercialModel(tx, userId);
           const order = await commercial.createTopUpOrder({
             credits: Number(pkg.credits),
             redemptionCodeId: row.id,

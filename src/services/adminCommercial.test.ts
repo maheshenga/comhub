@@ -103,7 +103,9 @@ describe('adminCommercialService NewAPI helpers', () => {
     await expect(
       adminCommercialService.moduleApps.listPackages({ reviewStatus: 'pending_review' }),
     ).resolves.toEqual({ items: [{ id: 'package-1' }], nextCursor: null });
-    await expect(adminCommercialService.moduleApps.getPackage({ packageId: 'package-1' })).resolves.toEqual({
+    await expect(
+      adminCommercialService.moduleApps.getPackage({ packageId: 'package-1' }),
+    ).resolves.toEqual({
       id: 'package-1',
     });
     await expect(
@@ -206,10 +208,12 @@ describe('adminCommercialService NewAPI helpers', () => {
     await expect(adminCommercialService.moduleApps.createProduct(createInput)).resolves.toEqual({
       id: 'product-1',
     });
-    await expect(adminCommercialService.moduleApps.listProducts({ appId: 'app1' })).resolves.toEqual([
-      { productId: 'product-1' },
-    ]);
-    await expect(adminCommercialService.moduleApps.updateProduct(updateInput)).resolves.toMatchObject({
+    await expect(
+      adminCommercialService.moduleApps.listProducts({ appId: 'app1' }),
+    ).resolves.toEqual([{ productId: 'product-1' }]);
+    await expect(
+      adminCommercialService.moduleApps.updateProduct(updateInput),
+    ).resolves.toMatchObject({
       product: { id: 'product-1' },
     });
   });
@@ -220,6 +224,7 @@ describe('adminCommercialService NewAPI helpers', () => {
       modelsCount: 1,
       ok: true,
       pricingCount: 0,
+      staleCount: 0,
       warnings: [],
     });
 
@@ -231,14 +236,14 @@ describe('adminCommercialService NewAPI helpers', () => {
   });
 
   it('calls the AI provider model catalog diagnostics endpoint', async () => {
-    vi.mocked(lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query).mockResolvedValue(
-      {
-        catalog: [],
-        health: { hiddenByPlanCount: 0, modelTypeCount: 0, totalCount: 0, visibleCount: 0 },
-        hiddenByReason: {},
-        risks: [],
-      },
-    );
+    vi.mocked(
+      lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query,
+    ).mockResolvedValue({
+      catalog: [],
+      health: { hiddenByPlanCount: 0, modelTypeCount: 0, totalCount: 0, visibleCount: 0 },
+      hiddenByReason: {},
+      risks: [],
+    });
 
     await adminCommercialService.getAiProviderModelCatalogDiagnostics();
 

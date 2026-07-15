@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
+import { CommercialModel } from '@/database/models/commercial';
 
 import { recordAdminAudit } from './audit';
-import { adminRedemptionRouter } from './redemption';
+import { adminRedemptionRouter, redemptionRouter } from './redemption';
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
+}));
+
+vi.mock('@/database/models/commercial', () => ({
+  CommercialModel: vi.fn(),
 }));
 
 vi.mock('./audit', () => ({
@@ -51,5 +56,62 @@ describe('adminRedemptionRouter', () => {
         resourceType: 'redemption_code',
       }),
     );
+  });
+
+  it('creates and settles redeemed top-up orders inside the redemption transaction', async () => {
+    const createTopUpOrder = vi.fn().mockResolvedValue({ id: 'order-1' });
+    const settleTopUpOrder = vi.fn().mockResolvedValue({ status: 'paid' });
+    vi.mocked(CommercialModel).mockImplementation(
+      () =>
+        ({
+          createTopUpOrder,
+          settleTopUpOrder,
+        }) as any,
+    );
+
+    const tx = {
+      query: {
+        redemptionCodes: {
+          findFirst: vi.fn().mockResolvedValue({
+            expiresAt: null,
+            id: 'redemption-1',
+            rewardType: 'topup_package',
+            status: 'active',
+            topupPackageId: 'package-1',
+          }),
+        },
+        topUpPackages: {
+          findFirst: vi.fn().mockResolvedValue({
+            credits: 1000,
+            id: 'package-1',
+            isActive: true,
+          }),
+        },
+      },
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({
+            returning: vi.fn().mockResolvedValue([{ id: 'redemption-1' }]),
+          })),
+        })),
+      })),
+    };
+    const serverDB = {
+      transaction: vi.fn(async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(serverDB as any);
+
+    const caller = redemptionRouter.createCaller({ userId: 'user-1' } as any);
+    await caller.redeem({ code: 'promo-code' });
+
+    expect(CommercialModel).toHaveBeenCalledWith(tx, 'user-1');
+    expect(createTopUpOrder).toHaveBeenCalledWith({
+      credits: 1000,
+      redemptionCodeId: 'redemption-1',
+      source: 'redemption',
+    });
+    expect(settleTopUpOrder).toHaveBeenCalledWith('order-1');
   });
 });

@@ -103,6 +103,9 @@ const SettleOrderInputSchema = OrderIdInputSchema.extend({
 const RefundOrderInputSchema = OrderIdInputSchema.extend({
   reason: z.string().min(1).max(1000),
 });
+const OfflineRefundOrderInputSchema = RefundOrderInputSchema.extend({
+  offlineRefundReference: z.string().trim().min(1).max(240),
+});
 const PaymentQueryInputSchema = z.object({ outTradeNo: z.string().min(1).max(240) });
 const ReconcilePendingInputSchema = z.object({
   limit: z.number().int().min(1).max(200).default(100),
@@ -133,7 +136,13 @@ const SettleRevenueBatchInputSchema = z.object({
 const PublisherIdInputSchema = z.object({ publisherId: z.string().uuid() });
 const CreatePublisherInputSchema = z.object({
   displayName: z.string().trim().min(1).max(200),
-  recipientMask: z.string().trim().min(3).max(200).refine((value) => value.includes('*')).optional(),
+  recipientMask: z
+    .string()
+    .trim()
+    .min(3)
+    .max(200)
+    .refine((value) => value.includes('*'))
+    .optional(),
   userId: z.string().trim().min(1).max(255),
 });
 const VerifyPublisherInputSchema = PublisherIdInputSchema.extend({
@@ -165,7 +174,12 @@ const TransitionPayoutBatchInputSchema = PayoutBatchIdInputSchema.extend({
 });
 const RecordManualAlipayPayoutInputSchema = PayoutBatchIdInputSchema.extend({
   evidenceReference: z.string().trim().min(1).max(1000),
-  recipientMask: z.string().trim().min(3).max(200).refine((value) => value.includes('*')),
+  recipientMask: z
+    .string()
+    .trim()
+    .min(3)
+    .max(200)
+    .refine((value) => value.includes('*')),
   transactionNo: z.string().trim().min(1).max(240),
 });
 const ListPayoutsInputSchema = z
@@ -254,7 +268,12 @@ const validateProductFields = (
 };
 const CreateProductInputSchema = AppIdInputSchema.extend({
   ...ModuleAppProductFieldsSchema.shape,
-  productKey: z.string().trim().min(1).max(120).regex(/^[a-z0-9][a-z0-9_-]*$/),
+  productKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9][a-z0-9_-]*$/),
 }).superRefine(validateProductFields);
 const UpdateProductInputSchema = ModuleAppProductFieldsSchema.extend({
   productId: z.string().uuid(),
@@ -404,15 +423,18 @@ export const adminModuleAppsRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireAdminApp(ctx.serverDB, input.appId);
       return ctx.serverDB.transaction(async (tx: Transaction) => {
-        const result = await new ModuleAppCommerceModel(
-          tx as LobeChatDatabase,
-        ).createProduct(input);
-        await writeAudit({ serverDB: tx, userId: ctx.userId }, {
-          eventType: 'module_app.product_created',
-          metadata: { appId: input.appId, productKey: input.productKey },
-          resourceId: result.id,
-          resourceType: 'moduleAppProduct',
-        });
+        const result = await new ModuleAppCommerceModel(tx as LobeChatDatabase).createProduct(
+          input,
+        );
+        await writeAudit(
+          { serverDB: tx, userId: ctx.userId },
+          {
+            eventType: 'module_app.product_created',
+            metadata: { appId: input.appId, productKey: input.productKey },
+            resourceId: result.id,
+            resourceType: 'moduleAppProduct',
+          },
+        );
         return result;
       });
     }),
@@ -485,13 +507,16 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  refundOrder: financeWriteProcedure.input(RefundOrderInputSchema).mutation(async ({ ctx, input }) => {
-    return new ModuleAppOrderRevenueService(ctx.serverDB).refundOrder({
-      actorUserId: ctx.userId,
-      orderId: input.orderId,
-      reason: input.reason,
-    });
-  }),
+  refundOrder: financeWriteProcedure
+    .input(OfflineRefundOrderInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return new ModuleAppOrderRevenueService(ctx.serverDB).refundOrder({
+        actorUserId: ctx.userId,
+        orderId: input.orderId,
+        reason: input.reason,
+        refundReference: `offline:${input.offlineRefundReference}`,
+      });
+    }),
 
   refundPaymentOrder: financeWriteProcedure
     .input(RefundOrderInputSchema)
@@ -536,12 +561,14 @@ export const adminModuleAppsRouter = router({
       ).reconcileRefund({ actorUserId: ctx.userId, orderId: input.orderId });
     }),
 
-  settleOrder: financeWriteProcedure.input(SettleOrderInputSchema).mutation(async ({ ctx, input }) => {
-    return new ModuleAppOrderRevenueService(ctx.serverDB).settleOrder({
-      actorUserId: ctx.userId,
-      ...input,
-    });
-  }),
+  settleOrder: financeWriteProcedure
+    .input(SettleOrderInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      return new ModuleAppOrderRevenueService(ctx.serverDB).settleOrder({
+        actorUserId: ctx.userId,
+        ...input,
+      });
+    }),
 
   settleRevenueBatch: financeWriteProcedure
     .input(SettleRevenueBatchInputSchema)
@@ -583,15 +610,18 @@ export const adminModuleAppsRouter = router({
     .input(UpdateProductInputSchema)
     .mutation(async ({ ctx, input }) => {
       return ctx.serverDB.transaction(async (tx: Transaction) => {
-        const result = await new ModuleAppCommerceModel(
-          tx as LobeChatDatabase,
-        ).updateProduct(input);
-        await writeAudit({ serverDB: tx, userId: ctx.userId }, {
-          eventType: 'module_app.product_updated',
-          metadata: { status: input.status },
-          resourceId: input.productId,
-          resourceType: 'moduleAppProduct',
-        });
+        const result = await new ModuleAppCommerceModel(tx as LobeChatDatabase).updateProduct(
+          input,
+        );
+        await writeAudit(
+          { serverDB: tx, userId: ctx.userId },
+          {
+            eventType: 'module_app.product_updated',
+            metadata: { status: input.status },
+            resourceId: input.productId,
+            resourceType: 'moduleAppProduct',
+          },
+        );
         return result;
       });
     }),
@@ -748,43 +778,49 @@ export const adminModuleAppsRouter = router({
     return { ok: true };
   }),
 
-  upsert: contentWriteProcedure.input(moduleAppAdminUpsertSchema).mutation(async ({ ctx, input }) => {
-    const result = await new ModuleAppModel(ctx.serverDB).upsertAppForAdmin(input);
+  upsert: contentWriteProcedure
+    .input(moduleAppAdminUpsertSchema)
+    .mutation(async ({ ctx, input }) => {
+      const result = await new ModuleAppModel(ctx.serverDB).upsertAppForAdmin(input);
 
-    await writeAudit(ctx, {
-      eventType: 'module_app.upserted',
-      metadata: { slug: input.slug, status: input.status },
-      resourceId: result.id,
-    });
+      await writeAudit(ctx, {
+        eventType: 'module_app.upserted',
+        metadata: { slug: input.slug, status: input.status },
+        resourceId: result.id,
+      });
 
-    return result;
-  }),
+      return result;
+    }),
 
-  upsertActions: contentWriteProcedure.input(ActionsInputSchema).mutation(async ({ ctx, input }) => {
-    await requireAdminApp(ctx.serverDB, input.appId);
+  upsertActions: contentWriteProcedure
+    .input(ActionsInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
 
-    const result = await new ModuleAppModel(ctx.serverDB).upsertActionsForAdmin(input);
-    await writeAudit(ctx, {
-      eventType: 'module_app.actions_upserted',
-      metadata: { count: input.actions.length },
-      resourceId: input.appId,
-    });
+      const result = await new ModuleAppModel(ctx.serverDB).upsertActionsForAdmin(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.actions_upserted',
+        metadata: { count: input.actions.length },
+        resourceId: input.appId,
+      });
 
-    return result;
-  }),
+      return result;
+    }),
 
-  upsertBilling: financeWriteProcedure.input(BillingInputSchema).mutation(async ({ ctx, input }) => {
-    await requireAdminApp(ctx.serverDB, input.appId);
+  upsertBilling: financeWriteProcedure
+    .input(BillingInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
 
-    const result = await new ModuleAppModel(ctx.serverDB).upsertBillingForAdmin(input);
-    await writeAudit(ctx, {
-      eventType: 'module_app.billing_upserted',
-      metadata: { chargeMode: input.billing.chargeMode },
-      resourceId: input.appId,
-    });
+      const result = await new ModuleAppModel(ctx.serverDB).upsertBillingForAdmin(input);
+      await writeAudit(ctx, {
+        eventType: 'module_app.billing_upserted',
+        metadata: { chargeMode: input.billing.chargeMode },
+        resourceId: input.appId,
+      });
 
-    return result;
-  }),
+      return result;
+    }),
 
   upsertEntitlements: financeWriteProcedure
     .input(EntitlementsInputSchema)

@@ -105,6 +105,7 @@ export const getAppConfig = () => {
       MODULE_APP_RUNTIME_APP_ALLOWLIST: z.string().optional().transform(parseModuleAppAllowlist),
       MODULE_APP_PUBLISHER_ALLOWLIST: z.string().optional().transform(parseModuleAppAllowlist),
       MODULE_APP_ALIPAY_APP_ID: z.string().optional(),
+      MODULE_APP_ALIPAY_APP_CERT_SN: z.string().optional(),
       MODULE_APP_ALIPAY_CERTIFICATE: z.string().optional(),
       MODULE_APP_ALIPAY_CERT_MODE: z.enum(['certificate', 'public_key']).optional(),
       MODULE_APP_ALIPAY_ENABLED: z.boolean(),
@@ -114,6 +115,7 @@ export const getAppConfig = () => {
       MODULE_APP_ALIPAY_NOTIFY_URL: z.string().url().optional(),
       MODULE_APP_ALIPAY_PUBLIC_KEY: z.string().optional(),
       MODULE_APP_ALIPAY_RETURN_URL: z.string().url().optional(),
+      MODULE_APP_ALIPAY_ROOT_CERT_SN: z.string().optional(),
       MODULE_APP_ALIPAY_SELLER_ID: z.string().optional(),
 
       AGENT_GATEWAY_SERVICE_TOKEN: z.string().optional(),
@@ -181,19 +183,18 @@ export const getAppConfig = () => {
       MODULE_APP_RUNTIME_APP_ALLOWLIST: process.env.MODULE_APP_RUNTIME_APP_ALLOWLIST,
       MODULE_APP_PUBLISHER_ALLOWLIST: process.env.MODULE_APP_PUBLISHER_ALLOWLIST,
       MODULE_APP_ALIPAY_APP_ID: process.env.MODULE_APP_ALIPAY_APP_ID,
+      MODULE_APP_ALIPAY_APP_CERT_SN: process.env.MODULE_APP_ALIPAY_APP_CERT_SN,
       MODULE_APP_ALIPAY_CERTIFICATE: process.env.MODULE_APP_ALIPAY_CERTIFICATE,
       MODULE_APP_ALIPAY_CERT_MODE:
-        process.env.MODULE_APP_ALIPAY_CERT_MODE === 'certificate'
-          ? 'certificate'
-          : 'public_key',
+        process.env.MODULE_APP_ALIPAY_CERT_MODE === 'certificate' ? 'certificate' : 'public_key',
       MODULE_APP_ALIPAY_ENABLED: process.env.MODULE_APP_ALIPAY_ENABLED === 'true',
       MODULE_APP_ALIPAY_GATEWAY,
-      MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY:
-        process.env.MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY,
+      MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY: process.env.MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY,
       MODULE_APP_ALIPAY_MODE,
       MODULE_APP_ALIPAY_NOTIFY_URL: process.env.MODULE_APP_ALIPAY_NOTIFY_URL,
       MODULE_APP_ALIPAY_PUBLIC_KEY: process.env.MODULE_APP_ALIPAY_PUBLIC_KEY,
       MODULE_APP_ALIPAY_RETURN_URL: process.env.MODULE_APP_ALIPAY_RETURN_URL,
+      MODULE_APP_ALIPAY_ROOT_CERT_SN: process.env.MODULE_APP_ALIPAY_ROOT_CERT_SN,
       MODULE_APP_ALIPAY_SELLER_ID: process.env.MODULE_APP_ALIPAY_SELLER_ID,
 
       AGENT_GATEWAY_SERVICE_TOKEN: process.env.AGENT_GATEWAY_SERVICE_TOKEN,

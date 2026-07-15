@@ -307,8 +307,14 @@ describe('admin module apps router', () => {
     moduleAppPaymentMocks.reconcileRefund.mockResolvedValue({ status: 'succeeded' });
     moduleAppPaymentModelMocks.acknowledgeDiscrepancy.mockResolvedValue({ status: 'resolved' });
     moduleAppPaymentModelMocks.listDiscrepancies.mockResolvedValue({ items: [], nextCursor: null });
-    moduleAppPublisherMocks.createPublisher.mockResolvedValue({ id: PUBLISHER_ID, status: 'pending' });
-    moduleAppPublisherMocks.verifyPublisher.mockResolvedValue({ id: PUBLISHER_ID, status: 'verified' });
+    moduleAppPublisherMocks.createPublisher.mockResolvedValue({
+      id: PUBLISHER_ID,
+      status: 'pending',
+    });
+    moduleAppPublisherMocks.verifyPublisher.mockResolvedValue({
+      id: PUBLISHER_ID,
+      status: 'verified',
+    });
     moduleAppPublisherMocks.suspendPublisher.mockResolvedValue({
       id: PUBLISHER_ID,
       status: 'suspended',
@@ -544,7 +550,9 @@ describe('admin module apps router', () => {
   it('lists module app package submissions for review', async () => {
     const caller = createCaller();
 
-    await expect(caller.moduleApps.listPackages({ reviewStatus: 'pending_review' })).resolves.toEqual({
+    await expect(
+      caller.moduleApps.listPackages({ reviewStatus: 'pending_review' }),
+    ).resolves.toEqual({
       items: [{ id: PACKAGE_ID }],
       nextCursor: null,
     });
@@ -587,10 +595,12 @@ describe('admin module apps router', () => {
     );
     const caller = createCaller();
 
-    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject({
-      code: 'PRECONDITION_FAILED',
-      message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
-    });
+    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject(
+      {
+        code: 'PRECONDITION_FAILED',
+        message: 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN',
+      },
+    );
   });
 
   it('rescans a legacy package and writes an audit log', async () => {
@@ -671,13 +681,21 @@ describe('admin module apps router', () => {
   it('refunds a paid order with an actor and reason audit snapshot', async () => {
     const caller = createCaller();
     await expect(
-      caller.moduleApps.refundOrder({ orderId: ORDER_ID, reason: 'customer_request' }),
+      caller.moduleApps.refundOrder({ orderId: ORDER_ID, reason: 'customer_request' } as any),
+    ).rejects.toBeTruthy();
+    await expect(
+      caller.moduleApps.refundOrder({
+        offlineRefundReference: 'bank-transfer-1',
+        orderId: ORDER_ID,
+        reason: 'customer_request',
+      } as any),
     ).resolves.toMatchObject({ status: 'refunded' });
 
     expect(moduleAppOrderRevenueMocks.refundOrder).toHaveBeenCalledWith({
       actorUserId: 'admin-user',
       orderId: ORDER_ID,
       reason: 'customer_request',
+      refundReference: 'offline:bank-transfer-1',
     });
   });
 
@@ -740,7 +758,11 @@ describe('admin module apps router', () => {
     const caller = createCaller();
 
     await expect(
-      caller.moduleApps.listRevenue({ limit: 25, publisherUserId: 'publisher-1', status: 'pending' }),
+      caller.moduleApps.listRevenue({
+        limit: 25,
+        publisherUserId: 'publisher-1',
+        status: 'pending',
+      }),
     ).resolves.toEqual({ items: [], nextCursor: null });
 
     expect(moduleAppReadModelMocks.listRevenue).toHaveBeenCalledWith({
@@ -783,7 +805,9 @@ describe('admin module apps router', () => {
     });
     await caller.moduleApps.assignPublisher({ appId: APP_ID, publisherId: PUBLISHER_ID });
     await caller.moduleApps.suspendPublisher({ publisherId: PUBLISHER_ID });
-    await expect(caller.moduleApps.listPublishers({ limit: 25, status: 'verified' })).resolves.toEqual({
+    await expect(
+      caller.moduleApps.listPublishers({ limit: 25, status: 'verified' }),
+    ).resolves.toEqual({
       items: [],
       nextCursor: null,
     });

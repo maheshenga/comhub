@@ -63,6 +63,7 @@ const createDbMock = ({
   role?: string | null;
 } = {}) => {
   const writes = {
+    conflictConfig: undefined as any,
     insertRows: [] as any[],
     insertValue: undefined as any,
     updateValue: undefined as any,
@@ -85,7 +86,10 @@ const createDbMock = ({
         writes.insertRows = Array.isArray(rows) ? rows : [rows];
 
         return {
-          onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
+          onConflictDoUpdate: vi.fn((config) => {
+            writes.conflictConfig = config;
+            return Promise.resolve(undefined);
+          }),
           returning: vi.fn().mockResolvedValue([{ id: instanceId }]),
         };
       }),
@@ -437,6 +441,53 @@ describe('adminNewapiProvidersRouter', () => {
         modelType: 'image',
       }),
     );
+  });
+
+  it('disables stale synchronized models while retaining manual metadata', async () => {
+    const { db, writes } = createDbMock({
+      existingRows: [
+        {
+          displayName: 'Legacy Model',
+          enabled: true,
+          metadata: { manualAbilities: { vision: true }, syncSource: 'newapi' },
+          modelId: 'legacy-model',
+          modelType: 'chat',
+          sortOrder: 3,
+        } as any,
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+          ok: true,
+        })
+        .mockResolvedValueOnce({
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [], success: true }),
+          ok: true,
+        }),
+    );
+
+    const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
+    const result = await caller.syncInstanceModels({ id: instanceId });
+
+    expect(result).toEqual(expect.objectContaining({ importedCount: 0, staleCount: 1 }));
+    expect(writes.insertRows[0]).toEqual(
+      expect.objectContaining({
+        enabled: false,
+        metadata: expect.objectContaining({
+          manualAbilities: { vision: true },
+          syncStatus: 'stale',
+        }),
+        modelId: 'legacy-model',
+      }),
+    );
+    expect(writes.conflictConfig.set).toHaveProperty('enabled');
   });
 
   it('returns pricing source metadata for enabled models', async () => {

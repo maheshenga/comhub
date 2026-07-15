@@ -7,6 +7,7 @@ import type {
   MessageGenerationParams,
   TranslateServiceParams,
 } from '../types/chat.type';
+import { resolveOpenApiOperationId } from '../utils/operationId';
 
 export class ChatController extends BaseController {
   /**
@@ -20,7 +21,13 @@ export class ChatController extends BaseController {
       const chatParams = (await this.getBody<ChatServiceParams>(c))!;
 
       const db = await this.getDatabase();
-      const chatService = new ChatService(db, userId, this.getWorkspaceId(c));
+      const workspaceId = this.getWorkspaceId(c);
+      const config = {
+        operationId: resolveOpenApiOperationId((name) => c.req.header(name)),
+      };
+      const chatService = workspaceId
+        ? new ChatService(db, userId, workspaceId, config)
+        : new ChatService(db, userId, config);
 
       // If streaming response, return directly
       if (chatParams.stream) {

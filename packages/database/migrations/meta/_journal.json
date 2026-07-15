@@ -1050,6 +1050,13 @@
       "when": 1784818400000,
       "tag": "0146_harden_commercial_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1784904800000,
+      "tag": "0147_harden_commercial_transactions",
+      "breakpoints": true
     }
   ],
   "version": "6"

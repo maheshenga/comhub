@@ -179,6 +179,7 @@ export class ModelRuntime {
   async chat(payload: ChatStreamPayload, options?: ChatMethodOptions) {
     const metadata = getLobeHubTimingMetadata(options);
     const startedAt = Date.now();
+    let lifecycleOptions = options;
     if (metadata) {
       timing(
         'ModelRuntime.chat start model=%s trigger=%s traceId=%s',
@@ -199,6 +200,7 @@ export class ModelRuntime {
     try {
       const hooksStartedAt = Date.now();
       const finalOptions = await this.applyHooks(payload, options);
+      lifecycleOptions = finalOptions;
       if (metadata) {
         timing(
           'ModelRuntime.chat hooks done model=%s durationMs=%d traceId=%s',
@@ -230,7 +232,10 @@ export class ModelRuntime {
       }
       if (this._hooks?.onChatError) {
         const errorHookStartedAt = Date.now();
-        await this._hooks.onChatError(error as ChatCompletionErrorPayload, { options, payload });
+        await this._hooks.onChatError(error as ChatCompletionErrorPayload, {
+          options: lifecycleOptions,
+          payload,
+        });
         if (metadata) {
           timing(
             'ModelRuntime.chat onChatError done model=%s durationMs=%d traceId=%s',
@@ -303,7 +308,7 @@ export class ModelRuntime {
           }
           await existingOnFinal?.(data);
           try {
-            await hookFn(data, { options, payload });
+            await hookFn(data, { options: hookOptions, payload });
             if (metadata) {
               timing(
                 'ModelRuntime.onChatFinal done model=%s durationMs=%d traceId=%s',
@@ -331,6 +336,7 @@ export class ModelRuntime {
 
   async generateObject(payload: GenerateObjectPayload, options?: GenerateObjectOptions) {
     const startedAt = Date.now();
+    let lifecycleOptions = options;
     let usageCapture: ModelUsage | undefined;
 
     const fireComplete = async (data: {
@@ -348,7 +354,7 @@ export class ModelRuntime {
             success: data.success,
             usage: usageCapture,
           },
-          { options, payload },
+          { options: lifecycleOptions, payload },
         );
       } catch (e) {
         // Hook failures must not affect the caller — log and move on.
@@ -359,6 +365,7 @@ export class ModelRuntime {
     try {
       const hookOptions = this._hooks?.beforeGenerateObject && !options ? {} : options;
       await this._hooks?.beforeGenerateObject?.(payload, hookOptions);
+      lifecycleOptions = hookOptions;
       const runtimeStartedAt = Date.now();
 
       const needsUsageCapture =
@@ -372,7 +379,10 @@ export class ModelRuntime {
               const speed = buildGenerateObjectSpeed(runtimeStartedAt, usage);
               await hookOptions?.onUsage?.(usage);
               try {
-                await this._hooks?.onGenerateObjectFinal?.({ speed, usage }, { options, payload });
+                await this._hooks?.onGenerateObjectFinal?.(
+                  { speed, usage },
+                  { options: hookOptions, payload },
+                );
               } catch (e) {
                 // Hook failures (billing, tracing) must not interfere with response completion
                 console.error('[ModelRuntime] onGenerateObjectFinal hook error:', e);
@@ -387,7 +397,7 @@ export class ModelRuntime {
     } catch (error) {
       if (this._hooks?.onGenerateObjectError) {
         await this._hooks.onGenerateObjectError(error as ChatCompletionErrorPayload, {
-          options,
+          options: lifecycleOptions,
           payload,
         });
       }
@@ -433,9 +443,11 @@ export class ModelRuntime {
   }
 
   async embeddings(payload: EmbeddingsPayload, options?: EmbeddingsOptions) {
+    let lifecycleOptions = options;
     try {
       const hookOptions = this._hooks?.beforeEmbeddings && !options ? {} : options;
       await this._hooks?.beforeEmbeddings?.(payload, hookOptions);
+      lifecycleOptions = hookOptions;
 
       const startTime = Date.now();
 
@@ -446,7 +458,10 @@ export class ModelRuntime {
               await hookOptions?.onUsage?.(usage);
               try {
                 const latencyMs = Date.now() - startTime;
-                await this._hooks!.onEmbeddingsFinal!({ latencyMs, usage }, { options, payload });
+                await this._hooks!.onEmbeddingsFinal!(
+                  { latencyMs, usage },
+                  { options: hookOptions, payload },
+                );
               } catch (e) {
                 console.error('[ModelRuntime] onEmbeddingsFinal hook error:', e);
               }
@@ -458,7 +473,7 @@ export class ModelRuntime {
     } catch (error) {
       if (this._hooks?.onEmbeddingsError) {
         await this._hooks.onEmbeddingsError(error as ChatCompletionErrorPayload, {
-          options,
+          options: lifecycleOptions,
           payload,
         });
       }

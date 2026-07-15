@@ -156,9 +156,7 @@ const hasPositiveNumber = (value: unknown) => {
   return Number.isFinite(number) && number > 0;
 };
 
-const resolveModelPricingCompleteness = (
-  metadata: Record<string, unknown> | null | undefined,
-) => {
+const resolveModelPricingCompleteness = (metadata: Record<string, unknown> | null | undefined) => {
   if (!isPlainRecord(metadata)) return false;
   if (metadata.pricingAvailable === true) return true;
   if (hasPositiveNumber(metadata.modelPrice) || hasPositiveNumber(metadata.modelRatio)) return true;
@@ -188,7 +186,8 @@ const hasExactModelBankPricing = ({
   if (!modelBankProviderId) return false;
 
   return LOBE_DEFAULT_MODEL_LIST.some(
-    (item) => item.providerId === modelBankProviderId && item.id === modelId && Boolean(item.pricing),
+    (item) =>
+      item.providerId === modelBankProviderId && item.id === modelId && Boolean(item.pricing),
   );
 };
 
@@ -220,9 +219,7 @@ const resolveModelPricingSource = ({
   return hasExactModelBankPricing({ modelId, providerType }) ? 'model-bank' : 'missing';
 };
 
-const resolveModelAbilityCompleteness = (
-  metadata: Record<string, unknown> | null | undefined,
-) => {
+const resolveModelAbilityCompleteness = (metadata: Record<string, unknown> | null | undefined) => {
   if (!isPlainRecord(metadata)) return false;
 
   const manualAbilities = metadata.manualAbilities;
@@ -234,22 +231,24 @@ const resolveModelAbilityCompleteness = (
 export const adminNewapiProvidersRouter = router({
   // ─── Instance CRUD ─────────────────────────────────────────────────────────
 
-  createInstance: modelOpsWriteProcedure.input(InstanceInputSchema).mutation(async ({ ctx, input }) => {
-    const data = await normalizeInstanceInput(input);
-    const [row] = await ctx.serverDB
-      .insert(adminNewapiInstances)
-      .values(data)
-      .returning({ id: adminNewapiInstances.id });
+  createInstance: modelOpsWriteProcedure
+    .input(InstanceInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const data = await normalizeInstanceInput(input);
+      const [row] = await ctx.serverDB
+        .insert(adminNewapiInstances)
+        .values(data)
+        .returning({ id: adminNewapiInstances.id });
 
-    await recordAdminAudit(ctx, {
-      action: 'newapiInstance.create',
-      payload: { name: input.name },
-      resourceId: row.id,
-      resourceType: 'admin_newapi_instances',
-    });
-    invalidateNewapiInstancesCache();
-    return { id: row.id };
-  }),
+      await recordAdminAudit(ctx, {
+        action: 'newapiInstance.create',
+        payload: { name: input.name },
+        resourceId: row.id,
+        resourceType: 'admin_newapi_instances',
+      });
+      invalidateNewapiInstancesCache();
+      return { id: row.id };
+    }),
 
   deleteInstance: modelOpsWriteProcedure
     .input(z.object({ id: z.string().uuid(), reason: z.string().max(500).optional() }))
@@ -362,7 +361,7 @@ export const adminNewapiProvidersRouter = router({
       const decryptedInstance = await decryptInstance(ctx.serverDB, instance);
       assertInstanceApiKeyReady(decryptedInstance);
 
-      const [models, pricing, existingRows] = await Promise.all([
+      const [models, pricingResult, existingRows] = await Promise.all([
         fetchNewapiModels({
           apiKey: decryptedInstance.apiKey,
           baseUrl: instance.baseUrl,
@@ -375,18 +374,26 @@ export const adminNewapiProvidersRouter = router({
         }),
         ctx.serverDB
           .select({
+            displayName: adminNewapiInstanceModels.displayName,
             enabled: adminNewapiInstanceModels.enabled,
+            metadata: adminNewapiInstanceModels.metadata,
             modelId: adminNewapiInstanceModels.modelId,
             modelType: adminNewapiInstanceModels.modelType,
+            sortOrder: adminNewapiInstanceModels.sortOrder,
           })
           .from(adminNewapiInstanceModels)
           .where(eq(adminNewapiInstanceModels.instanceId, input.id)),
       ]);
 
-      const rows = normalizeNewapiSyncRows({ existingRows, models, pricing }).map((row) => ({
-        ...row,
-        instanceId: input.id,
-      }));
+      const normalizedRows = normalizeNewapiSyncRows({
+        existingRows,
+        models,
+        pricing: pricingResult.items,
+        pricingStatus: pricingResult.status,
+      });
+      const rows = normalizedRows.map((row) => ({ ...row, instanceId: input.id }));
+      const staleCount = normalizedRows.filter((row) => row.metadata.syncStatus === 'stale').length;
+      const importedCount = normalizedRows.length - staleCount;
 
       if (rows.length > 0) {
         await ctx.serverDB
@@ -395,6 +402,7 @@ export const adminNewapiProvidersRouter = router({
           .onConflictDoUpdate({
             set: {
               displayName: sql`excluded.display_name`,
+              enabled: sql`excluded.enabled`,
               metadata: sql`excluded.metadata`,
               sortOrder: sql`excluded.sort_order`,
               updatedAt: new Date(),
@@ -409,18 +417,23 @@ export const adminNewapiProvidersRouter = router({
 
       await recordAdminAudit(ctx, {
         action: 'newapiInstanceModels.sync',
-        payload: { count: rows.length },
+        payload: { count: importedCount, staleCount },
         resourceId: input.id,
         resourceType: 'admin_newapi_instance_models',
       });
       invalidateNewapiInstancesCache();
 
       return {
-        importedCount: rows.length,
-        modelsCount: models.length,
+        importedCount,
+        modelsCount: importedCount,
         ok: true,
-        pricingCount: pricing.length,
-        warnings: buildNewapiPricingSyncWarnings(instance.providerType, pricing.length),
+        pricingCount: pricingResult.items.length,
+        staleCount,
+        warnings: buildNewapiPricingSyncWarnings(
+          instance.providerType,
+          pricingResult.items.length,
+          pricingResult.status,
+        ),
       };
     }),
 
@@ -449,7 +462,7 @@ export const adminNewapiProvidersRouter = router({
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
         });
-        const pricing = await fetchNewapiPricing({
+        const pricingResult = await fetchNewapiPricing({
           apiKey: decryptedInstance.apiKey,
           baseUrl: instance.baseUrl,
           providerType: instance.providerType,
@@ -458,8 +471,12 @@ export const adminNewapiProvidersRouter = router({
         return {
           modelsCount: models.length,
           ok: true,
-          pricingCount: pricing.length,
-          warnings: buildNewapiPricingSyncWarnings(instance.providerType, pricing.length),
+          pricingCount: pricingResult.items.length,
+          warnings: buildNewapiPricingSyncWarnings(
+            instance.providerType,
+            pricingResult.items.length,
+            pricingResult.status,
+          ),
         };
       } catch (error) {
         return {

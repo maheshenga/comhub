@@ -36,7 +36,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     workspaceId?: string;
   }) => {
     const installation = await this.db.query.moduleAppInstallations.findFirst({
-      columns: { id: true },
+      columns: { id: true, versionId: true },
       where: and(
         eq(moduleAppInstallations.appId, params.appId),
         eq(moduleAppInstallations.scopeType, params.scopeType),
@@ -137,7 +137,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
   };
 
   installPersonalApp = async (params: { appId: string; userId: string }) => {
-    const versionId = await this.getLatestVersionId(params.appId);
+    const versionId = await this.getCurrentPublishedVersionId(params.appId);
 
     await this.installApp({
       appId: params.appId,
@@ -148,7 +148,7 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
   };
 
   installWorkspaceApp = async (params: { appId: string; userId: string; workspaceId: string }) => {
-    const versionId = await this.getLatestVersionId(params.appId);
+    const versionId = await this.getCurrentPublishedVersionId(params.appId);
 
     await this.installApp({
       ...params,

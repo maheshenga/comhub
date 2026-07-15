@@ -1,7 +1,6 @@
 name: ComHub Build and Deploy
 run-name: >-
-  ComHub Build and Deploy (deploy=${{ toJSON(github.event.inputs.deploy) }},
-  worker=${{ toJSON(github.event.inputs.deploy_module_worker) }})
+  ComHub Build and Deploy (deploy=${{ toJSON(github.event.inputs.deploy) }}, worker=${{ toJSON(github.event.inputs.deploy_module_worker) }})
 
 on:
   push:
@@ -112,7 +111,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Run required container, PostgreSQL, and Redis gates
+      - name: Run required commercial, container, PostgreSQL, and Redis gates
         run: pnpm verify:module-app-production
 
   verify-module-app-full:
@@ -123,10 +122,14 @@ jobs:
     environment: module-app-staging
     env:
       MODULE_APP_ALIPAY_APP_ID: ${{ secrets.MODULE_APP_ALIPAY_APP_ID }}
+      MODULE_APP_ALIPAY_APP_CERT_SN: ${{ vars.MODULE_APP_ALIPAY_APP_CERT_SN }}
+      MODULE_APP_ALIPAY_CERTIFICATE: ${{ secrets.MODULE_APP_ALIPAY_CERTIFICATE }}
+      MODULE_APP_ALIPAY_CERT_MODE: ${{ vars.MODULE_APP_ALIPAY_CERT_MODE || 'public_key' }}
       MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY: ${{ secrets.MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY }}
       MODULE_APP_ALIPAY_NOTIFY_URL: ${{ vars.MODULE_APP_ALIPAY_NOTIFY_URL }}
       MODULE_APP_ALIPAY_PUBLIC_KEY: ${{ secrets.MODULE_APP_ALIPAY_PUBLIC_KEY }}
       MODULE_APP_ALIPAY_RETURN_URL: ${{ vars.MODULE_APP_ALIPAY_RETURN_URL }}
+      MODULE_APP_ALIPAY_ROOT_CERT_SN: ${{ vars.MODULE_APP_ALIPAY_ROOT_CERT_SN }}
       MODULE_APP_ALIPAY_SELLER_ID: ${{ secrets.MODULE_APP_ALIPAY_SELLER_ID }}
       MODULE_APP_E2E_APP_ID: ${{ vars.MODULE_APP_E2E_APP_ID }}
       MODULE_APP_E2E_BASE_URL: ${{ vars.MODULE_APP_E2E_BASE_URL }}

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { getTableName } from 'drizzle-orm';
+import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
 import * as liveSchema from './index';
@@ -15,14 +16,17 @@ import {
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppInstallationSecrets,
+  moduleAppOrders,
   moduleAppPackages,
   moduleAppPackageUploads,
   moduleAppPages,
+  moduleAppPayoutEntries,
   moduleAppRecordEvents,
   moduleAppRecords,
   moduleAppRuns,
   moduleApps,
   moduleAppSchedules,
+  moduleAppSubscriptions,
   moduleAppVersions,
   moduleAppWebhookDeliveries,
   moduleAppWebhooks,
@@ -250,5 +254,30 @@ describe('module app schema exports', () => {
     expect(journal.entries.some(({ tag }) => tag === '0145_add_module_app_order_idempotency')).toBe(
       true,
     );
+  });
+
+  it('registers hardened subscription, refund, and payout transitions', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0147_harden_commercial_transactions.sql'),
+      'utf8',
+    );
+    const payoutIndex = getTableConfig(moduleAppPayoutEntries).indexes.find(
+      (index) => index.config.name === 'module_app_payout_entries_revenue_unique',
+    );
+
+    expect(moduleAppOrders.refundReference).toBeDefined();
+    expect(moduleApps.currentPublishedVersionId).toBeDefined();
+    expect(moduleAppSubscriptions.trialEndsAt).toBeDefined();
+    expect(payoutIndex?.config.where).toBeDefined();
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "refund_reference" text');
+    expect(migration).toContain(
+      'ADD COLUMN IF NOT EXISTS "trial_ends_at" timestamp with time zone',
+    );
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "current_published_version_id" uuid');
+    expect(migration).toContain(
+      'module_apps_current_published_version_id_module_app_versions_id_fk',
+    );
+    expect(migration).toContain('DROP INDEX IF EXISTS "module_app_payout_entries_revenue_unique"');
+    expect(migration).toContain(`WHERE "status" <> 'reversed'`);
   });
 });

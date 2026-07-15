@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import {
+  moduleAppActions,
   moduleAppArtifacts,
   moduleAppEntitlements,
   moduleAppInstallations,
@@ -129,7 +130,148 @@ const withFailingRecordEventInsert = async <T>(operation: () => Promise<T>) => {
   }
 };
 
+const hasErrorMessageInCauseChain = (error: unknown, expected: string) => {
+  const visited = new Set<unknown>();
+  let current = error;
+
+  while (current && typeof current === 'object' && !visited.has(current)) {
+    visited.add(current);
+    if (
+      'message' in current &&
+      typeof current.message === 'string' &&
+      current.message.includes(expected)
+    ) {
+      return true;
+    }
+    current = 'cause' in current ? current.cause : undefined;
+  }
+
+  return false;
+};
+
+const expectRecordEventInsertFailure = async (operation: () => Promise<unknown>) => {
+  let failure: unknown;
+  try {
+    await withFailingRecordEventInsert(operation);
+  } catch (error) {
+    failure = error;
+  }
+
+  expect(failure).toBeDefined();
+  expect(hasErrorMessageInCauseChain(failure, 'module_app_record_event_failure')).toBe(true);
+};
+
 describe('ModuleAppModel marketplace behavior', () => {
+  it('uses the explicit published version pointer and preserves published version content', async () => {
+    const app = await createRecordDesk();
+    const originalApp = await serverDB.query.moduleApps.findFirst({
+      where: eq(moduleApps.id, app.id),
+    });
+    const originalVersionId = (originalApp as any).currentPublishedVersionId as string;
+    expect(originalVersionId).toBeTruthy();
+
+    const [draft] = await serverDB
+      .insert(moduleAppVersions)
+      .values({ appId: app.id, version: '2.0.0' })
+      .returning();
+    await model.installPersonalApp({ appId: app.id, userId });
+    await expect(
+      serverDB.query.moduleAppInstallations.findFirst({
+        where: eq(moduleAppInstallations.appId, app.id),
+      }),
+    ).resolves.toMatchObject({ versionId: originalVersionId });
+
+    await model.upsertAppForAdmin({
+      actions: [],
+      appType: 'standard_app',
+      billing: baseBilling,
+      category: 'productivity',
+      description: 'Updated record desk',
+      displayName: 'Record Desk',
+      icon: 'Notebook',
+      pages: [
+        {
+          actionBindings: [],
+          dataSource: {},
+          key: 'overview',
+          layoutSchema: {},
+          routePath: '/',
+          sortOrder: 0,
+          title: 'Updated Overview',
+          type: 'overview',
+        },
+      ],
+      slug: 'record-desk',
+      source: 'admin',
+      status: 'published',
+      tags: ['records'],
+    });
+
+    const updatedApp = await serverDB.query.moduleApps.findFirst({
+      where: eq(moduleApps.id, app.id),
+    });
+    expect((updatedApp as any).currentPublishedVersionId).toBe(draft.id);
+    await expect(
+      serverDB.query.moduleAppPages.findFirst({
+        where: (rows, { and, eq }) =>
+          and(eq(rows.versionId, originalVersionId), eq(rows.pageKey, 'overview')),
+      }),
+    ).resolves.toMatchObject({ title: 'Overview' });
+    await expect(
+      serverDB.query.moduleAppVersions.findFirst({
+        where: eq(moduleAppVersions.id, originalVersionId),
+      }),
+    ).resolves.toMatchObject({ publishedAt: expect.any(Date) });
+    await expect(
+      model.getAppDetail({ appIdOrSlug: app.id, plan: 'free', userId }),
+    ).resolves.toMatchObject({ pages: [expect.objectContaining({ title: 'Updated Overview' })] });
+    const adminApp = await model.getAdminApp({ appId: app.id });
+    expect(adminApp?.pages).toEqual([
+      expect.objectContaining({ key: 'overview', title: 'Updated Overview' }),
+    ]);
+  });
+
+  it('resolves an execution action from the installed version only', async () => {
+    const app = await createRecordDesk();
+    await model.installPersonalApp({ appId: app.id, userId });
+
+    const installed = await serverDB.query.moduleAppInstallations.findFirst({
+      where: eq(moduleAppInstallations.appId, app.id),
+    });
+    expect(installed?.versionId).toBeTruthy();
+
+    const [newVersion] = await serverDB
+      .insert(moduleAppVersions)
+      .values({ appId: app.id, version: '2.0.0' })
+      .returning();
+    await serverDB.insert(moduleAppActions).values({
+      actionKey: 'create_record',
+      appId: app.id,
+      inputSchema: { fields: [] },
+      moduleMultiplier: 2,
+      name: 'Create v2',
+      outputSchema: {},
+      runtimeConfig: {},
+      runtimeType: 'record_create',
+      versionId: newVersion.id,
+    });
+
+    const run = await model.createRun({
+      actionId: 'create_record',
+      appId: app.id,
+      input: { title: 'Installed version' },
+      scopeType: 'personal',
+      userId,
+    });
+
+    await expect(
+      serverDB.query.moduleAppActions.findFirst({
+        where: eq(moduleAppActions.id, run.actionId!),
+      }),
+    ).resolves.toMatchObject({ name: 'Create' });
+    expect(run.versionId).toBe(installed?.versionId);
+  });
+
   it('lists only published module apps visible to a plan', async () => {
     await createRecordDesk();
 
@@ -409,46 +551,40 @@ describe('ModuleAppModel marketplace behavior', () => {
       userId,
     });
 
-    await expect(
-      withFailingRecordEventInsert(() =>
-        model.createRecord({
-          appId: app.id,
-          collectionKey: 'records',
-          data: { title: 'Create should roll back' },
-          scopeType: 'personal',
-          title: 'Create should roll back',
-          userId,
-        }),
-      ),
-    ).rejects.toThrow('module_app_record_event_failure');
+    await expectRecordEventInsertFailure(() =>
+      model.createRecord({
+        appId: app.id,
+        collectionKey: 'records',
+        data: { title: 'Create should roll back' },
+        scopeType: 'personal',
+        title: 'Create should roll back',
+        userId,
+      }),
+    );
     await expect(
       serverDB.query.moduleAppRecords.findMany({ where: eq(moduleAppRecords.appId, app.id) }),
     ).resolves.toEqual([expect.objectContaining({ id: record.id, title: 'Original' })]);
 
-    await expect(
-      withFailingRecordEventInsert(() =>
-        model.updateRecord({
-          appId: app.id,
-          collectionKey: 'records',
-          data: { title: 'Updated' },
-          recordId: record.id,
-          scopeType: 'personal',
-          title: 'Updated',
-          userId,
-        }),
-      ),
-    ).rejects.toThrow('module_app_record_event_failure');
+    await expectRecordEventInsertFailure(() =>
+      model.updateRecord({
+        appId: app.id,
+        collectionKey: 'records',
+        data: { title: 'Updated' },
+        recordId: record.id,
+        scopeType: 'personal',
+        title: 'Updated',
+        userId,
+      }),
+    );
     await expect(
       serverDB.query.moduleAppRecords.findFirst({
         where: eq(moduleAppRecords.id, record.id),
       }),
     ).resolves.toMatchObject({ data: { title: 'Original' }, status: 'active', title: 'Original' });
 
-    await expect(
-      withFailingRecordEventInsert(() =>
-        model.archiveRecord({ appId: app.id, recordId: record.id, userId }),
-      ),
-    ).rejects.toThrow('module_app_record_event_failure');
+    await expectRecordEventInsertFailure(() =>
+      model.archiveRecord({ appId: app.id, recordId: record.id, userId }),
+    );
     await expect(
       serverDB.query.moduleAppRecords.findFirst({
         where: eq(moduleAppRecords.id, record.id),

@@ -51,11 +51,18 @@ beforeEach(async () => {
     slug: 'commerce-test-app',
     status: 'published',
   });
-  await serverDB.insert(moduleAppVersions).values({
-    appId: APP_ID,
-    publishedAt: new Date('2026-07-14T00:00:00.000Z'),
-    version: '1.0.0',
-  });
+  const [publishedVersion] = await serverDB
+    .insert(moduleAppVersions)
+    .values({
+      appId: APP_ID,
+      publishedAt: new Date('2026-07-14T00:00:00.000Z'),
+      version: '1.0.0',
+    })
+    .returning();
+  await serverDB
+    .update(moduleApps)
+    .set({ currentPublishedVersionId: publishedVersion.id })
+    .where(eq(moduleApps.id, APP_ID));
 });
 
 describe('ModuleAppCommerceModel', () => {
@@ -164,8 +171,44 @@ describe('ModuleAppCommerceModel', () => {
       productType: 'one_time',
     });
 
-    await model.refundOrder({ actorUserId: 'admin-1', orderId: order.id, reason: 'requested' });
+    await model.refundOrder({
+      actorUserId: 'admin-1',
+      orderId: order.id,
+      reason: 'requested',
+      refundReference: 'offline:refund-1',
+    });
     await expect(model.resolveLicense({ appId: APP_ID, userId: USER_ID })).resolves.toBeNull();
+  });
+
+  it('requires and stores an explicit refund reference for offline refunds', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'offline-refund-reference',
+      productType: 'one_time',
+    });
+    const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+    await model.settleOrder({ orderId: order.id, paymentReference: 'manual:refund-reference:1' });
+
+    await expect(
+      model.refundOrder({
+        actorUserId: 'admin-1',
+        orderId: order.id,
+        reason: 'requested',
+      } as any),
+    ).rejects.toThrow('MODULE_APP_REFUND_REFERENCE_REQUIRED');
+
+    await model.refundOrder({
+      actorUserId: 'admin-1',
+      orderId: order.id,
+      reason: 'requested',
+      refundReference: 'offline:bank-transfer-1',
+    } as any);
+    await expect(
+      serverDB.query.moduleAppOrders.findFirst({ where: eq(moduleAppOrders.id, order.id) }),
+    ).resolves.toMatchObject({ refundReference: 'offline:bank-transfer-1', status: 'refunded' });
   });
 
   it('lists only the purchaser orders and resolves only the matching owner license', async () => {
@@ -273,6 +316,40 @@ describe('ModuleAppCommerceModel', () => {
     expect(installed?.versionId).not.toBe(newVersion.id);
   });
 
+  it('freezes the published version pointer in the order snapshot before payment settles', async () => {
+    const model = new ModuleAppCommerceModel(serverDB);
+    const product = await model.createProduct({
+      appId: APP_ID,
+      licenseScope: 'personal',
+      price: { amount: 120, currency: 'CNY' },
+      productKey: 'version-pointer-snapshot',
+      productType: 'one_time',
+    });
+    const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
+    const purchasedVersionId = order.snapshot.versionId as string;
+    const [newPublishedVersion] = await serverDB
+      .insert(moduleAppVersions)
+      .values({
+        appId: APP_ID,
+        publishedAt: new Date('2026-07-15T00:00:00.000Z'),
+        version: '2.0.0',
+      })
+      .returning();
+    await serverDB
+      .update(moduleApps)
+      .set({ currentPublishedVersionId: newPublishedVersion.id })
+      .where(eq(moduleApps.id, APP_ID));
+
+    await model.settleOrder({ orderId: order.id, paymentReference: 'manual:pointer:1' });
+
+    expect(purchasedVersionId).not.toBe(newPublishedVersion.id);
+    await expect(
+      serverDB.query.moduleAppInstallations.findFirst({
+        where: eq(moduleAppInstallations.appId, APP_ID),
+      }),
+    ).resolves.toMatchObject({ versionId: purchasedVersionId });
+  });
+
   it('prefers an older active license over a newer expired license', async () => {
     const model = new ModuleAppCommerceModel(serverDB);
     const activeProduct = await model.createProduct({
@@ -328,7 +405,12 @@ describe('ModuleAppCommerceModel', () => {
     const order = await model.createOrder({ productId: product.id, purchaserUserId: USER_ID });
 
     await expect(
-      model.refundOrder({ actorUserId: 'admin-1', orderId: order.id, reason: 'invalid' }),
+      model.refundOrder({
+        actorUserId: 'admin-1',
+        orderId: order.id,
+        reason: 'invalid',
+        refundReference: 'offline:invalid-pending-refund',
+      }),
     ).rejects.toThrow('MODULE_APP_ORDER_NOT_REFUNDABLE');
   });
 
@@ -460,10 +542,22 @@ describe('ModuleAppCommerceModel', () => {
       status: 'installed',
       workspaceId: WORKSPACE_ID,
     });
-    await expect(serverDB.query.moduleAppSubscriptions.findFirst()).resolves.toMatchObject({
+    const subscription = await serverDB.query.moduleAppSubscriptions.findFirst();
+    expect(subscription).toMatchObject({
       cancelAtPeriodEnd: false,
       status: 'trialing',
+      trialEndsAt: expect.any(Date),
     });
+    const trialEndsAt = (subscription as any).trialEndsAt as Date;
+    const expectedPeriodEnd = new Date(trialEndsAt);
+    expectedPeriodEnd.setUTCFullYear(expectedPeriodEnd.getUTCFullYear() + 1);
+    expect(subscription?.currentPeriodStart).toEqual(trialEndsAt);
+    expect(subscription?.currentPeriodEnd).toEqual(expectedPeriodEnd);
+    await expect(
+      serverDB.query.moduleAppLicenses.findFirst({
+        where: eq(moduleAppLicenses.orderId, order.id),
+      }),
+    ).resolves.toMatchObject({ endsAt: expectedPeriodEnd });
   });
 
   it('freezes promotion, seats, multipliers, revenue share, and terms in the order snapshot', async () => {

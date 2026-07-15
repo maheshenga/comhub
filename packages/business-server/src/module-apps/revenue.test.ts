@@ -14,15 +14,12 @@ import {
   moduleAppRevenueEntries,
   moduleApps,
   moduleAppSubscriptions,
+  moduleAppVersions,
   users,
 } from '@/database/schemas';
 import type { LobeChatDatabase } from '@/database/type';
 
-import {
-  calculateRevenue,
-  ModuleAppOrderRevenueService,
-  ModuleAppRevenueService,
-} from './revenue';
+import { calculateRevenue, ModuleAppOrderRevenueService, ModuleAppRevenueService } from './revenue';
 
 const APP_ID = '20000000-0000-4000-8000-000000000001';
 const ORDER_ID = '20000000-0000-4000-8000-000000000002';
@@ -42,6 +39,7 @@ describe('module app revenue', () => {
     await serverDB.delete(moduleAppOrders);
     await serverDB.delete(moduleAppPrices);
     await serverDB.delete(moduleAppProducts);
+    await serverDB.delete(moduleAppVersions);
     await serverDB.delete(moduleApps);
     await serverDB.delete(moduleAppPublishers);
     await serverDB.delete(users);
@@ -56,6 +54,18 @@ describe('module app revenue', () => {
       slug: 'revenue-test-app',
       status: 'published',
     });
+    const [publishedVersion] = await serverDB
+      .insert(moduleAppVersions)
+      .values({
+        appId: APP_ID,
+        publishedAt: new Date('2026-07-14T00:00:00.000Z'),
+        version: '1.0.0',
+      })
+      .returning();
+    await serverDB
+      .update(moduleApps)
+      .set({ currentPublishedVersionId: publishedVersion.id })
+      .where(eq(moduleApps.id, APP_ID));
     await serverDB.insert(moduleAppProducts).values({
       appId: APP_ID,
       id: PRODUCT_ID,
@@ -141,6 +151,7 @@ describe('module app revenue', () => {
         actorUserId: USER_ID,
         orderId: ORDER_ID,
         reason: 'atomicity test',
+        refundReference: 'offline:atomicity-test',
       }),
     ).rejects.toThrow('MODULE_APP_REVENUE_ACCRUAL_NOT_FOUND');
 

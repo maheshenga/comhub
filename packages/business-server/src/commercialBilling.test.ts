@@ -7,9 +7,13 @@ import {
   assertCommercialChatBudget,
   assertCommercialMinimumBudget,
   estimateCommercialChatCredits,
+  estimateCommercialEmbeddingsCredits,
   quoteCommercialAiUsage,
   recordCommercialAiUsage,
   recordCommercialChatUsage,
+  releaseCommercialAiUsageReservation,
+  reserveCommercialAiUsage,
+  settleCommercialAiUsageReservation,
 } from './commercialBilling';
 
 const mocks = vi.hoisted(() => ({
@@ -21,6 +25,9 @@ const mocks = vi.hoisted(() => ({
   getCreditAccountSummary: vi.fn(),
   getServerGlobalConfig: vi.fn(),
   quoteCreditsForAiUsage: vi.fn(),
+  releaseCredits: vi.fn(),
+  reserveCredits: vi.fn(),
+  settleCredits: vi.fn(),
 }));
 
 vi.mock('@/database/models/aiProvider', () => ({
@@ -36,6 +43,14 @@ vi.mock('@/database/models/commercial', () => ({
     consumeCreditsForChatUsage: mocks.consumeCreditsForChatUsage,
     getCreditAccountSummary: mocks.getCreditAccountSummary,
     quoteCreditsForAiUsage: mocks.quoteCreditsForAiUsage,
+  })),
+}));
+
+vi.mock('@/database/models/moduleAppCredit', () => ({
+  ModuleAppCreditModel: vi.fn().mockImplementation(() => ({
+    release: mocks.releaseCredits,
+    reserve: mocks.reserveCredits,
+    settle: mocks.settleCredits,
   })),
 }));
 
@@ -508,6 +523,142 @@ describe('assertCommercialMinimumBudget', () => {
         shortfallCredits: 3,
       },
       errorType: ChatErrorType.InsufficientBudgetForModel,
+    });
+  });
+});
+
+describe('commercial AI reservations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getServerGlobalConfig.mockResolvedValue({
+      aiProvider: { openai: { enabled: true } },
+    });
+    mocks.getAiProviderById.mockResolvedValue({ keyVaults: {} });
+    mocks.reserveCredits.mockResolvedValue({ id: 'reservation-1', status: 'active' });
+    mocks.settleCredits.mockResolvedValue({ id: 'reservation-1', status: 'settled' });
+    mocks.releaseCredits.mockResolvedValue({ id: 'reservation-1', status: 'released' });
+    mocks.quoteCreditsForAiUsage.mockResolvedValue({
+      amount: 20,
+      creditsPerDollar: 1_000_000,
+      matchedPricingRule: null,
+      pricingMultiplier: 1,
+      usdCost: 0.02,
+    });
+  });
+
+  it('estimates embedding input credits from model pricing', async () => {
+    mocks.getAiProviderModelList.mockResolvedValue([
+      {
+        id: 'embedding-test',
+        pricing: { units: [{ name: 'textInput', rate: 2, strategy: 'fixed' }] },
+      },
+    ]);
+
+    await expect(
+      estimateCommercialEmbeddingsCredits({
+        db: {} as any,
+        input: 'abcdefgh',
+        model: 'embedding-test',
+        provider: 'openai',
+        userId: 'user-1',
+      }),
+    ).resolves.toBe(4);
+  });
+
+  it('creates an idempotent personal reservation before provider dispatch', async () => {
+    await expect(
+      reserveCommercialAiUsage({
+        db: {} as any,
+        estimatedCredits: 25,
+        model: 'gpt-test',
+        operationId: 'operation-1',
+        provider: 'openai',
+        usageType: 'chat',
+        userId: 'user-1',
+      }),
+    ).resolves.toMatchObject({ id: 'reservation-1' });
+
+    expect(mocks.reserveCredits).toHaveBeenCalledWith({
+      amount: 25,
+      idempotencyKey: 'commercial-ai:user-1:chat:operation-1',
+      metadata: {
+        model: 'gpt-test',
+        operationId: 'operation-1',
+        provider: 'openai',
+        usageType: 'chat',
+      },
+      payer: { scopeType: 'personal', userId: 'user-1' },
+      requireNew: true,
+    });
+  });
+
+  it('bounds the reservation idempotency key without losing operation metadata', async () => {
+    const operationId = 'x'.repeat(240);
+
+    await reserveCommercialAiUsage({
+      db: {} as any,
+      estimatedCredits: 25,
+      model: 'gpt-test',
+      operationId,
+      provider: 'openai',
+      usageType: 'chat',
+      userId: 'user-1',
+    });
+
+    expect(mocks.reserveCredits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: expect.stringMatching(/^commercial-ai:[a-f\d]{64}$/),
+        metadata: expect.objectContaining({ operationId }),
+        requireNew: true,
+      }),
+    );
+    expect(mocks.reserveCredits.mock.calls[0][0].idempotencyKey).toHaveLength(78);
+  });
+
+  it('settles final usage through the existing reservation', async () => {
+    await settleCommercialAiUsageReservation({
+      db: {} as any,
+      estimatedCredits: 25,
+      model: 'gpt-test',
+      operationId: 'operation-1',
+      provider: 'openai',
+      reservationId: 'reservation-1',
+      title: 'AI Chat Usage',
+      usage: { cost: 0.02, totalInputTokens: 10, totalOutputTokens: 5, totalTokens: 15 },
+      usageType: 'chat',
+      userId: 'user-1',
+    });
+
+    expect(mocks.settleCredits).toHaveBeenCalledWith({
+      actualAmount: 20,
+      ledger: {
+        description: 'Consumed on openai/gpt-test',
+        referenceType: 'ai_usage_reservation',
+        title: 'AI Chat Usage',
+      },
+      metadata: expect.objectContaining({
+        chargedCredits: 20,
+        costSource: 'gateway',
+        estimatedCredits: 25,
+        model: 'gpt-test',
+        operationId: 'operation-1',
+        provider: 'openai',
+        usageType: 'chat',
+      }),
+      reservationId: 'reservation-1',
+    });
+  });
+
+  it('releases provider failures without debiting the payer', async () => {
+    await releaseCommercialAiUsageReservation({
+      db: {} as any,
+      reason: 'provider_error',
+      reservationId: 'reservation-1',
+    });
+
+    expect(mocks.releaseCredits).toHaveBeenCalledWith({
+      reason: 'provider_error',
+      reservationId: 'reservation-1',
     });
   });
 });

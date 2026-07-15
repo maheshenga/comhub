@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -11,6 +12,7 @@ import {
   moduleAppPrices,
   moduleAppProducts,
   moduleApps,
+  moduleAppVersions,
   users,
 } from '../../schemas';
 import type { LobeChatDatabase } from '../../type';
@@ -29,6 +31,7 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppOrders);
   await serverDB.delete(moduleAppPrices);
   await serverDB.delete(moduleAppProducts);
+  await serverDB.delete(moduleAppVersions);
   await serverDB.delete(moduleApps);
   await serverDB.delete(users);
   await serverDB.insert(users).values({ id: USER_ID });
@@ -42,6 +45,18 @@ beforeEach(async () => {
     slug: `payment-model-${crypto.randomUUID()}`,
     status: 'published',
   });
+  const [publishedVersion] = await serverDB
+    .insert(moduleAppVersions)
+    .values({
+      appId: APP_ID,
+      publishedAt: new Date('2026-07-14T00:00:00.000Z'),
+      version: '1.0.0',
+    })
+    .returning();
+  await serverDB
+    .update(moduleApps)
+    .set({ currentPublishedVersionId: publishedVersion.id })
+    .where(eq(moduleApps.id, APP_ID));
 });
 
 const createOrder = async () => {
@@ -110,8 +125,8 @@ describe('ModuleAppPaymentModel', () => {
     await expect(
       model.acknowledgeDiscrepancy({ discrepancyId: discrepancy.id }),
     ).resolves.toMatchObject({ status: 'resolved' });
-    await expect(
-      model.acknowledgeDiscrepancy({ discrepancyId: discrepancy.id }),
-    ).rejects.toThrow('MODULE_APP_PAYMENT_DISCREPANCY_NOT_OPEN');
+    await expect(model.acknowledgeDiscrepancy({ discrepancyId: discrepancy.id })).rejects.toThrow(
+      'MODULE_APP_PAYMENT_DISCREPANCY_NOT_OPEN',
+    );
   });
 });

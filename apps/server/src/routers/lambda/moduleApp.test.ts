@@ -222,7 +222,7 @@ describe('moduleApp router registration', () => {
     vi.clearAllMocks();
     mockGetServerDB.mockResolvedValue({});
     mockGetSubscriptionPlan.mockResolvedValue('free');
-    mockGetWorkspaceMember.mockResolvedValue({ role: 'member', workspaceId: 'workspace-1' });
+    mockGetWorkspaceMember.mockResolvedValue({ role: 'owner', workspaceId: 'workspace-1' });
     mockAppEnv.MODULE_APP_EXECUTION_ENABLED = true;
     mockAppEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED = true;
     mockAppEnv.MODULE_APP_PUBLISHER_ALLOWLIST = [];
@@ -688,6 +688,26 @@ describe('moduleApp router registration', () => {
     await expect(
       createCaller().installWorkspace({ appId: APP_ID, workspaceId: 'workspace-denied' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
+  });
+
+  it('rejects workspace purchase, install, and uninstall mutations from regular members', async () => {
+    const workspaceId = 'workspace-1';
+    const productId = '00000000-0000-4000-8000-000000000031';
+    const idempotencyKey = '00000000-0000-4000-8000-000000000032';
+    mockGetWorkspaceMember.mockResolvedValue({ role: 'member', workspaceId });
+
+    await expect(
+      createCaller().createOrder({ idempotencyKey, productId, workspaceId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'workspace_admin_required' });
+    await expect(
+      createCaller().installWorkspace({ appId: APP_ID, workspaceId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'workspace_admin_required' });
+    await expect(
+      createCaller().uninstallWorkspace({ appId: APP_ID, workspaceId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'workspace_admin_required' });
+    expect(mockModuleAppCommerceModel.createOrder).not.toHaveBeenCalled();
+    expect(mockModuleAppModel.installWorkspaceApp).not.toHaveBeenCalled();
+    expect(mockModuleAppModel.uninstallWorkspaceApp).not.toHaveBeenCalled();
   });
 
   it('rechecks runnable plan entitlement before launch', async () => {

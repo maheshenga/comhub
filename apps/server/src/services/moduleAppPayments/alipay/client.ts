@@ -14,6 +14,8 @@ type FetchLike = typeof fetch;
 
 type AlipayClientOptions = {
   alipayPublicKey: string;
+  alipayRootCertSn?: string;
+  appCertSn?: string;
   appId: string;
   fetch?: FetchLike;
   gateway: string;
@@ -81,6 +83,9 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     this.fetch = options.fetch ?? globalThis.fetch;
     this.timeoutMs = Math.min(30_000, Math.max(1_000, options.timeoutMs ?? 10_000));
     new URL(options.gateway);
+    if (Boolean(options.appCertSn) !== Boolean(options.alipayRootCertSn)) {
+      throw new Error('MODULE_APP_ALIPAY_CERT_SERIALS_REQUIRED');
+    }
   }
 
   create: ModuleAppPaymentAdapter['create'] = async (input) => {
@@ -99,7 +104,10 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
       { notify_url: input.notifyUrl, return_url: input.returnUrl },
     );
     const controls = Object.entries(parameters)
-      .map(([key, value]) => `<input name="${escapeHtml(key)}" type="hidden" value="${escapeHtml(value)}" />`)
+      .map(
+        ([key, value]) =>
+          `<input name="${escapeHtml(key)}" type="hidden" value="${escapeHtml(value)}" />`,
+      )
       .join('');
     return {
       body: `<form action="${escapeHtml(this.options.gateway)}" id="alipay-module-app-form" method="post">${controls}</form><script>document.getElementById('alipay-module-app-form').submit();</script>`,
@@ -169,7 +177,10 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     });
   };
 
-  queryBillDownloadUrl = async (input: { billDate: string; billType: 'signcustomer' | 'trade' }) => {
+  queryBillDownloadUrl = async (input: {
+    billDate: string;
+    billType: 'signcustomer' | 'trade';
+  }) => {
     const response = await this.request('alipay.data.dataservice.bill.downloadurl.query', {
       bill_date: input.billDate,
       bill_type: input.billType,
@@ -186,6 +197,10 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
     extra: Record<string, string> = {},
   ) => {
     const parameters: Record<string, string> = {
+      ...(this.options.alipayRootCertSn
+        ? { alipay_root_cert_sn: this.options.alipayRootCertSn }
+        : {}),
+      ...(this.options.appCertSn ? { app_cert_sn: this.options.appCertSn } : {}),
       app_id: this.options.appId,
       biz_content: JSON.stringify(bizContent),
       // eslint-disable-next-line unicorn/text-encoding-identifier-case -- Alipay requires this exact protocol value.
@@ -216,26 +231,25 @@ export class AlipayModuleAppClient implements ModuleAppPaymentAdapter {
       if (!response.ok) throw new Error(`MODULE_APP_ALIPAY_HTTP_${response.status}`);
       const responseBody = await response.text();
       const payload = JSON.parse(responseBody) as unknown;
-      if (!payload || typeof payload !== 'object') throw new Error('MODULE_APP_ALIPAY_RESPONSE_INVALID');
+      if (!payload || typeof payload !== 'object')
+        throw new Error('MODULE_APP_ALIPAY_RESPONSE_INVALID');
       const key = `${method.replaceAll('.', '_')}_response`;
       const result = (payload as Record<string, unknown>)[key];
-      if (!result || typeof result !== 'object') throw new Error('MODULE_APP_ALIPAY_RESPONSE_INVALID');
+      if (!result || typeof result !== 'object')
+        throw new Error('MODULE_APP_ALIPAY_RESPONSE_INVALID');
       const signature = (payload as Record<string, unknown>).sign;
       const responseContent = extractResponseContent(responseBody, key);
       if (
         typeof signature !== 'string' ||
         !responseContent ||
-        !verifyAlipayContentSignature(
-          responseContent,
-          signature,
-          this.options.alipayPublicKey,
-        )
+        !verifyAlipayContentSignature(responseContent, signature, this.options.alipayPublicKey)
       ) {
         throw new Error('MODULE_APP_ALIPAY_RESPONSE_SIGNATURE_INVALID');
       }
       const data = result as Record<string, unknown>;
       if (data.code !== '10000') {
-        const code = typeof data.sub_code === 'string' ? data.sub_code : String(data.code ?? 'UNKNOWN');
+        const code =
+          typeof data.sub_code === 'string' ? data.sub_code : String(data.code ?? 'UNKNOWN');
         throw new Error(`MODULE_APP_ALIPAY_API_${code}`);
       }
       return data;
@@ -265,6 +279,18 @@ export const createConfiguredModuleAppAlipayClient = () => {
       appEnv.MODULE_APP_ALIPAY_APP_ID,
       'MODULE_APP_ALIPAY_APP_ID_REQUIRED',
     ),
+    ...(appEnv.MODULE_APP_ALIPAY_CERT_MODE === 'certificate'
+      ? {
+          alipayRootCertSn: requiredConfiguration(
+            appEnv.MODULE_APP_ALIPAY_ROOT_CERT_SN,
+            'MODULE_APP_ALIPAY_ROOT_CERT_SN_REQUIRED',
+          ),
+          appCertSn: requiredConfiguration(
+            appEnv.MODULE_APP_ALIPAY_APP_CERT_SN,
+            'MODULE_APP_ALIPAY_APP_CERT_SN_REQUIRED',
+          ),
+        }
+      : {}),
     gateway: appEnv.MODULE_APP_ALIPAY_GATEWAY,
     merchantPrivateKey: requiredConfiguration(
       appEnv.MODULE_APP_ALIPAY_MERCHANT_PRIVATE_KEY,

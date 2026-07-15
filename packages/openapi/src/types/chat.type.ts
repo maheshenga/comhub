@@ -136,5 +136,6 @@ export type AIProvider = 'openai' | 'anthropic' | 'google' | 'groq' | 'vertexai'
 export interface ChatServiceConfig {
   defaultModel?: string;
   defaultProvider?: AIProvider;
+  operationId?: string;
   timeout?: number;
 }

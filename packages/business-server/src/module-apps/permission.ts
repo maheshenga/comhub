@@ -5,19 +5,17 @@ export type ModuleAppRecordOperation = 'archive' | 'create' | 'update' | 'view';
 export type ModuleAppPermissionReason =
   | 'archive_denied'
   | 'personal_not_owner'
+  | 'workspace_admin_required'
   | 'workspace_not_member'
   | 'workspace_required';
 
 export type ModuleAppPermissionDecision =
-  | { allowed: true; reason?: never }
-  | { allowed: false; reason: ModuleAppPermissionReason };
+  { allowed: true; reason?: never } | { allowed: false; reason: ModuleAppPermissionReason };
 
-export type ModuleAppWorkspaceMembership =
-  | {
-      role: 'admin' | 'member' | 'owner';
-      workspaceId: string;
-    }
-  | null;
+export type ModuleAppWorkspaceMembership = {
+  role: 'admin' | 'member' | 'owner';
+  workspaceId: string;
+} | null;
 
 export interface ResolveModuleAppRecordPermissionInput {
   actorIsSystemAdmin?: boolean;
@@ -26,6 +24,11 @@ export interface ResolveModuleAppRecordPermissionInput {
   operation: ModuleAppRecordOperation;
   ownerUserId?: null | string;
   scopeType: ModuleAppScopeType;
+  workspaceId?: null | string;
+  workspaceMembership: ModuleAppWorkspaceMembership;
+}
+
+export interface ResolveModuleAppWorkspaceManagementPermissionInput {
   workspaceId?: null | string;
   workspaceMembership: ModuleAppWorkspaceMembership;
 }
@@ -67,9 +70,27 @@ export function resolveModuleAppRecordPermission(
   return isCreator || isWorkspaceAdmin ? allow : deny('archive_denied');
 }
 
-export function assertModuleAppRecordPermission(
-  input: ResolveModuleAppRecordPermissionInput,
-): void;
+export function resolveModuleAppWorkspaceManagementPermission(
+  input: ResolveModuleAppWorkspaceManagementPermissionInput,
+): ModuleAppPermissionDecision {
+  if (!input.workspaceId) return deny('workspace_required');
+  if (!input.workspaceMembership || input.workspaceMembership.workspaceId !== input.workspaceId) {
+    return deny('workspace_not_member');
+  }
+
+  return input.workspaceMembership.role === 'owner' || input.workspaceMembership.role === 'admin'
+    ? allow
+    : deny('workspace_admin_required');
+}
+
+export function assertModuleAppWorkspaceManagementPermission(
+  input: ResolveModuleAppWorkspaceManagementPermissionInput,
+) {
+  const decision = resolveModuleAppWorkspaceManagementPermission(input);
+  if (!decision.allowed) throw new Error(decision.reason);
+}
+
+export function assertModuleAppRecordPermission(input: ResolveModuleAppRecordPermissionInput): void;
 export function assertModuleAppRecordPermission(
   input: Omit<ResolveModuleAppRecordPermissionInput, 'operation'>,
   operation: ModuleAppRecordOperation,

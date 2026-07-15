@@ -199,6 +199,11 @@ export const creditLedgerEntries = pgTable(
       .where(
         sql`${table.referenceType} = 'video_generation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
       ),
+    uniqueIndex('credit_ledger_entries_ai_usage_reservation_unique_idx')
+      .on(table.userId, table.referenceType, table.referenceId, table.type)
+      .where(
+        sql`${table.referenceType} = 'ai_usage_reservation' AND ${table.referenceId} IS NOT NULL AND ${table.type} = 'consume'`,
+      ),
     uniqueIndex('credit_ledger_entries_module_app_reservation_unique_idx')
       .on(table.userId, table.referenceType, table.referenceId, table.type)
       .where(
@@ -352,6 +357,9 @@ export const topUpOrders = pgTable(
   (table) => [
     index('top_up_orders_user_id_idx').on(table.userId),
     uniqueIndex('top_up_orders_external_order_id_idx').on(table.provider, table.externalOrderId),
+    uniqueIndex('top_up_orders_redemption_code_unique')
+      .on(table.redemptionCodeId)
+      .where(sql`${table.redemptionCodeId} IS NOT NULL`),
   ],
 );
 

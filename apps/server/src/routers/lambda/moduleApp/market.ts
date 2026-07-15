@@ -18,6 +18,7 @@ import { ModuleAppPackageIngestionService } from '@/server/services/moduleAppPac
 import {
   assertDetailEntitlement,
   assertScopePermission,
+  assertWorkspaceManagementPermission,
   getWorkspaceMembership,
   moduleAppProcedure,
 } from './data';
@@ -202,7 +203,7 @@ export const moduleAppMarketProcedures = {
   installWorkspace: moduleAppProcedure
     .input(WorkspaceAppInputSchema)
     .mutation(async ({ ctx, input }) => {
-      await assertWorkspaceMembership({
+      await assertWorkspaceManagementPermission({
         db: ctx.serverDB,
         userId: ctx.userId,
         workspaceId: input.workspaceId,
@@ -321,7 +322,7 @@ export const moduleAppMarketProcedures = {
   uninstallWorkspace: moduleAppProcedure
     .input(WorkspaceAppInputSchema)
     .mutation(async ({ ctx, input }) => {
-      await assertWorkspaceMembership({
+      await assertWorkspaceManagementPermission({
         db: ctx.serverDB,
         userId: ctx.userId,
         workspaceId: input.workspaceId,
