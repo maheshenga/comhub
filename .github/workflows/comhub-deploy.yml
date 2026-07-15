@@ -296,6 +296,7 @@ jobs:
     needs: [build, resolve_deployment]
     runs-on: ubuntu-latest
     if: ${{ always() && needs.build.result == 'success' && needs.resolve_deployment.result == 'success' && needs.resolve_deployment.outputs.deploy == 'true' }}
+    timeout-minutes: 45
     environment: production
     concurrency:
       group: comhub-production-deploy
@@ -326,7 +327,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -i ~/.ssh/comhub_deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+          ssh_options=(
+            -i ~/.ssh/comhub_deploy_key
+            -p "$SSH_PORT"
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=6
+            -o ConnectTimeout=30
+          )
+
+          timeout "${COMHUB_REMOTE_DEPLOY_TIMEOUT:-2400}" \
+            ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
             "DEPLOY_DIR='$DEPLOY_DIR' IMAGE_REF='$IMAGE_REF' IMAGE_TAG='$IMAGE_TAG' REQUIRE_MODULE_RUNTIME='$REQUIRE_MODULE_RUNTIME' RUNTIME_IMAGE_REF='$RUNTIME_IMAGE_REF' bash -s" <<'REMOTE_DEPLOY'
           set -euo pipefail
 
@@ -456,6 +466,7 @@ jobs:
     needs: [verify-module-app, build, resolve_deployment]
     runs-on: ubuntu-latest
     if: ${{ always() && needs.verify-module-app.result == 'success' && needs.build.result == 'success' && needs.resolve_deployment.result == 'success' && needs.resolve_deployment.outputs.deploy_module_worker == 'true' }}
+    timeout-minutes: 20
     environment: production
     concurrency:
       group: comhub-production-deploy
@@ -500,12 +511,18 @@ jobs:
             -p "$SSH_PORT"
             -o StrictHostKeyChecking=yes
             -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=4
+            -o ConnectTimeout=30
           )
           scp_options=(
             -i "$HOME/.ssh/comhub_deploy_key"
             -P "$SSH_PORT"
             -o StrictHostKeyChecking=yes
             -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=4
+            -o ConnectTimeout=30
           )
 
           cleanup_remote_incoming() {
@@ -677,6 +694,23 @@ jobs:
             return 1
           }
 
+          report_worker_diagnostics() {
+            local status="$1"
+            echo "Worker diagnostics after failure status $status:" >&2
+            df -h / >&2 || true
+            docker system df >&2 || true
+            COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
+              --project-directory "$worker_deploy_dir" \
+              --env-file "$worker_deploy_dir/.env" \
+              -f "$worker_deploy_dir/current/compose.yml" \
+              ps >&2 || true
+            COMHUB_MODULE_WORKER_IMAGE="$worker_image_ref" docker compose \
+              --project-directory "$worker_deploy_dir" \
+              --env-file "$worker_deploy_dir/.env" \
+              -f "$worker_deploy_dir/current/compose.yml" \
+              logs --tail=120 module-worker >&2 || true
+          }
+
           bootstrap_worker_environment() (
             local app_environment preflight_database_url worker_database_url
             local s3_access_key_id s3_bucket s3_endpoint s3_secret_access_key
@@ -818,6 +852,9 @@ jobs:
             "$worker_deploy_dir/current/deploy.sh" "$worker_image_ref"
             primary_status=$?
             primary_message="Worker deploy failed with status $primary_status"
+            if [ "$primary_status" -ne 0 ]; then
+              report_worker_diagnostics "$primary_status"
+            fi
 
             if [ -e "$worker_deploy_dir/.previous-image" ]; then
               if [ -f "$worker_deploy_dir/.previous-image" ] && \
