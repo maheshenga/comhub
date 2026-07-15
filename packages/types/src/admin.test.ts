@@ -89,8 +89,13 @@ describe('shared admin roles', () => {
     expect(hasAdminCapability('support_admin', ADMIN_CAPABILITIES.financeWrite)).toBe(false);
   });
 
-  it('keeps Module App governance full-admin-only by default', () => {
-    for (const role of ADMIN_ROLE_IDS.filter((role) => role !== 'admin')) {
+  it('grants finance admins Module App visibility without governance writes', () => {
+    expect(hasAdminCapability('finance_admin', ADMIN_CAPABILITIES.moduleAppRead)).toBe(true);
+    expect(hasAdminCapability('finance_admin', ADMIN_CAPABILITIES.moduleAppWrite)).toBe(false);
+
+    for (const role of ADMIN_ROLE_IDS.filter(
+      (role) => role !== 'admin' && role !== 'finance_admin',
+    )) {
       expect(hasAdminCapability(role, ADMIN_CAPABILITIES.moduleAppRead)).toBe(false);
       expect(hasAdminCapability(role, ADMIN_CAPABILITIES.moduleAppWrite)).toBe(false);
     }

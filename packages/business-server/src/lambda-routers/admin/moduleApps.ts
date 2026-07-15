@@ -40,6 +40,7 @@ import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../mod
 import { ModuleAppAdminReadModel } from './moduleApps.readModels';
 
 const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
+const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 const moduleAppReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppRead);
 const moduleAppWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.moduleAppWrite);
@@ -410,7 +411,7 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  exportPaymentReconciliation: auditReadProcedure
+  exportPaymentReconciliation: financeReadProcedure
     .input(PaymentDiscrepancyListInputSchema)
     .query(async ({ ctx, input }) =>
       new ModuleAppPaymentModel(ctx.serverDB).listDiscrepancies({
@@ -453,11 +454,11 @@ export const adminModuleAppsRouter = router({
     return new ModuleAppCommerceModel(ctx.serverDB).listProducts(input);
   }),
 
-  listPayouts: moduleAppReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
+  listPayouts: financeReadProcedure.input(ListPayoutsInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listPayouts(input);
   }),
 
-  listPaymentDiagnostics: moduleAppReadProcedure
+  listPaymentDiagnostics: financeReadProcedure
     .input(ListPaymentDiagnosticsInputSchema)
     .query(async ({ ctx, input }) => {
       return new ModuleAppAdminReadModel(ctx.serverDB).listPaymentDiagnostics(input);
@@ -469,7 +470,7 @@ export const adminModuleAppsRouter = router({
       return new ModuleAppAdminReadModel(ctx.serverDB).listPublishers(input);
     }),
 
-  listRevenue: moduleAppReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
+  listRevenue: financeReadProcedure.input(ListRevenueInputSchema).query(async ({ ctx, input }) => {
     return new ModuleAppAdminReadModel(ctx.serverDB).listRevenue(input);
   }),
 

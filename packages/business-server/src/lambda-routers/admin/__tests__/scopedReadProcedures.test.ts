@@ -140,15 +140,18 @@ describe('scoped admin read procedures', () => {
       'listArtifacts',
       'listInstalls',
       'listPackages',
-      'listPaymentDiagnostics',
-      'listPayouts',
       'listProducts',
       'listPublishers',
       'listRecords',
-      'listRevenue',
       'listRuns',
     ];
-    const auditReads = ['exportPaymentReconciliation', 'listAuditEvents'];
+    const auditReads = ['listAuditEvents'];
+    const financeReads = [
+      'exportPaymentReconciliation',
+      'listPaymentDiagnostics',
+      'listPayouts',
+      'listRevenue',
+    ];
     const moduleAppWrites = [
       'assignPublisher',
       'createProduct',
@@ -188,6 +191,9 @@ describe('scoped admin read procedures', () => {
     }
     for (const procedure of auditReads) {
       expect(source).toContain(`${procedure}: auditReadProcedure`);
+    }
+    for (const procedure of financeReads) {
+      expect(source).toContain(`${procedure}: financeReadProcedure`);
     }
     for (const procedure of moduleAppWrites) {
       expect(source).toContain(`${procedure}: moduleAppWriteProcedure`);

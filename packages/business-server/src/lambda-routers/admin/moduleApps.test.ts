@@ -396,6 +396,29 @@ describe('admin module apps router', () => {
     await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+    await expect(
+      caller.moduleApps.exportPaymentReconciliation({ limit: 20 }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('allows finance admins to inspect finance views without governance writes', async () => {
+    authState.role = 'finance_admin';
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.list({ limit: 20 })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(caller.moduleApps.listPaymentDiagnostics({})).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+    await expect(
+      caller.moduleApps.exportPaymentReconciliation({ limit: 20 }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 
   it('writes an audit log when upserting a module app', async () => {

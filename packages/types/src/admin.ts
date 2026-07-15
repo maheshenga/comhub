@@ -41,6 +41,7 @@ export const ADMIN_ROLE_CAPABILITIES: Record<AdminRole, AdminRoleCapabilitySet> 
   finance_admin: [
     ADMIN_CAPABILITIES.financeRead,
     ADMIN_CAPABILITIES.financeWrite,
+    ADMIN_CAPABILITIES.moduleAppRead,
     ADMIN_CAPABILITIES.auditRead,
   ],
   model_ops: [
