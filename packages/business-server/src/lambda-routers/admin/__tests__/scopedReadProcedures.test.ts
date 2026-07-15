@@ -36,12 +36,7 @@ describe('scoped admin read procedures', () => {
       [
         'users',
         'ADMIN_CAPABILITIES.userRead',
-        [
-          'detail: userReadProcedure',
-          'fullDetail: userReadProcedure',
-          'list: userReadProcedure',
-          'exportAll: userReadProcedure',
-        ],
+        ['detail: userReadProcedure', 'exportAll: userReadProcedure'],
       ],
       [
         'newapiProviders',
@@ -89,6 +84,51 @@ describe('scoped admin read procedures', () => {
       expect(source).toContain(capability);
       for (const fragment of fragments) expect(source).toContain(fragment);
     }
+  });
+
+  it('binds read wrappers to their exact capabilities', () => {
+    const expectations: Array<[string, string]> = [
+      [
+        'users',
+        'const userReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userRead)',
+      ],
+      [
+        'newapiProviders',
+        'const modelOpsReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsRead)',
+      ],
+      [
+        'content',
+        'const contentReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentRead)',
+      ],
+      [
+        'settings',
+        'const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead)',
+      ],
+      [
+        'ppt',
+        'const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead)',
+      ],
+    ];
+
+    for (const [router, declaration] of expectations) {
+      expect(readRouter(router)).toContain(declaration);
+    }
+  });
+
+  it('keeps synchronization-backed user queries write-bound', () => {
+    const users = readRouter('users');
+
+    expect(users).toContain(
+      'const supportWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.supportWrite)',
+    );
+    expect(users).toContain('fullDetail: supportWriteProcedure');
+    expect(users).toContain('list: supportWriteProcedure');
+    expect(users).toMatch(
+      /fullDetail: supportWriteProcedure .*? await syncExpiredSubscriptionsToFree\(ctx\.serverDB\)/,
+    );
+    expect(users).toMatch(
+      /list: supportWriteProcedure .*? await syncExpiredSubscriptionsToFree\(ctx\.serverDB\)/,
+    );
   });
 
   it('keeps side-effecting diagnostics and cache operations write-bound', () => {

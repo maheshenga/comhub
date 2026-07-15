@@ -251,7 +251,7 @@ export const adminUsersRouter = router({
       return u;
     }),
 
-  fullDetail: userReadProcedure
+  fullDetail: supportWriteProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const { userId } = input;
@@ -295,7 +295,7 @@ export const adminUsersRouter = router({
       };
     }),
 
-  list: userReadProcedure
+  list: supportWriteProcedure
     .input(
       z.object({
         cursor: z.number().int().min(0).default(0),
