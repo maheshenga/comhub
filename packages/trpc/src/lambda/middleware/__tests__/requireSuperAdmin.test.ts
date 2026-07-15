@@ -5,6 +5,9 @@ import { ADMIN_CAPABILITIES } from '../adminPermissions';
 import { requireAdminCapability, requireSuperAdmin } from '../requireSuperAdmin';
 
 const testRouter = trpc.router({
+  contentRead: trpc.procedure
+    .use(requireAdminCapability(ADMIN_CAPABILITIES.contentRead))
+    .query(({ ctx }) => ({ adminRole: (ctx as any).adminRole })),
   finance: trpc.procedure
     .use(requireAdminCapability(ADMIN_CAPABILITIES.financeWrite))
     .query(({ ctx }) => ({
@@ -69,6 +72,15 @@ describe('requireSuperAdmin middleware', () => {
       isAdmin: true,
       isFullAdmin: false,
     });
+  });
+
+  it('accepts a scoped role for its read capability', async () => {
+    const caller = createCaller({
+      serverDB: createServerDB({ banned: false, role: 'content_admin' }),
+      userId: 'content-user',
+    } as any);
+
+    await expect(caller.contentRead()).resolves.toEqual({ adminRole: 'content_admin' });
   });
 
   it('rejects scoped roles that do not have the requested capability', async () => {

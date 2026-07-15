@@ -37,4 +37,55 @@ describe('shared admin roles', () => {
     expect(hasAdminCapability('finance_admin', ADMIN_CAPABILITIES.systemWrite)).toBe(false);
     expect(hasAdminCapability('finance_admin', ADMIN_CAPABILITIES.adminAccess)).toBe(false);
   });
+
+  it('publishes read/write capability pairs for every governed admin domain', () => {
+    expect(ADMIN_CAPABILITIES).toMatchObject({
+      contentRead: 'content.read',
+      contentWrite: 'content.write',
+      modelOpsRead: 'modelOps.read',
+      modelOpsWrite: 'modelOps.write',
+      moduleAppRead: 'moduleApp.read',
+      moduleAppWrite: 'moduleApp.write',
+      supportRead: 'support.read',
+      supportWrite: 'support.write',
+      systemRead: 'system.read',
+      systemWrite: 'system.write',
+      userRead: 'user.read',
+      userWrite: 'user.write',
+    });
+  });
+
+  it('grants scoped roles their read capability without cross-domain access', () => {
+    expect(getAdminRoleCapabilities('content_admin')).toEqual(
+      expect.arrayContaining([
+        ADMIN_CAPABILITIES.auditRead,
+        ADMIN_CAPABILITIES.contentRead,
+        ADMIN_CAPABILITIES.contentWrite,
+      ]),
+    );
+    expect(getAdminRoleCapabilities('model_ops')).toEqual(
+      expect.arrayContaining([
+        ADMIN_CAPABILITIES.auditRead,
+        ADMIN_CAPABILITIES.modelOpsRead,
+        ADMIN_CAPABILITIES.modelOpsWrite,
+      ]),
+    );
+    expect(getAdminRoleCapabilities('support_admin')).toEqual(
+      expect.arrayContaining([
+        ADMIN_CAPABILITIES.auditRead,
+        ADMIN_CAPABILITIES.supportRead,
+        ADMIN_CAPABILITIES.supportWrite,
+        ADMIN_CAPABILITIES.userRead,
+      ]),
+    );
+    expect(getAdminRoleCapabilities('system_admin')).toEqual(
+      expect.arrayContaining([
+        ADMIN_CAPABILITIES.auditRead,
+        ADMIN_CAPABILITIES.systemRead,
+        ADMIN_CAPABILITIES.systemWrite,
+      ]),
+    );
+    expect(hasAdminCapability('content_admin', ADMIN_CAPABILITIES.moduleAppWrite)).toBe(false);
+    expect(hasAdminCapability('support_admin', ADMIN_CAPABILITIES.financeWrite)).toBe(false);
+  });
 });

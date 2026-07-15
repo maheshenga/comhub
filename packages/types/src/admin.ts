@@ -1,12 +1,19 @@
 export const ADMIN_CAPABILITIES = {
   adminAccess: 'admin.access',
   auditRead: 'audit.read',
+  contentRead: 'content.read',
   contentWrite: 'content.write',
   financeRead: 'finance.read',
   financeWrite: 'finance.write',
+  modelOpsRead: 'modelOps.read',
   modelOpsWrite: 'modelOps.write',
+  moduleAppRead: 'moduleApp.read',
+  moduleAppWrite: 'moduleApp.write',
+  supportRead: 'support.read',
   supportWrite: 'support.write',
+  systemRead: 'system.read',
   systemWrite: 'system.write',
+  userRead: 'user.read',
   userWrite: 'user.write',
 } as const;
 
@@ -26,19 +33,33 @@ export type AdminRoleCapabilitySet = readonly AdminCapability[] | '*';
 
 export const ADMIN_ROLE_CAPABILITIES: Record<AdminRole, AdminRoleCapabilitySet> = {
   admin: '*',
-  content_admin: [ADMIN_CAPABILITIES.contentWrite, ADMIN_CAPABILITIES.auditRead],
+  content_admin: [
+    ADMIN_CAPABILITIES.contentRead,
+    ADMIN_CAPABILITIES.contentWrite,
+    ADMIN_CAPABILITIES.auditRead,
+  ],
   finance_admin: [
     ADMIN_CAPABILITIES.financeRead,
     ADMIN_CAPABILITIES.financeWrite,
     ADMIN_CAPABILITIES.auditRead,
   ],
-  model_ops: [ADMIN_CAPABILITIES.modelOpsWrite, ADMIN_CAPABILITIES.auditRead],
+  model_ops: [
+    ADMIN_CAPABILITIES.modelOpsRead,
+    ADMIN_CAPABILITIES.modelOpsWrite,
+    ADMIN_CAPABILITIES.auditRead,
+  ],
   support_admin: [
+    ADMIN_CAPABILITIES.supportRead,
     ADMIN_CAPABILITIES.supportWrite,
+    ADMIN_CAPABILITIES.userRead,
     ADMIN_CAPABILITIES.userWrite,
     ADMIN_CAPABILITIES.auditRead,
   ],
-  system_admin: [ADMIN_CAPABILITIES.systemWrite, ADMIN_CAPABILITIES.auditRead],
+  system_admin: [
+    ADMIN_CAPABILITIES.systemRead,
+    ADMIN_CAPABILITIES.systemWrite,
+    ADMIN_CAPABILITIES.auditRead,
+  ],
 };
 
 export const isAdminRole = (role?: string | null): role is AdminRole =>
