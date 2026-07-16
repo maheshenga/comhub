@@ -24,6 +24,41 @@ const assertProductionLock = (job) => {
   assert.equal(job.concurrency['cancel-in-progress'], false);
 };
 
+const traceMaintenanceCommands = (run, action) => {
+  const heredoc = run.match(/<<'REMOTE_MAINTENANCE'\n(?<script>[\s\S]*?)\nREMOTE_MAINTENANCE\s*$/u);
+  assert.ok(heredoc?.groups?.script, 'maintenance workflow must embed the remote script');
+
+  const commandStubs = String.raw`
+record() {
+  printf 'MAINTENANCE_TRACE'
+  printf '\t%s' "$@"
+  printf '\n'
+}
+df() { record df "$@"; }
+docker() { record docker "$@"; }
+journalctl() { record journalctl "$@"; }
+apt-get() { record apt-get "$@"; }
+dnf() { record dnf "$@"; }
+yum() { record yum "$@"; }
+du() { record du "$@"; }
+find() { record find "$@"; }
+sync() { record sync "$@"; }
+`;
+  const result = spawnSync('bash', ['-s', '--', action], {
+    encoding: 'utf8',
+    input: `${commandStubs}\n${heredoc.groups.script}\n`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+
+  return result.stdout
+    .split('\n')
+    .filter((line) => line.startsWith('MAINTENANCE_TRACE\t'))
+    .map((line) => line.split('\t').slice(1));
+};
+
+const selectMaintenanceCommands = (commands, names) =>
+  commands.filter(([command]) => names.includes(command));
+
 const assertPinnedMainTooling = (source, workflow, jobName) => {
   assert.match(source, /GITHUB_REF.*refs\/heads\/main/su);
   assert.match(source, /refs\/heads\/main:refs\/remotes\/origin\/main/u);
@@ -121,14 +156,10 @@ test('Worker deployment is manual, targeted, and build-free', () => {
       previousTargetPresent: 'false',
     },
   ]) {
-    const result = spawnSync(
-      'bash',
-      [],
-      {
-        encoding: 'utf8',
-        input: `${cleanupPredicate}\nshould_remove_failed_clean_host_worker '${scenario.previousImage}' '${scenario.previousTargetPresent}' '${scenario.preserved}'`,
-      },
-    );
+    const result = spawnSync('bash', [], {
+      encoding: 'utf8',
+      input: `${cleanupPredicate}\nshould_remove_failed_clean_host_worker '${scenario.previousImage}' '${scenario.previousTargetPresent}' '${scenario.preserved}'`,
+    });
     assert.equal(
       result.status,
       scenario.expected,
@@ -151,8 +182,118 @@ test('Worker deployment is manual, targeted, and build-free', () => {
   assert.doesNotMatch(failedDeployDiagnostics?.run ?? '', /\.Config\.Env|printenv/);
 });
 
+test('server disk maintenance is manual, production-locked, and bounded', () => {
+  const { source, workflow } = loadWorkflow('comhub-maintenance.yml');
+
+  assertManualOnly(workflow);
+  const maintenanceInputs = workflow.on.workflow_dispatch.inputs;
+  assert.deepEqual(Object.keys(maintenanceInputs), ['action']);
+  const actionInput = maintenanceInputs.action;
+  assert.equal(actionInput.required, true);
+  assert.equal(actionInput.type, 'choice');
+  assert.equal(actionInput.default, 'report');
+  assert.deepEqual(actionInput.options, ['report', 'cleanup-safe']);
+  assert.equal(workflow.permissions.contents, 'read');
+  assertProductionLock(workflow.jobs.maintenance);
+  assert.equal(workflow.jobs.maintenance.if, "${{ github.ref == 'refs/heads/main' }}");
+
+  const checkout = workflow.jobs.maintenance.steps.find(
+    (step) => step.name === 'Checkout maintenance tooling',
+  );
+  assert.equal(checkout?.with?.ref, '${{ github.sha }}');
+  assert.match(source, /GITHUB_REF.*refs\/heads\/main/su);
+  assert.match(source, /COMHUB_SSH_KNOWN_HOSTS/);
+  assert.match(source, /COMHUB_SSH_PRIVATE_KEY/);
+  assert.doesNotMatch(source, /ssh-keyscan/);
+
+  const maintenance = workflow.jobs.maintenance.steps.find(
+    (step) => step.name === 'Run bounded server maintenance',
+  );
+  const run = maintenance?.run ?? '';
+  const otherRunBlocks = workflow.jobs.maintenance.steps
+    .filter((step) => step !== maintenance && typeof step.run === 'string')
+    .map((step) => step.run)
+    .join('\n');
+  assert.doesNotMatch(otherRunBlocks, /\bdocker\b/);
+  assert.match(run, /-o StrictHostKeyChecking=yes/);
+  assert.match(run, /-o "UserKnownHostsFile=\$HOME\/\.ssh\/known_hosts"/);
+  assert.match(run, /Before maintenance/);
+  assert.match(run, /After maintenance/);
+  assert.match(run, /docker container prune -f --filter 'until=168h'/);
+  assert.match(run, /docker network prune -f --filter 'until=168h'/);
+  assert.match(run, /docker image prune -af/);
+  assert.match(run, /docker builder prune -af/);
+  assert.match(run, /journalctl --vacuum-time=14d/);
+  assert.match(run, /journalctl --vacuum-size=512M/);
+  assert.doesNotMatch(run, /docker\s+(?:volume\s+(?:prune|rm)|system\s+prune)/);
+  assert.doesNotMatch(run, /docker\s+(?:container|image)\s+rm/);
+  assert.doesNotMatch(run, /docker\s+compose\s+down[^\n]*\s-v/);
+  assert.doesNotMatch(run, /\brm\b|truncate|shred|wipefs|find[^\n]*-delete/);
+  assert.doesNotMatch(run, /\.Config\.Env|printenv|docker inspect/);
+
+  const reportCommands = traceMaintenanceCommands(run, 'report');
+  assert.deepEqual(selectMaintenanceCommands(reportCommands, ['docker']), [
+    ['docker', 'system', 'df'],
+    [
+      'docker',
+      'ps',
+      '-a',
+      '--size',
+      '--format',
+      String.raw`table {{.Names}}\t{{.Status}}\t{{.Size}}`,
+    ],
+  ]);
+  assert.deepEqual(selectMaintenanceCommands(reportCommands, ['journalctl']), [
+    ['journalctl', '--disk-usage'],
+  ]);
+  assert.deepEqual(
+    selectMaintenanceCommands(reportCommands, ['apt-get', 'dnf', 'yum', 'sync']),
+    [],
+  );
+
+  const cleanupCommands = traceMaintenanceCommands(run, 'cleanup-safe');
+  assert.deepEqual(selectMaintenanceCommands(cleanupCommands, ['docker']), [
+    ['docker', 'system', 'df'],
+    [
+      'docker',
+      'ps',
+      '-a',
+      '--size',
+      '--format',
+      String.raw`table {{.Names}}\t{{.Status}}\t{{.Size}}`,
+    ],
+    ['docker', 'container', 'prune', '-f', '--filter', 'until=168h'],
+    ['docker', 'network', 'prune', '-f', '--filter', 'until=168h'],
+    ['docker', 'image', 'prune', '-af'],
+    ['docker', 'builder', 'prune', '-af'],
+    ['docker', 'system', 'df'],
+    [
+      'docker',
+      'ps',
+      '-a',
+      '--size',
+      '--format',
+      String.raw`table {{.Names}}\t{{.Status}}\t{{.Size}}`,
+    ],
+  ]);
+  assert.deepEqual(selectMaintenanceCommands(cleanupCommands, ['journalctl']), [
+    ['journalctl', '--disk-usage'],
+    ['journalctl', '--vacuum-time=14d'],
+    ['journalctl', '--vacuum-size=512M'],
+    ['journalctl', '--disk-usage'],
+  ]);
+  assert.deepEqual(selectMaintenanceCommands(cleanupCommands, ['apt-get', 'dnf', 'yum', 'sync']), [
+    ['apt-get', 'clean'],
+    ['sync'],
+  ]);
+});
+
 test('deployment workflows never trigger from push', () => {
-  for (const filename of ['comhub-deploy.yml', 'comhub-deploy-worker.yml']) {
+  for (const filename of [
+    'comhub-deploy.yml',
+    'comhub-deploy-worker.yml',
+    'comhub-maintenance.yml',
+  ]) {
     const { workflow } = loadWorkflow(filename);
     assert.equal(workflow.on.push, undefined, `${filename} must not deploy from push`);
   }
@@ -163,6 +304,7 @@ test('all workflow Bash run blocks pass syntax validation', () => {
     'comhub-build.yml',
     'comhub-deploy.yml',
     'comhub-deploy-worker.yml',
+    'comhub-maintenance.yml',
   ]) {
     const { workflow } = loadWorkflow(filename);
     for (const [jobName, job] of Object.entries(workflow.jobs)) {

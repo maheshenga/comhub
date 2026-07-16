@@ -1,0 +1,204 @@
+name: ComHub Server Maintenance
+run-name: ComHub Server Maintenance (action=${{ inputs.action }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Read-only report or bounded safe cleanup'
+        required: true
+        default: report
+        type: choice
+        options:
+          - report
+          - cleanup-safe
+
+permissions:
+  contents: read
+
+jobs:
+  maintenance:
+    name: Server Disk Maintenance
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    concurrency:
+      group: comhub-production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Checkout maintenance tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Validate maintenance request
+        shell: bash
+        env:
+          MAINTENANCE_ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" = 'refs/heads/main' ]] || {
+            echo 'production maintenance must be dispatched from main' >&2
+            exit 1
+          }
+          case "$MAINTENANCE_ACTION" in
+            report|cleanup-safe) ;;
+            *)
+              echo 'unsupported maintenance action' >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install SSH key
+        shell: bash
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.COMHUB_SSH_KNOWN_HOSTS }}
+          SSH_PRIVATE_KEY: ${{ secrets.COMHUB_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          grep -q '[^[:space:]]' <<< "$SSH_KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/comhub_maintenance_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/comhub_maintenance_key
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run bounded server maintenance
+        shell: bash
+        env:
+          MAINTENANCE_ACTION: ${{ inputs.action }}
+          SSH_HOST: ${{ secrets.COMHUB_SSH_HOST }}
+          SSH_PORT: ${{ secrets.COMHUB_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.COMHUB_SSH_USER || 'root' }}
+        run: |
+          set -euo pipefail
+
+          case "$MAINTENANCE_ACTION" in
+            report|cleanup-safe) ;;
+            *)
+              echo 'unsupported maintenance action' >&2
+              exit 1
+              ;;
+          esac
+
+          ssh_options=(
+            -i "$HOME/.ssh/comhub_maintenance_key"
+            -p "$SSH_PORT"
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$HOME/.ssh/known_hosts"
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=4
+            -o ConnectTimeout=30
+          )
+
+          # The action is restricted to the fixed choice list above.
+          # shellcheck disable=SC2029
+          ssh "${ssh_options[@]}" "$SSH_USER@$SSH_HOST" \
+            "bash -s -- '$MAINTENANCE_ACTION'" <<'REMOTE_MAINTENANCE'
+          set -Eeuo pipefail
+          export LC_ALL=C
+
+          action="$1"
+          case "$action" in
+            report|cleanup-safe) ;;
+            *)
+              echo 'unsupported remote maintenance action' >&2
+              exit 1
+              ;;
+          esac
+
+          report_disk() {
+            local target
+            local -a largest_file_roots=()
+
+            echo '== Root filesystem =='
+            df -hT /
+            df -i /
+
+            echo '== Docker summary =='
+            docker system df || true
+            docker ps -a --size \
+              --format 'table {{.Names}}\t{{.Status}}\t{{.Size}}' || true
+
+            echo '== System journal =='
+            if command -v journalctl >/dev/null 2>&1; then
+              journalctl --disk-usage || true
+            else
+              echo 'journalctl unavailable'
+            fi
+
+            echo '== Selected directory totals (bytes) =='
+            {
+              for target in \
+                /var/lib/docker \
+                /var/log \
+                /var/cache \
+                /www \
+                /www/compose/comhub \
+                /www/wwwlogs \
+                /tmp; do
+                if [ -e "$target" ]; then
+                  du -x -s -B1 -- "$target" 2>/dev/null || true
+                fi
+              done
+            } | sort -nr | head -20 || true
+
+            for target in /www/compose/comhub /www/wwwlogs /var/log; do
+              [ ! -d "$target" ] || largest_file_roots+=("$target")
+            done
+            echo '== Largest selected files (bytes, top 30) =='
+            if [ "${#largest_file_roots[@]}" -eq 0 ]; then
+              echo 'no selected file roots available'
+            else
+              find "${largest_file_roots[@]}" -xdev -type f \
+                -printf '%s\t%p\n' 2>/dev/null | sort -nr | head -30 || true
+            fi
+
+            echo '== Docker JSON logs (bytes, top 20) =='
+            if [ -d /var/lib/docker/containers ]; then
+              find /var/lib/docker/containers -xdev -type f -name '*-json.log' \
+                -printf '%s\t%p\n' 2>/dev/null | sort -nr | head -20 || true
+            else
+              echo 'Docker container log directory unavailable'
+            fi
+          }
+
+          cleanup_safe() {
+            echo '== Safe cleanup =='
+            docker container prune -f --filter 'until=168h'
+            docker network prune -f --filter 'until=168h'
+            docker image prune -af
+            docker builder prune -af
+
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get clean
+            elif command -v dnf >/dev/null 2>&1; then
+              dnf clean all
+            elif command -v yum >/dev/null 2>&1; then
+              yum clean all
+            else
+              echo 'package manager cache cleanup unavailable'
+            fi
+
+            if command -v journalctl >/dev/null 2>&1; then
+              journalctl --vacuum-time=14d
+              journalctl --vacuum-size=512M
+            fi
+          }
+
+          echo '### Before maintenance'
+          report_disk
+
+          if [ "$action" = cleanup-safe ]; then
+            cleanup_safe
+            sync
+            echo '### After maintenance'
+            report_disk
+          else
+            echo '### After maintenance'
+            echo 'report-only action; no cleanup performed'
+          fi
+          REMOTE_MAINTENANCE
