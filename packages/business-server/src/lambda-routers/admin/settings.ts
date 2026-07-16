@@ -43,7 +43,6 @@ import {
   getServerFileS3Config,
   getServerModelPolicyConfig,
   invalidateServerAppSettings,
-  isSensitiveAppSettingKey,
   normalizeS3FilePath,
   serializeModelIdList,
 } from '@/server/services/appSettings';
@@ -58,6 +57,13 @@ import {
   invalidateNewapiInstancesCache,
 } from '@/server/services/newapiInstance';
 
+import {
+  APP_SETTINGS_CATALOG,
+  APP_SETTINGS_NORMALIZATION_KEYS,
+  WRITABLE_APP_SETTING_KEYS,
+  getAppSettingCatalogItem,
+  isSensitiveCatalogAppSettingKey,
+} from '../../appSettings/catalog';
 import { isModelAllowedByPlanRules } from '../../planModelRules';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { recordAdminAudit } from './audit';
@@ -117,112 +123,16 @@ const assertHttpOk = async (response: Response, code: string) => {
   throw new Error(`${code}: ${response.status}${body ? ` ${body}` : ''}`);
 };
 
-const BRAND_KEYS = [
-  SETTING_KEYS.aboutLogoUrl,
-  SETTING_KEYS.brandAuthTitle,
-  SETTING_KEYS.brandCopyrightText,
-  SETTING_KEYS.brandLoadingText,
-  SETTING_KEYS.brandLoadingSvgUrl,
-  SETTING_KEYS.brandName,
-  SETTING_KEYS.brandLogoUrl,
-  SETTING_KEYS.brandFaviconUrl,
-  SETTING_KEYS.brandPrimaryColor,
-  SETTING_KEYS.brandSlogan,
-  SETTING_KEYS.homeMessengerEnabled,
-  SETTING_KEYS.homeMessengerBannerTitle,
-  SETTING_KEYS.communityForkAndChatLabel,
-  SETTING_KEYS.communitySkillUseButtonLabel,
-  SETTING_KEYS.sidebarMemberLabel,
-  SETTING_KEYS.sidebarMemberUrl,
-  SETTING_KEYS.sidebarGenerationLabel,
-  SETTING_KEYS.defaultSkillName,
-] as const;
-
-const COMPOSIO_KEYS = [
-  SETTING_KEYS.composioEnabled,
-  SETTING_KEYS.composioApiKey,
-  SETTING_KEYS.composioAuthConfigIds,
-] as const;
-
-const RECOMMENDATION_KEYS = [
-  SETTING_KEYS.recommendationSectionEnabled,
-  SETTING_KEYS.recommendationAssistantsEnabled,
-  SETTING_KEYS.recommendationMcpsEnabled,
-  SETTING_KEYS.recommendationSkillsEnabled,
-  SETTING_KEYS.recommendationGeneralSkillsEnabled,
-  SETTING_KEYS.recommendationHotSkillsEnabled,
-  SETTING_KEYS.recommendationSelectedTags,
-  SETTING_KEYS.recommendationAssistantTags,
-  SETTING_KEYS.recommendationAssistantTitle,
-  SETTING_KEYS.recommendationSkillCategories,
-  SETTING_KEYS.recommendationSkillTitle,
-  SETTING_KEYS.recommendationMcpCategories,
-  SETTING_KEYS.recommendationMcpTitle,
-  SETTING_KEYS.recommendationGeneralSkillCategories,
-  SETTING_KEYS.recommendationGeneralSkillTitle,
-  SETTING_KEYS.recommendationHotSkillSort,
-  SETTING_KEYS.recommendationHotSkillTitle,
-] as const;
-
-const PRICING_KEYS = [
-  SETTING_KEYS.plansFaqItems,
-  SETTING_KEYS.pricingCreditMultiplier,
-  SETTING_KEYS.pricingModelRules,
-  SETTING_KEYS.ordersManagementEnabled,
-] as const;
-
-const OPERATIONS_KEYS = [
-  SETTING_KEYS.communityCreatorRewardBannerEnabled,
-  SETTING_KEYS.communityFeaturedAssistantsEnabled,
-  SETTING_KEYS.communityFeaturedMcpsEnabled,
-  SETTING_KEYS.communityFeaturedSkillsEnabled,
-  SETTING_KEYS.communityFeaturedAssistantPageSize,
-  SETTING_KEYS.communityFeaturedMcpPageSize,
-  SETTING_KEYS.communityFeaturedSkillPageSize,
-  SETTING_KEYS.communityFeaturedAssistantTitle,
-  SETTING_KEYS.communityFeaturedMcpTitle,
-  SETTING_KEYS.communityFeaturedSkillTitle,
-  SETTING_KEYS.communityFeaturedSkillCategory,
-  SETTING_KEYS.communityFeaturedSkillSort,
-  SETTING_KEYS.communityHomeAnnouncementEnabled,
-  SETTING_KEYS.communityHomeAnnouncementTitle,
-  SETTING_KEYS.communityHomeAnnouncementContent,
-  SETTING_KEYS.communityHomeAnnouncementType,
-] as const;
-
-const GROWTH_KEYS = [
-  SETTING_KEYS.authSignupEnabled,
-  SETTING_KEYS.authSignupDisabledMessage,
-  SETTING_KEYS.authSignupPhoneEnabled,
-  SETTING_KEYS.onboardingInitialCreditsEnabled,
-  SETTING_KEYS.onboardingInitialCredits,
-  SETTING_KEYS.uploadMaxInputSizeMb,
-  SETTING_KEYS.uploadMaxActualSizeMb,
-] as const;
-
-const PROFILE_KEYS = [SETTING_KEYS.profileInterestAreas] as const;
-
-const MEMORY_KEYS = [
-  SETTING_KEYS.memoryUserMemoryTriggerMode,
-  SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
-  SETTING_KEYS.memoryUserMemoryGatekeeperModel,
-  SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
-  SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
-  SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
-  SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
-  SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
-  SETTING_KEYS.memoryUserMemoryEmbeddingModel,
-] as const;
-
-const VECTOR_KEYS = [
-  SETTING_KEYS.vectorEmbeddingProvider,
-  SETTING_KEYS.vectorEmbeddingModel,
-  SETTING_KEYS.vectorRerankerProvider,
-  SETTING_KEYS.vectorRerankerModel,
-  SETTING_KEYS.vectorQueryMode,
-] as const;
-
-const USER_GLOBAL_KEYS = [SETTING_KEYS.userGlobalSettingsDefaults] as const;
+const catalogKeys = (predicate: (item: (typeof APP_SETTINGS_CATALOG)[number]) => boolean) =>
+  APP_SETTINGS_CATALOG.filter(predicate).map((item) => item.key);
+const BRAND_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.brand;
+const COMPOSIO_KEYS = catalogKeys((item) => item.key.startsWith('composio.'));
+const RECOMMENDATION_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.recommendation;
+const PRICING_KEYS = catalogKeys((item) => item.section === 'model-billing-matrix');
+const OPERATIONS_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.operations;
+const GROWTH_KEYS = catalogKeys((item) => item.section === 'growth');
+const MEMORY_KEYS = catalogKeys((item) => item.key.startsWith('memory.'));
+const VECTOR_KEYS = catalogKeys((item) => item.key.startsWith('vector.'));
 const USER_SETTINGS_SYNC_BATCH_SIZE = 500;
 const USER_SETTINGS_SYNC_KEYS = [
   'defaultAgent',
@@ -238,75 +148,12 @@ const USER_SETTINGS_SYNC_KEYS = [
   'tts',
 ] as const;
 
-const EXPERT_PLAZA_KEYS = [
-  SETTING_KEYS.expertPlazaEnabled,
-  SETTING_KEYS.expertPlazaName,
-  SETTING_KEYS.expertPlazaDescription,
-  SETTING_KEYS.expertPlazaCategories,
-  SETTING_KEYS.expertPlazaCards,
-] as const;
-
-const NOTIFICATION_KEYS = [
-  SETTING_KEYS.notificationInboxEnabled,
-  SETTING_KEYS.notificationDesktopEnabled,
-  SETTING_KEYS.notificationEmailEnabled,
-  SETTING_KEYS.notificationPushEnabled,
-  SETTING_KEYS.notificationEventDefaults,
-  SETTING_KEYS.notificationRetentionDays,
-  SETTING_KEYS.notificationSystemEnabled,
-  SETTING_KEYS.notificationSystemTitle,
-  SETTING_KEYS.notificationSystemContent,
-  SETTING_KEYS.notificationSystemActionLabel,
-  SETTING_KEYS.notificationSystemActionUrl,
-  SETTING_KEYS.notificationSystemType,
-] as const;
-
-const STORAGE_KEYS = [
-  SETTING_KEYS.storageS3AccessKeyId,
-  SETTING_KEYS.storageS3SecretAccessKey,
-  SETTING_KEYS.storageS3Endpoint,
-  SETTING_KEYS.storageS3Bucket,
-  SETTING_KEYS.storageS3Region,
-  SETTING_KEYS.storageS3PublicDomain,
-  SETTING_KEYS.storageS3FilePath,
-  SETTING_KEYS.storageS3EnablePathStyle,
-  SETTING_KEYS.storageS3SetAcl,
-  SETTING_KEYS.storageS3PreviewUrlExpireIn,
-] as const;
-
-const MODEL_POLICY_KEYS = [
-  SETTING_KEYS.modelPolicyEnabled,
-  SETTING_KEYS.modelPolicyMode,
-  SETTING_KEYS.modelPolicyAllowlist,
-  SETTING_KEYS.modelPolicyBlocklist,
-  SETTING_KEYS.modelPolicyDeniedMessage,
-  SETTING_KEYS.modelPolicyApplyToEmbeddings,
-  SETTING_KEYS.modelPolicyApplyToGenerateObject,
-  SETTING_KEYS.modelPolicyDefaultModelFallback,
-] as const;
-
-const DESKTOP_UPDATE_KEYS = [
-  SETTING_KEYS.desktopUpdateServerUrl,
-  SETTING_KEYS.desktopUpdateChannel,
-  SETTING_KEYS.desktopUpdateAutoCheck,
-  SETTING_KEYS.desktopUpdateCheckInterval,
-  SETTING_KEYS.desktopUpdateCurrentVersion,
-  SETTING_KEYS.desktopUpdateReleaseNotes,
-  SETTING_KEYS.desktopOssBucket,
-  SETTING_KEYS.desktopOssEndpoint,
-  SETTING_KEYS.desktopOssAccessKeyId,
-  SETTING_KEYS.desktopOssAccessKeySecret,
-  SETTING_KEYS.desktopOssPath,
-] as const;
-
-const DESKTOP_LOGIN_KEYS = [
-  SETTING_KEYS.desktopLoginWindowTitle,
-  SETTING_KEYS.desktopLoginLogoUrl,
-  SETTING_KEYS.desktopLoginTitle,
-  SETTING_KEYS.desktopLoginDescription,
-  SETTING_KEYS.desktopLoginCloudButtonLabel,
-  SETTING_KEYS.desktopLoginFooterText,
-] as const;
+const EXPERT_PLAZA_KEYS = APP_SETTINGS_NORMALIZATION_KEYS['expert-plaza'];
+const NOTIFICATION_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.notification;
+const STORAGE_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.storage;
+const MODEL_POLICY_KEYS = APP_SETTINGS_NORMALIZATION_KEYS['model-policy'];
+const DESKTOP_UPDATE_KEYS = APP_SETTINGS_NORMALIZATION_KEYS['desktop-update'];
+const DESKTOP_LOGIN_KEYS = APP_SETTINGS_NORMALIZATION_KEYS['desktop-login'];
 
 const readSetting = async (db: any, key: string): Promise<unknown> => {
   const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
@@ -400,45 +247,7 @@ type ModelValidationTarget = {
   providerKey: string;
 };
 
-const WRITABLE_SETTING_KEYS = [
-  SETTING_KEYS.defaultAgentModel,
-  SETTING_KEYS.defaultAgentName,
-  SETTING_KEYS.defaultAgentAvatar,
-  SETTING_KEYS.defaultAgentProvider,
-  SETTING_KEYS.defaultImageModel,
-  SETTING_KEYS.defaultImageProvider,
-  SETTING_KEYS.defaultSkillName,
-  SETTING_KEYS.defaultVideoModel,
-  SETTING_KEYS.defaultVideoProvider,
-  SETTING_KEYS.referralRewardCredits,
-  SETTING_KEYS.cronSecret,
-  SETTING_KEYS.cronAuditRetentionDays,
-  SETTING_KEYS.cronPendingOrderExpiryDays,
-  ...COMPOSIO_KEYS,
-  ...RECOMMENDATION_KEYS,
-  ...PRICING_KEYS,
-  ...OPERATIONS_KEYS,
-  ...GROWTH_KEYS,
-  ...PROFILE_KEYS,
-  SETTING_KEYS.profileAvatarPresets,
-  ...MEMORY_KEYS,
-  ...VECTOR_KEYS,
-  ...USER_GLOBAL_KEYS,
-  ...EXPERT_PLAZA_KEYS,
-  ...NOTIFICATION_KEYS,
-  ...STORAGE_KEYS,
-  ...MODEL_POLICY_KEYS,
-  ...BRAND_KEYS,
-  ...DESKTOP_UPDATE_KEYS,
-  ...DESKTOP_LOGIN_KEYS,
-  SETTING_KEYS.desktopDownloadUrl,
-  SETTING_KEYS.desktopDownloadLabel,
-  SETTING_KEYS.helpMenuItems,
-  SETTING_KEYS.aboutLinks,
-  SETTING_KEYS.aboutPage,
-] as const;
-
-type SettingUpdateInput = { key: (typeof WRITABLE_SETTING_KEYS)[number]; value?: unknown };
+type SettingUpdateInput = { key: string; value?: unknown };
 type NormalizedSettingUpdate = SettingUpdateInput & {
   hasValue: boolean;
   isSensitive: boolean;
@@ -449,7 +258,7 @@ type UserSettingsSyncOptions = {
 };
 
 const appSettingUpdateInputSchema = z.object({
-  key: z.enum(WRITABLE_SETTING_KEYS),
+  key: z.enum(WRITABLE_APP_SETTING_KEYS as [string, ...string[]]),
   value: z.unknown(),
 });
 
@@ -871,7 +680,7 @@ const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSetting
 
   return {
     hasValue: value !== null && value !== undefined && value !== '',
-    isSensitive: isSensitiveAppSettingKey(input.key),
+    isSensitive: isSensitiveCatalogAppSettingKey(input.key),
     key: input.key,
     value,
   };
@@ -1022,10 +831,10 @@ const validateUserGlobalSettingsDefaults = async (db: LobeChatDatabase, defaults
 };
 
 const invalidateAppSettingsCaches = (updates: NormalizedSettingUpdate[]) => {
-  if (updates.some((update) => (BRAND_KEYS as readonly string[]).includes(update.key))) {
+  if (updates.some((update) => getAppSettingCatalogItem(update.key)?.runtimeEffects.includes('brand'))) {
     invalidateServerBrand();
   }
-  if (updates.some((update) => (STORAGE_KEYS as readonly string[]).includes(update.key))) {
+  if (updates.some((update) => getAppSettingCatalogItem(update.key)?.runtimeEffects.includes('s3'))) {
     invalidateFileS3RuntimeCache();
   }
 

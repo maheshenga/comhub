@@ -1,9 +1,10 @@
+import type { AppSettingDomain } from '@/const/appSettingsRegistry';
+
 import {
-  getAppSettingRegistryItem,
-  type AppSettingDomain,
-  type AppSettingRegistryItem,
-  listAppSettingRegistryItems,
-} from '@/const/appSettingsRegistry';
+  getAppSettingCatalogItem,
+  listAppSettingsCatalogItems,
+  type AppSettingCatalogItem,
+} from '@/business/server/appSettings/catalog';
 
 type AppSettingsGovernanceInputRow = {
   key: string;
@@ -12,7 +13,7 @@ type AppSettingsGovernanceInputRow = {
 };
 
 type AppSettingsGovernanceRegisteredRow = Pick<
-  AppSettingRegistryItem,
+  AppSettingCatalogItem,
   'cacheScopes' | 'domain' | 'key' | 'publicRuntime' | 'sensitive'
 > & {
   configured: boolean;
@@ -73,13 +74,13 @@ const CACHE_SCOPE_LABELS: Record<string, string> = {
 const hasPersistedValue = (value: unknown) =>
   value !== null && value !== undefined && value !== '';
 
-export const isUnknownAppSettingKey = (key: string) => !getAppSettingRegistryItem(key);
+export const isUnknownAppSettingKey = (key: string) => !getAppSettingCatalogItem(key);
 
 export const buildAppSettingsGovernance = (
   rows: AppSettingsGovernanceInputRow[],
 ): AppSettingsGovernance => {
   const persistedByKey = new Map(rows.map((row) => [row.key, row]));
-  const registeredSettings = listAppSettingRegistryItems().map((item) => {
+  const registeredSettings = listAppSettingsCatalogItems().map((item) => {
     const row = persistedByKey.get(item.key);
 
     return {
