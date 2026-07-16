@@ -1,4 +1,6 @@
 {
+  "admin.pricing.ordersEnabled": "Online platform payment (disabled)",
+  "admin.pricing.ordersEnabled.help": "Online platform payment remains disabled. Only redemption-code top-ups are available, and this state cannot be enabled in admin settings.",
   "admin.desktopUpdate.autoCheck": "Automatically check for updates",
   "admin.desktopUpdate.businessConnection.description": "Desktop sign-in, sync, tRPC/API, OIDC, and local proxy requests connect to this business server by default. This address is injected by the desktop release workflow; the admin page only displays it so it is not confused with the update server URL.",
   "admin.desktopUpdate.businessConnection.message": "Desktop business connection is controlled by the release package",

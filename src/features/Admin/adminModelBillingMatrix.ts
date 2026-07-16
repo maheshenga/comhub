@@ -1,3 +1,29 @@
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+
+export type BillingBasisValues = {
+  pricingMultiplier: number;
+};
+
+export const buildBillingBasisValues = (settings?: {
+  ordersManagementEnabled?: boolean | null;
+  pricingCreditMultiplier?: number | null;
+}): BillingBasisValues => ({
+  pricingMultiplier:
+    typeof settings?.pricingCreditMultiplier === 'number' &&
+    Number.isFinite(settings.pricingCreditMultiplier) &&
+    settings.pricingCreditMultiplier > 0
+      ? settings.pricingCreditMultiplier
+      : DEFAULT_PRICING_CREDIT_MULTIPLIER,
+});
+
+export const buildBillingBasisUpdates = (
+  current: BillingBasisValues,
+  baseline: BillingBasisValues,
+): Array<{ key: 'pricing.creditMultiplier'; value: number }> =>
+  current.pricingMultiplier === baseline.pricingMultiplier
+    ? []
+    : [{ key: 'pricing.creditMultiplier', value: current.pricingMultiplier }];
+
 export type MatrixModelType =
   | 'chat'
   | 'embedding'

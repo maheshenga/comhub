@@ -70,6 +70,7 @@ const ONLINE_PAYMENT_DISABLED_ERROR = 'ONLINE_PAYMENT_DISABLED_USE_REDEMPTION_CO
 const CREDIT_SOURCE_PRIORITY: CreditSourceType[] = ['subscription', 'referral', 'topup', 'other'];
 const PRICING_CREDIT_MULTIPLIER_KEY = 'pricing.creditMultiplier';
 const PRICING_MODEL_RULES_KEY = 'pricing.modelRules';
+const REFERRAL_REWARD_CREDITS_KEY = 'referral.rewardCredits';
 
 const getPlanMetadataNumber = (metadata: unknown, key: string) => {
   const raw =
@@ -325,6 +326,26 @@ export class CommercialModel {
     this.db = db;
     this.userId = userId;
   }
+
+  private resolveReferralRewardCredits = async (
+    db: LobeChatDatabase | Transaction = this.db,
+  ) => {
+    const row = await db.query.appSettings.findFirst({
+      columns: { value: true },
+      extras: {
+        valueType: sql<string>`jsonb_typeof(${appSettings.value})`.as('value_type'),
+      },
+      where: eq(appSettings.key, REFERRAL_REWARD_CREDITS_KEY),
+    });
+    const configuredReward = row?.value;
+
+    return row?.valueType === 'number' &&
+      typeof configuredReward === 'number' &&
+      Number.isFinite(configuredReward) &&
+      configuredReward > 0
+      ? configuredReward
+      : REFERRAL_PREVIEW_REWARD_CREDITS;
+  };
 
   ensureCreditAccount = async (db: LobeChatDatabase | Transaction = this.db) => {
     return db.insert(creditAccounts).values({ userId: this.userId }).onConflictDoNothing();
@@ -2196,7 +2217,8 @@ export class CommercialModel {
   };
 
   getReferralOverview = async (): Promise<ReferralOverview> => {
-    const [aggregate, currentReferralStatus, referralProfile] = await Promise.all([
+    const [aggregate, currentReferralStatus, referralProfile, rewardCreditsPerInvite] =
+      await Promise.all([
       this.db
         .select({
           totalInvites: sql<number>`COUNT(*)::int`,
@@ -2208,12 +2230,13 @@ export class CommercialModel {
         .limit(1),
       this.getReferralStatus(),
       this.getReferralProfile(),
+      this.resolveReferralRewardCredits(),
     ]);
 
     return {
       currentReferralStatus,
       referralCode: referralProfile.code,
-      rewardCreditsPerInvite: REFERRAL_PREVIEW_REWARD_CREDITS,
+      rewardCreditsPerInvite,
       totalInvites: aggregate[0]?.totalInvites ?? 0,
       totalRewarded: aggregate[0]?.totalRewarded ?? 0,
       totalRewardedAmount: aggregate[0]?.totalRewardedAmount ?? 0,
@@ -2221,6 +2244,8 @@ export class CommercialModel {
   };
 
   activateReferralReward = async () => {
+    const configuredRewardCredits = await this.resolveReferralRewardCredits();
+
     return this.db.transaction(async (tx) => {
       const relation = await tx.query.referralRelations.findFirst({
         where: eq(referralRelations.inviteeUserId, this.userId),
@@ -2235,7 +2260,11 @@ export class CommercialModel {
       }
 
       const rewardedAt = new Date();
-      const rewardCredits = relation.rewardCredits || REFERRAL_PREVIEW_REWARD_CREDITS;
+      const relationRewardCredits = Number(relation.rewardCredits);
+      const rewardCredits =
+        Number.isFinite(relationRewardCredits) && relationRewardCredits > 0
+          ? relationRewardCredits
+          : configuredRewardCredits;
 
       const [updatedRelation] = await tx
         .update(referralRelations)

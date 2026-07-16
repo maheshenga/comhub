@@ -1,4 +1,6 @@
 {
+  "admin.pricing.ordersEnabled": "在线平台支付（已关闭）",
+  "admin.pricing.ordersEnabled.help": "平台在线支付保持关闭，仅兑换码充值可用；此状态不可在后台开启。",
   "admin.desktopUpdate.autoCheck": "自动检查更新",
   "admin.desktopUpdate.businessConnection.description": "桌面客户端的登录、同步、tRPC/API、OIDC 与本地代理请求默认连接到该业务服务地址。此地址由桌面发布流水线注入，后台这里只做展示，避免和更新服务器地址混淆。",
   "admin.desktopUpdate.businessConnection.message": "桌面业务连接由发布包控制",

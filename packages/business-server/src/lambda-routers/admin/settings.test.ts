@@ -315,6 +315,7 @@ describe('admin settings default model validation', () => {
 
     expect(settings.defaultAgentAvatar).toBe(DEFAULT_COMHUB_AGENT_AVATAR);
     expect(settings.defaultAgentName).toBe(DEFAULT_COMHUB_AGENT_NAME);
+    expect(settings.ordersManagementEnabled).toBe(false);
     expect(settings.pricingCreditMultiplier).toBe(DEFAULT_PRICING_CREDIT_MULTIPLIER);
   });
 
@@ -576,6 +577,36 @@ describe('admin settings default model validation', () => {
       key: APP_SETTING_KEYS.cronSecret,
       value: '  test-secret  ',
     });
+  });
+
+  it.each([
+    ['number', 42],
+    ['object', { nested: ['value'] }],
+  ])('preserves cron.secret non-string JSON %s through the catalog adapter', async (_, value) => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    await caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value });
+
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.cronSecret,
+      value,
+    });
+  });
+
+  it('rejects the deprecated order-management setting in generic writes', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSettingsBatch({
+        updates: [{ key: APP_SETTING_KEYS.ordersManagementEnabled, value: true }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it('rejects non-positive global pricing multipliers', async () => {

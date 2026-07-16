@@ -19,6 +19,18 @@ const recordSchema = z.record(z.string(), z.unknown());
 const recordListSchema = z.array(recordSchema);
 const unknownListSchema = z.array(z.unknown());
 
+type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
+const jsonSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number().finite(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonSchema),
+    z.record(z.string(), jsonSchema),
+  ]),
+);
+
 const defineValue = <T>(
   normalizer: AppSettingNormalizer,
   valueSchema: z.ZodType<T>,
@@ -91,8 +103,6 @@ const normalizeProfileInterestAreas = (value: unknown) => {
 
 const stringValue = (normalizer: AppSettingNormalizer = 'string') =>
   defineValue(normalizer, stringSchema, toString);
-const exactStringValue = (normalizer: AppSettingNormalizer = 'string') =>
-  defineValue(normalizer, stringSchema, (value) => (typeof value === 'string' ? value : ''));
 const booleanValue = (normalizer: AppSettingNormalizer = 'boolean') =>
   defineValue(normalizer, booleanSchema, toBoolean);
 const numberValue = (normalizer: AppSettingNormalizer, normalize: (value: unknown) => number) =>
@@ -179,7 +189,9 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
       return Math.max(0, Math.round(n));
     });
   }
-  if (key === APP_SETTING_KEYS.cronSecret) return exactStringValue('string');
+  if (key === APP_SETTING_KEYS.cronSecret) {
+    return defineValue('json', jsonSchema, (value) => value as JsonValue);
+  }
 
   if (key === APP_SETTING_KEYS.composioEnabled) return booleanValue();
   if (key === APP_SETTING_KEYS.composioAuthConfigIds) {

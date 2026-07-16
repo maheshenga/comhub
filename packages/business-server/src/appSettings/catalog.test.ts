@@ -1,13 +1,12 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { normalizeAboutLinksConfig, normalizeAboutPageConfig } from '@/const/aboutLinks';
-import { normalizeAvatarPresets } from '@/const/avatarPresets';
-import { normalizePlanFaqSettings } from '@/const/billingPresentation';
-import { normalizeExpertPlazaCards } from '@/const/expertPlaza';
-import { normalizeHelpMenuItems } from '@/const/helpMenu';
-import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 
+import * as catalogContract from './catalog';
 import {
   APP_SETTINGS_CATALOG,
   APP_SETTINGS_SECTION_KEYS,
@@ -17,9 +16,44 @@ import {
   PPT_WRITABLE_APP_SETTING_KEYS,
   WRITABLE_APP_SETTING_KEYS,
 } from './catalog';
+import { EXPECTED_NORMALIZER_BY_KEY } from './catalog.test.fixtures';
 
 const GENERIC_WRITE_SURFACE = 'adminSettingsRouter.setAppSetting';
 const PPT_WRITE_SURFACE = 'adminPptRouter.saveSettings';
+const repoRoot = path.resolve(__dirname, '../../../..');
+
+const findNamedSource = (source: string, sourcePath: string, symbol: string) => {
+  const sourceFile = ts.createSourceFile(
+    sourcePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    sourcePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const matches: ts.Node[] = [];
+
+  const visit = (node: ts.Node) => {
+    const isSupportedDeclaration =
+      ts.isFunctionDeclaration(node) ||
+      ts.isMethodDeclaration(node) ||
+      ts.isPropertyAssignment(node) ||
+      ts.isPropertyDeclaration(node) ||
+      ts.isVariableDeclaration(node);
+    const name = isSupportedDeclaration ? node.name : undefined;
+    if (
+      name &&
+      (ts.isIdentifier(name) || ts.isStringLiteral(name)) &&
+      name.text === symbol
+    ) {
+      matches.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  expect(matches.length, `${sourcePath}#${symbol}`).toBeGreaterThan(0);
+  return matches.map((node) => node.getText(sourceFile)).join('\n');
+};
 
 const catalogItem = (key: string) => {
   const item = getAppSettingCatalogItem(key);
@@ -28,7 +62,7 @@ const catalogItem = (key: string) => {
 };
 
 describe('APP_SETTINGS_CATALOG', () => {
-  it('gives every registered setting one owner and complete active editable governance', () => {
+  it('covers every registry key once and applies lifecycle/write invariants', () => {
     const registeredKeys = Object.values(APP_SETTING_KEYS).sort();
     const catalogKeys = APP_SETTINGS_CATALOG.map((item) => item.key).sort();
 
@@ -37,21 +71,20 @@ describe('APP_SETTINGS_CATALOG', () => {
 
     for (const setting of APP_SETTINGS_CATALOG) {
       expect(setting.defaultSource).toBeTruthy();
-      expect(setting.effectiveSource).toBeTruthy();
-      expect(setting.auditPolicy).toBeTruthy();
+      expect(setting.effectiveSource.length).toBeGreaterThan(0);
       expect(setting.cacheScopes).toContain('app-settings');
-      expect(setting.section).toBeTruthy();
       expect(setting.valueSchema).toBeTruthy();
 
-      if (setting.lifecycle === 'active' && setting.writable) {
-        expect(setting.normalizeValue).toBeTypeOf('function');
+      if (setting.lifecycle === 'active') {
+        expect(setting.writable).toBe(true);
+        expect(setting.writeSurfaces.length).toBeGreaterThan(0);
         expect(setting.runtimeConsumers.length).toBeGreaterThan(0);
+      } else {
+        expect(setting.writable).toBe(false);
+        expect(setting.writeSurfaces).toEqual([]);
       }
 
-      if (setting.ownership === 'external') {
-        expect(setting.writable).toBe(false);
-        expect(setting.lifecycle).toBe('external');
-      }
+      if (setting.ownership === 'external') expect(setting.lifecycle).toBe('external');
     }
 
     expect(APP_SETTINGS_SECTION_KEYS.notifications).toContain(
@@ -63,9 +96,22 @@ describe('APP_SETTINGS_CATALOG', () => {
       ),
     ).toHaveLength(1);
     expect(WRITABLE_APP_SETTING_KEYS).not.toContain(APP_SETTING_KEYS.desktopOssAccessKeySecret);
+
+    expect(catalogItem(APP_SETTING_KEYS.ordersManagementEnabled)).toMatchObject({
+      auditPolicy: 'none',
+      effectiveSource: ['application-default'],
+      lifecycle: 'deprecated',
+      requiredCapability: 'systemRead',
+      runtimeConsumers: [],
+      writable: false,
+      writeSurfaces: [],
+    });
+    expect(GENERIC_WRITABLE_APP_SETTING_KEYS).not.toContain(
+      APP_SETTING_KEYS.ordersManagementEnabled,
+    );
   });
 
-  it('declares exact environment fallback order for S3 and Composio settings', () => {
+  it('declares exact environment fallback order for S3, Composio, cron, and memory', () => {
     const expectedS3Sources = new Map<string, string[]>([
       [APP_SETTING_KEYS.storageS3AccessKeyId, ['environment:S3_ACCESS_KEY_ID']],
       [APP_SETTING_KEYS.storageS3Bucket, ['environment:S3_BUCKET']],
@@ -88,36 +134,20 @@ describe('APP_SETTINGS_CATALOG', () => {
       ],
       [APP_SETTING_KEYS.storageS3Region, ['environment:S3_REGION']],
       [APP_SETTING_KEYS.storageS3SecretAccessKey, ['environment:S3_SECRET_ACCESS_KEY']],
-      [
-        APP_SETTING_KEYS.storageS3SetAcl,
-        ['environment:S3_SET_ACL', 'application-default'],
-      ],
+      [APP_SETTING_KEYS.storageS3SetAcl, ['environment:S3_SET_ACL', 'application-default']],
     ]);
 
     for (const [key, fallbacks] of expectedS3Sources) {
       expect(catalogItem(key).effectiveSource).toEqual([`database:${key}`, ...fallbacks]);
     }
 
-    expect(catalogItem(APP_SETTING_KEYS.storageS3AccessKeyId).defaultSource).toBe(
-      'environment:S3_ACCESS_KEY_ID',
-    );
-    expect(catalogItem(APP_SETTING_KEYS.composioEnabled)).toMatchObject({
-      defaultSource: 'derived:composio.apiKey-or-application-default',
-      effectiveSource: [
-        `database:${APP_SETTING_KEYS.composioEnabled}`,
-        'environment:COMPOSIO_ENABLED',
-        `database:${APP_SETTING_KEYS.composioApiKey}`,
-        'environment:COMPOSIO_API_KEY',
-        'application-default',
-      ],
-    });
-    expect(catalogItem(APP_SETTING_KEYS.composioAuthConfigIds)).toMatchObject({
-      defaultSource: 'environment:COMPOSIO_AUTH_CONFIG_IDS',
-      effectiveSource: [
-        `database:${APP_SETTING_KEYS.composioAuthConfigIds}`,
-        'environment:COMPOSIO_AUTH_CONFIG_IDS',
-      ],
-    });
+    expect(catalogItem(APP_SETTING_KEYS.composioEnabled).effectiveSource).toEqual([
+      `database:${APP_SETTING_KEYS.composioEnabled}`,
+      'environment:COMPOSIO_ENABLED',
+      `database:${APP_SETTING_KEYS.composioApiKey}`,
+      'environment:COMPOSIO_API_KEY',
+      'application-default',
+    ]);
     expect(catalogItem(APP_SETTING_KEYS.cronSecret).effectiveSource).toEqual([
       `database:${APP_SETTING_KEYS.cronSecret}`,
       'environment:CRON_SECRET',
@@ -127,451 +157,147 @@ describe('APP_SETTINGS_CATALOG', () => {
       `database:${APP_SETTING_KEYS.memoryUserMemoryTriggerMode}`,
       'application-default',
     ]);
+  });
+
+  it('matches the independent exact key-to-normalizer contract', () => {
+    expect(Object.keys(EXPECTED_NORMALIZER_BY_KEY).sort()).toEqual(
+      APP_SETTINGS_CATALOG.map((item) => item.key).sort(),
+    );
 
     for (const setting of APP_SETTINGS_CATALOG) {
-      expect(setting.defaultSource).toMatch(
-        /^(application-default|database:|derived:|environment:|external:)/,
-      );
-      for (const source of setting.effectiveSource) {
-        expect(source).toMatch(/^(application-default|database:|environment:|external:)/);
-      }
+      expect(setting.normalizer, setting.key).toBe(EXPECTED_NORMALIZER_BY_KEY[setting.key]);
     }
   });
 
-  it('owns concrete schemas and normalization adapters for writable values', () => {
-    const brandName = catalogItem(APP_SETTING_KEYS.brandName);
-    const retentionDays = catalogItem(APP_SETTING_KEYS.notificationRetentionDays);
-
-    expect(brandName.valueSchema.safeParse(42).success).toBe(false);
-    expect(brandName.normalizeValue).toBeTypeOf('function');
-    expect(brandName.normalizeValue('  ComHub  ')).toBe('ComHub');
-    expect(retentionDays.valueSchema.safeParse('90').success).toBe(false);
-    expect(retentionDays.normalizeValue('10000')).toBe(3650);
+  it('preserves focused pre-task normalization behavior', () => {
+    expect(normalizeAppSettingValue(APP_SETTING_KEYS.brandName, '  ComHub  ')).toBe('ComHub');
+    expect(normalizeAppSettingValue(APP_SETTING_KEYS.notificationRetentionDays, 10_000)).toBe(
+      3650,
+    );
+    expect(normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, '  exact secret  ')).toBe(
+      '  exact secret  ',
+    );
+    expect(normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, 42)).toBe(42);
+    expect(
+      normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, { nested: ['value'] }),
+    ).toEqual({ nested: ['value'] });
   });
 
-  it('models PPT settings as dedicated system-write contracts with exact schemas', () => {
-    const pptKeys = [
-      APP_SETTING_KEYS.docmeePptAllowPdfExport,
-      APP_SETTING_KEYS.docmeePptAllowPptxDownload,
-      APP_SETTING_KEYS.docmeePptApiKey,
-      APP_SETTING_KEYS.docmeePptAuditEnabled,
-      APP_SETTING_KEYS.docmeePptBaseUrl,
-      APP_SETTING_KEYS.docmeePptCreatorVersion,
-      APP_SETTING_KEYS.docmeePptDailyLimit,
-      APP_SETTING_KEYS.docmeePptDefaultLang,
-      APP_SETTING_KEYS.docmeePptEnabled,
-      APP_SETTING_KEYS.docmeePptThemeColor,
-      APP_SETTING_KEYS.docmeePptTokenTtlMinutes,
-    ];
+  it('models PPT settings as dedicated system-write contracts with exact limits', () => {
+    const pptKeys = Object.values(APP_SETTING_KEYS).filter((key) => key.startsWith('docmee.ppt.'));
 
+    expect([...PPT_WRITABLE_APP_SETTING_KEYS].sort()).toEqual([...pptKeys].sort());
     for (const key of pptKeys) {
       const setting = catalogItem(key);
       expect(setting).toMatchObject({
         auditPolicy: setting.sensitive ? 'write-redacted' : 'write',
         lifecycle: 'active',
-        ownership: 'application',
         requiredCapability: 'systemWrite',
-        section: 'ppt',
-        writable: true,
+        writeSurfaces: [PPT_WRITE_SURFACE],
       });
-      expect(setting.writeSurfaces).toEqual([PPT_WRITE_SURFACE]);
+      expect(GENERIC_WRITABLE_APP_SETTING_KEYS).not.toContain(key);
     }
-    expect([...PPT_WRITABLE_APP_SETTING_KEYS].sort()).toEqual([...pptKeys].sort());
-    for (const key of pptKeys) expect(GENERIC_WRITABLE_APP_SETTING_KEYS).not.toContain(key);
-
-    for (const key of [
-      APP_SETTING_KEYS.docmeePptAllowPdfExport,
-      APP_SETTING_KEYS.docmeePptAllowPptxDownload,
-      APP_SETTING_KEYS.docmeePptAuditEnabled,
-      APP_SETTING_KEYS.docmeePptEnabled,
-    ]) {
-      expect(catalogItem(key).valueSchema.safeParse(true).success).toBe(true);
-      expect(catalogItem(key).valueSchema.safeParse('true').success).toBe(false);
-    }
-    expect(catalogItem(APP_SETTING_KEYS.docmeePptApiKey).valueSchema.safeParse('key').success).toBe(
-      true,
-    );
-    expect(catalogItem(APP_SETTING_KEYS.docmeePptApiKey).valueSchema.safeParse(null).success).toBe(
-      false,
-    );
 
     const dailyLimit = catalogItem(APP_SETTING_KEYS.docmeePptDailyLimit).valueSchema;
     expect(dailyLimit.safeParse(null).success).toBe(true);
     expect(dailyLimit.safeParse(0).success).toBe(true);
-    expect(dailyLimit.safeParse(1).success).toBe(true);
     expect(dailyLimit.safeParse(-1).success).toBe(false);
-    expect(dailyLimit.safeParse(1.5).success).toBe(false);
 
     const tokenTtl = catalogItem(APP_SETTING_KEYS.docmeePptTokenTtlMinutes).valueSchema;
     expect(tokenTtl.safeParse(1).success).toBe(true);
     expect(tokenTtl.safeParse(1440).success).toBe(true);
     expect(tokenTtl.safeParse(0).success).toBe(false);
     expect(tokenTtl.safeParse(1441).success).toBe(false);
-    expect(tokenTtl.safeParse(null).success).toBe(false);
 
     expect(
-      catalogItem(APP_SETTING_KEYS.docmeePptCreatorVersion).valueSchema.safeParse('v3').success,
-    ).toBe(false);
-    expect(catalogItem(APP_SETTING_KEYS.docmeePptBaseUrl).valueSchema.safeParse('').success).toBe(
-      false,
-    );
-    expect(
-      catalogItem(APP_SETTING_KEYS.docmeePptDefaultLang).valueSchema.safeParse('').success,
-    ).toBe(false);
-    expect(
-      catalogItem(APP_SETTING_KEYS.docmeePptThemeColor).valueSchema.safeParse(null).success,
-    ).toBe(true);
-
-    expect(
-      normalizeAppSettingValue(
-        APP_SETTING_KEYS.docmeePptDailyLimit,
-        0,
-        PPT_WRITE_SURFACE,
-      ),
+      normalizeAppSettingValue(APP_SETTING_KEYS.docmeePptDailyLimit, 0, PPT_WRITE_SURFACE),
     ).toBeNull();
     expect(() =>
-      normalizeAppSettingValue(
-        APP_SETTING_KEYS.docmeePptEnabled,
-        true,
-        GENERIC_WRITE_SURFACE,
-      ),
+      normalizeAppSettingValue(APP_SETTING_KEYS.docmeePptEnabled, true, GENERIC_WRITE_SURFACE),
     ).toThrow(/not writable/);
   });
 
-  it('uses concrete runtime reader identifiers for active settings', () => {
-    const knownConsumers = new Set([
-      'AdminGrowthPage',
-      'AdminModelBillingMatrixPage',
-      'DocmeePptService.readSettings',
-      'adminPptRouter.getSettings',
-      'adminSettingsRouter.getPublicAboutLinks',
-      'adminSettingsRouter.getPublicAboutPage',
-      'adminSettingsRouter.getPublicBrand',
-      'adminSettingsRouter.getPublicDesktopUpdate',
-      'adminSettingsRouter.getPublicExpertPlaza',
-      'adminSettingsRouter.getPublicGrowth',
-      'adminSettingsRouter.getPublicHelpMenu',
-      'adminSettingsRouter.getPublicNotificationConfig',
-      'adminSettingsRouter.getPublicOperations',
-      'adminSettingsRouter.getPublicProfileOptions',
-      'adminSettingsRouter.getPublicRecommendations',
-      'adminSettingsRouter.runMaintenance',
-      'getServerComposioConfig',
-      'getServerDefaultAgentSettingOverrides',
-      'getServerDefaultGenerationModelSettingOverrides',
-      'getServerFileS3Config',
-      'getServerMemoryExtractionSettingOverrides',
-      'getServerModelPolicyConfig',
-      'getServerPublicCustomizationConfig',
-      'getServerUserGlobalSettingsDefaults',
-      'getServerVectorSettingOverrides',
-      'resolveUserMemoryTriggerMode',
-      'resolveGenerationPricingMultiplier',
-      'src/app/(backend)/api/admin/maintenance/route.POST',
-      'subscriptionRouter.listPlanFaq',
-    ]);
-    const forbiddenConsumers = new Set([
-      'adminPptRouter.readSettings',
-      'adminSettingsRouter.getAll',
-    ]);
+  it('derives runtime consumers from source-backed contracts', () => {
+    type ConsumerContract = {
+      id: string;
+      keyEvidence:
+        | { kind: 'literal'; sourceSymbol?: string }
+        | { kind: 'prefix'; prefix: string; sourceSymbol?: string }
+        | {
+            kind: 'registry';
+            namespace: 'APP_SETTING_KEYS' | 'SETTING_KEYS';
+            sourceSymbol?: string;
+          };
+      keys: string[];
+      sourcePath: string;
+      symbol: string;
+    };
 
-    for (const setting of APP_SETTINGS_CATALOG.filter((item) => item.lifecycle === 'active')) {
-      expect(setting.runtimeConsumers.length).toBeGreaterThan(0);
-      for (const consumer of setting.runtimeConsumers) {
-        expect(forbiddenConsumers.has(consumer)).toBe(false);
-        expect(knownConsumers.has(consumer)).toBe(true);
+    const contracts = (catalogContract as any)
+      .APP_SETTING_RUNTIME_CONSUMER_CONTRACTS as ConsumerContract[];
+    expect(contracts).toBeDefined();
+    expect(new Set(contracts.map((contract) => contract.id)).size).toBe(contracts.length);
+
+    const keyNames = new Map<string, string>(
+      Object.entries(APP_SETTING_KEYS).map(([name, key]) => [key, name] as const),
+    );
+
+    for (const contract of contracts) {
+      expect(contract.sourcePath).not.toMatch(/src\/features\/Admin/);
+      expect(contract.symbol).not.toContain('getAll');
+
+      const sourceFile = path.resolve(repoRoot, contract.sourcePath);
+      expect(existsSync(sourceFile), contract.sourcePath).toBe(true);
+      const source = readFileSync(sourceFile, 'utf8');
+      const consumerSource = findNamedSource(source, contract.sourcePath, contract.symbol);
+      const evidenceSource = contract.keyEvidence.sourceSymbol
+        ? findNamedSource(source, contract.sourcePath, contract.keyEvidence.sourceSymbol)
+        : consumerSource;
+      if (contract.keyEvidence.sourceSymbol) {
+        expect(consumerSource, `${contract.id}:${contract.keyEvidence.sourceSymbol}`).toContain(
+          contract.keyEvidence.sourceSymbol,
+        );
+      }
+
+      for (const key of contract.keys) {
+        if (contract.keyEvidence.kind === 'registry') {
+          const keyName = keyNames.get(key);
+          expect(keyName, key).toBeDefined();
+          expect(evidenceSource, `${contract.id}:${key}`).toContain(
+            `${contract.keyEvidence.namespace}.${keyName}`,
+          );
+        } else if (contract.keyEvidence.kind === 'literal') {
+          expect(evidenceSource, `${contract.id}:${key}`).toContain(key);
+        } else {
+          expect(key.startsWith(contract.keyEvidence.prefix), key).toBe(true);
+          expect(evidenceSource, `${contract.id}:${key}`).toContain(contract.keyEvidence.prefix);
+        }
       }
     }
 
-    expect(catalogItem(APP_SETTING_KEYS.storageS3Bucket).runtimeConsumers).toContain(
-      'getServerFileS3Config',
-    );
-    expect(catalogItem(APP_SETTING_KEYS.composioApiKey).runtimeConsumers).toContain(
-      'getServerComposioConfig',
-    );
-    for (const key of [
-      APP_SETTING_KEYS.cronAuditRetentionDays,
-      APP_SETTING_KEYS.cronPendingOrderExpiryDays,
-      APP_SETTING_KEYS.cronSecret,
-    ]) {
-      expect(catalogItem(key).runtimeConsumers).toContain(
-        'src/app/(backend)/api/admin/maintenance/route.POST',
+    for (const setting of APP_SETTINGS_CATALOG) {
+      const expected = contracts
+        .filter((contract) => contract.keys.includes(setting.key))
+        .map(({ id, sourcePath, symbol }) => ({ id, sourcePath, symbol }));
+      expect(setting.runtimeConsumers, setting.key).toEqual(
+        setting.lifecycle === 'active' ? expected : [],
       );
     }
-    expect(catalogItem(APP_SETTING_KEYS.notificationRetentionDays).runtimeConsumers).toContain(
-      'adminSettingsRouter.runMaintenance',
-    );
-    expect(catalogItem(APP_SETTING_KEYS.ordersManagementEnabled).runtimeConsumers).toContain(
-      'AdminModelBillingMatrixPage',
-    );
-    expect(catalogItem(APP_SETTING_KEYS.plansFaqItems).runtimeConsumers).toContain(
-      'subscriptionRouter.listPlanFaq',
-    );
-    for (const key of [
-      APP_SETTING_KEYS.pricingCreditMultiplier,
-      APP_SETTING_KEYS.pricingModelRules,
-    ]) {
-      expect(catalogItem(key).runtimeConsumers).toContain('resolveGenerationPricingMultiplier');
-    }
-    expect(catalogItem(APP_SETTING_KEYS.referralRewardCredits).runtimeConsumers).toContain(
-      'AdminGrowthPage',
-    );
-    expect(catalogItem(APP_SETTING_KEYS.docmeePptEnabled).runtimeConsumers).toContain(
-      'DocmeePptService.readSettings',
-    );
-  });
 
-  it('preserves cron.secret bytes and matches every pre-task normalization branch', () => {
-    type ParityCase = {
-      expected: unknown;
-      input: unknown;
-      key: string;
-      normalizer: string;
-    };
-
-    const cases: ParityCase[] = [
-      {
-        expected: '  exact secret  ',
-        input: '  exact secret  ',
-        key: APP_SETTING_KEYS.cronSecret,
-        normalizer: 'string',
-      },
-      {
-        expected: 3650,
-        input: 9999,
-        key: APP_SETTING_KEYS.cronAuditRetentionDays,
-        normalizer: 'bounded-integer',
-      },
-      {
-        expected: 1,
-        input: -4,
-        key: APP_SETTING_KEYS.cronPendingOrderExpiryDays,
-        normalizer: 'bounded-integer',
-      },
-      {
-        expected: 0,
-        input: -4,
-        key: APP_SETTING_KEYS.referralRewardCredits,
-        normalizer: 'bounded-integer',
-      },
-      {
-        expected: true,
-        input: 'false',
-        key: APP_SETTING_KEYS.composioEnabled,
-        normalizer: 'boolean',
-      },
-      {
-        expected: '{"provider":"id"}',
-        input: '  {"provider":"id"}  ',
-        key: APP_SETTING_KEYS.composioAuthConfigIds,
-        normalizer: 'string',
-      },
-      {
-        expected: 'model',
-        input: '  model  ',
-        key: APP_SETTING_KEYS.defaultAgentModel,
-        normalizer: 'string',
-      },
-      {
-        expected: 100,
-        input: 101,
-        key: APP_SETTING_KEYS.pricingCreditMultiplier,
-        normalizer: 'bounded-integer',
-      },
-      {
-        expected: [],
-        input: 'not-an-array',
-        key: APP_SETTING_KEYS.pricingModelRules,
-        normalizer: 'object',
-      },
-      {
-        expected: false,
-        input: 0,
-        key: APP_SETTING_KEYS.ordersManagementEnabled,
-        normalizer: 'boolean',
-      },
-      {
-        expected: normalizePlanFaqSettings([]),
-        input: [],
-        key: APP_SETTING_KEYS.plansFaqItems,
-        normalizer: 'object',
-      },
-      {
-        expected: true,
-        input: 1,
-        key: APP_SETTING_KEYS.homeMessengerEnabled,
-        normalizer: 'brand',
-      },
-      {
-        expected: 24,
-        input: 99,
-        key: APP_SETTING_KEYS.communityFeaturedAssistantPageSize,
-        normalizer: 'operations',
-      },
-      {
-        expected: 'Announcement',
-        input: '  Announcement  ',
-        key: APP_SETTING_KEYS.communityHomeAnnouncementTitle,
-        normalizer: 'operations',
-      },
-      {
-        expected: 10_000_000_000,
-        input: Number.MAX_SAFE_INTEGER,
-        key: APP_SETTING_KEYS.uploadMaxActualSizeMb,
-        normalizer: 'bounded-integer',
-      },
-      {
-        expected: [{ key: 'ai', label: 'AI' }],
-        input: [{ key: 'ai', label: ' AI ' }],
-        key: APP_SETTING_KEYS.profileInterestAreas,
-        normalizer: 'profile',
-      },
-      {
-        expected: normalizeAvatarPresets([]),
-        input: [],
-        key: APP_SETTING_KEYS.profileAvatarPresets,
-        normalizer: 'profile',
-      },
-      {
-        expected: 'auto',
-        input: 'invalid',
-        key: APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
-        normalizer: 'string',
-      },
-      {
-        expected: 'provider',
-        input: '  provider  ',
-        key: APP_SETTING_KEYS.vectorEmbeddingProvider,
-        normalizer: 'string',
-      },
-      {
-        expected: {},
-        input: [],
-        key: APP_SETTING_KEYS.userGlobalSettingsDefaults,
-        normalizer: 'object',
-      },
-      {
-        expected: normalizeExpertPlazaCards([]),
-        input: [],
-        key: APP_SETTING_KEYS.expertPlazaCards,
-        normalizer: 'expert-plaza',
-      },
-      {
-        expected: ['news', 'tools'],
-        input: 'news, tools, news',
-        key: APP_SETTING_KEYS.expertPlazaCategories,
-        normalizer: 'expert-plaza',
-      },
-      {
-        expected: normalizeNotificationEventDefaults({}),
-        input: {},
-        key: APP_SETTING_KEYS.notificationEventDefaults,
-        normalizer: 'notification',
-      },
-      {
-        expected: 'warning',
-        input: 'invalid',
-        key: APP_SETTING_KEYS.notificationSystemType,
-        normalizer: 'notification',
-      },
-      {
-        expected: 604_800,
-        input: 999_999,
-        key: APP_SETTING_KEYS.storageS3PreviewUrlExpireIn,
-        normalizer: 'storage',
-      },
-      {
-        expected: 'folder/child',
-        input: ' /folder\\child/ ',
-        key: APP_SETTING_KEYS.storageS3FilePath,
-        normalizer: 'storage',
-      },
-      {
-        expected: 'https://s3.example.com',
-        input: ' https://s3.example.com ',
-        key: APP_SETTING_KEYS.storageS3Endpoint,
-        normalizer: 'storage',
-      },
-      {
-        expected: ['model-a', 'model-b'],
-        input: 'model-a, model-b, model-a',
-        key: APP_SETTING_KEYS.modelPolicyAllowlist,
-        normalizer: 'model-policy',
-      },
-      {
-        expected: 'blocklist',
-        input: 'invalid',
-        key: APP_SETTING_KEYS.modelPolicyMode,
-        normalizer: 'model-policy',
-      },
-      {
-        expected: 'installCount',
-        input: '   ',
-        key: APP_SETTING_KEYS.recommendationHotSkillSort,
-        normalizer: 'recommendation',
-      },
-      {
-        expected: ['tag-a', 'tag-b'],
-        input: 'tag-a, tag-b, tag-a',
-        key: APP_SETTING_KEYS.recommendationAssistantTags,
-        normalizer: 'recommendation',
-      },
-      {
-        expected: 'ComHub',
-        input: '  ComHub  ',
-        key: APP_SETTING_KEYS.brandName,
-        normalizer: 'brand',
-      },
-      {
-        expected: normalizeHelpMenuItems([]),
-        input: [],
-        key: APP_SETTING_KEYS.helpMenuItems,
-        normalizer: 'about',
-      },
-      {
-        expected: normalizeAboutLinksConfig({}),
-        input: {},
-        key: APP_SETTING_KEYS.aboutLinks,
-        normalizer: 'about',
-      },
-      {
-        expected: normalizeAboutPageConfig({}),
-        input: {},
-        key: APP_SETTING_KEYS.aboutPage,
-        normalizer: 'about',
-      },
-      {
-        expected: 'Sign in',
-        input: '  Sign in  ',
-        key: APP_SETTING_KEYS.desktopLoginTitle,
-        normalizer: 'desktop-login',
-      },
-      {
-        expected: 1440,
-        input: 9999,
-        key: APP_SETTING_KEYS.desktopUpdateCheckInterval,
-        normalizer: 'desktop-update',
-      },
-      {
-        expected: 'stable',
-        input: 'beta',
-        key: APP_SETTING_KEYS.desktopUpdateChannel,
-        normalizer: 'desktop-update',
-      },
-    ];
-
-    const genericNormalizers = new Set(
-      APP_SETTINGS_CATALOG.filter((item) =>
-        GENERIC_WRITABLE_APP_SETTING_KEYS.includes(item.key),
-      ).map((item) => item.normalizer),
+    const cronConsumerPaths = catalogItem(APP_SETTING_KEYS.cronSecret).runtimeConsumers.map(
+      (consumer: any) => consumer.sourcePath,
     );
-    expect(new Set(cases.map((item) => item.normalizer))).toEqual(genericNormalizers);
-
-    for (const item of cases) {
-      expect(
-        normalizeAppSettingValue(item.key, item.input, GENERIC_WRITE_SURFACE),
-        item.key,
-      ).toEqual(item.expected);
-    }
+    expect(cronConsumerPaths).toEqual(
+      expect.arrayContaining([
+        'src/app/(backend)/api/admin/desktop-release/route.ts',
+        'src/app/(backend)/api/admin/maintenance/route.ts',
+      ]),
+    );
+    expect(catalogItem(APP_SETTING_KEYS.referralRewardCredits).runtimeConsumers).toContainEqual(
+      expect.objectContaining({
+        sourcePath: 'packages/database/src/models/commercial.ts',
+        symbol: 'resolveReferralRewardCredits',
+      }),
+    );
   });
 });

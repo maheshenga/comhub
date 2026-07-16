@@ -645,7 +645,9 @@
   'admin.growth.uploadSection': '上传限制',
   'admin.pricing.example': '填入示例',
   'admin.pricing.multiplier': '全局积分倍率',
-  'admin.pricing.ordersEnabled': '启用订单管理',
+  'admin.pricing.ordersEnabled': '在线平台支付（已关闭）',
+  'admin.pricing.ordersEnabled.help':
+    '平台在线支付保持关闭，仅兑换码充值可用；此状态不可在后台开启。',
   'admin.pricing.rules': '模型计费规则',
   'admin.pricing.rules.help': 'JSON 数组。每项可包含 provider、model、multiplier、creditsPerDollar。',
   'admin.pricing.saveFailed': '保存失败，请检查规则 JSON。',

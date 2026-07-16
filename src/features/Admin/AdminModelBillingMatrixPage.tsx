@@ -27,6 +27,9 @@ import {
   MATRIX_SUBTITLE,
 } from '@/features/Admin/adminMatrixCopy';
 import {
+  type BillingBasisValues,
+  buildBillingBasisUpdates,
+  buildBillingBasisValues,
   buildMatrixRows,
   buildPlanModelRulesFromRows,
   buildPricingRulesFromRows,
@@ -107,11 +110,6 @@ type EnabledModelItem = {
   providerType?: string | null;
 };
 
-type BillingBasisValues = {
-  ordersEnabled: boolean;
-  pricingMultiplier: number;
-};
-
 const FILTERABLE_CONFIG_HEALTH_CHECKS = new Set([
   'blocked-models',
   'default-models',
@@ -125,19 +123,6 @@ const FILTERABLE_CONFIG_HEALTH_CHECKS = new Set([
 
 const toFiniteNumber = (value: number | string | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-
-const buildBillingBasisValues = (settings?: {
-  ordersManagementEnabled?: boolean | null;
-  pricingCreditMultiplier?: number | null;
-}): BillingBasisValues => ({
-  ordersEnabled: settings?.ordersManagementEnabled ?? true,
-  pricingMultiplier:
-    typeof settings?.pricingCreditMultiplier === 'number' &&
-    Number.isFinite(settings.pricingCreditMultiplier) &&
-    settings.pricingCreditMultiplier > 0
-      ? settings.pricingCreditMultiplier
-      : DEFAULT_PRICING_CREDIT_MULTIPLIER,
-});
 
 const getDefaultModelErrorMessage = (error: any) => {
   if (error?.message === 'DEFAULT_MODEL_NOT_ENABLED') {
@@ -320,14 +305,7 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSaveBillingBasis = async () => {
-    const updates = [
-      ...(billingBasis.pricingMultiplier !== billingBasisInitial.pricingMultiplier
-        ? [{ key: SETTING_KEYS.pricingCreditMultiplier, value: billingBasis.pricingMultiplier }]
-        : []),
-      ...(billingBasis.ordersEnabled !== billingBasisInitial.ordersEnabled
-        ? [{ key: SETTING_KEYS.ordersManagementEnabled, value: billingBasis.ordersEnabled }]
-        : []),
-    ];
+    const updates = buildBillingBasisUpdates(billingBasis, billingBasisInitial);
 
     if (updates.length === 0) {
       message.info(t('admin.modelBillingMatrix.billingBasisNoChanges', '没有需要保存的变更'));
@@ -651,7 +629,7 @@ const AdminModelBillingMatrixPage = memo(() => {
           <Text type="secondary">
             {t(
               'admin.modelBillingMatrix.billingBasisDescription',
-              '这里维护订单入口和全局积分倍率；单模型倍率、每美元积分和套餐开放范围继续在下方矩阵维护。',
+              '在线平台支付保持关闭；这里仅维护全局积分倍率，单模型倍率、每美元积分和套餐开放范围继续在下方矩阵维护。',
             )}
           </Text>
 
@@ -680,17 +658,17 @@ const AdminModelBillingMatrixPage = memo(() => {
             </Flexbox>
 
             <Flexbox gap={8} style={{ minWidth: 220 }}>
-              <Text strong>{t('admin.modelBillingMatrix.ordersEnabled', '订单管理')}</Text>
+              <Text strong>{t('admin.pricing.ordersEnabled', '在线平台支付（已关闭）')}</Text>
               <Switch
-                checked={billingBasis.ordersEnabled}
+                disabled
+                checked={false}
                 checkedChildren={t('admin.modelBillingMatrix.enabled', '启用')}
                 unCheckedChildren={t('admin.modelBillingMatrix.disabled', '停用')}
-                onChange={(checked) => updateBillingBasis({ ordersEnabled: checked })}
               />
               <Text type="secondary">
                 {t(
-                  'admin.modelBillingMatrix.ordersEnabledHelp',
-                  '控制前台订单与充值相关能力是否开放。',
+                  'admin.pricing.ordersEnabled.help',
+                  '平台在线支付保持关闭，仅兑换码充值可用；此状态不可在后台开启。',
                 )}
               </Text>
             </Flexbox>

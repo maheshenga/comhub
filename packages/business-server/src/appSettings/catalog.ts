@@ -4,7 +4,8 @@ import {
   listAppSettingRegistryItems,
 } from '@/const/appSettingsRegistry';
 
-import { getAppSettingRuntimeConsumers, getAppSettingSourceMetadata } from './definitions/metadata';
+import { getAppSettingSourceMetadata } from './definitions/metadata';
+import { getAppSettingRuntimeConsumers } from './definitions/runtimeConsumers';
 import { getAppSettingValueDefinition } from './definitions/valueDefinitions';
 import type {
   AppSettingCatalogItem,
@@ -13,9 +14,12 @@ import type {
   AppSettingWriteSurface,
 } from './types';
 
+export { APP_SETTING_RUNTIME_CONSUMER_CONTRACTS } from './definitions/runtimeConsumers';
 export type {
   AppSettingCatalogItem,
   AppSettingLifecycle,
+  AppSettingRuntimeConsumer,
+  AppSettingRuntimeConsumerContract,
   AppSettingsSection,
   AppSettingWriteSurface,
 } from './types';
@@ -32,6 +36,10 @@ const EXTERNAL_SETTING_OWNERS: Partial<Record<AppSettingKey, string>> = {
   [APP_SETTING_KEYS.desktopOssEndpoint]: 'CI/GitHub Secrets',
   [APP_SETTING_KEYS.desktopOssPath]: 'CI/GitHub Secrets',
 };
+
+const DEPRECATED_SETTING_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.ordersManagementEnabled,
+]);
 
 const sectionForKey = (key: AppSettingKey): AppSettingsSection => {
   if (key.startsWith('desktop.')) return 'desktop-update';
@@ -64,7 +72,7 @@ const writeSurfacesFor = (
   key: AppSettingKey,
   lifecycle: AppSettingCatalogItem['lifecycle'],
 ): AppSettingWriteSurface[] => {
-  if (lifecycle === 'external') return [];
+  if (lifecycle !== 'active') return [];
   if (key.startsWith('docmee.')) return [APP_SETTING_WRITE_SURFACES.pptAdmin];
 
   return [APP_SETTING_WRITE_SURFACES.genericAdmin];
@@ -86,7 +94,11 @@ export const APP_SETTINGS_CATALOG: AppSettingCatalogItem[] = listAppSettingRegis
   (registryItem) => {
     const section = sectionForKey(registryItem.key);
     const externalOwner = EXTERNAL_SETTING_OWNERS[registryItem.key];
-    const lifecycle = externalOwner ? 'external' : 'active';
+    const lifecycle = externalOwner
+      ? 'external'
+      : DEPRECATED_SETTING_KEYS.has(registryItem.key)
+        ? 'deprecated'
+        : 'active';
     const sourceMetadata = getAppSettingSourceMetadata(registryItem.key, lifecycle);
     const valueDefinition = getAppSettingValueDefinition(registryItem.key);
     const writeSurfaces = writeSurfacesFor(registryItem.key, lifecycle);

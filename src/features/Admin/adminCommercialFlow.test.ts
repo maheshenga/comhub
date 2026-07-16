@@ -457,6 +457,23 @@ describe('admin commercial flow pages', () => {
     expect(adminPlansPage).toContain('留空时前台不展示');
   });
 
+  it('renders order control as fail-closed compatibility state and never submits it', () => {
+    const billingMatrixPage = readRepoFile(
+      'src/features/Admin/AdminModelBillingMatrixPage.tsx',
+    );
+    const defaultLocale = readRepoFile('packages/locales/src/default/subscription.ts');
+    const enLocale = readRepoFile('locales/en-US/subscription.json');
+    const zhLocale = readRepoFile('locales/zh-CN/subscription.json');
+
+    expect(billingMatrixPage).toContain('checked={false}');
+    expect(billingMatrixPage).toContain('disabled');
+    expect(billingMatrixPage).toContain("'admin.pricing.ordersEnabled'");
+    expect(billingMatrixPage).not.toContain('SETTING_KEYS.ordersManagementEnabled');
+    expect(defaultLocale).toContain("'admin.pricing.ordersEnabled': '在线平台支付（已关闭）'");
+    expect(enLocale).toContain('"admin.pricing.ordersEnabled": "Online platform payment (disabled)"');
+    expect(zhLocale).toContain('"admin.pricing.ordersEnabled": "在线平台支付（已关闭）"');
+  });
+
   it('uses configured brand and keeps a non-duplicative usable balance summary on credits page', () => {
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
 

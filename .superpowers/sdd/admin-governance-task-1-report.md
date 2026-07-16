@@ -144,3 +144,52 @@ Only these source areas changed:
 - PPT procedure names, response shapes, prior input constraints, nullable daily-limit behavior, and API-key clear semantics remain unchanged.
 - Generic writes remain fail-closed for PPT and external desktop OSS keys because each mutation validates against its exact catalog write surface.
 - No payment, deployment, navigation, Module App, Worker, or secret-ownership boundary changed.
+
+## Third Review Fix and Task 2 Scope Extension
+
+### Changes
+
+- Replaced the hand-maintained runtime-consumer allowlist with typed source contracts containing a source path, consumer symbol, key evidence strategy, and exact covered keys. Catalog runtime consumers are now derived from those contracts.
+- Strengthened catalog tests with TypeScript AST inspection. Each contract must resolve its named symbol and prove the setting-key evidence inside that symbol; local key registries are modeled as an explicit consumer-to-evidence-symbol reference.
+- Corrected `memory.userMemory.triggerMode` metadata to use its real `resolveUserMemoryTriggerMode` reader instead of the extraction-model reader discovered by the stronger contract test.
+- Declared both current `cron.secret` consumers: the maintenance endpoint and desktop-release endpoint. Generic writes preserve whitespace-bearing strings and non-string JSON values so both readers retain their pre-task fallback behavior.
+- Replaced broad representative normalizer assertions with a compact exact key-to-normalizer fixture covering every catalog key plus focused behavior cases for trimming, bounds, and exact `cron.secret` passthrough.
+- Completed the approved Task 2 scope: referral rewards now consume `referral.rewardCredits`; `orders.management.enabled` is deprecated and non-writable; the compatibility response is always `false`; the billing UI is read-only for online payment and only submits pricing multiplier changes.
+
+### TDD Evidence
+
+1. Initial takeover focused gates were green before the final source relationship tightening:
+   - Database referral suite: 1 file, 9 tests passed.
+   - Business-server catalog/settings/PPT suites: 3 files, 58 tests passed.
+   - Frontend commercial-flow/billing-helper suites: 2 files, 59 tests passed.
+2. Symbol-scoped source contract RED 1:
+   `bunx vitest run --silent='passed-only' src/appSettings/catalog.test.ts`
+   - 1 of 6 tests failed because `DocmeePptService.readSettings` referenced `DOCMEE_SETTING_KEYS` instead of containing the prefix directly.
+3. Symbol-scoped source contract RED 2 after modeling that indirection:
+   - 1 of 6 tests failed because `memory.userMemory.triggerMode` was incorrectly assigned to `getServerMemoryExtractionSettingOverrides`.
+4. GREEN after explicit evidence symbols and the correct memory-trigger consumer:
+   - Catalog suite: 1 file, 6 tests passed.
+
+### Final Verification Evidence
+
+- `packages/database`: serialized commercial/referral/top-up suites
+  - 3 files passed, 43 tests passed. This includes configured referral rewards, fallback/snapshot priority, one setting read per public operation, and the unchanged online-payment error code.
+- `packages/business-server`: catalog/settings/PPT suites
+  - 3 files passed, 58 tests passed.
+- Repository root: governance, admin form, desktop update, commercial flow, billing helper, and Docmee suites
+  - 8 files passed, 110 tests passed.
+- Repository root: PPT workspace suite via direct Node Vitest invocation
+  - 1 file passed, 4 tests passed.
+- Final post-lint focused recheck
+  - Catalog: 1 file, 6 tests passed.
+  - Billing helper: 1 file, 20 tests passed.
+- Locale contract: default, en-US, and zh-CN keys parsed and were present.
+- `bun run type-check`: passed (`tsgo --noEmit`).
+- Targeted ESLint over every changed TypeScript/TSX file: passed.
+- `git diff --check`: passed.
+
+### Third Review Self-review
+
+- Runtime-consumer contracts reject admin editor pages and generic admin reads as operational consumers and prove source/symbol/key relationships.
+- `cron.secret` remains byte-preserving for strings and passthrough for JSON values; non-string runtime values continue to fall back to `CRON_SECRET`.
+- Online platform payment remains fail closed. No Alipay behavior, deployment behavior, Module App payment/refund/payout behavior, Worker behavior, navigation, or desktop secret ownership changed.

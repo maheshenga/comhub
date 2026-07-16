@@ -17,7 +17,7 @@ export type AppSettingsSection =
   | 'settings'
   | 'system-defaults';
 
-export type AppSettingLifecycle = 'active' | 'external';
+export type AppSettingLifecycle = 'active' | 'deprecated' | 'external';
 
 export type AppSettingWriteSurface =
   | 'adminPptRouter.saveSettings'
@@ -31,6 +31,7 @@ export type AppSettingNormalizer =
   | 'desktop-login'
   | 'desktop-update'
   | 'expert-plaza'
+  | 'json'
   | 'model-list'
   | 'model-policy'
   | 'notification'
@@ -41,6 +42,24 @@ export type AppSettingNormalizer =
   | 'recommendation'
   | 'storage'
   | 'string';
+
+export type AppSettingRuntimeConsumer = {
+  id: string;
+  sourcePath: string;
+  symbol: string;
+};
+
+export type AppSettingRuntimeConsumerContract = AppSettingRuntimeConsumer & {
+  keyEvidence:
+    | { kind: 'literal'; sourceSymbol?: string }
+    | { kind: 'prefix'; prefix: string; sourceSymbol?: string }
+    | {
+        kind: 'registry';
+        namespace: 'APP_SETTING_KEYS' | 'SETTING_KEYS';
+        sourceSymbol?: string;
+      };
+  keys: AppSettingKey[];
+};
 
 export type AppSettingCatalogItem = {
   auditPolicy: 'none' | 'write' | 'write-redacted';
@@ -57,7 +76,7 @@ export type AppSettingCatalogItem = {
   ownership: 'application' | 'external';
   publicRuntime: boolean;
   requiredCapability: 'systemRead' | 'systemWrite';
-  runtimeConsumers: string[];
+  runtimeConsumers: AppSettingRuntimeConsumer[];
   runtimeEffects: string[];
   section: AppSettingsSection;
   sensitive: boolean;

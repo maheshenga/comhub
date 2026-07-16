@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { MatrixSourceModel } from './adminModelBillingMatrix';
 import {
+  buildBillingBasisUpdates,
+  buildBillingBasisValues,
   buildMatrixRows,
   buildPlanModelRulesFromRows,
   buildPricingRulesFromRows,
@@ -9,6 +10,7 @@ import {
   getDefaultModelHealth,
   getMatrixConfigHealth,
   getMatrixConfigHealthFocus,
+  type MatrixSourceModel,
   togglePlanAccess,
 } from './adminModelBillingMatrix';
 
@@ -44,6 +46,21 @@ describe('adminModelBillingMatrix', () => {
       priority: 0,
     },
   ];
+
+  it('ignores deprecated order settings while preserving pricing multiplier edits', () => {
+    expect(
+      buildBillingBasisValues({
+        ordersManagementEnabled: true,
+        pricingCreditMultiplier: 1.5,
+      }),
+    ).toEqual({ pricingMultiplier: 1.5 });
+    expect(
+      buildBillingBasisUpdates({ pricingMultiplier: 2 }, { pricingMultiplier: 1 }),
+    ).toEqual([{ key: 'pricing.creditMultiplier', value: 2 }]);
+    expect(
+      buildBillingBasisUpdates({ pricingMultiplier: 1 }, { pricingMultiplier: 1 }),
+    ).toEqual([]);
+  });
 
   it('accepts optional model metadata flags on source models', () => {
     const sourceModel: MatrixSourceModel = {
