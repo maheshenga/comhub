@@ -19,6 +19,10 @@ export type AppSettingsSection =
 
 export type AppSettingLifecycle = 'active' | 'external';
 
+export type AppSettingWriteSurface =
+  | 'adminPptRouter.saveSettings'
+  | 'adminSettingsRouter.setAppSetting';
+
 export type AppSettingNormalizer =
   | 'about'
   | 'boolean'
@@ -41,6 +45,7 @@ export type AppSettingNormalizer =
 export type AppSettingCatalogItem = {
   auditPolicy: 'none' | 'write' | 'write-redacted';
   cacheScopes: Array<'app-settings' | 'brand' | 'runtime' | 's3' | 'user-state'>;
+  clearValue?: null;
   defaultSource: string;
   domain: AppSettingDomain;
   effectiveSource: string[];
@@ -58,9 +63,10 @@ export type AppSettingCatalogItem = {
   sensitive: boolean;
   valueSchema: z.ZodType<unknown>;
   writable: boolean;
+  writeSurfaces: AppSettingWriteSurface[];
 };
 
 export type AppSettingValueDefinition = Pick<
   AppSettingCatalogItem,
-  'normalizer' | 'normalizeValue' | 'valueSchema'
+  'clearValue' | 'normalizer' | 'normalizeValue' | 'valueSchema'
 >;

@@ -23,7 +23,9 @@ const defineValue = <T>(
   normalizer: AppSettingNormalizer,
   valueSchema: z.ZodType<T>,
   normalize: (value: unknown) => T,
+  options: { clearValue?: null } = {},
 ): AppSettingValueDefinition => ({
+  ...(options.clearValue === null ? { clearValue: null } : {}),
   normalizer,
   normalizeValue: (value) => valueSchema.parse(normalize(value)),
   valueSchema: valueSchema as z.ZodType<unknown>,
@@ -89,6 +91,8 @@ const normalizeProfileInterestAreas = (value: unknown) => {
 
 const stringValue = (normalizer: AppSettingNormalizer = 'string') =>
   defineValue(normalizer, stringSchema, toString);
+const exactStringValue = (normalizer: AppSettingNormalizer = 'string') =>
+  defineValue(normalizer, stringSchema, (value) => (typeof value === 'string' ? value : ''));
 const booleanValue = (normalizer: AppSettingNormalizer = 'boolean') =>
   defineValue(normalizer, booleanSchema, toBoolean);
 const numberValue = (normalizer: AppSettingNormalizer, normalize: (value: unknown) => number) =>
@@ -153,11 +157,6 @@ const DOCMEE_BOOLEAN_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.docmeePptAuditEnabled,
   APP_SETTING_KEYS.docmeePptEnabled,
 ]);
-const DOCMEE_NUMBER_KEYS = new Set<AppSettingKey>([
-  APP_SETTING_KEYS.docmeePptDailyLimit,
-  APP_SETTING_KEYS.docmeePptTokenTtlMinutes,
-]);
-
 export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValueDefinition => {
   if (key === APP_SETTING_KEYS.cronAuditRetentionDays) {
     return numberValue('bounded-integer', (value) => {
@@ -180,7 +179,7 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
       return Math.max(0, Math.round(n));
     });
   }
-  if (key === APP_SETTING_KEYS.cronSecret) return stringValue('string');
+  if (key === APP_SETTING_KEYS.cronSecret) return exactStringValue('string');
 
   if (key === APP_SETTING_KEYS.composioEnabled) return booleanValue();
   if (key === APP_SETTING_KEYS.composioAuthConfigIds) {
@@ -362,9 +361,39 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
   if (key.startsWith('desktop.')) return stringValue('desktop-update');
 
   if (DOCMEE_BOOLEAN_KEYS.has(key)) return booleanValue('passthrough');
-  if (DOCMEE_NUMBER_KEYS.has(key)) {
-    return numberValue('passthrough', (value) =>
-      toBoundedInt(value, 0, 0, Number.MAX_SAFE_INTEGER),
+  if (key === APP_SETTING_KEYS.docmeePptApiKey) {
+    return defineValue(
+      'passthrough',
+      stringSchema,
+      (value) => (typeof value === 'string' ? value.trim() : ''),
+      { clearValue: null },
+    );
+  }
+  if (key === APP_SETTING_KEYS.docmeePptBaseUrl) {
+    return defineValue('passthrough', z.string().trim().min(1).max(512), toString);
+  }
+  if (key === APP_SETTING_KEYS.docmeePptCreatorVersion) {
+    return defineValue('passthrough', z.enum(['v1', 'v2']), (value) => value as 'v1' | 'v2');
+  }
+  if (key === APP_SETTING_KEYS.docmeePptDailyLimit) {
+    return defineValue('passthrough', z.number().int().min(0).nullable(), (value) =>
+      typeof value === 'number' && value > 0 ? value : null,
+    );
+  }
+  if (key === APP_SETTING_KEYS.docmeePptDefaultLang) {
+    return defineValue('passthrough', z.string().trim().min(1).max(16), toString);
+  }
+  if (key === APP_SETTING_KEYS.docmeePptThemeColor) {
+    return defineValue('passthrough', z.string().trim().max(32).nullable(), (value) => {
+      if (value === null) return null;
+      return toString(value) || null;
+    });
+  }
+  if (key === APP_SETTING_KEYS.docmeePptTokenTtlMinutes) {
+    return defineValue(
+      'passthrough',
+      z.number().int().min(1).max(1440),
+      (value) => value as number,
     );
   }
   if (key.startsWith('docmee.')) return stringValue('passthrough');

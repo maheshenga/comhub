@@ -3,27 +3,25 @@ import { z } from 'zod';
 
 import { appSettings } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
-import { APP_SETTING_KEYS, invalidateServerAppSettings } from '@/server/services/appSettings';
+import {
+  APP_SETTING_KEYS,
+  type AppSettingKey,
+  invalidateServerAppSettings,
+} from '@/server/services/appSettings';
 import { normalizeDocmeePptSettings } from '@/server/services/docmee/config';
 
+import {
+  APP_SETTING_WRITE_SURFACES,
+  getAppSettingWriteSchema,
+  normalizeAppSettingValue,
+  PPT_WRITABLE_APP_SETTING_KEYS,
+} from '../../appSettings/catalog';
 import { recordAdminAudit } from './audit';
 
 const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
 const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
 
-const PPT_SETTING_KEYS = [
-  APP_SETTING_KEYS.docmeePptAllowPdfExport,
-  APP_SETTING_KEYS.docmeePptAllowPptxDownload,
-  APP_SETTING_KEYS.docmeePptApiKey,
-  APP_SETTING_KEYS.docmeePptAuditEnabled,
-  APP_SETTING_KEYS.docmeePptBaseUrl,
-  APP_SETTING_KEYS.docmeePptCreatorVersion,
-  APP_SETTING_KEYS.docmeePptDailyLimit,
-  APP_SETTING_KEYS.docmeePptDefaultLang,
-  APP_SETTING_KEYS.docmeePptEnabled,
-  APP_SETTING_KEYS.docmeePptThemeColor,
-  APP_SETTING_KEYS.docmeePptTokenTtlMinutes,
-] as const;
+const PPT_SETTING_KEYS = PPT_WRITABLE_APP_SETTING_KEYS;
 
 const maskApiKey = (key: null | string | undefined): null | string => {
   if (!key) return null;
@@ -40,29 +38,44 @@ const readSettings = async (db: any) => {
   return Object.fromEntries(rows.map((row: any) => [row.key, row.value]));
 };
 
-const saveSetting = async (db: any, key: string, value: unknown) => {
+const saveSetting = async (db: any, key: AppSettingKey, value: unknown) => {
+  const normalizedValue = normalizeAppSettingValue(
+    key,
+    value,
+    APP_SETTING_WRITE_SURFACES.pptAdmin,
+  );
+
   await db
     .insert(appSettings)
-    .values({ key, value: value as any })
+    .values({ key, value: normalizedValue as any })
     .onConflictDoUpdate({
-      set: { updatedAt: new Date(), value: value as any },
+      set: { updatedAt: new Date(), value: normalizedValue as any },
       target: appSettings.key,
     });
 };
 
+const settingSchema = <T>(key: AppSettingKey) =>
+  getAppSettingWriteSchema(key, APP_SETTING_WRITE_SURFACES.pptAdmin) as z.ZodType<T>;
+
 const inputSchema = z.object({
-  allowPdfExport: z.boolean().optional(),
-  allowPptxDownload: z.boolean().optional(),
-  apiKey: z.string().optional(),
-  auditEnabled: z.boolean().optional(),
-  baseUrl: z.string().trim().min(1).max(512).optional(),
+  allowPdfExport: settingSchema<boolean>(APP_SETTING_KEYS.docmeePptAllowPdfExport).optional(),
+  allowPptxDownload: settingSchema<boolean>(
+    APP_SETTING_KEYS.docmeePptAllowPptxDownload,
+  ).optional(),
+  apiKey: settingSchema<string>(APP_SETTING_KEYS.docmeePptApiKey).optional(),
+  auditEnabled: settingSchema<boolean>(APP_SETTING_KEYS.docmeePptAuditEnabled).optional(),
+  baseUrl: settingSchema<string>(APP_SETTING_KEYS.docmeePptBaseUrl).optional(),
   clearApiKey: z.boolean().optional(),
-  creatorVersion: z.enum(['v1', 'v2']).optional(),
-  dailyLimit: z.number().int().min(0).nullable().optional(),
-  enabled: z.boolean().optional(),
-  lang: z.string().trim().min(1).max(16).optional(),
-  themeColor: z.string().trim().max(32).nullable().optional(),
-  tokenTtlMinutes: z.number().int().min(1).max(1440).optional(),
+  creatorVersion: settingSchema<'v1' | 'v2'>(
+    APP_SETTING_KEYS.docmeePptCreatorVersion,
+  ).optional(),
+  dailyLimit: settingSchema<null | number>(APP_SETTING_KEYS.docmeePptDailyLimit).optional(),
+  enabled: settingSchema<boolean>(APP_SETTING_KEYS.docmeePptEnabled).optional(),
+  lang: settingSchema<string>(APP_SETTING_KEYS.docmeePptDefaultLang).optional(),
+  themeColor: settingSchema<null | string>(APP_SETTING_KEYS.docmeePptThemeColor).optional(),
+  tokenTtlMinutes: settingSchema<number>(
+    APP_SETTING_KEYS.docmeePptTokenTtlMinutes,
+  ).optional(),
 });
 
 export const adminPptRouter = router({
@@ -88,16 +101,14 @@ export const adminPptRouter = router({
       ...('auditEnabled' in input ? { auditEnabled: input.auditEnabled } : {}),
       ...('baseUrl' in input ? { baseUrl: input.baseUrl } : {}),
       ...('creatorVersion' in input ? { creatorVersion: input.creatorVersion } : {}),
-      ...('dailyLimit' in input
-        ? { dailyLimit: input.dailyLimit && input.dailyLimit > 0 ? input.dailyLimit : null }
-        : {}),
+      ...('dailyLimit' in input ? { dailyLimit: input.dailyLimit } : {}),
       ...('enabled' in input ? { enabled: input.enabled } : {}),
       ...('lang' in input ? { lang: input.lang } : {}),
-      ...('themeColor' in input ? { themeColor: input.themeColor || null } : {}),
+      ...('themeColor' in input ? { themeColor: input.themeColor } : {}),
       ...('tokenTtlMinutes' in input ? { tokenTtlMinutes: input.tokenTtlMinutes } : {}),
     };
     const trimmedApiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
-    const apiKey = input.clearApiKey ? null : trimmedApiKey || previous.apiKey;
+    const apiKey = input.clearApiKey ? null : input.apiKey || previous.apiKey;
 
     await Promise.all([
       saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptAllowPdfExport, next.allowPdfExport),

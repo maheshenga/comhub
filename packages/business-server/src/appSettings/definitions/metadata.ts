@@ -117,11 +117,17 @@ export const getAppSettingRuntimeConsumers = (
   lifecycle: AppSettingLifecycle,
 ): string[] => {
   if (lifecycle === 'external') return [];
-  if (key.startsWith('docmee.')) return ['adminPptRouter.readSettings'];
+  if (key.startsWith('docmee.')) {
+    return ['DocmeePptService.readSettings', 'adminPptRouter.getSettings'];
+  }
 
-  const consumers = ['adminSettingsRouter.getAll'];
+  const consumers: string[] = [];
 
   if (key.startsWith('composio.')) consumers.push('getServerComposioConfig');
+  if (key.startsWith('cron.')) {
+    consumers.push('src/app/(backend)/api/admin/maintenance/route.POST');
+    if (key !== APP_SETTING_KEYS.cronSecret) consumers.push('adminSettingsRouter.runMaintenance');
+  }
   if (key.startsWith('storage.')) consumers.push('getServerFileS3Config');
   if (key.startsWith('recommendation.'))
     consumers.push('adminSettingsRouter.getPublicRecommendations');
@@ -142,6 +148,9 @@ export const getAppSettingRuntimeConsumers = (
   if (key.startsWith('profile.')) consumers.push('adminSettingsRouter.getPublicProfileOptions');
   if (key.startsWith('notification.') && key !== APP_SETTING_KEYS.notificationRetentionDays) {
     consumers.push('adminSettingsRouter.getPublicNotificationConfig');
+  }
+  if (key === APP_SETTING_KEYS.notificationRetentionDays) {
+    consumers.push('adminSettingsRouter.runMaintenance');
   }
   if (key.startsWith('desktop.')) consumers.push('adminSettingsRouter.getPublicDesktopUpdate');
   if (key === APP_SETTING_KEYS.helpMenuItems)
@@ -174,6 +183,17 @@ export const getAppSettingRuntimeConsumers = (
     consumers.push('getServerUserGlobalSettingsDefaults');
   }
   if (key.startsWith('model.policy.')) consumers.push('getServerModelPolicyConfig');
+  if (key === APP_SETTING_KEYS.ordersManagementEnabled) {
+    consumers.push('AdminModelBillingMatrixPage');
+  }
+  if (key === APP_SETTING_KEYS.plansFaqItems) consumers.push('subscriptionRouter.listPlanFaq');
+  if (
+    key === APP_SETTING_KEYS.pricingCreditMultiplier ||
+    key === APP_SETTING_KEYS.pricingModelRules
+  ) {
+    consumers.push('resolveGenerationPricingMultiplier');
+  }
+  if (key === APP_SETTING_KEYS.referralRewardCredits) consumers.push('AdminGrowthPage');
 
   return Array.from(new Set(consumers));
 };

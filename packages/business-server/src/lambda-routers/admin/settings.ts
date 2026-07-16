@@ -58,10 +58,11 @@ import {
 } from '@/server/services/newapiInstance';
 
 import {
+  APP_SETTING_WRITE_SURFACES,
+  GENERIC_WRITABLE_APP_SETTING_KEYS,
   getAppSettingCatalogItem,
   isSensitiveCatalogAppSettingKey,
   normalizeAppSettingValue,
-  WRITABLE_APP_SETTING_KEYS,
 } from '../../appSettings/catalog';
 import { isModelAllowedByPlanRules } from '../../planModelRules';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
@@ -225,7 +226,7 @@ type UserSettingsSyncOptions = {
 };
 
 const appSettingUpdateInputSchema = z.object({
-  key: z.enum(WRITABLE_APP_SETTING_KEYS as [string, ...string[]]),
+  key: z.enum(GENERIC_WRITABLE_APP_SETTING_KEYS as [string, ...string[]]),
   value: z.unknown(),
 });
 
@@ -393,7 +394,11 @@ const readInputCompletionDefault = (
 };
 
 const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSettingUpdate => {
-  const value = normalizeAppSettingValue(input.key, input.value);
+  const value = normalizeAppSettingValue(
+    input.key,
+    input.value,
+    APP_SETTING_WRITE_SURFACES.genericAdmin,
+  );
 
   return {
     hasValue: value !== null && value !== undefined && value !== '',

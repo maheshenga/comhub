@@ -93,3 +93,54 @@ Only these source areas changed:
   - Passed (`tsgo --noEmit`).
 - Repository root: `git diff --check`
   - Passed.
+
+## Re-review Fix - Dedicated PPT Writes and Runtime Consumers
+
+### Changes
+
+- Added explicit catalog write surfaces for generic admin writes and `adminPptRouter.saveSettings`. PPT settings are now active writable settings with `systemWrite`, per-key audit policy, existing sensitivity metadata, and a dedicated-only write surface; the generic settings mutations still reject them.
+- Added exact PPT schemas for booleans, API key, base URL, creator version, nullable daily limit, language, nullable theme color, and token TTL (`1..1440`). API-key clearing remains an explicit nullable stored-value operation without widening the existing `apiKey` procedure input.
+- Changed `adminPptRouter.saveSettings` to derive its input schemas and setting-key list from the catalog and normalize every persisted setting through the dedicated catalog contract.
+- Removed `adminSettingsRouter.getAll` and the nonexistent `adminPptRouter.readSettings` from runtime-consumer metadata. Every active family now names a real reader or effect, including the maintenance route for all cron keys, `adminSettingsRouter.runMaintenance` for retention settings, `DocmeePptService.readSettings`, `subscriptionRouter.listPlanFaq`, `resolveGenerationPricingMultiplier`, and the exact current admin UI effects for the two presentation-only settings.
+- Restored pre-Task-1 `cron.secret` string semantics so boundary whitespace is persisted unchanged.
+- Audited the moved generic normalizers against `821955c499^:packages/business-server/src/lambda-routers/admin/settings.ts` (`normalizeAppSettingUpdate`). The parity table covers every generic normalizer category and each distinct branch behavior; `cron.secret` trimming was the only drift found and was removed.
+
+### TDD Evidence
+
+1. Catalog RED gate:
+   `bunx vitest run --silent='passed-only' src/appSettings/catalog.test.ts`
+   - 6 tests ran; 3 failed because PPT settings were read-only, placeholder consumers remained, and the generic write-surface/parity contract did not exist.
+2. Generic-router RED gate:
+   `bunx vitest run --silent='passed-only' src/lambda-routers/admin/settings.test.ts`
+   - 46 tests ran; 1 failed because `cron.secret` was persisted as `test-secret` instead of preserving `  test-secret  `.
+3. PPT-router RED gate:
+   `bunx vitest run --silent='passed-only' src/lambda-routers/admin/ppt.test.ts`
+   - 3 tests ran; 2 failed because `adminPptRouter.saveSettings` never called the catalog normalization contract, including for API-key clearing.
+4. Focused GREEN gate:
+   `bunx vitest run --silent='passed-only' src/appSettings/catalog.test.ts src/lambda-routers/admin/settings.test.ts src/lambda-routers/admin/ppt.test.ts`
+   - 3 files passed, 55 tests passed.
+
+### Final Verification Evidence
+
+- `packages/business-server`: `bunx vitest run --silent='passed-only' src/appSettings/catalog.test.ts src/lambda-routers/admin/settings.test.ts src/lambda-routers/admin/ppt.test.ts`
+  - 3 files passed, 55 tests passed.
+- Repository root: `bunx vitest run --silent='passed-only' src/server/services/appSettings/governance.test.ts src/features/Admin/adminSettingsForm.test.ts`
+  - 2 files passed, 39 tests passed.
+- Repository root: `bunx vitest run --silent='passed-only' --pool=forks --maxWorkers=1 src/features/Admin/AdminDesktopUpdatePage.test.tsx`
+  - 1 file passed, 1 test passed.
+- Repository root: `bunx vitest run --silent='passed-only' src/server/services/docmee/config.test.ts src/server/services/docmee/index.test.ts apps/server/src/routers/lambda/docmee.test.ts`
+  - 3 files passed, 11 tests passed.
+- Repository root: `node node_modules/vitest/vitest.mjs run --silent=passed-only src/routes/(main)/(create)/ppt/features/PptWorkspace.test.tsx`
+  - 1 file passed, 4 tests passed. Direct Node invocation avoids the Windows `bunx.cmd` parenthesis-quoting issue for this path.
+- Repository root: targeted `bunx eslint` over all changed TypeScript files.
+  - Passed with no errors or warnings.
+- Repository root: `bun run type-check`
+  - Passed (`tsgo --noEmit`).
+- Repository root: `git diff --check`
+  - Passed.
+
+### Re-review Self-review
+
+- PPT procedure names, response shapes, prior input constraints, nullable daily-limit behavior, and API-key clear semantics remain unchanged.
+- Generic writes remain fail-closed for PPT and external desktop OSS keys because each mutation validates against its exact catalog write surface.
+- No payment, deployment, navigation, Module App, Worker, or secret-ownership boundary changed.

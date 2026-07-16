@@ -6,9 +6,24 @@ import {
 
 import { getAppSettingRuntimeConsumers, getAppSettingSourceMetadata } from './definitions/metadata';
 import { getAppSettingValueDefinition } from './definitions/valueDefinitions';
-import type { AppSettingCatalogItem, AppSettingNormalizer, AppSettingsSection } from './types';
+import type {
+  AppSettingCatalogItem,
+  AppSettingNormalizer,
+  AppSettingsSection,
+  AppSettingWriteSurface,
+} from './types';
 
-export type { AppSettingCatalogItem, AppSettingLifecycle, AppSettingsSection } from './types';
+export type {
+  AppSettingCatalogItem,
+  AppSettingLifecycle,
+  AppSettingsSection,
+  AppSettingWriteSurface,
+} from './types';
+
+export const APP_SETTING_WRITE_SURFACES = {
+  genericAdmin: 'adminSettingsRouter.setAppSetting',
+  pptAdmin: 'adminPptRouter.saveSettings',
+} as const satisfies Record<string, AppSettingWriteSurface>;
 
 const EXTERNAL_SETTING_OWNERS: Partial<Record<AppSettingKey, string>> = {
   [APP_SETTING_KEYS.desktopOssAccessKeyId]: 'CI/GitHub Secrets',
@@ -45,8 +60,15 @@ const sectionForKey = (key: AppSettingKey): AppSettingsSection => {
   return 'settings';
 };
 
-const isWritableKey = (key: AppSettingKey) =>
-  !key.startsWith('docmee.') && !EXTERNAL_SETTING_OWNERS[key];
+const writeSurfacesFor = (
+  key: AppSettingKey,
+  lifecycle: AppSettingCatalogItem['lifecycle'],
+): AppSettingWriteSurface[] => {
+  if (lifecycle === 'external') return [];
+  if (key.startsWith('docmee.')) return [APP_SETTING_WRITE_SURFACES.pptAdmin];
+
+  return [APP_SETTING_WRITE_SURFACES.genericAdmin];
+};
 
 const runtimeEffectsFor = (key: AppSettingKey, cacheScopes: AppSettingCatalogItem['cacheScopes']) =>
   Array.from(
@@ -67,7 +89,8 @@ export const APP_SETTINGS_CATALOG: AppSettingCatalogItem[] = listAppSettingRegis
     const lifecycle = externalOwner ? 'external' : 'active';
     const sourceMetadata = getAppSettingSourceMetadata(registryItem.key, lifecycle);
     const valueDefinition = getAppSettingValueDefinition(registryItem.key);
-    const writable = lifecycle === 'active' && isWritableKey(registryItem.key);
+    const writeSurfaces = writeSurfacesFor(registryItem.key, lifecycle);
+    const writable = writeSurfaces.length > 0;
 
     return {
       auditPolicy: writable ? (registryItem.sensitive ? 'write-redacted' : 'write') : 'none',
@@ -87,6 +110,7 @@ export const APP_SETTINGS_CATALOG: AppSettingCatalogItem[] = listAppSettingRegis
       section,
       sensitive: registryItem.sensitive,
       writable,
+      writeSurfaces,
     };
   },
 );
@@ -100,6 +124,14 @@ export const getAppSettingCatalogItem = (key: string) => APP_SETTINGS_CATALOG_BY
 export const WRITABLE_APP_SETTING_KEYS = APP_SETTINGS_CATALOG.filter((item) => item.writable).map(
   (item) => item.key,
 );
+
+export const GENERIC_WRITABLE_APP_SETTING_KEYS = APP_SETTINGS_CATALOG.filter((item) =>
+  item.writeSurfaces.includes(APP_SETTING_WRITE_SURFACES.genericAdmin),
+).map((item) => item.key);
+
+export const PPT_WRITABLE_APP_SETTING_KEYS = APP_SETTINGS_CATALOG.filter((item) =>
+  item.writeSurfaces.includes(APP_SETTING_WRITE_SURFACES.pptAdmin),
+).map((item) => item.key);
 
 export const SENSITIVE_APP_SETTING_KEYS = APP_SETTINGS_CATALOG.filter((item) => item.sensitive).map(
   (item) => item.key,
@@ -124,8 +156,25 @@ export const listAppSettingsCatalogItems = () => [...APP_SETTINGS_CATALOG];
 export const isSensitiveCatalogAppSettingKey = (key: string) =>
   getAppSettingCatalogItem(key)?.sensitive === true;
 
-export const normalizeAppSettingValue = (key: string, value: unknown) => {
+const getWriteDefinition = (key: string, writeSurface: AppSettingWriteSurface) => {
   const definition = getAppSettingCatalogItem(key);
-  if (!definition?.writable) throw new Error(`App setting is not writable: ${key}`);
+  if (!definition?.writeSurfaces.includes(writeSurface)) {
+    throw new Error(`App setting is not writable through ${writeSurface}: ${key}`);
+  }
+
+  return definition;
+};
+
+export const getAppSettingWriteSchema = (key: string, writeSurface: AppSettingWriteSurface) =>
+  getWriteDefinition(key, writeSurface).valueSchema;
+
+export const normalizeAppSettingValue = (
+  key: string,
+  value: unknown,
+  writeSurface: AppSettingWriteSurface = APP_SETTING_WRITE_SURFACES.genericAdmin,
+) => {
+  const definition = getWriteDefinition(key, writeSurface);
+  if (value === null && definition.clearValue === null) return null;
+
   return definition.normalizeValue(value);
 };

@@ -565,7 +565,7 @@ describe('admin settings default model validation', () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it('normalizes generic writes through the catalog adapter', async () => {
+  it('preserves cron.secret boundary whitespace through the catalog adapter', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);
 
@@ -574,7 +574,7 @@ describe('admin settings default model validation', () => {
 
     expect(db.__mocks.values).toHaveBeenCalledWith({
       key: APP_SETTING_KEYS.cronSecret,
-      value: 'test-secret',
+      value: '  test-secret  ',
     });
   });
 
