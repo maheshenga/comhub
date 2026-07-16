@@ -5,12 +5,13 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Read-only report or bounded safe cleanup'
+        description: 'Read-only reports or bounded safe cleanup'
         required: true
         default: report
         type: choice
         options:
           - report
+          - report-deep
           - cleanup-safe
 
 permissions:
@@ -43,7 +44,7 @@ jobs:
             exit 1
           }
           case "$MAINTENANCE_ACTION" in
-            report|cleanup-safe) ;;
+            report|report-deep|cleanup-safe) ;;
             *)
               echo 'unsupported maintenance action' >&2
               exit 1
@@ -77,7 +78,7 @@ jobs:
           set -euo pipefail
 
           case "$MAINTENANCE_ACTION" in
-            report|cleanup-safe) ;;
+            report|report-deep|cleanup-safe) ;;
             *)
               echo 'unsupported maintenance action' >&2
               exit 1
@@ -103,7 +104,7 @@ jobs:
 
           action="$1"
           case "$action" in
-            report|cleanup-safe) ;;
+            report|report-deep|cleanup-safe) ;;
             *)
               echo 'unsupported remote maintenance action' >&2
               exit 1
@@ -166,6 +167,91 @@ jobs:
             fi
           }
 
+          report_tree() {
+            local label="$1"
+            local root="$2"
+            local duration="$3"
+
+            echo "== ${label} depth-two totals (bytes, top 100) =="
+            if [ ! -d "$root" ]; then
+              echo "directory unavailable: $root"
+              return
+            fi
+            # shellcheck disable=SC2016
+            timeout --kill-after=10s "$duration" bash -c '
+              set -o pipefail
+              du -x -B1 --max-depth=2 -- "$1" 2>/dev/null |
+                sort -nr | head -100
+            ' _ "$root" || true
+          }
+
+          report_deep() {
+            local docker_root=''
+            local docker_root_raw=''
+            local root
+            local -a large_file_roots=()
+
+            if ! command -v timeout >/dev/null 2>&1; then
+              echo 'timeout unavailable; skipping deep disk report'
+              return
+            fi
+
+            echo '== Mount inventory =='
+            if command -v findmnt >/dev/null 2>&1; then
+              findmnt -rn -o TARGET,SOURCE,FSTYPE || true
+            else
+              echo 'findmnt unavailable'
+            fi
+
+            echo '== Docker detailed usage =='
+            docker_root_raw="$(
+              timeout --kill-after=10s 1m docker info \
+                --format '{{.DockerRootDir}}' 2>/dev/null || true
+            )"
+            if [ -n "$docker_root_raw" ] && command -v realpath >/dev/null 2>&1; then
+              docker_root="$(realpath -e -- "$docker_root_raw" 2>/dev/null || true)"
+            fi
+            printf 'Docker root: %s\n' "${docker_root:-unavailable}"
+            timeout --kill-after=10s 2m docker system df -v || true
+            timeout --kill-after=10s 1m docker ps -a --no-trunc --size \
+              --format 'table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Size}}' || true
+
+            report_tree '/www' /www 5m
+            report_tree '/var/log' /var/log 2m
+            report_tree '/var/cache' /var/cache 1m
+
+            case "$docker_root" in
+              /*)
+                if [ "$docker_root" != / ] && [ -d "$docker_root" ]; then
+                  report_tree 'Docker root' "$docker_root" 4m
+                else
+                  echo 'Docker root is unavailable or unsafe to scan'
+                fi
+                ;;
+              *) echo 'Docker root is unavailable or not absolute' ;;
+            esac
+
+            for root in /www /var/log; do
+              [ ! -d "$root" ] || large_file_roots+=("$root")
+            done
+            if [ -n "$docker_root" ] && [ "$docker_root" != / ] && \
+              [ -d "$docker_root/containers" ]; then
+              large_file_roots+=("$docker_root/containers")
+            fi
+
+            echo '== Files over 100 MB (bytes, top 50) =='
+            if [ "${#large_file_roots[@]}" -eq 0 ]; then
+              echo 'no approved large-file roots available'
+            else
+              # shellcheck disable=SC2016
+              timeout --kill-after=10s 5m bash -c '
+                set -o pipefail
+                find "$@" -xdev -type f -size +100M \
+                  -printf "%s\t%p\n" 2>/dev/null | sort -nr | head -50
+              ' _ "${large_file_roots[@]}" || true
+            fi
+          }
+
           cleanup_safe() {
             echo '== Safe cleanup =='
             docker container prune -f --filter 'until=168h'
@@ -198,6 +284,10 @@ jobs:
             echo '### After maintenance'
             report_disk
           else
+            if [ "$action" = report-deep ]; then
+              echo '### Deep disk report'
+              report_deep
+            fi
             echo '### After maintenance'
             echo 'report-only action; no cleanup performed'
           fi
