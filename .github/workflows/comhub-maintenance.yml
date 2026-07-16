@@ -281,7 +281,7 @@ jobs:
           blue_release_cache_maintenance() {
             local mode="$1"
             local fixed_releases_root='/www/wwwroot/blue/releases'
-            local fixed_current_link='/www/wwwroot/blue/current'
+            local fixed_current_link='/www/wwwroot/blue/app'
             local releases_root=''
             local releases_root_now=''
             local current_target=''

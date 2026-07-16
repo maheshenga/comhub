@@ -64,7 +64,7 @@ printf '0\n' > "$TEST_BLUE_ROOT/.current-realpath-count"
 
   if (options.blueFixture) {
     const fixedRoot = "fixed_releases_root='/www/wwwroot/blue/releases'";
-    const fixedCurrent = "fixed_current_link='/www/wwwroot/blue/current'";
+    const fixedCurrent = "fixed_current_link='/www/wwwroot/blue/app'";
     assert.match(remoteScript, new RegExp(fixedRoot.replaceAll('/', '\\/'), 'u'));
     assert.match(remoteScript, new RegExp(fixedCurrent.replaceAll('/', '\\/'), 'u'));
     remoteScript = remoteScript
@@ -403,6 +403,8 @@ test('server disk maintenance is manual, production-locked, and bounded', () => 
   assert.match(run, /report_tree '\/var\/log' \/var\/log 2m/);
   assert.match(run, /report_tree '\/var\/cache' \/var\/cache 1m/);
   assert.match(run, /report_tree 'Docker root' "\$docker_root" 4m/);
+  assert.match(run, /fixed_current_link='\/www\/wwwroot\/blue\/app'/);
+  assert.doesNotMatch(run, /fixed_current_link='\/www\/wwwroot\/blue\/current'/);
   assert.match(run, /mapfile -d '' -t old_release_paths/);
   assert.doesNotMatch(run, /\bcoproc\b/);
 
