@@ -30,6 +30,62 @@ const traceMaintenanceCommands = (run, action, options = {}) => {
   const dockerRoot = options.dockerRoot ?? '/var/lib/docker';
   assert.match(dockerRoot, /^\/[./\dA-Z_-]+$/iu);
 
+  let remoteScript = heredoc.groups.script;
+  const blueFixtureSetup = options.blueFixture
+    ? String.raw`
+TEST_MKTEMP_BIN="$(command -v mktemp)"
+TEST_BLUE_ROOT="$("$TEST_MKTEMP_BIN" -d)"
+TEST_MKDIR_BIN="$(command -v mkdir)"
+TEST_LN_BIN="$(command -v ln)"
+TEST_TOUCH_BIN="$(command -v touch)"
+TEST_DU_BIN="$(command -v du)"
+TEST_FIND_BIN="$(command -v find)"
+TEST_REALPATH_BIN="$(command -v realpath)"
+TEST_RM_BIN="$(command -v rm)"
+cleanup_blue_fixture() { "$TEST_RM_BIN" -rf -- "$TEST_BLUE_ROOT"; }
+trap cleanup_blue_fixture EXIT
+"$TEST_MKDIR_BIN" -p \
+  "$TEST_BLUE_ROOT/releases/current-release/.next/cache" \
+  "$TEST_BLUE_ROOT/releases/old-release/.next/cache" \
+  "$TEST_BLUE_ROOT/releases/recent-release/.next/cache" \
+  "$TEST_BLUE_ROOT/releases/old-no-cache"
+printf 'current\n' > "$TEST_BLUE_ROOT/releases/current-release/.next/cache/current.txt"
+printf 'old\n' > "$TEST_BLUE_ROOT/releases/old-release/.next/cache/old.txt"
+printf 'recent\n' > "$TEST_BLUE_ROOT/releases/recent-release/.next/cache/recent.txt"
+printf '0\n' > "$TEST_BLUE_ROOT/.current-realpath-count"
+"$TEST_LN_BIN" -s 'releases/current-release' "$TEST_BLUE_ROOT/current"
+"$TEST_TOUCH_BIN" -d '10 days ago' \
+  "$TEST_BLUE_ROOT/releases/current-release" \
+  "$TEST_BLUE_ROOT/releases/old-release" \
+  "$TEST_BLUE_ROOT/releases/old-no-cache"
+"$TEST_TOUCH_BIN" -d '2 days ago' "$TEST_BLUE_ROOT/releases/recent-release"
+`
+    : "TEST_BLUE_ROOT=''";
+
+  if (options.blueFixture) {
+    const fixedRoot = "fixed_releases_root='/www/wwwroot/blue/releases'";
+    const fixedCurrent = "fixed_current_link='/www/wwwroot/blue/current'";
+    assert.match(remoteScript, new RegExp(fixedRoot.replaceAll('/', '\\/'), 'u'));
+    assert.match(remoteScript, new RegExp(fixedCurrent.replaceAll('/', '\\/'), 'u'));
+    remoteScript = remoteScript
+      .replace(fixedRoot, 'fixed_releases_root="$TEST_BLUE_ROOT/releases"')
+      .replace(fixedCurrent, 'fixed_current_link="$TEST_BLUE_ROOT/current"');
+  }
+
+  const unsafeBlueFixtureSetup = options.unsafeBlueFixture
+    ? String.raw`
+"$TEST_MKDIR_BIN" -p \
+  "$TEST_BLUE_ROOT/outside-cache" \
+  "$TEST_BLUE_ROOT/releases/unsafe-release/.next"
+"$TEST_LN_BIN" -s "$TEST_BLUE_ROOT/outside-cache" \
+  "$TEST_BLUE_ROOT/releases/unsafe-release/.next/cache"
+"$TEST_TOUCH_BIN" -d '10 days ago' "$TEST_BLUE_ROOT/releases/unsafe-release"
+`
+    : '';
+  const switchCurrentSetup = options.switchCurrentDuringCleanup
+    ? "TEST_SWITCH_CURRENT='1'"
+    : "TEST_SWITCH_CURRENT='0'";
+
   const commandStubs = String.raw`
 exec 3>&1
 record() {
@@ -49,8 +105,20 @@ journalctl() { record journalctl "$@"; }
 apt-get() { record apt-get "$@"; }
 dnf() { record dnf "$@"; }
 yum() { record yum "$@"; }
-du() { record du "$@"; }
-find() { record find "$@"; }
+du() {
+  record du "$@"
+  local target=''
+  for target in "$@"; do :; done
+  if [ -n "$TEST_BLUE_ROOT" ] && [[ "$target" = "$TEST_BLUE_ROOT"/* ]]; then
+    "$TEST_DU_BIN" "$@"
+  fi
+}
+find() {
+  record find "$@"
+  if [ -n "$TEST_BLUE_ROOT" ] && [[ "$1" = "$TEST_BLUE_ROOT"/* ]]; then
+    "$TEST_FIND_BIN" "$@"
+  fi
+}
 bash() {
   record bash "$@"
   if [ "$#" -lt 2 ] || [ "$1" != -c ]; then
@@ -68,10 +136,37 @@ sort() { record sort "$@"; }
 head() { record head "$@"; }
 realpath() {
   record realpath "$@"
-  case "$3" in
-    /./) printf '/\n' ;;
-    *) printf '%s\n' "$3" ;;
-  esac
+  local target=''
+  for target in "$@"; do :; done
+  if [ -n "$TEST_BLUE_ROOT" ] && [[ "$target" = "$TEST_BLUE_ROOT"/* ]]; then
+    if [ "$TEST_SWITCH_CURRENT" = 1 ] && [ "$target" = "$TEST_BLUE_ROOT/current" ]; then
+      local resolve_count=0
+      IFS= read -r resolve_count < "$TEST_BLUE_ROOT/.current-realpath-count"
+      resolve_count=$((resolve_count + 1))
+      printf '%s\n' "$resolve_count" > "$TEST_BLUE_ROOT/.current-realpath-count"
+      if [ "$resolve_count" -eq 3 ]; then
+        "$TEST_RM_BIN" -f -- "$TEST_BLUE_ROOT/current"
+        "$TEST_LN_BIN" -s 'releases/old-release' "$TEST_BLUE_ROOT/current"
+      fi
+    fi
+    "$TEST_REALPATH_BIN" "$@"
+  else
+    case "$target" in
+      /./) printf '/\n' ;;
+      *) printf '%s\n' "$target" ;;
+    esac
+  fi
+}
+rm() {
+  record rm "$@"
+  local target=''
+  for target in "$@"; do :; done
+  if [ -n "$TEST_BLUE_ROOT" ] && [[ "$target" = "$TEST_BLUE_ROOT"/* ]]; then
+    "$TEST_RM_BIN" "$@"
+  else
+    record UNAPPROVED rm "$@"
+    return 1
+  fi
 }
 timeout() {
   record timeout "$@"
@@ -91,9 +186,13 @@ PATH=/maintenance-test-no-external-commands
 `;
   const result = spawnSync('bash', ['-s', '--', action], {
     encoding: 'utf8',
-    input: `${commandStubs}\n${heredoc.groups.script}\n`,
+    input: `${blueFixtureSetup}\n${unsafeBlueFixtureSetup}\n${switchCurrentSetup}\n${commandStubs}\n${remoteScript}\n`,
   });
-  assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+  if (options.expectFailure) {
+    assert.notEqual(result.status, 0, 'maintenance command unexpectedly succeeded');
+  } else {
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+  }
 
   return result.stdout
     .split('\n')
@@ -237,7 +336,13 @@ test('server disk maintenance is manual, production-locked, and bounded', () => 
   assert.equal(actionInput.required, true);
   assert.equal(actionInput.type, 'choice');
   assert.equal(actionInput.default, 'report');
-  assert.deepEqual(actionInput.options, ['report', 'report-deep', 'cleanup-safe']);
+  assert.deepEqual(actionInput.options, [
+    'report',
+    'report-deep',
+    'report-blue-release-caches',
+    'cleanup-safe',
+    'cleanup-blue-release-caches',
+  ]);
   assert.equal(workflow.permissions.contents, 'read');
   assertProductionLock(workflow.jobs.maintenance);
   assert.equal(workflow.jobs.maintenance.if, "${{ github.ref == 'refs/heads/main' }}");
@@ -273,7 +378,11 @@ test('server disk maintenance is manual, production-locked, and bounded', () => 
   assert.doesNotMatch(run, /docker\s+(?:volume\s+(?:prune|rm)|system\s+prune)/);
   assert.doesNotMatch(run, /docker\s+(?:container|image)\s+rm/);
   assert.doesNotMatch(run, /docker\s+compose\s+down[^\n]*\s-v/);
-  assert.doesNotMatch(run, /\brm\b|truncate|shred|wipefs|find[^\n]*-delete/);
+  assert.doesNotMatch(run, /truncate|shred|wipefs|find[^\n]*-delete/);
+  assert.deepEqual(
+    (run.match(/^\s*rm\b.*$/gmu) ?? []).map((line) => line.trim()),
+    ['rm -rf --one-file-system -- "$cache_path"'],
+  );
   assert.doesNotMatch(run, /\.Config\.Env|printenv|docker inspect/);
   assert.doesNotMatch(run, /\b(?:cat|tail|less|more|xxd|base64)\b/);
   assert.doesNotMatch(
@@ -294,6 +403,8 @@ test('server disk maintenance is manual, production-locked, and bounded', () => 
   assert.match(run, /report_tree '\/var\/log' \/var\/log 2m/);
   assert.match(run, /report_tree '\/var\/cache' \/var\/cache 1m/);
   assert.match(run, /report_tree 'Docker root' "\$docker_root" 4m/);
+  assert.match(run, /mapfile -d '' -t old_release_paths/);
+  assert.doesNotMatch(run, /\bcoproc\b/);
 
   const reportCommands = traceMaintenanceCommands(run, 'report');
   assert.deepEqual(selectMaintenanceCommands(reportCommands, ['docker']), [
@@ -443,6 +554,49 @@ test('server disk maintenance is manual, production-locked, and bounded', () => 
     ['apt-get', 'clean'],
     ['sync'],
   ]);
+
+  const blueReportCommands = traceMaintenanceCommands(run, 'report-blue-release-caches', {
+    blueFixture: true,
+  });
+  assert.deepEqual(selectMaintenanceCommands(blueReportCommands, ['rm']), []);
+  assert.ok(
+    blueReportCommands.some(
+      ([command, ...args]) =>
+        command === 'find' &&
+        args.includes('-mindepth') &&
+        args.includes('1') &&
+        args.includes('-maxdepth') &&
+        args.includes('-mmin') &&
+        args.includes('+10080') &&
+        args.includes('-print0'),
+    ),
+  );
+
+  const blueCleanupCommands = traceMaintenanceCommands(run, 'cleanup-blue-release-caches', {
+    blueFixture: true,
+  });
+  const blueCleanupRemovals = selectMaintenanceCommands(blueCleanupCommands, ['rm']);
+  assert.equal(blueCleanupRemovals.length, 1);
+  assert.deepEqual(blueCleanupRemovals[0].slice(0, -1), ['rm', '-rf', '--one-file-system', '--']);
+  assert.match(blueCleanupRemovals[0].at(-1), /\/releases\/old-release\/\.next\/cache$/u);
+
+  const unsafeBlueCleanupCommands = traceMaintenanceCommands(run, 'cleanup-blue-release-caches', {
+    blueFixture: true,
+    expectFailure: true,
+    unsafeBlueFixture: true,
+  });
+  assert.deepEqual(selectMaintenanceCommands(unsafeBlueCleanupCommands, ['rm']), []);
+
+  const switchedCurrentCleanupCommands = traceMaintenanceCommands(
+    run,
+    'cleanup-blue-release-caches',
+    {
+      blueFixture: true,
+      expectFailure: true,
+      switchCurrentDuringCleanup: true,
+    },
+  );
+  assert.deepEqual(selectMaintenanceCommands(switchedCurrentCleanupCommands, ['rm']), []);
 });
 
 test('deployment workflows never trigger from push', () => {
