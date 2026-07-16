@@ -16,7 +16,10 @@ import {
   PPT_WRITABLE_APP_SETTING_KEYS,
   WRITABLE_APP_SETTING_KEYS,
 } from './catalog';
-import { EXPECTED_NORMALIZER_BY_KEY } from './catalog.test.fixtures';
+import {
+  EXPECTED_NORMALIZER_ADAPTER_BY_KEY,
+  listNormalizerAdapterMismatches,
+} from './catalog.test.fixtures';
 
 const GENERIC_WRITE_SURFACE = 'adminSettingsRouter.setAppSetting';
 const PPT_WRITE_SURFACE = 'adminPptRouter.saveSettings';
@@ -159,14 +162,39 @@ describe('APP_SETTINGS_CATALOG', () => {
     ]);
   });
 
-  it('matches the independent exact key-to-normalizer contract', () => {
-    expect(Object.keys(EXPECTED_NORMALIZER_BY_KEY).sort()).toEqual(
+  it('matches the independent exact key-to-normalizer-adapter contract', () => {
+    expect(Object.keys(EXPECTED_NORMALIZER_ADAPTER_BY_KEY).sort()).toEqual(
       APP_SETTINGS_CATALOG.map((item) => item.key).sort(),
     );
 
-    for (const setting of APP_SETTINGS_CATALOG) {
-      expect(setting.normalizer, setting.key).toBe(EXPECTED_NORMALIZER_BY_KEY[setting.key]);
-    }
+    const actual = Object.fromEntries(
+      APP_SETTINGS_CATALOG.map((setting) => [setting.key, setting.normalizer]),
+    );
+    expect(listNormalizerAdapterMismatches(actual)).toEqual([]);
+  });
+
+  it('rejects within-family normalizer adapter mutations', () => {
+    const storageMutation = {
+      ...EXPECTED_NORMALIZER_ADAPTER_BY_KEY,
+      [APP_SETTING_KEYS.storageS3FilePath]:
+        EXPECTED_NORMALIZER_ADAPTER_BY_KEY[APP_SETTING_KEYS.storageS3AccessKeyId],
+    };
+    expect(listNormalizerAdapterMismatches(storageMutation)).toContainEqual({
+      actual: 'storage-string',
+      expected: 'storage-file-path',
+      key: APP_SETTING_KEYS.storageS3FilePath,
+    });
+
+    const modelPolicyMutation = {
+      ...EXPECTED_NORMALIZER_ADAPTER_BY_KEY,
+      [APP_SETTING_KEYS.modelPolicyMode]:
+        EXPECTED_NORMALIZER_ADAPTER_BY_KEY[APP_SETTING_KEYS.modelPolicyDeniedMessage],
+    };
+    expect(listNormalizerAdapterMismatches(modelPolicyMutation)).toContainEqual({
+      actual: 'model-policy-string',
+      expected: 'model-policy-mode-enum',
+      key: APP_SETTING_KEYS.modelPolicyMode,
+    });
   });
 
   it('preserves focused pre-task normalization behavior', () => {

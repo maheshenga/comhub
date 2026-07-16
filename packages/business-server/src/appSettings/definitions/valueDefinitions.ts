@@ -101,9 +101,9 @@ const normalizeProfileInterestAreas = (value: unknown) => {
   return normalized;
 };
 
-const stringValue = (normalizer: AppSettingNormalizer = 'string') =>
+const stringValue = (normalizer: AppSettingNormalizer) =>
   defineValue(normalizer, stringSchema, toString);
-const booleanValue = (normalizer: AppSettingNormalizer = 'boolean') =>
+const booleanValue = (normalizer: AppSettingNormalizer) =>
   defineValue(normalizer, booleanSchema, toBoolean);
 const numberValue = (normalizer: AppSettingNormalizer, normalize: (value: unknown) => number) =>
   defineValue(normalizer, numberSchema, normalize);
@@ -169,33 +169,33 @@ const DOCMEE_BOOLEAN_KEYS = new Set<AppSettingKey>([
 ]);
 export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValueDefinition => {
   if (key === APP_SETTING_KEYS.cronAuditRetentionDays) {
-    return numberValue('bounded-integer', (value) => {
+    return numberValue('cron-audit-retention-integer', (value) => {
       const n = Number(value);
       if (!Number.isFinite(n)) throw new Error('cronAuditRetentionDays must be a number');
       return Math.max(7, Math.min(3650, Math.round(n)));
     });
   }
   if (key === APP_SETTING_KEYS.cronPendingOrderExpiryDays) {
-    return numberValue('bounded-integer', (value) => {
+    return numberValue('cron-pending-order-expiry-integer', (value) => {
       const n = Number(value);
       if (!Number.isFinite(n)) throw new Error('cronPendingOrderExpiryDays must be a number');
       return Math.max(1, Math.min(365, Math.round(n)));
     });
   }
   if (key === APP_SETTING_KEYS.referralRewardCredits) {
-    return numberValue('bounded-integer', (value) => {
+    return numberValue('referral-reward-integer', (value) => {
       const n = Number(value);
       if (!Number.isFinite(n)) throw new Error('referralRewardCredits must be a number');
       return Math.max(0, Math.round(n));
     });
   }
   if (key === APP_SETTING_KEYS.cronSecret) {
-    return defineValue('json', jsonSchema, (value) => value as JsonValue);
+    return defineValue('cron-secret-json', jsonSchema, (value) => value as JsonValue);
   }
 
-  if (key === APP_SETTING_KEYS.composioEnabled) return booleanValue();
+  if (key === APP_SETTING_KEYS.composioEnabled) return booleanValue('composio-boolean');
   if (key === APP_SETTING_KEYS.composioAuthConfigIds) {
-    return defineValue('string', stringSchema, (value) => {
+    return defineValue('composio-auth-config-json-string', stringSchema, (value) => {
       const normalized = toString(value);
       if (!normalized) return '';
 
@@ -213,10 +213,10 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
       return normalized;
     });
   }
-  if (key.startsWith('composio.')) return stringValue();
+  if (key.startsWith('composio.')) return stringValue('composio-string');
 
   if (key === APP_SETTING_KEYS.pricingCreditMultiplier) {
-    return numberValue('bounded-integer', (value) => {
+    return numberValue('pricing-positive-number', (value) => {
       const n = Number(value);
       if (!Number.isFinite(n)) {
         throw new TRPCError({
@@ -234,122 +234,140 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
     });
   }
   if (key === APP_SETTING_KEYS.pricingModelRules) {
-    return defineValue('object', unknownListSchema, (value) => (Array.isArray(value) ? value : []));
+    return defineValue('pricing-model-rules-array', unknownListSchema, (value) =>
+      Array.isArray(value) ? value : [],
+    );
   }
-  if (key === APP_SETTING_KEYS.ordersManagementEnabled) return booleanValue();
+  if (key === APP_SETTING_KEYS.ordersManagementEnabled) return booleanValue('orders-boolean');
   if (key === APP_SETTING_KEYS.plansFaqItems) {
-    return defineValue('object', recordListSchema, normalizePlanFaqSettings);
+    return defineValue('plans-faq-record-list', recordListSchema, normalizePlanFaqSettings);
   }
 
-  if (OPERATION_BOOLEAN_KEYS.has(key)) return booleanValue('operations');
+  if (OPERATION_BOOLEAN_KEYS.has(key)) return booleanValue('operations-boolean');
   if (OPERATION_PAGE_SIZE_KEYS.has(key)) {
-    return numberValue('operations', (value) => toBoundedInt(value, 12, 1, 24));
+    return numberValue('operations-page-size-integer', (value) =>
+      toBoundedInt(value, 12, 1, 24),
+    );
   }
-  if (key.startsWith('community.')) return stringValue('operations');
+  if (key.startsWith('community.')) return stringValue('operations-string');
 
-  if (GROWTH_BOOLEAN_KEYS.has(key)) return booleanValue();
+  if (GROWTH_BOOLEAN_KEYS.has(key)) return booleanValue('growth-boolean');
   if (GROWTH_NUMBER_KEYS.has(key)) {
-    return numberValue('bounded-integer', (value) => toBoundedInt(value, 0, 0, 10_000_000_000));
+    return numberValue('growth-nonnegative-integer', (value) =>
+      toBoundedInt(value, 0, 0, 10_000_000_000),
+    );
   }
   if (key.startsWith('auth.') || key.startsWith('onboarding.') || key.startsWith('upload.')) {
-    return stringValue();
+    return stringValue('growth-string');
   }
 
   if (key === APP_SETTING_KEYS.profileInterestAreas) {
-    return defineValue('profile', recordListSchema, normalizeProfileInterestAreas);
+    return defineValue('profile-interest-areas', recordListSchema, normalizeProfileInterestAreas);
   }
   if (key === APP_SETTING_KEYS.profileAvatarPresets) {
-    return defineValue('profile', recordListSchema, normalizeAvatarPresets);
+    return defineValue('profile-avatar-presets', recordListSchema, normalizeAvatarPresets);
   }
   if (key === APP_SETTING_KEYS.memoryUserMemoryTriggerMode) {
-    return defineValue('string', stringSchema, normalizeMemoryTriggerMode);
+    return defineValue('memory-trigger-mode', stringSchema, normalizeMemoryTriggerMode);
   }
   if (key.startsWith('memory.') || key.startsWith('vector.') || key.startsWith('default')) {
-    return stringValue();
+    return stringValue('runtime-model-string');
   }
   if (key === APP_SETTING_KEYS.userGlobalSettingsDefaults) {
-    return defineValue('object', recordSchema, (value) =>
+    return defineValue('user-global-settings-object', recordSchema, (value) =>
       value && typeof value === 'object' && !Array.isArray(value) ? value : {},
     );
   }
 
-  if (key === APP_SETTING_KEYS.expertPlazaEnabled) return booleanValue('expert-plaza');
+  if (key === APP_SETTING_KEYS.expertPlazaEnabled) return booleanValue('expert-plaza-boolean');
   if (key === APP_SETTING_KEYS.expertPlazaCards) {
-    return defineValue('expert-plaza', recordListSchema, normalizeExpertPlazaCards);
+    return defineValue('expert-plaza-cards', recordListSchema, normalizeExpertPlazaCards);
   }
   if (key === APP_SETTING_KEYS.expertPlazaCategories) {
-    return defineValue('expert-plaza', stringListSchema, toStringList);
+    return defineValue('expert-plaza-categories', stringListSchema, toStringList);
   }
-  if (key.startsWith('expertPlaza.')) return stringValue('expert-plaza');
+  if (key.startsWith('expertPlaza.')) return stringValue('expert-plaza-string');
 
-  if (NOTIFICATION_BOOLEAN_KEYS.has(key)) return booleanValue('notification');
+  if (NOTIFICATION_BOOLEAN_KEYS.has(key)) return booleanValue('notification-boolean');
   if (key === APP_SETTING_KEYS.notificationEventDefaults) {
-    return defineValue('notification', recordSchema, normalizeNotificationEventDefaults);
+    return defineValue(
+      'notification-event-defaults-record',
+      recordSchema,
+      normalizeNotificationEventDefaults,
+    );
   }
   if (key === APP_SETTING_KEYS.notificationRetentionDays) {
-    return numberValue('notification', (value) => toBoundedInt(value, 90, 1, 3650));
+    return numberValue('notification-retention-integer', (value) =>
+      toBoundedInt(value, 90, 1, 3650),
+    );
   }
   if (key === APP_SETTING_KEYS.notificationSystemType) {
-    return defineValue('notification', stringSchema, (value) => {
+    return defineValue('notification-type-enum', stringSchema, (value) => {
       const type = toString(value);
       return ['success', 'info', 'warning', 'error'].includes(type) ? type : 'warning';
     });
   }
-  if (key.startsWith('notification.')) return stringValue('notification');
+  if (key.startsWith('notification.')) return stringValue('notification-string');
 
   if (
     key === APP_SETTING_KEYS.storageS3EnablePathStyle ||
     key === APP_SETTING_KEYS.storageS3SetAcl
   ) {
-    return booleanValue('storage');
+    return booleanValue('storage-boolean');
   }
   if (key === APP_SETTING_KEYS.storageS3PreviewUrlExpireIn) {
-    return numberValue('storage', (value) => toBoundedInt(value, 7200, 60, 604_800));
+    return numberValue('storage-preview-expiry-integer', (value) =>
+      toBoundedInt(value, 7200, 60, 604_800),
+    );
   }
   if (key === APP_SETTING_KEYS.storageS3FilePath) {
-    return defineValue('storage', stringSchema, normalizeS3FilePath);
+    return defineValue('storage-file-path', stringSchema, normalizeS3FilePath);
   }
   if (
     key === APP_SETTING_KEYS.storageS3Endpoint ||
     key === APP_SETTING_KEYS.storageS3PublicDomain
   ) {
-    return defineValue('storage', stringSchema, (value) => toOptionalUrlString(value, key));
+    return defineValue('storage-optional-url', stringSchema, (value) =>
+      toOptionalUrlString(value, key),
+    );
   }
-  if (key.startsWith('storage.')) return stringValue('storage');
+  if (key.startsWith('storage.')) return stringValue('storage-string');
 
-  if (MODEL_POLICY_BOOLEAN_KEYS.has(key)) return booleanValue('model-policy');
+  if (MODEL_POLICY_BOOLEAN_KEYS.has(key)) return booleanValue('model-policy-boolean');
   if (MODEL_POLICY_LIST_KEYS.has(key)) {
-    return defineValue('model-policy', stringListSchema, toStringList);
+    return defineValue('model-policy-string-list', stringListSchema, toStringList);
   }
   if (key === APP_SETTING_KEYS.modelPolicyMode) {
-    return defineValue('model-policy', stringSchema, (value) =>
+    return defineValue('model-policy-mode-enum', stringSchema, (value) =>
       value === 'allowlist' || value === 'blocklist' ? value : 'blocklist',
     );
   }
-  if (key.startsWith('model.policy.')) return stringValue('model-policy');
+  if (key.startsWith('model.policy.')) return stringValue('model-policy-string');
 
-  if (RECOMMENDATION_BOOLEAN_KEYS.has(key)) return booleanValue('recommendation');
+  if (RECOMMENDATION_BOOLEAN_KEYS.has(key)) return booleanValue('recommendation-boolean');
   if (key === APP_SETTING_KEYS.recommendationHotSkillSort) {
     return defineValue(
-      'recommendation',
+      'recommendation-hot-sort',
       stringSchema,
       (value) => toString(value) || 'installCount',
     );
   }
-  if (RECOMMENDATION_TITLE_KEYS.has(key)) return stringValue('recommendation');
+  if (RECOMMENDATION_TITLE_KEYS.has(key)) return stringValue('recommendation-title-string');
   if (key.startsWith('recommendation.')) {
-    return defineValue('recommendation', stringListSchema, toStringList);
+    return defineValue('recommendation-string-list', stringListSchema, toStringList);
   }
 
-  if (key === APP_SETTING_KEYS.homeMessengerEnabled) return booleanValue('brand');
+  if (key === APP_SETTING_KEYS.homeMessengerEnabled) {
+    return booleanValue('brand-home-messenger-boolean');
+  }
   if (key === APP_SETTING_KEYS.helpMenuItems) {
-    return defineValue('about', recordListSchema, normalizeHelpMenuItems);
+    return defineValue('help-menu', recordListSchema, normalizeHelpMenuItems);
   }
   if (key === APP_SETTING_KEYS.aboutLinks) {
-    return defineValue('about', recordSchema, normalizeAboutLinksConfig);
+    return defineValue('about-links', recordSchema, normalizeAboutLinksConfig);
   }
   if (key === APP_SETTING_KEYS.aboutPage) {
-    return defineValue('about', recordSchema, normalizeAboutPageConfig);
+    return defineValue('about-page', recordSchema, normalizeAboutPageConfig);
   }
   if (
     key.startsWith('about.') ||
@@ -357,58 +375,64 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
     key.startsWith('home.') ||
     key.startsWith('sidebar.')
   ) {
-    return stringValue('brand');
+    return stringValue('brand-string');
   }
 
-  if (key === APP_SETTING_KEYS.desktopUpdateAutoCheck) return booleanValue('desktop-update');
+  if (key === APP_SETTING_KEYS.desktopUpdateAutoCheck) {
+    return booleanValue('desktop-update-boolean');
+  }
   if (key === APP_SETTING_KEYS.desktopUpdateCheckInterval) {
-    return numberValue('desktop-update', (value) => toBoundedInt(value, 60, 1, 1440));
+    return numberValue('desktop-update-interval-integer', (value) =>
+      toBoundedInt(value, 60, 1, 1440),
+    );
   }
   if (key === APP_SETTING_KEYS.desktopUpdateChannel) {
-    return defineValue('desktop-update', stringSchema, (value) =>
+    return defineValue('desktop-update-channel-enum', stringSchema, (value) =>
       value === 'canary' ? 'canary' : 'stable',
     );
   }
-  if (key.startsWith('desktop.login.')) return stringValue('desktop-login');
-  if (key.startsWith('desktop.')) return stringValue('desktop-update');
+  if (key.startsWith('desktop.login.')) return stringValue('desktop-login-string');
+  if (key.startsWith('desktop.')) return stringValue('desktop-update-string');
 
-  if (DOCMEE_BOOLEAN_KEYS.has(key)) return booleanValue('passthrough');
+  if (DOCMEE_BOOLEAN_KEYS.has(key)) return booleanValue('ppt-boolean');
   if (key === APP_SETTING_KEYS.docmeePptApiKey) {
     return defineValue(
-      'passthrough',
+      'ppt-api-key',
       stringSchema,
       (value) => (typeof value === 'string' ? value.trim() : ''),
       { clearValue: null },
     );
   }
   if (key === APP_SETTING_KEYS.docmeePptBaseUrl) {
-    return defineValue('passthrough', z.string().trim().min(1).max(512), toString);
+    return defineValue('ppt-base-url', z.string().trim().min(1).max(512), toString);
   }
   if (key === APP_SETTING_KEYS.docmeePptCreatorVersion) {
-    return defineValue('passthrough', z.enum(['v1', 'v2']), (value) => value as 'v1' | 'v2');
+    return defineValue('ppt-creator-version-enum', z.enum(['v1', 'v2']), (value) =>
+      value as 'v1' | 'v2',
+    );
   }
   if (key === APP_SETTING_KEYS.docmeePptDailyLimit) {
-    return defineValue('passthrough', z.number().int().min(0).nullable(), (value) =>
+    return defineValue('ppt-daily-limit', z.number().int().min(0).nullable(), (value) =>
       typeof value === 'number' && value > 0 ? value : null,
     );
   }
   if (key === APP_SETTING_KEYS.docmeePptDefaultLang) {
-    return defineValue('passthrough', z.string().trim().min(1).max(16), toString);
+    return defineValue('ppt-default-language', z.string().trim().min(1).max(16), toString);
   }
   if (key === APP_SETTING_KEYS.docmeePptThemeColor) {
-    return defineValue('passthrough', z.string().trim().max(32).nullable(), (value) => {
+    return defineValue('ppt-theme-color', z.string().trim().max(32).nullable(), (value) => {
       if (value === null) return null;
       return toString(value) || null;
     });
   }
   if (key === APP_SETTING_KEYS.docmeePptTokenTtlMinutes) {
     return defineValue(
-      'passthrough',
+      'ppt-token-ttl-integer',
       z.number().int().min(1).max(1440),
       (value) => value as number,
     );
   }
-  if (key.startsWith('docmee.')) return stringValue('passthrough');
+  if (key.startsWith('docmee.')) return stringValue('ppt-string');
 
-  return stringValue('passthrough');
+  return stringValue('fallback-string');
 };

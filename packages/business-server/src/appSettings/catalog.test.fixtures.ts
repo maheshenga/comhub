@@ -1,31 +1,13 @@
 import { APP_SETTING_KEYS, type AppSettingKey } from '@/const/appSettingsRegistry';
 
-const assign = (normalizer: string, keys: AppSettingKey[]) =>
-  keys.map((key) => [key, normalizer] as const);
+const assign = (adapter: string, keys: AppSettingKey[]) =>
+  keys.map((key) => [key, adapter] as const);
 
-export const EXPECTED_NORMALIZER_BY_KEY = Object.fromEntries([
-  ...assign('about', [
-    APP_SETTING_KEYS.aboutLinks,
-    APP_SETTING_KEYS.aboutPage,
-    APP_SETTING_KEYS.helpMenuItems,
-  ]),
-  ...assign('boolean', [
-    APP_SETTING_KEYS.authSignupEnabled,
-    APP_SETTING_KEYS.authSignupPhoneEnabled,
-    APP_SETTING_KEYS.composioEnabled,
-    APP_SETTING_KEYS.onboardingInitialCreditsEnabled,
-    APP_SETTING_KEYS.ordersManagementEnabled,
-  ]),
-  ...assign('bounded-integer', [
-    APP_SETTING_KEYS.cronAuditRetentionDays,
-    APP_SETTING_KEYS.cronPendingOrderExpiryDays,
-    APP_SETTING_KEYS.onboardingInitialCredits,
-    APP_SETTING_KEYS.pricingCreditMultiplier,
-    APP_SETTING_KEYS.referralRewardCredits,
-    APP_SETTING_KEYS.uploadMaxActualSizeMb,
-    APP_SETTING_KEYS.uploadMaxInputSizeMb,
-  ]),
-  ...assign('brand', [
+export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
+  ...assign('about-links', [APP_SETTING_KEYS.aboutLinks]),
+  ...assign('about-page', [APP_SETTING_KEYS.aboutPage]),
+  ...assign('brand-home-messenger-boolean', [APP_SETTING_KEYS.homeMessengerEnabled]),
+  ...assign('brand-string', [
     APP_SETTING_KEYS.aboutLogoUrl,
     APP_SETTING_KEYS.brandAuthTitle,
     APP_SETTING_KEYS.brandCopyrightText,
@@ -36,13 +18,20 @@ export const EXPECTED_NORMALIZER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.brandName,
     APP_SETTING_KEYS.brandPrimaryColor,
     APP_SETTING_KEYS.brandSlogan,
-    APP_SETTING_KEYS.homeMessengerEnabled,
     APP_SETTING_KEYS.homeMessengerBannerTitle,
     APP_SETTING_KEYS.sidebarGenerationLabel,
     APP_SETTING_KEYS.sidebarMemberLabel,
     APP_SETTING_KEYS.sidebarMemberUrl,
   ]),
-  ...assign('desktop-login', [
+  ...assign('composio-auth-config-json-string', [APP_SETTING_KEYS.composioAuthConfigIds]),
+  ...assign('composio-boolean', [APP_SETTING_KEYS.composioEnabled]),
+  ...assign('composio-string', [APP_SETTING_KEYS.composioApiKey]),
+  ...assign('cron-audit-retention-integer', [APP_SETTING_KEYS.cronAuditRetentionDays]),
+  ...assign('cron-pending-order-expiry-integer', [
+    APP_SETTING_KEYS.cronPendingOrderExpiryDays,
+  ]),
+  ...assign('cron-secret-json', [APP_SETTING_KEYS.cronSecret]),
+  ...assign('desktop-login-string', [
     APP_SETTING_KEYS.desktopLoginCloudButtonLabel,
     APP_SETTING_KEYS.desktopLoginDescription,
     APP_SETTING_KEYS.desktopLoginFooterText,
@@ -50,7 +39,12 @@ export const EXPECTED_NORMALIZER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.desktopLoginTitle,
     APP_SETTING_KEYS.desktopLoginWindowTitle,
   ]),
-  ...assign('desktop-update', [
+  ...assign('desktop-update-boolean', [APP_SETTING_KEYS.desktopUpdateAutoCheck]),
+  ...assign('desktop-update-channel-enum', [APP_SETTING_KEYS.desktopUpdateChannel]),
+  ...assign('desktop-update-interval-integer', [
+    APP_SETTING_KEYS.desktopUpdateCheckInterval,
+  ]),
+  ...assign('desktop-update-string', [
     APP_SETTING_KEYS.desktopDownloadLabel,
     APP_SETTING_KEYS.desktopDownloadUrl,
     APP_SETTING_KEYS.desktopOssAccessKeyId,
@@ -58,122 +52,132 @@ export const EXPECTED_NORMALIZER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.desktopOssBucket,
     APP_SETTING_KEYS.desktopOssEndpoint,
     APP_SETTING_KEYS.desktopOssPath,
-    APP_SETTING_KEYS.desktopUpdateAutoCheck,
-    APP_SETTING_KEYS.desktopUpdateChannel,
-    APP_SETTING_KEYS.desktopUpdateCheckInterval,
     APP_SETTING_KEYS.desktopUpdateCurrentVersion,
     APP_SETTING_KEYS.desktopUpdateReleaseNotes,
     APP_SETTING_KEYS.desktopUpdateServerUrl,
   ]),
-  ...assign('expert-plaza', [
-    APP_SETTING_KEYS.expertPlazaCards,
-    APP_SETTING_KEYS.expertPlazaCategories,
+  ...assign('expert-plaza-boolean', [APP_SETTING_KEYS.expertPlazaEnabled]),
+  ...assign('expert-plaza-cards', [APP_SETTING_KEYS.expertPlazaCards]),
+  ...assign('expert-plaza-categories', [APP_SETTING_KEYS.expertPlazaCategories]),
+  ...assign('expert-plaza-string', [
     APP_SETTING_KEYS.expertPlazaDescription,
-    APP_SETTING_KEYS.expertPlazaEnabled,
     APP_SETTING_KEYS.expertPlazaName,
   ]),
-  ...assign('json', [APP_SETTING_KEYS.cronSecret]),
-  ...assign('model-policy', [
-    APP_SETTING_KEYS.modelPolicyAllowlist,
+  ...assign('growth-boolean', [
+    APP_SETTING_KEYS.authSignupEnabled,
+    APP_SETTING_KEYS.authSignupPhoneEnabled,
+    APP_SETTING_KEYS.onboardingInitialCreditsEnabled,
+  ]),
+  ...assign('growth-nonnegative-integer', [
+    APP_SETTING_KEYS.onboardingInitialCredits,
+    APP_SETTING_KEYS.uploadMaxActualSizeMb,
+    APP_SETTING_KEYS.uploadMaxInputSizeMb,
+  ]),
+  ...assign('growth-string', [APP_SETTING_KEYS.authSignupDisabledMessage]),
+  ...assign('help-menu', [APP_SETTING_KEYS.helpMenuItems]),
+  ...assign('memory-trigger-mode', [APP_SETTING_KEYS.memoryUserMemoryTriggerMode]),
+  ...assign('model-policy-boolean', [
     APP_SETTING_KEYS.modelPolicyApplyToEmbeddings,
     APP_SETTING_KEYS.modelPolicyApplyToGenerateObject,
-    APP_SETTING_KEYS.modelPolicyBlocklist,
+    APP_SETTING_KEYS.modelPolicyEnabled,
+  ]),
+  ...assign('model-policy-mode-enum', [APP_SETTING_KEYS.modelPolicyMode]),
+  ...assign('model-policy-string', [
     APP_SETTING_KEYS.modelPolicyDefaultModelFallback,
     APP_SETTING_KEYS.modelPolicyDeniedMessage,
-    APP_SETTING_KEYS.modelPolicyEnabled,
-    APP_SETTING_KEYS.modelPolicyMode,
   ]),
-  ...assign('notification', [
+  ...assign('model-policy-string-list', [
+    APP_SETTING_KEYS.modelPolicyAllowlist,
+    APP_SETTING_KEYS.modelPolicyBlocklist,
+  ]),
+  ...assign('notification-boolean', [
     APP_SETTING_KEYS.notificationDesktopEnabled,
     APP_SETTING_KEYS.notificationEmailEnabled,
-    APP_SETTING_KEYS.notificationEventDefaults,
     APP_SETTING_KEYS.notificationInboxEnabled,
     APP_SETTING_KEYS.notificationPushEnabled,
+    APP_SETTING_KEYS.notificationSystemEnabled,
+  ]),
+  ...assign('notification-event-defaults-record', [
+    APP_SETTING_KEYS.notificationEventDefaults,
+  ]),
+  ...assign('notification-retention-integer', [
     APP_SETTING_KEYS.notificationRetentionDays,
+  ]),
+  ...assign('notification-string', [
     APP_SETTING_KEYS.notificationSystemActionLabel,
     APP_SETTING_KEYS.notificationSystemActionUrl,
     APP_SETTING_KEYS.notificationSystemContent,
-    APP_SETTING_KEYS.notificationSystemEnabled,
     APP_SETTING_KEYS.notificationSystemTitle,
-    APP_SETTING_KEYS.notificationSystemType,
   ]),
-  ...assign('object', [
-    APP_SETTING_KEYS.plansFaqItems,
-    APP_SETTING_KEYS.pricingModelRules,
-    APP_SETTING_KEYS.userGlobalSettingsDefaults,
-  ]),
-  ...assign('operations', [
+  ...assign('notification-type-enum', [APP_SETTING_KEYS.notificationSystemType]),
+  ...assign('operations-boolean', [
     APP_SETTING_KEYS.communityCreatorRewardBannerEnabled,
-    APP_SETTING_KEYS.communityFeaturedAssistantPageSize,
-    APP_SETTING_KEYS.communityFeaturedAssistantTitle,
     APP_SETTING_KEYS.communityFeaturedAssistantsEnabled,
-    APP_SETTING_KEYS.communityFeaturedMcpPageSize,
-    APP_SETTING_KEYS.communityFeaturedMcpTitle,
     APP_SETTING_KEYS.communityFeaturedMcpsEnabled,
-    APP_SETTING_KEYS.communityFeaturedSkillCategory,
+    APP_SETTING_KEYS.communityFeaturedSkillsEnabled,
+    APP_SETTING_KEYS.communityHomeAnnouncementEnabled,
+  ]),
+  ...assign('operations-page-size-integer', [
+    APP_SETTING_KEYS.communityFeaturedAssistantPageSize,
+    APP_SETTING_KEYS.communityFeaturedMcpPageSize,
     APP_SETTING_KEYS.communityFeaturedSkillPageSize,
+  ]),
+  ...assign('operations-string', [
+    APP_SETTING_KEYS.communityFeaturedAssistantTitle,
+    APP_SETTING_KEYS.communityFeaturedMcpTitle,
+    APP_SETTING_KEYS.communityFeaturedSkillCategory,
     APP_SETTING_KEYS.communityFeaturedSkillSort,
     APP_SETTING_KEYS.communityFeaturedSkillTitle,
-    APP_SETTING_KEYS.communityFeaturedSkillsEnabled,
     APP_SETTING_KEYS.communityForkAndChatLabel,
     APP_SETTING_KEYS.communityHomeAnnouncementContent,
-    APP_SETTING_KEYS.communityHomeAnnouncementEnabled,
     APP_SETTING_KEYS.communityHomeAnnouncementTitle,
     APP_SETTING_KEYS.communityHomeAnnouncementType,
     APP_SETTING_KEYS.communitySkillUseButtonLabel,
   ]),
-  ...assign('passthrough', [
+  ...assign('orders-boolean', [APP_SETTING_KEYS.ordersManagementEnabled]),
+  ...assign('plans-faq-record-list', [APP_SETTING_KEYS.plansFaqItems]),
+  ...assign('ppt-api-key', [APP_SETTING_KEYS.docmeePptApiKey]),
+  ...assign('ppt-base-url', [APP_SETTING_KEYS.docmeePptBaseUrl]),
+  ...assign('ppt-boolean', [
     APP_SETTING_KEYS.docmeePptAllowPdfExport,
     APP_SETTING_KEYS.docmeePptAllowPptxDownload,
-    APP_SETTING_KEYS.docmeePptApiKey,
     APP_SETTING_KEYS.docmeePptAuditEnabled,
-    APP_SETTING_KEYS.docmeePptBaseUrl,
-    APP_SETTING_KEYS.docmeePptCreatorVersion,
-    APP_SETTING_KEYS.docmeePptDailyLimit,
-    APP_SETTING_KEYS.docmeePptDefaultLang,
     APP_SETTING_KEYS.docmeePptEnabled,
-    APP_SETTING_KEYS.docmeePptThemeColor,
-    APP_SETTING_KEYS.docmeePptTokenTtlMinutes,
   ]),
-  ...assign('profile', [
-    APP_SETTING_KEYS.profileAvatarPresets,
-    APP_SETTING_KEYS.profileInterestAreas,
-  ]),
-  ...assign('recommendation', [
+  ...assign('ppt-creator-version-enum', [APP_SETTING_KEYS.docmeePptCreatorVersion]),
+  ...assign('ppt-daily-limit', [APP_SETTING_KEYS.docmeePptDailyLimit]),
+  ...assign('ppt-default-language', [APP_SETTING_KEYS.docmeePptDefaultLang]),
+  ...assign('ppt-theme-color', [APP_SETTING_KEYS.docmeePptThemeColor]),
+  ...assign('ppt-token-ttl-integer', [APP_SETTING_KEYS.docmeePptTokenTtlMinutes]),
+  ...assign('pricing-model-rules-array', [APP_SETTING_KEYS.pricingModelRules]),
+  ...assign('pricing-positive-number', [APP_SETTING_KEYS.pricingCreditMultiplier]),
+  ...assign('profile-avatar-presets', [APP_SETTING_KEYS.profileAvatarPresets]),
+  ...assign('profile-interest-areas', [APP_SETTING_KEYS.profileInterestAreas]),
+  ...assign('recommendation-boolean', [
     APP_SETTING_KEYS.recommendationAssistantsEnabled,
-    APP_SETTING_KEYS.recommendationAssistantTags,
-    APP_SETTING_KEYS.recommendationAssistantTitle,
-    APP_SETTING_KEYS.recommendationGeneralSkillCategories,
     APP_SETTING_KEYS.recommendationGeneralSkillsEnabled,
-    APP_SETTING_KEYS.recommendationGeneralSkillTitle,
     APP_SETTING_KEYS.recommendationHotSkillsEnabled,
-    APP_SETTING_KEYS.recommendationHotSkillSort,
-    APP_SETTING_KEYS.recommendationHotSkillTitle,
-    APP_SETTING_KEYS.recommendationMcpCategories,
     APP_SETTING_KEYS.recommendationMcpsEnabled,
-    APP_SETTING_KEYS.recommendationMcpTitle,
     APP_SETTING_KEYS.recommendationSectionEnabled,
+    APP_SETTING_KEYS.recommendationSkillsEnabled,
+  ]),
+  ...assign('recommendation-hot-sort', [APP_SETTING_KEYS.recommendationHotSkillSort]),
+  ...assign('recommendation-string-list', [
+    APP_SETTING_KEYS.recommendationAssistantTags,
+    APP_SETTING_KEYS.recommendationGeneralSkillCategories,
+    APP_SETTING_KEYS.recommendationMcpCategories,
     APP_SETTING_KEYS.recommendationSelectedTags,
     APP_SETTING_KEYS.recommendationSkillCategories,
-    APP_SETTING_KEYS.recommendationSkillsEnabled,
+  ]),
+  ...assign('recommendation-title-string', [
+    APP_SETTING_KEYS.recommendationAssistantTitle,
+    APP_SETTING_KEYS.recommendationGeneralSkillTitle,
+    APP_SETTING_KEYS.recommendationHotSkillTitle,
+    APP_SETTING_KEYS.recommendationMcpTitle,
     APP_SETTING_KEYS.recommendationSkillTitle,
   ]),
-  ...assign('storage', [
-    APP_SETTING_KEYS.storageS3AccessKeyId,
-    APP_SETTING_KEYS.storageS3Bucket,
-    APP_SETTING_KEYS.storageS3EnablePathStyle,
-    APP_SETTING_KEYS.storageS3Endpoint,
-    APP_SETTING_KEYS.storageS3FilePath,
-    APP_SETTING_KEYS.storageS3PreviewUrlExpireIn,
-    APP_SETTING_KEYS.storageS3PublicDomain,
-    APP_SETTING_KEYS.storageS3Region,
-    APP_SETTING_KEYS.storageS3SecretAccessKey,
-    APP_SETTING_KEYS.storageS3SetAcl,
-  ]),
-  ...assign('string', [
-    APP_SETTING_KEYS.authSignupDisabledMessage,
-    APP_SETTING_KEYS.composioApiKey,
-    APP_SETTING_KEYS.composioAuthConfigIds,
+  ...assign('referral-reward-integer', [APP_SETTING_KEYS.referralRewardCredits]),
+  ...assign('runtime-model-string', [
     APP_SETTING_KEYS.defaultAgentAvatar,
     APP_SETTING_KEYS.defaultAgentModel,
     APP_SETTING_KEYS.defaultAgentName,
@@ -191,11 +195,37 @@ export const EXPECTED_NORMALIZER_BY_KEY = Object.fromEntries([
     APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
     APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
     APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
-    APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
     APP_SETTING_KEYS.vectorEmbeddingModel,
     APP_SETTING_KEYS.vectorEmbeddingProvider,
     APP_SETTING_KEYS.vectorQueryMode,
     APP_SETTING_KEYS.vectorRerankerModel,
     APP_SETTING_KEYS.vectorRerankerProvider,
   ]),
+  ...assign('storage-boolean', [
+    APP_SETTING_KEYS.storageS3EnablePathStyle,
+    APP_SETTING_KEYS.storageS3SetAcl,
+  ]),
+  ...assign('storage-file-path', [APP_SETTING_KEYS.storageS3FilePath]),
+  ...assign('storage-optional-url', [
+    APP_SETTING_KEYS.storageS3Endpoint,
+    APP_SETTING_KEYS.storageS3PublicDomain,
+  ]),
+  ...assign('storage-preview-expiry-integer', [
+    APP_SETTING_KEYS.storageS3PreviewUrlExpireIn,
+  ]),
+  ...assign('storage-string', [
+    APP_SETTING_KEYS.storageS3AccessKeyId,
+    APP_SETTING_KEYS.storageS3Bucket,
+    APP_SETTING_KEYS.storageS3Region,
+    APP_SETTING_KEYS.storageS3SecretAccessKey,
+  ]),
+  ...assign('user-global-settings-object', [APP_SETTING_KEYS.userGlobalSettingsDefaults]),
 ]) as Record<AppSettingKey, string>;
+
+export const listNormalizerAdapterMismatches = (
+  actual: Partial<Record<AppSettingKey, string>>,
+) =>
+  (Object.entries(EXPECTED_NORMALIZER_ADAPTER_BY_KEY) as Array<[AppSettingKey, string]>).flatMap(
+    ([key, expected]) =>
+      actual[key] === expected ? [] : [{ actual: actual[key], expected, key }],
+  );

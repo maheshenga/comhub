@@ -2,14 +2,20 @@
 
 ## Scope
 
-Implemented the schema-driven application-settings catalog required by Task 1.
-Only these source areas changed:
+Implemented the schema-driven application-settings catalog required by Task 1 and the approved
+Task 2 referral/order extension. The cumulative source and test surface is:
 
-- `packages/business-server/src/appSettings/types.ts`
-- `packages/business-server/src/appSettings/catalog.ts`
-- `packages/business-server/src/appSettings/catalog.test.ts`
-- `packages/business-server/src/lambda-routers/admin/settings.ts`
-- `src/server/services/appSettings/governance.ts`
+- `packages/business-server/src/appSettings/`: catalog, types, source metadata, runtime-consumer
+  contracts, value definitions, exact fixtures, and catalog tests.
+- `packages/business-server/src/lambda-routers/admin/settings.ts`,
+  `packages/business-server/src/lambda-routers/admin/ppt.ts`, and their focused tests.
+- `src/server/services/appSettings/governance.ts` and its focused test.
+- `packages/database/src/models/commercial.ts` and
+  `packages/database/src/models/__tests__/commercial.referralSettings.test.ts`.
+- Admin desktop-update and model-billing pages, billing helpers, and focused Admin tests under
+  `src/features/Admin/`.
+- Subscription locale sources in `packages/locales/src/default/`, `locales/en-US/`, and
+  `locales/zh-CN/`.
 
 ## Implementation
 
@@ -193,3 +199,53 @@ Only these source areas changed:
 - Runtime-consumer contracts reject admin editor pages and generic admin reads as operational consumers and prove source/symbol/key relationships.
 - `cron.secret` remains byte-preserving for strings and passthrough for JSON values; non-string runtime values continue to fall back to `CRON_SECRET`.
 - Online platform payment remains fail closed. No Alipay behavior, deployment behavior, Module App payment/refund/payout behavior, Worker behavior, navigation, or desktop secret ownership changed.
+
+## Combined Re-review Fix - Branch-Level Normalizer Adapters
+
+### Changes
+
+- Replaced coarse family normalizer labels with branch-level adapter IDs for every registered
+  setting. Families with multiple behaviors now distinguish booleans, strings, lists, enums,
+  bounded integers, records, URLs, storage paths, and dedicated PPT adapters.
+- Removed default IDs from the shared string/boolean adapter helpers, so every production branch
+  must state its adapter identity explicitly.
+- Kept the independent fixture exhaustive across all 162 catalog keys and added a pure mismatch
+  helper for readable contract failures.
+- Added mutation-style assertions proving the contract detects
+  `storage.s3.filePath -> storage-string` and
+  `model.policy.mode -> model-policy-string`.
+- Changed adapter metadata only; value schemas and normalization callbacks retain their existing
+  behavior.
+
+### TDD Evidence
+
+1. RED:
+   `bunx vitest run --silent='passed-only' src/appSettings/catalog.test.ts`
+   - 7 tests ran; 1 failed.
+   - The exhaustive contract reported all 162 catalog entries still using coarse labels.
+   - Both mutation-style negative assertions already passed, proving the independent contract
+     caught the two cited within-family swaps.
+2. GREEN after branch-level IDs:
+   - 1 file passed, 7 tests passed.
+
+### Final Verification Evidence
+
+- `packages/database`: commercial/referral/top-up suites
+  - 3 files passed, 43 tests passed.
+- `packages/business-server`: catalog/settings/PPT suites
+  - 3 files passed, 59 tests passed.
+- Repository root: governance, admin form, desktop update, commercial flow, billing helper, and
+  Docmee suites
+  - 8 files passed, 110 tests passed.
+- Repository root: PPT workspace suite via direct Node Vitest invocation
+  - 1 file passed, 4 tests passed.
+- `bun run type-check`: passed (`tsgo --noEmit`).
+- Targeted ESLint over all changed TypeScript files: passed.
+- `git diff --check`: passed.
+
+### Combined Re-review Self-review
+
+- The adapter contract now fails on wrong assignments within storage, notification, model-policy,
+  recommendation, desktop, PPT, and other multi-branch families.
+- No setting value, normalization behavior, write surface, response contract, runtime consumer,
+  payment behavior, or secret-ownership boundary changed.
