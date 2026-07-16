@@ -1,11 +1,11 @@
-import { z } from 'zod';
-
 import {
   APP_SETTING_KEYS,
   type AppSettingKey,
   listAppSettingRegistryItems,
 } from '@/const/appSettingsRegistry';
 
+import { getAppSettingRuntimeConsumers, getAppSettingSourceMetadata } from './definitions/metadata';
+import { getAppSettingValueDefinition } from './definitions/valueDefinitions';
 import type { AppSettingCatalogItem, AppSettingNormalizer, AppSettingsSection } from './types';
 
 export type { AppSettingCatalogItem, AppSettingLifecycle, AppSettingsSection } from './types';
@@ -45,76 +45,8 @@ const sectionForKey = (key: AppSettingKey): AppSettingsSection => {
   return 'settings';
 };
 
-const normalizerForKey = (key: AppSettingKey): AppSettingNormalizer => {
-  if (
-    key === APP_SETTING_KEYS.aboutLogoUrl ||
-    key === APP_SETTING_KEYS.communityForkAndChatLabel ||
-    key === APP_SETTING_KEYS.communitySkillUseButtonLabel ||
-    key === APP_SETTING_KEYS.defaultSkillName
-  ) {
-    return 'brand';
-  }
-  if (key.startsWith('recommendation.')) return 'recommendation';
-  if (key.startsWith('community.')) return 'operations';
-  if (key.startsWith('notification.')) return 'notification';
-  if (key.startsWith('storage.')) return 'storage';
-  if (key.startsWith('model.policy.')) return 'model-policy';
-  if (key.startsWith('desktop.login.')) return 'desktop-login';
-  if (key.startsWith('desktop.update.') || key.startsWith('desktop.oss.')) return 'desktop-update';
-  if (key.startsWith('expertPlaza.')) return 'expert-plaza';
-  if (key.startsWith('profile.')) return 'profile';
-  if (key.startsWith('about.')) return 'about';
-  if (key.startsWith('brand.') || key.startsWith('home.') || key.startsWith('sidebar.')) {
-    return 'brand';
-  }
-  if (key.startsWith('auth.') || key.startsWith('onboarding.') || key.startsWith('upload.')) {
-    return key.endsWith('.enabled') ? 'boolean' : 'bounded-integer';
-  }
-  if (key.startsWith('pricing.') || key.startsWith('plans.') || key.startsWith('orders.')) {
-    return key === APP_SETTING_KEYS.pricingModelRules ? 'object' : 'bounded-integer';
-  }
-  if (key.startsWith('memory.') || key.startsWith('vector.') || key.startsWith('default')) {
-    return 'string';
-  }
-  if (key === APP_SETTING_KEYS.composioEnabled) return 'boolean';
-  if (key.startsWith('composio.')) return 'string';
-  if (key === APP_SETTING_KEYS.userGlobalSettingsDefaults) return 'object';
-  return 'passthrough';
-};
-
-const schemaForNormalizer = (normalizer: AppSettingNormalizer) => {
-  switch (normalizer) {
-    case 'boolean':
-      return z.boolean();
-    case 'bounded-integer':
-      return z.coerce.number().finite();
-    case 'model-list':
-      return z.array(z.string());
-    case 'object':
-      return z.record(z.string(), z.unknown());
-    case 'string':
-      return z.string();
-    default:
-      return z.unknown();
-  }
-};
-
-const isWritableKey = (key: AppSettingKey) => !key.startsWith('docmee.') && !EXTERNAL_SETTING_OWNERS[key];
-
-const runtimeConsumersFor = (key: AppSettingKey, section: AppSettingsSection, lifecycle: 'active' | 'external') => {
-  if (lifecycle === 'external') return [];
-  if (key.startsWith('docmee.')) return ['adminPptRouter'];
-  if (key.startsWith('notification.')) return ['adminSettingsRouter.getPublicNotificationConfig'];
-  if (key.startsWith('recommendation.')) return ['adminSettingsRouter.getPublicRecommendations'];
-  if (key.startsWith('community.')) return ['adminSettingsRouter.getPublicOperations'];
-  if (key.startsWith('expertPlaza.')) return ['adminSettingsRouter.getPublicExpertPlaza'];
-  if (key.startsWith('auth.') || key.startsWith('onboarding.') || key.startsWith('upload.')) {
-    return ['adminSettingsRouter.getPublicGrowth'];
-  }
-  if (key.startsWith('profile.')) return ['adminSettingsRouter.getPublicProfileOptions'];
-  if (key.startsWith('desktop.')) return ['adminSettingsRouter.getPublicDesktopUpdate'];
-  return [`adminSettingsRouter.getAll:${section}`];
-};
+const isWritableKey = (key: AppSettingKey) =>
+  !key.startsWith('docmee.') && !EXTERNAL_SETTING_OWNERS[key];
 
 const runtimeEffectsFor = (key: AppSettingKey, cacheScopes: AppSettingCatalogItem['cacheScopes']) =>
   Array.from(
@@ -133,27 +65,27 @@ export const APP_SETTINGS_CATALOG: AppSettingCatalogItem[] = listAppSettingRegis
     const section = sectionForKey(registryItem.key);
     const externalOwner = EXTERNAL_SETTING_OWNERS[registryItem.key];
     const lifecycle = externalOwner ? 'external' : 'active';
-    const normalizer = normalizerForKey(registryItem.key);
+    const sourceMetadata = getAppSettingSourceMetadata(registryItem.key, lifecycle);
+    const valueDefinition = getAppSettingValueDefinition(registryItem.key);
     const writable = lifecycle === 'active' && isWritableKey(registryItem.key);
 
     return {
       auditPolicy: writable ? (registryItem.sensitive ? 'write-redacted' : 'write') : 'none',
       cacheScopes: registryItem.cacheScopes,
-      defaultSource: 'application defaults',
+      defaultSource: sourceMetadata.defaultSource,
       domain: registryItem.domain,
-      effectiveSource: registryItem.sensitive ? 'database > environment > application defaults' : 'database > application defaults',
+      effectiveSource: sourceMetadata.effectiveSource,
       ...(externalOwner ? { externalOwner } : {}),
       key: registryItem.key,
       lifecycle,
-      normalizer,
+      ...valueDefinition,
       ownership: externalOwner ? 'external' : 'application',
       publicRuntime: registryItem.publicRuntime,
       requiredCapability: writable ? 'systemWrite' : 'systemRead',
-      runtimeConsumers: runtimeConsumersFor(registryItem.key, section, lifecycle),
+      runtimeConsumers: getAppSettingRuntimeConsumers(registryItem.key, lifecycle),
       runtimeEffects: runtimeEffectsFor(registryItem.key, registryItem.cacheScopes),
       section,
       sensitive: registryItem.sensitive,
-      valueSchema: schemaForNormalizer(normalizer),
       writable,
     };
   },
@@ -191,3 +123,9 @@ export const listAppSettingsCatalogItems = () => [...APP_SETTINGS_CATALOG];
 
 export const isSensitiveCatalogAppSettingKey = (key: string) =>
   getAppSettingCatalogItem(key)?.sensitive === true;
+
+export const normalizeAppSettingValue = (key: string, value: unknown) => {
+  const definition = getAppSettingCatalogItem(key);
+  if (!definition?.writable) throw new Error(`App setting is not writable: ${key}`);
+  return definition.normalizeValue(value);
+};

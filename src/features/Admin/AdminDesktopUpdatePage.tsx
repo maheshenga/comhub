@@ -108,18 +108,6 @@ const AdminDesktopUpdatePage = memo(() => {
       pushTextUpdate('releaseNotes', SETTING_KEYS.desktopUpdateReleaseNotes);
       pushTextUpdate('downloadUrl', SETTING_KEYS.desktopDownloadUrl);
       pushTextUpdate('downloadLabel', SETTING_KEYS.desktopDownloadLabel);
-      pushTextUpdate('ossBucket', SETTING_KEYS.desktopOssBucket);
-      pushTextUpdate('ossEndpoint', SETTING_KEYS.desktopOssEndpoint);
-      pushTextUpdate('ossAccessKeyId', SETTING_KEYS.desktopOssAccessKeyId);
-
-      if (values.ossAccessKeySecret) {
-        updates.push({
-          key: SETTING_KEYS.desktopOssAccessKeySecret,
-          value: values.ossAccessKeySecret.trim(),
-        });
-      }
-
-      pushTextUpdate('ossPath', SETTING_KEYS.desktopOssPath);
 
       if (updates.length === 0) {
         message.info(t('admin.desktopUpdate.noChanges', '没有需要保存的变更'));
@@ -146,12 +134,12 @@ const AdminDesktopUpdatePage = memo(() => {
 
         <Alert
           showIcon
+          message={t('admin.desktopUpdate.loginSection.message', '客户端登录页可在后台自定义')}
           type="info"
           description={t(
             'admin.desktopUpdate.loginSection.description',
             '这些配置会影响桌面客户端登录窗口中的标题栏、登录头像、主标题、副标题、云端登录按钮和底部版权。',
           )}
-          message={t('admin.desktopUpdate.loginSection.message', '客户端登录页可在后台自定义')}
         />
 
         <Form.Item
@@ -333,6 +321,16 @@ const AdminDesktopUpdatePage = memo(() => {
           {t('admin.desktopUpdate.ossSection', DESKTOP_SETTINGS_SECTIONS[6].title)}
         </Divider>
 
+        <Alert
+          showIcon
+          title={t('admin.desktopUpdate.ossExternal.message', '由 CI/GitHub Secrets 管理')}
+          type="info"
+          description={t(
+            'admin.desktopUpdate.ossExternal.description',
+            '桌面 OSS 配置由发布流水线通过 CI/GitHub Secrets 注入，后台仅展示当前状态。',
+          )}
+        />
+
         <Form.Item
           label={t('admin.desktopUpdate.ossBucket', 'OSS 存储桶（Bucket）')}
           name="ossBucket"
@@ -341,7 +339,7 @@ const AdminDesktopUpdatePage = memo(() => {
             'OSS Bucket 名称，不需要填写 oss:// 前缀，例如 comhubup。',
           )}
         >
-          <Input placeholder="comhubup" />
+          <Input disabled placeholder="comhubup" />
         </Form.Item>
 
         <Form.Item
@@ -352,14 +350,14 @@ const AdminDesktopUpdatePage = memo(() => {
             'OSS Endpoint 地址，例如 oss-cn-beijing.aliyuncs.com。',
           )}
         >
-          <Input placeholder="oss-cn-beijing.aliyuncs.com" />
+          <Input disabled placeholder="oss-cn-beijing.aliyuncs.com" />
         </Form.Item>
 
         <Form.Item
           label={t('admin.desktopUpdate.ossAccessKeyId', '访问密钥 ID（AccessKey ID）')}
           name="ossAccessKeyId"
         >
-          <Input placeholder="LTAI5t..." />
+          <Input disabled placeholder="LTAI5t..." />
         </Form.Item>
 
         <Form.Item
@@ -371,7 +369,10 @@ const AdminDesktopUpdatePage = memo(() => {
               : t('admin.desktopUpdate.notSet', '未配置')
           }
         >
-          <Input.Password placeholder={t('admin.desktopUpdate.leaveBlank', '留空则保持当前值')} />
+          <Input.Password
+            disabled
+            placeholder={t('admin.desktopUpdate.leaveBlank', '留空则保持当前值')}
+          />
         </Form.Item>
 
         <Form.Item
@@ -382,7 +383,7 @@ const AdminDesktopUpdatePage = memo(() => {
             '存储桶内的路径前缀，例如 releases。最终地址格式为 https://{bucket}.{endpoint}/{path}/{channel}/latest.yml。',
           )}
         >
-          <Input placeholder="releases" />
+          <Input disabled placeholder="releases" />
         </Form.Item>
 
         <Space>

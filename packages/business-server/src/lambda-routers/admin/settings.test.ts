@@ -547,6 +547,37 @@ describe('admin settings default model validation', () => {
     expect(serialized).not.toContain('desktop-oss-secret-key');
   });
 
+  it.each([
+    APP_SETTING_KEYS.desktopOssAccessKeyId,
+    APP_SETTING_KEYS.desktopOssAccessKeySecret,
+    APP_SETTING_KEYS.desktopOssBucket,
+    APP_SETTING_KEYS.desktopOssEndpoint,
+    APP_SETTING_KEYS.desktopOssPath,
+  ])('rejects externally owned desktop OSS key %s in batch writes', async (key) => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSettingsBatch({ updates: [{ key, value: 'external-value' }] }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('normalizes generic writes through the catalog adapter', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    await caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value: '  test-secret  ' });
+
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.cronSecret,
+      value: 'test-secret',
+    });
+  });
+
   it('rejects non-positive global pricing multipliers', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);
@@ -995,12 +1026,7 @@ describe('admin settings default model validation', () => {
 
   it('rejects enabled input completion defaults when the model is not enabled for its provider', async () => {
     vi.mocked(getAllEnabledModels).mockResolvedValue([
-      {
-        displayName: 'GPT 5.5 Mini',
-        id: 'gpt-5.5-mini',
-        providerId: 'newapi',
-        type: 'chat',
-      } as any,
+      { displayName: 'GPT 5.5 Mini', id: 'gpt-5.5-mini', providerId: 'newapi', type: 'chat' } as any,
     ]);
     const tx = createDb();
     const db = {
@@ -1334,7 +1360,12 @@ describe('admin settings default model validation', () => {
       },
     };
     vi.mocked(getAllEnabledModels).mockResolvedValue([
-      { displayName: 'GPT 5.5 Mini', id: 'gpt-5.5-mini', providerId: 'newapi', type: 'chat' } as any,
+      {
+        displayName: 'GPT 5.5 Mini',
+        id: 'gpt-5.5-mini',
+        providerId: 'newapi',
+        type: 'chat',
+      } as any,
     ]);
     const insert = vi.fn();
     const db = {

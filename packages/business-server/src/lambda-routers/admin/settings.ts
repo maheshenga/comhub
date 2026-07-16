@@ -58,11 +58,10 @@ import {
 } from '@/server/services/newapiInstance';
 
 import {
-  APP_SETTINGS_CATALOG,
-  APP_SETTINGS_NORMALIZATION_KEYS,
-  WRITABLE_APP_SETTING_KEYS,
   getAppSettingCatalogItem,
   isSensitiveCatalogAppSettingKey,
+  normalizeAppSettingValue,
+  WRITABLE_APP_SETTING_KEYS,
 } from '../../appSettings/catalog';
 import { isModelAllowedByPlanRules } from '../../planModelRules';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
@@ -123,16 +122,6 @@ const assertHttpOk = async (response: Response, code: string) => {
   throw new Error(`${code}: ${response.status}${body ? ` ${body}` : ''}`);
 };
 
-const catalogKeys = (predicate: (item: (typeof APP_SETTINGS_CATALOG)[number]) => boolean) =>
-  APP_SETTINGS_CATALOG.filter(predicate).map((item) => item.key);
-const BRAND_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.brand;
-const COMPOSIO_KEYS = catalogKeys((item) => item.key.startsWith('composio.'));
-const RECOMMENDATION_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.recommendation;
-const PRICING_KEYS = catalogKeys((item) => item.section === 'model-billing-matrix');
-const OPERATIONS_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.operations;
-const GROWTH_KEYS = catalogKeys((item) => item.section === 'growth');
-const MEMORY_KEYS = catalogKeys((item) => item.key.startsWith('memory.'));
-const VECTOR_KEYS = catalogKeys((item) => item.key.startsWith('vector.'));
 const USER_SETTINGS_SYNC_BATCH_SIZE = 500;
 const USER_SETTINGS_SYNC_KEYS = [
   'defaultAgent',
@@ -147,13 +136,6 @@ const USER_SETTINGS_SYNC_KEYS = [
   'tool',
   'tts',
 ] as const;
-
-const EXPERT_PLAZA_KEYS = APP_SETTINGS_NORMALIZATION_KEYS['expert-plaza'];
-const NOTIFICATION_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.notification;
-const STORAGE_KEYS = APP_SETTINGS_NORMALIZATION_KEYS.storage;
-const MODEL_POLICY_KEYS = APP_SETTINGS_NORMALIZATION_KEYS['model-policy'];
-const DESKTOP_UPDATE_KEYS = APP_SETTINGS_NORMALIZATION_KEYS['desktop-update'];
-const DESKTOP_LOGIN_KEYS = APP_SETTINGS_NORMALIZATION_KEYS['desktop-login'];
 
 const readSetting = async (db: any, key: string): Promise<unknown> => {
   const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
@@ -192,21 +174,6 @@ const toBoundedInt = (value: unknown, fallback: number, min: number, max: number
 
 const toString = (value: unknown, fallback = '') =>
   typeof value === 'string' ? value.trim() : fallback;
-
-const toOptionalUrlString = (value: unknown, key: string) => {
-  const text = toString(value);
-  if (!text) return '';
-
-  try {
-    new URL(text);
-    return text;
-  } catch {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: `${key} must be a valid URL`,
-    });
-  }
-};
 
 const normalizeMemoryUserMemoryTriggerMode = (value: unknown) =>
   value === 'direct' || value === 'workflow' || value === 'auto' ? value : 'auto';
@@ -426,257 +393,7 @@ const readInputCompletionDefault = (
 };
 
 const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSettingUpdate => {
-  // Coerce setting values before persistence so public runtime readers can stay simple.
-  let value: unknown = input.value;
-  if (input.key === SETTING_KEYS.cronAuditRetentionDays) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) throw new Error('cronAuditRetentionDays must be a number');
-    value = Math.max(7, Math.min(3650, Math.round(n)));
-  } else if (input.key === SETTING_KEYS.cronPendingOrderExpiryDays) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) throw new Error('cronPendingOrderExpiryDays must be a number');
-    value = Math.max(1, Math.min(365, Math.round(n)));
-  } else if (input.key === SETTING_KEYS.referralRewardCredits) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) throw new Error('referralRewardCredits must be a number');
-    value = Math.max(0, Math.round(n));
-  } else if (input.key === SETTING_KEYS.composioEnabled) {
-    value = Boolean(value);
-  } else if (input.key === SETTING_KEYS.composioApiKey) {
-    value = typeof value === 'string' ? value.trim() : '';
-  } else if (input.key === SETTING_KEYS.composioAuthConfigIds) {
-    const normalizedAuthConfigIds = toString(value);
-    value = normalizedAuthConfigIds;
-
-    if (normalizedAuthConfigIds) {
-      try {
-        const parsed = JSON.parse(normalizedAuthConfigIds);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          throw new Error('COMPOSIO_AUTH_CONFIG_IDS_MUST_BE_OBJECT');
-        }
-      } catch {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'composioAuthConfigIds must be a JSON object',
-        });
-      }
-    }
-  } else if (input.key === SETTING_KEYS.defaultAgentModel) {
-    value = typeof value === 'string' ? value.trim() : '';
-  } else if (input.key === SETTING_KEYS.defaultAgentName) {
-    value = typeof value === 'string' ? value.trim() : '';
-  } else if (input.key === SETTING_KEYS.defaultAgentAvatar) {
-    value = typeof value === 'string' ? value.trim() : '';
-  } else if (input.key === SETTING_KEYS.defaultAgentProvider) {
-    value = typeof value === 'string' ? value.trim() : '';
-  } else if (
-    input.key === SETTING_KEYS.defaultImageModel ||
-    input.key === SETTING_KEYS.defaultImageProvider ||
-    input.key === SETTING_KEYS.defaultVideoModel ||
-    input.key === SETTING_KEYS.defaultVideoProvider
-  ) {
-    value = typeof value === 'string' ? value.trim() : '';
-  } else if (input.key === SETTING_KEYS.defaultSkillName) {
-    value = typeof value === 'string' ? value.trim() : '';
-  } else if (input.key === SETTING_KEYS.pricingCreditMultiplier) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'pricingCreditMultiplier must be a number',
-      });
-    }
-    if (n <= 0) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'pricingCreditMultiplier must be greater than 0',
-      });
-    }
-    value = Math.min(100, n);
-  } else if (input.key === SETTING_KEYS.pricingModelRules) {
-    value = Array.isArray(value) ? value : [];
-  } else if (input.key === SETTING_KEYS.ordersManagementEnabled) {
-    value = Boolean(value);
-  } else if (input.key === SETTING_KEYS.plansFaqItems) {
-    value = normalizePlanFaqSettings(value);
-  } else if (input.key === SETTING_KEYS.homeMessengerEnabled) {
-    value = Boolean(value);
-  } else if ((OPERATIONS_KEYS as readonly string[]).includes(input.key)) {
-    if (
-      [
-        SETTING_KEYS.communityCreatorRewardBannerEnabled,
-        SETTING_KEYS.communityFeaturedAssistantsEnabled,
-        SETTING_KEYS.communityFeaturedMcpsEnabled,
-        SETTING_KEYS.communityFeaturedSkillsEnabled,
-        SETTING_KEYS.communityHomeAnnouncementEnabled,
-      ].includes(input.key as any)
-    ) {
-      value = Boolean(value);
-    } else if (
-      [
-        SETTING_KEYS.communityFeaturedAssistantPageSize,
-        SETTING_KEYS.communityFeaturedMcpPageSize,
-        SETTING_KEYS.communityFeaturedSkillPageSize,
-      ].includes(input.key as any)
-    ) {
-      value = toBoundedInt(value, 12, 1, 24);
-    } else {
-      value = toString(value);
-    }
-  } else if ((GROWTH_KEYS as readonly string[]).includes(input.key)) {
-    if (
-      [SETTING_KEYS.authSignupEnabled, SETTING_KEYS.onboardingInitialCreditsEnabled].includes(
-        input.key as any,
-      ) ||
-      input.key === SETTING_KEYS.authSignupPhoneEnabled
-    ) {
-      value = Boolean(value);
-    } else if (
-      [
-        SETTING_KEYS.onboardingInitialCredits,
-        SETTING_KEYS.uploadMaxInputSizeMb,
-        SETTING_KEYS.uploadMaxActualSizeMb,
-      ].includes(input.key as any)
-    ) {
-      value = toBoundedInt(value, 0, 0, 10_000_000_000);
-    } else {
-      value = toString(value);
-    }
-  } else if (input.key === SETTING_KEYS.profileInterestAreas) {
-    value = normalizeProfileInterestAreas(value);
-  } else if (input.key === SETTING_KEYS.profileAvatarPresets) {
-    value = normalizeAvatarPresets(value);
-  } else if (input.key === SETTING_KEYS.memoryUserMemoryTriggerMode) {
-    value = normalizeMemoryUserMemoryTriggerMode(value);
-  } else if ((MEMORY_KEYS as readonly string[]).includes(input.key)) {
-    value = toString(value);
-  } else if ((VECTOR_KEYS as readonly string[]).includes(input.key)) {
-    value = toString(value);
-  } else if (input.key === SETTING_KEYS.userGlobalSettingsDefaults) {
-    value = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  } else if ((EXPERT_PLAZA_KEYS as readonly string[]).includes(input.key)) {
-    if (input.key === SETTING_KEYS.expertPlazaEnabled) {
-      value = Boolean(value);
-    } else if (input.key === SETTING_KEYS.expertPlazaCards) {
-      value = normalizeExpertPlazaCards(value);
-    } else if (input.key === SETTING_KEYS.expertPlazaCategories) {
-      value = toStringList(value);
-    } else {
-      value = toString(value);
-    }
-  } else if ((NOTIFICATION_KEYS as readonly string[]).includes(input.key)) {
-    if (
-      [
-        SETTING_KEYS.notificationInboxEnabled,
-        SETTING_KEYS.notificationDesktopEnabled,
-        SETTING_KEYS.notificationEmailEnabled,
-        SETTING_KEYS.notificationPushEnabled,
-        SETTING_KEYS.notificationSystemEnabled,
-      ].includes(input.key as any)
-    ) {
-      value = Boolean(value);
-    } else if (input.key === SETTING_KEYS.notificationEventDefaults) {
-      value = normalizeNotificationEventDefaults(value);
-    } else if (input.key === SETTING_KEYS.notificationRetentionDays) {
-      value = toBoundedInt(value, 90, 1, 3650);
-    } else if (input.key === SETTING_KEYS.notificationSystemType) {
-      const type = toString(value);
-      value = ['success', 'info', 'warning', 'error'].includes(type) ? type : 'warning';
-    } else {
-      value = toString(value);
-    }
-  } else if ((STORAGE_KEYS as readonly string[]).includes(input.key)) {
-    if (
-      [SETTING_KEYS.storageS3EnablePathStyle, SETTING_KEYS.storageS3SetAcl].includes(
-        input.key as any,
-      )
-    ) {
-      value = Boolean(value);
-    } else if (input.key === SETTING_KEYS.storageS3PreviewUrlExpireIn) {
-      value = toBoundedInt(value, 7200, 60, 604_800);
-    } else if (input.key === SETTING_KEYS.storageS3FilePath) {
-      value = normalizeS3FilePath(value) || '';
-    } else if (
-      [SETTING_KEYS.storageS3Endpoint, SETTING_KEYS.storageS3PublicDomain].includes(
-        input.key as any,
-      )
-    ) {
-      value = toOptionalUrlString(value, input.key);
-    } else {
-      value = toString(value);
-    }
-  } else if ((MODEL_POLICY_KEYS as readonly string[]).includes(input.key)) {
-    if (
-      [
-        SETTING_KEYS.modelPolicyEnabled,
-        SETTING_KEYS.modelPolicyApplyToEmbeddings,
-        SETTING_KEYS.modelPolicyApplyToGenerateObject,
-      ].includes(input.key as any)
-    ) {
-      value = Boolean(value);
-    } else if (
-      [SETTING_KEYS.modelPolicyAllowlist, SETTING_KEYS.modelPolicyBlocklist].includes(
-        input.key as any,
-      )
-    ) {
-      value = toStringList(value);
-    } else if (input.key === SETTING_KEYS.modelPolicyMode) {
-      value = value === 'allowlist' || value === 'blocklist' ? value : 'blocklist';
-    } else {
-      value = toString(value);
-    }
-  } else if ((RECOMMENDATION_KEYS as readonly string[]).includes(input.key)) {
-    if (
-      [
-        SETTING_KEYS.recommendationSectionEnabled,
-        SETTING_KEYS.recommendationAssistantsEnabled,
-        SETTING_KEYS.recommendationMcpsEnabled,
-        SETTING_KEYS.recommendationSkillsEnabled,
-        SETTING_KEYS.recommendationGeneralSkillsEnabled,
-        SETTING_KEYS.recommendationHotSkillsEnabled,
-      ].includes(input.key as any)
-    ) {
-      value = Boolean(value);
-    } else if (input.key === SETTING_KEYS.recommendationHotSkillSort) {
-      value = typeof value === 'string' && value.trim() ? value.trim() : 'installCount';
-    } else if (
-      [
-        SETTING_KEYS.recommendationAssistantTitle,
-        SETTING_KEYS.recommendationMcpTitle,
-        SETTING_KEYS.recommendationSkillTitle,
-        SETTING_KEYS.recommendationGeneralSkillTitle,
-        SETTING_KEYS.recommendationHotSkillTitle,
-      ].includes(input.key as any)
-    ) {
-      value = toString(value);
-    } else {
-      value = toStringList(value);
-    }
-  } else if ((BRAND_KEYS as readonly string[]).includes(input.key)) {
-    value = toString(value);
-  } else if (input.key === SETTING_KEYS.helpMenuItems) {
-    value = normalizeHelpMenuItems(value);
-  } else if (input.key === SETTING_KEYS.aboutPage) {
-    value = normalizeAboutPageConfig(value);
-  } else if (input.key === SETTING_KEYS.aboutLinks) {
-    value = normalizeAboutLinksConfig(value);
-  } else if (input.key === SETTING_KEYS.desktopDownloadUrl) {
-    value = toString(value);
-  } else if (input.key === SETTING_KEYS.desktopDownloadLabel) {
-    value = toString(value);
-  } else if ((DESKTOP_LOGIN_KEYS as readonly string[]).includes(input.key)) {
-    value = toString(value);
-  } else if ((DESKTOP_UPDATE_KEYS as readonly string[]).includes(input.key)) {
-    if (input.key === SETTING_KEYS.desktopUpdateAutoCheck) {
-      value = Boolean(value);
-    } else if (input.key === SETTING_KEYS.desktopUpdateCheckInterval) {
-      value = toBoundedInt(value, 60, 1, 1440);
-    } else if (input.key === SETTING_KEYS.desktopUpdateChannel) {
-      value = value === 'canary' ? 'canary' : 'stable';
-    } else {
-      value = toString(value);
-    }
-  }
+  const value = normalizeAppSettingValue(input.key, input.value);
 
   return {
     hasValue: value !== null && value !== undefined && value !== '',

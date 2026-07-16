@@ -51,4 +51,45 @@ Only these source areas changed:
 
 ## Residual Concerns
 
-- Task 1 centralizes metadata while retaining the existing per-setting normalization implementation in the router to avoid changing persistence behavior. A later task can move those normalizers behind catalog adapters once their behavior is separately covered.
+- None within the Task 1 scope. The review fix moved per-setting write normalization behind catalog-owned adapters and retained the existing focused router coverage.
+
+## Review Fix - Important Findings
+
+### Changes
+
+- Replaced generic source strings with ordered source metadata. All S3 keys now name their exact `S3_*` or `NEXT_PUBLIC_S3_*` fallbacks; Composio, cron-secret, and memory-trigger overrides name their exact database/environment/default order.
+- Added catalog-owned value definitions with concrete Zod output schemas and normalization adapters for every registered key.
+- Changed generic single and batch writes to invoke `normalizeAppSettingValue`, removing the router-owned key-specific normalization chain.
+- Replaced synthetic consumer labels with concrete reader identifiers and added explicit family/runtime readers for S3, Composio, public settings, model defaults, memory, vector, and model policy.
+- Kept all five desktop OSS keys fail-closed in generic batch writes.
+- Updated `AdminDesktopUpdatePage` so desktop OSS values remain visible but all five controls are disabled, clearly marked as CI/GitHub Secrets owned, and excluded from save payloads.
+- Added focused catalog, router, and desktop-page coverage without changing tRPC names, response shapes, payment behavior, navigation, Module App behavior, Worker deployment, or secret storage.
+
+### TDD Evidence
+
+1. Catalog red gate:
+   `bunx vitest run --silent='passed-only' src/appSettings/catalog.test.ts`
+   - 4 tests ran; 3 failed for generic effective sources, permissive schemas/missing adapters, and synthetic consumer labels.
+2. Router red gate:
+   `bunx vitest run --silent='passed-only' src/lambda-routers/admin/settings.test.ts`
+   - 46 tests ran; 1 failed because `cron.secret` bypassed catalog normalization and retained surrounding whitespace.
+   - The five new desktop OSS rejection cases already passed, confirming the secure backend boundary before UI changes.
+3. Desktop red gate:
+   `bunx vitest run --silent='passed-only' src/features/Admin/AdminDesktopUpdatePage.test.tsx`
+   - 1 test failed because the OSS bucket control was editable.
+
+### Final Verification Evidence
+
+- `packages/business-server`: `bunx vitest run --silent='passed-only' src/appSettings/catalog.test.ts src/lambda-routers/admin/settings.test.ts`
+  - 2 files passed, 50 tests passed.
+- Repository root: `bunx vitest run --silent='passed-only' src/server/services/appSettings/governance.test.ts src/features/Admin/adminSettingsForm.test.ts`
+  - 2 files passed, 39 tests passed.
+- Repository root: `bunx vitest run --silent='passed-only' --pool=forks --maxWorkers=1 src/features/Admin/AdminDesktopUpdatePage.test.tsx`
+  - 1 file passed, 1 test passed.
+  - A single fork is used for this component test to avoid the default worker teardown race observed during development; the final run exited cleanly with no unhandled errors.
+- Repository root: targeted `bunx eslint` over all changed TypeScript/TSX files.
+  - Passed with no errors or warnings.
+- Repository root: `bun run type-check`
+  - Passed (`tsgo --noEmit`).
+- Repository root: `git diff --check`
+  - Passed.

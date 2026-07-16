@@ -43,11 +43,12 @@ export type AppSettingCatalogItem = {
   cacheScopes: Array<'app-settings' | 'brand' | 'runtime' | 's3' | 'user-state'>;
   defaultSource: string;
   domain: AppSettingDomain;
-  effectiveSource: string;
+  effectiveSource: string[];
   externalOwner?: string;
   key: AppSettingKey;
   lifecycle: AppSettingLifecycle;
   normalizer: AppSettingNormalizer;
+  normalizeValue: (value: unknown) => unknown;
   ownership: 'application' | 'external';
   publicRuntime: boolean;
   requiredCapability: 'systemRead' | 'systemWrite';
@@ -58,3 +59,8 @@ export type AppSettingCatalogItem = {
   valueSchema: z.ZodType<unknown>;
   writable: boolean;
 };
+
+export type AppSettingValueDefinition = Pick<
+  AppSettingCatalogItem,
+  'normalizer' | 'normalizeValue' | 'valueSchema'
+>;
