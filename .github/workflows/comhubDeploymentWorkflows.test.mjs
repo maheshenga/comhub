@@ -24,31 +24,76 @@ const assertProductionLock = (job) => {
   assert.equal(job.concurrency['cancel-in-progress'], false);
 };
 
-const traceMaintenanceCommands = (run, action) => {
+const traceMaintenanceCommands = (run, action, options = {}) => {
   const heredoc = run.match(/<<'REMOTE_MAINTENANCE'\n(?<script>[\s\S]*?)\nREMOTE_MAINTENANCE\s*$/u);
   assert.ok(heredoc?.groups?.script, 'maintenance workflow must embed the remote script');
+  const dockerRoot = options.dockerRoot ?? '/var/lib/docker';
+  assert.match(dockerRoot, /^\/[./\dA-Z_-]+$/iu);
 
   const commandStubs = String.raw`
+exec 3>&1
 record() {
-  printf 'MAINTENANCE_TRACE'
-  printf '\t%s' "$@"
-  printf '\n'
+  printf 'MAINTENANCE_TRACE' >&3
+  printf '\t%s' "$@" >&3
+  printf '\n' >&3
 }
 df() { record df "$@"; }
-docker() { record docker "$@"; }
+docker() {
+  record docker "$@"
+  if [ "$#" -ge 2 ] && [ "$1" = info ] && [ "$2" = --format ]; then
+    printf '%s\n' '${dockerRoot}'
+  fi
+}
+findmnt() { record findmnt "$@"; }
 journalctl() { record journalctl "$@"; }
 apt-get() { record apt-get "$@"; }
 dnf() { record dnf "$@"; }
 yum() { record yum "$@"; }
 du() { record du "$@"; }
 find() { record find "$@"; }
+bash() {
+  record bash "$@"
+  if [ "$#" -lt 2 ] || [ "$1" != -c ]; then
+    record UNAPPROVED bash "$@"
+    return 0
+  fi
+  local child_script="$2"
+  shift 2
+  if [ "$#" -gt 0 ]; then
+    shift
+  fi
+  (eval "$child_script")
+}
+sort() { record sort "$@"; }
+head() { record head "$@"; }
+realpath() {
+  record realpath "$@"
+  case "$3" in
+    /./) printf '/\n' ;;
+    *) printf '%s\n' "$3" ;;
+  esac
+}
+timeout() {
+  record timeout "$@"
+  if [ "$1" = --kill-after=10s ]; then
+    shift
+  fi
+  local duration="$1"
+  shift
+  "$@"
+}
 sync() { record sync "$@"; }
+command_not_found_handle() {
+  record UNAPPROVED "$@"
+  return 0
+}
+PATH=/maintenance-test-no-external-commands
 `;
   const result = spawnSync('bash', ['-s', '--', action], {
     encoding: 'utf8',
     input: `${commandStubs}\n${heredoc.groups.script}\n`,
   });
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
 
   return result.stdout
     .split('\n')
@@ -192,7 +237,7 @@ test('server disk maintenance is manual, production-locked, and bounded', () => 
   assert.equal(actionInput.required, true);
   assert.equal(actionInput.type, 'choice');
   assert.equal(actionInput.default, 'report');
-  assert.deepEqual(actionInput.options, ['report', 'cleanup-safe']);
+  assert.deepEqual(actionInput.options, ['report', 'report-deep', 'cleanup-safe']);
   assert.equal(workflow.permissions.contents, 'read');
   assertProductionLock(workflow.jobs.maintenance);
   assert.equal(workflow.jobs.maintenance.if, "${{ github.ref == 'refs/heads/main' }}");
@@ -230,6 +275,25 @@ test('server disk maintenance is manual, production-locked, and bounded', () => 
   assert.doesNotMatch(run, /docker\s+compose\s+down[^\n]*\s-v/);
   assert.doesNotMatch(run, /\brm\b|truncate|shred|wipefs|find[^\n]*-delete/);
   assert.doesNotMatch(run, /\.Config\.Env|printenv|docker inspect/);
+  assert.doesNotMatch(run, /\b(?:cat|tail|less|more|xxd|base64)\b/);
+  assert.doesNotMatch(
+    run,
+    /\b(?:chmod|chown|chgrp|cp|dd|fstrim|logrotate|mount|mv|pkill|podman|service|systemctl|tee|touch|umount)\b|(?<!-)\bkill\b/,
+  );
+  assert.doesNotMatch(run, /(?:^|[\s;(])\/(?:usr\/)?s?bin\//mu);
+  assert.match(run, /findmnt -rn -o TARGET,SOURCE,FSTYPE/);
+  assert.match(run, /--max-depth=2/);
+  assert.match(run, /-size ['"]?\+100M['"]?/);
+  assert.match(run, /head -50/);
+  assert.match(run, /timeout --kill-after=10s "\$duration" bash -c/);
+  assert.match(run, /timeout --kill-after=10s 1m docker info/);
+  assert.match(run, /timeout --kill-after=10s 2m docker system df -v/);
+  assert.match(run, /timeout --kill-after=10s 1m docker ps -a --no-trunc/);
+  assert.match(run, /timeout --kill-after=10s 5m bash -c/);
+  assert.match(run, /report_tree '\/www' \/www 5m/);
+  assert.match(run, /report_tree '\/var\/log' \/var\/log 2m/);
+  assert.match(run, /report_tree '\/var\/cache' \/var\/cache 1m/);
+  assert.match(run, /report_tree 'Docker root' "\$docker_root" 4m/);
 
   const reportCommands = traceMaintenanceCommands(run, 'report');
   assert.deepEqual(selectMaintenanceCommands(reportCommands, ['docker']), [
@@ -249,6 +313,99 @@ test('server disk maintenance is manual, production-locked, and bounded', () => 
   assert.deepEqual(
     selectMaintenanceCommands(reportCommands, ['apt-get', 'dnf', 'yum', 'sync']),
     [],
+  );
+
+  const deepReportCommands = traceMaintenanceCommands(run, 'report-deep');
+  assert.deepEqual(selectMaintenanceCommands(deepReportCommands, ['docker']), [
+    ['docker', 'system', 'df'],
+    [
+      'docker',
+      'ps',
+      '-a',
+      '--size',
+      '--format',
+      String.raw`table {{.Names}}\t{{.Status}}\t{{.Size}}`,
+    ],
+    ['docker', 'info', '--format', '{{.DockerRootDir}}'],
+    ['docker', 'system', 'df', '-v'],
+    [
+      'docker',
+      'ps',
+      '-a',
+      '--no-trunc',
+      '--size',
+      '--format',
+      String.raw`table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Size}}`,
+    ],
+  ]);
+  assert.deepEqual(selectMaintenanceCommands(deepReportCommands, ['findmnt']), [
+    ['findmnt', '-rn', '-o', 'TARGET,SOURCE,FSTYPE'],
+  ]);
+  assert.deepEqual(selectMaintenanceCommands(deepReportCommands, ['realpath']), [
+    ['realpath', '-e', '--', '/var/lib/docker'],
+  ]);
+  assert.deepEqual(selectMaintenanceCommands(deepReportCommands, ['journalctl']), [
+    ['journalctl', '--disk-usage'],
+  ]);
+  assert.deepEqual(
+    selectMaintenanceCommands(deepReportCommands, ['apt-get', 'dnf', 'yum', 'sync']),
+    [],
+  );
+  const deepTimeoutCommands = selectMaintenanceCommands(deepReportCommands, ['timeout']);
+  assert.ok(deepTimeoutCommands.length >= 3);
+  for (const [, killAfter, duration] of deepTimeoutCommands) {
+    assert.equal(killAfter, '--kill-after=10s');
+    assert.ok(['1m', '2m', '4m', '5m'].includes(duration));
+  }
+  const deepReportAllowlist = new Set([
+    'bash',
+    'df',
+    'docker',
+    'du',
+    'find',
+    'findmnt',
+    'head',
+    'journalctl',
+    'realpath',
+    'sort',
+    'timeout',
+  ]);
+  for (const [command] of deepReportCommands) {
+    assert.ok(deepReportAllowlist.has(command), `unexpected deep-report command: ${command}`);
+  }
+
+  const probeRun = run.replace(
+    "    echo '### Deep disk report'\n    report_deep",
+    "    echo '### Deep disk report'\n    maintenance_forbidden_probe --all || true\n    report_deep",
+  );
+  assert.notEqual(probeRun, run, 'the forbidden-command probe must be injected');
+  const probeCommands = traceMaintenanceCommands(probeRun, 'report-deep');
+  assert.deepEqual(selectMaintenanceCommands(probeCommands, ['UNAPPROVED']), [
+    ['UNAPPROVED', 'maintenance_forbidden_probe', '--all'],
+  ]);
+
+  const pipelineProbeRun = run.replace(
+    /^(\s*)set -o pipefail\n(\s*du -x)/mu,
+    '$1set -o pipefail\n$1maintenance_pipeline_probe --all || true\n$2',
+  );
+  assert.notEqual(pipelineProbeRun, run, 'the pipeline command probe must be injected');
+  const pipelineProbeCommands = traceMaintenanceCommands(pipelineProbeRun, 'report-deep');
+  const pipelineProbeDetections = selectMaintenanceCommands(pipelineProbeCommands, ['UNAPPROVED']);
+  assert.ok(pipelineProbeDetections.length >= 1);
+  for (const detection of pipelineProbeDetections) {
+    assert.deepEqual(detection, ['UNAPPROVED', 'maintenance_pipeline_probe', '--all']);
+  }
+
+  const escapedRootCommands = traceMaintenanceCommands(run, 'report-deep', {
+    dockerRoot: '/./',
+  });
+  assert.equal(
+    escapedRootCommands.some(
+      ([command, ...args]) =>
+        ['bash', 'du', 'find', 'timeout'].includes(command) && args.includes('/./'),
+    ),
+    false,
+    'root-equivalent Docker paths must be canonicalized before scanning',
   );
 
   const cleanupCommands = traceMaintenanceCommands(run, 'cleanup-safe');
