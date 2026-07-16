@@ -12,7 +12,9 @@ on:
         options:
           - report
           - report-deep
+          - report-blue-release-caches
           - cleanup-safe
+          - cleanup-blue-release-caches
 
 permissions:
   contents: read
@@ -44,7 +46,7 @@ jobs:
             exit 1
           }
           case "$MAINTENANCE_ACTION" in
-            report|report-deep|cleanup-safe) ;;
+            report|report-deep|report-blue-release-caches|cleanup-safe|cleanup-blue-release-caches) ;;
             *)
               echo 'unsupported maintenance action' >&2
               exit 1
@@ -78,7 +80,7 @@ jobs:
           set -euo pipefail
 
           case "$MAINTENANCE_ACTION" in
-            report|report-deep|cleanup-safe) ;;
+            report|report-deep|report-blue-release-caches|cleanup-safe|cleanup-blue-release-caches) ;;
             *)
               echo 'unsupported maintenance action' >&2
               exit 1
@@ -104,7 +106,7 @@ jobs:
 
           action="$1"
           case "$action" in
-            report|report-deep|cleanup-safe) ;;
+            report|report-deep|report-blue-release-caches|cleanup-safe|cleanup-blue-release-caches) ;;
             *)
               echo 'unsupported remote maintenance action' >&2
               exit 1
@@ -117,6 +119,7 @@ jobs:
 
             echo '== Root filesystem =='
             df -hT /
+            df -B1 /
             df -i /
 
             echo '== Docker summary =='
@@ -275,20 +278,270 @@ jobs:
             fi
           }
 
+          blue_release_cache_maintenance() {
+            local mode="$1"
+            local fixed_releases_root='/www/wwwroot/blue/releases'
+            local fixed_current_link='/www/wwwroot/blue/current'
+            local releases_root=''
+            local releases_root_now=''
+            local current_target=''
+            local current_target_now=''
+            local release_path=''
+            local release_canonical=''
+            local next_path=''
+            local next_canonical=''
+            local cache_path=''
+            local cache_canonical=''
+            local du_output=''
+            local cache_size=''
+            local find_pid=''
+            local required_command=''
+            local index=0
+            local total_bytes=0
+            local -a old_release_paths=()
+            local -a cache_paths=()
+            local -a cache_sizes=()
+
+            case "$mode" in
+              report|cleanup) ;;
+              *)
+                echo 'unsupported blue release cache mode' >&2
+                return 1
+                ;;
+            esac
+
+            for required_command in realpath find du; do
+              command -v "$required_command" >/dev/null 2>&1 || {
+                echo "required command unavailable: $required_command" >&2
+                return 1
+              }
+            done
+            if [ "$mode" = cleanup ]; then
+              command -v rm >/dev/null 2>&1 || {
+                echo 'required command unavailable: rm' >&2
+                return 1
+              }
+            fi
+
+            [ -d "$fixed_releases_root" ] || {
+              echo "blue releases root unavailable: $fixed_releases_root" >&2
+              return 1
+            }
+            [ ! -L "$fixed_releases_root" ] || {
+              echo 'blue releases root must not be a symlink' >&2
+              return 1
+            }
+            releases_root="$(realpath -e -- "$fixed_releases_root")" || {
+              echo 'failed to canonicalize blue releases root' >&2
+              return 1
+            }
+            [ "$releases_root" = "$fixed_releases_root" ] || {
+              echo 'blue releases root canonical path mismatch' >&2
+              return 1
+            }
+
+            [ -L "$fixed_current_link" ] || {
+              echo "blue current link unavailable: $fixed_current_link" >&2
+              return 1
+            }
+            current_target="$(realpath -e -- "$fixed_current_link")" || {
+              echo 'failed to resolve blue current release' >&2
+              return 1
+            }
+            [ -d "$current_target" ] && [ "${current_target%/*}" = "$releases_root" ] || {
+              echo 'blue current release must be an immediate child of releases root' >&2
+              return 1
+            }
+
+            mapfile -d '' -t old_release_paths < <(
+              find "$releases_root" \
+                -mindepth 1 -maxdepth 1 -type d -mmin +10080 -print0
+            )
+            find_pid="$!"
+            if ! wait "$find_pid"; then
+              echo 'failed to enumerate old blue releases' >&2
+              return 1
+            fi
+
+            echo '== Blue release cache inventory =='
+            printf 'releases_root=%q\n' "$releases_root"
+            printf 'current_release=%q\n' "$current_target"
+            printf 'age_filter=%s\n' 'release directory mtime older than 7 days'
+
+            for release_path in "${old_release_paths[@]}"; do
+              [ ! -L "$release_path" ] || {
+                echo 'old release candidate must not be a symlink' >&2
+                return 1
+              }
+              release_canonical="$(realpath -e -- "$release_path")" || {
+                echo 'failed to canonicalize old release candidate' >&2
+                return 1
+              }
+              [ "$release_canonical" = "$release_path" ] && \
+                [ "${release_canonical%/*}" = "$releases_root" ] || {
+                echo 'old release candidate escaped releases root' >&2
+                return 1
+              }
+              [ "$release_canonical" != "$current_target" ] || continue
+
+              next_path="$release_canonical/.next"
+              cache_path="$next_path/cache"
+              if [ ! -e "$cache_path" ] && [ ! -L "$cache_path" ]; then
+                continue
+              fi
+              [ -d "$next_path" ] && [ ! -L "$next_path" ] || {
+                echo 'candidate .next path must be a real directory' >&2
+                return 1
+              }
+              [ -d "$cache_path" ] && [ ! -L "$cache_path" ] || {
+                echo 'candidate cache path must be a real directory' >&2
+                return 1
+              }
+              next_canonical="$(realpath -e -- "$next_path")" || {
+                echo 'failed to canonicalize candidate .next path' >&2
+                return 1
+              }
+              cache_canonical="$(realpath -e -- "$cache_path")" || {
+                echo 'failed to canonicalize candidate cache path' >&2
+                return 1
+              }
+              [ "$next_canonical" = "$next_path" ] && \
+                [ "${next_canonical%/*}" = "$release_canonical" ] && \
+                [ "$cache_canonical" = "$cache_path" ] && \
+                [ "${cache_canonical%/*}" = "$next_canonical" ] || {
+                echo 'candidate cache canonical path mismatch' >&2
+                return 1
+              }
+
+              if ! du_output="$(du -x -s -B1 -- "$cache_path")"; then
+                echo 'failed to measure candidate cache' >&2
+                return 1
+              fi
+              cache_size="${du_output%%[[:space:]]*}"
+              case "$cache_size" in
+                ''|*[!0-9]*)
+                  echo 'candidate cache size was not numeric' >&2
+                  return 1
+                  ;;
+              esac
+              cache_paths+=("$cache_path")
+              cache_sizes+=("$cache_size")
+              total_bytes=$((total_bytes + cache_size))
+              printf 'candidate_cache=%q bytes=%s\n' "$cache_path" "$cache_size"
+            done
+
+            printf 'candidate_count=%s\n' "${#cache_paths[@]}"
+            printf 'candidate_cache_bytes=%s\n' "$total_bytes"
+            [ "$mode" = cleanup ] || return 0
+
+            current_target_now="$(realpath -e -- "$fixed_current_link")" || {
+              echo 'failed to re-resolve blue current release' >&2
+              return 1
+            }
+            [ "$current_target_now" = "$current_target" ] || {
+              echo 'blue current release changed during inventory; refusing cleanup' >&2
+              return 1
+            }
+
+            for index in "${!cache_paths[@]}"; do
+              cache_path="${cache_paths[$index]}"
+              release_path="${cache_path%/.next/cache}"
+              next_path="$release_path/.next"
+              [ "$release_path" != "$current_target_now" ] && \
+                [ ! -L "$release_path" ] && \
+                [ ! -L "$next_path" ] && \
+                [ -d "$cache_path" ] && [ ! -L "$cache_path" ] || {
+                echo 'candidate cache changed before cleanup; refusing cleanup' >&2
+                return 1
+              }
+              release_canonical="$(realpath -e -- "$release_path")" || return 1
+              next_canonical="$(realpath -e -- "$next_path")" || return 1
+              cache_canonical="$(realpath -e -- "$cache_path")" || return 1
+              [ "$release_canonical" = "$release_path" ] && \
+                [ "${release_canonical%/*}" = "$releases_root" ] && \
+                [ "$next_canonical" = "$next_path" ] && \
+                [ "${next_canonical%/*}" = "$release_canonical" ] && \
+                [ "$cache_canonical" = "$cache_path" ] && \
+                [ "${cache_canonical%/*}" = "$next_canonical" ] || {
+                echo 'candidate cache failed final canonical path validation' >&2
+                return 1
+              }
+            done
+
+            for index in "${!cache_paths[@]}"; do
+              cache_path="${cache_paths[$index]}"
+              release_path="${cache_path%/.next/cache}"
+              next_path="$release_path/.next"
+
+              [ ! -L "$fixed_releases_root" ] && [ -L "$fixed_current_link" ] || {
+                echo 'blue release roots changed before deletion; refusing cleanup' >&2
+                return 1
+              }
+              releases_root_now="$(realpath -e -- "$fixed_releases_root")" || return 1
+              current_target_now="$(realpath -e -- "$fixed_current_link")" || return 1
+              [ "$releases_root_now" = "$releases_root" ] && \
+                [ "$current_target_now" = "$current_target" ] && \
+                [ "$release_path" != "$current_target_now" ] && \
+                [ ! -L "$release_path" ] && \
+                [ ! -L "$next_path" ] && \
+                [ -d "$cache_path" ] && [ ! -L "$cache_path" ] || {
+                echo 'blue release paths changed before deletion; refusing cleanup' >&2
+                return 1
+              }
+              release_canonical="$(realpath -e -- "$release_path")" || return 1
+              next_canonical="$(realpath -e -- "$next_path")" || return 1
+              cache_canonical="$(realpath -e -- "$cache_path")" || return 1
+              [ "$release_canonical" = "$release_path" ] && \
+                [ "${release_canonical%/*}" = "$releases_root" ] && \
+                [ "$next_canonical" = "$next_path" ] && \
+                [ "${next_canonical%/*}" = "$release_canonical" ] && \
+                [ "$cache_canonical" = "$cache_path" ] && \
+                [ "${cache_canonical%/*}" = "$next_canonical" ] || {
+                echo 'candidate cache failed deletion-time path validation' >&2
+                return 1
+              }
+
+              rm -rf --one-file-system -- "$cache_path"
+              if [ -e "$cache_path" ] || [ -L "$cache_path" ]; then
+                echo 'candidate cache still exists after cleanup' >&2
+                return 1
+              fi
+              printf 'deleted_cache=%q bytes=%s\n' "$cache_path" "${cache_sizes[$index]}"
+            done
+            printf 'deleted_cache_count=%s\n' "${#cache_paths[@]}"
+            printf 'deleted_cache_bytes=%s\n' "$total_bytes"
+          }
+
           echo '### Before maintenance'
           report_disk
 
-          if [ "$action" = cleanup-safe ]; then
-            cleanup_safe
-            sync
-            echo '### After maintenance'
-            report_disk
-          else
-            if [ "$action" = report-deep ]; then
+          case "$action" in
+            cleanup-safe)
+              cleanup_safe
+              sync
+              echo '### After maintenance'
+              report_disk
+              ;;
+            cleanup-blue-release-caches)
+              blue_release_cache_maintenance cleanup
+              sync
+              echo '### After maintenance'
+              report_disk
+              ;;
+            report-blue-release-caches)
+              blue_release_cache_maintenance report
+              echo '### After maintenance'
+              echo 'report-only action; no cleanup performed'
+              ;;
+            report-deep)
               echo '### Deep disk report'
               report_deep
-            fi
-            echo '### After maintenance'
-            echo 'report-only action; no cleanup performed'
-          fi
+              echo '### After maintenance'
+              echo 'report-only action; no cleanup performed'
+              ;;
+            report)
+              echo '### After maintenance'
+              echo 'report-only action; no cleanup performed'
+              ;;
+          esac
           REMOTE_MAINTENANCE
