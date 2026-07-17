@@ -24,7 +24,7 @@ export const adminCreditsRouter = router({
       z.object({
         amount: z.number().int(),
         command: adjustCommand.schema,
-        reason: z.string().min(1).max(500),
+        reason: z.string().min(1).max(500).optional(),
         userId: z.string().min(1),
       }),
     )

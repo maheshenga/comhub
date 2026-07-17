@@ -53,6 +53,7 @@ type AssignableRole = AdminRole | 'user' | '__none__';
 const AdminUsersPage = memo(() => {
   const { t } = useTranslation('subscription');
   const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
+  const canImpersonate = hasAdminCapability(role, ADMIN_CAPABILITIES.adminAccess);
   const canManageFinance = hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite);
   const canManageSupport = hasAdminCapability(role, ADMIN_CAPABILITIES.supportWrite);
   const canSetRoles = isFullAdminRole(role);
@@ -451,19 +452,21 @@ const AdminUsersPage = memo(() => {
               </Button>
             </>
           ) : null}
-          <AdminDangerousActionButton
-            actionId="user.impersonate.attempt"
-            confirmTitle={t('admin.impersonate.confirmTitle', '以该用户身份登录？')}
-            loading={actionLoading === `${row.id}-impersonate`}
-            size="small"
-            confirmDescription={t(
-              'admin.impersonate.confirmContent',
-              '系统会把当前管理员会话切换为该用户，用于排查套餐、模型和前台体验问题。完成排查后请退出登录并重新登录管理员账号。',
-            )}
-            onConfirm={(command) => handleImpersonate(row, command)}
-          >
-            {t('admin.impersonate', '以用户身份登录')}
-          </AdminDangerousActionButton>
+          {canImpersonate ? (
+            <AdminDangerousActionButton
+              actionId="user.impersonate.attempt"
+              confirmTitle={t('admin.impersonate.confirmTitle', '以该用户身份登录？')}
+              loading={actionLoading === `${row.id}-impersonate`}
+              size="small"
+              confirmDescription={t(
+                'admin.impersonate.confirmContent',
+                '系统会把当前管理员会话切换为该用户，用于排查套餐、模型和前台体验问题。完成排查后请退出登录并重新登录管理员账号。',
+              )}
+              onConfirm={(command) => handleImpersonate(row, command)}
+            >
+              {t('admin.impersonate', '以用户身份登录')}
+            </AdminDangerousActionButton>
+          ) : null}
           <Button size="small" onClick={() => setDetailUserId(row.id)}>
             {t('admin.viewDetail', '详情')}
           </Button>

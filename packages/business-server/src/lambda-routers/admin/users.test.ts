@@ -226,6 +226,26 @@ describe('adminUsersRouter reset command', () => {
 });
 
 describe('adminUsersRouter impersonation audit', () => {
+  it('rejects support admins because impersonation requires full admin access', async () => {
+    const db = {
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'support_admin' }),
+        },
+      },
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminUsersRouter.createCaller({ userId: 'support-user' } as any);
+    await expect(
+      caller.recordImpersonationAttempt({
+        command: { actionId: 'user.impersonate.attempt', confirmed: true },
+        userId: 'target-user',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
   it('records impersonation as an attempt instead of a started session', async () => {
     const findFirst = vi
       .fn()

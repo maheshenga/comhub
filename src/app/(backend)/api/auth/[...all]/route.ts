@@ -7,9 +7,10 @@ import { z } from 'zod';
 
 import { auth } from '@/auth';
 import { createAdminCommand } from '@/business/server/lambda-routers/admin/adminCommand';
-import { recordAdminAudit } from '@/business/server/lambda-routers/admin/audit';
+import { recordAdminAuditStrict } from '@/business/server/lambda-routers/admin/audit';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { users } from '@/database/schemas';
+import { extractClientIp } from '@/libs/trpc/utils/clientIp';
 
 const jsonContentTypeRegex = /^application\/(?:[a-z0-9.+-]*\+)?json/i;
 
@@ -83,7 +84,7 @@ const handleImpersonation = async (request: NextRequest) => {
     columns: { banned: true, role: true },
     where: eq(users.id, actorUserId),
   });
-  if (actor?.banned || !hasAdminCapability(actor?.role, ADMIN_CAPABILITIES.supportWrite)) {
+  if (actor?.banned || !hasAdminCapability(actor?.role, ADMIN_CAPABILITIES.adminAccess)) {
     return routeErrorResponse('FORBIDDEN', 403);
   }
 
@@ -93,16 +94,23 @@ const handleImpersonation = async (request: NextRequest) => {
   });
   if (!target) return routeErrorResponse('USER_NOT_FOUND', 404);
 
-  await recordAdminAudit(db, actorUserId, {
-    action: command.auditAction,
-    payload: {
-      targetEmail: target.email,
-      targetFullName: target.fullName,
-      targetUsername: target.username,
+  await recordAdminAuditStrict(
+    {
+      clientIp: extractClientIp(request.headers),
+      serverDB: db,
+      userId: actorUserId,
     },
-    resourceType: 'user',
-    targetUserId: target.id,
-  });
+    {
+      action: command.auditAction,
+      payload: {
+        targetEmail: target.email,
+        targetFullName: target.fullName,
+        targetUsername: target.username,
+      },
+      resourceType: 'user',
+      targetUserId: target.id,
+    },
+  );
 
   const headers = new Headers(request.headers);
   headers.delete('content-length');

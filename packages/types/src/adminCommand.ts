@@ -190,7 +190,7 @@ export const ADMIN_COMMANDS = {
   'user.impersonate.attempt': {
     actionId: 'user.impersonate.attempt',
     auditAction: 'user.impersonate.attempt',
-    capability: ADMIN_CAPABILITIES.supportWrite,
+    capability: ADMIN_CAPABILITIES.adminAccess,
     confirmationMode: 'confirm',
     description: 'Records an administrator attempt to impersonate a user.',
     reasonPolicy: 'none',

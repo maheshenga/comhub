@@ -106,7 +106,7 @@ const expectedCommands = {
   },
   'user.impersonate.attempt': {
     auditAction: 'user.impersonate.attempt',
-    capability: ADMIN_CAPABILITIES.supportWrite,
+    capability: ADMIN_CAPABILITIES.adminAccess,
     confirmationMode: 'confirm',
     reasonPolicy: 'none',
     serverBoundary: {

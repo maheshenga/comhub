@@ -118,7 +118,7 @@ export const adminOrdersRouter = router({
       z.object({
         command: settleCommand.schema,
         orderId: z.string().min(1),
-        reason: z.string().trim().min(1).max(500),
+        reason: z.string().trim().min(1).max(500).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

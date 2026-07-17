@@ -9,11 +9,35 @@ export interface AuditEntry {
   targetUserId?: string | null;
 }
 
-interface AuditContext {
+export interface AuditContext {
   clientIp?: string | null;
   serverDB: LobeChatDatabase;
   userId: string;
 }
+
+const insertAdminAudit = async (
+  db: LobeChatDatabase,
+  actorUserId: string,
+  ipAddress: string | null,
+  entry: AuditEntry,
+) => {
+  await db.insert(adminAuditLogs).values({
+    action: entry.action,
+    actorUserId,
+    ipAddress,
+    payload: entry.payload ?? null,
+    resourceId: entry.resourceId ?? null,
+    resourceType: entry.resourceType ?? null,
+    targetUserId: entry.targetUserId ?? null,
+  });
+};
+
+export const recordAdminAuditStrict = async (
+  ctx: AuditContext,
+  entry: AuditEntry,
+): Promise<void> => {
+  await insertAdminAudit(ctx.serverDB, ctx.userId, ctx.clientIp ?? null, entry);
+};
 
 /**
  * Records an administrative action. Failures are swallowed so an audit failure
@@ -39,17 +63,8 @@ export const recordAdminAudit = async (
     : null;
 
   try {
-    await db.insert(adminAuditLogs).values({
-      action: entry.action,
-      actorUserId,
-      ipAddress,
-      payload: entry.payload ?? null,
-      resourceId: entry.resourceId ?? null,
-      resourceType: entry.resourceType ?? null,
-      targetUserId: entry.targetUserId ?? null,
-    });
+    await insertAdminAudit(db, actorUserId, ipAddress, entry);
   } catch (error) {
     console.error('[admin-audit] failed to record audit log', error);
   }
 };
-

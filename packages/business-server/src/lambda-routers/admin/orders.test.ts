@@ -63,7 +63,7 @@ describe('adminOrdersRouter', () => {
     return { caller, settleTopUpOrder };
   };
 
-  it('records the admin supplied reason when manually settling an order', async () => {
+  it('accepts and records an envelope-only reason when manually settling an order', async () => {
     const { caller, settleTopUpOrder } = setupSettleCaller();
 
     await caller.settle({
@@ -74,7 +74,6 @@ describe('adminOrdersRouter', () => {
         reason: 'manual transfer confirmed by finance',
       },
       orderId: 'order-1',
-      reason: 'manual transfer confirmed by finance',
     } as any);
 
     expect(settleTopUpOrder).toHaveBeenCalledWith('order-1');

@@ -74,6 +74,11 @@ describe('admin command router parity', () => {
           `const ${commandName} = createAdminCommand\\('${escapeRegExp(definition.actionId)}'\\)`,
         ),
       );
+      if (definition.reasonPolicy !== 'none') {
+        const reasonSchema = block.match(/reason:\s*z\.string\(\)[^,\n]*/);
+        expect(reasonSchema, definition.actionId).not.toBeNull();
+        expect(reasonSchema![0], definition.actionId).toContain('.optional()');
+      }
       expect(block, definition.actionId).toContain(
         definition.reasonPolicy === 'none'
           ? `const command = ${commandName}.validate(input.command);`

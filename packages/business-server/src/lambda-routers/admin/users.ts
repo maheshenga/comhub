@@ -520,7 +520,7 @@ export const adminUsersRouter = router({
       return { ok: true, ...result };
     }),
 
-  recordImpersonationAttempt: supportWriteProcedure
+  recordImpersonationAttempt: adminProcedure
     .input(
       z.object({ command: recordImpersonationAttemptCommand.schema, userId: z.string().min(1) }),
     )

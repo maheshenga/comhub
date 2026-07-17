@@ -12,8 +12,10 @@ describe('scoped admin user actions', () => {
 
     expect(source).toContain('isFullAdminRole(role)');
     expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite)');
+    expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.adminAccess)');
     expect(source).toContain("canManageFinance ? ['admin-user-list-plan-options'] : null");
     expect(source).toContain('canSetRoles ? (');
+    expect(source).toContain('canImpersonate ? (');
     expect(source).toContain('canManageFinance ? (');
   });
 

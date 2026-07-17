@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   post: vi.fn<RouteHandler>(async () => Response.json({ ok: true })),
   recordAdminAudit: vi.fn(),
+  recordAdminAuditStrict: vi.fn(),
 }));
 
 vi.mock('better-auth/next-js', () => ({
@@ -33,6 +34,7 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('@/business/server/lambda-routers/admin/audit', () => ({
   recordAdminAudit: mocks.recordAdminAudit,
+  recordAdminAuditStrict: mocks.recordAdminAuditStrict,
 }));
 
 const createPostRequest = (
@@ -42,7 +44,12 @@ const createPostRequest = (
 ) =>
   new Request(`https://localhost${path}`, {
     body,
-    headers: { 'Content-Type': contentType, Cookie: 'session=admin-session' },
+    headers: {
+      'Content-Type': contentType,
+      Cookie: 'session=admin-session',
+      'X-Forwarded-For': '203.0.113.9, 10.0.0.2',
+      'X-Real-IP': '198.51.100.7',
+    },
     method: 'POST',
   }) as NextRequest;
 
@@ -53,11 +60,12 @@ describe('/api/auth/[...all] route', () => {
     mocks.getServerDB.mockReset();
     mocks.getSession.mockReset();
     mocks.recordAdminAudit.mockReset();
+    mocks.recordAdminAuditStrict.mockReset();
     mocks.get.mockResolvedValue(Response.json({ ok: true }));
     mocks.post.mockResolvedValue(Response.json({ ok: true }));
     mocks.getSession.mockResolvedValue({ user: { id: 'admin-user' } });
     mocks.findFirst
-      .mockResolvedValueOnce({ banned: false, role: 'support_admin' })
+      .mockResolvedValueOnce({ banned: false, role: 'admin' })
       .mockResolvedValueOnce({
         email: 'target@example.com',
         fullName: 'Target User',
@@ -66,6 +74,7 @@ describe('/api/auth/[...all] route', () => {
       });
     mocks.getServerDB.mockResolvedValue({ query: { users: { findFirst: mocks.findFirst } } });
     mocks.recordAdminAudit.mockResolvedValue(undefined);
+    mocks.recordAdminAuditStrict.mockResolvedValue(undefined);
   });
 
   it('returns 400 for malformed JSON auth requests before Better Auth handles them', async () => {
@@ -133,7 +142,7 @@ describe('/api/auth/[...all] route', () => {
     }
 
     expect(mocks.post).not.toHaveBeenCalled();
-    expect(mocks.recordAdminAudit).not.toHaveBeenCalled();
+    expect(mocks.recordAdminAuditStrict).not.toHaveBeenCalled();
   });
 
   it('blocks a mismatched impersonation command before Better Auth or audit', async () => {
@@ -153,7 +162,7 @@ describe('/api/auth/[...all] route', () => {
     });
     expect(response.status).toBe(403);
     expect(mocks.post).not.toHaveBeenCalled();
-    expect(mocks.recordAdminAudit).not.toHaveBeenCalled();
+    expect(mocks.recordAdminAuditStrict).not.toHaveBeenCalled();
   });
 
   it('does not allow a trailing slash to bypass impersonation command validation', async () => {
@@ -168,7 +177,47 @@ describe('/api/auth/[...all] route', () => {
     await expect(response.json()).resolves.toMatchObject({ code: 'ADMIN_COMMAND_REQUIRED' });
     expect(response.status).toBe(400);
     expect(mocks.post).not.toHaveBeenCalled();
-    expect(mocks.recordAdminAudit).not.toHaveBeenCalled();
+    expect(mocks.recordAdminAuditStrict).not.toHaveBeenCalled();
+  });
+
+  it('blocks support admins at the real Better Auth permission boundary', async () => {
+    mocks.findFirst.mockReset();
+    mocks.findFirst.mockResolvedValueOnce({ banned: false, role: 'support_admin' });
+
+    const response = await POST(
+      createPostRequest(
+        JSON.stringify({
+          command: { actionId: 'user.impersonate.attempt', confirmed: true },
+          userId: 'target-user',
+        }),
+        'application/json',
+        '/api/auth/admin/impersonate-user',
+      ),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({ code: 'FORBIDDEN' });
+    expect(response.status).toBe(403);
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.recordAdminAuditStrict).not.toHaveBeenCalled();
+  });
+
+  it('blocks Better Auth when the required audit insert fails', async () => {
+    mocks.recordAdminAuditStrict.mockRejectedValueOnce(new Error('audit insert failed'));
+
+    await expect(
+      POST(
+        createPostRequest(
+          JSON.stringify({
+            command: { actionId: 'user.impersonate.attempt', confirmed: true },
+            userId: 'target-user',
+          }),
+          'application/json',
+          '/api/auth/admin/impersonate-user',
+        ),
+      ),
+    ).rejects.toThrow('audit insert failed');
+
+    expect(mocks.post).not.toHaveBeenCalled();
   });
 
   it('audits the authenticated actor and target before forwarding to Better Auth unchanged', async () => {
@@ -189,9 +238,12 @@ describe('/api/auth/[...all] route', () => {
 
     expect(response).toBe(betterAuthResponse);
     expect(response.headers.get('set-cookie')).toContain('better-auth.session_token=target-session');
-    expect(mocks.recordAdminAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      'admin-user',
+    expect(mocks.recordAdminAuditStrict).toHaveBeenCalledWith(
+      {
+        clientIp: '203.0.113.9',
+        serverDB: expect.anything(),
+        userId: 'admin-user',
+      },
       {
         action: ADMIN_COMMANDS['user.impersonate.attempt'].auditAction,
         payload: {
@@ -207,7 +259,7 @@ describe('/api/auth/[...all] route', () => {
     const forwardedRequest = mocks.post.mock.calls[0][0];
     await expect(forwardedRequest.clone().json()).resolves.toEqual({ userId: 'target-user' });
     expect(forwardedRequest.headers.get('cookie')).toBe('session=admin-session');
-    expect(mocks.recordAdminAudit.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.recordAdminAuditStrict.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.post.mock.invocationCallOrder[0],
     );
   });

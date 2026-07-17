@@ -91,7 +91,7 @@ describe('adminCreditsRouter', () => {
     expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
-  it('records before and after snapshots when admin adjusts credits', async () => {
+  it('accepts an envelope-only reason and records before and after credit snapshots', async () => {
     const before = { balance: 200, totalCredited: 500, totalDebited: 300 };
     const after = { balance: 300, totalCredited: 600, totalDebited: 300 };
     const insertLedgerValues = vi.fn().mockResolvedValue(undefined);
@@ -137,7 +137,6 @@ describe('adminCreditsRouter', () => {
           confirmed: true,
           reason: 'manual correction',
         },
-        reason: 'manual correction',
         userId: 'target-user',
       }),
     ).resolves.toEqual({ ok: true });
