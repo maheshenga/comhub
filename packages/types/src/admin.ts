@@ -9,15 +9,21 @@ export const ADMIN_CAPABILITIES = {
   modelOpsWrite: 'modelOps.write',
   moduleAppRead: 'moduleApp.read',
   moduleAppWrite: 'moduleApp.write',
-  supportRead: 'support.read',
   supportWrite: 'support.write',
   systemRead: 'system.read',
   systemWrite: 'system.write',
   userRead: 'user.read',
-  userWrite: 'user.write',
 } as const;
 
 export type AdminCapability = (typeof ADMIN_CAPABILITIES)[keyof typeof ADMIN_CAPABILITIES];
+
+export type AdminCompactUser = {
+  banned: boolean;
+  createdAt: Date;
+  id: string;
+  lastActiveAt: Date | null;
+  role: string | null;
+};
 
 export const ADMIN_ROLE_IDS = [
   'admin',
@@ -49,7 +55,6 @@ export const ADMIN_ROLE_CAPABILITIES: Record<AdminRole, AdminRoleCapabilitySet> 
     ADMIN_CAPABILITIES.auditRead,
   ],
   support_admin: [
-    ADMIN_CAPABILITIES.supportRead,
     ADMIN_CAPABILITIES.supportWrite,
     ADMIN_CAPABILITIES.userRead,
     ADMIN_CAPABILITIES.auditRead,

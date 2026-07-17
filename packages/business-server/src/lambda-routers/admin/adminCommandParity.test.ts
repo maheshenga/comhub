@@ -15,12 +15,10 @@ const middlewareByCapability: Record<AdminCapability, string> = {
   'modelOps.write': 'modelOpsWriteProcedure',
   'moduleApp.read': 'moduleAppReadProcedure',
   'moduleApp.write': 'moduleAppWriteProcedure',
-  'support.read': 'supportReadProcedure',
   'support.write': 'supportWriteProcedure',
   'system.read': 'systemReadProcedure',
   'system.write': 'systemWriteProcedure',
   'user.read': 'userReadProcedure',
-  'user.write': 'userWriteProcedure',
 };
 
 const externalEffectCommands = new Set(['content.deleteDocument', 'content.deleteFile']);

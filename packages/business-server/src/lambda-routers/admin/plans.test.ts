@@ -1,13 +1,24 @@
 import { Plans } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 import { getServerDB } from '@/database/core/db-adaptor';
+import { getServerDefaultAgentConfig } from '@/server/globalConfig';
+import { getAllEnabledModels } from '@/server/services/newapiInstance';
 
 import { recordAdminAudit } from './audit';
 import { adminPlansRouter } from './plans';
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
+}));
+
+vi.mock('@/server/globalConfig', () => ({
+  getServerDefaultAgentConfig: vi.fn().mockReturnValue({}),
+}));
+
+vi.mock('@/server/services/newapiInstance', () => ({
+  getAllEnabledModels: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('./audit', () => ({
@@ -21,11 +32,13 @@ vi.mock('./audit', () => ({
 
 const createDb = ({
   activePlanSnapshot = undefined,
+  appSettingsRows = [],
   planCatalogRow = { plan: Plans.Premium },
   planRedemptionCode = undefined,
   role = 'admin',
 }: {
   activePlanSnapshot?: { id: string };
+  appSettingsRows?: Array<{ key: string; value: unknown }>;
   planCatalogRow?: Record<string, unknown> | null;
   planRedemptionCode?: { id: string };
   role?: string | null;
@@ -51,6 +64,9 @@ const createDb = ({
     delete: deleteFrom,
     insert,
     query: {
+      appSettings: {
+        findMany: vi.fn().mockResolvedValue(appSettingsRows),
+      },
       planCatalog: {
         findFirst: vi.fn().mockResolvedValue(planCatalogRow),
       },
@@ -74,6 +90,8 @@ const createDb = ({
 describe('adminPlansRouter', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(getServerDefaultAgentConfig).mockReturnValue({});
+    vi.mocked(getAllEnabledModels).mockResolvedValue([]);
   });
 
   it('blocks deleting a plan with active user snapshots', async () => {
@@ -331,6 +349,92 @@ describe('adminPlansRouter', () => {
         resourceId: Plans.Premium,
       }),
     );
+  });
+
+  it('prevents finance admins from blocking the active default model on the free plan', async () => {
+    const db = createDb({
+      appSettingsRows: [
+        { key: APP_SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' },
+        { key: APP_SETTING_KEYS.defaultAgentProvider, value: 'newapi' },
+      ],
+      planCatalogRow: {
+        displayName: 'Free',
+        modelRules: null,
+        plan: Plans.Free,
+      },
+      role: 'finance_admin',
+    });
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      {
+        groupKey: 'default',
+        id: 'deepseek-chat',
+        instanceId: 'instance-1',
+        providerId: null,
+        providerType: 'newapi',
+        type: 'chat',
+      } as any,
+    ]);
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'finance-user' } as any).setModelRules({
+        modelRules: { chat: { allowlist: ['other-model'], mode: 'allowlist' } },
+        plan: Plans.Free,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN',
+    });
+
+    expect(db.update).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('enforces the free-plan default model invariant through plan upserts', async () => {
+    const db = createDb({
+      appSettingsRows: [
+        { key: APP_SETTING_KEYS.defaultAgentModel, value: 'deepseek-chat' },
+        { key: APP_SETTING_KEYS.defaultAgentProvider, value: 'newapi' },
+      ],
+      planCatalogRow: {
+        displayName: 'Free',
+        modelRules: null,
+        plan: Plans.Free,
+      },
+      role: 'finance_admin',
+    });
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      {
+        groupKey: 'default',
+        id: 'deepseek-chat',
+        instanceId: 'instance-1',
+        providerId: null,
+        providerType: 'newapi',
+        type: 'chat',
+      } as any,
+    ]);
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'finance-user' } as any).upsert({
+        currency: 'CNY',
+        displayName: 'Free',
+        features: [],
+        isActive: true,
+        modelRules: { chat: { allowlist: ['other-model'], mode: 'allowlist' } },
+        monthlyCredits: 0,
+        monthlyPrice: 0,
+        plan: Plans.Free,
+        sortOrder: 0,
+        yearlyPrice: 0,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN',
+    });
+
+    expect(db.update).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
   it('rejects model ops admins from saving plans', async () => {

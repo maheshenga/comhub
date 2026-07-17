@@ -268,6 +268,11 @@ export const ADMIN_CATALOG = [
     writeCapabilities: [ADMIN_CAPABILITIES.modelOpsWrite],
   },
   {
+    accessCapabilities: [
+      ADMIN_CAPABILITIES.modelOpsRead,
+      ADMIN_CAPABILITIES.financeRead,
+      ADMIN_CAPABILITIES.systemRead,
+    ],
     backendDomains: ['newapiProviders', 'plans', 'settings'],
     debugId: 'Desktop > Admin > model-billing-matrix',
     description: '统一管理模型目录、倍率和套餐计费',
@@ -277,7 +282,7 @@ export const ADMIN_CATALOG = [
     label: '模型目录与计费',
     owner: 'ai-platform',
     path: pathFor('model-billing-matrix'),
-    readCapability: ADMIN_CAPABILITIES.adminAccess,
+    readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'model-billing-matrix',
     status: 'active',
     writeCapabilities: [
@@ -296,7 +301,7 @@ export const ADMIN_CATALOG = [
     label: '模型访问策略',
     owner: 'ai-platform',
     path: pathFor('model-policy'),
-    readCapability: ADMIN_CAPABILITIES.adminAccess,
+    readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'model-policy',
     status: 'active',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],

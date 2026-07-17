@@ -1,4 +1,4 @@
-import { ADMIN_ROLE_IDS, Plans } from '@lobechat/types';
+import { ADMIN_ROLE_IDS, type AdminCompactUser, Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, asc, count, desc, eq, like, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -14,6 +14,7 @@ import {
 import type { Transaction } from '@/database/type';
 import {
   ADMIN_CAPABILITIES,
+  adminAnyCapabilityProcedure,
   adminCapabilityProcedure,
   adminProcedure,
   router,
@@ -224,6 +225,11 @@ export const resetAllUsersToFreePlan = async (
 
 const supportWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.supportWrite);
 const userReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userRead);
+const compactUserReadProcedure = adminAnyCapabilityProcedure([
+  ADMIN_CAPABILITIES.auditRead,
+  ADMIN_CAPABILITIES.financeRead,
+  ADMIN_CAPABILITIES.userRead,
+]);
 const recordImpersonationAttemptCommand = createAdminCommand('user.impersonate.attempt');
 const resetAllToFreePlanCommand = createAdminCommand('user.resetAllToFreePlan');
 const setRoleCommand = createAdminCommand('user.setRole');
@@ -262,6 +268,17 @@ export const adminUsersRouter = router({
       });
       if (!u) throw new TRPCError({ code: 'NOT_FOUND' });
       return u;
+    }),
+
+  compactDetail: compactUserReadProcedure
+    .input(z.object({ userId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const user: AdminCompactUser | undefined = await ctx.serverDB.query.users.findFirst({
+        columns: { banned: true, createdAt: true, id: true, lastActiveAt: true, role: true },
+        where: eq(users.id, input.userId),
+      });
+      if (!user) throw new TRPCError({ code: 'NOT_FOUND' });
+      return user;
     }),
 
   fullDetail: supportWriteProcedure

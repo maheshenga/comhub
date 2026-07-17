@@ -1,6 +1,7 @@
 'use client';
 
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
+import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import {
   Alert,
@@ -52,6 +53,8 @@ import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
 import { getAdminSettingsRefreshKeys, SETTING_KEYS } from '@/features/Admin/adminSettingsForm';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 
 const { Text, Title } = Typography;
 
@@ -135,20 +138,31 @@ const getDefaultModelErrorMessage = (error: any) => {
 
 const AdminModelBillingMatrixPage = memo(() => {
   const { t } = useTranslation('subscription');
+  const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
+  const canReadModels =
+    hasAdminCapability(role, ADMIN_CAPABILITIES.modelOpsRead) ||
+    hasAdminCapability(role, ADMIN_CAPABILITIES.financeRead) ||
+    hasAdminCapability(role, ADMIN_CAPABILITIES.systemRead);
+  const canReadPlans = hasAdminCapability(role, ADMIN_CAPABILITIES.financeRead);
+  const canReadSettings = hasAdminCapability(role, ADMIN_CAPABILITIES.systemRead);
+  const canWriteFinance = hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite);
+  const canWriteSystem = hasAdminCapability(role, ADMIN_CAPABILITIES.systemWrite);
   const [billingBasisOverride, setBillingBasisOverride] = useState<BillingBasisValues | null>(null);
   const [focusedHealthCheckKey, setFocusedHealthCheckKey] = useState<string | null>(null);
   const [savingBillingBasis, setSavingBillingBasis] = useState(false);
   const [rowsOverride, setRowsOverride] = useState<MatrixRow[] | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { data: modelData, isLoading: modelsLoading } = useClientDataSWR(MATRIX_KEY, () =>
-    adminCommercialService.listAllEnabledAiProviderModels(),
+  const { data: modelData, isLoading: modelsLoading } = useClientDataSWR(
+    canReadModels ? MATRIX_KEY : null,
+    () => adminCommercialService.listAllEnabledAiProviderModels(),
   );
-  const { data: planData, isLoading: plansLoading } = useClientDataSWR(PLANS_KEY, () =>
-    adminCommercialService.listPlans(),
+  const { data: planData, isLoading: plansLoading } = useClientDataSWR(
+    canReadPlans ? PLANS_KEY : null,
+    () => adminCommercialService.listPlans(),
   );
   const { data: settings, isLoading: settingsLoading } = useClientDataSWR(
-    ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix'),
+    canReadSettings ? ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix') : null,
     () => adminCommercialService.getSettingsSection('model-billing-matrix'),
   );
 
@@ -206,7 +220,10 @@ const AdminModelBillingMatrixPage = memo(() => {
   );
 
   const rows = rowsOverride ?? baseRows;
-  const loading = modelsLoading || plansLoading || settingsLoading;
+  const loading =
+    (canReadModels && modelsLoading) ||
+    (canReadPlans && plansLoading) ||
+    (canReadSettings && settingsLoading);
   const billingBasisInitial = useMemo(() => buildBillingBasisValues(settings), [settings]);
   const billingBasis = billingBasisOverride ?? billingBasisInitial;
   const defaultModelHealth = useMemo(
@@ -302,6 +319,8 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSaveBillingBasis = async () => {
+    if (!canWriteSystem) return;
+
     const updates = buildBillingBasisUpdates(billingBasis, billingBasisInitial);
 
     if (updates.length === 0) {
@@ -323,6 +342,8 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSetDefault = async (target: MatrixRow) => {
+    if (!canWriteSystem) return;
+
     if (['chat', 'image', 'video'].includes(target.modelType) && target.planAccess.free === false) {
       message.error('该模型未对免费套餐开启，不能设为默认模型。请先开启免费套餐权限。');
       return;
@@ -372,6 +393,8 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSaveAccess = async () => {
+    if (!canWriteFinance) return;
+
     const conflict = findFreePlanDefaultModelConflict(rows);
     if (conflict) {
       message.error(
@@ -399,6 +422,8 @@ const AdminModelBillingMatrixPage = memo(() => {
   };
 
   const handleSavePricing = async () => {
+    if (!canWriteSystem) return;
+
     setSaving(true);
 
     try {
@@ -419,6 +444,7 @@ const AdminModelBillingMatrixPage = memo(() => {
     render: (_, row) => (
       <Switch
         checked={row.planAccess[plan.plan] !== false}
+        disabled={!canWriteFinance}
         size="small"
         onChange={(checked: boolean) =>
           setRowsOverride((current) =>
@@ -481,6 +507,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       key: 'pricingMultiplier',
       render: (value: number | undefined, row) => (
         <InputNumber
+          disabled={!canWriteSystem}
           min={0.0001}
           placeholder="默认"
           precision={4}
@@ -501,6 +528,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       key: 'creditsPerDollar',
       render: (value: number | undefined, row) => (
         <InputNumber
+          disabled={!canWriteSystem}
           min={1}
           placeholder="默认"
           size="small"
@@ -519,7 +547,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       key: 'actions',
       render: (_, row) => (
         <Button
-          disabled={row.isDefault}
+          disabled={!canWriteSystem || row.isDefault}
           loading={saving}
           size="small"
           onClick={() => handleSetDefault(row)}
@@ -531,6 +559,12 @@ const AdminModelBillingMatrixPage = memo(() => {
       width: 124,
     },
   ];
+  const visibleColumns = canReadSettings
+    ? columns
+    : columns.filter(
+        (column) =>
+          !['pricingMultiplier', 'creditsPerDollar', 'actions'].includes(String(column.key)),
+      );
 
   return (
     <Flexbox gap={16} padding={24}>
@@ -543,7 +577,8 @@ const AdminModelBillingMatrixPage = memo(() => {
 
       <Alert showIcon message={t('admin.modelBillingMatrix.notice', MATRIX_NOTICE)} type="info" />
 
-      <Card title={t('admin.modelBillingMatrix.configHealthSection', 'AI service health check')}>
+      {canReadPlans && canReadSettings ? (
+        <Card title={t('admin.modelBillingMatrix.configHealthSection', 'AI service health check')}>
         <Flexbox gap={12}>
           <Alert
             showIcon
@@ -616,9 +651,20 @@ const AdminModelBillingMatrixPage = memo(() => {
             )}
           />
         </Flexbox>
-      </Card>
+        </Card>
+      ) : (
+        <Alert
+          showIcon
+          type="info"
+          message={t(
+            'admin.modelBillingMatrix.scopedReadNotice',
+            '当前仅显示此角色有权读取的模型、套餐或系统设置分区。',
+          )}
+        />
+      )}
 
-      <Card title={t('admin.modelBillingMatrix.billingBasisSection', '全局计费基线')}>
+      {canReadSettings ? (
+        <Card title={t('admin.modelBillingMatrix.billingBasisSection', '全局计费基线')}>
         <Flexbox gap={16}>
           <Text type="secondary">
             {t(
@@ -631,6 +677,7 @@ const AdminModelBillingMatrixPage = memo(() => {
             <Flexbox gap={8} style={{ minWidth: 220 }}>
               <Text strong>{t('admin.modelBillingMatrix.globalMultiplier', '全局积分倍率')}</Text>
               <InputNumber
+                disabled={!canWriteSystem}
                 max={100}
                 min={0.0001}
                 precision={4}
@@ -669,7 +716,12 @@ const AdminModelBillingMatrixPage = memo(() => {
           </Space>
 
           <Space wrap>
-            <Button loading={savingBillingBasis} type="primary" onClick={handleSaveBillingBasis}>
+            <Button
+              disabled={!canWriteSystem}
+              loading={savingBillingBasis}
+              type="primary"
+              onClick={handleSaveBillingBasis}
+            >
               {t('admin.modelBillingMatrix.saveBillingBasis', '保存全局计费设置')}
             </Button>
             {billingBasisOverride && (
@@ -679,9 +731,11 @@ const AdminModelBillingMatrixPage = memo(() => {
             )}
           </Space>
         </Flexbox>
-      </Card>
+        </Card>
+      ) : null}
 
-      <Alert
+      {canReadSettings ? (
+        <Alert
         showIcon
         message="默认模型健康检查"
         type={hasDefaultModelRisk ? 'warning' : 'success'}
@@ -705,15 +759,25 @@ const AdminModelBillingMatrixPage = memo(() => {
             })}
           </Flexbox>
         }
-      />
+        />
+      ) : null}
 
       <Space wrap>
-        <Button loading={saving} type="primary" onClick={handleSaveAccess}>
-          {MATRIX_ACCESS_SAVE_LABEL}
-        </Button>
-        <Button loading={saving} onClick={handleSavePricing}>
-          {MATRIX_PRICING_SAVE_LABEL}
-        </Button>
+        {canReadPlans ? (
+          <Button
+            disabled={!canWriteFinance}
+            loading={saving}
+            type="primary"
+            onClick={handleSaveAccess}
+          >
+            {MATRIX_ACCESS_SAVE_LABEL}
+          </Button>
+        ) : null}
+        {canReadSettings ? (
+          <Button disabled={!canWriteSystem} loading={saving} onClick={handleSavePricing}>
+            {MATRIX_PRICING_SAVE_LABEL}
+          </Button>
+        ) : null}
         {rowsOverride && (
           <Button onClick={() => setRowsOverride(null)}>{MATRIX_DISCARD_LABEL}</Button>
         )}
@@ -734,7 +798,7 @@ const AdminModelBillingMatrixPage = memo(() => {
       ) : null}
 
       <Table
-        columns={columns}
+        columns={visibleColumns}
         dataSource={displayRows}
         loading={loading}
         locale={{ emptyText: <Empty description="暂无已启用的服务商模型" /> }}

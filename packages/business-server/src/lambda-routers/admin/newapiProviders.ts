@@ -10,7 +10,12 @@ import {
   adminNewapiInstances,
   NEWAPI_MODEL_TYPES,
 } from '@/database/schemas';
-import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
+import {
+  ADMIN_CAPABILITIES,
+  adminAnyCapabilityProcedure,
+  adminCapabilityProcedure,
+  router,
+} from '@/libs/trpc/lambda';
 import { getModelCatalogDiagnostics } from '@/server/services/modelCatalog/diagnostics';
 import { invalidateNewapiInstancesCache } from '@/server/services/newapiInstance';
 import {
@@ -94,6 +99,11 @@ const ModelMetadataSchema = z
 const INVALID_API_KEY_MESSAGE = 'Instance API key is invalid. Please reset it before retrying.';
 const modelOpsReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsRead);
 const modelOpsWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsWrite);
+const sharedModelReadProcedure = adminAnyCapabilityProcedure([
+  ADMIN_CAPABILITIES.modelOpsRead,
+  ADMIN_CAPABILITIES.financeRead,
+  ADMIN_CAPABILITIES.systemRead,
+]);
 const deleteInstanceCommand = createAdminCommand('newapiProvider.deleteInstance');
 
 const normalizeInstanceInput = async <T extends { apiKey?: string; fetchOnClient?: boolean }>(
@@ -195,7 +205,6 @@ const hasExactModelBankPricing = ({
 };
 
 type AdminEnabledProviderModelRow = {
-  baseUrl: AdminNewapiInstanceItem['baseUrl'];
   displayName: AdminNewapiInstanceModelItem['displayName'];
   groupKey: AdminNewapiInstanceItem['groupKey'];
   groupName: AdminNewapiInstanceItem['groupName'];
@@ -688,7 +697,7 @@ export const adminNewapiProvidersRouter = router({
 
   // ─── Aggregated view for runtime usage ─────────────────────────────────────
 
-  getAllEnabledModels: modelOpsReadProcedure
+  getAllEnabledModels: sharedModelReadProcedure
     .input(
       z
         .object({
@@ -707,7 +716,6 @@ export const adminNewapiProvidersRouter = router({
 
       const rows = await ctx.serverDB
         .select({
-          baseUrl: adminNewapiInstances.baseUrl,
           displayName: adminNewapiInstanceModels.displayName,
           groupKey: adminNewapiInstances.groupKey,
           groupName: adminNewapiInstances.groupName,
@@ -728,17 +736,36 @@ export const adminNewapiProvidersRouter = router({
         .orderBy(asc(adminNewapiInstances.priority), asc(adminNewapiInstanceModels.sortOrder));
 
       const items = rows.map((row: AdminEnabledProviderModelRow) => {
-        const { metadata, ...item } = row;
+        const {
+          displayName,
+          groupKey,
+          groupName,
+          instanceId,
+          instanceName,
+          metadata,
+          modelId,
+          modelType,
+          priority,
+          providerType,
+        } = row;
 
         return {
-          ...item,
+          displayName,
+          groupKey,
+          groupName,
           hasModelAbilities: resolveModelAbilityCompleteness(metadata),
           hasModelPricing: resolveModelPricingCompleteness(metadata),
+          instanceId,
+          instanceName,
+          modelId,
+          modelType,
           pricingSource: resolveModelPricingSource({
             metadata,
-            modelId: item.modelId,
-            providerType: item.providerType,
+            modelId,
+            providerType,
           }),
+          priority,
+          providerType,
         };
       });
 

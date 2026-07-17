@@ -29,6 +29,7 @@ vi.mock('@/libs/trpc/client', () => ({
         testInstanceConnection: { query: vi.fn() },
       },
       users: {
+        compactDetail: { query: vi.fn() },
         recordImpersonationAttempt: { mutate: vi.fn() },
         recordImpersonationStart: { mutate: vi.fn() },
       },
@@ -78,6 +79,22 @@ describe('adminCommercialService NewAPI helpers', () => {
 
     expect(lambdaClient.admin.moduleApps.list.query).toHaveBeenCalledWith({
       status: 'published',
+    });
+  });
+
+  it('uses the compact user detail endpoint for cross-domain drawers', async () => {
+    vi.mocked(lambdaClient.admin.users.compactDetail.query).mockResolvedValue({
+      banned: false,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      id: 'target-user',
+      lastActiveAt: null,
+      role: 'user',
+    });
+
+    await adminCommercialService.getCompactUserDetail('target-user');
+
+    expect(lambdaClient.admin.users.compactDetail.query).toHaveBeenCalledWith({
+      userId: 'target-user',
     });
   });
 

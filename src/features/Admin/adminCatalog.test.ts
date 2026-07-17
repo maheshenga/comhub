@@ -1,7 +1,12 @@
 import { ADMIN_CAPABILITIES } from '@lobechat/types';
 import { describe, expect, it } from 'vitest';
 
-import { ADMIN_CATALOG, ADMIN_CATALOG_GROUPS, ADMIN_LEGACY_ROUTES } from './adminCatalog';
+import {
+  ADMIN_CATALOG,
+  ADMIN_CATALOG_GROUPS,
+  ADMIN_LEGACY_ROUTES,
+  getAdminCatalogAccessCapabilities,
+} from './adminCatalog';
 
 describe('adminCatalog', () => {
   it('defines the approved eight admin groups in order', () => {
@@ -41,6 +46,13 @@ describe('adminCatalog', () => {
     expect(byId.providers.readCapability).toBe(ADMIN_CAPABILITIES.modelOpsRead);
     expect(byId.topics.readCapability).toBe(ADMIN_CAPABILITIES.contentRead);
     expect(byId.settings.readCapability).toBe(ADMIN_CAPABILITIES.systemRead);
+    expect(byId['model-policy'].readCapability).toBe(ADMIN_CAPABILITIES.systemRead);
+    expect(byId['model-policy'].writeCapabilities).toEqual([ADMIN_CAPABILITIES.systemWrite]);
+    expect(getAdminCatalogAccessCapabilities(byId['model-billing-matrix'])).toEqual([
+      ADMIN_CAPABILITIES.modelOpsRead,
+      ADMIN_CAPABILITIES.financeRead,
+      ADMIN_CAPABILITIES.systemRead,
+    ]);
     const moduleApps = ADMIN_CATALOG.find((item) => item.id === 'module-apps');
     expect(moduleApps?.readCapability).toBe(ADMIN_CAPABILITIES.moduleAppRead);
     expect(moduleApps?.accessCapabilities).toEqual([

@@ -560,6 +560,7 @@ describe('adminNewapiProvidersRouter', () => {
     const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
     const result = await caller.getAllEnabledModels();
 
+    expect(result.items[0]).not.toHaveProperty('baseUrl');
     expect(result.items).toEqual([
       expect.objectContaining({
         hasModelPricing: true,

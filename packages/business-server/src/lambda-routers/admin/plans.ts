@@ -1,18 +1,25 @@
 import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
 import {
+  appSettings,
   creditAccounts,
   NEWAPI_MODEL_TYPES,
   planCatalog,
+  type PlanModelRules,
   redemptionCodes,
   userPlanSnapshots,
 } from '@/database/schemas';
+import { type Transaction } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
+import { getServerDefaultAgentConfig } from '@/server/globalConfig';
+import { getAllEnabledModels } from '@/server/services/newapiInstance';
 
+import { isModelAllowedByPlanRules } from '../../planModelRules';
 import { runRequiredAdminAuditMutation } from './audit';
 
 const ModelTypeEnum = z.enum(NEWAPI_MODEL_TYPES);
@@ -66,6 +73,84 @@ const toStorageQuotaBytes = (storageQuotaMb?: null | number) =>
   storageQuotaMb === null || storageQuotaMb === undefined
     ? null
     : Math.floor(storageQuotaMb * 1024 * 1024);
+
+const DEFAULT_MODEL_SETTING_KEYS = [
+  APP_SETTING_KEYS.defaultAgentModel,
+  APP_SETTING_KEYS.defaultAgentProvider,
+  APP_SETTING_KEYS.defaultImageModel,
+  APP_SETTING_KEYS.defaultImageProvider,
+  APP_SETTING_KEYS.defaultVideoModel,
+  APP_SETTING_KEYS.defaultVideoProvider,
+] as const;
+
+const normalizeSettingString = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+const assertFreePlanKeepsDefaultModels = async (
+  db: Transaction,
+  modelRules: PlanModelRules | null | undefined,
+) => {
+  const [settingRows, enabledModels] = await Promise.all([
+    db.query.appSettings.findMany({
+      columns: { key: true, value: true },
+      where: inArray(appSettings.key, DEFAULT_MODEL_SETTING_KEYS),
+    }),
+    getAllEnabledModels(db),
+  ]);
+  const settings = new Map(settingRows.map((row) => [row.key, row.value]));
+  const defaultAgentConfig = getServerDefaultAgentConfig();
+  const defaults = [
+    {
+      model:
+        normalizeSettingString(settings.get(APP_SETTING_KEYS.defaultAgentModel)) ||
+        normalizeSettingString('model' in defaultAgentConfig ? defaultAgentConfig.model : undefined),
+      modelType: 'chat' as const,
+      provider:
+        normalizeSettingString(settings.get(APP_SETTING_KEYS.defaultAgentProvider)) ||
+        normalizeSettingString(
+          'provider' in defaultAgentConfig ? defaultAgentConfig.provider : undefined,
+        ),
+    },
+    {
+      model: normalizeSettingString(settings.get(APP_SETTING_KEYS.defaultImageModel)),
+      modelType: 'image' as const,
+      provider: normalizeSettingString(settings.get(APP_SETTING_KEYS.defaultImageProvider)),
+    },
+    {
+      model: normalizeSettingString(settings.get(APP_SETTING_KEYS.defaultVideoModel)),
+      modelType: 'video' as const,
+      provider: normalizeSettingString(settings.get(APP_SETTING_KEYS.defaultVideoProvider)),
+    },
+  ];
+
+  for (const { model, modelType, provider } of defaults) {
+    if (!model) continue;
+
+    const matchingRoutes = enabledModels.filter(
+      (item) =>
+        item.id === model &&
+        item.type === modelType &&
+        (!provider ||
+          item.providerId === provider ||
+          item.instanceId === provider ||
+          item.providerType === provider ||
+          (provider === 'newapi' && !item.providerId)),
+    );
+    const allowed =
+      matchingRoutes.length > 0
+        ? matchingRoutes.some((item) =>
+            isModelAllowedByPlanRules(modelRules, model, modelType, item.groupKey),
+          )
+        : isModelAllowedByPlanRules(modelRules, model, modelType);
+
+    if (!allowed) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'DEFAULT_MODEL_DENIED_BY_FREE_PLAN',
+      });
+    }
+  }
+};
 
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
@@ -175,6 +260,10 @@ export const adminPlansRouter = router({
 
           if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
 
+          if (input.plan === Plans.Free) {
+            await assertFreePlanKeepsDefaultModels(tx, input.modelRules as PlanModelRules | null);
+          }
+
           const nextPlanCatalog = { ...existing, modelRules: input.modelRules ?? null };
           const result = await tx
             .update(planCatalog)
@@ -231,6 +320,14 @@ export const adminPlansRouter = router({
         const existing = await tx.query.planCatalog.findFirst({
           where: eq(planCatalog.plan, planInput.plan),
         });
+
+        if (planInput.plan === Plans.Free) {
+          await assertFreePlanKeepsDefaultModels(
+            tx,
+            (planInput.modelRules ?? existing?.modelRules) as PlanModelRules | null | undefined,
+          );
+        }
+
         const normalizedPurchaseUrl = normalizePurchaseUrl(purchaseUrl);
         const previousMetadata =
           existing?.metadata &&

@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { trpc } from '../../init';
 import { ADMIN_CAPABILITIES } from '../adminPermissions';
-import { requireAdminCapability, requireSuperAdmin } from '../requireSuperAdmin';
+import {
+  requireAdminCapability,
+  requireAnyAdminCapability,
+  requireSuperAdmin,
+} from '../requireSuperAdmin';
 
 const testRouter = trpc.router({
   contentRead: trpc.procedure
@@ -16,6 +20,14 @@ const testRouter = trpc.router({
       isAdmin: (ctx as any).isAdmin,
       isFullAdmin: (ctx as any).isFullAdmin,
     })),
+  financeOrAudit: trpc.procedure
+    .use(
+      requireAnyAdminCapability([
+        ADMIN_CAPABILITIES.auditRead,
+        ADMIN_CAPABILITIES.financeRead,
+      ]),
+    )
+    .query(({ ctx }) => ({ adminRole: (ctx as any).adminRole })),
   ping: trpc.procedure.use(requireSuperAdmin).query(({ ctx }) => ({
     adminCapabilities: (ctx as any).adminCapabilities,
     adminRole: (ctx as any).adminRole,
@@ -92,5 +104,32 @@ describe('requireSuperAdmin middleware', () => {
     await expect(caller.finance()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('accepts any one capability from an explicit shared read boundary', async () => {
+    const financeCaller = createCaller({
+      serverDB: createServerDB({ banned: false, role: 'finance_admin' }),
+      userId: 'finance-user',
+    } as any);
+    const contentCaller = createCaller({
+      serverDB: createServerDB({ banned: false, role: 'content_admin' }),
+      userId: 'content-user',
+    } as any);
+
+    await expect(financeCaller.financeOrAudit()).resolves.toEqual({
+      adminRole: 'finance_admin',
+    });
+    await expect(contentCaller.financeOrAudit()).resolves.toEqual({
+      adminRole: 'content_admin',
+    });
+  });
+
+  it('rejects roles outside every capability on a shared read boundary', async () => {
+    const caller = createCaller({
+      serverDB: createServerDB({ banned: false, role: 'user' }),
+      userId: 'regular-user',
+    } as any);
+
+    await expect(caller.financeOrAudit()).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });

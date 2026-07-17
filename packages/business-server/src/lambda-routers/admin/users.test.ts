@@ -330,3 +330,56 @@ describe('adminUsersRouter export audit', () => {
     );
   });
 });
+
+describe('adminUsersRouter compact detail', () => {
+  it('allows finance readers without returning support PII fields', async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ banned: false, role: 'finance_admin' })
+      .mockResolvedValueOnce({
+        banned: false,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        id: 'target-user',
+        lastActiveAt: null,
+        role: 'user',
+      });
+    const db = { query: { users: { findFirst } } } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminUsersRouter.createCaller({ userId: 'finance-user' } as any).compactDetail({
+        userId: 'target-user',
+      }),
+    ).resolves.toEqual({
+      banned: false,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      id: 'target-user',
+      lastActiveAt: null,
+      role: 'user',
+    });
+
+    expect(findFirst).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        columns: { banned: true, createdAt: true, id: true, lastActiveAt: true, role: true },
+      }),
+    );
+    expect(JSON.stringify(await findFirst.mock.results[1].value)).not.toContain('email');
+    expect(JSON.stringify(await findFirst.mock.results[1].value)).not.toContain('phone');
+  });
+
+  it('keeps full support detail unavailable to finance-only readers', async () => {
+    const db = {
+      query: {
+        users: { findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }) },
+      },
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminUsersRouter.createCaller({ userId: 'finance-user' } as any).fullDetail({
+        userId: 'target-user',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});

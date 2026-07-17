@@ -38,7 +38,7 @@ describe('shared admin roles', () => {
     expect(hasAdminCapability('finance_admin', ADMIN_CAPABILITIES.adminAccess)).toBe(false);
   });
 
-  it('publishes read/write capability pairs for every governed admin domain', () => {
+  it('publishes active capabilities without retired unused aliases', () => {
     expect(ADMIN_CAPABILITIES).toMatchObject({
       contentRead: 'content.read',
       contentWrite: 'content.write',
@@ -46,13 +46,13 @@ describe('shared admin roles', () => {
       modelOpsWrite: 'modelOps.write',
       moduleAppRead: 'moduleApp.read',
       moduleAppWrite: 'moduleApp.write',
-      supportRead: 'support.read',
       supportWrite: 'support.write',
       systemRead: 'system.read',
       systemWrite: 'system.write',
       userRead: 'user.read',
-      userWrite: 'user.write',
     });
+    expect(ADMIN_CAPABILITIES).not.toHaveProperty('supportRead');
+    expect(ADMIN_CAPABILITIES).not.toHaveProperty('userWrite');
   });
 
   it('grants scoped roles their read capability without cross-domain access', () => {
@@ -72,7 +72,6 @@ describe('shared admin roles', () => {
     );
     expect(getAdminRoleCapabilities('support_admin')).toEqual(
       [
-        ADMIN_CAPABILITIES.supportRead,
         ADMIN_CAPABILITIES.supportWrite,
         ADMIN_CAPABILITIES.userRead,
         ADMIN_CAPABILITIES.auditRead,

@@ -66,3 +66,17 @@ export const requireAdminCapability = (capability: AdminCapability) =>
       ctx: withAdminContext(ctx, user?.role),
     });
   });
+
+export const requireAnyAdminCapability = (capabilities: readonly AdminCapability[]) =>
+  trpc.middleware(async (opts) => {
+    const { ctx } = opts as any;
+    const user = await readAdminUser(opts);
+
+    if (!capabilities.some((capability) => hasAdminCapability(user?.role, capability))) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'required admin capability missing' });
+    }
+
+    return opts.next({
+      ctx: withAdminContext(ctx, user?.role),
+    });
+  });

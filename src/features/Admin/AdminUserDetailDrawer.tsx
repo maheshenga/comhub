@@ -41,10 +41,19 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
   const { t } = useTranslation('subscription');
   const role = useUserStore((state) => (userProfileSelectors.userProfile(state) as any)?.role);
   const canManageFinance = hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite);
-  const swrKey = userId ? ['admin-user-full-detail', userId] : null;
-  const { data, isLoading } = useClientDataSWR(swrKey, () =>
+  const canReadFullDetail = hasAdminCapability(role, ADMIN_CAPABILITIES.supportWrite);
+  const fullDetailSWRKey = userId && canReadFullDetail ? ['admin-user-full-detail', userId] : null;
+  const compactDetailSWRKey = userId && !canReadFullDetail ? ['admin-user-compact-detail', userId] : null;
+  const { data: fullDetail, isLoading: fullDetailLoading } = useClientDataSWR(fullDetailSWRKey, () =>
     adminCommercialService.getUserFullDetail(userId!),
   );
+  const { data: compactDetail, isLoading: compactDetailLoading } = useClientDataSWR(
+    compactDetailSWRKey,
+    () => adminCommercialService.getCompactUserDetail(userId!),
+  );
+  const data = fullDetail;
+  const isLoading = fullDetailLoading || compactDetailLoading;
+  const swrKey = fullDetailSWRKey ?? compactDetailSWRKey;
   const { data: plansData } = useClientDataSWR(
     canManageFinance ? ['admin-plan-catalog-options'] : null,
     () => adminCommercialService.listPlans(),
@@ -136,9 +145,9 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
       }
       onClose={onClose}
     >
-      {isLoading || !data ? (
+      {isLoading ? (
         <Spin />
-      ) : (
+      ) : data ? (
         <Flexbox gap={24}>
           <Descriptions
             bordered
@@ -355,6 +364,36 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
             />
           </div>
         </Flexbox>
+      ) : compactDetail ? (
+        <Descriptions
+          bordered
+          column={1}
+          size="small"
+          title={t('admin.userDetail.profile', '用户资料')}
+        >
+          <Descriptions.Item label={t('admin.userDetail.userId', 'ID')}>
+            <code>{compactDetail.id}</code>
+          </Descriptions.Item>
+          <Descriptions.Item label={t('admin.role', '角色')}>
+            {compactDetail.role ? (
+              <Tag color={compactDetail.role === 'admin' ? 'purple' : 'blue'}>
+                {compactDetail.role}
+              </Tag>
+            ) : (
+              EMPTY_TEXT
+            )}
+          </Descriptions.Item>
+          <Descriptions.Item label={t('admin.status', '状态')}>
+            {compactDetail.banned ? <Tag color="red">已封禁</Tag> : <Tag color="green">正常</Tag>}
+          </Descriptions.Item>
+          <Descriptions.Item label={t('admin.joined', '注册时间')}>
+            {compactDetail.createdAt
+              ? new Date(compactDetail.createdAt).toLocaleString()
+              : EMPTY_TEXT}
+          </Descriptions.Item>
+        </Descriptions>
+      ) : (
+        <Empty />
       )}
       {canManageFinance ? (
         <AdminAssignPlanModal

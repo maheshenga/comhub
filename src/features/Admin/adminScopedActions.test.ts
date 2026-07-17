@@ -26,4 +26,38 @@ describe('scoped admin user actions', () => {
     expect(source).toContain("canManageFinance ? ['admin-plan-catalog-options'] : null");
     expect(source).toContain('canManageFinance ? (');
   });
+
+  it('uses compact user data outside the support detail boundary', () => {
+    const source = readSource('src/features/Admin/AdminUserDetailDrawer.tsx');
+
+    expect(source).toContain(
+      'const canReadFullDetail = hasAdminCapability(role, ADMIN_CAPABILITIES.supportWrite);',
+    );
+    expect(source).toContain('adminCommercialService.getCompactUserDetail(userId!)');
+    expect(source).toContain("['admin-user-compact-detail', userId]");
+    expect(source).toContain('const data = fullDetail;');
+    expect(source).toContain('data ? (');
+    expect(source).toContain('compactDetail ? (');
+  });
+});
+
+describe('scoped model billing matrix actions', () => {
+  it('gates each read and write section on its owning capability', () => {
+    const source = readSource('src/features/Admin/AdminModelBillingMatrixPage.tsx');
+
+    expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.modelOpsRead)');
+    expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.financeRead)');
+    expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.systemRead)');
+    expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.financeWrite)');
+    expect(source).toContain('hasAdminCapability(role, ADMIN_CAPABILITIES.systemWrite)');
+    expect(source).toContain('canReadModels ? MATRIX_KEY : null');
+    expect(source).toContain('canReadPlans ? PLANS_KEY : null');
+    expect(source).toContain("canReadSettings ? ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix') : null");
+    expect(source).toContain('disabled={!canWriteFinance}');
+    expect(source).toContain('disabled={!canWriteSystem}');
+    expect(source).toContain(
+      "!['pricingMultiplier', 'creditsPerDollar', 'actions'].includes(String(column.key))",
+    );
+    expect(source).toContain('columns={visibleColumns}');
+  });
 });

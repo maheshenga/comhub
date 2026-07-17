@@ -46,7 +46,6 @@ describe('scoped admin read procedures', () => {
           'listInstances: modelOpsReadProcedure',
           'getModelCatalogDiagnostics: modelOpsReadProcedure',
           'listModels: modelOpsReadProcedure',
-          'getAllEnabledModels: modelOpsReadProcedure',
         ],
       ],
       [
@@ -84,6 +83,35 @@ describe('scoped admin read procedures', () => {
       expect(source).toContain(capability);
       for (const fragment of fragments) expect(source).toContain(fragment);
     }
+  });
+
+  it('uses a compact, multi-domain read surface for finance and audit user lookups', () => {
+    const users = readRouter('users');
+
+    expect(users).toContain('const compactUserReadProcedure = adminAnyCapabilityProcedure([');
+    expect(users).toContain('ADMIN_CAPABILITIES.auditRead');
+    expect(users).toContain('ADMIN_CAPABILITIES.financeRead');
+    expect(users).toContain('ADMIN_CAPABILITIES.userRead');
+    expect(users).toContain('compactDetail: compactUserReadProcedure');
+    expect(users).toContain(
+      'columns: { banned: true, createdAt: true, id: true, lastActiveAt: true, role: true }',
+    );
+  });
+
+  it('shares only the compact enabled-model catalog with matrix read domains', () => {
+    const providers = readRouter('newapiProviders');
+
+    expect(providers).toContain('const sharedModelReadProcedure = adminAnyCapabilityProcedure([');
+    expect(providers).toContain('ADMIN_CAPABILITIES.modelOpsRead');
+    expect(providers).toContain('ADMIN_CAPABILITIES.financeRead');
+    expect(providers).toContain('ADMIN_CAPABILITIES.systemRead');
+    expect(providers).toContain('getAllEnabledModels: sharedModelReadProcedure');
+
+    const compactProjection = providers.slice(
+      providers.indexOf('getAllEnabledModels: sharedModelReadProcedure'),
+    );
+    expect(compactProjection).not.toContain('baseUrl: adminNewapiInstances.baseUrl');
+    expect(compactProjection).not.toContain('apiKey: adminNewapiInstances.apiKey');
   });
 
   it('binds read wrappers to their exact capabilities', () => {

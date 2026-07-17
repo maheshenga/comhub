@@ -76,6 +76,10 @@ class AdminCommercialService {
     return lambdaClient.admin.users.detail.query({ userId });
   };
 
+  getCompactUserDetail = async (userId: string) => {
+    return lambdaClient.admin.users.compactDetail.query({ userId });
+  };
+
   getUserFullDetail = async (userId: string) => {
     return lambdaClient.admin.users.fullDetail.query({ userId });
   };
