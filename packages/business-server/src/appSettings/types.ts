@@ -1,27 +1,17 @@
 import type { z } from 'zod';
 
-import type { AppSettingDomain, AppSettingKey } from '@/const/appSettingsRegistry';
+import type {
+  AppSettingDomain,
+  AppSettingKey,
+  AppSettingsSection,
+} from '@/const/appSettingsRegistry';
 
-export type AppSettingsSection =
-  | 'desktop-update'
-  | 'expert-plaza'
-  | 'file-storage'
-  | 'growth'
-  | 'maintenance'
-  | 'model-billing-matrix'
-  | 'model-policy'
-  | 'notifications'
-  | 'operations'
-  | 'ppt'
-  | 'recommendations'
-  | 'settings'
-  | 'system-defaults';
+export type { AppSettingsSection } from '@/const/appSettingsRegistry';
 
 export type AppSettingLifecycle = 'active' | 'deprecated' | 'external';
 
 export type AppSettingWriteSurface =
-  | 'adminPptRouter.saveSettings'
-  | 'adminSettingsRouter.setAppSetting';
+  'adminPptRouter.saveSettings' | 'adminSettingsRouter.setAppSetting';
 
 export type AppSettingNormalizer =
   | 'about-links'

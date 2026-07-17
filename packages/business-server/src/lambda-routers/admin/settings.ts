@@ -1,23 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
-import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { normalizeAboutLinksConfig, normalizeAboutPageConfig } from '@/const/aboutLinks';
+import { APP_SETTINGS_SECTIONS } from '@/const/appSettingsRegistry';
 import { normalizeAvatarPresets } from '@/const/avatarPresets';
-import { normalizePlanFaqSettings } from '@/const/billingPresentation';
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
-import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
-import {
-  DEFAULT_EXPERT_PLAZA_CONFIG,
-  normalizeExpertPlazaCards,
-  normalizeExpertPlazaConfig,
-} from '@/const/expertPlaza';
 import { normalizeHelpMenuItems } from '@/const/helpMenu';
-import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 import {
   adminAuditLogs,
   appSettings,
@@ -35,16 +27,13 @@ import {
   router,
 } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
-import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
+import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import {
   APP_SETTING_KEYS,
-  getServerDefaultModelSuggestions,
   getServerFileS3Config,
-  getServerModelPolicyConfig,
   invalidateServerAppSettings,
   normalizeS3FilePath,
-  serializeModelIdList,
 } from '@/server/services/appSettings';
 import {
   buildAppSettingsGovernance,
@@ -65,12 +54,27 @@ import {
 } from '@/server/services/newapiInstance';
 
 import {
+  buildAdminSettingsReadModel,
+  buildAdminSettingsSectionReadModel,
+  buildDesktopSettings,
+  buildExpertPlazaSettings,
+  buildGrowthSettings,
+  buildNotificationSettings,
+  buildOperationsSettings,
+  buildRecommendationSettings,
+} from '../../appSettings/adminReadModel';
+import {
   APP_SETTING_WRITE_SURFACES,
   GENERIC_WRITABLE_APP_SETTING_KEYS,
   getAppSettingCatalogItem,
   isSensitiveCatalogAppSettingKey,
   normalizeAppSettingValue,
 } from '../../appSettings/catalog';
+import {
+  loadAllAppSettingsSnapshot,
+  loadAppSettingsSectionSnapshot,
+  loadAppSettingsSnapshot,
+} from '../../appSettings/loader';
 import { isModelAllowedByPlanRules } from '../../planModelRules';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { createAdminCommand } from './adminCommand';
@@ -151,44 +155,11 @@ const readSetting = async (db: any, key: string): Promise<unknown> => {
   return row?.value ?? null;
 };
 
-const toStringList = (value: unknown): string[] => {
-  const raw = Array.isArray(value)
-    ? value.flatMap((item) => (typeof item === 'string' ? item.split(/[\r\n,;，；]+/) : []))
-    : typeof value === 'string'
-      ? value.split(/[\r\n,;，；]+/)
-      : [];
-
-  return Array.from(new Set(raw.map((item) => item.trim()).filter(Boolean)));
-};
-
 const toBoolean = (value: unknown, fallback = false) =>
   typeof value === 'boolean' ? value : fallback;
 
-const toNumber = (value: unknown, fallback: number) => {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-};
-
-const toPositiveNumber = (value: unknown, fallback: number) => {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-};
-
-const toBoundedInt = (value: unknown, fallback: number, min: number, max: number) => {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-
-  return Math.max(min, Math.min(max, Math.round(n)));
-};
-
 const toString = (value: unknown, fallback = '') =>
   typeof value === 'string' ? value.trim() : fallback;
-
-const normalizeMemoryUserMemoryTriggerMode = (value: unknown) =>
-  value === 'direct' || value === 'workflow' || value === 'auto' ? value : 'auto';
-
-const normalizeOptionalMemoryUserMemoryTriggerMode = (value: unknown) =>
-  value === 'direct' || value === 'workflow' || value === 'auto' ? value : null;
 
 const normalizeProfileInterestAreas = (value: unknown) => {
   const items = Array.isArray(value) ? value : [];
@@ -708,188 +679,6 @@ export const validateDefaultAgentModelUsability = async (
   }
 };
 
-const readPublicRecommendations = async (db: any) => {
-  const [
-    enabled,
-    assistantsEnabled,
-    mcpsEnabled,
-    skillsEnabled,
-    generalSkillsEnabled,
-    hotSkillsEnabled,
-    selectedTags,
-    assistantTags,
-    assistantTitle,
-    skillCategories,
-    skillTitle,
-    mcpCategories,
-    mcpTitle,
-    generalSkillCategories,
-    generalSkillTitle,
-    hotSkillSort,
-    hotSkillTitle,
-  ] = await Promise.all([
-    readSetting(db, SETTING_KEYS.recommendationSectionEnabled),
-    readSetting(db, SETTING_KEYS.recommendationAssistantsEnabled),
-    readSetting(db, SETTING_KEYS.recommendationMcpsEnabled),
-    readSetting(db, SETTING_KEYS.recommendationSkillsEnabled),
-    readSetting(db, SETTING_KEYS.recommendationGeneralSkillsEnabled),
-    readSetting(db, SETTING_KEYS.recommendationHotSkillsEnabled),
-    readSetting(db, SETTING_KEYS.recommendationSelectedTags),
-    readSetting(db, SETTING_KEYS.recommendationAssistantTags),
-    readSetting(db, SETTING_KEYS.recommendationAssistantTitle),
-    readSetting(db, SETTING_KEYS.recommendationSkillCategories),
-    readSetting(db, SETTING_KEYS.recommendationSkillTitle),
-    readSetting(db, SETTING_KEYS.recommendationMcpCategories),
-    readSetting(db, SETTING_KEYS.recommendationMcpTitle),
-    readSetting(db, SETTING_KEYS.recommendationGeneralSkillCategories),
-    readSetting(db, SETTING_KEYS.recommendationGeneralSkillTitle),
-    readSetting(db, SETTING_KEYS.recommendationHotSkillSort),
-    readSetting(db, SETTING_KEYS.recommendationHotSkillTitle),
-  ]);
-
-  return {
-    assistantTags: toStringList(assistantTags),
-    assistantTitle: toString(assistantTitle, '为你推荐的助理'),
-    assistantsEnabled: toBoolean(assistantsEnabled, true),
-    enabled: toBoolean(enabled, false),
-    generalSkillCategories: toStringList(generalSkillCategories),
-    generalSkillTitle: toString(generalSkillTitle, '通用推荐技能'),
-    generalSkillsEnabled: toBoolean(generalSkillsEnabled, true),
-    hotSkillsEnabled: toBoolean(hotSkillsEnabled, true),
-    hotSkillSort:
-      typeof hotSkillSort === 'string' && hotSkillSort.length > 0 ? hotSkillSort : 'installCount',
-    hotSkillTitle: toString(hotSkillTitle, '热门技能'),
-    mcpCategories: toStringList(mcpCategories),
-    mcpTitle: toString(mcpTitle, '推荐 MCP / 工具'),
-    mcpsEnabled: toBoolean(mcpsEnabled, true),
-    selectedTags: toStringList(selectedTags),
-    skillCategories: toStringList(skillCategories),
-    skillTitle: toString(skillTitle, '推荐技能'),
-    skillsEnabled: toBoolean(skillsEnabled, true),
-  };
-};
-
-const readPublicOperations = async (db: any) => {
-  const [
-    creatorRewardBannerEnabled,
-    featuredAssistantsEnabled,
-    featuredMcpsEnabled,
-    featuredSkillsEnabled,
-    featuredAssistantPageSize,
-    featuredMcpPageSize,
-    featuredSkillPageSize,
-    featuredAssistantTitle,
-    featuredMcpTitle,
-    featuredSkillTitle,
-    featuredSkillCategory,
-    featuredSkillSort,
-    announcementEnabled,
-    announcementTitle,
-    announcementContent,
-    announcementType,
-  ] = await Promise.all([
-    readSetting(db, SETTING_KEYS.communityCreatorRewardBannerEnabled),
-    readSetting(db, SETTING_KEYS.communityFeaturedAssistantsEnabled),
-    readSetting(db, SETTING_KEYS.communityFeaturedMcpsEnabled),
-    readSetting(db, SETTING_KEYS.communityFeaturedSkillsEnabled),
-    readSetting(db, SETTING_KEYS.communityFeaturedAssistantPageSize),
-    readSetting(db, SETTING_KEYS.communityFeaturedMcpPageSize),
-    readSetting(db, SETTING_KEYS.communityFeaturedSkillPageSize),
-    readSetting(db, SETTING_KEYS.communityFeaturedAssistantTitle),
-    readSetting(db, SETTING_KEYS.communityFeaturedMcpTitle),
-    readSetting(db, SETTING_KEYS.communityFeaturedSkillTitle),
-    readSetting(db, SETTING_KEYS.communityFeaturedSkillCategory),
-    readSetting(db, SETTING_KEYS.communityFeaturedSkillSort),
-    readSetting(db, SETTING_KEYS.communityHomeAnnouncementEnabled),
-    readSetting(db, SETTING_KEYS.communityHomeAnnouncementTitle),
-    readSetting(db, SETTING_KEYS.communityHomeAnnouncementContent),
-    readSetting(db, SETTING_KEYS.communityHomeAnnouncementType),
-  ]);
-
-  return {
-    announcement: {
-      content: toString(announcementContent),
-      enabled: toBoolean(announcementEnabled, false),
-      title: toString(announcementTitle),
-      type: ['success', 'info', 'warning', 'error'].includes(toString(announcementType))
-        ? toString(announcementType)
-        : 'info',
-    },
-    creatorRewardBannerEnabled: toBoolean(creatorRewardBannerEnabled, true),
-    featuredAssistants: {
-      enabled: toBoolean(featuredAssistantsEnabled, true),
-      pageSize: toBoundedInt(featuredAssistantPageSize, 12, 1, 24),
-      title: toString(featuredAssistantTitle),
-    },
-    featuredMcps: {
-      enabled: toBoolean(featuredMcpsEnabled, true),
-      pageSize: toBoundedInt(featuredMcpPageSize, 12, 1, 24),
-      title: toString(featuredMcpTitle),
-    },
-    featuredSkills: {
-      category: toString(featuredSkillCategory),
-      enabled: toBoolean(featuredSkillsEnabled, false),
-      pageSize: toBoundedInt(featuredSkillPageSize, 8, 1, 24),
-      sort: toString(featuredSkillSort, 'installCount') || 'installCount',
-      title: toString(featuredSkillTitle),
-    },
-  };
-};
-
-const readPublicGrowth = async (db: any) => {
-  const [
-    signupEnabled,
-    signupDisabledMessage,
-    signupPhoneEnabled,
-    initialCreditsEnabled,
-    initialCredits,
-    uploadMaxInputSizeMb,
-    uploadMaxActualSizeMb,
-  ] = await Promise.all([
-    readSetting(db, SETTING_KEYS.authSignupEnabled),
-    readSetting(db, SETTING_KEYS.authSignupDisabledMessage),
-    readSetting(db, SETTING_KEYS.authSignupPhoneEnabled),
-    readSetting(db, SETTING_KEYS.onboardingInitialCreditsEnabled),
-    readSetting(db, SETTING_KEYS.onboardingInitialCredits),
-    readSetting(db, SETTING_KEYS.uploadMaxInputSizeMb),
-    readSetting(db, SETTING_KEYS.uploadMaxActualSizeMb),
-  ]);
-
-  return {
-    initialCredits: {
-      amount: toBoundedInt(initialCredits, 0, 0, 10_000_000_000),
-      enabled: toBoolean(initialCreditsEnabled, false),
-    },
-    signup: {
-      disabledMessage: toString(signupDisabledMessage) || 'Registration is temporarily closed.',
-      enabled: toBoolean(signupEnabled, true),
-      phoneEnabled: toBoolean(signupPhoneEnabled, false),
-    },
-    upload: {
-      maxActualSizeMb: toBoundedInt(uploadMaxActualSizeMb, 0, 0, 10_240),
-      maxInputSizeMb: toBoundedInt(uploadMaxInputSizeMb, 0, 0, 10_240),
-    },
-  };
-};
-
-const readPublicExpertPlaza = async (db: any) => {
-  const [enabled, name, description, categories, cards] = await Promise.all([
-    readSetting(db, SETTING_KEYS.expertPlazaEnabled),
-    readSetting(db, SETTING_KEYS.expertPlazaName),
-    readSetting(db, SETTING_KEYS.expertPlazaDescription),
-    readSetting(db, SETTING_KEYS.expertPlazaCategories),
-    readSetting(db, SETTING_KEYS.expertPlazaCards),
-  ]);
-
-  return normalizeExpertPlazaConfig({
-    cards: normalizeExpertPlazaCards(cards),
-    categories: toStringList(categories),
-    description: toString(description, DEFAULT_EXPERT_PLAZA_CONFIG.description),
-    enabled: toBoolean(enabled, DEFAULT_EXPERT_PLAZA_CONFIG.enabled),
-    name: toString(name, DEFAULT_EXPERT_PLAZA_CONFIG.name),
-  });
-};
-
 export const adminSettingsRouter = router({
   /**
    * Public read of brand-related settings, used by the SPA shell to render the
@@ -897,47 +686,50 @@ export const adminSettingsRouter = router({
    * Only non-sensitive keys are exposed.
    */
   getPublicBrand: publicDbProcedure.query(async ({ ctx }) => {
-    const [
-      name,
-      logo,
-      favicon,
-      primary,
-      slogan,
-      loadingText,
-      loadingSvgUrl,
-      authTitle,
-      copyrightText,
-      defaultSkillName,
-      homeMessengerEnabled,
-      homeMessengerBannerTitle,
-      communityForkAndChatLabel,
-      sidebarMemberLabel,
-      sidebarMemberUrl,
-      sidebarGenerationLabel,
-    ] = await Promise.all([
-      readSetting(ctx.serverDB, SETTING_KEYS.brandName),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandFaviconUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandPrimaryColor),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandSlogan),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingText),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingSvgUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultSkillName),
-      readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerBannerTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.communityForkAndChatLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.sidebarGenerationLabel),
+    const snapshot = await loadAppSettingsSnapshot(ctx.serverDB, [
+      SETTING_KEYS.brandName,
+      SETTING_KEYS.brandLogoUrl,
+      SETTING_KEYS.brandFaviconUrl,
+      SETTING_KEYS.brandPrimaryColor,
+      SETTING_KEYS.brandSlogan,
+      SETTING_KEYS.brandLoadingText,
+      SETTING_KEYS.brandLoadingSvgUrl,
+      SETTING_KEYS.brandAuthTitle,
+      SETTING_KEYS.brandCopyrightText,
+      SETTING_KEYS.defaultSkillName,
+      SETTING_KEYS.homeMessengerEnabled,
+      SETTING_KEYS.homeMessengerBannerTitle,
+      SETTING_KEYS.communityForkAndChatLabel,
+      SETTING_KEYS.sidebarMemberLabel,
+      SETTING_KEYS.sidebarMemberUrl,
+      SETTING_KEYS.sidebarGenerationLabel,
     ]);
+    const name = snapshot.get(SETTING_KEYS.brandName);
     const brandName = typeof name === 'string' ? name : DEFAULT_RUNTIME_BRAND.name;
+    const favicon = snapshot.get(SETTING_KEYS.brandFaviconUrl);
+    const logo = snapshot.get(SETTING_KEYS.brandLogoUrl);
+    const primary = snapshot.get(SETTING_KEYS.brandPrimaryColor);
+    const loadingText = snapshot.get(SETTING_KEYS.brandLoadingText);
+    const loadingSvgUrl = snapshot.get(SETTING_KEYS.brandLoadingSvgUrl);
+    const authTitle = snapshot.get(SETTING_KEYS.brandAuthTitle);
+    const copyrightText = snapshot.get(SETTING_KEYS.brandCopyrightText);
+    const defaultSkillName = snapshot.get(SETTING_KEYS.defaultSkillName);
+    const homeMessengerBannerTitle = snapshot.get(SETTING_KEYS.homeMessengerBannerTitle);
+    const communityForkAndChatLabel = snapshot.get(SETTING_KEYS.communityForkAndChatLabel);
+    const sidebarGenerationLabel = snapshot.get(SETTING_KEYS.sidebarGenerationLabel);
+    const sidebarMemberLabel = snapshot.get(SETTING_KEYS.sidebarMemberLabel);
+    const sidebarMemberUrl = snapshot.get(SETTING_KEYS.sidebarMemberUrl);
+    const slogan = snapshot.get(SETTING_KEYS.brandSlogan);
+
     return {
       authTitle:
         typeof authTitle === 'string' && authTitle.trim()
           ? authTitle
           : DEFAULT_RUNTIME_BRAND.authTitle,
+      communityForkAndChatLabel:
+        typeof communityForkAndChatLabel === 'string' && communityForkAndChatLabel.trim()
+          ? communityForkAndChatLabel
+          : null,
       copyrightText:
         typeof copyrightText === 'string' && copyrightText.trim()
           ? copyrightText
@@ -947,24 +739,20 @@ export const adminSettingsRouter = router({
           ? defaultSkillName
           : brandName,
       faviconUrl: typeof favicon === 'string' ? favicon : null,
-      homeMessengerEnabled: toBoolean(homeMessengerEnabled, true),
       homeMessengerBannerTitle:
         typeof homeMessengerBannerTitle === 'string' && homeMessengerBannerTitle.trim()
           ? homeMessengerBannerTitle
           : null,
+      homeMessengerEnabled: toBoolean(snapshot.get(SETTING_KEYS.homeMessengerEnabled), true),
+      loadingSvgUrl:
+        typeof loadingSvgUrl === 'string' && loadingSvgUrl.trim() ? loadingSvgUrl.trim() : null,
       loadingText:
         typeof loadingText === 'string' && loadingText.trim()
           ? loadingText
           : DEFAULT_RUNTIME_BRAND.loadingText,
-      loadingSvgUrl:
-        typeof loadingSvgUrl === 'string' && loadingSvgUrl.trim() ? loadingSvgUrl.trim() : null,
       logoUrl: typeof logo === 'string' ? logo : DEFAULT_RUNTIME_BRAND.logoUrl,
       name: brandName,
       primaryColor: typeof primary === 'string' ? primary : DEFAULT_RUNTIME_BRAND.primaryColor,
-      communityForkAndChatLabel:
-        typeof communityForkAndChatLabel === 'string' && communityForkAndChatLabel.trim()
-          ? communityForkAndChatLabel
-          : null,
       sidebarGenerationLabel:
         typeof sidebarGenerationLabel === 'string' && sidebarGenerationLabel.trim()
           ? sidebarGenerationLabel
@@ -983,151 +771,107 @@ export const adminSettingsRouter = router({
   }),
 
   getPublicRecommendations: publicDbProcedure.query(async ({ ctx }) =>
-    readPublicRecommendations(ctx.serverDB),
+    buildRecommendationSettings(
+      await loadAppSettingsSectionSnapshot(ctx.serverDB, 'recommendations'),
+    ),
   ),
 
   getPublicOperations: publicDbProcedure.query(async ({ ctx }) =>
-    readPublicOperations(ctx.serverDB),
+    buildOperationsSettings(await loadAppSettingsSectionSnapshot(ctx.serverDB, 'operations')),
   ),
 
-  getPublicGrowth: publicDbProcedure.query(async ({ ctx }) => readPublicGrowth(ctx.serverDB)),
+  getPublicGrowth: publicDbProcedure.query(async ({ ctx }) =>
+    buildGrowthSettings(await loadAppSettingsSectionSnapshot(ctx.serverDB, 'growth')),
+  ),
 
   getPublicExpertPlaza: publicDbProcedure.query(async ({ ctx }) =>
-    readPublicExpertPlaza(ctx.serverDB),
+    buildExpertPlazaSettings(await loadAppSettingsSectionSnapshot(ctx.serverDB, 'expert-plaza')),
   ),
 
   getPublicProfileOptions: publicDbProcedure.query(async ({ ctx }) => {
-    const [interestAreas, avatarPresets] = await Promise.all([
-      readSetting(ctx.serverDB, SETTING_KEYS.profileInterestAreas),
-      readSetting(ctx.serverDB, SETTING_KEYS.profileAvatarPresets),
+    const snapshot = await loadAppSettingsSnapshot(ctx.serverDB, [
+      SETTING_KEYS.profileInterestAreas,
+      SETTING_KEYS.profileAvatarPresets,
     ]);
 
     return {
-      avatarPresets: normalizeAvatarPresets(avatarPresets),
-      interestAreas: normalizeProfileInterestAreas(interestAreas),
+      avatarPresets: normalizeAvatarPresets(snapshot.get(SETTING_KEYS.profileAvatarPresets)),
+      interestAreas: normalizeProfileInterestAreas(snapshot.get(SETTING_KEYS.profileInterestAreas)),
     };
   }),
 
   getPublicNotificationConfig: publicDbProcedure.query(async ({ ctx }) => {
-    const [
-      inboxEnabled,
-      desktopEnabled,
-      emailEnabled,
-      pushEnabled,
-      eventDefaults,
-      systemEnabled,
-      systemTitle,
-      systemContent,
-      systemActionLabel,
-      systemActionUrl,
-      systemType,
-    ] = await Promise.all([
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationInboxEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationDesktopEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationEmailEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationPushEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationEventDefaults),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemContent),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemType),
-    ]);
+    const settings = buildNotificationSettings(
+      await loadAppSettingsSectionSnapshot(ctx.serverDB, 'notifications'),
+    );
 
     return {
-      desktopEnabled: toBoolean(desktopEnabled, true),
-      emailEnabled: toBoolean(emailEnabled, false),
-      eventDefaults: normalizeNotificationEventDefaults(eventDefaults),
-      inboxEnabled: toBoolean(inboxEnabled, true),
-      pushEnabled: toBoolean(pushEnabled, toBoolean(desktopEnabled, true)),
+      desktopEnabled: settings.notificationDesktopEnabled,
+      emailEnabled: settings.notificationEmailEnabled,
+      eventDefaults: settings.notificationEventDefaults,
+      inboxEnabled: settings.notificationInboxEnabled,
+      pushEnabled: settings.notificationPushEnabled,
       system: {
-        actionLabel: toString(systemActionLabel),
-        actionUrl: toString(systemActionUrl) || null,
-        content: toString(systemContent),
-        enabled: toBoolean(systemEnabled, false),
-        title: toString(systemTitle),
-        type: ['success', 'info', 'warning', 'error'].includes(toString(systemType))
-          ? toString(systemType)
-          : 'warning',
+        actionLabel: settings.notificationSystemActionLabel,
+        actionUrl: settings.notificationSystemActionUrl || null,
+        content: settings.notificationSystemContent,
+        enabled: settings.notificationSystemEnabled,
+        title: settings.notificationSystemTitle,
+        type: settings.notificationSystemType,
       },
     };
   }),
 
   getPublicHelpMenu: publicDbProcedure.query(async ({ ctx }) => {
-    const row = await ctx.serverDB.query.appSettings.findFirst({
-      where: eq(appSettings.key, SETTING_KEYS.helpMenuItems),
-    });
-    return row ? normalizeHelpMenuItems(row.value) : null;
+    const snapshot = await loadAppSettingsSnapshot(ctx.serverDB, [SETTING_KEYS.helpMenuItems]);
+    return snapshot.has(SETTING_KEYS.helpMenuItems)
+      ? normalizeHelpMenuItems(snapshot.get(SETTING_KEYS.helpMenuItems))
+      : null;
   }),
 
   getPublicAboutLinks: publicDbProcedure.query(async ({ ctx }) => {
-    const [links, logoUrl, brandLogoUrl] = await Promise.all([
-      readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks),
-      readSetting(ctx.serverDB, SETTING_KEYS.aboutLogoUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
+    const snapshot = await loadAppSettingsSnapshot(ctx.serverDB, [
+      SETTING_KEYS.aboutLinks,
+      SETTING_KEYS.aboutLogoUrl,
+      SETTING_KEYS.brandLogoUrl,
     ]);
 
     return {
-      links: normalizeAboutLinksConfig(links),
-      logoUrl: toString(logoUrl) || toString(brandLogoUrl) || DEFAULT_RUNTIME_BRAND.logoUrl,
+      links: normalizeAboutLinksConfig(snapshot.get(SETTING_KEYS.aboutLinks)),
+      logoUrl:
+        toString(snapshot.get(SETTING_KEYS.aboutLogoUrl)) ||
+        toString(snapshot.get(SETTING_KEYS.brandLogoUrl)) ||
+        DEFAULT_RUNTIME_BRAND.logoUrl,
     };
   }),
 
   getPublicAboutPage: publicDbProcedure.query(async ({ ctx }) => {
-    const raw = await readSetting(ctx.serverDB, SETTING_KEYS.aboutPage);
-    return normalizeAboutPageConfig(raw);
+    const snapshot = await loadAppSettingsSnapshot(ctx.serverDB, [SETTING_KEYS.aboutPage]);
+    return normalizeAboutPageConfig(snapshot.get(SETTING_KEYS.aboutPage));
   }),
 
   getPublicDesktopUpdate: publicDbProcedure.query(async ({ ctx }) => {
-    const [
-      serverUrl,
-      channel,
-      autoCheck,
-      checkInterval,
-      downloadUrl,
-      downloadLabel,
-      currentVersion,
-      releaseNotes,
-      loginWindowTitle,
-      loginLogoUrl,
-      loginTitle,
-      loginDescription,
-      loginCloudButtonLabel,
-      loginFooterText,
-    ] = await Promise.all([
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateServerUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateChannel),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateAutoCheck),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCheckInterval),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCurrentVersion),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateReleaseNotes),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginWindowTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginLogoUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginDescription),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginCloudButtonLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginFooterText),
-    ]);
+    const settings = buildDesktopSettings(
+      await loadAppSettingsSectionSnapshot(ctx.serverDB, 'desktop-update'),
+    );
+
     return {
-      autoCheck: toBoolean(autoCheck, true),
-      channel: toString(channel, 'stable') || 'stable',
-      checkIntervalMinutes: toNumber(checkInterval, 60),
-      currentVersion: toString(currentVersion) || null,
-      downloadLabel: toString(downloadLabel) || null,
-      downloadUrl: toString(downloadUrl) || null,
+      autoCheck: settings.desktopUpdateConfig.autoCheck,
+      channel: settings.desktopUpdateConfig.channel,
+      checkIntervalMinutes: settings.desktopUpdateConfig.checkInterval,
+      currentVersion: settings.desktopUpdateConfig.currentVersion || null,
+      downloadLabel: settings.desktopDownloadLabel,
+      downloadUrl: settings.desktopDownloadUrl,
       loginConfig: {
-        cloudButtonLabel: toString(loginCloudButtonLabel) || null,
-        description: toString(loginDescription) || null,
-        footerText: toString(loginFooterText) || null,
-        logoUrl: toString(loginLogoUrl) || null,
-        title: toString(loginTitle) || null,
-        windowTitle: toString(loginWindowTitle) || null,
+        cloudButtonLabel: settings.desktopLoginConfig.cloudButtonLabel || null,
+        description: settings.desktopLoginConfig.description || null,
+        footerText: settings.desktopLoginConfig.footerText || null,
+        logoUrl: settings.desktopLoginConfig.logoUrl || null,
+        title: settings.desktopLoginConfig.title || null,
+        windowTitle: settings.desktopLoginConfig.windowTitle || null,
       },
-      releaseNotes: toString(releaseNotes) || null,
-      serverUrl: toString(serverUrl),
+      releaseNotes: settings.desktopUpdateConfig.releaseNotes || null,
+      serverUrl: settings.desktopUpdateConfig.serverUrl,
     };
   }),
 
@@ -1182,445 +926,32 @@ export const adminSettingsRouter = router({
       return { deleted: deleted.length > 0, key: input.key };
     }),
 
+  getSection: systemReadProcedure
+    .input(z.object({ section: z.enum(APP_SETTINGS_SECTIONS) }))
+    .query(async ({ ctx, input }) => {
+      const needsEnabledModels =
+        input.section === 'model-policy' || input.section === 'system-defaults';
+      const [snapshot, enabledModels] = await Promise.all([
+        loadAppSettingsSectionSnapshot(ctx.serverDB, input.section),
+        needsEnabledModels ? getAllEnabledModels(ctx.serverDB) : Promise.resolve([]),
+      ]);
+
+      return buildAdminSettingsSectionReadModel(input.section, snapshot, {
+        defaultAgentConfig: getServerDefaultAgentConfig(),
+        enabledModels,
+      });
+    }),
+
   getAll: systemReadProcedure.query(async ({ ctx }) => {
-    const [
-      referralReward,
-      cronSecret,
-      auditDays,
-      pendingDays,
-      aboutLogo,
-      brandName,
-      brandLogo,
-      brandFavicon,
-      brandPrimary,
-      brandSlogan,
-      brandLoadingText,
-      brandLoadingSvgUrl,
-      brandAuthTitle,
-      brandCopyrightText,
-      homeMessengerEnabled,
-      homeMessengerBannerTitle,
-      communityForkAndChatLabel,
-      communitySkillUseButtonLabel,
-      defaultAgentModel,
-      defaultAgentName,
-      defaultAgentAvatar,
-      defaultAgentProvider,
-      defaultImageModel,
-      defaultImageProvider,
-      defaultSkillName,
-      defaultVideoModel,
-      defaultVideoProvider,
-      recommendationConfig,
-      plansFaqItems,
-      pricingCreditMultiplier,
-      pricingModelRules,
-      operationsConfig,
-      growthConfig,
-      modelPolicyConfig,
-      desktopUpdateServerUrl,
-      desktopUpdateChannel,
-      desktopUpdateAutoCheck,
-      desktopUpdateCheckInterval,
-      desktopUpdateCurrentVersion,
-      desktopUpdateReleaseNotes,
-      desktopOssBucket,
-      desktopOssEndpoint,
-      desktopOssAccessKeyId,
-      desktopOssAccessKeySecret,
-      desktopOssPath,
-      desktopDownloadUrl,
-      desktopDownloadLabel,
-      desktopLoginWindowTitle,
-      desktopLoginLogoUrl,
-      desktopLoginTitle,
-      desktopLoginDescription,
-      desktopLoginCloudButtonLabel,
-      desktopLoginFooterText,
-      helpMenuItems,
-      aboutLinks,
-      composioEnabled,
-      composioApiKey,
-      composioAuthConfigIds,
-      profileInterestAreas,
-      aboutPage,
-      avatarPresets,
-      memoryUserMemoryTriggerMode,
-      memoryUserMemoryGatekeeperProvider,
-      memoryUserMemoryGatekeeperModel,
-      memoryUserMemoryLayerExtractorProvider,
-      memoryUserMemoryLayerExtractorModel,
-      memoryUserMemoryPersonaWriterProvider,
-      memoryUserMemoryPersonaWriterModel,
-      memoryUserMemoryEmbeddingProvider,
-      memoryUserMemoryEmbeddingModel,
-      vectorEmbeddingProvider,
-      vectorEmbeddingModel,
-      vectorRerankerProvider,
-      vectorRerankerModel,
-      vectorQueryMode,
-      userGlobalSettingsDefaults,
-      expertPlazaConfig,
-      notificationInboxEnabled,
-      notificationDesktopEnabled,
-      notificationEmailEnabled,
-      notificationPushEnabled,
-      notificationEventDefaults,
-      notificationRetentionDays,
-      notificationSystemEnabled,
-      notificationSystemTitle,
-      notificationSystemContent,
-      notificationSystemActionLabel,
-      notificationSystemActionUrl,
-      notificationSystemType,
-      storageS3AccessKeyId,
-      storageS3SecretAccessKey,
-      storageS3Endpoint,
-      storageS3Bucket,
-      storageS3Region,
-      storageS3PublicDomain,
-      storageS3FilePath,
-      storageS3EnablePathStyle,
-      storageS3SetAcl,
-      storageS3PreviewUrlExpireIn,
-      sidebarMemberLabel,
-      sidebarMemberUrl,
-      sidebarGenerationLabel,
-    ] = await Promise.all([
-      readSetting(ctx.serverDB, SETTING_KEYS.referralRewardCredits),
-      readSetting(ctx.serverDB, SETTING_KEYS.cronSecret),
-      readSetting(ctx.serverDB, SETTING_KEYS.cronAuditRetentionDays),
-      readSetting(ctx.serverDB, SETTING_KEYS.cronPendingOrderExpiryDays),
-      readSetting(ctx.serverDB, SETTING_KEYS.aboutLogoUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandName),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandLogoUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandFaviconUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandPrimaryColor),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandSlogan),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingText),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandLoadingSvgUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandAuthTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.brandCopyrightText),
-      readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.homeMessengerBannerTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.communityForkAndChatLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.communitySkillUseButtonLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentName),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentAvatar),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultAgentProvider),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultImageModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultImageProvider),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultSkillName),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultVideoModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.defaultVideoProvider),
-      readPublicRecommendations(ctx.serverDB),
-      readSetting(ctx.serverDB, SETTING_KEYS.plansFaqItems),
-      readSetting(ctx.serverDB, SETTING_KEYS.pricingCreditMultiplier),
-      readSetting(ctx.serverDB, SETTING_KEYS.pricingModelRules),
-      readPublicOperations(ctx.serverDB),
-      readPublicGrowth(ctx.serverDB),
-      getServerModelPolicyConfig(ctx.serverDB),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateServerUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateChannel),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateAutoCheck),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCheckInterval),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCurrentVersion),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateReleaseNotes),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopOssBucket),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopOssEndpoint),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopOssAccessKeyId),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopOssAccessKeySecret),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopOssPath),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginWindowTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginLogoUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginDescription),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginCloudButtonLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginFooterText),
-      readSetting(ctx.serverDB, SETTING_KEYS.helpMenuItems),
-      readSetting(ctx.serverDB, SETTING_KEYS.aboutLinks),
-      readSetting(ctx.serverDB, SETTING_KEYS.composioEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.composioApiKey),
-      readSetting(ctx.serverDB, SETTING_KEYS.composioAuthConfigIds),
-      readSetting(ctx.serverDB, SETTING_KEYS.profileInterestAreas),
-      readSetting(ctx.serverDB, SETTING_KEYS.aboutPage),
-      readSetting(ctx.serverDB, SETTING_KEYS.profileAvatarPresets),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryTriggerMode),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryGatekeeperProvider),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryGatekeeperModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryLayerExtractorProvider),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryLayerExtractorModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryPersonaWriterProvider),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryPersonaWriterModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryEmbeddingProvider),
-      readSetting(ctx.serverDB, SETTING_KEYS.memoryUserMemoryEmbeddingModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.vectorEmbeddingProvider),
-      readSetting(ctx.serverDB, SETTING_KEYS.vectorEmbeddingModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.vectorRerankerProvider),
-      readSetting(ctx.serverDB, SETTING_KEYS.vectorRerankerModel),
-      readSetting(ctx.serverDB, SETTING_KEYS.vectorQueryMode),
-      readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults),
-      readPublicExpertPlaza(ctx.serverDB),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationInboxEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationDesktopEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationEmailEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationPushEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationEventDefaults),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationRetentionDays),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemEnabled),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemTitle),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemContent),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemActionUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.notificationSystemType),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3AccessKeyId),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3SecretAccessKey),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3Endpoint),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3Bucket),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3Region),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3PublicDomain),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3FilePath),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3EnablePathStyle),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3SetAcl),
-      readSetting(ctx.serverDB, SETTING_KEYS.storageS3PreviewUrlExpireIn),
-      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberLabel),
-      readSetting(ctx.serverDB, SETTING_KEYS.sidebarMemberUrl),
-      readSetting(ctx.serverDB, SETTING_KEYS.sidebarGenerationLabel),
+    const [snapshot, enabledModels] = await Promise.all([
+      loadAllAppSettingsSnapshot(ctx.serverDB),
+      getAllEnabledModels(ctx.serverDB),
     ]);
 
-    const [decryptedCronSecret, decryptedComposioApiKey, decryptedS3Secret] = await Promise.all([
-      decryptAppSettingSecret(SETTING_KEYS.cronSecret, cronSecret),
-      decryptAppSettingSecret(SETTING_KEYS.composioApiKey, composioApiKey),
-      decryptAppSettingSecret(SETTING_KEYS.storageS3SecretAccessKey, storageS3SecretAccessKey),
-    ]);
-    const dbCronSecret = typeof decryptedCronSecret === 'string' ? decryptedCronSecret : null;
-    const dbComposioApiKey =
-      typeof decryptedComposioApiKey === 'string' ? decryptedComposioApiKey : null;
-    const dbS3Secret = typeof decryptedS3Secret === 'string' ? decryptedS3Secret : null;
-
-    const resolvedDefaultAgentConfig = await getResolvedServerDefaultAgentConfig(ctx.serverDB);
-    const currentDefaultModel = ((typeof defaultAgentModel === 'string' &&
-      defaultAgentModel.trim()) ||
-      resolvedDefaultAgentConfig.model) as string | undefined;
-    const currentDefaultProvider = ((typeof defaultAgentProvider === 'string' &&
-      defaultAgentProvider.trim()) ||
-      resolvedDefaultAgentConfig.provider) as string | undefined;
-    const currentDefaultName = ((typeof defaultAgentName === 'string' && defaultAgentName.trim()) ||
-      resolvedDefaultAgentConfig.title) as string | undefined;
-    const currentDefaultAvatar = ((typeof defaultAgentAvatar === 'string' &&
-      defaultAgentAvatar.trim()) ||
-      resolvedDefaultAgentConfig.avatar) as string | undefined;
-    const defaultModelSuggestions = await getServerDefaultModelSuggestions({
-      currentModel: currentDefaultModel,
+    return buildAdminSettingsReadModel(snapshot, {
+      defaultAgentConfig: getServerDefaultAgentConfig(),
+      enabledModels,
     });
-    const enabledNewapiModels = await getAllEnabledModels(ctx.serverDB);
-
-    return {
-      aboutLogoUrl: toString(aboutLogo),
-      brandFaviconUrl: typeof brandFavicon === 'string' ? brandFavicon : '',
-      brandAuthTitle:
-        typeof brandAuthTitle === 'string' ? brandAuthTitle : DEFAULT_RUNTIME_BRAND.authTitle,
-      brandCopyrightText:
-        typeof brandCopyrightText === 'string'
-          ? brandCopyrightText
-          : DEFAULT_RUNTIME_BRAND.copyrightText,
-      communityForkAndChatLabel:
-        typeof communityForkAndChatLabel === 'string' ? communityForkAndChatLabel : '',
-      communitySkillUseButtonLabel:
-        typeof communitySkillUseButtonLabel === 'string' ? communitySkillUseButtonLabel : '',
-      brandLogoUrl: typeof brandLogo === 'string' ? brandLogo : DEFAULT_RUNTIME_BRAND.logoUrl,
-      brandName: typeof brandName === 'string' ? brandName : DEFAULT_RUNTIME_BRAND.name,
-      brandPrimaryColor:
-        typeof brandPrimary === 'string' ? brandPrimary : DEFAULT_RUNTIME_BRAND.primaryColor,
-      brandSlogan:
-        typeof brandSlogan === 'string' && brandSlogan.trim()
-          ? brandSlogan
-          : DEFAULT_RUNTIME_BRAND.authTitle,
-      brandLoadingText:
-        typeof brandLoadingText === 'string' && brandLoadingText.trim()
-          ? brandLoadingText
-          : DEFAULT_RUNTIME_BRAND.loadingText,
-      brandLoadingSvgUrl:
-        typeof brandLoadingSvgUrl === 'string' && brandLoadingSvgUrl.trim()
-          ? brandLoadingSvgUrl.trim()
-          : '',
-      homeMessengerBannerTitle:
-        typeof homeMessengerBannerTitle === 'string' ? homeMessengerBannerTitle : '',
-      homeMessengerEnabled: toBoolean(homeMessengerEnabled, true),
-      sidebarGenerationLabel: toString(sidebarGenerationLabel, '生成') || '生成',
-      sidebarMemberLabel: toString(sidebarMemberLabel, '会员') || '会员',
-      sidebarMemberUrl: toString(sidebarMemberUrl, '/settings/plans') || '/settings/plans',
-      cronAuditRetentionDays: typeof auditDays === 'number' ? auditDays : 365,
-      cronPendingOrderExpiryDays: typeof pendingDays === 'number' ? pendingDays : 7,
-      cronSecretConfigured: Boolean(dbCronSecret ?? process.env.CRON_SECRET),
-      cronSecretMasked: maskAppSettingSecret(dbCronSecret ?? process.env.CRON_SECRET),
-      defaultAgentAvatar: currentDefaultAvatar || DEFAULT_COMHUB_AGENT_AVATAR,
-      defaultAgentModel: currentDefaultModel || '',
-      defaultAgentName: currentDefaultName || DEFAULT_COMHUB_AGENT_NAME,
-      defaultAgentProvider: currentDefaultProvider || '',
-      defaultImageModel: typeof defaultImageModel === 'string' ? defaultImageModel : '',
-      defaultImageProvider: typeof defaultImageProvider === 'string' ? defaultImageProvider : '',
-      defaultSkillName:
-        typeof defaultSkillName === 'string' && defaultSkillName.trim()
-          ? defaultSkillName
-          : typeof brandName === 'string' && brandName.trim()
-            ? brandName
-            : DEFAULT_RUNTIME_BRAND.name,
-      defaultVideoModel: typeof defaultVideoModel === 'string' ? defaultVideoModel : '',
-      defaultVideoProvider: typeof defaultVideoProvider === 'string' ? defaultVideoProvider : '',
-      defaultModelSuggestions,
-      enabledNewapiModels: enabledNewapiModels.map((item) => ({
-        displayName: item.displayName,
-        instanceName: item.instanceName ?? item.groupName ?? null,
-        modelId: item.id,
-        modelType: item.type,
-        provider: item.providerId ?? item.instanceId ?? item.providerType ?? 'newapi',
-        providerType: item.providerType ?? null,
-      })),
-      ordersManagementEnabled: false,
-      plansFaqItems: normalizePlanFaqSettings(plansFaqItems),
-      paymentGatewayStatus: {
-        configured: false,
-        message:
-          '支付网关尚未接入，用户自助支付会返回 PAYMENT_GATEWAY_NOT_CONFIGURED。当前可使用后台手动结算订单。',
-        provider: null,
-      },
-      pricingCreditMultiplier: toPositiveNumber(
-        pricingCreditMultiplier,
-        DEFAULT_PRICING_CREDIT_MULTIPLIER,
-      ),
-      pricingModelRules: Array.isArray(pricingModelRules) ? pricingModelRules : [],
-      operationsConfig,
-      growthConfig,
-      modelPolicyConfig: {
-        ...modelPolicyConfig,
-        allowlistText: serializeModelIdList(modelPolicyConfig.allowlist) ?? '',
-        blocklistText: serializeModelIdList(modelPolicyConfig.blocklist) ?? '',
-      },
-      recommendationConfig,
-      referralRewardCredits: typeof referralReward === 'number' ? referralReward : 0,
-      desktopUpdateConfig: {
-        autoCheck: toBoolean(desktopUpdateAutoCheck, true),
-        channel: toString(desktopUpdateChannel, 'stable') || 'stable',
-        checkInterval: toNumber(desktopUpdateCheckInterval, 60),
-        currentVersion: toString(desktopUpdateCurrentVersion),
-        releaseNotes: toString(desktopUpdateReleaseNotes),
-        serverUrl: toString(desktopUpdateServerUrl),
-      },
-      desktopOssConfig: {
-        accessKeyId: toString(desktopOssAccessKeyId),
-        accessKeySecretMasked: maskAppSettingSecret(toString(desktopOssAccessKeySecret) || null),
-        bucket: toString(desktopOssBucket),
-        endpoint: toString(desktopOssEndpoint),
-        path: toString(desktopOssPath, 'releases'),
-      },
-      desktopDownloadLabel: toString(desktopDownloadLabel) || null,
-      desktopDownloadUrl: toString(desktopDownloadUrl) || null,
-      desktopLoginConfig: {
-        cloudButtonLabel: toString(desktopLoginCloudButtonLabel),
-        description: toString(desktopLoginDescription),
-        footerText: toString(desktopLoginFooterText),
-        logoUrl: toString(desktopLoginLogoUrl),
-        title: toString(desktopLoginTitle),
-        windowTitle: toString(desktopLoginWindowTitle),
-      },
-      helpMenuItems: normalizeHelpMenuItems(helpMenuItems),
-      aboutLinks: normalizeAboutLinksConfig(aboutLinks),
-      aboutPage: normalizeAboutPageConfig(aboutPage),
-      composioConfig: {
-        apiKeyConfigured: Boolean(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
-        apiKeyMasked: maskAppSettingSecret(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
-        authConfigIds:
-          toString(composioAuthConfigIds) || toString(process.env.COMPOSIO_AUTH_CONFIG_IDS),
-        enabled:
-          typeof composioEnabled === 'boolean'
-            ? composioEnabled
-            : Boolean(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
-      },
-      profileInterestAreas: normalizeProfileInterestAreas(profileInterestAreas),
-      avatarPresets: normalizeAvatarPresets(avatarPresets),
-      memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
-        memoryUserMemoryTriggerMode,
-      ),
-      memoryExtractionConfig: {
-        embeddingModel: toString(memoryUserMemoryEmbeddingModel),
-        embeddingProvider: toString(memoryUserMemoryEmbeddingProvider),
-        gatekeeperModel: toString(memoryUserMemoryGatekeeperModel),
-        gatekeeperProvider: toString(memoryUserMemoryGatekeeperProvider),
-        layerExtractorModel: toString(memoryUserMemoryLayerExtractorModel),
-        layerExtractorProvider: toString(memoryUserMemoryLayerExtractorProvider),
-        personaWriterModel: toString(memoryUserMemoryPersonaWriterModel),
-        personaWriterProvider: toString(memoryUserMemoryPersonaWriterProvider),
-      },
-      vectorConfig: {
-        dimensions: 1024,
-        embeddingModel: toString(vectorEmbeddingModel),
-        embeddingProvider: toString(vectorEmbeddingProvider),
-        queryMode: toString(vectorQueryMode),
-        rerankerModel: toString(vectorRerankerModel),
-        rerankerProvider: toString(vectorRerankerProvider),
-      },
-      userGlobalSettingsDefaults:
-        userGlobalSettingsDefaults &&
-        typeof userGlobalSettingsDefaults === 'object' &&
-        !Array.isArray(userGlobalSettingsDefaults)
-          ? userGlobalSettingsDefaults
-          : {},
-      expertPlazaConfig,
-      memoryUserMemoryTriggerModeEnv: normalizeOptionalMemoryUserMemoryTriggerMode(
-        process.env.MEMORY_USER_MEMORY_TRIGGER_MODE,
-      ),
-      qstashTokenConfigured: Boolean(process.env.QSTASH_TOKEN),
-      notificationInboxEnabled: toBoolean(notificationInboxEnabled, true),
-      notificationDesktopEnabled: toBoolean(notificationDesktopEnabled, true),
-      notificationEmailEnabled: toBoolean(notificationEmailEnabled, false),
-      notificationPushEnabled: toBoolean(
-        notificationPushEnabled,
-        toBoolean(notificationDesktopEnabled, true),
-      ),
-      notificationEventDefaults: normalizeNotificationEventDefaults(notificationEventDefaults),
-      notificationRetentionDays: toBoundedInt(notificationRetentionDays, 90, 1, 3650),
-      notificationSystemEnabled: toBoolean(notificationSystemEnabled, false),
-      notificationSystemTitle: toString(notificationSystemTitle),
-      notificationSystemContent: toString(notificationSystemContent),
-      notificationSystemActionLabel: toString(notificationSystemActionLabel),
-      notificationSystemActionUrl: toString(notificationSystemActionUrl),
-      notificationSystemType: ['success', 'info', 'warning', 'error'].includes(
-        toString(notificationSystemType),
-      )
-        ? toString(notificationSystemType)
-        : 'warning',
-      storageS3AccessKeyId:
-        toString(storageS3AccessKeyId) || toString(process.env.S3_ACCESS_KEY_ID),
-      storageS3Bucket: toString(storageS3Bucket) || toString(process.env.S3_BUCKET),
-      storageS3EnablePathStyle: toBoolean(
-        storageS3EnablePathStyle,
-        process.env.S3_ENABLE_PATH_STYLE === '1',
-      ),
-      storageS3Endpoint: toString(storageS3Endpoint) || toString(process.env.S3_ENDPOINT),
-      storageS3PreviewUrlExpireIn: toBoundedInt(
-        storageS3PreviewUrlExpireIn,
-        Number.parseInt(process.env.S3_PREVIEW_URL_EXPIRE_IN || '7200') || 7200,
-        60,
-        604_800,
-      ),
-      storageS3PublicDomain:
-        toString(storageS3PublicDomain) ||
-        toString(process.env.S3_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_S3_DOMAIN),
-      storageS3FilePath:
-        normalizeS3FilePath(storageS3FilePath) ||
-        normalizeS3FilePath(process.env.NEXT_PUBLIC_S3_FILE_PATH) ||
-        'files',
-      storageS3Region: toString(storageS3Region) || toString(process.env.S3_REGION),
-      storageS3SecretAccessKeyConfigured: Boolean(dbS3Secret ?? process.env.S3_SECRET_ACCESS_KEY),
-      storageS3SecretAccessKeyMasked: maskAppSettingSecret(
-        dbS3Secret ?? process.env.S3_SECRET_ACCESS_KEY,
-      ),
-      storageS3SetAcl: toBoolean(storageS3SetAcl, process.env.S3_SET_ACL === '1'),
-    };
   }),
 
   validateDefaultAgentSettings: systemReadProcedure

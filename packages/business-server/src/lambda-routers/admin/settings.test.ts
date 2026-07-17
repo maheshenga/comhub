@@ -2,11 +2,12 @@
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { ADMIN_COMMANDS, Plans } from '@lobechat/types';
 import type { TRPCError } from '@trpc/server';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 import { getServerDB } from '@/database/core/db-adaptor';
-import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
+import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
 import {
@@ -21,6 +22,7 @@ import {
   invalidateNewapiInstancesCache,
 } from '@/server/services/newapiInstance';
 
+import { APP_SETTINGS_CATALOG, APP_SETTINGS_SECTION_KEYS } from '../../appSettings/catalog';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import {
   recordAdminAudit,
@@ -35,6 +37,91 @@ import {
 } from './settings';
 
 const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 9).toString('base64');
+const GET_ALL_COMPATIBILITY_FIELDS = [
+  'aboutLinks',
+  'aboutLogoUrl',
+  'aboutPage',
+  'avatarPresets',
+  'brandAuthTitle',
+  'brandCopyrightText',
+  'brandFaviconUrl',
+  'brandLoadingSvgUrl',
+  'brandLoadingText',
+  'brandLogoUrl',
+  'brandName',
+  'brandPrimaryColor',
+  'brandSlogan',
+  'communityForkAndChatLabel',
+  'communitySkillUseButtonLabel',
+  'composioConfig',
+  'cronAuditRetentionDays',
+  'cronPendingOrderExpiryDays',
+  'cronSecretConfigured',
+  'cronSecretMasked',
+  'defaultAgentAvatar',
+  'defaultAgentModel',
+  'defaultAgentName',
+  'defaultAgentProvider',
+  'defaultImageModel',
+  'defaultImageProvider',
+  'defaultModelSuggestions',
+  'defaultSkillName',
+  'defaultVideoModel',
+  'defaultVideoProvider',
+  'desktopDownloadLabel',
+  'desktopDownloadUrl',
+  'desktopLoginConfig',
+  'desktopOssConfig',
+  'desktopUpdateConfig',
+  'enabledNewapiModels',
+  'expertPlazaConfig',
+  'growthConfig',
+  'helpMenuItems',
+  'homeMessengerBannerTitle',
+  'homeMessengerEnabled',
+  'memoryExtractionConfig',
+  'memoryUserMemoryTriggerMode',
+  'memoryUserMemoryTriggerModeEnv',
+  'modelPolicyConfig',
+  'notificationDesktopEnabled',
+  'notificationEmailEnabled',
+  'notificationEventDefaults',
+  'notificationInboxEnabled',
+  'notificationPushEnabled',
+  'notificationRetentionDays',
+  'notificationSystemActionLabel',
+  'notificationSystemActionUrl',
+  'notificationSystemContent',
+  'notificationSystemEnabled',
+  'notificationSystemTitle',
+  'notificationSystemType',
+  'operationsConfig',
+  'ordersManagementEnabled',
+  'paymentGatewayStatus',
+  'plansFaqItems',
+  'pricingCreditMultiplier',
+  'pricingModelRules',
+  'profileInterestAreas',
+  'qstashTokenConfigured',
+  'recommendationConfig',
+  'referralRewardCredits',
+  'sidebarGenerationLabel',
+  'sidebarMemberLabel',
+  'sidebarMemberUrl',
+  'storageS3AccessKeyId',
+  'storageS3Bucket',
+  'storageS3EnablePathStyle',
+  'storageS3Endpoint',
+  'storageS3FilePath',
+  'storageS3PreviewUrlExpireIn',
+  'storageS3PublicDomain',
+  'storageS3Region',
+  'storageS3SecretAccessKeyConfigured',
+  'storageS3SecretAccessKeyMasked',
+  'storageS3SetAcl',
+  'userGlobalSettingsDefaults',
+  'vectorConfig',
+] as const;
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
@@ -61,7 +148,7 @@ vi.mock('@/server/modules/S3', () => ({
 }));
 
 vi.mock('@/server/globalConfig', () => ({
-  getResolvedServerDefaultAgentConfig: vi.fn().mockResolvedValue({}),
+  getServerDefaultAgentConfig: vi.fn().mockReturnValue({}),
 }));
 
 vi.mock('./audit', () => ({
@@ -102,7 +189,7 @@ vi.mock('../../subscriptionMaintenance', () => ({
 
 const createDb = ({
   appSettings = [],
-  appSettingsMany = [],
+  appSettingsMany,
   modelRules = null,
   role = 'admin',
 }: {
@@ -118,9 +205,23 @@ const createDb = ({
   const insert = vi.fn(() => ({
     values,
   }));
+  const legacyAppSettings = [...appSettings];
+  const findAppSettingsMany = vi.fn().mockImplementation((options?: { where?: unknown }) => {
+    if (appSettingsMany) return Promise.resolve(appSettingsMany);
+    if (!options?.where) return Promise.resolve([]);
+
+    const keys = new PgDialect().sqlToQuery(options.where as any).params as string[];
+    return Promise.resolve(
+      keys.flatMap((key, index) => {
+        const row = legacyAppSettings[index];
+        return row ? [{ key, value: row.value }] : [];
+      }),
+    );
+  });
 
   return {
     __mocks: {
+      findAppSettingsMany,
       onConflictDoUpdate,
       values,
     },
@@ -128,7 +229,7 @@ const createDb = ({
     query: {
       appSettings: {
         findFirst: vi.fn().mockImplementation(() => Promise.resolve(appSettings.shift() ?? null)),
-        findMany: vi.fn().mockResolvedValue(appSettingsMany),
+        findMany: findAppSettingsMany,
       },
       planCatalog: {
         findFirst: vi.fn().mockResolvedValue({
@@ -147,7 +248,7 @@ describe('admin settings default model validation', () => {
   beforeEach(() => {
     process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
     vi.resetAllMocks();
-    vi.mocked(getResolvedServerDefaultAgentConfig).mockResolvedValue({});
+    vi.mocked(getServerDefaultAgentConfig).mockReturnValue({});
     vi.mocked(S3).mockImplementation(
       () =>
         ({
@@ -403,6 +504,132 @@ describe('admin settings default model validation', () => {
     );
   });
 
+  it('builds the compatibility response from exactly one app_settings query', async () => {
+    const encryptedCronSecret = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.cronSecret,
+      'admin-cron-secret',
+    );
+    const encryptedComposioSecret = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.composioApiKey,
+      'admin-composio-secret',
+    );
+    const encryptedS3Secret = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.storageS3SecretAccessKey,
+      'admin-storage-secret',
+    );
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.brandName, value: 'ComHub Fixture' },
+        { key: APP_SETTING_KEYS.cronSecret, value: encryptedCronSecret },
+        { key: APP_SETTING_KEYS.composioApiKey, value: encryptedComposioSecret },
+        { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: encryptedS3Secret },
+        { key: APP_SETTING_KEYS.recommendationSectionEnabled, value: true },
+        { key: APP_SETTING_KEYS.recommendationAssistantsEnabled, value: true },
+        { key: APP_SETTING_KEYS.communityFeaturedAssistantsEnabled, value: true },
+        { key: APP_SETTING_KEYS.authSignupEnabled, value: true },
+        { key: APP_SETTING_KEYS.modelPolicyEnabled, value: true },
+        { key: APP_SETTING_KEYS.expertPlazaEnabled, value: true },
+        { key: APP_SETTING_KEYS.notificationInboxEnabled, value: true },
+        { key: APP_SETTING_KEYS.desktopUpdateAutoCheck, value: true },
+        { key: APP_SETTING_KEYS.defaultAgentModel, value: 'fixture-chat' },
+        { key: APP_SETTING_KEYS.defaultAgentProvider, value: 'fixture-provider' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+    vi.mocked(getAllEnabledModels).mockResolvedValue([
+      {
+        displayName: 'Fixture Chat',
+        id: 'fixture-chat',
+        providerId: 'fixture-provider',
+        type: 'chat',
+      } as any,
+    ]);
+
+    const result = await adminSettingsRouter.createCaller({ userId: 'admin-user' } as any).getAll();
+
+    expect(db.__mocks.findAppSettingsMany).toHaveBeenCalledTimes(1);
+    expect(db.query.appSettings.findFirst).not.toHaveBeenCalled();
+    const where = db.__mocks.findAppSettingsMany.mock.calls[0][0].where;
+    expect(new PgDialect().sqlToQuery(where).params).toEqual(
+      APP_SETTINGS_CATALOG.map((item) => item.key),
+    );
+    expect(result).toMatchObject({
+      brandName: 'ComHub Fixture',
+      composioConfig: {
+        apiKeyConfigured: true,
+        apiKeyMasked: '****cret',
+      },
+      cronSecretConfigured: true,
+      cronSecretMasked: '****cret',
+      defaultAgentModel: 'fixture-chat',
+      defaultAgentProvider: 'fixture-provider',
+      desktopUpdateConfig: { autoCheck: true },
+      expertPlazaConfig: { enabled: true },
+      growthConfig: { signup: { enabled: true } },
+      modelPolicyConfig: { enabled: true },
+      notificationInboxEnabled: true,
+      operationsConfig: { featuredAssistants: { enabled: true } },
+      ordersManagementEnabled: false,
+      paymentGatewayStatus: { configured: false, provider: null },
+      recommendationConfig: { assistantsEnabled: true, enabled: true },
+      storageS3SecretAccessKeyConfigured: true,
+      storageS3SecretAccessKeyMasked: '****cret',
+    });
+    expect(Object.keys(result).sort()).toEqual([...GET_ALL_COMPATIBILITY_FIELDS].sort());
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('admin-cron-secret');
+    expect(serialized).not.toContain('admin-composio-secret');
+    expect(serialized).not.toContain('admin-storage-secret');
+    expect(serialized).not.toContain(encryptedCronSecret);
+    expect(serialized).not.toContain(encryptedComposioSecret);
+    expect(serialized).not.toContain(encryptedS3Secret);
+  });
+
+  it('loads and returns only fields owned by the requested section', async () => {
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.authSignupEnabled, value: false },
+        { key: APP_SETTING_KEYS.referralRewardCredits, value: 42 },
+        { key: APP_SETTING_KEYS.notificationRetentionDays, value: 365 },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .getSection({ section: 'growth' });
+
+    const where = db.__mocks.findAppSettingsMany.mock.calls[0][0].where;
+    expect(new PgDialect().sqlToQuery(where).params).toEqual(APP_SETTINGS_SECTION_KEYS.growth);
+    expect(db.__mocks.findAppSettingsMany).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      growthConfig: { signup: { enabled: false } },
+      referralRewardCredits: 42,
+      section: 'growth',
+      sharedHealth: {},
+    });
+    expect(result).not.toHaveProperty('notificationRetentionDays');
+    expect(Object.keys(result).sort()).toEqual(
+      ['growthConfig', 'referralRewardCredits', 'section', 'sharedHealth'].sort(),
+    );
+  });
+
+  it('fails closed for unknown section ids and requires systemRead', async () => {
+    vi.mocked(getServerDB).mockResolvedValue(createDb());
+    const adminCaller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect((adminCaller as any).getSection({ section: 'overview' })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+
+    vi.mocked(getServerDB).mockResolvedValue(createDb({ role: 'finance' }));
+    await expect(
+      adminSettingsRouter
+        .createCaller({ userId: 'finance-user' } as any)
+        .getSection({ section: 'growth' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('distinguishes missing and explicitly empty public help menu settings', async () => {
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
@@ -498,21 +725,33 @@ describe('admin settings default model validation', () => {
 
   it('returns public desktop update display fields for client download entries', async () => {
     const db = createDb({
-      appSettings: [
-        { value: 'https://comhubs.oss-cn-shanghai.aliyuncs.com' },
-        { value: 'canary' },
-        { value: true },
-        { value: 30 },
-        { value: 'https://comhubs.oss-cn-shanghai.aliyuncs.com/canary/0.1.0-canary.6/LobeHub.exe' },
-        { value: 'Download Qingyou Desktop' },
-        { value: '0.1.0-canary.6' },
-        { value: '- Fix auto update' },
-        { value: 'XUANGUO' },
-        { value: '/images/brand/xuanguo.png' },
-        { value: '登录玄果客户端' },
-        { value: '同步玄果代理、群组、设置和上下文。' },
-        { value: '登录 XUANGUO Cloud' },
-        { value: '© 2026 XUANGUO. All rights reserved.' },
+      appSettingsMany: [
+        {
+          key: APP_SETTING_KEYS.desktopUpdateServerUrl,
+          value: 'https://comhubs.oss-cn-shanghai.aliyuncs.com',
+        },
+        { key: APP_SETTING_KEYS.desktopUpdateChannel, value: 'canary' },
+        { key: APP_SETTING_KEYS.desktopUpdateAutoCheck, value: true },
+        { key: APP_SETTING_KEYS.desktopUpdateCheckInterval, value: 30 },
+        {
+          key: APP_SETTING_KEYS.desktopDownloadUrl,
+          value: 'https://comhubs.oss-cn-shanghai.aliyuncs.com/canary/0.1.0-canary.6/LobeHub.exe',
+        },
+        { key: APP_SETTING_KEYS.desktopDownloadLabel, value: 'Download Qingyou Desktop' },
+        { key: APP_SETTING_KEYS.desktopUpdateCurrentVersion, value: '0.1.0-canary.6' },
+        { key: APP_SETTING_KEYS.desktopUpdateReleaseNotes, value: '- Fix auto update' },
+        { key: APP_SETTING_KEYS.desktopLoginWindowTitle, value: 'XUANGUO' },
+        { key: APP_SETTING_KEYS.desktopLoginLogoUrl, value: '/images/brand/xuanguo.png' },
+        { key: APP_SETTING_KEYS.desktopLoginTitle, value: '登录玄果客户端' },
+        {
+          key: APP_SETTING_KEYS.desktopLoginDescription,
+          value: '同步玄果代理、群组、设置和上下文。',
+        },
+        { key: APP_SETTING_KEYS.desktopLoginCloudButtonLabel, value: '登录 XUANGUO Cloud' },
+        {
+          key: APP_SETTING_KEYS.desktopLoginFooterText,
+          value: '© 2026 XUANGUO. All rights reserved.',
+        },
       ],
     });
     vi.mocked(getServerDB).mockResolvedValue(db);
@@ -561,23 +800,24 @@ describe('admin settings default model validation', () => {
 
   it('does not expose sensitive desktop OSS settings through public desktop config', async () => {
     const db = createDb({
-      appSettings: [
-        { value: 'https://updates.example.com' },
-        { value: 'stable' },
-        { value: true },
-        { value: 60 },
-        { value: 'https://downloads.example.com/app.exe' },
-        { value: 'Download Desktop' },
-        { value: '1.0.0' },
-        { value: 'Release notes' },
-        { value: 'Desktop' },
-        { value: '/logo.png' },
-        { value: 'Sign in' },
-        { value: 'Connect your account.' },
-        { value: 'Sign in to Cloud' },
-        { value: 'Copyright' },
-      ],
       appSettingsMany: [
+        { key: APP_SETTING_KEYS.desktopUpdateServerUrl, value: 'https://updates.example.com' },
+        { key: APP_SETTING_KEYS.desktopUpdateChannel, value: 'stable' },
+        { key: APP_SETTING_KEYS.desktopUpdateAutoCheck, value: true },
+        { key: APP_SETTING_KEYS.desktopUpdateCheckInterval, value: 60 },
+        {
+          key: APP_SETTING_KEYS.desktopDownloadUrl,
+          value: 'https://downloads.example.com/app.exe',
+        },
+        { key: APP_SETTING_KEYS.desktopDownloadLabel, value: 'Download Desktop' },
+        { key: APP_SETTING_KEYS.desktopUpdateCurrentVersion, value: '1.0.0' },
+        { key: APP_SETTING_KEYS.desktopUpdateReleaseNotes, value: 'Release notes' },
+        { key: APP_SETTING_KEYS.desktopLoginWindowTitle, value: 'Desktop' },
+        { key: APP_SETTING_KEYS.desktopLoginLogoUrl, value: '/logo.png' },
+        { key: APP_SETTING_KEYS.desktopLoginTitle, value: 'Sign in' },
+        { key: APP_SETTING_KEYS.desktopLoginDescription, value: 'Connect your account.' },
+        { key: APP_SETTING_KEYS.desktopLoginCloudButtonLabel, value: 'Sign in to Cloud' },
+        { key: APP_SETTING_KEYS.desktopLoginFooterText, value: 'Copyright' },
         { key: APP_SETTING_KEYS.desktopOssAccessKeyId, value: 'desktop-oss-access-key' },
         { key: APP_SETTING_KEYS.desktopOssAccessKeySecret, value: 'desktop-oss-secret-key' },
       ],
@@ -712,9 +952,9 @@ describe('admin settings default model validation', () => {
       APP_SETTING_KEYS.cronSecret,
       'admin-cron-secret',
     );
-    const settingRows = Array.from({ length: 100 }, () => null as { value: unknown } | null);
-    settingRows[1] = { value: encrypted };
-    const db = createDb({ appSettings: settingRows });
+    const db = createDb({
+      appSettingsMany: [{ key: APP_SETTING_KEYS.cronSecret, value: encrypted }],
+    });
     vi.mocked(getServerDB).mockResolvedValue(db);
     vi.mocked(getAllEnabledModels).mockResolvedValue([]);
 
@@ -952,24 +1192,31 @@ describe('admin settings default model validation', () => {
 
   it('returns public notification config with channel defaults and system action metadata', async () => {
     const db = createDb({
-      appSettings: [
-        { value: true },
-        { value: false },
-        { value: true },
-        { value: true },
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.notificationInboxEnabled, value: true },
+        { key: APP_SETTING_KEYS.notificationDesktopEnabled, value: false },
+        { key: APP_SETTING_KEYS.notificationEmailEnabled, value: true },
+        { key: APP_SETTING_KEYS.notificationPushEnabled, value: true },
         {
+          key: APP_SETTING_KEYS.notificationEventDefaults,
           value: {
             email: { lowCredits: false },
             push: { videoGenerationCompleted: false },
             sms: { lowCredits: false },
           },
         },
-        { value: true },
-        { value: '系统维护通知' },
-        { value: '今晚 23:00 进行服务升级。' },
-        { value: '查看状态' },
-        { value: 'https://chat.qingyouai.com/status' },
-        { value: 'info' },
+        { key: APP_SETTING_KEYS.notificationSystemEnabled, value: true },
+        { key: APP_SETTING_KEYS.notificationSystemTitle, value: '系统维护通知' },
+        {
+          key: APP_SETTING_KEYS.notificationSystemContent,
+          value: '今晚 23:00 进行服务升级。',
+        },
+        { key: APP_SETTING_KEYS.notificationSystemActionLabel, value: '查看状态' },
+        {
+          key: APP_SETTING_KEYS.notificationSystemActionUrl,
+          value: 'https://chat.qingyouai.com/status',
+        },
+        { key: APP_SETTING_KEYS.notificationSystemType, value: 'info' },
       ],
     });
     vi.mocked(getServerDB).mockResolvedValue(db);

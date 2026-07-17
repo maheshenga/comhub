@@ -6,13 +6,13 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import {
   GLOBAL_MODEL_POLICY_DENIED_MESSAGE,
   GLOBAL_MODEL_POLICY_HELP_TEXT,
   MODEL_POLICY_MATRIX_PATH,
 } from '@/features/Admin/adminModelPolicySettings';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 const SETTING_KEYS = {
@@ -56,17 +56,17 @@ const AdminModelPolicyPage = memo(() => {
   const navigate = useNavigate();
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('model-policy'), () =>
+    adminCommercialService.getSettingsSection('model-policy'),
   );
 
   const defaultModelOptions = useMemo(
     () =>
-      (data?.defaultModelSuggestions ?? []).map((model: string) => ({
-        label: model,
-        value: model,
+      (data?.sharedHealth?.enabledNewapiModels ?? []).map((model) => ({
+        label: model.displayName || model.modelId,
+        value: model.modelId,
       })),
-    [data?.defaultModelSuggestions],
+    [data?.sharedHealth?.enabledNewapiModels],
   );
 
   useEffect(() => {
@@ -130,7 +130,6 @@ const AdminModelPolicyPage = memo(() => {
       });
 
       message.success(t('admin.modelPolicy.saveSuccess', '全局模型策略已保存'));
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.modelPolicy.saveFailed', '保存失败'));
     } finally {

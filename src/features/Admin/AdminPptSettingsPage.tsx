@@ -6,7 +6,8 @@ import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 const { Text, Title } = Typography;
@@ -26,14 +27,12 @@ type FormValues = {
   tokenTtlMinutes: number;
 };
 
-const SWR_KEY = ['admin-ppt-settings'];
-
 const AdminPptSettingsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(SWR_KEY, () =>
-    adminCommercialService.getPptSettings(),
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('ppt'), () =>
+    adminCommercialService.getSettingsSection('ppt'),
   );
 
   useEffect(() => {
@@ -77,7 +76,6 @@ const AdminPptSettingsPage = memo(() => {
 
       form.setFieldValue('apiKey', '');
       form.setFieldValue('clearApiKey', false);
-      await mutate(SWR_KEY);
       message.success(t('admin.ppt.saveSuccess', 'PPT 创作设置已保存'));
     } catch {
       message.error(t('admin.ppt.saveFailed', '保存失败，请检查配置'));

@@ -17,14 +17,14 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
-import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import {
   type MemoryUserMemoryTriggerMode,
   normalizeMemoryUserMemoryTriggerMode,
   normalizeText,
   SETTING_KEYS,
 } from '@/features/Admin/adminSettingsForm';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminDangerousActionButton from './AdminDangerousActionButton';
@@ -43,7 +43,6 @@ type MaintenanceFormValues = {
   cronPendingOrderExpiryDays: number;
   cronSecret: string;
   memoryUserMemoryTriggerMode: MemoryUserMemoryTriggerMode;
-  notificationRetentionDays: number;
 };
 
 type MaintenanceResult = {
@@ -66,7 +65,6 @@ const buildInitialValues = (data: any): MaintenanceFormValues => ({
   memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
     data?.memoryUserMemoryTriggerMode,
   ),
-  notificationRetentionDays: data?.notificationRetentionDays ?? 90,
 });
 
 const normalizeValues = (values: MaintenanceFormValues): MaintenanceFormValues => ({
@@ -78,8 +76,6 @@ const normalizeValues = (values: MaintenanceFormValues): MaintenanceFormValues =
   memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
     values.memoryUserMemoryTriggerMode,
   ),
-  notificationRetentionDays:
-    typeof values.notificationRetentionDays === 'number' ? values.notificationRetentionDays : 90,
 });
 
 const buildUpdates = (values: MaintenanceFormValues, initial: MaintenanceFormValues) => {
@@ -94,7 +90,6 @@ const buildUpdates = (values: MaintenanceFormValues, initial: MaintenanceFormVal
   const fields: Array<keyof MaintenanceFormValues> = [
     'cronAuditRetentionDays',
     'cronPendingOrderExpiryDays',
-    'notificationRetentionDays',
     'memoryUserMemoryTriggerMode',
   ];
 
@@ -103,7 +98,6 @@ const buildUpdates = (values: MaintenanceFormValues, initial: MaintenanceFormVal
     cronPendingOrderExpiryDays: SETTING_KEYS.cronPendingOrderExpiryDays,
     cronSecret: SETTING_KEYS.cronSecret,
     memoryUserMemoryTriggerMode: SETTING_KEYS.memoryUserMemoryTriggerMode,
-    notificationRetentionDays: SETTING_KEYS.notificationRetentionDays,
   };
 
   for (const field of fields) {
@@ -117,8 +111,8 @@ const buildUpdates = (values: MaintenanceFormValues, initial: MaintenanceFormVal
 
 const AdminSystemMaintenancePage = memo(() => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('maintenance'), () =>
+    adminCommercialService.getSettingsSection('maintenance'),
   );
   const [form] = Form.useForm<MaintenanceFormValues>();
   const [submitting, setSubmitting] = useState(false);
@@ -146,7 +140,6 @@ const AdminSystemMaintenancePage = memo(() => {
       setSubmitting(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
       form.setFieldValue('cronSecret', '');
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       message.success(t('admin.maintenance.saveSuccess', '系统维护设置已保存'));
     } catch {
       message.error(t('admin.maintenance.saveFailed', '保存失败，请检查维护配置'));
@@ -240,16 +233,6 @@ const AdminSystemMaintenancePage = memo(() => {
           >
             <InputNumber max={365} min={1} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item
-            label={t('admin.maintenance.notificationRetention', '归档通知保留天数')}
-            name="notificationRetentionDays"
-            extra={t(
-              'admin.maintenance.notificationRetentionHelp',
-              '后台维护任务会按该天数删除已归档通知；未归档的收件箱通知不会被自动删除。',
-            )}
-          >
-            <InputNumber max={3650} min={1} style={{ width: '100%' }} />
-          </Form.Item>
           <Space>
             <AdminDangerousActionButton
               actionId="setting.runMaintenance"
@@ -285,9 +268,10 @@ const AdminSystemMaintenancePage = memo(() => {
             <Select options={memoryTriggerModeOptions} />
           </Form.Item>
           <Text type="secondary">
-            QSTASH_TOKEN：{data?.qstashTokenConfigured ? '已配置，可使用工作流模式' : '未配置'}
+            QSTASH_TOKEN：
+            {data?.sharedHealth?.qstashTokenConfigured ? '已配置，可使用工作流模式' : '未配置'}
             ；环境变量 MEMORY_USER_MEMORY_TRIGGER_MODE：
-            {data?.memoryUserMemoryTriggerModeEnv || '未设置'}
+            {data?.sharedHealth?.memoryUserMemoryTriggerModeEnv || '未设置'}
           </Text>
         </Card>
 

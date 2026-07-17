@@ -6,7 +6,10 @@ import { Alert, Button, Form, type FormInstance, Input, message, Switch, Typogra
 import { memo, useEffect, useState } from 'react';
 
 import { Card } from '@/components/antd-compat/Card';
-import { ADMIN_SETTINGS_SWR_KEY, PUBLIC_EXPERT_PLAZA_SWR_KEY } from '@/const/adminCacheKeys';
+import {
+  ADMIN_SETTINGS_SECTION_SWR_KEY,
+  PUBLIC_EXPERT_PLAZA_SWR_KEY,
+} from '@/const/adminCacheKeys';
 import { DEFAULT_EXPERT_PLAZA_CONFIG, type ExpertPlazaCard } from '@/const/expertPlaza';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -77,8 +80,8 @@ const toCards = (cards: CardFormValue[]) =>
 const AdminExpertPlazaPage = memo(() => {
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('expert-plaza'), () =>
+    adminCommercialService.getSettingsSection('expert-plaza'),
   );
 
   useEffect(() => {
@@ -110,7 +113,6 @@ const AdminExpertPlazaPage = memo(() => {
         ],
       });
 
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       await mutate(PUBLIC_EXPERT_PLAZA_SWR_KEY);
       message.success('专家广场配置已保存');
     } catch {

@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { message } from 'antd';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { mutate } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminDesktopUpdatePage from './AdminDesktopUpdatePage';
@@ -12,7 +11,6 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@/libs/swr', () => ({
-  mutate: vi.fn(),
   useClientDataSWR: vi.fn(() => ({
     data: {
       desktopDownloadLabel: 'Download',
@@ -40,7 +38,7 @@ vi.mock('@/libs/swr', () => ({
 
 vi.mock('@/services/adminCommercial', () => ({
   adminCommercialService: {
-    getAllSettings: vi.fn(),
+    getSettingsSection: vi.fn(),
     setAppSettingsBatch: vi.fn(),
   },
 }));
@@ -76,6 +74,5 @@ describe('AdminDesktopUpdatePage', () => {
         ],
       });
     });
-    await waitFor(() => expect(mutate).toHaveBeenCalled());
   });
 });

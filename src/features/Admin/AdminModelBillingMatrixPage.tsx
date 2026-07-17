@@ -19,6 +19,7 @@ import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import {
   MATRIX_ACCESS_SAVE_LABEL,
   MATRIX_DISCARD_LABEL,
@@ -48,11 +49,7 @@ import {
   togglePlanAccess,
 } from '@/features/Admin/adminModelBillingMatrix';
 import { getAdminModelTypeLabel } from '@/features/Admin/adminModelTypeLabels';
-import {
-  ADMIN_SETTINGS_SWR_KEY,
-  getAdminSettingsRefreshKeys,
-  SETTING_KEYS,
-} from '@/features/Admin/adminSettingsForm';
+import { getAdminSettingsRefreshKeys, SETTING_KEYS } from '@/features/Admin/adminSettingsForm';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -83,9 +80,9 @@ const CONFIG_HEALTH_CHECK_STATUS = {
 } as const;
 
 const PRICING_SOURCE_STATUS: Record<MatrixPricingSource, { color: string; label: string }> = {
-  database: { color: 'green', label: 'DB pricing' },
+  'database': { color: 'green', label: 'DB pricing' },
   'manual-override': { color: 'gold', label: 'Manual pricing' },
-  missing: { color: 'red', label: 'Missing pricing' },
+  'missing': { color: 'red', label: 'Missing pricing' },
   'model-bank': { color: 'blue', label: 'Model Bank' },
 };
 
@@ -151,8 +148,8 @@ const AdminModelBillingMatrixPage = memo(() => {
     adminCommercialService.listPlans(),
   );
   const { data: settings, isLoading: settingsLoading } = useClientDataSWR(
-    ADMIN_SETTINGS_SWR_KEY,
-    () => adminCommercialService.getAllSettings(),
+    ADMIN_SETTINGS_SECTION_SWR_KEY('model-billing-matrix'),
+    () => adminCommercialService.getSettingsSection('model-billing-matrix'),
   );
 
   const plans = useMemo<MatrixPlan[]>(
@@ -316,7 +313,6 @@ const AdminModelBillingMatrixPage = memo(() => {
 
     try {
       await adminCommercialService.setAppSettingsBatch({ updates });
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       setBillingBasisOverride(null);
       message.success(t('admin.modelBillingMatrix.billingBasisSaved', '全局计费设置已保存'));
     } catch {
@@ -358,7 +354,6 @@ const AdminModelBillingMatrixPage = memo(() => {
         provider: target.provider,
       });
       await adminCommercialService.setAppSettingsBatch({ updates });
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       await Promise.all(getAdminSettingsRefreshKeys(updates).map((key) => mutate(key)));
       setRowsOverride((current) =>
         (current ?? baseRows).map((row) => ({
@@ -411,7 +406,6 @@ const AdminModelBillingMatrixPage = memo(() => {
         key: SETTING_KEYS.pricingModelRules,
         value: buildPricingRulesFromRows(rows),
       });
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       message.success(t('admin.modelBillingMatrix.pricingSaved', '模型计费已保存'));
     } catch {
       message.error(t('admin.modelBillingMatrix.pricingSaveFailed', '保存模型计费失败'));

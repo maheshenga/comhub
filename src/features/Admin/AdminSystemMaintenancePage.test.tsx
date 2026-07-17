@@ -21,11 +21,7 @@ vi.mock('./AdminDangerousActionButton', () => ({
       confirmed: true;
     }) => Promise<void> | void;
   }) => (
-    <button
-      onClick={() =>
-        void onConfirm({ actionId: 'setting.runMaintenance', confirmed: true })
-      }
-    >
+    <button onClick={() => void onConfirm({ actionId: 'setting.runMaintenance', confirmed: true })}>
       {children}
     </button>
   ),
@@ -37,7 +33,7 @@ vi.mock('@/libs/swr', () => ({
     data: {
       cronAuditRetentionDays: 365,
       cronPendingOrderExpiryDays: 7,
-      notificationRetentionDays: 90,
+      sharedHealth: {},
     },
     isLoading: false,
   })),
@@ -45,7 +41,7 @@ vi.mock('@/libs/swr', () => ({
 
 vi.mock('@/services/adminCommercial', () => ({
   adminCommercialService: {
-    getAllSettings: vi.fn(),
+    getSettingsSection: vi.fn(),
     refreshRuntimeCaches: vi.fn(),
     runMaintenance: vi.fn(),
     setAppSettingsBatch: vi.fn(),

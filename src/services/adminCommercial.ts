@@ -5,6 +5,13 @@ import {
   type Plans,
 } from '@lobechat/types';
 
+import { getAdminSettingsWriteSWRKeys } from '@/const/adminCacheKeys';
+import {
+  type AppSettingKey,
+  type AppSettingsSection,
+  getAppSettingsSectionForKey,
+} from '@/const/appSettingsRegistry';
+import { mutate } from '@/libs/swr';
 import { lambdaClient } from '@/libs/trpc/client';
 import type { SubscriptionCycleType } from '@/types/business';
 
@@ -39,6 +46,19 @@ const normalizeAdminAuditQueryParams = <T extends AdminAuditQueryParams>(params:
   from: typeof params.from === 'string' ? new Date(params.from) : params.from,
   to: typeof params.to === 'string' ? new Date(params.to) : params.to,
 });
+
+type AdminSettingsSectionResponse = Awaited<
+  ReturnType<typeof lambdaClient.admin.settings.getSection.query>
+>;
+
+export type AdminSettingsSectionData<Section extends AppSettingsSection> = Extract<
+  AdminSettingsSectionResponse,
+  { section: Section }
+>;
+
+const invalidateAdminSettingsWrites = async (sections: readonly AppSettingsSection[]) => {
+  for (const key of getAdminSettingsWriteSWRKeys(sections)) await mutate(key);
+};
 
 class AdminCommercialService {
   // Users
@@ -122,6 +142,11 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.getAll.query();
   };
 
+  getSettingsSection = async <Section extends AppSettingsSection>(section: Section) => {
+    const response = await lambdaClient.admin.settings.getSection.query({ section });
+    return response as AdminSettingsSectionData<Section>;
+  };
+
   getAppSettingsGovernance = async () => {
     return lambdaClient.admin.settings.getGovernance.query();
   };
@@ -131,11 +156,17 @@ class AdminCommercialService {
   };
 
   setAppSetting = async (params: { key: string; value: unknown }) => {
-    return lambdaClient.admin.settings.setAppSetting.mutate(params as any);
+    const result = await lambdaClient.admin.settings.setAppSetting.mutate(params as any);
+    await invalidateAdminSettingsWrites([getAppSettingsSectionForKey(params.key as AppSettingKey)]);
+    return result;
   };
 
   setAppSettingsBatch = async (params: { updates: Array<{ key: string; value: unknown }> }) => {
-    return lambdaClient.admin.settings.setAppSettingsBatch.mutate(params as any);
+    const result = await lambdaClient.admin.settings.setAppSettingsBatch.mutate(params as any);
+    await invalidateAdminSettingsWrites(
+      params.updates.map((update) => getAppSettingsSectionForKey(update.key as AppSettingKey)),
+    );
+    return result;
   };
 
   syncUserGlobalSettingsDefaultsToUsers = async (params?: { forceDefaultAgentMeta?: boolean }) => {
@@ -232,7 +263,11 @@ class AdminCommercialService {
     lang?: string;
     themeColor?: null | string;
     tokenTtlMinutes?: number;
-  }) => lambdaClient.admin.ppt.saveSettings.mutate(params);
+  }) => {
+    const result = await lambdaClient.admin.ppt.saveSettings.mutate(params);
+    await invalidateAdminSettingsWrites(['ppt']);
+    return result;
+  };
 
   // Module apps
   moduleApps = {

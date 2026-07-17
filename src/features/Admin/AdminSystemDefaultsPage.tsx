@@ -19,7 +19,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 
 import { Card } from '@/components/antd-compat/Card';
 import {
-  ADMIN_SETTINGS_SWR_KEY,
+  ADMIN_SETTINGS_SECTION_SWR_KEY,
   PROFILE_INTEREST_AREAS_SWR_KEY,
   PROFILE_OPTIONS_SWR_KEY,
   RUNTIME_CONFIG_SWR_KEY,
@@ -143,10 +143,8 @@ const buildProviderOptions = (options: DefaultModelOption[]) =>
       .values(),
   );
 
-const findModelOption = (
-  options: DefaultModelOption[],
-  value?: string,
-) => options.find((option) => option.value === value || option.model === value);
+const findModelOption = (options: DefaultModelOption[], value?: string) =>
+  options.find((option) => option.value === value || option.model === value);
 
 const normalizeMemoryModelFields = (
   modelValue: string | undefined,
@@ -193,17 +191,29 @@ const AdminSystemDefaultsPage = memo(() => {
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(
+    ADMIN_SETTINGS_SECTION_SWR_KEY('system-defaults'),
+    () => adminCommercialService.getSettingsSection('system-defaults'),
   );
   const uploadPublicUrlPrefix =
     typeof (data as any)?.storageS3PublicDomain === 'string'
       ? (data as any).storageS3PublicDomain
       : undefined;
-  const modelOptions = useMemo(() => buildModelOptions({ ...data, modelType: 'chat' }), [data]);
+  const modelOptions = useMemo(
+    () =>
+      buildModelOptions({
+        enabledNewapiModels: data?.sharedHealth?.enabledNewapiModels,
+        modelType: 'chat',
+      }),
+    [data?.sharedHealth?.enabledNewapiModels],
+  );
   const embeddingModelOptions = useMemo(
-    () => buildModelOptions({ ...data, modelType: 'embedding' }),
-    [data],
+    () =>
+      buildModelOptions({
+        enabledNewapiModels: data?.sharedHealth?.enabledNewapiModels,
+        modelType: 'embedding',
+      }),
+    [data?.sharedHealth?.enabledNewapiModels],
   );
   const modelProviderOptions = useMemo(() => buildProviderOptions(modelOptions), [modelOptions]);
   const embeddingProviderOptions = useMemo(
@@ -404,73 +414,72 @@ const AdminSystemDefaultsPage = memo(() => {
               },
             ]
           : []),
-          {
-            key: SETTING_KEYS.vectorEmbeddingProvider,
-            value: values.vectorEmbeddingProvider,
-          },
-          {
-            key: SETTING_KEYS.vectorEmbeddingModel,
-            value: values.vectorEmbeddingModel,
-          },
-          {
-            key: SETTING_KEYS.vectorRerankerProvider,
-            value: values.vectorRerankerProvider,
-          },
-          {
-            key: SETTING_KEYS.vectorRerankerModel,
-            value: values.vectorRerankerModel,
-          },
-          {
-            key: SETTING_KEYS.vectorQueryMode,
-            value: values.vectorQueryMode,
-          },
-          {
-            key: SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
-            value: memoryGatekeeper.provider,
-          },
-          {
-            key: SETTING_KEYS.memoryUserMemoryGatekeeperModel,
-            value: memoryGatekeeper.model,
-          },
-          {
-            key: SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
-            value: memoryLayerExtractor.provider,
-          },
-          {
-            key: SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
-            value: memoryLayerExtractor.model,
-          },
-          {
-            key: SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
-            value: memoryPersonaWriter.provider,
-          },
-          {
-            key: SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
-            value: memoryPersonaWriter.model,
-          },
-          {
-            key: SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
-            value: memoryEmbedding.provider,
-          },
-          {
-            key: SETTING_KEYS.memoryUserMemoryEmbeddingModel,
-            value: memoryEmbedding.model,
-          },
-          {
-            key: SETTING_KEYS.userGlobalSettingsDefaults,
-            value: mergedUserGlobalSettings,
-          },
-          {
-            key: SETTING_KEYS.avatarPresets,
-            value: values.avatarPresets ?? [],
-          },
+        {
+          key: SETTING_KEYS.vectorEmbeddingProvider,
+          value: values.vectorEmbeddingProvider,
+        },
+        {
+          key: SETTING_KEYS.vectorEmbeddingModel,
+          value: values.vectorEmbeddingModel,
+        },
+        {
+          key: SETTING_KEYS.vectorRerankerProvider,
+          value: values.vectorRerankerProvider,
+        },
+        {
+          key: SETTING_KEYS.vectorRerankerModel,
+          value: values.vectorRerankerModel,
+        },
+        {
+          key: SETTING_KEYS.vectorQueryMode,
+          value: values.vectorQueryMode,
+        },
+        {
+          key: SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+          value: memoryGatekeeper.provider,
+        },
+        {
+          key: SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+          value: memoryGatekeeper.model,
+        },
+        {
+          key: SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+          value: memoryLayerExtractor.provider,
+        },
+        {
+          key: SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+          value: memoryLayerExtractor.model,
+        },
+        {
+          key: SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+          value: memoryPersonaWriter.provider,
+        },
+        {
+          key: SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+          value: memoryPersonaWriter.model,
+        },
+        {
+          key: SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+          value: memoryEmbedding.provider,
+        },
+        {
+          key: SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+          value: memoryEmbedding.model,
+        },
+        {
+          key: SETTING_KEYS.userGlobalSettingsDefaults,
+          value: mergedUserGlobalSettings,
+        },
+        {
+          key: SETTING_KEYS.avatarPresets,
+          value: values.avatarPresets ?? [],
+        },
       ];
 
       await adminCommercialService.setAppSettingsBatch({
         updates,
       });
 
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       await mutate(RUNTIME_CONFIG_SWR_KEY);
       await mutate(PROFILE_INTEREST_AREAS_SWR_KEY);
       await mutate(PROFILE_OPTIONS_SWR_KEY);
@@ -721,9 +730,11 @@ const AdminSystemDefaultsPage = memo(() => {
               <Switch />
             </Form.Item>
             <Form.Item
-              extra={(data as any)?.composioConfig?.apiKeyConfigured
-                ? `Current key: ${(data as any).composioConfig.apiKeyMasked || 'configured'}`
-                : 'No Composio API key is configured.'}
+              extra={
+                (data as any)?.composioConfig?.apiKeyConfigured
+                  ? `Current key: ${(data as any).composioConfig.apiKeyMasked || 'configured'}`
+                  : 'No Composio API key is configured.'
+              }
               label="Project API Key"
               name="composioApiKey"
             >
@@ -742,7 +753,10 @@ const AdminSystemDefaultsPage = memo(() => {
               label="Auth Config IDs"
               name="composioAuthConfigIds"
             >
-              <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} placeholder='{"gmail":"ac_xxx"}' />
+              <Input.TextArea
+                autoSize={{ minRows: 2, maxRows: 6 }}
+                placeholder='{"gmail":"ac_xxx"}'
+              />
             </Form.Item>
           </Card>
 

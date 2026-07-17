@@ -5,8 +5,8 @@ import { Alert, Button, Divider, Form, Input, InputNumber, message, Switch } fro
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 const SETTING_KEYS = {
@@ -35,8 +35,8 @@ const AdminGrowthPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('growth'), () =>
+    adminCommercialService.getSettingsSection('growth'),
   );
 
   useEffect(() => {
@@ -94,7 +94,6 @@ const AdminGrowthPage = memo(() => {
         ],
       });
       message.success(t('admin.growth.saveSuccess', '增长配置已保存'));
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.growth.saveFailed', '保存失败'));
     } finally {

@@ -5,8 +5,8 @@ import { Alert, Button, Divider, Form, Input, InputNumber, message, Select, Swit
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { SkillSorts } from '@/types/discover';
 
@@ -52,8 +52,8 @@ const AdminOperationsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('operations'), () =>
+    adminCommercialService.getSettingsSection('operations'),
   );
 
   useEffect(() => {
@@ -152,7 +152,6 @@ const AdminOperationsPage = memo(() => {
         ],
       });
       message.success(t('admin.operations.saveSuccess', '运营配置已保存'));
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.operations.saveFailed', '保存失败'));
     } finally {

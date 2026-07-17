@@ -7,6 +7,35 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const readRepoFile = (filePath: string) => readFileSync(path.resolve(repoRoot, filePath), 'utf8');
 
 describe('admin commercial flow pages', () => {
+  it('uses section-scoped reads on all 13 settings-owning pages', () => {
+    const sectionPages = {
+      'desktop-update': 'src/features/Admin/AdminDesktopUpdatePage.tsx',
+      'expert-plaza': 'src/features/Admin/AdminExpertPlazaPage.tsx',
+      'file-storage': 'src/features/Admin/AdminFileStoragePage.tsx',
+      'growth': 'src/features/Admin/AdminGrowthPage.tsx',
+      'maintenance': 'src/features/Admin/AdminSystemMaintenancePage.tsx',
+      'model-billing-matrix': 'src/features/Admin/AdminModelBillingMatrixPage.tsx',
+      'model-policy': 'src/features/Admin/AdminModelPolicyPage.tsx',
+      'notifications': 'src/features/Admin/AdminNotificationsPage.tsx',
+      'operations': 'src/features/Admin/AdminOperationsPage.tsx',
+      'ppt': 'src/features/Admin/AdminPptSettingsPage.tsx',
+      'recommendations': 'src/features/Admin/AdminRecommendationsPage.tsx',
+      'settings': 'src/features/Admin/AdminSettingsPage.tsx',
+      'system-defaults': 'src/features/Admin/AdminSystemDefaultsPage.tsx',
+    } as const;
+
+    for (const [section, filePath] of Object.entries(sectionPages)) {
+      const page = readRepoFile(filePath);
+      expect(page, filePath).toContain(`ADMIN_SETTINGS_SECTION_SWR_KEY('${section}')`);
+      expect(page, filePath).toContain(`getSettingsSection('${section}')`);
+      expect(page, filePath).not.toContain('getAllSettings()');
+    }
+
+    const overviewPage = readRepoFile('src/features/Admin/AdminOverviewPage.tsx');
+    expect(overviewPage).toContain('adminCommercialService.getAllSettings()');
+    expect(overviewPage).toContain('useClientDataSWR(ADMIN_SETTINGS_SWR_KEY');
+  });
+
   it('keeps recharge package management inside the orders management surface', () => {
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
     const topupRoute = readRepoFile('src/routes/(main)/admin/topup/index.tsx');
@@ -90,8 +119,8 @@ describe('admin commercial flow pages', () => {
 
   it('lets admin configure public recommendation section titles', () => {
     const appSettingsRegistry = readRepoFile('src/const/appSettingsRegistry.ts');
-    const settingsRouter = readRepoFile(
-      'packages/business-server/src/lambda-routers/admin/settings.ts',
+    const adminReadModel = readRepoFile(
+      'packages/business-server/src/appSettings/adminReadModel.ts',
     );
     const adminRecommendations = readRepoFile('src/features/Admin/AdminRecommendationsPage.tsx');
     const publicRecommendations = readRepoFile('src/features/CommunityRecommendations/index.tsx');
@@ -104,7 +133,7 @@ describe('admin commercial flow pages', () => {
       'recommendationHotSkillTitle',
     ]) {
       expect(appSettingsRegistry).toContain(key);
-      expect(settingsRouter).toContain(`SETTING_KEYS.${key}`);
+      expect(adminReadModel).toContain(`APP_SETTING_KEYS.${key}`);
     }
 
     expect(adminRecommendations).toContain('name="assistantTitle"');
@@ -349,8 +378,8 @@ describe('admin commercial flow pages', () => {
     const publicPlansPage = readRepoFile('src/business/client/BusinessSettingPages/Plans.tsx');
     const adminSettingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
     const adminSettingsForm = readRepoFile('src/features/Admin/adminSettingsForm.ts');
-    const settingsRouter = readRepoFile(
-      'packages/business-server/src/lambda-routers/admin/settings.ts',
+    const adminReadModel = readRepoFile(
+      'packages/business-server/src/appSettings/adminReadModel.ts',
     );
     const subscriptionRouter = readRepoFile(
       'packages/business-server/src/lambda-routers/subscription.ts',
@@ -374,7 +403,7 @@ describe('admin commercial flow pages', () => {
     expect(publicPlansPage).toContain('planFaqItems.map');
     expect(adminSettingsPage).toContain('name="planFaqItems"');
     expect(adminSettingsForm).toContain('plansFaqItems?: unknown');
-    expect(settingsRouter).toContain('SETTING_KEYS.plansFaqItems');
+    expect(adminReadModel).toContain('APP_SETTING_KEYS.plansFaqItems');
     expect(subscriptionRouter).toContain('listPlanFaq');
     expect(publicPlansPage).not.toContain("key: 'usage-fast'");
     expect(publicPlansPage).not.toContain('lobehub.com/docs');

@@ -256,7 +256,7 @@ describe('admin Chinese copy', () => {
     const expertPlazaPage = readRepoFile('src/features/ExpertPlaza/index.tsx');
     const navLayout = readRepoFile('src/hooks/useNavLayout.ts');
 
-    expect(systemDefaultsPage).toContain('ADMIN_SETTINGS_SWR_KEY');
+    expect(systemDefaultsPage).toContain("ADMIN_SETTINGS_SECTION_SWR_KEY('system-defaults')");
     expect(expertPlazaAdminPage).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
     expect(expertPlazaPage).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
     expect(navLayout).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');

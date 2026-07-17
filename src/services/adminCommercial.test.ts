@@ -1,6 +1,8 @@
 import { ADMIN_COMMANDS } from '@lobechat/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ADMIN_SETTINGS_SECTION_SWR_KEY, ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
+import { mutate } from '@/libs/swr';
 import { lambdaClient } from '@/libs/trpc/client';
 
 import { adminCommercialService } from './adminCommercial';
@@ -12,6 +14,10 @@ vi.mock('@/libs/trpc/client', () => ({
         deleteDocument: { mutate: vi.fn() },
       },
       settings: {
+        getAll: { query: vi.fn() },
+        getSection: { query: vi.fn() },
+        setAppSetting: { mutate: vi.fn() },
+        setAppSettingsBatch: { mutate: vi.fn() },
         validateDefaultAgentSettings: { mutate: vi.fn() },
       },
       moduleApps: {
@@ -29,6 +35,8 @@ vi.mock('@/libs/trpc/client', () => ({
     },
   },
 }));
+
+vi.mock('@/libs/swr', () => ({ mutate: vi.fn() }));
 
 describe('adminCommercialService NewAPI helpers', () => {
   const getLegacyImpersonationStartMock = () =>
@@ -285,6 +293,43 @@ describe('adminCommercialService NewAPI helpers', () => {
       model: 'deepseek-chat',
       provider: 'newapi',
     });
+  });
+
+  it('uses the requested section for page-scoped settings reads', async () => {
+    vi.mocked(lambdaClient.admin.settings.getSection.query).mockResolvedValue({
+      growthConfig: {},
+      section: 'growth',
+      sharedHealth: {},
+    } as any);
+
+    await adminCommercialService.getSettingsSection('growth');
+
+    expect(lambdaClient.admin.settings.getSection.query).toHaveBeenCalledWith({
+      section: 'growth',
+    });
+    expect(lambdaClient.admin.settings.getAll.query).not.toHaveBeenCalled();
+  });
+
+  it('invalidates only affected section caches and the compatibility aggregate after writes', async () => {
+    vi.mocked(lambdaClient.admin.settings.setAppSettingsBatch.mutate).mockResolvedValue({
+      count: 3,
+      ok: true,
+    });
+
+    await adminCommercialService.setAppSettingsBatch({
+      updates: [
+        { key: 'auth.signup.enabled', value: false },
+        { key: 'notification.retentionDays', value: 30 },
+        { key: 'auth.signup.disabledMessage', value: 'Closed' },
+      ],
+    });
+
+    expect(vi.mocked(mutate).mock.calls.map(([key]) => key)).toEqual([
+      ADMIN_SETTINGS_SECTION_SWR_KEY('growth'),
+      ADMIN_SETTINGS_SECTION_SWR_KEY('notifications'),
+      ADMIN_SETTINGS_SWR_KEY,
+    ]);
+    expect(mutate).not.toHaveBeenCalledWith(ADMIN_SETTINGS_SECTION_SWR_KEY('operations'));
   });
 
   it('forwards the shared command to the catalogued Better Auth effect boundary', async () => {

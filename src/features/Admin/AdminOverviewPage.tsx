@@ -15,6 +15,7 @@ import { memo } from 'react';
 import { useNavigate } from 'react-router';
 
 import { Card } from '@/components/antd-compat/Card';
+import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
 import { ADMIN_BASE_PATH, ADMIN_NAV_GROUPS } from '@/features/Admin/adminNavigation';
 import { ADMIN_OVERVIEW_QUICK_LINKS } from '@/features/Admin/adminOverviewLinks';
 import { useClientDataSWR } from '@/libs/swr';
@@ -37,7 +38,7 @@ const AdminOverviewPage = memo(() => {
   const { data: pendingChanges } = useClientDataSWR(['admin-overview-pending-changes'], () =>
     adminCommercialService.listChangeRequests({ limit: 1, status: 'pending' }),
   );
-  const { data: settings } = useClientDataSWR(['admin-overview-settings'], () =>
+  const { data: settings } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
     adminCommercialService.getAllSettings(),
   );
 
@@ -84,7 +85,11 @@ const AdminOverviewPage = memo(() => {
         </Col>
         <Col lg={6} md={12} xs={24}>
           <Card>
-            <Statistic prefix="$" title="近 30 天实收充值收入" value={overview?.revenueLast30dUsd ?? 0} />
+            <Statistic
+              prefix="$"
+              title="近 30 天实收充值收入"
+              value={overview?.revenueLast30dUsd ?? 0}
+            />
           </Card>
         </Col>
       </Row>

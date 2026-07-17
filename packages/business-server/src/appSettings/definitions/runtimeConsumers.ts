@@ -15,6 +15,7 @@ const keysWithout = (keys: AppSettingKey[], excluded: AppSettingKey[]) => {
 };
 
 const appSettingsService = 'src/server/services/appSettings/index.ts';
+const adminSettingsReadModel = 'packages/business-server/src/appSettings/adminReadModel.ts';
 const adminSettingsRouter = 'packages/business-server/src/lambda-routers/admin/settings.ts';
 
 export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
@@ -70,27 +71,27 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
   },
   {
     id: 'public-recommendations',
-    keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
+    keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: keysWithPrefixes('recommendation.'),
-    sourcePath: adminSettingsRouter,
-    symbol: 'readPublicRecommendations',
+    sourcePath: adminSettingsReadModel,
+    symbol: 'buildRecommendationSettings',
   },
   {
     id: 'public-operations',
-    keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
+    keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: keysWithout(keysWithPrefixes('community.'), [
       APP_SETTING_KEYS.communityForkAndChatLabel,
       APP_SETTING_KEYS.communitySkillUseButtonLabel,
     ]),
-    sourcePath: adminSettingsRouter,
-    symbol: 'readPublicOperations',
+    sourcePath: adminSettingsReadModel,
+    symbol: 'buildOperationsSettings',
   },
   {
     id: 'public-growth',
-    keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
+    keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: keysWithPrefixes('auth.', 'onboarding.', 'upload.'),
-    sourcePath: adminSettingsRouter,
-    symbol: 'readPublicGrowth',
+    sourcePath: adminSettingsReadModel,
+    symbol: 'buildGrowthSettings',
   },
   {
     id: 'referral-reward-runtime',
@@ -101,10 +102,10 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
   },
   {
     id: 'public-expert-plaza',
-    keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
+    keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: keysWithPrefixes('expertPlaza.'),
-    sourcePath: adminSettingsRouter,
-    symbol: 'readPublicExpertPlaza',
+    sourcePath: adminSettingsReadModel,
+    symbol: 'buildExpertPlazaSettings',
   },
   {
     id: 'public-profile-options',
@@ -115,16 +116,16 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
   },
   {
     id: 'public-notification-config',
-    keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
+    keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: keysWithout(keysWithPrefixes('notification.'), [
       APP_SETTING_KEYS.notificationRetentionDays,
     ]),
-    sourcePath: adminSettingsRouter,
-    symbol: 'getPublicNotificationConfig',
+    sourcePath: adminSettingsReadModel,
+    symbol: 'buildNotificationSettings',
   },
   {
     id: 'public-desktop-update',
-    keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
+    keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: keysWithout(keysWithPrefixes('desktop.'), [
       APP_SETTING_KEYS.desktopOssAccessKeyId,
       APP_SETTING_KEYS.desktopOssAccessKeySecret,
@@ -132,8 +133,8 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
       APP_SETTING_KEYS.desktopOssEndpoint,
       APP_SETTING_KEYS.desktopOssPath,
     ]),
-    sourcePath: adminSettingsRouter,
-    symbol: 'getPublicDesktopUpdate',
+    sourcePath: adminSettingsReadModel,
+    symbol: 'buildDesktopSettings',
   },
   {
     id: 'public-help-menu',

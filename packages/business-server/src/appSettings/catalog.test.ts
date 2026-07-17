@@ -43,11 +43,7 @@ const findNamedSource = (source: string, sourcePath: string, symbol: string) => 
       ts.isPropertyDeclaration(node) ||
       ts.isVariableDeclaration(node);
     const name = isSupportedDeclaration ? node.name : undefined;
-    if (
-      name &&
-      (ts.isIdentifier(name) || ts.isStringLiteral(name)) &&
-      name.text === symbol
-    ) {
+    if (name && (ts.isIdentifier(name) || ts.isStringLiteral(name)) && name.text === symbol) {
       matches.push(node);
     }
     ts.forEachChild(node, visit);
@@ -98,6 +94,37 @@ describe('APP_SETTINGS_CATALOG', () => {
         keys.includes(APP_SETTING_KEYS.notificationRetentionDays),
       ),
     ).toHaveLength(1);
+    expect(APP_SETTINGS_SECTION_KEYS.settings).toEqual(
+      expect.arrayContaining([
+        APP_SETTING_KEYS.communityForkAndChatLabel,
+        APP_SETTING_KEYS.communitySkillUseButtonLabel,
+        APP_SETTING_KEYS.defaultAgentAvatar,
+        APP_SETTING_KEYS.defaultAgentName,
+        APP_SETTING_KEYS.defaultSkillName,
+        APP_SETTING_KEYS.plansFaqItems,
+      ]),
+    );
+    expect(APP_SETTINGS_SECTION_KEYS['model-billing-matrix']).toEqual(
+      expect.arrayContaining([
+        APP_SETTING_KEYS.defaultAgentModel,
+        APP_SETTING_KEYS.defaultAgentProvider,
+        APP_SETTING_KEYS.defaultImageModel,
+        APP_SETTING_KEYS.defaultImageProvider,
+        APP_SETTING_KEYS.defaultVideoModel,
+        APP_SETTING_KEYS.defaultVideoProvider,
+      ]),
+    );
+    expect(APP_SETTINGS_SECTION_KEYS['system-defaults']).toEqual(
+      expect.arrayContaining([
+        APP_SETTING_KEYS.composioApiKey,
+        APP_SETTING_KEYS.composioAuthConfigIds,
+        APP_SETTING_KEYS.composioEnabled,
+        APP_SETTING_KEYS.profileAvatarPresets,
+      ]),
+    );
+    expect(APP_SETTINGS_SECTION_KEYS.maintenance).toContain(
+      APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
+    );
     expect(WRITABLE_APP_SETTING_KEYS).not.toContain(APP_SETTING_KEYS.desktopOssAccessKeySecret);
 
     expect(catalogItem(APP_SETTING_KEYS.ordersManagementEnabled)).toMatchObject({
@@ -199,15 +226,11 @@ describe('APP_SETTINGS_CATALOG', () => {
 
   it('preserves non-secret normalization and rejects new non-string cron secrets', () => {
     expect(normalizeAppSettingValue(APP_SETTING_KEYS.brandName, '  ComHub  ')).toBe('ComHub');
-    expect(normalizeAppSettingValue(APP_SETTING_KEYS.notificationRetentionDays, 10_000)).toBe(
-      3650,
-    );
+    expect(normalizeAppSettingValue(APP_SETTING_KEYS.notificationRetentionDays, 10_000)).toBe(3650);
     expect(normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, '  exact secret  ')).toBe(
       '  exact secret  ',
     );
-    expect(
-      () => normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, 42),
-    ).toThrow();
+    expect(() => normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, 42)).toThrow();
     expect(() =>
       normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, { nested: ['value'] }),
     ).toThrow();

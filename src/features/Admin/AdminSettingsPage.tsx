@@ -7,10 +7,11 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import { DEFAULT_COMHUB_AGENT_AVATAR } from '@/const/defaultAgent';
+import { HELP_MENU_ACTIONS, HELP_MENU_ICONS } from '@/const/helpMenu';
 import { SETTINGS_SUBTITLE } from '@/features/Admin/adminSettingsCopy';
 import {
-  ADMIN_SETTINGS_SWR_KEY,
   type AdminSettingsFormValues,
   buildFormValues,
   buildSettingMaterializationUpdates,
@@ -18,7 +19,6 @@ import {
   getAdminSettingsRefreshKeys,
 } from '@/features/Admin/adminSettingsForm';
 import ImageUrlUploadInput from '@/features/Admin/components/ImageUrlUploadInput';
-import { HELP_MENU_ACTIONS, HELP_MENU_ICONS } from '@/const/helpMenu';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -37,8 +37,8 @@ const aboutLinkGroups = [
 
 const AdminSettingsPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('settings'), () =>
+    adminCommercialService.getSettingsSection('settings'),
   );
   const [form] = Form.useForm<AdminSettingsFormValues>();
   const [materializing, setMaterializing] = useState(false);
@@ -68,7 +68,6 @@ const AdminSettingsPage = memo(() => {
 
       setSubmitting(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
 
       const refreshKeys = getAdminSettingsRefreshKeys(updates);
       for (const key of refreshKeys) {
@@ -92,7 +91,6 @@ const AdminSettingsPage = memo(() => {
 
       setMaterializing(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
 
       const refreshKeys = getAdminSettingsRefreshKeys(updates);
       for (const key of refreshKeys) {
@@ -494,10 +492,7 @@ const AdminSettingsPage = memo(() => {
                                 ]}
                               >
                                 <Input
-                                  placeholder={t(
-                                    'admin.settings.planFaqItems.question',
-                                    '问题',
-                                  )}
+                                  placeholder={t('admin.settings.planFaqItems.question', '问题')}
                                   style={{ flex: 1 }}
                                 />
                               </Form.Item>
@@ -569,7 +564,9 @@ const AdminSettingsPage = memo(() => {
                       )}
                     </Text>
                     {aboutLinkGroups.map(renderAboutLinkGroup)}
-                    <Text strong>{t('admin.settings.aboutPageVersion', 'About page version area')}</Text>
+                    <Text strong>
+                      {t('admin.settings.aboutPageVersion', 'About page version area')}
+                    </Text>
                     <Form.Item
                       label={t('admin.settings.aboutPageLogoLinkUrl', 'Logo link URL')}
                       name={['aboutPage', 'logoLinkUrl']}
@@ -607,7 +604,13 @@ const AdminSettingsPage = memo(() => {
                         {(fields, { add, remove }) => (
                           <Flexbox gap={8}>
                             {fields.map(({ key, name, ...restField }) => (
-                              <Flexbox horizontal align="center" gap={8} key={key} style={{ flexWrap: 'wrap' }}>
+                              <Flexbox
+                                horizontal
+                                align="center"
+                                gap={8}
+                                key={key}
+                                style={{ flexWrap: 'wrap' }}
+                              >
                                 <Form.Item {...restField} hidden name={[name, 'key']}>
                                   <Input />
                                 </Form.Item>
@@ -615,7 +618,9 @@ const AdminSettingsPage = memo(() => {
                                   {...restField}
                                   noStyle
                                   name={[name, 'label']}
-                                  rules={[{ message: 'Please enter a display name', required: true }]}
+                                  rules={[
+                                    { message: 'Please enter a display name', required: true },
+                                  ]}
                                 >
                                   <Input placeholder="Display name" style={{ flex: 1 }} />
                                 </Form.Item>

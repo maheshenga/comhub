@@ -165,6 +165,80 @@ export const APP_SETTING_KEYS = {
 
 export type AppSettingKey = (typeof APP_SETTING_KEYS)[keyof typeof APP_SETTING_KEYS];
 
+export const APP_SETTINGS_SECTIONS = [
+  'desktop-update',
+  'expert-plaza',
+  'file-storage',
+  'growth',
+  'maintenance',
+  'model-billing-matrix',
+  'model-policy',
+  'notifications',
+  'operations',
+  'ppt',
+  'recommendations',
+  'settings',
+  'system-defaults',
+] as const;
+
+export type AppSettingsSection = (typeof APP_SETTINGS_SECTIONS)[number];
+
+const SETTINGS_SECTION_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.communityForkAndChatLabel,
+  APP_SETTING_KEYS.communitySkillUseButtonLabel,
+  APP_SETTING_KEYS.defaultAgentAvatar,
+  APP_SETTING_KEYS.defaultAgentName,
+  APP_SETTING_KEYS.defaultSkillName,
+  APP_SETTING_KEYS.plansFaqItems,
+]);
+
+const MODEL_BILLING_SECTION_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.defaultAgentModel,
+  APP_SETTING_KEYS.defaultAgentProvider,
+  APP_SETTING_KEYS.defaultImageModel,
+  APP_SETTING_KEYS.defaultImageProvider,
+  APP_SETTING_KEYS.defaultVideoModel,
+  APP_SETTING_KEYS.defaultVideoProvider,
+]);
+
+const SYSTEM_DEFAULTS_SECTION_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.composioApiKey,
+  APP_SETTING_KEYS.composioAuthConfigIds,
+  APP_SETTING_KEYS.composioEnabled,
+  APP_SETTING_KEYS.profileAvatarPresets,
+]);
+
+export const getAppSettingsSectionForKey = (key: AppSettingKey): AppSettingsSection => {
+  if (SETTINGS_SECTION_KEYS.has(key)) return 'settings';
+  if (MODEL_BILLING_SECTION_KEYS.has(key)) return 'model-billing-matrix';
+  if (SYSTEM_DEFAULTS_SECTION_KEYS.has(key)) return 'system-defaults';
+  if (key === APP_SETTING_KEYS.memoryUserMemoryTriggerMode) return 'maintenance';
+  if (key.startsWith('desktop.')) return 'desktop-update';
+  if (key.startsWith('expertPlaza.')) return 'expert-plaza';
+  if (key.startsWith('storage.')) return 'file-storage';
+  if (
+    key.startsWith('auth.') ||
+    key.startsWith('onboarding.') ||
+    key.startsWith('referral.') ||
+    key.startsWith('upload.')
+  ) {
+    return 'growth';
+  }
+  if (key.startsWith('cron.')) return 'maintenance';
+  if (key.startsWith('pricing.') || key.startsWith('plans.') || key.startsWith('orders.')) {
+    return 'model-billing-matrix';
+  }
+  if (key.startsWith('model.policy.')) return 'model-policy';
+  if (key.startsWith('notification.')) return 'notifications';
+  if (key.startsWith('community.')) return 'operations';
+  if (key.startsWith('docmee.')) return 'ppt';
+  if (key.startsWith('recommendation.')) return 'recommendations';
+  if (key.startsWith('default') || key.startsWith('memory.') || key.startsWith('vector.')) {
+    return 'system-defaults';
+  }
+  return 'settings';
+};
+
 export type AppSettingDomain =
   | 'about'
   | 'brand'
@@ -231,8 +305,7 @@ const SENSITIVE_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.storageS3SecretAccessKey,
 ]);
 
-const SECRET_LIKE_KEY_NAME_RE =
-  /(?:apiKey|secret|token|password|credential|credentials|accessKey|privateKey)/i;
+const SECRET_LIKE_KEY_NAME_RE = /apiKey|secret|token|password|credentials?|accessKey|privateKey/i;
 
 export const hasSecretLikeAppSettingKeyName = (key: AppSettingKey | string) =>
   SECRET_LIKE_KEY_NAME_RE.test(key);

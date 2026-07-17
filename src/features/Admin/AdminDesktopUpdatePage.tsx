@@ -1,13 +1,24 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Divider, Form, Input, InputNumber, message, Radio, Space, Switch } from 'antd';
+import {
+  Alert,
+  Button,
+  Divider,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Radio,
+  Space,
+  Switch,
+} from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
-import { mutate, useClientDataSWR } from '@/libs/swr';
-import { adminCommercialService } from '@/services/adminCommercial';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
+import { useClientDataSWR } from '@/libs/swr';
+import { adminCommercialService, type AdminSettingsSectionData } from '@/services/adminCommercial';
 
 import {
   DESKTOP_DEFAULT_BUSINESS_SERVER_URL,
@@ -15,7 +26,7 @@ import {
   DESKTOP_UPDATE_SETTING_KEYS as SETTING_KEYS,
 } from './adminDesktopUpdateSettings';
 
-type AdminSettingsData = Awaited<ReturnType<typeof adminCommercialService.getAllSettings>>;
+type AdminSettingsData = AdminSettingsSectionData<'desktop-update'>;
 
 type FormValues = {
   autoCheck: boolean;
@@ -63,8 +74,9 @@ const getInitialValues = (data?: AdminSettingsData): FormValues => ({
 
 const AdminDesktopUpdatePage = memo(() => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(
+    ADMIN_SETTINGS_SECTION_SWR_KEY('desktop-update'),
+    () => adminCommercialService.getSettingsSection('desktop-update'),
   );
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
@@ -117,7 +129,6 @@ const AdminDesktopUpdatePage = memo(() => {
       setSubmitting(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
       message.success(t('admin.desktopUpdate.saveSuccess', '客户端设置已保存'));
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.desktopUpdate.saveFailed', '保存失败'));
     } finally {
@@ -151,17 +162,17 @@ const AdminDesktopUpdatePage = memo(() => {
         </Form.Item>
 
         <Form.Item
-          extra={t('admin.desktopUpdate.loginLogoUrl.help', '支持站内路径或完整图片 URL。留空使用默认品牌 Logo。')}
+          extra={t(
+            'admin.desktopUpdate.loginLogoUrl.help',
+            '支持站内路径或完整图片 URL。留空使用默认品牌 Logo。',
+          )}
           label={t('admin.desktopUpdate.loginLogoUrl', '登录头像/Logo 地址')}
           name="loginLogoUrl"
         >
           <Input placeholder="/images/brand/xuanguo.png" />
         </Form.Item>
 
-        <Form.Item
-          label={t('admin.desktopUpdate.loginTitle', '登录主标题')}
-          name="loginTitle"
-        >
+        <Form.Item label={t('admin.desktopUpdate.loginTitle', '登录主标题')} name="loginTitle">
           <Input placeholder="登录以实现跨设备同步" />
         </Form.Item>
 
@@ -200,10 +211,7 @@ const AdminDesktopUpdatePage = memo(() => {
             'admin.desktopUpdate.businessConnection.description',
             '桌面客户端的登录、同步、tRPC/API、OIDC 与本地代理请求默认连接到该业务服务地址。此地址由桌面发布流水线注入，后台这里只做展示，避免和更新服务器地址混淆。',
           )}
-          message={t(
-            'admin.desktopUpdate.businessConnection.message',
-            '桌面业务连接由发布包控制',
-          )}
+          message={t('admin.desktopUpdate.businessConnection.message', '桌面业务连接由发布包控制')}
         />
 
         <Form.Item

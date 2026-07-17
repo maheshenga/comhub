@@ -5,8 +5,8 @@ import { Button, Divider, Form, Input, message, Select, Switch } from 'antd';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { SkillSorts } from '@/types/discover';
 
@@ -60,8 +60,9 @@ const AdminRecommendationsPage = memo(() => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<FormValues>();
   const [submitting, setSubmitting] = useState(false);
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(
+    ADMIN_SETTINGS_SECTION_SWR_KEY('recommendations'),
+    () => adminCommercialService.getSettingsSection('recommendations'),
   );
 
   useEffect(() => {
@@ -164,7 +165,6 @@ const AdminRecommendationsPage = memo(() => {
         ],
       });
       message.success(t('admin.recommendations.saveSuccess', '推荐配置已保存'));
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
     } catch {
       message.error(t('admin.recommendations.saveFailed', '保存失败'));
     } finally {

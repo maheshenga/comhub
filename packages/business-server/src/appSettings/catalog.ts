@@ -1,6 +1,7 @@
 import {
   APP_SETTING_KEYS,
   type AppSettingKey,
+  getAppSettingsSectionForKey,
   listAppSettingRegistryItems,
 } from '@/const/appSettingsRegistry';
 
@@ -37,36 +38,7 @@ const EXTERNAL_SETTING_OWNERS: Partial<Record<AppSettingKey, string>> = {
   [APP_SETTING_KEYS.desktopOssPath]: 'CI/GitHub Secrets',
 };
 
-const DEPRECATED_SETTING_KEYS = new Set<AppSettingKey>([
-  APP_SETTING_KEYS.ordersManagementEnabled,
-]);
-
-const sectionForKey = (key: AppSettingKey): AppSettingsSection => {
-  if (key.startsWith('desktop.')) return 'desktop-update';
-  if (key.startsWith('expertPlaza.')) return 'expert-plaza';
-  if (key.startsWith('storage.')) return 'file-storage';
-  if (
-    key.startsWith('auth.') ||
-    key.startsWith('onboarding.') ||
-    key.startsWith('referral.') ||
-    key.startsWith('upload.')
-  ) {
-    return 'growth';
-  }
-  if (key.startsWith('cron.')) return 'maintenance';
-  if (key.startsWith('pricing.') || key.startsWith('plans.') || key.startsWith('orders.')) {
-    return 'model-billing-matrix';
-  }
-  if (key.startsWith('model.policy.')) return 'model-policy';
-  if (key.startsWith('notification.')) return 'notifications';
-  if (key.startsWith('community.')) return 'operations';
-  if (key.startsWith('docmee.')) return 'ppt';
-  if (key.startsWith('recommendation.')) return 'recommendations';
-  if (key.startsWith('default') || key.startsWith('memory.') || key.startsWith('vector.')) {
-    return 'system-defaults';
-  }
-  return 'settings';
-};
+const DEPRECATED_SETTING_KEYS = new Set<AppSettingKey>([APP_SETTING_KEYS.ordersManagementEnabled]);
 
 const writeSurfacesFor = (
   key: AppSettingKey,
@@ -92,7 +64,7 @@ const runtimeEffectsFor = (key: AppSettingKey, cacheScopes: AppSettingCatalogIte
 
 export const APP_SETTINGS_CATALOG: AppSettingCatalogItem[] = listAppSettingRegistryItems().map(
   (registryItem) => {
-    const section = sectionForKey(registryItem.key);
+    const section = getAppSettingsSectionForKey(registryItem.key);
     const externalOwner = EXTERNAL_SETTING_OWNERS[registryItem.key];
     const lifecycle = externalOwner
       ? 'external'

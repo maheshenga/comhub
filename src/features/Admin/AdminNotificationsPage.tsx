@@ -6,18 +6,15 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import {
-  NOTIFICATION_CHANNELS,
+  normalizeNotificationEventDefaults,
   NOTIFICATION_CHANNEL_EVENTS,
+  NOTIFICATION_CHANNELS,
   NOTIFICATION_EVENT_TITLES,
   type NotificationEventDefaults,
-  normalizeNotificationEventDefaults,
 } from '@/const/notificationPreferences';
-import {
-  ADMIN_SETTINGS_SWR_KEY,
-  SETTING_KEYS,
-  type SettingUpdate,
-} from '@/features/Admin/adminSettingsForm';
+import { SETTING_KEYS, type SettingUpdate } from '@/features/Admin/adminSettingsForm';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -73,9 +70,9 @@ const buildUpdates = (
   values: NotificationSettingsForm,
   initial: NotificationSettingsForm,
 ): SettingUpdate[] => {
-  const updates = NOTIFICATION_SETTING_MAP
-    .filter(([key]) => values[key] !== initial[key])
-    .map(([key, settingKey]) => ({ key: settingKey, value: values[key] }));
+  const updates = NOTIFICATION_SETTING_MAP.filter(([key]) => values[key] !== initial[key]).map(
+    ([key, settingKey]) => ({ key: settingKey, value: values[key] }),
+  );
 
   const normalizedCurrent = normalizeNotificationEventDefaults(values.eventDefaults);
   const normalizedInitial = normalizeNotificationEventDefaults(initial.eventDefaults);
@@ -98,8 +95,9 @@ export const buildNotificationMaterializationUpdates = (
 
 const AdminNotificationsPage = memo(() => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(
+    ADMIN_SETTINGS_SECTION_SWR_KEY('notifications'),
+    () => adminCommercialService.getSettingsSection('notifications'),
   );
   const [form] = Form.useForm<NotificationSettingsForm>();
   const [materializing, setMaterializing] = useState(false);
@@ -125,7 +123,6 @@ const AdminNotificationsPage = memo(() => {
     setSubmitting(true);
     try {
       await adminCommercialService.setAppSettingsBatch({ updates });
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       await mutate('public-notification-config');
       message.success(t('admin.notifications.saveSuccess', 'Notification settings saved'));
     } catch {
@@ -144,7 +141,6 @@ const AdminNotificationsPage = memo(() => {
     setMaterializing(true);
     try {
       await adminCommercialService.setAppSettingsBatch({ updates });
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       await mutate('public-notification-config');
       message.success(
         t('admin.notifications.materializeDefaultsSuccess', 'Notification defaults synced'),
@@ -260,7 +256,10 @@ const AdminNotificationsPage = memo(() => {
           >
             <Switch />
           </Form.Item>
-          <Form.Item label={t('admin.notifications.systemTitle', 'Announcement title')} name="systemTitle">
+          <Form.Item
+            label={t('admin.notifications.systemTitle', 'Announcement title')}
+            name="systemTitle"
+          >
             <Input placeholder="Service upgrade notice" />
           </Form.Item>
           <Form.Item
@@ -281,7 +280,10 @@ const AdminNotificationsPage = memo(() => {
           >
             <Input placeholder="View details" />
           </Form.Item>
-          <Form.Item label={t('admin.notifications.systemType', 'Announcement type')} name="systemType">
+          <Form.Item
+            label={t('admin.notifications.systemType', 'Announcement type')}
+            name="systemType"
+          >
             <Select
               options={[
                 { label: 'Info', value: 'info' },

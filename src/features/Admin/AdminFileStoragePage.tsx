@@ -6,9 +6,9 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card } from '@/components/antd-compat/Card';
-import { ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
+import { ADMIN_SETTINGS_SECTION_SWR_KEY } from '@/const/adminCacheKeys';
 import { normalizeText, SETTING_KEYS } from '@/features/Admin/adminSettingsForm';
-import { mutate, useClientDataSWR } from '@/libs/swr';
+import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 const { Text, Title } = Typography;
@@ -108,8 +108,8 @@ const buildUpdates = (values: FileStorageFormValues, initial: FileStorageFormVal
 
 const AdminFileStoragePage = memo(() => {
   const { t } = useTranslation('subscription');
-  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SWR_KEY, () =>
-    adminCommercialService.getAllSettings(),
+  const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('file-storage'), () =>
+    adminCommercialService.getSettingsSection('file-storage'),
   );
   const [form] = Form.useForm<FileStorageFormValues>();
   const [submitting, setSubmitting] = useState(false);
@@ -135,7 +135,6 @@ const AdminFileStoragePage = memo(() => {
       setSubmitting(true);
       await adminCommercialService.setAppSettingsBatch({ updates });
       form.setFieldValue('storageS3SecretAccessKey', '');
-      await mutate(ADMIN_SETTINGS_SWR_KEY);
       message.success(t('admin.fileStorage.saveSuccess', '文件存储设置已保存'));
     } catch {
       message.error(t('admin.fileStorage.saveFailed', '保存失败，请检查 S3 配置'));
