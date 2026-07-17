@@ -16,6 +16,18 @@ export type AppSettingSecretKey =
   | typeof APP_SETTING_KEYS.docmeePptApiKey
   | typeof APP_SETTING_KEYS.storageS3SecretAccessKey;
 
+export type AppSettingSecretWritePolicy = 'blank-clears' | 'blank-noop' | 'explicit-clear';
+
+const APP_SETTING_SECRET_WRITE_POLICIES: Record<
+  AppSettingSecretKey,
+  AppSettingSecretWritePolicy
+> = {
+  [APP_SETTING_KEYS.composioApiKey]: 'blank-clears',
+  [APP_SETTING_KEYS.cronSecret]: 'blank-noop',
+  [APP_SETTING_KEYS.docmeePptApiKey]: 'explicit-clear',
+  [APP_SETTING_KEYS.storageS3SecretAccessKey]: 'blank-noop',
+};
+
 const assertSecretKey: (key: AppSettingKey) => asserts key is AppSettingSecretKey = (key) => {
   if (!APP_SETTING_SECRET_KEYS.has(key)) {
     throw new Error(`App setting is not registered as a secret: ${key}`);
@@ -28,6 +40,10 @@ const invalidCiphertext = () => new Error('Invalid encrypted app setting secret'
 
 export const isAppSettingSecretKey = (key: string): key is AppSettingSecretKey =>
   APP_SETTING_SECRET_KEYS.has(key as AppSettingKey);
+
+export const getAppSettingSecretWritePolicy = (
+  key: AppSettingSecretKey,
+): AppSettingSecretWritePolicy => APP_SETTING_SECRET_WRITE_POLICIES[key];
 
 export const encryptAppSettingSecret = async (key: AppSettingKey, plaintext: string) => {
   assertSecretKey(key);

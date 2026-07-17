@@ -625,6 +625,47 @@ describe('admin settings default model validation', () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it('clears the stored Composio API key when its explicit clear control writes blank', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    await expect(
+      caller.setAppSetting({
+        key: APP_SETTING_KEYS.composioApiKey,
+        value: '',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(db.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.composioApiKey,
+      value: '',
+    });
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: {
+          hasValue: false,
+          key: APP_SETTING_KEYS.composioApiKey,
+        },
+      }),
+    );
+  });
+
+  it.each([APP_SETTING_KEYS.cronSecret, APP_SETTING_KEYS.storageS3SecretAccessKey])(
+    'keeps a blank generic password write for %s as a no-op',
+    async (key) => {
+      const db = createDb();
+      vi.mocked(getServerDB).mockResolvedValue(db);
+
+      const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+      await expect(caller.setAppSetting({ key, value: '' })).resolves.toEqual({ ok: true });
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(recordAdminAudit).not.toHaveBeenCalled();
+    },
+  );
+
   it('decrypts cron.secret only for masking and never returns plaintext', async () => {
     const encrypted = await encryptAppSettingSecret(
       APP_SETTING_KEYS.cronSecret,

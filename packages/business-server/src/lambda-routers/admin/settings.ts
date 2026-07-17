@@ -53,7 +53,9 @@ import {
 import {
   decryptAppSettingSecret,
   encryptAppSettingSecret,
+  getAppSettingSecretWritePolicy,
   isAppSettingSecretKey,
+  maskAppSettingSecret,
 } from '@/server/services/appSettings/secrets';
 import { invalidateServerBrand } from '@/server/services/brand';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
@@ -76,12 +78,6 @@ import { recordAdminAudit } from './audit';
 const publicDbProcedure = publicProcedure.use(serverDatabase);
 const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
 const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
-
-const maskApiKey = (key: string | null | undefined): string | null => {
-  if (!key) return null;
-  if (key.length <= 4) return '****';
-  return `****${key.slice(-4)}`;
-};
 
 const SETTING_KEYS = APP_SETTING_KEYS;
 const S3_HEALTH_CHECK_CONTENT = 'comhub-s3-health-check';
@@ -424,17 +420,23 @@ const normalizeAppSettingUpdate = async (
         message: `${input.key} must be a string`,
       });
     }
+    let secretValue = value;
 
-    if (!value.trim()) {
-      shouldWrite = false;
-    } else if (value.startsWith('****')) {
+    if (!secretValue.trim()) {
+      shouldWrite = getAppSettingSecretWritePolicy(input.key) === 'blank-clears';
+      secretValue = '';
+    } else if (secretValue.startsWith('****')) {
       const existingValue = await readSetting(db, input.key);
       const existingPlaintext = await decryptAppSettingSecret(input.key, existingValue);
       shouldWrite =
-        typeof existingPlaintext !== 'string' || maskApiKey(existingPlaintext) !== value;
+        typeof existingPlaintext !== 'string' ||
+        maskAppSettingSecret(existingPlaintext) !== secretValue;
     }
 
-    if (shouldWrite) value = await encryptAppSettingSecret(input.key, value);
+    value =
+      shouldWrite && secretValue
+        ? await encryptAppSettingSecret(input.key, secretValue)
+        : secretValue;
   }
 
   return {
@@ -1445,7 +1447,7 @@ export const adminSettingsRouter = router({
       cronAuditRetentionDays: typeof auditDays === 'number' ? auditDays : 365,
       cronPendingOrderExpiryDays: typeof pendingDays === 'number' ? pendingDays : 7,
       cronSecretConfigured: Boolean(dbCronSecret ?? process.env.CRON_SECRET),
-      cronSecretMasked: maskApiKey(dbCronSecret ?? process.env.CRON_SECRET),
+      cronSecretMasked: maskAppSettingSecret(dbCronSecret ?? process.env.CRON_SECRET),
       defaultAgentAvatar: currentDefaultAvatar || DEFAULT_COMHUB_AGENT_AVATAR,
       defaultAgentModel: currentDefaultModel || '',
       defaultAgentName: currentDefaultName || DEFAULT_COMHUB_AGENT_NAME,
@@ -1501,7 +1503,9 @@ export const adminSettingsRouter = router({
       },
       desktopOssConfig: {
         accessKeyId: toString(desktopOssAccessKeyId),
-        accessKeySecretMasked: maskApiKey(toString(desktopOssAccessKeySecret) || null),
+        accessKeySecretMasked: maskAppSettingSecret(
+          toString(desktopOssAccessKeySecret) || null,
+        ),
         bucket: toString(desktopOssBucket),
         endpoint: toString(desktopOssEndpoint),
         path: toString(desktopOssPath, 'releases'),
@@ -1521,7 +1525,9 @@ export const adminSettingsRouter = router({
       aboutPage: normalizeAboutPageConfig(aboutPage),
       composioConfig: {
         apiKeyConfigured: Boolean(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
-        apiKeyMasked: maskApiKey(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
+        apiKeyMasked: maskAppSettingSecret(
+          dbComposioApiKey ?? process.env.COMPOSIO_API_KEY,
+        ),
         authConfigIds: toString(composioAuthConfigIds) || toString(process.env.COMPOSIO_AUTH_CONFIG_IDS),
         enabled:
           typeof composioEnabled === 'boolean'
@@ -1604,7 +1610,9 @@ export const adminSettingsRouter = router({
         'files',
       storageS3Region: toString(storageS3Region) || toString(process.env.S3_REGION),
       storageS3SecretAccessKeyConfigured: Boolean(dbS3Secret ?? process.env.S3_SECRET_ACCESS_KEY),
-      storageS3SecretAccessKeyMasked: maskApiKey(dbS3Secret ?? process.env.S3_SECRET_ACCESS_KEY),
+      storageS3SecretAccessKeyMasked: maskAppSettingSecret(
+        dbS3Secret ?? process.env.S3_SECRET_ACCESS_KEY,
+      ),
       storageS3SetAcl: toBoolean(storageS3SetAcl, process.env.S3_SET_ACL === '1'),
     };
   }),

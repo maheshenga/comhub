@@ -11,6 +11,7 @@ import {
 import {
   decryptAppSettingSecret,
   encryptAppSettingSecret,
+  maskAppSettingSecret,
 } from '@/server/services/appSettings/secrets';
 import { normalizeDocmeePptSettings } from '@/server/services/docmee/config';
 
@@ -26,13 +27,6 @@ const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRe
 const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
 
 const PPT_SETTING_KEYS = PPT_WRITABLE_APP_SETTING_KEYS;
-
-const maskApiKey = (key: null | string | undefined): null | string => {
-  if (!key) return null;
-  if (key.length <= 4) return '****';
-
-  return `****${key.slice(-4)}`;
-};
 
 const readSettings = async (db: any) => {
   const rows = await db.query.appSettings.findMany({
@@ -107,7 +101,7 @@ export const adminPptRouter = router({
       ...settings,
       apiKey: '',
       apiKeyConfigured: Boolean(settings.apiKey),
-      apiKeyMasked: maskApiKey(settings.apiKey),
+      apiKeyMasked: maskAppSettingSecret(settings.apiKey),
     };
   }),
 
@@ -129,7 +123,7 @@ export const adminPptRouter = router({
     };
     const trimmedApiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
     const unchangedMaskedApiKey =
-      Boolean(trimmedApiKey) && trimmedApiKey === maskApiKey(previous.apiKey);
+      Boolean(trimmedApiKey) && trimmedApiKey === maskAppSettingSecret(previous.apiKey);
     let storedApiKey: null | string | undefined;
 
     if (input.clearApiKey) {

@@ -43,7 +43,8 @@ describe('app setting secret codec', () => {
 
   it('fails closed for invalid or cross-key ciphertext', async () => {
     const encrypted = await encryptAppSettingSecret(APP_SETTING_KEYS.cronSecret, 'cron-secret');
-    const tampered = `${encrypted.slice(0, -1)}0`;
+    const replacement = encrypted.endsWith('0') ? '1' : '0';
+    const tampered = `${encrypted.slice(0, -1)}${replacement}`;
 
     await expect(decryptAppSettingSecret(APP_SETTING_KEYS.cronSecret, tampered)).rejects.toThrow(
       'Invalid encrypted app setting secret',
