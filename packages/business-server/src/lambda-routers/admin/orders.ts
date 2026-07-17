@@ -122,7 +122,7 @@ export const adminOrdersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const command = settleCommand.validate(input.command);
+      const command = settleCommand.validate(input.command, input.reason);
       const [order] = await ctx.serverDB
         .select({
           amount: topUpOrders.amount,

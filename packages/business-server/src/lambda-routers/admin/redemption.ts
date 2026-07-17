@@ -317,7 +317,7 @@ export const adminRedemptionRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const command = bulkDeleteCommand.validate(input.command);
+      const command = bulkDeleteCommand.validate(input.command, input.reason);
       const deleted = await ctx.serverDB
         .delete(redemptionCodes)
         .where(and(inArray(redemptionCodes.id, input.ids), eq(redemptionCodes.status, 'active')))

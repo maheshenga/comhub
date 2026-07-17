@@ -29,7 +29,7 @@ export const adminCreditsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const command = adjustCommand.validate(input.command);
+      const command = adjustCommand.validate(input.command, input.reason);
       const { amount, userId } = input;
       const reason = command.reason!;
 

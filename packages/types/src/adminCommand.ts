@@ -3,6 +3,9 @@ import { ADMIN_CAPABILITIES, type AdminCapability } from './admin';
 export type AdminCommandSeverity = 'medium' | 'high' | 'critical';
 export type AdminCommandConfirmationMode = 'none' | 'confirm' | 'typed';
 export type AdminCommandReasonPolicy = 'none' | 'optional' | 'required';
+export type AdminCommandServerBoundary =
+  | { kind: 'http'; method: 'POST'; path: string }
+  | { kind: 'trpc'; procedurePath: string };
 
 export type AdminCommandDefinition = {
   actionId: string;
@@ -10,8 +13,8 @@ export type AdminCommandDefinition = {
   capability: AdminCapability;
   confirmationMode: AdminCommandConfirmationMode;
   description: string;
-  procedurePath: string;
   reasonPolicy: AdminCommandReasonPolicy;
+  serverBoundary: AdminCommandServerBoundary;
   severity: AdminCommandSeverity;
   title: string;
 };
@@ -30,8 +33,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.contentWrite,
     confirmationMode: 'confirm',
     description: 'Deletes a user document and related knowledge content.',
-    procedurePath: 'admin.content.deleteDocument',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.content.deleteDocument' },
     severity: 'high',
     title: 'Delete document',
   },
@@ -41,8 +44,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.contentWrite,
     confirmationMode: 'confirm',
     description: 'Deletes a user resource file and can remove indexed content.',
-    procedurePath: 'admin.content.deleteFile',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.content.deleteFile' },
     severity: 'high',
     title: 'Delete file',
   },
@@ -52,8 +55,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.contentWrite,
     confirmationMode: 'confirm',
     description: 'Deletes a user topic and its conversation context.',
-    procedurePath: 'admin.content.deleteTopic',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.content.deleteTopic' },
     severity: 'high',
     title: 'Delete topic',
   },
@@ -63,8 +66,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'typed',
     description: 'Changes a user credit balance and writes ledger entries.',
-    procedurePath: 'admin.credits.adjust',
     reasonPolicy: 'required',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.credits.adjust' },
     severity: 'critical',
     title: 'Adjust credits',
   },
@@ -74,8 +77,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.modelOpsWrite,
     confirmationMode: 'typed',
     description: 'Deletes an upstream provider instance and its synced model configuration.',
-    procedurePath: 'admin.newapiProviders.deleteInstance',
     reasonPolicy: 'required',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.newapiProviders.deleteInstance' },
     severity: 'critical',
     title: 'Delete provider instance',
   },
@@ -85,8 +88,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
     description: 'Cancels a pending recharge order.',
-    procedurePath: 'admin.orders.cancel',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.orders.cancel' },
     severity: 'medium',
     title: 'Cancel order',
   },
@@ -96,8 +99,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
     description: 'Expires a pending recharge order.',
-    procedurePath: 'admin.orders.expire',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.orders.expire' },
     severity: 'medium',
     title: 'Expire order',
   },
@@ -107,8 +110,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'typed',
     description: 'Manually settles a recharge order and grants credits.',
-    procedurePath: 'admin.orders.settle',
     reasonPolicy: 'required',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.orders.settle' },
     severity: 'critical',
     title: 'Settle order',
   },
@@ -118,8 +121,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'typed',
     description: 'Permanently deletes multiple redemption codes.',
-    procedurePath: 'admin.redemption.bulkDelete',
     reasonPolicy: 'required',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.redemption.bulkDelete' },
     severity: 'critical',
     title: 'Delete redemption codes',
   },
@@ -129,8 +132,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
     description: 'Disables multiple redemption codes.',
-    procedurePath: 'admin.redemption.bulkDisable',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.redemption.bulkDisable' },
     severity: 'high',
     title: 'Disable redemption codes',
   },
@@ -140,8 +143,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.systemWrite,
     confirmationMode: 'confirm',
     description: 'Runs operational maintenance that can affect site-wide cached settings.',
-    procedurePath: 'admin.settings.runMaintenance',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.settings.runMaintenance' },
     severity: 'high',
     title: 'Run maintenance',
   },
@@ -151,8 +154,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.systemWrite,
     confirmationMode: 'none',
     description: 'Changes a site-wide runtime setting.',
-    procedurePath: 'admin.settings.setAppSetting',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.settings.setAppSetting' },
     severity: 'medium',
     title: 'Update site setting',
   },
@@ -162,8 +165,11 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
     description: 'Approves multiple pending subscription change requests.',
-    procedurePath: 'admin.subscriptions.bulkApproveChangeRequests',
     reasonPolicy: 'none',
+    serverBoundary: {
+      kind: 'trpc',
+      procedurePath: 'admin.subscriptions.bulkApproveChangeRequests',
+    },
     severity: 'high',
     title: 'Approve subscription change requests',
   },
@@ -173,8 +179,11 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
     description: 'Rejects multiple pending subscription change requests.',
-    procedurePath: 'admin.subscriptions.bulkRejectChangeRequests',
     reasonPolicy: 'optional',
+    serverBoundary: {
+      kind: 'trpc',
+      procedurePath: 'admin.subscriptions.bulkRejectChangeRequests',
+    },
     severity: 'high',
     title: 'Reject subscription change requests',
   },
@@ -184,8 +193,12 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.supportWrite,
     confirmationMode: 'confirm',
     description: 'Records an administrator attempt to impersonate a user.',
-    procedurePath: 'admin.users.recordImpersonationAttempt',
     reasonPolicy: 'none',
+    serverBoundary: {
+      kind: 'http',
+      method: 'POST',
+      path: '/api/auth/admin/impersonate-user',
+    },
     severity: 'high',
     title: 'Impersonate user',
   },
@@ -195,8 +208,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.adminAccess,
     confirmationMode: 'typed',
     description: 'Resets every user subscription to the free plan.',
-    procedurePath: 'admin.users.resetAllToFreePlan',
     reasonPolicy: 'required',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.users.resetAllToFreePlan' },
     severity: 'critical',
     title: 'Reset all users to free plan',
   },
@@ -206,8 +219,8 @@ export const ADMIN_COMMANDS = {
     capability: ADMIN_CAPABILITIES.adminAccess,
     confirmationMode: 'confirm',
     description: 'Changes a user account role.',
-    procedurePath: 'admin.users.setRole',
     reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.users.setRole' },
     severity: 'high',
     title: 'Change user role',
   },

@@ -262,7 +262,7 @@ export const adminNewapiProvidersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const command = deleteInstanceCommand.validate(input.command);
+      const command = deleteInstanceCommand.validate(input.command, input.reason);
       const reason = command.reason;
       const result = await ctx.serverDB
         .delete(adminNewapiInstances)

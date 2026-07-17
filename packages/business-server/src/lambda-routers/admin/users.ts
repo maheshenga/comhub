@@ -507,7 +507,7 @@ export const adminUsersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const command = resetAllToFreePlanCommand.validate(input.command);
+      const command = resetAllToFreePlanCommand.validate(input.command, input.reason);
       const reason = command.reason!;
       const result = await resetAllUsersToFreePlan(ctx.serverDB, reason);
 

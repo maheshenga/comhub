@@ -191,6 +191,40 @@ describe('resetAllUsersToFreePlan', () => {
   });
 });
 
+describe('adminUsersRouter reset command', () => {
+  it('rejects conflicting legacy and envelope reasons before resetting users', async () => {
+    const transaction = vi.fn();
+    const db = {
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      transaction,
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminUsersRouter.createCaller({ userId: 'admin-user' } as any);
+    await expect(
+      caller.resetAllToFreePlan({
+        command: {
+          actionId: 'user.resetAllToFreePlan',
+          confirmationText: 'user.resetAllToFreePlan',
+          confirmed: true,
+          reason: 'reset evidence A',
+        },
+        reason: 'reset evidence B',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ADMIN_COMMAND_REASON_MISMATCH',
+    });
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+});
+
 describe('adminUsersRouter impersonation audit', () => {
   it('records impersonation as an attempt instead of a started session', async () => {
     const findFirst = vi

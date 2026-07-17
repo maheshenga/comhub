@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { ADMIN_COMMANDS } from '@lobechat/types';
 import type { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,8 +8,12 @@ import { GET, POST } from './route';
 type RouteHandler = (request: Request) => Promise<Response>;
 
 const mocks = vi.hoisted(() => ({
+  findFirst: vi.fn(),
   get: vi.fn<RouteHandler>(async () => Response.json({ ok: true })),
+  getServerDB: vi.fn(),
+  getSession: vi.fn(),
   post: vi.fn<RouteHandler>(async () => Response.json({ ok: true })),
+  recordAdminAudit: vi.fn(),
 }));
 
 vi.mock('better-auth/next-js', () => ({
@@ -19,21 +24,48 @@ vi.mock('better-auth/next-js', () => ({
 }));
 
 vi.mock('@/auth', () => ({
-  auth: {},
+  auth: { api: { getSession: mocks.getSession } },
 }));
 
-const createPostRequest = (body: string, contentType = 'application/json') =>
-  new Request('https://localhost/api/auth/sign-in/email', {
+vi.mock('@/database/core/db-adaptor', () => ({
+  getServerDB: mocks.getServerDB,
+}));
+
+vi.mock('@/business/server/lambda-routers/admin/audit', () => ({
+  recordAdminAudit: mocks.recordAdminAudit,
+}));
+
+const createPostRequest = (
+  body: string,
+  contentType = 'application/json',
+  path = '/api/auth/sign-in/email',
+) =>
+  new Request(`https://localhost${path}`, {
     body,
-    headers: { 'Content-Type': contentType },
+    headers: { 'Content-Type': contentType, Cookie: 'session=admin-session' },
     method: 'POST',
   }) as NextRequest;
 
 describe('/api/auth/[...all] route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.findFirst.mockReset();
+    mocks.getServerDB.mockReset();
+    mocks.getSession.mockReset();
+    mocks.recordAdminAudit.mockReset();
     mocks.get.mockResolvedValue(Response.json({ ok: true }));
     mocks.post.mockResolvedValue(Response.json({ ok: true }));
+    mocks.getSession.mockResolvedValue({ user: { id: 'admin-user' } });
+    mocks.findFirst
+      .mockResolvedValueOnce({ banned: false, role: 'support_admin' })
+      .mockResolvedValueOnce({
+        email: 'target@example.com',
+        fullName: 'Target User',
+        id: 'target-user',
+        username: 'target',
+      });
+    mocks.getServerDB.mockResolvedValue({ query: { users: { findFirst: mocks.findFirst } } });
+    mocks.recordAdminAudit.mockResolvedValue(undefined);
   });
 
   it('returns 400 for malformed JSON auth requests before Better Auth handles them', async () => {
@@ -84,5 +116,99 @@ describe('/api/auth/[...all] route', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.get).toHaveBeenCalledWith(request);
+  });
+
+  it('blocks missing and null impersonation commands before Better Auth or audit', async () => {
+    for (const body of [{ userId: 'target-user' }, { command: null, userId: 'target-user' }]) {
+      const response = await POST(
+        createPostRequest(
+          JSON.stringify(body),
+          'application/json',
+          '/api/auth/admin/impersonate-user',
+        ),
+      );
+
+      await expect(response.json()).resolves.toMatchObject({ code: 'ADMIN_COMMAND_REQUIRED' });
+      expect(response.status).toBe(400);
+    }
+
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('blocks a mismatched impersonation command before Better Auth or audit', async () => {
+    const response = await POST(
+      createPostRequest(
+        JSON.stringify({
+          command: { actionId: 'user.setRole', confirmed: true },
+          userId: 'target-user',
+        }),
+        'application/json',
+        '/api/auth/admin/impersonate-user',
+      ),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({
+      code: 'ADMIN_COMMAND_ACTION_MISMATCH',
+    });
+    expect(response.status).toBe(403);
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('does not allow a trailing slash to bypass impersonation command validation', async () => {
+    const response = await POST(
+      createPostRequest(
+        JSON.stringify({ userId: 'target-user' }),
+        'application/json',
+        '/api/auth/admin/impersonate-user/',
+      ),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({ code: 'ADMIN_COMMAND_REQUIRED' });
+    expect(response.status).toBe(400);
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('audits the authenticated actor and target before forwarding to Better Auth unchanged', async () => {
+    const betterAuthResponse = Response.json(
+      { session: { impersonatedBy: 'admin-user', userId: 'target-user' } },
+      { headers: { 'Set-Cookie': 'better-auth.session_token=target-session; Path=/; HttpOnly' } },
+    );
+    mocks.post.mockResolvedValueOnce(betterAuthResponse);
+    const command = { actionId: 'user.impersonate.attempt', confirmed: true } as const;
+
+    const response = await POST(
+      createPostRequest(
+        JSON.stringify({ command, userId: 'target-user' }),
+        'application/json',
+        '/api/auth/admin/impersonate-user',
+      ),
+    );
+
+    expect(response).toBe(betterAuthResponse);
+    expect(response.headers.get('set-cookie')).toContain('better-auth.session_token=target-session');
+    expect(mocks.recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      'admin-user',
+      {
+        action: ADMIN_COMMANDS['user.impersonate.attempt'].auditAction,
+        payload: {
+          targetEmail: 'target@example.com',
+          targetFullName: 'Target User',
+          targetUsername: 'target',
+        },
+        resourceType: 'user',
+        targetUserId: 'target-user',
+      },
+    );
+    expect(mocks.post).toHaveBeenCalledTimes(1);
+    const forwardedRequest = mocks.post.mock.calls[0][0];
+    await expect(forwardedRequest.clone().json()).resolves.toEqual({ userId: 'target-user' });
+    expect(forwardedRequest.headers.get('cookie')).toBe('session=admin-session');
+    expect(mocks.recordAdminAudit.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.post.mock.invocationCallOrder[0],
+    );
   });
 });

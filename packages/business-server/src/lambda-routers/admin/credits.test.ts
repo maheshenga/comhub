@@ -58,6 +58,39 @@ describe('adminCreditsRouter', () => {
     expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
+  it('rejects conflicting legacy and envelope reasons before opening a credit transaction', async () => {
+    const transaction = vi.fn();
+    const db = {
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }),
+        },
+      },
+      transaction,
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminCreditsRouter.createCaller({ userId: 'admin-user' } as any);
+    await expect(
+      caller.adjust({
+        amount: 100,
+        command: {
+          actionId: 'credits.adjust',
+          confirmationText: 'credits.adjust',
+          confirmed: true,
+          reason: 'finance evidence A',
+        },
+        reason: 'finance evidence B',
+        userId: 'target-user',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ADMIN_COMMAND_REASON_MISMATCH',
+    });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
   it('records before and after snapshots when admin adjusts credits', async () => {
     const before = { balance: 200, totalCredited: 500, totalDebited: 300 };
     const after = { balance: 300, totalCredited: 600, totalDebited: 300 };

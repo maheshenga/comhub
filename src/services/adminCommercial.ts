@@ -1,4 +1,4 @@
-import type { AdminCommandEnvelope, AdminRole, Plans } from '@lobechat/types';
+import { ADMIN_COMMANDS, type AdminCommandEnvelope, type AdminRole, type Plans } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
 import type { SubscriptionCycleType } from '@/types/business';
@@ -7,6 +7,7 @@ type AiProviderModelType =
   'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 type NewapiModelType = AiProviderModelType;
+const impersonationBoundary = ADMIN_COMMANDS['user.impersonate.attempt'].serverBoundary;
 
 type AdminModelApiProviderType =
   | 'newapi'
@@ -176,10 +177,12 @@ class AdminCommercialService {
     userId: string,
     command: AdminCommandEnvelope<'user.impersonate.attempt'>,
   ) => {
-    await this.recordImpersonationAttempt(userId, command);
+    if (impersonationBoundary.kind !== 'http') {
+      throw new Error('Invalid impersonation command boundary');
+    }
 
-    const response = await fetch('/api/auth/admin/impersonate-user', {
-      body: JSON.stringify({ userId }),
+    const response = await fetch(impersonationBoundary.path, {
+      body: JSON.stringify({ command, userId }),
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
       method: 'POST',

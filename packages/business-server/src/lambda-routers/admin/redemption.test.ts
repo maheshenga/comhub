@@ -65,6 +65,37 @@ describe('adminRedemptionRouter', () => {
     );
   });
 
+  it('rejects conflicting legacy and envelope reasons before bulk deletion', async () => {
+    const db = {
+      delete: vi.fn(),
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const caller = adminRedemptionRouter.createCaller({ userId: 'admin-user' } as any);
+    await expect(
+      caller.bulkDelete({
+        command: {
+          actionId: 'redemption.bulkDelete',
+          confirmationText: 'redemption.bulkDelete',
+          confirmed: true,
+          reason: 'batch evidence A',
+        },
+        ids: ['code-1'],
+        reason: 'batch evidence B',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ADMIN_COMMAND_REASON_MISMATCH',
+    });
+    expect(db.delete).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
   it('creates and settles redeemed top-up orders inside the redemption transaction', async () => {
     const createTopUpOrder = vi.fn().mockResolvedValue({ id: 'order-1' });
     const settleTopUpOrder = vi.fn().mockResolvedValue({ status: 'paid' });

@@ -102,6 +102,32 @@ describe('admin content router', () => {
     expect(deleteDocument).not.toHaveBeenCalled();
   });
 
+  it('rejects a null command deterministically before any document model call', async () => {
+    const deleteDocument = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(DocumentService).mockImplementation(() => ({ deleteDocument }) as any);
+
+    const db = createDb({
+      document: {
+        id: 'doc-1',
+        sourceType: 'api',
+        title: 'Document',
+        userId: 'user-2',
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminContentRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.deleteDocument({ command: null, documentId: 'doc-1' } as any),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ADMIN_COMMAND_REQUIRED',
+    });
+    expect(DocumentService).not.toHaveBeenCalled();
+    expect(deleteDocument).not.toHaveBeenCalled();
+  });
+
   it('rejects a command for another action before any document model call', async () => {
     const deleteDocument = vi.fn().mockResolvedValue(undefined);
     vi.mocked(DocumentService).mockImplementation(() => ({ deleteDocument }) as any);

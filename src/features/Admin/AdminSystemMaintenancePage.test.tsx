@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -7,6 +8,27 @@ import AdminSystemMaintenancePage from './AdminSystemMaintenancePage';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock('./AdminDangerousActionButton', () => ({
+  default: ({
+    children,
+    onConfirm,
+  }: {
+    children?: ReactNode;
+    onConfirm: (command: {
+      actionId: 'setting.runMaintenance';
+      confirmed: true;
+    }) => Promise<void> | void;
+  }) => (
+    <button
+      onClick={() =>
+        void onConfirm({ actionId: 'setting.runMaintenance', confirmed: true })
+      }
+    >
+      {children}
+    </button>
+  ),
 }));
 
 vi.mock('@/libs/swr', () => ({
@@ -44,10 +66,6 @@ describe('AdminSystemMaintenancePage', () => {
     render(<AdminSystemMaintenancePage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'admin.maintenance.runNow' }));
-    const confirmButtons = await screen.findAllByRole('button', {
-      name: 'admin.maintenance.runNow',
-    });
-    fireEvent.click(confirmButtons.at(-1)!);
 
     await waitFor(() => {
       expect(adminCommercialService.runMaintenance).toHaveBeenCalledWith({

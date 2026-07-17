@@ -135,7 +135,7 @@ describe('adminOrdersRouter', () => {
     expect(settleTopUpOrder).not.toHaveBeenCalled();
   });
 
-  it('requires a reason when manually settling an order', async () => {
+  it('accepts a normalized legacy reason when the envelope omits it', async () => {
     const { caller, settleTopUpOrder } = setupSettleCaller();
 
     await expect(
@@ -146,11 +146,33 @@ describe('adminOrdersRouter', () => {
           confirmed: true,
         },
         orderId: 'order-1',
-        reason: 'legacy top-level reason',
+        reason: '  legacy top-level reason  ',
+      } as any),
+    ).resolves.toMatchObject({ status: 'paid' });
+    expect(settleTopUpOrder).toHaveBeenCalledWith('order-1');
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ payload: expect.objectContaining({ reason: 'legacy top-level reason' }) }),
+    );
+  });
+
+  it('rejects conflicting legacy and envelope reasons before settling an order', async () => {
+    const { caller, settleTopUpOrder } = setupSettleCaller();
+
+    await expect(
+      caller.settle({
+        command: {
+          actionId: 'order.settle',
+          confirmationText: 'order.settle',
+          confirmed: true,
+          reason: 'finance evidence A',
+        },
+        orderId: 'order-1',
+        reason: 'finance evidence B',
       } as any),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'ADMIN_COMMAND_REASON_REQUIRED',
+      message: 'ADMIN_COMMAND_REASON_MISMATCH',
     });
     expect(settleTopUpOrder).not.toHaveBeenCalled();
   });

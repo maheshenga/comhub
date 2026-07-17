@@ -3,125 +3,131 @@ import { describe, expect, it } from 'vitest';
 import { ADMIN_CAPABILITIES } from './admin';
 import { ADMIN_COMMANDS, getAdminCommandDefinition } from './adminCommand';
 
+const trpcBoundary = (procedurePath: string) => ({ kind: 'trpc', procedurePath });
+
 const expectedCommands = {
   'content.deleteDocument': {
     auditAction: 'content.document.delete',
     capability: ADMIN_CAPABILITIES.contentWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.content.deleteDocument',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.content.deleteDocument'),
   },
   'content.deleteFile': {
     auditAction: 'content.file.delete',
     capability: ADMIN_CAPABILITIES.contentWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.content.deleteFile',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.content.deleteFile'),
   },
   'content.deleteTopic': {
     auditAction: 'content.topic.delete',
     capability: ADMIN_CAPABILITIES.contentWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.content.deleteTopic',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.content.deleteTopic'),
   },
   'credits.adjust': {
     auditAction: 'credits.adjust',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'typed',
-    procedurePath: 'admin.credits.adjust',
     reasonPolicy: 'required',
+    serverBoundary: trpcBoundary('admin.credits.adjust'),
   },
   'newapiProvider.deleteInstance': {
     auditAction: 'newapiInstance.delete',
     capability: ADMIN_CAPABILITIES.modelOpsWrite,
     confirmationMode: 'typed',
-    procedurePath: 'admin.newapiProviders.deleteInstance',
     reasonPolicy: 'required',
+    serverBoundary: trpcBoundary('admin.newapiProviders.deleteInstance'),
   },
   'order.cancel': {
     auditAction: 'order.cancel',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.orders.cancel',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.orders.cancel'),
   },
   'order.expire': {
     auditAction: 'order.expire',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.orders.expire',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.orders.expire'),
   },
   'order.settle': {
     auditAction: 'order.settle',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'typed',
-    procedurePath: 'admin.orders.settle',
     reasonPolicy: 'required',
+    serverBoundary: trpcBoundary('admin.orders.settle'),
   },
   'redemption.bulkDelete': {
     auditAction: 'redemption.bulkDelete',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'typed',
-    procedurePath: 'admin.redemption.bulkDelete',
     reasonPolicy: 'required',
+    serverBoundary: trpcBoundary('admin.redemption.bulkDelete'),
   },
   'redemption.bulkDisable': {
     auditAction: 'redemption.bulkDisable',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.redemption.bulkDisable',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.redemption.bulkDisable'),
   },
   'setting.runMaintenance': {
     auditAction: 'maintenance.run',
     capability: ADMIN_CAPABILITIES.systemWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.settings.runMaintenance',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.settings.runMaintenance'),
   },
   'setting.setAppSetting': {
     auditAction: 'settings.set',
     capability: ADMIN_CAPABILITIES.systemWrite,
     confirmationMode: 'none',
-    procedurePath: 'admin.settings.setAppSetting',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.settings.setAppSetting'),
   },
   'subscription.changeRequest.bulkApprove': {
     auditAction: 'subscription.changeRequest.bulkApprove',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.subscriptions.bulkApproveChangeRequests',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.subscriptions.bulkApproveChangeRequests'),
   },
   'subscription.changeRequest.bulkReject': {
     auditAction: 'subscription.changeRequest.bulkReject',
     capability: ADMIN_CAPABILITIES.financeWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.subscriptions.bulkRejectChangeRequests',
     reasonPolicy: 'optional',
+    serverBoundary: trpcBoundary('admin.subscriptions.bulkRejectChangeRequests'),
   },
   'user.impersonate.attempt': {
     auditAction: 'user.impersonate.attempt',
     capability: ADMIN_CAPABILITIES.supportWrite,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.users.recordImpersonationAttempt',
     reasonPolicy: 'none',
+    serverBoundary: {
+      kind: 'http',
+      method: 'POST',
+      path: '/api/auth/admin/impersonate-user',
+    },
   },
   'user.resetAllToFreePlan': {
     auditAction: 'user.resetAllToFreePlan',
     capability: ADMIN_CAPABILITIES.adminAccess,
     confirmationMode: 'typed',
-    procedurePath: 'admin.users.resetAllToFreePlan',
     reasonPolicy: 'required',
+    serverBoundary: trpcBoundary('admin.users.resetAllToFreePlan'),
   },
   'user.setRole': {
     auditAction: 'user.setRole',
     capability: ADMIN_CAPABILITIES.adminAccess,
     confirmationMode: 'confirm',
-    procedurePath: 'admin.users.setRole',
     reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.users.setRole'),
   },
 } as const;
 
@@ -140,13 +146,21 @@ describe('ADMIN_COMMANDS', () => {
     }
   });
 
-  it('keeps compatibility IDs and procedure paths unique', () => {
+  it('keeps compatibility IDs and server boundaries unique', () => {
     const definitions = Object.values(ADMIN_COMMANDS);
+    const boundaryKeys = definitions.map(({ serverBoundary }) =>
+      serverBoundary.kind === 'trpc'
+        ? `trpc:${serverBoundary.procedurePath}`
+        : `http:${serverBoundary.method}:${serverBoundary.path}`,
+    );
 
     expect(new Set(definitions.map(({ actionId }) => actionId)).size).toBe(definitions.length);
-    expect(new Set(definitions.map(({ procedurePath }) => procedurePath)).size).toBe(
-      definitions.length,
-    );
+    expect(new Set(boundaryKeys).size).toBe(definitions.length);
+    expect(ADMIN_COMMANDS['user.impersonate.attempt'].serverBoundary).toEqual({
+      kind: 'http',
+      method: 'POST',
+      path: '/api/auth/admin/impersonate-user',
+    });
   });
 
   it('uses valid capabilities and coherent confirmation and reason policies', () => {

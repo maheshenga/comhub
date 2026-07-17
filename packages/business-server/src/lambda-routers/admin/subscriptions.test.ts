@@ -86,7 +86,7 @@ describe('adminSubscriptionsRouter bulk commands', () => {
           confirmed: true,
           reason: '  insufficient evidence  ',
         },
-        reason: 'legacy reason',
+        reason: ' insufficient evidence ',
         requestIds: ['request-1'],
       }),
     ).resolves.toEqual({ results: [{ ok: true, requestId: 'request-1' }] });
@@ -99,5 +99,29 @@ describe('adminSubscriptionsRouter bulk commands', () => {
         payload: expect.objectContaining({ reason: 'insufficient evidence' }),
       }),
     );
+  });
+
+  it('rejects conflicting legacy and envelope reasons before bulk rejection', async () => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSubscriptionsRouter.createCaller({ userId: 'finance-user' } as any);
+    await expect(
+      caller.bulkRejectChangeRequests({
+        command: {
+          actionId: 'subscription.changeRequest.bulkReject',
+          confirmed: true,
+          reason: 'request evidence A',
+        },
+        reason: 'request evidence B',
+        requestIds: ['request-1'],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ADMIN_COMMAND_REASON_MISMATCH',
+    });
+
+    expect(db.__mocks.updateWhere).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 });

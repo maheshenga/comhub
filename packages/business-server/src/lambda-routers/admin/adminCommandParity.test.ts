@@ -41,7 +41,9 @@ const getProcedureSource = (procedurePath: string) => {
 describe('admin command router parity', () => {
   it('wires every catalog procedure to its declared middleware and command definition', () => {
     for (const definition of Object.values(ADMIN_COMMANDS)) {
-      const { block, source } = getProcedureSource(definition.procedurePath);
+      if (definition.serverBoundary.kind !== 'trpc') continue;
+
+      const { block, source } = getProcedureSource(definition.serverBoundary.procedurePath);
       const middleware = middlewareByCapability[definition.capability];
 
       expect(block, definition.actionId).toMatch(
@@ -73,7 +75,9 @@ describe('admin command router parity', () => {
         ),
       );
       expect(block, definition.actionId).toContain(
-        `const command = ${commandName}.validate(input.command);`,
+        definition.reasonPolicy === 'none'
+          ? `const command = ${commandName}.validate(input.command);`
+          : `const command = ${commandName}.validate(input.command, input.reason);`,
       );
       expect(block, definition.actionId).toContain('action: command.auditAction');
     }

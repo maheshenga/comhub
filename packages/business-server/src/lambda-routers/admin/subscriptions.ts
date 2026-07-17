@@ -262,7 +262,7 @@ export const adminSubscriptionsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const command = bulkRejectCommand.validate(input.command);
+      const command = bulkRejectCommand.validate(input.command, input.reason);
       const results: { error?: string; ok: boolean; requestId: string }[] = [];
       for (const requestId of input.requestIds) {
         try {

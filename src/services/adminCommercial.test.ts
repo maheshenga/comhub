@@ -1,3 +1,4 @@
+import { ADMIN_COMMANDS } from '@lobechat/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { lambdaClient } from '@/libs/trpc/client';
@@ -286,7 +287,7 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
   });
 
-  it('records an impersonation attempt before calling the Better Auth endpoint', async () => {
+  it('forwards the shared command to the catalogued Better Auth effect boundary', async () => {
     vi.mocked(lambdaClient.admin.users.recordImpersonationAttempt.mutate).mockResolvedValue({
       ok: true,
     });
@@ -299,14 +300,19 @@ describe('adminCommercialService NewAPI helpers', () => {
     const command = { actionId: 'user.impersonate.attempt', confirmed: true } as const;
     await adminCommercialService.impersonateUser('target-user', command);
 
-    expect(lambdaClient.admin.users.recordImpersonationAttempt.mutate).toHaveBeenCalledWith({
-      command,
-      userId: 'target-user',
+    expect(ADMIN_COMMANDS['user.impersonate.attempt'].serverBoundary).toEqual({
+      kind: 'http',
+      method: 'POST',
+      path: '/api/auth/admin/impersonate-user',
     });
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/admin/impersonate-user', {
+      body: JSON.stringify({ command, userId: 'target-user' }),
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    });
+    expect(lambdaClient.admin.users.recordImpersonationAttempt.mutate).not.toHaveBeenCalled();
     expect(getLegacyImpersonationStartMock()).not.toHaveBeenCalled();
-    const attemptCallOrder = vi.mocked(lambdaClient.admin.users.recordImpersonationAttempt.mutate)
-      .mock.invocationCallOrder[0];
-    expect(attemptCallOrder).toBeLessThan(fetchMock.mock.invocationCallOrder[0]);
   });
 
   it('does not mark a failed Better Auth impersonation request as started', async () => {
@@ -327,10 +333,7 @@ describe('adminCommercialService NewAPI helpers', () => {
       'forbidden',
     );
 
-    expect(lambdaClient.admin.users.recordImpersonationAttempt.mutate).toHaveBeenCalledWith({
-      command,
-      userId: 'target-user',
-    });
+    expect(lambdaClient.admin.users.recordImpersonationAttempt.mutate).not.toHaveBeenCalled();
     expect(getLegacyImpersonationStartMock()).not.toHaveBeenCalled();
   });
 

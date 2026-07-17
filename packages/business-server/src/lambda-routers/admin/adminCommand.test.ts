@@ -18,6 +18,8 @@ describe('createAdminCommand', () => {
     const command = createAdminCommand('content.deleteDocument');
 
     expectCommandError(() => command.validate(undefined), 'BAD_REQUEST', 'ADMIN_COMMAND_REQUIRED');
+    expectCommandError(() => command.validate(null), 'BAD_REQUEST', 'ADMIN_COMMAND_REQUIRED');
+    expect(command.schema.safeParse(null).success).toBe(true);
     expectCommandError(
       () => command.validate({ actionId: 'content.deleteDocument' }),
       'BAD_REQUEST',
@@ -74,6 +76,27 @@ describe('createAdminCommand', () => {
         }),
       'BAD_REQUEST',
       'ADMIN_COMMAND_REASON_REQUIRED',
+    );
+  });
+
+  it('accepts one normalized legacy or envelope reason and rejects conflicting values', () => {
+    const command = createAdminCommand('order.settle');
+    const envelope = {
+      actionId: 'order.settle',
+      confirmationText: 'order.settle',
+      confirmed: true,
+    } as const;
+
+    expect(command.validate(envelope, '  manual transfer confirmed  ')).toMatchObject({
+      reason: 'manual transfer confirmed',
+    });
+    expect(
+      command.validate({ ...envelope, reason: ' manual transfer confirmed ' }, 'manual transfer confirmed'),
+    ).toMatchObject({ reason: 'manual transfer confirmed' });
+    expectCommandError(
+      () => command.validate({ ...envelope, reason: 'finance evidence A' }, 'finance evidence B'),
+      'BAD_REQUEST',
+      'ADMIN_COMMAND_REASON_MISMATCH',
     );
   });
 

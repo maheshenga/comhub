@@ -51,7 +51,7 @@ describe('adminDangerousActions', () => {
         actionId,
         auditAction: expect.any(String),
         confirmationMode: expect.stringMatching(/^(none|confirm|typed)$/),
-        procedurePath: expect.stringMatching(/^admin\./),
+        serverBoundary: expect.objectContaining({ kind: expect.stringMatching(/^(http|trpc)$/) }),
         severity: expect.stringMatching(/^(medium|high|critical)$/),
       });
     }

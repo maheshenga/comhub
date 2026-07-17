@@ -65,3 +65,42 @@ Result: exit 0
 ## Concerns
 
 None.
+
+## Review Fix Evidence
+
+### Result
+
+- Replaced the impersonation catalog's audit-only tRPC boundary with the actual `POST /api/auth/admin/impersonate-user` HTTP boundary.
+- The auth catch-all now validates the shared command, authenticates and authorizes the actor, resolves the target, records the canonical attempt audit, strips the governance-only command, and then returns Better Auth's response and cookies unchanged.
+- The frontend service sends the envelope directly to the effect boundary and no longer relies on a separate pre-audit tRPC call.
+- Added one reason resolver for envelope and legacy fields. It trims both, accepts one/equal values, rejects conflicting non-empty values with `ADMIN_COMMAND_REASON_MISMATCH`, and supplies the single reason used by writes and audit.
+- Made command schemas nullish at parsing boundaries so `null` reaches deterministic `ADMIN_COMMAND_REQUIRED` validation.
+
+### RED
+
+1. Shared catalog tests failed 2 assertions because definitions had no discriminated `serverBoundary` and impersonation still pointed to the audit-only tRPC procedure.
+2. Backend review tests failed 11 assertions across helper/parity/router suites: `null` was rejected by generic Zod parsing, legacy-only reasons were rejected, and all six reason-bearing routers accepted conflicting values.
+3. Auth route, service, and component forwarding tests failed 6 assertions because direct impersonation requests reached Better Auth without command/audit enforcement, the service dropped the envelope at the HTTP boundary, and the catalog exposed no HTTP boundary.
+4. A self-review route test then failed because a trailing slash bypassed the exact-path guard; path normalization closed that alternate entry.
+
+### GREEN
+
+```text
+Command: cd packages/types && bunx vitest run --silent='passed-only'
+Result: 12 test files passed, 54 tests passed
+
+Command: cd packages/business-server && bunx vitest run --silent='passed-only' src/lambda-routers/admin/adminCommand.test.ts src/lambda-routers/admin/adminCommandParity.test.ts src/lambda-routers/admin/content.test.ts src/lambda-routers/admin/credits.test.ts src/lambda-routers/admin/newapiProviders.test.ts src/lambda-routers/admin/orders.test.ts src/lambda-routers/admin/redemption.test.ts src/lambda-routers/admin/settings.test.ts src/lambda-routers/admin/subscriptions.test.ts src/lambda-routers/admin/users.test.ts
+Result: 10 test files passed, 104 tests passed
+
+Command: node node_modules/vitest/vitest.mjs run --silent='passed-only' src/features/Admin/adminDangerousActions.test.ts src/features/Admin/adminCommercialFlow.test.ts src/features/Admin/AdminSystemMaintenancePage.test.tsx src/features/Admin/AdminDangerousActionButton.test.tsx src/services/adminCommercial.test.ts "src/app/(backend)/api/auth/[...all]/route.test.ts"
+Result: 6 test files passed, 73 tests passed
+
+Command: bun run type-check
+Result: exit 0 (`tsgo --noEmit`)
+
+Command: node node_modules/eslint/bin/eslint.js <all changed TypeScript/TSX files>
+Result: exit 0
+
+Command: git diff --check
+Result: exit 0
+```
