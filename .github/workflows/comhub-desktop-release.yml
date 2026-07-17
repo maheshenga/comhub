@@ -165,7 +165,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${RELEASE_TOKEN}" ]; then
-            echo "Set secret COMHUB_DESKTOP_RELEASE_TOKEN to the same value as backend cron.secret or CRON_SECRET."
+            echo "Set secret COMHUB_DESKTOP_RELEASE_TOKEN to the backend DESKTOP_RELEASE_TOKEN value."
             exit 1
           fi
 

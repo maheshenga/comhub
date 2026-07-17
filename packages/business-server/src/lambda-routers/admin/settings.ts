@@ -50,6 +50,11 @@ import {
   buildAppSettingsGovernance,
   isUnknownAppSettingKey,
 } from '@/server/services/appSettings/governance';
+import {
+  decryptAppSettingSecret,
+  encryptAppSettingSecret,
+  isAppSettingSecretKey,
+} from '@/server/services/appSettings/secrets';
 import { invalidateServerBrand } from '@/server/services/brand';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
@@ -219,6 +224,7 @@ type SettingUpdateInput = { key: string; value?: unknown };
 type NormalizedSettingUpdate = SettingUpdateInput & {
   hasValue: boolean;
   isSensitive: boolean;
+  shouldWrite: boolean;
 };
 type UserSettingsSyncValues = Partial<typeof userSettings.$inferInsert>;
 type UserSettingsSyncOptions = {
@@ -393,17 +399,49 @@ const readInputCompletionDefault = (
   };
 };
 
-const normalizeAppSettingUpdate = (input: SettingUpdateInput): NormalizedSettingUpdate => {
-  const value = normalizeAppSettingValue(
+const normalizeAppSettingUpdate = async (
+  db: LobeChatDatabase,
+  input: SettingUpdateInput,
+): Promise<NormalizedSettingUpdate> => {
+  if (isAppSettingSecretKey(input.key) && typeof input.value !== 'string') {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `${input.key} must be a string`,
+    });
+  }
+
+  let value = normalizeAppSettingValue(
     input.key,
     input.value,
     APP_SETTING_WRITE_SURFACES.genericAdmin,
   );
+  let shouldWrite = true;
+
+  if (isAppSettingSecretKey(input.key)) {
+    if (typeof value !== 'string') {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `${input.key} must be a string`,
+      });
+    }
+
+    if (!value.trim()) {
+      shouldWrite = false;
+    } else if (value.startsWith('****')) {
+      const existingValue = await readSetting(db, input.key);
+      const existingPlaintext = await decryptAppSettingSecret(input.key, existingValue);
+      shouldWrite =
+        typeof existingPlaintext !== 'string' || maskApiKey(existingPlaintext) !== value;
+    }
+
+    if (shouldWrite) value = await encryptAppSettingSecret(input.key, value);
+  }
 
   return {
-    hasValue: value !== null && value !== undefined && value !== '',
+    hasValue: shouldWrite && value !== null && value !== undefined && value !== '',
     isSensitive: isSensitiveCatalogAppSettingKey(input.key),
     key: input.key,
+    shouldWrite,
     value,
   };
 };
@@ -1342,10 +1380,15 @@ export const adminSettingsRouter = router({
       readSetting(ctx.serverDB, SETTING_KEYS.sidebarGenerationLabel),
     ]);
 
-    const dbCronSecret = typeof cronSecret === 'string' ? cronSecret : null;
-    const dbComposioApiKey = typeof composioApiKey === 'string' ? composioApiKey : null;
-    const dbS3Secret =
-      typeof storageS3SecretAccessKey === 'string' ? storageS3SecretAccessKey : null;
+    const [decryptedCronSecret, decryptedComposioApiKey, decryptedS3Secret] = await Promise.all([
+      decryptAppSettingSecret(SETTING_KEYS.cronSecret, cronSecret),
+      decryptAppSettingSecret(SETTING_KEYS.composioApiKey, composioApiKey),
+      decryptAppSettingSecret(SETTING_KEYS.storageS3SecretAccessKey, storageS3SecretAccessKey),
+    ]);
+    const dbCronSecret = typeof decryptedCronSecret === 'string' ? decryptedCronSecret : null;
+    const dbComposioApiKey =
+      typeof decryptedComposioApiKey === 'string' ? decryptedComposioApiKey : null;
+    const dbS3Secret = typeof decryptedS3Secret === 'string' ? decryptedS3Secret : null;
 
     const resolvedDefaultAgentConfig = await getResolvedServerDefaultAgentConfig(ctx.serverDB);
     const currentDefaultModel = ((typeof defaultAgentModel === 'string' &&
@@ -1607,7 +1650,9 @@ export const adminSettingsRouter = router({
   setAppSetting: systemWriteProcedure
     .input(appSettingUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const update = normalizeAppSettingUpdate(input);
+      const update = await normalizeAppSettingUpdate(ctx.serverDB, input);
+      if (!update.shouldWrite) return { ok: true };
+
       await validateDefaultModelUpdates(ctx.serverDB, [update]);
       await upsertAppSetting(ctx.serverDB, update);
 
@@ -1630,7 +1675,12 @@ export const adminSettingsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const updates = input.updates.map(normalizeAppSettingUpdate);
+      const normalizedUpdates = await Promise.all(
+        input.updates.map((update) => normalizeAppSettingUpdate(ctx.serverDB, update)),
+      );
+      const updates = normalizedUpdates.filter((update) => update.shouldWrite);
+      if (updates.length === 0) return { count: input.updates.length, ok: true };
+
       await validateDefaultModelUpdates(ctx.serverDB, updates);
 
       await ctx.serverDB.transaction(async (tx: Transaction) => {
@@ -1650,7 +1700,7 @@ export const adminSettingsRouter = router({
 
       invalidateAppSettingsCaches(updates);
 
-      return { count: updates.length, ok: true };
+      return { count: input.updates.length, ok: true };
     }),
 
   syncUserGlobalSettingsDefaultsToUsers: systemWriteProcedure

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import type { TRPCError } from '@trpc/server';
@@ -8,6 +9,11 @@ import { getServerDB } from '@/database/core/db-adaptor';
 import { getResolvedServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
+import {
+  APP_SETTING_SECRET_PREFIX,
+  decryptAppSettingSecret,
+  encryptAppSettingSecret,
+} from '@/server/services/appSettings/secrets';
 import { invalidateServerBrand } from '@/server/services/brand';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
@@ -23,6 +29,8 @@ import {
   syncUserGlobalSettingsDefaultsToUserSettings,
   validateDefaultAgentModelUsability,
 } from './settings';
+
+const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 9).toString('base64');
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
@@ -105,6 +113,7 @@ const createDb = ({
 
 describe('admin settings default model validation', () => {
   beforeEach(() => {
+    process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
     vi.resetAllMocks();
     vi.mocked(getResolvedServerDefaultAgentConfig).mockResolvedValue({});
     vi.mocked(S3).mockImplementation(
@@ -126,6 +135,7 @@ describe('admin settings default model validation', () => {
   });
 
   afterEach(() => {
+    delete process.env.KEY_VAULTS_SECRET;
     vi.unstubAllGlobals();
   });
 
@@ -566,33 +576,88 @@ describe('admin settings default model validation', () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it('preserves cron.secret boundary whitespace through the catalog adapter', async () => {
+  it('encrypts cron.secret while preserving boundary whitespace in the plaintext', async () => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
     await caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value: '  test-secret  ' });
 
-    expect(db.__mocks.values).toHaveBeenCalledWith({
-      key: APP_SETTING_KEYS.cronSecret,
-      value: '  test-secret  ',
-    });
+    const stored = db.__mocks.values.mock.calls.find(
+      ([value]: any[]) => value.key === APP_SETTING_KEYS.cronSecret,
+    )?.[0].value;
+    expect(stored).toMatch(`${APP_SETTING_SECRET_PREFIX}${APP_SETTING_KEYS.cronSecret}:`);
+    await expect(decryptAppSettingSecret(APP_SETTING_KEYS.cronSecret, stored)).resolves.toBe(
+      '  test-secret  ',
+    );
   });
 
   it.each([
     ['number', 42],
     ['object', { nested: ['value'] }],
-  ])('preserves cron.secret non-string JSON %s through the catalog adapter', async (_, value) => {
+  ])('rejects a new non-string cron.secret %s write', async (_, value) => {
     const db = createDb();
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
-    await caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value });
-
-    expect(db.__mocks.values).toHaveBeenCalledWith({
-      key: APP_SETTING_KEYS.cronSecret,
-      value,
+    await expect(caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
     });
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite a secret with its unchanged masked placeholder', async () => {
+    const existing = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.composioApiKey,
+      'existing-secret',
+    );
+    const db = createDb({ appSettings: [{ value: existing }] });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    await expect(
+      caller.setAppSetting({
+        key: APP_SETTING_KEYS.composioApiKey,
+        value: '****cret',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('decrypts cron.secret only for masking and never returns plaintext', async () => {
+    const encrypted = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.cronSecret,
+      'admin-cron-secret',
+    );
+    const settingRows = Array.from({ length: 100 }, () => null as { value: unknown } | null);
+    settingRows[1] = { value: encrypted };
+    const db = createDb({ appSettings: settingRows });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+    vi.mocked(getAllEnabledModels).mockResolvedValue([]);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .getAll();
+
+    expect(result.cronSecretMasked).toBe('****cret');
+    expect(JSON.stringify(result)).not.toContain('admin-cron-secret');
+  });
+
+  it('rejects secret writes when encryption is unavailable without persisting plaintext', async () => {
+    delete process.env.KEY_VAULTS_SECRET;
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    await expect(
+      caller.setAppSetting({
+        key: APP_SETTING_KEYS.composioApiKey,
+        value: 'must-not-persist',
+      }),
+    ).rejects.toThrow('KEY_VAULTS_SECRET');
+
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it('rejects the deprecated order-management setting in generic writes', async () => {
@@ -885,10 +950,13 @@ describe('admin settings default model validation', () => {
       key: APP_SETTING_KEYS.storageS3Endpoint,
       value: 'https://s3.example.com',
     });
-    expect(db.__mocks.values).toHaveBeenCalledWith({
-      key: APP_SETTING_KEYS.storageS3SecretAccessKey,
-      value: 'admin-secret-key',
-    });
+    const storedSecret = db.__mocks.values.mock.calls.find(
+      ([value]: any[]) => value.key === APP_SETTING_KEYS.storageS3SecretAccessKey,
+    )?.[0].value;
+    expect(storedSecret).not.toBe('admin-secret-key');
+    await expect(
+      decryptAppSettingSecret(APP_SETTING_KEYS.storageS3SecretAccessKey, storedSecret),
+    ).resolves.toBe('admin-secret-key');
     expect(invalidateFileS3RuntimeCache).toHaveBeenCalledTimes(2);
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
@@ -931,10 +999,13 @@ describe('admin settings default model validation', () => {
       key: APP_SETTING_KEYS.storageS3Endpoint,
       value: 'https://s3.example.com',
     });
-    expect(tx.__mocks.values).toHaveBeenCalledWith({
-      key: APP_SETTING_KEYS.storageS3SecretAccessKey,
-      value: 'admin-secret-key',
-    });
+    const storedSecret = tx.__mocks.values.mock.calls.find(
+      ([value]: any[]) => value.key === APP_SETTING_KEYS.storageS3SecretAccessKey,
+    )?.[0].value;
+    expect(storedSecret).not.toBe('admin-secret-key');
+    await expect(
+      decryptAppSettingSecret(APP_SETTING_KEYS.storageS3SecretAccessKey, storedSecret),
+    ).resolves.toBe('admin-secret-key');
     expect(invalidateFileS3RuntimeCache).toHaveBeenCalledTimes(1);
     expect(recordAdminAudit).toHaveBeenCalledTimes(1);
 

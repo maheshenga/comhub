@@ -8,12 +8,14 @@ import { getServerDB } from '@/database/server';
 import { type LobeChatDatabase } from '@/database/type';
 import { type UserSettings } from '@/types/user/settings';
 
+import { decryptAppSettingSecret } from './secrets';
+
 export {
   APP_SETTING_KEYS,
   APP_SETTING_REGISTRY,
+  type AppSettingKey,
   getAppSettingRegistryItem,
   isSensitiveAppSettingKey,
-  type AppSettingKey,
 } from '@/const/appSettingsRegistry';
 
 const CACHED_KEYS = [
@@ -133,7 +135,8 @@ export const getServerComposioConfig = async (
     getAppSettingValue(APP_SETTING_KEYS.composioAuthConfigIds, db),
   ]);
 
-  const resolvedApiKey = normalizeString(apiKey) ?? process.env.COMPOSIO_API_KEY;
+  const decryptedApiKey = await decryptAppSettingSecret(APP_SETTING_KEYS.composioApiKey, apiKey);
+  const resolvedApiKey = normalizeString(decryptedApiKey) ?? process.env.COMPOSIO_API_KEY;
   const envEnabled = parseOptionalBoolean(process.env.COMPOSIO_ENABLED);
   const dbEnabled = typeof enabled === 'boolean' ? enabled : undefined;
 
@@ -226,6 +229,10 @@ export const getServerFileS3Config = async (db?: LobeChatDatabase): Promise<Serv
   ]);
 
   const envPreviewUrlExpireIn = Number.parseInt(process.env.S3_PREVIEW_URL_EXPIRE_IN || '7200');
+  const decryptedSecretAccessKey = await decryptAppSettingSecret(
+    APP_SETTING_KEYS.storageS3SecretAccessKey,
+    secretAccessKey,
+  );
 
   return {
     accessKeyId: normalizeString(accessKeyId) ?? process.env.S3_ACCESS_KEY_ID,
@@ -247,7 +254,8 @@ export const getServerFileS3Config = async (db?: LobeChatDatabase): Promise<Serv
       process.env.S3_PUBLIC_DOMAIN ??
       process.env.NEXT_PUBLIC_S3_DOMAIN,
     region: normalizeString(region) ?? process.env.S3_REGION,
-    secretAccessKey: normalizeString(secretAccessKey) ?? process.env.S3_SECRET_ACCESS_KEY,
+    secretAccessKey:
+      normalizeString(decryptedSecretAccessKey) ?? process.env.S3_SECRET_ACCESS_KEY,
     setAcl: normalizeBoolean(setAcl, process.env.S3_SET_ACL === '1'),
   };
 };

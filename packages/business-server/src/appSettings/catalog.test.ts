@@ -197,7 +197,7 @@ describe('APP_SETTINGS_CATALOG', () => {
     });
   });
 
-  it('preserves focused pre-task normalization behavior', () => {
+  it('preserves non-secret normalization and rejects new non-string cron secrets', () => {
     expect(normalizeAppSettingValue(APP_SETTING_KEYS.brandName, '  ComHub  ')).toBe('ComHub');
     expect(normalizeAppSettingValue(APP_SETTING_KEYS.notificationRetentionDays, 10_000)).toBe(
       3650,
@@ -205,10 +205,12 @@ describe('APP_SETTINGS_CATALOG', () => {
     expect(normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, '  exact secret  ')).toBe(
       '  exact secret  ',
     );
-    expect(normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, 42)).toBe(42);
     expect(
+      () => normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, 42),
+    ).toThrow();
+    expect(() =>
       normalizeAppSettingValue(APP_SETTING_KEYS.cronSecret, { nested: ['value'] }),
-    ).toEqual({ nested: ['value'] });
+    ).toThrow();
   });
 
   it('models PPT settings as dedicated system-write contracts with exact limits', () => {
@@ -321,6 +323,11 @@ describe('APP_SETTINGS_CATALOG', () => {
         'src/app/(backend)/api/admin/maintenance/route.ts',
       ]),
     );
+    expect(catalogItem(APP_SETTING_KEYS.cronSecret).runtimeConsumers).toContainEqual({
+      id: 'desktop-release-legacy-authentication',
+      sourcePath: 'src/app/(backend)/api/admin/desktop-release/route.ts',
+      symbol: 'resolveDesktopReleaseToken',
+    });
     expect(catalogItem(APP_SETTING_KEYS.referralRewardCredits).runtimeConsumers).toContainEqual(
       expect.objectContaining({
         sourcePath: 'packages/database/src/models/commercial.ts',

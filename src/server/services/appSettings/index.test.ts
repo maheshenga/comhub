@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+// @vitest-environment node
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
 
@@ -15,10 +16,20 @@ import {
   normalizeModelIdList,
   serializeModelIdList,
 } from './index';
+import { APP_SETTING_SECRET_PREFIX, encryptAppSettingSecret } from './secrets';
+
+const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 13).toString('base64');
 
 describe('appSettings model helpers', () => {
   beforeEach(() => {
+    process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
     invalidateServerAppSettings();
+  });
+
+  afterEach(() => {
+    delete process.env.KEY_VAULTS_SECRET;
+    delete process.env.COMPOSIO_API_KEY;
+    delete process.env.S3_SECRET_ACCESS_KEY;
   });
 
   it('normalizes and dedupes model IDs from mixed separators', () => {
@@ -135,6 +146,63 @@ describe('appSettings model helpers', () => {
       authConfigIds: '{"gmail":"ac_admin"}',
       enabled: true,
     });
+  });
+
+  it('decrypts Composio and S3 secrets before runtime use', async () => {
+    const composioSecret = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.composioApiKey,
+      'encrypted-composio',
+    );
+    const s3Secret = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.storageS3SecretAccessKey,
+      'encrypted-s3',
+    );
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            { key: APP_SETTING_KEYS.composioApiKey, value: composioSecret },
+            { key: APP_SETTING_KEYS.composioEnabled, value: true },
+            { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: s3Secret },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerComposioConfig(db)).resolves.toMatchObject({
+      apiKey: 'encrypted-composio',
+    });
+    await expect(getServerFileS3Config(db)).resolves.toMatchObject({
+      secretAccessKey: 'encrypted-s3',
+    });
+  });
+
+  it('does not fall through to environment secrets for invalid ciphertext', async () => {
+    process.env.COMPOSIO_API_KEY = 'environment-composio';
+    process.env.S3_SECRET_ACCESS_KEY = 'environment-s3';
+    const db = {
+      query: {
+        appSettings: {
+          findMany: async () => [
+            {
+              key: APP_SETTING_KEYS.composioApiKey,
+              value: `${APP_SETTING_SECRET_PREFIX}${APP_SETTING_KEYS.composioApiKey}:invalid`,
+            },
+            {
+              key: APP_SETTING_KEYS.storageS3SecretAccessKey,
+              value: `${APP_SETTING_SECRET_PREFIX}${APP_SETTING_KEYS.storageS3SecretAccessKey}:invalid`,
+            },
+          ],
+        },
+      },
+    } as any;
+
+    await expect(getServerComposioConfig(db)).rejects.toThrow(
+      'Invalid encrypted app setting secret',
+    );
+    await expect(getServerFileS3Config(db)).rejects.toThrow(
+      'Invalid encrypted app setting secret',
+    );
   });
 
   it('preserves explicitly empty help menu items in public customization config', async () => {

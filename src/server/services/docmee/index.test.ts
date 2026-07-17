@@ -1,7 +1,9 @@
+// @vitest-environment node
 import { Plans } from '@lobechat/types';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
+import { encryptAppSettingSecret } from '@/server/services/appSettings/secrets';
 
 import { DocmeePptService } from './index';
 
@@ -45,9 +47,16 @@ const enabledSettings = [
   { key: APP_SETTING_KEYS.docmeePptApiKey, value: 'sk-secret' },
 ];
 
+const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 19).toString('base64');
+
 describe('DocmeePptService', () => {
   beforeEach(() => {
+    process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    delete process.env.KEY_VAULTS_SECRET;
   });
 
   it('rejects token creation when PPT is disabled', async () => {
@@ -75,6 +84,39 @@ describe('DocmeePptService', () => {
 
     expect(JSON.stringify(runtime)).not.toContain('sk-secret');
     expect(runtime).toMatchObject({ configured: true, enabled: true });
+  });
+
+  it('decrypts the API key before the Docmee upstream request', async () => {
+    const encrypted = await encryptAppSettingSecret(
+      APP_SETTING_KEYS.docmeePptApiKey,
+      'encrypted-docmee-secret',
+    );
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ token: 'docmee-token' }), { status: 200 }),
+    );
+    const db = createDb({
+      query: {
+        appSettings: {
+          findMany: vi.fn().mockResolvedValue([
+            { key: APP_SETTING_KEYS.docmeePptEnabled, value: true },
+            { key: APP_SETTING_KEYS.docmeePptApiKey, value: encrypted },
+          ]),
+        },
+        creditLedgerEntries: { findFirst: vi.fn() },
+        planCatalog: { findFirst: vi.fn().mockResolvedValue({ metadata: { pptEnabled: true } }) },
+        pptUsageRecords: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+        userPlanSnapshots: { findFirst: vi.fn().mockResolvedValue({ plan: Plans.Starter }) },
+      },
+    });
+    const service = new DocmeePptService({ db, userId: 'u1' });
+
+    await expect(service.createToken()).resolves.toMatchObject({ token: 'docmee-token' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'Api-Key': 'encrypted-docmee-secret' }),
+      }),
+    );
   });
 
   it('syncs expired plan snapshots before checking PPT plan capability', async () => {

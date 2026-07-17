@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { appSettings } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
 import { APP_SETTING_KEYS, invalidateServerAppSettings } from '@/server/services/appSettings';
+import { decryptAppSettingSecret } from '@/server/services/appSettings/secrets';
 
 const bodySchema = z.object({
   channel: z.enum(['stable', 'canary']).default('stable'),
@@ -41,11 +42,38 @@ const upsertSetting = async (db: any, key: string, value: unknown) =>
       target: appSettings.key,
     });
 
+/**
+ * Desktop release authentication precedence:
+ * 1. DESKTOP_RELEASE_TOKEN, when configured.
+ * 2. Only when the dedicated token is absent and
+ *    ALLOW_LEGACY_CRON_SECRET_FOR_DESKTOP_RELEASE=1, decrypted database cron.secret.
+ * 3. In that same opt-in legacy mode, CRON_SECRET only when cron.secret is not a string.
+ * Invalid encrypted cron.secret values fail closed without using CRON_SECRET.
+ */
+export const resolveDesktopReleaseToken = async (
+  db: Awaited<ReturnType<typeof getServerDB>>,
+): Promise<null | string> => {
+  if (process.env.DESKTOP_RELEASE_TOKEN) return process.env.DESKTOP_RELEASE_TOKEN;
+  if (process.env.ALLOW_LEGACY_CRON_SECRET_FOR_DESKTOP_RELEASE !== '1') return null;
+
+  const encryptedOrLegacySecret = await readStringSetting(db, APP_SETTING_KEYS.cronSecret);
+  const decryptedSecret = await decryptAppSettingSecret(
+    APP_SETTING_KEYS.cronSecret,
+    encryptedOrLegacySecret,
+  );
+
+  return typeof decryptedSecret === 'string' ? decryptedSecret : process.env.CRON_SECRET ?? null;
+};
+
 export const POST = async (req: NextRequest) => {
   const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
   const db = await getServerDB();
-  const expected =
-    (await readStringSetting(db, APP_SETTING_KEYS.cronSecret)) ?? process.env.CRON_SECRET;
+  let expected: null | string;
+  try {
+    expected = await resolveDesktopReleaseToken(db);
+  } catch {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
 
   if (!expected || token !== expected) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

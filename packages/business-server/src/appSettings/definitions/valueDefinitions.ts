@@ -190,7 +190,7 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
     });
   }
   if (key === APP_SETTING_KEYS.cronSecret) {
-    return defineValue('cron-secret-json', jsonSchema, (value) => value as JsonValue);
+    return defineValue('cron-secret-string', stringSchema, (value) => value as string);
   }
 
   if (key === APP_SETTING_KEYS.composioEnabled) return booleanValue('composio-boolean');

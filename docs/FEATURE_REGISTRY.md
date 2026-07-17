@@ -308,7 +308,7 @@
 | 后端 API / Server Action | `src/app/(backend)/api/admin/desktop-release/route.ts`、`packages/business-server/src/lambda-routers/admin/settings.ts` |
 | 数据库依赖 | app settings；桌面发布记录需要人工确认 |
 | 配置项依赖 | `desktop.download.*`、`desktop.update.*`、`desktop.oss.*`、`desktop.login.*` |
-| 环境变量依赖 | `OFFICIAL_CLOUD_SERVER`、`UPDATE_SERVER_URL`、`DESKTOP_UPDATE_SERVER_URL`、`COMHUB_DESKTOP_RELEASE_TOKEN`、`CSC_LINK` |
+| 环境变量依赖 | `OFFICIAL_CLOUD_SERVER`、`UPDATE_SERVER_URL`、`DESKTOP_UPDATE_SERVER_URL`、workflow secret `COMHUB_DESKTOP_RELEASE_TOKEN`、backend `DESKTOP_RELEASE_TOKEN`、可选兼容开关 `ALLOW_LEGACY_CRON_SECRET_FOR_DESKTOP_RELEASE`、`CSC_LINK` |
 | 外部服务依赖 | GitHub Actions、阿里云 OSS/S3、electron-updater、代码签名/公证服务 |
 | 主要相关文件 | `.github/workflows/comhub-desktop-release.yml`、`apps/desktop/src/main/controllers/UpdaterCtr.ts`、`RemoteServerConfigCtr.ts`、`RemoteServerSyncCtr.ts` |
 | 维护风险 | 高 |

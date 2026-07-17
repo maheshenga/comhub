@@ -5,12 +5,15 @@ import { NextResponse } from 'next/server';
 import { syncExpiredSubscriptionsToFree } from '@/business/server/subscriptionMaintenance';
 import { adminAuditLogs, appSettings, topUpOrders } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
+import { APP_SETTING_KEYS } from '@/server/services/appSettings';
+import { decryptAppSettingSecret } from '@/server/services/appSettings/secrets';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 
 /**
  * POST /api/admin/maintenance
  *
- * Authenticated by Bearer token from app_settings 'cron.secret' OR env CRON_SECRET.
+ * Authenticated by Bearer token from app_settings 'cron.secret', then env CRON_SECRET.
+ * Invalid encrypted database values fail closed and never use the environment fallback.
  * Performs scheduled cleanup tasks:
  *   1. Prune admin audit logs older than `auditRetentionDays` (default 365, range 7..3650).
  *   2. Mark `pending` top-up orders older than `pendingOrderExpiryDays` as `expired`
@@ -47,7 +50,16 @@ export const POST = async (req: NextRequest) => {
   const dbSecretRow = await db.query.appSettings.findFirst({
     where: eq(appSettings.key, 'cron.secret'),
   });
-  const dbSecret = typeof dbSecretRow?.value === 'string' ? dbSecretRow.value : null;
+  let decryptedDbSecret: unknown;
+  try {
+    decryptedDbSecret = await decryptAppSettingSecret(
+      APP_SETTING_KEYS.cronSecret,
+      dbSecretRow?.value,
+    );
+  } catch {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+  const dbSecret = typeof decryptedDbSecret === 'string' ? decryptedDbSecret : null;
   const expected = dbSecret ?? process.env.CRON_SECRET;
 
   if (!expected || token !== expected) {

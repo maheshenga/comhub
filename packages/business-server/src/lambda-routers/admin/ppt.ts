@@ -8,6 +8,10 @@ import {
   type AppSettingKey,
   invalidateServerAppSettings,
 } from '@/server/services/appSettings';
+import {
+  decryptAppSettingSecret,
+  encryptAppSettingSecret,
+} from '@/server/services/appSettings/secrets';
 import { normalizeDocmeePptSettings } from '@/server/services/docmee/config';
 
 import {
@@ -35,7 +39,13 @@ const readSettings = async (db: any) => {
     where: inArray(appSettings.key, [...PPT_SETTING_KEYS]),
   });
 
-  return Object.fromEntries(rows.map((row: any) => [row.key, row.value]));
+  const raw = Object.fromEntries(rows.map((row: any) => [row.key, row.value]));
+  raw[APP_SETTING_KEYS.docmeePptApiKey] = await decryptAppSettingSecret(
+    APP_SETTING_KEYS.docmeePptApiKey,
+    raw[APP_SETTING_KEYS.docmeePptApiKey],
+  );
+
+  return raw;
 };
 
 const saveSetting = async (db: any, key: AppSettingKey, value: unknown) => {
@@ -50,6 +60,16 @@ const saveSetting = async (db: any, key: AppSettingKey, value: unknown) => {
     .values({ key, value: normalizedValue as any })
     .onConflictDoUpdate({
       set: { updatedAt: new Date(), value: normalizedValue as any },
+      target: appSettings.key,
+    });
+};
+
+const saveStoredSetting = async (db: any, key: AppSettingKey, value: unknown) => {
+  await db
+    .insert(appSettings)
+    .values({ key, value: value as any })
+    .onConflictDoUpdate({
+      set: { updatedAt: new Date(), value: value as any },
       target: appSettings.key,
     });
 };
@@ -108,7 +128,27 @@ export const adminPptRouter = router({
       ...('tokenTtlMinutes' in input ? { tokenTtlMinutes: input.tokenTtlMinutes } : {}),
     };
     const trimmedApiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
-    const apiKey = input.clearApiKey ? null : input.apiKey || previous.apiKey;
+    const unchangedMaskedApiKey =
+      Boolean(trimmedApiKey) && trimmedApiKey === maskApiKey(previous.apiKey);
+    let storedApiKey: null | string | undefined;
+
+    if (input.clearApiKey) {
+      storedApiKey = normalizeAppSettingValue(
+        APP_SETTING_KEYS.docmeePptApiKey,
+        null,
+        APP_SETTING_WRITE_SURFACES.pptAdmin,
+      ) as null;
+    } else if (trimmedApiKey && !unchangedMaskedApiKey) {
+      const normalizedApiKey = normalizeAppSettingValue(
+        APP_SETTING_KEYS.docmeePptApiKey,
+        input.apiKey,
+        APP_SETTING_WRITE_SURFACES.pptAdmin,
+      ) as string;
+      storedApiKey = await encryptAppSettingSecret(
+        APP_SETTING_KEYS.docmeePptApiKey,
+        normalizedApiKey,
+      );
+    }
 
     await Promise.all([
       saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptAllowPdfExport, next.allowPdfExport),
@@ -125,15 +165,15 @@ export const adminPptRouter = router({
       saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptEnabled, next.enabled),
       saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptThemeColor, next.themeColor),
       saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptTokenTtlMinutes, next.tokenTtlMinutes),
-      ...(input.clearApiKey || trimmedApiKey
-        ? [saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptApiKey, apiKey)]
+      ...(storedApiKey !== undefined
+        ? [saveStoredSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptApiKey, storedApiKey)]
         : []),
     ]);
 
     await recordAdminAudit(ctx, {
       action: 'ppt.settings.save',
       payload: {
-        apiKeyChanged: input.clearApiKey || Boolean(trimmedApiKey),
+        apiKeyChanged: input.clearApiKey || (Boolean(trimmedApiKey) && !unchangedMaskedApiKey),
         enabled: next.enabled,
       },
       resourceType: 'app_setting',

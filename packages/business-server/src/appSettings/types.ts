@@ -33,7 +33,7 @@ export type AppSettingNormalizer =
   | 'composio-string'
   | 'cron-audit-retention-integer'
   | 'cron-pending-order-expiry-integer'
-  | 'cron-secret-json'
+  | 'cron-secret-string'
   | 'desktop-login-string'
   | 'desktop-update-boolean'
   | 'desktop-update-channel-enum'

@@ -40,11 +40,11 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
     symbol: 'POST',
   },
   {
-    id: 'desktop-release-authentication',
+    id: 'desktop-release-legacy-authentication',
     keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
     keys: [APP_SETTING_KEYS.cronSecret],
     sourcePath: 'src/app/(backend)/api/admin/desktop-release/route.ts',
-    symbol: 'POST',
+    symbol: 'resolveDesktopReleaseToken',
   },
   {
     id: 'manual-maintenance',

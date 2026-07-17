@@ -13,6 +13,7 @@ import {
 } from '@/database/schemas';
 import { type LobeChatDatabase, type Transaction } from '@/database/type';
 import { APP_SETTING_KEYS } from '@/server/services/appSettings';
+import { decryptAppSettingSecret } from '@/server/services/appSettings/secrets';
 
 import {
   type DocmeePlanCapability,
@@ -115,7 +116,13 @@ export class DocmeePptService {
       where: inArray(appSettings.key, DOCMEE_SETTING_KEYS),
     });
 
-    return normalizeDocmeePptSettings(Object.fromEntries(rows.map((row) => [row.key, row.value])));
+    const raw = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+    raw[APP_SETTING_KEYS.docmeePptApiKey] = await decryptAppSettingSecret(
+      APP_SETTING_KEYS.docmeePptApiKey,
+      raw[APP_SETTING_KEYS.docmeePptApiKey],
+    );
+
+    return normalizeDocmeePptSettings(raw);
   };
 
   private getCurrentPlan = async (): Promise<Plans> => {

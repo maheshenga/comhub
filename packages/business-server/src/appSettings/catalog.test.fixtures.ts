@@ -30,7 +30,7 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
   ...assign('cron-pending-order-expiry-integer', [
     APP_SETTING_KEYS.cronPendingOrderExpiryDays,
   ]),
-  ...assign('cron-secret-json', [APP_SETTING_KEYS.cronSecret]),
+  ...assign('cron-secret-string', [APP_SETTING_KEYS.cronSecret]),
   ...assign('desktop-login-string', [
     APP_SETTING_KEYS.desktopLoginCloudButtonLabel,
     APP_SETTING_KEYS.desktopLoginDescription,
