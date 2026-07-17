@@ -16,7 +16,10 @@ const keysWithout = (keys: AppSettingKey[], excluded: AppSettingKey[]) => {
 
 const appSettingsService = 'src/server/services/appSettings/index.ts';
 const adminSettingsReadModel = 'packages/business-server/src/appSettings/adminReadModel.ts';
-const adminSettingsRouter = 'packages/business-server/src/lambda-routers/admin/settings.ts';
+const adminSettingsPublicProcedures =
+  'packages/business-server/src/appSettings/readers/publicProcedures.ts';
+const adminSettingsRuntimeProcedures =
+  'packages/business-server/src/appSettings/writers/runtimeProcedures.ts';
 
 export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
   {
@@ -55,7 +58,7 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
       APP_SETTING_KEYS.cronPendingOrderExpiryDays,
       APP_SETTING_KEYS.notificationRetentionDays,
     ],
-    sourcePath: adminSettingsRouter,
+    sourcePath: adminSettingsRuntimeProcedures,
     symbol: 'runMaintenance',
   },
   {
@@ -111,7 +114,7 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
     id: 'public-profile-options',
     keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
     keys: keysWithPrefixes('profile.'),
-    sourcePath: adminSettingsRouter,
+    sourcePath: adminSettingsPublicProcedures,
     symbol: 'getPublicProfileOptions',
   },
   {
@@ -140,7 +143,7 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
     id: 'public-help-menu',
     keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
     keys: [APP_SETTING_KEYS.helpMenuItems],
-    sourcePath: adminSettingsRouter,
+    sourcePath: adminSettingsPublicProcedures,
     symbol: 'getPublicHelpMenu',
   },
   {
@@ -154,14 +157,14 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
     id: 'public-about-links',
     keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
     keys: [APP_SETTING_KEYS.aboutLinks, APP_SETTING_KEYS.aboutLogoUrl],
-    sourcePath: adminSettingsRouter,
+    sourcePath: adminSettingsPublicProcedures,
     symbol: 'getPublicAboutLinks',
   },
   {
     id: 'public-about-page',
     keyEvidence: { kind: 'registry', namespace: 'SETTING_KEYS' },
     keys: [APP_SETTING_KEYS.aboutPage],
-    sourcePath: adminSettingsRouter,
+    sourcePath: adminSettingsPublicProcedures,
     symbol: 'getPublicAboutPage',
   },
   {
@@ -172,7 +175,7 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
       APP_SETTING_KEYS.communityForkAndChatLabel,
       APP_SETTING_KEYS.defaultSkillName,
     ],
-    sourcePath: adminSettingsRouter,
+    sourcePath: adminSettingsPublicProcedures,
     symbol: 'getPublicBrand',
   },
   {
@@ -199,9 +202,7 @@ export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
   {
     id: 'memory-extraction-runtime',
     keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
-    keys: keysWithout(keysWithPrefixes('memory.'), [
-      APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
-    ]),
+    keys: keysWithout(keysWithPrefixes('memory.'), [APP_SETTING_KEYS.memoryUserMemoryTriggerMode]),
     sourcePath: appSettingsService,
     symbol: 'getServerMemoryExtractionSettingOverrides',
   },

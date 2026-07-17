@@ -65,7 +65,7 @@ describe('scoped admin read procedures', () => {
         ['list: auditReadProcedure', 'exportAll: auditReadProcedure'],
       ],
       [
-        'settings',
+        '../../appSettings/readers/adminProcedures',
         'ADMIN_CAPABILITIES.systemRead',
         [
           'getGovernance: systemReadProcedure',
@@ -73,11 +73,7 @@ describe('scoped admin read procedures', () => {
           'validateDefaultAgentSettings: systemReadProcedure',
         ],
       ],
-      [
-        'ppt',
-        'ADMIN_CAPABILITIES.systemRead',
-        ['getSettings: systemReadProcedure'],
-      ],
+      ['ppt', 'ADMIN_CAPABILITIES.systemRead', ['getSettings: systemReadProcedure']],
     ];
 
     for (const [router, capability, fragments] of expectations) {
@@ -118,10 +114,7 @@ describe('scoped admin read procedures', () => {
 
   it('binds read wrappers to their exact capabilities', () => {
     const expectations: Array<[string, string]> = [
-      [
-        'users',
-        'const userReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userRead)',
-      ],
+      ['users', 'const userReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userRead)'],
       [
         'newapiProviders',
         'const modelOpsReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsRead)',
@@ -131,7 +124,7 @@ describe('scoped admin read procedures', () => {
         'const contentReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentRead)',
       ],
       [
-        'settings',
+        '../../appSettings/readers/adminProcedures',
         'const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead)',
       ],
       [
@@ -236,7 +229,7 @@ describe('scoped admin read procedures', () => {
 
   it('keeps side-effecting diagnostics and cache operations write-bound', () => {
     const providers = readRouter('newapiProviders');
-    const settings = readRouter('settings');
+    const settings = readRouter('../../appSettings/writers/runtimeProcedures');
 
     expect(providers).toContain('testInstanceConnection: modelOpsWriteProcedure');
     expect(providers).toContain('refreshRuntimeCache: modelOpsWriteProcedure');
