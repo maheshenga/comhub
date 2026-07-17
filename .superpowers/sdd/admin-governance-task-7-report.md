@@ -117,3 +117,59 @@ bunx eslint packages/business-server/src/lambda-routers/admin/settings.ts src/co
 - `model-policy` / `system-defaults` section 的 enabled-model shared health 仍依赖模型目录
   可用性；失败语义沿用原 `getAll` 的 `getAllEnabledModels` 行为。
 - `getAll` 处于兼容期，Overview 仍会读取完整 snapshot；后续移除 aggregate API 需独立任务。
+
+## Task 7 审查修复 Follow-up
+
+### 已修复
+
+- 将 `APP_SETTING_KEYS.userGlobalSettingsDefaults` 显式归属 `system-defaults`。catalog
+  section list 现在只在该 section 包含此 key；`getSection('system-defaults')` 会查询并返回
+  已存对象，read-model 不再因 key 被错误分区而生成 `{}` 空基线。
+- `AdminSettingsPage` 与 `AdminSystemDefaultsPage` 各自保留原 owner section read，同时使用
+  `ADMIN_SETTINGS_SECTION_SWR_KEY('file-storage')` 和
+  `getSettingsSection('file-storage')` 单独读取 `storageS3PublicDomain`，作为
+  `ImageUrlUploadInput.publicUrlPrefix`。
+- `storageS3PublicDomain` 仍只属于 `file-storage`；未复制到 `settings`、
+  `system-defaults` 或 `sharedHealth`。
+- 新增 registry、catalog、section route、read-model、页面静态数据流与 service 回归覆盖。
+
+### 已技术否决
+
+- **不修改缓存失效**：`adminCommercialService.setAppSetting`、
+  `setAppSettingsBatch` 与 `savePptSettings` 已统一调用
+  `invalidateAdminSettingsWrites`，按受影响 section 加 compatibility aggregate key 失效；
+  `adminCommercial.test.ts` 已覆盖 section 去重与不误伤无关 section。
+- **不修改 default model suggestions**：当前
+  `getServerDefaultModelSuggestions({ currentModel })` 只返回去重后的 `currentModel`；
+  `buildModelBillingSettings` 的 `Set([defaultAgentModel])` 与基线语义一致，不存在建议列表
+  收缩。
+
+### Follow-up 验证
+
+```powershell
+# packages/business-server
+bunx vitest run --silent='passed-only' src/appSettings/catalog.test.ts src/appSettings/adminReadModel.test.ts src/lambda-routers/admin/settings.test.ts
+```
+
+- 结果：**3 files passed，69/69 tests passed**。
+
+```powershell
+# repository root
+bunx vitest run --silent='passed-only' src/const/appSettingsRegistry.test.ts src/features/Admin/adminCommercialFlow.test.ts src/services/adminCommercial.test.ts
+```
+
+- 结果：**3 files passed，58/58 tests passed**。
+
+```powershell
+bun run type-check
+```
+
+- 结果：**PASS**，`tsgo --noEmit` exit 0。
+
+```powershell
+bunx eslint src/const/appSettingsRegistry.ts src/const/appSettingsRegistry.test.ts packages/business-server/src/appSettings/catalog.test.ts packages/business-server/src/appSettings/adminReadModel.test.ts packages/business-server/src/lambda-routers/admin/settings.test.ts src/features/Admin/AdminSettingsPage.tsx src/features/Admin/AdminSystemDefaultsPage.tsx src/features/Admin/adminCommercialFlow.test.ts src/services/adminCommercial.test.ts
+```
+
+- 结果：**0 errors**，exit 0；保留 26 个非阻塞既有 style warnings。
+- 按约束只执行上述一轮 focused verification，未重跑整套测试。
+- 平台在线支付、Module App、Worker、部署、清理和秘密响应边界均未改动。

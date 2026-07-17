@@ -36,6 +36,19 @@ describe('admin commercial flow pages', () => {
     expect(overviewPage).toContain('useClientDataSWR(ADMIN_SETTINGS_SWR_KEY');
   });
 
+  it('loads file storage separately for image upload public URL prefixes', () => {
+    for (const filePath of [
+      'src/features/Admin/AdminSettingsPage.tsx',
+      'src/features/Admin/AdminSystemDefaultsPage.tsx',
+    ]) {
+      const page = readRepoFile(filePath);
+      expect(page, filePath).toContain("ADMIN_SETTINGS_SECTION_SWR_KEY('file-storage')");
+      expect(page, filePath).toContain("getSettingsSection('file-storage')");
+      expect(page, filePath).toContain('storageSettings?.storageS3PublicDomain');
+      expect(page, filePath).not.toContain('sharedHealth?.storageS3PublicDomain');
+    }
+  });
+
   it('keeps recharge package management inside the orders management surface', () => {
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
     const topupRoute = readRepoFile('src/routes/(main)/admin/topup/index.tsx');

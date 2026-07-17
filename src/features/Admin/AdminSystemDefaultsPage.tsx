@@ -195,10 +195,11 @@ const AdminSystemDefaultsPage = memo(() => {
     ADMIN_SETTINGS_SECTION_SWR_KEY('system-defaults'),
     () => adminCommercialService.getSettingsSection('system-defaults'),
   );
-  const uploadPublicUrlPrefix =
-    typeof (data as any)?.storageS3PublicDomain === 'string'
-      ? (data as any).storageS3PublicDomain
-      : undefined;
+  const { data: storageSettings } = useClientDataSWR(
+    ADMIN_SETTINGS_SECTION_SWR_KEY('file-storage'),
+    () => adminCommercialService.getSettingsSection('file-storage'),
+  );
+  const uploadPublicUrlPrefix = storageSettings?.storageS3PublicDomain || undefined;
   const modelOptions = useMemo(
     () =>
       buildModelOptions({

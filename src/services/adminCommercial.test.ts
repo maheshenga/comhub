@@ -295,17 +295,19 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
   });
 
-  it('uses the requested section for page-scoped settings reads', async () => {
+  it('uses the requested file-storage section for upload URL settings reads', async () => {
     vi.mocked(lambdaClient.admin.settings.getSection.query).mockResolvedValue({
-      growthConfig: {},
-      section: 'growth',
+      section: 'file-storage',
       sharedHealth: {},
+      storageS3PublicDomain: 'https://assets.example.com',
     } as any);
 
-    await adminCommercialService.getSettingsSection('growth');
+    await expect(adminCommercialService.getSettingsSection('file-storage')).resolves.toMatchObject({
+      storageS3PublicDomain: 'https://assets.example.com',
+    });
 
     expect(lambdaClient.admin.settings.getSection.query).toHaveBeenCalledWith({
-      section: 'growth',
+      section: 'file-storage',
     });
     expect(lambdaClient.admin.settings.getAll.query).not.toHaveBeenCalled();
   });

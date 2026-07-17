@@ -40,6 +40,10 @@ const AdminSettingsPage = memo(() => {
   const { data, isLoading } = useClientDataSWR(ADMIN_SETTINGS_SECTION_SWR_KEY('settings'), () =>
     adminCommercialService.getSettingsSection('settings'),
   );
+  const { data: storageSettings } = useClientDataSWR(
+    ADMIN_SETTINGS_SECTION_SWR_KEY('file-storage'),
+    () => adminCommercialService.getSettingsSection('file-storage'),
+  );
   const [form] = Form.useForm<AdminSettingsFormValues>();
   const [materializing, setMaterializing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -48,8 +52,7 @@ const AdminSettingsPage = memo(() => {
   const initialValues = useMemo(() => buildFormValues(data), [data]);
   const pendingUpdates = buildSettingUpdates(watchedValues ?? initialValues, initialValues);
   const hasPendingChanges = pendingUpdates.length > 0;
-  const uploadPublicUrlPrefix =
-    watchedValues?.storageS3PublicDomain || initialValues.storageS3PublicDomain || undefined;
+  const uploadPublicUrlPrefix = storageSettings?.storageS3PublicDomain || undefined;
 
   useEffect(() => {
     if (!data) return;

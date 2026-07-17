@@ -206,6 +206,7 @@ const SYSTEM_DEFAULTS_SECTION_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.composioAuthConfigIds,
   APP_SETTING_KEYS.composioEnabled,
   APP_SETTING_KEYS.profileAvatarPresets,
+  APP_SETTING_KEYS.userGlobalSettingsDefaults,
 ]);
 
 export const getAppSettingsSectionForKey = (key: AppSettingKey): AppSettingsSection => {

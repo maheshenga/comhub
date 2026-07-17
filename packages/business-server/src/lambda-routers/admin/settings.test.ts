@@ -614,6 +614,33 @@ describe('admin settings default model validation', () => {
     );
   });
 
+  it('loads persisted user defaults through the system-defaults section', async () => {
+    const storedDefaults = {
+      general: { themeMode: 'dark' },
+      systemAgent: { inputCompletion: { enabled: true } },
+    };
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.userGlobalSettingsDefaults, value: storedDefaults },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .getSection({ section: 'system-defaults' });
+
+    const where = db.__mocks.findAppSettingsMany.mock.calls[0][0].where;
+    const queriedKeys = new PgDialect().sqlToQuery(where).params;
+    expect(queriedKeys).toEqual(APP_SETTINGS_SECTION_KEYS['system-defaults']);
+    expect(queriedKeys).toContain(APP_SETTING_KEYS.userGlobalSettingsDefaults);
+    expect(result).toMatchObject({
+      section: 'system-defaults',
+      userGlobalSettingsDefaults: storedDefaults,
+    });
+    expect((result as any).userGlobalSettingsDefaults).not.toEqual({});
+  });
+
   it('fails closed for unknown section ids and requires systemRead', async () => {
     vi.mocked(getServerDB).mockResolvedValue(createDb());
     const adminCaller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);

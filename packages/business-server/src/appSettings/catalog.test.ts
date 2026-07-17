@@ -120,8 +120,17 @@ describe('APP_SETTINGS_CATALOG', () => {
         APP_SETTING_KEYS.composioAuthConfigIds,
         APP_SETTING_KEYS.composioEnabled,
         APP_SETTING_KEYS.profileAvatarPresets,
+        APP_SETTING_KEYS.userGlobalSettingsDefaults,
       ]),
     );
+    expect(APP_SETTINGS_SECTION_KEYS.settings).not.toContain(
+      APP_SETTING_KEYS.userGlobalSettingsDefaults,
+    );
+    expect(
+      Object.values(APP_SETTINGS_SECTION_KEYS).filter((keys) =>
+        keys.includes(APP_SETTING_KEYS.userGlobalSettingsDefaults),
+      ),
+    ).toHaveLength(1);
     expect(APP_SETTINGS_SECTION_KEYS.maintenance).toContain(
       APP_SETTING_KEYS.memoryUserMemoryTriggerMode,
     );
