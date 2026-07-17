@@ -10,12 +10,14 @@ describe('ModuleAppAuditModel.writeAuditLog', () => {
 
     await model.writeAuditLog({
       actorUserId: 'module-user',
+      clientIp: '203.0.113.7',
       correlationId: 'runtime-correlation',
       eventType: 'module_app.run_succeeded',
       metadata: { credentials: [{ token: 'secret-value' }], runId: 'run-1' },
       resourceId: 'app-1',
       resourceType: 'moduleApp',
       status: 'succeeded',
+      targetUserId: 'runtime-user',
     });
 
     expect(values).toHaveBeenCalledWith({
@@ -23,6 +25,16 @@ describe('ModuleAppAuditModel.writeAuditLog', () => {
       eventType: 'module_app.run_succeeded',
       metadata: {
         action: 'module_app.run_succeeded',
+        audit: {
+          action: 'module_app.run_succeeded',
+          actorUserId: 'module-user',
+          clientIp: '203.0.113.7',
+          correlationId: 'runtime-correlation',
+          resourceId: 'app-1',
+          resourceType: 'moduleApp',
+          status: 'succeeded',
+          targetUserId: 'runtime-user',
+        },
         correlationId: 'runtime-correlation',
         credentials: [{ token: '[REDACTED]' }],
         resourceId: 'app-1',

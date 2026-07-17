@@ -22,7 +22,11 @@ import {
 } from '@/server/services/newapiInstance';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
-import { recordAdminAudit } from './audit';
+import {
+  recordAdminAudit,
+  runRequiredAdminAuditExternalEffect,
+  runRequiredAdminAuditMutation,
+} from './audit';
 import {
   adminSettingsRouter,
   buildUserGlobalSettingsSyncValues,
@@ -62,6 +66,14 @@ vi.mock('@/server/globalConfig', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
+  runRequiredAdminAuditExternalEffect: vi.fn(async (_ctx, options) => options.effect()),
+  runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
+    const result = ctx.serverDB.transaction
+      ? await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx))
+      : await options.mutation(ctx.serverDB);
+    await recordAdminAudit(ctx, await options.audit(result));
+    return result;
+  }),
 }));
 
 vi.mock('../../subscriptionMaintenance', () => ({
@@ -834,6 +846,7 @@ describe('admin settings default model validation', () => {
       },
       update: updateMock,
     } as any;
+    db.transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(db));
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
@@ -846,10 +859,25 @@ describe('admin settings default model validation', () => {
     expect(result.moduleAppUploadsExpired).toBe(3);
     expect(result.moduleAppUploadCleanupFailed).toBe(1);
     expect(deleteMock).toHaveBeenCalledTimes(2);
+    expect(runRequiredAdminAuditExternalEffect).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        audit: expect.any(Function),
+        effect: expect.any(Function),
+      }),
+    );
+    expect(runRequiredAdminAuditMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        audit: expect.any(Function),
+        mutation: expect.any(Function),
+      }),
+    );
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         action: ADMIN_COMMANDS['setting.runMaintenance'].auditAction,
+        payload: expect.objectContaining({ phase: 'database' }),
       }),
     );
   });

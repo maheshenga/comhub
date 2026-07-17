@@ -5,12 +5,11 @@ import { z } from 'zod';
 
 import { CommercialModel } from '@/database/models/commercial';
 import { subscriptionChangeRequests, userPlanSnapshots } from '@/database/schemas';
-import type { Transaction } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
+import { runRequiredAdminAuditMutation } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
 const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const;
@@ -32,32 +31,31 @@ export const adminSubscriptionsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const model = new CommercialModel(ctx.serverDB, input.userId);
       const assignedAt = Date.now();
       const adminSubscriptionId = `admin-${ctx.userId}-${assignedAt}`;
-      const request = await ctx.serverDB.transaction((tx: Transaction) =>
-        model.grantPlanManually({
-          assignedByUserId: ctx.userId,
-          cycle: input.cycle,
-          durationMonths: input.durationMonths,
-          manualGrantId: adminSubscriptionId,
-          reason: input.reason,
-          targetPlan: input.plan as Plans,
-          tx,
+      const request = await runRequiredAdminAuditMutation<{ id: string }>(ctx, {
+        audit: (request) => ({
+          action: 'subscription.assignPlan',
+          payload: {
+            cycle: input.cycle,
+            durationMonths: input.durationMonths,
+            plan: input.plan,
+            reason: input.reason,
+            requestId: request.id,
+          },
+          resourceType: 'subscription',
+          targetUserId: input.userId,
         }),
-      );
-
-      await recordAdminAudit(ctx, {
-        action: 'subscription.assignPlan',
-        payload: {
-          cycle: input.cycle,
-          durationMonths: input.durationMonths,
-          plan: input.plan,
-          reason: input.reason,
-          requestId: request.id,
-        },
-        resourceType: 'subscription',
-        targetUserId: input.userId,
+        mutation: async (tx) =>
+          new CommercialModel(tx, input.userId).grantPlanManually({
+            assignedByUserId: ctx.userId,
+            cycle: input.cycle,
+            durationMonths: input.durationMonths,
+            manualGrantId: adminSubscriptionId,
+            reason: input.reason,
+            targetPlan: input.plan as Plans,
+            tx,
+          }),
       });
 
       return { ok: true, requestId: request.id };
@@ -73,17 +71,21 @@ export const adminSubscriptionsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const model = new CommercialModel(ctx.serverDB, input.userId);
-      const request = await model.createSubscriptionChangeRequest({
-        cycle: input.cycle,
-        targetPlan: input.plan as Plans,
-      });
-      await model.activateSubscriptionChangeRequest(request.id);
-      await recordAdminAudit(ctx, {
-        action: 'subscription.forceChange',
-        payload: { cycle: input.cycle, plan: input.plan, reason: input.reason },
-        resourceType: 'subscription',
-        targetUserId: input.userId,
+      await runRequiredAdminAuditMutation<void>(ctx, {
+        audit: () => ({
+          action: 'subscription.forceChange',
+          payload: { cycle: input.cycle, plan: input.plan, reason: input.reason },
+          resourceType: 'subscription',
+          targetUserId: input.userId,
+        }),
+        mutation: async (tx) => {
+          const model = new CommercialModel(tx, input.userId);
+          const request = await model.createSubscriptionChangeRequest({
+            cycle: input.cycle,
+            targetPlan: input.plan as Plans,
+          });
+          await model.activateSubscriptionChangeRequest(request.id);
+        },
       });
       return { ok: true };
     }),
@@ -168,22 +170,26 @@ export const adminSubscriptionsRouter = router({
   approveChangeRequest: financeWriteProcedure
     .input(z.object({ requestId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      const request = await ctx.serverDB.query.subscriptionChangeRequests.findFirst({
-        where: eq(subscriptionChangeRequests.id, input.requestId),
-      });
-      if (!request) throw new TRPCError({ code: 'NOT_FOUND', message: 'Change request not found' });
-      if (request.status !== 'pending')
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Request is not pending' });
+      await runRequiredAdminAuditMutation<any>(ctx, {
+        audit: (request) => ({
+          action: 'subscription.changeRequest.approve',
+          payload: { cycle: request.cycle, fromPlan: request.fromPlan, toPlan: request.toPlan },
+          resourceId: request.id,
+          resourceType: 'subscription_change_request',
+          targetUserId: request.userId,
+        }),
+        mutation: async (tx) => {
+          const request = await tx.query.subscriptionChangeRequests.findFirst({
+            where: eq(subscriptionChangeRequests.id, input.requestId),
+          });
+          if (!request)
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Change request not found' });
+          if (request.status !== 'pending')
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Request is not pending' });
 
-      const model = new CommercialModel(ctx.serverDB, request.userId);
-      await model.activateSubscriptionChangeRequest(request.id);
-
-      await recordAdminAudit(ctx, {
-        action: 'subscription.changeRequest.approve',
-        payload: { cycle: request.cycle, fromPlan: request.fromPlan, toPlan: request.toPlan },
-        resourceId: request.id,
-        resourceType: 'subscription_change_request',
-        targetUserId: request.userId,
+          await new CommercialModel(tx, request.userId).activateSubscriptionChangeRequest(request.id);
+          return request;
+        },
       });
       return { ok: true };
     }),
@@ -196,24 +202,29 @@ export const adminSubscriptionsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const request = await ctx.serverDB.query.subscriptionChangeRequests.findFirst({
-        where: eq(subscriptionChangeRequests.id, input.requestId),
-      });
-      if (!request) throw new TRPCError({ code: 'NOT_FOUND', message: 'Change request not found' });
-      if (request.status !== 'pending')
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Request is not pending' });
+      await runRequiredAdminAuditMutation<any>(ctx, {
+        audit: (request) => ({
+          action: 'subscription.changeRequest.reject',
+          payload: { cycle: request.cycle, reason: input.reason, toPlan: request.toPlan },
+          resourceId: request.id,
+          resourceType: 'subscription_change_request',
+          targetUserId: request.userId,
+        }),
+        mutation: async (tx) => {
+          const request = await tx.query.subscriptionChangeRequests.findFirst({
+            where: eq(subscriptionChangeRequests.id, input.requestId),
+          });
+          if (!request)
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Change request not found' });
+          if (request.status !== 'pending')
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Request is not pending' });
 
-      await ctx.serverDB
-        .update(subscriptionChangeRequests)
-        .set({ status: 'rejected', updatedAt: new Date() })
-        .where(eq(subscriptionChangeRequests.id, request.id));
-
-      await recordAdminAudit(ctx, {
-        action: 'subscription.changeRequest.reject',
-        payload: { cycle: request.cycle, reason: input.reason, toPlan: request.toPlan },
-        resourceId: request.id,
-        resourceType: 'subscription_change_request',
-        targetUserId: request.userId,
+          await tx
+            .update(subscriptionChangeRequests)
+            .set({ status: 'rejected', updatedAt: new Date() })
+            .where(eq(subscriptionChangeRequests.id, request.id));
+          return request;
+        },
       });
       return { ok: true };
     }),

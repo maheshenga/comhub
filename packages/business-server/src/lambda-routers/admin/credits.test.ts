@@ -142,14 +142,14 @@ describe('adminCreditsRouter', () => {
       action: ADMIN_COMMANDS['credits.adjust'].auditAction,
       actorUserId: 'admin-user',
       ipAddress: null,
-      payload: {
+      payload: expect.objectContaining({
         after,
         amount: 100,
         before,
         correlationId: expect.any(String),
         reason: 'manual correction',
         status: 'succeeded',
-      },
+      }),
       resourceId: null,
       resourceType: 'credit_account',
       targetUserId: 'target-user',

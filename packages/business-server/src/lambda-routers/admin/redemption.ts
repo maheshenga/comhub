@@ -21,7 +21,7 @@ import {
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
+import { runRequiredAdminAuditMutation } from './audit';
 
 const userDbProcedure = authedProcedure.use(serverDatabase);
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
@@ -111,15 +111,6 @@ export const adminRedemptionRouter = router({
       const ctxUserId = ctx.userId;
       const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
       const batchId = input.batchId ?? `batch_${new Date().toISOString().replaceAll(/[:.]/g, '-')}`;
-
-      if (input.rewardType === 'plan') {
-        await assertPlanRewardIsRedeemable(ctx.serverDB, input.planKey);
-      } else if (input.rewardType === 'topup_package') {
-        await assertTopUpPackageRewardIsRedeemable(ctx.serverDB, input.topupPackageId);
-      }
-
-      // Generate unique codes; collisions extremely unlikely but loop guard.
-      const created: string[] = [];
       const reward =
         input.rewardType === 'plan'
           ? {
@@ -130,36 +121,47 @@ export const adminRedemptionRouter = router({
           : input.rewardType === 'credits'
             ? { creditsAmount: input.creditsAmount }
             : { topupPackageId: input.topupPackageId };
-
-      for (let i = 0; i < input.count; i++) {
-        let attempt = 0;
-        while (attempt < 5) {
-          const code = generateCode(input.codeLength);
-          try {
-            await ctx.serverDB.insert(redemptionCodes).values({
-              batchId,
-              code,
-              createdByUserId: ctxUserId ?? null,
-              expiresAt,
-              note: input.note ?? null,
-              rewardType: input.rewardType,
-              status: 'active',
-              ...reward,
-            } as any);
-            created.push(code);
-            break;
-          } catch (err) {
-            const msg = (err as Error).message ?? '';
-            if (!msg.includes('redemption_codes_code_unique')) throw err;
-            attempt++;
+      const created = await runRequiredAdminAuditMutation<string[]>(ctx, {
+        audit: (created) => ({
+          action: 'redemption.generate',
+          payload: { batchId, count: created.length, rewardType: input.rewardType },
+          resourceType: 'redemption_code',
+        }),
+        mutation: async (tx) => {
+          if (input.rewardType === 'plan') {
+            await assertPlanRewardIsRedeemable(tx, input.planKey);
+          } else if (input.rewardType === 'topup_package') {
+            await assertTopUpPackageRewardIsRedeemable(tx, input.topupPackageId);
           }
-        }
-      }
 
-      await recordAdminAudit(ctx, {
-        action: 'redemption.generate',
-        payload: { batchId, count: created.length, rewardType: input.rewardType },
-        resourceType: 'redemption_code',
+          // Generate unique codes; collisions extremely unlikely but loop guard.
+          const created: string[] = [];
+          for (let i = 0; i < input.count; i++) {
+            let attempt = 0;
+            while (attempt < 5) {
+              const code = generateCode(input.codeLength);
+              try {
+                await tx.insert(redemptionCodes).values({
+                  batchId,
+                  code,
+                  createdByUserId: ctxUserId ?? null,
+                  expiresAt,
+                  note: input.note ?? null,
+                  rewardType: input.rewardType,
+                  status: 'active',
+                  ...reward,
+                } as any);
+                created.push(code);
+                break;
+              } catch (err) {
+                const msg = (err as Error).message ?? '';
+                if (!msg.includes('redemption_codes_code_unique')) throw err;
+                attempt++;
+              }
+            }
+          }
+          return created;
+        },
       });
 
       return { batchId, codes: created };
@@ -209,23 +211,27 @@ export const adminRedemptionRouter = router({
   disable: financeWriteProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      const row = await ctx.serverDB.query.redemptionCodes.findFirst({
-        where: eq(redemptionCodes.id, input.id),
-      });
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' });
-      if (row.status === 'redeemed')
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Already redeemed' });
+      await runRequiredAdminAuditMutation<any>(ctx, {
+        audit: (row) => ({
+          action: 'redemption.disable',
+          payload: { code: row.code },
+          resourceId: row.id,
+          resourceType: 'redemption_code',
+        }),
+        mutation: async (tx) => {
+          const row = await tx.query.redemptionCodes.findFirst({
+            where: eq(redemptionCodes.id, input.id),
+          });
+          if (!row) throw new TRPCError({ code: 'NOT_FOUND' });
+          if (row.status === 'redeemed')
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Already redeemed' });
 
-      await ctx.serverDB
-        .update(redemptionCodes)
-        .set({ status: 'disabled', updatedAt: new Date() })
-        .where(eq(redemptionCodes.id, input.id));
-
-      await recordAdminAudit(ctx, {
-        action: 'redemption.disable',
-        payload: { code: row.code },
-        resourceId: row.id,
-        resourceType: 'redemption_code',
+          await tx
+            .update(redemptionCodes)
+            .set({ status: 'disabled', updatedAt: new Date() })
+            .where(eq(redemptionCodes.id, input.id));
+          return row;
+        },
       });
       return { ok: true };
     }),
@@ -233,23 +239,27 @@ export const adminRedemptionRouter = router({
   enable: financeWriteProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      const row = await ctx.serverDB.query.redemptionCodes.findFirst({
-        where: eq(redemptionCodes.id, input.id),
-      });
-      if (!row) throw new TRPCError({ code: 'NOT_FOUND' });
-      if (row.status === 'redeemed')
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Already redeemed' });
+      await runRequiredAdminAuditMutation<any>(ctx, {
+        audit: (row) => ({
+          action: 'redemption.enable',
+          payload: { code: row.code },
+          resourceId: row.id,
+          resourceType: 'redemption_code',
+        }),
+        mutation: async (tx) => {
+          const row = await tx.query.redemptionCodes.findFirst({
+            where: eq(redemptionCodes.id, input.id),
+          });
+          if (!row) throw new TRPCError({ code: 'NOT_FOUND' });
+          if (row.status === 'redeemed')
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'Already redeemed' });
 
-      await ctx.serverDB
-        .update(redemptionCodes)
-        .set({ status: 'active', updatedAt: new Date() })
-        .where(eq(redemptionCodes.id, input.id));
-
-      await recordAdminAudit(ctx, {
-        action: 'redemption.enable',
-        payload: { code: row.code },
-        resourceId: row.id,
-        resourceType: 'redemption_code',
+          await tx
+            .update(redemptionCodes)
+            .set({ status: 'active', updatedAt: new Date() })
+            .where(eq(redemptionCodes.id, input.id));
+          return row;
+        },
       });
       return { ok: true };
     }),
@@ -257,22 +267,24 @@ export const adminRedemptionRouter = router({
   /** Mark all expired codes whose expiresAt has passed and status='active' as 'expired'. */
   expireOverdue: financeWriteProcedure.mutation(async ({ ctx }) => {
     const now = new Date();
-    const updated = await ctx.serverDB
-      .update(redemptionCodes)
-      .set({ status: 'expired', updatedAt: now })
-      .where(
-        and(
-          eq(redemptionCodes.status, 'active'),
-          isNotNull(redemptionCodes.expiresAt),
-          lt(redemptionCodes.expiresAt, now),
-        ),
-      )
-      .returning({ id: redemptionCodes.id });
-
-    await recordAdminAudit(ctx, {
-      action: 'redemption.expireOverdue',
-      payload: { expired: updated.length },
-      resourceType: 'redemption_code',
+    const updated = await runRequiredAdminAuditMutation<any[]>(ctx, {
+      audit: (updated) => ({
+        action: 'redemption.expireOverdue',
+        payload: { expired: updated.length },
+        resourceType: 'redemption_code',
+      }),
+      mutation: (tx) =>
+        tx
+          .update(redemptionCodes)
+          .set({ status: 'expired', updatedAt: now })
+          .where(
+            and(
+              eq(redemptionCodes.status, 'active'),
+              isNotNull(redemptionCodes.expiresAt),
+              lt(redemptionCodes.expiresAt, now),
+            ),
+          )
+          .returning({ id: redemptionCodes.id }),
     });
     return { expired: updated.length };
   }),

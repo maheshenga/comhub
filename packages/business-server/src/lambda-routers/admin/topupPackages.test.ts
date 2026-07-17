@@ -11,6 +11,11 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
+  runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
+    const result = await options.mutation(ctx.serverDB);
+    await recordAdminAudit(ctx, await options.audit(result));
+    return result;
+  }),
 }));
 
 const createDb = ({

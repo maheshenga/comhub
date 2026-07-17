@@ -9,6 +9,7 @@ describe('writeModuleAppAuditLog', () => {
 
     await writeModuleAppAuditLog({
       actorUserId: 'admin-user',
+      clientIp: '203.0.113.8',
       correlationId: 'module-audit-correlation',
       db,
       eventType: 'module_app.payout_paid',
@@ -16,6 +17,7 @@ describe('writeModuleAppAuditLog', () => {
       resourceId: 'payout-1',
       resourceType: 'moduleAppPayout',
       status: 'succeeded',
+      targetUserId: 'publisher-user',
     });
 
     expect(values).toHaveBeenCalledWith({
@@ -23,6 +25,16 @@ describe('writeModuleAppAuditLog', () => {
       eventType: 'module_app.payout_paid',
       metadata: {
         action: 'module_app.payout_paid',
+        audit: {
+          action: 'module_app.payout_paid',
+          actorUserId: 'admin-user',
+          clientIp: '203.0.113.8',
+          correlationId: 'module-audit-correlation',
+          resourceId: 'payout-1',
+          resourceType: 'moduleAppPayout',
+          status: 'succeeded',
+          targetUserId: 'publisher-user',
+        },
         correlationId: 'module-audit-correlation',
         nested: { APIKey: '[REDACTED]' },
         resourceId: 'payout-1',

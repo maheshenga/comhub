@@ -7,12 +7,12 @@ import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trp
 import { recordAdminAudit } from './audit';
 
 const auditFilterInput = z.object({
-  action: z.string().optional(),
-  actorUserId: z.string().optional(),
+  action: z.string().max(200).optional(),
+  actorUserId: z.string().max(255).optional(),
   from: z.coerce.date().optional(),
-  resourceId: z.string().optional(),
-  resourceType: z.string().optional(),
-  targetUserId: z.string().optional(),
+  resourceId: z.string().max(255).optional(),
+  resourceType: z.string().max(120).optional(),
+  targetUserId: z.string().max(255).optional(),
   to: z.coerce.date().optional(),
 });
 
@@ -87,19 +87,15 @@ export const adminAuditRouter = router({
         where,
       });
 
-      const filters = Object.fromEntries(
-        Object.entries({
-          action: input.action,
-          actorUserId: input.actorUserId,
-          from: input.from,
-          resourceId: input.resourceId,
-          resourceType: input.resourceType,
-          targetUserId: input.targetUserId,
-          to: input.to,
-        })
-          .filter(([, value]) => value !== undefined)
-          .map(([key]) => [key, true]),
-      );
+      const filters = {
+        ...(input.action ? { action: input.action } : {}),
+        ...(input.resourceType ? { resourceType: input.resourceType } : {}),
+        ...(input.from ? { from: input.from.toISOString() } : {}),
+        ...(input.to ? { to: input.to.toISOString() } : {}),
+        ...(input.actorUserId ? { hasActorUserId: true } : {}),
+        ...(input.resourceId ? { hasResourceId: true } : {}),
+        ...(input.targetUserId ? { hasTargetUserId: true } : {}),
+      };
       await recordAdminAudit(ctx, {
         action: 'admin.audit.export',
         payload: { count: items.length, filters, limit },

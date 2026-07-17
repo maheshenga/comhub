@@ -105,15 +105,19 @@ describe('adminAuditRouter', () => {
     expect(built.params).toStrictEqual(['order', 'order-1', from, to]);
   });
 
-  it('records a distinct audit export event without persisted filter values or row contents', async () => {
+  it('records bounded safe export filters without identifiers, rows, or personal query values', async () => {
     const { db, findMany } = createDb();
     findMany.mockResolvedValue([{ id: 'audit-1' }, { id: 'audit-2' }]);
     vi.mocked(getServerDB).mockResolvedValue(db as any);
 
     await adminAuditRouter.createCaller({ userId: 'admin-user' } as any).exportAll({
+      action: 'order.cancel',
       actorUserId: 'person@example.com',
+      from: new Date('2026-05-01T00:00:00.000Z'),
       limit: 1000,
       resourceId: 'order-1',
+      resourceType: 'order',
+      to: new Date('2026-05-31T23:59:59.999Z'),
     });
 
     expect(recordAdminAudit).toHaveBeenCalledWith(
@@ -122,7 +126,14 @@ describe('adminAuditRouter', () => {
         action: 'admin.audit.export',
         payload: {
           count: 2,
-          filters: { actorUserId: true, resourceId: true },
+          filters: {
+            action: 'order.cancel',
+            from: '2026-05-01T00:00:00.000Z',
+            hasActorUserId: true,
+            hasResourceId: true,
+            resourceType: 'order',
+            to: '2026-05-31T23:59:59.999Z',
+          },
           limit: 1000,
         },
         resourceType: 'admin_audit_log',

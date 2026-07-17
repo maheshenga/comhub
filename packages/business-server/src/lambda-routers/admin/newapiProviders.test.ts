@@ -13,7 +13,9 @@ vi.mock('@/database/core/db-adaptor', () => ({
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
   runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
-    const result = await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx));
+    const result = ctx.serverDB.transaction
+      ? await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx))
+      : await options.mutation(ctx.serverDB);
     await recordAdminAudit(ctx, await options.audit(result));
     return result;
   }),

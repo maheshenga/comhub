@@ -11,7 +11,6 @@ import { FileService } from '@/server/services/file';
 
 import { createAdminCommand } from './adminCommand';
 import {
-  recordAdminAudit,
   runRequiredAdminAuditExternalEffect,
   runRequiredAdminAuditMutation,
 } from './audit';
@@ -72,17 +71,20 @@ export const adminContentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const topic = await getTopicForAction(ctx, input.topicId);
 
-      await ctx.serverDB
-        .update(topics)
-        .set({ status: 'archived', updatedAt: new Date() })
-        .where(eq(topics.id, input.topicId));
-
-      await recordAdminAudit(ctx, {
-        action: 'content.topic.archive',
-        payload: { title: topic.title },
-        resourceId: input.topicId,
-        resourceType: 'topic',
-        targetUserId: topic.userId,
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'content.topic.archive',
+          payload: { title: topic.title },
+          resourceId: input.topicId,
+          resourceType: 'topic',
+          targetUserId: topic.userId,
+        }),
+        mutation: async (tx) => {
+          await tx
+            .update(topics)
+            .set({ status: 'archived', updatedAt: new Date() })
+            .where(eq(topics.id, input.topicId));
+        },
       });
 
       return { ok: true };

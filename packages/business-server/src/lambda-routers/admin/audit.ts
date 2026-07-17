@@ -1,9 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+  type AuditEnvelopeStatus,
+  createAuditEnvelope,
+  redactAuditValue,
+} from '@lobechat/types';
+
 import { adminAuditLogs } from '@/database/schemas';
 import type { LobeChatDatabase, Transaction } from '@/database/type';
 
-export type AdminAuditStatus = 'failed' | 'started' | 'succeeded';
+export type AdminAuditStatus = AuditEnvelopeStatus;
 export type AdminAuditMode = 'best-effort' | 'required';
 export type AdminAuditDatabase = LobeChatDatabase | Transaction;
 
@@ -34,35 +40,46 @@ export type RecordAdminAuditOptions = {
   status?: AdminAuditStatus;
 };
 
-const SENSITIVE_AUDIT_FIELD = /authorization|certificate|cookie|key|password|secret|token/i;
-const REDACTED_VALUE = '[REDACTED]';
-
 export const LOW_RISK_BEST_EFFORT_ADMIN_AUDIT_ACTIONS = new Set([
   'newapiInstanceModels.refreshRuntimeCache',
 ]);
 
-export const redactAdminAuditValue = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(redactAdminAuditValue);
-  if (!value || typeof value !== 'object' || value instanceof Date) return value;
-
-  return Object.fromEntries(
-    Object.entries(value).map(([key, nestedValue]) => [
-      key,
-      SENSITIVE_AUDIT_FIELD.test(key) ? REDACTED_VALUE : redactAdminAuditValue(nestedValue),
-    ]),
-  );
-};
+export const redactAdminAuditValue = redactAuditValue;
 
 export const createAdminAuditEnvelopePayload = ({
+  action,
+  actorUserId,
+  clientIp,
   correlationId,
   payload,
+  resourceId,
+  resourceType,
   status,
+  targetUserId,
 }: {
+  action: string;
+  actorUserId: string;
+  clientIp: null | string;
   correlationId: string;
   payload?: Record<string, unknown> | null;
+  resourceId: null | string;
+  resourceType: null | string;
   status: AdminAuditStatus;
+  targetUserId: null | string;
 }): Record<string, unknown> => ({
-  ...(redactAdminAuditValue(payload ?? {}) as Record<string, unknown>),
+  ...createAuditEnvelope({
+    audit: {
+      action,
+      actorUserId,
+      clientIp,
+      correlationId,
+      resourceId,
+      resourceType,
+      status,
+      targetUserId,
+    },
+    payload,
+  }),
   correlationId,
   status,
 });
@@ -79,7 +96,17 @@ const insertAdminAudit = async (
     action: entry.action,
     actorUserId,
     ipAddress,
-    payload: createAdminAuditEnvelopePayload({ correlationId, payload: entry.payload, status }),
+    payload: createAdminAuditEnvelopePayload({
+      action: entry.action,
+      actorUserId,
+      clientIp: ipAddress,
+      correlationId,
+      payload: entry.payload,
+      resourceId: entry.resourceId ?? null,
+      resourceType: entry.resourceType ?? null,
+      status,
+      targetUserId: entry.targetUserId ?? null,
+    }),
     resourceId: entry.resourceId ?? null,
     resourceType: entry.resourceType ?? null,
     targetUserId: entry.targetUserId ?? null,
@@ -163,6 +190,65 @@ export const runRequiredAdminAuditMutation = async <T>(
   });
 };
 
+const MAX_TERMINAL_AUDIT_ATTEMPTS = 3;
+
+export class AdminAuditExternalEffectRecoveryError extends Error {
+  readonly recoveryRequired = true;
+
+  constructor(
+    readonly details: {
+      action: string;
+      cause: unknown;
+      correlationId: string;
+      status: AdminAuditStatus;
+    },
+  ) {
+    super('ADMIN_AUDIT_EXTERNAL_EFFECT_RECOVERY_REQUIRED');
+    this.name = 'AdminAuditExternalEffectRecoveryError';
+  }
+}
+
+const recordTerminalExternalEffectAudit = async <T>(
+  ctx: AuditContext,
+  options: {
+    audit: (status: AdminAuditStatus, result?: T) => AuditEntry | Promise<AuditEntry>;
+    correlationId: string;
+  },
+  status: Exclude<AdminAuditStatus, 'started'>,
+  result?: T,
+) => {
+  let action = 'unknown';
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_TERMINAL_AUDIT_ATTEMPTS; attempt += 1) {
+    try {
+      const entry = await options.audit(status, result);
+      action = entry.action;
+      await recordAdminAudit(ctx, entry, {
+        correlationId: options.correlationId,
+        mode: 'required',
+        status,
+      });
+      return { action, error: null };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  return { action, error: lastError };
+};
+
+const logExternalEffectRecoveryRequired = (params: {
+  action: string;
+  correlationId: string;
+  status: Exclude<AdminAuditStatus, 'started'>;
+}) => {
+  console.error('[admin-audit] external effect terminal audit recovery required', {
+    ...params,
+    recoveryRequired: true,
+  });
+};
+
 /**
  * Audits effects that cannot participate in a database transaction. The
  * durable `started` row is the gate; terminal audit rows describe the outcome,
@@ -188,19 +274,40 @@ export const runRequiredAdminAuditExternalEffect = async <T>(
   try {
     result = await options.effect();
   } catch (error) {
-    await recordAdminAudit(ctx, await options.audit('failed'), {
-      correlationId,
-      mode: 'required',
-      status: 'failed',
-    });
+    const terminal = await recordTerminalExternalEffectAudit(
+      ctx,
+      { audit: options.audit, correlationId },
+      'failed',
+    );
+    if (terminal.error) {
+      logExternalEffectRecoveryRequired({
+        action: terminal.action,
+        correlationId,
+        status: 'failed',
+      });
+    }
     throw error;
   }
 
-  await recordAdminAudit(ctx, await options.audit('succeeded', result), {
-    correlationId,
-    mode: 'required',
-    status: 'succeeded',
-  });
+  const terminal = await recordTerminalExternalEffectAudit(
+    ctx,
+    { audit: options.audit, correlationId },
+    'succeeded',
+    result,
+  );
+  if (terminal.error) {
+    logExternalEffectRecoveryRequired({
+      action: terminal.action,
+      correlationId,
+      status: 'succeeded',
+    });
+    throw new AdminAuditExternalEffectRecoveryError({
+      action: terminal.action,
+      cause: terminal.error,
+      correlationId,
+      status: 'succeeded',
+    });
+  }
 
   return result;
 };

@@ -50,6 +50,16 @@ describe('admin audit write modes', () => {
       actorUserId: 'admin-user',
       ipAddress: '203.0.113.9',
       payload: {
+        audit: {
+          action: 'user.impersonate.attempt',
+          actorUserId: 'admin-user',
+          clientIp: '203.0.113.9',
+          correlationId: 'audit-correlation-1',
+          resourceId: null,
+          resourceType: 'user',
+          status: 'succeeded',
+          targetUserId: 'target-user',
+        },
         correlationId: 'audit-correlation-1',
         status: 'succeeded',
       },
@@ -130,7 +140,7 @@ describe('admin audit write modes', () => {
 
     expect(values).toHaveBeenCalledWith(
       expect.objectContaining({
-        payload: {
+        payload: expect.objectContaining({
           ApiKEY: '[REDACTED]',
           array: [
             { Password: '[REDACTED]', safe: 'visible' },
@@ -147,7 +157,7 @@ describe('admin audit write modes', () => {
           safe: { count: 2, label: 'visible' },
           status: 'succeeded',
           tokenValue: '[REDACTED]',
-        },
+        }),
       }),
     );
   });
@@ -267,13 +277,106 @@ describe('runRequiredAdminAuditExternalEffect', () => {
     expect(values).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        payload: { correlationId: 'external-effect-correlation', status: 'started' },
+        payload: expect.objectContaining({
+          correlationId: 'external-effect-correlation',
+          status: 'started',
+        }),
       }),
     );
     expect(values).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        payload: { correlationId: 'external-effect-correlation', status: 'succeeded' },
+        payload: expect.objectContaining({
+          correlationId: 'external-effect-correlation',
+          status: 'succeeded',
+        }),
+      }),
+    );
+  });
+
+  it('retries a terminal audit write after the external effect succeeds', async () => {
+    let terminalAttempts = 0;
+    const { db, values } = createDb(async (value) => {
+      const status = (value.payload as Record<string, unknown>).status;
+      if (status === 'succeeded' && ++terminalAttempts === 1) {
+        throw new Error('temporary terminal audit failure');
+      }
+    });
+
+    await expect(
+      runRequiredAdminAuditExternalEffect(context(db), {
+        audit: () => ({ action: 'content.file.delete', resourceType: 'file' }),
+        correlationId: 'retry-terminal-correlation',
+        effect: async () => ({ removed: true }),
+      }),
+    ).resolves.toEqual({ removed: true });
+
+    expect(values).toHaveBeenCalledTimes(3);
+    expect(values.mock.calls.map(([value]) => (value.payload as any).status)).toEqual([
+      'started',
+      'succeeded',
+      'succeeded',
+    ]);
+  });
+
+  it('marks recovery as required when every terminal audit attempt fails after the effect succeeds', async () => {
+    const { db, values } = createDb(async (value) => {
+      if ((value.payload as Record<string, unknown>).status !== 'started') {
+        throw new Error('terminal audit insert failed');
+      }
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      runRequiredAdminAuditExternalEffect(context(db), {
+        audit: () => ({ action: 'content.file.delete', resourceType: 'file' }),
+        correlationId: 'recovery-required-correlation',
+        effect: async () => ({ removed: true }),
+      }),
+    ).rejects.toMatchObject({ recoveryRequired: true });
+
+    expect(values.mock.calls.map(([value]) => (value.payload as any).status)).toEqual([
+      'started',
+      'succeeded',
+      'succeeded',
+      'succeeded',
+    ]);
+    expect(consoleError).toHaveBeenCalledWith(
+      '[admin-audit] external effect terminal audit recovery required',
+      expect.objectContaining({
+        action: 'content.file.delete',
+        correlationId: 'recovery-required-correlation',
+        recoveryRequired: true,
+        status: 'succeeded',
+      }),
+    );
+  });
+
+  it('preserves the effect failure when its terminal audit cannot be persisted', async () => {
+    const effectFailure = new Error('storage cleanup failed');
+    const { db } = createDb(async (value) => {
+      if ((value.payload as Record<string, unknown>).status !== 'started') {
+        throw new Error('terminal audit insert failed');
+      }
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      runRequiredAdminAuditExternalEffect(context(db), {
+        audit: () => ({ action: 'content.file.delete', resourceType: 'file' }),
+        correlationId: 'failed-effect-recovery-correlation',
+        effect: async () => {
+          throw effectFailure;
+        },
+      }),
+    ).rejects.toBe(effectFailure);
+
+    expect(consoleError).toHaveBeenCalledWith(
+      '[admin-audit] external effect terminal audit recovery required',
+      expect.objectContaining({
+        correlationId: 'failed-effect-recovery-correlation',
+        recoveryRequired: true,
+        status: 'failed',
       }),
     );
   });

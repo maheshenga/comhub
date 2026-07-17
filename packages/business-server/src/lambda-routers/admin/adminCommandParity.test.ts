@@ -25,9 +25,19 @@ const middlewareByCapability: Record<AdminCapability, string> = {
 
 const externalEffectOrAuditOnlyCommands = new Set([
   'content.deleteFile',
-  'setting.runMaintenance',
   'user.impersonate.attempt',
 ]);
+
+const sensitiveMutationRouters = [
+  'content.ts',
+  'newapiProviders.ts',
+  'orders.ts',
+  'plans.ts',
+  'settings.ts',
+  'subscriptions.ts',
+  'topupPackages.ts',
+  'users.ts',
+];
 
 const escapeRegExp = (value: string) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -95,6 +105,19 @@ describe('admin command router parity', () => {
         !externalEffectOrAuditOnlyCommands.has(definition.actionId)
       ) {
         expect(block, definition.actionId).toMatch(/runRequiredAdminAuditMutation(?:<[^>]+>)?\(/);
+      }
+    }
+  });
+
+  it('rejects direct required audit calls after normal database mutation chains', () => {
+    for (const routerFile of sensitiveMutationRouters) {
+      const source = readFileSync(path.join(__dirname, routerFile), 'utf8');
+      const procedureBlocks = source.split(/\n {2}\w+:/);
+
+      for (const block of procedureBlocks) {
+        expect(block, routerFile).not.toMatch(
+          /(?:ctx\.serverDB|tx)\.(?:delete|insert|update)\([\s\S]*?await recordAdminAudit\(ctx,/,
+        );
       }
     }
   });

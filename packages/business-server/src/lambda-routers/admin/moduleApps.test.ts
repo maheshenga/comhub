@@ -790,8 +790,21 @@ describe('admin module apps router', () => {
     expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'admin-user',
+        db: transactionDb,
         eventType: 'module_app.payment_discrepancy_acknowledged',
         resourceId: discrepancyId,
+      }),
+    );
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-user',
+        eventType: 'module_app.payment_reconciliation_exported',
+        metadata: {
+          count: 0,
+          filters: { cursor: 0, limit: 500, status: 'open' },
+        },
+        resourceId: 'payment-reconciliation',
+        resourceType: 'moduleAppPaymentReconciliation',
       }),
     );
   });
@@ -914,6 +927,7 @@ describe('admin module apps router', () => {
     expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'admin-user',
+        db: transactionDb,
         eventType: 'module_app.payout_paid',
         resourceId: PAYOUT_ID,
         resourceType: 'moduleAppPayout',

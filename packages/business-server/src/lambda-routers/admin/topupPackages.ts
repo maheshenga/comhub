@@ -9,7 +9,7 @@ import {
 import { redemptionCodes, topUpPackages } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
-import { recordAdminAudit } from './audit';
+import { runRequiredAdminAuditMutation } from './audit';
 
 const PackageInputSchema = z.object({
   amount: z.number().min(0),
@@ -34,23 +34,27 @@ export const adminTopUpPackagesRouter = router({
   delete: financeWriteProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      const referencingCode = await ctx.serverDB.query.redemptionCodes.findFirst({
-        columns: { id: true },
-        where: eq(redemptionCodes.topupPackageId, input.id),
-      });
+      await runRequiredAdminAuditMutation<void>(ctx, {
+        audit: () => ({
+          action: 'topupPackage.delete',
+          resourceId: input.id,
+          resourceType: 'topup_package',
+        }),
+        mutation: async (tx) => {
+          const referencingCode = await tx.query.redemptionCodes.findFirst({
+            columns: { id: true },
+            where: eq(redemptionCodes.topupPackageId, input.id),
+          });
 
-      if (referencingCode) {
-        throw new TRPCError({
-          code: 'PRECONDITION_FAILED',
-          message: 'TOPUP_PACKAGE_HAS_REDEMPTION_CODES',
-        });
-      }
+          if (referencingCode) {
+            throw new TRPCError({
+              code: 'PRECONDITION_FAILED',
+              message: 'TOPUP_PACKAGE_HAS_REDEMPTION_CODES',
+            });
+          }
 
-      await ctx.serverDB.delete(topUpPackages).where(eq(topUpPackages.id, input.id));
-      await recordAdminAudit(ctx, {
-        action: 'topupPackage.delete',
-        resourceId: input.id,
-        resourceType: 'topup_package',
+          await tx.delete(topUpPackages).where(eq(topUpPackages.id, input.id));
+        },
       });
       return { ok: true };
     }),
@@ -65,19 +69,23 @@ export const adminTopUpPackagesRouter = router({
   setActive: financeWriteProcedure
     .input(z.object({ id: z.string().min(1), isActive: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      const result = await ctx.serverDB
-        .update(topUpPackages)
-        .set({ isActive: input.isActive, updatedAt: new Date() })
-        .where(eq(topUpPackages.id, input.id))
-        .returning({ id: topUpPackages.id });
+      await runRequiredAdminAuditMutation<void>(ctx, {
+        audit: () => ({
+          action: 'topupPackage.setActive',
+          payload: { isActive: input.isActive },
+          resourceId: input.id,
+          resourceType: 'topup_package',
+        }),
+        mutation: async (tx) => {
+          const result = await tx
+            .update(topUpPackages)
+            .set({ isActive: input.isActive, updatedAt: new Date() })
+            .where(eq(topUpPackages.id, input.id))
+            .returning({ id: topUpPackages.id });
 
-      if (result.length === 0)
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Package not found' });
-      await recordAdminAudit(ctx, {
-        action: 'topupPackage.setActive',
-        payload: { isActive: input.isActive },
-        resourceId: input.id,
-        resourceType: 'topup_package',
+          if (result.length === 0)
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Package not found' });
+        },
       });
       return { ok: true };
     }),
@@ -85,35 +93,41 @@ export const adminTopUpPackagesRouter = router({
   upsert: financeWriteProcedure.input(PackageInputSchema).mutation(async ({ ctx, input }) => {
     const { originalAmount, promotionEnabled, promotionLabel, promotionNote, ...packageInput } =
       input;
-    const existing = await ctx.serverDB.query.topUpPackages.findFirst({
-      where: eq(topUpPackages.id, packageInput.id),
-    });
-    const previousMetadata =
-      existing?.metadata && typeof existing.metadata === 'object' ? existing.metadata : {};
-    const promotion = normalizeTopUpPackagePromotion({
-      originalAmount,
-      promotionEnabled,
-      promotionLabel,
-      promotionNote,
-    });
-    const metadata = {
-      ...previousMetadata,
-      ...serializeTopUpPackagePromotion(promotion),
-    };
+    await runRequiredAdminAuditMutation<any>(ctx, {
+      audit: ({ existing, metadata }) => ({
+        action: existing ? 'topupPackage.update' : 'topupPackage.create',
+        payload: { ...packageInput, metadata },
+        resourceId: packageInput.id,
+        resourceType: 'topup_package',
+      }),
+      mutation: async (tx) => {
+        const existing = await tx.query.topUpPackages.findFirst({
+          where: eq(topUpPackages.id, packageInput.id),
+        });
+        const previousMetadata =
+          existing?.metadata && typeof existing.metadata === 'object' ? existing.metadata : {};
+        const promotion = normalizeTopUpPackagePromotion({
+          originalAmount,
+          promotionEnabled,
+          promotionLabel,
+          promotionNote,
+        });
+        const metadata = {
+          ...previousMetadata,
+          ...serializeTopUpPackagePromotion(promotion),
+        };
 
-    if (existing) {
-      await ctx.serverDB
-        .update(topUpPackages)
-        .set({ ...packageInput, metadata, updatedAt: new Date() })
-        .where(eq(topUpPackages.id, packageInput.id));
-    } else {
-      await ctx.serverDB.insert(topUpPackages).values({ ...packageInput, metadata });
-    }
-    await recordAdminAudit(ctx, {
-      action: existing ? 'topupPackage.update' : 'topupPackage.create',
-      payload: { ...packageInput, metadata },
-      resourceId: packageInput.id,
-      resourceType: 'topup_package',
+        if (existing) {
+          await tx
+            .update(topUpPackages)
+            .set({ ...packageInput, metadata, updatedAt: new Date() })
+            .where(eq(topUpPackages.id, packageInput.id));
+        } else {
+          await tx.insert(topUpPackages).values({ ...packageInput, metadata });
+        }
+
+        return { existing, metadata };
+      },
     });
     return { ok: true };
   }),

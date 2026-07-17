@@ -238,16 +238,20 @@ export const adminNewapiProvidersRouter = router({
     .input(InstanceInputSchema)
     .mutation(async ({ ctx, input }) => {
       const data = await normalizeInstanceInput(input);
-      const [row] = await ctx.serverDB
-        .insert(adminNewapiInstances)
-        .values(data)
-        .returning({ id: adminNewapiInstances.id });
-
-      await recordAdminAudit(ctx, {
-        action: 'newapiInstance.create',
-        payload: { name: input.name },
-        resourceId: row.id,
-        resourceType: 'admin_newapi_instances',
+      const row = await runRequiredAdminAuditMutation<{ id: string }>(ctx, {
+        audit: (row) => ({
+          action: 'newapiInstance.create',
+          payload: { name: input.name },
+          resourceId: row.id,
+          resourceType: 'admin_newapi_instances',
+        }),
+        mutation: async (tx) => {
+          const [row] = await tx
+            .insert(adminNewapiInstances)
+            .values(data)
+            .returning({ id: adminNewapiInstances.id });
+          return row;
+        },
       });
       invalidateNewapiInstancesCache();
       return { id: row.id };
@@ -325,20 +329,23 @@ export const adminNewapiProvidersRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const data = await normalizeInstanceInput(input.data);
-      const result = await ctx.serverDB
-        .update(adminNewapiInstances)
-        .set({ ...data, updatedAt: new Date() })
-        .where(eq(adminNewapiInstances.id, input.id))
-        .returning({ id: adminNewapiInstances.id });
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'newapiInstance.update',
+          payload: { ...input.data, apiKey: input.data.apiKey ? '***' : undefined },
+          resourceId: input.id,
+          resourceType: 'admin_newapi_instances',
+        }),
+        mutation: async (tx) => {
+          const result = await tx
+            .update(adminNewapiInstances)
+            .set({ ...data, updatedAt: new Date() })
+            .where(eq(adminNewapiInstances.id, input.id))
+            .returning({ id: adminNewapiInstances.id });
 
-      if (result.length === 0)
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
-
-      await recordAdminAudit(ctx, {
-        action: 'newapiInstance.update',
-        payload: { ...input.data, apiKey: input.data.apiKey ? '***' : undefined },
-        resourceId: input.id,
-        resourceType: 'admin_newapi_instances',
+          if (result.length === 0)
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+        },
       });
       invalidateNewapiInstancesCache();
       return { ok: true };
@@ -347,16 +354,19 @@ export const adminNewapiProvidersRouter = router({
   toggleInstanceEnabled: modelOpsWriteProcedure
     .input(z.object({ enabled: z.boolean(), id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.serverDB
-        .update(adminNewapiInstances)
-        .set({ enabled: input.enabled, updatedAt: new Date() })
-        .where(eq(adminNewapiInstances.id, input.id));
-
-      await recordAdminAudit(ctx, {
-        action: 'newapiInstance.toggle',
-        payload: { enabled: input.enabled },
-        resourceId: input.id,
-        resourceType: 'admin_newapi_instances',
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'newapiInstance.toggle',
+          payload: { enabled: input.enabled },
+          resourceId: input.id,
+          resourceType: 'admin_newapi_instances',
+        }),
+        mutation: async (tx) => {
+          await tx
+            .update(adminNewapiInstances)
+            .set({ enabled: input.enabled, updatedAt: new Date() })
+            .where(eq(adminNewapiInstances.id, input.id));
+        },
       });
       invalidateNewapiInstancesCache();
       return { ok: true };
@@ -408,31 +418,34 @@ export const adminNewapiProvidersRouter = router({
       const staleCount = normalizedRows.filter((row) => row.metadata.syncStatus === 'stale').length;
       const importedCount = normalizedRows.length - staleCount;
 
-      if (rows.length > 0) {
-        await ctx.serverDB
-          .insert(adminNewapiInstanceModels)
-          .values(rows)
-          .onConflictDoUpdate({
-            set: {
-              displayName: sql`excluded.display_name`,
-              enabled: sql`excluded.enabled`,
-              metadata: sql`excluded.metadata`,
-              sortOrder: sql`excluded.sort_order`,
-              updatedAt: new Date(),
-            },
-            target: [
-              adminNewapiInstanceModels.instanceId,
-              adminNewapiInstanceModels.modelId,
-              adminNewapiInstanceModels.modelType,
-            ],
-          });
-      }
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'newapiInstanceModels.sync',
+          payload: { count: importedCount, staleCount },
+          resourceId: input.id,
+          resourceType: 'admin_newapi_instance_models',
+        }),
+        mutation: async (tx) => {
+          if (rows.length === 0) return;
 
-      await recordAdminAudit(ctx, {
-        action: 'newapiInstanceModels.sync',
-        payload: { count: importedCount, staleCount },
-        resourceId: input.id,
-        resourceType: 'admin_newapi_instance_models',
+          await tx
+            .insert(adminNewapiInstanceModels)
+            .values(rows)
+            .onConflictDoUpdate({
+              set: {
+                displayName: sql`excluded.display_name`,
+                enabled: sql`excluded.enabled`,
+                metadata: sql`excluded.metadata`,
+                sortOrder: sql`excluded.sort_order`,
+                updatedAt: new Date(),
+              },
+              target: [
+                adminNewapiInstanceModels.instanceId,
+                adminNewapiInstanceModels.modelId,
+                adminNewapiInstanceModels.modelType,
+              ],
+            });
+        },
       });
       invalidateNewapiInstancesCache();
 
@@ -543,28 +556,31 @@ export const adminNewapiProvidersRouter = router({
         instanceId: input.instanceId,
       }));
 
-      await ctx.serverDB
-        .insert(adminNewapiInstanceModels)
-        .values(rows)
-        .onConflictDoUpdate({
-          set: {
-            displayName: sql`excluded.display_name`,
-            enabled: sql`excluded.enabled`,
-            sortOrder: sql`excluded.sort_order`,
-            updatedAt: new Date(),
-          },
-          target: [
-            adminNewapiInstanceModels.instanceId,
-            adminNewapiInstanceModels.modelId,
-            adminNewapiInstanceModels.modelType,
-          ],
-        });
-
-      await recordAdminAudit(ctx, {
-        action: 'newapiInstanceModels.add',
-        payload: { count: input.models.length },
-        resourceId: input.instanceId,
-        resourceType: 'admin_newapi_instance_models',
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'newapiInstanceModels.add',
+          payload: { count: input.models.length },
+          resourceId: input.instanceId,
+          resourceType: 'admin_newapi_instance_models',
+        }),
+        mutation: async (tx) => {
+          await tx
+            .insert(adminNewapiInstanceModels)
+            .values(rows)
+            .onConflictDoUpdate({
+              set: {
+                displayName: sql`excluded.display_name`,
+                enabled: sql`excluded.enabled`,
+                sortOrder: sql`excluded.sort_order`,
+                updatedAt: new Date(),
+              },
+              target: [
+                adminNewapiInstanceModels.instanceId,
+                adminNewapiInstanceModels.modelId,
+                adminNewapiInstanceModels.modelType,
+              ],
+            });
+        },
       });
       invalidateNewapiInstancesCache();
       return { ok: true };
@@ -604,21 +620,24 @@ export const adminNewapiProvidersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await ctx.serverDB
-        .delete(adminNewapiInstanceModels)
-        .where(
-          and(
-            eq(adminNewapiInstanceModels.instanceId, input.instanceId),
-            eq(adminNewapiInstanceModels.modelId, input.modelId),
-            eq(adminNewapiInstanceModels.modelType, input.modelType),
-          ),
-        );
-
-      await recordAdminAudit(ctx, {
-        action: 'newapiInstanceModels.remove',
-        payload: { modelId: input.modelId, modelType: input.modelType },
-        resourceId: input.instanceId,
-        resourceType: 'admin_newapi_instance_models',
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'newapiInstanceModels.remove',
+          payload: { modelId: input.modelId, modelType: input.modelType },
+          resourceId: input.instanceId,
+          resourceType: 'admin_newapi_instance_models',
+        }),
+        mutation: async (tx) => {
+          await tx
+            .delete(adminNewapiInstanceModels)
+            .where(
+              and(
+                eq(adminNewapiInstanceModels.instanceId, input.instanceId),
+                eq(adminNewapiInstanceModels.modelId, input.modelId),
+                eq(adminNewapiInstanceModels.modelType, input.modelType),
+              ),
+            );
+        },
       });
       invalidateNewapiInstancesCache();
       return { ok: true };
@@ -639,26 +658,29 @@ export const adminNewapiProvidersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await ctx.serverDB
-        .update(adminNewapiInstanceModels)
-        .set({ ...input.data, updatedAt: new Date() })
-        .where(
-          and(
-            eq(adminNewapiInstanceModels.instanceId, input.instanceId),
-            eq(adminNewapiInstanceModels.modelId, input.modelId),
-            eq(adminNewapiInstanceModels.modelType, input.modelType),
-          ),
-        );
-
-      await recordAdminAudit(ctx, {
-        action: 'newapiInstanceModels.update',
-        payload: {
-          fields: Object.keys(input.data),
-          modelId: input.modelId,
-          modelType: input.modelType,
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'newapiInstanceModels.update',
+          payload: {
+            fields: Object.keys(input.data),
+            modelId: input.modelId,
+            modelType: input.modelType,
+          },
+          resourceId: input.instanceId,
+          resourceType: 'admin_newapi_instance_models',
+        }),
+        mutation: async (tx) => {
+          await tx
+            .update(adminNewapiInstanceModels)
+            .set({ ...input.data, updatedAt: new Date() })
+            .where(
+              and(
+                eq(adminNewapiInstanceModels.instanceId, input.instanceId),
+                eq(adminNewapiInstanceModels.modelId, input.modelId),
+                eq(adminNewapiInstanceModels.modelType, input.modelType),
+              ),
+            );
         },
-        resourceId: input.instanceId,
-        resourceType: 'admin_newapi_instance_models',
       });
       invalidateNewapiInstancesCache();
       return { ok: true };

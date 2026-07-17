@@ -283,23 +283,39 @@ const UpdateProductInputSchema = ModuleAppProductFieldsSchema.extend({
 }).superRefine(validateProductFields);
 
 const writeAudit = async (
-  ctx: { serverDB: LobeChatDatabase | Transaction; userId: string },
+  ctx: { clientIp?: null | string; serverDB: LobeChatDatabase | Transaction; userId: string },
   input: {
     eventType: string;
     metadata?: null | Record<string, unknown>;
     resourceId: string;
     resourceType?: string;
+    targetUserId?: null | string;
   },
 ) => {
   await writeModuleAppAuditLog({
     actorUserId: ctx.userId,
+    clientIp: ctx.clientIp ?? null,
     db: ctx.serverDB,
     eventType: input.eventType,
     metadata: input.metadata,
     resourceId: input.resourceId,
     resourceType: input.resourceType ?? 'moduleApp',
+    targetUserId: input.targetUserId ?? null,
   });
 };
+
+const runRequiredModuleAppAuditMutation = async <T>(
+  ctx: { clientIp?: null | string; serverDB: LobeChatDatabase; userId: string },
+  options: {
+    audit: (result: T) => Parameters<typeof writeAudit>[1] | Promise<Parameters<typeof writeAudit>[1]>;
+    mutation: (tx: Transaction) => Promise<T>;
+  },
+): Promise<T> =>
+  ctx.serverDB.transaction(async (tx) => {
+    const result = await options.mutation(tx);
+    await writeAudit({ ...ctx, serverDB: tx }, await options.audit(result));
+    return result;
+  });
 
 const requireAdminApp = async (db: LobeChatDatabase, appId: string) => {
   const app = await new ModuleAppModel(db).getAdminApp({ appId });
@@ -369,11 +385,14 @@ export const adminModuleAppsRouter = router({
   acknowledgePaymentDiscrepancy: financeWriteProcedure
     .input(PaymentDiscrepancyIdInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const result = await new ModuleAppPaymentModel(ctx.serverDB).acknowledgeDiscrepancy(input);
-      await writeAudit(ctx, {
-        eventType: 'module_app.payment_discrepancy_acknowledged',
-        resourceId: input.discrepancyId,
-        resourceType: 'moduleAppPaymentDiscrepancy',
+      const result = await runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: () => ({
+          eventType: 'module_app.payment_discrepancy_acknowledged',
+          resourceId: input.discrepancyId,
+          resourceType: 'moduleAppPaymentDiscrepancy',
+        }),
+        mutation: (tx) =>
+          new ModuleAppPaymentModel(tx as LobeChatDatabase).acknowledgeDiscrepancy(input),
       });
       return result;
     }),
@@ -383,18 +402,20 @@ export const adminModuleAppsRouter = router({
     .mutation(async ({ ctx, input }) => {
       assertPayoutRecordingEnabled();
       assertPayoutPublisherAllowed(input.publisherId);
-      const result = await new ModuleAppPayoutModel(ctx.serverDB).createEligibleBatch(input);
-      recordModuleAppPayoutState(result.status);
-      await writeAudit(ctx, {
-        eventType: 'module_app.payout_created',
-        metadata: {
-          publisherId: input.publisherId,
-          requestedAmount: input.requestedAmount,
-          revenueEntryIds: input.revenueEntryIds,
-        },
-        resourceId: result.id,
-        resourceType: 'moduleAppPayout',
+      const result = await runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: (result) => ({
+          eventType: 'module_app.payout_created',
+          metadata: {
+            publisherId: input.publisherId,
+            requestedAmount: input.requestedAmount,
+            revenueEntryIds: input.revenueEntryIds,
+          },
+          resourceId: result.id,
+          resourceType: 'moduleAppPayout',
+        }),
+        mutation: (tx) => new ModuleAppPayoutModel(tx as LobeChatDatabase).createEligibleBatch(input),
       });
+      recordModuleAppPayoutState(result.status);
       return result;
     }),
 
@@ -413,12 +434,23 @@ export const adminModuleAppsRouter = router({
 
   exportPaymentReconciliation: financeReadProcedure
     .input(PaymentDiscrepancyListInputSchema)
-    .query(async ({ ctx, input }) =>
-      new ModuleAppPaymentModel(ctx.serverDB).listDiscrepancies({
+    .query(async ({ ctx, input }) => {
+      const filters = {
         ...input,
         limit: Math.min(500, input.limit),
-      }),
-    ),
+      };
+      const result = await new ModuleAppPaymentModel(ctx.serverDB).listDiscrepancies(filters);
+      await writeAudit(ctx, {
+        eventType: 'module_app.payment_reconciliation_exported',
+        metadata: {
+          count: result.items.length,
+          filters,
+        },
+        resourceId: 'payment-reconciliation',
+        resourceType: 'moduleAppPaymentReconciliation',
+      });
+      return result;
+    }),
 
   createProduct: moduleAppWriteProcedure
     .input(CreateProductInputSchema)
@@ -429,7 +461,7 @@ export const adminModuleAppsRouter = router({
           input,
         );
         await writeAudit(
-          { serverDB: tx, userId: ctx.userId },
+          { clientIp: ctx.clientIp ?? null, serverDB: tx, userId: ctx.userId },
           {
             eventType: 'module_app.product_created',
             metadata: { appId: input.appId, productKey: input.productKey },
@@ -490,22 +522,25 @@ export const adminModuleAppsRouter = router({
     .input(RecordManualAlipayPayoutInputSchema)
     .mutation(async ({ ctx, input }) => {
       await requirePayoutBatchForMutation(ctx.serverDB, input.batchId);
-      const result = await new ModuleAppPayoutModel(ctx.serverDB).recordManualAlipayPayout({
-        actorUserId: ctx.userId,
-        ...input,
+      const result = await runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: (result) => ({
+          eventType: 'module_app.payout_paid',
+          metadata: {
+            evidenceReference: input.evidenceReference,
+            recipientMask: input.recipientMask,
+            totalAmount: result.totalAmount,
+            transactionNo: input.transactionNo,
+          },
+          resourceId: input.batchId,
+          resourceType: 'moduleAppPayout',
+        }),
+        mutation: (tx) =>
+          new ModuleAppPayoutModel(tx as LobeChatDatabase).recordManualAlipayPayout({
+            actorUserId: ctx.userId,
+            ...input,
+          }),
       });
       recordModuleAppPayoutState(result.status);
-      await writeAudit(ctx, {
-        eventType: 'module_app.payout_paid',
-        metadata: {
-          evidenceReference: input.evidenceReference,
-          recipientMask: input.recipientMask,
-          totalAmount: result.totalAmount,
-          transactionNo: input.transactionNo,
-        },
-        resourceId: input.batchId,
-        resourceType: 'moduleAppPayout',
-      });
       return result;
     }),
 
@@ -597,14 +632,16 @@ export const adminModuleAppsRouter = router({
     .input(TransitionPayoutBatchInputSchema)
     .mutation(async ({ ctx, input }) => {
       await requirePayoutBatchForMutation(ctx.serverDB, input.batchId);
-      const result = await new ModuleAppPayoutModel(ctx.serverDB).transitionBatch(input);
-      recordModuleAppPayoutState(result.status);
-      await writeAudit(ctx, {
-        eventType: `module_app.payout_${input.status}`,
-        metadata: { failureReason: input.failureReason },
-        resourceId: input.batchId,
-        resourceType: 'moduleAppPayout',
+      const result = await runRequiredModuleAppAuditMutation<any>(ctx, {
+        audit: () => ({
+          eventType: `module_app.payout_${input.status}`,
+          metadata: { failureReason: input.failureReason },
+          resourceId: input.batchId,
+          resourceType: 'moduleAppPayout',
+        }),
+        mutation: (tx) => new ModuleAppPayoutModel(tx as LobeChatDatabase).transitionBatch(input),
       });
+      recordModuleAppPayoutState(result.status);
       return result;
     }),
 
@@ -616,7 +653,7 @@ export const adminModuleAppsRouter = router({
           input,
         );
         await writeAudit(
-          { serverDB: tx, userId: ctx.userId },
+          { clientIp: ctx.clientIp ?? null, serverDB: tx, userId: ctx.userId },
           {
             eventType: 'module_app.product_updated',
             metadata: { status: input.status },

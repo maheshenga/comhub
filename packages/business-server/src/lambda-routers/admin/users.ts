@@ -237,15 +237,19 @@ export const adminUsersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await ctx.serverDB
-        .update(users)
-        .set({ banReason: input.banReason ?? null, banned: true })
-        .where(eq(users.id, input.userId));
-      await recordAdminAudit(ctx, {
-        action: 'user.ban',
-        payload: { banReason: input.banReason ?? null },
-        resourceType: 'user',
-        targetUserId: input.userId,
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'user.ban',
+          payload: { banReason: input.banReason ?? null },
+          resourceType: 'user',
+          targetUserId: input.userId,
+        }),
+        mutation: async (tx) => {
+          await tx
+            .update(users)
+            .set({ banReason: input.banReason ?? null, banned: true })
+            .where(eq(users.id, input.userId));
+        },
       });
       return { ok: true };
     }),
@@ -456,14 +460,18 @@ export const adminUsersRouter = router({
   unban: supportWriteProcedure
     .input(z.object({ userId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.serverDB
-        .update(users)
-        .set({ banExpires: null, banReason: null, banned: false })
-        .where(eq(users.id, input.userId));
-      await recordAdminAudit(ctx, {
-        action: 'user.unban',
-        resourceType: 'user',
-        targetUserId: input.userId,
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'user.unban',
+          resourceType: 'user',
+          targetUserId: input.userId,
+        }),
+        mutation: async (tx) => {
+          await tx
+            .update(users)
+            .set({ banExpires: null, banReason: null, banned: false })
+            .where(eq(users.id, input.userId));
+        },
       });
       return { ok: true };
     }),

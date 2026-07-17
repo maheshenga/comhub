@@ -21,19 +21,23 @@ export const adminOrdersRouter = router({
     .input(z.object({ command: cancelCommand.schema, orderId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const command = cancelCommand.validate(input.command);
-      const [order] = await ctx.serverDB
-        .update(topUpOrders)
-        .set({ status: 'canceled', updatedAt: new Date() })
-        .where(and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.status, 'pending')))
-        .returning({ id: topUpOrders.id, userId: topUpOrders.userId });
+      await runRequiredAdminAuditMutation<{ id: string; userId: string }>(ctx, {
+        audit: (order) => ({
+          action: command.auditAction,
+          resourceId: input.orderId,
+          resourceType: 'top_up_order',
+          targetUserId: order.userId,
+        }),
+        mutation: async (tx) => {
+          const [order] = await tx
+            .update(topUpOrders)
+            .set({ status: 'canceled', updatedAt: new Date() })
+            .where(and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.status, 'pending')))
+            .returning({ id: topUpOrders.id, userId: topUpOrders.userId });
 
-      if (!order) throw new Error('ORDER_NOT_CANCELABLE');
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        resourceId: input.orderId,
-        resourceType: 'top_up_order',
-        targetUserId: order.userId,
+          if (!order) throw new Error('ORDER_NOT_CANCELABLE');
+          return order;
+        },
       });
 
       return { ok: true };
@@ -43,19 +47,23 @@ export const adminOrdersRouter = router({
     .input(z.object({ command: expireCommand.schema, orderId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const command = expireCommand.validate(input.command);
-      const [order] = await ctx.serverDB
-        .update(topUpOrders)
-        .set({ status: 'expired', updatedAt: new Date() })
-        .where(and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.status, 'pending')))
-        .returning({ id: topUpOrders.id, userId: topUpOrders.userId });
+      await runRequiredAdminAuditMutation<{ id: string; userId: string }>(ctx, {
+        audit: (order) => ({
+          action: command.auditAction,
+          resourceId: input.orderId,
+          resourceType: 'top_up_order',
+          targetUserId: order.userId,
+        }),
+        mutation: async (tx) => {
+          const [order] = await tx
+            .update(topUpOrders)
+            .set({ status: 'expired', updatedAt: new Date() })
+            .where(and(eq(topUpOrders.id, input.orderId), eq(topUpOrders.status, 'pending')))
+            .returning({ id: topUpOrders.id, userId: topUpOrders.userId });
 
-      if (!order) throw new Error('ORDER_NOT_EXPIRABLE');
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        resourceId: input.orderId,
-        resourceType: 'top_up_order',
-        targetUserId: order.userId,
+          if (!order) throw new Error('ORDER_NOT_EXPIRABLE');
+          return order;
+        },
       });
 
       return { ok: true };

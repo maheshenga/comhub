@@ -53,6 +53,7 @@ export * from './verify';
 // FIXME: I think we need a refactor for the "openai" types
 // it more likes the UI message payload
 export * from './admin';
+export * from './adminAudit';
 export * from './adminCommand';
 export * from './agentRuntime';
 export * from './openai/chat';

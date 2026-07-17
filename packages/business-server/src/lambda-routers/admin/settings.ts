@@ -74,7 +74,11 @@ import {
 import { isModelAllowedByPlanRules } from '../../planModelRules';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit } from './audit';
+import {
+  recordAdminAudit,
+  runRequiredAdminAuditExternalEffect,
+  runRequiredAdminAuditMutation,
+} from './audit';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
 const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
@@ -1161,16 +1165,18 @@ export const adminSettingsRouter = router({
         });
       }
 
-      const deleted = await ctx.serverDB
-        .delete(appSettings)
-        .where(eq(appSettings.key, input.key))
-        .returning({ key: appSettings.key });
-
-      await recordAdminAudit(ctx, {
-        action: 'settings.deleteUnknown',
-        payload: { key: input.key },
-        resourceId: input.key,
-        resourceType: 'app_setting',
+      const deleted = await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'settings.deleteUnknown',
+          payload: { key: input.key },
+          resourceId: input.key,
+          resourceType: 'app_setting',
+        }),
+        mutation: async (tx) =>
+          tx
+            .delete(appSettings)
+            .where(eq(appSettings.key, input.key))
+            .returning({ key: appSettings.key }),
       });
 
       return { deleted: deleted.length > 0, key: input.key };
@@ -1662,13 +1668,14 @@ export const adminSettingsRouter = router({
       if (!update.shouldWrite) return { ok: true };
 
       await validateDefaultModelUpdates(ctx.serverDB, [update]);
-      await upsertAppSetting(ctx.serverDB, update);
-
-      await recordAdminAudit(ctx, {
-        action: setAppSettingCommand.definition.auditAction,
-        payload: buildSingleSettingAuditPayload(update),
-        resourceId: input.key,
-        resourceType: 'app_setting',
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: setAppSettingCommand.definition.auditAction,
+          payload: buildSingleSettingAuditPayload(update),
+          resourceId: input.key,
+          resourceType: 'app_setting',
+        }),
+        mutation: async (tx) => upsertAppSetting(tx, update),
       });
 
       invalidateAppSettingsCaches([update]);
@@ -1690,20 +1697,20 @@ export const adminSettingsRouter = router({
       if (updates.length === 0) return { count: input.updates.length, ok: true };
 
       await validateDefaultModelUpdates(ctx.serverDB, updates);
-
-      await ctx.serverDB.transaction(async (tx: Transaction) => {
-        for (const update of updates) {
-          await upsertAppSetting(tx, update);
-        }
-      });
-
-      await recordAdminAudit(ctx, {
-        action: 'settings.batchSet',
-        payload: {
-          count: updates.length,
-          settings: updates.map(buildSettingAuditPayload),
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: 'settings.batchSet',
+          payload: {
+            count: updates.length,
+            settings: updates.map(buildSettingAuditPayload),
+          },
+          resourceType: 'app_setting',
+        }),
+        mutation: async (tx) => {
+          for (const update of updates) {
+            await upsertAppSetting(tx, update);
+          }
         },
-        resourceType: 'app_setting',
       });
 
       invalidateAppSettingsCaches(updates);
@@ -1717,11 +1724,6 @@ export const adminSettingsRouter = router({
       const options = { forceDefaultAgentMeta: input?.forceDefaultAgentMeta === true };
       const defaults = await readSetting(ctx.serverDB, SETTING_KEYS.userGlobalSettingsDefaults);
       await validateUserGlobalSettingsDefaults(ctx.serverDB, defaults);
-      const result = await syncUserGlobalSettingsDefaultsToUserSettings(
-        ctx.serverDB,
-        defaults,
-        options,
-      );
       const forceSyncAuditPayload = options.forceDefaultAgentMeta
         ? { forceDefaultAgentMeta: true }
         : {};
@@ -1729,18 +1731,20 @@ export const adminSettingsRouter = router({
         forceDefaultAgentMeta: options.forceDefaultAgentMeta,
         target: 'all-users',
       };
-
-      await recordAdminAudit(ctx, {
-        action: 'settings.syncUserDefaults',
-        payload: {
-          operation: 'syncUserGlobalSettingsDefaultsToUsers',
-          scope,
-          status: 'success',
-          ...result,
-          ...forceSyncAuditPayload,
-        },
-        resourceId: SETTING_KEYS.userGlobalSettingsDefaults,
-        resourceType: 'user_settings',
+      const result = await runRequiredAdminAuditMutation<any>(ctx, {
+        audit: (result) => ({
+          action: 'settings.syncUserDefaults',
+          payload: {
+            operation: 'syncUserGlobalSettingsDefaultsToUsers',
+            scope,
+            status: 'success',
+            ...result,
+            ...forceSyncAuditPayload,
+          },
+          resourceId: SETTING_KEYS.userGlobalSettingsDefaults,
+          resourceType: 'user_settings',
+        }),
+        mutation: (tx) => syncUserGlobalSettingsDefaultsToUserSettings(tx, defaults, options),
       });
 
       return { ok: true, ...result, ...forceSyncAuditPayload };
@@ -1899,84 +1903,114 @@ export const adminSettingsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const command = runMaintenanceCommand.validate(input.command);
       const { command: _command, ...opts } = input;
-      const result: {
-        auditCutoff?: string;
-        auditLogsDeleted?: number;
-        freeSnapshotsCreated?: number;
-        moduleAppUploadCleanupFailed?: number;
-        moduleAppUploadsExpired?: number;
-        notificationRetentionCutoff?: string;
-        notificationsDeleted?: number;
-        pendingOrdersCutoff?: string;
-        pendingOrdersExpired?: number;
-        subscriptionSnapshotsExpired?: number;
-      } = {};
+      const correlationId = randomUUID();
+      const result = await runRequiredAdminAuditExternalEffect<any>(ctx, {
+        audit: (status, result) => ({
+          action: command.auditAction,
+          payload:
+            status === 'started'
+              ? { phase: 'started' }
+              : { ...result, phase: 'external', terminalStatus: status },
+          resourceType: 'maintenance',
+        }),
+        correlationId,
+        effect: async () => {
+          const databaseResult = await runRequiredAdminAuditMutation<any>(ctx, {
+            audit: (result) => ({
+              action: command.auditAction,
+              payload: { ...result, phase: 'database' },
+              resourceType: 'maintenance',
+            }),
+            correlationId,
+            mutation: async (tx) => {
+              const databaseResult: {
+                auditCutoff?: string;
+                auditLogsDeleted?: number;
+                freeSnapshotsCreated?: number;
+                notificationRetentionCutoff?: string;
+                notificationsDeleted?: number;
+                pendingOrdersCutoff?: string;
+                pendingOrdersExpired?: number;
+                subscriptionSnapshotsExpired?: number;
+              } = {};
 
-      if (!opts.skipAudit) {
-        const dbVal = await readSetting(ctx.serverDB, SETTING_KEYS.cronAuditRetentionDays);
-        const days = Math.max(
-          7,
-          Math.min(3650, opts.auditRetentionDays ?? (typeof dbVal === 'number' ? dbVal : 365)),
-        );
-        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-        const deleted = await ctx.serverDB
-          .delete(adminAuditLogs)
-          .where(lt(adminAuditLogs.createdAt, cutoff))
-          .returning({ id: adminAuditLogs.id });
-        result.auditCutoff = cutoff.toISOString();
-        result.auditLogsDeleted = deleted.length;
-      }
+              if (!opts.skipAudit) {
+                const dbVal = await readSetting(tx, SETTING_KEYS.cronAuditRetentionDays);
+                const days = Math.max(
+                  7,
+                  Math.min(
+                    3650,
+                    opts.auditRetentionDays ?? (typeof dbVal === 'number' ? dbVal : 365),
+                  ),
+                );
+                const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+                const deleted = await tx
+                  .delete(adminAuditLogs)
+                  .where(lt(adminAuditLogs.createdAt, cutoff))
+                  .returning({ id: adminAuditLogs.id });
+                databaseResult.auditCutoff = cutoff.toISOString();
+                databaseResult.auditLogsDeleted = deleted.length;
+              }
 
-      if (!opts.skipOrders) {
-        const dbVal = await readSetting(ctx.serverDB, SETTING_KEYS.cronPendingOrderExpiryDays);
-        const days = Math.max(
-          1,
-          Math.min(365, opts.pendingOrderExpiryDays ?? (typeof dbVal === 'number' ? dbVal : 7)),
-        );
-        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-        const expired = await ctx.serverDB
-          .update(topUpOrders)
-          .set({ status: 'expired', updatedAt: new Date() })
-          .where(and(eq(topUpOrders.status, 'pending'), lt(topUpOrders.createdAt, cutoff)))
-          .returning({ id: topUpOrders.id });
-        result.pendingOrdersCutoff = cutoff.toISOString();
-        result.pendingOrdersExpired = expired.length;
-      }
+              if (!opts.skipOrders) {
+                const dbVal = await readSetting(tx, SETTING_KEYS.cronPendingOrderExpiryDays);
+                const days = Math.max(
+                  1,
+                  Math.min(
+                    365,
+                    opts.pendingOrderExpiryDays ?? (typeof dbVal === 'number' ? dbVal : 7),
+                  ),
+                );
+                const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+                const expired = await tx
+                  .update(topUpOrders)
+                  .set({ status: 'expired', updatedAt: new Date() })
+                  .where(and(eq(topUpOrders.status, 'pending'), lt(topUpOrders.createdAt, cutoff)))
+                  .returning({ id: topUpOrders.id });
+                databaseResult.pendingOrdersCutoff = cutoff.toISOString();
+                databaseResult.pendingOrdersExpired = expired.length;
+              }
 
-      if (!opts.skipNotifications) {
-        const dbVal = await readSetting(ctx.serverDB, SETTING_KEYS.notificationRetentionDays);
-        const days = Math.max(
-          1,
-          Math.min(
-            3650,
-            opts.notificationRetentionDays ?? (typeof dbVal === 'number' ? dbVal : 90),
-          ),
-        );
-        const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-        const deleted = await ctx.serverDB
-          .delete(notifications)
-          .where(and(eq(notifications.isArchived, true), lt(notifications.updatedAt, cutoff)))
-          .returning({ id: notifications.id });
-        result.notificationRetentionCutoff = cutoff.toISOString();
-        result.notificationsDeleted = deleted.length;
-      }
+              if (!opts.skipNotifications) {
+                const dbVal = await readSetting(tx, SETTING_KEYS.notificationRetentionDays);
+                const days = Math.max(
+                  1,
+                  Math.min(
+                    3650,
+                    opts.notificationRetentionDays ?? (typeof dbVal === 'number' ? dbVal : 90),
+                  ),
+                );
+                const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+                const deleted = await tx
+                  .delete(notifications)
+                  .where(and(eq(notifications.isArchived, true), lt(notifications.updatedAt, cutoff)))
+                  .returning({ id: notifications.id });
+                databaseResult.notificationRetentionCutoff = cutoff.toISOString();
+                databaseResult.notificationsDeleted = deleted.length;
+              }
 
-      if (!opts.skipModuleAppUploads) {
-        const cleanup = await new ModuleAppPackageLifecycleService({
-          db: ctx.serverDB,
-        }).cleanupExpiredUploads({ limit: 100 });
-        result.moduleAppUploadCleanupFailed = cleanup.failed;
-        result.moduleAppUploadsExpired = cleanup.expired;
-      }
+              const subscriptionResult = await syncExpiredSubscriptionsToFree(tx);
+              databaseResult.subscriptionSnapshotsExpired = subscriptionResult.expiredSnapshots;
+              databaseResult.freeSnapshotsCreated = subscriptionResult.freeSnapshotsCreated;
 
-      const subscriptionResult = await syncExpiredSubscriptionsToFree(ctx.serverDB);
-      result.subscriptionSnapshotsExpired = subscriptionResult.expiredSnapshots;
-      result.freeSnapshotsCreated = subscriptionResult.freeSnapshotsCreated;
+              return databaseResult;
+            },
+          });
 
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: result,
-        resourceType: 'maintenance',
+          if (opts.skipModuleAppUploads) return databaseResult;
+
+          // Storage deletion cannot roll back. The durable started and database-result audits
+          // above remain available if this lifecycle reports a recovery-required terminal failure.
+          const cleanup = await new ModuleAppPackageLifecycleService({
+            db: ctx.serverDB,
+          }).cleanupExpiredUploads({ limit: 100 });
+
+          return {
+            ...databaseResult,
+            moduleAppUploadCleanupFailed: cleanup.failed,
+            moduleAppUploadsExpired: cleanup.expired,
+          };
+        },
       });
 
       return { ok: true, ...result };

@@ -21,7 +21,7 @@ import {
   normalizeAppSettingValue,
   PPT_WRITABLE_APP_SETTING_KEYS,
 } from '../../appSettings/catalog';
-import { recordAdminAudit } from './audit';
+import { runRequiredAdminAuditMutation } from './audit';
 
 const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
 const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
@@ -144,33 +144,36 @@ export const adminPptRouter = router({
       );
     }
 
-    await Promise.all([
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptAllowPdfExport, next.allowPdfExport),
-      saveSetting(
-        ctx.serverDB,
-        APP_SETTING_KEYS.docmeePptAllowPptxDownload,
-        next.allowPptxDownload,
-      ),
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptAuditEnabled, next.auditEnabled),
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptBaseUrl, next.baseUrl),
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptCreatorVersion, next.creatorVersion),
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptDailyLimit, next.dailyLimit),
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptDefaultLang, next.lang),
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptEnabled, next.enabled),
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptThemeColor, next.themeColor),
-      saveSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptTokenTtlMinutes, next.tokenTtlMinutes),
-      ...(storedApiKey !== undefined
-        ? [saveStoredSetting(ctx.serverDB, APP_SETTING_KEYS.docmeePptApiKey, storedApiKey)]
-        : []),
-    ]);
-
-    await recordAdminAudit(ctx, {
-      action: 'ppt.settings.save',
-      payload: {
-        apiKeyChanged: input.clearApiKey || (Boolean(trimmedApiKey) && !unchangedMaskedApiKey),
-        enabled: next.enabled,
+    await runRequiredAdminAuditMutation(ctx, {
+      audit: () => ({
+        action: 'ppt.settings.save',
+        payload: {
+          apiKeyChanged: input.clearApiKey || (Boolean(trimmedApiKey) && !unchangedMaskedApiKey),
+          enabled: next.enabled,
+        },
+        resourceType: 'app_setting',
+      }),
+      mutation: async (tx) => {
+        await Promise.all([
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptAllowPdfExport, next.allowPdfExport),
+          saveSetting(
+            tx,
+            APP_SETTING_KEYS.docmeePptAllowPptxDownload,
+            next.allowPptxDownload,
+          ),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptAuditEnabled, next.auditEnabled),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptBaseUrl, next.baseUrl),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptCreatorVersion, next.creatorVersion),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptDailyLimit, next.dailyLimit),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptDefaultLang, next.lang),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptEnabled, next.enabled),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptThemeColor, next.themeColor),
+          saveSetting(tx, APP_SETTING_KEYS.docmeePptTokenTtlMinutes, next.tokenTtlMinutes),
+          ...(storedApiKey !== undefined
+            ? [saveStoredSetting(tx, APP_SETTING_KEYS.docmeePptApiKey, storedApiKey)]
+            : []),
+        ]);
       },
-      resourceType: 'app_setting',
     });
 
     invalidateServerAppSettings();
