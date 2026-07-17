@@ -10,9 +10,11 @@ import {
   ADMIN_CATALOG,
   ADMIN_CATALOG_GROUPS,
   ADMIN_LEGACY_ROUTES,
-  getAdminCatalogAccessCapabilities,
+  type AdminCatalogItem,
+  type AdminFeatureStatus,
   type AdminNavGroupKey,
   type AdminNavIcon,
+  getAdminCatalogAccessCapabilities,
 } from './adminCatalog';
 
 export { ADMIN_BASE_PATH, type AdminNavGroupKey, type AdminNavIcon } from './adminCatalog';
@@ -22,6 +24,7 @@ export type AdminNavItem = {
   icon: AdminNavIcon;
   label: string;
   path: string;
+  status: AdminFeatureStatus;
 };
 
 export type AdminNavGroup = {
@@ -32,13 +35,19 @@ export type AdminNavGroup = {
   label: string;
 };
 
+const isVisibleInNavigation = (item: AdminCatalogItem) =>
+  item.status !== 'planned' && item.status !== 'compatibility';
+
 export const ADMIN_NAV_GROUPS: AdminNavGroup[] = ADMIN_CATALOG_GROUPS.map((group) => ({
   ...group,
-  items: ADMIN_CATALOG.filter((item) => item.group === group.key).map((item) => ({
+  items: ADMIN_CATALOG.filter(
+    (item) => item.group === group.key && isVisibleInNavigation(item),
+  ).map((item) => ({
     description: item.description,
     icon: item.icon,
     label: item.label,
     path: item.path,
+    status: item.status,
   })),
 }));
 
@@ -55,7 +64,7 @@ const ADMIN_NAV_ALIASES = Object.fromEntries(
 
 const ADMIN_ROLE_DEFAULT_PATHS: Record<AdminRole, string> = {
   admin: ADMIN_BASE_PATH,
-  content_admin: `${ADMIN_BASE_PATH}/topics`,
+  content_admin: `${ADMIN_BASE_PATH}/content-resources`,
   finance_admin: `${ADMIN_BASE_PATH}/subscriptions`,
   model_ops: `${ADMIN_BASE_PATH}/providers`,
   support_admin: `${ADMIN_BASE_PATH}/users`,

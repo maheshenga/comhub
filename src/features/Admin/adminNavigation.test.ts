@@ -47,7 +47,7 @@ describe('adminNavigation', () => {
   });
 
   it.each([
-    ['content_admin', `${ADMIN_BASE_PATH}/topics`, `${ADMIN_BASE_PATH}/plans`],
+    ['content_admin', `${ADMIN_BASE_PATH}/content-resources`, `${ADMIN_BASE_PATH}/plans`],
     ['finance_admin', `${ADMIN_BASE_PATH}/subscriptions`, `${ADMIN_BASE_PATH}/settings`],
     ['model_ops', `${ADMIN_BASE_PATH}/providers`, `${ADMIN_BASE_PATH}/users`],
     ['support_admin', `${ADMIN_BASE_PATH}/users`, `${ADMIN_BASE_PATH}/providers`],
@@ -87,11 +87,8 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/plans`,
         `${ADMIN_BASE_PATH}/orders`,
         `${ADMIN_BASE_PATH}/credits`,
-        `${ADMIN_BASE_PATH}/recommendations`,
-        `${ADMIN_BASE_PATH}/operations`,
+        `${ADMIN_BASE_PATH}/content-operations`,
         `${ADMIN_BASE_PATH}/growth`,
-        `${ADMIN_BASE_PATH}/notifications`,
-        `${ADMIN_BASE_PATH}/expert-plaza`,
         `${ADMIN_BASE_PATH}/model-policy`,
         `${ADMIN_BASE_PATH}/providers`,
         `${ADMIN_BASE_PATH}/model-billing-matrix`,
@@ -101,10 +98,8 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/redemption`,
         `${ADMIN_BASE_PATH}/settings`,
         `${ADMIN_BASE_PATH}/stats`,
-        `${ADMIN_BASE_PATH}/topics`,
-        `${ADMIN_BASE_PATH}/files`,
+        `${ADMIN_BASE_PATH}/content-resources`,
         `${ADMIN_BASE_PATH}/file-storage`,
-        `${ADMIN_BASE_PATH}/documents`,
         `${ADMIN_BASE_PATH}/system-defaults`,
         `${ADMIN_BASE_PATH}/maintenance`,
         `${ADMIN_BASE_PATH}/audit`,
@@ -184,7 +179,7 @@ describe('adminNavigation', () => {
     });
     expect(
       ADMIN_NAV_GROUPS.flatMap((group) => group.items).find(
-        (item) => item.path === `${ADMIN_BASE_PATH}/notifications`,
+        (item) => item.path === `${ADMIN_BASE_PATH}/content-operations`,
       )?.description,
     ).not.toContain('閫氱煡淇濈暀鏃堕棿');
   });
@@ -237,17 +232,23 @@ describe('adminNavigation', () => {
       `${ADMIN_BASE_PATH}/module-apps`,
     );
     expect(getAdminSelectedKey('/settings/admin/notifications')).toBe(
-      `${ADMIN_BASE_PATH}/notifications`,
+      `${ADMIN_BASE_PATH}/content-operations`,
     );
     expect(getAdminSelectedKey('/settings/admin/expert-plaza')).toBe(
-      `${ADMIN_BASE_PATH}/expert-plaza`,
+      `${ADMIN_BASE_PATH}/content-operations`,
     );
-    expect(getAdminSelectedKey('/settings/admin/topics')).toBe(`${ADMIN_BASE_PATH}/topics`);
-    expect(getAdminSelectedKey('/settings/admin/files')).toBe(`${ADMIN_BASE_PATH}/files`);
+    expect(getAdminSelectedKey('/settings/admin/topics')).toBe(
+      `${ADMIN_BASE_PATH}/content-resources`,
+    );
+    expect(getAdminSelectedKey('/settings/admin/files')).toBe(
+      `${ADMIN_BASE_PATH}/content-resources`,
+    );
     expect(getAdminSelectedKey('/settings/admin/file-storage')).toBe(
       `${ADMIN_BASE_PATH}/file-storage`,
     );
-    expect(getAdminSelectedKey('/settings/admin/documents')).toBe(`${ADMIN_BASE_PATH}/documents`);
+    expect(getAdminSelectedKey('/settings/admin/documents')).toBe(
+      `${ADMIN_BASE_PATH}/content-resources`,
+    );
     expect(getAdminSelectedKey('/settings/admin/system-defaults')).toBe(
       `${ADMIN_BASE_PATH}/system-defaults`,
     );

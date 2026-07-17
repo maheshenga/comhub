@@ -1,3 +1,5 @@
-import { AdminFilesPage } from '@/features/Admin/AdminContentPages';
+import { Navigate } from 'react-router';
 
-export default AdminFilesPage;
+const FilesPage = () => <Navigate replace to="/settings/admin/content-resources?tab=files" />;
+
+export default FilesPage;

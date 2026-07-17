@@ -1,3 +1,6 @@
-import AdminExpertPlazaPage from '@/features/Admin/AdminExpertPlazaPage';
+import { Navigate } from 'react-router';
 
-export default AdminExpertPlazaPage;
+const ExpertPlazaPage = () =>
+  <Navigate replace to="/settings/admin/content-operations?tab=expert-plaza" />;
+
+export default ExpertPlazaPage;

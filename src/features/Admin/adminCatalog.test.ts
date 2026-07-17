@@ -33,9 +33,27 @@ describe('adminCatalog', () => {
       { segment: 'pricing', targetSegment: 'model-billing-matrix' },
       { segment: 'topup', targetSegment: 'orders' },
       { segment: 'change-requests', targetSegment: 'subscriptions' },
+      { segment: 'topics', targetSegment: 'content-resources' },
+      { segment: 'files', targetSegment: 'content-resources' },
+      { segment: 'documents', targetSegment: 'content-resources' },
+      { segment: 'recommendations', targetSegment: 'content-operations' },
+      { segment: 'expert-plaza', targetSegment: 'content-operations' },
+      { segment: 'notifications', targetSegment: 'content-operations' },
+      { segment: 'operations', targetSegment: 'content-operations' },
     ]);
     expect(ADMIN_CATALOG.map((item) => item.segment)).not.toEqual(
-      expect.arrayContaining(['pricing', 'topup', 'change-requests']),
+      expect.arrayContaining([
+        'pricing',
+        'topup',
+        'change-requests',
+        'topics',
+        'files',
+        'documents',
+        'recommendations',
+        'expert-plaza',
+        'notifications',
+        'operations',
+      ]),
     );
   });
 
@@ -44,7 +62,8 @@ describe('adminCatalog', () => {
 
     expect(byId.users.readCapability).toBe(ADMIN_CAPABILITIES.userRead);
     expect(byId.providers.readCapability).toBe(ADMIN_CAPABILITIES.modelOpsRead);
-    expect(byId.topics.readCapability).toBe(ADMIN_CAPABILITIES.contentRead);
+    expect(byId['content-resources'].readCapability).toBe(ADMIN_CAPABILITIES.contentRead);
+    expect(byId['content-operations'].readCapability).toBe(ADMIN_CAPABILITIES.systemRead);
     expect(byId.settings.readCapability).toBe(ADMIN_CAPABILITIES.systemRead);
     expect(byId['model-policy'].readCapability).toBe(ADMIN_CAPABILITIES.systemRead);
     expect(byId['model-policy'].writeCapabilities).toEqual([ADMIN_CAPABILITIES.systemWrite]);

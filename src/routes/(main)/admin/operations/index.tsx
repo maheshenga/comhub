@@ -1,5 +1,8 @@
 'use client';
 
-import AdminOperationsPage from '@/features/Admin/AdminOperationsPage';
+import { Navigate } from 'react-router';
 
-export default AdminOperationsPage;
+const OperationsPage = () =>
+  <Navigate replace to="/settings/admin/content-operations?tab=operations" />;
+
+export default OperationsPage;

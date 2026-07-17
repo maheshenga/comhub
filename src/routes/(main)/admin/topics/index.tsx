@@ -1,3 +1,5 @@
-import { AdminTopicsPage } from '@/features/Admin/AdminContentPages';
+import { Navigate } from 'react-router';
 
-export default AdminTopicsPage;
+const TopicsPage = () => <Navigate replace to="/settings/admin/content-resources?tab=topics" />;
+
+export default TopicsPage;

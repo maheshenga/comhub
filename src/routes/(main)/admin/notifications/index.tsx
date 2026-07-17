@@ -1,5 +1,8 @@
 'use client';
 
-import AdminNotificationsPage from '@/features/Admin/AdminNotificationsPage';
+import { Navigate } from 'react-router';
 
-export default AdminNotificationsPage;
+const NotificationsPage = () =>
+  <Navigate replace to="/settings/admin/content-operations?tab=notifications" />;
+
+export default NotificationsPage;

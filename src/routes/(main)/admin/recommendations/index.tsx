@@ -1,5 +1,8 @@
 'use client';
 
-import AdminRecommendationsPage from '@/features/Admin/AdminRecommendationsPage';
+import { Navigate } from 'react-router';
 
-export default AdminRecommendationsPage;
+const RecommendationsPage = () =>
+  <Navigate replace to="/settings/admin/content-operations?tab=recommendations" />;
+
+export default RecommendationsPage;

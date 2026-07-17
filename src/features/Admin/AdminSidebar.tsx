@@ -1,6 +1,6 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
+import { Flexbox, Icon, Tag } from '@lobehub/ui';
 import { Menu, type MenuProps } from 'antd';
 import {
   BarChart3,
@@ -73,12 +73,30 @@ const iconMap: Record<AdminNavIcon, typeof Gauge> = {
   'users': Users,
 };
 
+const statusLabel = {
+  deprecated: '已弃用',
+  experimental: '实验性',
+  planned: '规划中',
+} as const;
+
 const buildMenuItems = (role?: string | null): MenuProps['items'] =>
   getAdminNavGroupsForRole(role).map((group) => ({
     children: group.items.map((item) => ({
       icon: <Icon icon={iconMap[item.icon]} />,
       key: item.path,
-      label: item.label,
+      label:
+        item.status === 'active' ? (
+          item.label
+        ) : (
+          <Flexbox horizontal align="center" gap={8} justify="space-between">
+            <span>{item.label}</span>
+            {item.status === 'experimental' || item.status === 'deprecated' ? (
+              <Tag color={item.status === 'deprecated' ? 'gold' : 'blue'}>
+                {statusLabel[item.status]}
+              </Tag>
+            ) : null}
+          </Flexbox>
+        ),
       title: item.description,
     })),
     icon: <Icon icon={iconMap[group.icon]} />,
