@@ -10,10 +10,7 @@ import { DocumentService } from '@/server/services/document';
 import { FileService } from '@/server/services/file';
 
 import { createAdminCommand } from './adminCommand';
-import {
-  runRequiredAdminAuditExternalEffect,
-  runRequiredAdminAuditMutation,
-} from './audit';
+import { runRequiredAdminAuditExternalEffect, runRequiredAdminAuditMutation } from './audit';
 
 const pageInput = z.object({
   cursor: z.number().int().min(0).default(0),
@@ -95,7 +92,7 @@ export const adminContentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const command = deleteDocumentCommand.validate(input.command);
       const document = await getDocumentForAction(ctx, input.documentId);
-      await runRequiredAdminAuditMutation(ctx, {
+      await runRequiredAdminAuditExternalEffect(ctx, {
         audit: () => ({
           action: command.auditAction,
           payload: { sourceType: document.sourceType, title: document.title },
@@ -103,8 +100,8 @@ export const adminContentRouter = router({
           resourceType: 'document',
           targetUserId: document.userId,
         }),
-        mutation: async (tx) => {
-          const documentService = new DocumentService(tx, document.userId);
+        effect: async () => {
+          const documentService = new DocumentService(ctx.serverDB, document.userId);
           await documentService.deleteDocument(input.documentId);
         },
       });

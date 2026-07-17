@@ -37,4 +37,36 @@ describe('admin audit envelope contract', () => {
     });
     expect(readAuditEnvelope(value)).toEqual(value.audit);
   });
+
+  it('rejects malformed and legacy audit payloads at runtime', () => {
+    expect(readAuditEnvelope({ correlationId: 'legacy', status: 'succeeded' })).toBeUndefined();
+    expect(
+      readAuditEnvelope({
+        audit: {
+          action: 'credits.export',
+          actorUserId: 'admin-user',
+          clientIp: null,
+          correlationId: 'invalid-status',
+          resourceId: null,
+          resourceType: 'credit_account',
+          status: 'complete',
+          targetUserId: null,
+        },
+      }),
+    ).toBeUndefined();
+    expect(
+      readAuditEnvelope({
+        audit: {
+          action: 'credits.export',
+          actorUserId: 42,
+          clientIp: null,
+          correlationId: 'invalid-actor',
+          resourceId: null,
+          resourceType: 'credit_account',
+          status: 'succeeded',
+          targetUserId: null,
+        },
+      }),
+    ).toBeUndefined();
+  });
 });

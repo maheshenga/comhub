@@ -37,6 +37,7 @@ import {
   assertModuleAppRolloutAllowed,
 } from '../../module-apps/productionControls';
 import { ModuleAppOrderRevenueService, ModuleAppRevenueService } from '../../module-apps/revenue';
+import { runRequiredAdminAuditExternalEffect } from './audit';
 import { ModuleAppAdminReadModel } from './moduleApps.readModels';
 
 const auditReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.auditRead);
@@ -307,7 +308,9 @@ const writeAudit = async (
 const runRequiredModuleAppAuditMutation = async <T>(
   ctx: { clientIp?: null | string; serverDB: LobeChatDatabase; userId: string },
   options: {
-    audit: (result: T) => Parameters<typeof writeAudit>[1] | Promise<Parameters<typeof writeAudit>[1]>;
+    audit: (
+      result: T,
+    ) => Parameters<typeof writeAudit>[1] | Promise<Parameters<typeof writeAudit>[1]>;
     mutation: (tx: Transaction) => Promise<T>;
   },
 ): Promise<T> =>
@@ -413,7 +416,8 @@ export const adminModuleAppsRouter = router({
           resourceId: result.id,
           resourceType: 'moduleAppPayout',
         }),
-        mutation: (tx) => new ModuleAppPayoutModel(tx as LobeChatDatabase).createEligibleBatch(input),
+        mutation: (tx) =>
+          new ModuleAppPayoutModel(tx as LobeChatDatabase).createEligibleBatch(input),
       });
       recordModuleAppPayoutState(result.status);
       return result;
@@ -512,10 +516,25 @@ export const adminModuleAppsRouter = router({
       if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
       }
-      return new ModuleAppPaymentService(
-        ctx.serverDB,
-        createConfiguredModuleAppAlipayClient(),
-      ).reconcilePendingPayments(input);
+      return runRequiredAdminAuditExternalEffect(ctx, {
+        audit: (status, result) => ({
+          action: 'module_app.pending_payments_reconciled',
+          payload: {
+            count: result?.count ?? 0,
+            limit: input.limit,
+            terminalStatus: status,
+          },
+          resourceId: 'pending-payments',
+          resourceType: 'moduleAppPaymentReconciliation',
+        }),
+        effect: () =>
+          new ModuleAppPaymentService(
+            ctx.serverDB,
+            createConfiguredModuleAppAlipayClient(),
+          ).reconcilePendingPayments(input),
+        terminalStatus: (result) =>
+          result.results.some((item) => 'error' in item) ? 'failed' : 'succeeded',
+      });
     }),
 
   recordManualAlipayPayout: financeWriteProcedure
@@ -564,13 +583,22 @@ export const adminModuleAppsRouter = router({
           message: 'module_app_alipay_disabled',
         });
       }
-      return new ModuleAppPaymentService(
-        ctx.serverDB,
-        createConfiguredModuleAppAlipayClient(),
-      ).refundOrder({
-        actorUserId: ctx.userId,
-        orderId: input.orderId,
-        reason: input.reason,
+      return runRequiredAdminAuditExternalEffect(ctx, {
+        audit: (status) => ({
+          action: 'module_app.payment_refund_requested',
+          payload: { reasonProvided: true, terminalStatus: status },
+          resourceId: input.orderId,
+          resourceType: 'moduleAppOrder',
+        }),
+        effect: () =>
+          new ModuleAppPaymentService(
+            ctx.serverDB,
+            createConfiguredModuleAppAlipayClient(),
+          ).refundOrder({
+            actorUserId: ctx.userId,
+            orderId: input.orderId,
+            reason: input.reason,
+          }),
       });
     }),
 
@@ -580,10 +608,19 @@ export const adminModuleAppsRouter = router({
       if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
       }
-      return new ModuleAppPaymentService(
-        ctx.serverDB,
-        createConfiguredModuleAppAlipayClient(),
-      ).reconcilePayment(input);
+      return runRequiredAdminAuditExternalEffect(ctx, {
+        audit: (status) => ({
+          action: 'module_app.payment_query_retried',
+          payload: { hasOutTradeNo: true, terminalStatus: status },
+          resourceId: 'payment-query',
+          resourceType: 'moduleAppPaymentAttempt',
+        }),
+        effect: () =>
+          new ModuleAppPaymentService(
+            ctx.serverDB,
+            createConfiguredModuleAppAlipayClient(),
+          ).reconcilePayment(input),
+      });
     }),
 
   retryRefundStatus: financeWriteProcedure
@@ -592,10 +629,20 @@ export const adminModuleAppsRouter = router({
       if (!appEnv.MODULE_APP_ALIPAY_ENABLED) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_alipay_disabled' });
       }
-      return new ModuleAppPaymentService(
-        ctx.serverDB,
-        createConfiguredModuleAppAlipayClient(),
-      ).reconcileRefund({ actorUserId: ctx.userId, orderId: input.orderId });
+      return runRequiredAdminAuditExternalEffect(ctx, {
+        audit: (status) => ({
+          action: 'module_app.refund_status_retried',
+          payload: { terminalStatus: status },
+          resourceId: input.orderId,
+          resourceType: 'moduleAppOrder',
+        }),
+        effect: () =>
+          new ModuleAppPaymentService(
+            ctx.serverDB,
+            createConfiguredModuleAppAlipayClient(),
+          ).reconcileRefund({ actorUserId: ctx.userId, orderId: input.orderId }),
+        terminalStatus: (result) => (result.status === 'succeeded' ? 'succeeded' : 'failed'),
+      });
     }),
 
   settleOrder: financeWriteProcedure
@@ -675,11 +722,13 @@ export const adminModuleAppsRouter = router({
     return submission;
   }),
 
-  listArtifacts: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
-    await requireAdminApp(ctx.serverDB, input.appId);
+  listArtifacts: moduleAppReadProcedure
+    .input(ListByAppInputSchema)
+    .query(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
 
-    return new ModuleAppAdminReadModel(ctx.serverDB).listArtifacts(input);
-  }),
+      return new ModuleAppAdminReadModel(ctx.serverDB).listArtifacts(input);
+    }),
 
   listAuditEvents: auditReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
@@ -687,9 +736,11 @@ export const adminModuleAppsRouter = router({
     return new ModuleAppAdminReadModel(ctx.serverDB).listAuditEvents(input);
   }),
 
-  listPackages: moduleAppReadProcedure.input(ListPackagesInputSchema).query(async ({ ctx, input }) => {
-    return new ModuleAppAdminReadModel(ctx.serverDB).listPackages(input);
-  }),
+  listPackages: moduleAppReadProcedure
+    .input(ListPackagesInputSchema)
+    .query(async ({ ctx, input }) => {
+      return new ModuleAppAdminReadModel(ctx.serverDB).listPackages(input);
+    }),
 
   listInstalls: moduleAppReadProcedure.input(ListByAppInputSchema).query(async ({ ctx, input }) => {
     await requireAdminApp(ctx.serverDB, input.appId);
@@ -851,14 +902,14 @@ export const adminModuleAppsRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireAdminApp(ctx.serverDB, input.appId);
 
-      const result = await new ModuleAppModel(ctx.serverDB).upsertBillingForAdmin(input);
-      await writeAudit(ctx, {
-        eventType: 'module_app.billing_upserted',
-        metadata: { chargeMode: input.billing.chargeMode },
-        resourceId: input.appId,
+      return runRequiredModuleAppAuditMutation(ctx, {
+        audit: () => ({
+          eventType: 'module_app.billing_upserted',
+          metadata: { chargeMode: input.billing.chargeMode },
+          resourceId: input.appId,
+        }),
+        mutation: (tx) => new ModuleAppModel(tx as LobeChatDatabase).upsertBillingForAdmin(input),
       });
-
-      return result;
     }),
 
   upsertEntitlements: financeWriteProcedure
@@ -866,14 +917,15 @@ export const adminModuleAppsRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireAdminApp(ctx.serverDB, input.appId);
 
-      const result = await new ModuleAppModel(ctx.serverDB).upsertEntitlementsForAdmin(input);
-      await writeAudit(ctx, {
-        eventType: 'module_app.entitlements_upserted',
-        metadata: { count: input.entitlements.length },
-        resourceId: input.appId,
+      return runRequiredModuleAppAuditMutation(ctx, {
+        audit: () => ({
+          eventType: 'module_app.entitlements_upserted',
+          metadata: { count: input.entitlements.length },
+          resourceId: input.appId,
+        }),
+        mutation: (tx) =>
+          new ModuleAppModel(tx as LobeChatDatabase).upsertEntitlementsForAdmin(input, tx),
       });
-
-      return result;
     }),
 
   upsertPages: moduleAppWriteProcedure.input(PagesInputSchema).mutation(async ({ ctx, input }) => {

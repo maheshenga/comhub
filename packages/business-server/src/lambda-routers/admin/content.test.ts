@@ -9,7 +9,7 @@ import { FileModel } from '@/database/models/file';
 import { DocumentService } from '@/server/services/document';
 import { FileService } from '@/server/services/file';
 
-import { recordAdminAudit } from './audit';
+import { recordAdminAudit, runRequiredAdminAuditExternalEffect } from './audit';
 import { adminContentRouter } from './content';
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -237,6 +237,14 @@ describe('admin content router', () => {
         targetUserId: 'user-2',
       }),
     );
+    expect(runRequiredAdminAuditExternalEffect).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        audit: expect.any(Function),
+        effect: expect.any(Function),
+      }),
+    );
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 
   it('deletes topics through the topics table so database cascade removes child rows', async () => {

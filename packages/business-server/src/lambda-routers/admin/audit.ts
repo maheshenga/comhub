@@ -1,10 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  type AuditEnvelopeStatus,
-  createAuditEnvelope,
-  redactAuditValue,
-} from '@lobechat/types';
+import { type AuditEnvelopeStatus, createAuditEnvelope, redactAuditValue } from '@lobechat/types';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { adminAuditLogs } from '@/database/schemas';
 import type { LobeChatDatabase, Transaction } from '@/database/type';
@@ -208,6 +205,33 @@ export class AdminAuditExternalEffectRecoveryError extends Error {
   }
 }
 
+const hasTerminalAdminAudit = async (
+  db: AdminAuditDatabase,
+  params: {
+    action: string;
+    correlationId: string;
+    status: Exclude<AdminAuditStatus, 'started'>;
+    terminalAuditId: string;
+  },
+) => {
+  const existing = await db.query.adminAuditLogs.findFirst({
+    columns: { payload: true },
+    where: and(
+      eq(adminAuditLogs.action, params.action),
+      sql`${adminAuditLogs.payload}->>'correlationId' = ${params.correlationId}`,
+      sql`${adminAuditLogs.payload}->>'status' = ${params.status}`,
+      sql`${adminAuditLogs.payload}->>'terminalAuditId' = ${params.terminalAuditId}`,
+    ),
+  });
+
+  const payload = existing?.payload;
+  return Boolean(
+    payload &&
+      typeof payload === 'object' &&
+      (payload as Record<string, unknown>).terminalAuditId === params.terminalAuditId,
+  );
+};
+
 const recordTerminalExternalEffectAudit = async <T>(
   ctx: AuditContext,
   options: {
@@ -217,25 +241,52 @@ const recordTerminalExternalEffectAudit = async <T>(
   status: Exclude<AdminAuditStatus, 'started'>,
   result?: T,
 ) => {
-  let action = 'unknown';
+  let entry: AuditEntry;
   let lastError: unknown;
 
+  try {
+    entry = await options.audit(status, result);
+  } catch (error) {
+    return { action: 'unknown', error };
+  }
+  const terminalAuditId = randomUUID();
+  const terminalEntry: AuditEntry = {
+    ...entry,
+    payload: { ...entry.payload, terminalAuditId },
+  };
+
   for (let attempt = 1; attempt <= MAX_TERMINAL_AUDIT_ATTEMPTS; attempt += 1) {
+    if (attempt > 1) {
+      try {
+        if (
+          await hasTerminalAdminAudit(ctx.serverDB, {
+            action: entry.action,
+            correlationId: options.correlationId,
+            status,
+            terminalAuditId,
+          })
+        ) {
+          return { action: entry.action, error: null };
+        }
+      } catch (error) {
+        lastError = error;
+        continue;
+      }
+    }
+
     try {
-      const entry = await options.audit(status, result);
-      action = entry.action;
-      await recordAdminAudit(ctx, entry, {
+      await recordAdminAudit(ctx, terminalEntry, {
         correlationId: options.correlationId,
         mode: 'required',
         status,
       });
-      return { action, error: null };
+      return { action: entry.action, error: null };
     } catch (error) {
       lastError = error;
     }
   }
 
-  return { action, error: lastError };
+  return { action: entry.action, error: lastError };
 };
 
 const logExternalEffectRecoveryRequired = (params: {
@@ -260,6 +311,7 @@ export const runRequiredAdminAuditExternalEffect = async <T>(
     audit: (status: AdminAuditStatus, result?: T) => AuditEntry | Promise<AuditEntry>;
     correlationId?: string;
     effect: () => Promise<T>;
+    terminalStatus?: (result: T) => Exclude<AdminAuditStatus, 'started'>;
   },
 ): Promise<T> => {
   const correlationId = options.correlationId ?? randomUUID();
@@ -289,23 +341,45 @@ export const runRequiredAdminAuditExternalEffect = async <T>(
     throw error;
   }
 
+  let terminalStatus: Exclude<AdminAuditStatus, 'started'>;
+  try {
+    terminalStatus = options.terminalStatus?.(result) ?? 'succeeded';
+  } catch (error) {
+    const terminal = await recordTerminalExternalEffectAudit(
+      ctx,
+      { audit: options.audit, correlationId },
+      'failed',
+      result,
+    );
+    logExternalEffectRecoveryRequired({
+      action: terminal.action,
+      correlationId,
+      status: 'failed',
+    });
+    throw new AdminAuditExternalEffectRecoveryError({
+      action: terminal.action,
+      cause: terminal.error ?? error,
+      correlationId,
+      status: 'failed',
+    });
+  }
   const terminal = await recordTerminalExternalEffectAudit(
     ctx,
     { audit: options.audit, correlationId },
-    'succeeded',
+    terminalStatus,
     result,
   );
   if (terminal.error) {
     logExternalEffectRecoveryRequired({
       action: terminal.action,
       correlationId,
-      status: 'succeeded',
+      status: terminalStatus,
     });
     throw new AdminAuditExternalEffectRecoveryError({
       action: terminal.action,
       cause: terminal.error,
       correlationId,
-      status: 'succeeded',
+      status: terminalStatus,
     });
   }
 

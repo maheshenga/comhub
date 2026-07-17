@@ -66,7 +66,27 @@ vi.mock('@/server/globalConfig', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
-  runRequiredAdminAuditExternalEffect: vi.fn(async (_ctx, options) => options.effect()),
+  runRequiredAdminAuditExternalEffect: vi.fn(async (ctx, options) => {
+    await recordAdminAudit(ctx, await options.audit('started'), {
+      correlationId: options.correlationId,
+      status: 'started',
+    });
+    try {
+      const result = await options.effect();
+      const status = options.terminalStatus?.(result) ?? 'succeeded';
+      await recordAdminAudit(ctx, await options.audit(status, result), {
+        correlationId: options.correlationId,
+        status,
+      });
+      return result;
+    } catch (error) {
+      await recordAdminAudit(ctx, await options.audit('failed'), {
+        correlationId: options.correlationId,
+        status: 'failed',
+      });
+      throw error;
+    }
+  }),
   runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
     const result = ctx.serverDB.transaction
       ? await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx))
@@ -141,7 +161,7 @@ describe('admin settings default model validation', () => {
     vi.mocked(ModuleAppPackageLifecycleService).mockImplementation(
       () =>
         ({
-          cleanupExpiredUploads: vi.fn().mockResolvedValue({ expired: 3, failed: 1 }),
+          cleanupExpiredUploads: vi.fn().mockResolvedValue({ expired: 3, failed: 0 }),
         }) as any,
     );
   });
@@ -857,7 +877,7 @@ describe('admin settings default model validation', () => {
     expect(result.notificationsDeleted).toBe(2);
     expect(result.notificationRetentionCutoff).toBeTruthy();
     expect(result.moduleAppUploadsExpired).toBe(3);
-    expect(result.moduleAppUploadCleanupFailed).toBe(1);
+    expect(result.moduleAppUploadCleanupFailed).toBe(0);
     expect(deleteMock).toHaveBeenCalledTimes(2);
     expect(runRequiredAdminAuditExternalEffect).toHaveBeenCalledWith(
       expect.anything(),
@@ -879,6 +899,36 @@ describe('admin settings default model validation', () => {
         action: ADMIN_COMMANDS['setting.runMaintenance'].auditAction,
         payload: expect.objectContaining({ phase: 'database' }),
       }),
+    );
+  });
+
+  it('records a failed maintenance lifecycle when upload cleanup reports partial failures', async () => {
+    vi.mocked(ModuleAppPackageLifecycleService).mockImplementation(
+      () =>
+        ({
+          cleanupExpiredUploads: vi.fn().mockResolvedValue({ expired: 2, failed: 1 }),
+        }) as any,
+    );
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'admin-user' } as any).runMaintenance({
+        command: { actionId: 'setting.runMaintenance', confirmed: true },
+        skipAudit: true,
+        skipNotifications: true,
+        skipOrders: true,
+      }),
+    ).resolves.toMatchObject({
+      moduleAppUploadCleanupFailed: 1,
+      moduleAppUploadsExpired: 2,
+      ok: true,
+    });
+
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: ADMIN_COMMANDS['setting.runMaintenance'].auditAction }),
+      expect.objectContaining({ status: 'failed' }),
     );
   });
 
@@ -1642,6 +1692,26 @@ describe('admin settings default model validation', () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it('does not contact S3 when the required started audit fails', async () => {
+    const startedFailure = new Error('started audit failed');
+    vi.mocked(runRequiredAdminAuditExternalEffect).mockRejectedValueOnce(startedFailure);
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.storageS3AccessKeyId, value: 'admin-access-key' },
+        { key: APP_SETTING_KEYS.storageS3SecretAccessKey, value: 'admin-secret-key' },
+        { key: APP_SETTING_KEYS.storageS3Endpoint, value: 'https://s3.example.com' },
+        { key: APP_SETTING_KEYS.storageS3Bucket, value: 'admin-bucket' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminSettingsRouter.createCaller({ userId: 'admin-user' } as any).testS3Storage(),
+    ).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR', message: startedFailure.message });
+
+    expect(S3).not.toHaveBeenCalled();
+  });
+
   it('tests saved S3 storage with CORS, presigned upload, read, and delete checks', async () => {
     const s3Mock = {
       createPreSignedUrl: vi.fn().mockResolvedValue('https://admin-bucket.s3.example.com/upload'),
@@ -1759,6 +1829,18 @@ describe('admin settings default model validation', () => {
     );
     expect(s3Mock.deleteFile).toHaveBeenCalledWith(
       expect.stringMatching(/^admin-files\/admin-s3-health-check\/.+\.txt$/),
+    );
+    expect(runRequiredAdminAuditExternalEffect).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ audit: expect.any(Function), effect: expect.any(Function) }),
+    );
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'settings.testS3Storage' }),
+      expect.objectContaining({ status: 'succeeded' }),
+    );
+    expect(JSON.stringify(vi.mocked(recordAdminAudit).mock.calls)).not.toContain(
+      'admin-secret-key',
     );
   });
 });

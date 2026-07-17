@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
+import { ModuleAppModel } from '@/database/models/moduleApp';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
+import { runRequiredAdminAuditExternalEffect } from './audit';
 import { adminRouter } from './index';
 
 const moduleAppModelMocks = vi.hoisted(() => ({
@@ -13,6 +15,8 @@ const moduleAppModelMocks = vi.hoisted(() => ({
   rejectPackageSubmissionForAdmin: vi.fn(),
   setStatus: vi.fn(),
   upsertAppForAdmin: vi.fn(),
+  upsertBillingForAdmin: vi.fn(),
+  upsertEntitlementsForAdmin: vi.fn(),
 }));
 
 const moduleAppCommerceMocks = vi.hoisted(() => ({
@@ -86,6 +90,7 @@ const mockAppEnv = vi.hoisted(() => ({
 }));
 const recordModuleAppPayoutState = vi.hoisted(() => vi.fn());
 const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
+const externalAuditMock = vi.hoisted(() => vi.fn());
 
 const lifecycleMocks = vi.hoisted(() => ({
   releaseRejectedPackage: vi.fn(),
@@ -153,6 +158,10 @@ vi.mock('@/server/services/moduleAppBuild/service', () => ({
 
 vi.mock('../../module-apps/audit', () => ({
   writeModuleAppAuditLog: vi.fn(),
+}));
+
+vi.mock('./audit', () => ({
+  runRequiredAdminAuditExternalEffect: externalAuditMock,
 }));
 
 vi.mock('./audit-router', async () => {
@@ -270,7 +279,10 @@ describe('admin module apps router', () => {
     vi.clearAllMocks();
     authState.role = 'admin';
     dbMocks.transaction.mockImplementation(async (callback) => callback(transactionDb));
+    externalAuditMock.mockImplementation(async (_ctx, options) => options.effect());
     moduleAppModelMocks.getAdminApp.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
+    moduleAppModelMocks.upsertBillingForAdmin.mockResolvedValue({ ok: true });
+    moduleAppModelMocks.upsertEntitlementsForAdmin.mockResolvedValue({ ok: true });
     moduleAppModelMocks.getAdminPackageSubmission.mockResolvedValue({
       id: PACKAGE_ID,
       reviewStatus: 'pending_review',
@@ -416,9 +428,10 @@ describe('admin module apps router', () => {
       items: [],
       nextCursor: null,
     });
-    await expect(
-      caller.moduleApps.exportPaymentReconciliation({ limit: 20 }),
-    ).resolves.toEqual({ items: [], nextCursor: null });
+    await expect(caller.moduleApps.exportPaymentReconciliation({ limit: 20 })).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
     await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
@@ -751,6 +764,22 @@ describe('admin module apps router', () => {
       orderId: ORDER_ID,
       reason: 'customer_request',
     });
+    expect(runRequiredAdminAuditExternalEffect).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ audit: expect.any(Function), effect: expect.any(Function) }),
+    );
+  });
+
+  it('does not call the refund provider when its required started audit fails', async () => {
+    const startedFailure = new Error('started audit failed');
+    externalAuditMock.mockRejectedValueOnce(startedFailure);
+    const caller = createCaller();
+
+    await expect(
+      caller.moduleApps.refundPaymentOrder({ orderId: ORDER_ID, reason: 'customer_request' }),
+    ).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR', message: startedFailure.message });
+
+    expect(moduleAppPaymentMocks.refundOrder).not.toHaveBeenCalled();
   });
 
   it('runs bounded payment reconciliation operations through finance permission', async () => {
@@ -770,6 +799,35 @@ describe('admin module apps router', () => {
     expect(moduleAppPaymentMocks.reconcileRefund).toHaveBeenCalledWith({
       actorUserId: 'admin-user',
       orderId: ORDER_ID,
+    });
+    const lifecycleActions = await Promise.all(
+      vi
+        .mocked(runRequiredAdminAuditExternalEffect)
+        .mock.calls.map(async ([, options]) => (await options.audit('started')).action),
+    );
+    expect(lifecycleActions).toEqual([
+      'module_app.payment_query_retried',
+      'module_app.pending_payments_reconciled',
+      'module_app.refund_status_retried',
+    ]);
+  });
+
+  it('classifies partial payment reconciliation errors as a failed terminal lifecycle', async () => {
+    const result = {
+      count: 1,
+      results: [{ error: 'provider unavailable', outTradeNo: 'out-private' }],
+    };
+    moduleAppPaymentMocks.reconcilePendingPayments.mockResolvedValueOnce(result);
+
+    await expect(
+      createCaller().moduleApps.reconcilePendingPayments({ limit: 25 }),
+    ).resolves.toEqual(result);
+
+    const options = vi.mocked(runRequiredAdminAuditExternalEffect).mock.calls[0]?.[1];
+    expect(options?.terminalStatus?.(result)).toBe('failed');
+    expect(await options?.audit('failed', result)).toMatchObject({
+      action: 'module_app.pending_payments_reconciled',
+      payload: { count: 1, limit: 25, terminalStatus: 'failed' },
     });
   });
 
@@ -805,6 +863,59 @@ describe('admin module apps router', () => {
         },
         resourceId: 'payment-reconciliation',
         resourceType: 'moduleAppPaymentReconciliation',
+      }),
+    );
+  });
+
+  it('commits billing and entitlement upserts with their Module App audits', async () => {
+    const caller = createCaller();
+    const billing = {
+      chargeMode: 'free' as const,
+      defaultMultiplier: 1,
+      externalApiCostCredits: 0,
+      failureFixedFeePolicy: 'do_not_charge' as const,
+      fixedServiceFeeCredits: 0,
+    };
+    const entitlements = [
+      {
+        discountPercent: 20,
+        freeQuotaCredits: 100,
+        installable: false,
+        plan: 'premium',
+        runnable: true,
+        visible: true,
+      },
+    ];
+
+    await expect(caller.moduleApps.upsertBilling({ appId: APP_ID, billing })).resolves.toEqual({
+      ok: true,
+    });
+    await expect(
+      caller.moduleApps.upsertEntitlements({ appId: APP_ID, entitlements }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(dbMocks.transaction).toHaveBeenCalledTimes(2);
+    expect(ModuleAppModel).toHaveBeenCalledWith(transactionDb);
+    expect(moduleAppModelMocks.upsertBillingForAdmin).toHaveBeenCalledWith({
+      appId: APP_ID,
+      billing,
+    });
+    expect(moduleAppModelMocks.upsertEntitlementsForAdmin).toHaveBeenCalledWith(
+      { appId: APP_ID, entitlements },
+      transactionDb,
+    );
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: transactionDb,
+        eventType: 'module_app.billing_upserted',
+        resourceId: APP_ID,
+      }),
+    );
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: transactionDb,
+        eventType: 'module_app.entitlements_upserted',
+        resourceId: APP_ID,
       }),
     );
   });

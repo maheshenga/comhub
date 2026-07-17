@@ -23,10 +23,8 @@ const middlewareByCapability: Record<AdminCapability, string> = {
   'user.write': 'userWriteProcedure',
 };
 
-const externalEffectOrAuditOnlyCommands = new Set([
-  'content.deleteFile',
-  'user.impersonate.attempt',
-]);
+const externalEffectCommands = new Set(['content.deleteDocument', 'content.deleteFile']);
+const auditOnlyCommands = new Set(['user.impersonate.attempt']);
 
 const sensitiveMutationRouters = [
   'content.ts',
@@ -100,11 +98,14 @@ describe('admin command router parity', () => {
       );
       expect(block, definition.actionId).toContain('action: command.auditAction');
 
-      if (
-        (definition.severity === 'high' || definition.severity === 'critical') &&
-        !externalEffectOrAuditOnlyCommands.has(definition.actionId)
-      ) {
-        expect(block, definition.actionId).toMatch(/runRequiredAdminAuditMutation(?:<[^>]+>)?\(/);
+      if (definition.severity === 'high' || definition.severity === 'critical') {
+        if (externalEffectCommands.has(definition.actionId)) {
+          expect(block, definition.actionId).toMatch(
+            /runRequiredAdminAuditExternalEffect(?:<[^>]+>)?\(/,
+          );
+        } else if (!auditOnlyCommands.has(definition.actionId)) {
+          expect(block, definition.actionId).toMatch(/runRequiredAdminAuditMutation(?:<[^>]+>)?\(/);
+        }
       }
     }
   });

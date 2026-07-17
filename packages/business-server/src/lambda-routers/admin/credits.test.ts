@@ -210,6 +210,58 @@ describe('adminCreditsRouter', () => {
     expect(tx.insert).toHaveBeenCalledTimes(3);
   });
 
+  it('audits listAccounts with bounded filters and count without row data', async () => {
+    const items = [
+      {
+        balance: 100,
+        currency: 'credits',
+        totalCredited: 120,
+        totalDebited: 20,
+        userId: 'private-user-id',
+      },
+    ];
+    const auditValues = vi.fn().mockResolvedValue(undefined);
+    const db = {
+      insert: vi.fn(() => ({ values: auditValues })),
+      query: {
+        creditAccounts: { findMany: vi.fn().mockResolvedValue(items) },
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }),
+        },
+      },
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminCreditsRouter.createCaller({ userId: 'admin-user' } as any).listAccounts({
+        cursor: 25,
+        limit: 50,
+        negativeOnly: true,
+        order: 'asc',
+        sort: 'totalDebited',
+      }),
+    ).resolves.toEqual({ items, nextCursor: null });
+
+    expect(auditValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'credits.list',
+        payload: expect.objectContaining({
+          count: 1,
+          cursor: 25,
+          filters: {
+            limit: 50,
+            negativeOnly: true,
+            order: 'asc',
+            sort: 'totalDebited',
+          },
+          status: 'succeeded',
+        }),
+        resourceType: 'credit_account',
+      }),
+    );
+    expect(JSON.stringify(auditValues.mock.calls)).not.toContain('private-user-id');
+  });
+
   it('returns credits CSV rows through a distinct audited backend export procedure', async () => {
     const items = [
       { balance: 100, currency: 'credits', totalCredited: 120, totalDebited: 20, userId: 'user-1' },

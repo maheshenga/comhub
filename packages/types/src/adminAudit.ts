@@ -1,15 +1,21 @@
-export type AuditEnvelopeStatus = 'failed' | 'started' | 'succeeded';
+import { z } from 'zod';
 
-export type AuditEnvelope = {
-  action: string;
-  actorUserId: null | string;
-  clientIp: null | string;
-  correlationId: string;
-  resourceId: null | string;
-  resourceType: null | string;
-  status: AuditEnvelopeStatus;
-  targetUserId: null | string;
-};
+export const auditEnvelopeStatusSchema = z.enum(['failed', 'started', 'succeeded']);
+export type AuditEnvelopeStatus = z.infer<typeof auditEnvelopeStatusSchema>;
+
+export const auditEnvelopeSchema = z
+  .object({
+    action: z.string().min(1),
+    actorUserId: z.string().nullable(),
+    clientIp: z.string().nullable(),
+    correlationId: z.string().min(1),
+    resourceId: z.string().nullable(),
+    resourceType: z.string().nullable(),
+    status: auditEnvelopeStatusSchema,
+    targetUserId: z.string().nullable(),
+  })
+  .strict();
+export type AuditEnvelope = z.infer<typeof auditEnvelopeSchema>;
 
 const SENSITIVE_AUDIT_FIELD = /authorization|certificate|cookie|key|password|secret|token/i;
 const REDACTED_VALUE = '[REDACTED]';
@@ -34,11 +40,11 @@ export const createAuditEnvelope = (params: {
   audit: params.audit,
 });
 
-export const readAuditEnvelope = (value: unknown): AuditEnvelope | null => {
-  if (!value || typeof value !== 'object') return null;
+export const readAuditEnvelope = (value: unknown): AuditEnvelope | undefined => {
+  if (!value || typeof value !== 'object') return undefined;
 
   const audit = (value as { audit?: unknown }).audit;
-  if (!audit || typeof audit !== 'object') return null;
+  const parsed = auditEnvelopeSchema.safeParse(audit);
 
-  return audit as AuditEnvelope;
+  return parsed.success ? parsed.data : undefined;
 };

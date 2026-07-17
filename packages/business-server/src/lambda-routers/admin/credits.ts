@@ -214,6 +214,21 @@ export const adminCreditsRouter = router({
         where,
       });
 
+      await recordAdminAudit(ctx, {
+        action: 'credits.list',
+        payload: {
+          count: items.length,
+          cursor: Math.min(input.cursor, 1_000_000_000),
+          filters: {
+            limit: input.limit,
+            negativeOnly: input.negativeOnly === true,
+            order: input.order,
+            sort: input.sort,
+          },
+        },
+        resourceType: 'credit_account',
+      });
+
       return {
         items,
         nextCursor: items.length === input.limit ? input.cursor + input.limit : null,

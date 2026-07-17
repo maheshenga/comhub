@@ -895,11 +895,14 @@ export class ModuleAppCatalogModel {
     return { ok: true as const };
   };
 
-  upsertEntitlementsForAdmin = async (params: {
-    appId: string;
-    entitlements: ModuleAppPlanEntitlement[];
-  }) => {
-    await this.replaceEntitlementsForAdmin(params, this.db);
+  upsertEntitlementsForAdmin = async (
+    params: {
+      appId: string;
+      entitlements: ModuleAppPlanEntitlement[];
+    },
+    db: DbExecutor = this.db,
+  ) => {
+    await this.replaceEntitlementsForAdmin(params, db);
 
     return { ok: true as const };
   };

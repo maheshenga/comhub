@@ -7,11 +7,18 @@ import {
   runRequiredAdminAuditMutation,
 } from './audit';
 
-const createDb = (insertResult: (value: Record<string, unknown>) => Promise<unknown>) => {
+const createDb = (
+  insertResult: (value: Record<string, unknown>) => Promise<unknown>,
+  findTerminal: () => Promise<unknown> = () => Promise.resolve(undefined),
+) => {
   const values = vi.fn(insertResult);
-  const db = { insert: vi.fn(() => ({ values })) } as any;
+  const findFirst = vi.fn(findTerminal);
+  const db = {
+    insert: vi.fn(() => ({ values })),
+    query: { adminAuditLogs: { findFirst } },
+  } as any;
 
-  return { db, values };
+  return { db, findFirst, values };
 };
 
 const context = (db: any) => ({
@@ -317,6 +324,125 @@ describe('runRequiredAdminAuditExternalEffect', () => {
       'succeeded',
       'succeeded',
     ]);
+  });
+
+  it('does not duplicate a terminal row after an ambiguous insert acknowledgement', async () => {
+    let terminalPersisted = false;
+    let terminalAuditId: string | undefined;
+    const { db, findFirst, values } = createDb(
+      async (value) => {
+        if ((value.payload as Record<string, unknown>).status === 'succeeded') {
+          terminalAuditId = (value.payload as Record<string, unknown>).terminalAuditId as string;
+          terminalPersisted = true;
+          throw new Error('connection closed after commit');
+        }
+      },
+      async () =>
+        terminalPersisted
+          ? { payload: { terminalAuditId } }
+          : undefined,
+    );
+
+    await expect(
+      runRequiredAdminAuditExternalEffect(context(db), {
+        audit: () => ({ action: 'content.file.delete', resourceType: 'file' }),
+        correlationId: 'ambiguous-terminal-correlation',
+        effect: async () => ({ removed: true }),
+      }),
+    ).resolves.toEqual({ removed: true });
+
+    expect(findFirst).toHaveBeenCalledOnce();
+    expect(values.mock.calls.map(([value]) => (value.payload as any).status)).toEqual([
+      'started',
+      'succeeded',
+    ]);
+    expect(terminalAuditId).toEqual(expect.any(String));
+  });
+
+  it('does not mistake another audit phase for the external terminal row', async () => {
+    let terminalAttempts = 0;
+    const { db, values } = createDb(
+      async (value) => {
+        if (
+          (value.payload as Record<string, unknown>).status === 'succeeded' &&
+          ++terminalAttempts === 1
+        ) {
+          throw new Error('temporary terminal audit failure');
+        }
+      },
+      async () => ({
+        payload: {
+          correlationId: 'shared-maintenance-correlation',
+          phase: 'database',
+          status: 'succeeded',
+        },
+      }),
+    );
+
+    await expect(
+      runRequiredAdminAuditExternalEffect(context(db), {
+        audit: () => ({ action: 'setting.maintenance.run', resourceType: 'maintenance' }),
+        correlationId: 'shared-maintenance-correlation',
+        effect: async () => ({ failed: 0, processed: 3 }),
+      }),
+    ).resolves.toEqual({ failed: 0, processed: 3 });
+
+    expect(values.mock.calls.map(([value]) => (value.payload as any).status)).toEqual([
+      'started',
+      'succeeded',
+      'succeeded',
+    ]);
+  });
+
+  it('records a classified failed terminal status without changing the effect result contract', async () => {
+    const { db, values } = createDb(() => Promise.resolve());
+
+    await expect(
+      runRequiredAdminAuditExternalEffect(context(db), {
+        audit: () => ({ action: 'setting.maintenance.run', resourceType: 'maintenance' }),
+        effect: async () => ({ failed: 1, processed: 3 }),
+        terminalStatus: (result) => (result.failed > 0 ? 'failed' : 'succeeded'),
+      }),
+    ).resolves.toEqual({ failed: 1, processed: 3 });
+
+    expect(values.mock.calls.map(([value]) => (value.payload as any).status)).toEqual([
+      'started',
+      'failed',
+    ]);
+  });
+
+  it('records recovery-required failure when terminal classification throws after the effect', async () => {
+    const classifierFailure = new Error('terminal classifier failed');
+    const { db, values } = createDb(() => Promise.resolve());
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      runRequiredAdminAuditExternalEffect(context(db), {
+        audit: () => ({ action: 'setting.maintenance.run', resourceType: 'maintenance' }),
+        correlationId: 'classifier-failure-correlation',
+        effect: async () => ({ failed: 0, processed: 3 }),
+        terminalStatus: () => {
+          throw classifierFailure;
+        },
+      }),
+    ).rejects.toMatchObject({
+      details: { cause: classifierFailure, status: 'failed' },
+      recoveryRequired: true,
+    });
+
+    expect(values.mock.calls.map(([value]) => (value.payload as any).status)).toEqual([
+      'started',
+      'failed',
+    ]);
+    expect(consoleError).toHaveBeenCalledWith(
+      '[admin-audit] external effect terminal audit recovery required',
+      expect.objectContaining({
+        action: 'setting.maintenance.run',
+        correlationId: 'classifier-failure-correlation',
+        recoveryRequired: true,
+        status: 'failed',
+      }),
+    );
   });
 
   it('marks recovery as required when every terminal audit attempt fails after the effect succeeds', async () => {
