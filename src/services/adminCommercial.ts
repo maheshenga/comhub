@@ -1,4 +1,9 @@
-import { ADMIN_COMMANDS, type AdminCommandEnvelope, type AdminRole, type Plans } from '@lobechat/types';
+import {
+  ADMIN_COMMANDS,
+  type AdminCommandEnvelope,
+  type AdminRole,
+  type Plans,
+} from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
 import type { SubscriptionCycleType } from '@/types/business';
@@ -476,6 +481,13 @@ class AdminCommercialService {
     order?: 'asc' | 'desc';
     sort?: 'balance' | 'totalCredited' | 'totalDebited' | 'updatedAt';
   }) => lambdaClient.admin.credits.listAccounts.query(params);
+
+  exportCreditAccounts = async (params: {
+    limit?: number;
+    negativeOnly?: boolean;
+    order?: 'asc' | 'desc';
+    sort?: 'balance' | 'totalCredited' | 'totalDebited' | 'updatedAt';
+  }) => lambdaClient.admin.credits.exportAccounts.query(params);
 
   // Users export
   exportUsers = async (params: { limit?: number; query?: string }) =>

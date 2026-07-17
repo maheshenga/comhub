@@ -6,7 +6,7 @@ import type { Transaction } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit } from './audit';
+import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
 
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
@@ -33,74 +33,118 @@ export const adminCreditsRouter = router({
       const { amount, userId } = input;
       const reason = command.reason!;
 
-      const snapshots = await ctx.serverDB.transaction(async (tx: Transaction) => {
-        await tx
-          .insert(creditAccounts)
-          .values({ balance: 0, totalCredited: 0, totalDebited: 0, userId })
-          .onConflictDoNothing({ target: creditAccounts.userId });
-
-        const [before] = await tx
-          .select(creditAccountAuditSnapshot)
-          .from(creditAccounts)
-          .where(eq(creditAccounts.userId, userId));
-
-        if (amount > 0) {
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: (snapshots) => ({
+          action: command.auditAction,
+          payload: { amount, reason, ...snapshots },
+          resourceType: 'credit_account',
+          targetUserId: userId,
+        }),
+        mutation: async (tx: Transaction) => {
           await tx
-            .update(creditAccounts)
-            .set({
-              balance: sql`${creditAccounts.balance} + ${amount}`,
-              totalCredited: sql`${creditAccounts.totalCredited} + ${amount}`,
-              updatedAt: new Date(),
-            })
+            .insert(creditAccounts)
+            .values({ balance: 0, totalCredited: 0, totalDebited: 0, userId })
+            .onConflictDoNothing({ target: creditAccounts.userId });
+
+          const [before] = await tx
+            .select(creditAccountAuditSnapshot)
+            .from(creditAccounts)
             .where(eq(creditAccounts.userId, userId));
-        } else {
-          // Pre-check: ensure sufficient balance for negative adjustment
-          if (before && Number(before.balance) + amount < 0) {
-            throw new Error(
-              `Insufficient balance: current ${before.balance}, adjustment ${amount}`,
-            );
+
+          if (amount > 0) {
+            await tx
+              .update(creditAccounts)
+              .set({
+                balance: sql`${creditAccounts.balance} + ${amount}`,
+                totalCredited: sql`${creditAccounts.totalCredited} + ${amount}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(creditAccounts.userId, userId));
+          } else {
+            // Pre-check: ensure sufficient balance for negative adjustment
+            if (before && Number(before.balance) + amount < 0) {
+              throw new Error(
+                `Insufficient balance: current ${before.balance}, adjustment ${amount}`,
+              );
+            }
+
+            await tx
+              .update(creditAccounts)
+              .set({
+                balance: sql`${creditAccounts.balance} + ${amount}`,
+                totalDebited: sql`${creditAccounts.totalDebited} + ${Math.abs(amount)}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(creditAccounts.userId, userId));
           }
 
-          await tx
-            .update(creditAccounts)
-            .set({
-              balance: sql`${creditAccounts.balance} + ${amount}`,
-              totalDebited: sql`${creditAccounts.totalDebited} + ${Math.abs(amount)}`,
-              updatedAt: new Date(),
-            })
+          const [after] = await tx
+            .select(creditAccountAuditSnapshot)
+            .from(creditAccounts)
             .where(eq(creditAccounts.userId, userId));
-        }
 
-        const [after] = await tx
-          .select(creditAccountAuditSnapshot)
-          .from(creditAccounts)
-          .where(eq(creditAccounts.userId, userId));
+          if (!after) {
+            throw new Error(`Credit account not found after adjustment: ${userId}`);
+          }
 
-        if (!after) {
-          throw new Error(`Credit account not found after adjustment: ${userId}`);
-        }
+          await tx.insert(creditLedgerEntries).values({
+            amount,
+            balanceAfter: after.balance,
+            description: reason,
+            referenceType: 'admin_adjustment',
+            title: 'Admin Adjustment',
+            type: 'adjustment',
+            userId,
+          });
 
-        await tx.insert(creditLedgerEntries).values({
-          amount,
-          balanceAfter: after.balance,
-          description: reason,
-          referenceType: 'admin_adjustment',
-          title: 'Admin Adjustment',
-          type: 'adjustment',
-          userId,
-        });
-
-        return { after, before: before ?? null };
-      });
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: { amount, reason, ...snapshots },
-        resourceType: 'credit_account',
-        targetUserId: userId,
+          return { after, before: before ?? null };
+        },
       });
 
       return { ok: true };
+    }),
+
+  exportAccounts: financeReadProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(10_000).default(5000),
+        negativeOnly: z.boolean().optional(),
+        order: z.enum(['asc', 'desc']).default('desc'),
+        sort: z.enum(['balance', 'totalCredited', 'totalDebited', 'updatedAt']).default('balance'),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const col =
+        input.sort === 'totalCredited'
+          ? creditAccounts.totalCredited
+          : input.sort === 'totalDebited'
+            ? creditAccounts.totalDebited
+            : input.sort === 'updatedAt'
+              ? creditAccounts.updatedAt
+              : creditAccounts.balance;
+      const orderBy = input.order === 'asc' ? asc(col) : desc(col);
+      const where = input.negativeOnly ? lt(creditAccounts.balance, 0) : undefined;
+      const items = await ctx.serverDB.query.creditAccounts.findMany({
+        limit: input.limit,
+        orderBy,
+        where,
+      });
+
+      await recordAdminAudit(ctx, {
+        action: 'credits.export',
+        payload: {
+          count: items.length,
+          filters: {
+            negativeOnly: Boolean(input.negativeOnly),
+            order: input.order,
+            sort: input.sort,
+          },
+          limit: input.limit,
+        },
+        resourceType: 'credit_account',
+      });
+
+      return { items };
     }),
 
   getBalance: financeReadProcedure

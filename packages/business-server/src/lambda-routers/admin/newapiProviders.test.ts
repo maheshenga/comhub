@@ -12,6 +12,11 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
+  runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
+    const result = await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx));
+    await recordAdminAudit(ctx, await options.audit(result));
+    return result;
+  }),
 }));
 
 vi.mock('model-bank', async (importOriginal) => ({
@@ -615,6 +620,7 @@ describe('adminNewapiProvidersRouter', () => {
           findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
         },
       },
+      transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(db)),
     };
     vi.mocked(getServerDB).mockResolvedValue(db as any);
 

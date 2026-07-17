@@ -17,6 +17,11 @@ vi.mock('@/database/models/commercial', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
+  runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
+    const result = await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx));
+    await recordAdminAudit(ctx, await options.audit(result));
+    return result;
+  }),
 }));
 
 describe('adminOrdersRouter', () => {
@@ -56,6 +61,9 @@ describe('adminOrdersRouter', () => {
         })),
       })),
     };
+    (db as any).transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback(db),
+    );
     vi.mocked(getServerDB).mockResolvedValue(db as any);
 
     const caller = adminOrdersRouter.createCaller({ userId: `${role}-user` } as any);
@@ -151,7 +159,9 @@ describe('adminOrdersRouter', () => {
     expect(settleTopUpOrder).toHaveBeenCalledWith('order-1');
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ payload: expect.objectContaining({ reason: 'legacy top-level reason' }) }),
+      expect.objectContaining({
+        payload: expect.objectContaining({ reason: 'legacy top-level reason' }),
+      }),
     );
   });
 

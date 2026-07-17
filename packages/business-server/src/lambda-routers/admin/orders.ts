@@ -7,7 +7,7 @@ import { redemptionCodes, topUpOrders, users } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit } from './audit';
+import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
 
 const OrderStatusSchema = z.enum(['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded']);
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
@@ -140,26 +140,27 @@ export const adminOrdersRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'ORDER_NOT_FOUND' });
       }
 
-      const commercial = new CommercialModel(ctx.serverDB, order.userId);
-      const result = await commercial.settleTopUpOrder(input.orderId);
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: {
-          amount: Number(order.amount),
-          credits: Number(order.credits),
-          currency: order.currency,
-          provider: order.provider,
-          reason: command.reason,
-          source: order.source,
-          status: result.status,
+      return runRequiredAdminAuditMutation<{ status: string }>(ctx, {
+        audit: (result) => ({
+          action: command.auditAction,
+          payload: {
+            amount: Number(order.amount),
+            credits: Number(order.credits),
+            currency: order.currency,
+            provider: order.provider,
+            reason: command.reason,
+            source: order.source,
+            status: result.status,
+          },
+          resourceId: input.orderId,
+          resourceType: 'top_up_order',
+          targetUserId: order.userId,
+        }),
+        mutation: async (tx) => {
+          const commercial = new CommercialModel(tx, order.userId);
+          return commercial.settleTopUpOrder(input.orderId);
         },
-        resourceId: input.orderId,
-        resourceType: 'top_up_order',
-        targetUserId: order.userId,
       });
-
-      return result;
     }),
 
   list: financeReadProcedure

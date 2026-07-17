@@ -36,6 +36,17 @@ vi.mock('@/server/services/file', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
+  runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
+    const result = await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx));
+    await recordAdminAudit(ctx, await options.audit(result));
+    return result;
+  }),
+  runRequiredAdminAuditExternalEffect: vi.fn(async (ctx, options) => {
+    await recordAdminAudit(ctx, await options.audit('started'));
+    const result = await options.effect();
+    await recordAdminAudit(ctx, await options.audit('succeeded', result));
+    return result;
+  }),
 }));
 
 const createDb = ({
@@ -50,7 +61,7 @@ const createDb = ({
   const deleteWhere = vi.fn().mockResolvedValue(undefined);
   const deleteMock = vi.fn(() => ({ where: deleteWhere }));
 
-  return {
+  const db = {
     __mocks: {
       delete: deleteMock,
       deleteWhere,
@@ -71,6 +82,9 @@ const createDb = ({
       },
     },
   } as any;
+  db.transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(db));
+
+  return db;
 };
 
 describe('admin content router', () => {

@@ -21,6 +21,11 @@ vi.mock('@/database/core/db-adaptor', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
+  runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
+    const result = await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx));
+    await recordAdminAudit(ctx, await options.audit(result));
+    return result;
+  }),
 }));
 
 const serverDB: LobeChatDatabase = await getTestDB();
@@ -290,6 +295,38 @@ describe('adminUsersRouter impersonation audit', () => {
     expect(recordAdminAudit).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'user.impersonate.start' }),
+    );
+  });
+});
+
+describe('adminUsersRouter export audit', () => {
+  it('records a distinct sanitized user export event', async () => {
+    const findMany = vi.fn().mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]);
+    const db = {
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+          findMany,
+        },
+      },
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await adminUsersRouter.createCaller({ userId: 'admin-user' } as any).exportAll({
+      limit: 25,
+      query: 'person@example.com',
+    });
+
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'admin-user' }),
+      {
+        action: 'user.export',
+        payload: { count: 2, filters: { hasQuery: true }, limit: 25 },
+        resourceType: 'user_export',
+      },
+    );
+    expect(JSON.stringify(vi.mocked(recordAdminAudit).mock.calls)).not.toContain(
+      'person@example.com',
     );
   });
 });

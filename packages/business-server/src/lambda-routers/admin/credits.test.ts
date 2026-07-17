@@ -3,15 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
 
-import { recordAdminAudit } from './audit';
 import { adminCreditsRouter } from './credits';
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
-}));
-
-vi.mock('./audit', () => ({
-  recordAdminAudit: vi.fn(),
 }));
 
 const createSelectChain = (rows: unknown[]) => ({
@@ -55,7 +50,6 @@ describe('adminCreditsRouter', () => {
       message: 'ADMIN_COMMAND_CONFIRMATION_TEXT_MISMATCH',
     });
     expect(transaction).not.toHaveBeenCalled();
-    expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
   it('rejects conflicting legacy and envelope reasons before opening a credit transaction', async () => {
@@ -88,12 +82,12 @@ describe('adminCreditsRouter', () => {
       message: 'ADMIN_COMMAND_REASON_MISMATCH',
     });
     expect(transaction).not.toHaveBeenCalled();
-    expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
   it('accepts an envelope-only reason and records before and after credit snapshots', async () => {
     const before = { balance: 200, totalCredited: 500, totalDebited: 300 };
     const after = { balance: 300, totalCredited: 600, totalDebited: 300 };
+    const insertAuditValues = vi.fn().mockResolvedValue(undefined);
     const insertLedgerValues = vi.fn().mockResolvedValue(undefined);
     const updateWhere = vi.fn().mockResolvedValue(undefined);
     const insert = vi
@@ -105,6 +99,9 @@ describe('adminCreditsRouter', () => {
       })
       .mockReturnValueOnce({
         values: insertLedgerValues,
+      })
+      .mockReturnValueOnce({
+        values: insertAuditValues,
       });
     const tx = {
       insert,
@@ -141,19 +138,116 @@ describe('adminCreditsRouter', () => {
       }),
     ).resolves.toEqual({ ok: true });
 
-    expect(recordAdminAudit).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        action: ADMIN_COMMANDS['credits.adjust'].auditAction,
-        payload: {
-          after,
-          amount: 100,
-          before,
+    expect(insertAuditValues).toHaveBeenCalledWith({
+      action: ADMIN_COMMANDS['credits.adjust'].auditAction,
+      actorUserId: 'admin-user',
+      ipAddress: null,
+      payload: {
+        after,
+        amount: 100,
+        before,
+        correlationId: expect.any(String),
+        reason: 'manual correction',
+        status: 'succeeded',
+      },
+      resourceId: null,
+      resourceType: 'credit_account',
+      targetUserId: 'target-user',
+    });
+  });
+
+  it('rejects the critical adjustment when its same-transaction audit insert fails', async () => {
+    const before = { balance: 200, totalCredited: 500, totalDebited: 300 };
+    const after = { balance: 300, totalCredited: 600, totalDebited: 300 };
+    const auditFailure = new Error('audit insert failed');
+    const tx = {
+      insert: vi
+        .fn()
+        .mockReturnValueOnce({
+          values: vi.fn(() => ({
+            onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+          })),
+        })
+        .mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) })
+        .mockReturnValueOnce({ values: vi.fn().mockRejectedValue(auditFailure) }),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(createSelectChain([before]))
+        .mockReturnValueOnce(createSelectChain([after])),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
+      })),
+    } as any;
+    const transaction = vi.fn(async (handler: (transaction: typeof tx) => Promise<void>) =>
+      handler(tx),
+    );
+    const db = {
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }),
+        },
+      },
+      transaction,
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminCreditsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.adjust({
+        amount: 100,
+        command: {
+          actionId: 'credits.adjust',
+          confirmationText: 'credits.adjust',
+          confirmed: true,
           reason: 'manual correction',
         },
+        userId: 'target-user',
+      }),
+    ).rejects.toMatchObject({ message: auditFailure.message });
+
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(tx.insert).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns credits CSV rows through a distinct audited backend export procedure', async () => {
+    const items = [
+      { balance: 100, currency: 'credits', totalCredited: 120, totalDebited: 20, userId: 'user-1' },
+      { balance: -10, currency: 'credits', totalCredited: 0, totalDebited: 10, userId: 'user-2' },
+    ];
+    const auditValues = vi.fn().mockResolvedValue(undefined);
+    const db = {
+      insert: vi.fn(() => ({ values: auditValues })),
+      query: {
+        creditAccounts: { findMany: vi.fn().mockResolvedValue(items) },
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }),
+        },
+      },
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      (adminCreditsRouter.createCaller({ userId: 'admin-user' } as any) as any).exportAccounts({
+        limit: 500,
+        negativeOnly: true,
+        order: 'asc',
+        sort: 'balance',
+      }),
+    ).resolves.toEqual({ items });
+
+    expect(auditValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'credits.export',
+        payload: expect.objectContaining({
+          count: 2,
+          filters: { negativeOnly: true, order: 'asc', sort: 'balance' },
+          limit: 500,
+          status: 'succeeded',
+        }),
         resourceType: 'credit_account',
-        targetUserId: 'target-user',
       }),
     );
+    expect(JSON.stringify(auditValues.mock.calls)).not.toContain('user-1');
   });
 });

@@ -3,10 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
 
+import { recordAdminAudit } from './audit';
 import { adminAuditRouter } from './audit-router';
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
+}));
+
+vi.mock('./audit', () => ({
+  recordAdminAudit: vi.fn(),
 }));
 
 const createDb = () => {
@@ -98,5 +103,33 @@ describe('adminAuditRouter', () => {
       '("admin_audit_logs"."resource_type" = $1 and "admin_audit_logs"."resource_id" = $2 and "admin_audit_logs"."created_at" >= $3 and "admin_audit_logs"."created_at" <= $4)',
     );
     expect(built.params).toStrictEqual(['order', 'order-1', from, to]);
+  });
+
+  it('records a distinct audit export event without persisted filter values or row contents', async () => {
+    const { db, findMany } = createDb();
+    findMany.mockResolvedValue([{ id: 'audit-1' }, { id: 'audit-2' }]);
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    await adminAuditRouter.createCaller({ userId: 'admin-user' } as any).exportAll({
+      actorUserId: 'person@example.com',
+      limit: 1000,
+      resourceId: 'order-1',
+    });
+
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'admin-user' }),
+      {
+        action: 'admin.audit.export',
+        payload: {
+          count: 2,
+          filters: { actorUserId: true, resourceId: true },
+          limit: 1000,
+        },
+        resourceType: 'admin_audit_log',
+      },
+    );
+    expect(JSON.stringify(vi.mocked(recordAdminAudit).mock.calls)).not.toContain(
+      'person@example.com',
+    );
   });
 });

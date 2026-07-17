@@ -26,7 +26,7 @@ import {
 } from '@/server/services/newapiInstance/credentials';
 
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit } from './audit';
+import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
 
 const maskApiKey = (key: string | null | undefined): string | null => {
   if (!key) return null;
@@ -264,19 +264,22 @@ export const adminNewapiProvidersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const command = deleteInstanceCommand.validate(input.command, input.reason);
       const reason = command.reason;
-      const result = await ctx.serverDB
-        .delete(adminNewapiInstances)
-        .where(eq(adminNewapiInstances.id, input.id))
-        .returning({ id: adminNewapiInstances.id });
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: command.auditAction,
+          payload: reason ? { reason } : undefined,
+          resourceId: input.id,
+          resourceType: 'admin_newapi_instances',
+        }),
+        mutation: async (tx) => {
+          const result = await tx
+            .delete(adminNewapiInstances)
+            .where(eq(adminNewapiInstances.id, input.id))
+            .returning({ id: adminNewapiInstances.id });
 
-      if (result.length === 0)
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: reason ? { reason } : undefined,
-        resourceId: input.id,
-        resourceType: 'admin_newapi_instances',
+          if (result.length === 0)
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+        },
       });
       invalidateNewapiInstancesCache();
       return { ok: true };

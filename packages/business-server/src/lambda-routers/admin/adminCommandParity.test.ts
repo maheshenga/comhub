@@ -23,6 +23,12 @@ const middlewareByCapability: Record<AdminCapability, string> = {
   'user.write': 'userWriteProcedure',
 };
 
+const externalEffectOrAuditOnlyCommands = new Set([
+  'content.deleteFile',
+  'setting.runMaintenance',
+  'user.impersonate.attempt',
+]);
+
 const escapeRegExp = (value: string) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const getProcedureSource = (procedurePath: string) => {
@@ -51,9 +57,7 @@ describe('admin command router parity', () => {
       );
 
       if (definition.confirmationMode === 'none') {
-        const commandMatch = block.match(
-          /action: ([A-Za-z]\w*)\.definition\.auditAction/,
-        );
+        const commandMatch = block.match(/action: ([A-Za-z]\w*)\.definition\.auditAction/);
         expect(commandMatch, definition.actionId).not.toBeNull();
 
         const commandName = commandMatch![1];
@@ -85,6 +89,13 @@ describe('admin command router parity', () => {
           : `const command = ${commandName}.validate(input.command, input.reason);`,
       );
       expect(block, definition.actionId).toContain('action: command.auditAction');
+
+      if (
+        (definition.severity === 'high' || definition.severity === 'critical') &&
+        !externalEffectOrAuditOnlyCommands.has(definition.actionId)
+      ) {
+        expect(block, definition.actionId).toMatch(/runRequiredAdminAuditMutation(?:<[^>]+>)?\(/);
+      }
     }
   });
 });

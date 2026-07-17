@@ -10,7 +10,11 @@ import { DocumentService } from '@/server/services/document';
 import { FileService } from '@/server/services/file';
 
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit } from './audit';
+import {
+  recordAdminAudit,
+  runRequiredAdminAuditExternalEffect,
+  runRequiredAdminAuditMutation,
+} from './audit';
 
 const pageInput = z.object({
   cursor: z.number().int().min(0).default(0),
@@ -89,16 +93,18 @@ export const adminContentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const command = deleteDocumentCommand.validate(input.command);
       const document = await getDocumentForAction(ctx, input.documentId);
-      const documentService = new DocumentService(ctx.serverDB, document.userId);
-
-      await documentService.deleteDocument(input.documentId);
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: { sourceType: document.sourceType, title: document.title },
-        resourceId: input.documentId,
-        resourceType: 'document',
-        targetUserId: document.userId,
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: command.auditAction,
+          payload: { sourceType: document.sourceType, title: document.title },
+          resourceId: input.documentId,
+          resourceType: 'document',
+          targetUserId: document.userId,
+        }),
+        mutation: async (tx) => {
+          const documentService = new DocumentService(tx, document.userId);
+          await documentService.deleteDocument(input.documentId);
+        },
       });
 
       return { ok: true };
@@ -109,21 +115,23 @@ export const adminContentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const command = deleteFileCommand.validate(input.command);
       const file = await getFileForAction(ctx, input.fileId);
-      const fileModel = new FileModel(ctx.serverDB, file.userId);
-      const fileService = new FileService(ctx.serverDB, file.userId);
+      await runRequiredAdminAuditExternalEffect(ctx, {
+        audit: () => ({
+          action: command.auditAction,
+          payload: { fileType: file.fileType, name: file.name, size: file.size },
+          resourceId: input.fileId,
+          resourceType: 'file',
+          targetUserId: file.userId,
+        }),
+        effect: async () => {
+          const fileModel = new FileModel(ctx.serverDB, file.userId);
+          const fileService = new FileService(ctx.serverDB, file.userId);
+          const removedFile = await fileModel.delete(input.fileId, serverDBEnv.REMOVE_GLOBAL_FILE);
 
-      const removedFile = await fileModel.delete(input.fileId, serverDBEnv.REMOVE_GLOBAL_FILE);
-
-      if (removedFile?.url) {
-        await fileService.deleteFile(removedFile.url);
-      }
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: { fileType: file.fileType, name: file.name, size: file.size },
-        resourceId: input.fileId,
-        resourceType: 'file',
-        targetUserId: file.userId,
+          if (removedFile?.url) {
+            await fileService.deleteFile(removedFile.url);
+          }
+        },
       });
 
       return { ok: true };
@@ -135,14 +143,17 @@ export const adminContentRouter = router({
       const command = deleteTopicCommand.validate(input.command);
       const topic = await getTopicForAction(ctx, input.topicId);
 
-      await ctx.serverDB.delete(topics).where(eq(topics.id, input.topicId));
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: { title: topic.title },
-        resourceId: input.topicId,
-        resourceType: 'topic',
-        targetUserId: topic.userId,
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: command.auditAction,
+          payload: { title: topic.title },
+          resourceId: input.topicId,
+          resourceType: 'topic',
+          targetUserId: topic.userId,
+        }),
+        mutation: async (tx) => {
+          await tx.delete(topics).where(eq(topics.id, input.topicId));
+        },
       });
 
       return { ok: true };

@@ -52,8 +52,8 @@ const AdminCreditsPage = memo(() => {
 
   const handleExport = async () => {
     try {
-      const res = await adminCommercialService.listCreditAccounts({
-        limit: 200,
+      const res = await adminCommercialService.exportCreditAccounts({
+        limit: 5000,
         negativeOnly: negativeOnly || undefined,
         order,
         sort,

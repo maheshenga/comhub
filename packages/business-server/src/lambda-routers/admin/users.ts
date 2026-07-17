@@ -21,7 +21,7 @@ import {
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit } from './audit';
+import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
 
 type ResetAllUsersToFreePlanResult = {
   canceledPaid: number;
@@ -103,8 +103,8 @@ export const getResetAllUsersToFreePlanPreview = async (
   }) as ResetAllUsersToFreePlanResult;
 };
 
-export const resetAllUsersToFreePlan = async (
-  db: { transaction: <T>(cb: (tx: Transaction) => Promise<T>) => Promise<T> },
+export const resetAllUsersToFreePlanInTransaction = async (
+  tx: Transaction,
   reason = 'admin_reset_to_unlimited_free_plan',
   options: { userIds?: string[] } = {},
 ): Promise<ResetAllUsersToFreePlanResult> => {
@@ -112,8 +112,7 @@ export const resetAllUsersToFreePlan = async (
     options.userIds,
   );
 
-  return db.transaction(async (tx: Transaction) => {
-    const resetResult = await tx.execute(sql`
+  const resetResult = await tx.execute(sql`
       WITH canceled_paid AS (
         UPDATE "user_plan_snapshots"
         SET
@@ -209,13 +208,19 @@ export const resetAllUsersToFreePlan = async (
         (SELECT COUNT(*)::int FROM inserted_free) AS "insertedFree"
     `);
 
-    return (resetResult.rows?.[0] ?? {
-      canceledPaid: 0,
-      insertedFree: 0,
-      normalizedFree: 0,
-    }) as ResetAllUsersToFreePlanResult;
-  });
+  return (resetResult.rows?.[0] ?? {
+    canceledPaid: 0,
+    insertedFree: 0,
+    normalizedFree: 0,
+  }) as ResetAllUsersToFreePlanResult;
 };
+
+export const resetAllUsersToFreePlan = async (
+  db: { transaction: <T>(cb: (tx: Transaction) => Promise<T>) => Promise<T> },
+  reason = 'admin_reset_to_unlimited_free_plan',
+  options: { userIds?: string[] } = {},
+): Promise<ResetAllUsersToFreePlanResult> =>
+  db.transaction((tx) => resetAllUsersToFreePlanInTransaction(tx, reason, options));
 
 const supportWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.supportWrite);
 const userReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userRead);
@@ -434,12 +439,16 @@ export const adminUsersRouter = router({
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Cannot change your own role' });
       }
 
-      await ctx.serverDB.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: { role: input.role },
-        resourceType: 'user',
-        targetUserId: input.userId,
+      await runRequiredAdminAuditMutation(ctx, {
+        audit: () => ({
+          action: command.auditAction,
+          payload: { role: input.role },
+          resourceType: 'user',
+          targetUserId: input.userId,
+        }),
+        mutation: async (tx) => {
+          await tx.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
+        },
       });
       return { ok: true };
     }),
@@ -492,6 +501,17 @@ export const adminUsersRouter = router({
         orderBy: desc(users.createdAt),
         where,
       });
+
+      await recordAdminAudit(ctx, {
+        action: 'user.export',
+        payload: {
+          count: items.length,
+          filters: { hasQuery: Boolean(input.query) },
+          limit: input.limit,
+        },
+        resourceType: 'user_export',
+      });
+
       return { items };
     }),
 
@@ -509,12 +529,13 @@ export const adminUsersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const command = resetAllToFreePlanCommand.validate(input.command, input.reason);
       const reason = command.reason!;
-      const result = await resetAllUsersToFreePlan(ctx.serverDB, reason);
-
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: { ...result, reason },
-        resourceType: 'user',
+      const result = await runRequiredAdminAuditMutation<ResetAllUsersToFreePlanResult>(ctx, {
+        audit: (result) => ({
+          action: command.auditAction,
+          payload: { ...result, reason },
+          resourceType: 'user',
+        }),
+        mutation: (tx) => resetAllUsersToFreePlanInTransaction(tx, reason),
       });
 
       return { ok: true, ...result };

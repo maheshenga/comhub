@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { adminAuditLogs } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
+import { recordAdminAudit } from './audit';
+
 const auditFilterInput = z.object({
   action: z.string().optional(),
   actorUserId: z.string().optional(),
@@ -83,6 +85,25 @@ export const adminAuditRouter = router({
         limit,
         orderBy: desc(adminAuditLogs.createdAt),
         where,
+      });
+
+      const filters = Object.fromEntries(
+        Object.entries({
+          action: input.action,
+          actorUserId: input.actorUserId,
+          from: input.from,
+          resourceId: input.resourceId,
+          resourceType: input.resourceType,
+          targetUserId: input.targetUserId,
+          to: input.to,
+        })
+          .filter(([, value]) => value !== undefined)
+          .map(([key]) => [key, true]),
+      );
+      await recordAdminAudit(ctx, {
+        action: 'admin.audit.export',
+        payload: { count: items.length, filters, limit },
+        resourceType: 'admin_audit_log',
       });
 
       return { items };

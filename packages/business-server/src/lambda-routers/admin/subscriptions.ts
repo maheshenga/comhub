@@ -10,7 +10,7 @@ import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trp
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit } from './audit';
+import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
 const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const;
@@ -18,6 +18,7 @@ const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.finance
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
 const bulkApproveCommand = createAdminCommand('subscription.changeRequest.bulkApprove');
 const bulkRejectCommand = createAdminCommand('subscription.changeRequest.bulkReject');
+type BulkChangeRequestResult = { error?: string; ok: boolean; requestId: string };
 
 export const adminSubscriptionsRouter = router({
   assignPlan: financeWriteProcedure
@@ -226,29 +227,34 @@ export const adminSubscriptionsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const command = bulkApproveCommand.validate(input.command);
-      const results: { error?: string; ok: boolean; requestId: string }[] = [];
-      for (const requestId of input.requestIds) {
-        try {
-          const request = await ctx.serverDB.query.subscriptionChangeRequests.findFirst({
-            where: eq(subscriptionChangeRequests.id, requestId),
-          });
-          if (!request) throw new Error('NOT_FOUND');
-          if (request.status !== 'pending') throw new Error('NOT_PENDING');
-          const model = new CommercialModel(ctx.serverDB, request.userId);
-          await model.activateSubscriptionChangeRequest(request.id);
-          results.push({ ok: true, requestId });
-        } catch (err) {
-          results.push({ error: (err as Error).message, ok: false, requestId });
-        }
-      }
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: {
-          failed: results.filter((r) => !r.ok).length,
-          succeeded: results.filter((r) => r.ok).length,
-          total: results.length,
+      const results = await runRequiredAdminAuditMutation<BulkChangeRequestResult[]>(ctx, {
+        audit: (results) => ({
+          action: command.auditAction,
+          payload: {
+            failed: results.filter((result) => !result.ok).length,
+            succeeded: results.filter((result) => result.ok).length,
+            total: results.length,
+          },
+          resourceType: 'subscription_change_request',
+        }),
+        mutation: async (tx) => {
+          const results: BulkChangeRequestResult[] = [];
+          for (const requestId of input.requestIds) {
+            try {
+              const request = await tx.query.subscriptionChangeRequests.findFirst({
+                where: eq(subscriptionChangeRequests.id, requestId),
+              });
+              if (!request) throw new Error('NOT_FOUND');
+              if (request.status !== 'pending') throw new Error('NOT_PENDING');
+              const model = new CommercialModel(tx, request.userId);
+              await model.activateSubscriptionChangeRequest(request.id);
+              results.push({ ok: true, requestId });
+            } catch (err) {
+              results.push({ error: (err as Error).message, ok: false, requestId });
+            }
+          }
+          return results;
         },
-        resourceType: 'subscription_change_request',
       });
       return { results };
     }),
@@ -263,32 +269,37 @@ export const adminSubscriptionsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const command = bulkRejectCommand.validate(input.command, input.reason);
-      const results: { error?: string; ok: boolean; requestId: string }[] = [];
-      for (const requestId of input.requestIds) {
-        try {
-          const request = await ctx.serverDB.query.subscriptionChangeRequests.findFirst({
-            where: eq(subscriptionChangeRequests.id, requestId),
-          });
-          if (!request) throw new Error('NOT_FOUND');
-          if (request.status !== 'pending') throw new Error('NOT_PENDING');
-          await ctx.serverDB
-            .update(subscriptionChangeRequests)
-            .set({ status: 'rejected', updatedAt: new Date() })
-            .where(eq(subscriptionChangeRequests.id, request.id));
-          results.push({ ok: true, requestId });
-        } catch (err) {
-          results.push({ error: (err as Error).message, ok: false, requestId });
-        }
-      }
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: {
-          failed: results.filter((r) => !r.ok).length,
-          reason: command.reason,
-          succeeded: results.filter((r) => r.ok).length,
-          total: results.length,
+      const results = await runRequiredAdminAuditMutation<BulkChangeRequestResult[]>(ctx, {
+        audit: (results) => ({
+          action: command.auditAction,
+          payload: {
+            failed: results.filter((result) => !result.ok).length,
+            reason: command.reason,
+            succeeded: results.filter((result) => result.ok).length,
+            total: results.length,
+          },
+          resourceType: 'subscription_change_request',
+        }),
+        mutation: async (tx) => {
+          const results: BulkChangeRequestResult[] = [];
+          for (const requestId of input.requestIds) {
+            try {
+              const request = await tx.query.subscriptionChangeRequests.findFirst({
+                where: eq(subscriptionChangeRequests.id, requestId),
+              });
+              if (!request) throw new Error('NOT_FOUND');
+              if (request.status !== 'pending') throw new Error('NOT_PENDING');
+              await tx
+                .update(subscriptionChangeRequests)
+                .set({ status: 'rejected', updatedAt: new Date() })
+                .where(eq(subscriptionChangeRequests.id, request.id));
+              results.push({ ok: true, requestId });
+            } catch (err) {
+              results.push({ error: (err as Error).message, ok: false, requestId });
+            }
+          }
+          return results;
         },
-        resourceType: 'subscription_change_request',
       });
       return { results };
     }),

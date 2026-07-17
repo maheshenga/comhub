@@ -17,11 +17,16 @@ vi.mock('@/database/models/commercial', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
+  runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
+    const result = await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx));
+    await recordAdminAudit(ctx, await options.audit(result));
+    return result;
+  }),
 }));
 
 const createDb = () => {
   const updateWhere = vi.fn().mockResolvedValue(undefined);
-  return {
+  const db = {
     __mocks: { updateWhere },
     query: {
       subscriptionChangeRequests: {
@@ -39,6 +44,9 @@ const createDb = () => {
       set: vi.fn(() => ({ where: updateWhere })),
     })),
   } as any;
+  db.transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(db));
+
+  return db;
 };
 
 describe('adminSubscriptionsRouter bulk commands', () => {

@@ -21,7 +21,7 @@ import {
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 
 import { createAdminCommand } from './adminCommand';
-import { recordAdminAudit } from './audit';
+import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
 
 const userDbProcedure = authedProcedure.use(serverDatabase);
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
@@ -290,18 +290,28 @@ export const adminRedemptionRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const command = bulkDisableCommand.validate(input.command);
-      const updated = await ctx.serverDB
-        .update(redemptionCodes)
-        .set({ status: 'disabled', updatedAt: new Date() })
-        .where(and(inArray(redemptionCodes.id, input.ids), eq(redemptionCodes.status, 'active')))
-        .returning({ id: redemptionCodes.id });
+      const result = await runRequiredAdminAuditMutation<{ disabled: number; requested: number }>(
+        ctx,
+        {
+          audit: ({ disabled }) => ({
+            action: command.auditAction,
+            payload: { disabled, requested: input.ids.length },
+            resourceType: 'redemption_code',
+          }),
+          mutation: async (tx) => {
+            const updated = await tx
+              .update(redemptionCodes)
+              .set({ status: 'disabled', updatedAt: new Date() })
+              .where(
+                and(inArray(redemptionCodes.id, input.ids), eq(redemptionCodes.status, 'active')),
+              )
+              .returning({ id: redemptionCodes.id });
 
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: { disabled: updated.length, requested: input.ids.length },
-        resourceType: 'redemption_code',
-      });
-      return { disabled: updated.length, requested: input.ids.length };
+            return { disabled: updated.length, requested: input.ids.length };
+          },
+        },
+      );
+      return result;
     }),
 
   /**
@@ -318,17 +328,27 @@ export const adminRedemptionRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const command = bulkDeleteCommand.validate(input.command, input.reason);
-      const deleted = await ctx.serverDB
-        .delete(redemptionCodes)
-        .where(and(inArray(redemptionCodes.id, input.ids), eq(redemptionCodes.status, 'active')))
-        .returning({ id: redemptionCodes.id });
+      const result = await runRequiredAdminAuditMutation<{ deleted: number; requested: number }>(
+        ctx,
+        {
+          audit: ({ deleted }) => ({
+            action: command.auditAction,
+            payload: { deleted, reason: command.reason, requested: input.ids.length },
+            resourceType: 'redemption_code',
+          }),
+          mutation: async (tx) => {
+            const deleted = await tx
+              .delete(redemptionCodes)
+              .where(
+                and(inArray(redemptionCodes.id, input.ids), eq(redemptionCodes.status, 'active')),
+              )
+              .returning({ id: redemptionCodes.id });
 
-      await recordAdminAudit(ctx, {
-        action: command.auditAction,
-        payload: { deleted: deleted.length, reason: command.reason, requested: input.ids.length },
-        resourceType: 'redemption_code',
-      });
-      return { deleted: deleted.length, requested: input.ids.length };
+            return { deleted: deleted.length, requested: input.ids.length };
+          },
+        },
+      );
+      return result;
     }),
 });
 
