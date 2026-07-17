@@ -26,22 +26,19 @@ import { and, asc, count, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-or
 
 import {
   appSettings,
-  autoTopUpSettings,
   creditAccounts,
   creditLedgerEntries,
-  defaultAutoTopUpSetting,
   planCatalog,
   redemptionCodes,
   referralProfiles,
   referralRelations,
   referralRewards,
   subscriptionChangeRequests,
-  topUpOrders,
-  topUpPackages,
   userPlanSnapshots,
   users,
 } from '../schemas';
 import type { LobeChatDatabase, Transaction } from '../type';
+import { CommercialTopUpModel } from './commercial/topUp';
 
 const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
   currency: 'USD',
@@ -59,16 +56,8 @@ const FREE_SUBSCRIPTION_SUMMARY: SubscriptionSummary = {
 };
 
 const REFERRAL_BACKFILL_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
-const DISPLAY_CREDITS_UNIT = CREDITS_PER_DOLLAR;
-const REFERRAL_PREVIEW_REWARD_CREDITS = 100 * DISPLAY_CREDITS_UNIT;
+const REFERRAL_PREVIEW_REWARD_CREDITS = 100 * CREDITS_PER_DOLLAR;
 const REFERRAL_CODE_LENGTH = 7;
-const MIN_CUSTOM_TOP_UP_DISPLAY_CREDITS = 50;
-const MAX_CUSTOM_TOP_UP_DISPLAY_CREDITS = 5000;
-const MAX_TOP_UP_AMOUNT = 500;
-const CUSTOM_TOP_UP_UNIT_PRICE = 0.1;
-const TOP_UP_CURRENCY = 'USD';
-const TOP_UP_VALIDITY_MONTHS = 12;
-const ONLINE_PAYMENT_DISABLED_ERROR = 'ONLINE_PAYMENT_DISABLED_USE_REDEMPTION_CODE';
 const CREDIT_SOURCE_PRIORITY: CreditSourceType[] = ['subscription', 'referral', 'topup', 'other'];
 const PRICING_CREDIT_MULTIPLIER_KEY = 'pricing.creditMultiplier';
 const PRICING_MODEL_RULES_KEY = 'pricing.modelRules';
@@ -181,31 +170,6 @@ export const resolveAiUsagePricing = ({
   };
 };
 
-const DEFAULT_TOP_UP_PACKAGES: TopUpPackageItem[] = [
-  {
-    amount: 9.9,
-    credits: 100 * DISPLAY_CREDITS_UNIT,
-    currency: TOP_UP_CURRENCY,
-    id: 'starter',
-    validityMonths: TOP_UP_VALIDITY_MONTHS,
-  },
-  {
-    amount: 27,
-    credits: 300 * DISPLAY_CREDITS_UNIT,
-    currency: TOP_UP_CURRENCY,
-    id: 'growth',
-    recommended: true,
-    validityMonths: TOP_UP_VALIDITY_MONTHS,
-  },
-  {
-    amount: 68,
-    credits: 800 * DISPLAY_CREDITS_UNIT,
-    currency: TOP_UP_CURRENCY,
-    id: 'scale',
-    validityMonths: TOP_UP_VALIDITY_MONTHS,
-  },
-];
-
 const SUBSCRIPTION_PLAN_ORDER = [
   Plans.Free,
   Plans.Hobby,
@@ -214,20 +178,6 @@ const SUBSCRIPTION_PLAN_ORDER = [
   Plans.Ultimate,
 ];
 
-const topUpOrderHistoryColumns = {
-  amount: topUpOrders.amount,
-  createdAt: topUpOrders.createdAt,
-  credits: topUpOrders.credits,
-  currency: topUpOrders.currency,
-  externalOrderId: topUpOrders.externalOrderId,
-  id: topUpOrders.id,
-  paidAt: topUpOrders.paidAt,
-  provider: topUpOrders.provider,
-  redemptionCodeId: topUpOrders.redemptionCodeId,
-  source: topUpOrders.source,
-  status: topUpOrders.status,
-};
-
 const normalizeReferralCodeValue = (value: string) =>
   value.replaceAll(/\D/g, '').slice(0, REFERRAL_CODE_LENGTH);
 
@@ -235,12 +185,6 @@ const isValidReferralCode = (value: string) => /^\d{7}$/.test(value);
 
 const generateReferralCodeValue = () =>
   String(Math.floor(Math.random() * 10_000_000)).padStart(REFERRAL_CODE_LENGTH, '0');
-
-const isRedemptionTopUpOrder = (order: {
-  provider?: string | null;
-  redemptionCodeId?: string | null;
-  source?: string | null;
-}) => order.source === 'redemption' || order.provider === 'redemption' || !!order.redemptionCodeId;
 
 const addMonths = (date: Date, months: number) => {
   const next = new Date(date);
@@ -394,11 +338,13 @@ export const getPlanDeleteImpact = async (
 
 export class CommercialModel {
   private readonly db: LobeChatDatabase;
+  private readonly topUp: CommercialTopUpModel;
   private readonly userId: string;
 
   constructor(db: LobeChatDatabase, userId: string) {
     this.db = db;
     this.userId = userId;
+    this.topUp = new CommercialTopUpModel(db, userId);
   }
 
   private resolveReferralRewardCredits = async (
@@ -527,34 +473,6 @@ export class CommercialModel {
     }
 
     return ledgerEntry.id;
-  };
-
-  private createCustomTopUpPackage = (credits: number): TopUpPackageItem => {
-    const displayCredits = credits / DISPLAY_CREDITS_UNIT;
-    const amount = Number((displayCredits * CUSTOM_TOP_UP_UNIT_PRICE).toFixed(2));
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new Error('TOP_UP_INVALID_CREDITS');
-    }
-
-    if (
-      credits < MIN_CUSTOM_TOP_UP_DISPLAY_CREDITS * DISPLAY_CREDITS_UNIT ||
-      credits > MAX_CUSTOM_TOP_UP_DISPLAY_CREDITS * DISPLAY_CREDITS_UNIT
-    ) {
-      throw new Error('TOP_UP_INVALID_CREDITS');
-    }
-
-    if (amount > MAX_TOP_UP_AMOUNT) {
-      throw new Error('TOP_UP_AMOUNT_EXCEEDS_MAX');
-    }
-
-    return {
-      amount,
-      credits,
-      currency: TOP_UP_CURRENCY,
-      id: `custom-${credits}`,
-      validityMonths: TOP_UP_VALIDITY_MONTHS,
-    };
   };
 
   private getChatUsageCreditAmount = (
@@ -1346,40 +1264,9 @@ export class CommercialModel {
     };
   };
 
-  getAutoTopUpSetting = async (): Promise<AutoTopUpSetting> => {
-    const setting = await this.db.query.autoTopUpSettings.findFirst({
-      where: eq(autoTopUpSettings.userId, this.userId),
-    });
+  getAutoTopUpSetting = (): Promise<AutoTopUpSetting> => this.topUp.getAutoTopUpSetting();
 
-    if (!setting) return defaultAutoTopUpSetting;
-
-    return {
-      enabled: setting.enabled,
-      monthlyLimit: setting.monthlyLimit,
-      monthlyTopUpAmount: setting.monthlyTopUpAmount ?? 0,
-      targetBalance: setting.targetBalance ?? defaultAutoTopUpSetting.targetBalance,
-      threshold: setting.threshold ?? defaultAutoTopUpSetting.threshold,
-      updatedAt: setting.updatedAt,
-    };
-  };
-
-  listTopUpPackages = async (): Promise<TopUpPackageItem[]> => {
-    const rows = await this.db.query.topUpPackages.findMany({
-      orderBy: asc(topUpPackages.sortOrder),
-      where: eq(topUpPackages.isActive, true),
-    });
-
-    return rows.map((r) => ({
-      amount: Number(r.amount),
-      credits: Number(r.credits),
-      currency: r.currency,
-      displayName: r.displayName,
-      id: r.id,
-      metadata: r.metadata ?? null,
-      recommended: r.recommended || undefined,
-      validityMonths: Number(r.validityMonths),
-    }));
-  };
+  listTopUpPackages = (): Promise<TopUpPackageItem[]> => this.topUp.listTopUpPackages();
 
   private assertReferralBackfillWindow = async () => {
     const user = await this.db.query.users.findFirst({
@@ -1564,40 +1451,7 @@ export class CommercialModel {
 
   updateAutoTopUpSetting = async (
     input: Pick<AutoTopUpSetting, 'enabled' | 'monthlyLimit' | 'targetBalance' | 'threshold'>,
-  ): Promise<AutoTopUpSetting> => {
-    if (input.targetBalance <= input.threshold) {
-      throw new Error('AUTO_TOP_UP_TARGET_NOT_EXCEED_THRESHOLD');
-    }
-
-    const currentPlan = await this.getCurrentPlan();
-    const isPaidPlan = currentPlan !== Plans.Free;
-
-    if (input.enabled && !isPaidPlan) {
-      throw new Error('AUTO_TOP_UP_REQUIRES_PAID_PLAN');
-    }
-
-    await this.db
-      .insert(autoTopUpSettings)
-      .values({
-        enabled: input.enabled,
-        monthlyLimit: input.monthlyLimit ?? null,
-        targetBalance: input.targetBalance,
-        threshold: input.threshold,
-        userId: this.userId,
-      })
-      .onConflictDoUpdate({
-        set: {
-          enabled: input.enabled,
-          monthlyLimit: input.monthlyLimit ?? null,
-          targetBalance: input.targetBalance,
-          threshold: input.threshold,
-          updatedAt: new Date(),
-        },
-        target: autoTopUpSettings.userId,
-      });
-
-    return this.getAutoTopUpSetting();
-  };
+  ): Promise<AutoTopUpSetting> => this.topUp.updateAutoTopUpSetting(input, this.getCurrentPlan);
 
   getPendingSubscriptionChangeRequest = async (
     db: LobeChatDatabase | Transaction = this.db,
@@ -2123,162 +1977,14 @@ export class CommercialModel {
       .limit(limit);
   };
 
-  createTopUpOrder = async (input: CreateTopUpOrderParams): Promise<TopUpOrderHistoryItem> => {
-    if (input.source !== 'redemption') {
-      throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
-    }
+  createTopUpOrder = (input: CreateTopUpOrderParams): Promise<TopUpOrderHistoryItem> =>
+    this.topUp.createTopUpOrder(input);
 
-    let packageItem: TopUpPackageItem | undefined;
-    if (input.packageId) {
-      const dbRow = await this.db.query.topUpPackages.findFirst({
-        where: and(eq(topUpPackages.id, input.packageId), eq(topUpPackages.isActive, true)),
-      });
-      packageItem = dbRow
-        ? {
-            amount: Number(dbRow.amount),
-            credits: Number(dbRow.credits),
-            currency: dbRow.currency,
-            id: dbRow.id,
-            recommended: dbRow.recommended || undefined,
-            validityMonths: Number(dbRow.validityMonths),
-          }
-        : DEFAULT_TOP_UP_PACKAGES.find((item) => item.id === input.packageId);
-    } else if (input.credits) {
-      packageItem = this.createCustomTopUpPackage(input.credits);
-    }
+  cancelTopUpOrder = (orderId: string): Promise<TopUpOrderHistoryItem> =>
+    this.topUp.cancelTopUpOrder(orderId);
 
-    if (!packageItem) {
-      throw new Error('TOP_UP_PACKAGE_NOT_FOUND');
-    }
-
-    if (packageItem.amount > MAX_TOP_UP_AMOUNT) {
-      throw new Error('TOP_UP_AMOUNT_EXCEEDS_MAX');
-    }
-
-    const [order] = await this.db
-      .insert(topUpOrders)
-      .values({
-        amount: packageItem.amount,
-        credits: packageItem.credits,
-        currency: packageItem.currency,
-        metadata: {
-          packageId: packageItem.id,
-          validityMonths: packageItem.validityMonths,
-        },
-        provider: input.source === 'redemption' ? 'redemption' : (input.source ?? null),
-        redemptionCodeId: input.redemptionCodeId ?? null,
-        source: input.source ?? null,
-        status: 'pending',
-        userId: this.userId,
-      })
-      .returning(topUpOrderHistoryColumns);
-
-    return order;
-  };
-
-  cancelTopUpOrder = async (orderId: string): Promise<TopUpOrderHistoryItem> => {
-    const order = await this.db.query.topUpOrders.findFirst({
-      where: and(eq(topUpOrders.id, orderId), eq(topUpOrders.userId, this.userId)),
-    });
-
-    if (!order) {
-      throw new Error('TOP_UP_ORDER_NOT_FOUND');
-    }
-
-    if (!isRedemptionTopUpOrder(order)) {
-      throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
-    }
-
-    if (order.status !== 'pending') {
-      throw new Error('TOP_UP_ORDER_NOT_CANCELABLE');
-    }
-
-    const [updated] = await this.db
-      .update(topUpOrders)
-      .set({ status: 'canceled', updatedAt: new Date() })
-      .where(and(eq(topUpOrders.id, orderId), eq(topUpOrders.userId, this.userId)))
-      .returning(topUpOrderHistoryColumns);
-
-    if (!updated) {
-      throw new Error('TOP_UP_ORDER_NOT_FOUND');
-    }
-
-    return updated;
-  };
-
-  settleTopUpOrder = async (orderId: string): Promise<TopUpOrderHistoryItem> => {
-    return this.db.transaction(async (tx) => {
-      const order = await tx.query.topUpOrders.findFirst({
-        where: and(eq(topUpOrders.id, orderId), eq(topUpOrders.userId, this.userId)),
-      });
-
-      if (!order) {
-        throw new Error('TOP_UP_ORDER_NOT_FOUND');
-      }
-
-      if (!isRedemptionTopUpOrder(order)) {
-        throw new Error(ONLINE_PAYMENT_DISABLED_ERROR);
-      }
-
-      if (order.status !== 'pending') {
-        throw new Error('TOP_UP_ORDER_NOT_SETTLEABLE');
-      }
-
-      await this.ensureCreditAccount(tx);
-
-      const settledAt = new Date();
-      const [updatedOrder] = await tx
-        .update(topUpOrders)
-        .set({ paidAt: settledAt, status: 'paid', updatedAt: settledAt })
-        .where(
-          and(
-            eq(topUpOrders.id, orderId),
-            eq(topUpOrders.userId, this.userId),
-            eq(topUpOrders.status, 'pending'),
-          ),
-        )
-        .returning(topUpOrderHistoryColumns);
-
-      if (!updatedOrder) {
-        throw new Error('TOP_UP_ORDER_NOT_SETTLEABLE');
-      }
-
-      const [account] = await tx
-        .update(creditAccounts)
-        .set({
-          balance: sql`${creditAccounts.balance} + ${order.credits}`,
-          totalCredited: sql`${creditAccounts.totalCredited} + ${order.credits}`,
-          updatedAt: settledAt,
-        })
-        .where(eq(creditAccounts.userId, this.userId))
-        .returning({
-          balance: creditAccounts.balance,
-        });
-
-      if (!account) {
-        throw new Error('TOP_UP_ACCOUNT_UPDATE_FAILED');
-      }
-
-      await tx.insert(creditLedgerEntries).values({
-        amount: order.credits,
-        balanceAfter: account.balance,
-        description: `Activated ${order.credits} credits from order ${order.id.slice(0, 8).toUpperCase()}`,
-        metadata: {
-          amount: order.amount,
-          currency: order.currency,
-          orderId: order.id,
-          provider: order.provider,
-        },
-        referenceId: order.id,
-        referenceType: 'top_up_order',
-        title: 'Top-up Order',
-        type: 'topup',
-        userId: this.userId,
-      });
-
-      return updatedOrder;
-    });
-  };
+  settleTopUpOrder = (orderId: string): Promise<TopUpOrderHistoryItem> =>
+    this.topUp.settleTopUpOrder(orderId);
 
   getReferralStatus = async () => {
     const relation = await this.db.query.referralRelations.findFirst({
@@ -2443,20 +2149,10 @@ export class CommercialModel {
       .limit(limit);
   };
 
-  listTopUpOrders = async (
+  listTopUpOrders = (
     params: QueryCommercialListParams = {},
-  ): Promise<TopUpOrderHistoryItem[]> => {
-    const { limit = 20 } = params;
-
-    return this.db
-      .select({
-        ...topUpOrderHistoryColumns,
-      })
-      .from(topUpOrders)
-      .where(eq(topUpOrders.userId, this.userId))
-      .orderBy(desc(topUpOrders.createdAt), desc(topUpOrders.id))
-      .limit(limit);
-  };
+  ): Promise<TopUpOrderHistoryItem[]> =>
+    this.topUp.listTopUpOrders(params);
 
   updateReferralCode = async (input: string) => {
     const code = normalizeReferralCodeValue(input.trim());

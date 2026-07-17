@@ -2,11 +2,12 @@
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { Plans } from '@lobechat/types';
 import { eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import {
   creditAccounts,
+  creditLedgerEntries,
   topUpOrders,
   topUpPackages,
   userPlanSnapshots,
@@ -35,6 +36,7 @@ const seedActiveStarterPlan = async () => {
 
 describe('CommercialModel topUpOrders', () => {
   beforeEach(async () => {
+    await serverDB.delete(creditLedgerEntries);
     await serverDB.delete(topUpOrders);
     await serverDB.delete(creditAccounts);
     await serverDB.delete(userPlanSnapshots).where(eq(userPlanSnapshots.userId, testUserId));
@@ -57,6 +59,7 @@ describe('CommercialModel topUpOrders', () => {
   });
 
   afterEach(async () => {
+    await serverDB.delete(creditLedgerEntries);
     await serverDB.delete(topUpOrders);
     await serverDB.delete(creditAccounts);
   });
@@ -95,7 +98,7 @@ describe('CommercialModel topUpOrders', () => {
   });
 
   describe('settleTopUpOrder', () => {
-    it('should settle a pending order and credit the account', async () => {
+    it('should settle a pending order and write the credit ledger', async () => {
       const model = new CommercialModel(serverDB, testUserId);
       const order = await model.createTopUpOrder({
         packageId: 'topup-test-pkg',
@@ -111,6 +114,42 @@ describe('CommercialModel topUpOrders', () => {
         where: (a, { eq }) => eq(a.userId, testUserId),
       });
       expect(account?.balance).toBe(500000000);
+      expect(account?.totalCredited).toBe(500000000);
+
+      const ledgerEntry = await serverDB.query.creditLedgerEntries.findFirst({
+        where: (entry, { eq }) => eq(entry.userId, testUserId),
+      });
+      expect(ledgerEntry).toMatchObject({
+        amount: 500000000,
+        balanceAfter: 500000000,
+        referenceId: order.id,
+        referenceType: 'top_up_order',
+        type: 'topup',
+      });
+      expect(ledgerEntry?.metadata).toMatchObject({
+        amount: 5,
+        currency: 'USD',
+        orderId: order.id,
+        provider: 'redemption',
+      });
+    });
+  });
+
+  describe('updateAutoTopUpSetting', () => {
+    it('validates the target before resolving the current plan', async () => {
+      const model = new CommercialModel(serverDB, testUserId);
+      const getCurrentPlan = vi.spyOn(model, 'getCurrentPlan');
+
+      await expect(
+        model.updateAutoTopUpSetting({
+          enabled: true,
+          monthlyLimit: null,
+          targetBalance: 100,
+          threshold: 100,
+        }),
+      ).rejects.toThrow('AUTO_TOP_UP_TARGET_NOT_EXCEED_THRESHOLD');
+
+      expect(getCurrentPlan).not.toHaveBeenCalled();
     });
   });
 
