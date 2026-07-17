@@ -166,19 +166,23 @@ export const APP_SETTING_KEYS = {
 export type AppSettingKey = (typeof APP_SETTING_KEYS)[keyof typeof APP_SETTING_KEYS];
 
 export const APP_SETTINGS_SECTIONS = [
+  'ai-runtime-defaults',
   'desktop-update',
   'expert-plaza',
   'file-storage',
   'growth',
+  'integrations',
   'maintenance',
   'model-billing-matrix',
   'model-policy',
   'notifications',
   'operations',
+  'plans',
   'ppt',
   'recommendations',
   'settings',
   'system-defaults',
+  'user-defaults',
 ] as const;
 
 export type AppSettingsSection = (typeof APP_SETTINGS_SECTIONS)[number];
@@ -189,7 +193,36 @@ const SETTINGS_SECTION_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.defaultAgentAvatar,
   APP_SETTING_KEYS.defaultAgentName,
   APP_SETTING_KEYS.defaultSkillName,
-  APP_SETTING_KEYS.plansFaqItems,
+]);
+
+const PLANS_SECTION_KEYS = new Set<AppSettingKey>([APP_SETTING_KEYS.plansFaqItems]);
+
+const AI_RUNTIME_DEFAULTS_SECTION_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel,
+  APP_SETTING_KEYS.memoryUserMemoryEmbeddingProvider,
+  APP_SETTING_KEYS.memoryUserMemoryGatekeeperModel,
+  APP_SETTING_KEYS.memoryUserMemoryGatekeeperProvider,
+  APP_SETTING_KEYS.memoryUserMemoryLayerExtractorModel,
+  APP_SETTING_KEYS.memoryUserMemoryLayerExtractorProvider,
+  APP_SETTING_KEYS.memoryUserMemoryPersonaWriterModel,
+  APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider,
+  APP_SETTING_KEYS.vectorEmbeddingModel,
+  APP_SETTING_KEYS.vectorEmbeddingProvider,
+  APP_SETTING_KEYS.vectorQueryMode,
+  APP_SETTING_KEYS.vectorRerankerModel,
+  APP_SETTING_KEYS.vectorRerankerProvider,
+]);
+
+const INTEGRATIONS_SECTION_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.composioApiKey,
+  APP_SETTING_KEYS.composioAuthConfigIds,
+  APP_SETTING_KEYS.composioEnabled,
+]);
+
+const USER_DEFAULTS_SECTION_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.profileAvatarPresets,
+  APP_SETTING_KEYS.profileInterestAreas,
+  APP_SETTING_KEYS.userGlobalSettingsDefaults,
 ]);
 
 const MODEL_BILLING_SECTION_KEYS = new Set<AppSettingKey>([
@@ -201,18 +234,13 @@ const MODEL_BILLING_SECTION_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.defaultVideoProvider,
 ]);
 
-const SYSTEM_DEFAULTS_SECTION_KEYS = new Set<AppSettingKey>([
-  APP_SETTING_KEYS.composioApiKey,
-  APP_SETTING_KEYS.composioAuthConfigIds,
-  APP_SETTING_KEYS.composioEnabled,
-  APP_SETTING_KEYS.profileAvatarPresets,
-  APP_SETTING_KEYS.userGlobalSettingsDefaults,
-]);
-
 export const getAppSettingsSectionForKey = (key: AppSettingKey): AppSettingsSection => {
   if (SETTINGS_SECTION_KEYS.has(key)) return 'settings';
+  if (PLANS_SECTION_KEYS.has(key)) return 'plans';
   if (MODEL_BILLING_SECTION_KEYS.has(key)) return 'model-billing-matrix';
-  if (SYSTEM_DEFAULTS_SECTION_KEYS.has(key)) return 'system-defaults';
+  if (AI_RUNTIME_DEFAULTS_SECTION_KEYS.has(key)) return 'ai-runtime-defaults';
+  if (INTEGRATIONS_SECTION_KEYS.has(key)) return 'integrations';
+  if (USER_DEFAULTS_SECTION_KEYS.has(key)) return 'user-defaults';
   if (key === APP_SETTING_KEYS.memoryUserMemoryTriggerMode) return 'maintenance';
   if (key.startsWith('desktop.')) return 'desktop-update';
   if (key.startsWith('expertPlaza.')) return 'expert-plaza';
@@ -235,7 +263,7 @@ export const getAppSettingsSectionForKey = (key: AppSettingKey): AppSettingsSect
   if (key.startsWith('docmee.')) return 'ppt';
   if (key.startsWith('recommendation.')) return 'recommendations';
   if (key.startsWith('default') || key.startsWith('memory.') || key.startsWith('vector.')) {
-    return 'system-defaults';
+    return 'ai-runtime-defaults';
   }
   return 'settings';
 };

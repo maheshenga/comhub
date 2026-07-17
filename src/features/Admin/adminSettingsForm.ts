@@ -1,10 +1,6 @@
-import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import { SOCIAL_URL } from '@lobechat/business-const';
+import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 
-import {
-  type PlanFaqItem,
-  normalizePlanFaqSettings,
-} from '@/const/billingPresentation';
 import {
   type AboutLinksConfig,
   type AboutPageConfig,
@@ -14,11 +10,11 @@ import {
 } from '@/const/aboutLinks';
 import {
   BRAND_CONFIG_SWR_KEY,
+  PROFILE_INTEREST_AREAS_SWR_KEY,
   PUBLIC_ABOUT_LINKS_SWR_KEY,
   PUBLIC_ABOUT_PAGE_SWR_KEY,
   PUBLIC_HELP_MENU_SWR_KEY,
   PUBLIC_PLAN_FAQ_SWR_KEY,
-  PROFILE_INTEREST_AREAS_SWR_KEY,
   RUNTIME_CONFIG_SWR_KEY,
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
@@ -28,21 +24,17 @@ import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/
 import { type HelpMenuItem, normalizeHelpMenuItems } from '@/const/helpMenu';
 import { type NotificationEventDefaults } from '@/const/notificationPreferences';
 import { DOCUMENTS_REFER_URL, GITHUB } from '@/const/url';
-import {
-  type ConfiguredInterestArea,
-  normalizeConfiguredInterestAreas,
-} from '@/features/ProfileInterests/interestAreas';
 
 export {
   ADMIN_SETTINGS_SWR_KEY,
-  PUBLIC_ABOUT_LINKS_SWR_KEY,
-  PUBLIC_ABOUT_PAGE_SWR_KEY,
-  PUBLIC_HELP_MENU_SWR_KEY,
-  PUBLIC_PLAN_FAQ_SWR_KEY,
   BRAND_CONFIG_SWR_KEY,
   PROFILE_INTEREST_AREAS_SWR_KEY,
   PROFILE_OPTIONS_SWR_KEY,
+  PUBLIC_ABOUT_LINKS_SWR_KEY,
+  PUBLIC_ABOUT_PAGE_SWR_KEY,
   PUBLIC_EXPERT_PLAZA_SWR_KEY,
+  PUBLIC_HELP_MENU_SWR_KEY,
+  PUBLIC_PLAN_FAQ_SWR_KEY,
   RUNTIME_CONFIG_SWR_KEY,
   USER_STATE_SWR_KEY,
 } from '@/const/adminCacheKeys';
@@ -122,8 +114,6 @@ export type AdminSettingsData = {
   } | null;
   pricingCreditMultiplier?: number | null;
   pricingModelRules?: unknown[] | null;
-  plansFaqItems?: unknown;
-  profileInterestAreas?: unknown;
   referralRewardCredits?: number | null;
   sidebarGenerationLabel?: string | null;
   sidebarMemberLabel?: string | null;
@@ -172,10 +162,8 @@ export type AdminSettingsFormValues = {
   homeMessengerBannerTitle: string;
   homeMessengerEnabled: boolean;
   memoryUserMemoryTriggerMode: MemoryUserMemoryTriggerMode;
-  profileInterestAreas: ConfiguredInterestArea[];
   ordersEnabled: boolean;
   pricingMultiplier: number;
-  planFaqItems: PlanFaqItem[];
   referralRewardCredits: number;
   sidebarGenerationLabel: string;
   sidebarMemberLabel: string;
@@ -423,10 +411,8 @@ export const buildFormValues = (data?: AdminSettingsData): AdminSettingsFormValu
   memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
     data?.memoryUserMemoryTriggerMode,
   ),
-  profileInterestAreas: normalizeConfiguredInterestAreas(data?.profileInterestAreas),
   ordersEnabled: data?.ordersManagementEnabled ?? true,
   pricingMultiplier: data?.pricingCreditMultiplier ?? DEFAULT_PRICING_CREDIT_MULTIPLIER,
-  planFaqItems: normalizePlanFaqSettings(data?.plansFaqItems),
   referralRewardCredits: data?.referralRewardCredits ?? 0,
   sidebarGenerationLabel: data?.sidebarGenerationLabel ?? '生成',
   sidebarMemberLabel: data?.sidebarMemberLabel ?? '会员',
@@ -488,13 +474,11 @@ export const normalizeFormValues = (
   memoryUserMemoryTriggerMode: normalizeMemoryUserMemoryTriggerMode(
     values.memoryUserMemoryTriggerMode,
   ),
-  profileInterestAreas: normalizeConfiguredInterestAreas(values.profileInterestAreas),
   ordersEnabled: typeof values.ordersEnabled === 'boolean' ? values.ordersEnabled : true,
   pricingMultiplier:
     typeof values.pricingMultiplier === 'number' && values.pricingMultiplier > 0
       ? values.pricingMultiplier
       : DEFAULT_PRICING_CREDIT_MULTIPLIER,
-  planFaqItems: normalizePlanFaqSettings(values.planFaqItems),
   referralRewardCredits:
     typeof values.referralRewardCredits === 'number' ? values.referralRewardCredits : 0,
   sidebarGenerationLabel: normalizeText(values.sidebarGenerationLabel) || '生成',
@@ -577,10 +561,8 @@ const SETTING_KEY_BY_FORM_FIELD: Record<keyof AdminSettingsFormValues, AppSettin
   homeMessengerEnabled: SETTING_KEYS.homeMessengerEnabled,
   homeMessengerBannerTitle: SETTING_KEYS.homeMessengerBannerTitle,
   memoryUserMemoryTriggerMode: SETTING_KEYS.memoryUserMemoryTriggerMode,
-  profileInterestAreas: SETTING_KEYS.profileInterestAreas,
   ordersEnabled: SETTING_KEYS.ordersManagementEnabled,
   pricingMultiplier: SETTING_KEYS.pricingCreditMultiplier,
-  planFaqItems: SETTING_KEYS.plansFaqItems,
   referralRewardCredits: SETTING_KEYS.referralRewardCredits,
   sidebarGenerationLabel: SETTING_KEYS.sidebarGenerationLabel,
   sidebarMemberLabel: SETTING_KEYS.sidebarMemberLabel,
@@ -681,6 +663,7 @@ export const ADMIN_SETTINGS_NON_FORM_SETTING_KEYS = [
   SETTING_KEYS.notificationSystemTitle,
   SETTING_KEYS.notificationSystemType,
   SETTING_KEYS.profileAvatarPresets,
+  SETTING_KEYS.profileInterestAreas,
   SETTING_KEYS.modelPolicyAllowlist,
   SETTING_KEYS.modelPolicyApplyToEmbeddings,
   SETTING_KEYS.modelPolicyApplyToGenerateObject,
@@ -691,6 +674,7 @@ export const ADMIN_SETTINGS_NON_FORM_SETTING_KEYS = [
   SETTING_KEYS.modelPolicyMode,
   SETTING_KEYS.onboardingInitialCredits,
   SETTING_KEYS.onboardingInitialCreditsEnabled,
+  SETTING_KEYS.plansFaqItems,
   SETTING_KEYS.pricingModelRules,
   SETTING_KEYS.recommendationAssistantTags,
   SETTING_KEYS.recommendationAssistantTitle,
@@ -732,7 +716,6 @@ export const buildSettingMaterializationUpdates = (
     { key: SETTING_KEYS.aboutLinks, value: current.aboutLinks },
     { key: SETTING_KEYS.aboutPage, value: current.aboutPage },
     { key: SETTING_KEYS.helpMenuItems, value: current.helpMenuItems },
-    { key: SETTING_KEYS.plansFaqItems, value: current.planFaqItems },
   ];
 };
 
@@ -751,16 +734,6 @@ export const buildSettingUpdates = (
 
   if (JSON.stringify(current.helpMenuItems) !== JSON.stringify(initial.helpMenuItems)) {
     updates.push({ key: SETTING_KEYS.helpMenuItems, value: current.helpMenuItems });
-  }
-
-  if (JSON.stringify(current.planFaqItems) !== JSON.stringify(initial.planFaqItems)) {
-    updates.push({ key: SETTING_KEYS.plansFaqItems, value: current.planFaqItems });
-  }
-
-  if (
-    JSON.stringify(current.profileInterestAreas) !== JSON.stringify(initial.profileInterestAreas)
-  ) {
-    updates.push({ key: SETTING_KEYS.profileInterestAreas, value: current.profileInterestAreas });
   }
 
   if (JSON.stringify(current.aboutLinks) !== JSON.stringify(initial.aboutLinks)) {

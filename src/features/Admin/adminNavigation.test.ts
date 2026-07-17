@@ -100,7 +100,9 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/stats`,
         `${ADMIN_BASE_PATH}/content-resources`,
         `${ADMIN_BASE_PATH}/file-storage`,
-        `${ADMIN_BASE_PATH}/system-defaults`,
+        `${ADMIN_BASE_PATH}/ai-runtime-defaults`,
+        `${ADMIN_BASE_PATH}/user-defaults`,
+        `${ADMIN_BASE_PATH}/integrations`,
         `${ADMIN_BASE_PATH}/maintenance`,
         `${ADMIN_BASE_PATH}/audit`,
         `${ADMIN_BASE_PATH}/desktop-update`,
@@ -250,7 +252,7 @@ describe('adminNavigation', () => {
       `${ADMIN_BASE_PATH}/content-resources`,
     );
     expect(getAdminSelectedKey('/settings/admin/system-defaults')).toBe(
-      `${ADMIN_BASE_PATH}/system-defaults`,
+      `${ADMIN_BASE_PATH}/ai-runtime-defaults`,
     );
     expect(getAdminSelectedKey('/settings/admin/maintenance')).toBe(
       `${ADMIN_BASE_PATH}/maintenance`,

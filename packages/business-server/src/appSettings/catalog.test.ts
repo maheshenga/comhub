@@ -101,9 +101,9 @@ describe('APP_SETTINGS_CATALOG', () => {
         APP_SETTING_KEYS.defaultAgentAvatar,
         APP_SETTING_KEYS.defaultAgentName,
         APP_SETTING_KEYS.defaultSkillName,
-        APP_SETTING_KEYS.plansFaqItems,
       ]),
     );
+    expect(APP_SETTINGS_SECTION_KEYS.plans).toContain(APP_SETTING_KEYS.plansFaqItems);
     expect(APP_SETTINGS_SECTION_KEYS['model-billing-matrix']).toEqual(
       expect.arrayContaining([
         APP_SETTING_KEYS.defaultAgentModel,
@@ -114,22 +114,35 @@ describe('APP_SETTINGS_CATALOG', () => {
         APP_SETTING_KEYS.defaultVideoProvider,
       ]),
     );
-    expect(APP_SETTINGS_SECTION_KEYS['system-defaults']).toEqual(
+    expect(APP_SETTINGS_SECTION_KEYS['user-defaults']).toEqual(
+      expect.arrayContaining([
+        APP_SETTING_KEYS.profileAvatarPresets,
+        APP_SETTING_KEYS.profileInterestAreas,
+        APP_SETTING_KEYS.userGlobalSettingsDefaults,
+      ]),
+    );
+    expect(APP_SETTINGS_SECTION_KEYS.integrations).toEqual(
       expect.arrayContaining([
         APP_SETTING_KEYS.composioApiKey,
         APP_SETTING_KEYS.composioAuthConfigIds,
         APP_SETTING_KEYS.composioEnabled,
-        APP_SETTING_KEYS.profileAvatarPresets,
-        APP_SETTING_KEYS.userGlobalSettingsDefaults,
+      ]),
+    );
+    expect(APP_SETTINGS_SECTION_KEYS['ai-runtime-defaults']).toContain(
+      APP_SETTING_KEYS.vectorEmbeddingModel,
+    );
+    expect(APP_SETTINGS_SECTION_KEYS['system-defaults']).toEqual(
+      expect.arrayContaining([
+        ...APP_SETTINGS_SECTION_KEYS['ai-runtime-defaults'],
+        ...APP_SETTINGS_SECTION_KEYS.integrations,
+        ...APP_SETTINGS_SECTION_KEYS['user-defaults'],
       ]),
     );
     expect(APP_SETTINGS_SECTION_KEYS.settings).not.toContain(
       APP_SETTING_KEYS.userGlobalSettingsDefaults,
     );
     expect(
-      Object.values(APP_SETTINGS_SECTION_KEYS).filter((keys) =>
-        keys.includes(APP_SETTING_KEYS.userGlobalSettingsDefaults),
-      ),
+      APP_SETTINGS_CATALOG.filter((item) => item.key === APP_SETTING_KEYS.userGlobalSettingsDefaults),
     ).toHaveLength(1);
     expect(APP_SETTINGS_SECTION_KEYS.maintenance).toContain(
       APP_SETTING_KEYS.memoryUserMemoryTriggerMode,

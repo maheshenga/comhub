@@ -7,7 +7,7 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const readRepoFile = (filePath: string) => readFileSync(path.resolve(repoRoot, filePath), 'utf8');
 
 describe('admin commercial flow pages', () => {
-  it('uses section-scoped reads on all 13 settings-owning pages', () => {
+  it('uses section-scoped reads on all settings-owning pages', () => {
     const sectionPages = {
       'desktop-update': 'src/features/Admin/AdminDesktopUpdatePage.tsx',
       'expert-plaza': 'src/features/Admin/AdminExpertPlazaPage.tsx',
@@ -21,7 +21,6 @@ describe('admin commercial flow pages', () => {
       'ppt': 'src/features/Admin/AdminPptSettingsPage.tsx',
       'recommendations': 'src/features/Admin/AdminRecommendationsPage.tsx',
       'settings': 'src/features/Admin/AdminSettingsPage.tsx',
-      'system-defaults': 'src/features/Admin/AdminSystemDefaultsPage.tsx',
     } as const;
 
     for (const [section, filePath] of Object.entries(sectionPages)) {
@@ -34,12 +33,22 @@ describe('admin commercial flow pages', () => {
     const overviewPage = readRepoFile('src/features/Admin/AdminOverviewPage.tsx');
     expect(overviewPage).toContain('adminCommercialService.getAllSettings()');
     expect(overviewPage).toContain('useClientDataSWR(ADMIN_SETTINGS_SWR_KEY');
+
+    const defaultSettingsPage = readRepoFile('src/features/Admin/AdminDefaultSettingsPage.tsx');
+    expect(defaultSettingsPage).toContain('ADMIN_SETTINGS_SECTION_SWR_KEY(scope)');
+    expect(defaultSettingsPage).toContain('adminCommercialService.getSettingsSection(scope)');
+    expect(defaultSettingsPage).not.toContain('getAllSettings()');
+
+    const planFaqCard = readRepoFile('src/features/Admin/AdminPlanFaqCard.tsx');
+    expect(planFaqCard).toContain("ADMIN_SETTINGS_SECTION_SWR_KEY('plans')");
+    expect(planFaqCard).toContain("getSettingsSection('plans')");
+    expect(planFaqCard).not.toContain('getAllSettings()');
   });
 
   it('loads file storage separately for image upload public URL prefixes', () => {
     for (const filePath of [
       'src/features/Admin/AdminSettingsPage.tsx',
-      'src/features/Admin/AdminSystemDefaultsPage.tsx',
+      'src/features/Admin/AdminDefaultSettingsPage.tsx',
     ]) {
       const page = readRepoFile(filePath);
       expect(page, filePath).toContain("ADMIN_SETTINGS_SECTION_SWR_KEY('file-storage')");
@@ -389,8 +398,7 @@ describe('admin commercial flow pages', () => {
 
   it('keeps the public plans page aligned with dynamic matrix model billing', () => {
     const publicPlansPage = readRepoFile('src/business/client/BusinessSettingPages/Plans.tsx');
-    const adminSettingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
-    const adminSettingsForm = readRepoFile('src/features/Admin/adminSettingsForm.ts');
+    const planFaqCard = readRepoFile('src/features/Admin/AdminPlanFaqCard.tsx');
     const adminReadModel = readRepoFile(
       'packages/business-server/src/appSettings/adminReadModel.ts',
     );
@@ -414,8 +422,8 @@ describe('admin commercial flow pages', () => {
     expect(publicPlansPage).toContain('activeBillingCycle');
     expect(publicPlansPage).toContain('!price.isAvailable');
     expect(publicPlansPage).toContain('planFaqItems.map');
-    expect(adminSettingsPage).toContain('name="planFaqItems"');
-    expect(adminSettingsForm).toContain('plansFaqItems?: unknown');
+    expect(planFaqCard).toContain('name="planFaqItems"');
+    expect(planFaqCard).toContain('APP_SETTING_KEYS.plansFaqItems');
     expect(adminReadModel).toContain('APP_SETTING_KEYS.plansFaqItems');
     expect(subscriptionRouter).toContain('listPlanFaq');
     expect(publicPlansPage).not.toContain("key: 'usage-fast'");
@@ -428,15 +436,18 @@ describe('admin commercial flow pages', () => {
   });
 
   it('surfaces app settings governance in the admin settings page', () => {
-    const settingsRouter = readRepoFile(
-      'packages/business-server/src/lambda-routers/admin/settings.ts',
+    const settingsReadProcedures = readRepoFile(
+      'packages/business-server/src/appSettings/readers/adminProcedures.ts',
+    );
+    const settingsWriteProcedures = readRepoFile(
+      'packages/business-server/src/appSettings/writers/adminProcedures.ts',
     );
     const service = readRepoFile('src/services/adminCommercial.ts');
     const settingsPage = readRepoFile('src/features/Admin/AdminSettingsPage.tsx');
     const governanceCard = readRepoFile('src/features/Admin/AdminSettingsGovernanceCard.tsx');
 
-    expect(settingsRouter).toContain('getGovernance: systemReadProcedure.query');
-    expect(settingsRouter).toContain('deleteUnknownSetting: systemWriteProcedure');
+    expect(settingsReadProcedures).toContain('getGovernance: systemReadProcedure.query');
+    expect(settingsWriteProcedures).toContain('deleteUnknownSetting: systemWriteProcedure');
     expect(service).toContain('getAppSettingsGovernance');
     expect(service).toContain('admin.settings.getGovernance.query()');
     expect(service).toContain('deleteUnknownAppSetting');

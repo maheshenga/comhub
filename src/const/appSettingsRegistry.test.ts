@@ -3,10 +3,24 @@ import { describe, expect, it } from 'vitest';
 import { APP_SETTING_KEYS, getAppSettingsSectionForKey } from './appSettingsRegistry';
 
 describe('app settings section ownership', () => {
-  it('assigns user global defaults to system defaults without changing storage ownership', () => {
+  it('assigns defaults to their canonical admin owner without changing storage ownership', () => {
     expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.userGlobalSettingsDefaults)).toBe(
-      'system-defaults',
+      'user-defaults',
     );
+    expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.profileAvatarPresets)).toBe(
+      'user-defaults',
+    );
+    expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.profileInterestAreas)).toBe(
+      'user-defaults',
+    );
+    expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.plansFaqItems)).toBe('plans');
+    expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.vectorEmbeddingModel)).toBe(
+      'ai-runtime-defaults',
+    );
+    expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.memoryUserMemoryEmbeddingModel)).toBe(
+      'ai-runtime-defaults',
+    );
+    expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.composioApiKey)).toBe('integrations');
     expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.storageS3PublicDomain)).toBe(
       'file-storage',
     );

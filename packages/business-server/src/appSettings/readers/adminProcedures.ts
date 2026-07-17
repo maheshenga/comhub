@@ -28,7 +28,10 @@ export const adminSettingsReadProcedures = {
     .input(z.object({ section: z.enum(APP_SETTINGS_SECTIONS) }))
     .query(async ({ ctx, input }) => {
       const needsEnabledModels =
-        input.section === 'model-policy' || input.section === 'system-defaults';
+        input.section === 'ai-runtime-defaults' ||
+        input.section === 'model-policy' ||
+        input.section === 'system-defaults' ||
+        input.section === 'user-defaults';
       const [snapshot, enabledModels] = await Promise.all([
         loadAppSettingsSectionSnapshot(ctx.serverDB, input.section),
         needsEnabledModels ? getAllEnabledModels(ctx.serverDB) : Promise.resolve([]),

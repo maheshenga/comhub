@@ -27,6 +27,7 @@ import {
   toAdminDisplayCredits,
 } from '@/features/Admin/adminCreditUnits';
 import AdminDependencyImpactPreview from '@/features/Admin/AdminDependencyImpactPreview';
+import AdminPlanFaqCard from '@/features/Admin/AdminPlanFaqCard';
 import {
   ADMIN_PLAN_MODEL_MATRIX_PATH,
   type AdminPlanModelRules,
@@ -380,6 +381,7 @@ const AdminPlansPage = memo(() => {
           rowKey="plan"
         />
       )}
+      <AdminPlanFaqCard />
 
       <Modal
         confirmLoading={submitting}

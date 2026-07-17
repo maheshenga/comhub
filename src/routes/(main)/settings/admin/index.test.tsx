@@ -72,6 +72,10 @@ vi.mock('@/routes/(main)/admin/audit', () => ({
   default: () => <div data-testid="admin-audit" />,
 }));
 
+vi.mock('@/routes/(main)/admin/ai-runtime-defaults', () => ({
+  default: () => <div data-testid="admin-ai-runtime-defaults" />,
+}));
+
 vi.mock('@/routes/(main)/admin/credits', () => ({
   default: () => <div data-testid="admin-credits" />,
 }));
@@ -82,6 +86,10 @@ vi.mock('@/routes/(main)/admin/desktop-update', () => ({
 
 vi.mock('@/routes/(main)/admin/growth', () => ({
   default: () => <div data-testid="admin-growth" />,
+}));
+
+vi.mock('@/routes/(main)/admin/integrations', () => ({
+  default: () => <div data-testid="admin-integrations" />,
 }));
 
 vi.mock('@/routes/(main)/admin/expert-plaza', () => ({
@@ -188,6 +196,10 @@ vi.mock('@/routes/(main)/admin/system-defaults', () => ({
 
 vi.mock('@/routes/(main)/admin/users', () => ({
   default: () => <div data-testid="admin-users" />,
+}));
+
+vi.mock('@/routes/(main)/admin/user-defaults', () => ({
+  default: () => <div data-testid="admin-user-defaults" />,
 }));
 
 vi.mock('@/routes/(main)/settings/features/SettingHeader', () => ({
@@ -344,6 +356,9 @@ describe('SettingsAdminPage', () => {
       ['/settings/admin/documents', 'admin-documents'],
       ['/settings/admin/file-storage', 'admin-file-storage'],
       ['/settings/admin/module-apps', 'admin-module-apps'],
+      ['/settings/admin/ai-runtime-defaults', 'admin-ai-runtime-defaults'],
+      ['/settings/admin/user-defaults', 'admin-user-defaults'],
+      ['/settings/admin/integrations', 'admin-integrations'],
       ['/settings/admin/system-defaults', 'admin-system-defaults'],
       ['/settings/admin/maintenance', 'admin-maintenance'],
     ] as const) {

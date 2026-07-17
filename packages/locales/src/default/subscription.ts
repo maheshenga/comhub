@@ -977,4 +977,13 @@
   'plansModal.fileStorageLimit.title': 'Storage limit reached',
   'plansModal.modelAccess.desc': 'This model is available on paid plans. Upgrade to use the full model lineup.',
   'plansModal.modelAccess.title': 'Unlock all models',
+  'admin.defaultSettings.aiRuntime.title': 'AI 运行时默认值',
+  'admin.defaultSettings.aiRuntime.description':
+    '配置向量检索和记忆抽取的运行时模型。保存不会修改用户默认设置或外部集成。',
+  'admin.defaultSettings.userDefaults.title': '用户默认值',
+  'admin.defaultSettings.userDefaults.description':
+    '配置新用户继承的模型、工具、头像和兴趣领域默认值。',
+  'admin.defaultSettings.integrations.title': '外部集成',
+  'admin.defaultSettings.integrations.description':
+    '配置可选的 Composio 工具集成。保存不会修改 AI 运行时或用户默认设置。',
 };

@@ -25,7 +25,8 @@ const filesWithAdminCopy = [
   'src/features/Admin/AdminSystemMaintenancePage.tsx',
   'src/features/Admin/AdminContentPages.tsx',
   'src/features/Admin/AdminExpertPlazaPage.tsx',
-  'src/features/Admin/AdminSystemDefaultsPage.tsx',
+  'src/features/Admin/AdminDefaultSettingsPage.tsx',
+  'src/features/Admin/AdminPlanFaqCard.tsx',
 ];
 
 const corruptedFragments = [
@@ -230,10 +231,10 @@ describe('admin Chinese copy', () => {
     const catalog = readRepoFile('src/features/Admin/adminCatalog.ts');
     const contentPages = readRepoFile('src/features/Admin/AdminContentPages.tsx');
     const expertPlazaPage = readRepoFile('src/features/Admin/AdminExpertPlazaPage.tsx');
-    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminSystemDefaultsPage.tsx');
+    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminDefaultSettingsPage.tsx');
 
     expect(catalog).toContain("label: '内容与运营'");
-    expect(catalog).toContain("label: '默认模型与运行默认值'");
+    expect(catalog).toContain("label: 'AI 运行时默认值'");
     expect(contentPages).toContain('话题管理');
     expect(contentPages).toContain('资源文件管理');
     expect(contentPages).toContain('用户文稿管理');
@@ -245,18 +246,18 @@ describe('admin Chinese copy', () => {
   });
 
   it('refreshes public profile options after avatar presets are saved', () => {
-    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminSystemDefaultsPage.tsx');
+    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminDefaultSettingsPage.tsx');
 
     expect(systemDefaultsPage).toContain('PROFILE_OPTIONS_SWR_KEY');
   });
 
   it('keeps admin and public SWR cache keys centralized', () => {
-    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminSystemDefaultsPage.tsx');
+    const systemDefaultsPage = readRepoFile('src/features/Admin/AdminDefaultSettingsPage.tsx');
     const expertPlazaAdminPage = readRepoFile('src/features/Admin/AdminExpertPlazaPage.tsx');
     const expertPlazaPage = readRepoFile('src/features/ExpertPlaza/index.tsx');
     const navLayout = readRepoFile('src/hooks/useNavLayout.ts');
 
-    expect(systemDefaultsPage).toContain("ADMIN_SETTINGS_SECTION_SWR_KEY('system-defaults')");
+    expect(systemDefaultsPage).toContain('ADMIN_SETTINGS_SECTION_SWR_KEY(scope)');
     expect(expertPlazaAdminPage).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
     expect(expertPlazaPage).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');
     expect(navLayout).toContain('PUBLIC_EXPERT_PLAZA_SWR_KEY');

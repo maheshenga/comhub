@@ -1,5 +1,15 @@
 # 后台重构进度记录
 
+## 2026-07-18 后台默认值与套餐内容归属
+
+- 套餐页 FAQ 已从「站点与品牌」移至「套餐与权益」，并使用独立表单仅写入 `plans.faq.items`。
+- 用户兴趣领域、头像预设和用户全局设置已收敛到「用户默认值」，避免与站点设置或 AI 运行时页面交叉保存。
+- 原 `/settings/admin/system-defaults` 已拆分为：
+  - `/settings/admin/ai-runtime-defaults`：向量检索与记忆抽取模型；
+  - `/settings/admin/user-defaults`：用户继承的模型、工具和资料默认值；
+  - `/settings/admin/integrations`：Composio 外部集成。
+- `system-defaults` 仍保留为后端聚合读取兼容 section，旧页面路径会重定向到 AI 运行时默认值；新页面按各自 section 读取和保存，避免隐藏字段覆盖其他分区。
+
 更新时间：2026-07-15
 
 ## 当前进度

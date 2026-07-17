@@ -1,3 +1,7 @@
-import AdminSystemDefaultsPage from '@/features/Admin/AdminSystemDefaultsPage';
+import { Navigate } from 'react-router';
 
-export default AdminSystemDefaultsPage;
+const AdminSystemDefaultsLegacyRoute = () => (
+  <Navigate replace to="/settings/admin/ai-runtime-defaults" />
+);
+
+export default AdminSystemDefaultsLegacyRoute;

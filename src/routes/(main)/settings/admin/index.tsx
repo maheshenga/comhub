@@ -7,6 +7,7 @@ import { Navigate, useLocation } from 'react-router';
 
 import { AdminSidebar } from '@/features/Admin';
 import { canAccessAdminPath, getAdminDefaultPath } from '@/features/Admin/adminNavigation';
+import AdminAIRuntimeDefaultsPage from '@/routes/(main)/admin/ai-runtime-defaults';
 import AdminAuditPage from '@/routes/(main)/admin/audit';
 import AdminCreditsPage from '@/routes/(main)/admin/credits';
 import AdminDesktopUpdatePage from '@/routes/(main)/admin/desktop-update';
@@ -15,6 +16,7 @@ import AdminExpertPlazaPage from '@/routes/(main)/admin/expert-plaza';
 import AdminFileStoragePage from '@/routes/(main)/admin/file-storage';
 import AdminFilesPage from '@/routes/(main)/admin/files';
 import AdminGrowthPage from '@/routes/(main)/admin/growth';
+import AdminIntegrationsPage from '@/routes/(main)/admin/integrations';
 import AdminMaintenancePage from '@/routes/(main)/admin/maintenance';
 import AdminModelBillingMatrixPage from '@/routes/(main)/admin/model-billing-matrix';
 import AdminModelPolicyPage from '@/routes/(main)/admin/model-policy';
@@ -34,12 +36,14 @@ import AdminStatsPage from '@/routes/(main)/admin/stats';
 import AdminSubscriptionsPage from '@/routes/(main)/admin/subscriptions';
 import AdminSystemDefaultsPage from '@/routes/(main)/admin/system-defaults';
 import AdminTopicsPage from '@/routes/(main)/admin/topics';
+import AdminUserDefaultsPage from '@/routes/(main)/admin/user-defaults';
 import AdminUsersPage from '@/routes/(main)/admin/users';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 const adminPageMap = {
+  'ai-runtime-defaults': AdminAIRuntimeDefaultsPage,
   'audit': AdminAuditPage,
   'change-requests': AdminSubscriptionsPage,
   'credits': AdminCreditsPage,
@@ -49,6 +53,7 @@ const adminPageMap = {
   'file-storage': AdminFileStoragePage,
   'files': AdminFilesPage,
   'growth': AdminGrowthPage,
+  'integrations': AdminIntegrationsPage,
   'maintenance': AdminMaintenancePage,
   'model-billing-matrix': AdminModelBillingMatrixPage,
   'model-policy': AdminModelPolicyPage,
@@ -69,6 +74,7 @@ const adminPageMap = {
   'system-defaults': AdminSystemDefaultsPage,
   'topup': AdminOrdersPage,
   'topics': AdminTopicsPage,
+  'user-defaults': AdminUserDefaultsPage,
   'users': AdminUsersPage,
 };
 

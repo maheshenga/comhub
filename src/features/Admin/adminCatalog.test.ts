@@ -40,6 +40,7 @@ describe('adminCatalog', () => {
       { segment: 'expert-plaza', targetSegment: 'content-operations' },
       { segment: 'notifications', targetSegment: 'content-operations' },
       { segment: 'operations', targetSegment: 'content-operations' },
+      { segment: 'system-defaults', targetSegment: 'ai-runtime-defaults' },
     ]);
     expect(ADMIN_CATALOG.map((item) => item.segment)).not.toEqual(
       expect.arrayContaining([
@@ -53,8 +54,26 @@ describe('adminCatalog', () => {
         'expert-plaza',
         'notifications',
         'operations',
+        'system-defaults',
       ]),
     );
+  });
+
+  it('assigns default-setting pages to the responsible admin domains', () => {
+    const byId = Object.fromEntries(ADMIN_CATALOG.map((item) => [item.id, item]));
+
+    expect(byId['ai-runtime-defaults']).toMatchObject({
+      group: 'ai-platform',
+      segment: 'ai-runtime-defaults',
+    });
+    expect(byId['user-defaults']).toMatchObject({
+      group: 'user-access',
+      segment: 'user-defaults',
+    });
+    expect(byId.integrations).toMatchObject({
+      group: 'client-integrations',
+      segment: 'integrations',
+    });
   });
 
   it('assigns read capabilities to high-risk domains', () => {

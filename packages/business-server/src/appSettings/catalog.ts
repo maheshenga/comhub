@@ -121,12 +121,23 @@ export const SENSITIVE_APP_SETTING_KEYS = APP_SETTINGS_CATALOG.filter((item) => 
   (item) => item.key,
 );
 
-export const APP_SETTINGS_SECTION_KEYS = Object.fromEntries(
+const canonicalSectionKeys = Object.fromEntries(
   Array.from(new Set(APP_SETTINGS_CATALOG.map((item) => item.section))).map((section) => [
     section,
     APP_SETTINGS_CATALOG.filter((item) => item.section === section).map((item) => item.key),
   ]),
-) as Record<AppSettingsSection, AppSettingKey[]>;
+) as Partial<Record<AppSettingsSection, AppSettingKey[]>>;
+
+export const APP_SETTINGS_SECTION_KEYS = {
+  ...canonicalSectionKeys,
+  // Existing clients can still request the former aggregate section while new pages
+  // load and save one owner domain at a time.
+  'system-defaults': [
+    ...(canonicalSectionKeys['ai-runtime-defaults'] ?? []),
+    ...(canonicalSectionKeys.integrations ?? []),
+    ...(canonicalSectionKeys['user-defaults'] ?? []),
+  ],
+} as Record<AppSettingsSection, AppSettingKey[]>;
 
 export const APP_SETTINGS_NORMALIZATION_KEYS = Object.fromEntries(
   Array.from(new Set(APP_SETTINGS_CATALOG.map((item) => item.normalizer))).map((normalizer) => [

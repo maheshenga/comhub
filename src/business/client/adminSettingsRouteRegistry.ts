@@ -11,6 +11,7 @@ type ImportPage = () => Promise<{ default: ComponentType } | ComponentType>;
 type AdminLegacyRouteSegment = (typeof ADMIN_LEGACY_ROUTES)[number]['segment'];
 
 const ADMIN_PAGE_IMPORTS: Record<AdminCatalogId, ImportPage> = {
+  'ai-runtime-defaults': () => import('@/routes/(main)/admin/ai-runtime-defaults'),
   audit: () => import('@/routes/(main)/admin/audit'),
   credits: () => import('@/routes/(main)/admin/credits'),
   'content-operations': () => import('@/routes/(main)/admin/content-operations'),
@@ -18,6 +19,7 @@ const ADMIN_PAGE_IMPORTS: Record<AdminCatalogId, ImportPage> = {
   'desktop-update': () => import('@/routes/(main)/admin/desktop-update'),
   'file-storage': () => import('@/routes/(main)/admin/file-storage'),
   growth: () => import('@/routes/(main)/admin/growth'),
+  integrations: () => import('@/routes/(main)/admin/integrations'),
   maintenance: () => import('@/routes/(main)/admin/maintenance'),
   'model-billing-matrix': () => import('@/routes/(main)/admin/model-billing-matrix'),
   'model-policy': () => import('@/routes/(main)/admin/model-policy'),
@@ -31,7 +33,7 @@ const ADMIN_PAGE_IMPORTS: Record<AdminCatalogId, ImportPage> = {
   settings: () => import('@/routes/(main)/admin/settings'),
   stats: () => import('@/routes/(main)/admin/stats'),
   subscriptions: () => import('@/routes/(main)/admin/subscriptions'),
-  'system-defaults': () => import('@/routes/(main)/admin/system-defaults'),
+  'user-defaults': () => import('@/routes/(main)/admin/user-defaults'),
   users: () => import('@/routes/(main)/admin/users'),
 };
 
@@ -44,6 +46,7 @@ const ADMIN_LEGACY_PAGE_IMPORTS: Record<AdminLegacyRouteSegment, ImportPage> = {
   operations: () => import('@/routes/(main)/admin/operations'),
   pricing: () => import('@/routes/(main)/admin/pricing'),
   recommendations: () => import('@/routes/(main)/admin/recommendations'),
+  'system-defaults': () => import('@/routes/(main)/admin/system-defaults'),
   topup: () => import('@/routes/(main)/admin/topup'),
   topics: () => import('@/routes/(main)/admin/topics'),
 };

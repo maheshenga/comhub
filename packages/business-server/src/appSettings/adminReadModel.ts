@@ -510,6 +510,9 @@ export const buildSystemDefaultsSettings = async (snapshot: AppSettingsSnapshot)
         snapshot.get(APP_SETTING_KEYS.memoryUserMemoryPersonaWriterProvider),
       ),
     },
+    profileInterestAreas: normalizeProfileInterestAreas(
+      snapshot.get(APP_SETTING_KEYS.profileInterestAreas),
+    ),
     userGlobalSettingsDefaults:
       userGlobalSettingsDefaults &&
       typeof userGlobalSettingsDefaults === 'object' &&
@@ -637,7 +640,12 @@ const buildSharedHealth = (
   section: AppSettingsSection,
   context: AdminSettingsReadContext,
 ): AdminSettingsSharedHealth => {
-  if (section === 'model-policy' || section === 'system-defaults') {
+  if (
+    section === 'ai-runtime-defaults' ||
+    section === 'model-policy' ||
+    section === 'system-defaults' ||
+    section === 'user-defaults'
+  ) {
     return { enabledNewapiModels: mapEnabledAdminModels(context.enabledModels) };
   }
 
@@ -725,8 +733,14 @@ export const buildAdminSettingsSectionReadModel = async (
     case 'settings': {
       return { ...buildSiteSettings(snapshot, context), section, sharedHealth };
     }
-    case 'system-defaults': {
+    case 'ai-runtime-defaults':
+    case 'integrations':
+    case 'system-defaults':
+    case 'user-defaults': {
       return { ...(await buildSystemDefaultsSettings(snapshot)), section, sharedHealth };
+    }
+    case 'plans': {
+      return { ...buildSiteSettings(snapshot, context), section, sharedHealth };
     }
   }
 
