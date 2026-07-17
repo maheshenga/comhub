@@ -1,5 +1,6 @@
 import { CREDITS_PER_DOLLAR, DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
 import type {
+  AdminDependencyImpact,
   AutoTopUpSetting,
   CommercialOverview,
   CreateSubscriptionChangeRequestParams,
@@ -21,7 +22,7 @@ import type {
   TopUpPackageItem,
 } from '@lobechat/types';
 import { Plans } from '@lobechat/types';
-import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
 
 import {
   appSettings,
@@ -30,6 +31,7 @@ import {
   creditLedgerEntries,
   defaultAutoTopUpSetting,
   planCatalog,
+  redemptionCodes,
   referralProfiles,
   referralRelations,
   referralRewards,
@@ -315,6 +317,78 @@ const normalizePlanResourceQuotas = (metadata?: Record<string, unknown> | null) 
       storageQuotaBytes ??
       (storageQuotaMb === null ? null : Math.floor(storageQuotaMb * 1024 * 1024)),
     vectorQuota: normalizeNonNegativeQuota(metadata?.vectorQuota),
+  };
+};
+
+export const getPlanDeleteImpact = async (
+  db: LobeChatDatabase | Transaction,
+  plan: string,
+): Promise<AdminDependencyImpact> => {
+  const [target, activeSnapshots, redemptionCodeRows, pendingChangeRequests] = await Promise.all([
+    db.query.planCatalog.findFirst({
+      columns: { displayName: true, plan: true },
+      where: eq(planCatalog.plan, plan as Plans),
+    }),
+    db
+      .select({ value: count() })
+      .from(userPlanSnapshots)
+      .where(
+        and(
+          eq(userPlanSnapshots.plan, plan as Plans),
+          eq(userPlanSnapshots.status, 'active'),
+        ),
+      ),
+    db
+      .select({ value: count() })
+      .from(redemptionCodes)
+      .where(and(eq(redemptionCodes.rewardType, 'plan'), eq(redemptionCodes.planKey, plan))),
+    db
+      .select({ value: count() })
+      .from(subscriptionChangeRequests)
+      .where(
+        and(
+          eq(subscriptionChangeRequests.status, 'pending'),
+          or(
+            eq(subscriptionChangeRequests.fromPlan, plan as Plans),
+            eq(subscriptionChangeRequests.toPlan, plan as Plans),
+          ),
+        ),
+      ),
+  ]);
+  const dependencyCounts = {
+    activeSnapshots: Number(activeSnapshots[0]?.value ?? 0),
+    pendingChangeRequests: Number(pendingChangeRequests[0]?.value ?? 0),
+    redemptionCodes: Number(redemptionCodeRows[0]?.value ?? 0),
+  };
+  const blocking = [
+    {
+      code: 'PLAN_ACTIVE_SNAPSHOTS',
+      count: dependencyCounts.activeSnapshots,
+      title: 'Active subscription snapshots',
+    },
+    {
+      code: 'PLAN_REDEMPTION_CODES',
+      count: dependencyCounts.redemptionCodes,
+      title: 'Redemption codes',
+    },
+    {
+      code: 'PLAN_PENDING_CHANGE_REQUESTS',
+      count: dependencyCounts.pendingChangeRequests,
+      title: 'Pending subscription changes',
+    },
+  ].filter((item) => item.count > 0);
+
+  return {
+    blocking,
+    canProceed: Boolean(target) && blocking.length === 0,
+    immediateEffects: target
+      ? [{ code: 'PLAN_CATALOG_DELETE', count: 1, title: 'Plan catalog record removed' }]
+      : [],
+    liveEffects: target
+      ? [{ code: 'PLAN_NEW_ASSIGNMENTS_STOP', count: 1, title: 'New assignments stop immediately' }]
+      : [],
+    target: { id: plan, label: target?.displayName ?? plan, type: 'plan' },
+    targetExists: Boolean(target),
   };
 };
 

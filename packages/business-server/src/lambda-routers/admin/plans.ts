@@ -5,13 +5,13 @@ import { z } from 'zod';
 
 import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 import { normalizePlanCatalogPresentation } from '@/const/billingPresentation';
+import { getPlanDeleteImpact } from '@/database/models/commercial';
 import {
   appSettings,
   creditAccounts,
   NEWAPI_MODEL_TYPES,
   planCatalog,
   type PlanModelRules,
-  redemptionCodes,
   userPlanSnapshots,
 } from '@/database/schemas';
 import { type Transaction } from '@/database/type';
@@ -192,33 +192,14 @@ export const adminPlansRouter = router({
           resourceType: 'plan_catalog',
         }),
         mutation: async (tx) => {
-          const activeSnapshot = await tx.query.userPlanSnapshots.findFirst({
-            columns: { id: true },
-            where: and(
-              eq(userPlanSnapshots.plan, input.plan as Plans),
-              eq(userPlanSnapshots.status, 'active'),
-            ),
-          });
-
-          if (activeSnapshot) {
-            throw new TRPCError({
-              code: 'PRECONDITION_FAILED',
-              message: 'PLAN_HAS_ACTIVE_USERS',
-            });
+          const impact = await getPlanDeleteImpact(tx, input.plan);
+          if (!impact.targetExists) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Plan not found' });
           }
-
-          const referencingCode = await tx.query.redemptionCodes.findFirst({
-            columns: { id: true },
-            where: and(
-              eq(redemptionCodes.rewardType, 'plan'),
-              eq(redemptionCodes.planKey, input.plan),
-            ),
-          });
-
-          if (referencingCode) {
+          if (!impact.canProceed) {
             throw new TRPCError({
               code: 'PRECONDITION_FAILED',
-              message: 'PLAN_HAS_REDEMPTION_CODES',
+              message: 'PLAN_DELETE_BLOCKED',
             });
           }
 
@@ -231,6 +212,10 @@ export const adminPlansRouter = router({
       });
       return { ok: true };
     }),
+
+  getDeleteImpact: financeReadProcedure
+    .input(z.object({ plan: z.string().min(1) }))
+    .query(({ ctx, input }) => getPlanDeleteImpact(ctx.serverDB, input.plan)),
 
   list: financeReadProcedure.query(async ({ ctx }) => {
     const items = await ctx.serverDB.query.planCatalog.findMany({

@@ -30,6 +30,7 @@ import {
   tryDecryptAdminProviderApiKey,
 } from '@/server/services/newapiInstance/credentials';
 
+import { getModelDependencyImpact } from '../../adminImpact/modelDependencyImpact';
 import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit, runRequiredAdminAuditMutation } from './audit';
 
@@ -282,9 +283,23 @@ export const adminNewapiProvidersRouter = router({
           action: command.auditAction,
           payload: reason ? { reason } : undefined,
           resourceId: input.id,
-          resourceType: 'admin_newapi_instances',
+        resourceType: 'admin_newapi_instances',
         }),
         mutation: async (tx) => {
+          const impact = await getModelDependencyImpact(tx, {
+            instanceId: input.id,
+            kind: 'instance',
+          });
+          if (!impact.targetExists) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
+          }
+          if (!impact.canProceed) {
+            throw new TRPCError({
+              code: 'PRECONDITION_FAILED',
+              message: 'PROVIDER_DELETE_BLOCKED',
+            });
+          }
+
           const result = await tx
             .delete(adminNewapiInstances)
             .where(eq(adminNewapiInstances.id, input.id))
@@ -297,6 +312,12 @@ export const adminNewapiProvidersRouter = router({
       invalidateNewapiInstancesCache();
       return { ok: true };
     }),
+
+  getDeleteInstanceImpact: modelOpsReadProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(({ ctx, input }) =>
+      getModelDependencyImpact(ctx.serverDB, { instanceId: input.id, kind: 'instance' }),
+    ),
 
   getInstance: modelOpsReadProcedure
     .input(z.object({ id: z.string().uuid() }))
@@ -634,10 +655,26 @@ export const adminNewapiProvidersRouter = router({
           action: 'newapiInstanceModels.remove',
           payload: { modelId: input.modelId, modelType: input.modelType },
           resourceId: input.instanceId,
-          resourceType: 'admin_newapi_instance_models',
+        resourceType: 'admin_newapi_instance_models',
         }),
         mutation: async (tx) => {
-          await tx
+          const impact = await getModelDependencyImpact(tx, {
+            instanceId: input.instanceId,
+            kind: 'model',
+            modelId: input.modelId,
+            modelType: input.modelType,
+          });
+          if (!impact.targetExists) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Model route not found' });
+          }
+          if (!impact.canProceed) {
+            throw new TRPCError({
+              code: 'PRECONDITION_FAILED',
+              message: 'PROVIDER_MODEL_DELETE_BLOCKED',
+            });
+          }
+
+          const result = await tx
             .delete(adminNewapiInstanceModels)
             .where(
               and(
@@ -645,12 +682,34 @@ export const adminNewapiProvidersRouter = router({
                 eq(adminNewapiInstanceModels.modelId, input.modelId),
                 eq(adminNewapiInstanceModels.modelType, input.modelType),
               ),
-            );
+            )
+            .returning({ instanceId: adminNewapiInstanceModels.instanceId });
+
+          if (result.length === 0) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Model route not found' });
+          }
         },
       });
       invalidateNewapiInstancesCache();
       return { ok: true };
     }),
+
+  getRemoveModelImpact: modelOpsReadProcedure
+    .input(
+      z.object({
+        instanceId: z.string().uuid(),
+        modelId: z.string().min(1),
+        modelType: z.enum(NEWAPI_MODEL_TYPES),
+      }),
+    )
+    .query(({ ctx, input }) =>
+      getModelDependencyImpact(ctx.serverDB, {
+        instanceId: input.instanceId,
+        kind: 'model',
+        modelId: input.modelId,
+        modelType: input.modelType,
+      }),
+    ),
 
   updateModel: modelOpsWriteProcedure
     .input(

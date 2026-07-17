@@ -439,6 +439,8 @@ class AdminCommercialService {
     yearlyDiscountLabel?: string;
     yearlyPrice: number;
   }) => lambdaClient.admin.plans.upsert.mutate(params);
+  getPlanDeleteImpact = async (plan: string) =>
+    lambdaClient.admin.plans.getDeleteImpact.query({ plan });
   deletePlan = async (plan: string) => lambdaClient.admin.plans.delete.mutate({ plan });
   setPlanActive = async (params: { isActive: boolean; plan: string }) =>
     lambdaClient.admin.plans.setActive.mutate(params);
@@ -709,6 +711,9 @@ class AdminCommercialService {
 
   deleteNewapiInstance = this.deleteAiProviderInstance;
 
+  getAiProviderInstanceDeleteImpact = async (id: string) =>
+    lambdaClient.admin.newapiProviders.getDeleteInstanceImpact.query({ id });
+
   toggleAiProviderInstance = async (params: { enabled: boolean; id: string }) =>
     lambdaClient.admin.newapiProviders.toggleInstanceEnabled.mutate(params);
 
@@ -752,6 +757,12 @@ class AdminCommercialService {
     modelId: string;
     modelType: AiProviderModelType;
   }) => lambdaClient.admin.newapiProviders.removeModel.mutate(params);
+
+  getAiProviderModelDeleteImpact = async (params: {
+    instanceId: string;
+    modelId: string;
+    modelType: AiProviderModelType;
+  }) => lambdaClient.admin.newapiProviders.getRemoveModelImpact.query(params);
 
   removeNewapiInstanceModel = this.removeAiProviderInstanceModel;
 

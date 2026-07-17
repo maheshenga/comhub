@@ -3,11 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
 
+import { getModelDependencyImpact } from '../../adminImpact/modelDependencyImpact';
 import { recordAdminAudit } from './audit';
 import { adminNewapiProvidersRouter } from './newapiProviders';
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
+}));
+
+vi.mock('../../adminImpact/modelDependencyImpact', () => ({
+  getModelDependencyImpact: vi.fn(),
 }));
 
 vi.mock('./audit', () => ({
@@ -54,6 +59,15 @@ vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
 }));
 
 const instanceId = '00000000-0000-4000-8000-000000000001';
+
+const dependencyImpact = (blocking: Array<{ code: string; count: number; title: string }> = []) => ({
+  blocking,
+  canProceed: blocking.length === 0,
+  immediateEffects: [],
+  liveEffects: [],
+  target: { id: instanceId, type: 'provider-instance' as const },
+  targetExists: true,
+});
 
 const createDbMock = ({
   allEnabledModelRows = [],
@@ -158,6 +172,7 @@ const createDbMock = ({
 describe('adminNewapiProvidersRouter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getModelDependencyImpact).mockResolvedValue(dependencyImpact());
   });
 
   it('creates and lists instances with group routing fields while masking api key', async () => {
@@ -679,6 +694,41 @@ describe('adminNewapiProvidersRouter', () => {
       code: 'BAD_REQUEST',
       message: 'ADMIN_COMMAND_REASON_MISMATCH',
     });
+    expect(db.delete).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('blocks provider deletion when the dependency preview contains references', async () => {
+    vi.mocked(getModelDependencyImpact).mockResolvedValue(
+      dependencyImpact([{ code: 'SYSTEM_DEFAULT_MODEL_REFERENCE', count: 1, title: 'default' }]),
+    );
+    const deleteWhere = vi.fn(() => ({
+      returning: vi.fn().mockResolvedValue([{ id: instanceId }]),
+    }));
+    const db = {
+      delete: vi.fn(() => ({ where: deleteWhere })),
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'admin' }),
+        },
+      },
+      transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback(db)),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    await expect(
+      adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any).deleteInstance({
+        command: {
+          actionId: 'newapiProvider.deleteInstance',
+          confirmationText: 'newapiProvider.deleteInstance',
+          confirmed: true,
+          reason: 'retired',
+        },
+        id: instanceId,
+        reason: 'retired',
+      }),
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'PROVIDER_DELETE_BLOCKED' });
+
     expect(db.delete).not.toHaveBeenCalled();
     expect(recordAdminAudit).not.toHaveBeenCalled();
   });

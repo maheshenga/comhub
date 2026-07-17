@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Plans } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import { and, count, desc, eq } from 'drizzle-orm';
@@ -5,11 +7,12 @@ import { z } from 'zod';
 
 import { CommercialModel } from '@/database/models/commercial';
 import { subscriptionChangeRequests, userPlanSnapshots } from '@/database/schemas';
+import { type Transaction } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
 import { createAdminCommand } from './adminCommand';
-import { runRequiredAdminAuditMutation } from './audit';
+import { recordAdminAuditStrict, runRequiredAdminAuditMutation } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
 const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const;
@@ -18,6 +21,42 @@ const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financ
 const bulkApproveCommand = createAdminCommand('subscription.changeRequest.bulkApprove');
 const bulkRejectCommand = createAdminCommand('subscription.changeRequest.bulkReject');
 type BulkChangeRequestResult = { error?: string; ok: boolean; requestId: string };
+
+const recordBulkChangeRequestItemAudit = async ({
+  action,
+  batchCorrelationId,
+  ctx,
+  error,
+  request,
+  requestId,
+  tx,
+}: {
+  action: 'approve' | 'reject';
+  batchCorrelationId: string;
+  ctx: { clientIp?: null | string; userId: string };
+  error?: string;
+  request?: typeof subscriptionChangeRequests.$inferSelect;
+  requestId: string;
+  tx: Transaction;
+}) =>
+  recordAdminAuditStrict(
+    { ...ctx, serverDB: tx },
+    {
+      action: `subscription.changeRequest.bulk${action === 'approve' ? 'Approve' : 'Reject'}.item`,
+      payload: {
+        ...(request
+          ? { cycle: request.cycle, fromPlan: request.fromPlan, toPlan: request.toPlan }
+          : {}),
+        error: error ?? null,
+        batchCorrelationId,
+        result: error ? 'failed' : 'succeeded',
+      },
+      resourceId: requestId,
+      resourceType: 'subscription_change_request',
+      targetUserId: request?.userId,
+    },
+    { correlationId: batchCorrelationId, status: error ? 'failed' : 'succeeded' },
+  );
 
 export const adminSubscriptionsRouter = router({
   assignPlan: financeWriteProcedure
@@ -238,6 +277,7 @@ export const adminSubscriptionsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const command = bulkApproveCommand.validate(input.command);
+      const batchCorrelationId = randomUUID();
       const results = await runRequiredAdminAuditMutation<BulkChangeRequestResult[]>(ctx, {
         audit: (results) => ({
           action: command.auditAction,
@@ -251,21 +291,34 @@ export const adminSubscriptionsRouter = router({
         mutation: async (tx) => {
           const results: BulkChangeRequestResult[] = [];
           for (const requestId of input.requestIds) {
+            let request: typeof subscriptionChangeRequests.$inferSelect | undefined;
+            let result: BulkChangeRequestResult;
             try {
-              const request = await tx.query.subscriptionChangeRequests.findFirst({
+              request = await tx.query.subscriptionChangeRequests.findFirst({
                 where: eq(subscriptionChangeRequests.id, requestId),
               });
               if (!request) throw new Error('NOT_FOUND');
               if (request.status !== 'pending') throw new Error('NOT_PENDING');
               const model = new CommercialModel(tx, request.userId);
               await model.activateSubscriptionChangeRequest(request.id);
-              results.push({ ok: true, requestId });
+              result = { ok: true, requestId };
             } catch (err) {
-              results.push({ error: (err as Error).message, ok: false, requestId });
+              result = { error: (err as Error).message, ok: false, requestId };
             }
+            await recordBulkChangeRequestItemAudit({
+              action: 'approve',
+              batchCorrelationId,
+              ctx,
+              error: result.error,
+              request,
+              requestId,
+              tx,
+            });
+            results.push(result);
           }
           return results;
         },
+        correlationId: batchCorrelationId,
       });
       return { results };
     }),
@@ -280,6 +333,7 @@ export const adminSubscriptionsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const command = bulkRejectCommand.validate(input.command, input.reason);
+      const batchCorrelationId = randomUUID();
       const results = await runRequiredAdminAuditMutation<BulkChangeRequestResult[]>(ctx, {
         audit: (results) => ({
           action: command.auditAction,
@@ -294,8 +348,10 @@ export const adminSubscriptionsRouter = router({
         mutation: async (tx) => {
           const results: BulkChangeRequestResult[] = [];
           for (const requestId of input.requestIds) {
+            let request: typeof subscriptionChangeRequests.$inferSelect | undefined;
+            let result: BulkChangeRequestResult;
             try {
-              const request = await tx.query.subscriptionChangeRequests.findFirst({
+              request = await tx.query.subscriptionChangeRequests.findFirst({
                 where: eq(subscriptionChangeRequests.id, requestId),
               });
               if (!request) throw new Error('NOT_FOUND');
@@ -304,13 +360,24 @@ export const adminSubscriptionsRouter = router({
                 .update(subscriptionChangeRequests)
                 .set({ status: 'rejected', updatedAt: new Date() })
                 .where(eq(subscriptionChangeRequests.id, request.id));
-              results.push({ ok: true, requestId });
+              result = { ok: true, requestId };
             } catch (err) {
-              results.push({ error: (err as Error).message, ok: false, requestId });
+              result = { error: (err as Error).message, ok: false, requestId };
             }
+            await recordBulkChangeRequestItemAudit({
+              action: 'reject',
+              batchCorrelationId,
+              ctx,
+              error: result.error,
+              request,
+              requestId,
+              tx,
+            });
+            results.push(result);
           }
           return results;
         },
+        correlationId: batchCorrelationId,
       });
       return { results };
     }),

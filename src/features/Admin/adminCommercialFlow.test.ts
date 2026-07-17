@@ -612,6 +612,27 @@ describe('admin commercial flow pages', () => {
     expect(maintenancePage).toContain('actionId="setting.runMaintenance"');
   });
 
+  it('shows dependency impact before plan, provider, or model deletion', () => {
+    const plansPage = readRepoFile('src/routes/(main)/admin/plans/index.tsx');
+    const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
+    const dangerousButton = readRepoFile('src/features/Admin/AdminDangerousActionButton.tsx');
+    const impactPreview = readRepoFile('src/features/Admin/AdminDependencyImpactPreview.tsx');
+
+    expect(plansPage).toContain('adminCommercialService.getPlanDeleteImpact(plan)');
+    expect(plansPage).toContain('<AdminDependencyImpactPreview impact={impact} />');
+    expect(providersPage).toContain('getAiProviderModelDeleteImpact(target)');
+    expect(providersPage).toContain('getAiProviderInstanceDeleteImpact(row.id)');
+    expect(providersPage).toContain('disabled: !impact.canProceed');
+    expect(dangerousButton).toContain('disabled: Boolean(loadPreflight)');
+    expect(dangerousButton).toContain('closable={!submitting}');
+    expect(dangerousButton).toContain('keyboard={!submitting}');
+    expect(dangerousButton).toContain('maskClosable={!submitting}');
+    expect(dangerousButton).toContain('if (!submitting) closeTypedConfirm();');
+    expect(impactPreview).toContain('impact.blocking');
+    expect(impactPreview).toContain('impact.immediateEffects');
+    expect(impactPreview).toContain('impact.liveEffects');
+  });
+
   it('exposes module app product and price management from the selected app view', () => {
     const moduleAppsPage = readRepoFile('src/features/Admin/moduleApps/index.tsx');
 

@@ -26,6 +26,7 @@ import {
   toAdminAtomicCredits,
   toAdminDisplayCredits,
 } from '@/features/Admin/adminCreditUnits';
+import AdminDependencyImpactPreview from '@/features/Admin/AdminDependencyImpactPreview';
 import {
   ADMIN_PLAN_MODEL_MATRIX_PATH,
   type AdminPlanModelRules,
@@ -191,9 +192,12 @@ const AdminPlansPage = memo(() => {
     }
   };
 
-  const handleDelete = (plan: string) => {
+  const handleDelete = async (plan: string) => {
+    const impact = await adminCommercialService.getPlanDeleteImpact(plan);
+
     Modal.confirm({
-      content: plan,
+      content: <AdminDependencyImpactPreview impact={impact} />,
+      okButtonProps: { danger: true, disabled: !impact.canProceed },
       onOk: async () => {
         await adminCommercialService.deletePlan(plan);
         message.success(t('admin.plans.deleted', '套餐已删除'));

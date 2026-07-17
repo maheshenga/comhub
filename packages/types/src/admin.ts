@@ -25,6 +25,26 @@ export type AdminCompactUser = {
   role: string | null;
 };
 
+export type AdminDependencyImpactItem = {
+  code: string;
+  count: number;
+  details?: string[];
+  title: string;
+};
+
+export type AdminDependencyImpact = {
+  blocking: AdminDependencyImpactItem[];
+  canProceed: boolean;
+  immediateEffects: AdminDependencyImpactItem[];
+  liveEffects: AdminDependencyImpactItem[];
+  target: {
+    id: string;
+    label?: string;
+    type: 'plan' | 'provider-instance' | 'provider-model';
+  };
+  targetExists: boolean;
+};
+
 export const ADMIN_ROLE_IDS = [
   'admin',
   'content_admin',

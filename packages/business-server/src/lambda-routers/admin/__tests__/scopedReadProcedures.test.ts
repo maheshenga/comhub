@@ -15,7 +15,7 @@ describe('scoped admin read procedures', () => {
         'listAccounts: financeReadProcedure',
       ],
       orders: ['getDetail: financeReadProcedure', 'list: financeReadProcedure'],
-      plans: ['list: financeReadProcedure'],
+      plans: ['getDeleteImpact: financeReadProcedure', 'list: financeReadProcedure'],
       subscriptions: [
         'getUserSubscription: financeReadProcedure',
         'list: financeReadProcedure',
@@ -43,6 +43,8 @@ describe('scoped admin read procedures', () => {
         'ADMIN_CAPABILITIES.modelOpsRead',
         [
           'getInstance: modelOpsReadProcedure',
+          'getDeleteInstanceImpact: modelOpsReadProcedure',
+          'getRemoveModelImpact: modelOpsReadProcedure',
           'listInstances: modelOpsReadProcedure',
           'getModelCatalogDiagnostics: modelOpsReadProcedure',
           'listModels: modelOpsReadProcedure',

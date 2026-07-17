@@ -24,9 +24,14 @@ vi.mock('@/libs/trpc/client', () => ({
         list: { query: vi.fn() },
       },
       newapiProviders: {
+        getDeleteInstanceImpact: { query: vi.fn() },
         getModelCatalogDiagnostics: { query: vi.fn() },
+        getRemoveModelImpact: { query: vi.fn() },
         syncInstanceModels: { mutate: vi.fn() },
         testInstanceConnection: { query: vi.fn() },
+      },
+      plans: {
+        getDeleteImpact: { query: vi.fn() },
       },
       users: {
         compactDetail: { query: vi.fn() },
@@ -63,6 +68,42 @@ describe('adminCommercialService NewAPI helpers', () => {
 
     expect(lambdaClient.admin.newapiProviders.testInstanceConnection.query).toHaveBeenCalledWith({
       id: 'instance-1',
+    });
+  });
+
+  it('loads structured deletion impact previews for plans, providers, and models', async () => {
+    const impact = {
+      blocking: [],
+      canProceed: true,
+      immediateEffects: [],
+      liveEffects: [],
+      target: { id: 'target', type: 'plan' },
+      targetExists: true,
+    } as any;
+    vi.mocked(lambdaClient.admin.plans.getDeleteImpact.query).mockResolvedValue(impact);
+    vi.mocked(lambdaClient.admin.newapiProviders.getDeleteInstanceImpact.query).mockResolvedValue(
+      impact,
+    );
+    vi.mocked(lambdaClient.admin.newapiProviders.getRemoveModelImpact.query).mockResolvedValue(
+      impact,
+    );
+
+    await adminCommercialService.getPlanDeleteImpact('premium');
+    await adminCommercialService.getAiProviderInstanceDeleteImpact('instance-1');
+    await adminCommercialService.getAiProviderModelDeleteImpact({
+      instanceId: 'instance-1',
+      modelId: 'gpt-4o',
+      modelType: 'chat',
+    });
+
+    expect(lambdaClient.admin.plans.getDeleteImpact.query).toHaveBeenCalledWith({ plan: 'premium' });
+    expect(lambdaClient.admin.newapiProviders.getDeleteInstanceImpact.query).toHaveBeenCalledWith({
+      id: 'instance-1',
+    });
+    expect(lambdaClient.admin.newapiProviders.getRemoveModelImpact.query).toHaveBeenCalledWith({
+      instanceId: 'instance-1',
+      modelId: 'gpt-4o',
+      modelType: 'chat',
     });
   });
 

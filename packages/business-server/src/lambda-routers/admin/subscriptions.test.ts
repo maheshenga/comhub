@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { CommercialModel } from '@/database/models/commercial';
 
-import { recordAdminAudit } from './audit';
+import { recordAdminAudit, recordAdminAuditStrict } from './audit';
 import { adminSubscriptionsRouter } from './subscriptions';
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -17,6 +17,7 @@ vi.mock('@/database/models/commercial', () => ({
 
 vi.mock('./audit', () => ({
   recordAdminAudit: vi.fn(),
+  recordAdminAuditStrict: vi.fn(),
   runRequiredAdminAuditMutation: vi.fn(async (ctx, options) => {
     const result = await ctx.serverDB.transaction((tx: unknown) => options.mutation(tx));
     await recordAdminAudit(ctx, await options.audit(result));
@@ -74,6 +75,15 @@ describe('adminSubscriptionsRouter bulk commands', () => {
     ).resolves.toEqual({ results: [{ ok: true, requestId: 'request-1' }] });
 
     expect(activateSubscriptionChangeRequest).toHaveBeenCalledWith('request-1');
+    expect(recordAdminAuditStrict).toHaveBeenCalledWith(
+      expect.objectContaining({ serverDB: db, userId: 'finance-user' }),
+      expect.objectContaining({
+        action: 'subscription.changeRequest.bulkApprove.item',
+        payload: expect.objectContaining({ result: 'succeeded' }),
+        resourceId: 'request-1',
+      }),
+      expect.objectContaining({ correlationId: expect.any(String), status: 'succeeded' }),
+    );
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -100,11 +110,63 @@ describe('adminSubscriptionsRouter bulk commands', () => {
     ).resolves.toEqual({ results: [{ ok: true, requestId: 'request-1' }] });
 
     expect(db.__mocks.updateWhere).toHaveBeenCalled();
+    expect(recordAdminAuditStrict).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'subscription.changeRequest.bulkReject.item',
+        payload: expect.objectContaining({ result: 'succeeded' }),
+      }),
+      expect.objectContaining({ correlationId: expect.any(String), status: 'succeeded' }),
+    );
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         action: ADMIN_COMMANDS['subscription.changeRequest.bulkReject'].auditAction,
         payload: expect.objectContaining({ reason: 'insufficient evidence' }),
+      }),
+    );
+  });
+
+  it('writes a failed per-target audit while retaining the aggregate bulk result', async () => {
+    const activateSubscriptionChangeRequest = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(CommercialModel).mockImplementation(
+      () => ({ activateSubscriptionChangeRequest }) as any,
+    );
+    const db = createDb();
+    db.query.subscriptionChangeRequests.findFirst
+      .mockResolvedValueOnce({ id: 'request-1', status: 'pending', userId: 'target-user' })
+      .mockResolvedValueOnce(undefined);
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSubscriptionsRouter.createCaller({ userId: 'finance-user' } as any);
+    await expect(
+      caller.bulkApproveChangeRequests({
+        command: {
+          actionId: 'subscription.changeRequest.bulkApprove',
+          confirmed: true,
+        },
+        requestIds: ['request-1', 'missing-request'],
+      }),
+    ).resolves.toEqual({
+      results: [
+        { ok: true, requestId: 'request-1' },
+        { error: 'NOT_FOUND', ok: false, requestId: 'missing-request' },
+      ],
+    });
+
+    expect(recordAdminAuditStrict).toHaveBeenCalledTimes(2);
+    expect(recordAdminAuditStrict).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({ error: 'NOT_FOUND', result: 'failed' }),
+        resourceId: 'missing-request',
+      }),
+      expect.objectContaining({ correlationId: expect.any(String), status: 'failed' }),
+    );
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({ failed: 1, succeeded: 1, total: 2 }),
       }),
     );
   });

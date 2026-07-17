@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 import { getServerDB } from '@/database/core/db-adaptor';
+import { getPlanDeleteImpact } from '@/database/models/commercial';
 import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { getAllEnabledModels } from '@/server/services/newapiInstance';
 
@@ -11,6 +12,10 @@ import { adminPlansRouter } from './plans';
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
+}));
+
+vi.mock('@/database/models/commercial', () => ({
+  getPlanDeleteImpact: vi.fn(),
 }));
 
 vi.mock('@/server/globalConfig', () => ({
@@ -87,14 +92,27 @@ const createDb = ({
   } as any;
 };
 
+const planDeleteImpact = (blocking: Array<{ code: string; count: number; title: string }> = []) => ({
+  blocking,
+  canProceed: blocking.length === 0,
+  immediateEffects: [{ code: 'PLAN_CATALOG_DELETE', count: 1, title: 'delete' }],
+  liveEffects: [{ code: 'PLAN_NEW_ASSIGNMENTS_STOP', count: 1, title: 'stop' }],
+  target: { id: Plans.Premium, label: 'Premium', type: 'plan' as const },
+  targetExists: true,
+});
+
 describe('adminPlansRouter', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(getPlanDeleteImpact).mockResolvedValue(planDeleteImpact());
     vi.mocked(getServerDefaultAgentConfig).mockReturnValue({});
     vi.mocked(getAllEnabledModels).mockResolvedValue([]);
   });
 
   it('blocks deleting a plan with active user snapshots', async () => {
+    vi.mocked(getPlanDeleteImpact).mockResolvedValue(
+      planDeleteImpact([{ code: 'PLAN_ACTIVE_SNAPSHOTS', count: 1, title: 'active' }]),
+    );
     const db = createDb({ activePlanSnapshot: { id: 'snapshot-1' } });
     vi.mocked(getServerDB).mockResolvedValue(db);
 
@@ -133,6 +151,9 @@ describe('adminPlansRouter', () => {
   });
 
   it('blocks deleting a plan referenced by redemption codes', async () => {
+    vi.mocked(getPlanDeleteImpact).mockResolvedValue(
+      planDeleteImpact([{ code: 'PLAN_REDEMPTION_CODES', count: 1, title: 'codes' }]),
+    );
     const db = createDb({ planRedemptionCode: { id: 'code-1' } });
     vi.mocked(getServerDB).mockResolvedValue(db);
 
@@ -141,6 +162,25 @@ describe('adminPlansRouter', () => {
         plan: Plans.Premium,
       }),
     ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+
+    expect(db.delete).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
+  });
+
+  it('blocks deleting a plan referenced by pending subscription changes', async () => {
+    vi.mocked(getPlanDeleteImpact).mockResolvedValue(
+      planDeleteImpact([
+        { code: 'PLAN_PENDING_CHANGE_REQUESTS', count: 2, title: 'pending changes' },
+      ]),
+    );
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    await expect(
+      adminPlansRouter.createCaller({ userId: 'admin-user' } as any).delete({
+        plan: Plans.Premium,
+      }),
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'PLAN_DELETE_BLOCKED' });
 
     expect(db.delete).not.toHaveBeenCalled();
     expect(recordAdminAudit).not.toHaveBeenCalled();

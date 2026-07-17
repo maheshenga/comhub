@@ -30,6 +30,7 @@ import { useAiInfraStore } from '@/store/aiInfra';
 
 import AdminDangerousActionButton from './AdminDangerousActionButton';
 import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
+import AdminDependencyImpactPreview from './AdminDependencyImpactPreview';
 import {
   ADMIN_MODEL_API_PROVIDER_TYPES,
   type AdminModelApiProviderType,
@@ -505,12 +506,23 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
     };
 
     const handleDelete = async (row: ModelRow) => {
-      await adminCommercialService.removeAiProviderInstanceModel({
+      const target = {
         instanceId,
         modelId: row.modelId,
         modelType: row.modelType,
+      };
+      const impact = await adminCommercialService.getAiProviderModelDeleteImpact(target);
+
+      Modal.confirm({
+        content: <AdminDependencyImpactPreview impact={impact} />,
+        okButtonProps: { danger: true, disabled: !impact.canProceed },
+        okText: t('admin.providers.models.confirmRemove', '移除'),
+        title: t('admin.providers.models.confirmRemoveTitle', '移除这个模型？'),
+        onOk: async () => {
+          await adminCommercialService.removeAiProviderInstanceModel(target);
+          await refreshModels();
+        },
       });
-      await refreshModels();
     };
 
     const columns = [
@@ -580,16 +592,9 @@ const ModelTypePanel = memo<{ instanceId: string; modelType: ModelType }>(
       {
         key: 'actions',
         render: (_: unknown, r: ModelRow) => (
-          <Popconfirm
-            okButtonProps={{ danger: true }}
-            okText={t('admin.providers.models.confirmRemove', '移除')}
-            title={t('admin.providers.models.confirmRemoveTitle', '移除这个模型？')}
-            onConfirm={() => handleDelete(r)}
-          >
-            <Button danger size="small" type="link">
-              {t('admin.providers.models.remove', '移除')}
-            </Button>
-          </Popconfirm>
+          <Button danger size="small" type="link" onClick={() => handleDelete(r)}>
+            {t('admin.providers.models.remove', '移除')}
+          </Button>
         ),
         title: t('admin.providers.models.col.actions', '操作'),
         width: 100,
@@ -924,6 +929,7 @@ const AdminProvidersPage = memo(() => {
             danger
             actionId="newapiProvider.deleteInstance"
             confirmDescription={t('admin.providers.confirmDelete', '删除这个实例及其全部模型？')}
+            loadPreflight={() => adminCommercialService.getAiProviderInstanceDeleteImpact(row.id)}
             size="small"
             onConfirm={(command) => handleDelete(row, command)}
           >
