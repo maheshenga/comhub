@@ -1,3 +1,4 @@
+import { ADMIN_COMMANDS } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
@@ -66,6 +67,12 @@ describe('adminOrdersRouter', () => {
     const { caller, settleTopUpOrder } = setupSettleCaller();
 
     await caller.settle({
+      command: {
+        actionId: 'order.settle',
+        confirmationText: 'order.settle',
+        confirmed: true,
+        reason: 'manual transfer confirmed by finance',
+      },
       orderId: 'order-1',
       reason: 'manual transfer confirmed by finance',
     } as any);
@@ -74,7 +81,7 @@ describe('adminOrdersRouter', () => {
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: 'order.settle',
+        action: ADMIN_COMMANDS['order.settle'].auditAction,
         payload: {
           amount: 19.9,
           credits: 199_000_000,
@@ -95,6 +102,12 @@ describe('adminOrdersRouter', () => {
 
     await expect(
       caller.settle({
+        command: {
+          actionId: 'order.settle',
+          confirmationText: 'order.settle',
+          confirmed: true,
+          reason: 'manual transfer confirmed by finance',
+        },
         orderId: 'order-1',
         reason: 'manual transfer confirmed by finance',
       } as any),
@@ -108,6 +121,12 @@ describe('adminOrdersRouter', () => {
 
     await expect(
       caller.settle({
+        command: {
+          actionId: 'order.settle',
+          confirmationText: 'order.settle',
+          confirmed: true,
+          reason: 'manual transfer confirmed by finance',
+        },
         orderId: 'order-1',
         reason: 'manual transfer confirmed by finance',
       } as any),
@@ -119,7 +138,20 @@ describe('adminOrdersRouter', () => {
   it('requires a reason when manually settling an order', async () => {
     const { caller, settleTopUpOrder } = setupSettleCaller();
 
-    await expect(caller.settle({ orderId: 'order-1' } as any)).rejects.toBeTruthy();
+    await expect(
+      caller.settle({
+        command: {
+          actionId: 'order.settle',
+          confirmationText: 'order.settle',
+          confirmed: true,
+        },
+        orderId: 'order-1',
+        reason: 'legacy top-level reason',
+      } as any),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ADMIN_COMMAND_REASON_REQUIRED',
+    });
     expect(settleTopUpOrder).not.toHaveBeenCalled();
   });
 });

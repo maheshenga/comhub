@@ -17,6 +17,7 @@ import InlineTable from '@/components/InlineTable';
 import { AdminDangerousActionButton, AdminUserDetailDrawer } from '@/features/Admin';
 import AdminAssignPlanModal from '@/features/Admin/AdminAssignPlanModal';
 import { toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
+import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import type { AdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { isFiniteAdminSubscriptionCycle } from '@/features/Admin/adminSubscriptionCycles';
 import { mutate, useClientDataSWR } from '@/libs/swr';
@@ -87,11 +88,16 @@ const AdminUsersPage = memo(() => {
   const [assignReason, setAssignReason] = useState('');
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, AssignableRole>>({});
 
   const swrKey = ['admin-users', query, planFilter ?? '', subscriptionStartedOrder ?? '', cursor];
   const { data: plansData } = useClientDataSWR(
     canManageFinance ? ['admin-user-list-plan-options'] : null,
     () => adminCommercialService.listPlans(),
+  );
+  const { data: resetAllToFreePlanPreview, isLoading: resetPreviewLoading } = useClientDataSWR(
+    canSetRoles ? ['admin-reset-all-to-free-plan-preview'] : null,
+    () => adminCommercialService.getResetAllUsersToFreePlanPreview(),
   );
 
   const { data, isLoading } = useClientDataSWR(
@@ -167,11 +173,20 @@ const AdminUsersPage = memo(() => {
     }
   };
 
-  const handleSetRole = async (userId: string, value: string) => {
+  const handleSetRole = async (
+    userId: string,
+    value: string,
+    command: AdminDangerousActionEnvelope<'user.setRole'>,
+  ) => {
     setActionLoading(`${userId}-role`);
     try {
       const role = value === '__none__' ? null : (value as AdminRole | 'user');
-      await adminCommercialService.setUserRole({ role, userId });
+      await adminCommercialService.setUserRole({ role, userId }, command);
+      setRoleDrafts((current) => {
+        const next = { ...current };
+        delete next[userId];
+        return next;
+      });
       message.success(t('admin.setRole.success', '角色已更新'));
       invalidate();
     } catch {
@@ -181,19 +196,22 @@ const AdminUsersPage = memo(() => {
     }
   };
 
-  const handleAdjustCredits = async (reason?: null | string) => {
-    const normalizedReason = reason?.trim();
+  const handleAdjustCredits = async (command: AdminDangerousActionEnvelope<'credits.adjust'>) => {
+    const normalizedReason = command.reason?.trim();
     if (!adjustTarget || !normalizedReason || !adjustAmount) {
       message.warning(t('admin.adjustCredits.invalid', '请输入积分数量和调整原因'));
       return;
     }
     setActionLoading(`${adjustTarget}-credits`);
     try {
-      await adminCommercialService.adjustCredits({
-        amount: toAdminAtomicCredits(adjustAmount),
-        reason: normalizedReason,
-        userId: adjustTarget,
-      });
+      await adminCommercialService.adjustCredits(
+        {
+          amount: toAdminAtomicCredits(adjustAmount),
+          reason: normalizedReason,
+          userId: adjustTarget,
+        },
+        command,
+      );
       message.success(t('admin.adjustCredits.success', '积分已调整'));
       setAdjustTarget(null);
       setAdjustAmount(0);
@@ -248,83 +266,40 @@ const AdminUsersPage = memo(() => {
       setActionLoading(null);
     }
   };
-  const handleResetAllToFreePlan = async (reason?: string | null) => {
-    setActionLoading('reset-all-free-preview');
-
-    let preview: { canceledPaid: number; insertedFree: number; normalizedFree: number };
+  const handleResetAllToFreePlan = async (
+    command: AdminDangerousActionEnvelope<'user.resetAllToFreePlan'>,
+  ) => {
+    setActionLoading('reset-all-free');
     try {
-      preview = await adminCommercialService.getResetAllUsersToFreePlanPreview();
+      const result = await adminCommercialService.resetAllUsersToFreePlan(command);
+      message.success(
+        t(
+          'admin.resetAllToFreePlan.success',
+          `已重置：取消 ${result.canceledPaid} 个付费套餐，规范 ${result.normalizedFree} 个免费套餐，新增 ${result.insertedFree} 个免费套餐。`,
+        ),
+      );
+      invalidate();
     } catch {
-      setActionLoading(null);
       message.error(t('admin.error.generic', '操作失败，请稍后重试'));
-      return;
+    } finally {
+      setActionLoading(null);
     }
-
-    setActionLoading(null);
-
-    Modal.confirm({
-      content: (
-        <Flexbox gap={8}>
-          <div>
-            {t(
-              'admin.resetAllToFreePlan.confirmContent',
-              '这会取消所有当前付费套餐，并确保每个用户都有一个无限期免费套餐。用户已有积分余额不会被清零。',
-            )}
-          </div>
-          <div>
-            {t(
-              'admin.resetAllToFreePlan.preview',
-              `预计影响：取消 ${preview.canceledPaid} 个付费套餐，规范 ${preview.normalizedFree} 个免费套餐，补充 ${preview.insertedFree} 个免费套餐。`,
-            )}
-          </div>
-        </Flexbox>
-      ),
-      okButtonProps: { danger: true },
-      okText: t('admin.resetAllToFreePlan.ok', '确认重置'),
-      title: t('admin.resetAllToFreePlan.confirmTitle', '确认重置所有用户套餐？'),
-      onOk: async () => {
-        setActionLoading('reset-all-free');
-        try {
-          const result = await adminCommercialService.resetAllUsersToFreePlan({
-            reason: reason?.trim() || 'admin_reset_from_users_page',
-          });
-          message.success(
-            t(
-              'admin.resetAllToFreePlan.success',
-              `已重置：取消 ${result.canceledPaid} 个付费套餐，规范 ${result.normalizedFree} 个免费套餐，新增 ${result.insertedFree} 个免费套餐。`,
-            ),
-          );
-          invalidate();
-        } catch {
-          message.error(t('admin.error.generic', '操作失败，请稍后重试'));
-        } finally {
-          setActionLoading(null);
-        }
-      },
-    });
   };
 
-  const handleImpersonate = (row: UserRow) => {
-    Modal.confirm({
-      content: t(
-        'admin.impersonate.confirmContent',
-        '系统会把当前管理员会话切换为该用户，用于排查套餐、模型和前台体验问题。完成排查后请退出登录并重新登录管理员账号。',
-      ),
-      okText: t('admin.impersonate.ok', '确认登录'),
-      title: t('admin.impersonate.confirmTitle', '以该用户身份登录？'),
-      onOk: async () => {
-        setActionLoading(`${row.id}-impersonate`);
-        try {
-          await adminCommercialService.impersonateUser(row.id);
-          message.success(t('admin.impersonate.success', '已切换用户身份'));
-          window.location.assign('/');
-        } catch {
-          message.error(t('admin.impersonate.failed', '切换用户身份失败'));
-        } finally {
-          setActionLoading(null);
-        }
-      },
-    });
+  const handleImpersonate = async (
+    row: UserRow,
+    command: AdminDangerousActionEnvelope<'user.impersonate.attempt'>,
+  ) => {
+    setActionLoading(`${row.id}-impersonate`);
+    try {
+      await adminCommercialService.impersonateUser(row.id, command);
+      message.success(t('admin.impersonate.success', '已切换用户身份'));
+      window.location.assign('/');
+    } catch {
+      message.error(t('admin.impersonate.failed', '切换用户身份失败'));
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const columns: ColumnsType<UserRow> = [
@@ -424,15 +399,37 @@ const AdminUsersPage = memo(() => {
             )
           ) : null}
           {canSetRoles ? (
-            <Select
-              loading={actionLoading === `${row.id}-role`}
-              options={roleOptions}
-              placeholder={t('admin.setRole', '设置角色')}
-              size="small"
-              style={{ width: 132 }}
-              value={(row.role ?? '__none__') as AssignableRole}
-              onChange={(value: AssignableRole) => handleSetRole(row.id, value)}
-            />
+            <Space.Compact>
+              <Select
+                loading={actionLoading === `${row.id}-role`}
+                options={roleOptions}
+                placeholder={t('admin.setRole', '设置角色')}
+                size="small"
+                style={{ width: 132 }}
+                value={roleDrafts[row.id] ?? ((row.role ?? '__none__') as AssignableRole)}
+                onChange={(value: AssignableRole) =>
+                  setRoleDrafts((current) => ({ ...current, [row.id]: value }))
+                }
+              />
+              <AdminDangerousActionButton
+                actionId="user.setRole"
+                loading={actionLoading === `${row.id}-role`}
+                size="small"
+                disabled={
+                  (roleDrafts[row.id] ?? ((row.role ?? '__none__') as AssignableRole)) ===
+                  ((row.role ?? '__none__') as AssignableRole)
+                }
+                onConfirm={(command) =>
+                  handleSetRole(
+                    row.id,
+                    roleDrafts[row.id] ?? ((row.role ?? '__none__') as AssignableRole),
+                    command,
+                  )
+                }
+              >
+                {t('admin.setRole', '设置角色')}
+              </AdminDangerousActionButton>
+            </Space.Compact>
           ) : null}
           {canManageFinance ? (
             <>
@@ -454,13 +451,19 @@ const AdminUsersPage = memo(() => {
               </Button>
             </>
           ) : null}
-          <Button
+          <AdminDangerousActionButton
+            actionId="user.impersonate.attempt"
+            confirmTitle={t('admin.impersonate.confirmTitle', '以该用户身份登录？')}
             loading={actionLoading === `${row.id}-impersonate`}
             size="small"
-            onClick={() => handleImpersonate(row)}
+            confirmDescription={t(
+              'admin.impersonate.confirmContent',
+              '系统会把当前管理员会话切换为该用户，用于排查套餐、模型和前台体验问题。完成排查后请退出登录并重新登录管理员账号。',
+            )}
+            onConfirm={(command) => handleImpersonate(row, command)}
           >
             {t('admin.impersonate', '以用户身份登录')}
-          </Button>
+          </AdminDangerousActionButton>
           <Button size="small" onClick={() => setDetailUserId(row.id)}>
             {t('admin.viewDetail', '详情')}
           </Button>
@@ -567,10 +570,26 @@ const AdminUsersPage = memo(() => {
           <AdminDangerousActionButton
             danger
             actionId="user.resetAllToFreePlan"
-            loading={
-              actionLoading === 'reset-all-free' || actionLoading === 'reset-all-free-preview'
+            loading={actionLoading === 'reset-all-free' || resetPreviewLoading}
+            confirmDescription={
+              <Flexbox gap={8}>
+                <div>
+                  {t(
+                    'admin.resetAllToFreePlan.confirmContent',
+                    '这会取消所有当前付费套餐，并确保每个用户都有一个无限期免费套餐。用户已有积分余额不会被清零。',
+                  )}
+                </div>
+                {resetAllToFreePlanPreview ? (
+                  <div>
+                    {t(
+                      'admin.resetAllToFreePlan.preview',
+                      `预计影响：取消 ${resetAllToFreePlanPreview.canceledPaid} 个付费套餐，规范 ${resetAllToFreePlanPreview.normalizedFree} 个免费套餐，补充 ${resetAllToFreePlanPreview.insertedFree} 个免费套餐。`,
+                    )}
+                  </div>
+                ) : null}
+              </Flexbox>
             }
-            onConfirm={({ reason }) => handleResetAllToFreePlan(reason)}
+            onConfirm={handleResetAllToFreePlan}
           >
             {t('admin.resetAllToFreePlan', '重置所有用户为免费套餐')}
           </AdminDangerousActionButton>
@@ -624,7 +643,7 @@ const AdminUsersPage = memo(() => {
             key="confirm"
             loading={actionLoading === `${adjustTarget ?? ''}-credits`}
             type="primary"
-            onConfirm={({ reason }) => handleAdjustCredits(reason)}
+            onConfirm={handleAdjustCredits}
           >
             {t('admin.adjustCredits', '调整积分')}
           </AdminDangerousActionButton>,

@@ -1,17 +1,10 @@
-import type { AdminRole, Plans } from '@lobechat/types';
+import type { AdminCommandEnvelope, AdminRole, Plans } from '@lobechat/types';
 
 import { lambdaClient } from '@/libs/trpc/client';
 import type { SubscriptionCycleType } from '@/types/business';
 
 type AiProviderModelType =
-  | 'chat'
-  | 'embedding'
-  | 'tts'
-  | 'stt'
-  | 'image'
-  | 'video'
-  | 'text2music'
-  | 'realtime';
+  'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 type NewapiModelType = AiProviderModelType;
 
@@ -69,8 +62,11 @@ class AdminCommercialService {
     return lambdaClient.admin.users.unban.mutate({ userId });
   };
 
-  setUserRole = async (params: { role: AdminRole | 'user' | null; userId: string }) => {
-    return lambdaClient.admin.users.setRole.mutate(params);
+  setUserRole = async (
+    params: { role: AdminRole | 'user' | null; userId: string },
+    command: AdminCommandEnvelope<'user.setRole'>,
+  ) => {
+    return lambdaClient.admin.users.setRole.mutate({ ...params, command });
   };
 
   // Credits
@@ -82,8 +78,11 @@ class AdminCommercialService {
     return lambdaClient.admin.credits.ledger.query(params);
   };
 
-  adjustCredits = async (params: { amount: number; reason: string; userId: string }) => {
-    return lambdaClient.admin.credits.adjust.mutate(params);
+  adjustCredits = async (
+    params: { amount: number; reason: string; userId: string },
+    command: AdminCommandEnvelope<'credits.adjust'>,
+  ) => {
+    return lambdaClient.admin.credits.adjust.mutate({ ...params, command });
   };
 
   // Subscriptions
@@ -173,8 +172,11 @@ class AdminCommercialService {
     return lambdaClient.admin.settings.getPublicProfileOptions.query();
   };
 
-  impersonateUser = async (userId: string) => {
-    await this.recordImpersonationAttempt(userId);
+  impersonateUser = async (
+    userId: string,
+    command: AdminCommandEnvelope<'user.impersonate.attempt'>,
+  ) => {
+    await this.recordImpersonationAttempt(userId, command);
 
     const response = await fetch('/api/auth/admin/impersonate-user', {
       body: JSON.stringify({ userId }),
@@ -255,8 +257,7 @@ class AdminCommercialService {
       limit?: number;
       publisherId?: string;
       status?: string;
-    }) =>
-      lambdaClient.admin.moduleApps.list.query(input as any),
+    }) => lambdaClient.admin.moduleApps.list.query(input as any),
     listArtifacts: (input: { appId: string; cursor?: number | string; limit?: number }) =>
       lambdaClient.admin.moduleApps.listArtifacts.query(input as any),
     listAuditEvents: (input: { appId: string; cursor?: number | string; limit?: number }) =>
@@ -351,15 +352,19 @@ class AdminCommercialService {
     userId?: string;
   }) => lambdaClient.admin.orders.list.query(params);
 
-  cancelOrder = async (orderId: string) => lambdaClient.admin.orders.cancel.mutate({ orderId });
+  cancelOrder = async (orderId: string, command: AdminCommandEnvelope<'order.cancel'>) =>
+    lambdaClient.admin.orders.cancel.mutate({ command, orderId });
 
-  expireOrder = async (orderId: string) => lambdaClient.admin.orders.expire.mutate({ orderId });
+  expireOrder = async (orderId: string, command: AdminCommandEnvelope<'order.expire'>) =>
+    lambdaClient.admin.orders.expire.mutate({ command, orderId });
 
   getOrderDetail = async (orderId: string) =>
     lambdaClient.admin.orders.getDetail.query({ orderId });
 
-  settleOrder = async (params: { orderId: string; reason: string }) =>
-    lambdaClient.admin.orders.settle.mutate(params);
+  settleOrder = async (
+    params: { orderId: string; reason: string },
+    command: AdminCommandEnvelope<'order.settle'>,
+  ) => lambdaClient.admin.orders.settle.mutate({ ...params, command });
 
   getReferralStats = async () => lambdaClient.admin.referral.getReferralStats.query();
 
@@ -450,11 +455,15 @@ class AdminCommercialService {
   rejectChangeRequest = async (params: { reason?: string; requestId: string }) =>
     lambdaClient.admin.subscriptions.rejectChangeRequest.mutate(params);
 
-  bulkApproveChangeRequests = async (requestIds: string[]) =>
-    lambdaClient.admin.subscriptions.bulkApproveChangeRequests.mutate({ requestIds });
+  bulkApproveChangeRequests = async (
+    requestIds: string[],
+    command: AdminCommandEnvelope<'subscription.changeRequest.bulkApprove'>,
+  ) => lambdaClient.admin.subscriptions.bulkApproveChangeRequests.mutate({ command, requestIds });
 
-  bulkRejectChangeRequests = async (params: { reason?: string; requestIds: string[] }) =>
-    lambdaClient.admin.subscriptions.bulkRejectChangeRequests.mutate(params);
+  bulkRejectChangeRequests = async (
+    params: { reason?: string; requestIds: string[] },
+    command: AdminCommandEnvelope<'subscription.changeRequest.bulkReject'>,
+  ) => lambdaClient.admin.subscriptions.bulkRejectChangeRequests.mutate({ ...params, command });
 
   // Credit accounts
   listCreditAccounts = async (params: {
@@ -469,14 +478,19 @@ class AdminCommercialService {
   exportUsers = async (params: { limit?: number; query?: string }) =>
     lambdaClient.admin.users.exportAll.query(params);
 
-  resetAllUsersToFreePlan = async (params?: { reason?: string }) =>
-    lambdaClient.admin.users.resetAllToFreePlan.mutate(params ?? {});
+  resetAllUsersToFreePlan = async (command: AdminCommandEnvelope<'user.resetAllToFreePlan'>) =>
+    lambdaClient.admin.users.resetAllToFreePlan.mutate({
+      command,
+      reason: command.reason ?? undefined,
+    });
 
   getResetAllUsersToFreePlanPreview = async () =>
     lambdaClient.admin.users.getResetAllToFreePlanPreview.query();
 
-  recordImpersonationAttempt = async (userId: string) =>
-    lambdaClient.admin.users.recordImpersonationAttempt.mutate({ userId });
+  recordImpersonationAttempt = async (
+    userId: string,
+    command: AdminCommandEnvelope<'user.impersonate.attempt'>,
+  ) => lambdaClient.admin.users.recordImpersonationAttempt.mutate({ command, userId });
 
   // Content governance
   listAdminTopics = async (params: {
@@ -490,8 +504,10 @@ class AdminCommercialService {
   archiveAdminTopic = async (topicId: string) =>
     lambdaClient.admin.content.archiveTopic.mutate({ topicId });
 
-  deleteAdminTopic = async (topicId: string) =>
-    lambdaClient.admin.content.deleteTopic.mutate({ topicId });
+  deleteAdminTopic = async (
+    topicId: string,
+    command: AdminCommandEnvelope<'content.deleteTopic'>,
+  ) => lambdaClient.admin.content.deleteTopic.mutate({ command, topicId });
 
   listAdminFiles = async (params: {
     cursor?: number;
@@ -500,8 +516,8 @@ class AdminCommercialService {
     userId?: string;
   }) => lambdaClient.admin.content.listFiles.query(params);
 
-  deleteAdminFile = async (fileId: string) =>
-    lambdaClient.admin.content.deleteFile.mutate({ fileId });
+  deleteAdminFile = async (fileId: string, command: AdminCommandEnvelope<'content.deleteFile'>) =>
+    lambdaClient.admin.content.deleteFile.mutate({ command, fileId });
 
   listAdminDocuments = async (params: {
     cursor?: number;
@@ -511,19 +527,24 @@ class AdminCommercialService {
     userId?: string;
   }) => lambdaClient.admin.content.listDocuments.query(params);
 
-  deleteAdminDocument = async (documentId: string) =>
-    lambdaClient.admin.content.deleteDocument.mutate({ documentId });
+  deleteAdminDocument = async (
+    documentId: string,
+    command: AdminCommandEnvelope<'content.deleteDocument'>,
+  ) => lambdaClient.admin.content.deleteDocument.mutate({ command, documentId });
 
   // Maintenance
-  runMaintenance = async (params?: {
-    auditRetentionDays?: number;
-    notificationRetentionDays?: number;
-    pendingOrderExpiryDays?: number;
-    skipAudit?: boolean;
-    skipModuleAppUploads?: boolean;
-    skipNotifications?: boolean;
-    skipOrders?: boolean;
-  }) => lambdaClient.admin.settings.runMaintenance.mutate(params ?? {});
+  runMaintenance = async (
+    command: AdminCommandEnvelope<'setting.runMaintenance'>,
+    params: {
+      auditRetentionDays?: number;
+      notificationRetentionDays?: number;
+      pendingOrderExpiryDays?: number;
+      skipAudit?: boolean;
+      skipModuleAppUploads?: boolean;
+      skipNotifications?: boolean;
+      skipOrders?: boolean;
+    } = {},
+  ) => lambdaClient.admin.settings.runMaintenance.mutate({ ...params, command });
 
   // Redemption codes
   generateRedemptionCodes = async (params: {
@@ -556,12 +577,19 @@ class AdminCommercialService {
 
   expireOverdueRedemptionCodes = async () => lambdaClient.admin.redemption.expireOverdue.mutate();
 
-  bulkDisableRedemptionCodes = async (ids: string[]) =>
-    lambdaClient.admin.redemption.bulkDisable.mutate({ ids });
+  bulkDisableRedemptionCodes = async (
+    ids: string[],
+    command: AdminCommandEnvelope<'redemption.bulkDisable'>,
+  ) => lambdaClient.admin.redemption.bulkDisable.mutate({ command, ids });
 
-  bulkDeleteRedemptionCodes = async (params: { ids: string[]; reason?: string } | string[]) =>
+  bulkDeleteRedemptionCodes = async (
+    params: { ids: string[]; reason?: string } | string[],
+    command: AdminCommandEnvelope<'redemption.bulkDelete'>,
+  ) =>
     lambdaClient.admin.redemption.bulkDelete.mutate(
-      Array.isArray(params) ? { ids: params } : params,
+      Array.isArray(params)
+        ? { command, ids: params, reason: command.reason ?? undefined }
+        : { ...params, command },
     );
 
   // AI service providers (TRPC route keeps its historical newapiProviders name for compatibility).
@@ -575,9 +603,8 @@ class AdminCommercialService {
   getAiProviderModelCatalogDiagnostics = async () =>
     lambdaClient.admin.newapiProviders.getModelCatalogDiagnostics.query();
 
-  listAllEnabledNewapiModels = async (params?: {
-    modelType?: NewapiModelType;
-  }) => this.listAllEnabledAiProviderModels(params);
+  listAllEnabledNewapiModels = async (params?: { modelType?: NewapiModelType }) =>
+    this.listAllEnabledAiProviderModels(params);
 
   createAiProviderInstance = async (params: {
     apiKey: string;
@@ -616,9 +643,14 @@ class AdminCommercialService {
 
   updateNewapiInstance = this.updateAiProviderInstance;
 
-  deleteAiProviderInstance = async (params: { id: string; reason?: string } | string) =>
+  deleteAiProviderInstance = async (
+    params: { id: string; reason?: string } | string,
+    command: AdminCommandEnvelope<'newapiProvider.deleteInstance'>,
+  ) =>
     lambdaClient.admin.newapiProviders.deleteInstance.mutate(
-      typeof params === 'string' ? { id: params } : params,
+      typeof params === 'string'
+        ? { command, id: params, reason: command.reason ?? undefined }
+        : { ...params, command },
     );
 
   deleteNewapiInstance = this.deleteAiProviderInstance;

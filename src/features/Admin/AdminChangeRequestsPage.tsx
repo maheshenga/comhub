@@ -10,6 +10,7 @@ import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminBulkActionFlow from './AdminBulkActionFlow';
+import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
 
 type StatusFilter = 'all' | 'pending' | 'completed' | 'canceled' | 'rejected';
 
@@ -86,15 +87,22 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
     }
   };
 
-  const handleBulkApprove = async () => {
-    return adminCommercialService.bulkApproveChangeRequests(selectedIds);
+  const handleBulkApprove = async (
+    command: AdminDangerousActionEnvelope<'subscription.changeRequest.bulkApprove'>,
+  ) => {
+    return adminCommercialService.bulkApproveChangeRequests(selectedIds, command);
   };
 
-  const handleBulkReject = async (reason?: null | string) => {
-    return adminCommercialService.bulkRejectChangeRequests({
-      reason: reason?.trim() || undefined,
-      requestIds: selectedIds,
-    });
+  const handleBulkReject = async (
+    command: AdminDangerousActionEnvelope<'subscription.changeRequest.bulkReject'>,
+  ) => {
+    return adminCommercialService.bulkRejectChangeRequests(
+      {
+        reason: command.reason?.trim() || undefined,
+        requestIds: selectedIds,
+      },
+      command,
+    );
   };
 
   const finishBulkAction = async () => {
@@ -111,10 +119,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
       failed,
       requested: result.results.length,
       succeeded,
-      title: t(
-        'admin.changeRequests.bulkApproveDone',
-        `已通过 ${succeeded} 个，失败 ${failed} 个`,
-      ),
+      title: t('admin.changeRequests.bulkApproveDone', `已通过 ${succeeded} 个，失败 ${failed} 个`),
     };
   };
 
@@ -127,10 +132,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
       failed,
       requested: result.results.length,
       succeeded,
-      title: t(
-        'admin.changeRequests.bulkRejectDone',
-        `已拒绝 ${succeeded} 个，失败 ${failed} 个`,
-      ),
+      title: t('admin.changeRequests.bulkRejectDone', `已拒绝 ${succeeded} 个，失败 ${failed} 个`),
     };
   };
 
@@ -246,6 +248,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
                 actionId="subscription.changeRequest.bulkApprove"
                 count={selectedIds.length}
                 size="small"
+                summary={formatBulkApproveChangeRequestResult}
                 type="primary"
                 confirmTitle={t(
                   'admin.changeRequests.confirmBulkApprove',
@@ -255,17 +258,17 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
                   'admin.changeRequests.bulkApproveProgress',
                   '正在通过选中的套餐变更请求，请勿关闭页面。',
                 )}
-                summary={formatBulkApproveChangeRequestResult}
                 onRun={handleBulkApprove}
                 onSuccess={finishBulkAction}
               >
                 {t('admin.changeRequests.bulkApprove', `批量通过（${selectedIds.length}）`)}
               </AdminBulkActionFlow>
               <AdminBulkActionFlow
+                danger
                 actionId="subscription.changeRequest.bulkReject"
                 count={selectedIds.length}
-                danger
                 size="small"
+                summary={formatBulkRejectChangeRequestResult}
                 confirmTitle={t(
                   'admin.changeRequests.confirmBulkReject',
                   `确认拒绝 ${selectedIds.length} 个套餐变更请求？`,
@@ -274,9 +277,7 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
                   'admin.changeRequests.bulkRejectProgress',
                   '正在拒绝选中的套餐变更请求，请勿关闭页面。',
                 )}
-                reasonOptional
-                summary={formatBulkRejectChangeRequestResult}
-                onRun={({ reason }) => handleBulkReject(reason)}
+                onRun={handleBulkReject}
                 onSuccess={finishBulkAction}
               >
                 {t('admin.changeRequests.bulkReject', `批量拒绝（${selectedIds.length}）`)}
@@ -327,7 +328,6 @@ const AdminChangeRequestsPage = memo<AdminChangeRequestsPageProps>(({ embedded =
           />
         </Flexbox>
       </Modal>
-
     </Flexbox>
   );
 });

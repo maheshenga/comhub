@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { DEFAULT_PRICING_CREDIT_MULTIPLIER } from '@lobechat/const/currency';
-import { Plans } from '@lobechat/types';
+import { ADMIN_COMMANDS, Plans } from '@lobechat/types';
 import type { TRPCError } from '@trpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -417,10 +417,12 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     await expect(
-      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
-        confirmKey: 'legacy.unknown.key',
-        key: 'legacy.unknown.key',
-      }),
+      adminSettingsRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .deleteUnknownSetting({
+          confirmKey: 'legacy.unknown.key',
+          key: 'legacy.unknown.key',
+        }),
     ).resolves.toEqual({ deleted: true, key: 'legacy.unknown.key' });
 
     expect(db.delete).toHaveBeenCalled();
@@ -439,10 +441,12 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     await expect(
-      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
-        confirmKey: APP_SETTING_KEYS.brandName,
-        key: APP_SETTING_KEYS.brandName,
-      }),
+      adminSettingsRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .deleteUnknownSetting({
+          confirmKey: APP_SETTING_KEYS.brandName,
+          key: APP_SETTING_KEYS.brandName,
+        }),
     ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
   });
 
@@ -451,10 +455,12 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     await expect(
-      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).deleteUnknownSetting({
-        confirmKey: 'wrong',
-        key: 'legacy.unknown.key',
-      }),
+      adminSettingsRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .deleteUnknownSetting({
+          confirmKey: 'wrong',
+          key: 'legacy.unknown.key',
+        }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
@@ -600,7 +606,9 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
-    await expect(caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value })).rejects.toMatchObject({
+    await expect(
+      caller.setAppSetting({ key: APP_SETTING_KEYS.cronSecret, value }),
+    ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });
     expect(db.insert).not.toHaveBeenCalled();
@@ -644,6 +652,7 @@ describe('admin settings default model validation', () => {
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
+        action: ADMIN_COMMANDS['setting.setAppSetting'].auditAction,
         payload: {
           hasValue: false,
           key: APP_SETTING_KEYS.composioApiKey,
@@ -677,9 +686,7 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
     vi.mocked(getAllEnabledModels).mockResolvedValue([]);
 
-    const result = await adminSettingsRouter
-      .createCaller({ userId: 'admin-user' } as any)
-      .getAll();
+    const result = await adminSettingsRouter.createCaller({ userId: 'admin-user' } as any).getAll();
 
     expect(result.cronSecretMasked).toBe('****cret');
     expect(JSON.stringify(result)).not.toContain('admin-cron-secret');
@@ -774,7 +781,9 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     await expect(
-      adminSettingsRouter.createCaller({ userId: 'system-admin-user' } as any).refreshRuntimeCaches(),
+      adminSettingsRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .refreshRuntimeCaches(),
     ).resolves.toEqual({
       ok: true,
       refreshed: ['app-settings', 'newapi-instances', 's3-runtime', 'brand'],
@@ -828,13 +837,21 @@ describe('admin settings default model validation', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
-    const result = await caller.runMaintenance();
+    const result = await caller.runMaintenance({
+      command: { actionId: 'setting.runMaintenance', confirmed: true },
+    });
 
     expect(result.notificationsDeleted).toBe(2);
     expect(result.notificationRetentionCutoff).toBeTruthy();
     expect(result.moduleAppUploadsExpired).toBe(3);
     expect(result.moduleAppUploadCleanupFailed).toBe(1);
     expect(deleteMock).toHaveBeenCalledTimes(2);
+    expect(recordAdminAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: ADMIN_COMMANDS['setting.runMaintenance'].auditAction,
+      }),
+    );
   });
 
   it('can skip module app upload cleanup during manual maintenance', async () => {
@@ -844,6 +861,7 @@ describe('admin settings default model validation', () => {
     const result = await adminSettingsRouter
       .createCaller({ userId: 'admin-user' } as any)
       .runMaintenance({
+        command: { actionId: 'setting.runMaintenance', confirmed: true },
         skipAudit: true,
         skipModuleAppUploads: true,
         skipNotifications: true,
@@ -1169,7 +1187,12 @@ describe('admin settings default model validation', () => {
 
   it('rejects enabled input completion defaults when the model is not enabled for its provider', async () => {
     vi.mocked(getAllEnabledModels).mockResolvedValue([
-      { displayName: 'GPT 5.5 Mini', id: 'gpt-5.5-mini', providerId: 'newapi', type: 'chat' } as any,
+      {
+        displayName: 'GPT 5.5 Mini',
+        id: 'gpt-5.5-mini',
+        providerId: 'newapi',
+        type: 'chat',
+      } as any,
     ]);
     const tx = createDb();
     const db = {

@@ -6,16 +6,21 @@ import { CommercialModel } from '@/database/models/commercial';
 import { redemptionCodes, topUpOrders, users } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
+import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit } from './audit';
 
 const OrderStatusSchema = z.enum(['pending', 'paid', 'canceled', 'expired', 'failed', 'refunded']);
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+const cancelCommand = createAdminCommand('order.cancel');
+const expireCommand = createAdminCommand('order.expire');
+const settleCommand = createAdminCommand('order.settle');
 
 export const adminOrdersRouter = router({
   cancel: financeWriteProcedure
-    .input(z.object({ orderId: z.string().min(1) }))
+    .input(z.object({ command: cancelCommand.schema, orderId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const command = cancelCommand.validate(input.command);
       const [order] = await ctx.serverDB
         .update(topUpOrders)
         .set({ status: 'canceled', updatedAt: new Date() })
@@ -25,7 +30,7 @@ export const adminOrdersRouter = router({
       if (!order) throw new Error('ORDER_NOT_CANCELABLE');
 
       await recordAdminAudit(ctx, {
-        action: 'order.cancel',
+        action: command.auditAction,
         resourceId: input.orderId,
         resourceType: 'top_up_order',
         targetUserId: order.userId,
@@ -35,8 +40,9 @@ export const adminOrdersRouter = router({
     }),
 
   expire: financeWriteProcedure
-    .input(z.object({ orderId: z.string().min(1) }))
+    .input(z.object({ command: expireCommand.schema, orderId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const command = expireCommand.validate(input.command);
       const [order] = await ctx.serverDB
         .update(topUpOrders)
         .set({ status: 'expired', updatedAt: new Date() })
@@ -46,7 +52,7 @@ export const adminOrdersRouter = router({
       if (!order) throw new Error('ORDER_NOT_EXPIRABLE');
 
       await recordAdminAudit(ctx, {
-        action: 'order.expire',
+        action: command.auditAction,
         resourceId: input.orderId,
         resourceType: 'top_up_order',
         targetUserId: order.userId,
@@ -108,8 +114,15 @@ export const adminOrdersRouter = router({
     }),
 
   settle: financeWriteProcedure
-    .input(z.object({ orderId: z.string().min(1), reason: z.string().trim().min(1).max(500) }))
+    .input(
+      z.object({
+        command: settleCommand.schema,
+        orderId: z.string().min(1),
+        reason: z.string().trim().min(1).max(500),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
+      const command = settleCommand.validate(input.command);
       const [order] = await ctx.serverDB
         .select({
           amount: topUpOrders.amount,
@@ -131,13 +144,13 @@ export const adminOrdersRouter = router({
       const result = await commercial.settleTopUpOrder(input.orderId);
 
       await recordAdminAudit(ctx, {
-        action: 'order.settle',
+        action: command.auditAction,
         payload: {
           amount: Number(order.amount),
           credits: Number(order.credits),
           currency: order.currency,
           provider: order.provider,
-          reason: input.reason,
+          reason: command.reason,
           source: order.source,
           status: result.status,
         },

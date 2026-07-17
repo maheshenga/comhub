@@ -1,3 +1,4 @@
+import { ADMIN_COMMANDS } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
@@ -619,6 +620,12 @@ describe('adminNewapiProvidersRouter', () => {
 
     const caller = adminNewapiProvidersRouter.createCaller({ userId: 'admin-user' } as any);
     await caller.deleteInstance({
+      command: {
+        actionId: 'newapiProvider.deleteInstance',
+        confirmationText: 'newapiProvider.deleteInstance',
+        confirmed: true,
+        reason: 'provider retired after outage',
+      },
       id: instanceId,
       reason: 'provider retired after outage',
     } as any);
@@ -626,7 +633,7 @@ describe('adminNewapiProvidersRouter', () => {
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: 'newapiInstance.delete',
+        action: ADMIN_COMMANDS['newapiProvider.deleteInstance'].auditAction,
         payload: { reason: 'provider retired after outage' },
         resourceId: instanceId,
       }),

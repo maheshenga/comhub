@@ -1,3 +1,4 @@
+import { ADMIN_COMMANDS } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
@@ -22,6 +23,39 @@ const createSelectChain = (rows: unknown[]) => ({
 describe('adminCreditsRouter', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  it('rejects wrong typed confirmation before opening a credit transaction', async () => {
+    const transaction = vi.fn();
+    const db = {
+      query: {
+        users: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, role: 'finance_admin' }),
+        },
+      },
+      transaction,
+    } as any;
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminCreditsRouter.createCaller({ userId: 'admin-user' } as any);
+    await expect(
+      caller.adjust({
+        amount: 100,
+        command: {
+          actionId: 'credits.adjust',
+          confirmationText: 'wrong',
+          confirmed: true,
+          reason: 'manual correction',
+        },
+        reason: 'manual correction',
+        userId: 'target-user',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ADMIN_COMMAND_CONFIRMATION_TEXT_MISMATCH',
+    });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(recordAdminAudit).not.toHaveBeenCalled();
   });
 
   it('records before and after snapshots when admin adjusts credits', async () => {
@@ -62,13 +96,23 @@ describe('adminCreditsRouter', () => {
     const caller = adminCreditsRouter.createCaller({ userId: 'admin-user' } as any);
 
     await expect(
-      caller.adjust({ amount: 100, reason: 'manual correction', userId: 'target-user' }),
+      caller.adjust({
+        amount: 100,
+        command: {
+          actionId: 'credits.adjust',
+          confirmationText: 'credits.adjust',
+          confirmed: true,
+          reason: 'manual correction',
+        },
+        reason: 'manual correction',
+        userId: 'target-user',
+      }),
     ).resolves.toEqual({ ok: true });
 
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: 'credits.adjust',
+        action: ADMIN_COMMANDS['credits.adjust'].auditAction,
         payload: {
           after,
           amount: 100,

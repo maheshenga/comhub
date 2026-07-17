@@ -20,11 +20,14 @@ import {
 } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
 
+import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit } from './audit';
 
 const userDbProcedure = authedProcedure.use(serverDatabase);
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+const bulkDeleteCommand = createAdminCommand('redemption.bulkDelete');
+const bulkDisableCommand = createAdminCommand('redemption.bulkDisable');
 
 /** Friendly base32 alphabet without ambiguous chars (no I/L/O/0/1). */
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -279,8 +282,14 @@ export const adminRedemptionRouter = router({
    * partial batches don't leak ledger inconsistencies.
    */
   bulkDisable: financeWriteProcedure
-    .input(z.object({ ids: z.array(z.string().min(1)).min(1).max(500) }))
+    .input(
+      z.object({
+        command: bulkDisableCommand.schema,
+        ids: z.array(z.string().min(1)).min(1).max(500),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
+      const command = bulkDisableCommand.validate(input.command);
       const updated = await ctx.serverDB
         .update(redemptionCodes)
         .set({ status: 'disabled', updatedAt: new Date() })
@@ -288,7 +297,7 @@ export const adminRedemptionRouter = router({
         .returning({ id: redemptionCodes.id });
 
       await recordAdminAudit(ctx, {
-        action: 'redemption.bulkDisable',
+        action: command.auditAction,
         payload: { disabled: updated.length, requested: input.ids.length },
         resourceType: 'redemption_code',
       });
@@ -302,19 +311,21 @@ export const adminRedemptionRouter = router({
   bulkDelete: financeWriteProcedure
     .input(
       z.object({
+        command: bulkDeleteCommand.schema,
         ids: z.array(z.string().min(1)).min(1).max(500),
         reason: z.string().trim().min(1).max(500).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const command = bulkDeleteCommand.validate(input.command);
       const deleted = await ctx.serverDB
         .delete(redemptionCodes)
         .where(and(inArray(redemptionCodes.id, input.ids), eq(redemptionCodes.status, 'active')))
         .returning({ id: redemptionCodes.id });
 
       await recordAdminAudit(ctx, {
-        action: 'redemption.bulkDelete',
-        payload: { deleted: deleted.length, reason: input.reason, requested: input.ids.length },
+        action: command.auditAction,
+        payload: { deleted: deleted.length, reason: command.reason, requested: input.ids.length },
         resourceType: 'redemption_code',
       });
       return { deleted: deleted.length, requested: input.ids.length };

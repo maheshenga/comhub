@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { ADMIN_COMMANDS } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
@@ -77,6 +78,58 @@ describe('admin content router', () => {
     vi.resetAllMocks();
   });
 
+  it('rejects a direct delete without a command envelope before any document model call', async () => {
+    const deleteDocument = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(DocumentService).mockImplementation(() => ({ deleteDocument }) as any);
+
+    const db = createDb({
+      document: {
+        id: 'doc-1',
+        sourceType: 'api',
+        title: 'Document',
+        userId: 'user-2',
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminContentRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(caller.deleteDocument({ documentId: 'doc-1' } as any)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'ADMIN_COMMAND_REQUIRED',
+    });
+    expect(DocumentService).not.toHaveBeenCalled();
+    expect(deleteDocument).not.toHaveBeenCalled();
+  });
+
+  it('rejects a command for another action before any document model call', async () => {
+    const deleteDocument = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(DocumentService).mockImplementation(() => ({ deleteDocument }) as any);
+
+    const db = createDb({
+      document: {
+        id: 'doc-1',
+        sourceType: 'api',
+        title: 'Document',
+        userId: 'user-2',
+      },
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminContentRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.deleteDocument({
+        command: { actionId: 'content.deleteFile', confirmed: true },
+        documentId: 'doc-1',
+      } as any),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(DocumentService).not.toHaveBeenCalled();
+    expect(deleteDocument).not.toHaveBeenCalled();
+  });
+
   it('deletes files through FileModel and S3 cleanup instead of direct row deletion', async () => {
     const fileDelete = vi.fn().mockResolvedValue({ url: 'uploads/file.pdf' });
     const storageDelete = vi.fn().mockResolvedValue(undefined);
@@ -95,7 +148,10 @@ describe('admin content router', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminContentRouter.createCaller({ userId: 'admin-user' } as any);
-    await caller.deleteFile({ fileId: 'file-1' });
+    await caller.deleteFile({
+      command: { actionId: 'content.deleteFile', confirmed: true },
+      fileId: 'file-1',
+    });
 
     expect(FileModel).toHaveBeenCalledWith(db, 'user-1');
     expect(fileDelete).toHaveBeenCalledWith('file-1', expect.any(Boolean));
@@ -104,7 +160,7 @@ describe('admin content router', () => {
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: 'content.file.delete',
+        action: ADMIN_COMMANDS['content.deleteFile'].auditAction,
         resourceId: 'file-1',
         targetUserId: 'user-1',
       }),
@@ -126,14 +182,17 @@ describe('admin content router', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminContentRouter.createCaller({ userId: 'admin-user' } as any);
-    await caller.deleteDocument({ documentId: 'doc-1' });
+    await caller.deleteDocument({
+      command: { actionId: 'content.deleteDocument', confirmed: true },
+      documentId: 'doc-1',
+    });
 
     expect(DocumentService).toHaveBeenCalledWith(db, 'user-2');
     expect(deleteDocument).toHaveBeenCalledWith('doc-1');
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: 'content.document.delete',
+        action: ADMIN_COMMANDS['content.deleteDocument'].auditAction,
         resourceId: 'doc-1',
         targetUserId: 'user-2',
       }),
@@ -151,14 +210,17 @@ describe('admin content router', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminContentRouter.createCaller({ userId: 'admin-user' } as any);
-    await caller.deleteTopic({ topicId: 'topic-1' });
+    await caller.deleteTopic({
+      command: { actionId: 'content.deleteTopic', confirmed: true },
+      topicId: 'topic-1',
+    });
 
     expect(db.__mocks.delete).toHaveBeenCalledTimes(1);
     expect(db.__mocks.deleteWhere).toHaveBeenCalledTimes(1);
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: 'content.topic.delete',
+        action: ADMIN_COMMANDS['content.deleteTopic'].auditAction,
         resourceId: 'topic-1',
         targetUserId: 'user-3',
       }),

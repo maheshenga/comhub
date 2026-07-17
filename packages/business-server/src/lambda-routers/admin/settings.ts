@@ -73,11 +73,14 @@ import {
 } from '../../appSettings/catalog';
 import { isModelAllowedByPlanRules } from '../../planModelRules';
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
+import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit } from './audit';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
 const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
 const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
+const runMaintenanceCommand = createAdminCommand('setting.runMaintenance');
+const setAppSettingCommand = createAdminCommand('setting.setAppSetting');
 
 const SETTING_KEYS = APP_SETTING_KEYS;
 const S3_HEALTH_CHECK_CONTENT = 'comhub-s3-health-check';
@@ -512,13 +515,10 @@ export const syncUserGlobalSettingsDefaultsToUserSettings = async (
       };
     }
 
-    await db
-      .insert(userSettings)
-      .values(rows)
-      .onConflictDoUpdate({
-        set: conflictSet,
-        target: userSettings.id,
-      });
+    await db.insert(userSettings).values(rows).onConflictDoUpdate({
+      set: conflictSet,
+      target: userSettings.id,
+    });
     syncedUsers += batch.length;
   }
 
@@ -593,10 +593,14 @@ const validateUserGlobalSettingsDefaults = async (db: LobeChatDatabase, defaults
 };
 
 const invalidateAppSettingsCaches = (updates: NormalizedSettingUpdate[]) => {
-  if (updates.some((update) => getAppSettingCatalogItem(update.key)?.runtimeEffects.includes('brand'))) {
+  if (
+    updates.some((update) => getAppSettingCatalogItem(update.key)?.runtimeEffects.includes('brand'))
+  ) {
     invalidateServerBrand();
   }
-  if (updates.some((update) => getAppSettingCatalogItem(update.key)?.runtimeEffects.includes('s3'))) {
+  if (
+    updates.some((update) => getAppSettingCatalogItem(update.key)?.runtimeEffects.includes('s3'))
+  ) {
     invalidateFileS3RuntimeCache();
   }
 
@@ -1087,23 +1091,22 @@ export const adminSettingsRouter = router({
       loginDescription,
       loginCloudButtonLabel,
       loginFooterText,
-    ] =
-      await Promise.all([
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateServerUrl),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateChannel),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateAutoCheck),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCheckInterval),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadUrl),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCurrentVersion),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateReleaseNotes),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginWindowTitle),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginLogoUrl),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginTitle),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginDescription),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginCloudButtonLabel),
-        readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginFooterText),
-      ]);
+    ] = await Promise.all([
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateServerUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateChannel),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateAutoCheck),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCheckInterval),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopDownloadLabel),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateCurrentVersion),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopUpdateReleaseNotes),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginWindowTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginLogoUrl),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginTitle),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginDescription),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginCloudButtonLabel),
+      readSetting(ctx.serverDB, SETTING_KEYS.desktopLoginFooterText),
+    ]);
     return {
       autoCheck: toBoolean(autoCheck, true),
       channel: toString(channel, 'stable') || 'stable',
@@ -1503,9 +1506,7 @@ export const adminSettingsRouter = router({
       },
       desktopOssConfig: {
         accessKeyId: toString(desktopOssAccessKeyId),
-        accessKeySecretMasked: maskAppSettingSecret(
-          toString(desktopOssAccessKeySecret) || null,
-        ),
+        accessKeySecretMasked: maskAppSettingSecret(toString(desktopOssAccessKeySecret) || null),
         bucket: toString(desktopOssBucket),
         endpoint: toString(desktopOssEndpoint),
         path: toString(desktopOssPath, 'releases'),
@@ -1525,10 +1526,9 @@ export const adminSettingsRouter = router({
       aboutPage: normalizeAboutPageConfig(aboutPage),
       composioConfig: {
         apiKeyConfigured: Boolean(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
-        apiKeyMasked: maskAppSettingSecret(
-          dbComposioApiKey ?? process.env.COMPOSIO_API_KEY,
-        ),
-        authConfigIds: toString(composioAuthConfigIds) || toString(process.env.COMPOSIO_AUTH_CONFIG_IDS),
+        apiKeyMasked: maskAppSettingSecret(dbComposioApiKey ?? process.env.COMPOSIO_API_KEY),
+        authConfigIds:
+          toString(composioAuthConfigIds) || toString(process.env.COMPOSIO_AUTH_CONFIG_IDS),
         enabled:
           typeof composioEnabled === 'boolean'
             ? composioEnabled
@@ -1665,7 +1665,7 @@ export const adminSettingsRouter = router({
       await upsertAppSetting(ctx.serverDB, update);
 
       await recordAdminAudit(ctx, {
-        action: 'settings.set',
+        action: setAppSettingCommand.definition.auditAction,
         payload: buildSingleSettingAuditPayload(update),
         resourceId: input.key,
         resourceType: 'app_setting',
@@ -1885,20 +1885,20 @@ export const adminSettingsRouter = router({
    */
   runMaintenance: systemWriteProcedure
     .input(
-      z
-        .object({
-          auditRetentionDays: z.number().int().min(7).max(3650).optional(),
-          notificationRetentionDays: z.number().int().min(1).max(3650).optional(),
-          pendingOrderExpiryDays: z.number().int().min(1).max(365).optional(),
-          skipAudit: z.boolean().optional(),
-          skipModuleAppUploads: z.boolean().optional(),
-          skipNotifications: z.boolean().optional(),
-          skipOrders: z.boolean().optional(),
-        })
-        .optional(),
+      z.object({
+        auditRetentionDays: z.number().int().min(7).max(3650).optional(),
+        command: runMaintenanceCommand.schema,
+        notificationRetentionDays: z.number().int().min(1).max(3650).optional(),
+        pendingOrderExpiryDays: z.number().int().min(1).max(365).optional(),
+        skipAudit: z.boolean().optional(),
+        skipModuleAppUploads: z.boolean().optional(),
+        skipNotifications: z.boolean().optional(),
+        skipOrders: z.boolean().optional(),
+      }),
     )
     .mutation(async ({ ctx, input }) => {
-      const opts = input ?? {};
+      const command = runMaintenanceCommand.validate(input.command);
+      const { command: _command, ...opts } = input;
       const result: {
         auditCutoff?: string;
         auditLogsDeleted?: number;
@@ -1974,7 +1974,7 @@ export const adminSettingsRouter = router({
       result.freeSnapshotsCreated = subscriptionResult.freeSnapshotsCreated;
 
       await recordAdminAudit(ctx, {
-        action: 'maintenance.run',
+        action: command.auditAction,
         payload: result,
         resourceType: 'maintenance',
       });

@@ -20,6 +20,7 @@ import {
 } from '@/libs/trpc/lambda';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
+import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit } from './audit';
 
 type ResetAllUsersToFreePlanResult = {
@@ -218,6 +219,9 @@ export const resetAllUsersToFreePlan = async (
 
 const supportWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.supportWrite);
 const userReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.userRead);
+const recordImpersonationAttemptCommand = createAdminCommand('user.impersonate.attempt');
+const resetAllToFreePlanCommand = createAdminCommand('user.resetAllToFreePlan');
+const setRoleCommand = createAdminCommand('user.setRole');
 
 export const adminUsersRouter = router({
   ban: supportWriteProcedure
@@ -419,18 +423,20 @@ export const adminUsersRouter = router({
   setRole: adminProcedure
     .input(
       z.object({
+        command: setRoleCommand.schema,
         role: z.enum([...ADMIN_ROLE_IDS, 'user']).nullable(),
         userId: z.string().min(1),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const command = setRoleCommand.validate(input.command);
       if (input.userId === ctx.userId) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Cannot change your own role' });
       }
 
       await ctx.serverDB.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
       await recordAdminAudit(ctx, {
-        action: 'user.setRole',
+        action: command.auditAction,
         payload: { role: input.role },
         resourceType: 'user',
         targetUserId: input.userId,
@@ -495,18 +501,18 @@ export const adminUsersRouter = router({
 
   resetAllToFreePlan: adminProcedure
     .input(
-      z
-        .object({
-          reason: z.string().max(500).optional(),
-        })
-        .optional(),
+      z.object({
+        command: resetAllToFreePlanCommand.schema,
+        reason: z.string().max(500).optional(),
+      }),
     )
     .mutation(async ({ ctx, input }) => {
-      const reason = input?.reason?.trim() || 'admin_reset_to_unlimited_free_plan';
+      const command = resetAllToFreePlanCommand.validate(input.command);
+      const reason = command.reason!;
       const result = await resetAllUsersToFreePlan(ctx.serverDB, reason);
 
       await recordAdminAudit(ctx, {
-        action: 'user.resetAllToFreePlan',
+        action: command.auditAction,
         payload: { ...result, reason },
         resourceType: 'user',
       });
@@ -515,8 +521,11 @@ export const adminUsersRouter = router({
     }),
 
   recordImpersonationAttempt: supportWriteProcedure
-    .input(z.object({ userId: z.string().min(1) }))
+    .input(
+      z.object({ command: recordImpersonationAttemptCommand.schema, userId: z.string().min(1) }),
+    )
     .mutation(async ({ ctx, input }) => {
+      const command = recordImpersonationAttemptCommand.validate(input.command);
       if (input.userId === ctx.userId) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'CANNOT_IMPERSONATE_SELF' });
       }
@@ -529,7 +538,7 @@ export const adminUsersRouter = router({
       if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'USER_NOT_FOUND' });
 
       await recordAdminAudit(ctx, {
-        action: 'user.impersonate.attempt',
+        action: command.auditAction,
         payload: {
           targetEmail: target.email,
           targetFullName: target.fullName,

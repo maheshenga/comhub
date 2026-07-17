@@ -9,12 +9,15 @@ import type { Transaction } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
 import { syncExpiredSubscriptionsToFree } from '../../subscriptionMaintenance';
+import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit } from './audit';
 
 const CHANGE_REQUEST_STATUSES = ['pending', 'completed', 'canceled', 'rejected'] as const;
 const SUBSCRIPTION_CYCLES = ['monthly', 'yearly', 'one_time', 'lifetime'] as const;
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+const bulkApproveCommand = createAdminCommand('subscription.changeRequest.bulkApprove');
+const bulkRejectCommand = createAdminCommand('subscription.changeRequest.bulkReject');
 
 export const adminSubscriptionsRouter = router({
   assignPlan: financeWriteProcedure
@@ -215,8 +218,14 @@ export const adminSubscriptionsRouter = router({
     }),
 
   bulkApproveChangeRequests: financeWriteProcedure
-    .input(z.object({ requestIds: z.array(z.string().min(1)).min(1).max(50) }))
+    .input(
+      z.object({
+        command: bulkApproveCommand.schema,
+        requestIds: z.array(z.string().min(1)).min(1).max(50),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
+      const command = bulkApproveCommand.validate(input.command);
       const results: { error?: string; ok: boolean; requestId: string }[] = [];
       for (const requestId of input.requestIds) {
         try {
@@ -233,7 +242,7 @@ export const adminSubscriptionsRouter = router({
         }
       }
       await recordAdminAudit(ctx, {
-        action: 'subscription.changeRequest.bulkApprove',
+        action: command.auditAction,
         payload: {
           failed: results.filter((r) => !r.ok).length,
           succeeded: results.filter((r) => r.ok).length,
@@ -247,11 +256,13 @@ export const adminSubscriptionsRouter = router({
   bulkRejectChangeRequests: financeWriteProcedure
     .input(
       z.object({
+        command: bulkRejectCommand.schema,
         reason: z.string().max(500).optional(),
         requestIds: z.array(z.string().min(1)).min(1).max(50),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const command = bulkRejectCommand.validate(input.command);
       const results: { error?: string; ok: boolean; requestId: string }[] = [];
       for (const requestId of input.requestIds) {
         try {
@@ -270,10 +281,10 @@ export const adminSubscriptionsRouter = router({
         }
       }
       await recordAdminAudit(ctx, {
-        action: 'subscription.changeRequest.bulkReject',
+        action: command.auditAction,
         payload: {
           failed: results.filter((r) => !r.ok).length,
-          reason: input.reason,
+          reason: command.reason,
           succeeded: results.filter((r) => r.ok).length,
           total: results.length,
         },

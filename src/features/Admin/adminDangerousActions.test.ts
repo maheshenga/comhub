@@ -1,8 +1,13 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import { ADMIN_COMMANDS } from '@lobechat/types';
 import { describe, expect, it } from 'vitest';
 
 import {
   ADMIN_DANGEROUS_ACTIONS,
   buildAdminDangerousActionConfirm,
+  buildAdminDangerousActionEnvelope,
   getAdminDangerousAction,
   requiresAdminActionReason,
   validateAdminDangerousActionConfirmation,
@@ -23,13 +28,30 @@ const criticalActions = [
   'setting.runMaintenance',
 ] as const;
 
+const visibleActionFiles = [
+  'src/features/Admin/AdminChangeRequestsPage.tsx',
+  'src/features/Admin/AdminContentPages.tsx',
+  'src/features/Admin/AdminOrdersPage.tsx',
+  'src/features/Admin/AdminProvidersPage.tsx',
+  'src/features/Admin/AdminSystemMaintenancePage.tsx',
+  'src/features/Admin/AdminUserDetailDrawer.tsx',
+  'src/routes/(main)/admin/credits/index.tsx',
+  'src/routes/(main)/admin/redemption/index.tsx',
+  'src/routes/(main)/admin/users/index.tsx',
+];
+
 describe('adminDangerousActions', () => {
+  it('re-exports the shared admin command catalog without a frontend-owned copy', () => {
+    expect(ADMIN_DANGEROUS_ACTIONS).toBe(ADMIN_COMMANDS);
+  });
+
   it('registers central metadata for P0 high-risk admin mutations', () => {
     for (const actionId of criticalActions) {
       expect(getAdminDangerousAction(actionId), actionId).toMatchObject({
         actionId,
         auditAction: expect.any(String),
-        confirmation: expect.any(Object),
+        confirmationMode: expect.stringMatching(/^(none|confirm|typed)$/),
+        procedurePath: expect.stringMatching(/^admin\./),
         severity: expect.stringMatching(/^(medium|high|critical)$/),
       });
     }
@@ -56,6 +78,22 @@ describe('adminDangerousActions', () => {
     expect(new Set(actions.map(([key]) => key)).size).toBe(actions.length);
     for (const [key, action] of actions) {
       expect(action.actionId).toBe(key);
+    }
+  });
+
+  it('keeps every confirmation action visible through the shared action components', () => {
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const visibleActionIds = visibleActionFiles.flatMap((filePath) => {
+      const source = readFileSync(path.resolve(repoRoot, filePath), 'utf8');
+      return [...source.matchAll(/actionId="([A-Za-z0-9.]+)"/g)].map((match) => match[1]);
+    });
+    const confirmationActionIds = Object.values(ADMIN_COMMANDS)
+      .filter(({ confirmationMode }) => confirmationMode !== 'none')
+      .map(({ actionId }) => actionId);
+
+    expect(new Set(visibleActionIds)).toEqual(new Set(confirmationActionIds));
+    for (const actionId of visibleActionIds) {
+      expect(getAdminDangerousAction(actionId)?.actionId).toBe(actionId);
     }
   });
 
@@ -97,6 +135,21 @@ describe('adminDangerousActions', () => {
     );
   });
 
+  it('builds the exact shared command envelope with a trimmed reason', () => {
+    expect(
+      buildAdminDangerousActionEnvelope('credits.adjust', {
+        confirmationText: 'credits.adjust',
+        confirmed: true,
+        reason: '  manual compensation  ',
+      }),
+    ).toEqual({
+      actionId: 'credits.adjust',
+      confirmationText: 'credits.adjust',
+      confirmed: true,
+      reason: 'manual compensation',
+    });
+  });
+
   it('requires a checkbox confirmation for high-risk actions without forcing typed text', () => {
     expect(buildAdminDangerousActionConfirm('user.setRole')).toMatchObject({
       actionId: 'user.setRole',
@@ -116,19 +169,23 @@ describe('adminDangerousActions', () => {
   });
 
   it('registers bulk change request actions for the shared bulk state machine', () => {
-    expect(buildAdminDangerousActionConfirm('subscription.changeRequest.bulkApprove')).toMatchObject({
+    expect(
+      buildAdminDangerousActionConfirm('subscription.changeRequest.bulkApprove'),
+    ).toMatchObject({
       actionId: 'subscription.changeRequest.bulkApprove',
       requiresConfirmation: true,
       requiresReason: false,
       requiresTypedConfirmation: false,
       severity: 'high',
     });
-    expect(buildAdminDangerousActionConfirm('subscription.changeRequest.bulkReject')).toMatchObject({
-      actionId: 'subscription.changeRequest.bulkReject',
-      requiresConfirmation: true,
-      requiresReason: false,
-      requiresTypedConfirmation: false,
-      severity: 'high',
-    });
+    expect(buildAdminDangerousActionConfirm('subscription.changeRequest.bulkReject')).toMatchObject(
+      {
+        actionId: 'subscription.changeRequest.bulkReject',
+        requiresConfirmation: true,
+        requiresReason: false,
+        requiresTypedConfirmation: false,
+        severity: 'high',
+      },
+    );
   });
 });

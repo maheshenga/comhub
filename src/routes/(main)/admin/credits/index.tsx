@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import InlineTable from '@/components/InlineTable';
 import { formatAdminCredits, toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
 import AdminDangerousActionButton from '@/features/Admin/AdminDangerousActionButton';
+import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import AdminUserDetailDrawer from '@/features/Admin/AdminUserDetailDrawer';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
@@ -92,8 +93,8 @@ const AdminCreditsPage = memo(() => {
     }
   };
 
-  const handleRecharge = async (reason?: null | string) => {
-    const normalizedReason = reason?.trim();
+  const handleRecharge = async (command: AdminDangerousActionEnvelope<'credits.adjust'>) => {
+    const normalizedReason = command.reason?.trim();
     if (!normalizedReason) {
       message.warning(t('admin.adjustCredits.invalid', '请填写调整数量和原因'));
       return;
@@ -102,11 +103,14 @@ const AdminCreditsPage = memo(() => {
     setRecharging(true);
     try {
       const values = await form.validateFields();
-      await adminCommercialService.adjustCredits({
-        amount: toAdminAtomicCredits(values.amount),
-        reason: normalizedReason,
-        userId: values.userId.trim(),
-      });
+      await adminCommercialService.adjustCredits(
+        {
+          amount: toAdminAtomicCredits(values.amount),
+          reason: normalizedReason,
+          userId: values.userId.trim(),
+        },
+        command,
+      );
       message.success(t('admin.credits.rechargeSuccess', '积分已充值'));
       setRechargeOpen(false);
       form.resetFields();
@@ -236,7 +240,7 @@ const AdminCreditsPage = memo(() => {
             key="confirm"
             loading={recharging}
             type="primary"
-            onConfirm={({ reason }) => handleRecharge(reason)}
+            onConfirm={handleRecharge}
           >
             {t('admin.credits.recharge', '充值积分')}
           </AdminDangerousActionButton>,

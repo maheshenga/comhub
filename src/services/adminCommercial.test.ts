@@ -7,6 +7,9 @@ import { adminCommercialService } from './adminCommercial';
 vi.mock('@/libs/trpc/client', () => ({
   lambdaClient: {
     admin: {
+      content: {
+        deleteDocument: { mutate: vi.fn() },
+      },
       settings: {
         validateDefaultAgentSettings: { mutate: vi.fn() },
       },
@@ -293,9 +296,11 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await adminCommercialService.impersonateUser('target-user');
+    const command = { actionId: 'user.impersonate.attempt', confirmed: true } as const;
+    await adminCommercialService.impersonateUser('target-user', command);
 
     expect(lambdaClient.admin.users.recordImpersonationAttempt.mutate).toHaveBeenCalledWith({
+      command,
       userId: 'target-user',
     });
     expect(getLegacyImpersonationStartMock()).not.toHaveBeenCalled();
@@ -317,13 +322,27 @@ describe('adminCommercialService NewAPI helpers', () => {
       }),
     );
 
-    await expect(adminCommercialService.impersonateUser('target-user')).rejects.toThrow(
+    const command = { actionId: 'user.impersonate.attempt', confirmed: true } as const;
+    await expect(adminCommercialService.impersonateUser('target-user', command)).rejects.toThrow(
       'forbidden',
     );
 
     expect(lambdaClient.admin.users.recordImpersonationAttempt.mutate).toHaveBeenCalledWith({
+      command,
       userId: 'target-user',
     });
     expect(getLegacyImpersonationStartMock()).not.toHaveBeenCalled();
+  });
+
+  it('forwards the shared command envelope to a dangerous content mutation', async () => {
+    vi.mocked(lambdaClient.admin.content.deleteDocument.mutate).mockResolvedValue({ ok: true });
+    const command = { actionId: 'content.deleteDocument', confirmed: true } as const;
+
+    await adminCommercialService.deleteAdminDocument('document-1', command);
+
+    expect(lambdaClient.admin.content.deleteDocument.mutate).toHaveBeenCalledWith({
+      command,
+      documentId: 'document-1',
+    });
   });
 });

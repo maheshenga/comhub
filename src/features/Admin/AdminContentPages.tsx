@@ -1,17 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import {
-  Alert,
-  Button,
-  Empty,
-  Input,
-  message,
-  Select,
-  Space,
-  Tag,
-  Typography,
-} from 'antd';
+import { Alert, Button, Empty, Input, message, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { memo, useCallback, useMemo, useState } from 'react';
 
@@ -20,6 +10,7 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminDangerousActionButton from './AdminDangerousActionButton';
+import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
 
 const { Text, Title } = Typography;
 
@@ -28,6 +19,10 @@ type TopicStatus = 'active' | 'archived' | 'completed';
 type DocumentSourceType = 'agent' | 'agent-signal' | 'api' | 'file' | 'topic' | 'web';
 
 const EMPTY_TEXT = '-';
+type ContentDeleteCommand =
+  | AdminDangerousActionEnvelope<'content.deleteDocument'>
+  | AdminDangerousActionEnvelope<'content.deleteFile'>
+  | AdminDangerousActionEnvelope<'content.deleteTopic'>;
 const PAGE_SIZE = 50;
 
 const formatDate = (value?: Date | string | null) =>
@@ -140,13 +135,20 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
     async (
       id: string,
       action: 'archive-topic' | 'delete-document' | 'delete-file' | 'delete-topic',
+      command?: ContentDeleteCommand,
     ) => {
       setActingId(id);
       try {
         if (action === 'archive-topic') await adminCommercialService.archiveAdminTopic(id);
-        if (action === 'delete-topic') await adminCommercialService.deleteAdminTopic(id);
-        if (action === 'delete-file') await adminCommercialService.deleteAdminFile(id);
-        if (action === 'delete-document') await adminCommercialService.deleteAdminDocument(id);
+        if (action === 'delete-topic' && command?.actionId === 'content.deleteTopic') {
+          await adminCommercialService.deleteAdminTopic(id, command);
+        }
+        if (action === 'delete-file' && command?.actionId === 'content.deleteFile') {
+          await adminCommercialService.deleteAdminFile(id, command);
+        }
+        if (action === 'delete-document' && command?.actionId === 'content.deleteDocument') {
+          await adminCommercialService.deleteAdminDocument(id, command);
+        }
         message.success('操作已完成');
         await refresh();
       } catch {
@@ -221,12 +223,12 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
                 </Button>
               ) : null}
               <AdminDangerousActionButton
-                actionId="content.deleteTopic"
                 danger
+                actionId="content.deleteTopic"
+                confirmTitle="确认删除这个话题？"
                 loading={actingId === row.topic.id}
                 size="small"
-                confirmTitle="确认删除这个话题？"
-                onConfirm={() => runAction(row.topic.id, 'delete-topic')}
+                onConfirm={(command) => runAction(row.topic.id, 'delete-topic', command)}
               >
                 删除
               </AdminDangerousActionButton>
@@ -286,12 +288,12 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
           key: 'actions',
           render: (_: unknown, row: any) => (
             <AdminDangerousActionButton
-              actionId="content.deleteFile"
               danger
+              actionId="content.deleteFile"
+              confirmTitle="确认删除这个文件记录？"
               loading={actingId === row.file.id}
               size="small"
-              confirmTitle="确认删除这个文件记录？"
-              onConfirm={() => runAction(row.file.id, 'delete-file')}
+              onConfirm={(command) => runAction(row.file.id, 'delete-file', command)}
             >
               删除
             </AdminDangerousActionButton>
@@ -348,12 +350,12 @@ const AdminContentPage = memo<{ mode: ContentMode }>(({ mode }) => {
         key: 'actions',
         render: (_: unknown, row: any) => (
           <AdminDangerousActionButton
-            actionId="content.deleteDocument"
             danger
+            actionId="content.deleteDocument"
+            confirmTitle="确认删除这个文稿？"
             loading={actingId === row.document.id}
             size="small"
-            confirmTitle="确认删除这个文稿？"
-            onConfirm={() => runAction(row.document.id, 'delete-document')}
+            onConfirm={(command) => runAction(row.document.id, 'delete-document', command)}
           >
             删除
           </AdminDangerousActionButton>

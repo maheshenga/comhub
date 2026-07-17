@@ -28,6 +28,8 @@ import { serverConfigKeys } from '@/libs/swr/keys';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useAiInfraStore } from '@/store/aiInfra';
 
+import AdminDangerousActionButton from './AdminDangerousActionButton';
+import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
 import {
   ADMIN_MODEL_API_PROVIDER_TYPES,
   type AdminModelApiProviderType,
@@ -44,17 +46,9 @@ import {
   buildManualMediaPricingMetadata,
   buildManualTokenPricingMetadata,
 } from './adminProviderModelPricing';
-import AdminDangerousActionButton from './AdminDangerousActionButton';
 
 type ModelType =
-  | 'chat'
-  | 'embedding'
-  | 'tts'
-  | 'stt'
-  | 'image'
-  | 'video'
-  | 'text2music'
-  | 'realtime';
+  'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 const MODEL_TYPES: ModelType[] = [
   'chat',
@@ -107,14 +101,14 @@ const hasSyncedOrManualPricing = (metadata?: Record<string, unknown> | null) => 
 
   return Boolean(
     manualPricing &&
-      [
-        manualPricing.inputCostRate,
-        manualPricing.inputRate,
-        manualPricing.outputCostRate,
-        manualPricing.outputRate,
-        manualPricing.imageRate,
-        manualPricing.videoRate,
-      ].some((value) => Number.isFinite(Number(value)) && Number(value) > 0),
+    [
+      manualPricing.inputCostRate,
+      manualPricing.inputRate,
+      manualPricing.outputCostRate,
+      manualPricing.outputRate,
+      manualPricing.imageRate,
+      manualPricing.videoRate,
+    ].some((value) => Number.isFinite(Number(value)) && Number(value) > 0),
   );
 };
 
@@ -313,8 +307,8 @@ const InstanceFormModal = memo<{
             <Switch />
           </Form.Item>
           <Form.Item
-            label={t('admin.providers.field.fetchOnClient', '客户端拉取')}
             hidden
+            label={t('admin.providers.field.fetchOnClient', '客户端拉取')}
             name="fetchOnClient"
             valuePropName="checked"
           >
@@ -722,8 +716,14 @@ const AdminProvidersPage = memo(() => {
     await mutate(INSTANCES_KEY);
   };
 
-  const handleDelete = async (row: InstanceRow, reason?: string | null) => {
-    await adminCommercialService.deleteAiProviderInstance({ id: row.id, reason: reason?.trim() });
+  const handleDelete = async (
+    row: InstanceRow,
+    command: AdminDangerousActionEnvelope<'newapiProvider.deleteInstance'>,
+  ) => {
+    await adminCommercialService.deleteAiProviderInstance(
+      { id: row.id, reason: command.reason?.trim() },
+      command,
+    );
     message.success(t('admin.providers.deleteSuccess', '实例已删除'));
     await mutate(INSTANCES_KEY);
   };
@@ -921,11 +921,11 @@ const AdminProvidersPage = memo(() => {
             {t('admin.providers.action.edit', '编辑')}
           </Button>
           <AdminDangerousActionButton
-            actionId="newapiProvider.deleteInstance"
             danger
-            size="small"
+            actionId="newapiProvider.deleteInstance"
             confirmDescription={t('admin.providers.confirmDelete', '删除这个实例及其全部模型？')}
-            onConfirm={({ reason }) => handleDelete(row, reason)}
+            size="small"
+            onConfirm={(command) => handleDelete(row, command)}
           >
             {t('admin.providers.action.delete', '删除')}
           </AdminDangerousActionButton>

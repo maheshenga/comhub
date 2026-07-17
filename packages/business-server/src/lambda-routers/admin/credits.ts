@@ -5,10 +5,12 @@ import { creditAccounts, creditLedgerEntries } from '@/database/schemas';
 import type { Transaction } from '@/database/type';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 
+import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit } from './audit';
 
 const financeReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeRead);
 const financeWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.financeWrite);
+const adjustCommand = createAdminCommand('credits.adjust');
 
 const creditAccountAuditSnapshot = {
   balance: creditAccounts.balance,
@@ -21,12 +23,15 @@ export const adminCreditsRouter = router({
     .input(
       z.object({
         amount: z.number().int(),
+        command: adjustCommand.schema,
         reason: z.string().min(1).max(500),
         userId: z.string().min(1),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { amount, reason, userId } = input;
+      const command = adjustCommand.validate(input.command);
+      const { amount, userId } = input;
+      const reason = command.reason!;
 
       const snapshots = await ctx.serverDB.transaction(async (tx: Transaction) => {
         await tx
@@ -89,7 +94,7 @@ export const adminCreditsRouter = router({
       });
 
       await recordAdminAudit(ctx, {
-        action: 'credits.adjust',
+        action: command.auditAction,
         payload: { amount, reason, ...snapshots },
         resourceType: 'credit_account',
         targetUserId: userId,

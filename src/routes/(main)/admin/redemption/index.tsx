@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import InlineTable from '@/components/InlineTable';
 import AdminBulkActionFlow from '@/features/Admin/AdminBulkActionFlow';
 import { formatAdminCredits, toAdminAtomicCredits } from '@/features/Admin/adminCreditUnits';
+import type { AdminDangerousActionEnvelope } from '@/features/Admin/adminDangerousActions';
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
@@ -101,14 +102,18 @@ const AdminRedemptionPage = memo(() => {
     [packagesData?.items],
   );
 
-  const handleBulkDisable = async () =>
-    adminCommercialService.bulkDisableRedemptionCodes(selectedIds);
+  const handleBulkDisable = async (
+    command: AdminDangerousActionEnvelope<'redemption.bulkDisable'>,
+  ) => adminCommercialService.bulkDisableRedemptionCodes(selectedIds, command);
 
-  const handleBulkDelete = async (reason?: null | string) =>
-    adminCommercialService.bulkDeleteRedemptionCodes({
-      ids: selectedIds,
-      reason: reason?.trim(),
-    });
+  const handleBulkDelete = async (command: AdminDangerousActionEnvelope<'redemption.bulkDelete'>) =>
+    adminCommercialService.bulkDeleteRedemptionCodes(
+      {
+        ids: selectedIds,
+        reason: command.reason?.trim(),
+      },
+      command,
+    );
 
   const finishBulkAction = async () => {
     setSelectedIds([]);
@@ -368,7 +373,7 @@ const AdminRedemptionPage = memo(() => {
                   'admin.redemption.bulkDeleteProgress',
                   '正在删除选中的未兑换兑换码，请勿关闭页面。',
                 )}
-                onRun={({ reason }) => handleBulkDelete(reason)}
+                onRun={handleBulkDelete}
                 onSuccess={finishBulkAction}
               >
                 {t('admin.redemption.bulkDelete', `删除 ${selectedIds.length} 个`)}

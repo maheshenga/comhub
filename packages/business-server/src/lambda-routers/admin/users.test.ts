@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { Plans } from '@lobechat/types';
+import { ADMIN_COMMANDS, Plans } from '@lobechat/types';
 import { eq, inArray } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -212,7 +212,10 @@ describe('adminUsersRouter impersonation audit', () => {
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminUsersRouter.createCaller({ userId: 'admin-user' } as any);
-    await (caller as any).recordImpersonationAttempt({ userId: 'target-user' });
+    await (caller as any).recordImpersonationAttempt({
+      command: { actionId: 'user.impersonate.attempt', confirmed: true },
+      userId: 'target-user',
+    });
 
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -220,7 +223,7 @@ describe('adminUsersRouter impersonation audit', () => {
         userId: 'admin-user',
       }),
       expect.objectContaining({
-        action: 'user.impersonate.attempt',
+        action: ADMIN_COMMANDS['user.impersonate.attempt'].auditAction,
         payload: {
           targetEmail: 'target@example.com',
           targetFullName: 'Target User',

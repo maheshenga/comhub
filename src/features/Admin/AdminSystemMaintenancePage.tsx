@@ -27,6 +27,9 @@ import {
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import AdminDangerousActionButton from './AdminDangerousActionButton';
+import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
+
 const { Text, Title } = Typography;
 
 const memoryTriggerModeOptions = [
@@ -152,10 +155,10 @@ const AdminSystemMaintenancePage = memo(() => {
     }
   };
 
-  const handleRunNow = async () => {
+  const handleRunNow = async (command: AdminDangerousActionEnvelope<'setting.runMaintenance'>) => {
     setRunning(true);
     try {
-      const result = await adminCommercialService.runMaintenance();
+      const result = await adminCommercialService.runMaintenance(command);
       setRunResult(result);
       message.success(t('admin.maintenance.runSuccess', '维护任务已执行'));
     } catch {
@@ -207,50 +210,54 @@ const AdminSystemMaintenancePage = memo(() => {
       <Form disabled={isLoading} form={form} initialValues={initialValues} layout="vertical">
         <Card title={t('admin.maintenance.cronSection', '定时维护')}>
           <Form.Item
+            label={t('admin.maintenance.cronSecret', 'Cron Bearer 密钥')}
+            name="cronSecret"
             extra={
               data?.cronSecretConfigured
                 ? `${t('admin.maintenance.current', '当前值')}: ${data.cronSecretMasked}`
                 : t('admin.maintenance.notSet', '未配置')
             }
-            label={t('admin.maintenance.cronSecret', 'Cron Bearer 密钥')}
-            name="cronSecret"
           >
             <Input.Password placeholder={t('admin.maintenance.leaveBlank', '留空则保持当前值')} />
           </Form.Item>
           <Form.Item
+            label={t('admin.maintenance.auditRetention', '审计日志保留天数')}
+            name="cronAuditRetentionDays"
             extra={t(
               'admin.maintenance.auditRetentionHelp',
               '超过该天数的后台审计日志会被删除，范围 7-3650 天。',
             )}
-            label={t('admin.maintenance.auditRetention', '审计日志保留天数')}
-            name="cronAuditRetentionDays"
           >
             <InputNumber max={3650} min={7} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
+            label={t('admin.maintenance.pendingOrderExpiry', '待支付订单过期天数')}
+            name="cronPendingOrderExpiryDays"
             extra={t(
               'admin.maintenance.pendingOrderExpiryHelp',
               '超过该天数的待支付充值订单会自动过期，范围 1-365 天。',
             )}
-            label={t('admin.maintenance.pendingOrderExpiry', '待支付订单过期天数')}
-            name="cronPendingOrderExpiryDays"
           >
             <InputNumber max={365} min={1} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
+            label={t('admin.maintenance.notificationRetention', '归档通知保留天数')}
+            name="notificationRetentionDays"
             extra={t(
               'admin.maintenance.notificationRetentionHelp',
               '后台维护任务会按该天数删除已归档通知；未归档的收件箱通知不会被自动删除。',
             )}
-            label={t('admin.maintenance.notificationRetention', '归档通知保留天数')}
-            name="notificationRetentionDays"
           >
             <InputNumber max={3650} min={1} style={{ width: '100%' }} />
           </Form.Item>
           <Space>
-            <Button loading={running} onClick={handleRunNow}>
+            <AdminDangerousActionButton
+              actionId="setting.runMaintenance"
+              loading={running}
+              onConfirm={handleRunNow}
+            >
               {t('admin.maintenance.runNow', '立即执行维护')}
-            </Button>
+            </AdminDangerousActionButton>
             <Button loading={refreshingCaches} onClick={handleRefreshRuntimeCaches}>
               {t('admin.maintenance.refreshCaches', '刷新用户端配置缓存')}
             </Button>
@@ -268,12 +275,12 @@ const AdminSystemMaintenancePage = memo(() => {
             )}
           />
           <Form.Item
+            label={t('admin.maintenance.memoryTriggerMode', '记忆分析执行模式')}
+            name="memoryUserMemoryTriggerMode"
             extra={t(
               'admin.maintenance.memoryTriggerHelp',
               '自动选择：检测到 QSTASH_TOKEN 时优先使用 QStash 工作流，否则直接执行。环境变量 MEMORY_USER_MEMORY_TRIGGER_MODE 可作为运维级覆盖。',
             )}
-            label={t('admin.maintenance.memoryTriggerMode', '记忆分析执行模式')}
-            name="memoryUserMemoryTriggerMode"
           >
             <Select options={memoryTriggerModeOptions} />
           </Form.Item>

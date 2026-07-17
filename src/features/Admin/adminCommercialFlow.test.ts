@@ -202,7 +202,9 @@ describe('admin commercial flow pages', () => {
   it('exposes an admin action to refresh user-facing AI provider cache', () => {
     const providersPage = readRepoFile('src/features/Admin/AdminProvidersPage.tsx');
     const service = readRepoFile('src/services/adminCommercial.ts');
-    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+    const router = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/newapiProviders.ts',
+    );
 
     expect(router).toContain('refreshRuntimeCache: modelOpsWriteProcedure.mutation');
     expect(router).toContain('invalidateNewapiInstancesCache();');
@@ -221,7 +223,9 @@ describe('admin commercial flow pages', () => {
     const pricingCell = readRepoFile('src/features/Admin/adminProviderModelPricing.tsx');
     const runtime = readRepoFile('src/server/services/newapiInstance/index.ts');
     const service = readRepoFile('src/services/adminCommercial.ts');
-    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+    const router = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/newapiProviders.ts',
+    );
 
     expect(providersPage).toContain('AiProviderModelPricingCell');
     expect(providersPage).toContain('buildManualTokenPricingMetadata');
@@ -264,7 +268,7 @@ describe('admin commercial flow pages', () => {
     expect(abilitiesCell).toContain('vision');
     expect(runtime).toContain('resolveManualAbilities');
     expect(runtime).toContain('metadata?.manualAbilities');
-    expect(globalConfig).toContain("m.abilities ? { abilities: m.abilities } : {}");
+    expect(globalConfig).toContain('m.abilities ? { abilities: m.abilities } : {}');
   });
 
   it('keeps toapi as a NewAPI-compatible instance instead of a standalone provider type', () => {
@@ -297,7 +301,9 @@ describe('admin commercial flow pages', () => {
 
   it('returns model pricing and ability completeness flags for billing diagnostics', () => {
     const matrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
-    const router = readRepoFile('packages/business-server/src/lambda-routers/admin/newapiProviders.ts');
+    const router = readRepoFile(
+      'packages/business-server/src/lambda-routers/admin/newapiProviders.ts',
+    );
 
     expect(router).toContain('metadata: adminNewapiInstanceModels.metadata');
     expect(router).toContain('hasModelPricing');
@@ -346,7 +352,9 @@ describe('admin commercial flow pages', () => {
     const settingsRouter = readRepoFile(
       'packages/business-server/src/lambda-routers/admin/settings.ts',
     );
-    const subscriptionRouter = readRepoFile('packages/business-server/src/lambda-routers/subscription.ts');
+    const subscriptionRouter = readRepoFile(
+      'packages/business-server/src/lambda-routers/subscription.ts',
+    );
 
     expect(publicPlansPage).toContain('getModelAccessSummary');
     expect(publicPlansPage).toContain('默认开放全部已启用模型');
@@ -428,7 +436,7 @@ describe('admin commercial flow pages', () => {
     const creditsPage = readRepoFile('src/business/client/BusinessSettingPages/Credits.tsx');
 
     expect(topupPage).toContain('normalizeTopUpPackagePromotion(row.metadata)');
-    expect(topupPage).toContain("admin.topup.col.promotion");
+    expect(topupPage).toContain('admin.topup.col.promotion');
     expect(creditsPage).toContain('限时优惠');
     expect(creditsPage).toContain('优先使用订阅积分，其次使用充值积分');
   });
@@ -458,9 +466,7 @@ describe('admin commercial flow pages', () => {
   });
 
   it('renders order control as fail-closed compatibility state and never submits it', () => {
-    const billingMatrixPage = readRepoFile(
-      'src/features/Admin/AdminModelBillingMatrixPage.tsx',
-    );
+    const billingMatrixPage = readRepoFile('src/features/Admin/AdminModelBillingMatrixPage.tsx');
     const defaultLocale = readRepoFile('packages/locales/src/default/subscription.ts');
     const enLocale = readRepoFile('locales/en-US/subscription.json');
     const zhLocale = readRepoFile('locales/zh-CN/subscription.json');
@@ -470,7 +476,9 @@ describe('admin commercial flow pages', () => {
     expect(billingMatrixPage).toContain("'admin.pricing.ordersEnabled'");
     expect(billingMatrixPage).not.toContain('SETTING_KEYS.ordersManagementEnabled');
     expect(defaultLocale).toContain("'admin.pricing.ordersEnabled': '在线平台支付（已关闭）'");
-    expect(enLocale).toContain('"admin.pricing.ordersEnabled": "Online platform payment (disabled)"');
+    expect(enLocale).toContain(
+      '"admin.pricing.ordersEnabled": "Online platform payment (disabled)"',
+    );
     expect(zhLocale).toContain('"admin.pricing.ordersEnabled": "在线平台支付（已关闭）"');
   });
 
@@ -523,6 +531,7 @@ describe('admin commercial flow pages', () => {
     const userDetailDrawer = readRepoFile('src/features/Admin/AdminUserDetailDrawer.tsx');
     const contentPages = readRepoFile('src/features/Admin/AdminContentPages.tsx');
     const ordersPage = readRepoFile('src/features/Admin/AdminOrdersPage.tsx');
+    const maintenancePage = readRepoFile('src/features/Admin/AdminSystemMaintenancePage.tsx');
 
     expect(creditsPage).toContain('AdminDangerousActionButton');
     expect(creditsPage).toContain('actionId="credits.adjust"');
@@ -533,6 +542,9 @@ describe('admin commercial flow pages', () => {
     expect(usersPage).toContain('AdminDangerousActionButton');
     expect(usersPage).toContain('actionId="user.resetAllToFreePlan"');
     expect(usersPage).toContain('actionId="credits.adjust"');
+    expect(usersPage).toContain('actionId="user.impersonate.attempt"');
+    expect(usersPage).toContain('actionId="user.setRole"');
+    expect(usersPage).not.toContain('Modal.confirm');
 
     expect(userDetailDrawer).toContain('AdminDangerousActionButton');
     expect(userDetailDrawer).toContain('actionId="credits.adjust"');
@@ -553,6 +565,9 @@ describe('admin commercial flow pages', () => {
     expect(redemptionPage).toContain('AdminBulkActionFlow');
     expect(redemptionPage).toContain('actionId="redemption.bulkDisable"');
     expect(redemptionPage).toContain('actionId="redemption.bulkDelete"');
+
+    expect(maintenancePage).toContain('AdminDangerousActionButton');
+    expect(maintenancePage).toContain('actionId="setting.runMaintenance"');
   });
 
   it('exposes module app product and price management from the selected app view', () => {
@@ -573,6 +588,7 @@ describe('admin commercial flow pages', () => {
     expect(dangerousButton).toContain('admin.dangerousAction.typedConfirm');
     expect(dangerousButton).toContain('admin.dangerousAction.reasonPlaceholder');
     expect(dangerousButton).toContain('admin.dangerousAction.errors.');
+    expect(dangerousButton).toContain('buildAdminDangerousActionEnvelope');
     expect(dangerousButton).not.toContain("setError(result.errors.join(', '))");
     expect(dangerousButton).not.toContain('placeholder="Reason"');
     expect(dangerousButton).not.toContain('Type <Typography.Text code>');
@@ -637,13 +653,17 @@ describe('admin commercial flow pages', () => {
     expect(changeRequestsPage).toContain("'admin.changeRequests.bulkRejectProgress'");
     expect(changeRequestsPage).not.toContain('bulkRunning');
     expect(changeRequestsPage).not.toContain('bulkRejectOpen');
-    expect(changeRequestsPage).not.toContain("t('admin.changeRequests.bulkApproveDone'");
-    expect(changeRequestsPage).not.toContain("t('admin.changeRequests.bulkRejectDone'");
+    expect(changeRequestsPage).not.toMatch(
+      /message\.success\(\s*t\(\s*'admin\.changeRequests\.bulkApproveDone'/,
+    );
+    expect(changeRequestsPage).not.toMatch(
+      /message\.success\(\s*t\(\s*'admin\.changeRequests\.bulkRejectDone'/,
+    );
 
-    expect(bulkActionFlow).toContain('reasonOptional?: boolean');
-    expect(bulkActionFlow).toContain('requirement?.requiresReason || reasonOptional');
-    expect(changeRequestsPage).toContain('reasonOptional');
-    expect(changeRequestsPage).toContain('onRun={({ reason }) => handleBulkReject(reason)}');
+    expect(bulkActionFlow).not.toContain('reasonOptional?: boolean');
+    expect(bulkActionFlow).toContain('requirement?.allowsReason');
+    expect(changeRequestsPage).not.toContain('reasonOptional');
+    expect(changeRequestsPage).toContain('onRun={handleBulkReject}');
   });
 
   it('keeps all selected-row admin bulk mutations on the shared state machine', () => {
@@ -672,7 +692,7 @@ describe('admin commercial flow pages', () => {
     expect(ordersPage).toContain('adminCommercialService.getOrderDetail(orderDetailId');
     expect(ordersPage).toContain("t('admin.orders.viewDetail'");
     expect(ordersPage).toContain("t('admin.orders.detail.redemptionCode'");
-    expect(ordersPage).toContain("t('admin.orders.detail.auditHint'");
+    expect(ordersPage).toContain("'admin.orders.detail.auditHint'");
     expect(service).toContain('getOrderDetail = async (orderId: string)');
   });
 

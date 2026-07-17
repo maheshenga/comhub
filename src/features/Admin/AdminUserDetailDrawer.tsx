@@ -26,6 +26,7 @@ import { userProfileSelectors } from '@/store/user/selectors';
 import AdminAssignPlanModal from './AdminAssignPlanModal';
 import { formatAdminCredits, toAdminAtomicCredits } from './adminCreditUnits';
 import AdminDangerousActionButton from './AdminDangerousActionButton';
+import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
 import type { AdminSubscriptionCycle } from './adminSubscriptionCycles';
 import { isFiniteAdminSubscriptionCycle } from './adminSubscriptionCycles';
 
@@ -58,19 +59,22 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
   const [assignReason, setAssignReason] = useState('');
   const [assigning, setAssigning] = useState(false);
 
-  const handleAdjust = async (reason?: null | string) => {
-    const normalizedReason = reason?.trim();
+  const handleAdjust = async (command: AdminDangerousActionEnvelope<'credits.adjust'>) => {
+    const normalizedReason = command.reason?.trim();
     if (!userId || !adjustAmount || !normalizedReason) {
       message.warning(t('admin.adjustCredits.invalid', '请填写调整数量和原因'));
       return;
     }
     setAdjusting(true);
     try {
-      await adminCommercialService.adjustCredits({
-        amount: toAdminAtomicCredits(adjustAmount),
-        reason: normalizedReason,
-        userId,
-      });
+      await adminCommercialService.adjustCredits(
+        {
+          amount: toAdminAtomicCredits(adjustAmount),
+          reason: normalizedReason,
+          userId,
+        },
+        command,
+      );
       message.success(t('admin.adjustCredits.success', '积分已调整'));
       setAdjustOpen(false);
       setAdjustAmount(0);
@@ -389,7 +393,7 @@ const AdminUserDetailDrawer = memo<AdminUserDetailDrawerProps>(({ onClose, userI
               key="confirm"
               loading={adjusting}
               type="primary"
-              onConfirm={({ reason }) => handleAdjust(reason)}
+              onConfirm={handleAdjust}
             >
               {t('admin.adjustCredits', '调整积分')}
             </AdminDangerousActionButton>,

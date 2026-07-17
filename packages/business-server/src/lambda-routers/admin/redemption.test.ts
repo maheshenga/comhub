@@ -1,3 +1,4 @@
+import { ADMIN_COMMANDS } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
@@ -40,6 +41,12 @@ describe('adminRedemptionRouter', () => {
 
     const caller = adminRedemptionRouter.createCaller({ userId: 'admin-user' } as any);
     await caller.bulkDelete({
+      command: {
+        actionId: 'redemption.bulkDelete',
+        confirmationText: 'redemption.bulkDelete',
+        confirmed: true,
+        reason: 'compromised promotional batch',
+      },
       ids: ['code-1', 'code-2'],
       reason: 'compromised promotional batch',
     } as any);
@@ -47,7 +54,7 @@ describe('adminRedemptionRouter', () => {
     expect(recordAdminAudit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: 'redemption.bulkDelete',
+        action: ADMIN_COMMANDS['redemption.bulkDelete'].auditAction,
         payload: {
           deleted: 1,
           reason: 'compromised promotional batch',

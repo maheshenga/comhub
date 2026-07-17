@@ -9,6 +9,7 @@ import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trp
 import { DocumentService } from '@/server/services/document';
 import { FileService } from '@/server/services/file';
 
+import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit } from './audit';
 
 const pageInput = z.object({
@@ -57,6 +58,9 @@ const getDocumentForAction = async (ctx: any, documentId: string) => {
 
 const contentReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentRead);
 const contentWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.contentWrite);
+const deleteDocumentCommand = createAdminCommand('content.deleteDocument');
+const deleteFileCommand = createAdminCommand('content.deleteFile');
+const deleteTopicCommand = createAdminCommand('content.deleteTopic');
 
 export const adminContentRouter = router({
   archiveTopic: contentWriteProcedure
@@ -81,15 +85,16 @@ export const adminContentRouter = router({
     }),
 
   deleteDocument: contentWriteProcedure
-    .input(z.object({ documentId: z.string().min(1) }))
+    .input(z.object({ command: deleteDocumentCommand.schema, documentId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const command = deleteDocumentCommand.validate(input.command);
       const document = await getDocumentForAction(ctx, input.documentId);
       const documentService = new DocumentService(ctx.serverDB, document.userId);
 
       await documentService.deleteDocument(input.documentId);
 
       await recordAdminAudit(ctx, {
-        action: 'content.document.delete',
+        action: command.auditAction,
         payload: { sourceType: document.sourceType, title: document.title },
         resourceId: input.documentId,
         resourceType: 'document',
@@ -100,8 +105,9 @@ export const adminContentRouter = router({
     }),
 
   deleteFile: contentWriteProcedure
-    .input(z.object({ fileId: z.string().min(1) }))
+    .input(z.object({ command: deleteFileCommand.schema, fileId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const command = deleteFileCommand.validate(input.command);
       const file = await getFileForAction(ctx, input.fileId);
       const fileModel = new FileModel(ctx.serverDB, file.userId);
       const fileService = new FileService(ctx.serverDB, file.userId);
@@ -113,7 +119,7 @@ export const adminContentRouter = router({
       }
 
       await recordAdminAudit(ctx, {
-        action: 'content.file.delete',
+        action: command.auditAction,
         payload: { fileType: file.fileType, name: file.name, size: file.size },
         resourceId: input.fileId,
         resourceType: 'file',
@@ -124,14 +130,15 @@ export const adminContentRouter = router({
     }),
 
   deleteTopic: contentWriteProcedure
-    .input(z.object({ topicId: z.string().min(1) }))
+    .input(z.object({ command: deleteTopicCommand.schema, topicId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      const command = deleteTopicCommand.validate(input.command);
       const topic = await getTopicForAction(ctx, input.topicId);
 
       await ctx.serverDB.delete(topics).where(eq(topics.id, input.topicId));
 
       await recordAdminAudit(ctx, {
-        action: 'content.topic.delete',
+        action: command.auditAction,
         payload: { title: topic.title },
         resourceId: input.topicId,
         resourceType: 'topic',

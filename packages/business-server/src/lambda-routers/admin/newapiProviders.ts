@@ -25,6 +25,7 @@ import {
   tryDecryptAdminProviderApiKey,
 } from '@/server/services/newapiInstance/credentials';
 
+import { createAdminCommand } from './adminCommand';
 import { recordAdminAudit } from './audit';
 
 const maskApiKey = (key: string | null | undefined): string | null => {
@@ -93,6 +94,7 @@ const ModelMetadataSchema = z
 const INVALID_API_KEY_MESSAGE = 'Instance API key is invalid. Please reset it before retrying.';
 const modelOpsReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsRead);
 const modelOpsWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.modelOpsWrite);
+const deleteInstanceCommand = createAdminCommand('newapiProvider.deleteInstance');
 
 const normalizeInstanceInput = async <T extends { apiKey?: string; fetchOnClient?: boolean }>(
   input: T,
@@ -252,9 +254,16 @@ export const adminNewapiProvidersRouter = router({
     }),
 
   deleteInstance: modelOpsWriteProcedure
-    .input(z.object({ id: z.string().uuid(), reason: z.string().max(500).optional() }))
+    .input(
+      z.object({
+        command: deleteInstanceCommand.schema,
+        id: z.string().uuid(),
+        reason: z.string().max(500).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      const reason = input.reason?.trim();
+      const command = deleteInstanceCommand.validate(input.command);
+      const reason = command.reason;
       const result = await ctx.serverDB
         .delete(adminNewapiInstances)
         .where(eq(adminNewapiInstances.id, input.id))
@@ -264,7 +273,7 @@ export const adminNewapiProvidersRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Instance not found' });
 
       await recordAdminAudit(ctx, {
-        action: 'newapiInstance.delete',
+        action: command.auditAction,
         payload: reason ? { reason } : undefined,
         resourceId: input.id,
         resourceType: 'admin_newapi_instances',

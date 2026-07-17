@@ -1,7 +1,18 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Alert, Button, Descriptions, Drawer, Input, message, Select, Space, Tabs, Tag } from 'antd';
+import {
+  Alert,
+  Button,
+  Descriptions,
+  Drawer,
+  Input,
+  message,
+  Select,
+  Space,
+  Tabs,
+  Tag,
+} from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
@@ -13,10 +24,15 @@ import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminDangerousActionButton from './AdminDangerousActionButton';
+import type { AdminDangerousActionEnvelope } from './adminDangerousActions';
 import { ADMIN_BASE_PATH } from './adminNavigation';
 import AdminTopUpPackagesPage from './AdminTopUpPackagesPage';
 
 type OrderStatus = 'pending' | 'paid' | 'canceled' | 'expired' | 'failed' | 'refunded';
+type PendingOrderCommand =
+  | AdminDangerousActionEnvelope<'order.cancel'>
+  | AdminDangerousActionEnvelope<'order.expire'>
+  | AdminDangerousActionEnvelope<'order.settle'>;
 
 type AdminOrderDetail = {
   amount?: number | string;
@@ -80,7 +96,8 @@ const AdminOrdersPage = memo(() => {
   );
   const { data: orderDetail, isLoading: orderDetailLoading } = useClientDataSWR(
     orderDetailId ? ['admin-order-detail', orderDetailId] : null,
-    async (): Promise<AdminOrderDetail> => adminCommercialService.getOrderDetail(orderDetailId!) as any,
+    async (): Promise<AdminOrderDetail> =>
+      adminCommercialService.getOrderDetail(orderDetailId!) as any,
   );
 
   const refresh = async () => mutate(swrKey);
@@ -88,17 +105,20 @@ const AdminOrdersPage = memo(() => {
   const handlePendingAction = async (
     orderId: string,
     action: 'cancel' | 'expire' | 'settle',
-    input?: { reason?: null | string },
+    command: PendingOrderCommand,
   ) => {
     setActingId(orderId);
     try {
-      if (action === 'cancel') await adminCommercialService.cancelOrder(orderId);
-      else if (action === 'expire') await adminCommercialService.expireOrder(orderId);
-      else
-        await adminCommercialService.settleOrder({
-          orderId,
-          reason: input?.reason?.trim() ?? '',
-        });
+      if (action === 'cancel' && command.actionId === 'order.cancel') {
+        await adminCommercialService.cancelOrder(orderId, command);
+      } else if (action === 'expire' && command.actionId === 'order.expire') {
+        await adminCommercialService.expireOrder(orderId, command);
+      } else if (action === 'settle' && command.actionId === 'order.settle') {
+        await adminCommercialService.settleOrder(
+          { orderId, reason: command.reason?.trim() ?? '' },
+          command,
+        );
+      }
       message.success(t('admin.orders.actionSuccess', '订单已更新'));
       await refresh();
     } catch {
@@ -120,8 +140,7 @@ const AdminOrdersPage = memo(() => {
         {t('admin.orders.settleConfirmOrder', '订单')}：<code>{row.id}</code>
       </span>
       <span>
-        {t('admin.orders.settleConfirmUser', '用户')}：
-        {row.userEmail || row.userName || row.userId}
+        {t('admin.orders.settleConfirmUser', '用户')}：{row.userEmail || row.userName || row.userId}
       </span>
       <span>
         {t('admin.orders.settleConfirmAmount', '金额')}：{row.currency || 'CNY'} {row.amount}
@@ -213,7 +232,7 @@ const AdminOrdersPage = memo(() => {
                 confirmTitle={t('admin.orders.expireConfirm', '确认将这个待支付订单设为过期？')}
                 loading={actingId === row.id}
                 size="small"
-                onConfirm={() => handlePendingAction(row.id, 'expire')}
+                onConfirm={(command) => handlePendingAction(row.id, 'expire', command)}
               >
                 {t('admin.orders.expire', '设为过期')}
               </AdminDangerousActionButton>
@@ -223,7 +242,7 @@ const AdminOrdersPage = memo(() => {
                 confirmTitle={t('admin.orders.cancelConfirm', '确认取消这个待支付订单？')}
                 loading={actingId === row.id}
                 size="small"
-                onConfirm={() => handlePendingAction(row.id, 'cancel')}
+                onConfirm={(command) => handlePendingAction(row.id, 'cancel', command)}
               >
                 {t('admin.orders.cancel', '取消订单')}
               </AdminDangerousActionButton>
@@ -310,7 +329,10 @@ const AdminOrdersPage = memo(() => {
                 <code>{orderDetail.id}</code>
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.orders.detail.user', '用户')}>
-                {orderDetail.userEmail || orderDetail.userFullName || orderDetail.userName || orderDetail.userId}
+                {orderDetail.userEmail ||
+                  orderDetail.userFullName ||
+                  orderDetail.userName ||
+                  orderDetail.userId}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.orders.detail.status', '状态')}>
                 <Tag color={statusColor[orderDetail.status as OrderStatus] ?? 'default'}>
@@ -350,9 +372,15 @@ const AdminOrdersPage = memo(() => {
                 {orderDetail.redemptionCodeId ? <code>{orderDetail.redemptionCodeId}</code> : '-'}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.orders.detail.redemptionCodeValue', '兑换码')}>
-                {orderDetail.redemptionCode?.code ? <code>{orderDetail.redemptionCode.code}</code> : '-'}
+                {orderDetail.redemptionCode?.code ? (
+                  <code>{orderDetail.redemptionCode.code}</code>
+                ) : (
+                  '-'
+                )}
               </Descriptions.Item>
-              <Descriptions.Item label={t('admin.orders.detail.redemptionCodeStatus', '兑换码状态')}>
+              <Descriptions.Item
+                label={t('admin.orders.detail.redemptionCodeStatus', '兑换码状态')}
+              >
                 {orderDetail.redemptionCode?.status || '-'}
               </Descriptions.Item>
               <Descriptions.Item label={t('admin.orders.detail.redemptionCodeBatch', '批次')}>
@@ -362,13 +390,16 @@ const AdminOrdersPage = memo(() => {
 
             <Alert
               showIcon
-              message={t('admin.orders.detail.auditHint', '如需追踪后台操作，请在审计日志中按订单 ID 检索。')}
               type="info"
               action={
                 <Link style={{ whiteSpace: 'nowrap' }} to={buildOrderAuditUrl(orderDetail.id)}>
                   {t('admin.orders.detail.viewAudit', '查看审计日志')}
                 </Link>
               }
+              message={t(
+                'admin.orders.detail.auditHint',
+                '如需追踪后台操作，请在审计日志中按订单 ID 检索。',
+              )}
             />
           </Flexbox>
         )}

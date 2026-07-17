@@ -44,9 +44,16 @@ describe('AdminSystemMaintenancePage', () => {
     render(<AdminSystemMaintenancePage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'admin.maintenance.runNow' }));
+    const confirmButtons = await screen.findAllByRole('button', {
+      name: 'admin.maintenance.runNow',
+    });
+    fireEvent.click(confirmButtons.at(-1)!);
 
     await waitFor(() => {
-      expect(adminCommercialService.runMaintenance).toHaveBeenCalledWith();
+      expect(adminCommercialService.runMaintenance).toHaveBeenCalledWith({
+        actionId: 'setting.runMaintenance',
+        confirmed: true,
+      });
     });
     expect(await screen.findByText('已清理模块应用上传：2')).toBeInTheDocument();
     expect(screen.getByText('模块应用上传清理失败：1')).toBeInTheDocument();
