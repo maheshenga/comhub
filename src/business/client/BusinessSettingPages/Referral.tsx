@@ -10,10 +10,10 @@ import { useTranslation } from 'react-i18next';
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
-import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 import { type ReferralHistoryItem } from '@/types/business';
 
+import BusinessSettingsPageShell from './BusinessSettingsPageShell';
 import { normalizeReferralCodeInput } from './referralDisplay';
 import {
   formatBusinessDate,
@@ -28,7 +28,7 @@ import {
 
 const REFERRAL_CODE_RE = /^\d{7}$/;
 
-const Referral = memo<{ mobile?: boolean }>(() => {
+const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t } = useTranslation('subscription');
   const { referralCode, referralLink, referralStatus } = useBusinessSubscriptionProfile();
   const { data: referralOverview } = useClientDataSWR(['business-referral-overview'], () =>
@@ -215,125 +215,122 @@ const Referral = memo<{ mobile?: boolean }>(() => {
   };
 
   return (
-    <>
-      <SettingHeader title="推荐奖励" />
-      <div className={subscriptionPageStyles.pageStack}>
-        <FormGroup collapsible={false} gap={16} title="推荐概览" variant="filled">
-          <div className={subscriptionPageStyles.cardGrid}>
-            <SummaryTile title="邀请总数" value={String(referralOverview?.totalInvites ?? 0)} />
-            <SummaryTile title="有效转化" value={String(referralOverview?.totalRewarded ?? 0)} />
-            <SummaryTile
-              title="累计奖励"
-              value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
-            />
-            <SummaryTile
-              title="可用余额"
-              value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
-            />
-          </div>
-          {canActivateReward ? (
-            <Button
-              loading={isActivatingReward}
-              type="primary"
-              onClick={() => void handleActivateReward()}
-            >
-              领取推荐奖励
-            </Button>
-          ) : null}
-        </FormGroup>
-        <FormGroup collapsible={false} gap={16} title="我的推荐码" variant="filled">
-          <div className={subscriptionPageStyles.inlineValueRow}>
-            {isEditing ? (
-              <Input
-                maxLength={7}
-                style={{ flex: 1, minWidth: 0 }}
-                value={draftCode}
-                onChange={(e: { target: { value: string } }) =>
-                  setDraftCode(e.target.value.replaceAll(/\D/g, '').slice(0, 7))
-                }
-              />
-            ) : (
-              <div className={subscriptionPageStyles.inlineValue}>{effectiveReferralCode}</div>
-            )}
-            <Button
-              icon={<Icon icon={Copy} />}
-              onClick={() => void copyText(effectiveReferralCode, '推荐码')}
-            >
-              复制
-            </Button>
-            {isEditing ? (
-              <>
-                <Button loading={isSavingCode} type="primary" onClick={() => void handleSaveCode()}>
-                  保存
-                </Button>
-                <Button
-                  onClick={() => {
-                    setDraftCode(editableCode);
-                    setIsEditing(false);
-                  }}
-                >
-                  取消
-                </Button>
-              </>
-            ) : (
-              <Button icon={<Icon icon={Pencil} />} onClick={() => setIsEditing(true)}>
-                编辑
-              </Button>
-            )}
-          </div>
-        </FormGroup>
-        <FormGroup collapsible={false} gap={16} title="推荐链接" variant="filled">
-          <div className={subscriptionPageStyles.inlineValueRow}>
-            <div className={subscriptionPageStyles.inlineValue}>{effectiveReferralLink}</div>
-            <Button
-              icon={<Icon icon={Copy} />}
-              onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
-            >
-              复制链接
-            </Button>
-          </div>
-        </FormGroup>
-        <FormGroup collapsible={false} gap={16} title="推荐记录" variant="filled">
-          <InlineTable
-            columns={columns as any}
-            dataSource={referralHistory}
-            loading={isLoading}
-            locale={{ emptyText: <Empty description="暂无数据" /> }}
-            rowKey={(record) => record.id}
+    <BusinessSettingsPageShell mobile={mobile} title="推荐奖励">
+      <FormGroup collapsible={false} gap={16} title="推荐概览" variant="filled">
+        <div className={subscriptionPageStyles.cardGrid}>
+          <SummaryTile title="邀请总数" value={String(referralOverview?.totalInvites ?? 0)} />
+          <SummaryTile title="有效转化" value={String(referralOverview?.totalRewarded ?? 0)} />
+          <SummaryTile
+            title="累计奖励"
+            value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
           />
-        </FormGroup>
-        <FormGroup collapsible={false} gap={16} title="计划规则" variant="filled">
-          <ol className={subscriptionPageStyles.featureList}>
-            <li>注册方式：被邀请用户通过推荐链接注册，或在注册页输入推荐码。</li>
-            <li>推荐码规则：系统默认生成随机 7 位数字，也可以手动改为未被占用的 7 位数字。</li>
-            <li>有效邀请：被邀请人使用你的推荐码注册并完成一次有效操作。</li>
-            <li>有效操作标准：在对话页发送一条消息，或在图片页生成一张图片。</li>
-            <li>
-              奖励：邀请人和被邀请人各获得 {formatBusinessNumber(toDisplayCredits(rewardCredits))}M
-              积分。
-            </li>
-            <li>奖励处理：积分将在审核通过后发放，审核最多需要 6 小时。</li>
-            <li>
-              积分使用优先级：订阅积分 {'>'} 推荐积分 {'>'} 充值积分 {'>'} 其他积分。
-            </li>
-            <li>积分有效期：用户 100 天未活跃后，推荐积分将被清除。</li>
-            <li>忘记填写邀请码：注册三天内可以补填邀请码。</li>
-            <li>如检测到通过不正当手段获取积分，相关账号将被永久封禁。</li>
-          </ol>
-          <div className={subscriptionPageStyles.inlineValueRow}>
+          <SummaryTile
+            title="可用余额"
+            value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
+          />
+        </div>
+        {canActivateReward ? (
+          <Button
+            loading={isActivatingReward}
+            type="primary"
+            onClick={() => void handleActivateReward()}
+          >
+            领取推荐奖励
+          </Button>
+        ) : null}
+      </FormGroup>
+      <FormGroup collapsible={false} gap={16} title="我的推荐码" variant="filled">
+        <div className={subscriptionPageStyles.inlineValueRow}>
+          {isEditing ? (
             <Input
-              placeholder="输入 7 位推荐码或推荐链接"
+              maxLength={7}
               style={{ flex: 1, minWidth: 0 }}
-              value={backfillCode}
-              onChange={(e: { target: { value: string } }) => setBackfillCode(e.target.value)}
+              value={draftCode}
+              onChange={(e: { target: { value: string } }) =>
+                setDraftCode(e.target.value.replaceAll(/\D/g, '').slice(0, 7))
+              }
             />
-            <Button loading={isBindingCode} type="primary" onClick={() => void handleBindCode()}>
-              确认绑定
+          ) : (
+            <div className={subscriptionPageStyles.inlineValue}>{effectiveReferralCode}</div>
+          )}
+          <Button
+            icon={<Icon icon={Copy} />}
+            onClick={() => void copyText(effectiveReferralCode, '推荐码')}
+          >
+            复制
+          </Button>
+          {isEditing ? (
+            <>
+              <Button loading={isSavingCode} type="primary" onClick={() => void handleSaveCode()}>
+                保存
+              </Button>
+              <Button
+                onClick={() => {
+                  setDraftCode(editableCode);
+                  setIsEditing(false);
+                }}
+              >
+                取消
+              </Button>
+            </>
+          ) : (
+            <Button icon={<Icon icon={Pencil} />} onClick={() => setIsEditing(true)}>
+              编辑
             </Button>
-          </div>
-        </FormGroup>
-      </div>
-    </>
+          )}
+        </div>
+      </FormGroup>
+      <FormGroup collapsible={false} gap={16} title="推荐链接" variant="filled">
+        <div className={subscriptionPageStyles.inlineValueRow}>
+          <div className={subscriptionPageStyles.inlineValue}>{effectiveReferralLink}</div>
+          <Button
+            icon={<Icon icon={Copy} />}
+            onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
+          >
+            复制链接
+          </Button>
+        </div>
+      </FormGroup>
+      <FormGroup collapsible={false} gap={16} title="推荐记录" variant="filled">
+        <InlineTable
+          columns={columns as any}
+          dataSource={referralHistory}
+          loading={isLoading}
+          locale={{ emptyText: <Empty description="暂无数据" /> }}
+          rowKey={(record) => record.id}
+        />
+      </FormGroup>
+      <FormGroup collapsible={false} gap={16} title="计划规则" variant="filled">
+        <ol className={subscriptionPageStyles.featureList}>
+          <li>注册方式：被邀请用户通过推荐链接注册，或在注册页输入推荐码。</li>
+          <li>推荐码规则：系统默认生成随机 7 位数字，也可以手动改为未被占用的 7 位数字。</li>
+          <li>有效邀请：被邀请人使用你的推荐码注册并完成一次有效操作。</li>
+          <li>有效操作标准：在对话页发送一条消息，或在图片页生成一张图片。</li>
+          <li>
+            奖励：邀请人和被邀请人各获得 {formatBusinessNumber(toDisplayCredits(rewardCredits))}M
+            积分。
+          </li>
+          <li>奖励处理：积分将在审核通过后发放，审核最多需要 6 小时。</li>
+          <li>
+            积分使用优先级：订阅积分 {'>'} 推荐积分 {'>'} 充值积分 {'>'} 其他积分。
+          </li>
+          <li>积分有效期：用户 100 天未活跃后，推荐积分将被清除。</li>
+          <li>忘记填写邀请码：注册三天内可以补填邀请码。</li>
+          <li>如检测到通过不正当手段获取积分，相关账号将被永久封禁。</li>
+        </ol>
+        <div className={subscriptionPageStyles.inlineValueRow}>
+          <Input
+            placeholder="输入 7 位推荐码或推荐链接"
+            style={{ flex: 1, minWidth: 0 }}
+            value={backfillCode}
+            onChange={(e: { target: { value: string } }) => setBackfillCode(e.target.value)}
+          />
+          <Button loading={isBindingCode} type="primary" onClick={() => void handleBindCode()}>
+            确认绑定
+          </Button>
+        </div>
+      </FormGroup>
+    </BusinessSettingsPageShell>
   );
 });
 

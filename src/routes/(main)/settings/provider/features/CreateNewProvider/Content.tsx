@@ -7,7 +7,7 @@ import { App, Form } from 'antd';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { useProviderSettingsNavigate } from '@/features/ProviderSettings/useProviderSettingsNavigate';
 import { useAiInfraStore } from '@/store/aiInfra/store';
 import { type CreateAiProviderParams } from '@/types/aiProvider';
 
@@ -27,7 +27,7 @@ const CreateNewProviderContent = memo(() => {
   const [loading, setLoading] = useState(false);
   const createNewAiProvider = useAiInfraStore((s) => s.createNewAiProvider);
   const { message } = App.useApp();
-  const navigate = useWorkspaceAwareNavigate();
+  const navigateToProvider = useProviderSettingsNavigate();
   const { close } = useModalContext();
 
   const onFinish = async (values: CreateAiProviderParams) => {
@@ -44,7 +44,7 @@ const CreateNewProviderContent = memo(() => {
 
       await createNewAiProvider(finalValues);
       setLoading(false);
-      navigate(`/settings/provider/${values.id}`);
+      navigateToProvider(values.id);
       message.success(t('createNewAiProvider.createSuccess'));
       close();
     } catch (e) {

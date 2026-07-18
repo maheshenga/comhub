@@ -2,7 +2,19 @@
 
 import { Plans as SubscriptionPlan } from '@lobechat/types';
 import { Flexbox, Icon, Segmented } from '@lobehub/ui';
-import { Alert, Button, Collapse, Empty, Input, message, Modal, Skeleton, Table, Tag, Tooltip } from 'antd';
+import {
+  Alert,
+  Button,
+  Collapse,
+  Empty,
+  Input,
+  message,
+  Modal,
+  Skeleton,
+  Table,
+  Tag,
+  Tooltip,
+} from 'antd';
 import { createStyles, cssVar } from 'antd-style';
 import {
   BookOpen,
@@ -24,10 +36,10 @@ import { PUBLIC_PLAN_FAQ_SWR_KEY } from '@/const/adminCacheKeys';
 import { DEFAULT_PLAN_FAQ_ITEMS } from '@/const/billingPresentation';
 import PlanIcon from '@/features/PlanIcon';
 import { useClientDataSWR } from '@/libs/swr';
-import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import { commercialService } from '@/services/commercial';
 import { useServerConfigStore } from '@/store/serverConfig';
 
+import BusinessSettingsPageShell from './BusinessSettingsPageShell';
 import { getPlanPurchaseUrl } from './planPurchase';
 import {
   getAvailableBillingCycles,
@@ -342,7 +354,7 @@ const findHelpMenuUrl = (
   return matched?.url || fallback;
 };
 
-const Plans = memo<{ mobile?: boolean }>(() => {
+const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { styles, cx } = useStyles();
   const { t } = useTranslation('subscription');
   const { currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
@@ -350,9 +362,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
-  const helpMenuItems = useServerConfigStore(
-    (s) => s.serverConfig.customization?.helpMenuItems,
-  );
+  const helpMenuItems = useServerConfigStore((s) => s.serverConfig.customization?.helpMenuItems);
 
   const { data: planCatalog, isLoading: isPlanCatalogLoading } = useClientDataSWR(
     ['business-plan-catalog'],
@@ -555,8 +565,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
 
   return (
     <>
-      <SettingHeader title="套餐" />
-      <div className={styles.wrapper}>
+      <BusinessSettingsPageShell className={styles.wrapper} mobile={mobile} title="套餐">
         <div className={styles.introBar}>
           <div className={styles.introCopy}>
             <h1 className={styles.introTitle}>升级方案</h1>
@@ -748,11 +757,15 @@ const Plans = memo<{ mobile?: boolean }>(() => {
                         <div className={styles.sectionTitle}>文件与知识库</div>
                         <div className={styles.benefit}>
                           <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>文件存储 {formatNullableQuota(catalogPlan?.storageQuotaMb, ' MB')}</span>
+                          <span>
+                            文件存储 {formatNullableQuota(catalogPlan?.storageQuotaMb, ' MB')}
+                          </span>
                         </div>
                         <div className={styles.benefit}>
                           <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>向量记录 {formatNullableQuota(catalogPlan?.vectorQuota, ' 条目')}</span>
+                          <span>
+                            向量记录 {formatNullableQuota(catalogPlan?.vectorQuota, ' 条目')}
+                          </span>
                         </div>
                       </Flexbox>
                       <Flexbox className={styles.featureGroup} gap={10}>
@@ -790,7 +803,8 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             <Flexbox gap={4}>
               <h2 className={styles.title}>套餐对比</h2>
               <div className={subscriptionPageStyles.caption}>
-                根据后台套餐配置汇总展示积分、资源额度、PPT 权益、模型权限和优惠信息；分类维度对齐官方套餐页。
+                根据后台套餐配置汇总展示积分、资源额度、PPT
+                权益、模型权限和优惠信息；分类维度对齐官方套餐页。
               </div>
             </Flexbox>
             <Table
@@ -809,7 +823,8 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             <Flexbox gap={4}>
               <h2 className={styles.title}>文本模型价格</h2>
               <div className={subscriptionPageStyles.caption}>
-                平台使用算力积分衡量 AI 模型使用量。具体模型、倍率和可用套餐由后台“模型与计费矩阵”统一维护，新增 AI
+                平台使用算力积分衡量 AI
+                模型使用量。具体模型、倍率和可用套餐由后台“模型与计费矩阵”统一维护，新增 AI
                 服务商或模型后会按后台配置生效。
               </div>
             </Flexbox>
@@ -855,7 +870,7 @@ const Plans = memo<{ mobile?: boolean }>(() => {
             />
           </Flexbox>
         </Card>
-      </div>
+      </BusinessSettingsPageShell>
       <Modal
         confirmLoading={redeeming}
         okText="确认兑换"

@@ -6,7 +6,6 @@ import NavHeader from '@/features/NavHeader';
 import SettingContainer from '@/features/Setting/SettingContainer';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { SettingsTabs } from '@/store/global/initialState';
-import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 
 import { componentMap } from './componentMap';
 
@@ -24,7 +23,6 @@ interface SettingsContentProps {
 }
 
 const SettingsContent = ({ mobile, activeTab }: SettingsContentProps) => {
-  const enableBusinessFeatures = useServerConfigStore(serverConfigSelectors.enableBusinessFeatures);
   const navigate = useWorkspaceAwareNavigate();
 
   useEffect(() => {
@@ -50,9 +48,10 @@ const SettingsContent = ({ mobile, activeTab }: SettingsContentProps) => {
         SettingsTabs.Stats,
         SettingsTabs.Usage,
         SettingsTabs.Security,
-        ...(enableBusinessFeatures
-          ? [SettingsTabs.Plans, SettingsTabs.Credits, SettingsTabs.Billing, SettingsTabs.Referral]
-          : []),
+        SettingsTabs.Plans,
+        SettingsTabs.Credits,
+        SettingsTabs.Billing,
+        SettingsTabs.Referral,
       ].includes(tab as any)
     ) {
       componentProps.mobile = mobile;

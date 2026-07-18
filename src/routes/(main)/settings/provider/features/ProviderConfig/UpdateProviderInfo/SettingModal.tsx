@@ -18,7 +18,7 @@ import { BrainIcon } from 'lucide-react';
 import { memo, type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { useProviderSettingsNavigate } from '@/features/ProviderSettings/useProviderSettingsNavigate';
 import { useAiInfraStore } from '@/store/aiInfra/store';
 import { type AiProviderDetailItem, type UpdateAiProviderParams } from '@/types/aiProvider';
 
@@ -50,7 +50,7 @@ const SettingContent = memo<SettingContentProps>(({ initialValues, id }) => {
   ]);
 
   const { message } = App.useApp();
-  const navigate = useWorkspaceAwareNavigate();
+  const navigateToProvider = useProviderSettingsNavigate();
   const { close } = useModalContext();
 
   const onFinish = async (values: UpdateAiProviderParams) => {
@@ -94,7 +94,7 @@ const SettingContent = memo<SettingContentProps>(({ initialValues, id }) => {
       okText: t('delete', { ns: 'common' }),
       onOk: async () => {
         await deleteAiProvider(id);
-        navigate('/settings/provider/all');
+        navigateToProvider('all');
         close();
         message.success(t('updateAiProvider.deleteSuccess'));
       },

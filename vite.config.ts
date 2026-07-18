@@ -8,6 +8,7 @@ import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 import { viteEnvRestartKeys } from './plugins/vite/envRestartKeys';
+import { mobileHtmlFallback } from './plugins/vite/mobileHtmlFallback';
 import {
   createSharedRolldownOutput,
   sharedModulePreload,
@@ -206,6 +207,7 @@ export default defineConfig({
   },
   optimizeDeps: sharedOptimizeDeps,
   plugins: [
+    isMobile && mobileHtmlFallback(),
     vercelSkewProtection(),
     viteEnvRestartKeys(['APP_URL']),
     enableViteDevTools &&

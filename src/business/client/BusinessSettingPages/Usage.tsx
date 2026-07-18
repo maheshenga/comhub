@@ -10,7 +10,6 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useClientDataSWR } from '@/libs/swr';
-import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 import UsageCards from '@/routes/(main)/settings/stats/features/usage/UsageCards';
 import UsageTable from '@/routes/(main)/settings/stats/features/usage/UsageTable';
 import UsageTrends from '@/routes/(main)/settings/stats/features/usage/UsageTrends';
@@ -18,6 +17,7 @@ import { GroupBy } from '@/routes/(main)/settings/stats/types';
 import { usageService } from '@/services/usage';
 import { type UsageLog } from '@/types/usage/usageRecord';
 
+import BusinessSettingsPageShell from './BusinessSettingsPageShell';
 import {
   formatCredits,
   subscriptionPageStyles,
@@ -25,7 +25,7 @@ import {
   useBusinessSubscriptionProfile,
 } from './shared';
 
-const Usage = memo<{ mobile?: boolean }>(() => {
+const Usage = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t: tAuth, i18n } = useTranslation('auth');
   const { accountSummary, subscriptionSummary } = useBusinessSubscriptionProfile();
   const accountBreakdown = accountSummary?.breakdown;
@@ -47,75 +47,72 @@ const Usage = memo<{ mobile?: boolean }>(() => {
   };
 
   return (
-    <>
-      <SettingHeader title={'用量'} />
-      <div className={subscriptionPageStyles.pageStack}>
-        <FormGroup
-          collapsible={false}
-          gap={16}
-          title={'计算积分使用详情'}
-          variant={'filled'}
-          extra={
-            <>
-              <DatePicker picker="month" value={dateRange} onChange={handleDateChange} />
-              <Segmented
-                style={{ marginLeft: 8 }}
-                value={groupBy}
-                variant={'outlined'}
-                options={[
-                  {
-                    icon: <Icon icon={Brain} />,
-                    label: tAuth('usage.welcome.model'),
-                    value: GroupBy.Model,
-                  },
-                  {
-                    icon: <Icon icon={ProviderIcon} />,
-                    label: tAuth('usage.welcome.provider'),
-                    value: GroupBy.Provider,
-                  },
-                ]}
-                onChange={(value: string | number) => setGroupBy(value as GroupBy)}
-              />
-            </>
-          }
-        >
-          <div className={subscriptionPageStyles.caption}>
-            展示文本生成、嵌入、图像生成等功能的计算积分使用详情。
-          </div>
-          <div className={subscriptionPageStyles.tableSection}>
-            <UsageTable dateStrings={month} />
-          </div>
-        </FormGroup>
-        <FormGroup collapsible={false} gap={16} title={'本月使用情况'} variant={'filled'}>
-          <div className={subscriptionPageStyles.cardGrid}>
-            <SummaryTile
-              caption={'当前账户可用积分'}
-              title={'免费/可用积分'}
-              value={formatCredits(accountSummary?.balance ?? 0)}
+    <BusinessSettingsPageShell mobile={mobile} title={'用量'}>
+      <FormGroup
+        collapsible={false}
+        gap={16}
+        title={'计算积分使用详情'}
+        variant={'filled'}
+        extra={
+          <>
+            <DatePicker picker="month" value={dateRange} onChange={handleDateChange} />
+            <Segmented
+              style={{ marginLeft: 8 }}
+              value={groupBy}
+              variant={'outlined'}
+              options={[
+                {
+                  icon: <Icon icon={Brain} />,
+                  label: tAuth('usage.welcome.model'),
+                  value: GroupBy.Model,
+                },
+                {
+                  icon: <Icon icon={ProviderIcon} />,
+                  label: tAuth('usage.welcome.provider'),
+                  value: GroupBy.Provider,
+                },
+              ]}
+              onChange={(value: string | number) => setGroupBy(value as GroupBy)}
             />
-            <SummaryTile
-              caption={'订阅每月赠送额度'}
-              title={'订阅积分'}
-              value={formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}
-            />
-            <SummaryTile
-              caption={`已获得 ${formatCredits(accountBreakdown?.topup.credited ?? 0)}`}
-              title={'充值积分'}
-              value={formatCredits(accountBreakdown?.topup.available ?? 0)}
-            />
-            <SummaryTile
-              caption={`已获得 ${formatCredits(accountBreakdown?.referral.credited ?? 0)}`}
-              title={'推荐积分'}
-              value={formatCredits(accountBreakdown?.referral.available ?? 0)}
-            />
-          </div>
-          <Divider style={{ marginBlock: 8 }} />
-          <UsageCards data={usageData} groupBy={groupBy} isLoading={isLoading} />
-          <Divider style={{ marginBlock: 8 }} />
-          <UsageTrends data={usageData} groupBy={groupBy} isLoading={isLoading} />
-        </FormGroup>
-      </div>
-    </>
+          </>
+        }
+      >
+        <div className={subscriptionPageStyles.caption}>
+          展示文本生成、嵌入、图像生成等功能的计算积分使用详情。
+        </div>
+        <div className={subscriptionPageStyles.tableSection}>
+          <UsageTable dateStrings={month} />
+        </div>
+      </FormGroup>
+      <FormGroup collapsible={false} gap={16} title={'本月使用情况'} variant={'filled'}>
+        <div className={subscriptionPageStyles.cardGrid}>
+          <SummaryTile
+            caption={'当前账户可用积分'}
+            title={'免费/可用积分'}
+            value={formatCredits(accountSummary?.balance ?? 0)}
+          />
+          <SummaryTile
+            caption={'订阅每月赠送额度'}
+            title={'订阅积分'}
+            value={formatCredits(subscriptionSummary?.monthlyCredits ?? 0)}
+          />
+          <SummaryTile
+            caption={`已获得 ${formatCredits(accountBreakdown?.topup.credited ?? 0)}`}
+            title={'充值积分'}
+            value={formatCredits(accountBreakdown?.topup.available ?? 0)}
+          />
+          <SummaryTile
+            caption={`已获得 ${formatCredits(accountBreakdown?.referral.credited ?? 0)}`}
+            title={'推荐积分'}
+            value={formatCredits(accountBreakdown?.referral.available ?? 0)}
+          />
+        </div>
+        <Divider style={{ marginBlock: 8 }} />
+        <UsageCards data={usageData} groupBy={groupBy} isLoading={isLoading} />
+        <Divider style={{ marginBlock: 8 }} />
+        <UsageTrends data={usageData} groupBy={groupBy} isLoading={isLoading} />
+      </FormGroup>
+    </BusinessSettingsPageShell>
   );
 });
 

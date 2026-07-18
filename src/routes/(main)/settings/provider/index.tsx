@@ -5,7 +5,7 @@ import { memo } from 'react';
 import { Outlet, useParams } from 'react-router';
 
 import { isCustomBranding } from '@/const/version';
-import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { useProviderSettingsNavigate } from '@/features/ProviderSettings/useProviderSettingsNavigate';
 
 import DesktopLayoutContainer from './_layout/Desktop/Container';
 import Footer from './(list)/Footer';
@@ -14,10 +14,10 @@ import ProviderMenu from './ProviderMenu';
 
 // Layout component that wraps provider pages with navigation
 export const ProviderLayout = memo(() => {
-  const navigate = useWorkspaceAwareNavigate();
+  const navigateToProvider = useProviderSettingsNavigate();
 
   const handleProviderSelect = (providerKey: string) => {
-    navigate(`/settings/provider/${providerKey}`);
+    navigateToProvider(providerKey);
   };
 
   return (
@@ -42,10 +42,10 @@ ProviderLayout.displayName = 'ProviderLayout';
 // Detail page component that receives providerId from route params
 export const ProviderDetailPage = memo(() => {
   const params = useParams<{ providerId: string }>();
-  const navigate = useWorkspaceAwareNavigate();
+  const navigateToProvider = useProviderSettingsNavigate();
 
   const handleProviderSelect = (providerKey: string) => {
-    navigate(`/settings/provider/${providerKey}`);
+    navigateToProvider(providerKey);
   };
 
   return (
