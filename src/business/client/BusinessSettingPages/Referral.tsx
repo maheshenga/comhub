@@ -1,8 +1,9 @@
 'use client';
 
-import { FormGroup, Icon } from '@lobehub/ui';
+import { Icon } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
 import { Button, Empty, Input, message } from 'antd';
+import { createStaticStyles, cx } from 'antd-style';
 import { Copy, Pencil } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +15,12 @@ import { commercialService } from '@/services/commercial';
 import { type ReferralHistoryItem } from '@/types/business';
 
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';
+import BusinessMobileRecordList from './mobile/BusinessMobileRecordList';
+import { BusinessSettingsSection } from './mobile/BusinessMobileSection';
+import {
+  buildReferralHistoryRecord,
+  type BusinessRecordFormatters,
+} from './mobile/businessRecordBuilders';
 import { normalizeReferralCodeInput } from './referralDisplay';
 import {
   formatBusinessDate,
@@ -26,6 +33,34 @@ import {
   useBusinessSubscriptionProfile,
 } from './shared';
 
+const styles = createStaticStyles(({ css }) => ({
+  mobileInlineRow: css`
+    flex-wrap: wrap;
+    align-items: stretch;
+
+    > .ant-input {
+      flex: 1 1 160px;
+      min-width: 0;
+      min-height: 44px;
+    }
+
+    > .ant-btn {
+      flex: 0 1 auto;
+      min-height: 44px;
+    }
+
+    > div {
+      flex: 1 1 160px;
+      min-width: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  `,
+  mobileTouchTarget: css`
+    min-height: 44px;
+  `,
+}));
+
 const REFERRAL_CODE_RE = /^\d{7}$/;
 
 const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
@@ -34,9 +69,13 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { data: referralOverview } = useClientDataSWR(['business-referral-overview'], () =>
     commercialService.getReferralOverview(),
   );
-  const { data: referralHistory = [], isLoading } = useClientDataSWR(
-    ['business-referral-history'],
-    () => commercialService.listReferralHistory({ limit: 20 }),
+  const {
+    data: referralHistory = [],
+    error: referralHistoryError,
+    isLoading,
+    mutate: refreshReferralHistory,
+  } = useClientDataSWR(['business-referral-history'], () =>
+    commercialService.listReferralHistory({ limit: 20 }),
   );
   const [editableCode, setEditableCode] = useState(referralCode);
   const [draftCode, setDraftCode] = useState(referralCode);
@@ -97,6 +136,17 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
         title: '奖励时间',
       },
     ],
+    [t],
+  );
+
+  const recordFormatters = useMemo<
+    Pick<BusinessRecordFormatters, 'formatCredits' | 'formatDate' | 't'>
+  >(
+    () => ({
+      formatCredits,
+      formatDate: formatBusinessDate,
+      t: (key, options) => t(key as any, options as any),
+    }),
     [t],
   );
 
@@ -214,9 +264,51 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
     }
   };
 
+  const mobileAction =
+    mobile && canActivateReward
+      ? {
+          label: t('referral.activateReward'),
+          loading: isActivatingReward,
+          onClick: () => void handleActivateReward(),
+        }
+      : undefined;
+
+  const backfillForm = (
+    <div className={cx(subscriptionPageStyles.inlineValueRow, mobile && styles.mobileInlineRow)}>
+      <Input
+        placeholder="输入 7 位推荐码或推荐链接"
+        style={{ flex: 1, minWidth: 0 }}
+        value={backfillCode}
+        onChange={(e: { target: { value: string } }) => setBackfillCode(e.target.value)}
+      />
+      <Button loading={isBindingCode} type="primary" onClick={() => void handleBindCode()}>
+        确认绑定
+      </Button>
+    </div>
+  );
+
+  const referralRules = (
+    <ol className={subscriptionPageStyles.featureList}>
+      <li>注册方式：被邀请用户通过推荐链接注册，或在注册页输入推荐码。</li>
+      <li>推荐码规则：系统默认生成随机 7 位数字，也可以手动改为未被占用的 7 位数字。</li>
+      <li>有效邀请：被邀请人使用你的推荐码注册并完成一次有效操作。</li>
+      <li>有效操作标准：在对话页发送一条消息，或在图片页生成一张图片。</li>
+      <li>
+        奖励：邀请人和被邀请人各获得 {formatBusinessNumber(toDisplayCredits(rewardCredits))}M 积分。
+      </li>
+      <li>奖励处理：积分将在审核通过后发放，审核最多需要 6 小时。</li>
+      <li>
+        积分使用优先级：订阅积分 {'>'} 推荐积分 {'>'} 充值积分 {'>'} 其他积分。
+      </li>
+      <li>积分有效期：用户 100 天未活跃后，推荐积分将被清除。</li>
+      <li>忘记填写邀请码：注册三天内可以补填邀请码。</li>
+      <li>如检测到通过不正当手段获取积分，相关账号将被永久封禁。</li>
+    </ol>
+  );
+
   return (
-    <BusinessSettingsPageShell mobile={mobile} title="推荐奖励">
-      <FormGroup collapsible={false} gap={16} title="推荐概览" variant="filled">
+    <BusinessSettingsPageShell mobile={mobile} mobileAction={mobileAction} title="推荐奖励">
+      <BusinessSettingsSection mobile={mobile} title="推荐概览">
         <div className={subscriptionPageStyles.cardGrid}>
           <SummaryTile title="邀请总数" value={String(referralOverview?.totalInvites ?? 0)} />
           <SummaryTile title="有效转化" value={String(referralOverview?.totalRewarded ?? 0)} />
@@ -229,7 +321,7 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
             value={formatCredits(referralOverview?.totalRewardedAmount ?? 0)}
           />
         </div>
-        {canActivateReward ? (
+        {!mobile && canActivateReward ? (
           <Button
             loading={isActivatingReward}
             type="primary"
@@ -238,9 +330,11 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
             领取推荐奖励
           </Button>
         ) : null}
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title="我的推荐码" variant="filled">
-        <div className={subscriptionPageStyles.inlineValueRow}>
+      </BusinessSettingsSection>
+      <BusinessSettingsSection mobile={mobile} title="我的推荐码">
+        <div
+          className={cx(subscriptionPageStyles.inlineValueRow, mobile && styles.mobileInlineRow)}
+        >
           {isEditing ? (
             <Input
               maxLength={7}
@@ -279,9 +373,11 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
             </Button>
           )}
         </div>
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title="推荐链接" variant="filled">
-        <div className={subscriptionPageStyles.inlineValueRow}>
+      </BusinessSettingsSection>
+      <BusinessSettingsSection mobile={mobile} title="推荐链接">
+        <div
+          className={cx(subscriptionPageStyles.inlineValueRow, mobile && styles.mobileInlineRow)}
+        >
           <div className={subscriptionPageStyles.inlineValue}>{effectiveReferralLink}</div>
           <Button
             icon={<Icon icon={Copy} />}
@@ -290,46 +386,53 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
             复制链接
           </Button>
         </div>
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title="推荐记录" variant="filled">
-        <InlineTable
-          columns={columns as any}
-          dataSource={referralHistory}
-          loading={isLoading}
-          locale={{ emptyText: <Empty description="暂无数据" /> }}
-          rowKey={(record) => record.id}
-        />
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title="计划规则" variant="filled">
-        <ol className={subscriptionPageStyles.featureList}>
-          <li>注册方式：被邀请用户通过推荐链接注册，或在注册页输入推荐码。</li>
-          <li>推荐码规则：系统默认生成随机 7 位数字，也可以手动改为未被占用的 7 位数字。</li>
-          <li>有效邀请：被邀请人使用你的推荐码注册并完成一次有效操作。</li>
-          <li>有效操作标准：在对话页发送一条消息，或在图片页生成一张图片。</li>
-          <li>
-            奖励：邀请人和被邀请人各获得 {formatBusinessNumber(toDisplayCredits(rewardCredits))}M
-            积分。
-          </li>
-          <li>奖励处理：积分将在审核通过后发放，审核最多需要 6 小时。</li>
-          <li>
-            积分使用优先级：订阅积分 {'>'} 推荐积分 {'>'} 充值积分 {'>'} 其他积分。
-          </li>
-          <li>积分有效期：用户 100 天未活跃后，推荐积分将被清除。</li>
-          <li>忘记填写邀请码：注册三天内可以补填邀请码。</li>
-          <li>如检测到通过不正当手段获取积分，相关账号将被永久封禁。</li>
-        </ol>
-        <div className={subscriptionPageStyles.inlineValueRow}>
-          <Input
-            placeholder="输入 7 位推荐码或推荐链接"
-            style={{ flex: 1, minWidth: 0 }}
-            value={backfillCode}
-            onChange={(e: { target: { value: string } }) => setBackfillCode(e.target.value)}
+      </BusinessSettingsSection>
+      <BusinessSettingsSection defaultOpen={false} mobile={mobile} title="推荐记录">
+        {mobile ? (
+          <BusinessMobileRecordList
+            emptyAction={
+              <Button
+                className={styles.mobileTouchTarget}
+                icon={<Icon icon={Copy} />}
+                onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
+              >
+                {t('referral.copyLink')}
+              </Button>
+            }
+            emptyDescription={t('referral.history.empty')}
+            error={referralHistoryError ? t('mobile.error.title') : undefined}
+            isLoading={isLoading}
+            onRetry={() => void refreshReferralHistory()}
+            records={referralHistory.map((item) =>
+              buildReferralHistoryRecord(item, recordFormatters),
+            )}
+            sheetTitle={t('referral.history.details')}
           />
-          <Button loading={isBindingCode} type="primary" onClick={() => void handleBindCode()}>
-            确认绑定
-          </Button>
-        </div>
-      </FormGroup>
+        ) : (
+          <InlineTable
+            columns={columns as any}
+            dataSource={referralHistory}
+            loading={isLoading}
+            locale={{ emptyText: <Empty description="暂无数据" /> }}
+            rowKey={(record) => record.id}
+          />
+        )}
+      </BusinessSettingsSection>
+      {mobile ? (
+        <>
+          <BusinessSettingsSection mobile title="补填邀请码">
+            {backfillForm}
+          </BusinessSettingsSection>
+          <BusinessSettingsSection defaultOpen={false} mobile title="计划规则">
+            {referralRules}
+          </BusinessSettingsSection>
+        </>
+      ) : (
+        <BusinessSettingsSection title="计划规则">
+          {referralRules}
+          {backfillForm}
+        </BusinessSettingsSection>
+      )}
     </BusinessSettingsPageShell>
   );
 });

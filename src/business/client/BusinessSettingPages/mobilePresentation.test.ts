@@ -49,4 +49,13 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('defaultOpen={false}');
     expect(source).toContain('BusinessMobileRecordList');
   });
+
+  it('shows referral records as cards and gates the reward action', async () => {
+    const source = await readBusinessPage('Referral');
+
+    expect(source).toContain('buildReferralHistoryRecord');
+    expect(source).toContain('canActivateReward');
+    expect(source).toContain('mobileAction={mobileAction}');
+    expect(source).toContain('BusinessMobileRecordList');
+  });
 });
