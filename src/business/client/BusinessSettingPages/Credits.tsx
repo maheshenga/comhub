@@ -1,6 +1,6 @@
 'use client';
 
-import { Flexbox, FormGroup, Icon, Segmented } from '@lobehub/ui';
+import { Flexbox, Icon, Segmented } from '@lobehub/ui';
 import { type TableColumnType } from 'antd';
 import { Button, Empty, InputNumber, message, Tag } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
@@ -20,9 +20,17 @@ import { type CreditLedgerEntryItem, type TopUpOrderHistoryItem } from '@/types/
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';
 import { formatLedgerAllocationText } from './creditsDisplay';
 import { formatCreditLedgerDescription } from './ledgerDisplay';
+import BusinessMobileRecordList from './mobile/BusinessMobileRecordList';
+import { BusinessSettingsSection } from './mobile/BusinessMobileSection';
+import {
+  buildCreditLedgerRecord,
+  buildTopUpOrderRecord,
+  type BusinessRecordFormatters,
+} from './mobile/businessRecordBuilders';
 import RedemptionPanel from './RedemptionPanel';
 import {
   formatBusinessDate,
+  formatBusinessNumber,
   formatCredits,
   formatCurrencyAmount,
   formatSignedCredits,
@@ -65,6 +73,35 @@ const styles = createStaticStyles(({ css }) => ({
     line-height: 1.25;
     color: ${cssVar.colorText};
   `,
+  mobileControl: css`
+    width: 100%;
+    min-height: 44px;
+
+    .ant-input-number-input {
+      min-height: 42px;
+    }
+  `,
+  mobilePackageScroller: css`
+    scrollbar-width: thin;
+
+    overflow-x: auto;
+    max-width: 100%;
+    padding-block-end: 4px;
+    overscroll-behavior-inline: contain;
+
+    .ant-segmented {
+      min-width: max-content;
+    }
+
+    .ant-segmented-item-label {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+    }
+  `,
+  mobileTouchTarget: css`
+    min-height: 44px;
+  `,
   purchaseMeta: css`
     display: flex;
     flex-wrap: wrap;
@@ -99,16 +136,24 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t } = useTranslation('subscription');
   const brand = useBrand();
   const { accountSummary, currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
-  const { data: ledgerResult, isLoading: isLedgerLoading } = useClientDataSWR(
-    ['business-credit-ledger'],
-    () => commercialService.listCreditLedger({ limit: 20 }),
+  const {
+    data: ledgerResult,
+    error: ledgerError,
+    isLoading: isLedgerLoading,
+    mutate: refreshLedger,
+  } = useClientDataSWR(['business-credit-ledger'], () =>
+    commercialService.listCreditLedger({ limit: 20 }),
   );
   const { data: topUpPackages = [] } = useClientDataSWR(['business-topup-packages'], () =>
     commercialService.getTopUpPackages(),
   );
-  const { data: topUpOrders = [], isLoading: isOrdersLoading } = useClientDataSWR(
-    ['business-topup-orders'],
-    () => commercialService.listTopUpOrders({ limit: 20 }),
+  const {
+    data: topUpOrders = [],
+    error: ordersError,
+    isLoading: isOrdersLoading,
+    mutate: refreshOrders,
+  } = useClientDataSWR(['business-topup-orders'], () =>
+    commercialService.listTopUpOrders({ limit: 20 }),
   );
   const [selectedPackageId, setSelectedPackageId] = useState<string>();
   const [customCredits, setCustomCredits] = useState(50);
@@ -143,6 +188,21 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
         formatCredits,
       ),
     [t],
+  );
+
+  const recordFormatters = useMemo<BusinessRecordFormatters>(
+    () => ({
+      creditLedgerAllocation: getLedgerAllocationText,
+      creditLedgerDescription: (item) =>
+        formatCreditLedgerDescription(item.description, item.metadata),
+      formatCredits,
+      formatCurrency: formatCurrencyAmount,
+      formatDate: formatBusinessDate,
+      formatNumber: formatBusinessNumber,
+      formatSignedCredits,
+      t: (key, options) => t(key as any, options as any),
+    }),
+    [getLedgerAllocationText, t],
   );
 
   const ledgerColumns = useMemo<TableColumnType<CreditLedgerEntryItem>[]>(
@@ -237,6 +297,8 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
 
   const refreshCreditData = () => {
     void refreshCommercialEntitlementState();
+    void refreshLedger();
+    void refreshOrders();
   };
 
   const handleTopUpAction = () => {
@@ -248,9 +310,15 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
     message.info('在线支付暂未接入，请联系管理员充值，或使用兑换码发放积分。');
   };
 
+  const mobileAction = mobile
+    ? canPurchaseTopUp
+      ? { href: '#credit-redemption', label: t('billing.redeem.title') }
+      : { href: '/settings/plans', label: t('upgradePlan') }
+    : undefined;
+
   return (
-    <BusinessSettingsPageShell mobile={mobile} title={'积分'}>
-      <FormGroup collapsible={false} gap={16} title={'余额'} variant={'filled'}>
+    <BusinessSettingsPageShell mobile={mobile} mobileAction={mobileAction} title={'积分'}>
+      <BusinessSettingsSection mobile={mobile} title={'余额'}>
         <div className={styles.balanceGrid}>
           <div className={styles.balancePanel}>
             <div className={styles.balanceStats}>
@@ -271,10 +339,18 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
               {formatBusinessDate(accountSummary?.updatedAt)}
             </div>
             <Flexbox horizontal gap={8} wrap="wrap">
-              <Button href="#credit-ledger" size="small">
+              <Button
+                className={mobile ? styles.mobileTouchTarget : undefined}
+                href="#credit-ledger"
+                size={mobile ? 'middle' : 'small'}
+              >
                 查看使用情况
               </Button>
-              <Button href="#topup-orders" size="small">
+              <Button
+                className={mobile ? styles.mobileTouchTarget : undefined}
+                href="#topup-orders"
+                size={mobile ? 'middle' : 'small'}
+              >
                 充值记录
               </Button>
             </Flexbox>
@@ -287,10 +363,10 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
             </div>
           </div>
         </div>
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title={'购买积分'} variant={'filled'}>
+      </BusinessSettingsSection>
+      <BusinessSettingsSection mobile={mobile} title={'购买积分'}>
         <Flexbox gap={16}>
-          <div>
+          <div className={mobile ? styles.mobilePackageScroller : undefined}>
             <div style={{ marginBottom: 10 }}>选择积分包</div>
             <Segmented
               options={packageOptions}
@@ -301,6 +377,7 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
           {selectedPackageId === 'custom' || topUpPackages.length === 0 ? (
             <InputNumber
               addonAfter={'M'}
+              className={mobile ? styles.mobileControl : undefined}
               max={5000}
               min={50}
               value={customCredits}
@@ -332,6 +409,11 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
                 : ''}
             </div>
           </div>
+          {mobile ? (
+            <div className={subscriptionPageStyles.caption}>
+              在线支付暂未接入；当前可联系管理员或使用兑换码补充积分。
+            </div>
+          ) : null}
           <div className={subscriptionPageStyles.metricRow}>
             <span>总计</span>
             <strong style={{ fontSize: 24 }}>
@@ -341,17 +423,19 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
               {formatCredits(effectiveCredits)}
             </span>
           </div>
-          <Button
-            href={canPurchaseTopUp ? undefined : '/settings/plans'}
-            icon={<Icon icon={ShoppingCart} />}
-            type={'primary'}
-            onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
-          >
-            {canPurchaseTopUp ? '联系管理员充值' : '升级会员'}
-          </Button>
+          {mobile ? null : (
+            <Button
+              href={canPurchaseTopUp ? undefined : '/settings/plans'}
+              icon={<Icon icon={ShoppingCart} />}
+              type={'primary'}
+              onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
+            >
+              {canPurchaseTopUp ? '联系管理员充值' : '升级会员'}
+            </Button>
+          )}
         </Flexbox>
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title={'自动充值'} variant={'filled'}>
+      </BusinessSettingsSection>
+      <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'自动充值'}>
         <Flexbox horizontal align={'center'} justify={'space-between'} wrap={'wrap'}>
           <div>
             <strong>在线支付暂未接入</strong>
@@ -359,37 +443,67 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
               自动充值将在支付网关接入后开放；当前可联系管理员或使用兑换码补充积分。
             </div>
           </div>
-          <Button
-            href={canPurchaseTopUp ? undefined : '/settings/plans'}
-            onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
-          >
-            {canPurchaseTopUp ? '联系管理员' : '升级会员'}
-          </Button>
+          {mobile ? null : (
+            <Button
+              href={canPurchaseTopUp ? undefined : '/settings/plans'}
+              onClick={canPurchaseTopUp ? handleTopUpAction : undefined}
+            >
+              {canPurchaseTopUp ? '联系管理员' : '升级会员'}
+            </Button>
+          )}
         </Flexbox>
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title={'兑换码'} variant={'filled'}>
-        <RedemptionPanel onSuccess={refreshCreditData} />
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title={'我的积分包'} variant={'filled'}>
-        <InlineTable
-          columns={orderColumns as any}
-          dataSource={topUpOrders}
-          id="topup-orders"
-          loading={isOrdersLoading}
-          locale={{ emptyText: <Empty description={'暂无积分包'} /> }}
-          rowKey={(record) => record.id}
-        />
-      </FormGroup>
-      <FormGroup collapsible={false} gap={16} title={'积分使用详情'} variant={'filled'}>
-        <InlineTable
-          columns={ledgerColumns as any}
-          dataSource={ledgerResult?.items || []}
-          id="credit-ledger"
-          loading={isLedgerLoading}
-          locale={{ emptyText: <Empty description={'暂无积分明细'} /> }}
-          rowKey={(record) => record.id}
-        />
-      </FormGroup>
+      </BusinessSettingsSection>
+      <div id="credit-redemption">
+        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'兑换码'}>
+          <RedemptionPanel onSuccess={refreshCreditData} />
+        </BusinessSettingsSection>
+      </div>
+      <div id="topup-orders">
+        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'我的积分包'}>
+          {mobile ? (
+            <BusinessMobileRecordList
+              emptyDescription={t('credits.topUp.orders.empty')}
+              error={ordersError ? t('mobile.error.title') : undefined}
+              isLoading={isOrdersLoading}
+              onRetry={() => void refreshOrders()}
+              records={topUpOrders.map((item) => buildTopUpOrderRecord(item, recordFormatters))}
+              sheetTitle={t('credits.topUp.orders.details')}
+            />
+          ) : (
+            <InlineTable
+              columns={orderColumns as any}
+              dataSource={topUpOrders}
+              loading={isOrdersLoading}
+              locale={{ emptyText: <Empty description={'暂无积分包'} /> }}
+              rowKey={(record) => record.id}
+            />
+          )}
+        </BusinessSettingsSection>
+      </div>
+      <div id="credit-ledger">
+        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'积分使用详情'}>
+          {mobile ? (
+            <BusinessMobileRecordList
+              emptyDescription={t('credits.ledger.empty')}
+              error={ledgerError ? t('mobile.error.title') : undefined}
+              isLoading={isLedgerLoading}
+              onRetry={() => void refreshLedger()}
+              records={(ledgerResult?.items || []).map((item) =>
+                buildCreditLedgerRecord(item, recordFormatters),
+              )}
+              sheetTitle={t('credits.ledger.details')}
+            />
+          ) : (
+            <InlineTable
+              columns={ledgerColumns as any}
+              dataSource={ledgerResult?.items || []}
+              loading={isLedgerLoading}
+              locale={{ emptyText: <Empty description={'暂无积分明细'} /> }}
+              rowKey={(record) => record.id}
+            />
+          )}
+        </BusinessSettingsSection>
+      </div>
     </BusinessSettingsPageShell>
   );
 });

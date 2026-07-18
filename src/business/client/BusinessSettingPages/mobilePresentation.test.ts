@@ -27,4 +27,14 @@ describe('mobile business settings presentation', () => {
     expect(source.match(/defaultOpen=\{false\}/g)).toHaveLength(3);
     expect(source).toContain('mobileAction={mobileAction}');
   });
+
+  it('uses mobile record cards and hides non-executable purchase controls on Credits', async () => {
+    const source = await readBusinessPage('Credits');
+
+    expect(source).toContain('buildTopUpOrderRecord');
+    expect(source).toContain('buildCreditLedgerRecord');
+    expect(source).toContain('mobile ? (');
+    expect(source).toContain('mobileAction={mobileAction}');
+    expect(source).toContain('defaultOpen={false}');
+  });
 });
