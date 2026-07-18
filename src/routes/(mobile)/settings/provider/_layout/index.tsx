@@ -11,7 +11,7 @@ const Layout = () => {
   const navigate = useWorkspaceAwareNavigate();
 
   const handleProviderSelect = (providerKey: string) => {
-    navigate(`/settings/provider/${providerKey}`);
+    navigate(`/settings/provider/${providerKey}`, { escape: true });
   };
 
   return params.providerId === 'all' ? (

@@ -4,14 +4,14 @@ import { Flexbox } from '@lobehub/ui';
 import { ChatHeader } from '@lobehub/ui/mobile';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
 
+import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { mobileHeaderSticky } from '@/styles/mobileHeader';
 
 const Header = memo(() => {
   const { t } = useTranslation('common');
 
-  const navigate = useNavigate();
+  const navigate = useWorkspaceAwareNavigate();
   return (
     <ChatHeader
       showBackButton
@@ -25,7 +25,7 @@ const Header = memo(() => {
           }
         />
       }
-      onBackClick={() => navigate('/me')}
+      onBackClick={() => navigate('/me', { escape: true })}
     />
   );
 });

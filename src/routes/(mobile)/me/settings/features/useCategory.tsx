@@ -56,7 +56,9 @@ export const useCategory = (): CategoryGroup[] => {
 
   return useMemo(() => {
     const navigateTo = (key: SettingsTabs) =>
-      navigate(key === SettingsTabs.Provider ? '/settings/provider/all' : `/settings/${key}`);
+      navigate(key === SettingsTabs.Provider ? '/settings/provider/all' : `/settings/${key}`, {
+        escape: true,
+      });
 
     const makeItem = (item: Omit<CategoryItem, 'onClick'>): CategoryItem => ({
       ...item,

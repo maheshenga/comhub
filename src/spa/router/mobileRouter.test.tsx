@@ -47,3 +47,48 @@ describe('mobileRouter community routes', () => {
     expect(source).toContain("path: 'group_agent/:slug'");
   });
 });
+
+describe('mobileRouter settings routes', () => {
+  it('loads mobile settings content for dynamic tabs', async () => {
+    const source = await readFile(
+      path.join(process.cwd(), 'src/spa/router/mobileRouter.config.tsx'),
+      'utf8',
+    );
+
+    expect(source).toContain("import('@/routes/(mobile)/settings/[tab]')");
+    expect(source).not.toContain("import('@/routes/(main)/settings')");
+    expect(source).toContain("path: ':tab'");
+  });
+
+  it('keeps the mobile header and scroll container in the route layout only', async () => {
+    const [layoutSource, indexSource] = await Promise.all([
+      readFile(
+        path.join(process.cwd(), 'src/routes/(mobile)/settings/_layout/index.tsx'),
+        'utf8',
+      ),
+      readFile(path.join(process.cwd(), 'src/routes/(mobile)/settings/index.tsx'), 'utf8'),
+    ]);
+
+    expect(layoutSource).toContain('MobileContentLayout');
+    expect(indexSource).not.toContain('MobileContentLayout');
+    expect(indexSource).not.toContain("import Header from './_layout/Header'");
+  });
+
+  it('keeps nested personal settings navigation outside the active workspace', async () => {
+    const [providerLayoutSource, meSettingsHeaderSource] = await Promise.all([
+      readFile(
+        path.join(process.cwd(), 'src/routes/(mobile)/settings/provider/_layout/index.tsx'),
+        'utf8',
+      ),
+      readFile(
+        path.join(process.cwd(), 'src/routes/(mobile)/me/settings/features/Header.tsx'),
+        'utf8',
+      ),
+    ]);
+
+    expect(providerLayoutSource).toContain(
+      "navigate(`/settings/provider/${providerKey}`, { escape: true })",
+    );
+    expect(meSettingsHeaderSource).toContain("navigate('/me', { escape: true })");
+  });
+});

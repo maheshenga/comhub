@@ -22,8 +22,8 @@ vi.hoisted(() => {
 
 const navigate = vi.fn();
 
-vi.mock('react-router', () => ({
-  useNavigate: () => navigate,
+vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
+  useWorkspaceAwareNavigate: () => navigate,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -74,7 +74,21 @@ describe('mobile settings useCategory', () => {
 
     provider?.onClick?.();
 
-    expect(navigate).toHaveBeenCalledWith('/settings/provider/all');
+    expect(navigate).toHaveBeenCalledWith('/settings/provider/all', { escape: true });
+  });
+
+  it('keeps personal settings routes outside the active workspace', () => {
+    const { result } = renderHook(() => useCategory(), {
+      wrapper: createWrapper(true),
+    });
+
+    const profile = result.current
+      .flatMap((group) => group.items)
+      .find((item) => item.key === SettingsTabs.Profile);
+
+    profile?.onClick?.();
+
+    expect(navigate).toHaveBeenCalledWith('/settings/profile', { escape: true });
   });
 
   it('hides Provider when provider settings are disabled', () => {
