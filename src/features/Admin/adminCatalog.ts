@@ -3,11 +3,7 @@ import { ADMIN_CAPABILITIES, type AdminCapability } from '@lobechat/types';
 export const ADMIN_BASE_PATH = '/settings/admin';
 
 export type AdminFeatureStatus =
-  | 'active'
-  | 'compatibility'
-  | 'deprecated'
-  | 'experimental'
-  | 'planned';
+  'active' | 'compatibility' | 'deprecated' | 'experimental' | 'planned';
 
 export type AdminNavGroupKey =
   | 'overview'
@@ -30,6 +26,7 @@ export type AdminNavIcon =
   | 'files'
   | 'growth'
   | 'maintenance'
+  | 'mobile'
   | 'models'
   | 'notifications'
   | 'orders'
@@ -124,8 +121,7 @@ export const ADMIN_CATALOG_GROUPS: readonly AdminCatalogGroup[] = [
   },
 ];
 
-const pathFor = (segment: string) =>
-  segment ? `${ADMIN_BASE_PATH}/${segment}` : ADMIN_BASE_PATH;
+const pathFor = (segment: string) => (segment ? `${ADMIN_BASE_PATH}/${segment}` : ADMIN_BASE_PATH);
 
 export const ADMIN_CATALOG = [
   {
@@ -429,6 +425,21 @@ export const ADMIN_CATALOG = [
     readCapability: ADMIN_CAPABILITIES.systemRead,
     segment: 'desktop-update',
     status: 'experimental',
+    writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
+  },
+  {
+    backendDomains: ['settings'],
+    debugId: 'Desktop > Admin > mobile',
+    description: 'Configure the mobile client brand, navigation, discovery, and app entries',
+    group: 'client-integrations',
+    icon: 'mobile',
+    id: 'mobile',
+    label: 'Mobile client',
+    owner: 'client',
+    path: pathFor('mobile'),
+    readCapability: ADMIN_CAPABILITIES.systemRead,
+    segment: 'mobile',
+    status: 'active',
     writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
   },
   {

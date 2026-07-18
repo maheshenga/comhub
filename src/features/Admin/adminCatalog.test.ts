@@ -74,6 +74,16 @@ describe('adminCatalog', () => {
       group: 'client-integrations',
       segment: 'integrations',
     });
+    expect(byId.mobile).toMatchObject({
+      backendDomains: ['settings'],
+      group: 'client-integrations',
+      owner: 'client',
+      path: '/settings/admin/mobile',
+      readCapability: ADMIN_CAPABILITIES.systemRead,
+      segment: 'mobile',
+      status: 'active',
+      writeCapabilities: [ADMIN_CAPABILITIES.systemWrite],
+    });
   });
 
   it('assigns read capabilities to high-risk domains', () => {

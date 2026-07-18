@@ -106,6 +106,7 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/maintenance`,
         `${ADMIN_BASE_PATH}/audit`,
         `${ADMIN_BASE_PATH}/desktop-update`,
+        `${ADMIN_BASE_PATH}/mobile`,
       ]),
     );
   });
@@ -201,6 +202,20 @@ describe('adminNavigation', () => {
     );
     expect(systemItems.map((item) => item.path)).not.toContain(`${ADMIN_BASE_PATH}/desktop-update`);
     expect(getAdminOpenKeys('/settings/admin/desktop-update')).toEqual(['client-integrations']);
+  });
+
+  it('adds mobile client settings to the client module', () => {
+    const clientItems =
+      ADMIN_NAV_GROUPS.find((group) => group.key === 'client-integrations')?.items ?? [];
+
+    expect(clientItems).toContainEqual(
+      expect.objectContaining({
+        icon: 'mobile',
+        path: `${ADMIN_BASE_PATH}/mobile`,
+      }),
+    );
+    expect(getAdminSelectedKey('/settings/admin/mobile')).toBe(`${ADMIN_BASE_PATH}/mobile`);
+    expect(getAdminOpenKeys('/settings/admin/mobile')).toEqual(['client-integrations']);
   });
 
   it('maps legacy billing routes to their merged sidebar entries', () => {
