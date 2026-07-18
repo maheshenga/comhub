@@ -7,10 +7,12 @@ import {
 
 import { getAdminSettingsWriteSWRKeys } from '@/const/adminCacheKeys';
 import {
+  APP_SETTING_KEYS,
   type AppSettingKey,
   type AppSettingsSection,
   getAppSettingsSectionForKey,
 } from '@/const/appSettingsRegistry';
+import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { mutate } from '@/libs/swr';
 import { lambdaClient } from '@/libs/trpc/client';
 import type { SubscriptionCycleType } from '@/types/business';
@@ -151,6 +153,8 @@ class AdminCommercialService {
     return response as AdminSettingsSectionData<Section>;
   };
 
+  getMobileSettings = async () => (await this.getSettingsSection('mobile')).mobileConfig;
+
   getAppSettingsGovernance = async () => {
     return lambdaClient.admin.settings.getGovernance.query();
   };
@@ -171,6 +175,14 @@ class AdminCommercialService {
       params.updates.map((update) => getAppSettingsSectionForKey(update.key as AppSettingKey)),
     );
     return result;
+  };
+
+  saveMobileSettings = async (config: unknown) => {
+    const normalized = normalizeMobileConfig(config);
+    await this.setAppSettingsBatch({
+      updates: [{ key: APP_SETTING_KEYS.mobileConfig, value: normalized }],
+    });
+    return normalized;
   };
 
   syncUserGlobalSettingsDefaultsToUsers = async (params?: { forceDefaultAgentMeta?: boolean }) => {

@@ -9,6 +9,7 @@ import {
   buildDesktopSettings,
   buildExpertPlazaSettings,
   buildGrowthSettings,
+  buildMobileSettings,
   buildNotificationSettings,
   buildOperationsSettings,
   buildRecommendationSettings,
@@ -45,6 +46,9 @@ const normalizeProfileInterestAreas = (value: unknown) => {
 };
 
 export const publicSettingsProcedures = {
+  getPublicMobileConfig: publicDbProcedure.query(async ({ ctx }) =>
+    buildMobileSettings(await loadAppSettingsSectionSnapshot(ctx.serverDB, 'mobile')),
+  ),
   getPublicBrand: publicDbProcedure.query(async ({ ctx }) => {
     const snapshot = await loadAppSettingsSnapshot(ctx.serverDB, [
       SETTING_KEYS.brandName,

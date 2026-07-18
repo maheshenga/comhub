@@ -11,6 +11,7 @@ import {
   normalizeExpertPlazaConfig,
 } from '@/const/expertPlaza';
 import { normalizeHelpMenuItems } from '@/const/helpMenu';
+import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 import {
   APP_SETTING_KEYS,
@@ -407,6 +408,9 @@ export const buildModelPolicySettings = (snapshot: AppSettingsSnapshot) => {
   };
 };
 
+export const buildMobileSettings = (snapshot: AppSettingsSnapshot) =>
+  normalizeMobileConfig(snapshot.get(APP_SETTING_KEYS.mobileConfig));
+
 export const buildMaintenanceSettings = async (snapshot: AppSettingsSnapshot) => {
   const decryptedCronSecret = await decryptAppSettingSecret(
     APP_SETTING_KEYS.cronSecret,
@@ -701,7 +705,7 @@ export const buildAdminSettingsSectionReadModel = async (
       return { ...(await buildMaintenanceSettings(snapshot)), section, sharedHealth };
     }
     case 'mobile': {
-      return { section, sharedHealth };
+      return { mobileConfig: buildMobileSettings(snapshot), section, sharedHealth };
     }
     case 'model-billing-matrix': {
       return { ...buildModelBillingSettings(snapshot, context), section, sharedHealth };

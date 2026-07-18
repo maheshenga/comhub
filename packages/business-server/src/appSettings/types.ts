@@ -39,6 +39,7 @@ export type AppSettingNormalizer =
   | 'growth-string'
   | 'help-menu'
   | 'memory-trigger-mode'
+  | 'mobile-config'
   | 'model-policy-boolean'
   | 'model-policy-mode-enum'
   | 'model-policy-string'

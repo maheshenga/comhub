@@ -7,6 +7,7 @@ import { normalizeAvatarPresets } from '@/const/avatarPresets';
 import { normalizePlanFaqSettings } from '@/const/billingPresentation';
 import { normalizeExpertPlazaCards } from '@/const/expertPlaza';
 import { normalizeHelpMenuItems } from '@/const/helpMenu';
+import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 
 import type { AppSettingNormalizer, AppSettingValueDefinition } from '../types';
@@ -245,9 +246,7 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
 
   if (OPERATION_BOOLEAN_KEYS.has(key)) return booleanValue('operations-boolean');
   if (OPERATION_PAGE_SIZE_KEYS.has(key)) {
-    return numberValue('operations-page-size-integer', (value) =>
-      toBoundedInt(value, 12, 1, 24),
-    );
+    return numberValue('operations-page-size-integer', (value) => toBoundedInt(value, 12, 1, 24));
   }
   if (key.startsWith('community.')) return stringValue('operations-string');
 
@@ -269,6 +268,13 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
   }
   if (key === APP_SETTING_KEYS.memoryUserMemoryTriggerMode) {
     return defineValue('memory-trigger-mode', stringSchema, normalizeMemoryTriggerMode);
+  }
+  if (key === APP_SETTING_KEYS.mobileConfig) {
+    return defineValue(
+      'mobile-config',
+      jsonSchema,
+      (value) => normalizeMobileConfig(value) as unknown as JsonValue,
+    );
   }
   if (key.startsWith('memory.') || key.startsWith('vector.') || key.startsWith('default')) {
     return stringValue('runtime-model-string');
@@ -407,8 +413,10 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
     return defineValue('ppt-base-url', z.string().trim().min(1).max(512), toString);
   }
   if (key === APP_SETTING_KEYS.docmeePptCreatorVersion) {
-    return defineValue('ppt-creator-version-enum', z.enum(['v1', 'v2']), (value) =>
-      value as 'v1' | 'v2',
+    return defineValue(
+      'ppt-creator-version-enum',
+      z.enum(['v1', 'v2']),
+      (value) => value as 'v1' | 'v2',
     );
   }
   if (key === APP_SETTING_KEYS.docmeePptDailyLimit) {

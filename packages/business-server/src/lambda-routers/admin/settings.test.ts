@@ -6,6 +6,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
+import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
@@ -665,6 +666,34 @@ describe('admin settings default model validation', () => {
 
     vi.mocked(getServerDB).mockResolvedValue(createDb({ appSettings: [{ value: [] }] }));
     await expect(caller.getPublicHelpMenu()).resolves.toEqual([]);
+  });
+
+  it('returns the normalized mobile configuration without requiring authentication', async () => {
+    const rawConfig = {
+      brand: { displayName: '  ComHub Mobile  ' },
+      navigation: {
+        items: [
+          {
+            icon: 'bell',
+            id: 'slot-1',
+            label: 'Inbox',
+            order: 1,
+            path: 'javascript:alert(1)',
+            visible: true,
+          },
+        ],
+      },
+      version: 1,
+    };
+    const db = createDb({
+      appSettingsMany: [{ key: APP_SETTING_KEYS.mobileConfig, value: rawConfig }],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({} as any);
+
+    await expect(caller.getPublicMobileConfig()).resolves.toEqual(normalizeMobileConfig(rawConfig));
+    expect(db.__mocks.findAppSettingsMany).toHaveBeenCalledTimes(1);
   });
 
   it('returns app settings governance without exposing persisted values', async () => {
@@ -1441,6 +1470,44 @@ describe('admin settings default model validation', () => {
       resourceType: 'app_setting',
     });
     expect(JSON.stringify(auditEntry.payload)).not.toContain('admin-secret-key');
+  });
+
+  it('normalizes mobile configuration before server-side persistence', async () => {
+    const tx = createDb();
+    const db = {
+      ...createDb(),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(tx),
+      ),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const rawConfig = {
+      navigation: {
+        items: [
+          {
+            icon: 'bell',
+            id: 'slot-1',
+            label: ' Inbox ',
+            order: 1,
+            path: 'javascript:alert(1)',
+            visible: true,
+          },
+        ],
+      },
+      version: 1,
+    };
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await caller.setAppSettingsBatch({
+      updates: [{ key: APP_SETTING_KEYS.mobileConfig, value: rawConfig }],
+    });
+
+    expect(tx.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.mobileConfig,
+      value: normalizeMobileConfig(rawConfig),
+    });
   });
 
   it('saves memory analysis model settings in a batch', async () => {

@@ -2,6 +2,8 @@ import { ADMIN_COMMANDS } from '@lobechat/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ADMIN_SETTINGS_SECTION_SWR_KEY, ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
+import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
+import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
 import { mutate } from '@/libs/swr';
 import { lambdaClient } from '@/libs/trpc/client';
 
@@ -96,7 +98,9 @@ describe('adminCommercialService NewAPI helpers', () => {
       modelType: 'chat',
     });
 
-    expect(lambdaClient.admin.plans.getDeleteImpact.query).toHaveBeenCalledWith({ plan: 'premium' });
+    expect(lambdaClient.admin.plans.getDeleteImpact.query).toHaveBeenCalledWith({
+      plan: 'premium',
+    });
     expect(lambdaClient.admin.newapiProviders.getDeleteInstanceImpact.query).toHaveBeenCalledWith({
       id: 'instance-1',
     });
@@ -368,6 +372,59 @@ describe('adminCommercialService NewAPI helpers', () => {
       section: 'file-storage',
     });
     expect(lambdaClient.admin.settings.getAll.query).not.toHaveBeenCalled();
+  });
+
+  it('returns the bare normalized mobile configuration from the mobile section', async () => {
+    vi.mocked(lambdaClient.admin.settings.getSection.query).mockResolvedValue({
+      mobileConfig: DEFAULT_MOBILE_CONFIG,
+      section: 'mobile',
+      sharedHealth: {},
+    } as any);
+
+    await expect(adminCommercialService.getMobileSettings()).resolves.toEqual(
+      DEFAULT_MOBILE_CONFIG,
+    );
+    expect(lambdaClient.admin.settings.getSection.query).toHaveBeenCalledWith({
+      section: 'mobile',
+    });
+  });
+
+  it('normalizes and persists the mobile configuration in one batch update', async () => {
+    const rawConfig = {
+      discover: {
+        assistants: Array.from({ length: 5 }, (_, index) => ({
+          assistantId: `assistant-${index}`,
+          model: 'chat-model',
+          order: index + 1,
+          provider: 'catalog',
+        })),
+      },
+      navigation: {
+        items: [
+          {
+            icon: 'bell',
+            id: 'slot-1',
+            label: 'Inbox',
+            order: 1,
+            path: 'javascript:alert(1)',
+            visible: true,
+          },
+        ],
+      },
+      version: 1,
+    };
+    const normalized = normalizeMobileConfig(rawConfig);
+    vi.mocked(lambdaClient.admin.settings.setAppSettingsBatch.mutate).mockResolvedValue({
+      count: 1,
+      ok: true,
+    });
+
+    await expect(adminCommercialService.saveMobileSettings(rawConfig)).resolves.toEqual(normalized);
+
+    expect(lambdaClient.admin.settings.setAppSettingsBatch.mutate).toHaveBeenCalledTimes(1);
+    expect(lambdaClient.admin.settings.setAppSettingsBatch.mutate).toHaveBeenCalledWith({
+      updates: [{ key: APP_SETTING_KEYS.mobileConfig, value: normalized }],
+    });
   });
 
   it('invalidates only affected section caches and the compatibility aggregate after writes', async () => {
