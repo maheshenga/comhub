@@ -5,6 +5,7 @@ import { type FC, type ReactNode } from 'react';
 
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 
+import BusinessMobileTabs from './mobile/BusinessMobileTabs';
 import { subscriptionPageStyles } from './shared';
 
 const styles = createStaticStyles(({ css }) => ({
@@ -30,7 +31,7 @@ const BusinessSettingsPageShell: FC<BusinessSettingsPageShellProps> = ({
   title,
 }) => (
   <>
-    {mobile ? null : <SettingHeader title={title} />}
+    {mobile ? <BusinessMobileTabs /> : <SettingHeader title={title} />}
     <div className={cx(className, mobile && styles.mobile)}>{children}</div>
   </>
 );

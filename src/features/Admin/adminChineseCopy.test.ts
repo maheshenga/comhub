@@ -9,6 +9,10 @@ import { ADMIN_NAV_GROUPS } from './adminNavigation';
 
 const repoRoot = path.resolve(__dirname, '../../..');
 const readRepoFile = (filePath: string) => readFileSync(path.resolve(repoRoot, filePath), 'utf8');
+const zhCNSubscription = JSON.parse(readRepoFile('locales/zh-CN/subscription.json')) as Record<
+  string,
+  string
+>;
 
 const filesWithAdminCopy = [
   'src/features/Admin/adminCatalog.ts',
@@ -74,6 +78,8 @@ describe('admin Chinese copy', () => {
   });
 
   it('keeps subscription customer-facing business pages in Chinese', () => {
+    expect(subscription['mobile.tabs.ariaLabel']).toBe('商业设置');
+    expect(zhCNSubscription['mobile.tabs.ariaLabel']).toBe('商业设置');
     expect(subscription['tab.plans']).toBe('套餐');
     expect(subscription['tab.usage']).toBe('用量');
     expect(subscription['tab.credits']).toBe('积分');

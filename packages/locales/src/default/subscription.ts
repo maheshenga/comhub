@@ -417,6 +417,7 @@
   'switchToMonthly.title': '切换为月付',
   'switchToYearly.desc': '切换后，支付差价即可立即生效。开始日期沿用原套餐。',
   'switchToYearly.title': '切换为年付',
+  'mobile.tabs.ariaLabel': '商业设置',
   'tab.billing': '账单',
   'tab.credits': '积分',
   'tab.plans': '套餐',
