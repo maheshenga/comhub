@@ -900,6 +900,8 @@
   'billing.changeStatus.completed': '已完成',
   'billing.changeStatus.pending': '待处理',
   'billing.changeStatus.rejected': '已拒绝',
+  'billing.changeHistory.details': '套餐变更详情',
+  'billing.changeHistory.empty': '暂无套餐变更记录',
   'billing.changeReason.cycle_change': '切换周期',
   'billing.changeReason.downgrade': '降级',
   'billing.changeReason.upgrade': '升级',

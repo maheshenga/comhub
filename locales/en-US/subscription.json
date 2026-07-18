@@ -702,6 +702,8 @@
   "mobile.records.field.totalTokens": "Total tokens",
   "mobile.records.viewDetails": "View details",
   "mobile.tabs.ariaLabel": "Commercial settings",
+  "billing.changeHistory.details": "Plan change details",
+  "billing.changeHistory.empty": "No plan change history",
   "billing.changeReason.cycle_change": "Change billing cycle",
   "billing.changeReason.downgrade": "Downgrade",
   "billing.changeReason.upgrade": "Upgrade",

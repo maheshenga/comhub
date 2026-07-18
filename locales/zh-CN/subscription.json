@@ -702,6 +702,8 @@
   "mobile.records.field.totalTokens": "总 Token 数",
   "mobile.records.viewDetails": "查看详情",
   "mobile.tabs.ariaLabel": "商业设置",
+  "billing.changeHistory.details": "套餐变更详情",
+  "billing.changeHistory.empty": "暂无套餐变更记录",
   "billing.changeReason.cycle_change": "切换周期",
   "billing.changeReason.downgrade": "降级",
   "billing.changeReason.upgrade": "升级",

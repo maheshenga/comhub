@@ -37,4 +37,13 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('mobileAction={mobileAction}');
     expect(source).toContain('defaultOpen={false}');
   });
+
+  it('uses a collapsed mobile change history and upgrade action on Billing', async () => {
+    const source = await readBusinessPage('Billing');
+
+    expect(source).toContain('buildBillingChangeRecord');
+    expect(source).toContain("href: '/settings/plans'");
+    expect(source).toContain('defaultOpen={false}');
+    expect(source).toContain('BusinessMobileRecordList');
+  });
 });
