@@ -57,6 +57,7 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('canActivateReward');
     expect(source).toContain('mobileAction={mobileAction}');
     expect(source).toContain('BusinessMobileRecordList');
+    expect(source).toContain("title={t('referral.rules.backfill.title')}");
   });
 
   it('passes mobile through to UsageTable and keeps the query inside UsageTable', async () => {

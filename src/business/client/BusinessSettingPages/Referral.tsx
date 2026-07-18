@@ -420,7 +420,7 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
       </BusinessSettingsSection>
       {mobile ? (
         <>
-          <BusinessSettingsSection mobile title="补填邀请码">
+          <BusinessSettingsSection mobile title={t('referral.rules.backfill.title')}>
             {backfillForm}
           </BusinessSettingsSection>
           <BusinessSettingsSection defaultOpen={false} mobile title="计划规则">
