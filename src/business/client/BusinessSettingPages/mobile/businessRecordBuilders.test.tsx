@@ -181,9 +181,10 @@ describe('businessRecordBuilders', () => {
     const record = buildUsageRecord(item, formatters);
 
     expect(record).toMatchObject({
+      meta: 'date:2026-07-18T08:00:00.000Z',
       status: 't:usage.type.chat',
       title: 'gpt-mobile-fixture',
-      value: '$number:0.012345:6',
+      value: 'currency:0.012345:undefined',
     });
     expect(record.fields.map((field) => field.label)).toEqual([
       't:mobile.records.field.id',
@@ -198,6 +199,18 @@ describe('businessRecordBuilders', () => {
       't:usage.table.spend',
       't:usage.table.createdAt',
     ]);
-    expect(record.fields.map((field) => field.value)).toContain('number:0.64:2');
+    expect(record.fields.map((field) => field.value)).toEqual([
+      'usage-1',
+      'openai',
+      'gpt-mobile-fixture',
+      't:usage.type.chat',
+      'number:1200:default',
+      'number:300:default',
+      'number:1500:default',
+      'number:22.5:2',
+      'number:0.64:2',
+      'currency:0.012345:undefined',
+      'date:2026-07-18T08:00:00.000Z',
+    ]);
   });
 });

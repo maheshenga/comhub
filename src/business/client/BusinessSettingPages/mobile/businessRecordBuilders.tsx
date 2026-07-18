@@ -201,9 +201,12 @@ export const buildReferralHistoryRecord = (
 
 export const buildUsageRecord = (
   item: UsageRecordItem,
-  formatters: Pick<BusinessRecordFormatters, 'formatDate' | 'formatNumber' | 't'>,
+  formatters: Pick<
+    BusinessRecordFormatters,
+    'formatCurrency' | 'formatDate' | 'formatNumber' | 't'
+  >,
 ): BusinessMobileRecord => {
-  const spend = `$${formatters.formatNumber(item.spend, 6)}`;
+  const spend = formatters.formatCurrency(item.spend);
   const type = formatters.t(usageTypeKey(item.type));
 
   return {
@@ -239,7 +242,7 @@ export const buildUsageRecord = (
       },
     ],
     id: item.id,
-    meta: `${item.provider} · ${formatters.formatDate(item.createdAt)}`,
+    meta: formatters.formatDate(item.createdAt),
     status: type,
     title: item.model,
     value: spend,
