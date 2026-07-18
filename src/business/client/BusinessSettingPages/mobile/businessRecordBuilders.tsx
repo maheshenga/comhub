@@ -1,0 +1,247 @@
+import { type ReactNode } from 'react';
+
+import {
+  type CreditLedgerEntryItem,
+  type ReferralHistoryItem,
+  type SubscriptionChangeRequestItem,
+  type TopUpOrderHistoryItem,
+} from '@/types/business';
+import { type UsageRecordItem } from '@/types/usage/usageRecord';
+
+import { type BusinessMobileRecord } from './BusinessMobileRecordList';
+
+export interface BusinessRecordFormatters {
+  creditLedgerAllocation: (item: CreditLedgerEntryItem) => string | undefined;
+  creditLedgerDescription: (item: CreditLedgerEntryItem) => string;
+  formatCredits: (value: number) => string;
+  formatCurrency: (value: number, currency?: string | null) => string;
+  formatDate: (value?: Date | null) => string;
+  formatNumber: (value?: number | null, digits?: number) => string;
+  formatSignedCredits: (value: number) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}
+
+const fallback = (value?: ReactNode | null): ReactNode =>
+  value === undefined || value === null || value === '' ? '--' : value;
+
+const creditTypeKey = (type: CreditLedgerEntryItem['type']) => {
+  const keys: Record<CreditLedgerEntryItem['type'], string> = {
+    adjustment: 'credits.ledger.type.adjustment',
+    bonus: 'credits.ledger.type.bonus',
+    consume: 'credits.ledger.type.consume',
+    expire: 'credits.ledger.type.expire',
+    referral_reward: 'credits.ledger.type.referralReward',
+    refund: 'credits.ledger.type.refund',
+    subscription_grant: 'credits.ledger.type.subscriptionGrant',
+    topup: 'credits.ledger.type.topUp',
+  };
+
+  return keys[type] || 'credits.ledger.type.other';
+};
+
+const usageTypeKey = (type: string) =>
+  `usage.type.${type === 'structured_output' ? 'structuredOutput' : type}`;
+
+export const buildBillingChangeRecord = (
+  item: SubscriptionChangeRequestItem,
+  formatters: Pick<BusinessRecordFormatters, 'formatDate' | 't'>,
+): BusinessMobileRecord => {
+  const fromPlan = formatters.t(`plans.plan.${item.fromPlan}.title`);
+  const toPlan = formatters.t(`plans.plan.${item.toPlan}.title`);
+  const cycle = formatters.t(`recurring.${item.cycle}`);
+  const reason = formatters.t(`billing.changeReason.${item.reason}`);
+  const status = formatters.t(`billing.changeStatus.${item.status}`);
+
+  return {
+    fields: [
+      { label: formatters.t('mobile.records.field.id'), value: item.id },
+      { label: formatters.t('billing.planChangeFrom'), value: fromPlan },
+      { label: formatters.t('billing.planChangeTo'), value: toPlan },
+      { label: formatters.t('billing.planChangeCycle'), value: cycle },
+      { label: formatters.t('admin.reason'), value: reason },
+      { label: formatters.t('billing.planChangeStatus'), value: status },
+      {
+        label: formatters.t('admin.orders.detail.createdAt'),
+        value: formatters.formatDate(item.createdAt),
+      },
+      {
+        label: formatters.t('admin.orders.detail.updatedAt'),
+        value: formatters.formatDate(item.updatedAt),
+      },
+    ],
+    id: item.id,
+    meta: formatters.formatDate(item.createdAt),
+    status,
+    title: `${fromPlan} → ${toPlan}`,
+    value: cycle,
+  };
+};
+
+export const buildTopUpOrderRecord = (
+  item: TopUpOrderHistoryItem,
+  formatters: Pick<
+    BusinessRecordFormatters,
+    'formatCredits' | 'formatCurrency' | 'formatDate' | 't'
+  >,
+): BusinessMobileRecord => {
+  const amount = formatters.formatCurrency(item.amount, item.currency);
+  const credits = formatters.formatCredits(item.credits);
+  const source = item.source ? formatters.t(`topup.source.${item.source}`) : '--';
+  const status = formatters.t(`topup.status.${item.status}`);
+
+  return {
+    fields: [
+      { label: formatters.t('admin.orders.detail.orderId'), value: item.id },
+      { label: formatters.t('admin.orders.detail.amount'), value: amount },
+      { label: formatters.t('admin.orders.detail.credits'), value: credits },
+      { label: formatters.t('topup.history.source'), value: source },
+      { label: formatters.t('admin.orders.col.provider'), value: fallback(item.provider) },
+      {
+        label: formatters.t('admin.orders.detail.externalOrderId'),
+        value: fallback(item.externalOrderId),
+      },
+      {
+        label: formatters.t('admin.orders.detail.createdAt'),
+        value: formatters.formatDate(item.createdAt),
+      },
+      {
+        label: formatters.t('admin.orders.detail.paidAt'),
+        value: formatters.formatDate(item.paidAt),
+      },
+    ],
+    id: item.id,
+    meta: formatters.formatDate(item.createdAt),
+    status,
+    title: credits,
+    value: amount,
+  };
+};
+
+export const buildCreditLedgerRecord = (
+  item: CreditLedgerEntryItem,
+  formatters: Pick<
+    BusinessRecordFormatters,
+    | 'creditLedgerAllocation'
+    | 'creditLedgerDescription'
+    | 'formatCredits'
+    | 'formatDate'
+    | 'formatSignedCredits'
+    | 't'
+  >,
+): BusinessMobileRecord => {
+  const allocation = formatters.creditLedgerAllocation(item);
+  const amount = formatters.formatSignedCredits(item.amount);
+  const description = formatters.creditLedgerDescription(item);
+  const status = formatters.t(creditTypeKey(item.type));
+
+  return {
+    fields: [
+      { label: formatters.t('mobile.records.field.id'), value: item.id },
+      { label: formatters.t('credits.ledger.columns.amount'), value: amount },
+      {
+        label: formatters.t('credits.ledger.columns.balanceAfter'),
+        value: formatters.formatCredits(item.balanceAfter),
+      },
+      { label: formatters.t('credits.ledger.columns.type'), value: status },
+      { label: formatters.t('credits.ledger.columns.description'), value: description },
+      {
+        label: formatters.t('credits.ledger.allocation', { sources: '' }),
+        value: fallback(allocation),
+      },
+      {
+        label: formatters.t('mobile.records.field.referenceId'),
+        value: fallback(item.referenceId),
+      },
+      {
+        label: formatters.t('credits.ledger.columns.createdAt'),
+        value: formatters.formatDate(item.createdAt),
+      },
+    ],
+    id: item.id,
+    meta: formatters.formatDate(item.createdAt),
+    status,
+    title: item.title || item.referenceType || '--',
+    value: amount,
+  };
+};
+
+export const buildReferralHistoryRecord = (
+  item: ReferralHistoryItem,
+  formatters: Pick<BusinessRecordFormatters, 'formatCredits' | 'formatDate' | 't'>,
+): BusinessMobileRecord => {
+  const reward = formatters.formatCredits(item.inviterRewardAmount);
+  const status = formatters.t(`referral.table.status.${item.status}`);
+  const maskedId = item.id.length > 8 ? `${item.id.slice(0, 4)}...${item.id.slice(-4)}` : item.id;
+
+  return {
+    fields: [
+      { label: formatters.t('mobile.records.field.id'), value: item.id },
+      {
+        label: formatters.t('referral.table.columns.inviteeEmail'),
+        value: fallback(item.inviteeEmail),
+      },
+      { label: formatters.t('referral.table.columns.status'), value: status },
+      { label: formatters.t('referral.table.columns.inviterRewardAmount'), value: reward },
+      {
+        label: formatters.t('referral.table.columns.createdAt'),
+        value: formatters.formatDate(item.createdAt),
+      },
+      {
+        label: formatters.t('referral.table.columns.rewardedAt'),
+        value: formatters.formatDate(item.rewardedAt),
+      },
+    ],
+    id: item.id,
+    meta: formatters.formatDate(item.createdAt),
+    status,
+    title: item.inviteeEmail || maskedId,
+    value: reward,
+  };
+};
+
+export const buildUsageRecord = (
+  item: UsageRecordItem,
+  formatters: Pick<BusinessRecordFormatters, 'formatDate' | 'formatNumber' | 't'>,
+): BusinessMobileRecord => {
+  const spend = `$${formatters.formatNumber(item.spend, 6)}`;
+  const type = formatters.t(usageTypeKey(item.type));
+
+  return {
+    fields: [
+      { label: formatters.t('mobile.records.field.id'), value: item.id },
+      { label: formatters.t('mobile.records.field.provider'), value: item.provider },
+      { label: formatters.t('usage.table.model'), value: item.model },
+      { label: formatters.t('usage.table.type'), value: type },
+      {
+        label: formatters.t('usage.table.inputTokens'),
+        value: formatters.formatNumber(item.totalInputTokens),
+      },
+      {
+        label: formatters.t('usage.table.outputTokens'),
+        value: formatters.formatNumber(item.totalOutputTokens),
+      },
+      {
+        label: formatters.t('mobile.records.field.totalTokens'),
+        value: formatters.formatNumber(item.totalTokens),
+      },
+      { label: formatters.t('usage.table.tps'), value: formatters.formatNumber(item.tps, 2) },
+      {
+        label: formatters.t('usage.table.ttft'),
+        value:
+          item.ttft === undefined || item.ttft === null
+            ? '--'
+            : formatters.formatNumber(item.ttft / 1000, 2),
+      },
+      { label: formatters.t('usage.table.spend'), value: spend },
+      {
+        label: formatters.t('usage.table.createdAt'),
+        value: formatters.formatDate(item.createdAt),
+      },
+    ],
+    id: item.id,
+    meta: `${item.provider} · ${formatters.formatDate(item.createdAt)}`,
+    status: type,
+    title: item.model,
+    value: spend,
+  };
+};
