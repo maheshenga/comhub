@@ -77,6 +77,8 @@ export interface BusinessSettingsSectionProps {
   defaultOpen?: boolean;
   desktopExtra?: ReactNode;
   mobile?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
   summary?: ReactNode;
   title: ReactNode;
 }
@@ -84,11 +86,14 @@ export interface BusinessSettingsSectionProps {
 export const BusinessMobileSection = ({
   children,
   defaultOpen = true,
+  onOpenChange,
+  open: controlledOpen,
   summary,
   title,
 }: Omit<BusinessSettingsSectionProps, 'desktopExtra' | 'mobile'>) => {
   const { t } = useTranslation('subscription');
-  const [open, setOpen] = useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+  const open = controlledOpen ?? uncontrolledOpen;
   const id = useId();
   const actionLabelId = `${id}-action-label`;
   const triggerId = `${id}-trigger`;
@@ -97,6 +102,11 @@ export const BusinessMobileSection = ({
   const actionLabel = t(open ? 'mobile.section.collapse' : 'mobile.section.expand', {
     title: '',
   }).trim();
+  const toggleOpen = () => {
+    const nextOpen = !open;
+    if (controlledOpen === undefined) setUncontrolledOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
 
   return (
     <section className={styles.section}>
@@ -107,7 +117,7 @@ export const BusinessMobileSection = ({
         className={styles.trigger}
         id={triggerId}
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggleOpen}
       >
         <span className={styles.label}>
           <span className={styles.visuallyHidden} id={actionLabelId}>
@@ -134,12 +144,20 @@ export const BusinessSettingsSection = ({
   defaultOpen = true,
   desktopExtra,
   mobile,
+  onOpenChange,
+  open,
   summary,
   title,
 }: BusinessSettingsSectionProps) => {
   if (mobile) {
     return (
-      <BusinessMobileSection defaultOpen={defaultOpen} summary={summary} title={title}>
+      <BusinessMobileSection
+        defaultOpen={defaultOpen}
+        open={open}
+        summary={summary}
+        title={title}
+        onOpenChange={onOpenChange}
+      >
         {children}
       </BusinessMobileSection>
     );

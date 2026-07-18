@@ -78,6 +78,34 @@ describe('BusinessMobileSection', () => {
     expect(screen.getByText('starter')).toBeVisible();
   });
 
+  it('supports controlled opening for anchored mobile actions', () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <BusinessMobileSection
+        defaultOpen={false}
+        open={false}
+        title="兑换码"
+        onOpenChange={onOpenChange}
+      >
+        <div>redeem form</div>
+      </BusinessMobileSection>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '展开 兑换码' }));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+    expect(screen.queryByText('redeem form')).not.toBeInTheDocument();
+
+    rerender(
+      <BusinessMobileSection open title="兑换码" onOpenChange={onOpenChange}>
+        <div>redeem form</div>
+      </BusinessMobileSection>,
+    );
+
+    expect(screen.getByText('redeem form')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '收起 兑换码' }));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  });
+
   it('keeps desktop sections on the existing FormGroup adapter', () => {
     render(
       <BusinessSettingsSection

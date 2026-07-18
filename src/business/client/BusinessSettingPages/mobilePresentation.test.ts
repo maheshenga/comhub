@@ -36,6 +36,9 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('mobile ? (');
     expect(source).toContain('mobileAction={mobileAction}');
     expect(source).toContain('defaultOpen={false}');
+    expect(source).toContain('setRedemptionOpen(true)');
+    expect(source).toContain('setOrdersOpen(true)');
+    expect(source).toContain('setLedgerOpen(true)');
   });
 
   it('uses a collapsed mobile change history and upgrade action on Billing', async () => {

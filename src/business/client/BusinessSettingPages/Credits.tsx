@@ -157,6 +157,9 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
   );
   const [selectedPackageId, setSelectedPackageId] = useState<string>();
   const [customCredits, setCustomCredits] = useState(50);
+  const [redemptionOpen, setRedemptionOpen] = useState(false);
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
 
   const selectedPackage =
     selectedPackageId === 'custom'
@@ -312,7 +315,11 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
 
   const mobileAction = mobile
     ? canPurchaseTopUp
-      ? { href: '#credit-redemption', label: t('billing.redeem.title') }
+      ? {
+          href: '#credit-redemption',
+          label: t('billing.redeem.title'),
+          onClick: () => setRedemptionOpen(true),
+        }
       : { href: '/settings/plans', label: t('upgradePlan') }
     : undefined;
 
@@ -343,6 +350,7 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
                 className={mobile ? styles.mobileTouchTarget : undefined}
                 href="#credit-ledger"
                 size={mobile ? 'middle' : 'small'}
+                onClick={mobile ? () => setLedgerOpen(true) : undefined}
               >
                 查看使用情况
               </Button>
@@ -350,6 +358,7 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
                 className={mobile ? styles.mobileTouchTarget : undefined}
                 href="#topup-orders"
                 size={mobile ? 'middle' : 'small'}
+                onClick={mobile ? () => setOrdersOpen(true) : undefined}
               >
                 充值记录
               </Button>
@@ -454,12 +463,24 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
         </Flexbox>
       </BusinessSettingsSection>
       <div id="credit-redemption">
-        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'兑换码'}>
+        <BusinessSettingsSection
+          defaultOpen={false}
+          mobile={mobile}
+          open={mobile ? redemptionOpen : undefined}
+          title={'兑换码'}
+          onOpenChange={mobile ? setRedemptionOpen : undefined}
+        >
           <RedemptionPanel onSuccess={refreshCreditData} />
         </BusinessSettingsSection>
       </div>
       <div id="topup-orders">
-        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'我的积分包'}>
+        <BusinessSettingsSection
+          defaultOpen={false}
+          mobile={mobile}
+          open={mobile ? ordersOpen : undefined}
+          title={'我的积分包'}
+          onOpenChange={mobile ? setOrdersOpen : undefined}
+        >
           {mobile ? (
             <BusinessMobileRecordList
               emptyDescription={t('credits.topUp.orders.empty')}
@@ -481,7 +502,13 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
         </BusinessSettingsSection>
       </div>
       <div id="credit-ledger">
-        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'积分使用详情'}>
+        <BusinessSettingsSection
+          defaultOpen={false}
+          mobile={mobile}
+          open={mobile ? ledgerOpen : undefined}
+          title={'积分使用详情'}
+          onOpenChange={mobile ? setLedgerOpen : undefined}
+        >
           {mobile ? (
             <BusinessMobileRecordList
               emptyDescription={t('credits.ledger.empty')}
