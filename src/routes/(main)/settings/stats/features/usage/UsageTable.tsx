@@ -5,6 +5,11 @@ import { cssVar } from 'antd-style';
 import { memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import BusinessMobileRecordList from '@/business/client/BusinessSettingPages/mobile/BusinessMobileRecordList';
+import {
+  buildUsageRecord,
+  type BusinessRecordFormatters,
+} from '@/business/client/BusinessSettingPages/mobile/businessRecordBuilders';
 import InlineTable from '@/components/InlineTable';
 import { parseAsInteger, useQueryParam } from '@/hooks/useQueryParam';
 import { useClientDataSWR } from '@/libs/swr';
@@ -14,10 +19,18 @@ import { formatDate, formatNumber } from '@/utils/format';
 
 import { type UsageChartProps } from '../../types';
 
-const UsageTable = memo<UsageChartProps>(({ dateStrings }) => {
+const formatUsageSpend = (value: number) =>
+  new Intl.NumberFormat('en-US', {
+    currency: 'USD',
+    maximumFractionDigits: 6,
+    minimumFractionDigits: 6,
+    style: 'currency',
+  }).format(value);
+
+const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
   const { t } = useTranslation('auth');
 
-  const { data, isLoading, mutate } = useClientDataSWR(statsKeys.usageLogs(), async () =>
+  const { data, error, isLoading, mutate } = useClientDataSWR(statsKeys.usageLogs(), async () =>
     usageService.findByMonth(dateStrings),
   );
 
@@ -105,9 +118,7 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings }) => {
     {
       dataIndex: 'spend',
       key: 'spend',
-      render: (value) => {
-        return `$${formatNumber(value, 6)}`;
-      },
+      render: (value) => `$${formatNumber(value, 6)}`,
       title: t('usage.table.spend'),
     },
     {
@@ -122,7 +133,27 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings }) => {
     },
   ];
 
-  return (
+  const usageFormatters: Pick<
+    BusinessRecordFormatters,
+    'formatCurrency' | 'formatDate' | 'formatNumber' | 't'
+  > = {
+    formatCurrency: formatUsageSpend,
+    formatDate: (value) => (value ? formatDate(new Date(value)) : '--'),
+    formatNumber,
+    t: (key, options) =>
+      t((key.startsWith('mobile.') ? `subscription:${key}` : key) as any, options as any),
+  };
+
+  return mobile ? (
+    <BusinessMobileRecordList
+      emptyDescription={t('subscription:mobile.usage.records.empty')}
+      error={error ? t('subscription:mobile.error.title') : undefined}
+      isLoading={isLoading}
+      onRetry={() => void mutate()}
+      records={(data ?? []).map((item) => buildUsageRecord(item, usageFormatters))}
+      sheetTitle={t('subscription:mobile.usage.records.details')}
+    />
+  ) : (
     <InlineTable
       columns={columns}
       dataSource={data}

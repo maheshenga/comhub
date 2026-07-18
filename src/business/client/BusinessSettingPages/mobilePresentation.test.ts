@@ -58,4 +58,17 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('mobileAction={mobileAction}');
     expect(source).toContain('BusinessMobileRecordList');
   });
+
+  it('passes mobile through to UsageTable and keeps the query inside UsageTable', async () => {
+    const usagePage = await readBusinessPage('Usage');
+    const usageTable = await readFile(
+      path.join(process.cwd(), 'src/routes/(main)/settings/stats/features/usage/UsageTable.tsx'),
+      'utf8',
+    );
+
+    expect(usagePage).toContain('<UsageTable dateStrings={month} mobile={mobile} />');
+    expect(usageTable).toContain('mobile ? (');
+    expect(usageTable).toContain('buildUsageRecord');
+    expect(usageTable.match(/usageService\.findByMonth/g)).toHaveLength(1);
+  });
 });

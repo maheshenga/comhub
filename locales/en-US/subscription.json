@@ -706,6 +706,8 @@
   "mobile.records.field.totalTokens": "Total tokens",
   "mobile.records.viewDetails": "View details",
   "mobile.tabs.ariaLabel": "Commercial settings",
+  "mobile.usage.records.details": "Usage record details",
+  "mobile.usage.records.empty": "No usage records for this month",
   "billing.changeHistory.details": "Plan change details",
   "billing.changeHistory.empty": "No plan change history",
   "billing.changeReason.cycle_change": "Change billing cycle",

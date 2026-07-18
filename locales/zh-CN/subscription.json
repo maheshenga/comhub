@@ -706,6 +706,8 @@
   "mobile.records.field.totalTokens": "总 Token 数",
   "mobile.records.viewDetails": "查看详情",
   "mobile.tabs.ariaLabel": "商业设置",
+  "mobile.usage.records.details": "用量记录详情",
+  "mobile.usage.records.empty": "当前月份暂无用量记录",
   "billing.changeHistory.details": "套餐变更详情",
   "billing.changeHistory.empty": "暂无套餐变更记录",
   "billing.changeReason.cycle_change": "切换周期",

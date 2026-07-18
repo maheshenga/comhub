@@ -434,6 +434,8 @@
   'mobile.records.field.totalTokens': '总 Token 数',
   'mobile.records.viewDetails': '查看详情',
   'mobile.tabs.ariaLabel': '商业设置',
+  'mobile.usage.records.details': '用量记录详情',
+  'mobile.usage.records.empty': '当前月份暂无用量记录',
   'tab.billing': '账单',
   'tab.credits': '积分',
   'tab.plans': '套餐',
