@@ -1,9 +1,9 @@
 'use client';
 
-import { Button, Empty, Skeleton } from '@lobehub/ui';
+import { ActionIcon, Button, Empty, Skeleton } from '@lobehub/ui';
 import { FloatingSheet } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, X } from 'lucide-react';
 import { type Key, type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -255,6 +255,13 @@ const BusinessMobileRecordList = ({
         snapPoints={[480, 720]}
         title={sheetTitle}
         variant="elevated"
+        headerActions={
+          <ActionIcon
+            aria-label={t('mobile.records.close')}
+            icon={X}
+            onClick={() => handleOpenChange(false)}
+          />
+        }
         onOpenChange={handleOpenChange}
       >
         <dl aria-label={t('mobile.records.details')} className={styles.details}>

@@ -37,7 +37,8 @@ const TitleWithPercentage = memo<TitleWithPercentageProps>(
       >
         <Text
           as={'h2'}
-          ellipsis={{ rows: 1, tooltip: title }}
+          ellipsis={{ rows: 1 }}
+          title={title}
           style={{
             fontSize: 'inherit',
             fontWeight: 'inherit',

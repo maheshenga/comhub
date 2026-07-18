@@ -9,6 +9,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'mobile.error.retry': '重试',
+        'mobile.records.close': '关闭详情',
         'mobile.records.details': '记录详情',
         'mobile.records.viewDetails': '查看详情',
       })[key] ?? key,
@@ -16,6 +17,15 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
+  ActionIcon: ({
+    'aria-label': ariaLabel,
+    onClick,
+    title,
+  }: {
+    'aria-label'?: string;
+    'onClick'?: () => void;
+    'title'?: string;
+  }) => <button aria-label={ariaLabel} title={title} type="button" onClick={onClick} />,
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button type="button" onClick={onClick}>
       {children}
@@ -30,21 +40,22 @@ vi.mock('@lobehub/ui', () => ({
 vi.mock('@lobehub/ui/base-ui', () => ({
   FloatingSheet: ({
     children,
+    headerActions,
     open,
     title,
     onOpenChange,
   }: {
     children: ReactNode;
+    headerActions?: ReactNode;
     open?: boolean;
     title?: ReactNode;
     onOpenChange?: (open: boolean) => void;
   }) =>
     open ? (
       <div aria-label={title as string} role="dialog">
+        {headerActions}
         {children}
-        <button type="button" onClick={() => onOpenChange?.(false)}>
-          Close
-        </button>
+        <button aria-label="Dismiss sheet" type="button" onClick={() => onOpenChange?.(false)} />
       </div>
     ) : null,
 }));
@@ -72,8 +83,14 @@ describe('BusinessMobileRecordList', () => {
     expect(screen.getByRole('dialog', { name: '套餐变更详情' })).toBeVisible();
     expect(screen.getByText('创建时间')).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    const closeButton = screen.getByRole('button', { name: '关闭详情' });
+    expect(closeButton).not.toHaveAttribute('title');
+    fireEvent.click(closeButton);
 
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss sheet' }));
     expect(trigger).toHaveFocus();
   });
 
@@ -83,9 +100,9 @@ describe('BusinessMobileRecordList', () => {
       <BusinessMobileRecordList
         emptyDescription="暂无记录"
         error="加载失败"
-        onRetry={onRetry}
         records={[]}
         sheetTitle="详情"
+        onRetry={onRetry}
       />,
     );
 
@@ -97,9 +114,9 @@ describe('BusinessMobileRecordList', () => {
   it('prioritizes error, renders three loading rows, and supports an empty action', () => {
     const { rerender } = render(
       <BusinessMobileRecordList
+        isLoading
         emptyDescription="暂无记录"
         error="加载失败"
-        isLoading
         records={[record]}
         sheetTitle="详情"
       />,
@@ -110,8 +127,8 @@ describe('BusinessMobileRecordList', () => {
 
     rerender(
       <BusinessMobileRecordList
-        emptyDescription="暂无记录"
         isLoading
+        emptyDescription="暂无记录"
         records={[record]}
         sheetTitle="详情"
       />,

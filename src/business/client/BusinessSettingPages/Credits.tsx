@@ -30,7 +30,6 @@ import {
 import RedemptionPanel from './RedemptionPanel';
 import {
   formatBusinessDate,
-  formatBusinessNumber,
   formatCredits,
   formatCurrencyAmount,
   formatSignedCredits,
@@ -193,15 +192,25 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
     [t],
   );
 
-  const recordFormatters = useMemo<BusinessRecordFormatters>(
+  const recordFormatters = useMemo<
+    Pick<
+      BusinessRecordFormatters,
+      | 'creditLedgerAllocation'
+      | 'creditLedgerDescription'
+      | 'formatCredits'
+      | 'formatCurrency'
+      | 'formatDate'
+      | 'formatSignedCredits'
+      | 't'
+    >
+  >(
     () => ({
-      creditLedgerAllocation: getLedgerAllocationText,
+      creditLedgerAllocation: (item) => getLedgerAllocationText(item) ?? undefined,
       creditLedgerDescription: (item) =>
         formatCreditLedgerDescription(item.description, item.metadata),
       formatCredits,
-      formatCurrency: formatCurrencyAmount,
+      formatCurrency: (value, currency) => formatCurrencyAmount(value, currency ?? undefined),
       formatDate: formatBusinessDate,
-      formatNumber: formatBusinessNumber,
       formatSignedCredits,
       t: (key, options) => t(key as any, options as any),
     }),
@@ -385,10 +394,10 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
           </div>
           {selectedPackageId === 'custom' || topUpPackages.length === 0 ? (
             <InputNumber
-              addonAfter={'M'}
               className={mobile ? styles.mobileControl : undefined}
               max={5000}
               min={50}
+              suffix={'M'}
               value={customCredits}
               onChange={(value: number | null) => setCustomCredits(Number(value || 50))}
             />
@@ -486,9 +495,9 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
               emptyDescription={t('credits.topUp.orders.empty')}
               error={ordersError ? t('mobile.error.title') : undefined}
               isLoading={isOrdersLoading}
-              onRetry={() => void refreshOrders()}
               records={topUpOrders.map((item) => buildTopUpOrderRecord(item, recordFormatters))}
               sheetTitle={t('credits.topUp.orders.details')}
+              onRetry={() => void refreshOrders()}
             />
           ) : (
             <InlineTable
@@ -514,11 +523,11 @@ const Credits = memo<{ mobile?: boolean }>(({ mobile }) => {
               emptyDescription={t('credits.ledger.empty')}
               error={ledgerError ? t('mobile.error.title') : undefined}
               isLoading={isLedgerLoading}
-              onRetry={() => void refreshLedger()}
+              sheetTitle={t('credits.ledger.details')}
               records={(ledgerResult?.items || []).map((item) =>
                 buildCreditLedgerRecord(item, recordFormatters),
               )}
-              sheetTitle={t('credits.ledger.details')}
+              onRetry={() => void refreshLedger()}
             />
           ) : (
             <InlineTable

@@ -18,7 +18,7 @@ vi.mock('@/const/brand', () => ({
   },
 }));
 
-const i18n = {
+const i18n = vi.hoisted(() => ({
   options: undefined as
     | {
         interpolation?: {
@@ -26,11 +26,9 @@ const i18n = {
         };
       }
     | undefined,
-};
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ i18n }),
 }));
+
+vi.mock('i18next', () => ({ default: i18n }));
 
 let swrData:
   | {

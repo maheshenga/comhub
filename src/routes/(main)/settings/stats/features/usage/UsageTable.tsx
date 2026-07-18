@@ -29,6 +29,7 @@ const formatUsageSpend = (value: number) =>
 
 const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
   const { t } = useTranslation('auth');
+  const { t: tSubscription } = useTranslation('subscription');
 
   const { data, error, isLoading, mutate } = useClientDataSWR(statsKeys.usageLogs(), async () =>
     usageService.findByMonth(dateStrings),
@@ -141,17 +142,19 @@ const UsageTable = memo<UsageChartProps>(({ dateStrings, mobile }) => {
     formatDate: (value) => (value ? formatDate(new Date(value)) : '--'),
     formatNumber,
     t: (key, options) =>
-      t((key.startsWith('mobile.') ? `subscription:${key}` : key) as any, options as any),
+      key.startsWith('mobile.')
+        ? tSubscription(key as any, options as any)
+        : t(key as any, options as any),
   };
 
   return mobile ? (
     <BusinessMobileRecordList
-      emptyDescription={t('subscription:mobile.usage.records.empty')}
-      error={error ? t('subscription:mobile.error.title') : undefined}
+      emptyDescription={tSubscription('mobile.usage.records.empty')}
+      error={error ? tSubscription('mobile.error.title') : undefined}
       isLoading={isLoading}
-      onRetry={() => void mutate()}
       records={(data ?? []).map((item) => buildUsageRecord(item, usageFormatters))}
-      sheetTitle={t('subscription:mobile.usage.records.details')}
+      sheetTitle={tSubscription('mobile.usage.records.details')}
+      onRetry={() => void mutate()}
     />
   ) : (
     <InlineTable

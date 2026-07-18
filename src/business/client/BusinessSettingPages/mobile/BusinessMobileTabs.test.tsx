@@ -55,7 +55,7 @@ beforeEach(() => {
   originalScrollIntoView = Element.prototype.scrollIntoView;
   Element.prototype.scrollIntoView = mocks.scrollIntoView;
 
-  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
     if ((this as HTMLElement).dataset.tabId === 'referral') return createRect(240, 340);
     return createRect(0, 300);
   });

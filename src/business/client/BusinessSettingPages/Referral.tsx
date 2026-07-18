@@ -150,9 +150,9 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
     [t],
   );
 
-  const copyText = async (value: string, label: string) => {
+  const copyText = async (value: string, successMessage: string) => {
     await navigator.clipboard.writeText(value);
-    message.success(`${label}已复制`);
+    message.success(successMessage);
   };
 
   const resolveReferralError = (error: unknown) => {
@@ -349,7 +349,7 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
           )}
           <Button
             icon={<Icon icon={Copy} />}
-            onClick={() => void copyText(effectiveReferralCode, '推荐码')}
+            onClick={() => void copyText(effectiveReferralCode, t('referral.copy.codeSuccess'))}
           >
             复制
           </Button>
@@ -381,7 +381,7 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
           <div className={subscriptionPageStyles.inlineValue}>{effectiveReferralLink}</div>
           <Button
             icon={<Icon icon={Copy} />}
-            onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
+            onClick={() => void copyText(effectiveReferralLink, t('referral.copy.linkSuccess'))}
           >
             复制链接
           </Button>
@@ -390,23 +390,23 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
       <BusinessSettingsSection defaultOpen={false} mobile={mobile} title="推荐记录">
         {mobile ? (
           <BusinessMobileRecordList
+            emptyDescription={t('referral.history.empty')}
+            error={referralHistoryError ? t('mobile.error.title') : undefined}
+            isLoading={isLoading}
+            sheetTitle={t('referral.history.details')}
             emptyAction={
               <Button
                 className={styles.mobileTouchTarget}
                 icon={<Icon icon={Copy} />}
-                onClick={() => void copyText(effectiveReferralLink, '推荐链接')}
+                onClick={() => void copyText(effectiveReferralLink, t('referral.copy.linkSuccess'))}
               >
                 {t('referral.copyLink')}
               </Button>
             }
-            emptyDescription={t('referral.history.empty')}
-            error={referralHistoryError ? t('mobile.error.title') : undefined}
-            isLoading={isLoading}
-            onRetry={() => void refreshReferralHistory()}
             records={referralHistory.map((item) =>
               buildReferralHistoryRecord(item, recordFormatters),
             )}
-            sheetTitle={t('referral.history.details')}
+            onRetry={() => void refreshReferralHistory()}
           />
         ) : (
           <InlineTable
@@ -423,7 +423,7 @@ const Referral = memo<{ mobile?: boolean }>(({ mobile }) => {
           <BusinessSettingsSection mobile title={t('referral.rules.backfill.title')}>
             {backfillForm}
           </BusinessSettingsSection>
-          <BusinessSettingsSection defaultOpen={false} mobile title="计划规则">
+          <BusinessSettingsSection mobile defaultOpen={false} title="计划规则">
             {referralRules}
           </BusinessSettingsSection>
         </>

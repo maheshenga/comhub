@@ -26,6 +26,7 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('scroll-snap-type: x mandatory');
     expect(source.match(/defaultOpen=\{false\}/g)).toHaveLength(3);
     expect(source).toContain('mobileAction={mobileAction}');
+    expect(source).not.toContain('minWidth={0}');
   });
 
   it('uses mobile record cards and hides non-executable purchase controls on Credits', async () => {
@@ -39,6 +40,8 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('setRedemptionOpen(true)');
     expect(source).toContain('setOrdersOpen(true)');
     expect(source).toContain('setLedgerOpen(true)');
+    expect(source).toContain("suffix={'M'}");
+    expect(source).not.toContain("addonAfter={'M'}");
   });
 
   it('uses a collapsed mobile change history and upgrade action on Billing', async () => {
@@ -48,6 +51,9 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain("href: '/settings/plans'");
     expect(source).toContain('defaultOpen={false}');
     expect(source).toContain('BusinessMobileRecordList');
+    expect(source).toContain('setHistoryOpen(true)');
+    expect(source).toContain('open={mobile ? historyOpen : undefined}');
+    expect(source).toContain("t('billing.summary.currentCycleAmount')");
   });
 
   it('shows referral records as cards and gates the reward action', async () => {
@@ -58,6 +64,8 @@ describe('mobile business settings presentation', () => {
     expect(source).toContain('mobileAction={mobileAction}');
     expect(source).toContain('BusinessMobileRecordList');
     expect(source).toContain("title={t('referral.rules.backfill.title')}");
+    expect(source).toContain("t('referral.copy.linkSuccess')");
+    expect(source).not.toContain('`${label}已复制`');
   });
 
   it('passes mobile through to UsageTable and keeps the query inside UsageTable', async () => {
@@ -66,10 +74,19 @@ describe('mobile business settings presentation', () => {
       path.join(process.cwd(), 'src/routes/(main)/settings/stats/features/usage/UsageTable.tsx'),
       'utf8',
     );
+    const usageBarChart = await readFile(
+      path.join(
+        process.cwd(),
+        'src/routes/(main)/settings/stats/features/components/UsageBarChart.tsx',
+      ),
+      'utf8',
+    );
 
     expect(usagePage).toContain('<UsageTable dateStrings={month} mobile={mobile} />');
     expect(usageTable).toContain('mobile ? (');
     expect(usageTable).toContain('buildUsageRecord');
     expect(usageTable.match(/usageService\.findByMonth/g)).toHaveLength(1);
+    expect(usageBarChart).toContain('({ showType, ...props }: UsageBarChartProps)');
+    expect(usageBarChart).not.toContain('props.showType');
   });
 });

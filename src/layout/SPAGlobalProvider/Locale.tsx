@@ -64,7 +64,7 @@ const Locale = memo<LocaleLayoutProps>(({ children, defaultLang, antdLocale }) =
   }, [defaultLang]);
 
   if (!i18n.instance.isInitialized)
-    i18n.init().then(async () => {
+    i18n.init({ initAsync: false }).then(async () => {
       const resolvedLang = i18n.instance.language || defaultLang;
       if (resolvedLang) await updateDayjs(resolvedLang);
     });

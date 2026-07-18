@@ -1,8 +1,8 @@
 'use client';
 
 import { BRANDING_NAME } from '@lobechat/business-const';
+import i18n from 'i18next';
 import { createContext, type FC, type ReactNode, use, useEffect, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
@@ -16,8 +16,8 @@ export interface BrandConfig {
   faviconUrl: string | null;
   homeMessengerBannerTitle: string | null;
   homeMessengerEnabled: boolean;
-  loadingText: string | null;
   loadingSvgUrl: string | null;
+  loadingText: string | null;
   logoUrl: string | null;
   name: string;
   primaryColor: string | null;
@@ -70,7 +70,8 @@ const normalizeBrand = (brand?: BrandInput | null): BrandConfig => ({
     (brand?.homeMessengerBannerTitle && brand.homeMessengerBannerTitle.trim()) ||
     DEFAULT_BRAND.homeMessengerBannerTitle,
   loadingText: (brand?.loadingText && brand.loadingText.trim()) || DEFAULT_BRAND.loadingText,
-  loadingSvgUrl: (brand?.loadingSvgUrl && brand.loadingSvgUrl.trim()) || DEFAULT_BRAND.loadingSvgUrl,
+  loadingSvgUrl:
+    (brand?.loadingSvgUrl && brand.loadingSvgUrl.trim()) || DEFAULT_BRAND.loadingSvgUrl,
   logoUrl: brand?.logoUrl ?? DEFAULT_BRAND.logoUrl,
   name: (brand?.name && brand.name.trim()) || DEFAULT_BRAND.name,
   primaryColor: brand?.primaryColor ?? DEFAULT_BRAND.primaryColor,
@@ -116,7 +117,6 @@ export const BrandProvider: FC<{
   initialBrand?: BrandInput;
   updateDocumentTitle?: boolean;
 }> = ({ children, initialBrand, updateDocumentTitle = true }) => {
-  const { i18n } = useTranslation();
   const { data } = useSWR<BrandConfig>('brand-config', fetchBrand, {
     dedupingInterval: 60_000,
     revalidateOnFocus: false,
@@ -137,7 +137,7 @@ export const BrandProvider: FC<{
         defaultSkillName: value.defaultSkillName,
       },
     };
-  }, [value, i18n, updateDocumentTitle]);
+  }, [value, updateDocumentTitle]);
 
   return <BrandContext value={value}>{children}</BrandContext>;
 };

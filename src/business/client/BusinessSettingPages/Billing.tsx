@@ -5,7 +5,7 @@ import { type TableColumnType } from 'antd';
 import { Alert, Button, Empty } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { Check, X } from 'lucide-react';
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
@@ -81,6 +81,7 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t } = useTranslation('subscription');
   const { currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
   const historyRef = useRef<HTMLDivElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const { data: pendingChangeRequest } = useClientDataSWR(
     ['business-subscription-change-request'],
     () => commercialService.getPendingSubscriptionChangeRequest(),
@@ -106,6 +107,7 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
   );
 
   const handleViewBillingHistory = () => {
+    if (mobile) setHistoryOpen(true);
     historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -155,7 +157,9 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
           <Flexbox gap={16}>
             <div className={styles.mobileSummaryGrid}>
               <div>
-                <div className={subscriptionPageStyles.caption}>当前周期金额</div>
+                <div className={subscriptionPageStyles.caption}>
+                  {t('billing.summary.currentCycleAmount')}
+                </div>
                 <div className={subscriptionPageStyles.tileValue}>
                   {formatCurrencyAmount(
                     subscriptionSummary?.monthlyPrice ?? 0,
@@ -164,34 +168,40 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
                 </div>
               </div>
               <div>
-                <div className={subscriptionPageStyles.caption}>状态</div>
+                <div className={subscriptionPageStyles.caption}>{t('billing.summary.status')}</div>
                 <strong>{billingStatusLabel}</strong>
               </div>
               <div>
-                <div className={subscriptionPageStyles.caption}>周期</div>
+                <div className={subscriptionPageStyles.caption}>{t('billing.summary.cycle')}</div>
                 <strong>{cycleLabel}</strong>
               </div>
               <div>
-                <div className={subscriptionPageStyles.caption}>续费/结束时间</div>
+                <div className={subscriptionPageStyles.caption}>
+                  {t('billing.summary.renewsOrEndsAt')}
+                </div>
                 <strong>{formatBusinessDate(nextDate)}</strong>
               </div>
             </div>
             <div className={styles.mobileSecondary}>
               <div className={subscriptionPageStyles.caption}>
-                订阅 ID：{subscriptionSummary?.externalSubscriptionId || '--'}
+                {t('billing.summary.subscriptionId', {
+                  id: subscriptionSummary?.externalSubscriptionId || '--',
+                })}
               </div>
               <div className={subscriptionPageStyles.caption}>
-                开始时间：{formatBusinessDate(subscriptionSummary?.startedAt)}
+                {t('billing.summary.startedAt', {
+                  date: formatBusinessDate(subscriptionSummary?.startedAt),
+                })}
               </div>
               <div className={subscriptionPageStyles.caption}>
-                此金额来自当前套餐快照；真实收款、退款与开票仍以管理员后台订单记录为准。
+                {t('billing.summary.amountDisclaimer')}
               </div>
               <Button
                 className={styles.mobileTouchTarget}
                 type={'link'}
                 onClick={handleViewBillingHistory}
               >
-                查看变更记录
+                {t('billing.planChangeHistory')}
               </Button>
             </div>
             {pendingChangeAlert}
@@ -272,17 +282,23 @@ const Billing = memo<{ mobile?: boolean }>(({ mobile }) => {
         />
       </BusinessSettingsSection>
       <div ref={historyRef}>
-        <BusinessSettingsSection defaultOpen={false} mobile={mobile} title={'套餐变更记录'}>
+        <BusinessSettingsSection
+          defaultOpen={false}
+          mobile={mobile}
+          open={mobile ? historyOpen : undefined}
+          title={'套餐变更记录'}
+          onOpenChange={mobile ? setHistoryOpen : undefined}
+        >
           {mobile ? (
             <BusinessMobileRecordList
               emptyDescription={t('billing.changeHistory.empty')}
               error={changeRequestsError ? t('mobile.error.title') : undefined}
               isLoading={isChangeRequestsLoading}
-              onRetry={() => void refreshChangeRequests()}
+              sheetTitle={t('billing.changeHistory.details')}
               records={changeRequests.map((item) =>
                 buildBillingChangeRecord(item, recordFormatters),
               )}
-              sheetTitle={t('billing.changeHistory.details')}
+              onRetry={() => void refreshChangeRequests()}
             />
           ) : (
             <InlineTable

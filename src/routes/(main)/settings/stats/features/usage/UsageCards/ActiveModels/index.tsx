@@ -102,9 +102,9 @@ const ActiveModels = memo<UsageChartProps>(({ data, isLoading, groupBy, resolveU
         title={<TitleWithPercentage title={t(titleI18n(groupBy ?? GroupBy.Model))} />}
         extra={
           <ActionIcon
+            aria-label={t(tableTitleI18n(groupBy ?? GroupBy.Model))}
             icon={MaximizeIcon}
             size={'small'}
-            title={t(tableTitleI18n(groupBy ?? GroupBy.Model))}
             onClick={() => setOpen(true)}
           />
         }

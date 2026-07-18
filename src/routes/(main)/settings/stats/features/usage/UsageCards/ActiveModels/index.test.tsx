@@ -22,7 +22,9 @@ vi.mock('@lobehub/icons', () => ({
 }));
 
 vi.mock('@lobehub/ui', () => ({
-  ActionIcon: () => <button type="button" />,
+  ActionIcon: ({ 'aria-label': ariaLabel }: { 'aria-label'?: string }) => (
+    <button aria-label={ariaLabel} type="button" />
+  ),
   Avatar: ({ avatar, title }: { avatar?: string | null; title?: string }) => (
     <span aria-label={title} data-testid="active-user-avatar">
       {avatar}
@@ -33,8 +35,15 @@ vi.mock('@lobehub/ui', () => ({
 }));
 
 vi.mock('@/components/StatisticCard', () => ({
-  default: ({ statistic }: { statistic: { description?: ReactNode; value?: ReactNode } }) => (
+  default: ({
+    extra,
+    statistic,
+  }: {
+    extra?: ReactNode;
+    statistic: { description?: ReactNode; value?: ReactNode };
+  }) => (
     <div>
+      {extra}
       <span>{statistic.value}</span>
       {statistic.description}
     </div>
@@ -81,5 +90,6 @@ describe('ActiveModels', () => {
     );
 
     expect(screen.getByTestId('active-user-avatar')).toHaveTextContent('Ada Lovelace');
+    expect(screen.getByRole('button', { name: 'usage.activeModels.userTable' })).toBeVisible();
   });
 });

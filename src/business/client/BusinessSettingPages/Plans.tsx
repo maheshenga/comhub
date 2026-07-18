@@ -437,7 +437,7 @@ const ResponsivePlanSection = ({
 }: ResponsivePlanSectionProps) => {
   if (mobile) {
     return (
-      <BusinessSettingsSection defaultOpen={defaultOpen} mobile title={title}>
+      <BusinessSettingsSection mobile defaultOpen={defaultOpen} title={title}>
         {children}
       </BusinessSettingsSection>
     );
@@ -703,7 +703,8 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
       ? {
           label: t('mobile.plans.upgradeTo', {
             plan:
-              mobileSelectedCatalogPlan.displayName || t(`plans.plan.${mobileSelectedPlan}.title`),
+              mobileSelectedCatalogPlan.displayName ||
+              t(`plans.plan.${mobileSelectedPlan ?? SubscriptionPlan.Free}.title`),
           }),
           onClick: () => handleUpgradeClick(mobileSelectedCatalogPlan),
         }
@@ -726,7 +727,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
             {mobile ? (
               <div className={styles.mobileCurrentPlan}>
                 <PlanIcon plan={currentPlan} size={34} />
-                <Flexbox gap={2} minWidth={0}>
+                <Flexbox gap={2} style={{ minWidth: 0 }}>
                   <strong>{t(`plans.plan.${currentPlan}.title`)}</strong>
                 </Flexbox>
               </div>
@@ -766,9 +767,9 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
               ) : (
                 <Alert
                   showIcon
+                  description="后台尚未配置套餐价格，请联系管理员。"
                   message="暂无可购买周期"
                   type="warning"
-                  description="后台尚未配置套餐价格，请联系管理员。"
                 />
               )}
             </div>
@@ -790,6 +791,8 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
           {mobile && planCatalogError ? (
             <Alert
               showIcon
+              message={t('mobile.plans.catalogError')}
+              type="error"
               action={
                 <Button
                   className={styles.mobileTouchTarget}
@@ -798,8 +801,6 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
                   {t('mobile.error.retry')}
                 </Button>
               }
-              message={t('mobile.plans.catalogError')}
-              type="error"
             />
           ) : null}
           {isPlanCatalogLoading ? (
@@ -842,16 +843,16 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
                   <Card
                     aria-current={isSelected ? 'true' : undefined}
                     aria-disabled={mobile ? !canSelect : undefined}
+                    key={plan}
+                    role={mobile ? 'button' : undefined}
+                    tabIndex={canSelect ? 0 : mobile ? -1 : undefined}
+                    variant="borderless"
                     className={cx(
                       styles.card,
                       isCurrent && styles.currentCard,
                       canSelect && styles.selectableCard,
                       isSelected && styles.selectedCard,
                     )}
-                    key={plan}
-                    role={mobile ? 'button' : undefined}
-                    tabIndex={canSelect ? 0 : mobile ? -1 : undefined}
-                    variant="borderless"
                     onClick={canSelect ? () => setMobileSelectedPlan(plan) : undefined}
                     onKeyDown={
                       canSelect
@@ -1085,13 +1086,13 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
             {mobile && planFaqError ? (
               <Alert
                 showIcon
+                message={t('mobile.plans.faqError')}
+                type="error"
                 action={
                   <Button className={styles.mobileTouchTarget} onClick={() => void mutatePlanFaq()}>
                     {t('mobile.error.retry')}
                   </Button>
                 }
-                message={t('mobile.plans.faqError')}
-                type="error"
               />
             ) : null}
             <Collapse
