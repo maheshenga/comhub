@@ -2,7 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import BusinessMobileActionBar from './BusinessMobileActionBar';
+import BusinessMobileActionBar, {
+  isBusinessMobilePrimaryActionExecutable,
+} from './BusinessMobileActionBar';
 
 describe('BusinessMobileActionBar', () => {
   it('renders a full-width executable primary action through a portal', () => {
@@ -32,6 +34,14 @@ describe('BusinessMobileActionBar', () => {
       'href',
       '/settings/plans',
     );
+  });
+
+  it('rejects a fixed action without a navigation or click command', () => {
+    const action = { label: '暂不可用' };
+
+    expect(isBusinessMobilePrimaryActionExecutable(action)).toBe(false);
+    render(<BusinessMobileActionBar action={action} />);
+    expect(screen.queryByTestId('business-mobile-action-bar')).not.toBeInTheDocument();
   });
 
   it('renders nothing during SSR', () => {

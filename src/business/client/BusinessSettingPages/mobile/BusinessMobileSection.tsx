@@ -31,6 +31,20 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorTextSecondary};
     overflow-wrap: anywhere;
   `,
+  visuallyHidden: css`
+    position: absolute;
+
+    overflow: hidden;
+
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+
+    white-space: nowrap;
+
+    clip-path: inset(50%);
+  `,
   title: css`
     font-size: 16px;
     font-weight: 600;
@@ -76,22 +90,32 @@ export const BusinessMobileSection = ({
   const { t } = useTranslation('subscription');
   const [open, setOpen] = useState(defaultOpen);
   const id = useId();
+  const actionLabelId = `${id}-action-label`;
   const triggerId = `${id}-trigger`;
+  const titleId = `${id}-title`;
   const panelId = `${id}-panel`;
+  const actionLabel = t(open ? 'mobile.section.collapse' : 'mobile.section.expand', {
+    title: '',
+  }).trim();
 
   return (
     <section className={styles.section}>
       <button
         aria-controls={panelId}
         aria-expanded={open}
-        aria-label={t(open ? 'mobile.section.collapse' : 'mobile.section.expand', { title })}
+        aria-labelledby={`${actionLabelId} ${titleId}`}
         className={styles.trigger}
         id={triggerId}
         type="button"
         onClick={() => setOpen((value) => !value)}
       >
         <span className={styles.label}>
-          <span className={styles.title}>{title}</span>
+          <span className={styles.visuallyHidden} id={actionLabelId}>
+            {actionLabel}
+          </span>
+          <span className={styles.title} id={titleId}>
+            {title}
+          </span>
           {summary ? <span className={styles.summary}>{summary}</span> : null}
         </span>
         <ChevronDown aria-hidden className={cx(styles.icon, open && styles.iconOpen)} size={18} />

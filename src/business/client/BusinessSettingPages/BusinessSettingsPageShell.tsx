@@ -6,6 +6,7 @@ import { type FC, type ReactNode } from 'react';
 import SettingHeader from '@/routes/(main)/settings/features/SettingHeader';
 
 import BusinessMobileActionBar, {
+  isBusinessMobilePrimaryActionExecutable,
   type BusinessMobilePrimaryAction,
 } from './mobile/BusinessMobileActionBar';
 import BusinessMobileTabs from './mobile/BusinessMobileTabs';
@@ -37,20 +38,24 @@ const BusinessSettingsPageShell: FC<BusinessSettingsPageShellProps> = ({
   mobile,
   mobileAction,
   title,
-}) => (
-  <>
-    {mobile ? <BusinessMobileTabs /> : <SettingHeader title={title} />}
-    <div
-      className={cx(
-        className,
-        mobile && styles.mobile,
-        mobile && mobileAction && styles.mobileWithAction,
-      )}
-    >
-      {children}
-    </div>
-    {mobile && mobileAction ? <BusinessMobileActionBar action={mobileAction} /> : null}
-  </>
-);
+}) => {
+  const showMobileAction = Boolean(mobile && isBusinessMobilePrimaryActionExecutable(mobileAction));
+
+  return (
+    <>
+      {mobile ? <BusinessMobileTabs /> : <SettingHeader title={title} />}
+      <div
+        className={cx(
+          className,
+          mobile && styles.mobile,
+          showMobileAction && styles.mobileWithAction,
+        )}
+      >
+        {children}
+      </div>
+      {showMobileAction && mobileAction ? <BusinessMobileActionBar action={mobileAction} /> : null}
+    </>
+  );
+};
 
 export default BusinessSettingsPageShell;

@@ -37,6 +37,10 @@ export interface BusinessMobilePrimaryAction {
   onClick?: () => void;
 }
 
+export const isBusinessMobilePrimaryActionExecutable = (
+  action?: BusinessMobilePrimaryAction,
+): action is BusinessMobilePrimaryAction => Boolean(action?.href || action?.onClick);
+
 interface BusinessMobileActionBarProps {
   action: BusinessMobilePrimaryAction;
 }
@@ -48,7 +52,12 @@ const BusinessMobileActionBar: FC<BusinessMobileActionBarProps> = ({ action }) =
     setMounted(true);
   }, []);
 
-  if (!mounted || typeof document === 'undefined') return null;
+  if (
+    !mounted ||
+    typeof document === 'undefined' ||
+    !isBusinessMobilePrimaryActionExecutable(action)
+  )
+    return null;
 
   return createPortal(
     <div className={styles.root} data-safe-area="true" data-testid="business-mobile-action-bar">

@@ -66,7 +66,7 @@ describe('BusinessMobileSection', () => {
 
   it('starts core content expanded by default', () => {
     render(
-      <BusinessMobileSection title="当前套餐">
+      <BusinessMobileSection title={<span>当前套餐</span>}>
         <div>starter</div>
       </BusinessMobileSection>,
     );
