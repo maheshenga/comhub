@@ -134,6 +134,36 @@ describe('mobile configuration', () => {
     expect(config.navigation.items.filter((item) => item.visible)).toHaveLength(2);
   });
 
+  it('keeps syntactically valid catalog IDs and removes assistants with malformed IDs', () => {
+    const config = normalizeMobileConfig({
+      discover: {
+        assistants: [
+          {
+            assistantId: ' valid-assistant ',
+            model: ' model/family:variant@2025+fast ',
+            order: 1,
+            provider: ' provider/catalog:v1 ',
+          },
+          { assistantId: 'bad-provider', model: 'model', order: 2, provider: 'bad provider' },
+          { assistantId: 'bad-model', model: 'model?variant', order: 3, provider: 'provider' },
+          { assistantId: 'control', model: 'bad\u0000model', order: 4, provider: 'provider' },
+          { assistantId: 'too-long', model: 'm'.repeat(129), order: 5, provider: 'provider' },
+          { assistantId: '', model: 'model', order: 6, provider: 'provider' },
+        ],
+      },
+      version: 1,
+    });
+
+    expect(config.discover.assistants).toEqual([
+      {
+        assistantId: 'valid-assistant',
+        model: 'model/family:variant@2025+fast',
+        order: 1,
+        provider: 'provider/catalog:v1',
+      },
+    ]);
+  });
+
   it('falls back from malformed versions without sharing mutable defaults', () => {
     const normalized = normalizeMobileConfig({ version: 2 });
 
@@ -144,25 +174,89 @@ describe('mobile configuration', () => {
     expect(DEFAULT_MOBILE_CONFIG.navigation.items[0].label).toBe('最近');
   });
 
-  it('restores a navigation slot when its configured path is unsafe', () => {
+  it('repairs only an unsafe navigation path and preserves other valid slot fields', () => {
     const config = normalizeMobileConfig({
       navigation: {
         items: [
           {
             icon: 'bell',
             id: 'slot-1',
-            label: '受损',
+            label: 'Inbox',
             order: 4,
             path: 'javascript:alert(1)',
             visible: false,
+          },
+          {
+            icon: 'palette',
+            id: 'slot-2',
+            label: 'Design',
+            order: 1,
+            path: '/design',
+            visible: true,
+          },
+          {
+            icon: 'compass',
+            id: 'slot-3',
+            label: 'Discover',
+            order: 2,
+            path: '/discover',
+            visible: true,
+          },
+          {
+            icon: 'shapes',
+            id: 'slot-4',
+            label: 'Apps',
+            order: 3,
+            path: '/apps',
+            visible: true,
           },
         ],
       },
       version: 1,
     });
 
-    expect(config.navigation.items.find((item) => item.id === 'slot-1')).toEqual(
-      DEFAULT_MOBILE_CONFIG.navigation.items[0],
-    );
+    expect(config.navigation.items.find((item) => item.id === 'slot-1')).toEqual({
+      icon: 'bell',
+      id: 'slot-1',
+      label: 'Inbox',
+      order: 4,
+      path: '/',
+      visible: false,
+    });
+  });
+
+  it('prefers the default route owner when visible navigation paths collide', () => {
+    const config = normalizeMobileConfig({
+      navigation: {
+        items: [
+          {
+            icon: 'bell',
+            id: 'slot-1',
+            label: 'Inbox',
+            order: 1,
+            path: '/design',
+            visible: true,
+          },
+          {
+            icon: 'palette',
+            id: 'slot-2',
+            label: 'Design',
+            order: 2,
+            path: '/design',
+            visible: true,
+          },
+        ],
+      },
+      version: 1,
+    });
+
+    expect(config.navigation.items.find((item) => item.id === 'slot-1')).toMatchObject({
+      icon: 'bell',
+      label: 'Inbox',
+      order: 1,
+      path: '/',
+      visible: true,
+    });
+    expect(config.navigation.items.find((item) => item.id === 'slot-2')?.path).toBe('/design');
   });
 });

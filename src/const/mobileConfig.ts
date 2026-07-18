@@ -124,6 +124,7 @@ const cloneDefaultMobileConfig = (): MobilePublicConfigV1 => ({
 const MOBILE_PATH_ORIGIN = 'https://mobile-config.invalid';
 const CONTROL_CHARACTER_RE = /\p{Cc}/u;
 const ALL_HAN_RE = /^\p{Script=Han}+$/u;
+const CATALOG_IDENTIFIER_RE = /^[a-z0-9][\w.:/@+-]{0,127}$/i;
 const MAX_IDENTIFIER_LENGTH = 128;
 const MOBILE_CONFIG_V1_SCHEMA = z.object({ version: z.literal(1) }).passthrough();
 
@@ -145,6 +146,14 @@ const normalizeTrimmedString = (value: unknown, maxLength: number) => {
 
 const normalizeIdentifier = (value: unknown) =>
   normalizeTrimmedString(value, MAX_IDENTIFIER_LENGTH);
+
+const normalizeCatalogIdentifier = (value: unknown) => {
+  if (typeof value !== 'string') return;
+
+  const normalized = value.trim();
+
+  return CATALOG_IDENTIFIER_RE.test(normalized) ? normalized : undefined;
+};
 
 const normalizeLabel = (value: unknown, fallback: string) => {
   const normalized = normalizeTrimmedString(value, ALL_HAN_RE.test(String(value).trim()) ? 6 : 12);
@@ -237,8 +246,7 @@ const repairNavigationPathCollisions = (entries: NormalizedNavigationEntry[]) =>
       const reset = entry.usesDefaultPath && !existing.usesDefaultPath ? existing : entry;
       const fallback = navigationDefaults().find((item) => item.id === reset.item.id)!;
 
-      reset.item = fallback;
-      reset.order = fallback.order;
+      reset.item = { ...reset.item, path: fallback.path };
       reset.usesDefaultPath = true;
       repaired = true;
       break;
@@ -270,15 +278,19 @@ const normalizeNavigation = (value: unknown): MobileNavigationItemV1[] => {
 
   const entries: NormalizedNavigationEntry[] = defaults.map((fallback, defaultIndex) => {
     const raw = entriesById.get(fallback.id);
-    const path = raw && typeof raw.item.path === 'string' ? raw.item.path : undefined;
-    if (!raw || !path || !validateMobileInternalPath(path)) {
+    if (!raw) {
       return {
         item: { ...fallback },
         order: fallback.order,
-        sourceIndex: raw?.sourceIndex ?? defaultIndex,
+        sourceIndex: defaultIndex,
         usesDefaultPath: true,
       };
     }
+
+    const path =
+      typeof raw.item.path === 'string' && validateMobileInternalPath(raw.item.path)
+        ? raw.item.path
+        : fallback.path;
 
     return {
       item: {
@@ -291,7 +303,7 @@ const normalizeNavigation = (value: unknown): MobileNavigationItemV1[] => {
       },
       order: normalizeOrder(raw.item.order, fallback.order),
       sourceIndex: raw.sourceIndex,
-      usesDefaultPath: false,
+      usesDefaultPath: path === fallback.path,
     };
   });
 
@@ -361,8 +373,8 @@ const normalizeAssistants = (value: unknown): MobileFeaturedAssistantV1[] => {
     if (!isRecord(rawAssistant)) return;
 
     const assistantId = normalizeIdentifier(rawAssistant.assistantId);
-    const provider = normalizeIdentifier(rawAssistant.provider);
-    const model = normalizeIdentifier(rawAssistant.model);
+    const provider = normalizeCatalogIdentifier(rawAssistant.provider);
+    const model = normalizeCatalogIdentifier(rawAssistant.model);
     if (!assistantId || !provider || !model || seenIds.has(assistantId)) return;
 
     seenIds.add(assistantId);
