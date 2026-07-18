@@ -2,17 +2,32 @@ import { Plans } from '@lobechat/types';
 import { describe, expect, it } from 'vitest';
 
 import {
-  PLAN_DISPLAY_CURRENCY,
   formatPlanCurrencyAmount,
   getAvailableBillingCycles,
+  getDefaultMobilePlanTarget,
   getPlanYearlyDiscountLabel,
   getPlanYearlyDiscountPercent,
   getVisiblePaidPlans,
   getYearlyCycleDiscountLabel,
+  PLAN_DISPLAY_CURRENCY,
   resolvePlanCyclePrice,
 } from './plansDisplay';
 
 describe('plans display helpers', () => {
+  it('chooses the first available non-current plan for the mobile action', () => {
+    expect(
+      getDefaultMobilePlanTarget(
+        [Plans.Hobby, Plans.Starter, Plans.Premium],
+        Plans.Hobby,
+        (plan) => plan === Plans.Premium,
+      ),
+    ).toBe(Plans.Premium);
+  });
+
+  it('returns undefined when no non-current plan can be purchased', () => {
+    expect(getDefaultMobilePlanTarget([Plans.Hobby], Plans.Hobby, () => false)).toBeUndefined();
+  });
+
   it('hides the free plan from the public plans page', () => {
     expect(getVisiblePaidPlans([Plans.Free, Plans.Hobby, Plans.Starter, Plans.Premium])).toEqual([
       Plans.Hobby,

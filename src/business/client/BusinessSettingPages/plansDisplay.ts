@@ -28,6 +28,12 @@ export type PlanCyclePrice = {
 export const getVisiblePaidPlans = <T extends string>(plans: T[]) =>
   plans.filter((plan) => plan !== Plans.Free);
 
+export const getDefaultMobilePlanTarget = (
+  visiblePlans: Plans[],
+  currentPlan: Plans,
+  isAvailable: (plan: Plans) => boolean,
+) => visiblePlans.find((plan) => plan !== currentPlan && isAvailable(plan));
+
 const hasPositivePrice = (value: unknown) => Number(value ?? 0) > 0;
 
 export const getAvailableBillingCycles = (
@@ -86,18 +92,16 @@ export const getPlanYearlyDiscountLabel = (
 export const getYearlyCycleDiscountLabel = (
   planCatalog: Array<PlanPriceCatalogLike> | null | undefined,
 ) => {
-  const configuredLabel = planCatalog?.find((item) => item.yearlyDiscountLabel?.trim())
-    ?.yearlyDiscountLabel;
+  const configuredLabel = planCatalog?.find((item) =>
+    item.yearlyDiscountLabel?.trim(),
+  )?.yearlyDiscountLabel;
   if (configuredLabel?.trim()) return configuredLabel.trim();
 
   const maxDiscount = (planCatalog ?? []).reduce(
     (max, item) =>
       Math.max(
         max,
-        getPlanYearlyDiscountPercent(
-          Number(item.monthlyPrice ?? 0),
-          Number(item.yearlyPrice ?? 0),
-        ),
+        getPlanYearlyDiscountPercent(Number(item.monthlyPrice ?? 0), Number(item.yearlyPrice ?? 0)),
       ),
     0,
   );

@@ -27,7 +27,7 @@ import {
   Sparkles,
   Ticket,
 } from 'lucide-react';
-import { memo, type ReactNode, useMemo, useState } from 'react';
+import { memo, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { refreshCommercialEntitlementState } from '@/business/client/commercialRefresh';
@@ -40,9 +40,11 @@ import { commercialService } from '@/services/commercial';
 import { useServerConfigStore } from '@/store/serverConfig';
 
 import BusinessSettingsPageShell from './BusinessSettingsPageShell';
+import { BusinessSettingsSection } from './mobile/BusinessMobileSection';
 import { getPlanPurchaseUrl } from './planPurchase';
 import {
   getAvailableBillingCycles,
+  getDefaultMobilePlanTarget,
   getPlanYearlyDiscountLabel,
   getVisiblePaidPlans,
   getYearlyCycleDiscountLabel,
@@ -189,6 +191,48 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     line-height: 1.2;
     color: ${cssVar.colorText};
   `,
+  mobileCurrentPlan: css`
+    display: flex;
+    gap: 12px;
+    align-items: center;
+
+    min-width: 0;
+  `,
+  mobileCycleWrap: css`
+    width: 100%;
+
+    .ant-segmented,
+    .ant-segmented-group {
+      width: 100%;
+    }
+
+    .ant-segmented-item {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .ant-segmented-item-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      min-height: 44px;
+      padding-inline: 8px;
+    }
+  `,
+  mobileGrid: css`
+    scroll-padding-inline: 16px;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-inline: contain;
+
+    > .ant-card {
+      flex-basis: min(320px, calc(100vw - 48px));
+      scroll-snap-align: start;
+    }
+  `,
+  mobileTouchTarget: css`
+    min-height: 44px;
+  `,
   modelTag: css`
     max-width: 100%;
     margin: 0;
@@ -236,6 +280,18 @@ const useStyles = createStyles(({ css, cx, token }) => ({
     font-size: 13px;
     font-weight: 600;
     color: ${cssVar.colorText};
+  `,
+  selectableCard: css`
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid ${token.colorPrimary};
+      outline-offset: 2px;
+    }
+  `,
+  selectedCard: css`
+    border-color: ${token.colorPrimary};
+    box-shadow: 0 0 0 2px ${token.colorPrimaryBorder};
   `,
   subtitle: css`
     min-height: 40px;
@@ -288,6 +344,16 @@ const getPlanKey = (plan: string): SubscriptionPlan | null =>
 
 const getCatalogPlan = (planCatalog: PlanCatalog | undefined, plan: SubscriptionPlan) =>
   planCatalog?.find((item) => item.plan === plan);
+
+const isCatalogPlanAvailable = (
+  planCatalog: PlanCatalog | undefined,
+  plan: SubscriptionPlan,
+  billingCycle: BillingCycle,
+) => {
+  const catalogPlan = getCatalogPlan(planCatalog, plan);
+
+  return Boolean(catalogPlan && resolvePlanCyclePrice(catalogPlan, billingCycle).isAvailable);
+};
 
 const getRuleCount = (rule?: ModelRule) => {
   if (!rule) return 0;
@@ -354,28 +420,64 @@ const findHelpMenuUrl = (
   return matched?.url || fallback;
 };
 
+interface ResponsivePlanSectionProps {
+  children: ReactNode;
+  defaultOpen?: boolean;
+  desktopClassName?: string;
+  mobile?: boolean;
+  title: ReactNode;
+}
+
+const ResponsivePlanSection = ({
+  children,
+  defaultOpen = true,
+  desktopClassName,
+  mobile,
+  title,
+}: ResponsivePlanSectionProps) => {
+  if (mobile) {
+    return (
+      <BusinessSettingsSection defaultOpen={defaultOpen} mobile title={title}>
+        {children}
+      </BusinessSettingsSection>
+    );
+  }
+
+  return desktopClassName ? (
+    <Card className={desktopClassName} variant="borderless">
+      {children}
+    </Card>
+  ) : (
+    <>{children}</>
+  );
+};
+
 const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { styles, cx } = useStyles();
   const { t } = useTranslation('subscription');
   const { currentPlan, subscriptionSummary } = useBusinessSubscriptionProfile();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
+  const [mobileSelectedPlan, setMobileSelectedPlan] = useState<SubscriptionPlan>();
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
   const helpMenuItems = useServerConfigStore((s) => s.serverConfig.customization?.helpMenuItems);
 
-  const { data: planCatalog, isLoading: isPlanCatalogLoading } = useClientDataSWR(
-    ['business-plan-catalog'],
-    () => commercialService.listPlanCatalog(),
-  );
+  const {
+    data: planCatalog,
+    error: planCatalogError,
+    isLoading: isPlanCatalogLoading,
+    mutate: mutatePlanCatalog,
+  } = useClientDataSWR(['business-plan-catalog'], () => commercialService.listPlanCatalog());
   const { data: pendingChangeRequest } = useClientDataSWR(
     ['business-subscription-change-request'],
     () => commercialService.getPendingSubscriptionChangeRequest(),
   );
-  const { data: planFaqItems = DEFAULT_PLAN_FAQ_ITEMS } = useClientDataSWR(
-    PUBLIC_PLAN_FAQ_SWR_KEY,
-    () => commercialService.listPlanFaq(),
-  );
+  const {
+    data: planFaqItems = DEFAULT_PLAN_FAQ_ITEMS,
+    error: planFaqError,
+    mutate: mutatePlanFaq,
+  } = useClientDataSWR(PUBLIC_PLAN_FAQ_SWR_KEY, () => commercialService.listPlanFaq());
 
   const visiblePlans = useMemo(() => {
     const configuredPlans = (planCatalog || [])
@@ -402,6 +504,39 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
   const activeBillingCycle = availableBillingCycles.includes(billingCycle)
     ? billingCycle
     : (availableBillingCycles[0] ?? 'monthly');
+
+  useEffect(() => {
+    if (!mobile) return;
+
+    const isActionable = (plan: SubscriptionPlan) =>
+      pendingChangeRequest?.toPlan !== plan &&
+      isCatalogPlanAvailable(planCatalog, plan, activeBillingCycle);
+
+    setMobileSelectedPlan((selectedPlan) => {
+      if (selectedPlan && selectedPlan !== currentPlan && isActionable(selectedPlan)) {
+        return selectedPlan;
+      }
+
+      return getDefaultMobilePlanTarget(visiblePlans, currentPlan, isActionable);
+    });
+  }, [
+    activeBillingCycle,
+    currentPlan,
+    mobile,
+    pendingChangeRequest?.toPlan,
+    planCatalog,
+    visiblePlans,
+  ]);
+
+  const mobileSelectedCatalogPlan =
+    mobileSelectedPlan &&
+    mobileSelectedPlan !== currentPlan &&
+    pendingChangeRequest?.toPlan !== mobileSelectedPlan
+      ? getCatalogPlan(planCatalog, mobileSelectedPlan)
+      : undefined;
+  const mobileSelectedPrice = mobileSelectedCatalogPlan
+    ? resolvePlanCyclePrice(mobileSelectedCatalogPlan, activeBillingCycle)
+    : undefined;
 
   const comparisonColumns = useMemo(
     () => [
@@ -563,245 +698,321 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
     }
   };
 
+  const mobileAction = mobile
+    ? mobileSelectedCatalogPlan && mobileSelectedPrice?.isAvailable
+      ? {
+          label: t('mobile.plans.upgradeTo', {
+            plan:
+              mobileSelectedCatalogPlan.displayName || t(`plans.plan.${mobileSelectedPlan}.title`),
+          }),
+          onClick: () => handleUpgradeClick(mobileSelectedCatalogPlan),
+        }
+      : {
+          label: t('billing.redeem.title'),
+          onClick: () => setRedeemOpen(true),
+        }
+    : undefined;
+
   return (
     <>
-      <BusinessSettingsPageShell className={styles.wrapper} mobile={mobile} title="套餐">
-        <div className={styles.introBar}>
-          <div className={styles.introCopy}>
-            <h1 className={styles.introTitle}>升级方案</h1>
-            <div className={styles.introSubtitle}>解锁更多容量与高级功能。</div>
-          </div>
-          <div className={styles.cycleWrap}>
-            {hasAvailableBillingCycles ? (
-              <Segmented
-                value={activeBillingCycle}
-                variant="filled"
-                options={availableBillingCycles.map((cycle) => ({
-                  label:
-                    cycle === 'yearly' ? (
-                      <Flexbox horizontal align="center" gap={8}>
-                        按年
-                        {yearlyCycleDiscountLabel ? (
-                          <Tag color="green" style={{ margin: 0 }}>
-                            {yearlyCycleDiscountLabel}
-                          </Tag>
-                        ) : null}
-                      </Flexbox>
-                    ) : cycle === 'monthly' ? (
-                      '按月'
-                    ) : cycle === 'one_time' ? (
-                      '一次性'
-                    ) : (
-                      '终身'
-                    ),
-                  value: cycle,
-                }))}
-                onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
-              />
+      <BusinessSettingsPageShell
+        className={styles.wrapper}
+        mobile={mobile}
+        mobileAction={mobileAction}
+        title="套餐"
+      >
+        <ResponsivePlanSection mobile={mobile} title={t('currentPlan.title')}>
+          <div className={styles.introBar}>
+            {mobile ? (
+              <div className={styles.mobileCurrentPlan}>
+                <PlanIcon plan={currentPlan} size={34} />
+                <Flexbox gap={2} minWidth={0}>
+                  <strong>{t(`plans.plan.${currentPlan}.title`)}</strong>
+                </Flexbox>
+              </div>
             ) : (
-              <Alert
-                showIcon
-                message="暂无可购买周期"
-                type="warning"
-                description="后台尚未配置套餐价格，请联系管理员。"
-              />
+              <div className={styles.introCopy}>
+                <h1 className={styles.introTitle}>升级方案</h1>
+                <div className={styles.introSubtitle}>解锁更多容量与高级功能。</div>
+              </div>
             )}
-          </div>
-        </div>
-        {pendingChangeRequest ? (
-          <Alert
-            showIcon
-            message="存在待处理的套餐变更"
-            type="info"
-            description={t('plans.pendingChangeDescription', {
-              cycle: t(getSubscriptionCycleTranslationKey(pendingChangeRequest.cycle)),
-              from: t(`plans.plan.${pendingChangeRequest.fromPlan}.title`),
-              to: t(`plans.plan.${pendingChangeRequest.toPlan}.title`),
-            })}
-          />
-        ) : null}
-        {isPlanCatalogLoading ? (
-          <div className={styles.grid}>
-            {visiblePlans.slice(0, 3).map((plan) => (
-              <Card className={styles.card} key={plan}>
-                <Skeleton active paragraph={{ rows: 12 }} />
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className={styles.grid}>
-            {visiblePlans.map((plan) => {
-              const catalogPlan = getCatalogPlan(planCatalog, plan);
-              const price = catalogPlan
-                ? resolvePlanCyclePrice(catalogPlan, activeBillingCycle)
-                : {
-                    amount: 0,
-                    currency: '',
-                    cycle: activeBillingCycle,
-                    discountPercent: 0,
-                    isAvailable: false,
-                    label: '--',
-                    secondaryLabel: undefined,
-                    unit: t(getSubscriptionCycleTranslationKey(activeBillingCycle)),
-                  };
-              const monthlyCredits =
-                catalogPlan?.monthlyCredits ?? subscriptionSummary?.monthlyCredits ?? 0;
-              const yearlyDiscountLabel = getPlanYearlyDiscountLabel(catalogPlan);
-              const isCurrent = plan === currentPlan;
-              const isPending = pendingChangeRequest?.toPlan === plan;
-              const planBadge =
-                catalogPlan?.badge || (plan === SubscriptionPlan.Premium ? '最受欢迎' : '');
-              const modelRules = (catalogPlan?.modelRules || {}) as Record<string, ModelRule>;
-              const modelAccessSummary = getModelAccessSummary(modelRules);
-
-              return (
-                <Card
-                  className={cx(styles.card, isCurrent && styles.currentCard)}
-                  key={plan}
-                  variant="borderless"
-                >
-                  {planBadge ? <div className={styles.popularRibbon}>{planBadge}</div> : null}
-                  <Flexbox gap={20} height="100%" justify="space-between">
-                    <Flexbox gap={18}>
-                      <Flexbox className={styles.header} gap={14}>
-                        <div className={styles.top}>
-                          <PlanIcon plan={plan} size={38} />
-                          <Flexbox horizontal align="center" gap={6}>
-                            {isCurrent ? <Tag color="blue">当前套餐</Tag> : null}
-                            {isPending ? <Tag color="processing">待处理</Tag> : null}
-                          </Flexbox>
-                        </div>
-                        <Flexbox gap={8}>
-                          <h2 className={styles.title}>
-                            {catalogPlan?.displayName || t(`plans.plan.${plan}.title`)}
-                          </h2>
-                          <div className={styles.subtitle}>{t(`plans.plan.${plan}.desc`)}</div>
-                        </Flexbox>
-                      </Flexbox>
-                      <Flexbox gap={8}>
-                        <div className={styles.price}>
-                          <span>{price.label}</span>
-                          <span className={styles.priceUnit}>/ {price.unit}</span>
-                        </div>
-                        <div className={styles.yearlyLine}>
-                          {price.secondaryLabel ?? '--'}
-                          {activeBillingCycle === 'yearly' &&
-                          yearlyDiscountLabel &&
-                          !price.secondaryLabel?.includes(yearlyDiscountLabel) ? (
+            <div className={cx(styles.cycleWrap, mobile && styles.mobileCycleWrap)}>
+              {hasAvailableBillingCycles ? (
+                <Segmented
+                  value={activeBillingCycle}
+                  variant="filled"
+                  options={availableBillingCycles.map((cycle) => ({
+                    label:
+                      cycle === 'yearly' ? (
+                        <Flexbox horizontal align="center" gap={8}>
+                          按年
+                          {yearlyCycleDiscountLabel && !mobile ? (
                             <Tag color="green" style={{ margin: 0 }}>
-                              {yearlyDiscountLabel}
+                              {yearlyCycleDiscountLabel}
                             </Tag>
                           ) : null}
-                        </div>
-                        {isCurrent || isPending ? (
-                          <Button
-                            block
-                            disabled
-                            className={styles.action}
-                            icon={<Icon icon={isCurrent ? Check : LockKeyhole} />}
-                            type="default"
-                          >
-                            {isCurrent ? '当前套餐' : '待处理'}
-                          </Button>
-                        ) : (
-                          <div className={styles.actionGrid}>
-                            <Button
-                              block
-                              className={styles.action}
-                              disabled={!price.isAvailable}
-                              icon={<Icon icon={ChevronRight} />}
-                              type="primary"
-                              onClick={() => handleUpgradeClick(catalogPlan)}
-                            >
-                              {price.isAvailable ? '升级' : '暂未配置'}
-                            </Button>
-                            <Button
-                              block
-                              className={styles.action}
-                              icon={<Icon icon={Ticket} />}
-                              type="text"
-                              onClick={() => setRedeemOpen(true)}
-                            >
-                              使用兑换码
-                            </Button>
+                        </Flexbox>
+                      ) : cycle === 'monthly' ? (
+                        '按月'
+                      ) : cycle === 'one_time' ? (
+                        '一次性'
+                      ) : (
+                        '终身'
+                      ),
+                    value: cycle,
+                  }))}
+                  onChange={(value: string | number) => setBillingCycle(value as BillingCycle)}
+                />
+              ) : (
+                <Alert
+                  showIcon
+                  message="暂无可购买周期"
+                  type="warning"
+                  description="后台尚未配置套餐价格，请联系管理员。"
+                />
+              )}
+            </div>
+          </div>
+          {pendingChangeRequest ? (
+            <Alert
+              showIcon
+              message="存在待处理的套餐变更"
+              type="info"
+              description={t('plans.pendingChangeDescription', {
+                cycle: t(getSubscriptionCycleTranslationKey(pendingChangeRequest.cycle)),
+                from: t(`plans.plan.${pendingChangeRequest.fromPlan}.title`),
+                to: t(`plans.plan.${pendingChangeRequest.toPlan}.title`),
+              })}
+            />
+          ) : null}
+        </ResponsivePlanSection>
+        <ResponsivePlanSection mobile={mobile} title={t('tab.plans')}>
+          {mobile && planCatalogError ? (
+            <Alert
+              showIcon
+              action={
+                <Button
+                  className={styles.mobileTouchTarget}
+                  onClick={() => void mutatePlanCatalog()}
+                >
+                  {t('mobile.error.retry')}
+                </Button>
+              }
+              message={t('mobile.plans.catalogError')}
+              type="error"
+            />
+          ) : null}
+          {isPlanCatalogLoading ? (
+            <div className={cx(styles.grid, mobile && styles.mobileGrid)}>
+              {visiblePlans.slice(0, 3).map((plan) => (
+                <Card className={styles.card} key={plan}>
+                  <Skeleton active paragraph={{ rows: 12 }} />
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className={cx(styles.grid, mobile && styles.mobileGrid)}>
+              {visiblePlans.map((plan) => {
+                const catalogPlan = getCatalogPlan(planCatalog, plan);
+                const price = catalogPlan
+                  ? resolvePlanCyclePrice(catalogPlan, activeBillingCycle)
+                  : {
+                      amount: 0,
+                      currency: '',
+                      cycle: activeBillingCycle,
+                      discountPercent: 0,
+                      isAvailable: false,
+                      label: '--',
+                      secondaryLabel: undefined,
+                      unit: t(getSubscriptionCycleTranslationKey(activeBillingCycle)),
+                    };
+                const monthlyCredits =
+                  catalogPlan?.monthlyCredits ?? subscriptionSummary?.monthlyCredits ?? 0;
+                const yearlyDiscountLabel = getPlanYearlyDiscountLabel(catalogPlan);
+                const isCurrent = plan === currentPlan;
+                const isPending = pendingChangeRequest?.toPlan === plan;
+                const isSelected = Boolean(mobile && mobileSelectedPlan === plan);
+                const canSelect = Boolean(mobile && !isCurrent && !isPending && price.isAvailable);
+                const planBadge =
+                  catalogPlan?.badge || (plan === SubscriptionPlan.Premium ? '最受欢迎' : '');
+                const modelRules = (catalogPlan?.modelRules || {}) as Record<string, ModelRule>;
+                const modelAccessSummary = getModelAccessSummary(modelRules);
+
+                return (
+                  <Card
+                    aria-current={isSelected ? 'true' : undefined}
+                    aria-disabled={mobile ? !canSelect : undefined}
+                    className={cx(
+                      styles.card,
+                      isCurrent && styles.currentCard,
+                      canSelect && styles.selectableCard,
+                      isSelected && styles.selectedCard,
+                    )}
+                    key={plan}
+                    role={mobile ? 'button' : undefined}
+                    tabIndex={canSelect ? 0 : mobile ? -1 : undefined}
+                    variant="borderless"
+                    onClick={canSelect ? () => setMobileSelectedPlan(plan) : undefined}
+                    onKeyDown={
+                      canSelect
+                        ? (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setMobileSelectedPlan(plan);
+                            }
+                          }
+                        : undefined
+                    }
+                  >
+                    {planBadge ? <div className={styles.popularRibbon}>{planBadge}</div> : null}
+                    <Flexbox gap={20} height="100%" justify="space-between">
+                      <Flexbox gap={18}>
+                        <Flexbox className={styles.header} gap={14}>
+                          <div className={styles.top}>
+                            <PlanIcon plan={plan} size={38} />
+                            <Flexbox horizontal align="center" gap={6}>
+                              {isCurrent ? <Tag color="blue">当前套餐</Tag> : null}
+                              {isPending ? <Tag color="processing">待处理</Tag> : null}
+                            </Flexbox>
                           </div>
-                        )}
-                      </Flexbox>
-                      <Flexbox className={styles.featureGroup} gap={10}>
-                        <div className={styles.sectionTitle}>
-                          <Icon icon={Sparkles} size={15} />
-                          算力积分
-                          <Tooltip title="不同模型的实际消息数会随上下文长度、输出长度和后台计费规则变化。">
-                            <Icon icon={Info} size={14} />
-                          </Tooltip>
-                        </div>
-                        <div className={styles.benefit}>
-                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>{formatCredits(monthlyCredits)} / 每月</span>
-                        </div>
-                        <div className={styles.benefit}>
-                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>实际可用模型和消耗以后台“模型与计费矩阵”为准</span>
-                        </div>
-                      </Flexbox>
-                      <Flexbox className={styles.featureGroup} gap={10}>
-                        <div className={styles.sectionTitle}>后台配置权益</div>
-                        {getPlanFeatures(plan).map((feature) => (
-                          <div className={styles.benefit} key={feature}>
-                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                            <span>{feature.includes('.') ? t(feature as any) : feature}</span>
-                          </div>
-                        ))}
-                      </Flexbox>
-                      <Flexbox className={styles.featureGroup} gap={10}>
-                        <div className={styles.sectionTitle}>文件与知识库</div>
-                        <div className={styles.benefit}>
-                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>
-                            文件存储 {formatNullableQuota(catalogPlan?.storageQuotaMb, ' MB')}
-                          </span>
-                        </div>
-                        <div className={styles.benefit}>
-                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>
-                            向量记录 {formatNullableQuota(catalogPlan?.vectorQuota, ' 条目')}
-                          </span>
-                        </div>
-                      </Flexbox>
-                      <Flexbox className={styles.featureGroup} gap={10}>
-                        <div className={styles.sectionTitle}>
-                          模型权限
-                          <Tooltip title="这里汇总后台 API 设置中每个套餐的模型 allowlist/blocklist 规则。">
-                            <Icon icon={Info} size={14} />
-                          </Tooltip>
-                        </div>
-                        <div className={styles.benefit}>
-                          <Icon className={styles.benefitIcon} icon={Check} size={15} />
-                          <span>{modelAccessSummary.label}</span>
-                        </div>
-                        {modelAccessSummary.entries.length > 0 ? (
-                          <Flexbox horizontal gap={6} wrap="wrap">
-                            {modelAccessSummary.entries.map(([type, rule]) => (
-                              <Tag className={styles.modelTag} key={type}>
-                                {MODEL_TYPE_LABELS[type] || type}
-                                {' / '}
-                                {rule?.mode === 'blocklist' ? '排除' : '可用'} {getRuleCount(rule)}
-                              </Tag>
-                            ))}
+                          <Flexbox gap={8}>
+                            <h2 className={styles.title}>
+                              {catalogPlan?.displayName || t(`plans.plan.${plan}.title`)}
+                            </h2>
+                            <div className={styles.subtitle}>{t(`plans.plan.${plan}.desc`)}</div>
                           </Flexbox>
-                        ) : null}
+                        </Flexbox>
+                        <Flexbox gap={8}>
+                          <div className={styles.price}>
+                            <span>{price.label}</span>
+                            <span className={styles.priceUnit}>/ {price.unit}</span>
+                          </div>
+                          <div className={styles.yearlyLine}>
+                            {price.secondaryLabel ?? '--'}
+                            {activeBillingCycle === 'yearly' &&
+                            yearlyDiscountLabel &&
+                            !price.secondaryLabel?.includes(yearlyDiscountLabel) ? (
+                              <Tag color="green" style={{ margin: 0 }}>
+                                {yearlyDiscountLabel}
+                              </Tag>
+                            ) : null}
+                          </div>
+                          {mobile ? null : isCurrent || isPending ? (
+                            <Button
+                              block
+                              disabled
+                              className={styles.action}
+                              icon={<Icon icon={isCurrent ? Check : LockKeyhole} />}
+                              type="default"
+                            >
+                              {isCurrent ? '当前套餐' : '待处理'}
+                            </Button>
+                          ) : (
+                            <div className={styles.actionGrid}>
+                              <Button
+                                block
+                                className={styles.action}
+                                disabled={!price.isAvailable}
+                                icon={<Icon icon={ChevronRight} />}
+                                type="primary"
+                                onClick={() => handleUpgradeClick(catalogPlan)}
+                              >
+                                {price.isAvailable ? '升级' : '暂未配置'}
+                              </Button>
+                              <Button
+                                block
+                                className={styles.action}
+                                icon={<Icon icon={Ticket} />}
+                                type="text"
+                                onClick={() => setRedeemOpen(true)}
+                              >
+                                使用兑换码
+                              </Button>
+                            </div>
+                          )}
+                        </Flexbox>
+                        <Flexbox className={styles.featureGroup} gap={10}>
+                          <div className={styles.sectionTitle}>
+                            <Icon icon={Sparkles} size={15} />
+                            算力积分
+                            <Tooltip title="不同模型的实际消息数会随上下文长度、输出长度和后台计费规则变化。">
+                              <Icon icon={Info} size={14} />
+                            </Tooltip>
+                          </div>
+                          <div className={styles.benefit}>
+                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                            <span>{formatCredits(monthlyCredits)} / 每月</span>
+                          </div>
+                          <div className={styles.benefit}>
+                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                            <span>实际可用模型和消耗以后台“模型与计费矩阵”为准</span>
+                          </div>
+                        </Flexbox>
+                        <Flexbox className={styles.featureGroup} gap={10}>
+                          <div className={styles.sectionTitle}>后台配置权益</div>
+                          {getPlanFeatures(plan).map((feature) => (
+                            <div className={styles.benefit} key={feature}>
+                              <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                              <span>{feature.includes('.') ? t(feature as any) : feature}</span>
+                            </div>
+                          ))}
+                        </Flexbox>
+                        <Flexbox className={styles.featureGroup} gap={10}>
+                          <div className={styles.sectionTitle}>文件与知识库</div>
+                          <div className={styles.benefit}>
+                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                            <span>
+                              文件存储 {formatNullableQuota(catalogPlan?.storageQuotaMb, ' MB')}
+                            </span>
+                          </div>
+                          <div className={styles.benefit}>
+                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                            <span>
+                              向量记录 {formatNullableQuota(catalogPlan?.vectorQuota, ' 条目')}
+                            </span>
+                          </div>
+                        </Flexbox>
+                        <Flexbox className={styles.featureGroup} gap={10}>
+                          <div className={styles.sectionTitle}>
+                            模型权限
+                            <Tooltip title="这里汇总后台 API 设置中每个套餐的模型 allowlist/blocklist 规则。">
+                              <Icon icon={Info} size={14} />
+                            </Tooltip>
+                          </div>
+                          <div className={styles.benefit}>
+                            <Icon className={styles.benefitIcon} icon={Check} size={15} />
+                            <span>{modelAccessSummary.label}</span>
+                          </div>
+                          {modelAccessSummary.entries.length > 0 ? (
+                            <Flexbox horizontal gap={6} wrap="wrap">
+                              {modelAccessSummary.entries.map(([type, rule]) => (
+                                <Tag className={styles.modelTag} key={type}>
+                                  {MODEL_TYPE_LABELS[type] || type}
+                                  {' / '}
+                                  {rule?.mode === 'blocklist' ? '排除' : '可用'}{' '}
+                                  {getRuleCount(rule)}
+                                </Tag>
+                              ))}
+                            </Flexbox>
+                          ) : null}
+                        </Flexbox>
                       </Flexbox>
                     </Flexbox>
-                  </Flexbox>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-        <Card className={styles.pricingCard} variant="borderless">
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </ResponsivePlanSection>
+        <ResponsivePlanSection
+          defaultOpen={false}
+          desktopClassName={styles.pricingCard}
+          mobile={mobile}
+          title="套餐对比"
+        >
           <Flexbox gap={12}>
             <Flexbox gap={4}>
-              <h2 className={styles.title}>套餐对比</h2>
+              {mobile ? null : <h2 className={styles.title}>套餐对比</h2>}
               <div className={subscriptionPageStyles.caption}>
                 根据后台套餐配置汇总展示积分、资源额度、PPT
                 权益、模型权限和优惠信息；分类维度对齐官方套餐页。
@@ -817,11 +1028,16 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
               size="small"
             />
           </Flexbox>
-        </Card>
-        <Card className={styles.pricingCard} variant="borderless">
+        </ResponsivePlanSection>
+        <ResponsivePlanSection
+          defaultOpen={false}
+          desktopClassName={styles.pricingCard}
+          mobile={mobile}
+          title="文本模型价格"
+        >
           <Flexbox gap={12}>
             <Flexbox gap={4}>
-              <h2 className={styles.title}>文本模型价格</h2>
+              {mobile ? null : <h2 className={styles.title}>文本模型价格</h2>}
               <div className={subscriptionPageStyles.caption}>
                 平台使用算力积分衡量 AI
                 模型使用量。具体模型、倍率和可用套餐由后台“模型与计费矩阵”统一维护，新增 AI
@@ -835,11 +1051,16 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
               type="info"
             />
           </Flexbox>
-        </Card>
-        <Card className={styles.pricingCard} variant="borderless">
+        </ResponsivePlanSection>
+        <ResponsivePlanSection
+          defaultOpen={false}
+          desktopClassName={styles.pricingCard}
+          mobile={mobile}
+          title="常见问题"
+        >
           <Flexbox gap={12}>
             <Flexbox gap={4}>
-              <h2 className={styles.title}>常见问题</h2>
+              {mobile ? null : <h2 className={styles.title}>常见问题</h2>}
               <div className={subscriptionPageStyles.caption}>
                 如果您的问题未被解答，请通过后台配置的支持入口获取帮助。
               </div>
@@ -847,11 +1068,12 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
                 <div className={styles.supportActions}>
                   {faqLinks.map((item) => (
                     <Button
+                      className={mobile ? styles.mobileTouchTarget : undefined}
                       href={item.url}
                       icon={<Icon icon={item.icon} />}
                       key={item.label}
                       rel="noopener noreferrer"
-                      size="small"
+                      size={mobile ? 'middle' : 'small'}
                       target="_blank"
                     >
                       {item.label}
@@ -860,6 +1082,18 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
                 </div>
               ) : null}
             </Flexbox>
+            {mobile && planFaqError ? (
+              <Alert
+                showIcon
+                action={
+                  <Button className={styles.mobileTouchTarget} onClick={() => void mutatePlanFaq()}>
+                    {t('mobile.error.retry')}
+                  </Button>
+                }
+                message={t('mobile.plans.faqError')}
+                type="error"
+              />
+            ) : null}
             <Collapse
               ghost
               items={planFaqItems.map((item) => ({
@@ -869,7 +1103,7 @@ const Plans = memo<{ mobile?: boolean }>(({ mobile }) => {
               }))}
             />
           </Flexbox>
-        </Card>
+        </ResponsivePlanSection>
       </BusinessSettingsPageShell>
       <Modal
         confirmLoading={redeeming}
