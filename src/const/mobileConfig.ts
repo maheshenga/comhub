@@ -1,0 +1,460 @@
+import { z } from 'zod';
+
+export type MobileIconName = string;
+
+export interface MobileNavigationItemV1 {
+  icon: MobileIconName;
+  id: 'slot-1' | 'slot-2' | 'slot-3' | 'slot-4';
+  label: string;
+  order: number;
+  path: string;
+  visible: boolean;
+}
+
+export interface MobileDesignToolV1 {
+  enabled: boolean;
+  icon: MobileIconName;
+  id: 'document' | 'image' | 'ppt';
+  label: string;
+  order: number;
+}
+
+export interface MobileFeaturedAssistantV1 {
+  assistantId: string;
+  descriptionOverride?: string;
+  model: string;
+  order: number;
+  provider: string;
+  titleOverride?: string;
+}
+
+export interface MobileBuiltinAppV1 {
+  enabled: boolean;
+  icon: MobileIconName;
+  id: string;
+  label: string;
+  order: number;
+  path: string;
+}
+
+export interface MobilePublicConfigV1 {
+  applications: {
+    builtins: MobileBuiltinAppV1[];
+    featuredModuleAppIds: string[];
+  };
+  brand: { displayName: null | string; logoUrl: null | string };
+  design: { tools: MobileDesignToolV1[] };
+  discover: { assistants: MobileFeaturedAssistantV1[]; title: string };
+  navigation: { items: MobileNavigationItemV1[] };
+  version: 1;
+}
+
+export const MOBILE_ICON_NAMES = [
+  'message-square-more',
+  'palette',
+  'compass',
+  'shapes',
+  'file-text',
+  'image',
+  'presentation',
+  'list-todo',
+  'library',
+  'bot',
+  'chart-no-axes-column-increasing',
+  'coins',
+  'boxes',
+  'bell',
+  'settings',
+  'store',
+  'sparkles',
+  'search',
+  'plus',
+  'pin',
+  'users',
+] as const;
+
+export const DEFAULT_MOBILE_CONFIG: MobilePublicConfigV1 = {
+  applications: { builtins: [], featuredModuleAppIds: [] },
+  brand: { displayName: null, logoUrl: null },
+  design: {
+    tools: [
+      { enabled: true, icon: 'file-text', id: 'document', label: '文稿', order: 1 },
+      { enabled: true, icon: 'image', id: 'image', label: '图片', order: 2 },
+      { enabled: true, icon: 'presentation', id: 'ppt', label: 'PPT', order: 3 },
+    ],
+  },
+  discover: { assistants: [], title: '推荐助手' },
+  navigation: {
+    items: [
+      {
+        icon: 'message-square-more',
+        id: 'slot-1',
+        label: '最近',
+        order: 1,
+        path: '/',
+        visible: true,
+      },
+      { icon: 'palette', id: 'slot-2', label: '设计', order: 2, path: '/design', visible: true },
+      {
+        icon: 'compass',
+        id: 'slot-3',
+        label: '发现',
+        order: 3,
+        path: '/discover',
+        visible: true,
+      },
+      { icon: 'shapes', id: 'slot-4', label: '应用', order: 4, path: '/apps', visible: true },
+    ],
+  },
+  version: 1,
+};
+
+const cloneDefaultMobileConfig = (): MobilePublicConfigV1 => ({
+  ...DEFAULT_MOBILE_CONFIG,
+  applications: {
+    builtins: [...DEFAULT_MOBILE_CONFIG.applications.builtins],
+    featuredModuleAppIds: [...DEFAULT_MOBILE_CONFIG.applications.featuredModuleAppIds],
+  },
+  brand: { ...DEFAULT_MOBILE_CONFIG.brand },
+  design: { tools: DEFAULT_MOBILE_CONFIG.design.tools.map((tool) => ({ ...tool })) },
+  discover: { ...DEFAULT_MOBILE_CONFIG.discover, assistants: [] },
+  navigation: { items: DEFAULT_MOBILE_CONFIG.navigation.items.map((item) => ({ ...item })) },
+});
+
+const MOBILE_PATH_ORIGIN = 'https://mobile-config.invalid';
+const CONTROL_CHARACTER_RE = /\p{Cc}/u;
+const ALL_HAN_RE = /^\p{Script=Han}+$/u;
+const MAX_IDENTIFIER_LENGTH = 128;
+const MOBILE_CONFIG_V1_SCHEMA = z.object({ version: z.literal(1) }).passthrough();
+
+type MobileNavigationId = MobileNavigationItemV1['id'];
+type MobileDesignToolId = MobileDesignToolV1['id'];
+type OrderedInput<T> = { item: T; order: number; sourceIndex: number };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const normalizeTrimmedString = (value: unknown, maxLength: number) => {
+  if (typeof value !== 'string') return;
+
+  const normalized = value.trim();
+  if (normalized.length === 0 || [...normalized].length > maxLength) return;
+
+  return normalized;
+};
+
+const normalizeIdentifier = (value: unknown) =>
+  normalizeTrimmedString(value, MAX_IDENTIFIER_LENGTH);
+
+const normalizeLabel = (value: unknown, fallback: string) => {
+  const normalized = normalizeTrimmedString(value, ALL_HAN_RE.test(String(value).trim()) ? 6 : 12);
+
+  return normalized ?? fallback;
+};
+
+const normalizeOptionalLabel = (value: unknown) =>
+  normalizeTrimmedString(value, ALL_HAN_RE.test(String(value).trim()) ? 6 : 12);
+
+const normalizeIcon = (value: unknown, fallback?: MobileIconName) => {
+  const normalized = normalizeTrimmedString(value, 64);
+
+  if (normalized && MOBILE_ICON_NAMES.includes(normalized as (typeof MOBILE_ICON_NAMES)[number])) {
+    return normalized;
+  }
+
+  return fallback;
+};
+
+const normalizeBoolean = (value: unknown, fallback: boolean) =>
+  typeof value === 'boolean' ? value : fallback;
+
+const normalizeOrder = (value: unknown, fallback: number) =>
+  typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
+
+const compareOrderedInputs = <T>(left: OrderedInput<T>, right: OrderedInput<T>) =>
+  left.order - right.order || left.sourceIndex - right.sourceIndex;
+
+const reindex = <T extends { order: number }>(items: OrderedInput<T>[]): T[] =>
+  [...items]
+    .sort(compareOrderedInputs)
+    .map(({ item }, index) => ({ ...item, order: index + 1 }) as T);
+
+export const validateMobileInternalPath = (value: unknown) => {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 256) return false;
+  if (value.trim() !== value || !value.startsWith('/') || value.startsWith('//')) return false;
+  if (value.includes('\\') || CONTROL_CHARACTER_RE.test(value)) return false;
+
+  try {
+    const url = new URL(value, MOBILE_PATH_ORIGIN);
+    const decodedPathname = decodeURIComponent(url.pathname);
+
+    return (
+      url.origin === MOBILE_PATH_ORIGIN &&
+      !decodedPathname.startsWith('//') &&
+      !decodedPathname.includes('\\') &&
+      !CONTROL_CHARACTER_RE.test(decodedPathname)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const normalizeLogoUrl = (value: unknown) => {
+  const normalized = normalizeTrimmedString(value, 2048);
+  if (!normalized) return null;
+  if (validateMobileInternalPath(normalized)) return normalized;
+
+  try {
+    const url = new URL(normalized);
+
+    return url.protocol === 'http:' || url.protocol === 'https:' ? normalized : null;
+  } catch {
+    return null;
+  }
+};
+
+const navigationDefaults = () => cloneDefaultMobileConfig().navigation.items;
+const designDefaults = () => cloneDefaultMobileConfig().design.tools;
+
+type NormalizedNavigationEntry = OrderedInput<MobileNavigationItemV1> & {
+  usesDefaultPath: boolean;
+};
+
+const repairNavigationPathCollisions = (entries: NormalizedNavigationEntry[]) => {
+  for (let attempts = 0; attempts < entries.length * entries.length; attempts += 1) {
+    const seen = new Map<string, NormalizedNavigationEntry>();
+    let repaired = false;
+
+    for (const entry of entries) {
+      if (!entry.item.visible) continue;
+
+      const existing = seen.get(entry.item.path);
+      if (!existing) {
+        seen.set(entry.item.path, entry);
+        continue;
+      }
+
+      const reset = entry.usesDefaultPath && !existing.usesDefaultPath ? existing : entry;
+      const fallback = navigationDefaults().find((item) => item.id === reset.item.id)!;
+
+      reset.item = fallback;
+      reset.order = fallback.order;
+      reset.usesDefaultPath = true;
+      repaired = true;
+      break;
+    }
+
+    if (!repaired) return;
+  }
+};
+
+const normalizeNavigation = (value: unknown): MobileNavigationItemV1[] => {
+  const defaults = navigationDefaults();
+  const rawItems = isRecord(value) && Array.isArray(value.items) ? value.items : [];
+  const entriesById = new Map<
+    MobileNavigationId,
+    { item: Record<string, unknown>; sourceIndex: number }
+  >();
+
+  rawItems.forEach((rawItem, sourceIndex) => {
+    if (!isRecord(rawItem)) return;
+
+    const id = rawItem.id;
+    if (
+      (id === 'slot-1' || id === 'slot-2' || id === 'slot-3' || id === 'slot-4') &&
+      !entriesById.has(id)
+    ) {
+      entriesById.set(id, { item: rawItem, sourceIndex });
+    }
+  });
+
+  const entries: NormalizedNavigationEntry[] = defaults.map((fallback, defaultIndex) => {
+    const raw = entriesById.get(fallback.id);
+    const path = raw && typeof raw.item.path === 'string' ? raw.item.path : undefined;
+    if (!raw || !path || !validateMobileInternalPath(path)) {
+      return {
+        item: { ...fallback },
+        order: fallback.order,
+        sourceIndex: raw?.sourceIndex ?? defaultIndex,
+        usesDefaultPath: true,
+      };
+    }
+
+    return {
+      item: {
+        icon: normalizeIcon(raw.item.icon, fallback.icon)!,
+        id: fallback.id,
+        label: normalizeLabel(raw.item.label, fallback.label),
+        order: 0,
+        path,
+        visible: normalizeBoolean(raw.item.visible, fallback.visible),
+      },
+      order: normalizeOrder(raw.item.order, fallback.order),
+      sourceIndex: raw.sourceIndex,
+      usesDefaultPath: false,
+    };
+  });
+
+  repairNavigationPathCollisions(entries);
+
+  if (entries.filter((entry) => entry.item.visible).length < 2) {
+    for (const entry of entries) {
+      if (entries.filter((candidate) => candidate.item.visible).length >= 2) break;
+      entry.item.visible = true;
+    }
+    repairNavigationPathCollisions(entries);
+  }
+
+  return reindex(entries);
+};
+
+const normalizeDesignTools = (value: unknown): MobileDesignToolV1[] => {
+  const defaults = designDefaults();
+  const rawTools = isRecord(value) && Array.isArray(value.tools) ? value.tools : [];
+  const toolsById = new Map<
+    MobileDesignToolId,
+    { item: Record<string, unknown>; sourceIndex: number }
+  >();
+
+  rawTools.forEach((rawTool, sourceIndex) => {
+    if (!isRecord(rawTool)) return;
+
+    const id = rawTool.id;
+    if ((id === 'document' || id === 'image' || id === 'ppt') && !toolsById.has(id)) {
+      toolsById.set(id, { item: rawTool, sourceIndex });
+    }
+  });
+
+  return reindex(
+    defaults.map((fallback, defaultIndex) => {
+      const raw = toolsById.get(fallback.id);
+      if (!raw) {
+        return {
+          item: { ...fallback },
+          order: fallback.order,
+          sourceIndex: rawTools.length + defaultIndex,
+        };
+      }
+
+      return {
+        item: {
+          enabled: normalizeBoolean(raw.item.enabled, fallback.enabled),
+          icon: normalizeIcon(raw.item.icon, fallback.icon)!,
+          id: fallback.id,
+          label: normalizeLabel(raw.item.label, fallback.label),
+          order: 0,
+        },
+        order: normalizeOrder(raw.item.order, fallback.order),
+        sourceIndex: raw.sourceIndex,
+      };
+    }),
+  );
+};
+
+const normalizeAssistants = (value: unknown): MobileFeaturedAssistantV1[] => {
+  if (!Array.isArray(value)) return [];
+
+  const seenIds = new Set<string>();
+  const entries: OrderedInput<MobileFeaturedAssistantV1>[] = [];
+
+  value.forEach((rawAssistant, sourceIndex) => {
+    if (!isRecord(rawAssistant)) return;
+
+    const assistantId = normalizeIdentifier(rawAssistant.assistantId);
+    const provider = normalizeIdentifier(rawAssistant.provider);
+    const model = normalizeIdentifier(rawAssistant.model);
+    if (!assistantId || !provider || !model || seenIds.has(assistantId)) return;
+
+    seenIds.add(assistantId);
+    const titleOverride = normalizeOptionalLabel(rawAssistant.titleOverride);
+    const descriptionOverride = normalizeTrimmedString(rawAssistant.descriptionOverride, 160);
+
+    entries.push({
+      item: {
+        assistantId,
+        ...(descriptionOverride ? { descriptionOverride } : {}),
+        model,
+        order: 0,
+        provider,
+        ...(titleOverride ? { titleOverride } : {}),
+      },
+      order: normalizeOrder(rawAssistant.order, sourceIndex + 1),
+      sourceIndex,
+    });
+  });
+
+  return reindex(entries)
+    .slice(0, 4)
+    .map((assistant, index) => ({ ...assistant, order: index + 1 }));
+};
+
+const normalizeBuiltins = (value: unknown): MobileBuiltinAppV1[] => {
+  if (!Array.isArray(value)) return [];
+
+  const seenIds = new Set<string>();
+  const entries: OrderedInput<MobileBuiltinAppV1>[] = [];
+
+  value.forEach((rawBuiltin, sourceIndex) => {
+    if (!isRecord(rawBuiltin)) return;
+
+    const id = normalizeIdentifier(rawBuiltin.id);
+    const icon = normalizeIcon(rawBuiltin.icon);
+    const label = normalizeOptionalLabel(rawBuiltin.label);
+    const path = typeof rawBuiltin.path === 'string' ? rawBuiltin.path : undefined;
+    if (!id || !icon || !label || !path || !validateMobileInternalPath(path) || seenIds.has(id)) {
+      return;
+    }
+
+    seenIds.add(id);
+    entries.push({
+      item: {
+        enabled: normalizeBoolean(rawBuiltin.enabled, true),
+        icon,
+        id,
+        label,
+        order: 0,
+        path,
+      },
+      order: normalizeOrder(rawBuiltin.order, sourceIndex + 1),
+      sourceIndex,
+    });
+  });
+
+  return reindex(entries);
+};
+
+const normalizeFeaturedModuleAppIds = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+
+  return [
+    ...new Set(value.map(normalizeIdentifier).filter((id): id is string => Boolean(id))),
+  ].sort();
+};
+
+export const normalizeMobileConfig = (input: unknown): MobilePublicConfigV1 => {
+  const parsed = MOBILE_CONFIG_V1_SCHEMA.safeParse(input);
+  if (!parsed.success) return cloneDefaultMobileConfig();
+
+  const config = parsed.data;
+  const applications = isRecord(config.applications) ? config.applications : {};
+  const brand = isRecord(config.brand) ? config.brand : {};
+  const discover = isRecord(config.discover) ? config.discover : {};
+
+  return {
+    applications: {
+      builtins: normalizeBuiltins(applications.builtins),
+      featuredModuleAppIds: normalizeFeaturedModuleAppIds(applications.featuredModuleAppIds),
+    },
+    brand: {
+      displayName: normalizeOptionalLabel(brand.displayName) ?? null,
+      logoUrl: normalizeLogoUrl(brand.logoUrl),
+    },
+    design: { tools: normalizeDesignTools(config.design) },
+    discover: {
+      assistants: normalizeAssistants(discover.assistants),
+      title: normalizeTrimmedString(discover.title, 12) ?? DEFAULT_MOBILE_CONFIG.discover.title,
+    },
+    navigation: { items: normalizeNavigation(config.navigation) },
+    version: 1,
+  };
+};

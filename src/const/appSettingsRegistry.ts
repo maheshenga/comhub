@@ -94,6 +94,7 @@ export const APP_SETTING_KEYS = {
   memoryUserMemoryPersonaWriterModel: 'memory.userMemory.personaWriter.model',
   memoryUserMemoryPersonaWriterProvider: 'memory.userMemory.personaWriter.provider',
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
+  mobileConfig: 'mobile.config',
   notificationDesktopEnabled: 'notification.desktop.enabled',
   notificationEmailEnabled: 'notification.email.enabled',
   notificationEventDefaults: 'notification.eventDefaults',
@@ -173,6 +174,7 @@ export const APP_SETTINGS_SECTIONS = [
   'growth',
   'integrations',
   'maintenance',
+  'mobile',
   'model-billing-matrix',
   'model-policy',
   'notifications',
@@ -225,6 +227,8 @@ const USER_DEFAULTS_SECTION_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.userGlobalSettingsDefaults,
 ]);
 
+const MOBILE_SECTION_KEYS = new Set<AppSettingKey>([APP_SETTING_KEYS.mobileConfig]);
+
 const MODEL_BILLING_SECTION_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.defaultAgentModel,
   APP_SETTING_KEYS.defaultAgentProvider,
@@ -240,6 +244,7 @@ export const getAppSettingsSectionForKey = (key: AppSettingKey): AppSettingsSect
   if (MODEL_BILLING_SECTION_KEYS.has(key)) return 'model-billing-matrix';
   if (AI_RUNTIME_DEFAULTS_SECTION_KEYS.has(key)) return 'ai-runtime-defaults';
   if (INTEGRATIONS_SECTION_KEYS.has(key)) return 'integrations';
+  if (MOBILE_SECTION_KEYS.has(key)) return 'mobile';
   if (USER_DEFAULTS_SECTION_KEYS.has(key)) return 'user-defaults';
   if (key === APP_SETTING_KEYS.memoryUserMemoryTriggerMode) return 'maintenance';
   if (key.startsWith('desktop.')) return 'desktop-update';

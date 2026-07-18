@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { APP_SETTING_KEYS, getAppSettingsSectionForKey } from './appSettingsRegistry';
+import {
+  APP_SETTING_KEYS,
+  APP_SETTINGS_SECTIONS,
+  getAppSettingsSectionForKey,
+} from './appSettingsRegistry';
 
 describe('app settings section ownership', () => {
   it('assigns defaults to their canonical admin owner without changing storage ownership', () => {
@@ -24,5 +28,10 @@ describe('app settings section ownership', () => {
     expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.storageS3PublicDomain)).toBe(
       'file-storage',
     );
+  });
+
+  it('assigns mobile configuration exclusively to the mobile section', () => {
+    expect(APP_SETTINGS_SECTIONS).toContain('mobile');
+    expect(getAppSettingsSectionForKey(APP_SETTING_KEYS.mobileConfig)).toBe('mobile');
   });
 });

@@ -700,6 +700,9 @@ export const buildAdminSettingsSectionReadModel = async (
     case 'maintenance': {
       return { ...(await buildMaintenanceSettings(snapshot)), section, sharedHealth };
     }
+    case 'mobile': {
+      return { section, sharedHealth };
+    }
     case 'model-billing-matrix': {
       return { ...buildModelBillingSettings(snapshot, context), section, sharedHealth };
     }
