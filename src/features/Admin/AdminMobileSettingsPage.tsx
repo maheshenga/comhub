@@ -4,7 +4,7 @@ import { Button, Flexbox, Skeleton } from '@lobehub/ui';
 import { Switch } from '@lobehub/ui/base-ui';
 import { Alert, Input } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
-import { ArrowDown, ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import {
   memo,
   type ReactNode,
@@ -67,6 +67,15 @@ const styles = createStaticStyles(({ css }) => ({
     @media (max-width: 560px) {
       grid-template-columns: minmax(0, 1fr);
     }
+  `,
+  orderedEntry: css`
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 40px;
+    padding-block: 8px;
+    border-bottom: 1px solid ${cssVar.colorBorderSecondary};
   `,
   page: css`
     width: min(100%, 1120px);
@@ -135,6 +144,36 @@ const sortByOrder = <T extends { order: number }>(items: T[]) =>
 const withReindexedOrder = <T extends { order: number }>(items: T[]) =>
   items.map((item, index) => ({ ...item, order: index + 1 }));
 
+const moveOrderedItem = <T extends { order: number }>(
+  items: T[],
+  matches: (item: T) => boolean,
+  direction: -1 | 1,
+) => {
+  const sortedItems = sortByOrder(items);
+  const index = sortedItems.findIndex(matches);
+  const targetIndex = index + direction;
+  if (index < 0 || targetIndex < 0 || targetIndex >= sortedItems.length) return items;
+
+  const nextItems = [...sortedItems];
+  [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
+  return withReindexedOrder(nextItems);
+};
+
+const removeOrderedItem = <T extends { order: number }>(
+  items: T[],
+  matches: (item: T) => boolean,
+) => withReindexedOrder(sortByOrder(items).filter((item) => !matches(item)));
+
+const moveArrayItem = <T,>(items: T[], value: T, direction: -1 | 1) => {
+  const index = items.indexOf(value);
+  const targetIndex = index + direction;
+  if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return items;
+
+  const nextItems = [...items];
+  [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
+  return nextItems;
+};
+
 const updateNavigationItem = (
   config: MobilePublicConfigV1,
   id: MobileNavigationItemV1['id'],
@@ -180,15 +219,8 @@ const moveNavigationItem = (
   id: MobileNavigationItemV1['id'],
   direction: -1 | 1,
 ) => {
-  const items = sortByOrder(config.navigation.items);
-  const index = items.findIndex((item) => item.id === id);
-  const targetIndex = index + direction;
-  if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return config;
-
-  const nextItems = [...items];
-  [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
-
-  return { ...config, navigation: { items: withReindexedOrder(nextItems) } };
+  const items = moveOrderedItem(config.navigation.items, (item) => item.id === id, direction);
+  return items === config.navigation.items ? config : { ...config, navigation: { items } };
 };
 
 const validateFormConfig = (config: MobilePublicConfigV1): ValidationResult => {
@@ -414,6 +446,44 @@ const AccessibleSwitch = ({
   );
 };
 
+const OrderButtons = ({
+  label,
+  onMove,
+  position,
+  total,
+}: {
+  label: string;
+  onMove: (direction: -1 | 1) => void;
+  position: number;
+  total: number;
+}) => (
+  <Flexbox horizontal gap={4}>
+    <Button
+      aria-label={`Move ${label} up`}
+      disabled={position === 0}
+      icon={<ArrowUp size={14} />}
+      title={`Move ${label} up`}
+      onClick={() => onMove(-1)}
+    />
+    <Button
+      aria-label={`Move ${label} down`}
+      disabled={position === total - 1}
+      icon={<ArrowDown size={14} />}
+      title={`Move ${label} down`}
+      onClick={() => onMove(1)}
+    />
+  </Flexbox>
+);
+
+const RemoveButton = ({ label, onClick }: { label: string; onClick: () => void }) => (
+  <Button
+    aria-label={`Remove ${label}`}
+    icon={<Trash2 size={14} />}
+    title={`Remove ${label}`}
+    onClick={onClick}
+  />
+);
+
 const SelectorAlert = ({ label, onRetry, retryLabel, status }: SelectorAlertProps) =>
   status.error ? (
     <Alert
@@ -549,6 +619,7 @@ const AdminMobileSettingsPage = memo(() => {
   const canAddFeaturedAssistant =
     !assistantSelectorUnavailable &&
     !modelSelectorUnavailable &&
+    formValues.discover.assistants.length < 4 &&
     Boolean(selectedAssistantId) &&
     Boolean(selectedModelValue);
   const canAddModuleApp = !moduleAppSelectorUnavailable && Boolean(selectedModuleAppId);
@@ -680,7 +751,7 @@ const AdminMobileSettingsPage = memo(() => {
 
       <section aria-label="Bottom Navigation" className={styles.section}>
         <h2 className={styles.sectionTitle}>Bottom Navigation</h2>
-        {sortByOrder(formValues.navigation.items).map((item) => (
+        {sortByOrder(formValues.navigation.items).map((item, index, items) => (
           <div className={styles.itemRow} key={item.id}>
             <LabeledField label={`Tab ${item.id} label`}>
               <Input
@@ -718,27 +789,19 @@ const AdminMobileSettingsPage = memo(() => {
                 updateForm(updateNavigationItem(formValues, item.id, { visible }))
               }
             />
-            <Flexbox horizontal gap={4}>
-              <Button
-                aria-label={`Move ${item.id} up`}
-                disabled={item.order === 1}
-                icon={<ArrowUp size={14} />}
-                onClick={() => updateForm(moveNavigationItem(formValues, item.id, -1))}
-              />
-              <Button
-                aria-label={`Move ${item.id} down`}
-                disabled={item.order === formValues.navigation.items.length}
-                icon={<ArrowDown size={14} />}
-                onClick={() => updateForm(moveNavigationItem(formValues, item.id, 1))}
-              />
-            </Flexbox>
+            <OrderButtons
+              label={item.id}
+              position={index}
+              total={items.length}
+              onMove={(direction) => updateForm(moveNavigationItem(formValues, item.id, direction))}
+            />
           </div>
         ))}
       </section>
 
       <section aria-label="Design Tools" className={styles.section}>
         <h2 className={styles.sectionTitle}>Design Tools</h2>
-        {sortByOrder(formValues.design.tools).map((tool) => (
+        {sortByOrder(formValues.design.tools).map((tool, index, tools) => (
           <div className={styles.itemRow} key={tool.id}>
             <LabeledField label={`Tool ${tool.id} label`}>
               <Input
@@ -756,7 +819,23 @@ const AdminMobileSettingsPage = memo(() => {
                 onChange={(icon) => updateForm(updateDesignTool(formValues, tool.id, { icon }))}
               />
             </LabeledField>
-            <span />
+            <OrderButtons
+              label={`tool ${tool.id}`}
+              position={index}
+              total={tools.length}
+              onMove={(direction) =>
+                updateForm({
+                  ...formValues,
+                  design: {
+                    tools: moveOrderedItem(
+                      formValues.design.tools,
+                      (item) => item.id === tool.id,
+                      direction,
+                    ),
+                  },
+                })
+              }
+            />
             <AccessibleSwitch
               checked={tool.enabled}
               label={`Tool ${tool.id} enabled`}
@@ -801,10 +880,48 @@ const AdminMobileSettingsPage = memo(() => {
           </Button>
         </div>
         <Flexbox gap={8}>
-          {sortByOrder(formValues.discover.assistants).map((assistant) => (
-            <span key={assistant.assistantId}>
-              {assistant.titleOverride ?? assistant.assistantId}
-            </span>
+          {sortByOrder(formValues.discover.assistants).map((assistant, index, assistants) => (
+            <div className={styles.orderedEntry} key={assistant.assistantId}>
+              <span>
+                {assistant.titleOverride ?? assistant.assistantId} ({assistant.provider}/
+                {assistant.model})
+              </span>
+              <Flexbox horizontal gap={4}>
+                <OrderButtons
+                  label={`assistant ${assistant.assistantId}`}
+                  position={index}
+                  total={assistants.length}
+                  onMove={(direction) =>
+                    updateForm({
+                      ...formValues,
+                      discover: {
+                        ...formValues.discover,
+                        assistants: moveOrderedItem(
+                          formValues.discover.assistants,
+                          (item) => item.assistantId === assistant.assistantId,
+                          direction,
+                        ),
+                      },
+                    })
+                  }
+                />
+                <RemoveButton
+                  label={`assistant ${assistant.assistantId}`}
+                  onClick={() =>
+                    updateForm({
+                      ...formValues,
+                      discover: {
+                        ...formValues.discover,
+                        assistants: removeOrderedItem(
+                          formValues.discover.assistants,
+                          (item) => item.assistantId === assistant.assistantId,
+                        ),
+                      },
+                    })
+                  }
+                />
+              </Flexbox>
+            </div>
           ))}
         </Flexbox>
       </section>
@@ -830,13 +947,47 @@ const AdminMobileSettingsPage = memo(() => {
           </Button>
         </div>
         <Flexbox gap={8}>
-          {formValues.applications.featuredModuleAppIds.map((id) => (
-            <span key={id}>
-              {moduleAppOptions.find((option) => option.value === id)?.label ?? id}
-            </span>
+          {formValues.applications.featuredModuleAppIds.map((id, index, ids) => (
+            <div className={styles.orderedEntry} key={id}>
+              <span>{moduleAppOptions.find((option) => option.value === id)?.label ?? id}</span>
+              <Flexbox horizontal gap={4}>
+                <OrderButtons
+                  label={`module app ${id}`}
+                  position={index}
+                  total={ids.length}
+                  onMove={(direction) =>
+                    updateForm({
+                      ...formValues,
+                      applications: {
+                        ...formValues.applications,
+                        featuredModuleAppIds: moveArrayItem(
+                          formValues.applications.featuredModuleAppIds,
+                          id,
+                          direction,
+                        ),
+                      },
+                    })
+                  }
+                />
+                <RemoveButton
+                  label={`module app ${id}`}
+                  onClick={() =>
+                    updateForm({
+                      ...formValues,
+                      applications: {
+                        ...formValues.applications,
+                        featuredModuleAppIds: formValues.applications.featuredModuleAppIds.filter(
+                          (appId) => appId !== id,
+                        ),
+                      },
+                    })
+                  }
+                />
+              </Flexbox>
+            </div>
           ))}
         </Flexbox>
-        {sortByOrder(formValues.applications.builtins).map((app) => (
+        {sortByOrder(formValues.applications.builtins).map((app, index, apps) => (
           <div className={styles.itemRow} key={app.id}>
             <LabeledField label={`Builtin ${app.id} label`}>
               <Input
@@ -868,7 +1019,24 @@ const AdminMobileSettingsPage = memo(() => {
               label={`Builtin ${app.id} enabled`}
               onChange={(enabled) => updateForm(updateBuiltinApp(formValues, app.id, { enabled }))}
             />
-            <span />
+            <OrderButtons
+              label={`builtin ${app.id}`}
+              position={index}
+              total={apps.length}
+              onMove={(direction) =>
+                updateForm({
+                  ...formValues,
+                  applications: {
+                    ...formValues.applications,
+                    builtins: moveOrderedItem(
+                      formValues.applications.builtins,
+                      (item) => item.id === app.id,
+                      direction,
+                    ),
+                  },
+                })
+              }
+            />
           </div>
         ))}
       </section>

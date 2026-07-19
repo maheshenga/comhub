@@ -246,8 +246,106 @@ describe('AdminMobileSettingsPage', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add module app' }));
 
-    expect(screen.getAllByText('Alpha Assistant').length).toBeGreaterThan(1);
-    expect(screen.getAllByText('Design Kit').length).toBeGreaterThan(1);
+    expect(
+      screen.getByRole('button', { name: 'Remove assistant agent-alpha' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remove module app design-kit' }),
+    ).toBeInTheDocument();
+  });
+
+  it('reorders and removes configurable tools, assistants, and app entries', async () => {
+    setupLoaders(
+      mobileConfig({
+        applications: {
+          builtins: [
+            {
+              enabled: true,
+              icon: 'shapes',
+              id: 'tasks',
+              label: 'Tasks',
+              order: 1,
+              path: '/tasks',
+            },
+            {
+              enabled: true,
+              icon: 'compass',
+              id: 'community',
+              label: 'Community',
+              order: 2,
+              path: '/community',
+            },
+          ],
+          featuredModuleAppIds: ['app-one', 'app-two'],
+        },
+        discover: {
+          assistants: [
+            {
+              assistantId: 'agent-one',
+              model: 'gpt-4.1',
+              order: 1,
+              provider: 'openai',
+              titleOverride: 'Agent One',
+            },
+            {
+              assistantId: 'agent-two',
+              model: 'gpt-4.1',
+              order: 2,
+              provider: 'openai',
+              titleOverride: 'Agent Two',
+            },
+          ],
+          title: 'Recommended assistants',
+        },
+      }),
+    );
+    renderPage();
+
+    await screen.findByLabelText('Brand display name');
+    fireEvent.click(screen.getByRole('button', { name: 'Move tool document down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move assistant agent-two up' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove assistant agent-one' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move module app app-two up' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove module app app-one' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move builtin community up' }));
+
+    expect(
+      within(screen.getByRole('region', { name: 'Design Tools' })).getAllByLabelText(
+        /Tool .* label/,
+      )[0],
+    ).toHaveAccessibleName('Tool image label');
+    expect(screen.queryByText('Agent One')).not.toBeInTheDocument();
+    expect(screen.queryByText('app-one')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Move assistant agent-two up' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move module app app-two up' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move builtin community up' })).toBeDisabled();
+  });
+
+  it('does not allow more than four featured assistants', async () => {
+    setupLoaders(
+      mobileConfig({
+        discover: {
+          assistants: Array.from({ length: 4 }, (_, index) => ({
+            assistantId: `configured-agent-${index + 1}`,
+            model: 'gpt-4.1',
+            order: index + 1,
+            provider: 'openai',
+          })),
+          title: 'Recommended assistants',
+        },
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole('option', { name: 'Alpha Assistant' });
+    fireEvent.change(screen.getByLabelText('Featured assistant'), {
+      target: { value: 'agent-alpha' },
+    });
+    fireEvent.change(screen.getByLabelText('Recommended model'), {
+      target: { value: 'openai/gpt-4.1' },
+    });
+
+    expect(screen.getByRole('button', { name: 'Add featured assistant' })).toBeDisabled();
   });
 
   it('restores normalized defaults after confirmation', async () => {
