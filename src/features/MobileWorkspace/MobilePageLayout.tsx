@@ -5,9 +5,11 @@ import { Outlet } from 'react-router';
 
 import MobileContentLayout from '@/components/server/MobileNavLayout';
 
+import MobileContentFrame from './components/MobileContentFrame';
+
 const MobilePageLayout = ({ children, header }: { children?: ReactNode; header?: ReactNode }) => (
   <MobileContentLayout header={header}>
-    {children ?? <Outlet />}
+    <MobileContentFrame>{children ?? <Outlet />}</MobileContentFrame>
   </MobileContentLayout>
 );
 

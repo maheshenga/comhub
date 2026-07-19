@@ -7,7 +7,10 @@ import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 
 import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspaceSlug';
-import { MOBILE_TABBAR_HEIGHT } from '@/const/layoutTokens';
+import {
+  MOBILE_TABBAR_HEIGHT,
+  MOBILE_WORKSPACE_CONTENT_MAX_WIDTH,
+} from '@/const/layoutTokens';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 
 import { mobileNavigateOptions } from './destinationRegistry';
@@ -38,6 +41,13 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: grid;
     place-items: center;
     height: 22px;
+  `,
+  inner: css`
+    display: grid;
+
+    width: 100%;
+    max-width: ${MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}px;
+    margin-inline: auto;
   `,
   item: css`
     cursor: pointer;
@@ -107,28 +117,34 @@ const MobileTabBar = memo(() => {
       className={styles.container}
       data-active-key={activeSlot}
       role="navigation"
-      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
-      {items.map((item) => {
-        const active = item.key === activeSlot;
-        return (
-          <button
-            aria-current={active ? 'page' : undefined}
-            className={`${styles.item} ${active ? styles.itemActive : ''}`}
-            key={item.key}
-            type="button"
-            onClick={() => {
-              const options = mobileNavigateOptions(item.path);
-              options ? navigate(item.path, options) : navigate(item.path);
-            }}
-          >
-            <span className={styles.icon}>
-              <Icon className={active ? styles.active : undefined} icon={item.icon} size={20} />
-            </span>
-            <span className={styles.label}>{item.title}</span>
-          </button>
-        );
-      })}
+      <div
+        className={styles.inner}
+        data-mobile-content-max-width={MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}
+        data-testid="mobile-tab-bar-inner"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
+        {items.map((item) => {
+          const active = item.key === activeSlot;
+          return (
+            <button
+              aria-current={active ? 'page' : undefined}
+              className={`${styles.item} ${active ? styles.itemActive : ''}`}
+              key={item.key}
+              type="button"
+              onClick={() => {
+                const options = mobileNavigateOptions(item.path);
+                options ? navigate(item.path, options) : navigate(item.path);
+              }}
+            >
+              <span className={styles.icon}>
+                <Icon className={active ? styles.active : undefined} icon={item.icon} size={20} />
+              </span>
+              <span className={styles.label}>{item.title}</span>
+            </button>
+          );
+        })}
+      </div>
     </footer>
   );
 });

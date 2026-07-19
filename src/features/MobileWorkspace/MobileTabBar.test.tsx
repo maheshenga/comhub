@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MOBILE_WORKSPACE_CONTENT_MAX_WIDTH } from '@/const/layoutTokens';
 import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
 
 import MobileTabBar from './MobileTabBar';
@@ -65,7 +66,12 @@ describe('MobileTabBar', () => {
     );
 
     const tabBar = screen.getByRole('navigation', { name: 'Mobile workspace navigation' });
+    const inner = screen.getByTestId('mobile-tab-bar-inner');
     expect(tabBar).toHaveAttribute('data-active-key', 'slot-3');
+    expect(inner).toHaveAttribute(
+      'data-mobile-content-max-width',
+      String(MOBILE_WORKSPACE_CONTENT_MAX_WIDTH),
+    );
     expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
       '最近',
       'Tools',
@@ -74,6 +80,41 @@ describe('MobileTabBar', () => {
     ]);
     expect(screen.getByRole('button', { name: '发现' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Tools' })).not.toHaveAttribute('aria-current');
+    expect(
+      screen.getAllByRole('button').every((button) => button.tagName === 'BUTTON'),
+    ).toBe(true);
+  });
+
+  it('omits hidden configured slots from semantic navigation', () => {
+    vi.mocked(useMobileConfig).mockReturnValue({
+      config: normalizeMobileConfig({
+        ...DEFAULT_MOBILE_CONFIG,
+        navigation: {
+          items: DEFAULT_MOBILE_CONFIG.navigation.items.map((item) =>
+            item.id === 'slot-4' ? { ...item, label: 'Hidden slot', visible: false } : item,
+          ),
+        },
+      }),
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+      revision: 0,
+      updatedAt: '1970-01-01T00:00:00.000Z',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/discover']}>
+        <MobileTabBar />
+      </MemoryRouter>,
+    );
+
+    const navigation = screen.getByRole('navigation', { name: 'Mobile workspace navigation' });
+    expect(navigation.querySelectorAll('button')).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: 'Hidden slot' })).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button').filter((button) => button.hasAttribute('aria-current')),
+    ).toHaveLength(1);
   });
 
   it('keeps workspace tabs scoped while global discovery escapes the workspace', async () => {

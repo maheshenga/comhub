@@ -6,7 +6,10 @@ import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 
 import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspaceSlug';
-import { MOBILE_TABBAR_HEIGHT } from '@/const/layoutTokens';
+import {
+  MOBILE_TABBAR_HEIGHT,
+  MOBILE_WORKSPACE_CONTENT_MAX_WIDTH,
+} from '@/const/layoutTokens';
 
 import MobileTabBar from './MobileTabBar';
 import { shouldShowMobileTabBar } from './navigation';
@@ -20,6 +23,11 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     position: fixed;
     z-index: 101;
     inset-inline: 12px;
+
+    box-sizing: border-box;
+    width: 100%;
+    max-width: ${MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}px;
+    margin-inline: auto;
 
     min-height: 32px;
     padding-block: 6px;
@@ -66,6 +74,7 @@ const MobileWorkspaceShell = ({ children }: { children: ReactNode }) => {
       {!isOnline ? (
         <div
           className={styles.offline}
+          data-mobile-content-max-width={MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}
           role="status"
           style={{ bottom: `calc(${clearance} + 8px)` }}
         >
