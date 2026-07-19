@@ -63,6 +63,7 @@ import { llmGenerationTracingRouter } from './llmGenerationTracing';
 import { marketRouter } from './market';
 import { messageRouter } from './message';
 import { messengerRouter } from './messenger';
+import { mobileDesignRouter } from './mobileDesign';
 import { moduleAppRouter } from './moduleApp';
 import { notebookRouter } from './notebook';
 import { notificationRouter } from './notification';
@@ -133,6 +134,7 @@ export const lambdaRouter = router({
   market: marketRouter,
   message: messageRouter,
   messenger: messengerRouter,
+  mobileDesign: mobileDesignRouter,
   moduleApp: moduleAppRouter,
   notebook: notebookRouter,
   notification: notificationRouter,

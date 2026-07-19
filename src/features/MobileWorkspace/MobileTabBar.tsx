@@ -3,37 +3,13 @@
 import { Icon } from '@lobehub/ui';
 import { TabBar, type TabBarProps } from '@lobehub/ui/mobile';
 import { createStaticStyles } from 'antd-style';
-import {
-  Bell,
-  Bot,
-  Boxes,
-  ChartNoAxesColumnIncreasing,
-  Coins,
-  Compass,
-  FileText,
-  Image,
-  Library,
-  ListTodo,
-  type LucideIcon,
-  MessageSquareMore,
-  Palette,
-  Pin,
-  Plus,
-  Presentation,
-  Search,
-  Settings,
-  Shapes,
-  Sparkles,
-  Store,
-  Users,
-} from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useLocation } from 'react-router';
 
 import { MOBILE_TABBAR_HEIGHT } from '@/const/layoutTokens';
-import type { MOBILE_ICON_NAMES } from '@/const/mobileConfig';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 
+import { getMobileIcon } from './mobileIcons';
 import { resolveMobileActiveSlot, shouldShowMobileTabBar } from './navigation';
 import { useMobileConfig } from './useMobileConfig';
 
@@ -54,30 +30,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
 }));
 
-const iconMap: Record<(typeof MOBILE_ICON_NAMES)[number], LucideIcon> = {
-  'bell': Bell,
-  'bot': Bot,
-  'boxes': Boxes,
-  'chart-no-axes-column-increasing': ChartNoAxesColumnIncreasing,
-  'coins': Coins,
-  'compass': Compass,
-  'file-text': FileText,
-  'image': Image,
-  'library': Library,
-  'list-todo': ListTodo,
-  'message-square-more': MessageSquareMore,
-  'palette': Palette,
-  'pin': Pin,
-  'plus': Plus,
-  'presentation': Presentation,
-  'search': Search,
-  'settings': Settings,
-  'shapes': Shapes,
-  'sparkles': Sparkles,
-  'store': Store,
-  'users': Users,
-};
-
 const MobileTabBar = memo(() => {
   const { config } = useMobileConfig();
   const { pathname } = useLocation();
@@ -88,7 +40,7 @@ const MobileTabBar = memo(() => {
         .filter((item) => item.visible)
         .sort((left, right) => left.order - right.order)
         .map((item) => {
-          const MobileIcon = iconMap[item.icon as keyof typeof iconMap] ?? Shapes;
+          const MobileIcon = getMobileIcon(item.icon);
           return {
             icon: (active: boolean) => (
               <Icon className={active ? styles.active : undefined} icon={MobileIcon} />
