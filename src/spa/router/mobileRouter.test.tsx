@@ -18,6 +18,15 @@ describe('mobileRouter workspace roots', () => {
       expect(source).toContain(`import('@/routes/(mobile)/${route}')`);
     }
   });
+
+  it('keeps AI group conversations and group topics reachable on mobile', async () => {
+    const source = await readMobileRouterSource();
+
+    expect(source).toContain("import('@/routes/(main)/group')");
+    expect(source).toContain("import('@/routes/(main)/group/_layout')");
+    expect(source).toContain("path: 'group'");
+    expect(source).toContain("path: ':gid'");
+  });
 });
 
 describe('mobileRouter task routes', () => {

@@ -18,6 +18,8 @@ export interface RecentDbItem {
   updatedAt: Date;
 }
 
+export type RecentItemType = RecentDbItem['type'];
+
 // Mirrors `MAIN_SIDEBAR_EXCLUDE_TRIGGERS` in `src/const/topic.ts` plus the
 // legacy `task_manager` trigger from the previous Task Manager panel.
 // System-trigger topics live in their own surfaces and would clutter Recent.
@@ -40,7 +42,8 @@ export class RecentModel {
     this.workspaceId = workspaceId;
   }
 
-  queryRecent = async (limit: number = 10): Promise<RecentDbItem[]> => {
+  queryRecent = async (limit: number = 10, types?: RecentItemType[]): Promise<RecentDbItem[]> => {
+    if (types?.length === 0) return [];
     const scope = { userId: this.userId, workspaceId: this.workspaceId };
 
     // `tasks` uses `createdByUserId` instead of `userId`, so apply the
@@ -125,8 +128,12 @@ export class RecentModel {
       .from(tasks)
       .where(and(taskScopeWhere, not(inArray(tasks.status, TASK_FINAL_STATUSES))));
 
-    const rows = await unionAll(topicArm, documentArm, taskArm)
-      .orderBy(desc(sql`updated_at`))
+    const recentItems = unionAll(topicArm, documentArm, taskArm).as('recent_items');
+    const rows = await this.db
+      .select()
+      .from(recentItems)
+      .where(types ? inArray(recentItems.type, types) : undefined)
+      .orderBy(desc(recentItems.updatedAt))
       .limit(limit);
 
     return rows.map((row) => ({

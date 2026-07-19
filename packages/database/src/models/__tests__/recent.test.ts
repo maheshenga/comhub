@@ -501,6 +501,28 @@ describe('RecentModel', () => {
     });
 
     describe('combined results', () => {
+      it('filters by type before applying the limit', async () => {
+        await serverDB.insert(agents).values({ id: 'agent-filter', userId, slug: 'inbox' });
+        await serverDB.insert(topics).values({
+          id: 'topic-filter',
+          userId,
+          agentId: 'agent-filter',
+          title: 'topic',
+          updatedAt: minutesAgo(2),
+        });
+        await serverDB.insert(documents).values({
+          id: 'doc-filter',
+          userId,
+          title: 'doc',
+          sourceType: 'api',
+          updatedAt: minutesAgo(1),
+          ...baseDocFields,
+        });
+
+        const result = await recentModel.queryRecent(1, ['topic']);
+        expect(result.map((row) => `${row.type}:${row.id}`)).toEqual(['topic:topic-filter']);
+      });
+
       it('orders all three types by updatedAt desc and applies the limit', async () => {
         await serverDB.insert(agents).values({ id: 'agent-inbox', userId, slug: 'inbox' });
 
