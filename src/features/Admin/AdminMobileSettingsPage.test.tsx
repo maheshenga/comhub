@@ -1,5 +1,5 @@
 import { ConfigProvider } from '@lobehub/ui';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -105,6 +105,17 @@ const renderPage = (ui: ReactElement = <AdminMobileSettingsPage />) =>
 
 const switchByLabel = (label: string) => screen.getAllByLabelText(label)[0];
 
+const createDeferred = <T,>() => {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, reject, resolve };
+};
+
 describe('AdminMobileSettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -140,6 +151,7 @@ describe('AdminMobileSettingsPage', () => {
     expect(screen.getByLabelText('Tab slot-1 path')).toHaveValue('/');
     expect(screen.getByTestId('mobile-config-preview')).toHaveTextContent('ComHub App');
     expect(screen.getByTestId('mobile-config-preview')).toHaveTextContent('Visible tabs: 4');
+    expect(screen.getAllByRole('region')).toHaveLength(6);
     expect(adminCommercialService.getMobileSettings).toHaveBeenCalledTimes(1);
   });
 
@@ -255,5 +267,137 @@ describe('AdminMobileSettingsPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Save mobile settings/ }));
 
     expect(await screen.findByText('Failed to save mobile settings.')).toBeInTheDocument();
+  });
+
+  it('uses a synchronous in-flight guard for rapid duplicate saves', async () => {
+    const saveDeferred = createDeferred<MobilePublicConfigV1>();
+    vi.mocked(adminCommercialService.saveMobileSettings).mockReturnValue(saveDeferred.promise);
+    renderPage();
+
+    await screen.findByLabelText('Brand display name');
+    fireEvent.change(screen.getByLabelText('Brand display name'), {
+      target: { value: 'ComHub App' },
+    });
+    const saveButton = screen.getByRole('button', { name: 'Save mobile settings' });
+
+    fireEvent.click(saveButton);
+    fireEvent.click(saveButton);
+
+    expect(adminCommercialService.saveMobileSettings).toHaveBeenCalledTimes(1);
+    saveDeferred.resolve(mobileConfig({ brand: { displayName: 'ComHub App', logoUrl: null } }));
+    expect(await screen.findByText('Mobile settings saved.')).toBeInTheDocument();
+  });
+
+  it('keeps newer draft edits when an older save resolves', async () => {
+    const saveDeferred = createDeferred<MobilePublicConfigV1>();
+    vi.mocked(adminCommercialService.saveMobileSettings).mockReturnValue(saveDeferred.promise);
+    renderPage();
+
+    await screen.findByLabelText('Brand display name');
+    fireEvent.change(screen.getByLabelText('Brand display name'), {
+      target: { value: 'Submitted' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save mobile settings' }));
+    fireEvent.change(screen.getByLabelText('Brand display name'), {
+      target: { value: 'Draft' },
+    });
+
+    await act(async () => {
+      saveDeferred.resolve(mobileConfig({ brand: { displayName: 'Submitted', logoUrl: null } }));
+      await saveDeferred.promise;
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Save mobile settings/ })).toBeEnabled(),
+    );
+    expect(screen.getByLabelText('Brand display name')).toHaveValue('Draft');
+    expect(screen.queryByText('Mobile settings saved.')).not.toBeInTheDocument();
+  });
+
+  it('does not write state after unmounting with pending load or save requests', async () => {
+    const loadDeferred = createDeferred<MobilePublicConfigV1>();
+    vi.mocked(adminCommercialService.getMobileSettings).mockReturnValueOnce(loadDeferred.promise);
+    const loadConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const loadingRender = renderPage();
+    loadingRender.unmount();
+    loadDeferred.resolve(mobileConfig({ brand: { displayName: 'Unmounted', logoUrl: null } }));
+    await Promise.resolve();
+
+    expect(loadConsoleError).not.toHaveBeenCalled();
+    loadConsoleError.mockRestore();
+
+    setupLoaders();
+    const saveDeferred = createDeferred<MobilePublicConfigV1>();
+    vi.mocked(adminCommercialService.saveMobileSettings).mockReturnValue(saveDeferred.promise);
+    const saveConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const savingRender = renderPage();
+
+    await screen.findByLabelText('Brand display name');
+    fireEvent.change(screen.getByLabelText('Brand display name'), {
+      target: { value: 'Unmount Save' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save mobile settings' }));
+    savingRender.unmount();
+    saveDeferred.resolve(mobileConfig({ brand: { displayName: 'Unmount Save', logoUrl: null } }));
+    await Promise.resolve();
+
+    expect(saveConsoleError).not.toHaveBeenCalled();
+    saveConsoleError.mockRestore();
+  });
+
+  it('keeps the core editor editable when one selector fails and retries that selector inline', async () => {
+    vi.mocked(discoverService.getAssistantList)
+      .mockRejectedValueOnce(new Error('assistant unavailable'))
+      .mockResolvedValueOnce({
+        currentPage: 1,
+        items: [
+          {
+            author: 'ComHub',
+            createdAt: '2026-01-01',
+            description: 'Planning assistant',
+            homepage: '',
+            identifier: 'agent-beta',
+            knowledgeCount: 0,
+            pluginCount: 0,
+            status: 'published',
+            title: 'Beta Assistant',
+            tokenUsage: 0,
+          },
+        ],
+        pageSize: 20,
+        totalCount: 1,
+        totalPages: 1,
+      } as any);
+
+    renderPage();
+
+    expect(await screen.findByLabelText('Brand display name')).toBeEnabled();
+    fireEvent.change(screen.getByLabelText('Brand display name'), {
+      target: { value: 'Core Edit' },
+    });
+    expect(screen.getByRole('button', { name: 'Save mobile settings' })).toBeEnabled();
+    expect(screen.getByText('Assistant selector unavailable.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add featured assistant' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry assistant selector' }));
+
+    expect(await screen.findByRole('option', { name: 'Beta Assistant' })).toBeInTheDocument();
+    expect(screen.queryByText('Assistant selector unavailable.')).not.toBeInTheDocument();
+  });
+
+  it('uses a skeleton loading state instead of antd Spin', () => {
+    vi.mocked(adminCommercialService.getMobileSettings).mockReturnValue(
+      createDeferred<MobilePublicConfigV1>().promise,
+    );
+
+    const { container } = renderPage();
+
+    expect(screen.getByTestId('mobile-settings-loading')).toBeInTheDocument();
+    expect(container.querySelector('.ant-spin')).not.toBeInTheDocument();
   });
 });

@@ -44,7 +44,7 @@ describe('MobileConfigPreview', () => {
             model: 'gpt-4.1',
             order: 1,
             provider: 'openai',
-            titleOverride: 'Alpha Assistant',
+            titleOverride: 'Alpha Bot',
           },
         ],
         title: 'Featured',
@@ -98,5 +98,116 @@ describe('MobileConfigPreview', () => {
     expect(preview).toHaveTextContent('Assistants: 1');
     expect(preview).toHaveTextContent('Module apps: 1');
     expect(preview).toHaveTextContent('Built-in apps: 1');
+  });
+
+  it('uses a non-section root and renders normalized content from every mobile category', () => {
+    const config = {
+      applications: {
+        builtins: [
+          {
+            enabled: true,
+            icon: 'store',
+            id: 'builtin-a',
+            label: 'App A',
+            order: 1,
+            path: '/apps/a',
+          },
+          {
+            enabled: false,
+            icon: 'sparkles',
+            id: 'builtin-b',
+            label: 'App B',
+            order: 2,
+            path: '/apps/b',
+          },
+        ],
+        featuredModuleAppIds: ['design-kit', 'copy-kit'],
+      },
+      brand: { displayName: 'ComHub App', logoUrl: '/brand/mobile.png' },
+      design: {
+        tools: [
+          { enabled: true, icon: 'file-text', id: 'document', label: 'Docs', order: 1 },
+          { enabled: false, icon: 'image', id: 'image', label: 'Images', order: 2 },
+          { enabled: true, icon: 'presentation', id: 'ppt', label: 'Slides', order: 3 },
+        ],
+      },
+      discover: {
+        assistants: [
+          {
+            assistantId: 'agent-alpha',
+            model: 'gpt-4.1',
+            order: 1,
+            provider: 'openai',
+            titleOverride: 'Alpha Bot',
+          },
+          {
+            assistantId: 'agent-beta',
+            model: 'claude-sonnet',
+            order: 2,
+            provider: 'anthropic',
+          },
+        ],
+        title: 'Featured',
+      },
+      navigation: {
+        items: [
+          {
+            icon: 'message-square-more',
+            id: 'slot-1',
+            label: 'Chats',
+            order: 1,
+            path: '/',
+            visible: true,
+          },
+          {
+            icon: 'palette',
+            id: 'slot-2',
+            label: 'Design',
+            order: 2,
+            path: '/design',
+            visible: true,
+          },
+          {
+            icon: 'compass',
+            id: 'slot-3',
+            label: 'Discover',
+            order: 3,
+            path: '/discover',
+            visible: false,
+          },
+          {
+            icon: 'shapes',
+            id: 'slot-4',
+            label: 'Apps',
+            order: 4,
+            path: '/apps',
+            visible: true,
+          },
+        ],
+      },
+      version: 1,
+    } satisfies MobilePublicConfigV1;
+
+    render(<MobileConfigPreview config={config} />);
+
+    const preview = screen.getByTestId('mobile-config-preview');
+    expect(preview.tagName).toBe('DIV');
+    expect(preview).toHaveTextContent('ComHub App');
+    expect(preview).toHaveTextContent('/brand/mobile.png');
+    expect(preview).toHaveTextContent('Chats');
+    expect(preview).toHaveTextContent('message-square-more');
+    expect(preview).toHaveTextContent('Docs');
+    expect(preview).toHaveTextContent('file-text');
+    expect(preview).toHaveTextContent('Slides');
+    expect(preview).toHaveTextContent('presentation');
+    expect(preview).toHaveTextContent('Alpha Bot');
+    expect(preview).toHaveTextContent('agent-beta');
+    expect(preview).toHaveTextContent('design-kit');
+    expect(preview).toHaveTextContent('copy-kit');
+    expect(preview).toHaveTextContent('App A');
+    expect(preview).toHaveTextContent('store');
+    expect(preview).not.toHaveTextContent('Images');
+    expect(preview).not.toHaveTextContent('App B');
+    expect(preview).not.toHaveTextContent('Discover');
   });
 });

@@ -1,11 +1,20 @@
 'use client';
 
-import { Button, Flexbox } from '@lobehub/ui';
+import { Button, Flexbox, Skeleton } from '@lobehub/ui';
 import { Switch } from '@lobehub/ui/base-ui';
-import { Alert, Input, Spin } from 'antd';
+import { Alert, Input } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import { memo, useEffect, useId, useMemo, useState } from 'react';
+import {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   DEFAULT_MOBILE_CONFIG,
@@ -86,6 +95,18 @@ type ModelOption = SelectOption & {
 type ValidationResult = {
   messages: string[];
   valid: boolean;
+};
+
+type SelectorStatus = {
+  error?: string;
+  loading: boolean;
+};
+
+type SelectorAlertProps = {
+  label: string;
+  onRetry: () => void;
+  retryLabel: string;
+  status: SelectorStatus;
 };
 
 const cloneConfig = (config: unknown): MobilePublicConfigV1 => normalizeMobileConfig(config);
@@ -230,7 +251,9 @@ const loadModuleAppOptions = async (): Promise<SelectOption[]> => {
   }));
 };
 
-const LabeledField = ({ children, label }: { children: React.ReactNode; label: string }) => (
+const idleSelectorStatus: SelectorStatus = { loading: false };
+
+const LabeledField = ({ children, label }: { children: ReactNode; label: string }) => (
   <label className={styles.field}>
     <span>{label}</span>
     {children}
@@ -261,11 +284,13 @@ const IconSelect = ({
 );
 
 const SelectField = ({
+  disabled,
   label,
   onChange,
   options,
   value,
 }: {
+  disabled?: boolean;
   label: string;
   onChange: (value: string) => void;
   options: SelectOption[];
@@ -274,6 +299,7 @@ const SelectField = ({
   <select
     aria-label={label}
     className={styles.select}
+    disabled={disabled}
     value={value}
     onChange={(event) => onChange(event.target.value)}
   >
@@ -305,7 +331,24 @@ const AccessibleSwitch = ({
   );
 };
 
+const SelectorAlert = ({ label, onRetry, retryLabel, status }: SelectorAlertProps) =>
+  status.error ? (
+    <Alert
+      showIcon
+      title={label}
+      type="warning"
+      action={
+        <Button disabled={status.loading} size="small" onClick={onRetry}>
+          {retryLabel}
+        </Button>
+      }
+    />
+  ) : null;
+
 const AdminMobileSettingsPage = memo(() => {
+  const mountedRef = useRef(true);
+  const saveInFlightRef = useRef(false);
+  const currentFormFingerprintRef = useRef('');
   const [formValues, setFormValues] = useState<MobilePublicConfigV1>(() =>
     cloneConfig(DEFAULT_MOBILE_CONFIG),
   );
@@ -315,6 +358,9 @@ const AdminMobileSettingsPage = memo(() => {
   const [assistantOptions, setAssistantOptions] = useState<SelectOption[]>([]);
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [moduleAppOptions, setModuleAppOptions] = useState<SelectOption[]>([]);
+  const [assistantStatus, setAssistantStatus] = useState<SelectorStatus>(idleSelectorStatus);
+  const [modelStatus, setModelStatus] = useState<SelectorStatus>(idleSelectorStatus);
+  const [moduleAppStatus, setModuleAppStatus] = useState<SelectorStatus>(idleSelectorStatus);
   const [selectedAssistantId, setSelectedAssistantId] = useState('');
   const [selectedModelValue, setSelectedModelValue] = useState('');
   const [selectedModuleAppId, setSelectedModuleAppId] = useState('');
@@ -323,52 +369,110 @@ const AdminMobileSettingsPage = memo(() => {
   const [error, setError] = useState<string | undefined>();
   const [success, setSuccess] = useState<string | undefined>();
 
+  const commitFormValues = useCallback((next: MobilePublicConfigV1) => {
+    currentFormFingerprintRef.current = stringifyConfig(next);
+    setFormValues(next);
+  }, []);
+
+  const refreshAssistantOptions = useCallback(async () => {
+    if (!mountedRef.current) return;
+    setAssistantStatus({ loading: true });
+    try {
+      const assistants = await loadAssistantOptions();
+      if (!mountedRef.current) return;
+      setAssistantOptions(assistants);
+      setAssistantStatus({ loading: false });
+    } catch {
+      if (!mountedRef.current) return;
+      setAssistantOptions([]);
+      setSelectedAssistantId('');
+      setAssistantStatus({ error: 'Assistant selector unavailable.', loading: false });
+    }
+  }, []);
+
+  const refreshModelOptions = useCallback(async () => {
+    if (!mountedRef.current) return;
+    setModelStatus({ loading: true });
+    try {
+      const models = await loadModelOptions();
+      if (!mountedRef.current) return;
+      setModelOptions(models);
+      setModelStatus({ loading: false });
+    } catch {
+      if (!mountedRef.current) return;
+      setModelOptions([]);
+      setSelectedModelValue('');
+      setModelStatus({ error: 'Model selector unavailable.', loading: false });
+    }
+  }, []);
+
+  const refreshModuleAppOptions = useCallback(async () => {
+    if (!mountedRef.current) return;
+    setModuleAppStatus({ loading: true });
+    try {
+      const moduleApps = await loadModuleAppOptions();
+      if (!mountedRef.current) return;
+      setModuleAppOptions(moduleApps);
+      setModuleAppStatus({ loading: false });
+    } catch {
+      if (!mountedRef.current) return;
+      setModuleAppOptions([]);
+      setSelectedModuleAppId('');
+      setModuleAppStatus({ error: 'Module app selector unavailable.', loading: false });
+    }
+  }, []);
+
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
 
     const load = async () => {
       setLoading(true);
       setError(undefined);
       try {
-        const [settings, assistants, models, moduleApps] = await Promise.all([
-          adminCommercialService.getMobileSettings(),
-          loadAssistantOptions(),
-          loadModelOptions(),
-          loadModuleAppOptions(),
-        ]);
-        if (!mounted) return;
+        const settings = await adminCommercialService.getMobileSettings();
+        if (!mountedRef.current) return;
         const normalized = toFormConfig(settings);
-        setFormValues(normalized);
+        commitFormValues(normalized);
         setBaseline(normalized);
-        setAssistantOptions(assistants);
-        setModelOptions(models);
-        setModuleAppOptions(moduleApps);
       } catch {
-        if (mounted) setError('Failed to load mobile settings.');
+        if (mountedRef.current) setError('Failed to load mobile settings.');
       } finally {
-        if (mounted) setLoading(false);
+        if (mountedRef.current) setLoading(false);
       }
     };
 
     void load();
+    void refreshAssistantOptions();
+    void refreshModelOptions();
+    void refreshModuleAppOptions();
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
     };
-  }, []);
+  }, [commitFormValues, refreshAssistantOptions, refreshModelOptions, refreshModuleAppOptions]);
 
   const normalizedPreview = useMemo(() => normalizeMobileConfig(formValues), [formValues]);
   const validation = useMemo(() => validateFormConfig(formValues), [formValues]);
   const dirty = stringifyConfig(formValues) !== stringifyConfig(baseline);
   const canSave = dirty && !loading && !saving && validation.valid;
+  const assistantSelectorUnavailable = Boolean(assistantStatus.error);
+  const modelSelectorUnavailable = Boolean(modelStatus.error);
+  const moduleAppSelectorUnavailable = Boolean(moduleAppStatus.error);
+  const canAddFeaturedAssistant =
+    !assistantSelectorUnavailable &&
+    !modelSelectorUnavailable &&
+    Boolean(selectedAssistantId) &&
+    Boolean(selectedModelValue);
+  const canAddModuleApp = !moduleAppSelectorUnavailable && Boolean(selectedModuleAppId);
 
   const updateForm = (next: MobilePublicConfigV1) => {
     setSuccess(undefined);
     setError(undefined);
-    setFormValues(next);
+    commitFormValues(next);
   };
 
   const addFeaturedAssistant = () => {
+    if (!canAddFeaturedAssistant) return;
     const assistant = assistantOptions.find((option) => option.value === selectedAssistantId);
     const model = modelOptions.find((option) => option.value === selectedModelValue);
     if (!assistant || !model) return;
@@ -392,7 +496,7 @@ const AdminMobileSettingsPage = memo(() => {
   };
 
   const addModuleApp = () => {
-    if (!selectedModuleAppId) return;
+    if (!canAddModuleApp) return;
     if (formValues.applications.featuredModuleAppIds.includes(selectedModuleAppId)) return;
 
     updateForm({
@@ -413,38 +517,46 @@ const AdminMobileSettingsPage = memo(() => {
   };
 
   const save = async () => {
-    if (!canSave) return;
+    if (saveInFlightRef.current || !canSave) return;
+    const submittedConfig = normalizeMobileConfig(formValues);
+    const submittedFingerprint = stringifyConfig(submittedConfig);
+    saveInFlightRef.current = true;
     setSaving(true);
     setError(undefined);
     setSuccess(undefined);
     try {
-      const saved = await adminCommercialService.saveMobileSettings(normalizedPreview);
+      const saved = await adminCommercialService.saveMobileSettings(submittedConfig);
+      if (!mountedRef.current) return;
       const normalized = cloneConfig(saved);
-      setFormValues(normalized);
       setBaseline(normalized);
-      setSuccess('Mobile settings saved.');
+      if (currentFormFingerprintRef.current === submittedFingerprint) {
+        commitFormValues(normalized);
+        setSuccess('Mobile settings saved.');
+      }
     } catch {
-      setError('Failed to save mobile settings.');
+      if (mountedRef.current) setError('Failed to save mobile settings.');
     } finally {
-      setSaving(false);
+      saveInFlightRef.current = false;
+      if (mountedRef.current) setSaving(false);
     }
   };
 
   if (loading) {
     return (
-      <Flexbox align="center" className={styles.page} gap={16}>
-        <Spin />
-        <span>Loading mobile settings...</span>
+      <Flexbox className={styles.page} data-testid="mobile-settings-loading" gap={16}>
+        <Skeleton.Button active block style={{ height: 32, width: 240 }} />
+        <Skeleton.Paragraph active rows={4} />
+        <Skeleton.Button active block style={{ height: 120 }} />
       </Flexbox>
     );
   }
 
   return (
     <Flexbox className={styles.page} gap={24}>
-      {error ? <Alert showIcon message={error} type="error" /> : null}
-      {success ? <Alert showIcon message={success} type="success" /> : null}
+      {error ? <Alert showIcon title={error} type="error" /> : null}
+      {success ? <Alert showIcon title={success} type="success" /> : null}
       {validation.messages.map((message) => (
-        <Alert showIcon key={message} message={message} type="warning" />
+        <Alert showIcon key={message} title={message} type="warning" />
       ))}
 
       <section aria-label="Brand" className={styles.section}>
@@ -568,20 +680,36 @@ const AdminMobileSettingsPage = memo(() => {
 
       <section aria-label="Featured Assistants" className={styles.section}>
         <h2 className={styles.sectionTitle}>Featured Assistants</h2>
+        <SelectorAlert
+          label="Assistant selector unavailable."
+          retryLabel="Retry assistant selector"
+          status={assistantStatus}
+          onRetry={() => void refreshAssistantOptions()}
+        />
+        <SelectorAlert
+          label="Model selector unavailable."
+          retryLabel="Retry model selector"
+          status={modelStatus}
+          onRetry={() => void refreshModelOptions()}
+        />
         <div className={styles.grid}>
           <SelectField
+            disabled={assistantStatus.loading || assistantSelectorUnavailable}
             label="Featured assistant"
             options={assistantOptions}
             value={selectedAssistantId}
             onChange={setSelectedAssistantId}
           />
           <SelectField
+            disabled={modelStatus.loading || modelSelectorUnavailable}
             label="Recommended model"
             options={modelOptions}
             value={selectedModelValue}
             onChange={setSelectedModelValue}
           />
-          <Button onClick={addFeaturedAssistant}>Add featured assistant</Button>
+          <Button disabled={!canAddFeaturedAssistant} onClick={addFeaturedAssistant}>
+            Add featured assistant
+          </Button>
         </div>
         <Flexbox gap={8}>
           {sortByOrder(formValues.discover.assistants).map((assistant) => (
@@ -594,14 +722,23 @@ const AdminMobileSettingsPage = memo(() => {
 
       <section aria-label="App Entries" className={styles.section}>
         <h2 className={styles.sectionTitle}>App Entries</h2>
+        <SelectorAlert
+          label="Module app selector unavailable."
+          retryLabel="Retry module app selector"
+          status={moduleAppStatus}
+          onRetry={() => void refreshModuleAppOptions()}
+        />
         <div className={styles.grid}>
           <SelectField
+            disabled={moduleAppStatus.loading || moduleAppSelectorUnavailable}
             label="Featured module app"
             options={moduleAppOptions}
             value={selectedModuleAppId}
             onChange={setSelectedModuleAppId}
           />
-          <Button onClick={addModuleApp}>Add module app</Button>
+          <Button disabled={!canAddModuleApp} onClick={addModuleApp}>
+            Add module app
+          </Button>
         </div>
         <Flexbox gap={8}>
           {formValues.applications.featuredModuleAppIds.map((id) => (

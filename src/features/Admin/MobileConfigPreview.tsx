@@ -24,6 +24,26 @@ const styles = createStaticStyles(({ css }) => ({
     border-bottom: 1px solid ${cssVar.colorBorderSecondary};
     font-size: 13px;
   `,
+  pill: css`
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    padding-block: 4px;
+    padding-inline: 8px;
+    border: 1px solid ${cssVar.colorBorderSecondary};
+    border-radius: 6px;
+    font-size: 12px;
+  `,
+  previewGroup: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  `,
+  previewLabel: css`
+    margin: 0;
+    font-size: 12px;
+    color: ${cssVar.colorTextSecondary};
+  `,
   title: css`
     margin: 0;
     font-size: 20px;
@@ -42,11 +62,7 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
   const enabledBuiltins = normalized.applications.builtins.filter((app) => app.enabled);
 
   return (
-    <section
-      aria-label="Mobile configuration preview"
-      className={styles.frame}
-      data-testid="mobile-config-preview"
-    >
+    <div className={styles.frame} data-testid="mobile-config-preview">
       <Flexbox gap={16}>
         <Flexbox gap={4}>
           <h2 className={styles.title}>{normalized.brand.displayName || 'ComHub'}</h2>
@@ -61,13 +77,55 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
         </div>
         <div className={styles.metric}>Built-in apps: {enabledBuiltins.length}</div>
 
-        <Flexbox horizontal gap={8} style={{ flexWrap: 'wrap' }}>
+        <p className={styles.previewLabel}>Visible tabs</p>
+        <div className={styles.previewGroup}>
           {visibleTabs.map((item) => (
-            <span key={item.id}>{item.label}</span>
+            <span className={styles.pill} key={item.id}>
+              <span>{item.icon}</span>
+              <span>{item.label}</span>
+            </span>
           ))}
-        </Flexbox>
+        </div>
+
+        <p className={styles.previewLabel}>Enabled tools</p>
+        <div className={styles.previewGroup}>
+          {enabledTools.map((tool) => (
+            <span className={styles.pill} key={tool.id}>
+              <span>{tool.icon}</span>
+              <span>{tool.label}</span>
+            </span>
+          ))}
+        </div>
+
+        <p className={styles.previewLabel}>Featured assistants</p>
+        <div className={styles.previewGroup}>
+          {normalized.discover.assistants.map((assistant) => (
+            <span className={styles.pill} key={assistant.assistantId}>
+              {assistant.titleOverride ?? assistant.assistantId}
+            </span>
+          ))}
+        </div>
+
+        <p className={styles.previewLabel}>Module apps</p>
+        <div className={styles.previewGroup}>
+          {normalized.applications.featuredModuleAppIds.map((id) => (
+            <span className={styles.pill} key={id}>
+              {id}
+            </span>
+          ))}
+        </div>
+
+        <p className={styles.previewLabel}>Built-in apps</p>
+        <div className={styles.previewGroup}>
+          {enabledBuiltins.map((app) => (
+            <span className={styles.pill} key={app.id}>
+              <span>{app.icon}</span>
+              <span>{app.label}</span>
+            </span>
+          ))}
+        </div>
       </Flexbox>
-    </section>
+    </div>
   );
 });
 
