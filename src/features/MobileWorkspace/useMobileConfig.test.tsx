@@ -31,6 +31,7 @@ describe('useMobileConfig', () => {
     vi.mocked(lambdaClient.admin.settings.getPublicMobileConfig.query).mockResolvedValue({
       ...DEFAULT_MOBILE_CONFIG,
       brand: { displayName: 'Mobile Brand', logoUrl: null },
+      discover: { ...DEFAULT_MOBILE_CONFIG.discover, featuredAssistants: [] },
     });
 
     const { result } = renderHook(() => useMobileConfig(), { wrapper });

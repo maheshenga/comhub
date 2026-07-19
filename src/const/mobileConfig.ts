@@ -28,6 +28,18 @@ export interface MobileFeaturedAssistantV1 {
   titleOverride?: string;
 }
 
+export interface MobileResolvedFeaturedAssistantV1 {
+  avatar?: string;
+  description: string;
+  identifier: string;
+  model: {
+    displayName: string;
+    id: string;
+    provider: string;
+  };
+  title: string;
+}
+
 export interface MobileBuiltinAppV1 {
   enabled: boolean;
   icon: MobileIconName;
@@ -44,7 +56,11 @@ export interface MobilePublicConfigV1 {
   };
   brand: { displayName: null | string; logoUrl: null | string };
   design: { tools: MobileDesignToolV1[] };
-  discover: { assistants: MobileFeaturedAssistantV1[]; title: string };
+  discover: {
+    assistants: MobileFeaturedAssistantV1[];
+    featuredAssistants?: MobileResolvedFeaturedAssistantV1[];
+    title: string;
+  };
   navigation: { items: MobileNavigationItemV1[] };
   version: 1;
 }
@@ -400,6 +416,45 @@ const normalizeAssistants = (value: unknown): MobileFeaturedAssistantV1[] => {
     .map((assistant, index) => ({ ...assistant, order: index + 1 }));
 };
 
+const normalizeResolvedAssistants = (
+  value: unknown,
+): MobileResolvedFeaturedAssistantV1[] | undefined => {
+  if (!Array.isArray(value)) return;
+
+  const seenIds = new Set<string>();
+  const assistants: MobileResolvedFeaturedAssistantV1[] = [];
+
+  for (const rawAssistant of value) {
+    if (!isRecord(rawAssistant)) continue;
+
+    const identifier = normalizeIdentifier(rawAssistant.identifier);
+    const title = normalizeTrimmedString(rawAssistant.title, 80);
+    const description = normalizeTrimmedString(rawAssistant.description, 160) ?? '';
+    const avatar = normalizeTrimmedString(rawAssistant.avatar, 2048);
+    const model = isRecord(rawAssistant.model) ? rawAssistant.model : {};
+    const modelId = normalizeCatalogIdentifier(model.id);
+    const provider = normalizeCatalogIdentifier(model.provider);
+    const displayName = normalizeTrimmedString(model.displayName, 80);
+
+    if (!identifier || !title || !modelId || !provider || !displayName || seenIds.has(identifier)) {
+      continue;
+    }
+
+    seenIds.add(identifier);
+    assistants.push({
+      ...(avatar ? { avatar } : {}),
+      description,
+      identifier,
+      model: { displayName, id: modelId, provider },
+      title,
+    });
+
+    if (assistants.length === 4) break;
+  }
+
+  return assistants;
+};
+
 const normalizeBuiltins = (value: unknown): MobileBuiltinAppV1[] => {
   if (!Array.isArray(value)) return [];
 
@@ -451,6 +506,7 @@ export const normalizeMobileConfig = (input: unknown): MobilePublicConfigV1 => {
   const applications = isRecord(config.applications) ? config.applications : {};
   const brand = isRecord(config.brand) ? config.brand : {};
   const discover = isRecord(config.discover) ? config.discover : {};
+  const featuredAssistants = normalizeResolvedAssistants(discover.featuredAssistants);
 
   return {
     applications: {
@@ -464,6 +520,7 @@ export const normalizeMobileConfig = (input: unknown): MobilePublicConfigV1 => {
     design: { tools: normalizeDesignTools(config.design) },
     discover: {
       assistants: normalizeAssistants(discover.assistants),
+      ...(featuredAssistants ? { featuredAssistants } : {}),
       title: normalizeTrimmedString(discover.title, 12) ?? DEFAULT_MOBILE_CONFIG.discover.title,
     },
     navigation: { items: normalizeNavigation(config.navigation) },

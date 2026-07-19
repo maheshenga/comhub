@@ -274,7 +274,10 @@ const collectModelEntries = (value: unknown): any[] => {
   if (!value || typeof value !== 'object') return [];
   const record = value as Record<string, unknown>;
   const direct =
-    record.enabledModels ?? record.models ?? record.items ?? (record.catalog as any)?.models;
+    record.enabledModels ??
+    record.models ??
+    record.items ??
+    (Array.isArray(record.catalog) ? record.catalog : (record.catalog as any)?.models);
   if (Array.isArray(direct)) return direct;
   return [];
 };
@@ -285,15 +288,24 @@ const loadModelOptions = async (): Promise<ModelOption[]> => {
 
   return collectModelEntries(diagnostics)
     .map((entry): ModelOption | undefined => {
-      const provider = String(entry.provider ?? entry.providerId ?? entry.instanceId ?? '').trim();
-      const model = String(entry.modelId ?? entry.id ?? entry.model ?? '').trim();
+      if (entry.visible === false) return;
+      const modelEntry = entry.model && typeof entry.model === 'object' ? entry.model : entry;
+      const provider = String(
+        entry.provider ??
+          entry.providerId ??
+          entry.instanceId ??
+          modelEntry.providerId ??
+          modelEntry.instanceId ??
+          '',
+      ).trim();
+      const model = String(modelEntry.modelId ?? modelEntry.id ?? '').trim();
       if (!provider || !model) return;
       const value = `${provider}/${model}`;
       if (seen.has(value)) return;
       seen.add(value);
 
       return {
-        label: String(entry.displayName ?? entry.name ?? model),
+        label: String(modelEntry.displayName ?? modelEntry.name ?? model),
         model,
         provider,
         value,

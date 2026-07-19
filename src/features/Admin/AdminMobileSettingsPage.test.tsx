@@ -59,12 +59,15 @@ const mobileConfig = (patch: Partial<MobilePublicConfigV1> = {}): MobilePublicCo
 const setupLoaders = (config: MobilePublicConfigV1 = mobileConfig()) => {
   vi.mocked(adminCommercialService.getMobileSettings).mockResolvedValue(config);
   vi.mocked(adminCommercialService.getAiProviderModelCatalogDiagnostics).mockResolvedValue({
-    enabledModels: [
+    catalog: [
       {
-        displayName: 'GPT 4.1',
-        modelId: 'gpt-4.1',
-        modelType: 'chat',
-        provider: 'openai',
+        model: {
+          displayName: 'GPT 4.1',
+          id: 'gpt-4.1',
+          providerId: 'openai',
+          type: 'chat',
+        },
+        visible: true,
       },
     ],
   } as any);

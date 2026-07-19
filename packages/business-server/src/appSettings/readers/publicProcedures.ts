@@ -4,6 +4,7 @@ import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import { publicProcedure } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
+import { loadMobileFeaturedAssistants } from '@/server/services/mobileFeaturedAssistants';
 
 import {
   buildDesktopSettings,
@@ -46,9 +47,20 @@ const normalizeProfileInterestAreas = (value: unknown) => {
 };
 
 export const publicSettingsProcedures = {
-  getPublicMobileConfig: publicDbProcedure.query(async ({ ctx }) =>
-    buildMobileSettings(await loadAppSettingsSectionSnapshot(ctx.serverDB, 'mobile')),
-  ),
+  getPublicMobileConfig: publicDbProcedure.query(async ({ ctx }) => {
+    const config = buildMobileSettings(
+      await loadAppSettingsSectionSnapshot(ctx.serverDB, 'mobile'),
+    );
+    const featuredAssistants = await loadMobileFeaturedAssistants(
+      ctx.serverDB,
+      config.discover.assistants,
+    );
+
+    return {
+      ...config,
+      discover: { ...config.discover, featuredAssistants },
+    };
+  }),
   getPublicBrand: publicDbProcedure.query(async ({ ctx }) => {
     const snapshot = await loadAppSettingsSnapshot(ctx.serverDB, [
       SETTING_KEYS.brandName,

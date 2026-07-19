@@ -17,6 +17,7 @@ import {
   encryptAppSettingSecret,
 } from '@/server/services/appSettings/secrets';
 import { invalidateServerBrand } from '@/server/services/brand';
+import { loadMobileFeaturedAssistants } from '@/server/services/mobileFeaturedAssistants';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import {
   getAllEnabledModels,
@@ -137,6 +138,10 @@ vi.mock('@/server/services/brand', () => ({
   invalidateServerBrand: vi.fn(),
 }));
 
+vi.mock('@/server/services/mobileFeaturedAssistants', () => ({
+  loadMobileFeaturedAssistants: vi.fn(),
+}));
+
 vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
   ModuleAppPackageLifecycleService: vi.fn(),
 }));
@@ -250,6 +255,7 @@ describe('admin settings default model validation', () => {
     process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
     vi.resetAllMocks();
     vi.mocked(getServerDefaultAgentConfig).mockReturnValue({});
+    vi.mocked(loadMobileFeaturedAssistants).mockResolvedValue([]);
     vi.mocked(S3).mockImplementation(
       () =>
         ({
@@ -692,7 +698,17 @@ describe('admin settings default model validation', () => {
 
     const caller = adminSettingsRouter.createCaller({} as any);
 
-    await expect(caller.getPublicMobileConfig()).resolves.toEqual(normalizeMobileConfig(rawConfig));
+    await expect(caller.getPublicMobileConfig()).resolves.toEqual({
+      ...normalizeMobileConfig(rawConfig),
+      discover: {
+        ...normalizeMobileConfig(rawConfig).discover,
+        featuredAssistants: [],
+      },
+    });
+    expect(loadMobileFeaturedAssistants).toHaveBeenCalledWith(
+      db,
+      normalizeMobileConfig(rawConfig).discover.assistants,
+    );
     expect(db.__mocks.findAppSettingsMany).toHaveBeenCalledTimes(1);
   });
 
