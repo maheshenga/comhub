@@ -27,17 +27,17 @@ describe('mobile workspace navigation', () => {
     expect(resolveMobileActiveSlot('/community/agent/demo', DEFAULT_MOBILE_CONFIG)).toBe('slot-3');
   });
 
-  it('respects renamed, reordered, and custom valid tab paths', () => {
+  it('respects renamed, reordered, and controlled tab paths', () => {
     const config = configWithNavigation([
-      { label: 'Inbox', order: 4 },
-      { label: 'Create', order: 3, path: '/create-mobile' },
-      { label: 'Explore', order: 1, path: '/explore' },
-      { label: 'Tools', order: 2, path: '/tools' },
+      { label: 'Inbox', order: 4, path: '/settings/usage' },
+      { label: 'Create', order: 3, path: '/tasks' },
+      { label: 'Explore', order: 1, path: '/community' },
+      { label: 'Tools', order: 2, path: '/apps' },
     ]);
 
-    expect(resolveMobileActiveSlot('/explore', config)).toBe('slot-3');
-    expect(resolveMobileActiveSlot('/tools/detail', config)).toBe('slot-4');
-    expect(shouldShowMobileTabBar('/explore', config)).toBe(true);
+    expect(resolveMobileActiveSlot('/community', config)).toBe('slot-3');
+    expect(resolveMobileActiveSlot('/apps/detail', config)).toBe('slot-4');
+    expect(shouldShowMobileTabBar('/community', config)).toBe(true);
   });
 
   it('falls back to the first visible configured slot when a matched slot is hidden', () => {
@@ -60,5 +60,11 @@ describe('mobile workspace navigation', () => {
     expect(shouldShowMobileTabBar('/agent/a/topic')).toBe(false);
     expect(shouldShowMobileTabBar('/community/agent/demo')).toBe(false);
     expect(shouldShowMobileTabBar('/settings')).toBe(false);
+  });
+
+  it('recognizes workspace-mirrored tab roots without treating deep pages as roots', () => {
+    expect(resolveMobileActiveSlot('/acme/apps', DEFAULT_MOBILE_CONFIG, 'acme')).toBe('slot-4');
+    expect(shouldShowMobileTabBar('/acme/design', DEFAULT_MOBILE_CONFIG, 'acme')).toBe(true);
+    expect(shouldShowMobileTabBar('/acme/apps/market', DEFAULT_MOBILE_CONFIG, 'acme')).toBe(false);
   });
 });

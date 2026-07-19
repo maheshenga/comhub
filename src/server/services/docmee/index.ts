@@ -257,10 +257,22 @@ export class DocmeePptService {
     }
   };
 
-  createToken = async () => {
+  createToken = async (recordId?: string) => {
     const { capability, dailyRemaining, plan, remaining, settings } = await this.assertAvailable();
-    await this.assertCreditBalanceAvailable(capability.creditCost);
-    const sessionId = randomUUID();
+    const resumeRecord = recordId
+      ? await this.db.query.pptUsageRecords.findFirst({
+          where: and(
+            eq(pptUsageRecords.id, recordId),
+            eq(pptUsageRecords.userId, this.userId),
+            isNotNull(pptUsageRecords.upstreamTaskId),
+          ),
+        })
+      : undefined;
+
+    if (recordId && !resumeRecord) throw new DocmeePptError('PPT_EVENT_INVALID');
+    if (!resumeRecord) await this.assertCreditBalanceAvailable(capability.creditCost);
+
+    const sessionId = resumeRecord?.sessionId ?? randomUUID();
     const docmeeUid = `comhub:${this.userId}`;
     const limit = Math.max(
       1,
@@ -284,28 +296,31 @@ export class DocmeePptService {
 
     if (!token) throw new DocmeePptError('PPT_UPSTREAM_TOKEN_FAILED', 'Docmee token missing');
 
-    await this.db
-      .insert(pptUsageRecords)
-      .values({
-        creditCost: capability.creditCost,
-        docmeeUid,
-        metadata: {
-          creatorVersion: settings.creatorVersion,
-          tokenLimit: limit,
-          tokenTtlMinutes: settings.tokenTtlMinutes,
-        },
-        plan,
-        quotaCost: 1,
-        sessionId,
-        status: 'created',
-        userId: this.userId,
-      })
-      .onConflictDoNothing();
+    if (!resumeRecord) {
+      await this.db
+        .insert(pptUsageRecords)
+        .values({
+          creditCost: capability.creditCost,
+          docmeeUid,
+          metadata: {
+            creatorVersion: settings.creatorVersion,
+            tokenLimit: limit,
+            tokenTtlMinutes: settings.tokenTtlMinutes,
+          },
+          plan,
+          quotaCost: 1,
+          sessionId,
+          status: 'created',
+          userId: this.userId,
+        })
+        .onConflictDoNothing();
+    }
 
     return {
       expiresIn: settings.tokenTtlMinutes * 60,
       sessionId,
       token,
+      ...(resumeRecord?.upstreamTaskId ? { upstreamTaskId: resumeRecord.upstreamTaskId } : {}),
     };
   };
 

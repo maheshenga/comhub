@@ -2,23 +2,23 @@
 
 import { Button, Empty, Flexbox, SearchBar, Skeleton } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
-import { RefreshCw } from 'lucide-react';
-import { type ChangeEvent, memo, useCallback, useMemo, useState } from 'react';
+import { type ChangeEvent, memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 
+import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
-import { useFetchSessions } from '@/hooks/useFetchSessions';
 import { recentService } from '@/services/recent';
 import { useHomeStore } from '@/store/home';
-import { useSessionStore } from '@/store/session';
+import { useUserStore } from '@/store/user';
+import { authSelectors } from '@/store/user/selectors';
 
+import MobileRefreshButton from '../MobileRefreshButton';
+import { useMobileSlotState } from '../mobileSlotState';
 import RecentConversationRow from './RecentConversationRow';
-import {
-  buildMobileRecentItems,
-  filterMobileRecentItems,
-  type MobileRecentConversation,
-} from './recentItems';
+import { filterMobileRecentItems, type MobileRecentConversation } from './recentItems';
+
+const PAGE_SIZE = 20;
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   heading: css`
@@ -26,6 +26,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 14px;
     font-weight: 600;
     color: ${cssVar.colorTextSecondary};
+  `,
+  pinError: css`
+    margin-inline: 12px;
+    padding-block: 8px;
+    font-size: 13px;
+    color: ${cssVar.colorError};
   `,
   page: css`
     width: 100%;
@@ -47,50 +53,95 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
 const MobileRecentPage = memo(() => {
   const { t } = useTranslation('common');
-  useFetchSessions();
+  const activeWorkspaceId = useActiveWorkspaceId();
+  const isLogin = useUserStore(authSelectors.isLogin);
   const navigate = useWorkspaceAwareNavigate();
-  const sessions = useSessionStore((state) => state.sessions);
-  const pinnedSessions = useSessionStore((state) => state.pinnedSessions);
-  const sessionsReady = useSessionStore((state) => state.isSessionsFirstFetchFinished);
-  const pinSession = useSessionStore((state) => state.pinSession);
-  const refreshSessions = useSessionStore((state) => state.refreshSessions);
+  const pinAgent = useHomeStore((state) => state.pinAgent);
   const pinAgentGroup = useHomeStore((state) => state.pinAgentGroup);
-  const [searchQuery, setSearchQuery] = useState('');
-  const { data, error, isLoading, mutate } = useSWR(
-    ['mobile-recent', 'topic'],
-    () => recentService.getAll({ limit: 50, types: ['topic'] }),
-    { refreshInterval: 10_000, revalidateOnFocus: false, shouldRetryOnError: false },
+  const {
+    query: searchQuery,
+    rememberFocus,
+    setQuery: setSearchQuery,
+  } = useMobileSlotState({ scopeId: activeWorkspaceId ?? 'personal', slotId: 'slot-1' });
+  const [pinError, setPinError] = useState(false);
+  const pinningKeysRef = useRef(new Set<string>());
+  const [pinningKeys, setPinningKeys] = useState<Set<string>>(() => new Set());
+  const getKey = useCallback(
+    (pageIndex: number, previousPageData: Awaited<ReturnType<typeof recentService.getMobileWorkspace>> | null) => {
+      if (isLogin === false || (previousPageData && !previousPageData.nextCursor)) return null;
+      return [
+        'mobile-recent-workspace',
+        activeWorkspaceId,
+        searchQuery,
+        pageIndex === 0 ? undefined : previousPageData?.nextCursor,
+      ] as const;
+    },
+    [activeWorkspaceId, isLogin, searchQuery],
+  );
+  const { data, error, isLoading, isValidating, mutate, setSize, size } = useSWRInfinite(
+    getKey,
+    ([, , query, cursor]) =>
+      recentService.getMobileWorkspace({ cursor, limit: PAGE_SIZE, query: query || undefined }),
+    {
+      revalidateAll: true,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      shouldRetryOnError: false,
+    },
   );
 
+  const conversations = useMemo(() => data?.flatMap((page) => page.items) ?? [], [data]);
   const sections = useMemo(
     () =>
       filterMobileRecentItems(
-        buildMobileRecentItems({
-          pinnedSessions,
-          recents: data ?? [],
-          sessions,
-        }),
+        {
+          pinned: conversations.filter((item) => item.pinned),
+          recent: conversations.filter((item) => !item.pinned),
+        },
         searchQuery,
       ),
-    [data, pinnedSessions, searchQuery, sessions],
+    [conversations, searchQuery],
   );
   const hasItems = sections.pinned.length > 0 || sections.recent.length > 0;
+  const hasMore = Boolean(data?.at(-1)?.nextCursor);
 
   const togglePin = useCallback(
     async (item: MobileRecentConversation) => {
-      if (item.kind === 'group' || item.kind === 'group-topic') {
-        await pinAgentGroup(item.sessionId, !item.pinned);
-        await refreshSessions();
-        return;
-      }
-      await pinSession(item.sessionId, !item.pinned);
-    },
-    [pinAgentGroup, pinSession, refreshSessions],
-  );
+      const key = `${item.kind}:${item.id}`;
+      if (pinningKeysRef.current.has(key)) return;
 
-  if (isLoading || !sessionsReady) {
+      pinningKeysRef.current.add(key);
+      setPinningKeys(new Set(pinningKeysRef.current));
+      setPinError(false);
+      try {
+        if (item.kind === 'group') {
+          await pinAgentGroup(item.sessionId, !item.pinned);
+        } else {
+          await pinAgent(item.sessionId, !item.pinned);
+        }
+        await mutate();
+      } catch {
+        setPinError(true);
+      } finally {
+        pinningKeysRef.current.delete(key);
+        setPinningKeys(new Set(pinningKeysRef.current));
+      }
+    },
+    [mutate, pinAgent, pinAgentGroup],
+  );
+  const refresh = useCallback(async () => {
+    await mutate();
+  }, [mutate]);
+
+  if (isLoading && isLogin !== false) {
     return (
-      <Flexbox className={styles.state} data-testid="mobile-recent-loading" gap={16}>
+      <Flexbox
+        aria-busy="true"
+        className={styles.state}
+        data-testid="mobile-recent-loading"
+        gap={16}
+        role="status"
+      >
         <Skeleton.Paragraph active rows={6} />
       </Flexbox>
     );
@@ -99,8 +150,8 @@ const MobileRecentPage = memo(() => {
   if (error) {
     return (
       <Flexbox align="center" className={styles.state} gap={12} justify="center">
-        <span>{t('mobile.recent.error')}</span>
-        <Button onClick={() => void mutate()}>{t('retry')}</Button>
+        <span role="alert">{t('mobile.recent.error')}</span>
+        <Button onClick={() => void refresh()}>{t('retry')}</Button>
       </Flexbox>
     );
   }
@@ -119,13 +170,17 @@ const MobileRecentPage = memo(() => {
       </div>
       <Flexbox horizontal align="center" className={styles.sectionHeader} justify="space-between">
         <h2 className={styles.heading}>{t('mobile.recent.latest')}</h2>
-        <Button
-          aria-label={t('mobile.recent.refresh')}
-          icon={<RefreshCw size={16} />}
-          title={t('mobile.recent.refresh')}
-          onClick={() => void mutate()}
+        <MobileRefreshButton
+          label={t('mobile.recent.refresh')}
+          loading={isValidating}
+          onRefresh={() => void refresh()}
         />
       </Flexbox>
+      {pinError ? (
+        <div className={styles.pinError} role="alert">
+          {t('mobile.recent.pinError')}
+        </div>
+      ) : null}
 
       {!hasItems ? (
         <Flexbox className={styles.state} justify="center">
@@ -144,7 +199,11 @@ const MobileRecentPage = memo(() => {
                 <RecentConversationRow
                   item={item}
                   key={item.id}
-                  onOpen={() => navigate(item.routePath)}
+                  pending={pinningKeys.has(`${item.kind}:${item.id}`)}
+                  onOpen={() => {
+                    rememberFocus(`${item.kind}:${item.id}`);
+                    navigate(item.routePath);
+                  }}
                   onTogglePin={() => void togglePin(item)}
                 />
               ))}
@@ -160,11 +219,27 @@ const MobileRecentPage = memo(() => {
                 <RecentConversationRow
                   item={item}
                   key={item.id}
-                  onOpen={() => navigate(item.routePath)}
+                  pending={pinningKeys.has(`${item.kind}:${item.id}`)}
+                  onOpen={() => {
+                    rememberFocus(`${item.kind}:${item.id}`);
+                    navigate(item.routePath);
+                  }}
                   onTogglePin={() => void togglePin(item)}
                 />
               ))}
             </section>
+          ) : null}
+          {hasMore ? (
+            <Flexbox align="center" padding={16}>
+              <Button
+                aria-label={t('mobile.recent.loadMore')}
+                disabled={isValidating}
+                loading={isValidating}
+                onClick={() => void setSize(size + 1)}
+              >
+                {t('mobile.recent.loadMore')}
+              </Button>
+            </Flexbox>
           ) : null}
         </>
       )}

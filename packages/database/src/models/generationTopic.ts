@@ -29,17 +29,20 @@ export class GenerationTopicModel {
   private ownership = () =>
     buildWorkspaceWhere({ userId: this.userId, workspaceId: this.workspaceId }, generationTopics);
 
-  queryAll = async (type?: GenerationTopicType) => {
+  queryAll = async (type?: GenerationTopicType, options?: { limit?: number }) => {
     const conditions = [this.ownership()];
     if (type) {
       conditions.push(eq(generationTopics.type, type));
     }
 
-    const topics = await this.db
+    const query = this.db
       .select()
       .from(generationTopics)
       .orderBy(desc(generationTopics.updatedAt))
       .where(and(...conditions));
+    const topics = options?.limit
+      ? await query.limit(Math.max(1, Math.trunc(options.limit)))
+      : await query;
 
     return Promise.all(
       topics.map(async (topic) => {

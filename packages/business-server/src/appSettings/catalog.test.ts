@@ -292,6 +292,18 @@ describe('APP_SETTINGS_CATALOG', () => {
     ).toThrow(/not writable/);
   });
 
+  it('routes mobile configuration writes only through the publication contract', () => {
+    for (const key of [APP_SETTING_KEYS.mobileConfig, APP_SETTING_KEYS.mobileConfigPublication]) {
+      expect(catalogItem(key)).toMatchObject({
+        lifecycle: 'active',
+        requiredCapability: 'systemWrite',
+        writable: true,
+        writeSurfaces: ['adminSettingsRouter.mobilePublication'],
+      });
+      expect(GENERIC_WRITABLE_APP_SETTING_KEYS).not.toContain(key);
+    }
+  });
+
   it('derives runtime consumers from source-backed contracts', () => {
     type ConsumerContract = {
       id: string;

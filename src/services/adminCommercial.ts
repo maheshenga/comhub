@@ -7,7 +7,6 @@ import {
 
 import { getAdminSettingsWriteSWRKeys } from '@/const/adminCacheKeys';
 import {
-  APP_SETTING_KEYS,
   type AppSettingKey,
   type AppSettingsSection,
   getAppSettingsSectionForKey,
@@ -155,6 +154,9 @@ class AdminCommercialService {
 
   getMobileSettings = async () => (await this.getSettingsSection('mobile')).mobileConfig;
 
+  getMobileSettingsPublication = async () =>
+    lambdaClient.admin.settings.getMobileConfigPublication.query();
+
   getAppSettingsGovernance = async () => {
     return lambdaClient.admin.settings.getGovernance.query();
   };
@@ -177,12 +179,35 @@ class AdminCommercialService {
     return result;
   };
 
-  saveMobileSettings = async (config: unknown) => {
+  saveMobileSettingsDraft = async (config: unknown) => {
     const normalized = normalizeMobileConfig(config);
-    await this.setAppSettingsBatch({
-      updates: [{ key: APP_SETTING_KEYS.mobileConfig, value: normalized }],
+    const state = await lambdaClient.admin.settings.saveMobileConfigDraft.mutate({
+      config: normalized,
     });
-    return normalized;
+    await invalidateAdminSettingsWrites(['mobile']);
+    return state;
+  };
+
+  saveMobileSettings = async (config: unknown) =>
+    (await this.saveMobileSettingsDraft(config)).draft.config;
+
+  publishMobileSettings = async (params: {
+    expectedDraftRevision: number;
+    expectedRevision: number;
+  }) => {
+    const state = await lambdaClient.admin.settings.publishMobileConfig.mutate(params);
+    await invalidateAdminSettingsWrites(['mobile']);
+    return state;
+  };
+
+  rollbackMobileSettings = async (params: {
+    expectedDraftRevision: number;
+    expectedRevision: number;
+    targetRevision: number;
+  }) => {
+    const state = await lambdaClient.admin.settings.rollbackMobileConfig.mutate(params);
+    await invalidateAdminSettingsWrites(['mobile']);
+    return state;
   };
 
   syncUserGlobalSettingsDefaultsToUsers = async (params?: { forceDefaultAgentMeta?: boolean }) => {

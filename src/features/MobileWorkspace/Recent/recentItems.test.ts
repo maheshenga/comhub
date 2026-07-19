@@ -1,24 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
+import type { SidebarAgentItem } from '@/database/repositories/home';
 import type { RecentItem } from '@/server/routers/lambda/recent';
-import { type LobeSession, LobeSessionType } from '@/types/session';
 
-import { buildMobileRecentItems } from './recentItems';
+import { buildMobileRecentItems, filterMobileRecentItems } from './recentItems';
 
-const session = (
+const assistant = (
   id: string,
-  type: LobeSessionType,
+  type: SidebarAgentItem['type'],
   options: { pinned?: boolean; title: string; updatedAt: string },
-): LobeSession =>
-  ({
-    ...(type === LobeSessionType.Agent ? { config: {}, model: 'gpt-4.1' } : {}),
-    createdAt: new Date(options.updatedAt),
-    id,
-    meta: { title: options.title },
-    pinned: options.pinned,
-    type,
-    updatedAt: new Date(options.updatedAt),
-  }) as LobeSession;
+): SidebarAgentItem => ({
+  id,
+  pinned: options.pinned ?? false,
+  title: options.title,
+  type,
+  updatedAt: new Date(options.updatedAt),
+});
 
 const recentTopic = (
   id: string,
@@ -37,94 +34,141 @@ const recentTopic = (
 });
 
 describe('buildMobileRecentItems', () => {
-  it('places pinned agents before pinned groups and keeps remaining topics newest first', () => {
-    const pinnedAgent = session('agent-pinned', LobeSessionType.Agent, {
+  it('mirrors the desktop assistant list and merges each latest topic into its parent row', () => {
+    const pinnedAgent = assistant('agent-pinned', 'agent', {
       pinned: true,
       title: 'Pinned Agent',
       updatedAt: '2026-07-18T08:00:00.000Z',
     });
-    const pinnedGroup = session('group-pinned', LobeSessionType.Group, {
+    const pinnedGroup = assistant('group-pinned', 'group', {
       pinned: true,
       title: 'Pinned Group',
       updatedAt: '2026-07-19T08:00:00.000Z',
     });
-    const freeAgent = session('agent-free', LobeSessionType.Agent, {
+    const freeAgent = assistant('agent-free', 'agent', {
       title: 'Free Agent',
       updatedAt: '2026-07-17T08:00:00.000Z',
     });
-    const freeGroup = session('group-free', LobeSessionType.Group, {
+    freeAgent.avatar = 'agent-avatar.png';
+    freeAgent.backgroundColor = '#ffffff';
+    freeAgent.unreadCount = 3;
+    const idleAgent = assistant('agent-idle', 'agent', {
+      title: 'Idle Agent',
+      updatedAt: '2026-07-16T08:00:00.000Z',
+    });
+    const freeGroup = assistant('group-free', 'group', {
       title: 'Free Group',
       updatedAt: '2026-07-17T07:00:00.000Z',
     });
 
     const result = buildMobileRecentItems({
-      pinnedSessions: [pinnedGroup, pinnedAgent],
+      assistants: [pinnedGroup, pinnedAgent, freeAgent, idleAgent, freeGroup],
       recents: [
         recentTopic(
           'pinned-agent-topic',
-          '/agent/agent-pinned/pinned-agent-topic',
+          '/agent/agent-pinned?topic=pinned-agent-topic',
           '2026-07-19T12:00:00.000Z',
           'agent-pinned',
         ),
         recentTopic(
-          'pinned-group-topic',
-          '/group/group-pinned?topic=pinned-group-topic',
-          '2026-07-19T11:00:00.000Z',
-        ),
-        recentTopic(
           'newer-topic',
-          '/agent/agent-free/newer-topic',
+          '/agent/agent-free?topic=newer-topic',
           '2026-07-19T10:00:00.000Z',
           'agent-free',
         ),
         recentTopic(
-          'older-group-topic',
-          '/group/group-free?topic=older-group-topic',
+          'older-topic',
+          '/agent/agent-free?topic=older-topic',
+          '2026-07-18T10:00:00.000Z',
+          'agent-free',
+        ),
+        recentTopic(
+          'group-topic',
+          '/group/group-free?topic=group-topic',
           '2026-07-19T09:00:00.000Z',
         ),
       ],
-      sessions: [pinnedAgent, pinnedGroup, freeAgent, freeGroup],
     });
 
-    expect(result.pinned.map((item) => `${item.kind}:${item.sessionId}`)).toEqual([
+    expect(result.pinned.map((item) => `${item.kind}:${item.id}`)).toEqual([
       'agent:agent-pinned',
       'group:group-pinned',
     ]);
+    expect(result.pinned[0]).toMatchObject({
+      routePath: '/agent/agent-pinned',
+      title: 'Pinned Agent',
+      topicTitle: 'pinned-agent-topic',
+    });
     expect(result.recent.map((item) => `${item.kind}:${item.id}`)).toEqual([
-      'topic:newer-topic',
-      'group-topic:older-group-topic',
+      'agent:agent-free',
+      'group:group-free',
+      'agent:agent-idle',
     ]);
-    expect(result.recent[1].routePath).toBe('/group/group-free?topic=older-group-topic');
+    expect(result.recent[0]).toMatchObject({
+      avatar: 'agent-avatar.png',
+      backgroundColor: '#ffffff',
+      routePath: '/agent/agent-free?topic=newer-topic',
+      title: 'Free Agent',
+      topicTitle: 'newer-topic',
+      unreadCount: 3,
+    });
+    expect(result.recent[2]).toMatchObject({
+      routePath: '/agent/agent-idle',
+      title: 'Idle Agent',
+      topicTitle: undefined,
+    });
   });
 
-  it('removes duplicate and orphan topic records', () => {
-    const agent = session('agent-free', LobeSessionType.Agent, {
+  it('removes duplicate desktop items and ignores orphan topic records', () => {
+    const agent = assistant('agent-free', 'agent', {
       title: 'Free Agent',
       updatedAt: '2026-07-17T08:00:00.000Z',
     });
-    const valid = recentTopic(
-      'valid-topic',
-      '/agent/agent-free/valid-topic',
-      '2026-07-19T10:00:00.000Z',
-      'agent-free',
-    );
 
     const result = buildMobileRecentItems({
-      pinnedSessions: [],
+      assistants: [agent, agent],
       recents: [
-        valid,
-        { ...valid, updatedAt: new Date('2026-07-18T10:00:00.000Z') },
+        recentTopic(
+          'valid-topic',
+          '/agent/agent-free?topic=valid-topic',
+          '2026-07-19T10:00:00.000Z',
+          'agent-free',
+        ),
         recentTopic(
           'missing-parent',
-          '/agent/missing/missing-parent',
+          '/agent/missing?topic=missing-parent',
           '2026-07-19T09:00:00.000Z',
           'missing',
         ),
         recentTopic('orphan', '/', '2026-07-19T08:00:00.000Z'),
       ],
-      sessions: [agent],
     });
 
-    expect(result.recent.map((item) => item.id)).toEqual(['valid-topic']);
+    expect(result.recent).toHaveLength(1);
+    expect(result.recent[0]).toMatchObject({ id: 'agent-free', topicTitle: 'valid-topic' });
+  });
+});
+
+describe('filterMobileRecentItems', () => {
+  it('matches both the desktop assistant name and latest topic title', () => {
+    const sections = buildMobileRecentItems({
+      assistants: [
+        assistant('agent-free', 'agent', {
+          title: 'Writing Assistant',
+          updatedAt: '2026-07-17T08:00:00.000Z',
+        }),
+      ],
+      recents: [
+        recentTopic(
+          'Quarterly Review',
+          '/agent/agent-free?topic=quarterly-review',
+          '2026-07-19T10:00:00.000Z',
+          'agent-free',
+        ),
+      ],
+    });
+
+    expect(filterMobileRecentItems(sections, 'writing').recent).toHaveLength(1);
+    expect(filterMobileRecentItems(sections, 'quarterly').recent).toHaveLength(1);
   });
 });

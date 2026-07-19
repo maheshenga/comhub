@@ -3,6 +3,48 @@ import { describe, expect, it, vi } from 'vitest';
 import { createModuleAppService } from './moduleApp';
 
 describe('createModuleAppService', () => {
+  it('loads mobile apps in one server-owned request for the active workspace', async () => {
+    const listMobileApps = vi.fn().mockResolvedValue([
+      {
+        displayName: 'Workspace app',
+        id: 'workspace',
+        installationScope: 'workspace',
+        workspaceId: 'workspace-1',
+      },
+    ]);
+    const service = createModuleAppService({
+      moduleApp: {
+        listMobileApps: { query: listMobileApps },
+      },
+    } as never);
+
+    await expect(service.listAvailableApps('workspace-1')).resolves.toEqual([
+      {
+        displayName: 'Workspace app',
+        id: 'workspace',
+        installationScope: 'workspace',
+        workspaceId: 'workspace-1',
+      },
+    ]);
+    expect(listMobileApps).toHaveBeenCalledTimes(1);
+    expect(listMobileApps).toHaveBeenCalledWith({ workspaceId: 'workspace-1' });
+  });
+
+  it('uses the same single endpoint for personal mobile apps', async () => {
+    const listMobileApps = vi
+      .fn()
+      .mockResolvedValue([{ displayName: 'Personal', id: 'personal', installationScope: 'personal' }]);
+    const service = createModuleAppService({
+      moduleApp: { listMobileApps: { query: listMobileApps } },
+    } as never);
+
+    await expect(service.listAvailableApps()).resolves.toEqual([
+      { displayName: 'Personal', id: 'personal', installationScope: 'personal' },
+    ]);
+    expect(listMobileApps).toHaveBeenCalledTimes(1);
+    expect(listMobileApps).toHaveBeenCalledWith({});
+  });
+
   it('calls moduleApp listMarketplace query', async () => {
     const query = vi.fn().mockResolvedValue([{ id: 'app1' }]);
     const service = createModuleAppService({
@@ -127,10 +169,10 @@ describe('createModuleAppService', () => {
     const fetcher = vi.fn().mockResolvedValue({ ok: true });
     const service = createModuleAppService(
       {
-      moduleApp: {
-        createPackageUpload: { mutate: createUpload },
-        submitUploadedPackage: { mutate: submitUploadedPackage },
-      },
+        moduleApp: {
+          createPackageUpload: { mutate: createUpload },
+          submitUploadedPackage: { mutate: submitUploadedPackage },
+        },
       } as never,
       fetcher as typeof fetch,
     );

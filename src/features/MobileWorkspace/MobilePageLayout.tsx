@@ -6,7 +6,7 @@ import { Outlet } from 'react-router';
 import MobileContentLayout from '@/components/server/MobileNavLayout';
 
 const MobilePageLayout = ({ children, header }: { children?: ReactNode; header?: ReactNode }) => (
-  <MobileContentLayout withNav header={header}>
+  <MobileContentLayout header={header}>
     {children ?? <Outlet />}
   </MobileContentLayout>
 );

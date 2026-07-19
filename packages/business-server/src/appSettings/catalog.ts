@@ -27,6 +27,7 @@ export type {
 
 export const APP_SETTING_WRITE_SURFACES = {
   genericAdmin: 'adminSettingsRouter.setAppSetting',
+  mobilePublication: 'adminSettingsRouter.mobilePublication',
   pptAdmin: 'adminPptRouter.saveSettings',
 } as const satisfies Record<string, AppSettingWriteSurface>;
 
@@ -46,6 +47,9 @@ const writeSurfacesFor = (
 ): AppSettingWriteSurface[] => {
   if (lifecycle !== 'active') return [];
   if (key.startsWith('docmee.')) return [APP_SETTING_WRITE_SURFACES.pptAdmin];
+  if (key === APP_SETTING_KEYS.mobileConfig || key === APP_SETTING_KEYS.mobileConfigPublication) {
+    return [APP_SETTING_WRITE_SURFACES.mobilePublication];
+  }
 
   return [APP_SETTING_WRITE_SURFACES.genericAdmin];
 };

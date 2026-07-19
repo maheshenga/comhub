@@ -91,9 +91,9 @@ describe('DocmeePptService', () => {
       APP_SETTING_KEYS.docmeePptApiKey,
       'encrypted-docmee-secret',
     );
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ token: 'docmee-token' }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ token: 'docmee-token' }), { status: 200 }));
     const db = createDb({
       query: {
         appSettings: {
@@ -117,6 +117,59 @@ describe('DocmeePptService', () => {
         headers: expect.objectContaining({ 'Api-Key': 'encrypted-docmee-secret' }),
       }),
     );
+  });
+
+  it('resumes only a user-owned local PPT record without creating a second usage row', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ token: 'resume-token' }), { status: 200 }));
+    const insert = vi.fn();
+    const findFirst = vi.fn().mockResolvedValue({
+      sessionId: 'saved-session',
+      upstreamTaskId: 'upstream-ppt-1',
+    });
+    const db = createDb({
+      insert,
+      query: {
+        appSettings: { findMany: vi.fn().mockResolvedValue(enabledSettings) },
+        planCatalog: { findFirst: vi.fn().mockResolvedValue({ metadata: { pptEnabled: true } }) },
+        pptUsageRecords: { findFirst, findMany: vi.fn().mockResolvedValue([]) },
+        userPlanSnapshots: { findFirst: vi.fn().mockResolvedValue({ plan: Plans.Starter }) },
+      },
+    });
+    const service = new DocmeePptService({ db, userId: 'u1' });
+
+    await expect(
+      service.createToken('00000000-0000-4000-8000-000000000001'),
+    ).resolves.toMatchObject({
+      sessionId: 'saved-session',
+      token: 'resume-token',
+      upstreamTaskId: 'upstream-ppt-1',
+    });
+    expect(findFirst).toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it('rejects an unknown or foreign local PPT record before opening the upstream editor', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    const db = createDb({
+      query: {
+        appSettings: { findMany: vi.fn().mockResolvedValue(enabledSettings) },
+        planCatalog: { findFirst: vi.fn().mockResolvedValue({ metadata: { pptEnabled: true } }) },
+        pptUsageRecords: {
+          findFirst: vi.fn().mockResolvedValue(undefined),
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        userPlanSnapshots: { findFirst: vi.fn().mockResolvedValue({ plan: Plans.Starter }) },
+      },
+    });
+    const service = new DocmeePptService({ db, userId: 'u1' });
+
+    await expect(service.createToken('00000000-0000-4000-8000-000000000002')).rejects.toMatchObject(
+      { code: 'PPT_EVENT_INVALID' },
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('syncs expired plan snapshots before checking PPT plan capability', async () => {

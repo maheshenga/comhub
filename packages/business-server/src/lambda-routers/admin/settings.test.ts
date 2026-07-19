@@ -6,7 +6,11 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_COMHUB_AGENT_AVATAR, DEFAULT_COMHUB_AGENT_NAME } from '@/const/defaultAgent';
-import { normalizeMobileConfig } from '@/const/mobileConfig';
+import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
+import {
+  createMobileConfigPublication,
+  type MobileConfigPublicationState,
+} from '@/const/mobileConfigPublication';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { getServerDefaultAgentConfig } from '@/server/globalConfig';
 import { invalidateFileS3RuntimeCache, S3 } from '@/server/modules/S3';
@@ -199,7 +203,7 @@ const createDb = ({
   modelRules = null,
   role = 'admin',
 }: {
-  appSettings?: Array<{ value: unknown } | null>;
+  appSettings?: Array<{ updatedAt?: Date; value: unknown } | null>;
   appSettingsMany?: Array<{ key: string; value: unknown }>;
   modelRules?: any;
   role?: string | null;
@@ -211,6 +215,7 @@ const createDb = ({
   const insert = vi.fn(() => ({
     values,
   }));
+  const execute = vi.fn().mockResolvedValue(undefined);
   const legacyAppSettings = [...appSettings];
   const findAppSettingsMany = vi.fn().mockImplementation((options?: { where?: unknown }) => {
     if (appSettingsMany) return Promise.resolve(appSettingsMany);
@@ -230,7 +235,9 @@ const createDb = ({
       findAppSettingsMany,
       onConflictDoUpdate,
       values,
+      execute,
     },
+    execute,
     insert,
     query: {
       appSettings: {
@@ -674,42 +681,190 @@ describe('admin settings default model validation', () => {
     await expect(caller.getPublicHelpMenu()).resolves.toEqual([]);
   });
 
-  it('returns the normalized mobile configuration without requiring authentication', async () => {
-    const rawConfig = {
-      brand: { displayName: '  ComHub Mobile  ' },
-      navigation: {
-        items: [
-          {
-            icon: 'bell',
-            id: 'slot-1',
-            label: 'Inbox',
-            order: 1,
-            path: 'javascript:alert(1)',
-            visible: true,
-          },
-        ],
-      },
+  it('returns the published mobile configuration from the legacy public endpoint', async () => {
+    const legacyConfig = normalizeMobileConfig({ brand: { displayName: 'Legacy' }, version: 1 });
+    const publishedConfig = normalizeMobileConfig({
+      brand: { displayName: 'Published' },
       version: 1,
-    };
+    });
+    const publication = createMobileConfigPublication(publishedConfig, '2026-07-20T01:00:00.000Z');
     const db = createDb({
-      appSettingsMany: [{ key: APP_SETTING_KEYS.mobileConfig, value: rawConfig }],
+      appSettings: [{ updatedAt: new Date('2026-07-20T01:00:00.000Z'), value: publication }],
+      appSettingsMany: [{ key: APP_SETTING_KEYS.mobileConfig, value: legacyConfig }],
     });
     vi.mocked(getServerDB).mockResolvedValue(db);
 
     const caller = adminSettingsRouter.createCaller({} as any);
 
     await expect(caller.getPublicMobileConfig()).resolves.toEqual({
-      ...normalizeMobileConfig(rawConfig),
+      ...publishedConfig,
       discover: {
-        ...normalizeMobileConfig(rawConfig).discover,
+        ...publishedConfig.discover,
         featuredAssistants: [],
       },
     });
     expect(loadMobileFeaturedAssistants).toHaveBeenCalledWith(
       db,
-      normalizeMobileConfig(rawConfig).discover.assistants,
+      publishedConfig.discover.assistants,
     );
-    expect(db.__mocks.findAppSettingsMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns only the published mobile snapshot with its revision and resolved assistants', async () => {
+    const draftConfig = normalizeMobileConfig({
+      brand: { displayName: 'Draft' },
+      version: 1,
+    });
+    const publishedConfig = normalizeMobileConfig({
+      brand: { displayName: 'Published' },
+      discover: {
+        assistants: [
+          {
+            assistantId: 'assistant-one',
+            model: 'gpt-4.1',
+            order: 1,
+            provider: 'openai',
+          },
+        ],
+      },
+      version: 1,
+    });
+    const state: MobileConfigPublicationState = {
+      draft: { config: draftConfig, revision: 2, updatedAt: '2026-07-20T02:00:00.000Z' },
+      history: [
+        { config: publishedConfig, revision: 1, updatedAt: '2026-07-20T01:00:00.000Z' },
+      ],
+      published: {
+        config: publishedConfig,
+        revision: 1,
+        updatedAt: '2026-07-20T01:00:00.000Z',
+      },
+    };
+    const featuredAssistants = [
+      {
+        description: 'Published assistant',
+        identifier: 'assistant-one',
+        model: { displayName: 'GPT 4.1', id: 'gpt-4.1', provider: 'openai' },
+        title: 'Assistant One',
+      },
+    ];
+    vi.mocked(loadMobileFeaturedAssistants).mockResolvedValue(featuredAssistants);
+    const db = createDb({
+      appSettings: [{ updatedAt: new Date('2026-07-20T02:00:00.000Z'), value: state }],
+      appSettingsMany: [{ key: APP_SETTING_KEYS.mobileConfig, value: publishedConfig }],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter.createCaller({} as any).getPublicMobileConfigSnapshot();
+
+    expect(result).toMatchObject({
+      config: {
+        brand: { displayName: 'Published' },
+        discover: { featuredAssistants },
+      },
+      revision: 1,
+      updatedAt: '2026-07-20T01:00:00.000Z',
+    });
+    expect(result.config.brand.displayName).not.toBe('Draft');
+    expect(loadMobileFeaturedAssistants).toHaveBeenCalledWith(
+      db,
+      publishedConfig.discover.assistants,
+    );
+  });
+
+  it('keeps a saved mobile draft isolated from the legacy public config', async () => {
+    const tx = createDb({
+      appSettingsMany: [{ key: APP_SETTING_KEYS.mobileConfig, value: DEFAULT_MOBILE_CONFIG }],
+    });
+    const db = {
+      ...createDb(),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(tx),
+      ),
+    };
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+    const draft = normalizeMobileConfig({ brand: { displayName: 'Draft only' }, version: 1 });
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .saveMobileConfigDraft({ config: draft });
+
+    expect(result.draft.config.brand.displayName).toBe('Draft only');
+    expect(result.published.config.brand.displayName).toBe(DEFAULT_MOBILE_CONFIG.brand.displayName);
+    expect(tx.__mocks.execute).toHaveBeenCalledTimes(1);
+    expect(tx.__mocks.values).toHaveBeenCalledTimes(1);
+    expect(tx.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.mobileConfigPublication,
+      value: expect.objectContaining({ draft: expect.objectContaining({ config: draft }) }),
+    });
+  });
+
+  it('publishes a mobile draft atomically and rejects a stale expected revision', async () => {
+    const draft = normalizeMobileConfig({ brand: { displayName: 'Ready' }, version: 1 });
+    const state: MobileConfigPublicationState = {
+      draft: { config: draft, revision: 1, updatedAt: '2026-07-20T01:00:00.000Z' },
+      history: [
+        { config: DEFAULT_MOBILE_CONFIG, revision: 0, updatedAt: '1970-01-01T00:00:00.000Z' },
+      ],
+      published: {
+        config: DEFAULT_MOBILE_CONFIG,
+        revision: 0,
+        updatedAt: '1970-01-01T00:00:00.000Z',
+      },
+    };
+    const createPublicationTx = () =>
+      createDb({
+        appSettings: [{ updatedAt: new Date('2026-07-20T01:00:00.000Z'), value: state }],
+        appSettingsMany: [{ key: APP_SETTING_KEYS.mobileConfig, value: DEFAULT_MOBILE_CONFIG }],
+      });
+    const publishTx = createPublicationTx();
+    vi.mocked(getServerDB).mockResolvedValue({
+      ...createDb(),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(publishTx),
+      ),
+    } as any);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .publishMobileConfig({ expectedDraftRevision: 1, expectedRevision: 0 });
+
+    expect(result.published).toMatchObject({ config: draft, revision: 1 });
+    expect(publishTx.__mocks.execute).toHaveBeenCalledTimes(1);
+    expect(publishTx.__mocks.values).toHaveBeenCalledTimes(2);
+    expect(publishTx.__mocks.values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.mobileConfig,
+      value: draft,
+    });
+
+    const conflictTx = createPublicationTx();
+    vi.mocked(getServerDB).mockResolvedValue({
+      ...createDb(),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(conflictTx),
+      ),
+    } as any);
+
+    await expect(
+      adminSettingsRouter
+        .createCaller({ userId: 'admin-user' } as any)
+        .publishMobileConfig({ expectedDraftRevision: 1, expectedRevision: 1 }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(conflictTx.__mocks.values).not.toHaveBeenCalled();
+
+    const replacedDraftTx = createPublicationTx();
+    vi.mocked(getServerDB).mockResolvedValue({
+      ...createDb(),
+      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
+        handler(replacedDraftTx),
+      ),
+    } as any);
+
+    await expect(
+      adminSettingsRouter
+        .createCaller({ userId: 'admin-user' } as any)
+        .publishMobileConfig({ expectedDraftRevision: 0, expectedRevision: 0 }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(replacedDraftTx.__mocks.values).not.toHaveBeenCalled();
   });
 
   it('returns app settings governance without exposing persisted values', async () => {
@@ -1488,43 +1643,19 @@ describe('admin settings default model validation', () => {
     expect(JSON.stringify(auditEntry.payload)).not.toContain('admin-secret-key');
   });
 
-  it('normalizes mobile configuration before server-side persistence', async () => {
-    const tx = createDb();
-    const db = {
-      ...createDb(),
-      transaction: vi.fn(async (handler: (transaction: unknown) => Promise<unknown>) =>
-        handler(tx),
-      ),
-    };
-    vi.mocked(getServerDB).mockResolvedValue(db as any);
-
-    const rawConfig = {
-      navigation: {
-        items: [
-          {
-            icon: 'bell',
-            id: 'slot-1',
-            label: ' Inbox ',
-            order: 1,
-            path: 'javascript:alert(1)',
-            visible: true,
-          },
-        ],
-      },
-      version: 1,
-    };
-
+  it.each([APP_SETTING_KEYS.mobileConfig, APP_SETTING_KEYS.mobileConfigPublication])(
+    'rejects %s through generic settings writes',
+    async (key) => {
+      const db = createDb();
+      vi.mocked(getServerDB).mockResolvedValue(db);
     const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
-    await caller.setAppSettingsBatch({
-      updates: [{ key: APP_SETTING_KEYS.mobileConfig, value: rawConfig }],
-    });
-
-    expect(tx.__mocks.values).toHaveBeenCalledWith({
-      key: APP_SETTING_KEYS.mobileConfig,
-      value: normalizeMobileConfig(rawConfig),
-    });
-  });
+      await expect(
+        caller.setAppSettingsBatch({ updates: [{ key, value: DEFAULT_MOBILE_CONFIG }] }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      expect(db.insert).not.toHaveBeenCalled();
+    },
+  );
 
   it('saves memory analysis model settings in a batch', async () => {
     vi.mocked(getAllEnabledModels).mockResolvedValue([

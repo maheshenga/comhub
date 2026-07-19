@@ -13,7 +13,7 @@ describe('buildMobileBuiltinApps', () => {
         id: 'settings',
         label: 'Preferences',
         order: 1,
-        path: '/settings/common',
+        path: '/settings/general',
       },
       {
         enabled: true,
@@ -47,7 +47,7 @@ describe('buildMobileBuiltinApps', () => {
       icon: 'bell',
       id: 'settings',
       label: 'Preferences',
-      path: '/settings/common',
+      path: '/settings/general',
     });
     expect(result.find((item) => item.id === 'tasks')).toMatchObject({
       label: 'Work',
@@ -66,20 +66,25 @@ describe('buildMobileModuleApps', () => {
           displayName: 'General app',
           id: 'general/app',
           installed: true,
+          installationScope: 'personal',
           planState: { runnable: true },
           status: 'published',
         },
         {
           displayName: 'Featured app',
+          icon: 'https://cdn.example.com/featured.png',
           id: 'featured-app',
           installed: true,
+          installationScope: 'workspace',
           planState: { runnable: true },
           status: 'published',
+          workspaceId: 'workspace-1',
         },
         {
           displayName: 'Draft app',
           id: 'draft-app',
           installed: true,
+          installationScope: 'personal',
           planState: { runnable: true },
           status: 'draft',
         },
@@ -87,6 +92,7 @@ describe('buildMobileModuleApps', () => {
           displayName: 'Removed app',
           id: 'removed-app',
           installed: false,
+          installationScope: 'personal',
           planState: { runnable: true },
           status: 'published',
         },
@@ -94,6 +100,7 @@ describe('buildMobileModuleApps', () => {
           displayName: 'Blocked app',
           id: 'blocked-app',
           installed: true,
+          installationScope: 'personal',
           planState: { runnable: false },
           status: 'published',
         },
@@ -102,6 +109,10 @@ describe('buildMobileModuleApps', () => {
     );
 
     expect(result.map((item) => item.id)).toEqual(['featured-app', 'general/app']);
+    expect(result[0]).toMatchObject({
+      icon: 'https://cdn.example.com/featured.png',
+      routePath: '/apps/featured-app/app?workspaceId=workspace-1&scopeType=workspace',
+    });
     expect(result[1].routePath).toBe('/apps/general%2Fapp/app');
   });
 });

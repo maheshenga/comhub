@@ -76,6 +76,8 @@ export const EXPECTED_NORMALIZER_ADAPTER_BY_KEY = Object.fromEntries([
   ...assign('growth-string', [APP_SETTING_KEYS.authSignupDisabledMessage]),
   ...assign('help-menu', [APP_SETTING_KEYS.helpMenuItems]),
   ...assign('memory-trigger-mode', [APP_SETTING_KEYS.memoryUserMemoryTriggerMode]),
+  ...assign('mobile-config', [APP_SETTING_KEYS.mobileConfig]),
+  ...assign('mobile-config-publication', [APP_SETTING_KEYS.mobileConfigPublication]),
   ...assign('model-policy-boolean', [
     APP_SETTING_KEYS.modelPolicyApplyToEmbeddings,
     APP_SETTING_KEYS.modelPolicyApplyToGenerateObject,

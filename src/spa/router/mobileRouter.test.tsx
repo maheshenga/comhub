@@ -19,11 +19,29 @@ describe('mobileRouter workspace roots', () => {
     }
   });
 
+  it('mirrors the four mobile roots and required design/app deep routes inside a workspace', async () => {
+    const source = await readMobileRouterSource();
+    const workspaceSlugIndex = source.lastIndexOf("path: ':workspaceSlug'");
+    const mirrorStart = source.indexOf('const workspaceMobileRootChildren');
+    const mirrorEnd = source.indexOf('// Mobile router configuration');
+    const mirroredRoutes = source.slice(mirrorStart, mirrorEnd);
+
+    for (const route of ['design', 'discover', 'apps', 'page', 'image', 'ppt']) {
+      expect(mirroredRoutes).toContain(`path: '${route}'`);
+    }
+    expect(source).toContain('...workspaceMobileRootChildren');
+    expect(mirroredRoutes).toContain("import('@/routes/(mobile)/(home)/')");
+    expect(mirroredRoutes).toContain("import('@/routes/(mobile)/design')");
+    expect(mirroredRoutes).toContain("import('@/routes/(mobile)/discover')");
+    expect(mirroredRoutes).toContain("import('@/routes/(mobile)/apps')");
+    expect(mirroredRoutes).toContain("import('@/features/MobileWorkspace/MobileDeepPageGuard')");
+  });
+
   it('registers the app market, detail, and runtime routes before the workspace slug route', async () => {
     const source = await readMobileRouterSource();
     const workspaceSlugIndex = source.indexOf("path: ':workspaceSlug'");
 
-    for (const route of ['market', ':appId', ':appId/app', ':appId/app/:pageKey']) {
+    for (const route of ['market', ':appId', 'app', 'app/:pageKey']) {
       const routeIndex = source.indexOf(`path: '${route}'`);
       expect(routeIndex).toBeGreaterThan(-1);
       expect(routeIndex).toBeLessThan(workspaceSlugIndex);
@@ -33,6 +51,7 @@ describe('mobileRouter workspace roots', () => {
     expect(source).toContain("import('@/routes/(main)/apps/[appId]')");
     expect(source).toContain("import('@/routes/(main)/apps/[appId]/app')");
     expect(source).toContain("import('@/routes/(main)/apps/[appId]/app/[pageKey]')");
+    expect(source).toContain("import('@/features/MobileWorkspace/MobileDeepPageGuard')");
   });
 
   it('registers design document, image, and PPT workspaces before the workspace slug route', async () => {
@@ -51,6 +70,9 @@ describe('mobileRouter workspace roots', () => {
     expect(source).toContain("import('@/routes/(main)/(create)/image')");
     expect(source).toContain("import('@/routes/(main)/(create)/image/_layout')");
     expect(source).toContain("import('@/routes/(main)/(create)/ppt')");
+    for (const routeName of ['Pages', 'Image', 'PPT']) {
+      expect(source).toContain(`Mobile > ${routeName} > Deep Page Guard`);
+    }
   });
 
   it('keeps AI group conversations and group topics reachable on mobile', async () => {

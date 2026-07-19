@@ -12,7 +12,7 @@ vi.mock('@/libs/trpc/client', () => ({
   lambdaClient: {
     admin: {
       settings: {
-        getPublicMobileConfig: { query: vi.fn() },
+        getPublicMobileConfigSnapshot: { query: vi.fn() },
       },
     },
   },
@@ -28,22 +28,28 @@ describe('useMobileConfig', () => {
   });
 
   it('uses a stable default immediately and normalizes the public response', async () => {
-    vi.mocked(lambdaClient.admin.settings.getPublicMobileConfig.query).mockResolvedValue({
-      ...DEFAULT_MOBILE_CONFIG,
-      brand: { displayName: 'Mobile Brand', logoUrl: null },
-      discover: { ...DEFAULT_MOBILE_CONFIG.discover, featuredAssistants: [] },
+    vi.mocked(lambdaClient.admin.settings.getPublicMobileConfigSnapshot.query).mockResolvedValue({
+      config: {
+        ...DEFAULT_MOBILE_CONFIG,
+        brand: { displayName: 'Mobile Brand', logoUrl: null },
+        discover: { ...DEFAULT_MOBILE_CONFIG.discover, featuredAssistants: [] },
+      },
+      revision: 7,
+      updatedAt: '2026-07-20T07:00:00.000Z',
     });
 
     const { result } = renderHook(() => useMobileConfig(), { wrapper });
 
     expect(result.current.config).toEqual(DEFAULT_MOBILE_CONFIG);
     await waitFor(() => expect(result.current.config.brand.displayName).toBe('Mobile Brand'));
+    expect(result.current.revision).toBe(7);
+    expect(result.current.updatedAt).toBe('2026-07-20T07:00:00.000Z');
     expect(result.current.error).toBeUndefined();
     expect(result.current.mutate).toEqual(expect.any(Function));
   });
 
   it('keeps the safe default and exposes an error when the public request fails', async () => {
-    vi.mocked(lambdaClient.admin.settings.getPublicMobileConfig.query).mockRejectedValue(
+    vi.mocked(lambdaClient.admin.settings.getPublicMobileConfigSnapshot.query).mockRejectedValue(
       new Error('offline'),
     );
 

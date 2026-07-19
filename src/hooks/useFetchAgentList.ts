@@ -10,10 +10,15 @@ export const useFetchAgentList = () => {
   const isLogin = useUserStore(authSelectors.isLogin);
   const useFetchAgentListHook = useHomeStore((s) => s.useFetchAgentList);
 
-  const { isValidating, data } = useFetchAgentListHook(isLogin);
+  const { data, error, isLoading, isValidating, mutate } = useFetchAgentListHook(isLogin);
 
   // isRevalidating: has cached data, updating in background
   return {
+    data,
+    error,
+    isLoading: isLogin !== false && isLoading,
+    isLogin,
     isRevalidating: isValidating && !!data,
+    retry: mutate,
   };
 };

@@ -1,14 +1,7 @@
 import { type MobileBuiltinAppV1, normalizeMobileBuiltinApps } from '@/const/mobileConfig';
+import type { AvailableModuleApp } from '@/services/moduleApp';
 
-export type MobileInstalledModuleApp = {
-  category?: string;
-  displayName: string;
-  icon?: null | string;
-  id: string;
-  installed: boolean;
-  planState: { runnable: boolean };
-  status: string;
-};
+export type MobileInstalledModuleApp = AvailableModuleApp;
 
 export type MobileModuleApp = MobileInstalledModuleApp & {
   routePath: string;
@@ -41,6 +34,9 @@ export const buildMobileModuleApps = (
     })
     .map(({ item }) => ({
       ...item,
-      routePath: `/apps/${encodeURIComponent(item.id)}/app`,
+      routePath:
+        item.installationScope === 'workspace' && item.workspaceId
+          ? `/apps/${encodeURIComponent(item.id)}/app?workspaceId=${encodeURIComponent(item.workspaceId)}&scopeType=workspace`
+          : `/apps/${encodeURIComponent(item.id)}/app`,
     }));
 };

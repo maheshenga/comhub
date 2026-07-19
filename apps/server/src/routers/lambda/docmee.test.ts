@@ -25,6 +25,16 @@ describe('docmeeRouter', () => {
     const caller = docmeeRouter.createCaller({ serverDB: {}, userId: 'u1' } as any);
 
     await expect(caller.createPptToken()).resolves.toEqual({ sessionId: 's1', token: 'token-1' });
+    expect(serviceMocks.createToken).toHaveBeenCalledWith(undefined);
+  });
+
+  it('resolves a saved PPT through its user-scoped local record', async () => {
+    const caller = docmeeRouter.createCaller({ serverDB: {}, userId: 'u1' } as any);
+    const recordId = '00000000-0000-4000-8000-000000000001';
+
+    await caller.createPptToken({ recordId });
+
+    expect(serviceMocks.createToken).toHaveBeenCalledWith(recordId);
   });
 
   it('reports PPT lifecycle events', async () => {

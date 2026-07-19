@@ -1057,6 +1057,13 @@
       "when": 1784904800000,
       "tag": "0147_harden_commercial_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1784991200000,
+      "tag": "0148_add_mobile_recent_indexes",
+      "breakpoints": true
     }
   ],
   "version": "6"

@@ -12,6 +12,7 @@ import { DocumentService } from '@/server/services/document';
 export interface MobileRecentDesignItem {
   id: string;
   kind: 'document' | 'image' | 'ppt';
+  resumeSupported?: boolean;
   routePath: string;
   status?: string;
   title: string;
@@ -26,6 +27,7 @@ interface RecentDesignRecord {
 
 interface RecentPptRecord extends RecentDesignRecord {
   status?: null | string;
+  upstreamTaskId?: null | string;
 }
 
 interface MobileDesignSources {
@@ -87,7 +89,8 @@ export const aggregateMobileRecentDesignItems = async (
       ...ppts.value.map((item) => ({
         id: item.id,
         kind: 'ppt' as const,
-        routePath: '/ppt',
+        resumeSupported: Boolean(item.upstreamTaskId),
+        routePath: item.upstreamTaskId ? `/ppt?recordId=${encodeURIComponent(item.id)}` : '/ppt',
         ...(item.status ? { status: item.status } : {}),
         title: titleOr(item.title, 'Untitled presentation'),
         updatedAt: item.updatedAt,
@@ -128,10 +131,7 @@ export const mobileDesignRouter = router({
 
             return result.items;
           },
-          images: async (domainLimit) => {
-            const topics = await generationTopicModel.queryAll('image');
-            return topics.slice(0, domainLimit);
-          },
+          images: (domainLimit) => generationTopicModel.queryAll('image', { limit: domainLimit }),
           ppts: (domainLimit) =>
             ctx.serverDB
               .select({
@@ -139,6 +139,7 @@ export const mobileDesignRouter = router({
                 status: pptUsageRecords.status,
                 title: pptUsageRecords.title,
                 updatedAt: pptUsageRecords.updatedAt,
+                upstreamTaskId: pptUsageRecords.upstreamTaskId,
               })
               .from(pptUsageRecords)
               .where(

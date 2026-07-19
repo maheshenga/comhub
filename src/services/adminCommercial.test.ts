@@ -2,7 +2,6 @@ import { ADMIN_COMMANDS } from '@lobechat/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ADMIN_SETTINGS_SECTION_SWR_KEY, ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
-import { APP_SETTING_KEYS } from '@/const/appSettingsRegistry';
 import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
 import { mutate } from '@/libs/swr';
 import { lambdaClient } from '@/libs/trpc/client';
@@ -17,7 +16,11 @@ vi.mock('@/libs/trpc/client', () => ({
       },
       settings: {
         getAll: { query: vi.fn() },
+        getMobileConfigPublication: { query: vi.fn() },
         getSection: { query: vi.fn() },
+        publishMobileConfig: { mutate: vi.fn() },
+        rollbackMobileConfig: { mutate: vi.fn() },
+        saveMobileConfigDraft: { mutate: vi.fn() },
         setAppSetting: { mutate: vi.fn() },
         setAppSettingsBatch: { mutate: vi.fn() },
         validateDefaultAgentSettings: { mutate: vi.fn() },
@@ -389,7 +392,29 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
   });
 
-  it('normalizes and persists the mobile configuration in one batch update', async () => {
+  it('returns the complete mobile publication state from the dedicated endpoint', async () => {
+    const publication = {
+      draft: { config: DEFAULT_MOBILE_CONFIG, revision: 2, updatedAt: '2026-07-20T02:00:00.000Z' },
+      history: [
+        { config: DEFAULT_MOBILE_CONFIG, revision: 1, updatedAt: '2026-07-20T01:00:00.000Z' },
+      ],
+      published: {
+        config: DEFAULT_MOBILE_CONFIG,
+        revision: 1,
+        updatedAt: '2026-07-20T01:00:00.000Z',
+      },
+    };
+    vi.mocked(lambdaClient.admin.settings.getMobileConfigPublication.query).mockResolvedValue(
+      publication,
+    );
+
+    await expect(adminCommercialService.getMobileSettingsPublication()).resolves.toEqual(
+      publication,
+    );
+    expect(lambdaClient.admin.settings.getMobileConfigPublication.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes and persists the mobile draft through the dedicated endpoint', async () => {
     const rawConfig = {
       discover: {
         assistants: Array.from({ length: 5 }, (_, index) => ({
@@ -414,16 +439,45 @@ describe('adminCommercialService NewAPI helpers', () => {
       version: 1,
     };
     const normalized = normalizeMobileConfig(rawConfig);
-    vi.mocked(lambdaClient.admin.settings.setAppSettingsBatch.mutate).mockResolvedValue({
-      count: 1,
-      ok: true,
-    });
+    vi.mocked(lambdaClient.admin.settings.saveMobileConfigDraft.mutate).mockResolvedValue({
+      draft: { config: normalized, revision: 1, updatedAt: '2026-07-20T00:00:00.000Z' },
+      history: [],
+      published: { config: DEFAULT_MOBILE_CONFIG, revision: 0, updatedAt: '1970-01-01T00:00:00.000Z' },
+    } as any);
 
     await expect(adminCommercialService.saveMobileSettings(rawConfig)).resolves.toEqual(normalized);
 
-    expect(lambdaClient.admin.settings.setAppSettingsBatch.mutate).toHaveBeenCalledTimes(1);
-    expect(lambdaClient.admin.settings.setAppSettingsBatch.mutate).toHaveBeenCalledWith({
-      updates: [{ key: APP_SETTING_KEYS.mobileConfig, value: normalized }],
+    expect(lambdaClient.admin.settings.saveMobileConfigDraft.mutate).toHaveBeenCalledWith({
+      config: normalized,
+    });
+  });
+
+  it('publishes and rolls back mobile settings with revision preconditions', async () => {
+    vi.mocked(lambdaClient.admin.settings.publishMobileConfig.mutate).mockResolvedValue({
+      published: { config: DEFAULT_MOBILE_CONFIG, revision: 2 },
+    } as any);
+    vi.mocked(lambdaClient.admin.settings.rollbackMobileConfig.mutate).mockResolvedValue({
+      published: { config: DEFAULT_MOBILE_CONFIG, revision: 3 },
+    } as any);
+
+    await adminCommercialService.publishMobileSettings({
+      expectedDraftRevision: 3,
+      expectedRevision: 1,
+    });
+    await adminCommercialService.rollbackMobileSettings({
+      expectedDraftRevision: 4,
+      expectedRevision: 2,
+      targetRevision: 1,
+    });
+
+    expect(lambdaClient.admin.settings.publishMobileConfig.mutate).toHaveBeenCalledWith({
+      expectedDraftRevision: 3,
+      expectedRevision: 1,
+    });
+    expect(lambdaClient.admin.settings.rollbackMobileConfig.mutate).toHaveBeenCalledWith({
+      expectedDraftRevision: 4,
+      expectedRevision: 2,
+      targetRevision: 1,
     });
   });
 

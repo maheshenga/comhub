@@ -15,8 +15,8 @@ describe('admin mobile settings maintenance contract', () => {
       'utf8',
     );
 
-    expect(source.split(/\r?\n/).length).toBeLessThan(800);
-    expect(source).toContain("from './MobileSettingsControls'");
+    expect(source.split(/\r?\n/).length).toBeLessThan(400);
+    expect(source).toContain("from './MobileSettings'");
     expect(source).toContain("from './mobileSettingsHelpers'");
   });
 

@@ -169,6 +169,38 @@ describe('GenerationTopicModel', () => {
       expect(videoResult[0].id).toBe('video-topic');
     });
 
+    it('should apply the limit before expanding cover URLs', async () => {
+      await serverDB.insert(generationTopics).values([
+        {
+          coverUrl: 'cover-1',
+          id: 'limited-topic-1',
+          type: 'image',
+          updatedAt: new Date('2026-07-19T10:00:00.000Z'),
+          userId,
+        },
+        {
+          coverUrl: 'cover-2',
+          id: 'limited-topic-2',
+          type: 'image',
+          updatedAt: new Date('2026-07-19T09:00:00.000Z'),
+          userId,
+        },
+        {
+          coverUrl: 'cover-3',
+          id: 'limited-topic-3',
+          type: 'image',
+          updatedAt: new Date('2026-07-19T08:00:00.000Z'),
+          userId,
+        },
+      ]);
+
+      const result = await generationTopicModel.queryAll('image', { limit: 2 });
+
+      expect(result.map((topic) => topic.id)).toEqual(['limited-topic-1', 'limited-topic-2']);
+      expect(mockGetFullFileUrl).toHaveBeenCalledTimes(2);
+      expect(mockGetFullFileUrl).not.toHaveBeenCalledWith('cover-3');
+    });
+
     it('should return empty array if no topics exist', async () => {
       const result = await generationTopicModel.queryAll();
       expect(result).toHaveLength(0);

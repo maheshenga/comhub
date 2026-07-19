@@ -20,8 +20,17 @@ const adminSettingsPublicProcedures =
   'packages/business-server/src/appSettings/readers/publicProcedures.ts';
 const adminSettingsRuntimeProcedures =
   'packages/business-server/src/appSettings/writers/runtimeProcedures.ts';
+const mobilePublicationProcedures =
+  'packages/business-server/src/appSettings/readers/mobilePublicationProcedures.ts';
 
 export const APP_SETTING_RUNTIME_CONSUMER_CONTRACTS = [
+  {
+    id: 'public-mobile-config',
+    keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },
+    keys: [APP_SETTING_KEYS.mobileConfig, APP_SETTING_KEYS.mobileConfigPublication],
+    sourcePath: mobilePublicationProcedures,
+    symbol: 'loadMobileConfigPublication',
+  },
   {
     id: 'composio-runtime-config',
     keyEvidence: { kind: 'registry', namespace: 'APP_SETTING_KEYS' },

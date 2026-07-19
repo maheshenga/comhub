@@ -32,13 +32,17 @@ const toTrpcError = (error: unknown): never => {
 };
 
 export const docmeeRouter = router({
-  createPptToken: docmeeProcedure.mutation(async ({ ctx }) => {
-    try {
-      return await new DocmeePptService({ db: ctx.serverDB, userId: ctx.userId }).createToken();
-    } catch (error) {
-      toTrpcError(error);
-    }
-  }),
+  createPptToken: docmeeProcedure
+    .input(z.object({ recordId: z.string().uuid().optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await new DocmeePptService({ db: ctx.serverDB, userId: ctx.userId }).createToken(
+          input?.recordId,
+        );
+      } catch (error) {
+        toTrpcError(error);
+      }
+    }),
 
   getPptRuntime: docmeeProcedure.query(async ({ ctx }) => {
     return new DocmeePptService({ db: ctx.serverDB, userId: ctx.userId }).getRuntime();

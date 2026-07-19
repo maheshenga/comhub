@@ -5,10 +5,27 @@ import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_MOBILE_CONFIG, type MobilePublicConfigV1 } from '@/const/mobileConfig';
+import type { MobileConfigPublicationState } from '@/const/mobileConfigPublication';
+import { refreshMobileConfig } from '@/features/MobileWorkspace/useMobileConfig';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { discoverService } from '@/services/discover';
 
 import AdminMobileSettingsPage, { createMobileSettingsAsyncGuard } from './AdminMobileSettingsPage';
+
+const routeBlocker = vi.hoisted(() => ({
+  proceed: vi.fn(),
+  reset: vi.fn(),
+  state: 'unblocked' as 'blocked' | 'unblocked',
+}));
+
+vi.mock('react-router', async (importOriginal) => ({
+  ...((await importOriginal()) as object),
+  useBlocker: () => routeBlocker,
+}));
+
+vi.mock('@/features/MobileWorkspace/useMobileConfig', () => ({
+  refreshMobileConfig: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('react-i18next', () => {
   const t = (key: string, options?: Record<string, unknown> | string) => {
@@ -24,11 +41,13 @@ vi.mock('react-i18next', () => {
 vi.mock('@/services/adminCommercial', () => ({
   adminCommercialService: {
     getAiProviderModelCatalogDiagnostics: vi.fn(),
-    getMobileSettings: vi.fn(),
+    getMobileSettingsPublication: vi.fn(),
     moduleApps: {
       list: vi.fn(),
     },
-    saveMobileSettings: vi.fn(),
+    publishMobileSettings: vi.fn(),
+    rollbackMobileSettings: vi.fn(),
+    saveMobileSettingsDraft: vi.fn(),
   },
 }));
 
@@ -63,8 +82,22 @@ const mobileConfig = (patch: Partial<MobilePublicConfigV1> = {}): MobilePublicCo
   },
 });
 
+const publication = (
+  config: MobilePublicConfigV1 = mobileConfig(),
+  patch: Partial<MobileConfigPublicationState> = {},
+): MobileConfigPublicationState => ({
+  draft: { config, revision: 0, updatedAt: '2026-07-20T00:00:00.000Z' },
+  history: [
+    { config, revision: 0, updatedAt: '2026-07-20T00:00:00.000Z' },
+  ],
+  published: { config, revision: 0, updatedAt: '2026-07-20T00:00:00.000Z' },
+  ...patch,
+});
+
 const setupLoaders = (config: MobilePublicConfigV1 = mobileConfig()) => {
-  vi.mocked(adminCommercialService.getMobileSettings).mockResolvedValue(config);
+  vi.mocked(adminCommercialService.getMobileSettingsPublication).mockResolvedValue(
+    publication(config),
+  );
   vi.mocked(adminCommercialService.getAiProviderModelCatalogDiagnostics).mockResolvedValue({
     catalog: [
       {
@@ -152,10 +185,26 @@ describe('AdminMobileSettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupLoaders();
-    vi.mocked(adminCommercialService.saveMobileSettings).mockImplementation(
-      async (config) => config as any,
+    vi.mocked(adminCommercialService.saveMobileSettingsDraft).mockImplementation(async (config) =>
+      publication(mobileConfig(), {
+        draft: {
+          config: config as MobilePublicConfigV1,
+          revision: 1,
+          updatedAt: '2026-07-20T00:30:00.000Z',
+        },
+      }),
+    );
+    vi.mocked(adminCommercialService.publishMobileSettings).mockImplementation(async () =>
+      publication(mobileConfig(), {
+        published: {
+          config: mobileConfig(),
+          revision: 1,
+          updatedAt: '2026-07-20T01:00:00.000Z',
+        },
+      }),
     );
     vi.spyOn(window, 'confirm').mockReturnValue(true);
+    routeBlocker.state = 'unblocked';
   });
 
   it('loads mobile settings, normalizes values, and renders the live preview', async () => {
@@ -182,16 +231,23 @@ describe('AdminMobileSettingsPage', () => {
     expect(await screen.findByDisplayValue('ComHub App')).toBeInTheDocument();
     expect(screen.getByLabelText('Tab slot-1 path')).toHaveValue('/');
     expect(screen.getByTestId('mobile-config-preview')).toHaveTextContent('ComHub App');
-    expect(screen.getByTestId('mobile-config-preview')).toHaveTextContent('Visible tabs: 4');
-    expect(screen.getAllByRole('region')).toHaveLength(6);
-    expect(adminCommercialService.getMobileSettings).toHaveBeenCalledTimes(1);
+    expect(
+      within(screen.getByTestId('mobile-config-preview')).getByRole('navigation', {
+        name: 'Bottom Navigation',
+      }),
+    ).toHaveTextContent('Chat设计发现应用');
+    expect(screen.getAllByRole('region')).toHaveLength(7);
+    expect(adminCommercialService.getMobileSettingsPublication).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('region', { name: 'Publication history' })).toHaveTextContent(
+      'Published revision 0',
+    );
   });
 
   it('tracks dirty state, edits bottom navigation fields, validates icon/path choices, and reorders tabs', async () => {
     renderPage();
 
     await screen.findByLabelText('Brand display name');
-    const saveButton = screen.getByRole('button', { name: 'Save mobile settings' });
+    const saveButton = screen.getByRole('button', { name: 'Save draft' });
     expect(saveButton).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('Tab slot-1 label'), { target: { value: 'Chats' } });
@@ -228,7 +284,7 @@ describe('AdminMobileSettingsPage', () => {
     expect(
       await screen.findByText('At least two bottom tabs must be visible.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save mobile settings' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
   });
 
   it('uses controlled assistant, model, and published module app selectors', async () => {
@@ -247,7 +303,7 @@ describe('AdminMobileSettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Featured assistant'), {
       target: { value: 'agent-alpha' },
     });
-    fireEvent.change(screen.getByLabelText('Recommended model'), {
+    fireEvent.change(screen.getByLabelText('Display model'), {
       target: { value: 'openai/gpt-4.1' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add featured assistant' }));
@@ -351,7 +407,7 @@ describe('AdminMobileSettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Featured assistant'), {
       target: { value: 'agent-alpha' },
     });
-    fireEvent.change(screen.getByLabelText('Recommended model'), {
+    fireEvent.change(screen.getByLabelText('Display model'), {
       target: { value: 'openai/gpt-4.1' },
     });
 
@@ -367,75 +423,284 @@ describe('AdminMobileSettingsPage', () => {
 
     expect(window.confirm).toHaveBeenCalled();
     expect(screen.getByLabelText('Brand display name')).toHaveValue('');
-    expect(screen.getByTestId('mobile-config-preview')).toHaveTextContent('Visible tabs: 4');
+    expect(
+      within(screen.getByTestId('mobile-config-preview')).getByRole('navigation', {
+        name: 'Bottom Navigation',
+      }),
+    ).toHaveTextContent('最近设计发现应用');
   });
 
-  it('saves the normalized config once and reports success or failure', async () => {
+  it('saves the normalized draft once without refreshing the public configuration', async () => {
     renderPage();
 
     await screen.findByLabelText('Brand display name');
     fireEvent.change(screen.getByLabelText('Brand display name'), {
       target: { value: 'ComHub App' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save mobile settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
 
     await waitFor(() => {
-      expect(adminCommercialService.saveMobileSettings).toHaveBeenCalledTimes(1);
-      expect(adminCommercialService.saveMobileSettings).toHaveBeenCalledWith(
+      expect(adminCommercialService.saveMobileSettingsDraft).toHaveBeenCalledTimes(1);
+      expect(adminCommercialService.saveMobileSettingsDraft).toHaveBeenCalledWith(
         expect.objectContaining({
           brand: expect.objectContaining({ displayName: 'ComHub App' }),
           version: 1,
         }),
       );
     });
-    expect(await screen.findByText('Mobile settings saved.')).toBeInTheDocument();
+    expect(await screen.findByText('Mobile draft saved.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeEnabled();
+    expect(refreshMobileConfig).not.toHaveBeenCalled();
 
-    vi.mocked(adminCommercialService.saveMobileSettings).mockRejectedValueOnce(new Error('nope'));
+    vi.mocked(adminCommercialService.saveMobileSettingsDraft).mockRejectedValueOnce(
+      new Error('nope'),
+    );
     fireEvent.change(screen.getByLabelText('Brand display name'), {
       target: { value: 'ComHub Two' },
     });
-    fireEvent.click(await screen.findByRole('button', { name: /Save mobile settings/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Save draft/ }));
 
     expect(await screen.findByText('Failed to save mobile settings.')).toBeInTheDocument();
+    expect(refreshMobileConfig).not.toHaveBeenCalled();
+  });
+
+  it('publishes the saved draft from the current revision and refreshes public mobile config', async () => {
+    const draftConfig = mobileConfig({ brand: { displayName: 'ComHub App', logoUrl: null } });
+    vi.mocked(adminCommercialService.publishMobileSettings).mockResolvedValue(
+      publication(draftConfig, {
+        draft: {
+          config: draftConfig,
+          revision: 2,
+          updatedAt: '2026-07-20T01:00:00.000Z',
+        },
+        history: [
+          { config: draftConfig, revision: 1, updatedAt: '2026-07-20T01:00:00.000Z' },
+          { config: mobileConfig(), revision: 0, updatedAt: '2026-07-20T00:00:00.000Z' },
+        ],
+        published: {
+          config: draftConfig,
+          revision: 1,
+          updatedAt: '2026-07-20T01:00:00.000Z',
+        },
+      }),
+    );
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText('Brand display name'), {
+      target: { value: 'ComHub App' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await screen.findByText('Mobile draft saved.');
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    await waitFor(() =>
+      expect(adminCommercialService.publishMobileSettings).toHaveBeenCalledWith({
+        expectedDraftRevision: 1,
+        expectedRevision: 0,
+      }),
+    );
+    expect(await screen.findByText('Mobile settings published.')).toBeInTheDocument();
+    expect(refreshMobileConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves the saved draft when publishing detects a revision conflict', async () => {
+    const conflictDraft = mobileConfig({
+      brand: { displayName: 'Draft', logoUrl: null },
+    });
+    vi.mocked(adminCommercialService.getMobileSettingsPublication).mockResolvedValue(
+      publication(mobileConfig(), {
+        draft: {
+          config: conflictDraft,
+          revision: 1,
+          updatedAt: '2026-07-20T00:30:00.000Z',
+        },
+      }),
+    );
+    vi.mocked(adminCommercialService.publishMobileSettings).mockRejectedValue({
+      data: { code: 'CONFLICT' },
+    });
+    renderPage();
+
+    expect(await screen.findByDisplayValue('Draft')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Publish' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    expect(
+      await screen.findByText(
+        'A newer mobile revision was published. Your draft was preserved; reload before publishing.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Brand display name')).toHaveValue('Draft');
+    expect(refreshMobileConfig).not.toHaveBeenCalled();
+  });
+
+  it('rolls a historical snapshot forward using the current published revision', async () => {
+    const historicalConfig = mobileConfig({ brand: { displayName: 'Historical', logoUrl: null } });
+    const currentConfig = mobileConfig({ brand: { displayName: 'Current', logoUrl: null } });
+    vi.mocked(adminCommercialService.getMobileSettingsPublication).mockResolvedValue(
+      publication(currentConfig, {
+        draft: {
+          config: currentConfig,
+          revision: 2,
+          updatedAt: '2026-07-20T02:00:00.000Z',
+        },
+        history: [
+          { config: currentConfig, revision: 2, updatedAt: '2026-07-20T02:00:00.000Z' },
+          { config: historicalConfig, revision: 1, updatedAt: '2026-07-20T01:00:00.000Z' },
+        ],
+        published: {
+          config: currentConfig,
+          revision: 2,
+          updatedAt: '2026-07-20T02:00:00.000Z',
+        },
+      }),
+    );
+    vi.mocked(adminCommercialService.rollbackMobileSettings).mockResolvedValue(
+      publication(historicalConfig, {
+        draft: {
+          config: historicalConfig,
+          revision: 3,
+          updatedAt: '2026-07-20T03:00:00.000Z',
+        },
+        history: [
+          { config: historicalConfig, revision: 3, updatedAt: '2026-07-20T03:00:00.000Z' },
+        ],
+        published: {
+          config: historicalConfig,
+          revision: 3,
+          updatedAt: '2026-07-20T03:00:00.000Z',
+        },
+      }),
+    );
+    renderPage();
+
+    await screen.findByDisplayValue('Current');
+    fireEvent.click(screen.getByRole('button', { name: 'Roll back' }));
+
+    await waitFor(() =>
+      expect(adminCommercialService.rollbackMobileSettings).toHaveBeenCalledWith({
+        expectedDraftRevision: 2,
+        expectedRevision: 2,
+        targetRevision: 1,
+      }),
+    );
+    expect(await screen.findByText('Mobile settings rolled back.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Brand display name')).toHaveValue('Historical');
+    expect(refreshMobileConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('protects dirty settings from browser unload and in-app navigation', async () => {
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText('Brand display name'), {
+      target: { value: 'Unsaved' },
+    });
+
+    const unloadEvent = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unloadEvent);
+    expect(unloadEvent.defaultPrevented).toBe(true);
+
+    routeBlocker.state = 'blocked';
+    fireEvent.change(screen.getByLabelText('Brand display name'), {
+      target: { value: 'Still unsaved' },
+    });
+
+    await waitFor(() => expect(routeBlocker.proceed).toHaveBeenCalled());
+    expect(window.confirm).toHaveBeenCalledWith(
+      'You have unsaved mobile settings. Leave this page?',
+    );
   });
 
   it('uses a synchronous in-flight guard for rapid duplicate saves', async () => {
-    const saveDeferred = createDeferred<MobilePublicConfigV1>();
-    vi.mocked(adminCommercialService.saveMobileSettings).mockReturnValue(saveDeferred.promise);
+    const saveDeferred = createDeferred<MobileConfigPublicationState>();
+    vi.mocked(adminCommercialService.saveMobileSettingsDraft).mockReturnValue(saveDeferred.promise);
     renderPage();
 
     await screen.findByLabelText('Brand display name');
     fireEvent.change(screen.getByLabelText('Brand display name'), {
       target: { value: 'ComHub App' },
     });
-    const saveButton = screen.getByRole('button', { name: 'Save mobile settings' });
+    const saveButton = screen.getByRole('button', { name: 'Save draft' });
 
     act(() => {
       saveButton.click();
       saveButton.click();
     });
 
-    expect(adminCommercialService.saveMobileSettings).toHaveBeenCalledTimes(1);
-    saveDeferred.resolve(mobileConfig({ brand: { displayName: 'ComHub App', logoUrl: null } }));
-    expect(await screen.findByText('Mobile settings saved.')).toBeInTheDocument();
+    expect(adminCommercialService.saveMobileSettingsDraft).toHaveBeenCalledTimes(1);
+    saveDeferred.resolve(
+      publication(mobileConfig(), {
+        draft: {
+          config: mobileConfig({ brand: { displayName: 'ComHub App', logoUrl: null } }),
+          revision: 1,
+          updatedAt: '2026-07-20T00:30:00.000Z',
+        },
+      }),
+    );
+    expect(await screen.findByText('Mobile draft saved.')).toBeInTheDocument();
+  });
+
+  it('uses a synchronous in-flight guard for rapid duplicate publishes', async () => {
+    const draftConfig = mobileConfig({ brand: { displayName: 'Draft', logoUrl: null } });
+    vi.mocked(adminCommercialService.getMobileSettingsPublication).mockResolvedValue(
+      publication(mobileConfig(), {
+        draft: {
+          config: draftConfig,
+          revision: 1,
+          updatedAt: '2026-07-20T00:30:00.000Z',
+        },
+      }),
+    );
+    const publishDeferred = createDeferred<MobileConfigPublicationState>();
+    vi.mocked(adminCommercialService.publishMobileSettings).mockReturnValue(
+      publishDeferred.promise,
+    );
+    renderPage();
+
+    const publishButton = await screen.findByRole('button', { name: 'Publish' });
+    await waitFor(() => expect(publishButton).toBeEnabled());
+    act(() => {
+      publishButton.click();
+      publishButton.click();
+    });
+
+    expect(adminCommercialService.publishMobileSettings).toHaveBeenCalledTimes(1);
+    publishDeferred.resolve(
+      publication(draftConfig, {
+        published: {
+          config: draftConfig,
+          revision: 1,
+          updatedAt: '2026-07-20T01:00:00.000Z',
+        },
+      }),
+    );
+    expect(await screen.findByText('Mobile settings published.')).toBeInTheDocument();
   });
 
   it('keeps a normalization-equivalent raw draft edit when an older save resolves', async () => {
-    const saveDeferred = createDeferred<MobilePublicConfigV1>();
-    vi.mocked(adminCommercialService.saveMobileSettings).mockReturnValue(saveDeferred.promise);
+    const saveDeferred = createDeferred<MobileConfigPublicationState>();
+    vi.mocked(adminCommercialService.saveMobileSettingsDraft).mockReturnValue(saveDeferred.promise);
     renderPage();
 
     await screen.findByLabelText('Brand display name');
     fireEvent.change(screen.getByLabelText('Brand display name'), {
       target: { value: 'Submitted' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save mobile settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     fireEvent.change(screen.getByLabelText('Tab slot-1 path'), {
       target: { value: 'javascript:alert(1)' },
     });
 
     await act(async () => {
-      saveDeferred.resolve(mobileConfig({ brand: { displayName: 'Submitted', logoUrl: null } }));
+      saveDeferred.resolve(
+        publication(mobileConfig(), {
+          draft: {
+            config: mobileConfig({ brand: { displayName: 'Submitted', logoUrl: null } }),
+            revision: 1,
+            updatedAt: '2026-07-20T00:30:00.000Z',
+          },
+        }),
+      );
       await saveDeferred.promise;
       await Promise.resolve();
     });
@@ -444,13 +709,13 @@ describe('AdminMobileSettingsPage', () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Save mobile settings/ })).not.toHaveAttribute(
+      expect(screen.getByRole('button', { name: /Save draft/ })).not.toHaveAttribute(
         'data-loading',
         'true',
       ),
     );
     expect(screen.getByLabelText('Tab slot-1 path')).toHaveValue('javascript:alert(1)');
-    expect(screen.queryByText('Mobile settings saved.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mobile draft saved.')).not.toBeInTheDocument();
   });
 
   it('blocks saves when an existing built-in app has an unsafe path', async () => {
@@ -478,8 +743,8 @@ describe('AdminMobileSettingsPage', () => {
     });
 
     expect(screen.getByText('Built-in app paths must be internal.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save mobile settings' })).toBeDisabled();
-    expect(adminCommercialService.saveMobileSettings).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
+    expect(adminCommercialService.saveMobileSettingsDraft).not.toHaveBeenCalled();
   });
 
   it('loads assistant and module app choices beyond the first page', async () => {
@@ -525,21 +790,25 @@ describe('AdminMobileSettingsPage', () => {
   });
 
   it('does not write state after unmounting with pending load or save requests', async () => {
-    const loadDeferred = createDeferred<MobilePublicConfigV1>();
-    vi.mocked(adminCommercialService.getMobileSettings).mockReturnValueOnce(loadDeferred.promise);
+    const loadDeferred = createDeferred<MobileConfigPublicationState>();
+    vi.mocked(adminCommercialService.getMobileSettingsPublication).mockReturnValueOnce(
+      loadDeferred.promise,
+    );
     const loadConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const loadingRender = renderPage();
     loadingRender.unmount();
-    loadDeferred.resolve(mobileConfig({ brand: { displayName: 'Unmounted', logoUrl: null } }));
+    loadDeferred.resolve(
+      publication(mobileConfig({ brand: { displayName: 'Unmounted', logoUrl: null } })),
+    );
     await Promise.resolve();
 
     expect(loadConsoleError).not.toHaveBeenCalled();
     loadConsoleError.mockRestore();
 
     setupLoaders();
-    const saveDeferred = createDeferred<MobilePublicConfigV1>();
-    vi.mocked(adminCommercialService.saveMobileSettings).mockReturnValue(saveDeferred.promise);
+    const saveDeferred = createDeferred<MobileConfigPublicationState>();
+    vi.mocked(adminCommercialService.saveMobileSettingsDraft).mockReturnValue(saveDeferred.promise);
     const saveConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const savingRender = renderPage();
 
@@ -547,9 +816,17 @@ describe('AdminMobileSettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Brand display name'), {
       target: { value: 'Unmount Save' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Save mobile settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     savingRender.unmount();
-    saveDeferred.resolve(mobileConfig({ brand: { displayName: 'Unmount Save', logoUrl: null } }));
+    saveDeferred.resolve(
+      publication(mobileConfig(), {
+        draft: {
+          config: mobileConfig({ brand: { displayName: 'Unmount Save', logoUrl: null } }),
+          revision: 1,
+          updatedAt: '2026-07-20T00:30:00.000Z',
+        },
+      }),
+    );
     await Promise.resolve();
 
     expect(saveConsoleError).not.toHaveBeenCalled();
@@ -586,7 +863,7 @@ describe('AdminMobileSettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Brand display name'), {
       target: { value: 'Core Edit' },
     });
-    expect(screen.getByRole('button', { name: 'Save mobile settings' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
     expect(screen.getByText('Assistant selector unavailable.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add featured assistant' })).toBeDisabled();
 
@@ -597,8 +874,8 @@ describe('AdminMobileSettingsPage', () => {
   }, 15_000);
 
   it('uses a skeleton loading state instead of antd Spin', () => {
-    vi.mocked(adminCommercialService.getMobileSettings).mockReturnValue(
-      createDeferred<MobilePublicConfigV1>().promise,
+    vi.mocked(adminCommercialService.getMobileSettingsPublication).mockReturnValue(
+      createDeferred<MobileConfigPublicationState>().promise,
     );
 
     const { container } = renderPage();

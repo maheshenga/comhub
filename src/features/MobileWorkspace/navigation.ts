@@ -32,6 +32,13 @@ const normalizePathname = (pathname: string) => {
   return withLeadingSlash.length > 1 ? withLeadingSlash.replace(/\/+$/, '') : '/';
 };
 
+const stripWorkspaceSlug = (pathname: string, workspaceSlug?: string | null) => {
+  if (!workspaceSlug) return pathname;
+  const prefix = `/${workspaceSlug}`;
+  if (pathname === prefix) return '/';
+  return pathname.startsWith(`${prefix}/`) ? pathname.slice(prefix.length) : pathname;
+};
+
 const matchesPath = (pathname: string, routePath: string) => {
   const normalizedRoute = normalizePathname(routePath);
   if (normalizedRoute === '/') return pathname === '/';
@@ -46,8 +53,9 @@ const visibleItems = (config: MobilePublicConfigV1) =>
 export const resolveMobileActiveSlot = (
   rawPathname: string,
   config: MobilePublicConfigV1 = DEFAULT_MOBILE_CONFIG,
+  workspaceSlug?: string | null,
 ): MobileNavigationItemV1['id'] => {
-  const pathname = normalizePathname(rawPathname);
+  const pathname = stripWorkspaceSlug(normalizePathname(rawPathname), workspaceSlug);
   const items = visibleItems(config);
   const fallback = items[0]?.id ?? 'slot-1';
   const configuredMatch = items.find((item) => matchesPath(pathname, item.path));
@@ -62,8 +70,9 @@ export const resolveMobileActiveSlot = (
 export const shouldShowMobileTabBar = (
   rawPathname: string,
   config: MobilePublicConfigV1 = DEFAULT_MOBILE_CONFIG,
+  workspaceSlug?: string | null,
 ) => {
-  const pathname = normalizePathname(rawPathname);
+  const pathname = stripWorkspaceSlug(normalizePathname(rawPathname), workspaceSlug);
   if (TOP_LEVEL_MOBILE_PATHS.has(pathname)) return true;
   return visibleItems(config).some((item) => normalizePathname(item.path) === pathname);
 };

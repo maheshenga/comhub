@@ -18,6 +18,7 @@ type Procedure = {
 };
 
 type ModuleAppClient = {
+  messenger: Record<string, Procedure>;
   moduleApp: Record<string, Procedure>;
 };
 
@@ -40,12 +41,28 @@ type ModuleAppWorkflowRunInput = Pick<ModuleAppHistoryInput, 'installationId' | 
   runId: string;
 };
 
+export interface AvailableModuleApp {
+  category?: string;
+  displayName: string;
+  icon?: null | string;
+  id: string;
+  installationScope: 'personal' | 'workspace';
+  installed: boolean;
+  planState: { runnable: boolean };
+  status: string;
+  workspaceId?: string;
+}
+
 export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof fetch = fetch) => {
   const createPackageUpload = async (input: ModuleAppPackageUploadRequest) =>
     (await client.moduleApp.createPackageUpload.mutate!(input)) as ModuleAppPackageUploadTarget;
 
   const submitUploadedPackage = (input: ModuleAppPackageUploadedSubmitInput) =>
     client.moduleApp.submitUploadedPackage.mutate!(input);
+
+  const listAvailableApps = async (workspaceId?: string): Promise<AvailableModuleApp[]> => {
+    return client.moduleApp.listMobileApps.query!({ workspaceId }) as Promise<AvailableModuleApp[]>;
+  };
 
   return {
     archiveRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
@@ -77,6 +94,7 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     installWorkspace: (input: { appId: string; workspaceId: string }) =>
       client.moduleApp.installWorkspace.mutate!(input),
     listArtifacts: (input: ModuleAppHistoryInput) => client.moduleApp.listArtifacts.query!(input),
+    listAvailableApps,
     listCatalog: (input: { appId?: string } = {}) => client.moduleApp.listCatalog.query!(input),
     listMarketplace: (input?: ModuleAppMarketplaceListInput) =>
       client.moduleApp.listMarketplace.query!(input),

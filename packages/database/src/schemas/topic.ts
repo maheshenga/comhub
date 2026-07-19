@@ -96,6 +96,10 @@ export const topics = pgTable(
     index('topics_user_id_completed_at_idx').on(t.userId, t.completedAt),
     index('topics_sender_id_idx').on(t.senderId),
     index('topics_workspace_id_idx').on(t.workspaceId),
+    index('topics_user_agent_updated_at_idx').on(t.userId, t.agentId, t.updatedAt),
+    index('topics_user_group_updated_at_idx').on(t.userId, t.groupId, t.updatedAt),
+    index('topics_workspace_agent_updated_at_idx').on(t.workspaceId, t.agentId, t.updatedAt),
+    index('topics_workspace_group_updated_at_idx').on(t.workspaceId, t.groupId, t.updatedAt),
     index('topics_extract_status_gin_idx').using(
       'gin',
       sql`(metadata->'userMemoryExtractStatus') jsonb_path_ops`,

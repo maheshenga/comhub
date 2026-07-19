@@ -12,6 +12,7 @@ vi.mock('react-i18next', () => ({
         'mobile.discover.error': 'Unable to load recommended assistants',
         'mobile.discover.open': `Open ${values?.name ?? ''}`,
         'mobile.discover.retry': 'Retry',
+        'mobile.refresh': 'Refresh',
       };
       return labels[key] ?? key;
     },
@@ -28,6 +29,7 @@ const mobileState = vi.hoisted(() => ({
   } as any,
   error: undefined as Error | undefined,
   isLoading: false,
+  isValidating: false,
   mutate: vi.fn(),
 }));
 
@@ -36,7 +38,7 @@ vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
   useWorkspaceAwareNavigate: () => navigate,
 }));
 vi.mock('@lobehub/ui/mobile', () => ({
-  ChatHeader: ({ left }: any) => <header>{left}</header>,
+  ChatHeader: ({ left, right }: any) => <header>{left}{right}</header>,
 }));
 vi.mock('@lobehub/ui', () => ({
   Avatar: ({ avatar, title }: any) => <span>{avatar || title}</span>,
@@ -47,6 +49,7 @@ vi.mock('@lobehub/ui', () => ({
   ),
   Empty: ({ description }: any) => <div>{description}</div>,
   Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  Icon: () => <span aria-hidden="true" />,
   Skeleton: { Paragraph: () => <div data-testid="discover-loading" /> },
 }));
 vi.mock('../MobilePageLayout', () => ({
@@ -75,9 +78,10 @@ describe('MobileDiscoverPage', () => {
     ];
     mobileState.error = undefined;
     mobileState.isLoading = false;
+    mobileState.isValidating = false;
   });
 
-  it('renders only configured assistants in a two-column grid with recommended models', () => {
+  it('renders only configured assistants in a two-column grid with display models', () => {
     render(<MobileDiscoverPage />);
 
     expect(screen.getAllByTestId('featured-assistant-card')).toHaveLength(3);
@@ -91,7 +95,8 @@ describe('MobileDiscoverPage', () => {
   it('renders loading, empty, and retry states', () => {
     mobileState.isLoading = true;
     const { rerender } = render(<MobileDiscoverPage />);
-    expect(screen.getByTestId('discover-loading')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-discover-loading')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByTestId('mobile-discover-loading')).toHaveAttribute('role', 'status');
 
     mobileState.isLoading = false;
     mobileState.config.discover.featuredAssistants = [];
@@ -100,7 +105,18 @@ describe('MobileDiscoverPage', () => {
 
     mobileState.error = new Error('offline');
     rerender(<MobileDiscoverPage key="error" />);
+    expect(screen.getByText('Unable to load recommended assistants')).toHaveAttribute(
+      'role',
+      'alert',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(mobileState.mutate).toHaveBeenCalled();
+  });
+
+  it('manually refreshes recommendations', () => {
+    render(<MobileDiscoverPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(mobileState.mutate).toHaveBeenCalled();
   });
 });

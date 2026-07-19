@@ -1,14 +1,17 @@
+import type { SidebarAgentItem } from '@/database/repositories/home';
 import type { RecentItem } from '@/server/routers/lambda/recent';
-import { type LobeSession, type LobeSessions, LobeSessionType } from '@/types/session';
 
 export interface MobileRecentConversation {
-  avatar?: string;
+  avatar?: SidebarAgentItem['avatar'];
+  backgroundColor?: SidebarAgentItem['backgroundColor'];
   id: string;
-  kind: 'agent' | 'group' | 'group-topic' | 'topic';
+  kind: SidebarAgentItem['type'];
   pinned: boolean;
   routePath: string;
   sessionId: string;
   title: string;
+  topicTitle?: string;
+  unreadCount?: number;
   updatedAt: Date;
 }
 
@@ -18,30 +21,31 @@ export interface MobileRecentSections {
 }
 
 interface BuildMobileRecentItemsInput {
-  pinnedSessions: LobeSessions;
+  assistants: SidebarAgentItem[];
   recents: RecentItem[];
-  sessions: LobeSessions;
 }
 
-const sessionTitle = (session: LobeSession) => {
-  const title = session.meta?.title;
+interface RecentParent {
+  id: string;
+  kind: SidebarAgentItem['type'];
+}
+
+const assistantKey = ({ id, kind }: RecentParent) => `${kind}:${id}`;
+
+const assistantTitle = (assistant: SidebarAgentItem) => {
+  const title = assistant.title;
   if (typeof title === 'string' && title.trim()) return title.trim();
-  return session.type === LobeSessionType.Group ? 'Untitled Group' : 'Untitled Assistant';
+  return assistant.type === 'group' ? 'Untitled Group' : 'Untitled Assistant';
 };
 
-const sessionAvatar = (session: LobeSession) => {
-  const avatar = session.meta?.avatar;
-  return typeof avatar === 'string' && avatar.trim() ? avatar : undefined;
-};
-
-const parseRecentParent = (item: RecentItem) => {
+const parseRecentParent = (item: RecentItem): RecentParent | undefined => {
   try {
     const url = new URL(item.routePath, 'https://mobile.local');
     const [kind, routeId] = url.pathname.split('/').filter(Boolean);
-    if (kind === 'group' && routeId) return { kind: 'group-topic' as const, sessionId: routeId };
+    if (kind === 'group' && routeId) return { id: routeId, kind: 'group' };
     if (kind === 'agent') {
-      const sessionId = item.agentId || routeId;
-      if (sessionId) return { kind: 'topic' as const, sessionId };
+      const id = item.agentId || routeId;
+      if (id) return { id, kind: 'agent' };
     }
   } catch {
     return;
@@ -52,59 +56,60 @@ const byNewest = (left: MobileRecentConversation, right: MobileRecentConversatio
   right.updatedAt.getTime() - left.updatedAt.getTime();
 
 export const buildMobileRecentItems = ({
-  pinnedSessions,
+  assistants,
   recents,
-  sessions,
 }: BuildMobileRecentItemsInput): MobileRecentSections => {
-  const sessionsById = new Map(sessions.map((session) => [session.id, session]));
-  const pinnedIds = new Set(pinnedSessions.map((session) => session.id));
-  const seenPinnedIds = new Set<string>();
-  const pinned = pinnedSessions
-    .filter((session) => {
-      if (seenPinnedIds.has(session.id)) return false;
-      seenPinnedIds.add(session.id);
+  const latestTopicByAssistant = new Map<string, RecentItem>();
+
+  for (const item of recents) {
+    if (item.type !== 'topic') continue;
+    const parent = parseRecentParent(item);
+    if (!parent) continue;
+
+    const key = assistantKey(parent);
+    const current = latestTopicByAssistant.get(key);
+    if (!current || item.updatedAt.getTime() > current.updatedAt.getTime()) {
+      latestTopicByAssistant.set(key, item);
+    }
+  }
+
+  const seenAssistantKeys = new Set<string>();
+  const items = assistants
+    .filter((assistant) => {
+      const key = assistantKey({ id: assistant.id, kind: assistant.type });
+      if (seenAssistantKeys.has(key)) return false;
+      seenAssistantKeys.add(key);
       return true;
     })
-    .map((session): MobileRecentConversation => ({
-      avatar: sessionAvatar(session),
-      id: `session:${session.id}`,
-      kind: session.type === LobeSessionType.Group ? 'group' : 'agent',
-      pinned: true,
-      routePath:
-        session.type === LobeSessionType.Group ? `/group/${session.id}` : `/agent/${session.id}`,
-      sessionId: session.id,
-      title: sessionTitle(session),
-      updatedAt: session.updatedAt,
-    }))
+    .map((assistant): MobileRecentConversation => {
+      const latestTopic = latestTopicByAssistant.get(
+        assistantKey({ id: assistant.id, kind: assistant.type }),
+      );
+      const rootRoute =
+        assistant.type === 'group' ? `/group/${assistant.id}` : `/agent/${assistant.id}`;
+
+      return {
+        avatar: assistant.avatar ?? undefined,
+        backgroundColor: assistant.backgroundColor ?? undefined,
+        id: assistant.id,
+        kind: assistant.type,
+        pinned: assistant.pinned,
+        routePath: assistant.pinned ? rootRoute : (latestTopic?.routePath ?? rootRoute),
+        sessionId: assistant.id,
+        title: assistantTitle(assistant),
+        topicTitle: latestTopic?.title.trim() || undefined,
+        unreadCount: assistant.unreadCount,
+        updatedAt: latestTopic?.updatedAt ?? assistant.updatedAt,
+      };
+    });
+
+  const pinned = items
+    .filter((item) => item.pinned)
     .sort((left, right) => {
       const typeOrder = Number(left.kind === 'group') - Number(right.kind === 'group');
       return typeOrder || byNewest(left, right);
     });
-
-  const seenRecentIds = new Set<string>();
-  const recent = recents
-    .filter((item) => item.type === 'topic')
-    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-    .map((item): MobileRecentConversation | undefined => {
-      if (seenRecentIds.has(item.id)) return;
-      seenRecentIds.add(item.id);
-      const parent = parseRecentParent(item);
-      if (!parent || pinnedIds.has(parent.sessionId)) return;
-      const parentSession = sessionsById.get(parent.sessionId);
-      if (!parentSession) return;
-
-      return {
-        avatar: sessionAvatar(parentSession),
-        id: item.id,
-        kind: parent.kind,
-        pinned: false,
-        routePath: item.routePath,
-        sessionId: parent.sessionId,
-        title: item.title.trim() || 'Untitled Topic',
-        updatedAt: item.updatedAt,
-      };
-    })
-    .filter((item): item is MobileRecentConversation => Boolean(item));
+  const recent = items.filter((item) => !item.pinned).sort(byNewest);
 
   return { pinned, recent };
 };
@@ -116,7 +121,8 @@ export const filterMobileRecentItems = (
   const query = rawQuery.trim().toLocaleLowerCase();
   if (!query) return sections;
   const matches = (item: MobileRecentConversation) =>
-    item.title.toLocaleLowerCase().includes(query);
+    item.title.toLocaleLowerCase().includes(query) ||
+    item.topicTitle?.toLocaleLowerCase().includes(query);
   return {
     pinned: sections.pinned.filter(matches),
     recent: sections.recent.filter(matches),

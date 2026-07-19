@@ -11,7 +11,9 @@ export type { AppSettingsSection } from '@/const/appSettingsRegistry';
 export type AppSettingLifecycle = 'active' | 'deprecated' | 'external';
 
 export type AppSettingWriteSurface =
-  'adminPptRouter.saveSettings' | 'adminSettingsRouter.setAppSetting';
+  | 'adminPptRouter.saveSettings'
+  | 'adminSettingsRouter.mobilePublication'
+  | 'adminSettingsRouter.setAppSetting';
 
 export type AppSettingNormalizer =
   | 'about-links'
@@ -40,6 +42,7 @@ export type AppSettingNormalizer =
   | 'help-menu'
   | 'memory-trigger-mode'
   | 'mobile-config'
+  | 'mobile-config-publication'
   | 'model-policy-boolean'
   | 'model-policy-mode-enum'
   | 'model-policy-string'

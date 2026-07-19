@@ -261,6 +261,51 @@ export const moduleAppMarketProcedures = {
       });
     }),
 
+  listMobileApps: moduleAppProcedure
+    .input(z.object({ workspaceId: z.string().min(1).optional() }))
+    .query(async ({ ctx, input }) => {
+      if (input.workspaceId) {
+        await assertScopePermission({
+          db: ctx.serverDB,
+          operation: 'view',
+          scopeType: 'workspace',
+          userId: ctx.userId,
+          workspaceId: input.workspaceId,
+        });
+      }
+
+      const [personalResult, workspaceResult] = await Promise.allSettled([
+        ctx.moduleAppModel.listInstalledApps({
+          scopeType: 'personal',
+          userId: ctx.userId,
+        }),
+        input.workspaceId
+          ? ctx.moduleAppModel.listInstalledApps({
+              scopeType: 'workspace',
+              userId: ctx.userId,
+              workspaceId: input.workspaceId,
+            })
+          : Promise.resolve([]),
+      ]);
+      if (personalResult.status === 'rejected' && workspaceResult.status === 'rejected') {
+        throw personalResult.reason;
+      }
+      const personalApps = personalResult.status === 'fulfilled' ? personalResult.value : [];
+      const workspaceApps = workspaceResult.status === 'fulfilled' ? workspaceResult.value : [];
+      const workspaceIds = new Set(workspaceApps.map((app) => app.id));
+
+      return [
+        ...workspaceApps.map((app) => ({
+          ...app,
+          installationScope: 'workspace' as const,
+          workspaceId: input.workspaceId,
+        })),
+        ...personalApps
+          .filter((app) => !workspaceIds.has(app.id))
+          .map((app) => ({ ...app, installationScope: 'personal' as const })),
+      ];
+    }),
+
   listMyApps: moduleAppProcedure.query(async ({ ctx }) => {
     return ctx.moduleAppModel.listInstalledApps({
       scopeType: 'personal',

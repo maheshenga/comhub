@@ -1,12 +1,18 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { type MobilePublicConfigV1 } from '@/const/mobileConfig';
 
 import MobileConfigPreview from './MobileConfigPreview';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
+  }),
+}));
+
 describe('MobileConfigPreview', () => {
-  it('renders brand and normalized visible counts with stable preview dimensions', () => {
+  it('renders a realistic localized phone shell with stable preview dimensions', () => {
     const config: MobilePublicConfigV1 = {
       applications: {
         builtins: [
@@ -91,13 +97,16 @@ describe('MobileConfigPreview', () => {
     render(<MobileConfigPreview config={config} />);
 
     const preview = screen.getByTestId('mobile-config-preview');
-    expect(preview).toHaveStyle({ maxWidth: '360px', minHeight: '520px' });
+    expect(preview).toHaveStyle({ maxWidth: '360px', minHeight: '560px' });
     expect(preview).toHaveTextContent('ComHub App');
-    expect(preview).toHaveTextContent('Visible tabs: 3');
-    expect(preview).toHaveTextContent('Enabled tools: 2');
-    expect(preview).toHaveTextContent('Assistants: 1');
-    expect(preview).toHaveTextContent('Module apps: 1');
-    expect(preview).toHaveTextContent('Built-in apps: 5');
+    expect(screen.getByRole('img', { name: 'ComHub App' })).toHaveAttribute(
+      'src',
+      '/brand/mobile.png',
+    );
+    expect(screen.getByRole('navigation', { name: 'Bottom Navigation' })).toHaveTextContent(
+      'ChatsDiscoverApps',
+    );
+    expect(preview).not.toHaveTextContent('Visible tabs:');
   });
 
   it('uses a non-section root and renders normalized content from every mobile category', () => {
@@ -193,19 +202,14 @@ describe('MobileConfigPreview', () => {
     const preview = screen.getByTestId('mobile-config-preview');
     expect(preview.tagName).toBe('DIV');
     expect(preview).toHaveTextContent('ComHub App');
-    expect(preview).toHaveTextContent('/brand/mobile.png');
     expect(preview).toHaveTextContent('Chats');
-    expect(preview).toHaveTextContent('message-square-more');
     expect(preview).toHaveTextContent('Docs');
-    expect(preview).toHaveTextContent('file-text');
     expect(preview).toHaveTextContent('Slides');
-    expect(preview).toHaveTextContent('presentation');
     expect(preview).toHaveTextContent('Alpha Bot');
     expect(preview).toHaveTextContent('agent-beta');
     expect(preview).toHaveTextContent('design-kit');
     expect(preview).toHaveTextContent('copy-kit');
     expect(preview).toHaveTextContent('App A');
-    expect(preview).toHaveTextContent('store');
     expect(preview).not.toHaveTextContent('Images');
     expect(preview).not.toHaveTextContent('App B');
     expect(preview).not.toHaveTextContent('Discover');

@@ -4,6 +4,8 @@ import { type ReactNode } from 'react';
 
 import { MOBILE_TABBAR_HEIGHT } from '@/const/layoutTokens';
 
+const NAV_CLEARANCE = `var(--mobile-workspace-bottom-clearance, calc(${MOBILE_TABBAR_HEIGHT}px + env(safe-area-inset-bottom)))`;
+
 interface MobileContentLayoutProps extends FlexboxProps {
   header?: ReactNode;
   withNav?: boolean;
@@ -27,9 +29,7 @@ const MobileContentLayout = ({
         overflowY: 'auto',
         position: 'relative',
         ...style,
-        paddingBottom: withNav
-          ? `calc(${MOBILE_TABBAR_HEIGHT}px + env(safe-area-inset-bottom))`
-          : style?.paddingBottom,
+        paddingBottom: withNav ? NAV_CLEARANCE : style?.paddingBottom,
       }}
       {...rest}
     >
@@ -51,9 +51,7 @@ const MobileContentLayout = ({
           overflowY: 'auto',
           position: 'relative',
           ...style,
-          paddingBottom: withNav
-            ? `calc(${MOBILE_TABBAR_HEIGHT}px + env(safe-area-inset-bottom))`
-            : style?.paddingBottom,
+          paddingBottom: withNav ? NAV_CLEARANCE : style?.paddingBottom,
         }}
         {...rest}
       >

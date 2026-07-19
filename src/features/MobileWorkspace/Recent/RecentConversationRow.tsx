@@ -1,31 +1,35 @@
 'use client';
 
+import { DEFAULT_AVATAR } from '@lobechat/const';
 import { type MenuProps } from '@lobehub/ui';
-import { ActionIcon, DropdownMenu, Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon, Avatar, DropdownMenu, Flexbox, Icon } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
-import { Bot, MoreHorizontal, Pin, PinOff, Users } from 'lucide-react';
+import { MoreHorizontal, Pin, PinOff } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import AgentGroupAvatar from '@/features/AgentGroupAvatar';
 
 import type { MobileRecentConversation } from './recentItems';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   avatar: css`
-    display: grid;
+    position: relative;
+
+    display: inline-flex;
     flex: 0 0 40px;
-    place-items: center;
+
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    color: ${cssVar.colorTextSecondary};
-    background: ${cssVar.colorFillSecondary};
   `,
   badge: css`
     padding-block: 1px;
     padding-inline: 5px;
     border-radius: 4px;
+
     font-size: 11px;
     color: ${cssVar.colorTextSecondary};
+
     background: ${cssVar.colorFillSecondary};
   `,
   content: css`
@@ -34,14 +38,18 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   main: css`
     cursor: pointer;
+
     display: flex;
     flex: 1;
     gap: 12px;
     align-items: center;
+
     min-width: 0;
     padding: 0;
     border: none;
+
     color: inherit;
+
     background: transparent;
   `,
   meta: css`
@@ -52,17 +60,49 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: flex;
     gap: 8px;
     align-items: center;
+
     min-height: 64px;
     padding-block: 8px;
     padding-inline: 12px 8px;
-    border-bottom: 1px solid ${cssVar.colorBorderSecondary};
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
   title: css`
     overflow: hidden;
+
     font-size: 14px;
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
+  `,
+  topic: css`
+    overflow: hidden;
+
+    font-size: 13px;
+    color: ${cssVar.colorTextSecondary};
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  `,
+  unread: css`
+    position: absolute;
+    inset-block-start: -5px;
+    inset-inline-end: -7px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 18px;
+    height: 18px;
+    padding-inline: 4px;
+    border: 2px solid ${cssVar.colorBgContainer};
+    border-radius: 999px;
+
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    color: #fff;
+
+    background: ${cssVar.colorError};
   `,
 }));
 
@@ -70,58 +110,88 @@ interface RecentConversationRowProps {
   item: MobileRecentConversation;
   onOpen: () => void;
   onTogglePin: () => void;
+  pending?: boolean;
 }
 
-const RecentConversationRow = memo<RecentConversationRowProps>(({ item, onOpen, onTogglePin }) => {
-  const { t } = useTranslation('common');
-  const isGroup = item.kind === 'group' || item.kind === 'group-topic';
-  const menuItems = useMemo<MenuProps['items']>(
-    () => [
-      {
-        icon: <Icon icon={item.pinned ? PinOff : Pin} />,
-        key: 'pin',
-        label: item.pinned ? t('mobile.recent.unpin') : t('mobile.recent.pin'),
-        onClick: ({ domEvent }) => {
-          domEvent.stopPropagation();
-          onTogglePin();
+const RecentConversationRow = memo<RecentConversationRowProps>(
+  ({ item, onOpen, onTogglePin, pending = false }) => {
+    const { t } = useTranslation('common');
+    const isGroup = item.kind === 'group';
+    const customAvatar = typeof item.avatar === 'string' ? item.avatar : undefined;
+    const memberAvatars = Array.isArray(item.avatar) ? item.avatar : [];
+    const unreadCount = item.unreadCount ?? 0;
+    const menuItems = useMemo<MenuProps['items']>(
+      () => [
+        {
+          disabled: pending,
+          icon: <Icon icon={item.pinned ? PinOff : Pin} />,
+          key: 'pin',
+          label: item.pinned ? t('mobile.recent.unpin') : t('mobile.recent.pin'),
+          onClick: ({ domEvent }) => {
+            domEvent.stopPropagation();
+            onTogglePin();
+          },
         },
-      },
-    ],
-    [item.pinned, onTogglePin, t],
-  );
+      ],
+      [item.pinned, onTogglePin, pending, t],
+    );
 
-  return (
-    <div className={styles.row} data-kind={item.kind} data-testid="recent-conversation-row">
-      <button
-        aria-label={t('mobile.recent.open', { name: item.title })}
-        className={styles.main}
-        type="button"
-        onClick={onOpen}
-      >
-        <div className={styles.avatar}>
-          <Icon icon={isGroup ? Users : Bot} size={20} />
-        </div>
-        <Flexbox className={styles.content} gap={4}>
-          <div className={styles.title}>{item.title}</div>
-          <Flexbox horizontal align="center" gap={6}>
-            {isGroup ? <span className={styles.badge}>{t('mobile.recent.group')}</span> : null}
-            <span className={styles.meta}>
-              {item.updatedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-            </span>
+    return (
+      <div className={styles.row} data-kind={item.kind} data-testid="recent-conversation-row">
+        <button
+          aria-label={t('mobile.recent.open', { name: item.title })}
+          className={styles.main}
+          data-mobile-focus-key={`${item.kind}:${item.id}`}
+          type="button"
+          onClick={onOpen}
+        >
+          <span className={styles.avatar}>
+            {isGroup ? (
+              <AgentGroupAvatar
+                avatar={customAvatar}
+                backgroundColor={item.backgroundColor ?? undefined}
+                memberAvatars={memberAvatars}
+                size={40}
+              />
+            ) : (
+              <Avatar
+                emojiScaleWithBackground
+                avatar={customAvatar || DEFAULT_AVATAR}
+                background={item.backgroundColor ?? undefined}
+                shape="square"
+                size={40}
+              />
+            )}
+            {unreadCount > 0 ? (
+              <span className={styles.unread}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+            ) : null}
+          </span>
+          <Flexbox className={styles.content} gap={4}>
+            <div className={styles.title}>{item.title}</div>
+            {item.topicTitle ? <div className={styles.topic}>{item.topicTitle}</div> : null}
+            <Flexbox horizontal align="center" gap={6}>
+              {isGroup ? <span className={styles.badge}>{t('mobile.recent.group')}</span> : null}
+              <span className={styles.meta}>
+                {item.updatedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+              </span>
+            </Flexbox>
           </Flexbox>
-        </Flexbox>
-      </button>
-      <DropdownMenu items={menuItems}>
-        <ActionIcon
-          aria-label={t('mobile.recent.moreActions', { name: item.title })}
-          icon={MoreHorizontal}
-          title={t('mobile.recent.moreActions', { name: item.title })}
-          onClick={(event) => event.stopPropagation()}
-        />
-      </DropdownMenu>
-    </div>
-  );
-});
+        </button>
+        <DropdownMenu items={menuItems}>
+          <ActionIcon
+            aria-label={t('mobile.recent.moreActions', { name: item.title })}
+            disabled={pending}
+            icon={MoreHorizontal}
+            loading={pending}
+            size={{ blockSize: 44, size: 18 }}
+            title={t('mobile.recent.moreActions', { name: item.title })}
+            onClick={(event) => event.stopPropagation()}
+          />
+        </DropdownMenu>
+      </div>
+    );
+  },
+);
 
 RecentConversationRow.displayName = 'RecentConversationRow';
 

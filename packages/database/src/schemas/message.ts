@@ -170,6 +170,12 @@ export const messages = pgTable(
     index('messages_usage_cost_idx').on(sql`(("usage"->>'cost')::numeric)`),
     index('messages_usage_total_tokens_idx').on(sql`(("usage"->>'totalTokens')::numeric)`),
     index('messages_workspace_id_idx').on(table.workspaceId),
+    index('messages_topic_user_updated_at_idx').on(table.topicId, table.userId, table.updatedAt),
+    index('messages_topic_workspace_updated_at_idx').on(
+      table.topicId,
+      table.workspaceId,
+      table.updatedAt,
+    ),
   ],
 );
 

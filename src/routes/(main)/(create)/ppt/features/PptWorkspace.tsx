@@ -1,9 +1,10 @@
 'use client';
 
-import { Spin } from 'antd';
 import { memo, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router';
 import useSWR from 'swr';
 
+import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import { docmeeService } from '@/services/docmee';
 
 import PptErrorState from './PptErrorState';
@@ -29,6 +30,8 @@ const getDocmeeErrorCode = (error: any) =>
   'PPT_UPSTREAM_TOKEN_FAILED';
 
 const PptWorkspace = memo(() => {
+  const { search } = useLocation();
+  const recordId = new URLSearchParams(search).get('recordId')?.trim() || undefined;
   const containerRef = useRef<HTMLDivElement>(null);
   const uiRef = useRef<{
     destroy?: () => void;
@@ -42,7 +45,7 @@ const PptWorkspace = memo(() => {
     isLoading,
     mutate,
   } = useSWR(['docmee-ppt-runtime'], () => docmeeService.getPptRuntime());
-  const { trigger: createToken } = useDocmeeToken();
+  const { trigger: createToken } = useDocmeeToken(recordId);
 
   useEffect(() => {
     if (!runtime || !('enabled' in runtime) || runtime.enabled === false || !containerRef.current)
@@ -56,6 +59,7 @@ const PptWorkspace = memo(() => {
         setErrorCode(undefined);
         const token = await createToken();
         if (disposed || !containerRef.current || !token?.token) return;
+        const pptId = token.upstreamTaskId;
 
         const { DocmeeUI } = await import('@docmee/sdk-ui');
         if (disposed || !containerRef.current) return;
@@ -82,7 +86,8 @@ const PptWorkspace = memo(() => {
               });
             }
           },
-          page: runtime.creatorVersion === 'v2' ? 'creator-v2' : 'creator',
+          page: pptId ? 'editor' : runtime.creatorVersion === 'v2' ? 'creator-v2' : 'creator',
+          ...(pptId ? { pptId } : {}),
           token: token.token,
         });
         uiRef.current = ui;
@@ -119,7 +124,7 @@ const PptWorkspace = memo(() => {
       uiRef.current?.destroy?.();
       uiRef.current = null;
     };
-  }, [createToken, runtime, retryNonce]);
+  }, [createToken, recordId, runtime, retryNonce]);
 
   const handleRetry = () => {
     setErrorCode(undefined);
@@ -127,7 +132,24 @@ const PptWorkspace = memo(() => {
     mutate();
   };
 
-  if (isLoading) return <Spin fullscreen description="正在加载 PPT 创作服务" />;
+  if (isLoading) {
+    return (
+      <div
+        aria-busy="true"
+        data-testid="ppt-workspace-loading"
+        role="status"
+        style={{
+          alignItems: 'center',
+          display: 'flex',
+          justifyContent: 'center',
+          minHeight: 'calc(100vh - 64px)',
+          width: '100%',
+        }}
+      >
+        <NeuralNetworkLoading size={48} />
+      </div>
+    );
+  }
   if (runtimeError) {
     return <PptErrorState code={getDocmeeErrorCode(runtimeError)} onRetry={handleRetry} />;
   }

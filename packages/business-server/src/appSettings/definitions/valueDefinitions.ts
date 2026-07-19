@@ -8,6 +8,7 @@ import { normalizePlanFaqSettings } from '@/const/billingPresentation';
 import { normalizeExpertPlazaCards } from '@/const/expertPlaza';
 import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import { normalizeMobileConfig } from '@/const/mobileConfig';
+import { normalizeMobileConfigPublication } from '@/const/mobileConfigPublication';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 
 import type { AppSettingNormalizer, AppSettingValueDefinition } from '../types';
@@ -274,6 +275,13 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
       'mobile-config',
       jsonSchema,
       (value) => normalizeMobileConfig(value) as unknown as JsonValue,
+    );
+  }
+  if (key === APP_SETTING_KEYS.mobileConfigPublication) {
+    return defineValue(
+      'mobile-config-publication',
+      jsonSchema,
+      (value) => normalizeMobileConfigPublication(value) as unknown as JsonValue,
     );
   }
   if (key.startsWith('memory.') || key.startsWith('vector.') || key.startsWith('default')) {

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { isMobileConfigurableDestination } from '@/features/MobileWorkspace/destinationRegistry';
+
 export type MobileIconName = string;
 
 export interface MobileNavigationItemV1 {
@@ -358,7 +360,9 @@ const normalizeNavigation = (value: unknown): MobileNavigationItemV1[] => {
     }
 
     const path =
-      typeof raw.item.path === 'string' && validateMobileInternalPath(raw.item.path)
+      typeof raw.item.path === 'string' &&
+      validateMobileInternalPath(raw.item.path) &&
+      isMobileConfigurableDestination(raw.item.path)
         ? raw.item.path
         : fallback.path;
 
@@ -537,7 +541,12 @@ export const normalizeMobileBuiltinApps = (value: unknown): MobileBuiltinAppV1[]
           id: fallback.id,
           label: normalizeLabel(raw?.label, fallback.label),
           order: 0,
-          path: typeof path === 'string' && validateMobileInternalPath(path) ? path : fallback.path,
+          path:
+            typeof path === 'string' &&
+            validateMobileInternalPath(path) &&
+            isMobileConfigurableDestination(path)
+              ? path
+              : fallback.path,
         },
         order: normalizeOrder(raw?.order, fallback.order),
         sourceIndex,

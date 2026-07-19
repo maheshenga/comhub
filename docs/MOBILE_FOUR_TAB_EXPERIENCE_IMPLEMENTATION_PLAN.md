@@ -8,6 +8,8 @@
 
 **Tech Stack:** Next.js 16, React 19, React Router, TypeScript, `@lobehub/ui`, `@lobehub/ui/base-ui`, antd-style, SWR, TRPC, Drizzle/PostgreSQL, Vitest, Playwright.
 
+> **Current implementation note:** The completed implementation extends the original plan with `mobile.config.publication`. Draft, published snapshot, and bounded history are stored separately; `mobile.config` is now a published compatibility mirror only. Mobile configuration keys are writable only through the dedicated publication procedures.
+
 ## Global Constraints
 
 - Preserve all desktop routes and desktop page behavior.
@@ -16,7 +18,7 @@
 - Bottom navigation labels, Lucide icons, order, visibility, and internal paths are admin configurable.
 - Mobile brand name and logo inherit global branding when blank.
 - User pinning remains personal and reuses the existing persisted session `pinned` state.
-- Discover renders at most four configured assistants in a two-by-two grid and shows a validated recommended model.
+- Discover renders at most four configured assistants in a two-by-two grid and shows a validated display model.
 - Design aggregates existing document, image, and PPT records without copying source data.
 - Apps combines a controlled built-in registry with authorized installed module apps.
 - Run targeted tests during implementation and one final browser matrix only.
@@ -35,7 +37,7 @@
 **Interfaces:**
 
 - Produces: `MobilePublicConfigV1`, `DEFAULT_MOBILE_CONFIG`, `normalizeMobileConfig`, `validateMobileInternalPath`, `MOBILE_ICON_NAMES`.
-- Produces: `APP_SETTING_KEYS.mobileConfig` in the `mobile` app-settings section.
+- Produces: `APP_SETTING_KEYS.mobileConfig` and `APP_SETTING_KEYS.mobileConfigPublication` in the `mobile` app-settings section.
 - Consumes: no runtime services; all functions are pure.
 
 - [ ] **Step 1: Write failing contract tests**
@@ -90,9 +92,10 @@ The implementation must use structured validation, return fresh immutable arrays
 
 ```ts
 mobileConfig: 'mobile.config',
+mobileConfigPublication: 'mobile.config.publication',
 ```
 
-Add `'mobile'` to `APP_SETTINGS_SECTIONS` and map only `APP_SETTING_KEYS.mobileConfig` into that section.
+Add `'mobile'` to `APP_SETTINGS_SECTIONS` and map both mobile configuration keys into that section. The catalog must exclude both keys from generic settings writes and assign them to the dedicated publication write surface.
 
 - [ ] **Step 5: Run GREEN verification**
 
@@ -125,14 +128,14 @@ Tested: mobileConfig and appSettingsRegistry Vitest; tsgo --noEmit.
 **Interfaces:**
 
 - Consumes: `normalizeMobileConfig`, `DEFAULT_MOBILE_CONFIG`, `APP_SETTING_KEYS.mobileConfig`.
-- Produces: `buildMobileSettings(snapshot)` and `getPublicMobileConfig()`.
-- Produces client service methods `getMobileSettings()` and `saveMobileSettings(config)` using existing settings read/batch-write procedures.
+- Produces: `loadMobileConfigPublication()`, `getPublicMobileConfig()`, and `getPublicMobileConfigSnapshot()`.
+- Produces client service methods for reading publication state, saving a draft, publishing with both published and draft revision preconditions, and rolling a historical snapshot forward.
 
 - [ ] **Step 1: Add failing backend tests**
 
 ```ts
 expect(buildMobileSettings(snapshot)).toEqual(normalizeMobileConfig(rawConfig));
-await expect(caller.getPublicMobileConfig()).resolves.toEqual(expectedConfig);
+await expect(caller.getPublicMobileConfig()).resolves.toEqual(expectedPublishedConfig);
 expect(result.brand.displayName).toBeNull();
 ```
 
@@ -147,14 +150,11 @@ bunx vitest run --silent='passed-only' packages/business-server/src/appSettings/
 - [ ] **Step 3: Implement read models and public procedure**
 
 ```ts
-export const buildMobileSettings = (snapshot: AppSettingsSnapshot) =>
-  normalizeMobileConfig(snapshot.get(APP_SETTING_KEYS.mobileConfig));
-
-getPublicMobileConfig: publicDbProcedure.query(async ({ ctx }) =>
-  buildMobileSettings(await loadAppSettingsSectionSnapshot(ctx.serverDB, 'mobile')),
+const publication = await loadMobileConfigPublication(ctx.serverDB);
+return publication.published.config;
 ```
 
-Admin saves must normalize before persistence and use one batch update so the versioned object cannot be partially written.
+Admin draft saves normalize before persistence but do not alter public configuration. Publish and rollback use an advisory transaction lock, require both `expectedRevision` and `expectedDraftRevision`, write the publication state and `mobile.config` compatibility mirror atomically, and use required admin audit.
 
 - [ ] **Step 4: Add service wrappers and GREEN verification**
 

@@ -7,7 +7,7 @@ import Header from './features/Header';
 
 const Layout = memo(() => {
   return (
-    <MobileContentLayout withNav header={<Header />}>
+    <MobileContentLayout header={<Header />}>
       <Outlet />
     </MobileContentLayout>
   );

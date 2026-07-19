@@ -9,6 +9,7 @@ const serviceMocks = vi.hoisted(() => ({
   getPptRuntime: vi.fn(),
   reportPptEvent: vi.fn(),
 }));
+const routerLocation = vi.hoisted(() => ({ search: '' }));
 
 vi.mock('@/services/docmee', () => ({
   docmeeService: serviceMocks,
@@ -16,6 +17,7 @@ vi.mock('@/services/docmee', () => ({
 
 vi.mock('react-router', async (importOriginal) => ({
   ...((await importOriginal()) as object),
+  useLocation: () => routerLocation,
   useNavigate: () => vi.fn(),
 }));
 
@@ -41,6 +43,7 @@ describe('PptWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     docmeeEventHandlers.clear();
+    routerLocation.search = '';
     serviceMocks.createPptToken.mockResolvedValue({ sessionId: 's1', token: 'token-1' });
     serviceMocks.getPptRuntime.mockResolvedValue({
       allowPdfExport: true,
@@ -51,6 +54,25 @@ describe('PptWorkspace', () => {
       lang: 'zh',
     });
     serviceMocks.reportPptEvent.mockResolvedValue({ charged: true });
+  });
+
+  it('opens a saved upstream presentation directly in the editor', async () => {
+    routerLocation.search = '?recordId=00000000-0000-4000-8000-000000000001';
+    serviceMocks.createPptToken.mockResolvedValue({
+      sessionId: 'saved-session',
+      token: 'token-1',
+      upstreamTaskId: 'upstream/ppt-1',
+    });
+
+    render(<PptWorkspace />);
+
+    await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
+    expect(docmeeConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 'editor', pptId: 'upstream/ppt-1' }),
+    );
+    expect(serviceMocks.createPptToken).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000000001',
+    );
   });
 
   it('mounts DocmeeUI after runtime and token are ready', async () => {
@@ -64,6 +86,18 @@ describe('PptWorkspace', () => {
         token: 'token-1',
       }),
     );
+  });
+
+  it('uses the shared loading indicator while the runtime is loading', () => {
+    serviceMocks.getPptRuntime.mockReturnValue(new Promise(() => undefined));
+
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <PptWorkspace />
+      </SWRConfig>,
+    );
+
+    expect(screen.getByTestId('ppt-workspace-loading')).toHaveAttribute('aria-busy', 'true');
   });
 
   it('can recover after token creation fails and the user retries', async () => {

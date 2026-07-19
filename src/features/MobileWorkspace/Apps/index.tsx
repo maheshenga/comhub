@@ -8,12 +8,16 @@ import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
+import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { moduleAppService } from '@/services/moduleApp';
 import { mobileHeaderSticky } from '@/styles/mobileHeader';
 
+import { mobileNavigateOptions } from '../destinationRegistry';
 import { getMobileIcon } from '../mobileIcons';
 import MobilePageLayout from '../MobilePageLayout';
+import MobileRefreshButton from '../MobileRefreshButton';
+import { useMobileSlotState } from '../mobileSlotState';
 import { useMobileConfig } from '../useMobileConfig';
 import {
   buildMobileBuiltinApps,
@@ -23,18 +27,23 @@ import {
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   appButton: css`
+    cursor: pointer;
+
     display: flex;
-    min-width: 0;
-    min-height: 92px;
-    align-items: center;
-    justify-content: flex-start;
     flex-direction: column;
     gap: 8px;
-    padding: 8px 4px;
+    align-items: center;
+    justify-content: flex-start;
+
+    min-width: 0;
+    min-height: 92px;
+    padding-block: 8px;
+    padding-inline: 4px;
     border: 0;
+
     color: ${cssVar.colorText};
+
     background: transparent;
-    cursor: pointer;
 
     &:active {
       background: ${cssVar.colorFillQuaternary};
@@ -47,41 +56,60 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   appIcon: css`
     display: grid;
-    width: 44px;
-    height: 44px;
     flex: 0 0 44px;
     place-items: center;
+
+    width: 44px;
+    height: 44px;
     border-radius: 8px;
+
     color: ${cssVar.colorPrimary};
+
     background: ${cssVar.colorFillSecondary};
   `,
   appLabel: css`
-    display: -webkit-box;
     overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+
     max-width: 100%;
     min-height: 36px;
+
     font-size: 13px;
     line-height: 18px;
     text-align: center;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+  `,
+  appLogo: css`
+    display: block;
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
   `,
   headerAction: css`
+    cursor: pointer;
+
     display: grid;
-    width: 36px;
-    height: 36px;
     place-items: center;
+
+    min-width: 44px;
+    min-height: 44px;
     padding: 0;
     border: 0;
+
     color: ${cssVar.colorText};
+
     background: transparent;
-    cursor: pointer;
+  `,
+  headerActions: css`
+    display: flex;
+    align-items: center;
   `,
   headerTitle: css`
     margin: 0;
-    color: ${cssVar.colorText};
     font-size: 17px;
     font-weight: 600;
+    color: ${cssVar.colorText};
   `,
   page: css`
     width: 100%;
@@ -94,13 +122,15 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     margin: 0;
     padding-block: 8px;
     padding-inline: 16px;
-    color: ${cssVar.colorTextSecondary};
+
     font-size: 14px;
     font-weight: 600;
+    color: ${cssVar.colorTextSecondary};
   `,
   state: css`
     min-height: 152px;
-    padding: 24px 16px;
+    padding-block: 24px;
+    padding-inline: 16px;
     text-align: center;
   `,
 }));
@@ -108,12 +138,17 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 const MobileAppsPage = memo(() => {
   const { t } = useTranslation('common');
   const navigate = useWorkspaceAwareNavigate();
+  const activeWorkspaceId = useActiveWorkspaceId();
   const { config } = useMobileConfig();
-  const { data, error, isLoading, mutate } = useSWR<MobileInstalledModuleApp[]>(
-    ['mobile-module-apps'],
-    () => moduleAppService.listMyApps() as Promise<MobileInstalledModuleApp[]>,
-    { revalidateOnFocus: false, shouldRetryOnError: false },
+  const { data, error, isLoading, isValidating, mutate } = useSWR<MobileInstalledModuleApp[]>(
+    ['mobile-module-apps', activeWorkspaceId],
+    () => moduleAppService.listAvailableApps(activeWorkspaceId ?? undefined),
+    { revalidateOnFocus: true, revalidateOnReconnect: true, shouldRetryOnError: false },
   );
+  const { rememberFocus } = useMobileSlotState({
+    scopeId: activeWorkspaceId ?? 'personal',
+    slotId: 'slot-4',
+  });
 
   const builtins = useMemo(
     () => buildMobileBuiltinApps(config.applications.builtins),
@@ -125,22 +160,29 @@ const MobileAppsPage = memo(() => {
   );
   const pageTitle =
     config.navigation.items.find((item) => item.id === 'slot-4')?.label || t('mobile.apps.title');
-  const openMarket = () => navigate('/apps/market', { escape: true });
+  const openMarket = () => navigate('/apps/market');
 
   const header = (
     <ChatHeader
       left={<h1 className={styles.headerTitle}>{pageTitle}</h1>}
       style={mobileHeaderSticky}
       right={
-        <button
-          aria-label={t('mobile.apps.browseMarket')}
-          className={styles.headerAction}
-          title={t('mobile.apps.browseMarket')}
-          type="button"
-          onClick={openMarket}
-        >
-          <Icon icon={Store} size={20} />
-        </button>
+        <div className={styles.headerActions}>
+          <MobileRefreshButton
+            label={t('mobile.refresh')}
+            loading={isValidating}
+            onRefresh={() => void mutate()}
+          />
+          <button
+            aria-label={t('mobile.apps.browseMarket')}
+            className={styles.headerAction}
+            title={t('mobile.apps.browseMarket')}
+            type="button"
+            onClick={openMarket}
+          >
+            <Icon icon={Store} size={20} />
+          </button>
+        </div>
       }
     />
   );
@@ -159,9 +201,14 @@ const MobileAppsPage = memo(() => {
                 <button
                   aria-label={t('mobile.apps.open', { name: app.label })}
                   className={styles.appButton}
+                  data-mobile-focus-key={`builtin:${app.id}`}
                   key={app.id}
                   type="button"
-                  onClick={() => navigate(app.path, { escape: true })}
+                  onClick={() => {
+                    rememberFocus(`builtin:${app.id}`);
+                    const options = mobileNavigateOptions(app.path);
+                    options ? navigate(app.path, options) : navigate(app.path);
+                  }}
                 >
                   <span className={styles.appIcon}>
                     <Icon icon={AppIcon} size={22} />
@@ -178,7 +225,13 @@ const MobileAppsPage = memo(() => {
             {t('mobile.apps.module')}
           </h2>
           {isLoading ? (
-            <Flexbox className={styles.state} data-testid="mobile-apps-loading" gap={12}>
+            <Flexbox
+              aria-busy="true"
+              className={styles.state}
+              data-testid="mobile-apps-loading"
+              gap={12}
+              role="status"
+            >
               <Skeleton.Paragraph active rows={3} />
             </Flexbox>
           ) : error ? (
@@ -193,12 +246,22 @@ const MobileAppsPage = memo(() => {
                   aria-label={t('mobile.apps.open', { name: app.displayName })}
                   className={styles.appButton}
                   data-testid="mobile-module-app"
+                  data-mobile-focus-key={`module:${app.id}`}
                   key={app.id}
                   type="button"
-                  onClick={() => navigate(app.routePath, { escape: true })}
+                  onClick={() => {
+                    rememberFocus(`module:${app.id}`);
+                    return app.installationScope === 'personal'
+                      ? navigate(app.routePath, { escape: true })
+                      : navigate(app.routePath);
+                  }}
                 >
                   <span className={styles.appIcon}>
-                    <Icon icon={Boxes} size={22} />
+                    {app.icon ? (
+                      <img alt={app.displayName} className={styles.appLogo} src={app.icon} />
+                    ) : (
+                      <Icon icon={Boxes} size={22} />
+                    )}
                   </span>
                   <span className={styles.appLabel}>{app.displayName}</span>
                 </button>

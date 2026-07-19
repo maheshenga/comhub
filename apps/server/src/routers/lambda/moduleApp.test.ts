@@ -81,6 +81,7 @@ const {
     installWorkspaceApp: vi.fn(),
     listAdminPackageSubmissions: vi.fn(),
     listArtifacts: vi.fn(),
+    listInstalledApps: vi.fn(),
     listMarketplaceApps: vi.fn(),
     uninstallWorkspaceApp: vi.fn(),
   },
@@ -244,6 +245,7 @@ describe('moduleApp router registration', () => {
     mockModuleAppModel.installWorkspaceApp.mockResolvedValue(undefined);
     mockModuleAppModel.uninstallWorkspaceApp.mockResolvedValue({ ok: true });
     mockModuleAppModel.listMarketplaceApps.mockResolvedValue([]);
+    mockModuleAppModel.listInstalledApps.mockResolvedValue([]);
     mockModuleAppCommerceModel.listOrders.mockResolvedValue([]);
     mockModuleAppCommerceModel.listCatalog.mockResolvedValue([]);
     mockModuleAppCommerceModel.quoteProduct.mockResolvedValue({ price: 88 });
@@ -372,6 +374,7 @@ describe('moduleApp router registration', () => {
       listArtifacts: { inputs: 1, type: 'query' },
       listCatalog: { inputs: 1, type: 'query' },
       listMarketplace: { inputs: 1, type: 'query' },
+      listMobileApps: { inputs: 1, type: 'query' },
       listMyApps: { inputs: 0, type: 'query' },
       listMyPackageSubmissions: { inputs: 1, type: 'query' },
       listOrders: { inputs: 1, type: 'query' },
@@ -406,6 +409,7 @@ describe('moduleApp router registration', () => {
       listArtifacts: '43e4cea8d4d8a7d47b62b6d42cea3420a57d4f67d0def09fd90f4f48e51a41f7',
       listCatalog: 'fbed6b4881d01ef729f244ed5b4795c427f4dfdba7a910b909ba8c0f364714f1',
       listMarketplace: '7699c86549809458043fa74a895e3ac49562495b1bdac9c2e3514c3ea5f227af',
+      listMobileApps: '08e0dbac399b66eb82aeddd0b5a211271ea2d4294dcc0fd40f9459d2b289a630',
       listMyApps: null,
       listMyPackageSubmissions: '92ca0a7abe13012bc74d99c1ec6a61f85d12e583360292a35d15f05281bebec5',
       listOrders: 'f1cd8d8ac045d434ef05ccbd4a304bcd7ab3a4e5eceae386b412e1f533fa3cf2',
@@ -451,6 +455,78 @@ describe('moduleApp router registration', () => {
       expect(middlewares.slice(0, baseMiddlewares.length), key).toEqual(baseMiddlewares);
       expect(middlewares, key).toHaveLength(baseMiddlewares.length + expected.inputs + 1);
     }
+  });
+
+  describe('listMobileApps', () => {
+    it('returns current-workspace installations before personal fallbacks and deduplicates apps', async () => {
+      mockModuleAppModel.listInstalledApps.mockImplementation(
+        async ({ scopeType }: { scopeType: 'personal' | 'workspace' }) =>
+          scopeType === 'workspace'
+            ? [
+                { displayName: 'Workspace shared', id: 'shared' },
+                { displayName: 'Workspace only', id: 'workspace-only' },
+              ]
+            : [
+                { displayName: 'Personal shared', id: 'shared' },
+                { displayName: 'Personal only', id: 'personal-only' },
+              ],
+      );
+
+      await expect(createCaller().listMobileApps({ workspaceId: 'workspace-1' })).resolves.toEqual([
+        {
+          displayName: 'Workspace shared',
+          id: 'shared',
+          installationScope: 'workspace',
+          workspaceId: 'workspace-1',
+        },
+        {
+          displayName: 'Workspace only',
+          id: 'workspace-only',
+          installationScope: 'workspace',
+          workspaceId: 'workspace-1',
+        },
+        {
+          displayName: 'Personal only',
+          id: 'personal-only',
+          installationScope: 'personal',
+        },
+      ]);
+      expect(mockGetWorkspaceMember).toHaveBeenCalledWith('workspace-1', 'user-1');
+      expect(mockModuleAppModel.listInstalledApps).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns only personal installations when there is no active workspace', async () => {
+      mockModuleAppModel.listInstalledApps.mockResolvedValue([
+        { displayName: 'Personal', id: 'personal' },
+      ]);
+
+      await expect(createCaller().listMobileApps({})).resolves.toEqual([
+        {
+          displayName: 'Personal',
+          id: 'personal',
+          installationScope: 'personal',
+        },
+      ]);
+      expect(mockGetWorkspaceMember).not.toHaveBeenCalled();
+      expect(mockModuleAppModel.listInstalledApps).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the healthy scope when one installation query fails', async () => {
+      mockModuleAppModel.listInstalledApps.mockImplementation(
+        async ({ scopeType }: { scopeType: 'personal' | 'workspace' }) => {
+          if (scopeType === 'workspace') throw new Error('workspace temporarily unavailable');
+          return [{ displayName: 'Personal', id: 'personal' }];
+        },
+      );
+
+      await expect(createCaller().listMobileApps({ workspaceId: 'workspace-1' })).resolves.toEqual([
+        {
+          displayName: 'Personal',
+          id: 'personal',
+          installationScope: 'personal',
+        },
+      ]);
+    });
   });
 
   it('preserves the database, plan, model, and workflow-model context middleware', async () => {

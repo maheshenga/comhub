@@ -95,6 +95,7 @@ export const APP_SETTING_KEYS = {
   memoryUserMemoryPersonaWriterProvider: 'memory.userMemory.personaWriter.provider',
   memoryUserMemoryTriggerMode: 'memory.userMemory.triggerMode',
   mobileConfig: 'mobile.config',
+  mobileConfigPublication: 'mobile.config.publication',
   notificationDesktopEnabled: 'notification.desktop.enabled',
   notificationEmailEnabled: 'notification.email.enabled',
   notificationEventDefaults: 'notification.eventDefaults',
@@ -227,7 +228,10 @@ const USER_DEFAULTS_SECTION_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.userGlobalSettingsDefaults,
 ]);
 
-const MOBILE_SECTION_KEYS = new Set<AppSettingKey>([APP_SETTING_KEYS.mobileConfig]);
+const MOBILE_SECTION_KEYS = new Set<AppSettingKey>([
+  APP_SETTING_KEYS.mobileConfig,
+  APP_SETTING_KEYS.mobileConfigPublication,
+]);
 
 const MODEL_BILLING_SECTION_KEYS = new Set<AppSettingKey>([
   APP_SETTING_KEYS.defaultAgentModel,

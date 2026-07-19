@@ -6,7 +6,7 @@ import SessionHeader from './SessionHeader';
 
 const MobileLayout = ({ children }: PropsWithChildren) => {
   return (
-    <MobileContentLayout withNav header={<SessionHeader />}>
+    <MobileContentLayout header={<SessionHeader />}>
       {children}
     </MobileContentLayout>
   );

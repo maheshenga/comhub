@@ -10,13 +10,13 @@ import {
   buildDesktopSettings,
   buildExpertPlazaSettings,
   buildGrowthSettings,
-  buildMobileSettings,
   buildNotificationSettings,
   buildOperationsSettings,
   buildRecommendationSettings,
 } from '../adminReadModel';
 import { loadAppSettingsSectionSnapshot, loadAppSettingsSnapshot } from '../loader';
 import { SETTING_KEYS, toString } from '../procedureShared';
+import { loadMobileConfigPublication } from './mobilePublicationProcedures';
 
 const publicDbProcedure = publicProcedure.use(serverDatabase);
 const toBoolean = (value: unknown, fallback = false) =>
@@ -48,9 +48,8 @@ const normalizeProfileInterestAreas = (value: unknown) => {
 
 export const publicSettingsProcedures = {
   getPublicMobileConfig: publicDbProcedure.query(async ({ ctx }) => {
-    const config = buildMobileSettings(
-      await loadAppSettingsSectionSnapshot(ctx.serverDB, 'mobile'),
-    );
+    const { published } = await loadMobileConfigPublication(ctx.serverDB);
+    const config = published.config;
     const featuredAssistants = await loadMobileFeaturedAssistants(
       ctx.serverDB,
       config.discover.assistants,

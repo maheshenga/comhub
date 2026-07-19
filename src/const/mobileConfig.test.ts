@@ -29,6 +29,27 @@ describe('mobile configuration', () => {
     expect(validateMobileInternalPath('/design%0Aescape')).toBe(false);
   });
 
+  it('repairs syntactically safe but unsupported mobile navigation destinations', () => {
+    const config = normalizeMobileConfig({
+      navigation: {
+        items: [
+          { id: 'slot-1', path: '/admin' },
+          { id: 'slot-2', path: '/settings/profile' },
+          { id: 'slot-3', path: '/community' },
+          { id: 'slot-4', path: '/tasks' },
+        ],
+      },
+      version: 1,
+    });
+
+    expect(config.navigation.items.map((item) => item.path)).toEqual([
+      '/',
+      '/design',
+      '/community',
+      '/tasks',
+    ]);
+  });
+
   it('normalizes a version 1 configuration into safe stable entries', () => {
     const config = normalizeMobileConfig({
       applications: {
@@ -129,7 +150,7 @@ describe('mobile configuration', () => {
     expect(config.navigation.items.find((item) => item.id === 'slot-1')).toMatchObject({
       icon: 'bell',
       label: '收件箱',
-      path: '/inbox?tab=all#top',
+      path: '/',
     });
     expect(config.navigation.items.find((item) => item.id === 'slot-2')?.path).toBe('/design');
     expect(config.navigation.items.find((item) => item.id === 'slot-3')).toMatchObject({

@@ -313,6 +313,150 @@ export const sharedMainAreaChildren: RouteObject[] = [
   ...BusinessMobileRoutesWithMainLayout,
 ];
 
+const workspaceMobileRootChildren: RouteObject[] = [
+  {
+    element: dynamicElement(
+      () => import('@/routes/(mobile)/(home)/'),
+      'Mobile > Workspace > Recent',
+    ),
+    index: true,
+  },
+  {
+    element: dynamicElement(() => import('@/routes/(mobile)/design'), 'Mobile > Workspace > Design'),
+    path: 'design',
+  },
+  {
+    children: [
+      {
+        children: [
+          {
+            element: dynamicElement(() => import('@/routes/(main)/page'), 'Mobile > Workspace > Pages'),
+            index: true,
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/page/[id]'),
+              'Mobile > Workspace > Page > Detail',
+            ),
+            path: ':id',
+          },
+        ],
+        element: dynamicLayout(
+          () => import('@/routes/(main)/page/_layout'),
+          'Mobile > Workspace > Pages > Layout',
+        ),
+      },
+    ],
+    element: dynamicLayout(
+      () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+      'Mobile > Workspace > Pages > Deep Page Guard',
+    ),
+    path: 'page',
+  },
+  {
+    children: [
+      {
+        children: [
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/(create)/image'),
+              'Mobile > Workspace > Image',
+            ),
+            index: true,
+          },
+        ],
+        element: dynamicLayout(
+          () => import('@/routes/(main)/(create)/image/_layout'),
+          'Mobile > Workspace > Image > Layout',
+        ),
+      },
+    ],
+    element: dynamicLayout(
+      () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+      'Mobile > Workspace > Image > Deep Page Guard',
+    ),
+    path: 'image',
+  },
+  {
+    children: [
+      {
+        element: dynamicElement(
+          () => import('@/routes/(main)/(create)/ppt'),
+          'Mobile > Workspace > PPT',
+        ),
+        index: true,
+      },
+    ],
+    element: dynamicLayout(
+      () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+      'Mobile > Workspace > PPT > Deep Page Guard',
+    ),
+    path: 'ppt',
+  },
+  {
+    element: dynamicElement(
+      () => import('@/routes/(mobile)/discover'),
+      'Mobile > Workspace > Discover',
+    ),
+    path: 'discover',
+  },
+  {
+    children: [
+      {
+        element: dynamicElement(() => import('@/routes/(mobile)/apps'), 'Mobile > Workspace > Apps'),
+        index: true,
+      },
+      {
+        children: [
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/apps'),
+              'Mobile > Workspace > Apps > Market',
+            ),
+            index: true,
+          },
+        ],
+        element: dynamicLayout(
+          () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+          'Mobile > Workspace > Apps > Deep Page Guard',
+        ),
+        path: 'market',
+      },
+      {
+        children: [
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/apps/[appId]'),
+              'Mobile > Workspace > Apps > Detail',
+            ),
+            index: true,
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/apps/[appId]/app'),
+              'Mobile > Workspace > Apps > Runtime',
+            ),
+            path: 'app',
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/apps/[appId]/app/[pageKey]'),
+              'Mobile > Workspace > Apps > Runtime Page',
+            ),
+            path: 'app/:pageKey',
+          },
+        ],
+        element: dynamicLayout(
+          () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+          'Mobile > Workspace > Apps > Deep Page Guard',
+        ),
+        path: ':appId',
+      },
+    ],
+    path: 'apps',
+  },
+];
+
 // Mobile router configuration (declarative mode)
 export const mobileRoutes: RouteObject[] = [
   {
@@ -327,20 +471,28 @@ export const mobileRoutes: RouteObject[] = [
       {
         children: [
           {
-            element: dynamicElement(() => import('@/routes/(main)/page'), 'Mobile > Pages'),
-            index: true,
-          },
-          {
-            element: dynamicElement(
-              () => import('@/routes/(main)/page/[id]'),
-              'Mobile > Page > Detail',
+            children: [
+              {
+                element: dynamicElement(() => import('@/routes/(main)/page'), 'Mobile > Pages'),
+                index: true,
+              },
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/page/[id]'),
+                  'Mobile > Page > Detail',
+                ),
+                path: ':id',
+              },
+            ],
+            element: dynamicLayout(
+              () => import('@/routes/(main)/page/_layout'),
+              'Mobile > Pages > Layout',
             ),
-            path: ':id',
           },
         ],
         element: dynamicLayout(
-          () => import('@/routes/(main)/page/_layout'),
-          'Mobile > Pages > Layout',
+          () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+          'Mobile > Pages > Deep Page Guard',
         ),
         errorElement: <ErrorBoundary />,
         path: 'page',
@@ -348,22 +500,39 @@ export const mobileRoutes: RouteObject[] = [
       {
         children: [
           {
-            element: dynamicElement(
-              () => import('@/routes/(main)/(create)/image'),
-              'Mobile > Image',
+            children: [
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/(create)/image'),
+                  'Mobile > Image',
+                ),
+                index: true,
+              },
+            ],
+            element: dynamicLayout(
+              () => import('@/routes/(main)/(create)/image/_layout'),
+              'Mobile > Image > Layout',
             ),
-            index: true,
           },
         ],
         element: dynamicLayout(
-          () => import('@/routes/(main)/(create)/image/_layout'),
-          'Mobile > Image > Layout',
+          () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+          'Mobile > Image > Deep Page Guard',
         ),
         errorElement: <ErrorBoundary />,
         path: 'image',
       },
       {
-        element: dynamicElement(() => import('@/routes/(main)/(create)/ppt'), 'Mobile > PPT'),
+        children: [
+          {
+            element: dynamicElement(() => import('@/routes/(main)/(create)/ppt'), 'Mobile > PPT'),
+            index: true,
+          },
+        ],
+        element: dynamicLayout(
+          () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+          'Mobile > PPT > Deep Page Guard',
+        ),
         errorElement: <ErrorBoundary />,
         path: 'ppt',
       },
@@ -378,29 +547,50 @@ export const mobileRoutes: RouteObject[] = [
             index: true,
           },
           {
-            element: dynamicElement(() => import('@/routes/(main)/apps'), 'Mobile > Apps > Market'),
+            children: [
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/apps'),
+                  'Mobile > Apps > Market',
+                ),
+                index: true,
+              },
+            ],
+            element: dynamicLayout(
+              () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+              'Mobile > Apps > Deep Page Guard',
+            ),
             path: 'market',
           },
           {
-            element: dynamicElement(
-              () => import('@/routes/(main)/apps/[appId]'),
-              'Mobile > Apps > Detail',
+            children: [
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/apps/[appId]'),
+                  'Mobile > Apps > Detail',
+                ),
+                index: true,
+              },
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/apps/[appId]/app'),
+                  'Mobile > Apps > Runtime',
+                ),
+                path: 'app',
+              },
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/apps/[appId]/app/[pageKey]'),
+                  'Mobile > Apps > Runtime Page',
+                ),
+                path: 'app/:pageKey',
+              },
+            ],
+            element: dynamicLayout(
+              () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+              'Mobile > Apps > Deep Page Guard',
             ),
             path: ':appId',
-          },
-          {
-            element: dynamicElement(
-              () => import('@/routes/(main)/apps/[appId]/app'),
-              'Mobile > Apps > Runtime',
-            ),
-            path: ':appId/app',
-          },
-          {
-            element: dynamicElement(
-              () => import('@/routes/(main)/apps/[appId]/app/[pageKey]'),
-              'Mobile > Apps > Runtime Page',
-            ),
-            path: ':appId/app/:pageKey',
           },
         ],
         errorElement: <ErrorBoundary />,
@@ -529,9 +719,7 @@ export const mobileRoutes: RouteObject[] = [
         children: [
           // Workspace home — handled by the persistent home layout (mirrors
           // how `/` index is empty); rendering here would duplicate Home.
-          {
-            index: true,
-          },
+          ...workspaceMobileRootChildren,
           ...sharedMainAreaChildren,
           // Workspace settings — `/:slug/settings/*`. Mobile reuses the mobile
           // settings chrome (header + content wrapper) for now; a dedicated

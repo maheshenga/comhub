@@ -8,9 +8,12 @@ const readSource = (relativePath: string) =>
 
 const procedureKeys = (source: string, procedureObjectName: string) => {
   const procedureObjectStart = source.indexOf(`export const ${procedureObjectName} = {`);
+  const procedureObjectEnd = source.indexOf('} as const;', procedureObjectStart);
 
   return Array.from(
-    source.slice(procedureObjectStart).matchAll(/^\s{2}([A-Za-z][A-Za-z0-9]+):/gm),
+    source
+      .slice(procedureObjectStart, procedureObjectEnd)
+      .matchAll(/^\s{2}([A-Z][A-Z0-9]+):/gim),
     ([, key]) => key,
   );
 };
@@ -19,11 +22,13 @@ describe('admin settings procedure ownership', () => {
   it('keeps the legacy router as procedure composition only', () => {
     const router = readSource('../lambda-routers/admin/settings.ts');
 
-    expect(router.split(/\r?\n/)).toHaveLength(20);
+    expect(router.split(/\r?\n/)).toHaveLength(24);
     expect(router).toContain('...publicSettingsProcedures');
     expect(router).toContain('...adminSettingsReadProcedures');
     expect(router).toContain('...adminSettingsWriteProcedures');
     expect(router).toContain('...runtimeSettingsWriteProcedures');
+    expect(router).toContain('...mobilePublicationReadProcedures');
+    expect(router).toContain('...mobilePublicationWriteProcedures');
     expect(router).not.toContain('ctx.serverDB');
     expect(router).not.toContain('runMaintenanceCommand');
     expect(router).not.toContain('new S3');
@@ -39,6 +44,8 @@ describe('admin settings procedure ownership', () => {
     const adminReads = readSource('readers/adminProcedures.ts');
     const adminWrites = readSource('writers/adminProcedures.ts');
     const runtimeWrites = readSource('writers/runtimeProcedures.ts');
+    const mobileReads = readSource('readers/mobilePublicationProcedures.ts');
+    const mobileWrites = readSource('writers/mobilePublicationProcedures.ts');
 
     expect(publicReads).toContain('getPublicBrand: publicDbProcedure');
     expect(adminReads).toContain('getSection: systemReadProcedure');
@@ -51,6 +58,8 @@ describe('admin settings procedure ownership', () => {
       procedureKeys(adminReads, 'adminSettingsReadProcedures'),
       procedureKeys(adminWrites, 'adminSettingsWriteProcedures'),
       procedureKeys(runtimeWrites, 'runtimeSettingsWriteProcedures'),
+      procedureKeys(mobileReads, 'mobilePublicationReadProcedures'),
+      procedureKeys(mobileWrites, 'mobilePublicationWriteProcedures'),
     ].flat();
 
     expect(new Set(keys).size).toBe(keys.length);
@@ -66,13 +75,19 @@ describe('admin settings procedure ownership', () => {
         'getPublicExpertPlaza',
         'getPublicGrowth',
         'getPublicHelpMenu',
+        'getPublicMobileConfig',
+        'getPublicMobileConfigSnapshot',
         'getPublicNotificationConfig',
         'getPublicOperations',
         'getPublicProfileOptions',
         'getPublicRecommendations',
         'getSection',
+        'getMobileConfigPublication',
+        'publishMobileConfig',
         'refreshRuntimeCaches',
         'runMaintenance',
+        'rollbackMobileConfig',
+        'saveMobileConfigDraft',
         'setAppSetting',
         'setAppSettingsBatch',
         'syncUserGlobalSettingsDefaultsToUsers',

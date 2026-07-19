@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -11,6 +12,7 @@ import {
   tasks,
   topics,
   users,
+  workspaces,
 } from '../../schemas';
 import type { LobeChatDatabase } from '../../type';
 import { RecentModel } from '../recent';
@@ -146,6 +148,54 @@ describe('RecentModel', () => {
           'topic-new-row-old-message',
         ]);
         expect(result[0].updatedAt.getTime()).toBeGreaterThan(result[1].updatedAt.getTime());
+      });
+
+      it('returns the latest topic for every requested agent and group without a global limit gap', async () => {
+        await serverDB.insert(agents).values([
+          { id: 'agent-dense', userId, virtual: false },
+          { id: 'agent-quiet', userId, virtual: false },
+        ]);
+        await serverDB.insert(chatGroups).values({ id: 'group-latest', userId });
+        await serverDB.insert(topics).values([
+          ...Array.from({ length: 55 }, (_, index) => ({
+            agentId: 'agent-dense',
+            id: `dense-topic-${index}`,
+            title: `Dense ${index}`,
+            updatedAt: minutesAgo(index),
+            userId,
+          })),
+          {
+            agentId: 'agent-quiet',
+            id: 'quiet-topic',
+            title: 'Quiet latest',
+            updatedAt: minutesAgo(100),
+            userId,
+          },
+          {
+            groupId: 'group-latest',
+            id: 'group-topic-old',
+            title: 'Group old',
+            updatedAt: minutesAgo(20),
+            userId,
+          },
+          {
+            groupId: 'group-latest',
+            id: 'group-topic-new',
+            title: 'Group latest',
+            updatedAt: minutesAgo(10),
+            userId,
+          },
+        ]);
+
+        const result = await recentModel.queryLatestTopicsByParents({
+          agentIds: ['agent-dense', 'agent-quiet'],
+          groupIds: ['group-latest'],
+        });
+
+        expect(result).toHaveLength(3);
+        expect(result.map((row) => row.id)).toEqual(
+          expect.arrayContaining(['dense-topic-0', 'quiet-topic', 'group-topic-new']),
+        );
       });
 
       it('includes topics on non-virtual non-group agents', async () => {
@@ -588,6 +638,231 @@ describe('RecentModel', () => {
         const [row] = await recentModel.queryRecent();
         expect(row.updatedAt).toBeInstanceOf(Date);
       });
+    });
+  });
+
+  describe('queryMobileWorkspace', () => {
+    it('includes the virtual inbox assistant and its latest topic', async () => {
+      await serverDB.insert(agents).values({
+        id: 'mobile-inbox',
+        slug: 'inbox',
+        title: 'Inbox',
+        userId,
+        virtual: true,
+      });
+      await serverDB.insert(topics).values({
+        agentId: 'mobile-inbox',
+        id: 'mobile-inbox-topic',
+        title: 'Inbox topic',
+        userId,
+      });
+
+      const result = await recentModel.queryMobileWorkspace({ limit: 20 });
+
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          id: 'mobile-inbox',
+          topic: expect.objectContaining({ id: 'mobile-inbox-topic' }),
+        }),
+      ]);
+    });
+
+    it('discovers assistant and group parents without client-supplied ids', async () => {
+      await serverDB.insert(agents).values({
+        id: 'mobile-agent',
+        pinned: true,
+        title: 'Mobile Agent',
+        userId,
+        virtual: false,
+      });
+      await serverDB.insert(chatGroups).values({
+        id: 'mobile-group',
+        title: 'Mobile Group',
+        userId,
+      });
+      await serverDB.insert(topics).values([
+        {
+          agentId: 'mobile-agent',
+          id: 'mobile-agent-topic',
+          title: 'Agent topic',
+          updatedAt: minutesAgo(2),
+          userId,
+        },
+        {
+          groupId: 'mobile-group',
+          id: 'mobile-group-topic',
+          title: 'Group topic',
+          updatedAt: minutesAgo(1),
+          userId,
+        },
+      ]);
+
+      const result = await recentModel.queryMobileWorkspace({ limit: 20 });
+
+      expect(result.nextCursor).toBeUndefined();
+      expect(result.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'mobile-agent',
+            kind: 'agent',
+            pinned: true,
+            topic: expect.objectContaining({ id: 'mobile-agent-topic' }),
+          }),
+          expect.objectContaining({
+            id: 'mobile-group',
+            kind: 'group',
+            topic: expect.objectContaining({ id: 'mobile-group-topic' }),
+          }),
+        ]),
+      );
+    });
+
+    it('uses an opaque cursor to paginate without duplicates', async () => {
+      await serverDB.insert(agents).values(
+        Array.from({ length: 3 }, (_, index) => ({
+          id: `mobile-page-agent-${index}`,
+          title: `Agent ${index}`,
+          updatedAt: minutesAgo(index),
+          userId,
+          virtual: false,
+        })),
+      );
+
+      const first = await recentModel.queryMobileWorkspace({ limit: 2 });
+      const second = await recentModel.queryMobileWorkspace({ cursor: first.nextCursor, limit: 2 });
+
+      expect(first.items).toHaveLength(2);
+      expect(first.nextCursor).toEqual(expect.any(String));
+      expect(second.items).toHaveLength(1);
+      expect(second.nextCursor).toBeUndefined();
+      expect(new Set([...first.items, ...second.items].map((item) => item.id))).toHaveProperty(
+        'size',
+        3,
+      );
+    });
+
+    it('preserves database microseconds at cursor boundaries', async () => {
+      await serverDB.insert(agents).values([
+        { id: 'micro-z', title: 'First', userId, virtual: false },
+        { id: 'micro-a', title: 'Second', userId, virtual: false },
+        { id: 'micro-b', title: 'Third', userId, virtual: false },
+      ]);
+      await serverDB.execute(sql`
+        UPDATE agents
+        SET updated_at = CASE id
+          WHEN 'micro-z' THEN '2026-07-20T08:00:00.123456Z'::timestamptz
+          WHEN 'micro-a' THEN '2026-07-20T08:00:00.123455Z'::timestamptz
+          ELSE '2026-07-20T08:00:00.123454Z'::timestamptz
+        END
+        WHERE id IN ('micro-z', 'micro-a', 'micro-b')
+      `);
+
+      const first = await recentModel.queryMobileWorkspace({ limit: 1 });
+      const second = await recentModel.queryMobileWorkspace({ cursor: first.nextCursor, limit: 1 });
+      const third = await recentModel.queryMobileWorkspace({ cursor: second.nextCursor, limit: 1 });
+
+      expect([...first.items, ...second.items, ...third.items].map((item) => item.id)).toEqual([
+        'micro-z',
+        'micro-a',
+        'micro-b',
+      ]);
+    });
+
+    it('searches topic titles as well as parent titles', async () => {
+      await serverDB.insert(agents).values({
+        id: 'mobile-search-agent',
+        title: 'General assistant',
+        userId,
+        virtual: false,
+      });
+      await serverDB.insert(topics).values({
+        agentId: 'mobile-search-agent',
+        id: 'mobile-search-topic',
+        title: 'Quarterly strategy',
+        userId,
+      });
+
+      const result = await recentModel.queryMobileWorkspace({ limit: 20, query: 'strategy' });
+
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          id: 'mobile-search-agent',
+          topic: expect.objectContaining({ id: 'mobile-search-topic' }),
+        }),
+      ]);
+    });
+
+    it('uses the same activity timestamp to rank and select the latest topic', async () => {
+      await serverDB.insert(agents).values({
+        id: 'mobile-activity-agent',
+        title: 'Activity assistant',
+        userId,
+        virtual: false,
+      });
+      await serverDB.insert(topics).values([
+        {
+          agentId: 'mobile-activity-agent',
+          id: 'topic-newer-edit',
+          title: 'Edited later',
+          updatedAt: minutesAgo(1),
+          userId,
+        },
+        {
+          agentId: 'mobile-activity-agent',
+          id: 'topic-newer-message',
+          title: 'Message later',
+          updatedAt: minutesAgo(20),
+          userId,
+        },
+      ]);
+      await serverDB.insert(messages).values([
+        {
+          id: 'message-old',
+          role: 'user',
+          topicId: 'topic-newer-edit',
+          updatedAt: minutesAgo(30),
+          userId,
+        },
+        {
+          id: 'message-new',
+          role: 'user',
+          topicId: 'topic-newer-message',
+          updatedAt: minutesAgo(2),
+          userId,
+        },
+      ]);
+
+      const result = await recentModel.queryMobileWorkspace({ limit: 20 });
+
+      expect(result.items[0].topic?.id).toBe('topic-newer-edit');
+    });
+
+    it('isolates personal and active-workspace parents', async () => {
+      const workspaceId = 'recent-mobile-workspace';
+      await serverDB.insert(workspaces).values({
+        id: workspaceId,
+        name: 'Recent Mobile Workspace',
+        primaryOwnerId: userId,
+        slug: workspaceId,
+      });
+      await serverDB.insert(agents).values([
+        { id: 'mobile-personal-agent', title: 'Personal', userId, virtual: false },
+        {
+          id: 'mobile-workspace-agent',
+          title: 'Workspace',
+          userId,
+          virtual: false,
+          workspaceId,
+        },
+      ]);
+
+      const personal = await recentModel.queryMobileWorkspace({ limit: 20 });
+      const workspace = await new RecentModel(serverDB, userId, workspaceId).queryMobileWorkspace({
+        limit: 20,
+      });
+
+      expect(personal.items.map((item) => item.id)).toEqual(['mobile-personal-agent']);
+      expect(workspace.items.map((item) => item.id)).toEqual(['mobile-workspace-agent']);
     });
   });
 });

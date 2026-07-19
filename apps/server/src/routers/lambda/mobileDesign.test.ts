@@ -10,11 +10,15 @@ describe('aggregateMobileRecentDesignItems', () => {
       {
         documents: vi.fn().mockResolvedValue([{ id: 'doc-1', title: '', updatedAt: date(8) }]),
         images: vi.fn().mockResolvedValue([{ id: 'image-1', title: null, updatedAt: date(10) }]),
-        ppts: vi
-          .fn()
-          .mockResolvedValue([
-            { id: 'ppt-1', status: 'generated', title: 'Launch deck', updatedAt: date(9) },
-          ]),
+        ppts: vi.fn().mockResolvedValue([
+          {
+            id: 'ppt-1',
+            status: 'generated',
+            title: 'Launch deck',
+            updatedAt: date(9),
+            upstreamTaskId: 'upstream/ppt-1',
+          },
+        ]),
       },
       10,
     );
@@ -30,7 +34,8 @@ describe('aggregateMobileRecentDesignItems', () => {
       {
         id: 'ppt-1',
         kind: 'ppt',
-        routePath: '/ppt',
+        resumeSupported: true,
+        routePath: '/ppt?recordId=ppt-1',
         status: 'generated',
         title: 'Launch deck',
         updatedAt: date(9),
@@ -43,6 +48,28 @@ describe('aggregateMobileRecentDesignItems', () => {
         updatedAt: date(8),
       },
     ]);
+  });
+
+  it('marks PPT rows without upstream identity as an explicit new-workspace action', async () => {
+    const [result] = await aggregateMobileRecentDesignItems(
+      {
+        documents: vi.fn().mockResolvedValue([]),
+        images: vi.fn().mockResolvedValue([]),
+        ppts: vi
+          .fn()
+          .mockResolvedValue([
+            { id: 'ppt-no-resume', status: 'editing', title: 'Draft', updatedAt: date(9) },
+          ]),
+      },
+      10,
+    );
+
+    expect(result).toMatchObject({
+      id: 'ppt-no-resume',
+      kind: 'ppt',
+      resumeSupported: false,
+      routePath: '/ppt',
+    });
   });
 
   it('keeps permitted domains when another domain rejects and applies the aggregate limit last', async () => {
