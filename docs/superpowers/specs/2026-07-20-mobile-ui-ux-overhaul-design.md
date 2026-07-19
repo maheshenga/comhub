@@ -186,12 +186,12 @@ Deep pages are classified by mobile readiness rather than treated uniformly.
 
 The PPT editor must no longer display desktop sidebars simultaneously on a phone.
 
-- Reuse the existing document/store/actions and do not fork PPT business logic.
-- Mobile layout is single-pane: canvas/preview is primary, slide navigation is a horizontal rail, and formatting/layout/template/theme controls open in a `FloatingSheet`.
-- Header exposes back, title/status, and one context-relevant action.
-- Bottom editing controls respect safe-area insets and 44px targets.
-- At narrow widths, panels are mutually exclusive. At landscape widths, one auxiliary panel may coexist only when the canvas remains usable.
-- Unsupported advanced desktop-only actions remain visible through progressive disclosure with honest messaging; they must not render as tiny unusable controls.
+- Reuse the existing Docmee document/session/event flow and do not fork PPT business logic.
+- Enable the SDK's documented `isMobile` mode at mobile breakpoints. Use its `editorDisplay` contract only when a narrower display set is required after browser verification.
+- Treat the upstream SDK as the owner of canvas, slide navigation, formatting, layout, template, and theme interactions. Do not attempt to restyle cross-origin editor internals from ComHub.
+- ComHub owns the outer header, back behavior, loading/error states, container sizing, and safe-area clearance.
+- At landscape widths, keep mobile mode unless browser evidence proves the SDK's desktop editor remains usable.
+- If an advanced upstream action is unavailable in SDK mobile mode, provide honest host-level messaging instead of exposing tiny desktop controls.
 
 ## Admin Experience
 
