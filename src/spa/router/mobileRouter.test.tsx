@@ -19,6 +19,22 @@ describe('mobileRouter workspace roots', () => {
     }
   });
 
+  it('registers the app market, detail, and runtime routes before the workspace slug route', async () => {
+    const source = await readMobileRouterSource();
+    const workspaceSlugIndex = source.indexOf("path: ':workspaceSlug'");
+
+    for (const route of ['market', ':appId', ':appId/app', ':appId/app/:pageKey']) {
+      const routeIndex = source.indexOf(`path: '${route}'`);
+      expect(routeIndex).toBeGreaterThan(-1);
+      expect(routeIndex).toBeLessThan(workspaceSlugIndex);
+    }
+
+    expect(source).toContain("import('@/routes/(main)/apps')");
+    expect(source).toContain("import('@/routes/(main)/apps/[appId]')");
+    expect(source).toContain("import('@/routes/(main)/apps/[appId]/app')");
+    expect(source).toContain("import('@/routes/(main)/apps/[appId]/app/[pageKey]')");
+  });
+
   it('keeps AI group conversations and group topics reachable on mobile', async () => {
     const source = await readMobileRouterSource();
 

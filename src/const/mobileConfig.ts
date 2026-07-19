@@ -65,6 +65,57 @@ export interface MobilePublicConfigV1 {
   version: 1;
 }
 
+export const MOBILE_BUILTIN_APP_REGISTRY = [
+  {
+    enabled: true,
+    icon: 'list-todo',
+    id: 'tasks',
+    label: '任务',
+    order: 1,
+    path: '/tasks',
+  },
+  {
+    enabled: true,
+    icon: 'users',
+    id: 'community',
+    label: '社区',
+    order: 2,
+    path: '/community',
+  },
+  {
+    enabled: true,
+    icon: 'sparkles',
+    id: 'membership',
+    label: '会员',
+    order: 3,
+    path: '/settings/plans',
+  },
+  {
+    enabled: true,
+    icon: 'coins',
+    id: 'credits',
+    label: '积分',
+    order: 4,
+    path: '/settings/credits',
+  },
+  {
+    enabled: true,
+    icon: 'chart-no-axes-column-increasing',
+    id: 'usage',
+    label: '用量',
+    order: 5,
+    path: '/settings/usage',
+  },
+  {
+    enabled: true,
+    icon: 'settings',
+    id: 'settings',
+    label: '设置',
+    order: 6,
+    path: '/settings',
+  },
+] as const satisfies MobileBuiltinAppV1[];
+
 export const MOBILE_ICON_NAMES = [
   'message-square-more',
   'palette',
@@ -90,7 +141,10 @@ export const MOBILE_ICON_NAMES = [
 ] as const;
 
 export const DEFAULT_MOBILE_CONFIG: MobilePublicConfigV1 = {
-  applications: { builtins: [], featuredModuleAppIds: [] },
+  applications: {
+    builtins: MOBILE_BUILTIN_APP_REGISTRY.map((item) => ({ ...item })),
+    featuredModuleAppIds: [],
+  },
   brand: { displayName: null, logoUrl: null },
   design: {
     tools: [
@@ -128,7 +182,7 @@ export const DEFAULT_MOBILE_CONFIG: MobilePublicConfigV1 = {
 const cloneDefaultMobileConfig = (): MobilePublicConfigV1 => ({
   ...DEFAULT_MOBILE_CONFIG,
   applications: {
-    builtins: [...DEFAULT_MOBILE_CONFIG.applications.builtins],
+    builtins: DEFAULT_MOBILE_CONFIG.applications.builtins.map((item) => ({ ...item })),
     featuredModuleAppIds: [...DEFAULT_MOBILE_CONFIG.applications.featuredModuleAppIds],
   },
   brand: { ...DEFAULT_MOBILE_CONFIG.brand },
@@ -455,47 +509,47 @@ const normalizeResolvedAssistants = (
   return assistants;
 };
 
-const normalizeBuiltins = (value: unknown): MobileBuiltinAppV1[] => {
-  if (!Array.isArray(value)) return [];
+export const normalizeMobileBuiltinApps = (value: unknown): MobileBuiltinAppV1[] => {
+  const rawById = new Map<string, Record<string, unknown>>();
 
-  const seenIds = new Set<string>();
-  const entries: OrderedInput<MobileBuiltinAppV1>[] = [];
+  if (Array.isArray(value)) {
+    for (const rawBuiltin of value) {
+      if (!isRecord(rawBuiltin)) continue;
 
-  value.forEach((rawBuiltin, sourceIndex) => {
-    if (!isRecord(rawBuiltin)) return;
+      const id = normalizeIdentifier(rawBuiltin.id);
+      if (!id || rawById.has(id) || !MOBILE_BUILTIN_APP_REGISTRY.some((item) => item.id === id)) {
+        continue;
+      }
 
-    const id = normalizeIdentifier(rawBuiltin.id);
-    const icon = normalizeIcon(rawBuiltin.icon);
-    const label = normalizeOptionalLabel(rawBuiltin.label);
-    const path = typeof rawBuiltin.path === 'string' ? rawBuiltin.path : undefined;
-    if (!id || !icon || !label || !path || !validateMobileInternalPath(path) || seenIds.has(id)) {
-      return;
+      rawById.set(id, rawBuiltin);
     }
+  }
 
-    seenIds.add(id);
-    entries.push({
-      item: {
-        enabled: normalizeBoolean(rawBuiltin.enabled, true),
-        icon,
-        id,
-        label,
-        order: 0,
-        path,
-      },
-      order: normalizeOrder(rawBuiltin.order, sourceIndex + 1),
-      sourceIndex,
-    });
-  });
+  return reindex(
+    MOBILE_BUILTIN_APP_REGISTRY.map((fallback, sourceIndex) => {
+      const raw = rawById.get(fallback.id);
+      const path = raw?.path;
 
-  return reindex(entries);
+      return {
+        item: {
+          enabled: normalizeBoolean(raw?.enabled, fallback.enabled),
+          icon: normalizeIcon(raw?.icon, fallback.icon) ?? fallback.icon,
+          id: fallback.id,
+          label: normalizeLabel(raw?.label, fallback.label),
+          order: 0,
+          path: typeof path === 'string' && validateMobileInternalPath(path) ? path : fallback.path,
+        },
+        order: normalizeOrder(raw?.order, fallback.order),
+        sourceIndex,
+      };
+    }),
+  );
 };
 
 const normalizeFeaturedModuleAppIds = (value: unknown) => {
   if (!Array.isArray(value)) return [];
 
-  return [
-    ...new Set(value.map(normalizeIdentifier).filter((id): id is string => Boolean(id))),
-  ].sort();
+  return [...new Set(value.map(normalizeIdentifier).filter((id): id is string => Boolean(id)))];
 };
 
 export const normalizeMobileConfig = (input: unknown): MobilePublicConfigV1 => {
@@ -510,7 +564,7 @@ export const normalizeMobileConfig = (input: unknown): MobilePublicConfigV1 => {
 
   return {
     applications: {
-      builtins: normalizeBuiltins(applications.builtins),
+      builtins: normalizeMobileBuiltinApps(applications.builtins),
       featuredModuleAppIds: normalizeFeaturedModuleAppIds(applications.featuredModuleAppIds),
     },
     brand: {

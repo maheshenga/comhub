@@ -1,1 +1,1 @@
-export { MobilePageLayout as default } from '@/features/MobileWorkspace';
+export { default } from '@/features/MobileWorkspace/Apps';

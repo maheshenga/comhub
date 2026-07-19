@@ -9,6 +9,14 @@ import {
 describe('mobile configuration', () => {
   it('returns the four-slot default configuration when the input is missing', () => {
     expect(normalizeMobileConfig(undefined)).toEqual(DEFAULT_MOBILE_CONFIG);
+    expect(DEFAULT_MOBILE_CONFIG.applications.builtins.map((item) => item.id)).toEqual([
+      'tasks',
+      'community',
+      'membership',
+      'credits',
+      'usage',
+      'settings',
+    ]);
   });
 
   it('accepts only safe internal paths', () => {
@@ -89,17 +97,7 @@ describe('mobile configuration', () => {
 
     expect(config).toMatchObject({
       applications: {
-        builtins: [
-          {
-            enabled: false,
-            icon: 'list-todo',
-            id: 'tasks',
-            label: '任务',
-            order: 1,
-            path: '/tasks',
-          },
-        ],
-        featuredModuleAppIds: ['alpha', 'beta'],
+        featuredModuleAppIds: ['beta', 'alpha'],
       },
       brand: { displayName: '品牌', logoUrl: 'https://cdn.example.com/logo.svg' },
       design: {
@@ -110,6 +108,14 @@ describe('mobile configuration', () => {
         ],
       },
       discover: { title: '探索' },
+    });
+    expect(config.applications.builtins).toHaveLength(6);
+    expect(config.applications.builtins.find((item) => item.id === 'tasks')).toMatchObject({
+      enabled: false,
+      icon: 'list-todo',
+      label: '任务',
+      order: 6,
+      path: '/tasks',
     });
     expect(config.discover.assistants).toHaveLength(4);
     expect(config.discover.assistants.map((assistant) => assistant.assistantId)).toEqual([

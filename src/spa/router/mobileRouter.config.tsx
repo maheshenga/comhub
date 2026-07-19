@@ -329,7 +329,38 @@ export const mobileRoutes: RouteObject[] = [
         path: 'discover',
       },
       {
-        element: dynamicElement(() => import('@/routes/(mobile)/apps'), 'Mobile > Apps'),
+        children: [
+          {
+            element: dynamicElement(() => import('@/routes/(mobile)/apps'), 'Mobile > Apps'),
+            index: true,
+          },
+          {
+            element: dynamicElement(() => import('@/routes/(main)/apps'), 'Mobile > Apps > Market'),
+            path: 'market',
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/apps/[appId]'),
+              'Mobile > Apps > Detail',
+            ),
+            path: ':appId',
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/apps/[appId]/app'),
+              'Mobile > Apps > Runtime',
+            ),
+            path: ':appId/app',
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/apps/[appId]/app/[pageKey]'),
+              'Mobile > Apps > Runtime Page',
+            ),
+            path: ':appId/app/:pageKey',
+          },
+        ],
+        errorElement: <ErrorBoundary />,
         path: 'apps',
       },
 

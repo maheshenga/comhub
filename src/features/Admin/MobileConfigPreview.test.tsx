@@ -13,18 +13,18 @@ describe('MobileConfigPreview', () => {
           {
             enabled: true,
             icon: 'store',
-            id: 'builtin-a',
+            id: 'tasks',
             label: 'App A',
             order: 1,
-            path: '/apps/a',
+            path: '/tasks',
           },
           {
             enabled: false,
             icon: 'store',
-            id: 'builtin-b',
+            id: 'community',
             label: 'App B',
             order: 2,
-            path: '/apps/b',
+            path: '/community',
           },
         ],
         featuredModuleAppIds: ['design-kit'],
@@ -97,7 +97,7 @@ describe('MobileConfigPreview', () => {
     expect(preview).toHaveTextContent('Enabled tools: 2');
     expect(preview).toHaveTextContent('Assistants: 1');
     expect(preview).toHaveTextContent('Module apps: 1');
-    expect(preview).toHaveTextContent('Built-in apps: 1');
+    expect(preview).toHaveTextContent('Built-in apps: 5');
   });
 
   it('uses a non-section root and renders normalized content from every mobile category', () => {
@@ -107,18 +107,18 @@ describe('MobileConfigPreview', () => {
           {
             enabled: true,
             icon: 'store',
-            id: 'builtin-a',
+            id: 'tasks',
             label: 'App A',
             order: 1,
-            path: '/apps/a',
+            path: '/tasks',
           },
           {
             enabled: false,
             icon: 'sparkles',
-            id: 'builtin-b',
+            id: 'community',
             label: 'App B',
             order: 2,
-            path: '/apps/b',
+            path: '/community',
           },
         ],
         featuredModuleAppIds: ['design-kit', 'copy-kit'],
