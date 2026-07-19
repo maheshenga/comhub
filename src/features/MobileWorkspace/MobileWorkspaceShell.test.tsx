@@ -88,6 +88,8 @@ describe('MobileWorkspaceShell', () => {
     );
     expect(notice).toHaveStyle({
       bottom: `calc(${MOBILE_TABBAR_HEIGHT}px + env(safe-area-inset-bottom) + 8px)`,
+      maxWidth: `${MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}px`,
+      width: 'calc(100% - 24px)',
     });
   });
 });

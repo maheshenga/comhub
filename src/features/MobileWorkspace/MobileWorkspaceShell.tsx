@@ -25,7 +25,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     inset-inline: 12px;
 
     box-sizing: border-box;
-    width: 100%;
+    width: calc(100% - 24px);
     max-width: ${MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}px;
     margin-inline: auto;
 
