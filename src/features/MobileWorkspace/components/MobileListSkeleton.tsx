@@ -40,11 +40,11 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 }));
 
 interface MobileListSkeletonProps {
-  label?: string;
+  label: string;
   rows?: number;
 }
 
-const MobileListSkeleton = ({ label = 'Loading', rows = 4 }: MobileListSkeletonProps) => {
+const MobileListSkeleton = ({ label, rows = 4 }: MobileListSkeletonProps) => {
   const rowCount = Math.max(0, Math.trunc(rows));
 
   return (

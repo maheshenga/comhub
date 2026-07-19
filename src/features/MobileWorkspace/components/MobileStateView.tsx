@@ -1,7 +1,10 @@
 'use client';
 
-import { cx, createStaticStyles } from 'antd-style';
-import { type ReactNode } from 'react';
+import { Button } from '@lobehub/ui/base-ui';
+import { createStaticStyles } from 'antd-style';
+import { type CSSProperties, type ReactNode } from 'react';
+
+const MOBILE_STATE_ACTION_STYLE = { minHeight: 44, minWidth: 44 } satisfies CSSProperties;
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   actions: css`
@@ -17,16 +20,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     line-height: 22px;
     color: ${cssVar.colorTextSecondary};
     text-align: center;
-  `,
-  primaryAction: css`
-    border-color: ${cssVar.colorPrimary};
-    color: ${cssVar.colorTextLightSolid};
-    background: ${cssVar.colorPrimary};
-  `,
-  secondaryAction: css`
-    border-color: ${cssVar.colorBorder};
-    color: ${cssVar.colorText};
-    background: ${cssVar.colorBgContainer};
   `,
   state: css`
     display: flex;
@@ -45,21 +38,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     line-height: 24px;
     color: ${cssVar.colorText};
   `,
-  action: css`
-    min-width: 44px;
-    min-height: 44px;
-    padding-block: 0;
-    padding-inline: 16px;
-    border: 1px solid;
-    border-radius: 6px;
-    font: inherit;
-    font-weight: 500;
-    cursor: pointer;
-  `,
 }));
 
 export interface MobileStateAction {
+  disabled?: boolean;
   label: ReactNode;
+  loading?: boolean;
   onClick: () => void;
   primary?: boolean;
 }
@@ -99,18 +83,19 @@ const MobileStateView = ({
             hasPrimaryAction ||= primary;
 
             return (
-              <button
-                className={cx(
-                  styles.action,
-                  primary ? styles.primaryAction : styles.secondaryAction,
-                )}
+              <Button
+                disabled={stateAction.disabled}
+                htmlType="button"
+                loading={stateAction.loading}
+                size="large"
+                style={MOBILE_STATE_ACTION_STYLE}
+                type={primary ? 'primary' : 'default'}
                 data-testid={primary ? 'mobile-state-primary-action' : undefined}
                 key={index}
-                type="button"
                 onClick={stateAction.onClick}
               >
                 {stateAction.label}
-              </button>
+              </Button>
             );
           })}
         </div>

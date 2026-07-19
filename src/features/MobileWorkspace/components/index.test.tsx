@@ -22,6 +22,21 @@ vi.mock('@lobehub/ui', () => ({
   ),
 }));
 
+vi.mock('@lobehub/ui/base-ui', () => ({
+  Button: ({ children, htmlType, icon, loading, size, type, ...rest }: any) => (
+    <button
+      {...rest}
+      data-button-type={type}
+      data-loading={loading ? 'true' : 'false'}
+      data-size={size}
+      type={htmlType}
+    >
+      {icon}
+      {children}
+    </button>
+  ),
+}));
+
 vi.mock('@lobehub/ui/mobile', () => {
   const ChatHeader = (({ center, left, right }: any) => (
     <header>
@@ -37,15 +52,20 @@ vi.mock('@lobehub/ui/mobile', () => {
 });
 
 describe('mobile workspace shared components', () => {
-  it('renders semantic section headings and trailing content', () => {
+  it('renders semantic section headings and owns a 44px trailing action', () => {
+    const onManage = vi.fn();
+
     render(
-      <MobileSection action={<button type="button">Manage</button>} title="Shortcuts">
+      <MobileSection action={{ label: 'Manage', onClick: onManage }} title="Shortcuts">
         <div>Content</div>
       </MobileSection>,
     );
 
     expect(screen.getByRole('heading', { level: 2, name: 'Shortcuts' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument();
+    const action = screen.getByRole('button', { name: 'Manage' });
+    expect(action).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
+    fireEvent.click(action);
+    expect(onManage).toHaveBeenCalledOnce();
   });
 
   it('uses 44px header actions and calls their handlers', () => {
@@ -80,7 +100,18 @@ describe('mobile workspace shared components', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onClick).toHaveBeenCalledOnce();
     expect(screen.getByRole('heading', { level: 2, name: 'Unable to load' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toHaveAttribute(
+      'data-button-type',
+      'primary',
+    );
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveAttribute(
+      'data-button-type',
+      'default',
+    );
     expect(screen.getAllByTestId('mobile-state-primary-action')).toHaveLength(1);
+    for (const stateAction of screen.getAllByRole('button')) {
+      expect(stateAction).toHaveStyle({ minHeight: '44px', minWidth: '44px' });
+    }
   });
 
   it('exposes responsive frame and grid contract attributes', () => {
@@ -103,8 +134,9 @@ describe('mobile workspace shared components', () => {
   });
 
   it('renders the requested number of final-row-shaped skeletons', () => {
-    render(<MobileListSkeleton rows={3} />);
+    render(<MobileListSkeleton label="Loading conversations" rows={3} />);
 
+    expect(screen.getByRole('status', { name: 'Loading conversations' })).toBeInTheDocument();
     expect(screen.getAllByTestId('mobile-list-skeleton-row')).toHaveLength(3);
   });
 });

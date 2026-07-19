@@ -1,7 +1,10 @@
 'use client';
 
+import { Button, type ButtonProps } from '@lobehub/ui/base-ui';
 import { cx, createStaticStyles } from 'antd-style';
-import { type HTMLAttributes, type ReactNode } from 'react';
+import { type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
+
+const MOBILE_SECTION_ACTION_STYLE = { minHeight: 44, minWidth: 44 } satisfies CSSProperties;
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   header: css`
@@ -16,6 +19,11 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     flex-direction: column;
     gap: 8px;
   `,
+  trailing: css`
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  `,
   title: css`
     margin: 0;
     font-size: 16px;
@@ -27,11 +35,20 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
-interface MobileSectionProps extends HTMLAttributes<HTMLElement> {
-  action?: ReactNode;
+export interface MobileSectionAction {
+  disabled?: boolean;
+  icon?: ButtonProps['icon'];
+  label: ReactNode;
+  loading?: boolean;
+  onClick: () => void;
+}
+
+interface MobileSectionProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
+  action?: MobileSectionAction;
   children: ReactNode;
   headingLevel?: HeadingLevel;
   title: ReactNode;
+  trailing?: ReactNode;
 }
 
 const MobileSection = ({
@@ -40,6 +57,7 @@ const MobileSection = ({
   className,
   headingLevel = 2,
   title,
+  trailing,
   ...rest
 }: MobileSectionProps) => {
   const Heading = `h${headingLevel}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
@@ -48,7 +66,25 @@ const MobileSection = ({
     <section {...rest} className={cx(styles.section, className)}>
       <div className={styles.header}>
         <Heading className={styles.title}>{title}</Heading>
-        {action}
+        {action || trailing ? (
+          <div className={styles.trailing}>
+            {trailing}
+            {action ? (
+              <Button
+                disabled={action.disabled}
+                htmlType="button"
+                icon={action.icon}
+                loading={action.loading}
+                size="large"
+                style={MOBILE_SECTION_ACTION_STYLE}
+                type="text"
+                onClick={action.onClick}
+              >
+                {action.label}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       {children}
     </section>
