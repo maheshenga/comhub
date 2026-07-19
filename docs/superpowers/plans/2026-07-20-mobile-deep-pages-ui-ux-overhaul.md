@@ -140,7 +140,7 @@ Keep cards at 8px radius or less, avoid nested cards, render description/categor
 - [ ] **Step 5: Commit market changes**
 
 ```bash
-git add src/features/ModuleAppMarket/index.tsx src/features/ModuleAppMarket/AppCard.tsx src/features/ModuleAppMarket/index.test.tsx src/features/ModuleAppMarket/AppCard.test.tsx src/locales/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
+git add src/features/ModuleAppMarket/index.tsx src/features/ModuleAppMarket/AppCard.tsx src/features/ModuleAppMarket/index.test.tsx src/features/ModuleAppMarket/AppCard.test.tsx packages/locales/src/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
 git commit -m "feat: make the module app market mobile-ready"
 ```
 
@@ -223,7 +223,7 @@ Confirm Docmee events and teardown are unchanged, payment form security checks a
 - [ ] **Step 6: Commit verification-only corrections**
 
 ```bash
-git add "src/routes/(main)/(create)/ppt/features" src/features/MobileWorkspace/MobileDeepPageGuard.tsx src/features/MobileWorkspace/MobileDeepPageGuard.test.tsx src/features/ModuleAppMarket src/locales/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
+git add "src/routes/(main)/(create)/ppt/features" src/features/MobileWorkspace/MobileDeepPageGuard.tsx src/features/MobileWorkspace/MobileDeepPageGuard.test.tsx src/features/ModuleAppMarket packages/locales/src/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
 git commit -m "fix: close mobile deep-route verification gaps"
 ```
 

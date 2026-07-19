@@ -42,7 +42,7 @@
 - Discover: `Discover/index.tsx` and `Discover/index.test.tsx`.
 - Apps: `Apps/index.tsx` and `Apps/index.test.tsx`.
 - Admin: `src/features/Admin/MobileConfigPreview.tsx` and its test; preview mode state stays inside this component.
-- Copy: `src/locales/default/common.ts`, `locales/en-US/common.json`, `locales/zh-CN/common.json`, and existing mobile i18n tests.
+- Copy: `packages/locales/src/default/common.ts`, `locales/en-US/common.json`, `locales/zh-CN/common.json`, and existing mobile i18n tests.
 
 ---
 
@@ -192,7 +192,7 @@ Use two main text lines. Keep group/date metadata in one compact line and preven
 - [ ] **Step 6: Commit Recent changes**
 
 ```bash
-git add src/features/MobileWorkspace/Recent src/locales/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
+git add src/features/MobileWorkspace/Recent packages/locales/src/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
 git commit -m "feat: refine the mobile recent experience"
 ```
 
@@ -226,7 +226,7 @@ Keep the tool enabled after failure and present a retry action for the same tool
 - [ ] **Step 5: Commit Design changes**
 
 ```bash
-git add src/features/MobileWorkspace/Design src/locales/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
+git add src/features/MobileWorkspace/Design packages/locales/src/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
 git commit -m "feat: make mobile design browsing responsive"
 ```
 
@@ -256,7 +256,7 @@ Loading mirrors assistant rows; error retries configuration fetch; empty explain
 - [ ] **Step 4: Commit Discover changes**
 
 ```bash
-git add src/features/MobileWorkspace/Discover src/locales/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
+git add src/features/MobileWorkspace/Discover packages/locales/src/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
 git commit -m "feat: streamline mobile assistant discovery"
 ```
 
@@ -363,7 +363,7 @@ Read the diff for duplicated state logic, root `@lobehub/ui` imports that have b
 - [ ] **Step 5: Commit verification-only corrections**
 
 ```bash
-git add src/features/MobileWorkspace src/features/Admin/MobileConfigPreview.tsx src/features/Admin/MobileConfigPreview.test.tsx src/const/layoutTokens.ts src/locales/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
+git add src/features/MobileWorkspace src/features/Admin/MobileConfigPreview.tsx src/features/Admin/MobileConfigPreview.test.tsx src/const/layoutTokens.ts packages/locales/src/default/common.ts locales/en-US/common.json locales/zh-CN/common.json
 git commit -m "fix: close mobile workspace verification gaps"
 ```
 
