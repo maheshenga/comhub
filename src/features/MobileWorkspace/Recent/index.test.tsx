@@ -6,12 +6,16 @@ import type { MobileWorkspaceRecentItem } from '@/server/routers/lambda/recent';
 import MobileRecentPage from './index';
 
 const navigate = vi.fn();
+const toast = vi.hoisted(() => ({ error: vi.fn() }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: { name?: string }) => {
       const labels: Record<string, string> = {
         'mobile.recent.empty': 'No recent conversations',
         'mobile.recent.emptySearch': 'No matching conversations',
+        'mobile.recent.createAgent': 'Create assistant',
+        'mobile.recent.createAgentError': 'Unable to create assistant',
+        'mobile.recent.clearSearch': 'Clear search',
         'mobile.recent.error': 'Failed to load recent conversations',
         'mobile.recent.group': 'Group',
         'mobile.recent.latest': 'Latest',
@@ -21,6 +25,7 @@ vi.mock('react-i18next', () => ({
         'mobile.recent.pinError': 'Unable to update pin',
         'mobile.recent.pinned': 'Pinned',
         'mobile.recent.refresh': 'Refresh recent conversations',
+        'mobile.recent.retryPin': 'Retry pin',
         'mobile.recent.search': 'Search conversations',
         'mobile.recent.unpin': 'Unpin',
         'retry': 'Retry',
@@ -38,6 +43,9 @@ const storeState = vi.hoisted(() => ({
     pinnedAgents: [] as any[],
     refreshAgentList: vi.fn(),
     ungroupedAgents: [] as any[],
+  },
+  agent: {
+    createAgent: vi.fn(),
   },
 }));
 const swrState = vi.hoisted(() => ({
@@ -61,6 +69,7 @@ vi.mock('swr/infinite', () => ({
   },
 }));
 vi.mock('@/store/home', () => ({ useHomeStore: (selector: any) => selector(storeState.home) }));
+vi.mock('@/store/agent', () => ({ useAgentStore: (selector: any) => selector(storeState.agent) }));
 vi.mock('@/store/user', () => ({ useUserStore: (selector: any) => selector(userState) }));
 vi.mock('@/store/user/selectors', () => ({
   authSelectors: { isLogin: (state: typeof userState) => state.isLogin },
@@ -91,6 +100,22 @@ vi.mock('@lobehub/ui', () => ({
       {children}
     </button>
   ),
+  Empty: ({ description }: any) => <div>{description}</div>,
+  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  Icon: () => null,
+  SearchBar: ({ 'aria-label': ariaLabel, onChange, value }: any) => (
+    <input aria-label={ariaLabel} value={value} onChange={onChange} />
+  ),
+  Skeleton: {
+    Paragraph: () => <div data-testid="recent-skeleton" />,
+  },
+}));
+vi.mock('@lobehub/ui/base-ui', () => ({
+  Button: ({ children, onClick, ...props }: any) => (
+    <button type="button" {...props} onClick={onClick}>
+      {children}
+    </button>
+  ),
   DropdownMenu: ({ children, items }: any) => (
     <div>
       {children}
@@ -106,15 +131,7 @@ vi.mock('@lobehub/ui', () => ({
       ))}
     </div>
   ),
-  Empty: ({ description }: any) => <div>{description}</div>,
-  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Icon: () => null,
-  SearchBar: ({ 'aria-label': ariaLabel, onChange, value }: any) => (
-    <input aria-label={ariaLabel} value={value} onChange={onChange} />
-  ),
-  Skeleton: {
-    Paragraph: () => <div data-testid="recent-skeleton" />,
-  },
+  toast,
 }));
 
 const conversation = (
@@ -167,6 +184,8 @@ describe('MobileRecentPage', () => {
     swrOptions.length = 0;
     storeState.home.pinAgent.mockResolvedValue(undefined);
     storeState.home.pinAgentGroup.mockResolvedValue(undefined);
+    storeState.agent.createAgent.mockResolvedValue({ agentId: 'agent-new' });
+    storeState.home.refreshAgentList.mockResolvedValue(undefined);
   });
 
   it('renders the desktop assistant list with latest topics and navigates to a topic', () => {
@@ -210,7 +229,7 @@ describe('MobileRecentPage', () => {
     expect(screen.getByText('Group Topic')).toBeInTheDocument();
   });
 
-  it('renders loading, empty, and error retry states', () => {
+  it('renders loading, first-use empty, and error retry states', () => {
     swrState.isLoading = true;
     const { rerender } = render(<MobileRecentPage />);
     expect(screen.getByTestId('mobile-recent-loading')).toHaveAttribute('aria-busy', 'true');
@@ -222,12 +241,37 @@ describe('MobileRecentPage', () => {
     storeState.home.ungroupedAgents = [];
     rerender(<MobileRecentPage key="empty" />);
     expect(screen.getByText('No recent conversations')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create assistant' })).toBeInTheDocument();
 
     swrState.error = new Error('offline');
     rerender(<MobileRecentPage key="error" />);
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to load recent conversations');
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(swrState.mutate).toHaveBeenCalled();
+  });
+
+  it('keeps a single Latest section heading and clears a filtered empty result', () => {
+    render(<MobileRecentPage />);
+
+    expect(screen.getAllByRole('heading', { name: 'Latest' })).toHaveLength(1);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search conversations' }), {
+      target: { value: 'missing' },
+    });
+
+    expect(screen.getByText('No matching conversations')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByText('Free Agent')).toBeInTheDocument();
+  });
+
+  it('creates an assistant from the first-use empty action using the header flow', async () => {
+    swrState.data = [{ items: [], nextCursor: undefined }];
+    render(<MobileRecentPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create assistant' }));
+
+    await waitFor(() => expect(storeState.agent.createAgent).toHaveBeenCalledWith({}));
+    expect(storeState.home.refreshAgentList).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith('/agent/agent-new');
   });
 
   it('renders an empty state instead of an endless skeleton when logged out', () => {
@@ -265,7 +309,7 @@ describe('MobileRecentPage', () => {
     await waitFor(() => expect(storeState.home.pinAgentGroup).toHaveBeenCalled());
   });
 
-  it('reports pin failures and re-enables the row action', async () => {
+  it('reports pin failures with a retry action and re-enables the row action', async () => {
     storeState.home.pinAgent.mockRejectedValueOnce(new Error('offline'));
     render(<MobileRecentPage />);
 
@@ -274,9 +318,15 @@ describe('MobileRecentPage', () => {
       .find((row) => row.textContent?.includes('Free Agent'))!;
     fireEvent.click(within(agentRow).getByRole('button', { name: 'Pin' }));
 
-    expect(await screen.findByText('Unable to update pin')).toBeInTheDocument();
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    const notification = toast.error.mock.calls[0][0];
+    expect(notification.title).toBe('Unable to update pin');
+    expect(notification.actions[0].label).toBe('Retry pin');
     await waitFor(() =>
       expect(within(agentRow).getByRole('button', { name: 'Pin' })).toBeEnabled(),
     );
+
+    notification.actions[0].onClick();
+    await waitFor(() => expect(storeState.home.pinAgent).toHaveBeenCalledTimes(2));
   });
 });

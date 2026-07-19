@@ -5,10 +5,10 @@ import SessionHeader from './SessionHeader';
 
 const mocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
-  error: vi.fn(),
   navigate: vi.fn(),
   refreshAgentList: vi.fn(),
 }));
+const toast = vi.hoisted(() => ({ error: vi.fn() }));
 
 const mobileConfig = vi.hoisted(() => ({
   config: {
@@ -27,7 +27,6 @@ vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
 }));
 vi.mock('@/store/agent', () => ({ useAgentStore: (selector: any) => selector(mocks) }));
 vi.mock('@/store/home', () => ({ useHomeStore: (selector: any) => selector(mocks) }));
-vi.mock('@/components/AntdStaticMethods', () => ({ message: { error: mocks.error } }));
 vi.mock('@/components/Branding', () => ({ ProductLogo: () => <span>Global Brand</span> }));
 vi.mock('@/features/User/UserAvatar', () => ({
   default: ({ onClick }: { onClick: () => void }) => (
@@ -58,6 +57,7 @@ vi.mock('@lobehub/ui/mobile', () => ({
     </header>
   ),
 }));
+vi.mock('@lobehub/ui/base-ui', () => ({ toast }));
 
 describe('SessionHeader', () => {
   beforeEach(() => {
@@ -92,7 +92,7 @@ describe('SessionHeader', () => {
     expect(screen.getByText('Global Brand')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create assistant' }));
 
-    await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('Unable to create assistant'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Unable to create assistant'));
     expect(mocks.navigate).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Create assistant' })).toBeEnabled();
   });
@@ -104,6 +104,6 @@ describe('SessionHeader', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create assistant' }));
 
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/agent/agent-new'));
-    expect(mocks.error).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

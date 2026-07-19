@@ -34,6 +34,10 @@ vi.mock('@lobehub/ui', () => ({
   Avatar: ({ avatar, background }: any) => (
     <div data-avatar={avatar} data-background={background} data-testid="agent-avatar" />
   ),
+  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  Icon: () => null,
+}));
+vi.mock('@lobehub/ui/base-ui', () => ({
   DropdownMenu: ({ children, items }: any) => (
     <div>
       {children}
@@ -44,8 +48,6 @@ vi.mock('@lobehub/ui', () => ({
       ))}
     </div>
   ),
-  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Icon: () => null,
 }));
 
 const item = (patch: Partial<MobileRecentConversation> = {}): MobileRecentConversation => ({
@@ -63,11 +65,20 @@ const item = (patch: Partial<MobileRecentConversation> = {}): MobileRecentConver
 });
 
 describe('RecentConversationRow', () => {
-  it('renders the desktop agent avatar, unread count, and pending pin state', () => {
-    render(<RecentConversationRow pending item={item()} onOpen={vi.fn()} onTogglePin={vi.fn()} />);
+  it('renders the desktop agent avatar, unread count, date, and pending pin state', () => {
+    render(
+      <RecentConversationRow
+        pending
+        item={item({ topicTitle: 'Latest question' })}
+        onOpen={vi.fn()}
+        onTogglePin={vi.fn()}
+      />,
+    );
 
     expect(screen.getByTestId('agent-avatar')).toHaveAttribute('data-avatar', 'assistant.png');
     expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('Latest question')).toBeInTheDocument();
+    expect(screen.getByText(/Jul 19/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'More actions for Assistant' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Pin' })).toBeDisabled();
   });

@@ -2,7 +2,8 @@
 
 import { DEFAULT_AVATAR } from '@lobechat/const';
 import { type MenuProps } from '@lobehub/ui';
-import { ActionIcon, Avatar, DropdownMenu, Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon, Avatar, Flexbox, Icon } from '@lobehub/ui';
+import { DropdownMenu } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { MoreHorizontal, Pin, PinOff } from 'lucide-react';
 import { memo, useMemo } from 'react';
@@ -33,8 +34,13 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     background: ${cssVar.colorFillSecondary};
   `,
   content: css`
+    flex: 1;
     min-width: 0;
     text-align: start;
+  `,
+  menu: css`
+    flex: 0 0 44px;
+    width: 44px;
   `,
   main: css`
     cursor: pointer;
@@ -177,17 +183,19 @@ const RecentConversationRow = memo<RecentConversationRowProps>(
             </Flexbox>
           </Flexbox>
         </button>
-        <DropdownMenu items={menuItems}>
-          <ActionIcon
-            aria-label={t('mobile.recent.moreActions', { name: item.title })}
-            disabled={pending}
-            icon={MoreHorizontal}
-            loading={pending}
-            size={{ blockSize: 44, size: 18 }}
-            title={t('mobile.recent.moreActions', { name: item.title })}
-            onClick={(event) => event.stopPropagation()}
-          />
-        </DropdownMenu>
+        <span className={styles.menu}>
+          <DropdownMenu items={menuItems}>
+            <ActionIcon
+              aria-label={t('mobile.recent.moreActions', { name: item.title })}
+              disabled={pending}
+              icon={MoreHorizontal}
+              loading={pending}
+              size={{ blockSize: 44, size: 18 }}
+              title={t('mobile.recent.moreActions', { name: item.title })}
+              onClick={(event) => event.stopPropagation()}
+            />
+          </DropdownMenu>
+        </span>
       </div>
     );
   },

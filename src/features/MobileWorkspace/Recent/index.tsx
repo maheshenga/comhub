@@ -1,7 +1,9 @@
 'use client';
 
-import { Button, Empty, Flexbox, SearchBar, Skeleton } from '@lobehub/ui';
+import { Flexbox, SearchBar } from '@lobehub/ui';
+import { Button, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
+import { RefreshCw } from 'lucide-react';
 import { type ChangeEvent, memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWRInfinite from 'swr/infinite';
@@ -13,41 +15,28 @@ import { useHomeStore } from '@/store/home';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/selectors';
 
-import MobileRefreshButton from '../MobileRefreshButton';
+import { MobileListSkeleton, MobileSection, MobileStateView } from '../components';
 import { useMobileSlotState } from '../mobileSlotState';
+import { useCreateAssistant } from '../useCreateAssistant';
 import RecentConversationRow from './RecentConversationRow';
 import { filterMobileRecentItems, type MobileRecentConversation } from './recentItems';
 
 const PAGE_SIZE = 20;
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
-  heading: css`
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: ${cssVar.colorTextSecondary};
-  `,
-  pinError: css`
-    margin-inline: 12px;
-    padding-block: 8px;
-    font-size: 13px;
-    color: ${cssVar.colorError};
-  `,
   page: css`
     width: 100%;
     padding-block: 8px 16px;
   `,
-  sectionHeader: css`
-    padding-block: 8px;
-    padding-inline: 12px 8px;
+  sections: css`
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-inline: 12px;
   `,
   search: css`
     padding-block: 4px 8px;
     padding-inline: 12px;
-  `,
-  state: css`
-    min-height: 240px;
-    padding: 24px;
   `,
 }));
 
@@ -63,9 +52,10 @@ const MobileRecentPage = memo(() => {
     rememberFocus,
     setQuery: setSearchQuery,
   } = useMobileSlotState({ scopeId: activeWorkspaceId ?? 'personal', slotId: 'slot-1' });
-  const [pinError, setPinError] = useState(false);
   const pinningKeysRef = useRef(new Set<string>());
   const [pinningKeys, setPinningKeys] = useState<Set<string>>(() => new Set());
+  const togglePinRef = useRef<(item: MobileRecentConversation) => void>(() => undefined);
+  const { createAssistant, creating } = useCreateAssistant();
   const getKey = useCallback(
     (pageIndex: number, previousPageData: Awaited<ReturnType<typeof recentService.getMobileWorkspace>> | null) => {
       if (isLogin === false || (previousPageData && !previousPageData.nextCursor)) return null;
@@ -112,7 +102,6 @@ const MobileRecentPage = memo(() => {
 
       pinningKeysRef.current.add(key);
       setPinningKeys(new Set(pinningKeysRef.current));
-      setPinError(false);
       try {
         if (item.kind === 'group') {
           await pinAgentGroup(item.sessionId, !item.pinned);
@@ -121,40 +110,28 @@ const MobileRecentPage = memo(() => {
         }
         await mutate();
       } catch {
-        setPinError(true);
+        toast.error({
+          actions: [{ label: t('mobile.recent.retryPin'), onClick: () => void togglePinRef.current(item) }],
+          title: t('mobile.recent.pinError'),
+        });
       } finally {
         pinningKeysRef.current.delete(key);
         setPinningKeys(new Set(pinningKeysRef.current));
       }
     },
-    [mutate, pinAgent, pinAgentGroup],
+    [mutate, pinAgent, pinAgentGroup, t],
   );
+  togglePinRef.current = (item) => void togglePin(item);
   const refresh = useCallback(async () => {
     await mutate();
   }, [mutate]);
 
-  if (isLoading && isLogin !== false) {
-    return (
-      <Flexbox
-        aria-busy="true"
-        className={styles.state}
-        data-testid="mobile-recent-loading"
-        gap={16}
-        role="status"
-      >
-        <Skeleton.Paragraph active rows={6} />
-      </Flexbox>
-    );
-  }
-
-  if (error) {
-    return (
-      <Flexbox align="center" className={styles.state} gap={12} justify="center">
-        <span role="alert">{t('mobile.recent.error')}</span>
-        <Button onClick={() => void refresh()}>{t('retry')}</Button>
-      </Flexbox>
-    );
-  }
+  const refreshAction = {
+    icon: RefreshCw,
+    label: t('mobile.recent.refresh'),
+    loading: isValidating,
+    onClick: () => void refresh(),
+  };
 
   return (
     <main className={styles.page}>
@@ -168,81 +145,97 @@ const MobileRecentPage = memo(() => {
           onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchQuery(event.target.value)}
         />
       </div>
-      <Flexbox horizontal align="center" className={styles.sectionHeader} justify="space-between">
-        <h2 className={styles.heading}>{t('mobile.recent.latest')}</h2>
-        <MobileRefreshButton
-          label={t('mobile.recent.refresh')}
-          loading={isValidating}
-          onRefresh={() => void refresh()}
-        />
-      </Flexbox>
-      {pinError ? (
-        <div className={styles.pinError} role="alert">
-          {t('mobile.recent.pinError')}
-        </div>
-      ) : null}
-
-      {!hasItems ? (
-        <Flexbox className={styles.state} justify="center">
-          <Empty
-            description={searchQuery ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
-          />
-        </Flexbox>
-      ) : (
-        <>
-          {sections.pinned.length > 0 ? (
-            <section aria-label={t('mobile.recent.pinned')}>
-              <div className={styles.sectionHeader}>
-                <h3 className={styles.heading}>{t('mobile.recent.pinned')}</h3>
-              </div>
-              {sections.pinned.map((item) => (
-                <RecentConversationRow
-                  item={item}
-                  key={item.id}
-                  pending={pinningKeys.has(`${item.kind}:${item.id}`)}
-                  onOpen={() => {
-                    rememberFocus(`${item.kind}:${item.id}`);
-                    navigate(item.routePath);
-                  }}
-                  onTogglePin={() => void togglePin(item)}
-                />
-              ))}
-            </section>
-          ) : null}
-
-          {sections.recent.length > 0 ? (
-            <section aria-label={t('mobile.recent.latest')}>
-              <div className={styles.sectionHeader}>
-                <h3 className={styles.heading}>{t('mobile.recent.latest')}</h3>
-              </div>
-              {sections.recent.map((item) => (
-                <RecentConversationRow
-                  item={item}
-                  key={item.id}
-                  pending={pinningKeys.has(`${item.kind}:${item.id}`)}
-                  onOpen={() => {
-                    rememberFocus(`${item.kind}:${item.id}`);
-                    navigate(item.routePath);
-                  }}
-                  onTogglePin={() => void togglePin(item)}
-                />
-              ))}
-            </section>
-          ) : null}
-          {hasMore ? (
-            <Flexbox align="center" padding={16}>
-              <Button
-                aria-label={t('mobile.recent.loadMore')}
-                disabled={isValidating}
-                loading={isValidating}
-                onClick={() => void setSize(size + 1)}
-              >
-                {t('mobile.recent.loadMore')}
-              </Button>
+      <div className={styles.sections}>
+        {isLoading && isLogin !== false ? (
+          <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
+            <Flexbox aria-busy="true" data-testid="mobile-recent-loading" role="status">
+              <MobileListSkeleton label={t('mobile.recent.latest')} rows={4} />
             </Flexbox>
-          ) : null}
-        </>
-      )}
+          </MobileSection>
+        ) : error ? (
+          <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
+            <div role="alert">
+              <MobileStateView
+                action={{ label: t('retry'), onClick: () => void refresh() }}
+                title={t('mobile.recent.error')}
+                variant="error"
+              />
+            </div>
+          </MobileSection>
+        ) : !hasItems ? (
+          <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
+            <MobileStateView
+              action={
+                searchQuery
+                  ? { label: t('mobile.recent.clearSearch'), onClick: () => setSearchQuery('') }
+                  : {
+                      label: t('mobile.recent.createAgent'),
+                      loading: creating,
+                      onClick: () => void createAssistant(),
+                    }
+              }
+              title={searchQuery ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
+            />
+          </MobileSection>
+        ) : (
+          <>
+            {sections.pinned.length > 0 ? (
+              <MobileSection
+                action={refreshAction}
+                aria-label={t('mobile.recent.pinned')}
+                title={t('mobile.recent.pinned')}
+              >
+                {sections.pinned.map((item) => (
+                  <RecentConversationRow
+                    item={item}
+                    key={item.id}
+                    pending={pinningKeys.has(`${item.kind}:${item.id}`)}
+                    onOpen={() => {
+                      rememberFocus(`${item.kind}:${item.id}`);
+                      navigate(item.routePath);
+                    }}
+                    onTogglePin={() => void togglePin(item)}
+                  />
+                ))}
+              </MobileSection>
+            ) : null}
+
+            {sections.recent.length > 0 ? (
+              <MobileSection
+                action={sections.pinned.length ? undefined : refreshAction}
+                aria-label={t('mobile.recent.latest')}
+                title={t('mobile.recent.latest')}
+              >
+                {sections.recent.map((item) => (
+                  <RecentConversationRow
+                    item={item}
+                    key={item.id}
+                    pending={pinningKeys.has(`${item.kind}:${item.id}`)}
+                    onOpen={() => {
+                      rememberFocus(`${item.kind}:${item.id}`);
+                      navigate(item.routePath);
+                    }}
+                    onTogglePin={() => void togglePin(item)}
+                  />
+                ))}
+              </MobileSection>
+            ) : null}
+            {hasMore ? (
+              <Flexbox align="center" padding={16}>
+                <Button
+                  aria-label={t('mobile.recent.loadMore')}
+                  disabled={isValidating}
+                  loading={isValidating}
+                  htmlType="button"
+                  onClick={() => void setSize(size + 1)}
+                >
+                  {t('mobile.recent.loadMore')}
+                </Button>
+              </Flexbox>
+            ) : null}
+          </>
+        )}
+      </div>
     </main>
   );
 });
