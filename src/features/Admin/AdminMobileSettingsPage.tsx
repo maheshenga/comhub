@@ -36,6 +36,7 @@ import MobileConfigPreview from './MobileConfigPreview';
 const styles = createStaticStyles(({ css }) => ({
   actionRow: css`
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     justify-content: flex-end;
@@ -58,10 +59,22 @@ const styles = createStaticStyles(({ css }) => ({
     align-items: end;
     padding-block: 10px;
     border-bottom: 1px solid ${cssVar.colorBorderSecondary};
+
+    @media (max-width: 900px) {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    @media (max-width: 560px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
   `,
   page: css`
     width: min(100%, 1120px);
     padding: 24px;
+
+    @media (max-width: 640px) {
+      padding: 16px;
+    }
   `,
   section: css`
     display: flex;
@@ -190,23 +203,39 @@ const validateFormConfig = (config: MobilePublicConfigV1): ValidationResult => {
   if (hasUnsafePath || hasDuplicatePath)
     messages.push('Visible tab paths must be internal and unique.');
 
+  if (config.applications.builtins.some((app) => !validateMobileInternalPath(app.path))) {
+    messages.push('Built-in app paths must be internal.');
+  }
+
   return { messages, valid: messages.length === 0 };
 };
 
 const loadAssistantOptions = async (): Promise<SelectOption[]> => {
-  const response = await discoverService.getAssistantList({
+  const query = {
     includeAgentGroup: false,
-    page: 1,
-    pageSize: 20,
+    pageSize: 100,
     source: 'new',
-  });
+  } as const;
+  const firstPage = await discoverService.getAssistantList({ ...query, page: 1 });
+  const remainingPages = await Promise.all(
+    Array.from({ length: Math.max(0, firstPage.totalPages - 1) }, (_, index) =>
+      discoverService.getAssistantList({ ...query, page: index + 2 }),
+    ),
+  );
+  const seen = new Set<string>();
 
-  return (response.items ?? [])
+  return [firstPage, ...remainingPages]
+    .flatMap((response) => response.items ?? [])
     .filter((assistant) => !assistant.status || assistant.status === 'published')
-    .map((assistant) => ({
-      label: assistant.title || assistant.identifier,
-      value: assistant.identifier,
-    }));
+    .map((assistant): SelectOption | undefined => {
+      if (!assistant.identifier || seen.has(assistant.identifier)) return;
+      seen.add(assistant.identifier);
+      return {
+        label: assistant.title || assistant.identifier,
+        value: assistant.identifier,
+      };
+    })
+    .filter((option): option is SelectOption => Boolean(option));
 };
 
 const collectModelEntries = (value: unknown): any[] => {
@@ -242,13 +271,67 @@ const loadModelOptions = async (): Promise<ModelOption[]> => {
 };
 
 const loadModuleAppOptions = async (): Promise<SelectOption[]> => {
-  const response = await adminCommercialService.moduleApps.list({ limit: 50, status: 'published' });
-  const items = Array.isArray((response as any)?.items) ? (response as any).items : [];
+  const items: any[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: number | string | undefined;
 
-  return items.map((app: any) => ({
-    label: String(app.displayName ?? app.name ?? app.title ?? app.appId ?? app.id),
-    value: String(app.appId ?? app.id),
-  }));
+  while (true) {
+    const response = await adminCommercialService.moduleApps.list({
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: 200,
+      status: 'published',
+    });
+    if (Array.isArray((response as any)?.items)) items.push(...(response as any).items);
+
+    const nextCursor = (response as any)?.nextCursor as number | string | null | undefined;
+    if (nextCursor === null || nextCursor === undefined) break;
+    const cursorKey = String(nextCursor);
+    if (seenCursors.has(cursorKey)) break;
+    seenCursors.add(cursorKey);
+    cursor = nextCursor;
+  }
+
+  const seenIds = new Set<string>();
+
+  return items
+    .map((app: any): SelectOption | undefined => {
+      const value = String(app.appId ?? app.id ?? '').trim();
+      if (!value || seenIds.has(value)) return;
+      seenIds.add(value);
+      return {
+        label: String(app.displayName ?? app.name ?? app.title ?? value),
+        value,
+      };
+    })
+    .filter((option): option is SelectOption => Boolean(option));
+};
+
+export const createMobileSettingsAsyncGuard = () => {
+  let draftRevision = 0;
+  let mounted = false;
+  let saveInFlight = false;
+
+  return {
+    beginSave: () => {
+      if (!mounted || saveInFlight) return;
+      saveInFlight = true;
+      return draftRevision;
+    },
+    finishSave: () => {
+      saveInFlight = false;
+    },
+    isCurrent: (submittedRevision: number) => mounted && draftRevision === submittedRevision,
+    isMounted: () => mounted,
+    markDraftChanged: () => {
+      draftRevision += 1;
+    },
+    mount: () => {
+      mounted = true;
+    },
+    unmount: () => {
+      mounted = false;
+    },
+  };
 };
 
 const idleSelectorStatus: SelectorStatus = { loading: false };
@@ -346,9 +429,9 @@ const SelectorAlert = ({ label, onRetry, retryLabel, status }: SelectorAlertProp
   ) : null;
 
 const AdminMobileSettingsPage = memo(() => {
-  const mountedRef = useRef(true);
-  const saveInFlightRef = useRef(false);
-  const currentFormFingerprintRef = useRef('');
+  const asyncGuardRef = useRef<ReturnType<typeof createMobileSettingsAsyncGuard> | null>(null);
+  if (!asyncGuardRef.current) asyncGuardRef.current = createMobileSettingsAsyncGuard();
+  const asyncGuard = asyncGuardRef.current;
   const [formValues, setFormValues] = useState<MobilePublicConfigV1>(() =>
     cloneConfig(DEFAULT_MOBILE_CONFIG),
   );
@@ -370,74 +453,73 @@ const AdminMobileSettingsPage = memo(() => {
   const [success, setSuccess] = useState<string | undefined>();
 
   const commitFormValues = useCallback((next: MobilePublicConfigV1) => {
-    currentFormFingerprintRef.current = stringifyConfig(next);
     setFormValues(next);
   }, []);
 
   const refreshAssistantOptions = useCallback(async () => {
-    if (!mountedRef.current) return;
+    if (!asyncGuard.isMounted()) return;
     setAssistantStatus({ loading: true });
     try {
       const assistants = await loadAssistantOptions();
-      if (!mountedRef.current) return;
+      if (!asyncGuard.isMounted()) return;
       setAssistantOptions(assistants);
       setAssistantStatus({ loading: false });
     } catch {
-      if (!mountedRef.current) return;
+      if (!asyncGuard.isMounted()) return;
       setAssistantOptions([]);
       setSelectedAssistantId('');
       setAssistantStatus({ error: 'Assistant selector unavailable.', loading: false });
     }
-  }, []);
+  }, [asyncGuard]);
 
   const refreshModelOptions = useCallback(async () => {
-    if (!mountedRef.current) return;
+    if (!asyncGuard.isMounted()) return;
     setModelStatus({ loading: true });
     try {
       const models = await loadModelOptions();
-      if (!mountedRef.current) return;
+      if (!asyncGuard.isMounted()) return;
       setModelOptions(models);
       setModelStatus({ loading: false });
     } catch {
-      if (!mountedRef.current) return;
+      if (!asyncGuard.isMounted()) return;
       setModelOptions([]);
       setSelectedModelValue('');
       setModelStatus({ error: 'Model selector unavailable.', loading: false });
     }
-  }, []);
+  }, [asyncGuard]);
 
   const refreshModuleAppOptions = useCallback(async () => {
-    if (!mountedRef.current) return;
+    if (!asyncGuard.isMounted()) return;
     setModuleAppStatus({ loading: true });
     try {
       const moduleApps = await loadModuleAppOptions();
-      if (!mountedRef.current) return;
+      if (!asyncGuard.isMounted()) return;
       setModuleAppOptions(moduleApps);
       setModuleAppStatus({ loading: false });
     } catch {
-      if (!mountedRef.current) return;
+      if (!asyncGuard.isMounted()) return;
       setModuleAppOptions([]);
       setSelectedModuleAppId('');
       setModuleAppStatus({ error: 'Module app selector unavailable.', loading: false });
     }
-  }, []);
+  }, [asyncGuard]);
 
   useEffect(() => {
-    mountedRef.current = true;
+    asyncGuard.mount();
 
     const load = async () => {
       setLoading(true);
       setError(undefined);
       try {
         const settings = await adminCommercialService.getMobileSettings();
-        if (!mountedRef.current) return;
+        if (!asyncGuard.isMounted()) return;
         const normalized = toFormConfig(settings);
         commitFormValues(normalized);
         setBaseline(normalized);
       } catch {
-        if (mountedRef.current) setError('Failed to load mobile settings.');
+        if (asyncGuard.isMounted()) setError('Failed to load mobile settings.');
       } finally {
-        if (mountedRef.current) setLoading(false);
+        if (asyncGuard.isMounted()) setLoading(false);
       }
     };
 
@@ -447,9 +529,15 @@ const AdminMobileSettingsPage = memo(() => {
     void refreshModuleAppOptions();
 
     return () => {
-      mountedRef.current = false;
+      asyncGuard.unmount();
     };
-  }, [commitFormValues, refreshAssistantOptions, refreshModelOptions, refreshModuleAppOptions]);
+  }, [
+    asyncGuard,
+    commitFormValues,
+    refreshAssistantOptions,
+    refreshModelOptions,
+    refreshModuleAppOptions,
+  ]);
 
   const normalizedPreview = useMemo(() => normalizeMobileConfig(formValues), [formValues]);
   const validation = useMemo(() => validateFormConfig(formValues), [formValues]);
@@ -466,6 +554,7 @@ const AdminMobileSettingsPage = memo(() => {
   const canAddModuleApp = !moduleAppSelectorUnavailable && Boolean(selectedModuleAppId);
 
   const updateForm = (next: MobilePublicConfigV1) => {
+    asyncGuard.markDraftChanged();
     setSuccess(undefined);
     setError(undefined);
     commitFormValues(next);
@@ -517,27 +606,27 @@ const AdminMobileSettingsPage = memo(() => {
   };
 
   const save = async () => {
-    if (saveInFlightRef.current || !canSave) return;
+    if (!canSave) return;
+    const submittedRevision = asyncGuard.beginSave();
+    if (submittedRevision === undefined) return;
     const submittedConfig = normalizeMobileConfig(formValues);
-    const submittedFingerprint = stringifyConfig(submittedConfig);
-    saveInFlightRef.current = true;
     setSaving(true);
     setError(undefined);
     setSuccess(undefined);
     try {
       const saved = await adminCommercialService.saveMobileSettings(submittedConfig);
-      if (!mountedRef.current) return;
+      if (!asyncGuard.isMounted()) return;
       const normalized = cloneConfig(saved);
       setBaseline(normalized);
-      if (currentFormFingerprintRef.current === submittedFingerprint) {
+      if (asyncGuard.isCurrent(submittedRevision)) {
         commitFormValues(normalized);
         setSuccess('Mobile settings saved.');
       }
     } catch {
-      if (mountedRef.current) setError('Failed to save mobile settings.');
+      if (asyncGuard.isMounted()) setError('Failed to save mobile settings.');
     } finally {
-      saveInFlightRef.current = false;
-      if (mountedRef.current) setSaving(false);
+      asyncGuard.finishSave();
+      if (asyncGuard.isMounted()) setSaving(false);
     }
   };
 

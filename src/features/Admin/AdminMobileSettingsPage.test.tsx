@@ -8,7 +8,7 @@ import { DEFAULT_MOBILE_CONFIG, type MobilePublicConfigV1 } from '@/const/mobile
 import { adminCommercialService } from '@/services/adminCommercial';
 import { discoverService } from '@/services/discover';
 
-import AdminMobileSettingsPage from './AdminMobileSettingsPage';
+import AdminMobileSettingsPage, { createMobileSettingsAsyncGuard } from './AdminMobileSettingsPage';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_key: string, fallback?: string) => fallback ?? _key }),
@@ -116,6 +116,28 @@ const createDeferred = <T,>() => {
   return { promise, reject, resolve };
 };
 
+describe('createMobileSettingsAsyncGuard', () => {
+  it('guards duplicate saves, raw draft revisions, and unmounted completions', () => {
+    const guard = createMobileSettingsAsyncGuard();
+    guard.mount();
+
+    const submittedRevision = guard.beginSave();
+    expect(submittedRevision).toBe(0);
+    expect(guard.beginSave()).toBeUndefined();
+    expect(guard.isCurrent(submittedRevision!)).toBe(true);
+
+    guard.markDraftChanged();
+    expect(guard.isCurrent(submittedRevision!)).toBe(false);
+
+    guard.unmount();
+    expect(guard.isMounted()).toBe(false);
+    expect(guard.isCurrent(submittedRevision!)).toBe(false);
+
+    guard.finishSave();
+    expect(guard.beginSave()).toBeUndefined();
+  });
+});
+
 describe('AdminMobileSettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -205,11 +227,11 @@ describe('AdminMobileSettingsPage', () => {
     await screen.findByRole('option', { name: 'Alpha Assistant' });
 
     expect(discoverService.getAssistantList).toHaveBeenCalledWith(
-      expect.objectContaining({ pageSize: 20, source: 'new' }),
+      expect.objectContaining({ pageSize: 100, source: 'new' }),
     );
     expect(adminCommercialService.getAiProviderModelCatalogDiagnostics).toHaveBeenCalledTimes(1);
     expect(adminCommercialService.moduleApps.list).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'published' }),
+      expect.objectContaining({ limit: 200, status: 'published' }),
     );
 
     fireEvent.change(screen.getByLabelText('Featured assistant'), {
@@ -280,15 +302,17 @@ describe('AdminMobileSettingsPage', () => {
     });
     const saveButton = screen.getByRole('button', { name: 'Save mobile settings' });
 
-    fireEvent.click(saveButton);
-    fireEvent.click(saveButton);
+    act(() => {
+      saveButton.click();
+      saveButton.click();
+    });
 
     expect(adminCommercialService.saveMobileSettings).toHaveBeenCalledTimes(1);
     saveDeferred.resolve(mobileConfig({ brand: { displayName: 'ComHub App', logoUrl: null } }));
     expect(await screen.findByText('Mobile settings saved.')).toBeInTheDocument();
   });
 
-  it('keeps newer draft edits when an older save resolves', async () => {
+  it('keeps a normalization-equivalent raw draft edit when an older save resolves', async () => {
     const saveDeferred = createDeferred<MobilePublicConfigV1>();
     vi.mocked(adminCommercialService.saveMobileSettings).mockReturnValue(saveDeferred.promise);
     renderPage();
@@ -298,8 +322,8 @@ describe('AdminMobileSettingsPage', () => {
       target: { value: 'Submitted' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Save mobile settings' }));
-    fireEvent.change(screen.getByLabelText('Brand display name'), {
-      target: { value: 'Draft' },
+    fireEvent.change(screen.getByLabelText('Tab slot-1 path'), {
+      target: { value: 'javascript:alert(1)' },
     });
 
     await act(async () => {
@@ -312,10 +336,84 @@ describe('AdminMobileSettingsPage', () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Save mobile settings/ })).toBeEnabled(),
+      expect(screen.getByRole('button', { name: /Save mobile settings/ })).not.toHaveAttribute(
+        'data-loading',
+        'true',
+      ),
     );
-    expect(screen.getByLabelText('Brand display name')).toHaveValue('Draft');
+    expect(screen.getByLabelText('Tab slot-1 path')).toHaveValue('javascript:alert(1)');
     expect(screen.queryByText('Mobile settings saved.')).not.toBeInTheDocument();
+  });
+
+  it('blocks saves when an existing built-in app has an unsafe path', async () => {
+    setupLoaders(
+      mobileConfig({
+        applications: {
+          builtins: [
+            {
+              enabled: true,
+              icon: 'store',
+              id: 'tasks',
+              label: 'Tasks',
+              order: 1,
+              path: '/tasks',
+            },
+          ],
+          featuredModuleAppIds: [],
+        },
+      }),
+    );
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText('Builtin tasks path'), {
+      target: { value: 'javascript:alert(1)' },
+    });
+
+    expect(screen.getByText('Built-in app paths must be internal.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save mobile settings' })).toBeDisabled();
+    expect(adminCommercialService.saveMobileSettings).not.toHaveBeenCalled();
+  });
+
+  it('loads assistant and module app choices beyond the first page', async () => {
+    vi.mocked(discoverService.getAssistantList).mockImplementation(
+      async ({ page } = {}) =>
+        ({
+          currentPage: page ?? 1,
+          items:
+            page === 2
+              ? [
+                  {
+                    identifier: 'agent-page-2',
+                    status: 'published',
+                    title: 'Paged Assistant',
+                  },
+                ]
+              : [],
+          pageSize: 100,
+          totalCount: 1,
+          totalPages: 2,
+        }) as any,
+    );
+    vi.mocked(adminCommercialService.moduleApps.list).mockImplementation(
+      async ({ cursor } = {}) =>
+        (cursor
+          ? {
+              items: [{ appId: 'paged-app', displayName: 'Paged App', status: 'published' }],
+              nextCursor: null,
+            }
+          : { items: [], nextCursor: 'page-2' }) as any,
+    );
+
+    renderPage();
+
+    expect(await screen.findByRole('option', { name: 'Paged Assistant' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Paged App' })).toBeInTheDocument();
+    expect(discoverService.getAssistantList).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2, pageSize: 100 }),
+    );
+    expect(adminCommercialService.moduleApps.list).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: 'page-2', limit: 200, status: 'published' }),
+    );
   });
 
   it('does not write state after unmounting with pending load or save requests', async () => {
