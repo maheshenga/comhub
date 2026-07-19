@@ -292,6 +292,20 @@ export const mobileRoutes: RouteObject[] = [
     children: [
       ...sharedMainAreaChildren,
 
+      // Reserved mobile workspace roots. Keep these before `/:workspaceSlug`.
+      {
+        element: dynamicElement(() => import('@/routes/(mobile)/design'), 'Mobile > Design'),
+        path: 'design',
+      },
+      {
+        element: dynamicElement(() => import('@/routes/(mobile)/discover'), 'Mobile > Discover'),
+        path: 'discover',
+      },
+      {
+        element: dynamicElement(() => import('@/routes/(mobile)/apps'), 'Mobile > Apps'),
+        path: 'apps',
+      },
+
       // Settings routes (personal-only — never mirrored under /:workspaceSlug)
       {
         children: [

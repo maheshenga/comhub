@@ -3,6 +3,23 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+const readMobileRouterSource = () =>
+  readFile(path.join(process.cwd(), 'src/spa/router/mobileRouter.config.tsx'), 'utf8');
+
+describe('mobileRouter workspace roots', () => {
+  it('registers design, discover, and apps before the workspace slug route', async () => {
+    const source = await readMobileRouterSource();
+    const workspaceSlugIndex = source.indexOf("path: ':workspaceSlug'");
+
+    for (const route of ['design', 'discover', 'apps']) {
+      const routeIndex = source.indexOf(`path: '${route}'`);
+      expect(routeIndex).toBeGreaterThan(-1);
+      expect(routeIndex).toBeLessThan(workspaceSlugIndex);
+      expect(source).toContain(`import('@/routes/(mobile)/${route}')`);
+    }
+  });
+});
+
 describe('mobileRouter task routes', () => {
   it('registers task list and detail routes under the shared workspace layout', async () => {
     const source = await readFile(
@@ -31,7 +48,7 @@ describe('mobileRouter community routes', () => {
 
     expect(source).toContain("import('@/routes/(main)/community/(list)/skill')");
     expect(source).toContain("import('@/routes/(main)/community/(detail)/skill')");
-    expect(source).toContain("(m) => m.MobileSkillPage");
+    expect(source).toContain('(m) => m.MobileSkillPage');
     expect(source).toContain("path: 'skill'");
     expect(source).toContain("path: 'skill/:slug'");
   });
@@ -43,7 +60,7 @@ describe('mobileRouter community routes', () => {
     );
 
     expect(source).toContain("import('@/routes/(main)/community/(detail)/group_agent')");
-    expect(source).toContain("(m) => m.MobileGroupAgentPage");
+    expect(source).toContain('(m) => m.MobileGroupAgentPage');
     expect(source).toContain("path: 'group_agent/:slug'");
   });
 });
@@ -62,10 +79,7 @@ describe('mobileRouter settings routes', () => {
 
   it('keeps the mobile header and scroll container in the route layout only', async () => {
     const [layoutSource, indexSource] = await Promise.all([
-      readFile(
-        path.join(process.cwd(), 'src/routes/(mobile)/settings/_layout/index.tsx'),
-        'utf8',
-      ),
+      readFile(path.join(process.cwd(), 'src/routes/(mobile)/settings/_layout/index.tsx'), 'utf8'),
       readFile(path.join(process.cwd(), 'src/routes/(mobile)/settings/index.tsx'), 'utf8'),
     ]);
 
@@ -87,7 +101,7 @@ describe('mobileRouter settings routes', () => {
     ]);
 
     expect(providerLayoutSource).toContain(
-      "navigate(`/settings/provider/${providerKey}`, { escape: true })",
+      'navigate(`/settings/provider/${providerKey}`, { escape: true })',
     );
     expect(meSettingsHeaderSource).toContain("navigate('/me', { escape: true })");
   });
