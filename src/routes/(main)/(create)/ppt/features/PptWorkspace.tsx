@@ -38,6 +38,7 @@ const PptWorkspace = memo(() => {
   const [retryNonce, setRetryNonce] = useState(0);
   const {
     data: runtime,
+    error: runtimeError,
     isLoading,
     mutate,
   } = useSWR(['docmee-ppt-runtime'], () => docmeeService.getPptRuntime());
@@ -127,6 +128,9 @@ const PptWorkspace = memo(() => {
   };
 
   if (isLoading) return <Spin fullscreen description="正在加载 PPT 创作服务" />;
+  if (runtimeError) {
+    return <PptErrorState code={getDocmeeErrorCode(runtimeError)} onRetry={handleRetry} />;
+  }
   if ((runtime as any)?.enabled === false) {
     return <PptErrorState code={(runtime as any)?.code} onRetry={handleRetry} />;
   }

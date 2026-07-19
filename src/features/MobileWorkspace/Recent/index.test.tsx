@@ -7,6 +7,28 @@ import { LobeSessionType } from '@/types/session';
 import MobileRecentPage from './index';
 
 const navigate = vi.fn();
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: { name?: string }) => {
+      const labels: Record<string, string> = {
+        'mobile.recent.empty': 'No recent conversations',
+        'mobile.recent.emptySearch': 'No matching conversations',
+        'mobile.recent.error': 'Failed to load recent conversations',
+        'mobile.recent.group': 'Group',
+        'mobile.recent.latest': 'Latest',
+        'mobile.recent.moreActions': `More actions for ${values?.name ?? ''}`,
+        'mobile.recent.open': `Open ${values?.name ?? ''}`,
+        'mobile.recent.pin': 'Pin',
+        'mobile.recent.pinned': 'Pinned',
+        'mobile.recent.refresh': 'Refresh recent conversations',
+        'mobile.recent.search': 'Search conversations',
+        'mobile.recent.unpin': 'Unpin',
+        'retry': 'Retry',
+      };
+      return labels[key] ?? key;
+    },
+  }),
+}));
 const storeState = vi.hoisted(() => ({
   home: {
     pinAgentGroup: vi.fn(),

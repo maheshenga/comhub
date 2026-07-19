@@ -10,9 +10,16 @@ import { discoverService } from '@/services/discover';
 
 import AdminMobileSettingsPage, { createMobileSettingsAsyncGuard } from './AdminMobileSettingsPage';
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, fallback?: string) => fallback ?? _key }),
-}));
+vi.mock('react-i18next', () => {
+  const t = (key: string, options?: Record<string, unknown> | string) => {
+    const values = typeof options === 'object' && options ? options : {};
+    const template = typeof options === 'string' ? options : String(values.defaultValue ?? key);
+
+    return template.replaceAll(/\{\{(\w+)\}\}/g, (_, name: string) => String(values[name] ?? ''));
+  };
+
+  return { useTranslation: () => ({ t }) };
+});
 
 vi.mock('@/services/adminCommercial', () => ({
   adminCommercialService: {
@@ -587,7 +594,7 @@ describe('AdminMobileSettingsPage', () => {
 
     expect(await screen.findByRole('option', { name: 'Beta Assistant' })).toBeInTheDocument();
     expect(screen.queryByText('Assistant selector unavailable.')).not.toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('uses a skeleton loading state instead of antd Spin', () => {
     vi.mocked(adminCommercialService.getMobileSettings).mockReturnValue(

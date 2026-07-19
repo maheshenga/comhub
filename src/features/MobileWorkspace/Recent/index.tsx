@@ -4,6 +4,7 @@ import { Button, Empty, Flexbox, SearchBar, Skeleton } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { RefreshCw } from 'lucide-react';
 import { type ChangeEvent, memo, useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
@@ -45,6 +46,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 }));
 
 const MobileRecentPage = memo(() => {
+  const { t } = useTranslation('common');
   useFetchSessions();
   const navigate = useWorkspaceAwareNavigate();
   const sessions = useSessionStore((state) => state.sessions);
@@ -97,8 +99,8 @@ const MobileRecentPage = memo(() => {
   if (error) {
     return (
       <Flexbox align="center" className={styles.state} gap={12} justify="center">
-        <span>Failed to load recent conversations</span>
-        <Button onClick={() => void mutate()}>Retry</Button>
+        <span>{t('mobile.recent.error')}</span>
+        <Button onClick={() => void mutate()}>{t('retry')}</Button>
       </Flexbox>
     );
   }
@@ -108,19 +110,19 @@ const MobileRecentPage = memo(() => {
       <div className={styles.search}>
         <SearchBar
           allowClear
-          aria-label="Search conversations"
-          placeholder="Search conversations"
+          aria-label={t('mobile.recent.search')}
+          placeholder={t('mobile.recent.search')}
           value={searchQuery}
           variant="filled"
           onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchQuery(event.target.value)}
         />
       </div>
       <Flexbox horizontal align="center" className={styles.sectionHeader} justify="space-between">
-        <h2 className={styles.heading}>Recent</h2>
+        <h2 className={styles.heading}>{t('mobile.recent.latest')}</h2>
         <Button
-          aria-label="Refresh recent conversations"
+          aria-label={t('mobile.recent.refresh')}
           icon={<RefreshCw size={16} />}
-          title="Refresh recent conversations"
+          title={t('mobile.recent.refresh')}
           onClick={() => void mutate()}
         />
       </Flexbox>
@@ -128,15 +130,15 @@ const MobileRecentPage = memo(() => {
       {!hasItems ? (
         <Flexbox className={styles.state} justify="center">
           <Empty
-            description={searchQuery ? 'No matching conversations' : 'No recent conversations'}
+            description={searchQuery ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
           />
         </Flexbox>
       ) : (
         <>
           {sections.pinned.length > 0 ? (
-            <section aria-label="Pinned conversations">
+            <section aria-label={t('mobile.recent.pinned')}>
               <div className={styles.sectionHeader}>
-                <h3 className={styles.heading}>Pinned</h3>
+                <h3 className={styles.heading}>{t('mobile.recent.pinned')}</h3>
               </div>
               {sections.pinned.map((item) => (
                 <RecentConversationRow
@@ -150,9 +152,9 @@ const MobileRecentPage = memo(() => {
           ) : null}
 
           {sections.recent.length > 0 ? (
-            <section aria-label="Recent conversations">
+            <section aria-label={t('mobile.recent.latest')}>
               <div className={styles.sectionHeader}>
-                <h3 className={styles.heading}>Latest</h3>
+                <h3 className={styles.heading}>{t('mobile.recent.latest')}</h3>
               </div>
               {sections.recent.map((item) => (
                 <RecentConversationRow

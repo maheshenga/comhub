@@ -8,6 +8,27 @@ import MobileDesignPage from './index';
 
 const navigate = vi.fn();
 const createNewPage = vi.fn();
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: { name?: string }) => {
+      const labels: Record<string, string> = {
+        'mobile.design.create': 'Create',
+        'mobile.design.createError': 'Unable to create document',
+        'mobile.design.createTool': `Create ${values?.name ?? ''}`,
+        'mobile.design.empty': 'No recent design work',
+        'mobile.design.error': 'Unable to load recent design work',
+        'mobile.design.kind.document': 'Document',
+        'mobile.design.kind.image': 'Image',
+        'mobile.design.kind.ppt': 'PPT',
+        'mobile.design.open': `Open ${values?.name ?? ''}`,
+        'mobile.design.recent': 'Recent work',
+        'mobile.design.retry': 'Retry',
+        'mobile.design.untitled': 'Untitled',
+      };
+      return labels[key] ?? key;
+    },
+  }),
+}));
 const swrState = vi.hoisted(() => ({
   data: [] as MobileRecentDesignItem[],
   error: undefined as Error | undefined,

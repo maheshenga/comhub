@@ -4,6 +4,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MobileDiscoverPage from './index';
 
 const navigate = vi.fn();
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: { name?: string }) => {
+      const labels: Record<string, string> = {
+        'mobile.discover.empty': 'No recommended assistants',
+        'mobile.discover.error': 'Unable to load recommended assistants',
+        'mobile.discover.open': `Open ${values?.name ?? ''}`,
+        'mobile.discover.retry': 'Retry',
+      };
+      return labels[key] ?? key;
+    },
+  }),
+}));
 const mobileState = vi.hoisted(() => ({
   config: {
     discover: {

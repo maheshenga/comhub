@@ -325,6 +325,49 @@ export const mobileRoutes: RouteObject[] = [
         path: 'design',
       },
       {
+        children: [
+          {
+            element: dynamicElement(() => import('@/routes/(main)/page'), 'Mobile > Pages'),
+            index: true,
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/page/[id]'),
+              'Mobile > Page > Detail',
+            ),
+            path: ':id',
+          },
+        ],
+        element: dynamicLayout(
+          () => import('@/routes/(main)/page/_layout'),
+          'Mobile > Pages > Layout',
+        ),
+        errorElement: <ErrorBoundary />,
+        path: 'page',
+      },
+      {
+        children: [
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/(create)/image'),
+              'Mobile > Image',
+            ),
+            index: true,
+          },
+        ],
+        element: dynamicLayout(
+          () => import('@/routes/(main)/(create)/image/_layout'),
+          'Mobile > Image > Layout',
+        ),
+        errorElement: <ErrorBoundary />,
+        path: 'image',
+      },
+      {
+        element: dynamicElement(() => import('@/routes/(main)/(create)/ppt'), 'Mobile > PPT'),
+        errorElement: <ErrorBoundary />,
+        path: 'ppt',
+      },
+      {
         element: dynamicElement(() => import('@/routes/(mobile)/discover'), 'Mobile > Discover'),
         path: 'discover',
       },

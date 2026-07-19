@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { SWRConfig } from 'swr';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PptWorkspace from './PptWorkspace';
@@ -74,6 +75,20 @@ describe('PptWorkspace', () => {
 
     await screen.findByText('服务连接失败');
     fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }));
+
+    await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
+  });
+
+  it('shows a retryable error state when the runtime configuration fails to load', async () => {
+    serviceMocks.getPptRuntime.mockRejectedValueOnce(new Error('PPT_UPSTREAM_TOKEN_FAILED'));
+
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <PptWorkspace />
+      </SWRConfig>,
+    );
+
+    fireEvent.click(await screen.findByRole('button'));
 
     await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
   });

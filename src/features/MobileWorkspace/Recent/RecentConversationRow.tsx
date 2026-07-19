@@ -5,6 +5,7 @@ import { ActionIcon, DropdownMenu, Flexbox, Icon } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { Bot, MoreHorizontal, Pin, PinOff, Users } from 'lucide-react';
 import { memo, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { MobileRecentConversation } from './recentItems';
 
@@ -72,26 +73,27 @@ interface RecentConversationRowProps {
 }
 
 const RecentConversationRow = memo<RecentConversationRowProps>(({ item, onOpen, onTogglePin }) => {
+  const { t } = useTranslation('common');
   const isGroup = item.kind === 'group' || item.kind === 'group-topic';
   const menuItems = useMemo<MenuProps['items']>(
     () => [
       {
         icon: <Icon icon={item.pinned ? PinOff : Pin} />,
         key: 'pin',
-        label: item.pinned ? 'Unpin' : 'Pin',
+        label: item.pinned ? t('mobile.recent.unpin') : t('mobile.recent.pin'),
         onClick: ({ domEvent }) => {
           domEvent.stopPropagation();
           onTogglePin();
         },
       },
     ],
-    [item.pinned, onTogglePin],
+    [item.pinned, onTogglePin, t],
   );
 
   return (
     <div className={styles.row} data-kind={item.kind} data-testid="recent-conversation-row">
       <button
-        aria-label={`Open ${item.title}`}
+        aria-label={t('mobile.recent.open', { name: item.title })}
         className={styles.main}
         type="button"
         onClick={onOpen}
@@ -102,7 +104,7 @@ const RecentConversationRow = memo<RecentConversationRowProps>(({ item, onOpen, 
         <Flexbox className={styles.content} gap={4}>
           <div className={styles.title}>{item.title}</div>
           <Flexbox horizontal align="center" gap={6}>
-            {isGroup ? <span className={styles.badge}>Group</span> : null}
+            {isGroup ? <span className={styles.badge}>{t('mobile.recent.group')}</span> : null}
             <span className={styles.meta}>
               {item.updatedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
             </span>
@@ -111,9 +113,9 @@ const RecentConversationRow = memo<RecentConversationRowProps>(({ item, onOpen, 
       </button>
       <DropdownMenu items={menuItems}>
         <ActionIcon
-          aria-label={`More actions for ${item.title}`}
+          aria-label={t('mobile.recent.moreActions', { name: item.title })}
           icon={MoreHorizontal}
-          title={`More actions for ${item.title}`}
+          title={t('mobile.recent.moreActions', { name: item.title })}
           onClick={(event) => event.stopPropagation()}
         />
       </DropdownMenu>

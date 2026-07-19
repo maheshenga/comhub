@@ -4,6 +4,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MobileAppsPage from './index';
 
 const navigate = vi.fn();
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: { name?: string }) => {
+      const labels: Record<string, string> = {
+        'mobile.apps.browseMarket': 'Browse app market',
+        'mobile.apps.builtIn': 'Built-in apps',
+        'mobile.apps.empty': 'No available module apps',
+        'mobile.apps.error': 'Unable to load module apps',
+        'mobile.apps.module': 'Module apps',
+        'mobile.apps.open': `Open ${values?.name ?? ''}`,
+        'mobile.apps.retry': 'Retry module apps',
+        'mobile.apps.title': 'Apps',
+      };
+      return labels[key] ?? key;
+    },
+  }),
+}));
 const moduleState = vi.hoisted(() => ({
   data: [] as any[],
   error: undefined as Error | undefined,

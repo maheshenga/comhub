@@ -35,6 +35,24 @@ describe('mobileRouter workspace roots', () => {
     expect(source).toContain("import('@/routes/(main)/apps/[appId]/app/[pageKey]')");
   });
 
+  it('registers design document, image, and PPT workspaces before the workspace slug route', async () => {
+    const source = await readMobileRouterSource();
+    const workspaceSlugIndex = source.indexOf("path: ':workspaceSlug'");
+
+    for (const route of ['page', 'image', 'ppt']) {
+      const routeIndex = source.indexOf(`path: '${route}'`);
+      expect(routeIndex).toBeGreaterThan(-1);
+      expect(routeIndex).toBeLessThan(workspaceSlugIndex);
+    }
+
+    expect(source).toContain("import('@/routes/(main)/page')");
+    expect(source).toContain("import('@/routes/(main)/page/[id]')");
+    expect(source).toContain("import('@/routes/(main)/page/_layout')");
+    expect(source).toContain("import('@/routes/(main)/(create)/image')");
+    expect(source).toContain("import('@/routes/(main)/(create)/image/_layout')");
+    expect(source).toContain("import('@/routes/(main)/(create)/ppt')");
+  });
+
   it('keeps AI group conversations and group topics reachable on mobile', async () => {
     const source = await readMobileRouterSource();
 

@@ -4,6 +4,7 @@ import { Avatar, Button, Empty, Flexbox, Skeleton } from '@lobehub/ui';
 import { ChatHeader } from '@lobehub/ui/mobile';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { mobileHeaderSticky } from '@/styles/mobileHeader';
@@ -93,6 +94,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 }));
 
 const MobileDiscoverPage = memo(() => {
+  const { t } = useTranslation('common');
   const navigate = useWorkspaceAwareNavigate();
   const { config, error, isLoading, mutate } = useMobileConfig();
   const cards = useMemo(
@@ -115,18 +117,18 @@ const MobileDiscoverPage = memo(() => {
           </Flexbox>
         ) : error ? (
           <Flexbox align="center" className={styles.state} gap={12} justify="center">
-            <span>Unable to load recommended assistants</span>
-            <Button onClick={() => void mutate()}>Retry</Button>
+            <span>{t('mobile.discover.error')}</span>
+            <Button onClick={() => void mutate()}>{t('mobile.discover.retry')}</Button>
           </Flexbox>
         ) : cards.length === 0 ? (
           <Flexbox className={styles.state} justify="center">
-            <Empty description="No recommended assistants" />
+            <Empty description={t('mobile.discover.empty')} />
           </Flexbox>
         ) : (
           <section aria-label={config.discover.title} className={styles.grid}>
             {cards.map((card) => (
               <button
-                aria-label={`Open ${card.title}`}
+                aria-label={t('mobile.discover.open', { name: card.title })}
                 className={styles.card}
                 data-testid="featured-assistant-card"
                 key={card.identifier}

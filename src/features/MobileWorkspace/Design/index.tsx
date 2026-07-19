@@ -4,6 +4,7 @@ import { Button, Empty, Flexbox, Icon, Skeleton } from '@lobehub/ui';
 import { ChatHeader } from '@lobehub/ui/mobile';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
@@ -14,7 +15,7 @@ import { mobileHeaderSticky } from '@/styles/mobileHeader';
 import { getMobileIcon } from '../mobileIcons';
 import MobilePageLayout from '../MobilePageLayout';
 import { useMobileConfig } from '../useMobileConfig';
-import { buildMobileDesignTools, getDesignKindLabel, type MobileDesignTool } from './designItems';
+import { buildMobileDesignTools, type MobileDesignTool } from './designItems';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   createError: css`
@@ -145,6 +146,7 @@ const formatUpdatedAt = (value: Date) =>
   new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(new Date(value));
 
 const MobileDesignPage = memo(() => {
+  const { t } = useTranslation('common');
   const navigate = useWorkspaceAwareNavigate();
   const createNewPage = usePageStore((state) => state.createNewPage);
   const { config } = useMobileConfig();
@@ -169,10 +171,10 @@ const MobileDesignPage = memo(() => {
 
     setCreatingTool(tool.id);
     try {
-      const id = await createNewPage('Untitled');
+      const id = await createNewPage(t('mobile.design.untitled'));
       navigate(`/page/${encodeURIComponent(id)}`, { escape: true });
     } catch {
-      setCreateError('Unable to create document');
+      setCreateError(t('mobile.design.createError'));
     } finally {
       setCreatingTool(undefined);
     }
@@ -190,14 +192,14 @@ const MobileDesignPage = memo(() => {
       <main className={styles.page}>
         <section aria-labelledby="mobile-design-create-heading" className={styles.section}>
           <h2 className={styles.sectionHeading} id="mobile-design-create-heading">
-            Create
+            {t('mobile.design.create')}
           </h2>
           <div className={styles.toolGrid}>
             {tools.map((tool) => {
               const ToolIcon = getMobileIcon(tool.icon);
               return (
                 <button
-                  aria-label={`Create ${tool.label}`}
+                  aria-label={t('mobile.design.createTool', { name: tool.label })}
                   className={styles.toolButton}
                   data-testid="mobile-design-tool"
                   disabled={Boolean(creatingTool)}
@@ -223,7 +225,7 @@ const MobileDesignPage = memo(() => {
 
         <section aria-labelledby="mobile-design-recent-heading" className={styles.section}>
           <h2 className={styles.sectionHeading} id="mobile-design-recent-heading">
-            Recent work
+            {t('mobile.design.recent')}
           </h2>
 
           {isLoading ? (
@@ -232,8 +234,8 @@ const MobileDesignPage = memo(() => {
             </Flexbox>
           ) : error ? (
             <Flexbox align="center" className={styles.state} gap={12} justify="center">
-              <span>Unable to load recent design work</span>
-              <Button onClick={() => void mutate()}>Retry</Button>
+              <span>{t('mobile.design.error')}</span>
+              <Button onClick={() => void mutate()}>{t('mobile.design.retry')}</Button>
             </Flexbox>
           ) : data?.length ? (
             <div>
@@ -247,7 +249,7 @@ const MobileDesignPage = memo(() => {
                 );
                 return (
                   <button
-                    aria-label={`Open ${item.title}`}
+                    aria-label={t('mobile.design.open', { name: item.title })}
                     className={styles.recentButton}
                     key={`${item.kind}:${item.id}`}
                     type="button"
@@ -259,7 +261,7 @@ const MobileDesignPage = memo(() => {
                     <span className={styles.itemText}>
                       <span className={styles.itemTitle}>{item.title}</span>
                       <span className={styles.itemMeta}>
-                        {getDesignKindLabel(item.kind)}
+                        {t(`mobile.design.kind.${item.kind}`)}
                         {item.status ? ` · ${item.status}` : ''}
                       </span>
                     </span>
@@ -275,7 +277,7 @@ const MobileDesignPage = memo(() => {
             </div>
           ) : (
             <Flexbox className={styles.state} justify="center">
-              <Empty description="No recent design work" />
+              <Empty description={t('mobile.design.empty')} />
             </Flexbox>
           )}
         </section>

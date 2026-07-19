@@ -1,37 +1,51 @@
 'use client';
 
 import { Button, Flexbox, Skeleton } from '@lobehub/ui';
-import { Switch } from '@lobehub/ui/base-ui';
 import { Alert, Input } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
-import {
-  memo,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   DEFAULT_MOBILE_CONFIG,
-  MOBILE_ICON_NAMES,
-  type MobileBuiltinAppV1,
-  type MobileDesignToolV1,
   type MobileFeaturedAssistantV1,
-  type MobileIconName,
-  type MobileNavigationItemV1,
   type MobilePublicConfigV1,
   normalizeMobileConfig,
-  validateMobileInternalPath,
 } from '@/const/mobileConfig';
 import { adminCommercialService } from '@/services/adminCommercial';
-import { discoverService } from '@/services/discover';
 
 import MobileConfigPreview from './MobileConfigPreview';
+import {
+  AccessibleSwitch,
+  IconSelect,
+  LabeledField,
+  OrderButtons,
+  RemoveButton,
+  SelectField,
+  SelectorAlert,
+} from './MobileSettingsControls';
+import {
+  cloneConfig,
+  createMobileSettingsAsyncGuard,
+  idleSelectorStatus,
+  loadAssistantOptions,
+  loadModelOptions,
+  loadModuleAppOptions,
+  type ModelOption,
+  moveArrayItem,
+  moveNavigationItem,
+  moveOrderedItem,
+  removeOrderedItem,
+  type SelectOption,
+  type SelectorStatus,
+  sortByOrder,
+  stringifyConfig,
+  toFormConfig,
+  updateBuiltinApp,
+  updateDesignTool,
+  updateNavigationItem,
+  validateFormConfig,
+} from './mobileSettingsHelpers';
 
 const styles = createStaticStyles(({ css }) => ({
   actionRow: css`
@@ -40,12 +54,6 @@ const styles = createStaticStyles(({ css }) => ({
     gap: 8px;
     align-items: center;
     justify-content: flex-end;
-  `,
-  field: css`
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 160px;
   `,
   grid: css`
     display: grid;
@@ -95,422 +103,15 @@ const styles = createStaticStyles(({ css }) => ({
     font-size: 16px;
     font-weight: 600;
   `,
-  select: css`
-    height: 32px;
-    border: 1px solid ${cssVar.colorBorder};
-    border-radius: 6px;
-    background: ${cssVar.colorBgContainer};
-    color: ${cssVar.colorText};
-  `,
 }));
 
-type SelectOption = {
-  label: string;
-  value: string;
-};
-
-type ModelOption = SelectOption & {
-  model: string;
-  provider: string;
-};
-
-type ValidationResult = {
-  messages: string[];
-  valid: boolean;
-};
-
-type SelectorStatus = {
-  error?: string;
-  loading: boolean;
-};
-
-type SelectorAlertProps = {
-  label: string;
-  onRetry: () => void;
-  retryLabel: string;
-  status: SelectorStatus;
-};
-
-const cloneConfig = (config: unknown): MobilePublicConfigV1 => normalizeMobileConfig(config);
-
-const toFormConfig = (config: unknown): MobilePublicConfigV1 => cloneConfig(config);
-
-const stringifyConfig = (config: MobilePublicConfigV1) =>
-  JSON.stringify(normalizeMobileConfig(config));
-
-const sortByOrder = <T extends { order: number }>(items: T[]) =>
-  [...items].sort((left, right) => left.order - right.order);
-
-const withReindexedOrder = <T extends { order: number }>(items: T[]) =>
-  items.map((item, index) => ({ ...item, order: index + 1 }));
-
-const moveOrderedItem = <T extends { order: number }>(
-  items: T[],
-  matches: (item: T) => boolean,
-  direction: -1 | 1,
-) => {
-  const sortedItems = sortByOrder(items);
-  const index = sortedItems.findIndex(matches);
-  const targetIndex = index + direction;
-  if (index < 0 || targetIndex < 0 || targetIndex >= sortedItems.length) return items;
-
-  const nextItems = [...sortedItems];
-  [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
-  return withReindexedOrder(nextItems);
-};
-
-const removeOrderedItem = <T extends { order: number }>(
-  items: T[],
-  matches: (item: T) => boolean,
-) => withReindexedOrder(sortByOrder(items).filter((item) => !matches(item)));
-
-const moveArrayItem = <T,>(items: T[], value: T, direction: -1 | 1) => {
-  const index = items.indexOf(value);
-  const targetIndex = index + direction;
-  if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return items;
-
-  const nextItems = [...items];
-  [nextItems[index], nextItems[targetIndex]] = [nextItems[targetIndex], nextItems[index]];
-  return nextItems;
-};
-
-const updateNavigationItem = (
-  config: MobilePublicConfigV1,
-  id: MobileNavigationItemV1['id'],
-  patch: Partial<MobileNavigationItemV1>,
-): MobilePublicConfigV1 => ({
-  ...config,
-  navigation: {
-    items: sortByOrder(config.navigation.items).map((item) =>
-      item.id === id ? { ...item, ...patch } : item,
-    ),
-  },
-});
-
-const updateDesignTool = (
-  config: MobilePublicConfigV1,
-  id: MobileDesignToolV1['id'],
-  patch: Partial<MobileDesignToolV1>,
-): MobilePublicConfigV1 => ({
-  ...config,
-  design: {
-    tools: sortByOrder(config.design.tools).map((tool) =>
-      tool.id === id ? { ...tool, ...patch } : tool,
-    ),
-  },
-});
-
-const updateBuiltinApp = (
-  config: MobilePublicConfigV1,
-  id: string,
-  patch: Partial<MobileBuiltinAppV1>,
-): MobilePublicConfigV1 => ({
-  ...config,
-  applications: {
-    ...config.applications,
-    builtins: sortByOrder(config.applications.builtins).map((app) =>
-      app.id === id ? { ...app, ...patch } : app,
-    ),
-  },
-});
-
-const moveNavigationItem = (
-  config: MobilePublicConfigV1,
-  id: MobileNavigationItemV1['id'],
-  direction: -1 | 1,
-) => {
-  const items = moveOrderedItem(config.navigation.items, (item) => item.id === id, direction);
-  return items === config.navigation.items ? config : { ...config, navigation: { items } };
-};
-
-const validateFormConfig = (config: MobilePublicConfigV1): ValidationResult => {
-  const visibleTabs = config.navigation.items.filter((item) => item.visible);
-  const messages: string[] = [];
-
-  if (visibleTabs.length < 2) messages.push('At least two bottom tabs must be visible.');
-
-  const visiblePaths = visibleTabs.map((item) => item.path);
-  const hasUnsafePath = visiblePaths.some((path) => !validateMobileInternalPath(path));
-  const hasDuplicatePath = new Set(visiblePaths).size !== visiblePaths.length;
-  if (hasUnsafePath || hasDuplicatePath)
-    messages.push('Visible tab paths must be internal and unique.');
-
-  if (config.applications.builtins.some((app) => !validateMobileInternalPath(app.path))) {
-    messages.push('Built-in app paths must be internal.');
-  }
-
-  return { messages, valid: messages.length === 0 };
-};
-
-const loadAssistantOptions = async (): Promise<SelectOption[]> => {
-  const query = {
-    includeAgentGroup: false,
-    pageSize: 100,
-    source: 'new',
-  } as const;
-  const firstPage = await discoverService.getAssistantList({ ...query, page: 1 });
-  const remainingPages = await Promise.all(
-    Array.from({ length: Math.max(0, firstPage.totalPages - 1) }, (_, index) =>
-      discoverService.getAssistantList({ ...query, page: index + 2 }),
-    ),
-  );
-  const seen = new Set<string>();
-
-  return [firstPage, ...remainingPages]
-    .flatMap((response) => response.items ?? [])
-    .filter((assistant) => !assistant.status || assistant.status === 'published')
-    .map((assistant): SelectOption | undefined => {
-      if (!assistant.identifier || seen.has(assistant.identifier)) return;
-      seen.add(assistant.identifier);
-      return {
-        label: assistant.title || assistant.identifier,
-        value: assistant.identifier,
-      };
-    })
-    .filter((option): option is SelectOption => Boolean(option));
-};
-
-const collectModelEntries = (value: unknown): any[] => {
-  if (!value || typeof value !== 'object') return [];
-  const record = value as Record<string, unknown>;
-  const direct =
-    record.enabledModels ??
-    record.models ??
-    record.items ??
-    (Array.isArray(record.catalog) ? record.catalog : (record.catalog as any)?.models);
-  if (Array.isArray(direct)) return direct;
-  return [];
-};
-
-const loadModelOptions = async (): Promise<ModelOption[]> => {
-  const diagnostics = await adminCommercialService.getAiProviderModelCatalogDiagnostics();
-  const seen = new Set<string>();
-
-  return collectModelEntries(diagnostics)
-    .map((entry): ModelOption | undefined => {
-      if (entry.visible === false) return;
-      const modelEntry = entry.model && typeof entry.model === 'object' ? entry.model : entry;
-      const provider = String(
-        entry.provider ??
-          entry.providerId ??
-          entry.instanceId ??
-          modelEntry.providerId ??
-          modelEntry.instanceId ??
-          '',
-      ).trim();
-      const model = String(modelEntry.modelId ?? modelEntry.id ?? '').trim();
-      if (!provider || !model) return;
-      const value = `${provider}/${model}`;
-      if (seen.has(value)) return;
-      seen.add(value);
-
-      return {
-        label: String(modelEntry.displayName ?? modelEntry.name ?? model),
-        model,
-        provider,
-        value,
-      };
-    })
-    .filter((option): option is ModelOption => Boolean(option));
-};
-
-const loadModuleAppOptions = async (): Promise<SelectOption[]> => {
-  const items: any[] = [];
-  const seenCursors = new Set<string>();
-  let cursor: number | string | undefined;
-
-  while (true) {
-    const response = await adminCommercialService.moduleApps.list({
-      ...(cursor === undefined ? {} : { cursor }),
-      limit: 200,
-      status: 'published',
-    });
-    if (Array.isArray((response as any)?.items)) items.push(...(response as any).items);
-
-    const nextCursor = (response as any)?.nextCursor as number | string | null | undefined;
-    if (nextCursor === null || nextCursor === undefined) break;
-    const cursorKey = String(nextCursor);
-    if (seenCursors.has(cursorKey)) break;
-    seenCursors.add(cursorKey);
-    cursor = nextCursor;
-  }
-
-  const seenIds = new Set<string>();
-
-  return items
-    .map((app: any): SelectOption | undefined => {
-      const value = String(app.appId ?? app.id ?? '').trim();
-      if (!value || seenIds.has(value)) return;
-      seenIds.add(value);
-      return {
-        label: String(app.displayName ?? app.name ?? app.title ?? value),
-        value,
-      };
-    })
-    .filter((option): option is SelectOption => Boolean(option));
-};
-
-export const createMobileSettingsAsyncGuard = () => {
-  let draftRevision = 0;
-  let mounted = false;
-  let saveInFlight = false;
-
-  return {
-    beginSave: () => {
-      if (!mounted || saveInFlight) return;
-      saveInFlight = true;
-      return draftRevision;
-    },
-    finishSave: () => {
-      saveInFlight = false;
-    },
-    isCurrent: (submittedRevision: number) => mounted && draftRevision === submittedRevision,
-    isMounted: () => mounted,
-    markDraftChanged: () => {
-      draftRevision += 1;
-    },
-    mount: () => {
-      mounted = true;
-    },
-    unmount: () => {
-      mounted = false;
-    },
-  };
-};
-
-const idleSelectorStatus: SelectorStatus = { loading: false };
-
-const LabeledField = ({ children, label }: { children: ReactNode; label: string }) => (
-  <label className={styles.field}>
-    <span>{label}</span>
-    {children}
-  </label>
-);
-
-const IconSelect = ({
-  label,
-  onChange,
-  value,
-}: {
-  label: string;
-  onChange: (value: MobileIconName) => void;
-  value: string;
-}) => (
-  <select
-    aria-label={label}
-    className={styles.select}
-    value={value}
-    onChange={(event) => onChange(event.target.value)}
-  >
-    {MOBILE_ICON_NAMES.map((icon) => (
-      <option key={icon} value={icon}>
-        {icon}
-      </option>
-    ))}
-  </select>
-);
-
-const SelectField = ({
-  disabled,
-  label,
-  onChange,
-  options,
-  value,
-}: {
-  disabled?: boolean;
-  label: string;
-  onChange: (value: string) => void;
-  options: SelectOption[];
-  value: string;
-}) => (
-  <select
-    aria-label={label}
-    className={styles.select}
-    disabled={disabled}
-    value={value}
-    onChange={(event) => onChange(event.target.value)}
-  >
-    <option value="">Select</option>
-    {options.map((option) => (
-      <option key={option.value} value={option.value}>
-        {option.label}
-      </option>
-    ))}
-  </select>
-);
-
-const AccessibleSwitch = ({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  onChange: (checked: boolean) => void;
-}) => {
-  const id = useId();
-
-  return (
-    <div className={styles.field}>
-      <label htmlFor={id}>{label}</label>
-      <Switch checked={checked} id={id} onChange={(nextChecked) => onChange(nextChecked)} />
-    </div>
-  );
-};
-
-const OrderButtons = ({
-  label,
-  onMove,
-  position,
-  total,
-}: {
-  label: string;
-  onMove: (direction: -1 | 1) => void;
-  position: number;
-  total: number;
-}) => (
-  <Flexbox horizontal gap={4}>
-    <Button
-      aria-label={`Move ${label} up`}
-      disabled={position === 0}
-      icon={<ArrowUp size={14} />}
-      title={`Move ${label} up`}
-      onClick={() => onMove(-1)}
-    />
-    <Button
-      aria-label={`Move ${label} down`}
-      disabled={position === total - 1}
-      icon={<ArrowDown size={14} />}
-      title={`Move ${label} down`}
-      onClick={() => onMove(1)}
-    />
-  </Flexbox>
-);
-
-const RemoveButton = ({ label, onClick }: { label: string; onClick: () => void }) => (
-  <Button
-    aria-label={`Remove ${label}`}
-    icon={<Trash2 size={14} />}
-    title={`Remove ${label}`}
-    onClick={onClick}
-  />
-);
-
-const SelectorAlert = ({ label, onRetry, retryLabel, status }: SelectorAlertProps) =>
-  status.error ? (
-    <Alert
-      showIcon
-      title={label}
-      type="warning"
-      action={
-        <Button disabled={status.loading} size="small" onClick={onRetry}>
-          {retryLabel}
-        </Button>
-      }
-    />
-  ) : null;
-
 const AdminMobileSettingsPage = memo(() => {
+  const { t } = useTranslation('subscription');
+  const tr = useCallback(
+    (key: string, defaultValue: string, values: Record<string, unknown> = {}) =>
+      String(t(key as any, { defaultValue, ...values })),
+    [t],
+  );
   const asyncGuardRef = useRef<ReturnType<typeof createMobileSettingsAsyncGuard> | null>(null);
   if (!asyncGuardRef.current) asyncGuardRef.current = createMobileSettingsAsyncGuard();
   const asyncGuard = asyncGuardRef.current;
@@ -550,9 +151,12 @@ const AdminMobileSettingsPage = memo(() => {
       if (!asyncGuard.isMounted()) return;
       setAssistantOptions([]);
       setSelectedAssistantId('');
-      setAssistantStatus({ error: 'Assistant selector unavailable.', loading: false });
+      setAssistantStatus({
+        error: tr('admin.mobile.assistantSelectorUnavailable', 'Assistant selector unavailable.'),
+        loading: false,
+      });
     }
-  }, [asyncGuard]);
+  }, [asyncGuard, tr]);
 
   const refreshModelOptions = useCallback(async () => {
     if (!asyncGuard.isMounted()) return;
@@ -566,9 +170,12 @@ const AdminMobileSettingsPage = memo(() => {
       if (!asyncGuard.isMounted()) return;
       setModelOptions([]);
       setSelectedModelValue('');
-      setModelStatus({ error: 'Model selector unavailable.', loading: false });
+      setModelStatus({
+        error: tr('admin.mobile.modelSelectorUnavailable', 'Model selector unavailable.'),
+        loading: false,
+      });
     }
-  }, [asyncGuard]);
+  }, [asyncGuard, tr]);
 
   const refreshModuleAppOptions = useCallback(async () => {
     if (!asyncGuard.isMounted()) return;
@@ -582,9 +189,12 @@ const AdminMobileSettingsPage = memo(() => {
       if (!asyncGuard.isMounted()) return;
       setModuleAppOptions([]);
       setSelectedModuleAppId('');
-      setModuleAppStatus({ error: 'Module app selector unavailable.', loading: false });
+      setModuleAppStatus({
+        error: tr('admin.mobile.moduleAppSelectorUnavailable', 'Module app selector unavailable.'),
+        loading: false,
+      });
     }
-  }, [asyncGuard]);
+  }, [asyncGuard, tr]);
 
   useEffect(() => {
     asyncGuard.mount();
@@ -599,7 +209,9 @@ const AdminMobileSettingsPage = memo(() => {
         commitFormValues(normalized);
         setBaseline(normalized);
       } catch {
-        if (asyncGuard.isMounted()) setError('Failed to load mobile settings.');
+        if (asyncGuard.isMounted()) {
+          setError(tr('admin.mobile.loadError', 'Failed to load mobile settings.'));
+        }
       } finally {
         if (asyncGuard.isMounted()) setLoading(false);
       }
@@ -619,10 +231,28 @@ const AdminMobileSettingsPage = memo(() => {
     refreshAssistantOptions,
     refreshModelOptions,
     refreshModuleAppOptions,
+    tr,
   ]);
 
   const normalizedPreview = useMemo(() => normalizeMobileConfig(formValues), [formValues]);
-  const validation = useMemo(() => validateFormConfig(formValues), [formValues]);
+  const validation = useMemo(
+    () =>
+      validateFormConfig(formValues, {
+        builtinPaths: tr(
+          'admin.mobile.validation.builtinPaths',
+          'Built-in app paths must be internal.',
+        ),
+        minVisibleTabs: tr(
+          'admin.mobile.validation.minVisibleTabs',
+          'At least two bottom tabs must be visible.',
+        ),
+        uniquePaths: tr(
+          'admin.mobile.validation.uniquePaths',
+          'Visible tab paths must be internal and unique.',
+        ),
+      }),
+    [formValues, tr],
+  );
   const dirty = stringifyConfig(formValues) !== stringifyConfig(baseline);
   const canSave = dirty && !loading && !saving && validation.valid;
   const assistantSelectorUnavailable = Boolean(assistantStatus.error);
@@ -684,7 +314,7 @@ const AdminMobileSettingsPage = memo(() => {
   };
 
   const restoreDefaults = () => {
-    if (!window.confirm('Restore mobile defaults?')) return;
+    if (!window.confirm(tr('admin.mobile.restoreConfirm', 'Restore mobile defaults?'))) return;
     updateForm(cloneConfig(DEFAULT_MOBILE_CONFIG));
   };
 
@@ -703,10 +333,12 @@ const AdminMobileSettingsPage = memo(() => {
       setBaseline(normalized);
       if (asyncGuard.isCurrent(submittedRevision)) {
         commitFormValues(normalized);
-        setSuccess('Mobile settings saved.');
+        setSuccess(tr('admin.mobile.saved', 'Mobile settings saved.'));
       }
     } catch {
-      if (asyncGuard.isMounted()) setError('Failed to save mobile settings.');
+      if (asyncGuard.isMounted()) {
+        setError(tr('admin.mobile.saveError', 'Failed to save mobile settings.'));
+      }
     } finally {
       asyncGuard.finishSave();
       if (asyncGuard.isMounted()) setSaving(false);
@@ -731,12 +363,12 @@ const AdminMobileSettingsPage = memo(() => {
         <Alert showIcon key={message} title={message} type="warning" />
       ))}
 
-      <section aria-label="Brand" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Brand</h2>
+      <section aria-label={tr('admin.mobile.brand', 'Brand')} className={styles.section}>
+        <h2 className={styles.sectionTitle}>{tr('admin.mobile.brand', 'Brand')}</h2>
         <div className={styles.grid}>
-          <LabeledField label="Brand display name">
+          <LabeledField label={tr('admin.mobile.brandDisplayName', 'Brand display name')}>
             <Input
-              aria-label="Brand display name"
+              aria-label={tr('admin.mobile.brandDisplayName', 'Brand display name')}
               value={formValues.brand.displayName ?? ''}
               onChange={(event) =>
                 updateForm({
@@ -746,9 +378,9 @@ const AdminMobileSettingsPage = memo(() => {
               }
             />
           </LabeledField>
-          <LabeledField label="Brand logo URL">
+          <LabeledField label={tr('admin.mobile.brandLogoUrl', 'Brand logo URL')}>
             <Input
-              aria-label="Brand logo URL"
+              aria-label={tr('admin.mobile.brandLogoUrl', 'Brand logo URL')}
               value={formValues.brand.logoUrl ?? ''}
               onChange={(event) =>
                 updateForm({
@@ -761,13 +393,18 @@ const AdminMobileSettingsPage = memo(() => {
         </div>
       </section>
 
-      <section aria-label="Bottom Navigation" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Bottom Navigation</h2>
+      <section
+        aria-label={tr('admin.mobile.bottomNavigation', 'Bottom Navigation')}
+        className={styles.section}
+      >
+        <h2 className={styles.sectionTitle}>
+          {tr('admin.mobile.bottomNavigation', 'Bottom Navigation')}
+        </h2>
         {sortByOrder(formValues.navigation.items).map((item, index, items) => (
           <div className={styles.itemRow} key={item.id}>
-            <LabeledField label={`Tab ${item.id} label`}>
+            <LabeledField label={tr('admin.mobile.tabLabel', 'Tab {{id}} label', { id: item.id })}>
               <Input
-                aria-label={`Tab ${item.id} label`}
+                aria-label={tr('admin.mobile.tabLabel', 'Tab {{id}} label', { id: item.id })}
                 value={item.label}
                 onChange={(event) =>
                   updateForm(
@@ -776,9 +413,9 @@ const AdminMobileSettingsPage = memo(() => {
                 }
               />
             </LabeledField>
-            <LabeledField label={`Tab ${item.id} path`}>
+            <LabeledField label={tr('admin.mobile.tabPath', 'Tab {{id}} path', { id: item.id })}>
               <Input
-                aria-label={`Tab ${item.id} path`}
+                aria-label={tr('admin.mobile.tabPath', 'Tab {{id}} path', { id: item.id })}
                 value={item.path}
                 onChange={(event) =>
                   updateForm(
@@ -787,16 +424,16 @@ const AdminMobileSettingsPage = memo(() => {
                 }
               />
             </LabeledField>
-            <LabeledField label={`Tab ${item.id} icon`}>
+            <LabeledField label={tr('admin.mobile.tabIcon', 'Tab {{id}} icon', { id: item.id })}>
               <IconSelect
-                label={`Tab ${item.id} icon`}
+                label={tr('admin.mobile.tabIcon', 'Tab {{id}} icon', { id: item.id })}
                 value={item.icon}
                 onChange={(icon) => updateForm(updateNavigationItem(formValues, item.id, { icon }))}
               />
             </LabeledField>
             <AccessibleSwitch
               checked={item.visible}
-              label={`Tab ${item.id} visible`}
+              label={tr('admin.mobile.tabVisible', 'Tab {{id}} visible', { id: item.id })}
               onChange={(visible) =>
                 updateForm(updateNavigationItem(formValues, item.id, { visible }))
               }
@@ -811,28 +448,33 @@ const AdminMobileSettingsPage = memo(() => {
         ))}
       </section>
 
-      <section aria-label="Design Tools" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Design Tools</h2>
+      <section
+        aria-label={tr('admin.mobile.designTools', 'Design Tools')}
+        className={styles.section}
+      >
+        <h2 className={styles.sectionTitle}>{tr('admin.mobile.designTools', 'Design Tools')}</h2>
         {sortByOrder(formValues.design.tools).map((tool, index, tools) => (
           <div className={styles.itemRow} key={tool.id}>
-            <LabeledField label={`Tool ${tool.id} label`}>
+            <LabeledField
+              label={tr('admin.mobile.toolLabel', 'Tool {{id}} label', { id: tool.id })}
+            >
               <Input
-                aria-label={`Tool ${tool.id} label`}
+                aria-label={tr('admin.mobile.toolLabel', 'Tool {{id}} label', { id: tool.id })}
                 value={tool.label}
                 onChange={(event) =>
                   updateForm(updateDesignTool(formValues, tool.id, { label: event.target.value }))
                 }
               />
             </LabeledField>
-            <LabeledField label={`Tool ${tool.id} icon`}>
+            <LabeledField label={tr('admin.mobile.toolIcon', 'Tool {{id}} icon', { id: tool.id })}>
               <IconSelect
-                label={`Tool ${tool.id} icon`}
+                label={tr('admin.mobile.toolIcon', 'Tool {{id}} icon', { id: tool.id })}
                 value={tool.icon}
                 onChange={(icon) => updateForm(updateDesignTool(formValues, tool.id, { icon }))}
               />
             </LabeledField>
             <OrderButtons
-              label={`tool ${tool.id}`}
+              label={tr('admin.mobile.target.tool', 'tool {{id}}', { id: tool.id })}
               position={index}
               total={tools.length}
               onMove={(direction) =>
@@ -850,7 +492,7 @@ const AdminMobileSettingsPage = memo(() => {
             />
             <AccessibleSwitch
               checked={tool.enabled}
-              label={`Tool ${tool.id} enabled`}
+              label={tr('admin.mobile.toolEnabled', 'Tool {{id}} enabled', { id: tool.id })}
               onChange={(enabled) => updateForm(updateDesignTool(formValues, tool.id, { enabled }))}
             />
             <span />
@@ -858,37 +500,42 @@ const AdminMobileSettingsPage = memo(() => {
         ))}
       </section>
 
-      <section aria-label="Featured Assistants" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Featured Assistants</h2>
+      <section
+        aria-label={tr('admin.mobile.featuredAssistants', 'Featured Assistants')}
+        className={styles.section}
+      >
+        <h2 className={styles.sectionTitle}>
+          {tr('admin.mobile.featuredAssistants', 'Featured Assistants')}
+        </h2>
         <SelectorAlert
-          label="Assistant selector unavailable."
-          retryLabel="Retry assistant selector"
+          label={tr('admin.mobile.assistantSelectorUnavailable', 'Assistant selector unavailable.')}
+          retryLabel={tr('admin.mobile.retryAssistantSelector', 'Retry assistant selector')}
           status={assistantStatus}
           onRetry={() => void refreshAssistantOptions()}
         />
         <SelectorAlert
-          label="Model selector unavailable."
-          retryLabel="Retry model selector"
+          label={tr('admin.mobile.modelSelectorUnavailable', 'Model selector unavailable.')}
+          retryLabel={tr('admin.mobile.retryModelSelector', 'Retry model selector')}
           status={modelStatus}
           onRetry={() => void refreshModelOptions()}
         />
         <div className={styles.grid}>
           <SelectField
             disabled={assistantStatus.loading || assistantSelectorUnavailable}
-            label="Featured assistant"
+            label={tr('admin.mobile.featuredAssistant', 'Featured assistant')}
             options={assistantOptions}
             value={selectedAssistantId}
             onChange={setSelectedAssistantId}
           />
           <SelectField
             disabled={modelStatus.loading || modelSelectorUnavailable}
-            label="Recommended model"
+            label={tr('admin.mobile.recommendedModel', 'Recommended model')}
             options={modelOptions}
             value={selectedModelValue}
             onChange={setSelectedModelValue}
           />
           <Button disabled={!canAddFeaturedAssistant} onClick={addFeaturedAssistant}>
-            Add featured assistant
+            {tr('admin.mobile.addFeaturedAssistant', 'Add featured assistant')}
           </Button>
         </div>
         <Flexbox gap={8}>
@@ -900,9 +547,11 @@ const AdminMobileSettingsPage = memo(() => {
               </span>
               <Flexbox horizontal gap={4}>
                 <OrderButtons
-                  label={`assistant ${assistant.assistantId}`}
                   position={index}
                   total={assistants.length}
+                  label={tr('admin.mobile.target.assistant', 'assistant {{id}}', {
+                    id: assistant.assistantId,
+                  })}
                   onMove={(direction) =>
                     updateForm({
                       ...formValues,
@@ -918,7 +567,9 @@ const AdminMobileSettingsPage = memo(() => {
                   }
                 />
                 <RemoveButton
-                  label={`assistant ${assistant.assistantId}`}
+                  label={tr('admin.mobile.target.assistant', 'assistant {{id}}', {
+                    id: assistant.assistantId,
+                  })}
                   onClick={() =>
                     updateForm({
                       ...formValues,
@@ -938,24 +589,27 @@ const AdminMobileSettingsPage = memo(() => {
         </Flexbox>
       </section>
 
-      <section aria-label="App Entries" className={styles.section}>
-        <h2 className={styles.sectionTitle}>App Entries</h2>
+      <section aria-label={tr('admin.mobile.appEntries', 'App Entries')} className={styles.section}>
+        <h2 className={styles.sectionTitle}>{tr('admin.mobile.appEntries', 'App Entries')}</h2>
         <SelectorAlert
-          label="Module app selector unavailable."
-          retryLabel="Retry module app selector"
+          retryLabel={tr('admin.mobile.retryModuleAppSelector', 'Retry module app selector')}
           status={moduleAppStatus}
+          label={tr(
+            'admin.mobile.moduleAppSelectorUnavailable',
+            'Module app selector unavailable.',
+          )}
           onRetry={() => void refreshModuleAppOptions()}
         />
         <div className={styles.grid}>
           <SelectField
             disabled={moduleAppStatus.loading || moduleAppSelectorUnavailable}
-            label="Featured module app"
+            label={tr('admin.mobile.featuredModuleApp', 'Featured module app')}
             options={moduleAppOptions}
             value={selectedModuleAppId}
             onChange={setSelectedModuleAppId}
           />
           <Button disabled={!canAddModuleApp} onClick={addModuleApp}>
-            Add module app
+            {tr('admin.mobile.addModuleApp', 'Add module app')}
           </Button>
         </div>
         <Flexbox gap={8}>
@@ -964,7 +618,7 @@ const AdminMobileSettingsPage = memo(() => {
               <span>{moduleAppOptions.find((option) => option.value === id)?.label ?? id}</span>
               <Flexbox horizontal gap={4}>
                 <OrderButtons
-                  label={`module app ${id}`}
+                  label={tr('admin.mobile.target.moduleApp', 'module app {{id}}', { id })}
                   position={index}
                   total={ids.length}
                   onMove={(direction) =>
@@ -982,7 +636,7 @@ const AdminMobileSettingsPage = memo(() => {
                   }
                 />
                 <RemoveButton
-                  label={`module app ${id}`}
+                  label={tr('admin.mobile.target.moduleApp', 'module app {{id}}', { id })}
                   onClick={() =>
                     updateForm({
                       ...formValues,
@@ -1001,38 +655,48 @@ const AdminMobileSettingsPage = memo(() => {
         </Flexbox>
         {sortByOrder(formValues.applications.builtins).map((app, index, apps) => (
           <div className={styles.itemRow} key={app.id}>
-            <LabeledField label={`Builtin ${app.id} label`}>
+            <LabeledField
+              label={tr('admin.mobile.builtinLabel', 'Builtin {{id}} label', { id: app.id })}
+            >
               <Input
-                aria-label={`Builtin ${app.id} label`}
                 value={app.label}
+                aria-label={tr('admin.mobile.builtinLabel', 'Builtin {{id}} label', {
+                  id: app.id,
+                })}
                 onChange={(event) =>
                   updateForm(updateBuiltinApp(formValues, app.id, { label: event.target.value }))
                 }
               />
             </LabeledField>
-            <LabeledField label={`Builtin ${app.id} path`}>
+            <LabeledField
+              label={tr('admin.mobile.builtinPath', 'Builtin {{id}} path', { id: app.id })}
+            >
               <Input
-                aria-label={`Builtin ${app.id} path`}
                 value={app.path}
+                aria-label={tr('admin.mobile.builtinPath', 'Builtin {{id}} path', {
+                  id: app.id,
+                })}
                 onChange={(event) =>
                   updateForm(updateBuiltinApp(formValues, app.id, { path: event.target.value }))
                 }
               />
             </LabeledField>
-            <LabeledField label={`Builtin ${app.id} icon`}>
+            <LabeledField
+              label={tr('admin.mobile.builtinIcon', 'Builtin {{id}} icon', { id: app.id })}
+            >
               <IconSelect
-                label={`Builtin ${app.id} icon`}
+                label={tr('admin.mobile.builtinIcon', 'Builtin {{id}} icon', { id: app.id })}
                 value={app.icon}
                 onChange={(icon) => updateForm(updateBuiltinApp(formValues, app.id, { icon }))}
               />
             </LabeledField>
             <AccessibleSwitch
               checked={app.enabled}
-              label={`Builtin ${app.id} enabled`}
+              label={tr('admin.mobile.builtinEnabled', 'Builtin {{id}} enabled', { id: app.id })}
               onChange={(enabled) => updateForm(updateBuiltinApp(formValues, app.id, { enabled }))}
             />
             <OrderButtons
-              label={`builtin ${app.id}`}
+              label={tr('admin.mobile.target.builtin', 'builtin {{id}}', { id: app.id })}
               position={index}
               total={apps.length}
               onMove={(direction) =>
@@ -1053,15 +717,17 @@ const AdminMobileSettingsPage = memo(() => {
         ))}
       </section>
 
-      <section aria-label="Preview" className={styles.section}>
-        <h2 className={styles.sectionTitle}>Preview</h2>
+      <section aria-label={tr('admin.mobile.preview', 'Preview')} className={styles.section}>
+        <h2 className={styles.sectionTitle}>{tr('admin.mobile.preview', 'Preview')}</h2>
         <MobileConfigPreview config={normalizedPreview} />
       </section>
 
       <div className={styles.actionRow}>
-        <Button onClick={restoreDefaults}>Restore defaults</Button>
+        <Button onClick={restoreDefaults}>
+          {tr('admin.mobile.restoreDefaults', 'Restore defaults')}
+        </Button>
         <Button disabled={!canSave} loading={saving} type="primary" onClick={() => void save()}>
-          Save mobile settings
+          {tr('admin.mobile.save', 'Save mobile settings')}
         </Button>
       </div>
     </Flexbox>
@@ -1070,4 +736,5 @@ const AdminMobileSettingsPage = memo(() => {
 
 AdminMobileSettingsPage.displayName = 'AdminMobileSettingsPage';
 
+export { createMobileSettingsAsyncGuard };
 export default AdminMobileSettingsPage;

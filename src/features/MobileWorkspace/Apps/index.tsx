@@ -5,6 +5,7 @@ import { ChatHeader } from '@lobehub/ui/mobile';
 import { createStaticStyles } from 'antd-style';
 import { Boxes, Store } from 'lucide-react';
 import { memo, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
@@ -105,6 +106,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 }));
 
 const MobileAppsPage = memo(() => {
+  const { t } = useTranslation('common');
   const navigate = useWorkspaceAwareNavigate();
   const { config } = useMobileConfig();
   const { data, error, isLoading, mutate } = useSWR<MobileInstalledModuleApp[]>(
@@ -121,7 +123,8 @@ const MobileAppsPage = memo(() => {
     () => buildMobileModuleApps(data ?? [], config.applications.featuredModuleAppIds),
     [config.applications.featuredModuleAppIds, data],
   );
-  const pageTitle = config.navigation.items.find((item) => item.id === 'slot-4')?.label || 'Apps';
+  const pageTitle =
+    config.navigation.items.find((item) => item.id === 'slot-4')?.label || t('mobile.apps.title');
   const openMarket = () => navigate('/apps/market', { escape: true });
 
   const header = (
@@ -130,9 +133,9 @@ const MobileAppsPage = memo(() => {
       style={mobileHeaderSticky}
       right={
         <button
-          aria-label="Browse app market"
+          aria-label={t('mobile.apps.browseMarket')}
           className={styles.headerAction}
-          title="Browse app market"
+          title={t('mobile.apps.browseMarket')}
           type="button"
           onClick={openMarket}
         >
@@ -147,14 +150,14 @@ const MobileAppsPage = memo(() => {
       <main className={styles.page}>
         <section aria-labelledby="mobile-builtin-apps-heading" className={styles.section}>
           <h2 className={styles.sectionHeading} id="mobile-builtin-apps-heading">
-            Built-in apps
+            {t('mobile.apps.builtIn')}
           </h2>
           <div className={styles.appGrid}>
             {builtins.map((app) => {
               const AppIcon = getMobileIcon(app.icon);
               return (
                 <button
-                  aria-label={`Open ${app.label}`}
+                  aria-label={t('mobile.apps.open', { name: app.label })}
                   className={styles.appButton}
                   key={app.id}
                   type="button"
@@ -172,7 +175,7 @@ const MobileAppsPage = memo(() => {
 
         <section aria-labelledby="mobile-module-apps-heading" className={styles.section}>
           <h2 className={styles.sectionHeading} id="mobile-module-apps-heading">
-            Module apps
+            {t('mobile.apps.module')}
           </h2>
           {isLoading ? (
             <Flexbox className={styles.state} data-testid="mobile-apps-loading" gap={12}>
@@ -180,14 +183,14 @@ const MobileAppsPage = memo(() => {
             </Flexbox>
           ) : error ? (
             <Flexbox align="center" className={styles.state} gap={12} justify="center" role="alert">
-              <span>Unable to load module apps</span>
-              <Button onClick={() => void mutate()}>Retry module apps</Button>
+              <span>{t('mobile.apps.error')}</span>
+              <Button onClick={() => void mutate()}>{t('mobile.apps.retry')}</Button>
             </Flexbox>
           ) : moduleApps.length ? (
             <div className={styles.appGrid}>
               {moduleApps.map((app) => (
                 <button
-                  aria-label={`Open ${app.displayName}`}
+                  aria-label={t('mobile.apps.open', { name: app.displayName })}
                   className={styles.appButton}
                   data-testid="mobile-module-app"
                   key={app.id}
@@ -203,8 +206,8 @@ const MobileAppsPage = memo(() => {
             </div>
           ) : (
             <Flexbox align="center" className={styles.state} gap={12} justify="center">
-              <Empty description="No available module apps" />
-              <Button onClick={openMarket}>Browse app market</Button>
+              <Empty description={t('mobile.apps.empty')} />
+              <Button onClick={openMarket}>{t('mobile.apps.browseMarket')}</Button>
             </Flexbox>
           )}
         </section>
