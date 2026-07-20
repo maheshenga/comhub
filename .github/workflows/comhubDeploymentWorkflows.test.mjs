@@ -55,6 +55,7 @@ test('PR checks validate main-bound changes without deployment capability', () =
   assert.equal(workflow.jobs.verify.environment, undefined);
   assert.match(source, /node --test .github\/workflows\/comhubDeploymentWorkflows\.test\.mjs/);
   assert.match(source, /pnpm type-check/);
+  assert.doesNotMatch(source, /cache: pnpm/);
   assert.doesNotMatch(source, /docker\/build-push-action/);
   assert.doesNotMatch(source, /COMHUB_SSH_PRIVATE_KEY/);
   assert.doesNotMatch(source, /MODULE_APP_ALIPAY_/);
