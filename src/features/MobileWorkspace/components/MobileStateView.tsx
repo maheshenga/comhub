@@ -34,6 +34,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     padding-inline: 16px;
 
     text-align: center;
+
+    @media (height <= 500px) {
+      gap: 4px;
+      min-height: 72px;
+      padding-block: 0;
+    }
   `,
   title: css`
     margin: 0;

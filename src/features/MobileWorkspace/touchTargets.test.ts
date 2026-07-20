@@ -12,4 +12,14 @@ describe('mobile workspace touch targets', () => {
     expect(source('./Apps/index.tsx')).toContain('min-height: 44px');
     expect(source('./Apps/index.tsx')).toContain('min-width: 44px');
   });
+
+  it('compacts state-view whitespace on short landscape screens without shrinking actions', () => {
+    const stateView = source('./components/MobileStateView.tsx');
+
+    expect(stateView).toContain('@media (height <= 500px)');
+    expect(stateView).toContain('min-height: 72px');
+    expect(stateView).toContain('padding-block: 0');
+    expect(stateView).toContain('gap: 4px');
+    expect(stateView).toContain('minHeight: 44');
+  });
 });
