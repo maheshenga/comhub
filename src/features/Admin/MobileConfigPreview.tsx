@@ -3,7 +3,7 @@
 import { Icon, Segmented } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { Boxes } from 'lucide-react';
-import { type ReactNode, memo, useMemo, useState } from 'react';
+import { memo, type ReactNode, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { MOBILE_TABBAR_HEIGHT } from '@/const/layoutTokens';
@@ -18,7 +18,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     min-width: 0;
     min-height: 104px;
-    padding: 8px 0;
+    padding-block: 8px;
+    padding-inline: 0;
 
     font-size: 13px;
     line-height: 18px;
@@ -33,6 +34,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     border-radius: 8px;
 
     color: ${cssVar.colorPrimary};
+
     background: ${cssVar.colorFillSecondary};
   `,
   appLabel: css`
@@ -55,7 +57,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     min-width: 0;
     min-height: 88px;
-    padding: 8px 4px;
+    padding-block: 8px;
+    padding-inline: 4px;
 
     font-size: 13px;
     line-height: 18px;
@@ -83,6 +86,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 15px;
     font-weight: 600;
     color: ${cssVar.colorTextSecondary};
+
     background: ${cssVar.colorFillSecondary};
   `,
   assistantMeta: css`
@@ -117,7 +121,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: flex;
     flex-direction: column;
     gap: 2px;
-
     min-width: 0;
   `,
   brand: css`
@@ -183,7 +186,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   nav: css`
     display: grid;
     flex: 0 0 ${MOBILE_TABBAR_HEIGHT}px;
-
     min-height: ${MOBILE_TABBAR_HEIGHT}px;
     border-block-start: 1px solid ${cssVar.colorBorderSecondary};
   `,
@@ -199,8 +201,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     place-items: center;
 
     min-width: 0;
-    min-height: 44px;
     height: ${MOBILE_TABBAR_HEIGHT}px;
+    min-height: 44px;
     padding-block: 4px;
     padding-inline: 2px;
     border: 0;
@@ -246,6 +248,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 13px;
     font-weight: 600;
     color: ${cssVar.colorTextSecondary};
+
     background: ${cssVar.colorFillSecondary};
   `,
   recentMeta: css`
@@ -267,7 +270,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: flex;
     flex-direction: column;
     gap: 2px;
-
     min-width: 0;
   `,
   recentTitle: css`
@@ -284,13 +286,11 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: flex;
     flex-direction: column;
     gap: 8px;
-
     margin-block-end: 16px;
   `,
   sectionHeader: css`
     display: flex;
     align-items: center;
-
     min-height: 44px;
   `,
   sectionTitle: css`
@@ -391,7 +391,7 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
 
   const previewBody = () => {
     switch (mode) {
-      case 'design':
+      case 'design': {
         return section(
           t('admin.mobile.designTools'),
           <div className={styles.grid} data-testid="mobile-preview-design-tools">
@@ -415,8 +415,9 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
             })}
           </div>,
         );
+      }
 
-      case 'discover':
+      case 'discover': {
         return section(
           config.discover.title ||
             t('admin.mobile.featuredAssistants'),
@@ -444,8 +445,9 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
             })}
           </div>,
         );
+      }
 
-      case 'apps':
+      case 'apps': {
         return (
           <>
             {section(
@@ -495,30 +497,31 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
             )}
           </>
         );
+      }
 
-      case 'recent':
-      default:
+      default: {
         return section(
           t('admin.mobile.preview.recentTitle'),
           <div>
             {previewRecentRows.map((row) => {
               const title = t(row.titleKey);
               return (
-              <div
-                className={styles.recentRow}
-                data-testid="mobile-preview-recent-row"
-                key={row.titleKey}
-              >
-                <span className={styles.recentAvatar}>{title.slice(0, 1)}</span>
-                <span className={styles.recentText}>
-                  <span className={styles.recentTitle}>{title}</span>
-                  <span className={styles.recentMeta}>{t(row.labelKey)}</span>
-                </span>
-              </div>
+                <div
+                  className={styles.recentRow}
+                  data-testid="mobile-preview-recent-row"
+                  key={row.titleKey}
+                >
+                  <span className={styles.recentAvatar}>{title.slice(0, 1)}</span>
+                  <span className={styles.recentText}>
+                    <span className={styles.recentTitle}>{title}</span>
+                    <span className={styles.recentMeta}>{t(row.labelKey)}</span>
+                  </span>
+                </div>
               );
             })}
           </div>,
         );
+      }
     }
   };
 

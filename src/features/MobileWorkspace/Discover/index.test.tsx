@@ -124,7 +124,7 @@ describe('MobileDiscoverPage', () => {
     const responsiveListClass = screen.getByTestId('featured-assistant-list').className;
 
     mobileState.isLoading = true;
-    rerender(<MobileDiscoverPage />);
+    rerender(<MobileDiscoverPage key="loading" />);
     expect(screen.getByRole('status', { name: 'Recommended assistants' })).toHaveAttribute(
       'aria-busy',
       'true',

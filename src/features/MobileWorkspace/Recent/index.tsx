@@ -24,7 +24,7 @@ import { filterMobileRecentItems, type MobileRecentConversation } from './recent
 const PAGE_SIZE = 20;
 const MOBILE_LOAD_MORE_BUTTON_STYLE = { minHeight: 44, minWidth: 44 } satisfies CSSProperties;
 
-const styles = createStaticStyles(({ css, cssVar }) => ({
+const styles = createStaticStyles(({ css }) => ({
   page: css`
     width: 100%;
     padding-block: 8px 16px;
@@ -166,6 +166,7 @@ const MobileRecentPage = memo(() => {
         ) : !hasItems ? (
           <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
             <MobileStateView
+              title={searchQuery ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
               action={
                 searchQuery
                   ? { label: t('mobile.recent.clearSearch'), onClick: () => setSearchQuery('') }
@@ -175,7 +176,6 @@ const MobileRecentPage = memo(() => {
                       onClick: () => void createAssistant(),
                     }
               }
-              title={searchQuery ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
             />
           </MobileSection>
         ) : (
@@ -191,11 +191,11 @@ const MobileRecentPage = memo(() => {
                     item={item}
                     key={item.id}
                     pending={pinningKeys.has(`${item.kind}:${item.id}`)}
+                    onTogglePin={() => void togglePin(item)}
                     onOpen={() => {
                       rememberFocus(`${item.kind}:${item.id}`);
                       navigate(item.routePath);
                     }}
-                    onTogglePin={() => void togglePin(item)}
                   />
                 ))}
               </MobileSection>
@@ -212,11 +212,11 @@ const MobileRecentPage = memo(() => {
                     item={item}
                     key={item.id}
                     pending={pinningKeys.has(`${item.kind}:${item.id}`)}
+                    onTogglePin={() => void togglePin(item)}
                     onOpen={() => {
                       rememberFocus(`${item.kind}:${item.id}`);
                       navigate(item.routePath);
                     }}
-                    onTogglePin={() => void togglePin(item)}
                   />
                 ))}
               </MobileSection>
@@ -226,8 +226,8 @@ const MobileRecentPage = memo(() => {
                 <Button
                   aria-label={t('mobile.recent.loadMore')}
                   disabled={isValidating}
-                  loading={isValidating}
                   htmlType="button"
+                  loading={isValidating}
                   style={MOBILE_LOAD_MORE_BUTTON_STYLE}
                   onClick={() => void setSize(size + 1)}
                 >

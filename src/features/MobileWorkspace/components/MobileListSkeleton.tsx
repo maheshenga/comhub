@@ -6,9 +6,11 @@ import { type CSSProperties } from 'react';
 const styles = createStaticStyles(({ css, cssVar }) => ({
   avatar: css`
     flex: 0 0 var(--mobile-list-skeleton-avatar-size);
+
     width: var(--mobile-list-skeleton-avatar-size);
     height: var(--mobile-list-skeleton-avatar-size);
     border-radius: 8px;
+
     background: ${cssVar.colorFillTertiary};
   `,
   body: css`
@@ -16,6 +18,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     flex: 1;
     flex-direction: column;
     gap: 8px;
+
     min-width: 0;
   `,
   line: css`
@@ -27,15 +30,18 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: flex;
     gap: 12px;
     align-items: center;
+
     min-height: var(--mobile-list-skeleton-min-row-height);
     padding-block: 8px;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
   trailing: css`
     flex: 0 0 var(--mobile-list-skeleton-trailing-width);
+
     width: var(--mobile-list-skeleton-trailing-width);
     height: 14px;
     border-radius: 4px;
+
     background: ${cssVar.colorFillTertiary};
   `,
 }));

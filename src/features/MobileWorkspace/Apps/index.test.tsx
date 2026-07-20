@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import MobileAppsPage from './index';
@@ -266,9 +266,8 @@ describe('MobileAppsPage', () => {
     );
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('role', 'status');
-    expect(screen.getByTestId('mobile-apps-loading')).toContainElement(
-      screen.getByTestId('mobile-icon-grid'),
-    );
+    const loading = screen.getByTestId('mobile-apps-loading');
+    expect(loading).toContainElement(within(loading).getByTestId('mobile-icon-grid'));
     expect(screen.getAllByTestId('apps-loading-icon')).toHaveLength(4);
     expect(screen.getAllByTestId('apps-loading-label')).toHaveLength(4);
   });
@@ -281,9 +280,8 @@ describe('MobileAppsPage', () => {
     expect(screen.getAllByRole('button', { name: 'Browse app market' })).toHaveLength(1);
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('role', 'status');
-    expect(screen.getByTestId('mobile-apps-loading')).toContainElement(
-      screen.getByTestId('mobile-icon-grid'),
-    );
+    const loading = screen.getByTestId('mobile-apps-loading');
+    expect(loading).toContainElement(within(loading).getByTestId('mobile-icon-grid'));
     expect(screen.getAllByTestId('apps-loading-icon')).toHaveLength(4);
     expect(screen.getAllByTestId('apps-loading-label')).toHaveLength(4);
     expect(screen.queryByTestId('mobile-state-view')).not.toBeInTheDocument();

@@ -21,6 +21,7 @@ vi.mock('react-i18next', () => ({
           'admin.mobile.preview.recent.sampleTitleTwo': 'Content outline',
           'admin.mobile.preview.recentTitle': 'Recent preview',
           'admin.mobile.previewMode': 'Preview mode',
+          'admin.mobile.bottomNavigation': 'Bottom Navigation',
         }[key] ?? options?.defaultValue ?? key
       ),
   }),
@@ -133,7 +134,7 @@ describe('MobileConfigPreview', () => {
     expect(preview).toHaveStyle({ maxWidth: '360px', minHeight: '560px' });
     expect(screen.getAllByRole('radio')).toHaveLength(4);
     expect(screen.getByRole('radio', { name: /recent/i })).toBeChecked();
-    expect(screen.getByTestId('mobile-preview-recent-row')).toBeInTheDocument();
+    expect(screen.getAllByTestId('mobile-preview-recent-row')).toHaveLength(2);
     expect(preview).toHaveTextContent('Preview sample');
     expect(preview).not.toHaveTextContent(/live data/i);
   });

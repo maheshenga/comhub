@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, type ButtonProps } from '@lobehub/ui/base-ui';
-import { cx, createStaticStyles } from 'antd-style';
+import { createStaticStyles, cx } from 'antd-style';
 import { type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
 
 const MOBILE_SECTION_ACTION_STYLE = { minHeight: 44, minWidth: 44 } satisfies CSSProperties;
@@ -12,6 +12,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     gap: 12px;
     align-items: center;
     justify-content: space-between;
+
     min-height: 44px;
   `,
   section: css`
@@ -26,6 +27,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   title: css`
     margin: 0;
+
     font-size: 16px;
     font-weight: 600;
     line-height: 22px;

@@ -13,17 +13,17 @@ import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwar
 import { moduleAppService } from '@/services/moduleApp';
 import { mobileHeaderSticky } from '@/styles/mobileHeader';
 
-import { mobileNavigateOptions } from '../destinationRegistry';
-import { getMobileIcon } from '../mobileIcons';
-import MobilePageLayout from '../MobilePageLayout';
-import { useMobileSlotState } from '../mobileSlotState';
-import { useMobileConfig } from '../useMobileConfig';
 import {
   MobileIconGrid,
   MobileSection,
   MobileStateView,
   MobileWorkspaceHeader,
 } from '../components';
+import { mobileNavigateOptions } from '../destinationRegistry';
+import { getMobileIcon } from '../mobileIcons';
+import MobilePageLayout from '../MobilePageLayout';
+import { useMobileSlotState } from '../mobileSlotState';
+import { useMobileConfig } from '../useMobileConfig';
 import {
   buildMobileBuiltinApps,
   buildMobileModuleApps,
@@ -45,7 +45,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     min-width: 0;
     min-height: 104px;
-    padding: 8px 0;
+    padding-block: 8px;
+    padding-inline: 0;
     border: 0;
 
     color: ${cssVar.colorText};
@@ -120,11 +121,22 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     align-items: center;
 
     min-height: 104px;
-    padding: 8px 0;
+    padding-block: 8px;
+    padding-inline: 0;
   `,
   skeletonLabel: css`
     width: 100%;
     padding-inline: 4px;
+  `,
+  skeletonLabelBar: css`
+    display: block;
+
+    width: 72%;
+    height: 14px;
+    margin-inline: auto;
+    border-radius: 4px;
+
+    background: ${cssVar.colorFillTertiary};
   `,
   skeletonStatus: css`
     width: 100%;
@@ -144,7 +156,7 @@ const MobileAppGridSkeleton = () => (
         <div className={styles.skeletonCell} key={index}>
           <Skeleton.Avatar active shape="square" size={44} />
           <div className={styles.skeletonLabel}>
-            <Skeleton.Input active block size="small" />
+            <span className={styles.skeletonLabelBar} data-testid="apps-loading-label" />
           </div>
         </div>
       ))}
@@ -186,6 +198,8 @@ const MobileAppsPage = memo(() => {
     <MobilePageLayout
       header={
         <MobileWorkspaceHeader
+          style={mobileHeaderSticky}
+          title={pageTitle}
           actions={[
             {
               disabled: isValidating,
@@ -208,8 +222,6 @@ const MobileAppsPage = memo(() => {
               </Button>
             ) : undefined
           }
-          style={mobileHeaderSticky}
-          title={pageTitle}
         />
       }
     >

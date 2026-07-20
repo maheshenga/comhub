@@ -27,9 +27,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     box-sizing: border-box;
     width: calc(100% - 24px);
     max-width: ${MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}px;
-    margin-inline: auto;
-
     min-height: 32px;
+    margin-inline: auto;
     padding-block: 6px;
     padding-inline: 12px;
     border: 1px solid ${cssVar.colorWarningBorder};

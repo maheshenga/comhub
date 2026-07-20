@@ -1,6 +1,6 @@
 'use client';
 
-import { cx, createStaticStyles } from 'antd-style';
+import { createStaticStyles, cx } from 'antd-style';
 import { type HTMLAttributes, type ReactNode } from 'react';
 
 import { MOBILE_WORKSPACE_CONTENT_MAX_WIDTH } from '@/const/layoutTokens';
@@ -13,7 +13,7 @@ const styles = createStaticStyles(({ css }) => ({
     margin-inline: auto;
     padding-inline: 12px;
 
-    @media (min-width: 480px) {
+    @media (width >= 480px) {
       padding-inline: 16px;
     }
   `,

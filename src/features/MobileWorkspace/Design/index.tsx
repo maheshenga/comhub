@@ -42,6 +42,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     border-radius: 8px;
 
     color: ${cssVar.colorError};
+
     background: ${cssVar.colorErrorBg};
   `,
   createErrorText: css`
@@ -51,11 +52,11 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   itemDate: css`
     align-self: center;
-    white-space: nowrap;
 
     font-size: 12px;
     line-height: 18px;
     color: ${cssVar.colorTextTertiary};
+    white-space: nowrap;
   `,
   itemIcon: css`
     display: grid;
@@ -66,6 +67,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     border-radius: 8px;
 
     color: ${cssVar.colorPrimary};
+
     background: ${cssVar.colorFillTertiary};
   `,
   itemMeta: css`
@@ -96,6 +98,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     gap: 2px;
 
     min-width: 0;
+
     text-align: start;
   `,
   itemTitle: css`
@@ -149,7 +152,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     min-width: 0;
     min-height: 88px;
-    padding: 8px 4px;
+    padding-block: 8px;
+    padding-inline: 4px;
     border: 0;
     border-radius: 8px;
 
@@ -175,6 +179,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     border-radius: 8px;
 
     color: ${cssVar.colorPrimary};
+
     background: ${cssVar.colorFillSecondary};
   `,
   toolLabel: css`
@@ -251,6 +256,8 @@ const MobileDesignPage = memo(() => {
     <MobilePageLayout
       header={
         <MobileWorkspaceHeader
+          style={mobileHeaderSticky}
+          title={pageTitle}
           actions={[
             {
               disabled: isValidating,
@@ -259,8 +266,6 @@ const MobileDesignPage = memo(() => {
               onClick: () => void mutate(),
             },
           ]}
-          style={mobileHeaderSticky}
-          title={pageTitle}
         />
       }
     >
@@ -333,16 +338,16 @@ const MobileDesignPage = memo(() => {
                 );
                 return (
                   <button
-                    aria-label={
-                      startsNewPresentation
-                        ? t('mobile.design.startNewPresentation')
-                        : t('mobile.design.open', { name: item.title })
-                    }
                     className={styles.recentButton}
                     data-mobile-focus-key={`${item.kind}:${item.id}`}
                     data-testid="mobile-design-recent-row"
                     key={`${item.kind}:${item.id}`}
                     type="button"
+                    aria-label={
+                      startsNewPresentation
+                        ? t('mobile.design.startNewPresentation')
+                        : t('mobile.design.open', { name: item.title })
+                    }
                     onClick={() => {
                       rememberFocus(`${item.kind}:${item.id}`);
                       navigate(item.routePath);

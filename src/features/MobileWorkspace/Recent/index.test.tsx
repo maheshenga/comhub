@@ -19,6 +19,7 @@ vi.mock('react-i18next', () => ({
         'mobile.recent.error': 'Failed to load recent conversations',
         'mobile.recent.group': 'Group',
         'mobile.recent.latest': 'Latest',
+        'mobile.recent.loadMore': 'Load more',
         'mobile.recent.moreActions': `More actions for ${values?.name ?? ''}`,
         'mobile.recent.open': `Open ${values?.name ?? ''}`,
         'mobile.recent.pin': 'Pin',

@@ -16,6 +16,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   description: css`
     max-width: 360px;
     margin: 0;
+
     font-size: 14px;
     line-height: 22px;
     color: ${cssVar.colorTextSecondary};
@@ -27,12 +28,16 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     gap: 12px;
     align-items: center;
     justify-content: center;
+
     min-height: 180px;
-    padding: 24px 16px;
+    padding-block: 24px;
+    padding-inline: 16px;
+
     text-align: center;
   `,
   title: css`
     margin: 0;
+
     font-size: 17px;
     font-weight: 600;
     line-height: 24px;
@@ -72,7 +77,7 @@ const MobileStateView = ({
   let hasPrimaryAction = false;
 
   return (
-    <section className={styles.state} data-variant={variant} data-testid="mobile-state-view">
+    <section className={styles.state} data-testid="mobile-state-view" data-variant={variant}>
       {icon}
       <h2 className={styles.title}>{title}</h2>
       {description ? <p className={styles.description}>{description}</p> : null}
@@ -84,14 +89,14 @@ const MobileStateView = ({
 
             return (
               <Button
+                data-testid={primary ? 'mobile-state-primary-action' : undefined}
                 disabled={stateAction.disabled}
                 htmlType="button"
+                key={index}
                 loading={stateAction.loading}
                 size="large"
                 style={MOBILE_STATE_ACTION_STYLE}
                 type={primary ? 'primary' : 'default'}
-                data-testid={primary ? 'mobile-state-primary-action' : undefined}
-                key={index}
                 onClick={stateAction.onClick}
               >
                 {stateAction.label}

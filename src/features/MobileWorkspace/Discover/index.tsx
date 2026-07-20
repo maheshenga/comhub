@@ -39,7 +39,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: grid;
     grid-template-columns: minmax(0, 1fr);
 
-    @media (min-width: 640px) and (orientation: landscape) {
+    @media (width >= 640px) and (orientation: landscape) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px 16px;
     }
@@ -92,7 +92,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: flex;
     flex-direction: column;
     gap: 2px;
-
     min-width: 0;
   `,
   title: css`
@@ -121,6 +120,8 @@ const MobileDiscoverPage = memo(() => {
     <MobilePageLayout
       header={
         <MobileWorkspaceHeader
+          style={mobileHeaderSticky}
+          title={t('tab.discover')}
           actions={[
             {
               disabled: isValidating,
@@ -129,8 +130,6 @@ const MobileDiscoverPage = memo(() => {
               onClick: () => void mutate(),
             },
           ]}
-          style={mobileHeaderSticky}
-          title={t('tab.discover')}
         />
       }
     >
@@ -154,14 +153,14 @@ const MobileDiscoverPage = memo(() => {
               />
             ) : cards.length === 0 ? (
               <MobileStateView
+                description={t('mobile.discover.emptyDescription')}
+                title={t('mobile.discover.empty')}
                 actions={[
                   {
                     label: t('mobile.discover.browseCommunity'),
                     onClick: () => navigate('/community', { escape: true }),
                   },
                 ]}
-                description={t('mobile.discover.emptyDescription')}
-                title={t('mobile.discover.empty')}
               />
             ) : (
               <div

@@ -44,7 +44,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
   inner: css`
     display: grid;
-
     width: 100%;
     max-width: ${MOBILE_WORKSPACE_CONTENT_MAX_WIDTH}px;
     margin-inline: auto;

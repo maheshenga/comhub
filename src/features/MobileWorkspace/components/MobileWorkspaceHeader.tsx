@@ -3,8 +3,8 @@
 import { ActionIcon } from '@lobehub/ui';
 import { ChatHeader } from '@lobehub/ui/mobile';
 import { createStaticStyles } from 'antd-style';
-import { type ComponentProps, type ReactNode } from 'react';
 import { type LucideIcon } from 'lucide-react';
+import { type ComponentProps, type ReactNode } from 'react';
 
 const styles = createStaticStyles(({ css }) => ({
   actions: css`
@@ -21,7 +21,7 @@ export interface MobileWorkspaceHeaderAction {
 }
 
 export interface MobileWorkspaceHeaderProps
-  extends Omit<ComponentProps<typeof ChatHeader>, 'center' | 'right'> {
+  extends Omit<ComponentProps<typeof ChatHeader>, 'center' | 'right' | 'title'> {
   actions?: MobileWorkspaceHeaderAction[];
   center?: ReactNode;
   right?: ReactNode;

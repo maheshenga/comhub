@@ -78,7 +78,10 @@ describe('RecentConversationRow', () => {
     expect(screen.getByTestId('agent-avatar')).toHaveAttribute('data-avatar', 'assistant.png');
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('Latest question')).toBeInTheDocument();
-    expect(screen.getByText(/Jul 19/)).toBeInTheDocument();
+    expect(screen.getByTestId('recent-conversation-date')).toHaveAttribute(
+      'dateTime',
+      '2026-07-19T10:00:00.000Z',
+    );
     expect(screen.getByRole('button', { name: 'More actions for Assistant' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Pin' })).toBeDisabled();
   });

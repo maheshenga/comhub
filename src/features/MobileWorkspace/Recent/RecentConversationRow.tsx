@@ -106,7 +106,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 10px;
     font-weight: 600;
     line-height: 1;
-    color: #fff;
+    color: ${cssVar.colorTextLightSolid};
 
     background: ${cssVar.colorError};
   `,
@@ -177,9 +177,13 @@ const RecentConversationRow = memo<RecentConversationRowProps>(
             {item.topicTitle ? <div className={styles.topic}>{item.topicTitle}</div> : null}
             <Flexbox horizontal align="center" gap={6}>
               {isGroup ? <span className={styles.badge}>{t('mobile.recent.group')}</span> : null}
-              <span className={styles.meta}>
+              <time
+                className={styles.meta}
+                data-testid="recent-conversation-date"
+                dateTime={item.updatedAt.toISOString()}
+              >
                 {item.updatedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-              </span>
+              </time>
             </Flexbox>
           </Flexbox>
         </button>

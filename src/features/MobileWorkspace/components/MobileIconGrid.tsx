@@ -1,6 +1,6 @@
 'use client';
 
-import { cx, createStaticStyles } from 'antd-style';
+import { createStaticStyles, cx } from 'antd-style';
 import { type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
 
 const styles = createStaticStyles(({ css }) => ({
