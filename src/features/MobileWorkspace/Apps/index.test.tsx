@@ -260,6 +260,10 @@ describe('MobileAppsPage', () => {
     moduleState.isLoading = true;
     render(<MobileAppsPage />);
 
+    expect(screen.getByRole('button', { name: 'Browse app market' })).toHaveAttribute(
+      'data-button-type',
+      'primary',
+    );
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('role', 'status');
     expect(screen.getByTestId('mobile-apps-loading')).toContainElement(
@@ -267,6 +271,20 @@ describe('MobileAppsPage', () => {
     );
     expect(screen.getAllByTestId('apps-loading-icon')).toHaveLength(4);
     expect(screen.getAllByTestId('apps-loading-label')).toHaveLength(4);
+  });
+
+  it('opens personal module apps outside the workspace shell', () => {
+    moduleState.data = [
+      installedApp({
+        displayName: 'Personal app',
+        id: 'personal-app',
+        installationScope: 'personal',
+      }),
+    ];
+    render(<MobileAppsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Personal app' }));
+    expect(navigate).toHaveBeenCalledWith('/apps/personal-app/app', { escape: true });
   });
 
   it('shows exactly one compact market CTA when no module apps are installed', () => {

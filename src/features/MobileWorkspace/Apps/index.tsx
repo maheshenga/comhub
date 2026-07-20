@@ -178,7 +178,8 @@ const MobileAppsPage = memo(() => {
   const pageTitle =
     config.navigation.items.find((item) => item.id === 'slot-4')?.label || t('mobile.apps.title');
   const openMarket = () => navigate('/apps/market');
-  const showHeaderMarketAction = !isLoading && (Boolean(error) || moduleApps.length > 0);
+  const hasResolvedEmptyModuleApps =
+    !isLoading && !error && data !== undefined && moduleApps.length === 0;
 
   return (
     <MobilePageLayout
@@ -193,7 +194,7 @@ const MobileAppsPage = memo(() => {
             },
           ]}
           right={
-            showHeaderMarketAction ? (
+            !hasResolvedEmptyModuleApps ? (
               <Button
                 aria-label={t('mobile.apps.browseMarket')}
                 className={styles.marketAction}
