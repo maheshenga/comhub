@@ -218,6 +218,16 @@ describe('MobileRecentPage', () => {
     expect(swrOptions.at(-1)).not.toHaveProperty('refreshInterval');
   });
 
+  it('keeps the load-more command at the mobile touch target size', () => {
+    swrState.data[0] = { ...swrState.data[0]!, nextCursor: 'next-page' };
+    render(<MobileRecentPage />);
+
+    expect(screen.getByRole('button', { name: 'Load more' })).toHaveStyle({
+      minHeight: '44px',
+      minWidth: '44px',
+    });
+  });
+
   it('filters both pinned and recent sections using assistant and topic names', () => {
     render(<MobileRecentPage />);
     fireEvent.change(screen.getByRole('textbox', { name: 'Search conversations' }), {

@@ -4,7 +4,7 @@ import { Flexbox, SearchBar } from '@lobehub/ui';
 import { Button, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { RefreshCw } from 'lucide-react';
-import { type ChangeEvent, memo, useCallback, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, type CSSProperties, memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWRInfinite from 'swr/infinite';
 
@@ -22,6 +22,7 @@ import RecentConversationRow from './RecentConversationRow';
 import { filterMobileRecentItems, type MobileRecentConversation } from './recentItems';
 
 const PAGE_SIZE = 20;
+const MOBILE_LOAD_MORE_BUTTON_STYLE = { minHeight: 44, minWidth: 44 } satisfies CSSProperties;
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   page: css`
@@ -227,6 +228,7 @@ const MobileRecentPage = memo(() => {
                   disabled={isValidating}
                   loading={isValidating}
                   htmlType="button"
+                  style={MOBILE_LOAD_MORE_BUTTON_STYLE}
                   onClick={() => void setSize(size + 1)}
                 >
                   {t('mobile.recent.loadMore')}
