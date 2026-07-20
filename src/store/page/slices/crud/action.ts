@@ -24,6 +24,10 @@ export interface PageUpdateParams {
   title?: string;
 }
 
+export interface CreateNewPageOptions {
+  suppressFailureNavigation?: boolean;
+}
+
 type Setter = StoreSetter<PageStore>;
 export const createCrudSlice = (set: Setter, get: () => PageStore, _api?: unknown) =>
   new CrudActionImpl(set, get, _api);
@@ -38,7 +42,10 @@ export class CrudActionImpl {
     this.#get = get;
   }
 
-  createNewPage = async (title: string): Promise<string> => {
+  createNewPage = async (
+    title: string,
+    { suppressFailureNavigation = false }: CreateNewPageOptions = {},
+  ): Promise<string> => {
     const { createOptimisticPage, createPage, replaceTempPageWithReal } = this.#get();
 
     // Create optimistic page immediately
@@ -85,7 +92,9 @@ export class CrudActionImpl {
       console.error('Failed to create page:', error);
       this.#get().removeTempPage(tempPageId);
       this.#set({ isCreatingNew: false, selectedPageId: null }, false, n('createNewPage/error'));
-      this.#get().navigate?.('/page');
+      if (!suppressFailureNavigation) {
+        this.#get().navigate?.('/page');
+      }
 
       throw error;
     }

@@ -226,7 +226,9 @@ const MobileDesignPage = memo(() => {
 
     setCreatingTool(tool.id);
     try {
-      const id = await createNewPage(t('mobile.design.untitled'));
+      const id = await createNewPage(t('mobile.design.untitled'), {
+        suppressFailureNavigation: true,
+      });
       navigate(`/page/${encodeURIComponent(id)}`);
     } catch {
       setCreateError(t('mobile.design.createError'));
@@ -308,9 +310,7 @@ const MobileDesignPage = memo(() => {
 
         <MobileSection className={styles.section} title={t('mobile.design.recent')}>
           {isLoading ? (
-            <div data-testid="mobile-design-loading">
-              <MobileListSkeleton label={t('mobile.design.recent')} rows={4} />
-            </div>
+            <MobileListSkeleton label={t('mobile.design.recent')} rows={4} />
           ) : error ? (
             <MobileStateView
               action={{ label: t('mobile.design.retry'), onClick: () => void mutate() }}

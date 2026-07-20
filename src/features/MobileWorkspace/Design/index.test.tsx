@@ -152,7 +152,9 @@ describe('MobileDesignPage', () => {
     ]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create Write' }));
-    await waitFor(() => expect(createNewPage).toHaveBeenCalledWith('Untitled'));
+    await waitFor(() =>
+      expect(createNewPage).toHaveBeenCalledWith('Untitled', { suppressFailureNavigation: true }),
+    );
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/page/new-doc'));
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Create Images' })).toBeEnabled(),
@@ -183,8 +185,8 @@ describe('MobileDesignPage', () => {
     swrState.isLoading = true;
     const { rerender } = render(<MobileDesignPage />);
     expect(screen.getByRole('button', { name: 'Create Write' })).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-design-loading')).toHaveAttribute('aria-busy', 'true');
-    expect(screen.getByTestId('mobile-design-loading')).toHaveAttribute('role', 'status');
+    const loadingStatus = screen.getByRole('status', { name: 'Recent work' });
+    expect(loadingStatus).toHaveAttribute('aria-busy', 'true');
     expect(screen.getAllByTestId('mobile-list-skeleton-row')).toHaveLength(4);
 
     swrState.isLoading = false;
