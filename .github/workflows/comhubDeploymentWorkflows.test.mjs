@@ -46,6 +46,21 @@ test('build workflow publishes images without production access', () => {
   assert.doesNotMatch(source, /comhub-production-deploy/);
 });
 
+test('PR checks validate main-bound changes without deployment capability', () => {
+  const { source, workflow } = loadWorkflow('comhub-pr-check.yml');
+
+  assert.deepEqual(workflow.on.pull_request.branches, ['main']);
+  assert.equal(workflow.permissions.contents, 'read');
+  assert.deepEqual(Object.keys(workflow.jobs), ['verify']);
+  assert.equal(workflow.jobs.verify.environment, undefined);
+  assert.match(source, /node --test .github\/workflows\/comhubDeploymentWorkflows\.test\.mjs/);
+  assert.match(source, /pnpm type-check/);
+  assert.doesNotMatch(source, /docker\/build-push-action/);
+  assert.doesNotMatch(source, /COMHUB_SSH_PRIVATE_KEY/);
+  assert.doesNotMatch(source, /MODULE_APP_ALIPAY_/);
+  assert.doesNotMatch(source, /deploy_module_worker/);
+});
+
 test('main deployment is manual and reuses existing digest images', () => {
   const { source, workflow } = loadWorkflow('comhub-deploy.yml');
 

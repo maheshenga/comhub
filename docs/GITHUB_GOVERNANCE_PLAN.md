@@ -107,7 +107,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Verify deployment workflow contracts
         run: node --test .github/workflows/comhubDeploymentWorkflows.test.mjs
@@ -202,7 +202,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dependency review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
 ```
 
 - [ ] **Step 3: Validate the workflow YAML with the existing parser**
@@ -245,15 +245,14 @@ Use this content:
 
 - [ ] **Step 2: Replace the one-line README with a public ComHub entry point**
 
-The README must include these exact sections, in Chinese with concise English
-product identifiers where needed: `ComHub`, `Features`, `Quick Start`,
-`Contribution`, `Security`, `Upstream Sync`, and `License`. It must:
+The README must include these exact sections: `ComHub`, `Features`, `Quick
+Start`, `Contribution`, `Security`, `Upstream Sync`, and `License`. It must:
 
 - describe ComHub as an independently maintained customization based on
   LobeHub, without claiming affiliation;
 - list assistant workspace, mobile workspace, design, community, applications,
   and administration as maintained areas;
-- show `pnpm install --frozen-lockfile`, `bun run dev`, and `bun run dev:spa`;
+- show `pnpm install --no-frozen-lockfile`, `bun run dev`, and `bun run dev:spa`;
 - state that GitHub Actions publishes immutable GHCR images and production
   deployment is manually dispatched from `main`;
 - link to `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`, and the LobeHub upstream
@@ -268,7 +267,7 @@ product identifiers where needed: `ComHub`, `Features`, `Quick Start`,
 ```bash
 git clone https://github.com/maheshenga/comhub.git
 git checkout -b feat/short-description
-pnpm install --frozen-lockfile
+pnpm install --no-frozen-lockfile
 node --test .github/workflows/comhubDeploymentWorkflows.test.mjs
 bun run type-check
 ```
@@ -380,18 +379,25 @@ gh api --method PATCH repos/maheshenga/comhub `
   -F 'security_and_analysis[dependabot_security_updates][status]=enabled'
 ```
 
-- [ ] **Step 5: Open the review PR, then re-read platform state**
+- [ ] **Step 5: Enable private vulnerability reporting**
+
+```powershell
+gh api --method PUT repos/maheshenga/comhub/private-vulnerability-reporting
+```
+
+- [ ] **Step 6: Open the review PR, then re-read platform state**
 
 ```powershell
 gh pr create --base main --head codex/worktree-setup --title "ci: govern ComHub GitHub collaboration" --body "Add protected PR validation, security feedback, public repository documentation, and scoped deployment environments. Verified with workflow contracts, type checking, and git diff --check."
 gh api repos/maheshenga/comhub/branches/main/protection
 gh api repos/maheshenga/comhub/environments
 gh api repos/maheshenga/comhub --jq ".security_and_analysis"
+gh api repos/maheshenga/comhub/private-vulnerability-reporting
 ```
 
 Expected: the PR is open and unmerged; `main` protection requires the named
 PR check; both deployment environments use protected-branch policies;
-Dependabot security updates are enabled.
+Dependabot security updates and private vulnerability reporting are enabled.
 
 ## Plan Review
 

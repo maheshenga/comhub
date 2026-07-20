@@ -69,8 +69,10 @@ Create `.github/workflows/comhub-pr-check.yml` with the workflow name
 It must not build or publish images, deploy, access environments, or reference
 SSH, Alipay, or other production secrets.
 
-The job installs dependencies with the lockfile, runs the existing deployment
-workflow contract suite, and runs `bun run type-check`. The stable check name
+The job installs dependencies with `--no-frozen-lockfile`, matching the
+existing build workflows because the tracked source tree has no lockfile. It
+runs the existing deployment workflow contract suite and runs `pnpm type-check`.
+The stable check name
 is `ComHub PR Checks / verify`; the branch rule uses that exact name. The
 workflow contract test gains assertions that the PR workflow has the intended
 trigger, permissions, and no production credential references.
@@ -106,8 +108,9 @@ between repository and environment scopes, or prints credential material.
 
 ### Security Feedback
 
-Enable Dependabot security updates in repository settings. Keep existing secret
-scanning and push protection enabled. Add these repository workflows:
+Enable Dependabot security updates and private vulnerability reporting in
+repository settings. Keep existing secret scanning and push protection enabled.
+Add these repository workflows:
 
 - `.github/workflows/codeql.yml`: CodeQL analysis for JavaScript/TypeScript on
   pull requests to `main`, pushes to `main`, and a weekly schedule.
@@ -158,8 +161,9 @@ LobeHub-specific contact and scope text.
 - A PR to `main` exposes and passes `ComHub PR Checks / verify` before merge.
 - Production and staging credentialed workflows are limited to protected
   branches and remain manually initiated.
-- Dependabot security updates, secret scanning, and push protection are
-  enabled; CodeQL and dependency review workflows exist.
+- Dependabot security updates, private vulnerability reporting, secret scanning,
+  and push protection are enabled; CodeQL and dependency review workflows
+  exist.
 - GitHub's public README, contribution guide, security policy, and CODEOWNERS
   identify ComHub and `@maheshenga`, not LobeHub as the maintainer endpoint.
 - No secret values, deployment host details, runtime application behavior, or
