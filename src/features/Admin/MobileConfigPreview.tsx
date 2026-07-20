@@ -1,62 +1,58 @@
 'use client';
 
-import { Icon } from '@lobehub/ui';
-import { createStaticStyles, cssVar } from 'antd-style';
+import { Icon, Segmented } from '@lobehub/ui';
+import { createStaticStyles } from 'antd-style';
 import { Boxes } from 'lucide-react';
-import { memo } from 'react';
+import { type ReactNode, memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { type MobilePublicConfigV1, normalizeMobileConfig } from '@/const/mobileConfig';
+import { MOBILE_TABBAR_HEIGHT } from '@/const/layoutTokens';
+import { type MobilePublicConfigV1 } from '@/const/mobileConfig';
 import { getMobileIcon } from '@/features/MobileWorkspace/mobileIcons';
 
-const styles = createStaticStyles(({ css }) => ({
+const styles = createStaticStyles(({ css, cssVar }) => ({
   app: css`
     display: grid;
-    gap: 4px;
+    gap: 6px;
     place-items: center;
 
     min-width: 0;
+    min-height: 88px;
+    padding: 8px 4px;
 
-    font-size: 10px;
+    font-size: 13px;
+    line-height: 18px;
     text-align: center;
   `,
   appIcon: css`
     display: grid;
     place-items: center;
 
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     border-radius: 8px;
 
     color: ${cssVar.colorPrimary};
-
     background: ${cssVar.colorFillSecondary};
-  `,
-  assistant: css`
-    display: flex;
-    gap: 8px;
-    align-items: center;
-
-    min-height: 42px;
-    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
   assistantAvatar: css`
     display: grid;
-    flex: 0 0 30px;
     place-items: center;
 
-    width: 30px;
-    height: 30px;
+    width: 44px;
+    height: 44px;
     border-radius: 8px;
 
+    font-size: 15px;
+    font-weight: 600;
     color: ${cssVar.colorTextSecondary};
-
     background: ${cssVar.colorFillSecondary};
   `,
   assistantMeta: css`
     overflow: hidden;
 
-    font-size: 9px;
+    font-size: 12px;
+    line-height: 18px;
     color: ${cssVar.colorTextTertiary};
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -64,19 +60,35 @@ const styles = createStaticStyles(({ css }) => ({
   assistantName: css`
     overflow: hidden;
 
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 22px;
+    color: ${cssVar.colorText};
     text-overflow: ellipsis;
     white-space: nowrap;
   `,
+  assistantRow: css`
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) minmax(72px, auto);
+    gap: 12px;
+    align-items: center;
+
+    min-height: 76px;
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+  `,
   assistantText: css`
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
     min-width: 0;
   `,
   brand: css`
     overflow: hidden;
 
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
+    line-height: 22px;
     text-overflow: ellipsis;
     white-space: nowrap;
   `,
@@ -87,7 +99,7 @@ const styles = createStaticStyles(({ css }) => ({
     object-fit: contain;
   `,
   content: css`
-    overflow: hidden;
+    overflow: auto;
     flex: 1;
     padding: 12px;
     background: ${cssVar.colorBgLayout};
@@ -109,16 +121,16 @@ const styles = createStaticStyles(({ css }) => ({
   `,
   grid: css`
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
   `,
   header: css`
     display: flex;
-    flex: 0 0 52px;
+    flex: 0 0 ${MOBILE_TABBAR_HEIGHT}px;
     gap: 8px;
     align-items: center;
 
-    height: 52px;
+    min-height: ${MOBILE_TABBAR_HEIGHT}px;
     padding-inline: 12px;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
@@ -130,150 +142,324 @@ const styles = createStaticStyles(({ css }) => ({
   `,
   nav: css`
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    flex: 0 0 54px;
+    flex: 0 0 ${MOBILE_TABBAR_HEIGHT}px;
 
-    min-height: 54px;
+    min-height: ${MOBILE_TABBAR_HEIGHT}px;
     border-block-start: 1px solid ${cssVar.colorBorderSecondary};
+  `,
+  navIcon: css`
+    display: grid;
+    place-items: center;
+    height: 22px;
   `,
   navItem: css`
     display: grid;
-    gap: 1px;
+    grid-template-rows: 22px 16px;
+    gap: 2px;
     place-items: center;
 
     min-width: 0;
-    padding-block: 5px;
+    height: ${MOBILE_TABBAR_HEIGHT}px;
+    padding-block: 4px;
     padding-inline: 2px;
 
-    font-size: 9px;
+    font-size: 11px;
+    line-height: 16px;
     color: ${cssVar.colorTextSecondary};
   `,
   navItemActive: css`
     color: ${cssVar.colorPrimary};
-  `,
-  section: css`
-    margin-block-end: 12px;
-  `,
-  sectionTitle: css`
-    margin-block: 0 6px;
-    margin-inline: 0;
 
-    font-size: 11px;
+    svg {
+      fill: color-mix(in srgb, ${cssVar.colorPrimary} 24%, transparent);
+    }
+  `,
+  preview: css`
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    width: 100%;
+    max-width: 360px;
+  `,
+  recentAvatar: css`
+    display: grid;
+    place-items: center;
+
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+
+    font-size: 13px;
     font-weight: 600;
     color: ${cssVar.colorTextSecondary};
+    background: ${cssVar.colorFillSecondary};
+  `,
+  recentMeta: css`
+    font-size: 12px;
+    line-height: 18px;
+    color: ${cssVar.colorTextTertiary};
+  `,
+  recentRow: css`
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+
+    min-height: 64px;
+    padding-block: 8px;
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+  `,
+  recentText: css`
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    min-width: 0;
+  `,
+  recentTitle: css`
+    overflow: hidden;
+
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    color: ${cssVar.colorText};
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  `,
+  section: css`
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    margin-block-end: 16px;
+  `,
+  sectionHeader: css`
+    display: flex;
+    align-items: center;
+
+    min-height: 44px;
+  `,
+  sectionTitle: css`
+    margin: 0;
+
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 22px;
+    color: ${cssVar.colorText};
   `,
 }));
+
+type MobilePreviewMode = 'recent' | 'design' | 'discover' | 'apps';
 
 type MobileConfigPreviewProps = {
   config: MobilePublicConfigV1;
 };
 
+const previewModeSlot: Record<
+  MobilePreviewMode,
+  MobilePublicConfigV1['navigation']['items'][number]['id']
+> = {
+  apps: 'slot-4',
+  design: 'slot-2',
+  discover: 'slot-3',
+  recent: 'slot-1',
+};
+
+const previewRecentRows = [
+  { label: 'Preview sample', title: 'Project planning' },
+  { label: 'Preview sample', title: 'Content outline' },
+] as const;
+
 const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
   const { t } = useTranslation('subscription');
-  const normalized = normalizeMobileConfig(config);
-  const visibleTabs = normalized.navigation.items
-    .filter((item) => item.visible)
-    .sort((left, right) => left.order - right.order);
-  const enabledTools = normalized.design.tools
-    .filter((tool) => tool.enabled)
-    .sort((left, right) => left.order - right.order);
-  const enabledBuiltins = normalized.applications.builtins
-    .filter((app) => app.enabled)
-    .sort((left, right) => left.order - right.order);
-  const brandName = normalized.brand.displayName || 'ComHub';
-  const previewApps = [
-    ...enabledBuiltins.map((app) => ({
-      icon: getMobileIcon(app.icon),
-      id: app.id,
-      label: app.label,
-    })),
-    ...normalized.applications.featuredModuleAppIds.map((id) => ({ icon: Boxes, id, label: id })),
-  ].slice(0, 8);
+  const [mode, setMode] = useState<MobilePreviewMode>('recent');
+  const visibleTabs = useMemo(
+    () =>
+      config.navigation.items
+        .filter((item) => item.visible)
+        .sort((left, right) => left.order - right.order),
+    [config.navigation.items],
+  );
+  const enabledTools = useMemo(
+    () =>
+      config.design.tools
+        .filter((tool) => tool.enabled)
+        .sort((left, right) => left.order - right.order),
+    [config.design.tools],
+  );
+  const enabledBuiltins = useMemo(
+    () =>
+      config.applications.builtins
+        .filter((app) => app.enabled)
+        .sort((left, right) => left.order - right.order),
+    [config.applications.builtins],
+  );
+  const assistants = useMemo(
+    () => [...config.discover.assistants].sort((left, right) => left.order - right.order),
+    [config.discover.assistants],
+  );
+  const brandName = config.brand.displayName || 'ComHub';
+  const modeOptions = useMemo(
+    () =>
+      [
+        { label: t('admin.mobile.preview.recent', { defaultValue: 'Recent' }), value: 'recent' },
+        { label: t('admin.mobile.preview.design', { defaultValue: 'Design' }), value: 'design' },
+        { label: t('admin.mobile.preview.discover', { defaultValue: 'Discover' }), value: 'discover' },
+        { label: t('admin.mobile.preview.apps', { defaultValue: 'Apps' }), value: 'apps' },
+      ],
+    [t],
+  );
 
-  return (
-    <div className={styles.frame} data-testid="mobile-config-preview">
-      <header className={styles.header}>
-        {normalized.brand.logoUrl ? (
-          <img alt={brandName} className={styles.brandLogo} src={normalized.brand.logoUrl} />
-        ) : null}
-        <span className={styles.brand}>{brandName}</span>
-      </header>
+  const section = (title: string, children: ReactNode) => (
+    <section className={styles.section}>
+      <div className={styles.sectionHeader}>
+        <h3 className={styles.sectionTitle}>{title}</h3>
+      </div>
+      {children}
+    </section>
+  );
 
-      <div className={styles.content}>
-        <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>
-            {normalized.discover.title ||
-              t('admin.mobile.featuredAssistants', { defaultValue: 'Featured Assistants' })}
-          </h3>
-          {normalized.discover.assistants.slice(0, 2).map((assistant) => {
-            const title = assistant.titleOverride || assistant.assistantId;
-            return (
-              <div className={styles.assistant} key={assistant.assistantId}>
-                <span className={styles.assistantAvatar}>{title.slice(0, 1).toUpperCase()}</span>
-                <span className={styles.assistantText}>
-                  <span className={styles.assistantName}>{title}</span>
-                  <span className={styles.assistantMeta}>
-                    {assistant.provider}/{assistant.model}
-                  </span>
-                </span>
-              </div>
-            );
-          })}
-        </section>
-
-        <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>
-            {t('admin.mobile.designTools', { defaultValue: 'Design Tools' })}
-          </h3>
-          <div className={styles.grid}>
+  const previewBody = () => {
+    switch (mode) {
+      case 'design':
+        return section(
+          t('admin.mobile.designTools', { defaultValue: 'Design Tools' }),
+          <div className={styles.grid} data-testid="mobile-preview-design-tools">
             {enabledTools.map((tool) => {
               const ToolIcon = getMobileIcon(tool.icon);
               return (
-                <span className={styles.app} key={tool.id}>
+                <div className={styles.app} data-testid="mobile-preview-grid-item" key={tool.id}>
                   <span className={styles.appIcon}>
-                    <Icon icon={ToolIcon} size={17} />
+                    <Icon icon={ToolIcon} size={22} />
                   </span>
                   <span className={styles.label}>{tool.label}</span>
-                </span>
+                </div>
               );
             })}
-          </div>
-        </section>
+          </div>,
+        );
 
-        <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>
-            {t('admin.mobile.appEntries', { defaultValue: 'App Entries' })}
-          </h3>
-          <div className={styles.grid}>
-            {previewApps.map((app) => (
-              <span className={styles.app} key={app.id}>
+      case 'discover':
+        return section(
+          config.discover.title ||
+            t('admin.mobile.featuredAssistants', { defaultValue: 'Featured Assistants' }),
+          <div data-testid="mobile-preview-discover-list">
+            {assistants.map((assistant) => {
+              const title = assistant.titleOverride || assistant.assistantId;
+              return (
+                <div
+                  className={styles.assistantRow}
+                  data-testid="mobile-preview-assistant-row"
+                  key={assistant.assistantId}
+                >
+                  <span className={styles.assistantAvatar}>{title.slice(0, 1).toUpperCase()}</span>
+                  <span className={styles.assistantText}>
+                    <span className={styles.assistantName}>{title}</span>
+                    {assistant.descriptionOverride ? (
+                      <span className={styles.assistantMeta}>{assistant.descriptionOverride}</span>
+                    ) : null}
+                  </span>
+                  <span className={styles.assistantMeta}>
+                    {assistant.provider}/{assistant.model}
+                  </span>
+                </div>
+              );
+            })}
+          </div>,
+        );
+
+      case 'apps':
+        return section(
+          t('admin.mobile.appEntries', { defaultValue: 'App Entries' }),
+          <div className={styles.grid} data-testid="mobile-preview-apps">
+            {enabledBuiltins.map((app) => {
+              const AppIcon = getMobileIcon(app.icon);
+              return (
+                <div className={styles.app} data-testid="mobile-preview-grid-item" key={app.id}>
+                  <span className={styles.appIcon}>
+                    <Icon icon={AppIcon} size={22} />
+                  </span>
+                  <span className={styles.label}>{app.label}</span>
+                </div>
+              );
+            })}
+            {config.applications.featuredModuleAppIds.map((id) => (
+              <div className={styles.app} data-testid="mobile-preview-grid-item" key={id}>
                 <span className={styles.appIcon}>
-                  <Icon icon={app.icon} size={17} />
+                  <Icon icon={Boxes} size={22} />
                 </span>
-                <span className={styles.label}>{app.label}</span>
-              </span>
+                <span className={styles.label}>{id}</span>
+              </div>
             ))}
-          </div>
-        </section>
-      </div>
+          </div>,
+        );
 
-      <nav
-        aria-label={t('admin.mobile.bottomNavigation', { defaultValue: 'Bottom Navigation' })}
-        className={styles.nav}
-      >
-        {visibleTabs.map((item, index) => {
-          const TabIcon = getMobileIcon(item.icon);
-          return (
-            <span
-              className={`${styles.navItem} ${index === 0 ? styles.navItemActive : ''}`}
-              key={item.id}
-            >
-              <Icon icon={TabIcon} size={16} />
-              <span className={styles.label}>{item.label}</span>
-            </span>
-          );
-        })}
-      </nav>
+      case 'recent':
+      default:
+        return section(
+          t('admin.mobile.preview.recentTitle', { defaultValue: 'Recent preview' }),
+          <div>
+            {previewRecentRows.map((row, index) => (
+              <div
+                className={styles.recentRow}
+                data-testid="mobile-preview-recent-row"
+                key={row.title}
+              >
+                <span className={styles.recentAvatar}>{row.title.slice(0, 1)}</span>
+                <span className={styles.recentText}>
+                  <span className={styles.recentTitle}>{row.title}</span>
+                  <span className={styles.recentMeta}>{index === 0 ? row.label : 'Preview row'}</span>
+                </span>
+              </div>
+            ))}
+          </div>,
+        );
+    }
+  };
+
+  return (
+    <div className={styles.preview}>
+      <Segmented
+        aria-label={t('admin.mobile.previewMode', { defaultValue: 'Preview mode' })}
+        options={modeOptions}
+        value={mode}
+        onChange={(value) => setMode(value as MobilePreviewMode)}
+      />
+      <div className={styles.frame} data-testid="mobile-config-preview">
+        <header className={styles.header}>
+          {config.brand.logoUrl ? (
+            <img alt={brandName} className={styles.brandLogo} src={config.brand.logoUrl} />
+          ) : null}
+          <span className={styles.brand}>{brandName}</span>
+        </header>
+
+        <div className={styles.content}>{previewBody()}</div>
+
+        <nav
+          aria-label={t('admin.mobile.bottomNavigation', { defaultValue: 'Bottom Navigation' })}
+          className={styles.nav}
+          style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+        >
+          {visibleTabs.map((item) => {
+            const TabIcon = getMobileIcon(item.icon);
+            const active = item.id === previewModeSlot[mode];
+            return (
+              <span
+                aria-current={active ? 'page' : undefined}
+                className={`${styles.navItem} ${active ? styles.navItemActive : ''}`}
+                data-testid={`mobile-preview-nav-${item.id}`}
+                key={item.id}
+              >
+                <span className={styles.navIcon}>
+                  <Icon icon={TabIcon} size={20} />
+                </span>
+                <span className={styles.label}>{item.label}</span>
+              </span>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 });
