@@ -782,7 +782,10 @@ export default {
   'mobile.design.retryCreate': 'Retry creating {{name}}',
   'mobile.design.startNewPresentation': 'Starts a new presentation',
   'mobile.design.untitled': 'Untitled',
+  'mobile.discover.browseCommunity': 'Browse Community',
   'mobile.discover.empty': 'No recommended assistants',
+  'mobile.discover.emptyDescription':
+    'Your admin has not curated any recommended assistants yet.',
   'mobile.discover.error': 'Unable to load recommended assistants',
   'mobile.discover.open': 'Open {{name}}',
   'mobile.discover.retry': 'Retry',

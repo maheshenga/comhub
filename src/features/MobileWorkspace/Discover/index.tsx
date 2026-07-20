@@ -1,16 +1,22 @@
 'use client';
 
-import { Avatar, Button, Empty, Flexbox, Skeleton } from '@lobehub/ui';
-import { ChatHeader } from '@lobehub/ui/mobile';
+import { Avatar } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
+import { RefreshCw } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { mobileHeaderSticky } from '@/styles/mobileHeader';
 
+import {
+  MobileContentFrame,
+  MobileListSkeleton,
+  MobileSection,
+  MobileStateView,
+  MobileWorkspaceHeader,
+} from '../components';
 import MobilePageLayout from '../MobilePageLayout';
-import MobileRefreshButton from '../MobileRefreshButton';
 import { useMobileSlotState } from '../mobileSlotState';
 import { useMobileConfig } from '../useMobileConfig';
 import { buildFeaturedAssistantCards } from './featuredAssistants';
@@ -19,29 +25,6 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   avatar: css`
     flex: 0 0 auto;
   `,
-  card: css`
-    cursor: pointer;
-
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: flex-start;
-
-    min-width: 0;
-    min-height: 164px;
-    padding: 14px;
-    border: 1px solid ${cssVar.colorBorderSecondary};
-    border-radius: 8px;
-
-    color: inherit;
-    text-align: start;
-
-    background: ${cssVar.colorBgContainer};
-
-    &:active {
-      background: ${cssVar.colorFillQuaternary};
-    }
-  `,
   description: css`
     overflow: hidden;
     display: -webkit-box;
@@ -49,61 +32,78 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     -webkit-line-clamp: 2;
 
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 18px;
     color: ${cssVar.colorTextSecondary};
   `,
-  grid: css`
+  list: css`
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    padding: 12px;
-  `,
-  headerTitle: css`
-    overflow: hidden;
+    grid-template-columns: minmax(0, 1fr);
 
-    margin: 0;
-
-    font-size: 17px;
-    font-weight: 600;
-    color: ${cssVar.colorText};
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    @media (min-width: 640px) and (orientation: landscape) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 16px;
+    }
   `,
   model: css`
     overflow: hidden;
 
-    max-width: 100%;
-    margin-block-start: auto;
-    padding-block: 3px;
-    padding-inline: 7px;
-    border-radius: 6px;
+    width: 88px;
+    max-width: 88px;
 
-    font-size: 11px;
-    color: ${cssVar.colorPrimary};
+    font-size: 12px;
+    line-height: 18px;
+    color: ${cssVar.colorTextTertiary};
+    text-align: end;
     text-overflow: ellipsis;
     white-space: nowrap;
-
-    background: ${cssVar.colorFillSecondary};
   `,
   page: css`
     width: 100%;
-    padding-block: 8px 16px;
+    padding-block: 12px 20px;
   `,
-  state: css`
-    min-height: 280px;
-    padding-block: 32px;
-    padding-inline: 20px;
+  row: css`
+    cursor: pointer;
+
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 88px;
+    gap: 12px;
+    align-items: center;
+
+    width: 100%;
+    min-height: 76px;
+    padding-block: 10px;
+    padding-inline: 4px;
+    border: 0;
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+
+    color: inherit;
+    text-align: start;
+
+    background: transparent;
+
+    &:active {
+      background: ${cssVar.colorFillQuaternary};
+    }
+  `,
+  section: css`
+    padding-block: 4px 12px;
+  `,
+  text: css`
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    min-width: 0;
   `,
   title: css`
     overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
 
     font-size: 15px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 22px;
     color: ${cssVar.colorText};
+    text-overflow: ellipsis;
+    white-space: nowrap;
   `,
 }));
 
@@ -116,71 +116,97 @@ const MobileDiscoverPage = memo(() => {
     () => buildFeaturedAssistantCards(config.discover.featuredAssistants ?? []),
     [config.discover.featuredAssistants],
   );
-  const header = (
-    <ChatHeader
-      left={<h1 className={styles.headerTitle}>{config.discover.title}</h1>}
-      right={
-        <MobileRefreshButton
-          label={t('mobile.refresh')}
-          loading={isValidating}
-          onRefresh={() => void mutate()}
-        />
-      }
-      style={mobileHeaderSticky}
-    />
-  );
 
   return (
-    <MobilePageLayout header={header}>
+    <MobilePageLayout
+      header={
+        <MobileWorkspaceHeader
+          actions={[
+            {
+              disabled: isValidating,
+              icon: RefreshCw,
+              label: t('mobile.refresh'),
+              onClick: () => void mutate(),
+            },
+          ]}
+          style={mobileHeaderSticky}
+          title={t('tab.discover')}
+        />
+      }
+    >
       <main className={styles.page}>
-        {isLoading ? (
-          <Flexbox
-            aria-busy="true"
-            className={styles.state}
-            data-testid="mobile-discover-loading"
-            gap={12}
-            role="status"
-          >
-            <Skeleton.Paragraph active rows={6} />
-          </Flexbox>
-        ) : error ? (
-          <Flexbox align="center" className={styles.state} gap={12} justify="center">
-            <span role="alert">{t('mobile.discover.error')}</span>
-            <Button onClick={() => void mutate()}>{t('mobile.discover.retry')}</Button>
-          </Flexbox>
-        ) : cards.length === 0 ? (
-          <Flexbox className={styles.state} justify="center">
-            <Empty description={t('mobile.discover.empty')} />
-          </Flexbox>
-        ) : (
-          <section aria-label={config.discover.title} className={styles.grid}>
-            {cards.map((card) => (
-              <button
-                aria-label={t('mobile.discover.open', { name: card.title })}
-                className={styles.card}
-                data-mobile-focus-key={`assistant:${card.identifier}`}
-                data-testid="featured-assistant-card"
-                key={card.identifier}
-                type="button"
-                onClick={() => {
-                  rememberFocus(`assistant:${card.identifier}`);
-                  navigate(card.routePath, { escape: true });
-                }}
+        <MobileContentFrame>
+          <MobileSection className={styles.section} title={config.discover.title}>
+            {isLoading ? (
+              <MobileListSkeleton label={config.discover.title} rows={4} />
+            ) : error ? (
+              <MobileStateView
+                action={{ label: t('mobile.discover.retry'), onClick: () => void mutate() }}
+                title={t('mobile.discover.error')}
+                variant="error"
+              />
+            ) : cards.length === 0 ? (
+              <MobileStateView
+                actions={[
+                  {
+                    label: t('mobile.discover.browseCommunity'),
+                    onClick: () => navigate('/community', { escape: true }),
+                  },
+                ]}
+                description={t('mobile.discover.emptyDescription')}
+                title={t('mobile.discover.empty')}
+              />
+            ) : (
+              <div
+                aria-label={config.discover.title}
+                className={styles.list}
+                data-testid="featured-assistant-list"
               >
-                <Avatar
-                  avatar={card.avatar}
-                  className={styles.avatar}
-                  shape="square"
-                  size={44}
-                  title={card.title}
-                />
-                <span className={styles.title}>{card.title}</span>
-                <span className={styles.description}>{card.description}</span>
-                <span className={styles.model}>{card.model.displayName}</span>
-              </button>
-            ))}
-          </section>
-        )}
+                {cards.map((card) => (
+                  <button
+                    aria-label={t('mobile.discover.open', { name: card.title })}
+                    className={styles.row}
+                    data-mobile-focus-key={`assistant:${card.identifier}`}
+                    data-testid="featured-assistant-row"
+                    key={card.identifier}
+                    type="button"
+                    onClick={() => {
+                      rememberFocus(`assistant:${card.identifier}`);
+                      navigate(card.routePath, { escape: true });
+                    }}
+                  >
+                    <Avatar
+                      avatar={card.avatar}
+                      className={styles.avatar}
+                      shape="square"
+                      size={44}
+                      title={card.title}
+                    />
+                    <span className={styles.text}>
+                      <span className={styles.title} data-testid="featured-assistant-title">
+                        {card.title}
+                      </span>
+                      <span
+                        className={styles.description}
+                        data-clamp-lines="2"
+                        data-testid="featured-assistant-description"
+                      >
+                        {card.description}
+                      </span>
+                    </span>
+                    <span
+                      className={styles.model}
+                      data-testid="featured-assistant-model"
+                      title={card.model.displayName}
+                    >
+                      {card.model.displayName}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </MobileSection>
+        </MobileContentFrame>
       </main>
     </MobilePageLayout>
   );

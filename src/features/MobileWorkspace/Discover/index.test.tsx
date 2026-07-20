@@ -4,11 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MobileDiscoverPage from './index';
 
 const navigate = vi.fn();
+const rememberFocus = vi.fn();
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: { name?: string }) => {
       const labels: Record<string, string> = {
+        'mobile.discover.browseCommunity': 'Browse Community',
         'mobile.discover.empty': 'No recommended assistants',
+        'mobile.discover.emptyDescription':
+          'Your admin has not curated any recommended assistants yet.',
         'mobile.discover.error': 'Unable to load recommended assistants',
         'mobile.discover.open': `Open ${values?.name ?? ''}`,
         'mobile.discover.retry': 'Retry',
@@ -37,20 +41,30 @@ vi.mock('../useMobileConfig', () => ({ useMobileConfig: () => mobileState }));
 vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
   useWorkspaceAwareNavigate: () => navigate,
 }));
+vi.mock('../mobileSlotState', () => ({
+  useMobileSlotState: () => ({ rememberFocus }),
+}));
 vi.mock('@lobehub/ui/mobile', () => ({
-  ChatHeader: ({ left, right }: any) => <header>{left}{right}</header>,
+  ChatHeader: Object.assign(({ center, right }: any) => <header>{center}{right}</header>, {
+    Title: ({ title }: any) => <h1>{title}</h1>,
+  }),
 }));
 vi.mock('@lobehub/ui', () => ({
-  Avatar: ({ avatar, title }: any) => <span>{avatar || title}</span>,
+  ActionIcon: ({ 'aria-label': ariaLabel, onClick }: any) => (
+    <button aria-label={ariaLabel} type="button" onClick={onClick} />
+  ),
+  Avatar: ({ avatar, size, title }: any) => (
+    <span data-avatar-size={size} data-testid="featured-assistant-avatar">
+      {avatar || title}
+    </span>
+  ),
+}));
+vi.mock('@lobehub/ui/base-ui', () => ({
   Button: ({ children, onClick }: any) => (
     <button type="button" onClick={onClick}>
       {children}
     </button>
   ),
-  Empty: ({ description }: any) => <div>{description}</div>,
-  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Icon: () => <span aria-hidden="true" />,
-  Skeleton: { Paragraph: () => <div data-testid="discover-loading" /> },
 }));
 vi.mock('../MobilePageLayout', () => ({
   default: ({ children, header }: any) => (
@@ -81,34 +95,52 @@ describe('MobileDiscoverPage', () => {
     mobileState.isValidating = false;
   });
 
-  it('renders only configured assistants in a two-column grid with display models', () => {
+  it('renders configured assistants as compact rows with accessible open commands', () => {
     render(<MobileDiscoverPage />);
 
-    expect(screen.getAllByTestId('featured-assistant-card')).toHaveLength(3);
+    const rows = screen.getAllByTestId('featured-assistant-row');
+    expect(rows).toHaveLength(3);
     expect(screen.getAllByText('GPT 4.1')).toHaveLength(3);
-    expect(screen.queryByTestId('featured-assistant-filler')).not.toBeInTheDocument();
+    for (const avatar of screen.getAllByTestId('featured-assistant-avatar')) {
+      expect(avatar).toHaveAttribute('data-avatar-size', '44');
+    }
+    for (const description of screen.getAllByTestId('featured-assistant-description')) {
+      expect(description).toHaveAttribute('data-clamp-lines', '2');
+    }
+    for (const model of screen.getAllByTestId('featured-assistant-model')) {
+      expect(model).toHaveTextContent('GPT 4.1');
+    }
+    expect(screen.getAllByTestId('featured-assistant-title').map((title) => title.textContent)).toEqual(
+      ['Alpha', 'Beta', 'Gamma'],
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Alpha' }));
+    expect(rememberFocus).toHaveBeenCalledWith('assistant:alpha');
     expect(navigate).toHaveBeenCalledWith('/community/agent/alpha', { escape: true });
   });
 
-  it('renders loading, empty, and retry states', () => {
+  it('renders row-shaped loading, curated empty, and retry states', () => {
     mobileState.isLoading = true;
     const { rerender } = render(<MobileDiscoverPage />);
-    expect(screen.getByTestId('mobile-discover-loading')).toHaveAttribute('aria-busy', 'true');
-    expect(screen.getByTestId('mobile-discover-loading')).toHaveAttribute('role', 'status');
+    expect(screen.getByRole('status', { name: 'Recommended assistants' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    expect(screen.getAllByTestId('mobile-list-skeleton-row')).toHaveLength(4);
 
     mobileState.isLoading = false;
     mobileState.config.discover.featuredAssistants = [];
     rerender(<MobileDiscoverPage key="empty" />);
     expect(screen.getByText('No recommended assistants')).toBeInTheDocument();
+    expect(
+      screen.getByText('Your admin has not curated any recommended assistants yet.'),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Browse Community' }));
+    expect(navigate).toHaveBeenCalledWith('/community', { escape: true });
 
     mobileState.error = new Error('offline');
     rerender(<MobileDiscoverPage key="error" />);
-    expect(screen.getByText('Unable to load recommended assistants')).toHaveAttribute(
-      'role',
-      'alert',
-    );
+    expect(screen.getByText('Unable to load recommended assistants')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(mobileState.mutate).toHaveBeenCalled();
   });
