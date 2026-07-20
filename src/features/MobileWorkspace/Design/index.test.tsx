@@ -14,6 +14,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string, values?: { name?: string }) => {
       const labels: Record<string, string> = {
         'mobile.design.create': 'Create',
+        'mobile.design.createDocument': 'Create document',
         'mobile.design.createError': 'Unable to create document',
         'mobile.design.createTool': `Create ${values?.name ?? ''}`,
         'mobile.design.empty': 'No recent design work',
@@ -25,6 +26,7 @@ vi.mock('react-i18next', () => ({
         'mobile.design.startNewPresentation': 'Starts a new presentation',
         'mobile.design.recent': 'Recent work',
         'mobile.design.retry': 'Retry',
+        'mobile.design.retryCreate': `Retry creating ${values?.name ?? ''}`,
         'mobile.design.untitled': 'Untitled',
         'mobile.refresh': 'Refresh',
       };
@@ -77,19 +79,31 @@ vi.mock('@/business/client/hooks/useActiveWorkspaceId', () => ({
   useActiveWorkspaceId: () => workspaceState.activeWorkspaceId,
 }));
 vi.mock('@/store/page', () => ({ usePageStore: (selector: any) => selector({ createNewPage }) }));
-vi.mock('@lobehub/ui/mobile', () => ({
-  ChatHeader: ({ left, right }: any) => <header>{left}{right}</header>,
-}));
-vi.mock('@lobehub/ui', () => ({
+vi.mock('@lobehub/ui/mobile', () => {
+  const ChatHeader = ({ center, left, right }: any) => <header>{left}{center}{right}</header>;
+  ChatHeader.Title = ({ title }: any) => <h1>{title}</h1>;
+
+  return { ChatHeader };
+});
+vi.mock('@lobehub/ui/base-ui', () => ({
   Button: ({ children, onClick, ...props }: any) => (
     <button type="button" {...props} onClick={onClick}>
       {children}
     </button>
   ),
-  Empty: ({ description }: any) => <div>{description}</div>,
-  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+}));
+vi.mock('@lobehub/ui', () => ({
+  ActionIcon: ({ icon: Icon, onClick, ...props }: any) => (
+    <button type="button" {...props} onClick={onClick}>
+      <Icon />
+    </button>
+  ),
+  Button: ({ children, onClick, ...props }: any) => (
+    <button type="button" {...props} onClick={onClick}>
+      {children}
+    </button>
+  ),
   Icon: () => <span data-testid="design-icon" />,
-  Skeleton: { Paragraph: () => <div data-testid="design-loading" /> },
 }));
 vi.mock('../MobilePageLayout', () => ({
   default: ({ children, header }: any) => (
@@ -119,9 +133,10 @@ describe('MobileDesignPage', () => {
     swrState.isValidating = false;
   });
 
-  it('manually refreshes recent design work', () => {
+  it('renders exactly one header refresh action and manually refreshes recent design work', () => {
     render(<MobileDesignPage />);
 
+    expect(screen.getAllByRole('button', { name: 'Refresh' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(swrState.mutate).toHaveBeenCalled();
   });
@@ -150,23 +165,53 @@ describe('MobileDesignPage', () => {
     expect(navigate).toHaveBeenCalledWith('/page/doc-1');
   });
 
+  it('renders narrow-safe recent row areas separately', () => {
+    swrState.data = [recentItem({ status: 'Draft' })];
+
+    render(<MobileDesignPage />);
+
+    const row = screen.getByTestId('mobile-design-recent-row');
+    expect(screen.getByTestId('mobile-design-recent-title')).toHaveTextContent('Quarterly report');
+    expect(screen.getByTestId('mobile-design-recent-kind')).toHaveTextContent('Document');
+    expect(screen.getByTestId('mobile-design-recent-status')).toHaveTextContent('Draft');
+    expect(screen.getByTestId('mobile-design-recent-date').tagName).toBe('TIME');
+    expect(row).toContainElement(screen.getByTestId('mobile-design-recent-title'));
+    expect(row).toContainElement(screen.getByTestId('mobile-design-recent-date'));
+  });
+
   it('keeps create tools available across recent loading, empty, and retry states', () => {
     swrState.isLoading = true;
     const { rerender } = render(<MobileDesignPage />);
     expect(screen.getByRole('button', { name: 'Create Write' })).toBeInTheDocument();
     expect(screen.getByTestId('mobile-design-loading')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByTestId('mobile-design-loading')).toHaveAttribute('role', 'status');
+    expect(screen.getAllByTestId('mobile-list-skeleton-row')).toHaveLength(4);
 
     swrState.isLoading = false;
     swrState.data = [];
     rerender(<MobileDesignPage key="empty" />);
     expect(screen.getByText('No recent design work')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create document' })).toBeEnabled();
 
     swrState.error = new Error('offline');
     rerender(<MobileDesignPage key="error" />);
-    expect(screen.getByText('Unable to load recent design work')).toHaveAttribute('role', 'alert');
+    expect(screen.getByText('Unable to load recent design work')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(swrState.mutate).toHaveBeenCalled();
+  });
+
+  it('preserves recent page data and retries the failed document tool', async () => {
+    createNewPage.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce('retried-doc');
+    render(<MobileDesignPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create Write' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Unable to create document'));
+    expect(screen.getByRole('button', { name: 'Open Quarterly report' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create Write' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry creating Write' }));
+    await waitFor(() => expect(createNewPage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/page/retried-doc'));
   });
 
   it('labels PPT records that cannot be resumed as a new presentation action', () => {
