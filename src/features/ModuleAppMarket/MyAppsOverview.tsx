@@ -35,6 +35,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     font-size: 12px;
     color: ${cssVar.colorTextSecondary};
+
     background: ${cssVar.colorFillTertiary};
   `,
   statusApproved: css`
