@@ -1,11 +1,18 @@
+import { ConfigProvider } from '@lobehub/ui';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import * as m from 'motion/react-m';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppDetail, { submitModuleAppPaymentForm } from './AppDetail';
 
 const commerceState = vi.hoisted(() => ({
+  detailError: undefined as unknown,
+  detailLoading: false,
+  detailMissing: false,
+  detailMutate: vi.fn(),
   installed: false,
+  licenseData: null as null | { status: string },
   licenseLoading: false,
   licenseMutate: vi.fn(),
   orderStatus: 'pending',
@@ -15,22 +22,30 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock('@/components/NeuralNetworkLoading', () => ({
+  default: () => <div data-testid="neural-network-loading" />,
+}));
+
 vi.mock('swr', () => ({
   default: vi.fn((key: unknown) => {
     const name = Array.isArray(key) ? key[0] : key;
     if (name === 'moduleApp.getDetail') {
       return {
-        data: {
-          actions: [],
-          category: 'business',
-          description: 'Recruitment workflow',
-          displayName: 'Recruiting Desk',
-          id: 'app-1',
-          installed: commerceState.installed,
-          source: 'developer',
-          version: '1.0.0',
-        },
-        isLoading: false,
+        data: commerceState.detailMissing
+          ? undefined
+          : {
+              actions: [],
+              category: 'business',
+              description: 'Recruitment workflow',
+              displayName: 'Recruiting Desk',
+              id: 'app-1',
+              installed: commerceState.installed,
+              source: 'developer',
+              version: '1.0.0',
+            },
+        error: commerceState.detailError,
+        isLoading: commerceState.detailLoading,
+        mutate: commerceState.detailMutate,
       };
     }
     if (name === 'moduleApp.listCatalog') {
@@ -58,7 +73,7 @@ vi.mock('swr', () => ({
     }
     if (name === 'moduleApp.getLicense') {
       return {
-        data: null,
+        data: commerceState.licenseData,
         isLoading: commerceState.licenseLoading,
         mutate: commerceState.licenseMutate,
       };
@@ -83,6 +98,17 @@ vi.mock('swr', () => ({
   }),
 }));
 
+const renderDetail = (entry = '/apps/app-1') =>
+  render(
+    <ConfigProvider motion={m}>
+      <MemoryRouter initialEntries={[entry]}>
+        <Routes>
+          <Route element={<AppDetail />} path="/apps/:appId" />
+        </Routes>
+      </MemoryRouter>
+    </ConfigProvider>,
+  );
+
 vi.mock('./PurchaseModal', () => ({
   default: ({
     catalog,
@@ -106,20 +132,19 @@ vi.mock('./PurchaseModal', () => ({
 
 describe('ModuleAppDetail', () => {
   beforeEach(() => {
+    commerceState.detailError = undefined;
+    commerceState.detailLoading = false;
+    commerceState.detailMissing = false;
+    commerceState.detailMutate.mockReset();
     commerceState.licenseLoading = false;
+    commerceState.licenseData = null;
     commerceState.installed = false;
     commerceState.licenseMutate.mockReset();
     commerceState.orderStatus = 'pending';
   });
 
   it('shows pending payment without presenting the app as licensed', () => {
-    render(
-      <MemoryRouter initialEntries={['/apps/app-1']}>
-        <Routes>
-          <Route element={<AppDetail />} path="/apps/:appId" />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderDetail();
 
     expect(screen.getByText('Recruiting Desk')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'moduleApps.market.open' })).not.toBeInTheDocument();
@@ -130,13 +155,7 @@ describe('ModuleAppDetail', () => {
   });
 
   it('uses only team products and orders in a workspace context', () => {
-    render(
-      <MemoryRouter initialEntries={['/apps/app-1?workspaceId=workspace-1']}>
-        <Routes>
-          <Route element={<AppDetail />} path="/apps/:appId" />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderDetail('/apps/app-1?workspaceId=workspace-1');
 
     fireEvent.click(screen.getByRole('button', { name: 'moduleApps.purchase.pending' }));
     expect(screen.getByText('order-team')).toBeInTheDocument();
@@ -147,40 +166,69 @@ describe('ModuleAppDetail', () => {
 
   it('shows open and uninstall actions for an installed workspace app', () => {
     commerceState.installed = true;
-    render(
-      <MemoryRouter initialEntries={['/apps/app-1?workspaceId=workspace-1']}>
-        <Routes>
-          <Route element={<AppDetail />} path="/apps/:appId" />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderDetail('/apps/app-1?workspaceId=workspace-1');
 
-    expect(screen.getByRole('link', { name: 'moduleApps.market.open' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'moduleApps.market.uninstall' })).toBeInTheDocument();
+    const open = screen.getByRole('link', { name: 'moduleApps.market.open' });
+    const uninstall = screen.getByRole('button', { name: 'moduleApps.market.uninstall' });
+    expect(open).toHaveAttribute('data-button-type', 'primary');
+    expect(open.compareDocumentPosition(uninstall) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId('module-app-detail-actions').children).toHaveLength(2);
+  });
+
+  it('shows install as the only primary action for licensed apps that are not installed', () => {
+    commerceState.licenseData = { status: 'active' };
+
+    renderDetail();
+
+    const install = screen.getByRole('button', { name: 'moduleApps.purchase.install' });
+    expect(install).toHaveAttribute('data-button-type', 'primary');
+    expect(screen.getByTestId('module-app-detail-actions').children).toHaveLength(1);
+  });
+
+  it('renders a semantic responsive metadata list', () => {
+    renderDetail();
+
+    const metadata = screen.getByTestId('module-app-detail-metadata');
+    expect(metadata.tagName).toBe('DL');
+    expect(metadata).toHaveStyle({
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    });
+    expect(screen.getAllByTestId('module-app-detail-metadata-item')).toHaveLength(4);
+    expect(metadata).toHaveTextContent('developer');
+    expect(metadata).toHaveTextContent('1.0.0');
+  });
+
+  it('uses the shared loading state while detail data is loading', () => {
+    commerceState.detailLoading = true;
+    commerceState.detailMissing = true;
+
+    renderDetail();
+
+    expect(screen.getByRole('status', { name: 'moduleApps.market.loading' })).toBeInTheDocument();
+    expect(screen.getByTestId('neural-network-loading')).toBeInTheDocument();
+  });
+
+  it('renders a retryable detail error without clearing other commerce state', () => {
+    commerceState.detailError = new Error('offline');
+    commerceState.detailMissing = true;
+
+    renderDetail();
+
+    expect(screen.getByTestId('mobile-state-view')).toHaveAttribute('data-variant', 'error');
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.retry' }));
+    expect(commerceState.detailMutate).toHaveBeenCalled();
   });
 
   it('blocks checkout while commerce state is loading', () => {
     commerceState.licenseLoading = true;
-    render(
-      <MemoryRouter initialEntries={['/apps/app-1']}>
-        <Routes>
-          <Route element={<AppDetail />} path="/apps/:appId" />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderDetail();
 
     expect(screen.getByRole('button', { name: /moduleApps\.purchase\.pending/ })).toBeDisabled();
   });
 
   it('refreshes the license after an order becomes paid', async () => {
     commerceState.orderStatus = 'paid';
-    render(
-      <MemoryRouter initialEntries={['/apps/app-1']}>
-        <Routes>
-          <Route element={<AppDetail />} path="/apps/:appId" />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderDetail();
 
     await waitFor(() => expect(commerceState.licenseMutate).toHaveBeenCalled());
   });

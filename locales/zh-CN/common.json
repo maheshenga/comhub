@@ -510,6 +510,7 @@
   "moduleApps.purchase.authorized": "已授权",
   "moduleApps.purchase.cancel": "取消待处理订单",
   "moduleApps.purchase.cancelled": "订单已取消",
+  "moduleApps.purchase.close": "关闭购买",
   "moduleApps.purchase.continuePayment": "继续使用支付宝支付",
   "moduleApps.purchase.createOrder": "创建订单",
   "moduleApps.purchase.discountAmount": "优惠金额：{{amount}}",

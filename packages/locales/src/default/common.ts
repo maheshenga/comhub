@@ -462,6 +462,7 @@ export default {
   'moduleApps.purchase.authorized': 'Authorized',
   'moduleApps.purchase.cancel': 'Cancel pending order',
   'moduleApps.purchase.cancelled': 'Order cancelled',
+  'moduleApps.purchase.close': 'Close purchase',
   'moduleApps.purchase.continuePayment': 'Continue with Alipay',
   'moduleApps.purchase.createOrder': 'Create order',
   'moduleApps.purchase.discountAmount': 'Discount amount: {{amount}}',

@@ -1,7 +1,30 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { type ReactNode } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PurchaseModal from './PurchaseModal';
+
+const mobileState = vi.hoisted(() => ({ isMobile: false }));
+const floatingSheetProps = vi.hoisted(() => vi.fn());
+
+vi.mock('@/hooks/useIsMobile', () => ({
+  useIsMobile: () => mobileState.isMobile,
+}));
+
+vi.mock('@lobehub/ui/base-ui', () => ({
+  FloatingSheet: ({ children, ...props }: { children?: ReactNode } & Record<string, unknown>) => {
+    floatingSheetProps(props);
+    return props.open ? (
+      <section data-testid="module-app-purchase-sheet">
+        <header>
+          {props.title as ReactNode}
+          {props.headerActions as ReactNode}
+        </header>
+        {children}
+      </section>
+    ) : null;
+  },
+}));
 
 vi.mock('@/services/moduleApp', () => ({
   moduleAppService: {
@@ -29,6 +52,59 @@ const catalog = [
 ];
 
 describe('PurchaseModal', () => {
+  beforeEach(() => {
+    mobileState.isMobile = false;
+    floatingSheetProps.mockReset();
+  });
+
+  it('keeps the desktop purchase flow in a modal', () => {
+    render(
+      <PurchaseModal
+        open
+        catalog={catalog}
+        onCancelOrder={vi.fn()}
+        onClose={vi.fn()}
+        onCreateOrder={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(floatingSheetProps).not.toHaveBeenCalled();
+  });
+
+  it('uses a scrollable mobile FloatingSheet with a named close action', () => {
+    mobileState.isMobile = true;
+    const onClose = vi.fn();
+
+    render(
+      <PurchaseModal
+        open
+        catalog={catalog}
+        onCancelOrder={vi.fn()}
+        onClose={onClose}
+        onCreateOrder={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('module-app-purchase-sheet')).toBeInTheDocument();
+    expect(floatingSheetProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dismissible: true,
+        maxHeight: 720,
+        minHeight: 320,
+        mode: 'overlay',
+        open: true,
+        restingHeight: 520,
+        snapPoints: [520, 720],
+      }),
+    );
+    expect(screen.getByTestId('module-app-purchase-content')).toHaveStyle({
+      overflowY: 'auto',
+    });
+    fireEvent.click(screen.getByRole('button', { name: /moduleApps\.purchase\.close/ }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it('shows a pending order instead of claiming purchase success', () => {
     render(
       <PurchaseModal
@@ -81,6 +157,7 @@ describe('PurchaseModal', () => {
   });
 
   it('creates an order with the selected server catalog product', async () => {
+    mobileState.isMobile = true;
     const onCreateOrder = vi.fn().mockResolvedValue({ id: 'order-1' });
     const onCreatePayment = vi.fn().mockResolvedValue(undefined);
     render(

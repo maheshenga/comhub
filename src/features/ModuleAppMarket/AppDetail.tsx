@@ -1,10 +1,12 @@
-import { Flexbox } from '@lobehub/ui';
-import { Button, Descriptions, Spin, Tag, Typography } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
+import { createStaticStyles } from 'antd-style';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router';
 import useSWR from 'swr';
 
+import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
+import { MobileStateView } from '@/features/MobileWorkspace/components';
 import { moduleAppService } from '@/services/moduleApp';
 
 import PurchaseModal, { type ModuleAppCatalogItem } from './PurchaseModal';
@@ -36,6 +38,128 @@ type ModuleAppOrderData = {
 
 const isOrderInScope = (order: ModuleAppOrderData, appId?: string, workspaceId?: string) =>
   order.appId === appId && (workspaceId ? order.workspaceId === workspaceId : !order.workspaceId);
+
+const styles = createStaticStyles(({ css, cssVar }) => ({
+  actions: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+
+    & > :where(a, button) {
+      min-height: 44px;
+    }
+
+    @media (width < 600px) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      width: 100%;
+
+      & > :where(a, button) {
+        width: 100%;
+      }
+    }
+  `,
+  description: css`
+    margin: 0;
+
+    font-size: 14px;
+    line-height: 22px;
+    color: ${cssVar.colorTextSecondary};
+    overflow-wrap: anywhere;
+  `,
+  frame: css`
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 960px;
+    margin-inline: auto;
+    padding: 16px;
+
+    @media (width >= 768px) {
+      padding: 24px;
+    }
+  `,
+  header: css`
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: start;
+
+    @media (width < 600px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  `,
+  intro: css`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  `,
+  loading: css`
+    display: grid;
+    place-items: center;
+    min-height: 240px;
+  `,
+  metadata: css`
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 24px;
+
+    min-width: 0;
+    margin: 0;
+
+    @media (width < 600px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  `,
+  metadataItem: css`
+    display: grid;
+    grid-template-columns: minmax(88px, auto) minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+
+    min-width: 0;
+    min-height: 48px;
+    padding-block: 10px;
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+
+    & > dt {
+      font-size: 13px;
+      color: ${cssVar.colorTextSecondary};
+    }
+
+    & > dd {
+      min-width: 0;
+      margin: 0;
+
+      color: ${cssVar.colorText};
+      text-align: end;
+      overflow-wrap: anywhere;
+    }
+  `,
+  source: css`
+    display: inline-flex;
+
+    padding-block: 2px;
+    padding-inline: 6px;
+    border-radius: ${cssVar.borderRadiusSM};
+
+    background: ${cssVar.colorFillSecondary};
+  `,
+  title: css`
+    margin: 0;
+
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 32px;
+    color: ${cssVar.colorText};
+    overflow-wrap: anywhere;
+  `,
+}));
 
 export const submitModuleAppPaymentForm = (body: string) => {
   const parsed = new DOMParser().parseFromString(body, 'text/html');
@@ -140,12 +264,21 @@ const ModuleAppDetail = memo(() => {
 
   if (detail.isLoading)
     return (
-      <Flexbox align="center" justify="center" padding={48}>
-        <Spin />
-      </Flexbox>
+      <div aria-label={t('moduleApps.market.loading')} className={styles.loading} role="status">
+        <NeuralNetworkLoading size={40} />
+      </div>
     );
   if (detail.error || !detail.data) {
-    return <Typography.Text type="danger">{t('moduleApps.market.loadError')}</Typography.Text>;
+    return (
+      <MobileStateView
+        title={t('moduleApps.market.loadError')}
+        variant="error"
+        action={{
+          label: t('moduleApps.market.retry'),
+          onClick: () => void detail.mutate(),
+        }}
+      />
+    );
   }
   const detailData = detail.data;
 
@@ -177,7 +310,7 @@ const ModuleAppDetail = memo(() => {
           workspaceId: installWorkspaceId,
         });
       } else {
-      await moduleAppService.installPersonal({ appId: installAppId });
+        await moduleAppService.installPersonal({ appId: installAppId });
       }
       await detail.mutate();
     } finally {
@@ -190,7 +323,7 @@ const ModuleAppDetail = memo(() => {
       if (workspaceId) {
         await moduleAppService.uninstallWorkspace({ appId: detailData.id, workspaceId });
       } else {
-      await moduleAppService.uninstallPersonal({ appId: detailData.id });
+        await moduleAppService.uninstallPersonal({ appId: detailData.id });
       }
       await detail.mutate();
       await refreshLicense();
@@ -204,61 +337,72 @@ const ModuleAppDetail = memo(() => {
   };
 
   return (
-    <Flexbox data-testid="module-app-detail" gap={20} padding={24}>
-      <Flexbox horizontal align="center" justify="space-between">
-        <Flexbox gap={4}>
-          <Typography.Title level={2} style={{ margin: 0 }}>
-            {detailData.displayName}
-          </Typography.Title>
-          <Typography.Text type="secondary">{detailData.description}</Typography.Text>
-        </Flexbox>
-        {detailData.installed ? (
-          <Flexbox horizontal gap={8}>
-            <Button
-              href={`/apps/${detailData.id}/app${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`}
-              type="primary"
-            >
-              {t('moduleApps.market.open')}
-            </Button>
+    <main className={styles.frame} data-testid="module-app-detail">
+      <header className={styles.header}>
+        <div className={styles.intro}>
+          <h1 className={styles.title}>{detailData.displayName}</h1>
+          {detailData.description ? (
+            <p className={styles.description}>{detailData.description}</p>
+          ) : null}
+        </div>
+        <div className={styles.actions} data-testid="module-app-detail-actions">
+          {detailData.installed ? (
+            <>
+              <Button
+                data-button-type="primary"
+                href={`/apps/${detailData.id}/app${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`}
+                type="primary"
+              >
+                {t('moduleApps.market.open')}
+              </Button>
               <Button danger loading={installationLoading} onClick={uninstall}>
                 {t('moduleApps.market.uninstall')}
               </Button>
-          </Flexbox>
-        ) : licenseData ? (
-          <Button
-            loading={installationLoading}
-            type="primary"
-            onClick={() => install({ appId: detailData.id, workspaceId })}
-          >
-            {t('moduleApps.purchase.install')}
-          </Button>
-        ) : (
-          <Button
-            disabled={commerceLoading}
-            loading={commerceLoading}
-            type="primary"
-            onClick={() => setPurchaseOpen(true)}
-          >
-            {latestOrder?.status === 'pending'
-              ? t('moduleApps.purchase.pending')
-              : t('moduleApps.purchase.title')}
-          </Button>
-        )}
-      </Flexbox>
-      <Descriptions bordered column={2} size="small">
-        <Descriptions.Item label={t('moduleApps.market.category')}>
-          {detailData.category}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.version')}>
-          {detailData.version}
-        </Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.source')}>
-          <Tag>{detailData.source ?? 'admin'}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label={t('moduleApps.market.actions')}>
-          {detailData.actions.length}
-        </Descriptions.Item>
-      </Descriptions>
+            </>
+          ) : licenseData ? (
+            <Button
+              data-button-type="primary"
+              loading={installationLoading}
+              type="primary"
+              onClick={() => install({ appId: detailData.id, workspaceId })}
+            >
+              {t('moduleApps.purchase.install')}
+            </Button>
+          ) : (
+            <Button
+              data-button-type="primary"
+              disabled={commerceLoading}
+              loading={commerceLoading}
+              type="primary"
+              onClick={() => setPurchaseOpen(true)}
+            >
+              {latestOrder?.status === 'pending'
+                ? t('moduleApps.purchase.pending')
+                : t('moduleApps.purchase.title')}
+            </Button>
+          )}
+        </div>
+      </header>
+      <dl className={styles.metadata} data-testid="module-app-detail-metadata">
+        <div className={styles.metadataItem} data-testid="module-app-detail-metadata-item">
+          <dt>{t('moduleApps.market.category')}</dt>
+          <dd>{detailData.category}</dd>
+        </div>
+        <div className={styles.metadataItem} data-testid="module-app-detail-metadata-item">
+          <dt>{t('moduleApps.market.version')}</dt>
+          <dd>{detailData.version}</dd>
+        </div>
+        <div className={styles.metadataItem} data-testid="module-app-detail-metadata-item">
+          <dt>{t('moduleApps.market.source')}</dt>
+          <dd>
+            <span className={styles.source}>{detailData.source ?? 'admin'}</span>
+          </dd>
+        </div>
+        <div className={styles.metadataItem} data-testid="module-app-detail-metadata-item">
+          <dt>{t('moduleApps.market.actions')}</dt>
+          <dd>{detailData.actions.length}</dd>
+        </div>
+      </dl>
       <PurchaseModal
         catalog={scopedCatalog}
         license={licenseData}
@@ -273,7 +417,7 @@ const ModuleAppDetail = memo(() => {
         onCreatePayment={createPayment}
         onInstall={install}
       />
-    </Flexbox>
+    </main>
   );
 });
 
