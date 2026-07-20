@@ -3,7 +3,7 @@
 import { Icon } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import { ChevronLeft } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation } from 'react-router';
 
@@ -78,6 +78,10 @@ const MobileDeepPageGuard = memo(() => {
     }
     navigate(-1);
   };
+
+  useEffect(() => {
+    document.getElementById('mobile-deep-page-content')?.scrollTo?.({ behavior: 'auto', top: 0 });
+  }, [location.pathname, location.search]);
 
   return (
     <div className={styles.root} data-testid="mobile-deep-page-guard">

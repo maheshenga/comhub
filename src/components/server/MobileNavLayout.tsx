@@ -40,13 +40,21 @@ const MobileContentLayout = ({
   if (!header) return content;
 
   return (
-    <Flexbox height={'100%'} style={{ overflow: 'hidden', position: 'relative' }} width={'100%'}>
+    <Flexbox
+      direction="vertical"
+      height={'100%'}
+      style={{ minHeight: 0, overflow: 'hidden', position: 'relative' }}
+      width={'100%'}
+    >
       {header}
       <Flexbox
-        height="100%"
-        id={'lobe-mobile-scroll-container'}
+        data-testid="mobile-content-scroll"
+        flex={1}
+        id={id}
         width="100%"
         style={{
+          flex: '1 1 0%',
+          minHeight: 0,
           overflowX: 'hidden',
           overflowY: 'auto',
           position: 'relative',

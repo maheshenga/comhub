@@ -112,6 +112,17 @@ describe('AssistantAction', () => {
   });
 
   describe('useAssistantList', () => {
+    it('does not fetch assistant recommendations when disabled', () => {
+      vi.spyOn(discoverService, 'getAssistantList').mockResolvedValue({ items: [] } as any);
+
+      const { result } = renderHook(() =>
+        useStore.getState().useAssistantList({ page: 99 }, { enabled: false }),
+      );
+
+      expect(result.current.data).toBeUndefined();
+      expect(discoverService.getAssistantList).not.toHaveBeenCalled();
+    });
+
     it('should fetch assistant list with default parameters', async () => {
       const mockList = {
         items: [{ identifier: 'assistant-1' }, { identifier: 'assistant-2' }],

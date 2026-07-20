@@ -15,6 +15,16 @@ export interface MobileFeaturedModel {
   provider: string;
 }
 
+export interface MobileFeaturedAssistantsSnapshotKey {
+  revision: number;
+  updatedAt: string;
+}
+
+interface MobileFeaturedAssistantsSnapshotCacheOptions {
+  now?: () => number;
+  ttlMs?: number;
+}
+
 interface MobileAssistantCandidate {
   avatar?: null | string;
   description?: null | string;
@@ -31,6 +41,35 @@ interface ResolveMobileFeaturedAssistantsParams {
 
 const cleanText = (value: null | string | undefined) => value?.trim() || undefined;
 const modelKey = (provider: string, id: string) => `${provider}/${id}`;
+
+export const createMobileFeaturedAssistantsSnapshotCache = <T>({
+  now = Date.now,
+  ttlMs = 60_000,
+}: MobileFeaturedAssistantsSnapshotCacheOptions = {}) => {
+  const entries = new Map<string, { expiresAt: number; value: Promise<T> }>();
+  const cacheKey = ({ revision, updatedAt }: MobileFeaturedAssistantsSnapshotKey) =>
+    `${revision}:${updatedAt}`;
+
+  const getOrLoad = (
+    snapshot: MobileFeaturedAssistantsSnapshotKey,
+    load: () => Promise<T>,
+  ): Promise<T> => {
+    const key = cacheKey(snapshot);
+    const current = now();
+    const cached = entries.get(key);
+    if (cached && cached.expiresAt > current) return cached.value;
+
+    const value = load();
+    entries.set(key, { expiresAt: current + ttlMs, value });
+    void value.catch(() => {
+      if (entries.get(key)?.value === value) entries.delete(key);
+    });
+
+    return value;
+  };
+
+  return { getOrLoad };
+};
 
 export const resolveMobileFeaturedAssistants = async ({
   assistants,
@@ -78,7 +117,10 @@ export const resolveMobileFeaturedAssistants = async ({
         description:
           cleanText(configured.descriptionOverride) || cleanText(assistant.description) || '',
         identifier: configured.assistantId,
-        model: { ...model },
+        model: {
+          ...model,
+          displayName: cleanText(configured.modelLabelOverride) || '推荐',
+        },
         title,
       } satisfies MobileResolvedFeaturedAssistantV1;
     }),
@@ -176,3 +218,19 @@ export const loadMobileFeaturedAssistants = async (
     models,
   });
 };
+
+const mobileFeaturedAssistantsSnapshotCache =
+  createMobileFeaturedAssistantsSnapshotCache<MobileResolvedFeaturedAssistantV1[]>();
+
+export const loadCachedMobileFeaturedAssistants = (
+  db: LobeChatDatabase,
+  published: {
+    config: { discover: { assistants: MobileFeaturedAssistantV1[] } };
+    revision: number;
+    updatedAt: string;
+  },
+) =>
+  mobileFeaturedAssistantsSnapshotCache.getOrLoad(
+    { revision: published.revision, updatedAt: published.updatedAt },
+    () => loadMobileFeaturedAssistants(db, published.config.discover.assistants),
+  );

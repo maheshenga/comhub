@@ -24,6 +24,7 @@ import {
   BottomNavigationSection,
   BrandSection,
   DesignToolsSection,
+  DiscoverCommunitySection,
   FeaturedAssistantsSection,
   mobileSettingsStyles,
 } from './MobileSettings';
@@ -45,11 +46,27 @@ import {
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   actionRow: css`
+    position: sticky;
+    z-index: 3;
+    bottom: 0;
+
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     justify-content: flex-end;
+
+    margin-inline: -24px;
+    padding: 12px 24px;
+    border-block-start: 1px solid ${cssVar.colorBorderSecondary};
+
+    background: color-mix(in srgb, ${cssVar.colorBgContainer} 94%, transparent);
+    box-shadow: 0 -4px 16px rgb(0 0 0 / 6%);
+
+    @media (width <= 640px) {
+      margin-inline: -16px;
+      padding-inline: 16px;
+    }
   `,
   page: css`
     width: min(100%, 1120px);
@@ -186,11 +203,8 @@ const AdminMobileSettingsPage = memo(() => {
     };
 
     void load();
-    void refreshAssistantOptions();
-    void refreshModelOptions();
-    void refreshModuleAppOptions();
     return () => asyncGuard.unmount();
-  }, [asyncGuard, refreshAssistantOptions, refreshModelOptions, refreshModuleAppOptions, tr]);
+  }, [asyncGuard, tr]);
 
   const normalizedPreview = useMemo(() => normalizeMobileConfig(formValues), [formValues]);
   const validation = useMemo(
@@ -199,10 +213,6 @@ const AdminMobileSettingsPage = memo(() => {
         builtinPaths: tr(
           'admin.mobile.validation.builtinPaths',
           'Built-in app paths must be internal.',
-        ),
-        minVisibleTabs: tr(
-          'admin.mobile.validation.minVisibleTabs',
-          'At least two bottom tabs must be visible.',
         ),
         uniquePaths: tr(
           'admin.mobile.validation.uniquePaths',
@@ -309,6 +319,7 @@ const AdminMobileSettingsPage = memo(() => {
       <BrandSection {...sectionProps} />
       <BottomNavigationSection {...sectionProps} />
       <DesignToolsSection {...sectionProps} />
+      <DiscoverCommunitySection {...sectionProps} />
       <FeaturedAssistantsSection
         {...sectionProps}
         assistantOptions={assistantOptions}
@@ -319,6 +330,8 @@ const AdminMobileSettingsPage = memo(() => {
         selectedModelValue={selectedModelValue}
         setSelectedAssistantId={setSelectedAssistantId}
         setSelectedModelValue={setSelectedModelValue}
+        onLoadAssistants={() => void refreshAssistantOptions()}
+        onLoadModels={() => void refreshModelOptions()}
         onRetryAssistants={() => void refreshAssistantOptions()}
         onRetryModels={() => void refreshModelOptions()}
       />
@@ -328,6 +341,7 @@ const AdminMobileSettingsPage = memo(() => {
         moduleAppStatus={moduleAppStatus}
         selectedModuleAppId={selectedModuleAppId}
         setSelectedModuleAppId={setSelectedModuleAppId}
+        onLoadModuleApps={() => void refreshModuleAppOptions()}
         onRetryModuleApps={() => void refreshModuleAppOptions()}
       />
 
@@ -363,7 +377,9 @@ const AdminMobileSettingsPage = memo(() => {
               {tr('admin.mobile.revision', 'Revision {{revision}}', {
                 revision: snapshot.revision,
               })}{' '}
-              <time dateTime={snapshot.updatedAt}>{new Date(snapshot.updatedAt).toLocaleString()}</time>
+              <time dateTime={snapshot.updatedAt}>
+                {new Date(snapshot.updatedAt).toLocaleString()}
+              </time>
             </span>
             {snapshot.revision !== publicationState.published.revision ? (
               <Button
@@ -384,7 +400,12 @@ const AdminMobileSettingsPage = memo(() => {
         <Button disabled={!canSave} loading={saving} onClick={() => void save()}>
           {tr('admin.mobile.saveDraft', 'Save draft')}
         </Button>
-        <Button disabled={!canPublish} loading={publishing} type="primary" onClick={() => void publish()}>
+        <Button
+          disabled={!canPublish}
+          loading={publishing}
+          type="primary"
+          onClick={() => void publish()}
+        >
           {tr('admin.mobile.publish', 'Publish')}
         </Button>
       </div>

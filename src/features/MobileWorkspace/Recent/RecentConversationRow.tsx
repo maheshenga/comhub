@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 
 import AgentGroupAvatar from '@/features/AgentGroupAvatar';
 
-import type { MobileRecentConversation } from './recentItems';
+import { getMobileRecentTimeKind, type MobileRecentConversation } from './recentItems';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   avatar: css`
@@ -126,6 +126,15 @@ const RecentConversationRow = memo<RecentConversationRowProps>(
     const customAvatar = typeof item.avatar === 'string' ? item.avatar : undefined;
     const memberAvatars = Array.isArray(item.avatar) ? item.avatar : [];
     const unreadCount = item.unreadCount ?? 0;
+    const timeKind = getMobileRecentTimeKind(item.updatedAt);
+    const timeLabel =
+      timeKind === 'justNow'
+        ? t('mobile.recent.justNow', { defaultValue: 'Just now' })
+        : timeKind === 'today'
+          ? t('mobile.recent.today', { defaultValue: 'Today' })
+          : timeKind === 'yesterday'
+            ? t('mobile.recent.yesterday', { defaultValue: 'Yesterday' })
+            : item.updatedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
     const menuItems = useMemo<MenuProps['items']>(
       () => [
         {
@@ -169,7 +178,12 @@ const RecentConversationRow = memo<RecentConversationRowProps>(
               />
             )}
             {unreadCount > 0 ? (
-              <span className={styles.unread}>{unreadCount > 99 ? '99+' : unreadCount}</span>
+              <span
+                aria-label={t('mobile.recent.unread', { count: unreadCount })}
+                className={styles.unread}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
             ) : null}
           </span>
           <Flexbox className={styles.content} gap={4}>
@@ -182,7 +196,7 @@ const RecentConversationRow = memo<RecentConversationRowProps>(
                 data-testid="recent-conversation-date"
                 dateTime={item.updatedAt.toISOString()}
               >
-                {item.updatedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                {timeLabel}
               </time>
             </Flexbox>
           </Flexbox>

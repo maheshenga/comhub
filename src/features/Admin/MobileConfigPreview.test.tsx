@@ -8,22 +8,22 @@ import MobileConfigPreview from './MobileConfigPreview';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) =>
-      (
-        {
-          'admin.mobile.preview.apps': 'Apps',
-          'admin.mobile.preview.builtinApps': 'Built-in apps',
-          'admin.mobile.preview.design': 'Design',
-          'admin.mobile.preview.discover': 'Discover',
-          'admin.mobile.preview.moduleApps': 'Module apps',
-          'admin.mobile.preview.recent': 'Recent',
-          'admin.mobile.preview.recent.sample': 'Preview sample',
-          'admin.mobile.preview.recent.sampleTitleOne': 'Project planning',
-          'admin.mobile.preview.recent.sampleTitleTwo': 'Content outline',
-          'admin.mobile.preview.recentTitle': 'Recent preview',
-          'admin.mobile.previewMode': 'Preview mode',
-          'admin.mobile.bottomNavigation': 'Bottom Navigation',
-        }[key] ?? options?.defaultValue ?? key
-      ),
+      ({
+        'admin.mobile.preview.apps': 'Apps',
+        'admin.mobile.preview.builtinApps': 'Built-in apps',
+        'admin.mobile.preview.design': 'Design',
+        'admin.mobile.preview.discover': 'Discover',
+        'admin.mobile.preview.moduleApps': 'Module apps',
+        'admin.mobile.preview.recent': 'Recent',
+        'admin.mobile.preview.recent.sample': 'Preview sample',
+        'admin.mobile.preview.recent.sampleTitleOne': 'Project planning',
+        'admin.mobile.preview.recent.sampleTitleTwo': 'Content outline',
+        'admin.mobile.preview.recentTitle': 'Recent preview',
+        'admin.mobile.previewMode': 'Preview mode',
+        'admin.mobile.bottomNavigation': 'Bottom Navigation',
+      })[key] ??
+      options?.defaultValue ??
+      key,
   }),
 }));
 
@@ -54,6 +54,30 @@ const config = {
         order: 1,
         path: '/settings',
       },
+      {
+        enabled: false,
+        icon: 'sparkles',
+        id: 'membership',
+        label: 'Membership',
+        order: 3,
+        path: '/settings/plans',
+      },
+      {
+        enabled: false,
+        icon: 'coins',
+        id: 'credits',
+        label: 'Credits',
+        order: 4,
+        path: '/settings/credits',
+      },
+      {
+        enabled: false,
+        icon: 'chart-no-axes-column-increasing',
+        id: 'usage',
+        label: 'Usage',
+        order: 5,
+        path: '/settings/usage',
+      },
     ],
     featuredModuleAppIds: ['design-kit', 'copy-kit'],
   },
@@ -76,11 +100,13 @@ const config = {
       {
         assistantId: 'agent-alpha',
         model: 'gpt-4.1',
+        modelLabelOverride: 'Recommended',
         order: 1,
         provider: 'openai',
         titleOverride: 'Alpha Bot',
       },
     ],
+    community: { enabled: true, title: 'Community' },
     title: 'Featured',
   },
   navigation: {
@@ -144,21 +170,24 @@ describe('MobileConfigPreview', () => {
     ['design', 'Docs'],
     ['discover', 'Alpha Bot'],
     ['apps', 'Settings'],
-  ] as const)('keeps configured brand and ordered navigation visible in %s mode', (mode, content) => {
-    render(<MobileConfigPreview config={config} />);
+  ] as const)(
+    'keeps configured brand and ordered navigation visible in %s mode',
+    (mode, content) => {
+      render(<MobileConfigPreview config={config} />);
 
-    switchMode(mode);
+      switchMode(mode);
 
-    const preview = screen.getByTestId('mobile-config-preview');
-    const navigation = screen.getByRole('navigation', { name: 'Bottom Navigation' });
-    expect(preview).toHaveTextContent('ComHub App');
-    expect(screen.getByRole('img', { name: 'ComHub App' })).toHaveAttribute(
-      'src',
-      '/brand/mobile.png',
-    );
-    expect(navigation).toHaveTextContent('RecentDesignDiscoverApps');
-    expect(preview).toHaveTextContent(content);
-  });
+      const preview = screen.getByTestId('mobile-config-preview');
+      const navigation = screen.getByRole('navigation', { name: 'Bottom Navigation' });
+      expect(preview).toHaveTextContent('ComHub App');
+      expect(screen.getByRole('img', { name: 'ComHub App' })).toHaveAttribute(
+        'src',
+        '/brand/mobile.png',
+      );
+      expect(navigation).toHaveTextContent('RecentDesignDiscoverApps');
+      expect(preview).toHaveTextContent(content);
+    },
+  );
 
   it('replaces the prior mode body when the preview mode changes', () => {
     render(<MobileConfigPreview config={config} />);
@@ -189,7 +218,7 @@ describe('MobileConfigPreview', () => {
     expect(screen.queryByText('Images')).not.toBeInTheDocument();
   });
 
-  it('renders discover title overrides and provider/model metadata in configured order', () => {
+  it('renders discover title overrides and configured model labels in order', () => {
     render(<MobileConfigPreview config={config} />);
 
     switchMode('discover');
@@ -199,10 +228,14 @@ describe('MobileConfigPreview', () => {
     );
     expect(assistants).toHaveLength(2);
     expect(within(assistants[0]).getByText('Alpha Bot')).toBeInTheDocument();
-    expect(within(assistants[0]).getByText('openai/gpt-4.1')).toBeInTheDocument();
+    expect(within(assistants[0]).getByText('Recommended')).toBeInTheDocument();
     expect(within(assistants[1]).getByText('agent-beta')).toBeInTheDocument();
-    expect(within(assistants[1]).getByText('anthropic/claude-sonnet')).toBeInTheDocument();
+    expect(within(assistants[1]).getByText('推荐')).toBeInTheDocument();
     expect(screen.getByText('Featured')).toBeInTheDocument();
+    expect(screen.getByText('Community')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-preview-community')).toHaveTextContent(
+      'Recommended assistants',
+    );
   });
 
   it('renders separate built-in and module app sections in configured order', () => {
@@ -249,7 +282,7 @@ describe('MobileConfigPreview', () => {
     expect(screen.queryByTestId('mobile-preview-discover-list')).not.toBeInTheDocument();
   });
 
-  it('keeps hidden bottom tabs absent without an active substitute', () => {
+  it('keeps all four primary bottom tabs available after legacy hidden settings', () => {
     const hiddenDiscover = {
       ...config,
       navigation: {
@@ -273,9 +306,12 @@ describe('MobileConfigPreview', () => {
     );
 
     switchMode('discover');
-    expect(within(navigation).queryByTestId('mobile-preview-nav-slot-3')).not.toBeInTheDocument();
-    expect(within(navigation).queryByRole('button', { name: 'Discover' })).not.toBeInTheDocument();
-    expect(navigation.querySelector('[aria-current="page"]')).toBeNull();
+    expect(within(navigation).getByTestId('mobile-preview-nav-slot-3')).toBeInTheDocument();
+    expect(within(navigation).getByRole('button', { name: 'Discover' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(navigation.querySelector('[aria-current="page"]')).not.toBeNull();
     expect(screen.getByTestId('mobile-preview-discover-list')).toBeInTheDocument();
   });
 });

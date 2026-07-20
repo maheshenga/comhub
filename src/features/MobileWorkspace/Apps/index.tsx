@@ -4,7 +4,7 @@ import { Icon, Skeleton } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Boxes, RefreshCw, Store } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
@@ -143,10 +143,10 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
   `,
 }));
 
-const MobileAppGridSkeleton = () => (
+const MobileAppGridSkeleton = ({ label }: { label: string }) => (
   <div
     aria-busy="true"
-    aria-label="Loading module apps"
+    aria-label={label}
     className={styles.skeletonStatus}
     data-testid="mobile-apps-loading"
     role="status"
@@ -163,6 +163,27 @@ const MobileAppGridSkeleton = () => (
     </MobileIconGrid>
   </div>
 );
+
+const MobileModuleAppIcon = ({ icon, name }: { icon?: null | string; name: string }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (!icon || imageFailed) {
+    return (
+      <span data-testid="mobile-module-app-fallback-icon">
+        <Icon icon={Boxes} size={22} />
+      </span>
+    );
+  }
+
+  return (
+    <img
+      alt={name}
+      className={styles.appLogo}
+      src={icon}
+      onError={() => setImageFailed(true)}
+    />
+  );
+};
 
 const MobileAppsPage = memo(() => {
   const { t } = useTranslation('common');
@@ -255,7 +276,7 @@ const MobileAppsPage = memo(() => {
 
         <MobileSection className={styles.section} title={t('mobile.apps.module')}>
           {isModuleAppsLoading ? (
-            <MobileAppGridSkeleton />
+            <MobileAppGridSkeleton label={t('mobile.apps.loading')} />
           ) : error ? (
             <MobileStateView
               action={{ label: t('mobile.apps.retry'), onClick: () => void mutate() }}
@@ -280,11 +301,7 @@ const MobileAppsPage = memo(() => {
                   }}
                 >
                   <span className={styles.appIcon}>
-                    {app.icon ? (
-                      <img alt={app.displayName} className={styles.appLogo} src={app.icon} />
-                    ) : (
-                      <Icon icon={Boxes} size={22} />
-                    )}
+                    <MobileModuleAppIcon icon={app.icon} name={app.displayName} />
                   </span>
                   <span className={styles.appLabel}>{app.displayName}</span>
                 </button>

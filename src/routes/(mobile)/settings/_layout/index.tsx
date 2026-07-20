@@ -1,7 +1,7 @@
 'use client';
 
-import { memo } from 'react';
-import { Outlet } from 'react-router';
+import { memo, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router';
 
 import MobileContentLayout from '@/components/server/MobileNavLayout';
 
@@ -9,6 +9,13 @@ import SettingsContextProvider from '../../../(main)/settings/_layout/ContextPro
 import Header from './Header';
 
 const MobileSettingsWrapper = memo(() => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const container = document.getElementById('lobe-mobile-scroll-container');
+    container?.scrollTo?.({ behavior: 'auto', top: 0 });
+  }, [location.pathname, location.search]);
+
   return (
     <SettingsContextProvider
       value={{

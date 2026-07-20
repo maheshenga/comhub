@@ -12,6 +12,7 @@ vi.mock('react-i18next', () => ({
         'mobile.apps.builtIn': 'Built-in apps',
         'mobile.apps.empty': 'No available module apps',
         'mobile.apps.error': 'Unable to load module apps',
+        'mobile.apps.loading': 'Loading apps',
         'mobile.apps.module': 'Module apps',
         'mobile.apps.open': `Open ${values?.name ?? ''}`,
         'mobile.apps.retry': 'Retry module apps',
@@ -266,6 +267,7 @@ describe('MobileAppsPage', () => {
     );
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('role', 'status');
+    expect(screen.getByTestId('mobile-apps-loading')).toHaveAccessibleName('Loading apps');
     const loading = screen.getByTestId('mobile-apps-loading');
     expect(loading).toContainElement(within(loading).getByTestId('mobile-icon-grid'));
     expect(screen.getAllByTestId('apps-loading-icon')).toHaveLength(4);
@@ -299,6 +301,18 @@ describe('MobileAppsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Personal app' }));
     expect(navigate).toHaveBeenCalledWith('/apps/personal-app/app', { escape: true });
+  });
+
+  it('keeps a visible app icon when a module image fails to load', () => {
+    render(<MobileAppsPage />);
+
+    fireEvent.error(screen.getByRole('img', { name: 'Featured app' }));
+
+    expect(
+      within(screen.getByRole('button', { name: 'Open Featured app' })).getByTestId(
+        'mobile-module-app-fallback-icon',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('shows exactly one compact market CTA when no module apps are installed', () => {

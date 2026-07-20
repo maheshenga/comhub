@@ -14,6 +14,8 @@ import {
 } from '@/types/discover';
 
 type Setter = StoreSetter<DiscoverStore>;
+type RequestOptions = { enabled?: boolean };
+
 export const createMCPSlice = (set: Setter, get: () => DiscoverStore, _api?: unknown) =>
   new MCPActionImpl(set, get, _api);
 
@@ -39,9 +41,12 @@ export class MCPActionImpl {
     );
   };
 
-  useFetchMcpList = (params: McpQueryParams): SWRResponse<McpListResponse> => {
+  useFetchMcpList = (
+    params: McpQueryParams,
+    { enabled = true }: RequestOptions = {},
+  ): SWRResponse<McpListResponse> => {
     const locale = globalHelpers.getCurrentLanguage();
-    return useClientDataSWR(discoverKeys.mcpList(locale, params), async () =>
+    return useClientDataSWR(enabled ? discoverKeys.mcpList(locale, params) : null, async () =>
       discoverService.getMcpList({
         ...params,
         page: params.page ? Number(params.page) : 1,

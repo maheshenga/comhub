@@ -73,11 +73,58 @@ export const DesignToolsSection = ({ formValues, tr, updateForm }: MobileSetting
   </section>
 );
 
+export const DiscoverCommunitySection = ({
+  formValues,
+  tr,
+  updateForm,
+}: MobileSettingsSectionProps) => (
+  <section
+    aria-label={tr('admin.mobile.discoverCommunity', 'Discover community')}
+    className={styles.section}
+  >
+    <h2 className={styles.sectionTitle}>
+      {tr('admin.mobile.discoverCommunity', 'Discover community')}
+    </h2>
+    <div className={styles.grid}>
+      <LabeledField label={tr('admin.mobile.communityTitle', 'Community section title')}>
+        <Input
+          aria-label={tr('admin.mobile.communityTitle', 'Community section title')}
+          value={formValues.discover.community.title}
+          onChange={(event) =>
+            updateForm({
+              ...formValues,
+              discover: {
+                ...formValues.discover,
+                community: { ...formValues.discover.community, title: event.target.value },
+              },
+            })
+          }
+        />
+      </LabeledField>
+      <AccessibleSwitch
+        checked={formValues.discover.community.enabled}
+        label={tr('admin.mobile.communityEnabled', 'Show community section')}
+        onChange={(enabled) =>
+          updateForm({
+            ...formValues,
+            discover: {
+              ...formValues.discover,
+              community: { ...formValues.discover.community, enabled },
+            },
+          })
+        }
+      />
+    </div>
+  </section>
+);
+
 interface FeaturedAssistantsSectionProps extends MobileSettingsSectionProps {
   assistantOptions: SelectOption[];
   assistantStatus: SelectorStatus;
   modelOptions: ModelOption[];
   modelStatus: SelectorStatus;
+  onLoadAssistants: () => void;
+  onLoadModels: () => void;
   onRetryAssistants: () => void;
   onRetryModels: () => void;
   selectedAssistantId: string;
@@ -92,6 +139,8 @@ export const FeaturedAssistantsSection = ({
   formValues,
   modelOptions,
   modelStatus,
+  onLoadAssistants,
+  onLoadModels,
   onRetryAssistants,
   onRetryModels,
   selectedAssistantId,
@@ -117,6 +166,7 @@ export const FeaturedAssistantsSection = ({
     const nextAssistant: MobileFeaturedAssistantV1 = {
       assistantId: assistant.value,
       model: model.model,
+      modelLabelOverride: '推荐',
       order: formValues.discover.assistants.length + 1,
       provider: model.provider,
       titleOverride: assistant.label,
@@ -151,15 +201,23 @@ export const FeaturedAssistantsSection = ({
         onRetry={onRetryModels}
       />
       <div className={styles.grid}>
+        <Button disabled={assistantStatus.loading} loading={assistantStatus.loading} onClick={onLoadAssistants}>
+          {tr('admin.mobile.loadAssistantOptions', 'Load assistant options')}
+        </Button>
+        <Button disabled={modelStatus.loading} loading={modelStatus.loading} onClick={onLoadModels}>
+          {tr('admin.mobile.loadModelOptions', 'Load model options')}
+        </Button>
         <SelectField
-          disabled={assistantStatus.loading || Boolean(assistantStatus.error)}
+          disabled={
+            assistantStatus.loading || Boolean(assistantStatus.error) || assistantOptions.length === 0
+          }
           label={tr('admin.mobile.featuredAssistant', 'Featured assistant')}
           options={assistantOptions}
           value={selectedAssistantId}
           onChange={setSelectedAssistantId}
         />
         <SelectField
-          disabled={modelStatus.loading || Boolean(modelStatus.error)}
+          disabled={modelStatus.loading || Boolean(modelStatus.error) || modelOptions.length === 0}
           label={tr('admin.mobile.displayModel', 'Display model')}
           options={modelOptions}
           value={selectedModelValue}
@@ -172,10 +230,92 @@ export const FeaturedAssistantsSection = ({
       <Flexbox gap={8}>
         {sortByOrder(formValues.discover.assistants).map((assistant, index, assistants) => (
           <div className={styles.orderedEntry} key={assistant.assistantId}>
-            <span>
-              {assistant.titleOverride ?? assistant.assistantId} ({assistant.provider}/
-              {assistant.model})
-            </span>
+            <div className={styles.grid}>
+              <LabeledField
+                label={tr('admin.mobile.assistantTitle', 'Assistant {{id}} title', {
+                  id: assistant.assistantId,
+                })}
+              >
+                <Input
+                  value={assistant.titleOverride ?? ''}
+                  aria-label={tr('admin.mobile.assistantTitle', 'Assistant {{id}} title', {
+                    id: assistant.assistantId,
+                  })}
+                  onChange={(event) =>
+                    updateForm({
+                      ...formValues,
+                      discover: {
+                        ...formValues.discover,
+                        assistants: formValues.discover.assistants.map((item) =>
+                          item.assistantId === assistant.assistantId
+                            ? { ...item, titleOverride: event.target.value || undefined }
+                            : item,
+                        ),
+                      },
+                    })
+                  }
+                />
+              </LabeledField>
+              <LabeledField
+                label={tr('admin.mobile.assistantDescription', 'Assistant {{id}} description', {
+                  id: assistant.assistantId,
+                })}
+              >
+                <Input
+                  value={assistant.descriptionOverride ?? ''}
+                  aria-label={tr(
+                    'admin.mobile.assistantDescription',
+                    'Assistant {{id}} description',
+                    {
+                      id: assistant.assistantId,
+                    },
+                  )}
+                  onChange={(event) =>
+                    updateForm({
+                      ...formValues,
+                      discover: {
+                        ...formValues.discover,
+                        assistants: formValues.discover.assistants.map((item) =>
+                          item.assistantId === assistant.assistantId
+                            ? { ...item, descriptionOverride: event.target.value || undefined }
+                            : item,
+                        ),
+                      },
+                    })
+                  }
+                />
+              </LabeledField>
+              <LabeledField
+                label={tr('admin.mobile.assistantModelLabel', 'Assistant {{id}} model label', {
+                  id: assistant.assistantId,
+                })}
+              >
+                <Input
+                  placeholder="推荐"
+                  value={assistant.modelLabelOverride ?? ''}
+                  aria-label={tr(
+                    'admin.mobile.assistantModelLabel',
+                    'Assistant {{id}} model label',
+                    {
+                      id: assistant.assistantId,
+                    },
+                  )}
+                  onChange={(event) =>
+                    updateForm({
+                      ...formValues,
+                      discover: {
+                        ...formValues.discover,
+                        assistants: formValues.discover.assistants.map((item) =>
+                          item.assistantId === assistant.assistantId
+                            ? { ...item, modelLabelOverride: event.target.value || undefined }
+                            : item,
+                        ),
+                      },
+                    })
+                  }
+                />
+              </LabeledField>
+            </div>
             <Flexbox horizontal gap={4}>
               <OrderButtons
                 position={index}

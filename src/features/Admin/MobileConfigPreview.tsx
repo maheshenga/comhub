@@ -7,7 +7,7 @@ import { memo, type ReactNode, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { MOBILE_TABBAR_HEIGHT } from '@/const/layoutTokens';
-import { type MobilePublicConfigV1 } from '@/const/mobileConfig';
+import { type MobilePublicConfigV1,normalizeMobileConfig } from '@/const/mobileConfig';
 import { getMobileIcon } from '@/features/MobileWorkspace/mobileIcons';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
@@ -342,41 +342,41 @@ const previewRecentRows = [
 
 const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
   const { t } = useTranslation('subscription');
+  const normalizedConfig = useMemo(() => normalizeMobileConfig(config), [config]);
   const [mode, setMode] = useState<MobilePreviewMode>('recent');
   const visibleTabs = useMemo(
     () =>
-      config.navigation.items
+      normalizedConfig.navigation.items
         .filter((item) => item.visible)
         .sort((left, right) => left.order - right.order),
-    [config.navigation.items],
+    [normalizedConfig.navigation.items],
   );
   const enabledTools = useMemo(
     () =>
-      config.design.tools
+      normalizedConfig.design.tools
         .filter((tool) => tool.enabled)
         .sort((left, right) => left.order - right.order),
-    [config.design.tools],
+    [normalizedConfig.design.tools],
   );
   const enabledBuiltins = useMemo(
     () =>
-      config.applications.builtins
+      normalizedConfig.applications.builtins
         .filter((app) => app.enabled)
         .sort((left, right) => left.order - right.order),
-    [config.applications.builtins],
+    [normalizedConfig.applications.builtins],
   );
   const assistants = useMemo(
-    () => [...config.discover.assistants].sort((left, right) => left.order - right.order),
-    [config.discover.assistants],
+    () => [...normalizedConfig.discover.assistants].sort((left, right) => left.order - right.order),
+    [normalizedConfig.discover.assistants],
   );
-  const brandName = config.brand.displayName || 'ComHub';
+  const brandName = normalizedConfig.brand.displayName || 'ComHub';
   const modeOptions = useMemo(
-    () =>
-      [
-        { label: t('admin.mobile.preview.recent'), value: 'recent' },
-        { label: t('admin.mobile.preview.design'), value: 'design' },
-        { label: t('admin.mobile.preview.discover'), value: 'discover' },
-        { label: t('admin.mobile.preview.apps'), value: 'apps' },
-      ],
+    () => [
+      { label: t('admin.mobile.preview.recent'), value: 'recent' },
+      { label: t('admin.mobile.preview.design'), value: 'design' },
+      { label: t('admin.mobile.preview.discover'), value: 'discover' },
+      { label: t('admin.mobile.preview.apps'), value: 'apps' },
+    ],
     [t],
   );
 
@@ -418,32 +418,48 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
       }
 
       case 'discover': {
-        return section(
-          config.discover.title ||
-            t('admin.mobile.featuredAssistants'),
-          <div data-testid="mobile-preview-discover-list">
-            {assistants.map((assistant) => {
-              const title = assistant.titleOverride || assistant.assistantId;
-              return (
-                <div
-                  className={styles.assistantRow}
-                  data-testid="mobile-preview-assistant-row"
-                  key={assistant.assistantId}
-                >
-                  <span className={styles.assistantAvatar}>{title.slice(0, 1).toUpperCase()}</span>
-                  <span className={styles.assistantText}>
-                    <span className={styles.assistantName}>{title}</span>
-                    {assistant.descriptionOverride ? (
-                      <span className={styles.assistantMeta}>{assistant.descriptionOverride}</span>
-                    ) : null}
-                  </span>
-                  <span className={styles.assistantMeta}>
-                    {assistant.provider}/{assistant.model}
-                  </span>
-                </div>
-              );
-            })}
-          </div>,
+        return (
+          <>
+            {section(
+              normalizedConfig.discover.title || t('admin.mobile.featuredAssistants'),
+              <div data-testid="mobile-preview-discover-list">
+                {assistants.map((assistant) => {
+                  const title = assistant.titleOverride || assistant.assistantId;
+                  return (
+                    <div
+                      className={styles.assistantRow}
+                      data-testid="mobile-preview-assistant-row"
+                      key={assistant.assistantId}
+                    >
+                      <span className={styles.assistantAvatar}>
+                        {title.slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className={styles.assistantText}>
+                        <span className={styles.assistantName}>{title}</span>
+                        {assistant.descriptionOverride ? (
+                          <span className={styles.assistantMeta}>
+                            {assistant.descriptionOverride}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className={styles.assistantMeta}>
+                        {assistant.modelLabelOverride || '推荐'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>,
+            )}
+            {normalizedConfig.discover.community.enabled
+              ? section(
+                  normalizedConfig.discover.community.title,
+                  <div className={styles.recentText} data-testid="mobile-preview-community">
+                    <span className={styles.recentTitle}>Recommended assistants</span>
+                    <span className={styles.recentMeta}>Community tools and creators</span>
+                  </div>,
+                )
+              : null}
+          </>
         );
       }
 
@@ -477,7 +493,7 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
             {section(
               t('admin.mobile.preview.moduleApps'),
               <div className={`${styles.grid} ${styles.appGrid}`}>
-                {config.applications.featuredModuleAppIds.map((id) => (
+                {normalizedConfig.applications.featuredModuleAppIds.map((id) => (
                   <div
                     className={styles.appCell}
                     data-preview-cell-height="104"
@@ -535,8 +551,12 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
       />
       <div className={styles.frame} data-testid="mobile-config-preview">
         <header className={styles.header}>
-          {config.brand.logoUrl ? (
-            <img alt={brandName} className={styles.brandLogo} src={config.brand.logoUrl} />
+          {normalizedConfig.brand.logoUrl ? (
+            <img
+              alt={brandName}
+              className={styles.brandLogo}
+              src={normalizedConfig.brand.logoUrl}
+            />
           ) : null}
           <span className={styles.brand}>{brandName}</span>
         </header>
@@ -544,9 +564,11 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
         <div className={styles.content}>{previewBody()}</div>
 
         <nav
-          aria-label={t('admin.mobile.bottomNavigation')}
           className={styles.nav}
           style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+          aria-label={t('admin.mobile.bottomNavigation', {
+            defaultValue: 'Bottom Navigation',
+          })}
         >
           {visibleTabs.map((item) => {
             const TabIcon = getMobileIcon(item.icon);

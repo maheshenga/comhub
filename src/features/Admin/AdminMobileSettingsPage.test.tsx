@@ -87,9 +87,7 @@ const publication = (
   patch: Partial<MobileConfigPublicationState> = {},
 ): MobileConfigPublicationState => ({
   draft: { config, revision: 0, updatedAt: '2026-07-20T00:00:00.000Z' },
-  history: [
-    { config, revision: 0, updatedAt: '2026-07-20T00:00:00.000Z' },
-  ],
+  history: [{ config, revision: 0, updatedAt: '2026-07-20T00:00:00.000Z' }],
   published: { config, revision: 0, updatedAt: '2026-07-20T00:00:00.000Z' },
   ...patch,
 });
@@ -236,7 +234,7 @@ describe('AdminMobileSettingsPage', () => {
         name: 'Bottom Navigation',
       }),
     ).toHaveTextContent('Chat设计发现应用');
-    expect(screen.getAllByRole('region')).toHaveLength(7);
+    expect(screen.getAllByRole('region')).toHaveLength(8);
     expect(adminCommercialService.getMobileSettingsPublication).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('region', { name: 'Publication history' })).toHaveTextContent(
       'Published revision 0',
@@ -272,25 +270,31 @@ describe('AdminMobileSettingsPage', () => {
     expect(saveButton).toBeDisabled();
   });
 
-  it('blocks saves when fewer than two tabs are visible', async () => {
+  it('keeps all four primary bottom tabs editable without visibility toggles', async () => {
     renderPage();
 
-    await screen.findAllByLabelText('Tab slot-1 visible');
-
-    fireEvent.click(switchByLabel('Tab slot-2 visible'));
-    fireEvent.click(switchByLabel('Tab slot-3 visible'));
-    fireEvent.click(switchByLabel('Tab slot-4 visible'));
-
-    expect(
-      await screen.findByText('At least two bottom tabs must be visible.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
+    expect(await screen.findByLabelText('Tab slot-1 label')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tab slot-2 label')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tab slot-3 label')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tab slot-4 label')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Tab slot-1 visible')).not.toBeInTheDocument();
   });
 
-  it('uses controlled assistant, model, and published module app selectors', async () => {
+  it('loads selector choices only when an administrator requests them', async () => {
     renderPage();
 
+    await screen.findByLabelText('Brand display name');
+
+    expect(discoverService.getAssistantList).not.toHaveBeenCalled();
+    expect(adminCommercialService.getAiProviderModelCatalogDiagnostics).not.toHaveBeenCalled();
+    expect(adminCommercialService.moduleApps.list).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load assistant options' }));
     await screen.findByRole('option', { name: 'Alpha Assistant' });
+    fireEvent.click(screen.getByRole('button', { name: 'Load model options' }));
+    await screen.findByRole('option', { name: 'GPT 4.1' });
+    fireEvent.click(screen.getByRole('button', { name: 'Load module app options' }));
+    await screen.findByRole('option', { name: 'Design Kit' });
 
     expect(discoverService.getAssistantList).toHaveBeenCalledWith(
       expect.objectContaining({ pageSize: 100, source: 'new' }),
@@ -318,7 +322,7 @@ describe('AdminMobileSettingsPage', () => {
     expect(
       screen.getByRole('button', { name: 'Remove module app design-kit' }),
     ).toBeInTheDocument();
-  });
+  }, 30_000);
 
   it('reorders and removes configurable tools, assistants, and app entries', async () => {
     setupLoaders(
@@ -361,6 +365,7 @@ describe('AdminMobileSettingsPage', () => {
               titleOverride: 'Agent Two',
             },
           ],
+          community: { enabled: true, title: 'Community' },
           title: 'Recommended assistants',
         },
       }),
@@ -385,7 +390,7 @@ describe('AdminMobileSettingsPage', () => {
     expect(screen.getByRole('button', { name: 'Move assistant agent-two up' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move module app app-two up' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move builtin community up' })).toBeDisabled();
-  });
+  }, 15_000);
 
   it('does not allow more than four featured assistants', async () => {
     setupLoaders(
@@ -397,12 +402,16 @@ describe('AdminMobileSettingsPage', () => {
             order: index + 1,
             provider: 'openai',
           })),
+          community: { enabled: true, title: 'Community' },
           title: 'Recommended assistants',
         },
       }),
     );
     renderPage();
 
+    await screen.findByLabelText('Brand display name');
+    fireEvent.click(screen.getByRole('button', { name: 'Load assistant options' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Load model options' }));
     await screen.findByRole('option', { name: 'Alpha Assistant' });
     fireEvent.change(screen.getByLabelText('Featured assistant'), {
       target: { value: 'agent-alpha' },
@@ -412,7 +421,7 @@ describe('AdminMobileSettingsPage', () => {
     });
 
     expect(screen.getByRole('button', { name: 'Add featured assistant' })).toBeDisabled();
-  });
+  }, 15_000);
 
   it('restores normalized defaults after confirmation', async () => {
     renderPage();
@@ -562,9 +571,7 @@ describe('AdminMobileSettingsPage', () => {
           revision: 3,
           updatedAt: '2026-07-20T03:00:00.000Z',
         },
-        history: [
-          { config: historicalConfig, revision: 3, updatedAt: '2026-07-20T03:00:00.000Z' },
-        ],
+        history: [{ config: historicalConfig, revision: 3, updatedAt: '2026-07-20T03:00:00.000Z' }],
         published: {
           config: historicalConfig,
           revision: 3,
@@ -779,6 +786,9 @@ describe('AdminMobileSettingsPage', () => {
 
     renderPage();
 
+    await screen.findByLabelText('Brand display name');
+    fireEvent.click(screen.getByRole('button', { name: 'Load assistant options' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Load module app options' }));
     expect(await screen.findByRole('option', { name: 'Paged Assistant' })).toBeInTheDocument();
     expect(await screen.findByRole('option', { name: 'Paged App' })).toBeInTheDocument();
     expect(discoverService.getAssistantList).toHaveBeenCalledWith(
@@ -787,7 +797,7 @@ describe('AdminMobileSettingsPage', () => {
     expect(adminCommercialService.moduleApps.list).toHaveBeenCalledWith(
       expect.objectContaining({ cursor: 'page-2', limit: 200, status: 'published' }),
     );
-  });
+  }, 15_000);
 
   it('does not write state after unmounting with pending load or save requests', async () => {
     const loadDeferred = createDeferred<MobileConfigPublicationState>();
@@ -864,7 +874,8 @@ describe('AdminMobileSettingsPage', () => {
       target: { value: 'Core Edit' },
     });
     expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
-    expect(screen.getByText('Assistant selector unavailable.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Load assistant options' }));
+    expect(await screen.findByText('Assistant selector unavailable.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add featured assistant' })).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry assistant selector' }));

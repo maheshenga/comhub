@@ -70,13 +70,13 @@ export const sharedMainAreaChildren: RouteObject[] = [
       {
         children: [
           {
-            element: dynamicElement(() => import('@/routes/(main)/group'), 'Mobile > AI Group'),
+            element: dynamicElement(() => import('@/routes/(mobile)/group'), 'Mobile > AI Group'),
             handle: { meta: groupRouteMeta },
             index: true,
           },
         ],
         element: dynamicLayout(
-          () => import('@/routes/(main)/group/_layout'),
+          () => import('@/routes/(mobile)/group/_layout'),
           'Mobile > AI Group > Layout',
         ),
         errorElement: <ErrorBoundary />,

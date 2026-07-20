@@ -717,6 +717,64 @@ describe('RecentModel', () => {
       );
     });
 
+    it('excludes system-triggered unread topics from assistant and group badges', async () => {
+      await serverDB.insert(agents).values({
+        id: 'mobile-unread-agent',
+        title: 'Unread Agent',
+        userId,
+        virtual: false,
+      });
+      await serverDB.insert(chatGroups).values({
+        id: 'mobile-unread-group',
+        title: 'Unread Group',
+        userId,
+      });
+      await serverDB.insert(topics).values([
+        {
+          agentId: 'mobile-unread-agent',
+          id: 'mobile-unread-agent-visible',
+          status: 'unread',
+          title: 'Visible assistant topic',
+          trigger: 'chat',
+          userId,
+        },
+        {
+          agentId: 'mobile-unread-agent',
+          id: 'mobile-unread-agent-system',
+          status: 'unread',
+          title: 'System assistant topic',
+          trigger: 'task',
+          userId,
+        },
+        {
+          groupId: 'mobile-unread-group',
+          id: 'mobile-unread-group-visible',
+          status: 'unread',
+          title: 'Visible group topic',
+          trigger: 'chat',
+          userId,
+        },
+        {
+          groupId: 'mobile-unread-group',
+          id: 'mobile-unread-group-system',
+          status: 'unread',
+          title: 'System group topic',
+          trigger: 'cron',
+          userId,
+        },
+      ]);
+
+      const result = await recentModel.queryMobileWorkspace({ limit: 20 });
+      const unreadByParent = Object.fromEntries(
+        result.items.map((item) => [`${item.kind}:${item.id}`, item.unreadCount]),
+      );
+
+      expect(unreadByParent).toMatchObject({
+        'agent:mobile-unread-agent': 1,
+        'group:mobile-unread-group': 1,
+      });
+    });
+
     it('uses an opaque cursor to paginate without duplicates', async () => {
       await serverDB.insert(agents).values(
         Array.from({ length: 3 }, (_, index) => ({

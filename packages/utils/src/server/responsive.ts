@@ -15,7 +15,7 @@ export const isMobileDevice = async () => {
   // console.debug(ua);
   const device = new UAParser(ua || '').getDevice();
 
-  return device.type === 'mobile';
+  return device.type === 'mobile' || device.type === 'tablet';
 };
 
 /**

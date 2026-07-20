@@ -4,7 +4,16 @@ import { Flexbox, SearchBar } from '@lobehub/ui';
 import { Button, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { RefreshCw } from 'lucide-react';
-import { type ChangeEvent, type CSSProperties, memo, useCallback, useMemo, useRef, useState } from 'react';
+import {
+  type ChangeEvent,
+  type CSSProperties,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWRInfinite from 'swr/infinite';
 
@@ -22,6 +31,7 @@ import RecentConversationRow from './RecentConversationRow';
 import { filterMobileRecentItems, type MobileRecentConversation } from './recentItems';
 
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 250;
 const MOBILE_LOAD_MORE_BUTTON_STYLE = { minHeight: 44, minWidth: 44 } satisfies CSSProperties;
 
 const styles = createStaticStyles(({ css }) => ({
@@ -53,12 +63,16 @@ const MobileRecentPage = memo(() => {
     rememberFocus,
     setQuery: setSearchQuery,
   } = useMobileSlotState({ scopeId: activeWorkspaceId ?? 'personal', slotId: 'slot-1' });
+  const [searchInput, setSearchInput] = useState(searchQuery);
   const pinningKeysRef = useRef(new Set<string>());
   const [pinningKeys, setPinningKeys] = useState<Set<string>>(() => new Set());
   const togglePinRef = useRef<(item: MobileRecentConversation) => void>(() => undefined);
   const { createAssistant, creating } = useCreateAssistant();
   const getKey = useCallback(
-    (pageIndex: number, previousPageData: Awaited<ReturnType<typeof recentService.getMobileWorkspace>> | null) => {
+    (
+      pageIndex: number,
+      previousPageData: Awaited<ReturnType<typeof recentService.getMobileWorkspace>> | null,
+    ) => {
       if (isLogin === false || (previousPageData && !previousPageData.nextCursor)) return null;
       return [
         'mobile-recent-workspace',
@@ -74,12 +88,22 @@ const MobileRecentPage = memo(() => {
     ([, , query, cursor]) =>
       recentService.getMobileWorkspace({ cursor, limit: PAGE_SIZE, query: query || undefined }),
     {
-      revalidateAll: true,
+      revalidateFirstPage: true,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       shouldRetryOnError: false,
     },
   );
+
+  useEffect(() => {
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (searchInput === searchQuery) return;
+    const timeout = window.setTimeout(() => setSearchQuery(searchInput), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [searchInput, searchQuery, setSearchQuery]);
 
   const conversations = useMemo(() => data?.flatMap((page) => page.items) ?? [], [data]);
   const sections = useMemo(
@@ -89,9 +113,9 @@ const MobileRecentPage = memo(() => {
           pinned: conversations.filter((item) => item.pinned),
           recent: conversations.filter((item) => !item.pinned),
         },
-        searchQuery,
+        searchInput,
       ),
-    [conversations, searchQuery],
+    [conversations, searchInput],
   );
   const hasItems = sections.pinned.length > 0 || sections.recent.length > 0;
   const hasMore = Boolean(data?.at(-1)?.nextCursor);
@@ -112,7 +136,9 @@ const MobileRecentPage = memo(() => {
         await mutate();
       } catch {
         toast.error({
-          actions: [{ label: t('mobile.recent.retryPin'), onClick: () => void togglePinRef.current(item) }],
+          actions: [
+            { label: t('mobile.recent.retryPin'), onClick: () => void togglePinRef.current(item) },
+          ],
           title: t('mobile.recent.pinError'),
         });
       } finally {
@@ -126,6 +152,10 @@ const MobileRecentPage = memo(() => {
   const refresh = useCallback(async () => {
     await mutate();
   }, [mutate]);
+  const clearSearch = useCallback(() => {
+    setSearchInput('');
+    setSearchQuery('');
+  }, [setSearchQuery]);
 
   const refreshAction = {
     icon: RefreshCw,
@@ -141,9 +171,9 @@ const MobileRecentPage = memo(() => {
           allowClear
           aria-label={t('mobile.recent.search')}
           placeholder={t('mobile.recent.search')}
-          value={searchQuery}
+          value={searchInput}
           variant="filled"
-          onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchQuery(event.target.value)}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchInput(event.target.value)}
         />
       </div>
       <div className={styles.sections}>
@@ -166,10 +196,10 @@ const MobileRecentPage = memo(() => {
         ) : !hasItems ? (
           <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
             <MobileStateView
-              title={searchQuery ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
+              title={searchInput ? t('mobile.recent.emptySearch') : t('mobile.recent.empty')}
               action={
-                searchQuery
-                  ? { label: t('mobile.recent.clearSearch'), onClick: () => setSearchQuery('') }
+                searchInput
+                  ? { label: t('mobile.recent.clearSearch'), onClick: clearSearch }
                   : {
                       label: t('mobile.recent.createAgent'),
                       loading: creating,

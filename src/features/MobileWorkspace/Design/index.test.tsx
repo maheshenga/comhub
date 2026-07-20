@@ -53,7 +53,11 @@ const mobileConfig = vi.hoisted(
           { enabled: true, icon: 'presentation', id: 'ppt', label: 'Slides', order: 3 },
         ],
       },
-      discover: { assistants: [], title: 'Discover' },
+      discover: {
+        assistants: [],
+        community: { enabled: true, title: 'Community' },
+        title: 'Discover',
+      },
       navigation: {
         items: [
           {
@@ -80,7 +84,13 @@ vi.mock('@/business/client/hooks/useActiveWorkspaceId', () => ({
 }));
 vi.mock('@/store/page', () => ({ usePageStore: (selector: any) => selector({ createNewPage }) }));
 vi.mock('@lobehub/ui/mobile', () => {
-  const ChatHeader = ({ center, left, right }: any) => <header>{left}{center}{right}</header>;
+  const ChatHeader = ({ center, left, right }: any) => (
+    <header>
+      {left}
+      {center}
+      {right}
+    </header>
+  );
   ChatHeader.Title = ({ title }: any) => <h1>{title}</h1>;
 
   return { ChatHeader };
@@ -207,7 +217,9 @@ describe('MobileDesignPage', () => {
     render(<MobileDesignPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create Write' }));
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Unable to create document'));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Unable to create document'),
+    );
     expect(screen.getByRole('button', { name: 'Open Quarterly report' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create Write' })).toBeEnabled();
 

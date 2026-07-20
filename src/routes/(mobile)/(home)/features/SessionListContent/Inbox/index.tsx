@@ -1,8 +1,10 @@
 import { memo } from 'react';
 import { Link } from 'react-router';
 
+import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_INBOX_AVATAR } from '@/const/meta';
 import { SESSION_CHAT_URL } from '@/const/url';
+import { useMobileConfig } from '@/features/MobileWorkspace/useMobileConfig';
 import { useNavigateToAgent } from '@/hooks/useNavigateToAgent';
 import { useAgentStore } from '@/store/agent';
 import { builtinAgentSelectors } from '@/store/agent/selectors';
@@ -13,14 +15,16 @@ import { sessionSelectors } from '@/store/session/selectors';
 import ListItem from '../ListItem';
 
 const Inbox = memo(() => {
+  const { config } = useMobileConfig();
   const mobile = useServerConfigStore((s) => s.isMobile);
   const isInboxActive = useSessionStore(sessionSelectors.isInboxSession);
   const navigateToAgent = useNavigateToAgent();
   const inboxAgentId = useAgentStore(builtinAgentSelectors.inboxAgentId);
+  const title = config.brand.displayName || DEFAULT_RUNTIME_BRAND.name;
 
   return (
     <Link
-      aria-label={'Lobe AI'}
+      aria-label={title}
       to={SESSION_CHAT_URL(inboxAgentId, mobile)}
       onClick={(e) => {
         e.preventDefault();
@@ -31,7 +35,7 @@ const Inbox = memo(() => {
         active={isInboxActive}
         avatar={DEFAULT_INBOX_AVATAR}
         key={'inbox'}
-        title={'Lobe AI'}
+        title={title}
         styles={{
           container: {
             gap: 12,

@@ -31,7 +31,6 @@ export type SelectorStatus = {
 
 export type ValidationMessages = {
   builtinPaths: string;
-  minVisibleTabs: string;
   uniquePaths: string;
 };
 
@@ -133,8 +132,6 @@ export const validateFormConfig = (
 ): ValidationResult => {
   const visibleTabs = config.navigation.items.filter((item) => item.visible);
   const validationMessages: string[] = [];
-
-  if (visibleTabs.length < 2) validationMessages.push(messages.minVisibleTabs);
 
   const visiblePaths = visibleTabs.map((item) => item.path);
   const hasUnsafePath = visiblePaths.some((path) => !validateMobileInternalPath(path));

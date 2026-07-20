@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { SidebarAgentItem } from '@/database/repositories/home';
 import type { RecentItem } from '@/server/routers/lambda/recent';
 
-import { buildMobileRecentItems, filterMobileRecentItems } from './recentItems';
+import {
+  buildMobileRecentItems,
+  filterMobileRecentItems,
+  getMobileRecentTimeKind,
+} from './recentItems';
 
 const assistant = (
   id: string,
@@ -170,5 +174,18 @@ describe('filterMobileRecentItems', () => {
 
     expect(filterMobileRecentItems(sections, 'writing').recent).toHaveLength(1);
     expect(filterMobileRecentItems(sections, 'quarterly').recent).toHaveLength(1);
+  });
+});
+
+describe('getMobileRecentTimeKind', () => {
+  const now = new Date('2026-07-21T12:00:00.000Z');
+
+  it.each([
+    ['justNow', '2026-07-21T11:59:30.000Z'],
+    ['today', '2026-07-21T08:00:00.000Z'],
+    ['yesterday', '2026-07-20T10:00:00.000Z'],
+    ['date', '2026-07-19T10:00:00.000Z'],
+  ] as const)('classifies %s timestamps', (kind, value) => {
+    expect(getMobileRecentTimeKind(new Date(value), now)).toBe(kind);
   });
 });

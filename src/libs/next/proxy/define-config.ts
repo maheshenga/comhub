@@ -99,8 +99,9 @@ export function defineConfig() {
     const safeLocale = toSafeLocale(locale);
 
     // 2. Create normalized preference values
+    const isHandheld = device.type === 'mobile' || device.type === 'tablet';
     const route = RouteVariants.serializeVariants({
-      isMobile: !isSharePath && device.type === 'mobile',
+      isMobile: !isSharePath && isHandheld,
       locale: safeLocale,
     });
 
@@ -129,7 +130,7 @@ export function defineConfig() {
       return NextResponse.next();
     }
 
-    const isMobileDiscoverRoute = device.type === 'mobile' && url.pathname === '/discover';
+    const isMobileDiscoverRoute = isHandheld && url.pathname === '/discover';
     const isNextjsRoute =
       !isMobileDiscoverRoute && nextjsOnlyRoutes.some((r) => url.pathname.startsWith(r));
 
@@ -222,7 +223,8 @@ export function defineConfig() {
     const legacyDiscoverPath = req.nextUrl.pathname;
     const isLegacyDiscoverPath =
       legacyDiscoverPath === '/discover' || legacyDiscoverPath.startsWith('/discover/');
-    const isMobile = new UAParser(req.headers.get('user-agent') || '').getDevice().type === 'mobile';
+    const deviceType = new UAParser(req.headers.get('user-agent') || '').getDevice().type;
+    const isMobile = deviceType === 'mobile' || deviceType === 'tablet';
 
     if (isLegacyDiscoverPath && !isMobile) {
       const redirectUrl = req.nextUrl.clone();

@@ -158,7 +158,7 @@ describe('mobile configuration', () => {
       label: '发现',
     });
     expect(config.navigation.items.find((item) => item.id === 'slot-4')?.path).toBe('/apps');
-    expect(config.navigation.items.filter((item) => item.visible)).toHaveLength(2);
+    expect(config.navigation.items.filter((item) => item.visible)).toHaveLength(4);
   });
 
   it('keeps syntactically valid catalog IDs and removes assistants with malformed IDs', () => {
@@ -248,7 +248,7 @@ describe('mobile configuration', () => {
       label: 'Inbox',
       order: 4,
       path: '/',
-      visible: false,
+      visible: true,
     });
   });
 

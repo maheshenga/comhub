@@ -1,14 +1,19 @@
 import { Input } from 'antd';
+import { useEffect, useState } from 'react';
 
-import {
-  AccessibleSwitch,
-  IconSelect,
-  LabeledField,
-  OrderButtons,
-} from '../MobileSettingsControls';
+import { IconSelect, LabeledField, OrderButtons } from '../MobileSettingsControls';
 import { moveNavigationItem, sortByOrder, updateNavigationItem } from '../mobileSettingsHelpers';
 import { mobileSettingsStyles as styles } from './styles';
 import type { MobileSettingsSectionProps } from './types';
+
+const BrandLogoPreview = ({ alt, url }: { alt: string; url: string | null }) => {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [url]);
+
+  if (!url || failed) return <span>{failed ? 'Logo unavailable' : 'No logo configured'}</span>;
+
+  return <img alt={alt} height={32} src={url} width={32} onError={() => setFailed(true)} />;
+};
 
 export const BrandSection = ({ formValues, tr, updateForm }: MobileSettingsSectionProps) => (
   <section aria-label={tr('admin.mobile.brand', 'Brand')} className={styles.section}>
@@ -38,6 +43,13 @@ export const BrandSection = ({ formValues, tr, updateForm }: MobileSettingsSecti
           }
         />
       </LabeledField>
+      <div>
+        <div>{tr('admin.mobile.brandLogoPreview', 'Logo preview')}</div>
+        <BrandLogoPreview
+          alt={formValues.brand.displayName || 'Mobile brand'}
+          url={formValues.brand.logoUrl}
+        />
+      </div>
     </div>
   </section>
 );
@@ -81,11 +93,6 @@ export const BottomNavigationSection = ({
             onChange={(icon) => updateForm(updateNavigationItem(formValues, item.id, { icon }))}
           />
         </LabeledField>
-        <AccessibleSwitch
-          checked={item.visible}
-          label={tr('admin.mobile.tabVisible', 'Tab {{id}} visible', { id: item.id })}
-          onChange={(visible) => updateForm(updateNavigationItem(formValues, item.id, { visible }))}
-        />
         <OrderButtons
           label={item.id}
           position={index}

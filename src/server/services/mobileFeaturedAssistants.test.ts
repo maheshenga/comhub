@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { MobileFeaturedAssistantV1 } from '@/const/mobileConfig';
 
-import { resolveMobileFeaturedAssistants } from './mobileFeaturedAssistants';
+import {
+  createMobileFeaturedAssistantsSnapshotCache,
+  resolveMobileFeaturedAssistants,
+} from './mobileFeaturedAssistants';
 
 const configured = (
   assistantId: string,
@@ -32,6 +35,7 @@ describe('resolveMobileFeaturedAssistants', () => {
         configured('second', 2),
         configured('first', 1, {
           descriptionOverride: 'Curated description',
+          modelLabelOverride: '精选',
           titleOverride: 'Curated title',
         }),
       ],
@@ -44,14 +48,14 @@ describe('resolveMobileFeaturedAssistants', () => {
         avatar: 'first.png',
         description: 'Curated description',
         identifier: 'first',
-        model: { displayName: 'GPT 4.1', id: 'gpt-4.1', provider: 'openai' },
+        model: { displayName: '精选', id: 'gpt-4.1', provider: 'openai' },
         title: 'Curated title',
       },
       {
         avatar: 'second.png',
         description: 'second description',
         identifier: 'second',
-        model: { displayName: 'GPT 4.1', id: 'gpt-4.1', provider: 'openai' },
+        model: { displayName: '推荐', id: 'gpt-4.1', provider: 'openai' },
         title: 'second title',
       },
     ]);
@@ -89,5 +93,49 @@ describe('resolveMobileFeaturedAssistants', () => {
       'valid-3',
       'valid-4',
     ]);
+  });
+});
+
+describe('createMobileFeaturedAssistantsSnapshotCache', () => {
+  it('reuses a published snapshot until its TTL expires', async () => {
+    let now = 1000;
+    const cache = createMobileFeaturedAssistantsSnapshotCache<string[]>({
+      now: () => now,
+      ttlMs: 60_000,
+    });
+    const load = vi.fn(async () => ['assistant-a']);
+    const snapshot = { revision: 4, updatedAt: '2026-07-21T00:00:00.000Z' };
+
+    await expect(cache.getOrLoad(snapshot, load)).resolves.toEqual(['assistant-a']);
+    now += 59_999;
+    await expect(cache.getOrLoad(snapshot, load)).resolves.toEqual(['assistant-a']);
+
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reuse a snapshot after its published version changes', async () => {
+    const cache = createMobileFeaturedAssistantsSnapshotCache<string[]>({ ttlMs: 60_000 });
+    const load = vi.fn(async () => ['assistant-a']);
+
+    await cache.getOrLoad({ revision: 4, updatedAt: '2026-07-21T00:00:00.000Z' }, load);
+    await cache.getOrLoad({ revision: 5, updatedAt: '2026-07-21T00:01:00.000Z' }, load);
+
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes an unchanged snapshot after the TTL expires', async () => {
+    let now = 1000;
+    const cache = createMobileFeaturedAssistantsSnapshotCache<string[]>({
+      now: () => now,
+      ttlMs: 60_000,
+    });
+    const load = vi.fn(async () => ['assistant-a']);
+    const snapshot = { revision: 4, updatedAt: '2026-07-21T00:00:00.000Z' };
+
+    await cache.getOrLoad(snapshot, load);
+    now += 60_000;
+    await cache.getOrLoad(snapshot, load);
+
+    expect(load).toHaveBeenCalledTimes(2);
   });
 });

@@ -6,13 +6,17 @@ import type { MobileRecentConversation } from './recentItems';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: { name?: string }) =>
+    t: (key: string, values?: { count?: number; name?: string }) =>
       ({
         'mobile.recent.group': 'Group',
+        'mobile.recent.justNow': 'Just now',
         'mobile.recent.moreActions': `More actions for ${values?.name ?? ''}`,
         'mobile.recent.open': `Open ${values?.name ?? ''}`,
         'mobile.recent.pin': 'Pin',
         'mobile.recent.unpin': 'Unpin',
+        'mobile.recent.unread': `${values?.count ?? 0} unread messages`,
+        'mobile.recent.today': 'Today',
+        'mobile.recent.yesterday': 'Yesterday',
       })[key] ?? key,
   }),
 }));
@@ -77,6 +81,7 @@ describe('RecentConversationRow', () => {
 
     expect(screen.getByTestId('agent-avatar')).toHaveAttribute('data-avatar', 'assistant.png');
     expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByLabelText('3 unread messages')).toBeInTheDocument();
     expect(screen.getByText('Latest question')).toBeInTheDocument();
     expect(screen.getByTestId('recent-conversation-date')).toHaveAttribute(
       'dateTime',

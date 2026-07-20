@@ -24,6 +24,7 @@ import type { MobileSettingsSectionProps } from './types';
 interface ApplicationsSectionProps extends MobileSettingsSectionProps {
   moduleAppOptions: SelectOption[];
   moduleAppStatus: SelectorStatus;
+  onLoadModuleApps: () => void;
   onRetryModuleApps: () => void;
   selectedModuleAppId: string;
   setSelectedModuleAppId: (value: string) => void;
@@ -33,6 +34,7 @@ export const ApplicationsSection = ({
   formValues,
   moduleAppOptions,
   moduleAppStatus,
+  onLoadModuleApps,
   onRetryModuleApps,
   selectedModuleAppId,
   setSelectedModuleAppId,
@@ -66,8 +68,17 @@ export const ApplicationsSection = ({
         onRetry={onRetryModuleApps}
       />
       <div className={styles.grid}>
+        <Button
+          disabled={moduleAppStatus.loading}
+          loading={moduleAppStatus.loading}
+          onClick={onLoadModuleApps}
+        >
+          {tr('admin.mobile.loadModuleAppOptions', 'Load module app options')}
+        </Button>
         <SelectField
-          disabled={moduleAppStatus.loading || Boolean(moduleAppStatus.error)}
+          disabled={
+            moduleAppStatus.loading || Boolean(moduleAppStatus.error) || moduleAppOptions.length === 0
+          }
           label={tr('admin.mobile.featuredModuleApp', 'Featured module app')}
           options={moduleAppOptions}
           value={selectedModuleAppId}

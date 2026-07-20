@@ -45,6 +45,17 @@ describe('MCPAction', () => {
   });
 
   describe('useFetchMcpList', () => {
+    it('does not fetch MCP recommendations when disabled', () => {
+      vi.spyOn(discoverService, 'getMcpList').mockResolvedValue({ items: [] } as any);
+
+      const { result } = renderHook(() =>
+        useStore.getState().useFetchMcpList({ page: 99 }, { enabled: false }),
+      );
+
+      expect(result.current.data).toBeUndefined();
+      expect(discoverService.getMcpList).not.toHaveBeenCalled();
+    });
+
     it('should fetch MCP list with default parameters', async () => {
       const mockList = {
         items: [{ identifier: 'mcp-1' }, { identifier: 'mcp-2' }],

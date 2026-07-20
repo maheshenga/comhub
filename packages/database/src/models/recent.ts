@@ -472,6 +472,7 @@ export class RecentModel {
                 buildWorkspaceWhere(scope, topics),
                 eq(topics.status, 'unread'),
                 inArray(topics.agentId, agentIds),
+                or(isNull(topics.trigger), not(inArray(topics.trigger, SYSTEM_TOPIC_TRIGGERS))),
               ),
             )
             .groupBy(topics.agentId)
@@ -485,6 +486,7 @@ export class RecentModel {
                 buildWorkspaceWhere(scope, topics),
                 eq(topics.status, 'unread'),
                 inArray(topics.groupId, groupIds),
+                or(isNull(topics.trigger), not(inArray(topics.trigger, SYSTEM_TOPIC_TRIGGERS))),
               ),
             )
             .groupBy(topics.groupId)

@@ -25,9 +25,15 @@ export interface MobileFeaturedAssistantV1 {
   assistantId: string;
   descriptionOverride?: string;
   model: string;
+  modelLabelOverride?: string;
   order: number;
   provider: string;
   titleOverride?: string;
+}
+
+export interface MobileDiscoverCommunityV1 {
+  enabled: boolean;
+  title: string;
 }
 
 export interface MobileResolvedFeaturedAssistantV1 {
@@ -60,6 +66,7 @@ export interface MobilePublicConfigV1 {
   design: { tools: MobileDesignToolV1[] };
   discover: {
     assistants: MobileFeaturedAssistantV1[];
+    community: MobileDiscoverCommunityV1;
     featuredAssistants?: MobileResolvedFeaturedAssistantV1[];
     title: string;
   };
@@ -155,7 +162,11 @@ export const DEFAULT_MOBILE_CONFIG: MobilePublicConfigV1 = {
       { enabled: true, icon: 'presentation', id: 'ppt', label: 'PPT', order: 3 },
     ],
   },
-  discover: { assistants: [], title: '推荐助手' },
+  discover: {
+    assistants: [],
+    community: { enabled: true, title: '社区' },
+    title: '推荐助手',
+  },
   navigation: {
     items: [
       {
@@ -189,7 +200,11 @@ const cloneDefaultMobileConfig = (): MobilePublicConfigV1 => ({
   },
   brand: { ...DEFAULT_MOBILE_CONFIG.brand },
   design: { tools: DEFAULT_MOBILE_CONFIG.design.tools.map((tool) => ({ ...tool })) },
-  discover: { ...DEFAULT_MOBILE_CONFIG.discover, assistants: [] },
+  discover: {
+    ...DEFAULT_MOBILE_CONFIG.discover,
+    assistants: [],
+    community: { ...DEFAULT_MOBILE_CONFIG.discover.community },
+  },
   navigation: { items: DEFAULT_MOBILE_CONFIG.navigation.items.map((item) => ({ ...item })) },
 });
 
@@ -373,7 +388,10 @@ const normalizeNavigation = (value: unknown): MobileNavigationItemV1[] => {
         label: normalizeLabel(raw.item.label, fallback.label),
         order: 0,
         path,
-        visible: normalizeBoolean(raw.item.visible, fallback.visible),
+        // The four primary slots are part of the mobile information architecture.
+        // Keep the field for backward-compatible persisted configs, but do not
+        // allow an old hidden flag to remove a primary destination.
+        visible: true,
       },
       order: normalizeOrder(raw.item.order, fallback.order),
       sourceIndex: raw.sourceIndex,
@@ -454,12 +472,14 @@ const normalizeAssistants = (value: unknown): MobileFeaturedAssistantV1[] => {
     seenIds.add(assistantId);
     const titleOverride = normalizeOptionalLabel(rawAssistant.titleOverride);
     const descriptionOverride = normalizeTrimmedString(rawAssistant.descriptionOverride, 160);
+    const modelLabelOverride = normalizeOptionalLabel(rawAssistant.modelLabelOverride);
 
     entries.push({
       item: {
         assistantId,
         ...(descriptionOverride ? { descriptionOverride } : {}),
         model,
+        ...(modelLabelOverride ? { modelLabelOverride } : {}),
         order: 0,
         provider,
         ...(titleOverride ? { titleOverride } : {}),
@@ -569,6 +589,7 @@ export const normalizeMobileConfig = (input: unknown): MobilePublicConfigV1 => {
   const applications = isRecord(config.applications) ? config.applications : {};
   const brand = isRecord(config.brand) ? config.brand : {};
   const discover = isRecord(config.discover) ? config.discover : {};
+  const community = isRecord(discover.community) ? discover.community : {};
   const featuredAssistants = normalizeResolvedAssistants(discover.featuredAssistants);
 
   return {
@@ -583,6 +604,13 @@ export const normalizeMobileConfig = (input: unknown): MobilePublicConfigV1 => {
     design: { tools: normalizeDesignTools(config.design) },
     discover: {
       assistants: normalizeAssistants(discover.assistants),
+      community: {
+        enabled: normalizeBoolean(
+          community.enabled,
+          DEFAULT_MOBILE_CONFIG.discover.community.enabled,
+        ),
+        title: normalizeLabel(community.title, DEFAULT_MOBILE_CONFIG.discover.community.title),
+      },
       ...(featuredAssistants ? { featuredAssistants } : {}),
       title: normalizeTrimmedString(discover.title, 12) ?? DEFAULT_MOBILE_CONFIG.discover.title,
     },

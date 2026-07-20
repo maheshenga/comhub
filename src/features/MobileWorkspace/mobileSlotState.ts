@@ -79,34 +79,63 @@ export const useMobileSlotState = ({
     scrollTopRef.current = restored.scrollTop;
     setQueryState(restored.query);
 
+    let focusObserver: MutationObserver | undefined;
     const frame = window.requestAnimationFrame(() => {
       const container =
         scrollRef?.current ?? document.getElementById('lobe-mobile-scroll-container');
       if (!container) return;
       container.scrollTop = restored.scrollTop;
-      if (restored.focusKey) {
-        findFocusTarget(container, restored.focusKey)?.focus({ preventScroll: true });
-      }
+
+      if (!restored.focusKey) return;
+      const restoreFocus = () => {
+        const target = findFocusTarget(container, restored.focusKey!);
+        if (!target) return false;
+        target.focus({ preventScroll: true });
+        return true;
+      };
+
+      if (restoreFocus()) return;
+      focusObserver = new MutationObserver(() => {
+        if (restoreFocus()) focusObserver?.disconnect();
+      });
+      focusObserver.observe(container, { childList: true, subtree: true });
     });
 
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      focusObserver?.disconnect();
+    };
   }, [scopeId, scrollRef, slotId, storageKey]);
 
   useEffect(() => {
     const container = scrollRef?.current ?? document.getElementById('lobe-mobile-scroll-container');
     if (!container) return;
 
+    let pendingScrollTop: number | undefined;
+    let scrollWriteFrame: number | undefined;
+    let scrollWriteScheduled = false;
+    const flushScrollWrite = () => {
+      scrollWriteFrame = undefined;
+      scrollWriteScheduled = false;
+      if (pendingScrollTop === undefined) return;
+      writeMobileSlotState(scopeId, slotId, { scrollTop: pendingScrollTop });
+      pendingScrollTop = undefined;
+    };
     const handleScroll = () => {
       scrollTopRef.current = container.scrollTop;
-      writeMobileSlotState(scopeId, slotId, { scrollTop: container.scrollTop });
+      pendingScrollTop = container.scrollTop;
+      if (scrollWriteScheduled) return;
+      scrollWriteScheduled = true;
+      scrollWriteFrame = window.requestAnimationFrame(flushScrollWrite);
     };
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       container.removeEventListener('scroll', handleScroll);
+      if (scrollWriteFrame !== undefined) window.cancelAnimationFrame(scrollWriteFrame);
       writeMobileSlotState(scopeId, slotId, {
         focusKey: focusKeyRef.current,
         query: queryRef.current,
-        scrollTop: container.scrollTop,
+        scrollTop: pendingScrollTop ?? container.scrollTop,
       });
     };
   }, [scopeId, scrollRef, slotId, storageKey]);

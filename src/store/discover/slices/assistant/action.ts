@@ -16,6 +16,8 @@ import {
 } from '@/types/discover';
 
 type Setter = StoreSetter<DiscoverStore>;
+type RequestOptions = { enabled?: boolean };
+
 export const createAssistantSlice = (set: Setter, get: () => DiscoverStore, _api?: unknown) =>
   new AssistantActionImpl(set, get, _api);
 
@@ -66,10 +68,13 @@ export class AssistantActionImpl {
     );
   };
 
-  useAssistantList = (params: AssistantQueryParams = {}): SWRResponse<AssistantListResponse> => {
+  useAssistantList = (
+    params: AssistantQueryParams = {},
+    { enabled = true }: RequestOptions = {},
+  ): SWRResponse<AssistantListResponse> => {
     const locale = globalHelpers.getCurrentLanguage();
     return useSWR(
-      discoverKeys.assistantList(locale, params),
+      enabled ? discoverKeys.assistantList(locale, params) : null,
       async () =>
         discoverService.getAssistantList({
           ...params,

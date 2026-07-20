@@ -7,19 +7,19 @@ import Conversation from './features/Conversation';
 import Portal from './features/Portal';
 import TelemetryNotification from './features/TelemetryNotification';
 
-const ChatPage = memo(() => {
+const ChatPage = memo<{ mobile?: boolean }>(({ mobile = false }) => {
   return (
     <>
       <Flexbox
-        horizontal
+        horizontal={!mobile}
         height={'100%'}
         style={{ overflow: 'hidden', position: 'relative' }}
         width={'100%'}
       >
-        <Conversation />
-        <Portal />
+        <Conversation mobile={mobile} />
+        <Portal mobile={mobile} />
       </Flexbox>
-      <TelemetryNotification mobile={false} />
+      <TelemetryNotification mobile={mobile} />
     </>
   );
 });

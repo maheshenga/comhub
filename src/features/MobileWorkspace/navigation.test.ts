@@ -40,7 +40,7 @@ describe('mobile workspace navigation', () => {
     expect(shouldShowMobileTabBar('/community', config)).toBe(true);
   });
 
-  it('falls back to the first visible configured slot when a matched slot is hidden', () => {
+  it('keeps all four primary slots visible after normalizing legacy hidden settings', () => {
     const config = configWithNavigation([
       { order: 2 },
       { order: 3 },
@@ -48,7 +48,7 @@ describe('mobile workspace navigation', () => {
       { order: 4 },
     ]);
 
-    expect(resolveMobileActiveSlot('/community', config)).toBe('slot-1');
+    expect(resolveMobileActiveSlot('/community', config)).toBe('slot-3');
   });
 
   it('shows the tab bar only on top-level mobile workspace pages', () => {

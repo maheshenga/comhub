@@ -20,6 +20,20 @@ export interface MobileRecentSections {
   recent: MobileRecentConversation[];
 }
 
+export type MobileRecentTimeKind = 'date' | 'justNow' | 'today' | 'yesterday';
+
+export const getMobileRecentTimeKind = (value: Date, now = new Date()): MobileRecentTimeKind => {
+  const elapsed = now.getTime() - value.getTime();
+  if (elapsed >= 0 && elapsed < 60_000) return 'justNow';
+
+  const startOfDay = (date: Date) =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayDifference = Math.floor((startOfDay(now) - startOfDay(value)) / 86_400_000);
+  if (dayDifference === 0) return 'today';
+  if (dayDifference === 1) return 'yesterday';
+  return 'date';
+};
+
 interface BuildMobileRecentItemsInput {
   assistants: SidebarAgentItem[];
   recents: RecentItem[];

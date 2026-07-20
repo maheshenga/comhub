@@ -2,10 +2,11 @@
 
 import { memo } from 'react';
 
-import Category from './features/Category';
+import SettingsContent from '@/routes/(main)/settings/features/SettingsContent';
+import { SettingsTabs } from '@/store/global/initialState';
 
 const MeProfilePage = memo(() => {
-  return <Category />;
+  return <SettingsContent mobile activeTab={SettingsTabs.Profile} />;
 });
 
 MeProfilePage.displayName = 'MeProfilePage';

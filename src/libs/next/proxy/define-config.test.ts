@@ -105,6 +105,8 @@ describe('defineConfig backend service routes', () => {
 describe('defineConfig mobile workspace routes', () => {
   const mobileUserAgent =
     'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1';
+  const tabletUserAgent =
+    'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1';
 
   it('serves mobile discover through the SPA', async () => {
     const mobileRewrite = await getAuthenticatedRewriteUrl('/discover', {
@@ -112,6 +114,14 @@ describe('defineConfig mobile workspace routes', () => {
     });
 
     expect(mobileRewrite.pathname).toBe('/spa/zh-CN__1/discover');
+  });
+
+  it('serves tablet discover through the mobile SPA', async () => {
+    const tabletRewrite = await getAuthenticatedRewriteUrl('/discover', {
+      'user-agent': tabletUserAgent,
+    });
+
+    expect(tabletRewrite.pathname).toBe('/spa/zh-CN__1/discover');
   });
 
   it('redirects desktop legacy discover paths before authentication', async () => {

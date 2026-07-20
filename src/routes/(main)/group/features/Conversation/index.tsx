@@ -8,7 +8,11 @@ import { agentSelectors } from '@/store/agent/selectors';
 import ConversationArea from './ConversationArea';
 import ChatHeader from './Header';
 
-const ChatConversation = memo(() => {
+interface ChatConversationProps {
+  mobile?: boolean;
+}
+
+const ChatConversation = memo<ChatConversationProps>(({ mobile = false }) => {
   // Get current agent's model info for vision support check
   const agentId = useAgentStore((s) => s.activeAgentId || '');
   const model = useAgentStore(agentSelectors.currentAgentModel);
@@ -18,8 +22,8 @@ const ChatConversation = memo(() => {
   return (
     <DragUploadZone style={{ height: '100%', width: '100%' }} onUploadFiles={handleUploadFiles}>
       <Flexbox height={'100%'} style={{ overflow: 'hidden', position: 'relative' }} width={'100%'}>
-        <ChatHeader />
-        <ConversationArea />
+        {!mobile && <ChatHeader />}
+        <ConversationArea mobile={mobile} />
       </Flexbox>
     </DragUploadZone>
   );

@@ -18,7 +18,7 @@ const UserBanner = memo(() => {
     <Flexbox gap={12} paddingBlock={8}>
       {isLoginWithAuth ? (
         <>
-          <WorkspaceLink style={{ color: 'inherit' }} to="/settings/profile">
+          <WorkspaceLink style={{ color: 'inherit' }} to="/me/profile">
             <UserInfo />
           </WorkspaceLink>
           <WorkspaceLink style={{ color: 'inherit' }} to="/settings/stats">

@@ -8,7 +8,7 @@ import {
 import { appSettings } from '@/database/schemas';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, publicProcedure } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware/serverDatabase';
-import { loadMobileFeaturedAssistants } from '@/server/services/mobileFeaturedAssistants';
+import { loadCachedMobileFeaturedAssistants } from '@/server/services/mobileFeaturedAssistants';
 
 import { buildMobileSettings } from '../adminReadModel';
 import { loadAppSettingsSectionSnapshot } from '../loader';
@@ -42,10 +42,7 @@ export const mobilePublicationReadProcedures = {
   ),
   getPublicMobileConfigSnapshot: publicDbProcedure.query(async ({ ctx }) => {
     const { published } = await loadMobileConfigPublication(ctx.serverDB);
-    const featuredAssistants = await loadMobileFeaturedAssistants(
-      ctx.serverDB,
-      published.config.discover.assistants,
-    );
+    const featuredAssistants = await loadCachedMobileFeaturedAssistants(ctx.serverDB, published);
 
     return {
       ...published,

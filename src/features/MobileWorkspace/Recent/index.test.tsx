@@ -158,25 +158,27 @@ describe('MobileRecentPage', () => {
     storeState.home.pinnedAgents = [];
     storeState.home.agentGroups = [];
     storeState.home.ungroupedAgents = [];
-    swrState.data = [{
-      items: [
-        conversation('agent-pinned', 'agent', 'Pinned Agent', true),
-        conversation('group-pinned', 'group', 'Pinned Group', true),
-        {
-          ...conversation('agent-free', 'agent', 'Free Agent'),
-          routePath: '/agent/agent-free/topic-new',
-          topicTitle: 'New Topic',
-          updatedAt: new Date('2026-07-19T10:00:00.000Z'),
-        },
-        {
-          ...conversation('group-free', 'group', 'Free Group'),
-          routePath: '/group/group-free?topic=topic-group',
-          topicTitle: 'Group Topic',
-        },
-        conversation('agent-idle', 'agent', 'Idle Agent'),
-      ],
-      nextCursor: undefined,
-    }];
+    swrState.data = [
+      {
+        items: [
+          conversation('agent-pinned', 'agent', 'Pinned Agent', true),
+          conversation('group-pinned', 'group', 'Pinned Group', true),
+          {
+            ...conversation('agent-free', 'agent', 'Free Agent'),
+            routePath: '/agent/agent-free/topic-new',
+            topicTitle: 'New Topic',
+            updatedAt: new Date('2026-07-19T10:00:00.000Z'),
+          },
+          {
+            ...conversation('group-free', 'group', 'Free Group'),
+            routePath: '/group/group-free?topic=topic-group',
+            topicTitle: 'Group Topic',
+          },
+          conversation('agent-idle', 'agent', 'Idle Agent'),
+        ],
+        nextCursor: undefined,
+      },
+    ];
     swrState.error = undefined;
     swrState.isLoading = false;
     userState.isLogin = true;
@@ -211,11 +213,12 @@ describe('MobileRecentPage', () => {
 
     expect(swrKeys.at(-1)).toEqual(['mobile-recent-workspace', null, '', undefined]);
     expect(swrOptions.at(-1)).toMatchObject({
-      revalidateAll: true,
+      revalidateFirstPage: true,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       shouldRetryOnError: false,
     });
+    expect(swrOptions.at(-1)).not.toHaveProperty('revalidateAll');
     expect(swrOptions.at(-1)).not.toHaveProperty('refreshInterval');
   });
 

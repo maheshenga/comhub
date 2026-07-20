@@ -4,11 +4,11 @@ import Loading from '@/components/Loading/BrandTextLoading';
 import Portal from '@/routes/(main)/agent/features/Portal/features/Portal';
 import PortalPanel from '@/routes/(main)/agent/features/Portal/features/PortalPanel';
 
-const ChatPortal = () => {
+const ChatPortal = ({ mobile = false }: { mobile?: boolean }) => {
   return (
     <Portal>
       <Suspense fallback={<Loading debugId={'ChatPortal'} />}>
-        <PortalPanel mobile={false} />
+        <PortalPanel mobile={mobile} />
       </Suspense>
     </Portal>
   );

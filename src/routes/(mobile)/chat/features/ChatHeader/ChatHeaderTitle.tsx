@@ -5,6 +5,8 @@ import { ChevronDown } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
+import { useMobileConfig } from '@/features/MobileWorkspace/useMobileConfig';
 import { useAgentStore } from '@/store/agent';
 import { agentSelectors, builtinAgentSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
@@ -20,8 +22,11 @@ const ChatHeaderTitle = memo(() => {
   ]);
   const isInbox = useAgentStore(builtinAgentSelectors.isInboxAgent);
   const title = useAgentStore(agentSelectors.currentAgentTitle);
+  const { config } = useMobileConfig();
 
-  const displayTitle = isInbox ? 'Lobe AI' : title;
+  const displayTitle = isInbox
+    ? config.brand.displayName || DEFAULT_RUNTIME_BRAND.name
+    : title;
 
   return (
     <ChatHeader.Title
