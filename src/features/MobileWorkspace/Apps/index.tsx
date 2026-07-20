@@ -178,6 +178,7 @@ const MobileAppsPage = memo(() => {
   const pageTitle =
     config.navigation.items.find((item) => item.id === 'slot-4')?.label || t('mobile.apps.title');
   const openMarket = () => navigate('/apps/market');
+  const isModuleAppsLoading = !error && (isLoading || data === undefined);
   const hasResolvedEmptyModuleApps =
     !isLoading && !error && data !== undefined && moduleApps.length === 0;
 
@@ -241,7 +242,7 @@ const MobileAppsPage = memo(() => {
         </MobileSection>
 
         <MobileSection className={styles.section} title={t('mobile.apps.module')}>
-          {isLoading ? (
+          {isModuleAppsLoading ? (
             <MobileAppGridSkeleton />
           ) : error ? (
             <MobileStateView

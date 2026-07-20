@@ -23,7 +23,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 const moduleState = vi.hoisted(() => ({
-  data: [] as any[],
+  data: [] as any[] | undefined,
   error: undefined as Error | undefined,
   isLoading: false,
   isValidating: false,
@@ -271,6 +271,22 @@ describe('MobileAppsPage', () => {
     );
     expect(screen.getAllByTestId('apps-loading-icon')).toHaveLength(4);
     expect(screen.getAllByTestId('apps-loading-label')).toHaveLength(4);
+  });
+
+  it('keeps unresolved module apps in the loading geometry', () => {
+    moduleState.data = undefined;
+    moduleState.isLoading = false;
+    render(<MobileAppsPage />);
+
+    expect(screen.getAllByRole('button', { name: 'Browse app market' })).toHaveLength(1);
+    expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('role', 'status');
+    expect(screen.getByTestId('mobile-apps-loading')).toContainElement(
+      screen.getByTestId('mobile-icon-grid'),
+    );
+    expect(screen.getAllByTestId('apps-loading-icon')).toHaveLength(4);
+    expect(screen.getAllByTestId('apps-loading-label')).toHaveLength(4);
+    expect(screen.queryByTestId('mobile-state-view')).not.toBeInTheDocument();
   });
 
   it('opens personal module apps outside the workspace shell', () => {
