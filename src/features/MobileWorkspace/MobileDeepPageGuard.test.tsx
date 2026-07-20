@@ -62,8 +62,7 @@ describe('MobileDeepPageGuard', () => {
     });
     expect(screen.getByTestId('mobile-deep-page-content')).toHaveStyle({
       minHeight: '0',
-      overflowX: 'hidden',
-      overflowY: 'auto',
+      overflow: 'hidden auto',
     });
     expect(screen.getByTestId('mobile-deep-page-content')).toContainElement(
       screen.getByRole('main'),
