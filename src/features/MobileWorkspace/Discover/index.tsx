@@ -71,8 +71,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     width: 100%;
     min-height: 76px;
-    padding-block: 10px;
-    padding-inline: 4px;
+    padding-block: 8px;
+    padding-inline: 0;
     border: 0;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
 
