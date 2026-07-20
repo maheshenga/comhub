@@ -22,6 +22,7 @@ export const config = {
     '/settings(.*)',
     '/design',
     '/discover',
+    '/discover(.*)',
     '/image',
     '/ppt',
     '/video',

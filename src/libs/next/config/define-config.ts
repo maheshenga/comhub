@@ -326,17 +326,6 @@ export function defineConfig(config: CustomNextConfig) {
         permanent: true,
         source: '/community/providers',
       },
-      // Legacy redirects from /discover to /community
-      {
-        destination: '/community',
-        permanent: true,
-        source: '/discover',
-      },
-      {
-        destination: '/community/:path*',
-        permanent: true,
-        source: '/discover/:path*',
-      },
       // {
       //   destination: '/settings/common',
       //   permanent: true,

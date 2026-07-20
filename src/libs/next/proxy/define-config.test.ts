@@ -106,14 +106,25 @@ describe('defineConfig mobile workspace routes', () => {
   const mobileUserAgent =
     'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1';
 
-  it('serves mobile discover through the SPA while preserving the desktop redirect route', async () => {
+  it('serves mobile discover through the SPA', async () => {
     const mobileRewrite = await getAuthenticatedRewriteUrl('/discover', {
       'user-agent': mobileUserAgent,
     });
-    const desktopRewrite = await getAuthenticatedRewriteUrl('/discover');
 
     expect(mobileRewrite.pathname).toBe('/spa/zh-CN__1/discover');
-    expect(desktopRewrite.pathname).toBe('/zh-CN__0/discover');
+  });
+
+  it('redirects desktop legacy discover paths before authentication', async () => {
+    const { middleware } = defineConfig();
+    vi.mocked(auth.api.getSession).mockClear();
+
+    const response = await middleware(createRequest('/discover/agent?source=legacy'));
+
+    expect(response.status).toBe(308);
+    expect(response.headers.get('location')).toBe(
+      'https://example.com/community/agent?source=legacy',
+    );
+    expect(auth.api.getSession).not.toHaveBeenCalled();
   });
 });
 

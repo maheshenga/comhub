@@ -12,7 +12,7 @@ describe('production proxy matcher', () => {
     const { config } = await import('./proxy');
 
     expect(config.matcher).toEqual(
-      expect.arrayContaining(['/design', '/apps', '/apps(.*)', '/discover']),
+      expect.arrayContaining(['/design', '/apps', '/apps(.*)', '/discover', '/discover(.*)']),
     );
   });
 });

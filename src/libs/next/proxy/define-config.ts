@@ -219,6 +219,18 @@ export function defineConfig() {
   const betterAuthMiddleware = async (req: NextRequest) => {
     logBetterAuth('BetterAuth middleware processing request: %s %s', req.method, req.url);
 
+    const legacyDiscoverPath = req.nextUrl.pathname;
+    const isLegacyDiscoverPath =
+      legacyDiscoverPath === '/discover' || legacyDiscoverPath.startsWith('/discover/');
+    const isMobile = new UAParser(req.headers.get('user-agent') || '').getDevice().type === 'mobile';
+
+    if (isLegacyDiscoverPath && !isMobile) {
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = legacyDiscoverPath.replace(/^\/discover/, '/community');
+
+      return Response.redirect(redirectUrl, 308);
+    }
+
     const response = defaultMiddleware(req);
 
     // when enable auth protection, only public route is not protected, others are all protected
