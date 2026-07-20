@@ -7,7 +7,22 @@ import MobileConfigPreview from './MobileConfigPreview';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
+    t: (key: string, options?: { defaultValue?: string }) =>
+      (
+        {
+          'admin.mobile.preview.apps': 'Apps',
+          'admin.mobile.preview.builtinApps': 'Built-in apps',
+          'admin.mobile.preview.design': 'Design',
+          'admin.mobile.preview.discover': 'Discover',
+          'admin.mobile.preview.moduleApps': 'Module apps',
+          'admin.mobile.preview.recent': 'Recent',
+          'admin.mobile.preview.recent.sample': 'Preview sample',
+          'admin.mobile.preview.recent.sampleTitleOne': 'Project planning',
+          'admin.mobile.preview.recent.sampleTitleTwo': 'Content outline',
+          'admin.mobile.preview.recentTitle': 'Recent preview',
+          'admin.mobile.previewMode': 'Preview mode',
+        }[key] ?? options?.defaultValue ?? key
+      ),
   }),
 }));
 
@@ -116,6 +131,7 @@ describe('MobileConfigPreview', () => {
 
     const preview = screen.getByTestId('mobile-config-preview');
     expect(preview).toHaveStyle({ maxWidth: '360px', minHeight: '560px' });
+    expect(screen.getAllByRole('radio')).toHaveLength(4);
     expect(screen.getByRole('radio', { name: /recent/i })).toBeChecked();
     expect(screen.getByTestId('mobile-preview-recent-row')).toBeInTheDocument();
     expect(preview).toHaveTextContent('Preview sample');
@@ -141,6 +157,17 @@ describe('MobileConfigPreview', () => {
     );
     expect(navigation).toHaveTextContent('RecentDesignDiscoverApps');
     expect(preview).toHaveTextContent(content);
+  });
+
+  it('replaces the prior mode body when the preview mode changes', () => {
+    render(<MobileConfigPreview config={config} />);
+
+    expect(screen.getAllByTestId('mobile-preview-recent-row')).toHaveLength(2);
+
+    switchMode('design');
+
+    expect(screen.getByTestId('mobile-preview-design-tools')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-preview-recent-row')).not.toBeInTheDocument();
   });
 
   it('renders only enabled design tools in configured order', () => {
@@ -171,24 +198,46 @@ describe('MobileConfigPreview', () => {
     expect(screen.getByText('Featured')).toBeInTheDocument();
   });
 
-  it('renders enabled built-ins and featured module ids in configured order', () => {
+  it('renders separate built-in and module app sections in configured order', () => {
     render(<MobileConfigPreview config={config} />);
 
     switchMode('apps');
 
-    const apps = within(screen.getByTestId('mobile-preview-apps')).getAllByTestId(
+    const builtins = within(screen.getByTestId('mobile-preview-apps-builtins')).getAllByTestId(
       'mobile-preview-grid-item',
     );
-    expect(apps.map((app) => app.textContent)).toEqual([
-      'Settings',
-      'Tasks',
-      'design-kit',
-      'copy-kit',
-    ]);
+    const modules = within(screen.getByTestId('mobile-preview-apps-modules')).getAllByTestId(
+      'mobile-preview-grid-item',
+    );
+    expect(builtins.map((app) => app.textContent)).toEqual(['Settings', 'Tasks']);
+    expect(modules.map((app) => app.textContent)).toEqual(['design-kit', 'copy-kit']);
+    expect(screen.getByText('Built-in apps')).toBeInTheDocument();
+    expect(screen.getByText('Module apps')).toBeInTheDocument();
     expect(screen.queryByText('Community')).not.toBeInTheDocument();
   });
 
-  it('updates only the active visible bottom item when changing modes', () => {
+  it('switches modes through visible Discover and Apps bottom-tab buttons', () => {
+    render(<MobileConfigPreview config={config} />);
+
+    const navigation = screen.getByRole('navigation', { name: 'Bottom Navigation' });
+    fireEvent.click(within(navigation).getByRole('button', { name: 'Discover' }));
+    expect(screen.getByRole('radio', { name: 'Discover' })).toBeChecked();
+    expect(within(navigation).getByRole('button', { name: 'Discover' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    fireEvent.click(within(navigation).getByRole('button', { name: 'Apps' }));
+    expect(screen.getByRole('radio', { name: 'Apps' })).toBeChecked();
+    expect(within(navigation).getByRole('button', { name: 'Apps' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByTestId('mobile-preview-apps-builtins')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-preview-discover-list')).not.toBeInTheDocument();
+  });
+
+  it('keeps hidden bottom tabs absent without an active substitute', () => {
     const hiddenDiscover = {
       ...config,
       navigation: {
@@ -200,19 +249,20 @@ describe('MobileConfigPreview', () => {
     render(<MobileConfigPreview config={hiddenDiscover} />);
 
     const navigation = screen.getByRole('navigation', { name: 'Bottom Navigation' });
-    expect(within(navigation).getByTestId('mobile-preview-nav-slot-1')).toHaveAttribute(
+    expect(within(navigation).getByRole('button', { name: 'Recent' })).toHaveAttribute(
       'aria-current',
       'page',
     );
 
     switchMode('design');
-    expect(within(navigation).getByTestId('mobile-preview-nav-slot-2')).toHaveAttribute(
+    expect(within(navigation).getByRole('button', { name: 'Design' })).toHaveAttribute(
       'aria-current',
       'page',
     );
 
     switchMode('discover');
     expect(within(navigation).queryByTestId('mobile-preview-nav-slot-3')).not.toBeInTheDocument();
+    expect(within(navigation).queryByRole('button', { name: 'Discover' })).not.toBeInTheDocument();
     expect(navigation.querySelector('[aria-current="page"]')).toBeNull();
     expect(screen.getByTestId('mobile-preview-discover-list')).toBeInTheDocument();
   });

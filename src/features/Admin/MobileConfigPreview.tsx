@@ -17,8 +17,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     place-items: center;
 
     min-width: 0;
-    min-height: 88px;
-    padding: 8px 4px;
+    min-height: 104px;
+    padding: 8px 0;
 
     font-size: 13px;
     line-height: 18px;
@@ -34,6 +34,19 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     color: ${cssVar.colorPrimary};
     background: ${cssVar.colorFillSecondary};
+  `,
+  appLabel: css`
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+
+    max-width: 100%;
+    min-height: 36px;
+
+    font-size: 13px;
+    line-height: 18px;
+    text-align: center;
   `,
   assistantAvatar: css`
     display: grid;
@@ -124,6 +137,9 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
   `,
+  appGrid: css`
+    grid-auto-rows: 104px;
+  `,
   header: css`
     display: flex;
     flex: 0 0 ${MOBILE_TABBAR_HEIGHT}px;
@@ -159,13 +175,26 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     place-items: center;
 
     min-width: 0;
+    min-height: 44px;
     height: ${MOBILE_TABBAR_HEIGHT}px;
     padding-block: 4px;
     padding-inline: 2px;
+    border: 0;
 
     font-size: 11px;
     line-height: 16px;
     color: ${cssVar.colorTextSecondary};
+
+    background: transparent;
+
+    &:focus-visible {
+      outline: 2px solid ${cssVar.colorPrimary};
+      outline-offset: -2px;
+    }
+
+    &:not(:disabled) {
+      cursor: pointer;
+    }
   `,
   navItemActive: css`
     color: ${cssVar.colorPrimary};
@@ -266,9 +295,25 @@ const previewModeSlot: Record<
   recent: 'slot-1',
 };
 
+const previewSlotMode: Record<
+  MobilePublicConfigV1['navigation']['items'][number]['id'],
+  MobilePreviewMode
+> = {
+  'slot-1': 'recent',
+  'slot-2': 'design',
+  'slot-3': 'discover',
+  'slot-4': 'apps',
+};
+
 const previewRecentRows = [
-  { label: 'Preview sample', title: 'Project planning' },
-  { label: 'Preview sample', title: 'Content outline' },
+  {
+    labelKey: 'admin.mobile.preview.recent.sample',
+    titleKey: 'admin.mobile.preview.recent.sampleTitleOne',
+  },
+  {
+    labelKey: 'admin.mobile.preview.recent.sample',
+    titleKey: 'admin.mobile.preview.recent.sampleTitleTwo',
+  },
 ] as const;
 
 const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
@@ -303,16 +348,16 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
   const modeOptions = useMemo(
     () =>
       [
-        { label: t('admin.mobile.preview.recent', { defaultValue: 'Recent' }), value: 'recent' },
-        { label: t('admin.mobile.preview.design', { defaultValue: 'Design' }), value: 'design' },
-        { label: t('admin.mobile.preview.discover', { defaultValue: 'Discover' }), value: 'discover' },
-        { label: t('admin.mobile.preview.apps', { defaultValue: 'Apps' }), value: 'apps' },
+        { label: t('admin.mobile.preview.recent'), value: 'recent' },
+        { label: t('admin.mobile.preview.design'), value: 'design' },
+        { label: t('admin.mobile.preview.discover'), value: 'discover' },
+        { label: t('admin.mobile.preview.apps'), value: 'apps' },
       ],
     [t],
   );
 
-  const section = (title: string, children: ReactNode) => (
-    <section className={styles.section}>
+  const section = (title: string, children: ReactNode, testId?: string) => (
+    <section className={styles.section} data-testid={testId}>
       <div className={styles.sectionHeader}>
         <h3 className={styles.sectionTitle}>{title}</h3>
       </div>
@@ -324,7 +369,7 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
     switch (mode) {
       case 'design':
         return section(
-          t('admin.mobile.designTools', { defaultValue: 'Design Tools' }),
+          t('admin.mobile.designTools'),
           <div className={styles.grid} data-testid="mobile-preview-design-tools">
             {enabledTools.map((tool) => {
               const ToolIcon = getMobileIcon(tool.icon);
@@ -333,7 +378,7 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
                   <span className={styles.appIcon}>
                     <Icon icon={ToolIcon} size={22} />
                   </span>
-                  <span className={styles.label}>{tool.label}</span>
+                  <span className={styles.appLabel}>{tool.label}</span>
                 </div>
               );
             })}
@@ -343,7 +388,7 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
       case 'discover':
         return section(
           config.discover.title ||
-            t('admin.mobile.featuredAssistants', { defaultValue: 'Featured Assistants' }),
+            t('admin.mobile.featuredAssistants'),
           <div data-testid="mobile-preview-discover-list">
             {assistants.map((assistant) => {
               const title = assistant.titleOverride || assistant.assistantId;
@@ -370,49 +415,63 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
         );
 
       case 'apps':
-        return section(
-          t('admin.mobile.appEntries', { defaultValue: 'App Entries' }),
-          <div className={styles.grid} data-testid="mobile-preview-apps">
-            {enabledBuiltins.map((app) => {
-              const AppIcon = getMobileIcon(app.icon);
-              return (
-                <div className={styles.app} data-testid="mobile-preview-grid-item" key={app.id}>
-                  <span className={styles.appIcon}>
-                    <Icon icon={AppIcon} size={22} />
-                  </span>
-                  <span className={styles.label}>{app.label}</span>
-                </div>
-              );
-            })}
-            {config.applications.featuredModuleAppIds.map((id) => (
-              <div className={styles.app} data-testid="mobile-preview-grid-item" key={id}>
-                <span className={styles.appIcon}>
-                  <Icon icon={Boxes} size={22} />
-                </span>
-                <span className={styles.label}>{id}</span>
-              </div>
-            ))}
-          </div>,
+        return (
+          <>
+            {section(
+              t('admin.mobile.preview.builtinApps'),
+              <div className={`${styles.grid} ${styles.appGrid}`}>
+                {enabledBuiltins.map((app) => {
+                  const AppIcon = getMobileIcon(app.icon);
+                  return (
+                    <div className={styles.app} data-testid="mobile-preview-grid-item" key={app.id}>
+                      <span className={styles.appIcon}>
+                        <Icon icon={AppIcon} size={22} />
+                      </span>
+                      <span className={styles.appLabel}>{app.label}</span>
+                    </div>
+                  );
+                })}
+              </div>,
+              'mobile-preview-apps-builtins',
+            )}
+            {section(
+              t('admin.mobile.preview.moduleApps'),
+              <div className={`${styles.grid} ${styles.appGrid}`}>
+                {config.applications.featuredModuleAppIds.map((id) => (
+                  <div className={styles.app} data-testid="mobile-preview-grid-item" key={id}>
+                    <span className={styles.appIcon}>
+                      <Icon icon={Boxes} size={22} />
+                    </span>
+                    <span className={styles.appLabel}>{id}</span>
+                  </div>
+                ))}
+              </div>,
+              'mobile-preview-apps-modules',
+            )}
+          </>
         );
 
       case 'recent':
       default:
         return section(
-          t('admin.mobile.preview.recentTitle', { defaultValue: 'Recent preview' }),
+          t('admin.mobile.preview.recentTitle'),
           <div>
-            {previewRecentRows.map((row, index) => (
+            {previewRecentRows.map((row) => {
+              const title = t(row.titleKey);
+              return (
               <div
                 className={styles.recentRow}
                 data-testid="mobile-preview-recent-row"
-                key={row.title}
+                key={row.titleKey}
               >
-                <span className={styles.recentAvatar}>{row.title.slice(0, 1)}</span>
+                <span className={styles.recentAvatar}>{title.slice(0, 1)}</span>
                 <span className={styles.recentText}>
-                  <span className={styles.recentTitle}>{row.title}</span>
-                  <span className={styles.recentMeta}>{index === 0 ? row.label : 'Preview row'}</span>
+                  <span className={styles.recentTitle}>{title}</span>
+                  <span className={styles.recentMeta}>{t(row.labelKey)}</span>
                 </span>
               </div>
-            ))}
+              );
+            })}
           </div>,
         );
     }
@@ -421,7 +480,7 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
   return (
     <div className={styles.preview}>
       <Segmented
-        aria-label={t('admin.mobile.previewMode', { defaultValue: 'Preview mode' })}
+        aria-label={t('admin.mobile.previewMode')}
         options={modeOptions}
         value={mode}
         onChange={(value) => setMode(value as MobilePreviewMode)}
@@ -437,7 +496,7 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
         <div className={styles.content}>{previewBody()}</div>
 
         <nav
-          aria-label={t('admin.mobile.bottomNavigation', { defaultValue: 'Bottom Navigation' })}
+          aria-label={t('admin.mobile.bottomNavigation')}
           className={styles.nav}
           style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
         >
@@ -445,17 +504,19 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
             const TabIcon = getMobileIcon(item.icon);
             const active = item.id === previewModeSlot[mode];
             return (
-              <span
+              <button
                 aria-current={active ? 'page' : undefined}
                 className={`${styles.navItem} ${active ? styles.navItemActive : ''}`}
                 data-testid={`mobile-preview-nav-${item.id}`}
                 key={item.id}
+                type="button"
+                onClick={() => setMode(previewSlotMode[item.id])}
               >
                 <span className={styles.navIcon}>
                   <Icon icon={TabIcon} size={20} />
                 </span>
                 <span className={styles.label}>{item.label}</span>
-              </span>
+              </button>
             );
           })}
         </nav>
