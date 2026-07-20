@@ -133,10 +133,36 @@ describe('mobile workspace shared components', () => {
     );
   });
 
-  it('renders the requested number of final-row-shaped skeletons', () => {
+  it('keeps the default list skeleton geometry for existing callers', () => {
     render(<MobileListSkeleton label="Loading conversations" rows={3} />);
 
-    expect(screen.getByRole('status', { name: 'Loading conversations' })).toBeInTheDocument();
+    const status = screen.getByRole('status', { name: 'Loading conversations' });
+    expect(status).toHaveStyle({
+      '--mobile-list-skeleton-avatar-size': '40px',
+      '--mobile-list-skeleton-min-row-height': '64px',
+      '--mobile-list-skeleton-trailing-width': '20px',
+    });
     expect(screen.getAllByTestId('mobile-list-skeleton-row')).toHaveLength(3);
+  });
+
+  it('applies explicit list geometry and layout class to the status root', () => {
+    render(
+      <MobileListSkeleton
+        avatarSize={44}
+        className="responsive-assistant-list"
+        label="Loading assistants"
+        minRowHeight={76}
+        trailingWidth={88}
+      />,
+    );
+
+    expect(screen.getByRole('status', { name: 'Loading assistants' })).toHaveClass(
+      'responsive-assistant-list',
+    );
+    expect(screen.getByRole('status', { name: 'Loading assistants' })).toHaveStyle({
+      '--mobile-list-skeleton-avatar-size': '44px',
+      '--mobile-list-skeleton-min-row-height': '76px',
+      '--mobile-list-skeleton-trailing-width': '88px',
+    });
   });
 });

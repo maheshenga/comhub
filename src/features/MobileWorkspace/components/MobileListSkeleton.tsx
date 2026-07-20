@@ -1,12 +1,13 @@
 'use client';
 
 import { createStaticStyles } from 'antd-style';
+import { type CSSProperties } from 'react';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   avatar: css`
-    flex: 0 0 40px;
-    width: 40px;
-    height: 40px;
+    flex: 0 0 var(--mobile-list-skeleton-avatar-size);
+    width: var(--mobile-list-skeleton-avatar-size);
+    height: var(--mobile-list-skeleton-avatar-size);
     border-radius: 8px;
     background: ${cssVar.colorFillTertiary};
   `,
@@ -26,29 +27,62 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     display: flex;
     gap: 12px;
     align-items: center;
-    min-height: 64px;
+    min-height: var(--mobile-list-skeleton-min-row-height);
     padding-block: 8px;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
   `,
   trailing: css`
-    flex: 0 0 20px;
-    width: 20px;
+    flex: 0 0 var(--mobile-list-skeleton-trailing-width);
+    width: var(--mobile-list-skeleton-trailing-width);
     height: 14px;
     border-radius: 4px;
     background: ${cssVar.colorFillTertiary};
   `,
 }));
 
-interface MobileListSkeletonProps {
+const DEFAULT_AVATAR_SIZE = 40;
+const DEFAULT_MIN_ROW_HEIGHT = 64;
+const DEFAULT_TRAILING_WIDTH = 20;
+
+type MobileListSkeletonStyle = CSSProperties & {
+  '--mobile-list-skeleton-avatar-size': string;
+  '--mobile-list-skeleton-min-row-height': string;
+  '--mobile-list-skeleton-trailing-width': string;
+};
+
+export interface MobileListSkeletonProps {
+  avatarSize?: number;
+  className?: string;
   label: string;
+  minRowHeight?: number;
   rows?: number;
+  trailingWidth?: number;
 }
 
-const MobileListSkeleton = ({ label, rows = 4 }: MobileListSkeletonProps) => {
+const MobileListSkeleton = ({
+  avatarSize = DEFAULT_AVATAR_SIZE,
+  className,
+  label,
+  minRowHeight = DEFAULT_MIN_ROW_HEIGHT,
+  rows = 4,
+  trailingWidth = DEFAULT_TRAILING_WIDTH,
+}: MobileListSkeletonProps) => {
   const rowCount = Math.max(0, Math.trunc(rows));
+  const geometry: MobileListSkeletonStyle = {
+    '--mobile-list-skeleton-avatar-size': `${avatarSize}px`,
+    '--mobile-list-skeleton-min-row-height': `${minRowHeight}px`,
+    '--mobile-list-skeleton-trailing-width': `${trailingWidth}px`,
+  };
 
   return (
-    <div aria-busy="true" aria-label={label} role="status">
+    <div
+      aria-busy="true"
+      aria-label={label}
+      className={className}
+      data-testid="mobile-list-skeleton"
+      role="status"
+      style={geometry}
+    >
       {Array.from({ length: rowCount }, (_, index) => (
         <div
           aria-hidden="true"

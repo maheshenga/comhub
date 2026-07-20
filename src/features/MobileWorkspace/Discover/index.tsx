@@ -138,7 +138,14 @@ const MobileDiscoverPage = memo(() => {
         <MobileContentFrame>
           <MobileSection className={styles.section} title={config.discover.title}>
             {isLoading ? (
-              <MobileListSkeleton label={config.discover.title} rows={4} />
+              <MobileListSkeleton
+                avatarSize={44}
+                className={styles.list}
+                label={config.discover.title}
+                minRowHeight={76}
+                rows={4}
+                trailingWidth={88}
+              />
             ) : error ? (
               <MobileStateView
                 action={{ label: t('mobile.discover.retry'), onClick: () => void mutate() }}

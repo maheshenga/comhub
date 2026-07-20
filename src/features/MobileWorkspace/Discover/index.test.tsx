@@ -120,12 +120,23 @@ describe('MobileDiscoverPage', () => {
   });
 
   it('renders row-shaped loading, curated empty, and retry states', () => {
-    mobileState.isLoading = true;
     const { rerender } = render(<MobileDiscoverPage />);
+    const responsiveListClass = screen.getByTestId('featured-assistant-list').className;
+
+    mobileState.isLoading = true;
+    rerender(<MobileDiscoverPage />);
     expect(screen.getByRole('status', { name: 'Recommended assistants' })).toHaveAttribute(
       'aria-busy',
       'true',
     );
+    expect(screen.getByRole('status', { name: 'Recommended assistants' })).toHaveClass(
+      ...responsiveListClass.split(' '),
+    );
+    expect(screen.getByRole('status', { name: 'Recommended assistants' })).toHaveStyle({
+      '--mobile-list-skeleton-avatar-size': '44px',
+      '--mobile-list-skeleton-min-row-height': '76px',
+      '--mobile-list-skeleton-trailing-width': '88px',
+    });
     expect(screen.getAllByTestId('mobile-list-skeleton-row')).toHaveLength(4);
 
     mobileState.isLoading = false;
