@@ -129,7 +129,9 @@ export function defineConfig() {
       return NextResponse.next();
     }
 
-    const isNextjsRoute = nextjsOnlyRoutes.some((r) => url.pathname.startsWith(r));
+    const isMobileDiscoverRoute = device.type === 'mobile' && url.pathname === '/discover';
+    const isNextjsRoute =
+      !isMobileDiscoverRoute && nextjsOnlyRoutes.some((r) => url.pathname.startsWith(r));
 
     // SPA routes: rewrite to /spa/[variants]/[...path] catch-all
     if (!isNextjsRoute) {

@@ -20,6 +20,8 @@ export const config = {
     '/group(.*)',
     '/changelog(.*)',
     '/settings(.*)',
+    '/design',
+    '/discover',
     '/image',
     '/ppt',
     '/video',
@@ -34,6 +36,8 @@ export const config = {
     '/task(.*)',
     '/me',
     '/me(.*)',
+    '/apps',
+    '/apps(.*)',
     '/share(.*)',
 
     '/onboarding',

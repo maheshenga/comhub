@@ -54,6 +54,12 @@ const getRewriteUrl = async (path: string, headers?: HeadersInit) => {
   return new URL(rewrite);
 };
 
+const getAuthenticatedRewriteUrl = async (path: string, headers?: HeadersInit) => {
+  vi.mocked(auth.api.getSession).mockResolvedValueOnce({ user: { id: 'user-1' } } as never);
+
+  return getRewriteUrl(path, headers);
+};
+
 describe('defineConfig middleware locale routing', () => {
   it('serves sign-in through the upstream Next.js auth route with default zh-CN locale', async () => {
     const rewrite = await getRewriteUrl('/signin', {
@@ -93,6 +99,21 @@ describe('defineConfig backend service routes', () => {
 
     expect(auth.api.getSession).not.toHaveBeenCalled();
     expect(response.headers.get('location')).toBeNull();
+  });
+});
+
+describe('defineConfig mobile workspace routes', () => {
+  const mobileUserAgent =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1';
+
+  it('serves mobile discover through the SPA while preserving the desktop redirect route', async () => {
+    const mobileRewrite = await getAuthenticatedRewriteUrl('/discover', {
+      'user-agent': mobileUserAgent,
+    });
+    const desktopRewrite = await getAuthenticatedRewriteUrl('/discover');
+
+    expect(mobileRewrite.pathname).toBe('/spa/zh-CN__1/discover');
+    expect(desktopRewrite.pathname).toBe('/zh-CN__0/discover');
   });
 });
 
