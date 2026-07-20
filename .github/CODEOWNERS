@@ -1,3 +1,8 @@
-# Database migrations require approval from core maintainers
+# ComHub maintainer ownership
+* @maheshenga
 
-/packages/database/migrations/ @arvinxx @nekomeowww @tjx666
+# Release, infrastructure, and data-boundary changes
+/.github/ @maheshenga
+/docker-compose/deploy/ @maheshenga
+/packages/database/migrations/ @maheshenga
+/scripts/comhub-upstream-sync/ @maheshenga
