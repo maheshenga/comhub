@@ -179,6 +179,12 @@ describe('MobileConfigPreview', () => {
       'mobile-preview-grid-item',
     );
     expect(tools.map((tool) => tool.textContent)).toEqual(['Docs', 'Slides']);
+    expect(tools).toHaveLength(2);
+    for (const tool of tools) {
+      expect(tool).toHaveAttribute('data-preview-cell-height', '88');
+      expect(tool).toHaveAttribute('data-preview-label-lines', '1');
+    }
+    expect(document.querySelector('[data-preview-cell-kind="app"]')).toBeNull();
     expect(screen.queryByText('Images')).not.toBeInTheDocument();
   });
 
@@ -211,6 +217,11 @@ describe('MobileConfigPreview', () => {
     );
     expect(builtins.map((app) => app.textContent)).toEqual(['Settings', 'Tasks']);
     expect(modules.map((app) => app.textContent)).toEqual(['design-kit', 'copy-kit']);
+    for (const app of [...builtins, ...modules]) {
+      expect(app).toHaveAttribute('data-preview-cell-height', '104');
+      expect(app).toHaveAttribute('data-preview-label-lines', '2');
+    }
+    expect(document.querySelector('[data-preview-cell-kind="design"]')).toBeNull();
     expect(screen.getByText('Built-in apps')).toBeInTheDocument();
     expect(screen.getByText('Module apps')).toBeInTheDocument();
     expect(screen.queryByText('Community')).not.toBeInTheDocument();

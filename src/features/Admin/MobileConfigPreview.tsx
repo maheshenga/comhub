@@ -11,9 +11,9 @@ import { type MobilePublicConfigV1 } from '@/const/mobileConfig';
 import { getMobileIcon } from '@/features/MobileWorkspace/mobileIcons';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
-  app: css`
+  appCell: css`
     display: grid;
-    gap: 6px;
+    gap: 8px;
     place-items: center;
 
     min-width: 0;
@@ -47,6 +47,30 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     font-size: 13px;
     line-height: 18px;
     text-align: center;
+  `,
+  designCell: css`
+    display: grid;
+    gap: 6px;
+    place-items: center;
+
+    min-width: 0;
+    min-height: 88px;
+    padding: 8px 4px;
+
+    font-size: 13px;
+    line-height: 18px;
+    text-align: center;
+  `,
+  designLabel: css`
+    overflow: hidden;
+
+    max-width: 100%;
+
+    font-size: 13px;
+    line-height: 18px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   `,
   assistantAvatar: css`
     display: grid;
@@ -374,11 +398,18 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
             {enabledTools.map((tool) => {
               const ToolIcon = getMobileIcon(tool.icon);
               return (
-                <div className={styles.app} data-testid="mobile-preview-grid-item" key={tool.id}>
+                <div
+                  className={styles.designCell}
+                  data-preview-cell-height="88"
+                  data-preview-cell-kind="design"
+                  data-preview-label-lines="1"
+                  data-testid="mobile-preview-grid-item"
+                  key={tool.id}
+                >
                   <span className={styles.appIcon}>
                     <Icon icon={ToolIcon} size={22} />
                   </span>
-                  <span className={styles.appLabel}>{tool.label}</span>
+                  <span className={styles.designLabel}>{tool.label}</span>
                 </div>
               );
             })}
@@ -423,7 +454,14 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
                 {enabledBuiltins.map((app) => {
                   const AppIcon = getMobileIcon(app.icon);
                   return (
-                    <div className={styles.app} data-testid="mobile-preview-grid-item" key={app.id}>
+                    <div
+                      className={styles.appCell}
+                      data-preview-cell-height="104"
+                      data-preview-cell-kind="app"
+                      data-preview-label-lines="2"
+                      data-testid="mobile-preview-grid-item"
+                      key={app.id}
+                    >
                       <span className={styles.appIcon}>
                         <Icon icon={AppIcon} size={22} />
                       </span>
@@ -438,7 +476,14 @@ const MobileConfigPreview = memo<MobileConfigPreviewProps>(({ config }) => {
               t('admin.mobile.preview.moduleApps'),
               <div className={`${styles.grid} ${styles.appGrid}`}>
                 {config.applications.featuredModuleAppIds.map((id) => (
-                  <div className={styles.app} data-testid="mobile-preview-grid-item" key={id}>
+                  <div
+                    className={styles.appCell}
+                    data-preview-cell-height="104"
+                    data-preview-cell-kind="app"
+                    data-preview-label-lines="2"
+                    data-testid="mobile-preview-grid-item"
+                    key={id}
+                  >
                     <span className={styles.appIcon}>
                       <Icon icon={Boxes} size={22} />
                     </span>
