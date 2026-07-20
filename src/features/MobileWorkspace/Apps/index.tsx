@@ -1,9 +1,9 @@
 'use client';
 
-import { Button, Empty, Flexbox, Icon, Skeleton } from '@lobehub/ui';
-import { ChatHeader } from '@lobehub/ui/mobile';
+import { Icon, Skeleton } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { Boxes, Store } from 'lucide-react';
+import { Boxes, RefreshCw, Store } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
@@ -16,17 +16,25 @@ import { mobileHeaderSticky } from '@/styles/mobileHeader';
 import { mobileNavigateOptions } from '../destinationRegistry';
 import { getMobileIcon } from '../mobileIcons';
 import MobilePageLayout from '../MobilePageLayout';
-import MobileRefreshButton from '../MobileRefreshButton';
 import { useMobileSlotState } from '../mobileSlotState';
 import { useMobileConfig } from '../useMobileConfig';
+import {
+  MobileIconGrid,
+  MobileSection,
+  MobileStateView,
+  MobileWorkspaceHeader,
+} from '../components';
 import {
   buildMobileBuiltinApps,
   buildMobileModuleApps,
   type MobileInstalledModuleApp,
 } from './builtinApps';
 
+const APP_GRID_MIN_CELL_SIZE = 64;
+const APP_LOADING_CELL_COUNT = 4;
+
 const styles = createStaticStyles(({ css, cssVar }) => ({
-  appButton: css`
+  appCell: css`
     cursor: pointer;
 
     display: flex;
@@ -36,9 +44,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     justify-content: flex-start;
 
     min-width: 0;
-    min-height: 92px;
-    padding-block: 8px;
-    padding-inline: 4px;
+    min-height: 104px;
+    padding: 8px 0;
     border: 0;
 
     color: ${cssVar.colorText};
@@ -48,11 +55,14 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     &:active {
       background: ${cssVar.colorFillQuaternary};
     }
+
+    &:focus-visible {
+      outline: 2px solid ${cssVar.colorPrimary};
+      outline-offset: -2px;
+    }
   `,
   appGrid: css`
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding-inline: 8px;
+    grid-auto-rows: 104px;
   `,
   appIcon: css`
     display: grid;
@@ -86,54 +96,61 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     height: 28px;
     object-fit: contain;
   `,
-  headerAction: css`
-    cursor: pointer;
-
-    display: grid;
-    place-items: center;
-
+  compactState: css`
+    [data-testid='mobile-state-view'] {
+      min-height: 132px;
+      padding-block: 16px;
+    }
+  `,
+  marketAction: css`
     min-width: 44px;
     min-height: 44px;
-    padding: 0;
-    border: 0;
-
-    color: ${cssVar.colorText};
-
-    background: transparent;
-  `,
-  headerActions: css`
-    display: flex;
-    align-items: center;
-  `,
-  headerTitle: css`
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-    color: ${cssVar.colorText};
   `,
   page: css`
     width: 100%;
-    padding-block: 8px 16px;
+    padding-block: 12px 20px;
   `,
   section: css`
-    padding-block: 8px;
+    padding-block: 4px 12px;
   `,
-  sectionHeading: css`
-    margin: 0;
-    padding-block: 8px;
-    padding-inline: 16px;
+  skeletonCell: css`
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
 
-    font-size: 14px;
-    font-weight: 600;
-    color: ${cssVar.colorTextSecondary};
+    min-height: 104px;
+    padding: 8px 0;
   `,
-  state: css`
-    min-height: 152px;
-    padding-block: 24px;
-    padding-inline: 16px;
-    text-align: center;
+  skeletonLabel: css`
+    width: 100%;
+    padding-inline: 4px;
+  `,
+  skeletonStatus: css`
+    width: 100%;
   `,
 }));
+
+const MobileAppGridSkeleton = () => (
+  <div
+    aria-busy="true"
+    aria-label="Loading module apps"
+    className={styles.skeletonStatus}
+    data-testid="mobile-apps-loading"
+    role="status"
+  >
+    <MobileIconGrid className={styles.appGrid} minCellSize={APP_GRID_MIN_CELL_SIZE}>
+      {Array.from({ length: APP_LOADING_CELL_COUNT }, (_, index) => (
+        <div className={styles.skeletonCell} key={index}>
+          <Skeleton.Avatar active shape="square" size={44} />
+          <div className={styles.skeletonLabel}>
+            <Skeleton.Input active block size="small" />
+          </div>
+        </div>
+      ))}
+    </MobileIconGrid>
+  </div>
+);
 
 const MobileAppsPage = memo(() => {
   const { t } = useTranslation('common');
@@ -161,46 +178,48 @@ const MobileAppsPage = memo(() => {
   const pageTitle =
     config.navigation.items.find((item) => item.id === 'slot-4')?.label || t('mobile.apps.title');
   const openMarket = () => navigate('/apps/market');
-
-  const header = (
-    <ChatHeader
-      left={<h1 className={styles.headerTitle}>{pageTitle}</h1>}
-      style={mobileHeaderSticky}
-      right={
-        <div className={styles.headerActions}>
-          <MobileRefreshButton
-            label={t('mobile.refresh')}
-            loading={isValidating}
-            onRefresh={() => void mutate()}
-          />
-          <button
-            aria-label={t('mobile.apps.browseMarket')}
-            className={styles.headerAction}
-            title={t('mobile.apps.browseMarket')}
-            type="button"
-            onClick={openMarket}
-          >
-            <Icon icon={Store} size={20} />
-          </button>
-        </div>
-      }
-    />
-  );
+  const showHeaderMarketAction = !isLoading && (Boolean(error) || moduleApps.length > 0);
 
   return (
-    <MobilePageLayout header={header}>
+    <MobilePageLayout
+      header={
+        <MobileWorkspaceHeader
+          actions={[
+            {
+              disabled: isValidating,
+              icon: RefreshCw,
+              label: t('mobile.refresh'),
+              onClick: () => void mutate(),
+            },
+          ]}
+          right={
+            showHeaderMarketAction ? (
+              <Button
+                aria-label={t('mobile.apps.browseMarket')}
+                className={styles.marketAction}
+                htmlType="button"
+                icon={<Icon icon={Store} size={18} />}
+                type="primary"
+                onClick={openMarket}
+              >
+                {t('mobile.apps.browseMarket')}
+              </Button>
+            ) : undefined
+          }
+          style={mobileHeaderSticky}
+          title={pageTitle}
+        />
+      }
+    >
       <main className={styles.page}>
-        <section aria-labelledby="mobile-builtin-apps-heading" className={styles.section}>
-          <h2 className={styles.sectionHeading} id="mobile-builtin-apps-heading">
-            {t('mobile.apps.builtIn')}
-          </h2>
-          <div className={styles.appGrid}>
+        <MobileSection className={styles.section} title={t('mobile.apps.builtIn')}>
+          <MobileIconGrid className={styles.appGrid} minCellSize={APP_GRID_MIN_CELL_SIZE}>
             {builtins.map((app) => {
               const AppIcon = getMobileIcon(app.icon);
               return (
                 <button
                   aria-label={t('mobile.apps.open', { name: app.label })}
-                  className={styles.appButton}
+                  className={styles.appCell}
                   data-mobile-focus-key={`builtin:${app.id}`}
                   key={app.id}
                   type="button"
@@ -217,36 +236,26 @@ const MobileAppsPage = memo(() => {
                 </button>
               );
             })}
-          </div>
-        </section>
+          </MobileIconGrid>
+        </MobileSection>
 
-        <section aria-labelledby="mobile-module-apps-heading" className={styles.section}>
-          <h2 className={styles.sectionHeading} id="mobile-module-apps-heading">
-            {t('mobile.apps.module')}
-          </h2>
+        <MobileSection className={styles.section} title={t('mobile.apps.module')}>
           {isLoading ? (
-            <Flexbox
-              aria-busy="true"
-              className={styles.state}
-              data-testid="mobile-apps-loading"
-              gap={12}
-              role="status"
-            >
-              <Skeleton.Paragraph active rows={3} />
-            </Flexbox>
+            <MobileAppGridSkeleton />
           ) : error ? (
-            <Flexbox align="center" className={styles.state} gap={12} justify="center" role="alert">
-              <span>{t('mobile.apps.error')}</span>
-              <Button onClick={() => void mutate()}>{t('mobile.apps.retry')}</Button>
-            </Flexbox>
+            <MobileStateView
+              action={{ label: t('mobile.apps.retry'), onClick: () => void mutate() }}
+              title={t('mobile.apps.error')}
+              variant="error"
+            />
           ) : moduleApps.length ? (
-            <div className={styles.appGrid}>
+            <MobileIconGrid className={styles.appGrid} minCellSize={APP_GRID_MIN_CELL_SIZE}>
               {moduleApps.map((app) => (
                 <button
                   aria-label={t('mobile.apps.open', { name: app.displayName })}
-                  className={styles.appButton}
-                  data-testid="mobile-module-app"
+                  className={styles.appCell}
                   data-mobile-focus-key={`module:${app.id}`}
+                  data-testid="mobile-module-app"
                   key={app.id}
                   type="button"
                   onClick={() => {
@@ -266,14 +275,17 @@ const MobileAppsPage = memo(() => {
                   <span className={styles.appLabel}>{app.displayName}</span>
                 </button>
               ))}
-            </div>
+            </MobileIconGrid>
           ) : (
-            <Flexbox align="center" className={styles.state} gap={12} justify="center">
-              <Empty description={t('mobile.apps.empty')} />
-              <Button onClick={openMarket}>{t('mobile.apps.browseMarket')}</Button>
-            </Flexbox>
+            <div className={styles.compactState}>
+              <MobileStateView
+                action={{ label: t('mobile.apps.browseMarket'), onClick: openMarket }}
+                title={t('mobile.apps.empty')}
+                variant="empty"
+              />
+            </div>
           )}
-        </section>
+        </MobileSection>
       </main>
     </MobilePageLayout>
   );

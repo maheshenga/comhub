@@ -79,15 +79,18 @@ vi.mock('@lobehub/ui/mobile', () => ({
   ),
 }));
 vi.mock('@lobehub/ui', () => ({
-  Button: ({ children, onClick, ...props }: any) => (
-    <button type="button" {...props} onClick={onClick}>
+  Icon: () => <span data-testid="app-icon" />,
+  Skeleton: {
+    Avatar: () => <span data-testid="apps-loading-icon" />,
+    Input: () => <span data-testid="apps-loading-label" />,
+  },
+}));
+vi.mock('@lobehub/ui/base-ui', () => ({
+  Button: ({ children, htmlType, type, ...props }: any) => (
+    <button data-button-type={type} type={htmlType} {...props}>
       {children}
     </button>
   ),
-  Empty: ({ description }: any) => <div>{description}</div>,
-  Flexbox: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Icon: () => <span data-testid="app-icon" />,
-  Skeleton: { Paragraph: () => <div data-testid="apps-loading" /> },
 }));
 vi.mock('../MobilePageLayout', () => ({
   default: ({ children, header }: any) => (
@@ -95,6 +98,55 @@ vi.mock('../MobilePageLayout', () => ({
       {header}
       {children}
     </div>
+  ),
+}));
+vi.mock('../components', () => ({
+  MobileIconGrid: ({ children, minCellSize, ...props }: any) => (
+    <div data-mobile-grid-min-cell={minCellSize} data-testid="mobile-icon-grid" {...props}>
+      {children}
+    </div>
+  ),
+  MobileSection: ({ action, children, title, trailing, ...props }: any) => (
+    <section {...props}>
+      <h2>{title}</h2>
+      {trailing}
+      {action ? (
+        <button type="button" onClick={action.onClick}>
+          {action.label}
+        </button>
+      ) : null}
+      {children}
+    </section>
+  ),
+  MobileStateView: ({ action, title, variant }: any) => (
+    <section data-testid="mobile-state-view" data-variant={variant}>
+      <h2>{title}</h2>
+      {action ? (
+        <button
+          data-button-type={action.primary === false ? 'default' : 'primary'}
+          type="button"
+          onClick={action.onClick}
+        >
+          {action.label}
+        </button>
+      ) : null}
+    </section>
+  ),
+  MobileWorkspaceHeader: ({ actions, right, title }: any) => (
+    <header>
+      <h1>{title}</h1>
+      {right}
+      {actions?.map((action: any) => (
+        <button
+          aria-label={action.label}
+          data-header-action="true"
+          data-icon-only="true"
+          key={action.label}
+          type="button"
+          onClick={action.onClick}
+        />
+      ))}
+    </header>
   ),
 }));
 
@@ -162,6 +214,28 @@ describe('MobileAppsPage', () => {
     expect(navigate).toHaveBeenCalledWith('/apps/market');
   });
 
+  it('uses the shared four-column launcher grid with a named market destination and icon refresh', () => {
+    render(<MobileAppsPage />);
+
+    expect(screen.getAllByTestId('mobile-icon-grid')).toHaveLength(2);
+    for (const grid of screen.getAllByTestId('mobile-icon-grid')) {
+      expect(grid).toHaveAttribute('data-mobile-grid-min-cell', '64');
+    }
+
+    expect(screen.getByRole('button', { name: 'Browse app market' })).toHaveAttribute(
+      'data-button-type',
+      'primary',
+    );
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute(
+      'data-header-action',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute(
+      'data-icon-only',
+      'true',
+    );
+  });
+
   it('scopes the single module-app request to the active workspace', async () => {
     render(<MobileAppsPage />);
 
@@ -188,6 +262,23 @@ describe('MobileAppsPage', () => {
 
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getByTestId('mobile-apps-loading')).toHaveAttribute('role', 'status');
+    expect(screen.getByTestId('mobile-apps-loading')).toContainElement(
+      screen.getByTestId('mobile-icon-grid'),
+    );
+    expect(screen.getAllByTestId('apps-loading-icon')).toHaveLength(4);
+    expect(screen.getAllByTestId('apps-loading-label')).toHaveLength(4);
+  });
+
+  it('shows exactly one compact market CTA when no module apps are installed', () => {
+    moduleState.data = [];
+    render(<MobileAppsPage />);
+
+    expect(screen.getAllByRole('button', { name: 'Browse app market' })).toHaveLength(1);
+    expect(screen.getByTestId('mobile-state-view')).toHaveAttribute('data-variant', 'empty');
+    expect(screen.getByRole('button', { name: 'Browse app market' })).toHaveAttribute(
+      'data-button-type',
+      'primary',
+    );
   });
 
   it('manually refreshes module apps', () => {
