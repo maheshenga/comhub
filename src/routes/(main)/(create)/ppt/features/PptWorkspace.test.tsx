@@ -10,9 +10,14 @@ const serviceMocks = vi.hoisted(() => ({
   reportPptEvent: vi.fn(),
 }));
 const routerLocation = vi.hoisted(() => ({ search: '' }));
+const responsiveState = vi.hoisted(() => ({ isMobile: false }));
 
 vi.mock('@/services/docmee', () => ({
   docmeeService: serviceMocks,
+}));
+
+vi.mock('@/hooks/useIsMobile', () => ({
+  useIsMobile: () => responsiveState.isMobile,
 }));
 
 vi.mock('react-router', async (importOriginal) => ({
@@ -43,6 +48,7 @@ describe('PptWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     docmeeEventHandlers.clear();
+    responsiveState.isMobile = false;
     routerLocation.search = '';
     serviceMocks.createPptToken.mockResolvedValue({ sessionId: 's1', token: 'token-1' });
     serviceMocks.getPptRuntime.mockResolvedValue({
@@ -57,6 +63,7 @@ describe('PptWorkspace', () => {
   });
 
   it('opens a saved upstream presentation directly in the editor', async () => {
+    responsiveState.isMobile = true;
     routerLocation.search = '?recordId=00000000-0000-4000-8000-000000000001';
     serviceMocks.createPptToken.mockResolvedValue({
       sessionId: 'saved-session',
@@ -68,7 +75,12 @@ describe('PptWorkspace', () => {
 
     await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
     expect(docmeeConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 'editor', pptId: 'upstream/ppt-1' }),
+      expect.objectContaining({
+        isMobile: true,
+        page: 'editor',
+        pptId: 'upstream/ppt-1',
+        token: 'token-1',
+      }),
     );
     expect(serviceMocks.createPptToken).toHaveBeenCalledWith(
       '00000000-0000-4000-8000-000000000001',
@@ -82,6 +94,28 @@ describe('PptWorkspace', () => {
     expect(docmeeConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
         DOMAIN: 'https://docmee.cn',
+        isMobile: false,
+        page: 'creator-v2',
+        token: 'token-1',
+      }),
+    );
+    expect(screen.getByTestId('ppt-workspace-container')).toHaveStyle({
+      height: '100%',
+      minHeight: '0',
+      overflow: 'hidden',
+      width: '100%',
+    });
+  });
+
+  it('enables Docmee mobile mode for a new presentation', async () => {
+    responsiveState.isMobile = true;
+
+    render(<PptWorkspace />);
+
+    await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
+    expect(docmeeConstructor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isMobile: true,
         page: 'creator-v2',
         token: 'token-1',
       }),
@@ -98,6 +132,12 @@ describe('PptWorkspace', () => {
     );
 
     expect(screen.getByTestId('ppt-workspace-loading')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByTestId('ppt-workspace-loading')).toHaveStyle({
+      height: '100%',
+      minHeight: '0',
+      overflow: 'hidden',
+      width: '100%',
+    });
   });
 
   it('can recover after token creation fails and the user retries', async () => {
@@ -122,7 +162,14 @@ describe('PptWorkspace', () => {
       </SWRConfig>,
     );
 
-    fireEvent.click(await screen.findByRole('button'));
+    expect(await screen.findByTestId('ppt-workspace-error')).toHaveStyle({
+      height: '100%',
+      minHeight: '0',
+      overflow: 'hidden',
+      width: '100%',
+    });
+
+    fireEvent.click(screen.getByRole('button'));
 
     await waitFor(() => expect(docmeeConstructor).toHaveBeenCalled());
   });

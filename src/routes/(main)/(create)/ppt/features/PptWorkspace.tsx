@@ -1,10 +1,11 @@
 'use client';
 
-import { memo, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, memo, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import useSWR from 'swr';
 
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { docmeeService } from '@/services/docmee';
 
 import PptErrorState from './PptErrorState';
@@ -29,8 +30,23 @@ const getDocmeeErrorCode = (error: any) =>
   error?.message ||
   'PPT_UPSTREAM_TOKEN_FAILED';
 
+const workspaceContainerStyle = {
+  height: '100%',
+  minHeight: 0,
+  overflow: 'hidden',
+  width: '100%',
+} satisfies CSSProperties;
+
+const workspaceStateStyle = {
+  ...workspaceContainerStyle,
+  alignItems: 'center',
+  display: 'flex',
+  justifyContent: 'center',
+} satisfies CSSProperties;
+
 const PptWorkspace = memo(() => {
   const { search } = useLocation();
+  const isMobile = useIsMobile();
   const recordId = new URLSearchParams(search).get('recordId')?.trim() || undefined;
   const containerRef = useRef<HTMLDivElement>(null);
   const uiRef = useRef<{
@@ -69,6 +85,7 @@ const PptWorkspace = memo(() => {
           container: containerRef.current,
           creatorVersion: runtime.creatorVersion,
           downloadButton: getDownloadButton(runtime) as any,
+          isMobile,
           lang: runtime.lang,
           mode: 'light',
           onMessage: async (event: any) => {
@@ -124,7 +141,7 @@ const PptWorkspace = memo(() => {
       uiRef.current?.destroy?.();
       uiRef.current = null;
     };
-  }, [createToken, recordId, runtime, retryNonce]);
+  }, [createToken, isMobile, recordId, runtime, retryNonce]);
 
   const handleRetry = () => {
     setErrorCode(undefined);
@@ -132,36 +149,37 @@ const PptWorkspace = memo(() => {
     mutate();
   };
 
+  const renderError = (code?: string) => (
+    <div data-testid="ppt-workspace-error" style={workspaceStateStyle}>
+      <PptErrorState code={code} onRetry={handleRetry} />
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div
         aria-busy="true"
         data-testid="ppt-workspace-loading"
         role="status"
-        style={{
-          alignItems: 'center',
-          display: 'flex',
-          justifyContent: 'center',
-          minHeight: 'calc(100vh - 64px)',
-          width: '100%',
-        }}
+        style={workspaceStateStyle}
       >
         <NeuralNetworkLoading size={48} />
       </div>
     );
   }
   if (runtimeError) {
-    return <PptErrorState code={getDocmeeErrorCode(runtimeError)} onRetry={handleRetry} />;
+    return renderError(getDocmeeErrorCode(runtimeError));
   }
   if ((runtime as any)?.enabled === false) {
-    return <PptErrorState code={(runtime as any)?.code} onRetry={handleRetry} />;
+    return renderError((runtime as any)?.code);
   }
-  if (errorCode) return <PptErrorState code={errorCode} onRetry={handleRetry} />;
+  if (errorCode) return renderError(errorCode);
 
   return (
     <div
+      data-testid="ppt-workspace-container"
       ref={containerRef}
-      style={{ height: '100%', minHeight: 'calc(100vh - 64px)', width: '100%' }}
+      style={workspaceContainerStyle}
     />
   );
 });
