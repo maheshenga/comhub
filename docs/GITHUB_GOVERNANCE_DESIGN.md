@@ -72,17 +72,18 @@ SSH, Alipay, or other production secrets.
 The job installs dependencies with `--no-frozen-lockfile`, matching the
 existing build workflows because the tracked source tree has no lockfile. It
 runs the existing deployment workflow contract suite and runs `pnpm type-check`.
-The stable check name
-is `ComHub PR Checks / verify`; the branch rule uses that exact name. The
-workflow contract test gains assertions that the PR workflow has the intended
-trigger, permissions, and no production credential references.
+The stable GitHub Check Run name is `verify`; the branch rule binds that check
+to the GitHub Actions app (`app_id` `15368`) rather than relying on a display
+label. The workflow contract test gains assertions that the PR workflow has the
+intended trigger, permissions, and no production credential references.
 
 ### Main Branch Rule
 
 Configure GitHub branch protection for `main` through the GitHub REST API:
 
 - Require a pull request before merging.
-- Require `ComHub PR Checks / verify` to pass and be up to date.
+- Require the GitHub Actions `verify` check (`app_id` `15368`) to pass and be
+  up to date.
 - Require all review conversations to be resolved.
 - Require linear history.
 - Disallow force pushes and deletion.
@@ -158,7 +159,8 @@ LobeHub-specific contact and scope text.
 
 - `main` cannot be updated through an ordinary direct push, but the repository
   administrator has an explicit emergency bypass.
-- A PR to `main` exposes and passes `ComHub PR Checks / verify` before merge.
+- A PR to `main` exposes and passes the GitHub Actions `verify` check before
+  merge.
 - Production and staging credentialed workflows are limited to protected
   branches and remain manually initiated.
 - Dependabot security updates, private vulnerability reporting, secret scanning,

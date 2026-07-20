@@ -34,7 +34,7 @@ runner, YAML, pnpm, Bun, TypeScript.
 - Modify: `.github/workflows/comhubDeploymentWorkflows.test.mjs`
 
 **Interfaces:**
-- Produces the GitHub check context `ComHub PR Checks / verify`.
+- Produces the GitHub Actions Check Run `verify`.
 - Consumed by the `main` branch protection rule in Task 5.
 
 - [ ] **Step 1: Add the failing workflow contract test**
@@ -329,7 +329,7 @@ approved governance design are present.
 **Files:** GitHub repository settings and the branch created by this worktree.
 
 **Interfaces:**
-- Consumes the remotely available `ComHub PR Checks / verify` context.
+- Consumes the remotely available GitHub Actions `verify` Check Run.
 - Produces a protected `main`, scoped environments, Dependabot security
   updates, and a reviewable pull request.
 
@@ -346,16 +346,25 @@ git push --set-upstream origin codex/worktree-setup
 - [ ] **Step 2: Apply branch protection after the workflow exists remotely**
 
 ```powershell
-gh api --method PUT repos/maheshenga/comhub/branches/main/protection `
-  -F 'required_status_checks[strict]=true' `
-  -F 'required_status_checks[contexts][]=ComHub PR Checks / verify' `
-  -F 'required_pull_request_reviews[required_approving_review_count]=0' `
-  -F 'required_conversation_resolution=true' `
-  -F 'enforce_admins=false' `
-  -F 'required_linear_history=true' `
-  -F 'allow_force_pushes=false' `
-  -F 'allow_deletions=false' `
-  -F 'restrictions=null'
+$body = @'
+{
+  "required_status_checks": {
+    "strict": true,
+    "checks": [{"context": "verify", "app_id": 15368}]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": {"required_approving_review_count": 0},
+  "restrictions": null,
+  "required_linear_history": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "required_conversation_resolution": true
+}
+'@
+$path = Join-Path $env:TEMP "comhub-main-protection.json"
+[System.IO.File]::WriteAllText($path, $body, [System.Text.UTF8Encoding]::new($false))
+gh api --method PUT repos/maheshenga/comhub/branches/main/protection --input $path
+[System.IO.File]::Delete($path)
 ```
 
 Re-read the policy afterward; do not assume the API request succeeded.
@@ -394,8 +403,8 @@ gh api repos/maheshenga/comhub --jq ".security_and_analysis"
 gh api repos/maheshenga/comhub/private-vulnerability-reporting
 ```
 
-Expected: the PR is open and unmerged; `main` protection requires the named
-PR check; both deployment environments use protected-branch policies;
+Expected: the PR is open and unmerged; `main` protection requires the GitHub
+Actions `verify` check; both deployment environments use protected-branch policies;
 Dependabot security updates and private vulnerability reporting are enabled.
 
 ## Plan Review
