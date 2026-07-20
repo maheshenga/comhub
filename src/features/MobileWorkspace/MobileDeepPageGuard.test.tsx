@@ -30,11 +30,18 @@ describe('MobileDeepPageGuard', () => {
     workspace.slug = 'acme';
   });
 
-  it('uses the safe apps fallback when a deep route was opened directly', () => {
+  it.each([
+    ['/ppt', '/design'],
+    ['/image', '/design'],
+    ['/page/document-1', '/design'],
+    ['/apps/market', '/apps'],
+    ['/apps/module-1', '/apps'],
+  ])('uses %s direct-entry fallback %s outside a workspace', (pathname, fallback) => {
+    location.pathname = pathname;
     render(<MobileDeepPageGuard />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(navigate).toHaveBeenCalledWith('/apps', { escape: true });
+    expect(navigate).toHaveBeenCalledWith(fallback, { escape: true });
   });
 
   it('uses browser history when the deep route has a previous entry', () => {
@@ -45,12 +52,22 @@ describe('MobileDeepPageGuard', () => {
     expect(navigate).toHaveBeenCalledWith(-1);
   });
 
-  it('uses the design fallback for directly opened creation routes', () => {
-    location.pathname = '/ppt';
+  it('renders one 44px back header and a contained vertically scrolling outlet', () => {
     render(<MobileDeepPageGuard />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(navigate).toHaveBeenCalledWith('/design', { escape: true });
+    expect(screen.getAllByRole('button', { name: 'Back' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Back' })).toHaveAttribute('title', 'Back');
+    expect(screen.getByTestId('mobile-deep-page-header')).toHaveStyle({
+      height: '44px',
+    });
+    expect(screen.getByTestId('mobile-deep-page-content')).toHaveStyle({
+      minHeight: '0',
+      overflowX: 'hidden',
+      overflowY: 'auto',
+    });
+    expect(screen.getByTestId('mobile-deep-page-content')).toContainElement(
+      screen.getByRole('main'),
+    );
   });
 
   it('keeps the workspace prefix when a workspace deep route was opened directly', () => {

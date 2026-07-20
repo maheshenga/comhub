@@ -25,9 +25,16 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorText};
 
     background: transparent;
+
+    &:focus-visible {
+      outline: 2px solid ${cssVar.colorPrimary};
+      outline-offset: -2px;
+    }
   `,
   content: css`
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+
     flex: 1;
     min-height: 0;
   `,
@@ -37,6 +44,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
     flex: 0 0 44px;
 
+    box-sizing: border-box;
     height: 44px;
     border-block-end: 1px solid ${cssVar.colorBorderSecondary};
 
@@ -49,6 +57,8 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     width: 100%;
     height: 100%;
     min-height: 0;
+
+    overflow: hidden;
   `,
 }));
 
@@ -73,8 +83,8 @@ const MobileDeepPageGuard = memo(() => {
   };
 
   return (
-    <div className={styles.root}>
-      <header className={styles.header}>
+    <div className={styles.root} data-testid="mobile-deep-page-guard">
+      <header className={styles.header} data-testid="mobile-deep-page-header">
         <button
           aria-label={t('back')}
           className={styles.back}
@@ -85,7 +95,7 @@ const MobileDeepPageGuard = memo(() => {
           <Icon icon={ChevronLeft} size={22} />
         </button>
       </header>
-      <div className={styles.content}>
+      <div className={styles.content} data-testid="mobile-deep-page-content">
         <Outlet />
       </div>
     </div>

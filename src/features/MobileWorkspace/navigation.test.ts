@@ -57,6 +57,11 @@ describe('mobile workspace navigation', () => {
     expect(shouldShowMobileTabBar('/discover')).toBe(true);
     expect(shouldShowMobileTabBar('/apps')).toBe(true);
     expect(shouldShowMobileTabBar('/community/agent')).toBe(true);
+    expect(shouldShowMobileTabBar('/ppt')).toBe(false);
+    expect(shouldShowMobileTabBar('/image')).toBe(false);
+    expect(shouldShowMobileTabBar('/page/document-1')).toBe(false);
+    expect(shouldShowMobileTabBar('/apps/market')).toBe(false);
+    expect(shouldShowMobileTabBar('/apps/module-1')).toBe(false);
     expect(shouldShowMobileTabBar('/agent/a/topic')).toBe(false);
     expect(shouldShowMobileTabBar('/community/agent/demo')).toBe(false);
     expect(shouldShowMobileTabBar('/settings')).toBe(false);
