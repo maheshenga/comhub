@@ -286,4 +286,50 @@ describe('DesktopBuildModel', () => {
     });
     expect(release.errorSummary).toHaveLength(1024);
   });
+
+  it('rejects an out-of-order stable success that conflicts with the established identity', async () => {
+    const firstDraft = await saveDraft();
+    const stableA = await freezeDraft(firstDraft.profileId, {
+      channel: 'stable',
+      version: '2.4.0',
+    });
+    const stableBIdentity = {
+      ...payload,
+      applicationId: 'com.qingyou.comhub-b',
+      protocolScheme: 'comhub-b',
+    };
+    await saveDraft({ payload: stableBIdentity, profileId: firstDraft.profileId });
+    const stableB = await freezeDraft(firstDraft.profileId, {
+      channel: 'stable',
+      version: '2.4.1',
+    });
+
+    const succeededB = await dispatchAndSucceed(stableB.release.id);
+    const profileAfterB = await model().getProfile(firstDraft.profileId);
+    expect(profileAfterB?.firstStableReleaseAt).toEqual(succeededB.completedAt);
+    expect((await model().getRevision(stableB.revision.id))?.payload).toMatchObject(
+      stableBIdentity,
+    );
+
+    await model().markReleaseDispatched({
+      actorUserId: ADMIN_IDS[0],
+      releaseId: stableA.release.id,
+    });
+    await model().markReleaseResult({ releaseId: stableA.release.id, status: 'publishing' });
+    await expect(
+      model().markReleaseResult({ releaseId: stableA.release.id, status: 'succeeded' }),
+    ).rejects.toThrow('DESKTOP_BUILD_IDENTITY_LOCKED');
+
+    expect(
+      (await model().listReleases({ profileId: firstDraft.profileId })).find(
+        (release) => release.id === stableA.release.id,
+      ),
+    ).toMatchObject({ status: 'publishing' });
+    expect((await model().getProfile(firstDraft.profileId))?.firstStableReleaseAt).toEqual(
+      succeededB.completedAt,
+    );
+    await expect(
+      model().markReleaseResult({ releaseId: stableA.release.id, status: 'failed' }),
+    ).resolves.toMatchObject({ status: 'failed' });
+  });
 });

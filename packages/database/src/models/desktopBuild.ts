@@ -66,7 +66,11 @@ export class DesktopBuildModel {
     if (!profile.firstStableReleaseAt) return;
 
     const release = await tx.query.desktopReleases.findFirst({
-      orderBy: [asc(desktopReleases.createdAt)],
+      orderBy: [
+        asc(desktopReleases.completedAt),
+        asc(desktopReleases.createdAt),
+        asc(desktopReleases.id),
+      ],
       where: and(
         eq(desktopReleases.profileId, profile.id),
         eq(desktopReleases.channel, 'stable'),
@@ -107,6 +111,17 @@ export class DesktopBuildModel {
       throw new Error('DESKTOP_RELEASE_INVALID_TRANSITION');
     }
 
+    let profile: DesktopBuildProfileItem | undefined;
+    if (release.channel === 'stable' && status === 'succeeded') {
+      // Release rows are locked before their parent profile throughout release transitions.
+      profile = await this.lockProfile(release.profileId, tx);
+      const revision = await tx.query.desktopBuildProfileRevisions.findFirst({
+        where: eq(desktopBuildProfileRevisions.id, release.frozenRevisionId),
+      });
+      if (!revision) throw new Error('DESKTOP_BUILD_RELEASE_REVISION_NOT_FOUND');
+      await this.assertLockedIdentity(profile, revision.payload, tx);
+    }
+
     const now = new Date();
     const [updated] = await tx
       .update(desktopReleases)
@@ -121,7 +136,7 @@ export class DesktopBuildModel {
       .returning();
     if (!updated) throw new Error('DESKTOP_RELEASE_NOT_FOUND');
 
-    if (updated.channel === 'stable' && updated.status === 'succeeded') {
+    if (profile && !profile.firstStableReleaseAt) {
       await tx
         .update(desktopBuildProfiles)
         .set({ firstStableReleaseAt: now, updatedAt: now })
