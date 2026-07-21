@@ -628,6 +628,37 @@ describe('admin settings default model validation', () => {
     );
   });
 
+  it('does not return desktop OSS credential material to the browser', async () => {
+    const db = createDb({
+      appSettingsMany: [
+        { key: APP_SETTING_KEYS.desktopOssAccessKeyId, value: 'browser-must-not-see-id' },
+        {
+          key: APP_SETTING_KEYS.desktopOssAccessKeySecret,
+          value: 'browser-must-not-see-secret',
+        },
+        { key: APP_SETTING_KEYS.desktopOssBucket, value: 'releases' },
+        { key: APP_SETTING_KEYS.desktopOssEndpoint, value: 'oss.example.com' },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const result = await adminSettingsRouter
+      .createCaller({ userId: 'admin-user' } as any)
+      .getSection({ section: 'desktop-update' });
+
+    expect(result).toMatchObject({
+      desktopOssConfig: {
+        bucket: 'releases',
+        credentialsConfigured: true,
+        endpoint: 'oss.example.com',
+      },
+      section: 'desktop-update',
+    });
+    expect((result as any).desktopOssConfig).not.toHaveProperty('accessKeyId');
+    expect((result as any).desktopOssConfig).not.toHaveProperty('accessKeySecretMasked');
+    expect(JSON.stringify(result)).not.toContain('browser-must-not-see');
+  });
+
   it('loads persisted user defaults through the system-defaults section', async () => {
     const storedDefaults = {
       general: { themeMode: 'dark' },
@@ -730,9 +761,7 @@ describe('admin settings default model validation', () => {
     });
     const state: MobileConfigPublicationState = {
       draft: { config: draftConfig, revision: 2, updatedAt: '2026-07-20T02:00:00.000Z' },
-      history: [
-        { config: publishedConfig, revision: 1, updatedAt: '2026-07-20T01:00:00.000Z' },
-      ],
+      history: [{ config: publishedConfig, revision: 1, updatedAt: '2026-07-20T01:00:00.000Z' }],
       published: {
         config: publishedConfig,
         revision: 1,
@@ -754,7 +783,9 @@ describe('admin settings default model validation', () => {
     });
     vi.mocked(getServerDB).mockResolvedValue(db);
 
-    const result = await adminSettingsRouter.createCaller({} as any).getPublicMobileConfigSnapshot();
+    const result = await adminSettingsRouter
+      .createCaller({} as any)
+      .getPublicMobileConfigSnapshot();
 
     expect(result).toMatchObject({
       config: {
@@ -1061,6 +1092,54 @@ describe('admin settings default model validation', () => {
     });
     expect(serialized).not.toContain('desktop-oss-access-key');
     expect(serialized).not.toContain('desktop-oss-secret-key');
+  });
+
+  it('removes credential-bearing legacy update URLs from browser responses', async () => {
+    const db = createDb({
+      appSettingsMany: [
+        {
+          key: APP_SETTING_KEYS.desktopUpdateServerUrl,
+          value: 'https://release-user:legacy-secret@updates.example.com',
+        },
+      ],
+    });
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+    const publicSettings = await caller.getPublicDesktopUpdate();
+    const adminSettings = await caller.getSection({ section: 'desktop-update' });
+
+    expect(publicSettings.serverUrl).toBe('');
+    expect((adminSettings as any).desktopUpdateConfig.serverUrl).toBe('');
+    expect(JSON.stringify({ adminSettings, publicSettings })).not.toContain('legacy-secret');
+  });
+
+  it.each([
+    ['HTTP update server', APP_SETTING_KEYS.desktopUpdateServerUrl, 'http://updates.example.com'],
+    [
+      'credential-bearing update server',
+      APP_SETTING_KEYS.desktopUpdateServerUrl,
+      'https://release-user:secret@updates.example.com',
+    ],
+    [
+      'query-bearing update server',
+      APP_SETTING_KEYS.desktopUpdateServerUrl,
+      'https://updates.example.com?token=secret',
+    ],
+    ['script download URL', APP_SETTING_KEYS.desktopDownloadUrl, 'javascript:alert(1)'],
+    ['private download URL', APP_SETTING_KEYS.desktopDownloadUrl, 'https://127.0.0.1/app.exe'],
+  ])('rejects %s desktop URL writes', async (_case, key, value) => {
+    const db = createDb();
+    vi.mocked(getServerDB).mockResolvedValue(db);
+
+    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+
+    await expect(
+      caller.setAppSettingsBatch({
+        updates: [{ key, value }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.insert).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -1648,7 +1727,7 @@ describe('admin settings default model validation', () => {
     async (key) => {
       const db = createDb();
       vi.mocked(getServerDB).mockResolvedValue(db);
-    const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
+      const caller = adminSettingsRouter.createCaller({ userId: 'admin-user' } as any);
 
       await expect(
         caller.setAppSettingsBatch({ updates: [{ key, value: DEFAULT_MOBILE_CONFIG }] }),

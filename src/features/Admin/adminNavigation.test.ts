@@ -196,7 +196,7 @@ describe('adminNavigation', () => {
     expect(clientItems).toContainEqual(
       expect.objectContaining({
         icon: 'desktop',
-        label: '桌面客户端',
+        label: '桌面端控制中心',
         path: `${ADMIN_BASE_PATH}/desktop-update`,
       }),
     );

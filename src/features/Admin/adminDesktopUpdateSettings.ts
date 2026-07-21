@@ -23,39 +23,8 @@ export const DESKTOP_UPDATE_SETTING_KEYS = {
 } as const;
 
 export const DESKTOP_SETTINGS_SECTIONS = [
-  {
-    key: 'businessConnection',
-    readonly: true,
-    title: '桌面业务连接',
-  },
-  {
-    key: 'loginPage',
-    readonly: false,
-    title: '客户端登录页',
-  },
-  {
-    key: 'updateServer',
-    readonly: false,
-    title: '更新服务',
-  },
-  {
-    key: 'autoCheck',
-    readonly: false,
-    title: '自动检查',
-  },
-  {
-    key: 'releaseInfo',
-    readonly: false,
-    title: '当前发布版本',
-  },
-  {
-    key: 'downloadEntry',
-    readonly: false,
-    title: '客户端下载入口',
-  },
-  {
-    key: 'ossStorage',
-    readonly: false,
-    title: '阿里云对象存储（OSS）',
-  },
+  { key: 'overview', readonly: true, title: 'Overview' },
+  { key: 'distribution', readonly: false, title: 'Installation and distribution' },
+  { key: 'updates', readonly: false, title: 'Update settings' },
+  { key: 'brand', readonly: false, title: 'Brand and login' },
 ] as const;

@@ -32,7 +32,7 @@ const createRequest = (body: unknown, token = 'dedicated-secret') =>
   new Request('https://chat.qingyouai.com/api/admin/desktop-release', {
     body: JSON.stringify(body),
     headers: {
-      authorization: `Bearer ${token}`,
+      'authorization': `Bearer ${token}`,
       'content-type': 'application/json',
     },
     method: 'POST',
@@ -110,6 +110,21 @@ describe('POST /api/admin/desktop-release', () => {
     expect(invalidateServerAppSettings).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['serverUrl', 'http://updates.example.com'],
+    ['serverUrl', 'https://release-user:secret@updates.example.com'],
+    ['downloadUrl', 'javascript:alert(1)'],
+    ['downloadUrl', 'https://127.0.0.1/app.exe'],
+  ])('rejects unsafe %s values from release callbacks', async (field, value) => {
+    const { db, insert } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(createRequest({ [field]: value, version: '2.3.0' }));
+
+    expect(response.status).toBe(400);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
   it('does not accept cron.secret unless the legacy bridge is explicitly enabled', async () => {
     delete process.env.DESKTOP_RELEASE_TOKEN;
     const { db, insert } = createDb('legacy-secret');
@@ -124,10 +139,7 @@ describe('POST /api/admin/desktop-release', () => {
   it('uses encrypted cron.secret only when dedicated auth is absent and legacy sharing is enabled', async () => {
     delete process.env.DESKTOP_RELEASE_TOKEN;
     process.env.ALLOW_LEGACY_CRON_SECRET_FOR_DESKTOP_RELEASE = '1';
-    const encrypted = await encryptAppSettingSecret(
-      APP_SETTING_KEYS.cronSecret,
-      'legacy-secret',
-    );
+    const encrypted = await encryptAppSettingSecret(APP_SETTING_KEYS.cronSecret, 'legacy-secret');
     const { db } = createDb(encrypted);
     mockGetServerDB.mockResolvedValue(db);
 
@@ -145,9 +157,7 @@ describe('POST /api/admin/desktop-release', () => {
     );
     mockGetServerDB.mockResolvedValue(db);
 
-    const response = await POST(
-      createRequest({ version: '2.3.0' }, 'environment-legacy-secret'),
-    );
+    const response = await POST(createRequest({ version: '2.3.0' }, 'environment-legacy-secret'));
 
     expect(response.status).toBe(401);
     expect(insert).not.toHaveBeenCalled();

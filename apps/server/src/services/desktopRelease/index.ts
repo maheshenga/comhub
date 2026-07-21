@@ -1,11 +1,26 @@
+import { ssrfSafeFetch } from '@lobechat/ssrf-safe-fetch';
 import urlJoin from 'url-join';
 import { parse } from 'yaml';
+import { z } from 'zod';
 
 import { FetchCacheTag } from '@/const/cacheControl';
+import {
+  normalizeDesktopDownloadUrl,
+  normalizeDesktopUpdateServerUrl,
+  type DesktopUpdateServerUrlReason,
+} from '@/const/desktopUpdate';
 
 export type DesktopDownloadType = 'linux' | 'mac-arm' | 'mac-intel' | 'windows';
 export type DesktopReleaseChannel = 'canary' | 'stable';
 export type DesktopDiagnosticStatus = 'available' | 'missing' | 'unavailable';
+export type DesktopDiagnosticReason =
+  | DesktopUpdateServerUrlReason
+  | 'installer-missing'
+  | 'manifest-invalid'
+  | 'manifest-request-failed'
+  | 'manifest-too-large'
+  | 'manifest-version-missing'
+  | 'request-timeout';
 
 export interface DesktopDownloadInfo {
   assetName: string;
@@ -19,7 +34,7 @@ export interface DesktopDownloadInfo {
 export interface DesktopArtifactDiagnostic {
   assetName?: string;
   publishedAt?: string;
-  reason?: string;
+  reason?: DesktopDiagnosticReason;
   sha512?: string;
   size?: number;
   status: DesktopDiagnosticStatus;
@@ -62,18 +77,44 @@ type GithubRelease = {
   tag_name: string;
 };
 
-type UpdateServerManifestFile = {
-  sha512?: string;
-  size?: number;
-  url: string;
-};
+const DESKTOP_MANIFEST_REFERENCE_BASE_URL = 'https://desktop-manifest.invalid/';
 
-type UpdateServerManifest = {
-  files?: UpdateServerManifestFile[];
-  path?: string;
-  releaseDate?: string;
-  version?: string;
-};
+const desktopManifestReferenceSchema = z
+  .string()
+  .min(1)
+  .refine((value) => {
+    try {
+      const resolved = new URL(value, DESKTOP_MANIFEST_REFERENCE_BASE_URL).toString();
+      return 'url' in normalizeDesktopDownloadUrl(resolved);
+    } catch {
+      return false;
+    }
+  });
+
+const updateServerManifestFileSchema = z.object({
+  sha512: z.string().optional(),
+  size: z.number().finite().nonnegative().optional(),
+  url: desktopManifestReferenceSchema,
+});
+
+const updateServerManifestSchema = z.object({
+  files: z.array(updateServerManifestFileSchema).optional(),
+  path: desktopManifestReferenceSchema.optional(),
+  releaseDate: z.string().optional(),
+  version: z.string().optional(),
+});
+
+type UpdateServerManifest = z.infer<typeof updateServerManifestSchema>;
+
+const DESKTOP_MANIFEST_MAX_BYTES = 512 * 1024;
+const DESKTOP_MANIFEST_TIMEOUT_MS = 5000;
+
+class DesktopManifestError extends Error {
+  constructor(public readonly code: DesktopDiagnosticReason) {
+    super(code);
+    this.name = 'DesktopManifestError';
+  }
+}
 
 const getBasename = (pathname: string) => {
   const cleaned = pathname.split('?')[0] || '';
@@ -81,7 +122,60 @@ const getBasename = (pathname: string) => {
   return lastSlash >= 0 ? cleaned.slice(lastSlash + 1) : cleaned;
 };
 
-const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+const getDiagnosticReason = (error: unknown): DesktopDiagnosticReason => {
+  if (error instanceof DesktopManifestError) return error.code;
+
+  const message = error instanceof Error ? error.message : String(error);
+  if (/abort|timeout/i.test(message)) return 'request-timeout';
+  if (/ssrf|private|not allowed/i.test(message)) return 'unsafe-url';
+
+  return 'manifest-request-failed';
+};
+
+const fetchDesktopManifest: typeof fetch = (input, options) => {
+  const url =
+    typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+  return ssrfSafeFetch(url, options, {
+    allowIPAddressList: [],
+    allowPrivateIPAddress: false,
+    maxContentLength: DESKTOP_MANIFEST_MAX_BYTES + 1,
+  });
+};
+
+const readResponseTextWithLimit = async (response: Response) => {
+  const contentLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > DESKTOP_MANIFEST_MAX_BYTES) {
+    throw new DesktopManifestError('manifest-too-large');
+  }
+
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let complete = false;
+  let totalBytes = 0;
+  let text = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        complete = true;
+        return text + decoder.decode();
+      }
+
+      totalBytes += value.byteLength;
+      if (totalBytes > DESKTOP_MANIFEST_MAX_BYTES) {
+        throw new DesktopManifestError('manifest-too-large');
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    if (!complete) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+};
 
 const buildTypeMatchers = (type: DesktopDownloadType) => {
   switch (type) {
@@ -185,7 +279,7 @@ const fetchUpdateServerManifest = async (
   },
 ): Promise<UpdateServerManifest> => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 5000);
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   const requestInit =
     options?.cache === false
       ? ({ cache: 'no-store', signal: controller.signal } satisfies RequestInit)
@@ -194,34 +288,59 @@ const fetchUpdateServerManifest = async (
           signal: controller.signal,
         } as RequestInit);
 
-  let res: Response;
+  const request = async () => {
+    const res = await (options?.fetcher ?? fetchDesktopManifest)(urlJoin(baseUrl, manifestName), {
+      ...requestInit,
+      redirect: 'follow',
+    });
+
+    if (!res.ok) {
+      throw new DesktopManifestError('manifest-request-failed');
+    }
+
+    const text = await readResponseTextWithLimit(res);
+    let parsed: unknown;
+    try {
+      parsed = parse(text) || {};
+    } catch {
+      throw new DesktopManifestError('manifest-invalid');
+    }
+
+    const manifest = updateServerManifestSchema.safeParse(parsed);
+    if (!manifest.success) throw new DesktopManifestError('manifest-invalid');
+    return manifest.data;
+  };
+
   try {
-    res = await (options?.fetcher ?? fetch)(urlJoin(baseUrl, manifestName), requestInit);
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        reject(new DesktopManifestError('request-timeout'));
+      }, options?.timeoutMs ?? DESKTOP_MANIFEST_TIMEOUT_MS);
+    });
+
+    return await Promise.race([request(), timeoutPromise]);
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
   }
-
-  if (!res.ok) {
-    throw new Error(`Update server manifest request failed: ${res.status}`);
-  }
-
-  const text = await res.text();
-  if (text.length > 512 * 1024) {
-    throw new Error('Update server manifest response is too large');
-  }
-  return (parse(text) || {}) as UpdateServerManifest;
 };
 
 const normalizeManifestUrls = (baseUrl: string, manifest: UpdateServerManifest) => {
   const urls: string[] = [];
+  const baseUrlWithSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  const resolveReference = (value: string) => {
+    const normalized = normalizeDesktopDownloadUrl(new URL(value, baseUrlWithSlash).toString());
+    if ('reason' in normalized) throw new DesktopManifestError('manifest-invalid');
+    return normalized.url;
+  };
 
   for (const file of manifest.files || []) {
     if (!file?.url) continue;
-    urls.push(isAbsoluteUrl(file.url) ? file.url : urlJoin(baseUrl, file.url));
+    urls.push(resolveReference(file.url));
   }
 
   if (manifest.path) {
-    urls.push(isAbsoluteUrl(manifest.path) ? manifest.path : urlJoin(baseUrl, manifest.path));
+    urls.push(resolveReference(manifest.path));
   }
 
   return urls;
@@ -229,7 +348,7 @@ const normalizeManifestUrls = (baseUrl: string, manifest: UpdateServerManifest) 
 
 type ManifestResult =
   | { manifest: UpdateServerManifest; reason?: never }
-  | { manifest?: never; reason: string };
+  | { manifest?: never; reason: DesktopDiagnosticReason };
 
 const readManifest = async (
   channelBaseUrl: string,
@@ -244,19 +363,19 @@ const readManifest = async (
       }),
     };
   } catch (error) {
-    return { reason: error instanceof Error ? error.message : String(error) };
+    return { reason: getDiagnosticReason(error) };
   }
 };
 
 const resolveManifestArtifact = (options: {
   baseUrl: string;
   manifest?: UpdateServerManifest;
-  reason?: string;
+  reason?: DesktopDiagnosticReason;
   type: DesktopDownloadType;
 }): DesktopArtifactDiagnostic => {
   if (!options.manifest) {
     return {
-      reason: options.reason || 'Update manifest is unavailable',
+      reason: options.reason || 'manifest-request-failed',
       status: 'unavailable',
       type: options.type,
     };
@@ -265,7 +384,7 @@ const resolveManifestArtifact = (options: {
   const version = options.manifest.version?.replace(/^v/i, '');
   if (!version) {
     return {
-      reason: 'Update manifest version is missing',
+      reason: 'manifest-version-missing',
       status: 'unavailable',
       type: options.type,
     };
@@ -281,16 +400,14 @@ const resolveManifestArtifact = (options: {
   if (!resolved) {
     return {
       publishedAt: options.manifest.releaseDate,
-      reason: `No ${options.type} installer in update manifest`,
+      reason: 'installer-missing',
       status: 'missing',
       type: options.type,
       version,
     };
   }
 
-  const file = options.manifest.files?.find(
-    ({ url }) => getBasename(url) === resolved.assetName,
-  );
+  const file = options.manifest.files?.find(({ url }) => getBasename(url) === resolved.assetName);
 
   return {
     ...resolved,
@@ -302,7 +419,7 @@ const resolveManifestArtifact = (options: {
 
 const unavailableChannel = (
   channel: DesktopReleaseChannel,
-  reason: string,
+  reason: DesktopDiagnosticReason,
 ): DesktopChannelDiagnostic => {
   const unavailable = (type: DesktopDownloadType): DesktopArtifactDiagnostic => ({
     reason,
@@ -313,10 +430,10 @@ const unavailableChannel = (
   return {
     channel,
     platforms: {
-      linux: unavailable('linux'),
+      'linux': unavailable('linux'),
       'mac-arm': unavailable('mac-arm'),
       'mac-intel': unavailable('mac-intel'),
-      windows: unavailable('windows'),
+      'windows': unavailable('windows'),
     },
     status: 'unavailable',
   };
@@ -335,7 +452,7 @@ const getDesktopChannelDiagnostic = async (options: {
     readManifest(channelBaseUrl, `${options.channel}-linux.yml`, options),
   ]);
   const platforms: DesktopChannelDiagnostic['platforms'] = {
-    linux: resolveManifestArtifact({
+    'linux': resolveManifestArtifact({
       baseUrl: channelBaseUrl,
       manifest: linuxManifest.manifest,
       reason: linuxManifest.reason,
@@ -353,7 +470,7 @@ const getDesktopChannelDiagnostic = async (options: {
       reason: macManifest.reason,
       type: 'mac-intel',
     }),
-    windows: resolveManifestArtifact({
+    'windows': resolveManifestArtifact({
       baseUrl: channelBaseUrl,
       manifest: windowsManifest.manifest,
       reason: windowsManifest.reason,
@@ -388,31 +505,24 @@ export const getDesktopReleaseDiagnostics = async (
   }
 
   const channels = options.channels ?? ['stable', 'canary'];
-  let baseUrl: string;
-  try {
-    const parsed = new URL(rawBaseUrl);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new Error('Update server URL must use HTTP or HTTPS');
-    }
-    baseUrl = parsed.toString().replace(/\/$/, '');
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : 'Update server URL is invalid';
+  const normalizedBaseUrl = normalizeDesktopUpdateServerUrl(rawBaseUrl);
+  if ('reason' in normalizedBaseUrl) {
     return {
-      baseUrl: rawBaseUrl,
-      channels: channels.map((channel) => unavailableChannel(channel, reason)),
+      baseUrl: null,
+      channels: channels.map((channel) => unavailableChannel(channel, normalizedBaseUrl.reason)),
       checkedAt,
       configured: true,
     };
   }
 
   return {
-    baseUrl,
+    baseUrl: normalizedBaseUrl.url,
     channels: await Promise.all(
       channels.map((channel) =>
         getDesktopChannelDiagnostic({
-          baseUrl,
+          baseUrl: normalizedBaseUrl.url,
           channel,
-          fetcher: options.fetcher ?? fetch,
+          fetcher: options.fetcher ?? fetchDesktopManifest,
           timeoutMs: options.timeoutMs ?? 5000,
         }),
       ),
@@ -429,9 +539,12 @@ export const getStableDesktopReleaseInfoFromUpdateServer = async (options?: {
     options?.baseUrl || process.env.DESKTOP_UPDATE_SERVER_URL || process.env.UPDATE_SERVER_URL;
   if (!baseUrl) return null;
 
+  const normalizedBaseUrl = normalizeDesktopUpdateServerUrl(baseUrl);
+  if ('reason' in normalizedBaseUrl) return null;
+
   const timestamp = Date.now();
-  const channelBaseUrl = urlJoin(baseUrl, 'stable');
-  const fetchOptions = { fetcher: fetch, timeoutMs: 5000 };
+  const channelBaseUrl = urlJoin(normalizedBaseUrl.url, 'stable');
+  const fetchOptions = { timeoutMs: DESKTOP_MANIFEST_TIMEOUT_MS };
 
   const [mac, win, linux] = await Promise.all([
     fetchUpdateServerManifest(channelBaseUrl, 'stable-mac.yml?t=' + timestamp, fetchOptions).catch(

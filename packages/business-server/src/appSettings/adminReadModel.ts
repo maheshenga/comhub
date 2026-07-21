@@ -14,13 +14,16 @@ import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
 import {
+  normalizeDesktopDownloadUrl,
+  normalizeDesktopUpdateServerUrl,
+} from '@/const/desktopUpdate';
+import {
   APP_SETTING_KEYS,
   normalizeModelIdList,
   normalizeS3FilePath,
   serializeModelIdList,
 } from '@/server/services/appSettings';
 import {
-  APP_SETTING_SECRET_PREFIX,
   decryptAppSettingSecret,
   maskAppSettingSecret,
 } from '@/server/services/appSettings/secrets';
@@ -438,13 +441,16 @@ export const buildMaintenanceSettings = async (snapshot: AppSettingsSnapshot) =>
 
 export const buildDesktopSettings = (snapshot: AppSettingsSnapshot) => {
   const storedOssSecret = toString(snapshot.get(APP_SETTING_KEYS.desktopOssAccessKeySecret));
-  const safeOssSecret = storedOssSecret.startsWith(APP_SETTING_SECRET_PREFIX)
-    ? null
-    : storedOssSecret || null;
+  const downloadUrl = normalizeDesktopDownloadUrl(
+    snapshot.get(APP_SETTING_KEYS.desktopDownloadUrl),
+  );
+  const serverUrl = normalizeDesktopUpdateServerUrl(
+    snapshot.get(APP_SETTING_KEYS.desktopUpdateServerUrl),
+  );
 
   return {
     desktopDownloadLabel: toString(snapshot.get(APP_SETTING_KEYS.desktopDownloadLabel)) || null,
-    desktopDownloadUrl: toString(snapshot.get(APP_SETTING_KEYS.desktopDownloadUrl)) || null,
+    desktopDownloadUrl: 'url' in downloadUrl ? downloadUrl.url || null : null,
     desktopLoginConfig: {
       cloudButtonLabel: toString(snapshot.get(APP_SETTING_KEYS.desktopLoginCloudButtonLabel)),
       description: toString(snapshot.get(APP_SETTING_KEYS.desktopLoginDescription)),
@@ -454,9 +460,10 @@ export const buildDesktopSettings = (snapshot: AppSettingsSnapshot) => {
       windowTitle: toString(snapshot.get(APP_SETTING_KEYS.desktopLoginWindowTitle)),
     },
     desktopOssConfig: {
-      accessKeyId: toString(snapshot.get(APP_SETTING_KEYS.desktopOssAccessKeyId)),
-      accessKeySecretMasked: maskAppSettingSecret(safeOssSecret),
       bucket: toString(snapshot.get(APP_SETTING_KEYS.desktopOssBucket)),
+      credentialsConfigured: Boolean(
+        toString(snapshot.get(APP_SETTING_KEYS.desktopOssAccessKeyId)) && storedOssSecret,
+      ),
       endpoint: toString(snapshot.get(APP_SETTING_KEYS.desktopOssEndpoint)),
       path: toString(snapshot.get(APP_SETTING_KEYS.desktopOssPath), 'releases'),
     },
@@ -466,7 +473,7 @@ export const buildDesktopSettings = (snapshot: AppSettingsSnapshot) => {
       checkInterval: toNumber(snapshot.get(APP_SETTING_KEYS.desktopUpdateCheckInterval), 60),
       currentVersion: toString(snapshot.get(APP_SETTING_KEYS.desktopUpdateCurrentVersion)),
       releaseNotes: toString(snapshot.get(APP_SETTING_KEYS.desktopUpdateReleaseNotes)),
-      serverUrl: toString(snapshot.get(APP_SETTING_KEYS.desktopUpdateServerUrl)),
+      serverUrl: 'url' in serverUrl ? serverUrl.url : '',
     },
   };
 };

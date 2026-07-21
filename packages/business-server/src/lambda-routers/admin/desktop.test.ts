@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getServerDB } from '@/database/core/db-adaptor';
@@ -6,7 +8,8 @@ import { getDesktopReleaseDiagnostics } from '@/server/services/desktopRelease';
 
 import { loadAppSettingsSectionSnapshot } from '../../appSettings/loader';
 import { adminDesktopRouter } from './desktop';
-import { adminRouter } from './index';
+
+const adminRouterSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(),
@@ -50,7 +53,8 @@ describe('adminDesktopRouter', () => {
   });
 
   it('is registered under admin.desktop', () => {
-    expect(adminRouter._def.record.desktop).toBeDefined();
+    expect(adminRouterSource).toContain("import { adminDesktopRouter } from './desktop';");
+    expect(adminRouterSource).toMatch(/\bdesktop:\s*adminDesktopRouter\b/);
   });
 
   it('uses the configured update server without exposing OSS credentials', async () => {

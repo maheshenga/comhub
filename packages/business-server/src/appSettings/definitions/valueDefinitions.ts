@@ -10,6 +10,10 @@ import { normalizeHelpMenuItems } from '@/const/helpMenu';
 import { normalizeMobileConfig } from '@/const/mobileConfig';
 import { normalizeMobileConfigPublication } from '@/const/mobileConfigPublication';
 import { normalizeNotificationEventDefaults } from '@/const/notificationPreferences';
+import {
+  normalizeDesktopDownloadUrl,
+  normalizeDesktopUpdateServerUrl,
+} from '@/const/desktopUpdate';
 
 import type { AppSettingNormalizer, AppSettingValueDefinition } from '../types';
 
@@ -404,6 +408,30 @@ export const getAppSettingValueDefinition = (key: AppSettingKey): AppSettingValu
     return defineValue('desktop-update-channel-enum', stringSchema, (value) =>
       value === 'canary' ? 'canary' : 'stable',
     );
+  }
+  if (key === APP_SETTING_KEYS.desktopUpdateServerUrl) {
+    return defineValue('desktop-update-string', z.string().max(2048), (value) => {
+      const normalized = normalizeDesktopUpdateServerUrl(value);
+      if ('reason' in normalized) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `desktop.update.serverUrl is not allowed: ${normalized.reason}`,
+        });
+      }
+      return normalized.url;
+    });
+  }
+  if (key === APP_SETTING_KEYS.desktopDownloadUrl) {
+    return defineValue('desktop-update-string', z.string().max(2048), (value) => {
+      const normalized = normalizeDesktopDownloadUrl(value);
+      if ('reason' in normalized) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `desktop.download.url is not allowed: ${normalized.reason}`,
+        });
+      }
+      return normalized.url;
+    });
   }
   if (key.startsWith('desktop.login.')) return stringValue('desktop-login-string');
   if (key.startsWith('desktop.')) return stringValue('desktop-update-string');

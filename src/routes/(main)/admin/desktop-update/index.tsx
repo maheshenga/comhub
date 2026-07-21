@@ -1,5 +1,5 @@
 'use client';
 
-import AdminDesktopUpdatePage from '@/features/Admin/AdminDesktopUpdatePage';
+import DesktopControlCenter from '@/features/Admin/DesktopControlCenter';
 
-export default AdminDesktopUpdatePage;
+export default DesktopControlCenter;

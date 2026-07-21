@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ADMIN_DESKTOP_OVERVIEW_SWR_KEY,
   ADMIN_SETTINGS_SECTION_SWR_KEY,
   ADMIN_SETTINGS_SWR_KEY,
   getAdminSettingsWriteSWRKeys,
@@ -27,5 +28,13 @@ describe('admin settings cache keys', () => {
     expect(getAdminSettingsWriteSWRKeys(['growth'])).not.toContainEqual(
       ADMIN_SETTINGS_SECTION_SWR_KEY('operations'),
     );
+  });
+
+  it('invalidates desktop diagnostics when desktop settings change', () => {
+    expect(getAdminSettingsWriteSWRKeys(['desktop-update'])).toEqual([
+      ADMIN_SETTINGS_SECTION_SWR_KEY('desktop-update'),
+      ADMIN_DESKTOP_OVERVIEW_SWR_KEY,
+      ADMIN_SETTINGS_SWR_KEY,
+    ]);
   });
 });

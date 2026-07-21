@@ -11,18 +11,15 @@ describe('adminDesktopUpdateSettings', () => {
     expect(DESKTOP_DEFAULT_BUSINESS_SERVER_URL).toBe('https://chat.qingyouai.com');
 
     expect(DESKTOP_SETTINGS_SECTIONS.map((section) => section.key)).toEqual([
-      'businessConnection',
-      'loginPage',
-      'updateServer',
-      'autoCheck',
-      'releaseInfo',
-      'downloadEntry',
-      'ossStorage',
+      'overview',
+      'distribution',
+      'updates',
+      'brand',
     ]);
 
     expect(DESKTOP_SETTINGS_SECTIONS[0]).toMatchObject({
       readonly: true,
-      title: '桌面业务连接',
+      title: 'Overview',
     });
   });
 
@@ -30,9 +27,7 @@ describe('adminDesktopUpdateSettings', () => {
     expect(DESKTOP_UPDATE_SETTING_KEYS.desktopUpdateServerUrl).toBe('desktop.update.serverUrl');
     expect(DESKTOP_UPDATE_SETTING_KEYS.desktopDownloadUrl).toBe('desktop.download.url');
     expect(DESKTOP_UPDATE_SETTING_KEYS.desktopLoginTitle).toBe('desktop.login.title');
-    expect(DESKTOP_UPDATE_SETTING_KEYS.desktopLoginWindowTitle).toBe(
-      'desktop.login.windowTitle',
-    );
+    expect(DESKTOP_UPDATE_SETTING_KEYS.desktopLoginWindowTitle).toBe('desktop.login.windowTitle');
     expect(DESKTOP_UPDATE_SETTING_KEYS.desktopOssAccessKeySecret).toBe(
       'desktop.oss.accessKeySecret',
     );
