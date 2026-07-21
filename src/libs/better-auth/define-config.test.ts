@@ -116,4 +116,29 @@ describe('defineConfig', () => {
       }),
     );
   });
+
+  it('preserves session, verification, rate-limit, and security plugins', async () => {
+    const { defineConfig } = await import('./define-config');
+
+    defineConfig({ plugins: [] });
+
+    expect(mocks.betterAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailAndPassword: expect.objectContaining({
+          requireEmailVerification: true,
+          revokeSessionsOnPasswordReset: true,
+        }),
+        rateLimit: expect.objectContaining({
+          customRules: expect.objectContaining({
+            '/request-password-reset': { max: 3, window: 60 },
+            '/send-verification-email': { max: 3, window: 60 },
+          }),
+        }),
+        session: expect.objectContaining({
+          cookieCache: { enabled: true, maxAge: 120 },
+          storeSessionInDatabase: true,
+        }),
+      }),
+    );
+  });
 });
