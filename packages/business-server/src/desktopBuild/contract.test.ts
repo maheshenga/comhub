@@ -31,9 +31,107 @@ describe('desktop build profile contract', () => {
     expect(parseDesktopBuildProfilePayload(validPayload)).toEqual(validPayload);
   });
 
-  it.each(['CON', '../ComHub', 'ComHub.exe', 'ComHub/Setup'])('rejects executable %s', (name) => {
+  it.each([
+    'CON',
+    '../ComHub',
+    'ComHub.exe',
+    'ComHub/Setup',
+    'ComHub\\Setup',
+    'ComHub:Setup',
+    'ComHub*Setup',
+    'ComHub?Setup',
+    'ComHub<Setup',
+    'ComHub>Setup',
+    'ComHub"Setup',
+    'ComHub|Setup',
+    ' ComHub',
+    'ComHub ',
+    'ComHub\u0001',
+    'ComHub\u001f',
+    'prn',
+    'CLOCK$',
+    'CONIN$',
+    'CONOUT$',
+    'COM9',
+    'LPT9',
+  ])('rejects executable %s', (name) => {
     expect(() =>
       parseDesktopBuildProfilePayload({ ...validPayload, executableName: name }),
+    ).toThrow();
+  });
+
+  it('accepts conservative executable base names up to 255 characters', () => {
+    const executableName = 'ComHub (' + 'A'.repeat(246) + ')';
+    expect(
+      parseDesktopBuildProfilePayload({
+        ...validPayload,
+        executableName,
+      }),
+    ).toMatchObject({ executableName });
+  });
+
+  it('rejects executable names over the maximum length', () => {
+    expect(() =>
+      parseDesktopBuildProfilePayload({ ...validPayload, executableName: 'A'.repeat(256) }),
+    ).toThrow();
+  });
+
+  it.each(['http://comhub.example.com', 'ftp://comhub.example.com', 'comhub.example.com'])(
+    'rejects non-HTTPS homepage %s',
+    (homepage) => {
+      expect(() => parseDesktopBuildProfilePayload({ ...validPayload, homepage })).toThrow();
+    },
+  );
+
+  it.each([
+    '',
+    'Com.qingyou.comhub',
+    'qingyou',
+    ' com.qingyou.comhub',
+    'com.qingyou.comhub ',
+    'com..qingyou',
+    'com.-qingyou',
+    'com.qingyou-',
+    '1com.qingyou',
+  ])('rejects invalid applicationId %s', (applicationId) => {
+    expect(() => parseDesktopBuildProfilePayload({ ...validPayload, applicationId })).toThrow();
+  });
+
+  it.each(['com.qingyou.comhub', 'com.qingyou.comhub-desktop'])(
+    'accepts valid applicationId %s',
+    (applicationId) => {
+      expect(parseDesktopBuildProfilePayload({ ...validPayload, applicationId })).toMatchObject({
+        applicationId,
+      });
+    },
+  );
+
+  it('rejects an applicationId over 255 characters', () => {
+    expect(() =>
+      parseDesktopBuildProfilePayload({
+        ...validPayload,
+        applicationId: `com.${'a'.repeat(252)}`,
+      }),
+    ).toThrow();
+  });
+
+  it.each(['', 'Cohub', '1comhub', 'comhub:', 'comhub/path', ' comhub', 'comhub '])(
+    'rejects invalid protocolScheme %s',
+    (protocolScheme) => {
+      expect(() => parseDesktopBuildProfilePayload({ ...validPayload, protocolScheme })).toThrow();
+    },
+  );
+
+  it('accepts a lowercase protocol scheme at the 64-character limit', () => {
+    const protocolScheme = `c${'o'.repeat(63)}`;
+    expect(parseDesktopBuildProfilePayload({ ...validPayload, protocolScheme })).toMatchObject({
+      protocolScheme,
+    });
+  });
+
+  it('rejects a protocol scheme over 64 characters', () => {
+    expect(() =>
+      parseDesktopBuildProfilePayload({ ...validPayload, protocolScheme: `c${'o'.repeat(64)}` }),
     ).toThrow();
   });
 
@@ -84,6 +182,20 @@ describe('desktop release input contract', () => {
         version: '1.2.3-beta.1+build.7',
       }),
     ).toMatchObject({ channel: 'canary', version: '1.2.3-beta.1+build.7' });
+  });
+
+  it('trims a SemVer at the exact 64-character limit', () => {
+    const version = `1.2.3+${'a'.repeat(58)}`;
+    expect(version).toHaveLength(64);
+    expect(
+      desktopReleaseInputSchema.parse({ ...validRelease, version: `  ${version}  ` }).version,
+    ).toBe(version);
+  });
+
+  it('rejects a SemVer over 64 characters after trimming', () => {
+    const version = `1.2.3+${'a'.repeat(59)}`;
+    expect(version).toHaveLength(65);
+    expect(() => desktopReleaseInputSchema.parse({ ...validRelease, version })).toThrow();
   });
 
   it.each(['v2.4.0', '2.4', '01.2.3', '2.4.3-01', 'not-semver'])(

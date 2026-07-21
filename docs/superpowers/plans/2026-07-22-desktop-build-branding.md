@@ -58,7 +58,7 @@ it('rejects unapproved artifact interpolation', () => {
 
 - [ ] **Step 2: Confirm the test is red**
 
-Run `bunx vitest run --silent='passed-only' packages/business-server/src/desktopBuild/contract.test.ts`.
+Run `bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/desktopBuild/contract.test.ts`.
 
 Expected: FAIL because the contract module does not exist.
 
@@ -494,7 +494,7 @@ git commit -m "feat(admin): manage branded desktop installers" -m "Constraint: S
 - [ ] **Step 1: Run the focused combined verification once**
 
 ```powershell
-bunx vitest run --silent='passed-only' packages/business-server/src/desktopBuild/contract.test.ts packages/database/src/schemas/desktopBuild.schema.test.ts packages/database/src/models/desktopBuild.test.ts apps/server/src/services/desktopBuild/assets.test.ts apps/server/src/services/desktopRelease/github.test.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts src/services/adminCommercial.test.ts "src/app/(backend)/api/admin/desktop-release/__tests__/route.test.ts" "src/app/(backend)/api/admin/desktop-release/[releaseId]/profile/__tests__/route.test.ts" scripts/electronWorkflow/fetchDesktopBuildProfile.test.ts apps/desktop/desktop-build-profile.test.ts scripts/electronWorkflow/setDesktopVersion.test.ts src/features/Admin/DesktopControlCenter/buildProfileForm.test.ts src/features/Admin/DesktopControlCenter/DesktopControlCenter.test.tsx
+bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/desktopBuild/contract.test.ts packages/database/src/schemas/desktopBuild.schema.test.ts packages/database/src/models/desktopBuild.test.ts apps/server/src/services/desktopBuild/assets.test.ts apps/server/src/services/desktopRelease/github.test.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts src/services/adminCommercial.test.ts "src/app/(backend)/api/admin/desktop-release/__tests__/route.test.ts" "src/app/(backend)/api/admin/desktop-release/[releaseId]/profile/__tests__/route.test.ts" scripts/electronWorkflow/fetchDesktopBuildProfile.test.ts apps/desktop/desktop-build-profile.test.ts scripts/electronWorkflow/setDesktopVersion.test.ts src/features/Admin/DesktopControlCenter/buildProfileForm.test.ts src/features/Admin/DesktopControlCenter/DesktopControlCenter.test.tsx
 bun run type-check
 git diff --check
 ```
