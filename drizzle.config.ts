@@ -7,7 +7,7 @@ import type { Config } from 'drizzle-kit';
 
 dotenv.config();
 
-let connectionString = process.env.DATABASE_URL!;
+const connectionString = process.env.DATABASE_URL!;
 
 export default {
   dbCredentials: {
@@ -16,6 +16,6 @@ export default {
   dialect: 'postgresql',
   out: './packages/database/migrations',
 
-  schema: './packages/database/src/schemas',
+  schema: './packages/database/src/schemas/index.ts',
   strict: true,
 } satisfies Config;

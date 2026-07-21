@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import path from 'node:path';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -16,21 +17,20 @@ export default defineConfig({
   },
   test: {
     alias: {
-      '@/const': resolve(__dirname, '../const/src'),
-      '@/utils/errorResponse': resolve(__dirname, '../../src/utils/errorResponse'),
-      '@/utils': resolve(__dirname, '../utils/src'),
-      '@/database': resolve(__dirname, '../database/src'),
-      '@/libs/model-runtime': resolve(__dirname, '../model-runtime/src'),
-      '@/types': resolve(__dirname, '../types/src'),
-      '@/config': resolve(__dirname, '../app-config/src'),
-      '@/envs': resolve(__dirname, '../env/src'),
-      '@/libs/trpc': resolve(__dirname, '../trpc/src'),
-      '@/locales': resolve(__dirname, '../locales/src'),
-      '@/business/server': resolve(__dirname, '../business-server/src'),
-      '@/server/services': resolve(__dirname, '../../apps/server/src/services'),
-      '@/server/modules': resolve(__dirname, '../../apps/server/src/modules'),
-      '@': resolve(__dirname, '../../src'),
-
+      '@/const': path.resolve(__dirname, '../const/src'),
+      '@/utils/errorResponse': path.resolve(__dirname, '../../src/utils/errorResponse'),
+      '@/utils': path.resolve(__dirname, '../utils/src'),
+      '@/database': path.resolve(__dirname, '../database/src'),
+      '@/libs/model-runtime': path.resolve(__dirname, '../model-runtime/src'),
+      '@/types': path.resolve(__dirname, '../types/src'),
+      '@/config': path.resolve(__dirname, '../app-config/src'),
+      '@/envs': path.resolve(__dirname, '../env/src'),
+      '@/libs/trpc': path.resolve(__dirname, '../trpc/src'),
+      '@/locales': path.resolve(__dirname, '../locales/src'),
+      '@/business/server': path.resolve(__dirname, '../business-server/src'),
+      '@/server/services': path.resolve(__dirname, '../../apps/server/src/services'),
+      '@/server/modules': path.resolve(__dirname, '../../apps/server/src/modules'),
+      '@': path.resolve(__dirname, '../../src'),
     },
     coverage: {
       exclude: [
@@ -65,6 +65,6 @@ export default defineConfig({
         inline: ['vitest-canvas-mock'],
       },
     },
-    setupFiles: './tests/setup-db.ts',
+    setupFiles: path.resolve(__dirname, 'tests/setup-db.ts'),
   },
 });

@@ -149,7 +149,7 @@ it('freezes the revision and creates a release atomically', async () => {
 
 - [ ] **Step 2: Confirm database tests are red**
 
-Run `bunx vitest run --silent='passed-only' packages/database/src/schemas/desktopBuild.schema.test.ts packages/database/src/models/desktopBuild.test.ts`.
+Run `bunx vitest run --config packages/database/vitest.config.mts --silent='passed-only' packages/database/src/schemas/desktopBuild.schema.test.ts packages/database/src/models/desktopBuild.test.ts`.
 
 Expected: FAIL because the schema and model do not exist.
 
