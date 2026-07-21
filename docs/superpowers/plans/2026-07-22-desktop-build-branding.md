@@ -230,7 +230,7 @@ Cap PNG at 4 MiB, ICO at 2 MiB, and each BMP at 1 MiB. Parse PNG IHDR, ICO direc
 
 - [ ] **Step 5: Run focused API tests and commit**
 
-Run `bunx vitest run --silent='passed-only' apps/server/src/services/desktopBuild/assets.test.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts src/services/adminCommercial.test.ts packages/business-server/src/lambda-routers/admin/adminCommandParity.test.ts`.
+Run `bunx vitest run --silent='passed-only' apps/server/src/services/desktopBuild/assets.test.ts src/services/adminCommercial.test.ts` and `bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/lambda-routers/admin/desktop.test.ts packages/business-server/src/lambda-routers/admin/adminCommandParity.test.ts`.
 
 Expected: PASS including permission denials and audit assertions.
 

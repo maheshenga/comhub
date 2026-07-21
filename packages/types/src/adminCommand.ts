@@ -4,8 +4,7 @@ export type AdminCommandSeverity = 'medium' | 'high' | 'critical';
 export type AdminCommandConfirmationMode = 'none' | 'confirm' | 'typed';
 export type AdminCommandReasonPolicy = 'none' | 'optional' | 'required';
 export type AdminCommandServerBoundary =
-  | { kind: 'http'; method: 'POST'; path: string }
-  | { kind: 'trpc'; procedurePath: string };
+  { kind: 'http'; method: 'POST'; path: string } | { kind: 'trpc'; procedurePath: string };
 
 export type AdminCommandDefinition = {
   actionId: string;
@@ -70,6 +69,39 @@ export const ADMIN_COMMANDS = {
     serverBoundary: { kind: 'trpc', procedurePath: 'admin.credits.adjust' },
     severity: 'critical',
     title: 'Adjust credits',
+  },
+  'desktop.buildAsset.complete': {
+    actionId: 'desktop.buildAsset.complete',
+    auditAction: 'desktop.buildAsset.complete',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    description: 'Validates a private desktop build asset after upload.',
+    reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.desktop.completeBuildAssetUpload' },
+    severity: 'high',
+    title: 'Complete desktop build asset',
+  },
+  'desktop.buildProfile.archive': {
+    actionId: 'desktop.buildProfile.archive',
+    auditAction: 'desktop.buildProfile.archive',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    description: 'Archives a desktop build profile without deleting its revisions.',
+    reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.desktop.archiveBuildProfile' },
+    severity: 'high',
+    title: 'Archive desktop build profile',
+  },
+  'desktop.buildProfile.saveDraft': {
+    actionId: 'desktop.buildProfile.saveDraft',
+    auditAction: 'desktop.buildProfile.saveDraft',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    description: 'Saves a validated desktop build profile draft.',
+    reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.desktop.saveBuildProfileDraft' },
+    severity: 'high',
+    title: 'Save desktop build profile draft',
   },
   'newapiProvider.deleteInstance': {
     actionId: 'newapiProvider.deleteInstance',

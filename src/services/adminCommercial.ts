@@ -2,6 +2,9 @@ import {
   ADMIN_COMMANDS,
   type AdminCommandEnvelope,
   type AdminRole,
+  type DesktopBuildAssetKind,
+  type DesktopBuildAssetManifest,
+  type DesktopBuildProfilePayload,
   type Plans,
 } from '@lobechat/types';
 
@@ -155,6 +158,34 @@ class AdminCommercialService {
   getMobileSettings = async () => (await this.getSettingsSection('mobile')).mobileConfig;
 
   getDesktopOverview = async () => lambdaClient.admin.desktop.getOverview.query();
+
+  listBuildProfiles = async () => lambdaClient.admin.desktop.listBuildProfiles.query();
+
+  getBuildProfile = async (profileId: string) =>
+    lambdaClient.admin.desktop.getBuildProfile.query({ profileId });
+
+  createBuildAssetUpload = async (input: { kind: DesktopBuildAssetKind; profileId?: string }) =>
+    lambdaClient.admin.desktop.createBuildAssetUpload.mutate(input);
+
+  completeBuildAssetUpload = async (input: {
+    key: string;
+    kind: DesktopBuildAssetKind;
+    profileId: string;
+  }) => lambdaClient.admin.desktop.completeBuildAssetUpload.mutate(input);
+
+  saveBuildProfileDraft = async (input: {
+    assets: DesktopBuildAssetManifest;
+    createIfMissing?: boolean;
+    name: string;
+    payload: DesktopBuildProfilePayload;
+    profileId: string;
+  }) => lambdaClient.admin.desktop.saveBuildProfileDraft.mutate(input);
+
+  archiveBuildProfile = async (profileId: string) =>
+    lambdaClient.admin.desktop.archiveBuildProfile.mutate({ profileId });
+
+  listDesktopReleases = async (params?: { limit?: number; profileId?: string }) =>
+    lambdaClient.admin.desktop.listDesktopReleases.query(params);
 
   getMobileSettingsPublication = async () =>
     lambdaClient.admin.settings.getMobileConfigPublication.query();

@@ -166,31 +166,52 @@ export class DesktopBuildModel {
       where: eq(desktopBuildProfileRevisions.id, revisionId),
     });
 
-  saveDraft = async (input: {
-    actorUserId: string;
-    assets: DesktopBuildAssetManifest;
-    name: string;
-    payload: DesktopBuildProfilePayload;
-    profileId?: string;
-  }) => {
-    return this.db.transaction(async (tx) => {
+  saveDraft = async (
+    input: {
+      actorUserId: string;
+      assets: DesktopBuildAssetManifest;
+      createIfMissing?: boolean;
+      name: string;
+      payload: DesktopBuildProfilePayload;
+      profileId?: string;
+    },
+    tx?: Transaction,
+  ) => {
+    const save = async (tx: Transaction) => {
       let profile: DesktopBuildProfileItem;
 
       if (input.profileId) {
-        profile = await this.lockProfile(input.profileId, tx);
-        if (profile.status === 'archived') throw new Error('DESKTOP_BUILD_PROFILE_ARCHIVED');
-        await this.assertLockedIdentity(profile, input.payload, tx);
+        let existingProfile: DesktopBuildProfileItem | undefined;
+        try {
+          existingProfile = await this.lockProfile(input.profileId, tx);
+        } catch (error) {
+          if (!(
+            input.createIfMissing && (error as Error).message === 'DESKTOP_BUILD_PROFILE_NOT_FOUND'
+          )) {
+            throw error;
+          }
+        }
+
+        if (!existingProfile) {
+          const [created] = await tx
+            .insert(desktopBuildProfiles)
+            .values({
+              createdByUserId: input.actorUserId,
+              id: input.profileId,
+              name: input.name,
+              updatedByUserId: input.actorUserId,
+            })
+            .returning();
+          if (!created) throw new Error('DESKTOP_BUILD_PROFILE_CREATE_FAILED');
+          profile = created;
+        } else {
+          if (existingProfile.status === 'archived')
+            throw new Error('DESKTOP_BUILD_PROFILE_ARCHIVED');
+          await this.assertLockedIdentity(existingProfile, input.payload, tx);
+          profile = existingProfile;
+        }
       } else {
-        const [created] = await tx
-          .insert(desktopBuildProfiles)
-          .values({
-            createdByUserId: input.actorUserId,
-            name: input.name,
-            updatedByUserId: input.actorUserId,
-          })
-          .returning();
-        if (!created) throw new Error('DESKTOP_BUILD_PROFILE_CREATE_FAILED');
-        profile = created;
+        throw new Error('DESKTOP_BUILD_PROFILE_ID_REQUIRED');
       }
 
       const revisionNumber = profile.currentRevision + 1;
@@ -221,7 +242,26 @@ export class DesktopBuildModel {
       if (!updatedProfile) throw new Error('DESKTOP_BUILD_PROFILE_UPDATE_FAILED');
 
       return { profileId: profile.id, revision: revisionNumber, revisionId: revision.id };
-    });
+    };
+
+    return tx ? save(tx) : this.db.transaction(save);
+  };
+
+  archiveProfile = async (input: { actorUserId: string; profileId: string }, tx?: Transaction) => {
+    const archive = async (tx: Transaction) => {
+      const profile = await this.lockProfile(input.profileId, tx);
+      if (profile.status === 'archived') return profile;
+
+      const [updated] = await tx
+        .update(desktopBuildProfiles)
+        .set({ status: 'archived', updatedAt: new Date(), updatedByUserId: input.actorUserId })
+        .where(eq(desktopBuildProfiles.id, profile.id))
+        .returning();
+      if (!updated) throw new Error('DESKTOP_BUILD_PROFILE_NOT_FOUND');
+      return updated;
+    };
+
+    return tx ? archive(tx) : this.db.transaction(archive);
   };
 
   freezeDraftForRelease = async (input: {
@@ -286,7 +326,8 @@ export class DesktopBuildModel {
   };
 
   listReleases = (params: { limit?: number; profileId?: string } = {}) => {
-    const { limit = 50, profileId } = params;
+    const { profileId } = params;
+    const limit = Math.min(params.limit ?? 50, 50);
 
     return this.db.query.desktopReleases.findMany({
       ...(profileId ? { where: eq(desktopReleases.profileId, profileId) } : {}),

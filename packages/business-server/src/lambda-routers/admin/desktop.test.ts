@@ -9,6 +9,96 @@ import { getDesktopReleaseDiagnostics } from '@/server/services/desktopRelease';
 import { loadAppSettingsSectionSnapshot } from '../../appSettings/loader';
 import { adminDesktopRouter } from './desktop';
 
+const mocks = vi.hoisted(() => ({
+  assets: {
+    createDesktopBuildAssetUpload: vi.fn(),
+    readTrustedDesktopBuildAsset: vi.fn(),
+    validateDesktopBuildAssetManifest: vi.fn(),
+  },
+  audit: {
+    runRequiredAdminAuditExternalEffect: vi.fn(async (_ctx, options) => {
+      await options.audit('started');
+      const result = await options.effect();
+      await options.audit('succeeded', result);
+      return result;
+    }),
+    runRequiredAdminAuditMutation: vi.fn(async (_ctx, options) => {
+      const result = await options.mutation({});
+      await options.audit(result);
+      return result;
+    }),
+  },
+  model: {
+    archiveProfile: vi.fn(),
+    getProfile: vi.fn(),
+    getRevision: vi.fn(),
+    listProfiles: vi.fn(),
+    listReleases: vi.fn(),
+    saveDraft: vi.fn(),
+  },
+}));
+
+vi.mock('@/database/models/desktopBuild', () => ({
+  DesktopBuildModel: vi.fn(() => mocks.model),
+}));
+
+vi.mock('@/server/services/desktopBuild/assets', () => mocks.assets);
+
+vi.mock('@/server/modules/S3', () => ({
+  FileS3: vi.fn(() => ({})),
+}));
+
+vi.mock('./audit', () => mocks.audit);
+
+const PROFILE_ID = '11111111-1111-4111-8111-111111111111';
+const ASSET_ID = '22222222-2222-4222-8222-222222222222';
+const payload = {
+  applicationId: 'com.qingyou.comhub',
+  applicationName: 'ComHub',
+  description: 'ComHub desktop',
+  executableName: 'ComHub',
+  homepage: 'https://comhub.example.com',
+  installerArtifactName: '${productName}-${version}-${arch}.${ext}',
+  protocolScheme: 'comhub',
+  publisher: 'Qingyou',
+  shortcutName: 'ComHub',
+  uninstallDisplayName: 'ComHub',
+};
+const trustedAsset = {
+  contentType: 'image/png',
+  height: 1024,
+  key: `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`,
+  kind: 'appPreview' as const,
+  sha256: 'a'.repeat(64),
+  size: 1024,
+  width: 1024,
+};
+const manifest = {
+  appPreview: trustedAsset,
+  nsisHeader: {
+    ...trustedAsset,
+    contentType: 'image/bmp',
+    height: 57,
+    key: `desktop-build-assets/${PROFILE_ID}/22222222-2222-4222-8222-222222222223.bmp`,
+    kind: 'nsisHeader' as const,
+    width: 150,
+  },
+  nsisSidebar: {
+    ...trustedAsset,
+    contentType: 'image/bmp',
+    height: 314,
+    key: `desktop-build-assets/${PROFILE_ID}/22222222-2222-4222-8222-222222222224.bmp`,
+    kind: 'nsisSidebar' as const,
+    width: 164,
+  },
+  windowsIcon: {
+    ...trustedAsset,
+    contentType: 'image/x-icon',
+    key: `desktop-build-assets/${PROFILE_ID}/22222222-2222-4222-8222-222222222225.ico`,
+    kind: 'windowsIcon' as const,
+  },
+};
+
 const adminRouterSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 
 vi.mock('@/database/core/db-adaptor', () => ({
@@ -50,6 +140,25 @@ describe('adminDesktopRouter', () => {
       checkedAt: '2026-07-21T00:00:00.000Z',
       configured: true,
     });
+    mocks.model.archiveProfile.mockResolvedValue({ id: PROFILE_ID, status: 'archived' });
+    mocks.model.getProfile.mockResolvedValue(null);
+    mocks.model.getRevision.mockResolvedValue(null);
+    mocks.model.listProfiles.mockResolvedValue([]);
+    mocks.model.listReleases.mockResolvedValue([]);
+    mocks.model.saveDraft.mockResolvedValue({
+      profileId: PROFILE_ID,
+      revision: 1,
+      revisionId: 'revision-1',
+    });
+    mocks.assets.createDesktopBuildAssetUpload.mockResolvedValue({
+      headers: { 'Content-Type': 'image/png' },
+      key: trustedAsset.key,
+      kind: 'appPreview',
+      profileId: PROFILE_ID,
+      uploadUrl: 'https://uploads.example.test/opaque-signature',
+    });
+    mocks.assets.readTrustedDesktopBuildAsset.mockResolvedValue(trustedAsset);
+    mocks.assets.validateDesktopBuildAssetManifest.mockResolvedValue(manifest);
   });
 
   it('is registered under admin.desktop', () => {
@@ -85,5 +194,106 @@ describe('adminDesktopRouter', () => {
       adminDesktopRouter.createCaller({ userId: 'finance-admin-user' } as any).getOverview(),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(getDesktopReleaseDiagnostics).not.toHaveBeenCalled();
+  });
+
+  it('returns draft profile DTOs without storage secrets or signed download URLs', async () => {
+    mocks.model.listProfiles.mockResolvedValue([
+      {
+        apiKey: 'must-not-leak',
+        currentDraftRevisionId: 'revision-1',
+        currentRevision: 1,
+        firstStableReleaseAt: new Date('2026-07-21T00:00:00.000Z'),
+        id: PROFILE_ID,
+        name: 'ComHub',
+        status: 'active',
+      },
+    ]);
+    mocks.model.getRevision.mockResolvedValue({
+      assetManifest: manifest,
+      id: 'revision-1',
+      payload,
+      signedGetUrl: 'https://downloads.example.test/private',
+      state: 'draft',
+    });
+
+    const result = await adminDesktopRouter
+      .createCaller({ userId: 'system-admin-user' } as any)
+      .listBuildProfiles();
+
+    expect(result[0]).toMatchObject({
+      currentDraft: { id: 'revision-1', state: 'draft' },
+      currentRevision: 1,
+      id: PROFILE_ID,
+      identityLocked: true,
+    });
+    expect(JSON.stringify(result)).not.toContain('must-not-leak');
+    expect(JSON.stringify(result)).not.toContain('downloads.example.test');
+  });
+
+  it('requires systemWrite before issuing a private asset upload target', async () => {
+    vi.mocked(getServerDB).mockResolvedValue(createDb('finance_admin'));
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'finance-admin-user' } as any)
+        .createBuildAssetUpload({ kind: 'appPreview' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(mocks.assets.createDesktopBuildAssetUpload).not.toHaveBeenCalled();
+  });
+
+  it('completes trusted assets through the required external-effect audit wrapper', async () => {
+    const result = await adminDesktopRouter
+      .createCaller({ userId: 'system-admin-user' } as any)
+      .completeBuildAssetUpload({
+        key: trustedAsset.key,
+        kind: 'appPreview',
+        profileId: PROFILE_ID,
+      });
+
+    expect(result).toEqual(trustedAsset);
+    expect(mocks.audit.runRequiredAdminAuditExternalEffect).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ audit: expect.any(Function), effect: expect.any(Function) }),
+    );
+    expect(JSON.stringify(result)).not.toContain('uploads.example.test');
+  });
+
+  it('saves only a revalidated draft inside the required audit transaction', async () => {
+    const result = await adminDesktopRouter
+      .createCaller({ userId: 'system-admin-user' } as any)
+      .saveBuildProfileDraft({
+        assets: manifest,
+        createIfMissing: true,
+        name: 'ComHub',
+        payload,
+        profileId: PROFILE_ID,
+      });
+
+    expect(result).toEqual({ profileId: PROFILE_ID, revision: 1, revisionId: 'revision-1' });
+    expect(mocks.assets.validateDesktopBuildAssetManifest).toHaveBeenCalledWith(
+      expect.objectContaining({ manifest, profileId: PROFILE_ID }),
+    );
+    expect(mocks.model.saveDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ createIfMissing: true, profileId: PROFILE_ID }),
+      expect.anything(),
+    );
+    expect(mocks.audit.runRequiredAdminAuditMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ audit: expect.any(Function), mutation: expect.any(Function) }),
+    );
+  });
+
+  it('archives profiles through a required audit transaction without deleting drafts', async () => {
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .archiveBuildProfile({ profileId: PROFILE_ID }),
+    ).resolves.toEqual({ id: PROFILE_ID, status: 'archived' });
+
+    expect(mocks.model.archiveProfile).toHaveBeenCalledWith(
+      { actorUserId: 'system-admin-user', profileId: PROFILE_ID },
+      expect.anything(),
+    );
+    expect(mocks.audit.runRequiredAdminAuditMutation).toHaveBeenCalled();
   });
 });

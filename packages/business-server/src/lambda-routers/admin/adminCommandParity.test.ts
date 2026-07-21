@@ -21,7 +21,11 @@ const middlewareByCapability: Record<AdminCapability, string> = {
   'user.read': 'userReadProcedure',
 };
 
-const externalEffectCommands = new Set(['content.deleteDocument', 'content.deleteFile']);
+const externalEffectCommands = new Set([
+  'content.deleteDocument',
+  'content.deleteFile',
+  'desktop.buildAsset.complete',
+]);
 const auditOnlyCommands = new Set(['user.impersonate.attempt']);
 
 const sensitiveMutationRouters = [
@@ -39,7 +43,15 @@ const escapeRegExp = (value: string) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, 
 
 const getProcedureSource = (procedurePath: string) => {
   const [, routerName, procedureName] = procedurePath.split('.');
-  const source = readFileSync(path.join(__dirname, `${routerName}.ts`), 'utf8');
+  const settingsProcedureSources: Record<string, string> = {
+    runMaintenance: '../../appSettings/writers/runtimeProcedures.ts',
+    setAppSetting: '../../appSettings/writers/adminProcedures.ts',
+  };
+  const sourcePath =
+    routerName === 'settings' && settingsProcedureSources[procedureName]
+      ? path.resolve(__dirname, settingsProcedureSources[procedureName])
+      : path.join(__dirname, `${routerName}.ts`);
+  const source = readFileSync(sourcePath, 'utf8');
   const marker = `  ${procedureName}:`;
   const start = source.indexOf(marker);
   expect(start, procedurePath).toBeGreaterThanOrEqual(0);

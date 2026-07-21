@@ -19,7 +19,14 @@ vi.mock('@/libs/trpc/client', () => ({
         deleteDocument: { mutate: vi.fn() },
       },
       desktop: {
+        archiveBuildProfile: { mutate: vi.fn() },
+        completeBuildAssetUpload: { mutate: vi.fn() },
+        createBuildAssetUpload: { mutate: vi.fn() },
+        getBuildProfile: { query: vi.fn() },
         getOverview: { query: vi.fn() },
+        listBuildProfiles: { query: vi.fn() },
+        listDesktopReleases: { query: vi.fn() },
+        saveBuildProfileDraft: { mutate: vi.fn() },
       },
       settings: {
         getAll: { query: vi.fn() },
@@ -72,6 +79,27 @@ describe('adminCommercialService NewAPI helpers', () => {
     await adminCommercialService.getDesktopOverview();
 
     expect(lambdaClient.admin.desktop.getOverview.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates desktop build profile and protected asset operations to admin.desktop', async () => {
+    const input = { kind: 'appPreview' as const };
+    await adminCommercialService.createBuildAssetUpload(input);
+    await adminCommercialService.completeBuildAssetUpload({
+      key: 'desktop-build-assets/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.png',
+      kind: 'appPreview',
+      profileId: '11111111-1111-4111-8111-111111111111',
+    });
+    await adminCommercialService.listBuildProfiles();
+    await adminCommercialService.listDesktopReleases({ limit: 10 });
+
+    expect(lambdaClient.admin.desktop.createBuildAssetUpload.mutate).toHaveBeenCalledWith(input);
+    expect(lambdaClient.admin.desktop.completeBuildAssetUpload.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'appPreview' }),
+    );
+    expect(lambdaClient.admin.desktop.listBuildProfiles.query).toHaveBeenCalledWith();
+    expect(lambdaClient.admin.desktop.listDesktopReleases.query).toHaveBeenCalledWith({
+      limit: 10,
+    });
   });
 
   it('calls the AI provider connection test endpoint', async () => {

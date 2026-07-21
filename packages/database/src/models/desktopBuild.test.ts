@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
+
 import type { DesktopBuildAssetManifest, DesktopBuildProfilePayload } from '@lobechat/types';
 import { eq, inArray } from 'drizzle-orm';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestDB } from '../core/getTestDB';
 import {
@@ -81,13 +83,19 @@ let db: LobeChatDatabase;
 
 const model = () => new DesktopBuildModel(db);
 
-const saveDraft = (input: Partial<Parameters<DesktopBuildModel['saveDraft']>[0]> = {}) =>
+const saveDraft = ({
+  createIfMissing,
+  profileId,
+  ...input
+}: Partial<Parameters<DesktopBuildModel['saveDraft']>[0]> = {}) =>
   model().saveDraft({
     actorUserId: ADMIN_IDS[0],
     assets,
     name: 'ComHub',
     payload,
     ...input,
+    createIfMissing: createIfMissing ?? profileId === undefined,
+    profileId: profileId ?? randomUUID(),
   });
 
 const freezeDraft = (
@@ -120,6 +128,55 @@ describe('DesktopBuildModel', () => {
     await db.delete(desktopBuildProfiles);
     await db.delete(users).where(inArray(users.id, ADMIN_IDS));
     await db.insert(users).values(ADMIN_IDS.map((id) => ({ id })));
+  });
+
+  it('creates a draft only for an explicitly supplied profile ID and rejects profile typos', async () => {
+    const profileId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const created = await saveDraft({ createIfMissing: true, profileId });
+
+    expect(created.profileId).toBe(profileId);
+    expect(await model().getProfile(profileId)).toMatchObject({ id: profileId, status: 'active' });
+    await expect(saveDraft({ profileId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' })).rejects.toThrow(
+      'DESKTOP_BUILD_PROFILE_NOT_FOUND',
+    );
+  });
+
+  it('rejects implicit profile creation', async () => {
+    await expect(
+      model().saveDraft({
+        actorUserId: ADMIN_IDS[0],
+        assets,
+        name: 'ComHub',
+        payload,
+      }),
+    ).rejects.toThrow('DESKTOP_BUILD_PROFILE_ID_REQUIRED');
+  });
+
+  it('archives a profile without deleting its draft and is idempotent', async () => {
+    const draft = await saveDraft();
+
+    const archived = await model().archiveProfile({
+      actorUserId: ADMIN_IDS[1],
+      profileId: draft.profileId,
+    });
+    const repeated = await model().archiveProfile({
+      actorUserId: ADMIN_IDS[1],
+      profileId: draft.profileId,
+    });
+
+    expect(archived).toMatchObject({ id: draft.profileId, status: 'archived' });
+    expect(repeated).toMatchObject({ id: draft.profileId, status: 'archived' });
+    expect(await model().getRevision(draft.revisionId)).toMatchObject({ id: draft.revisionId });
+  });
+
+  it('bounds direct release listing to the administration maximum', async () => {
+    const findMany = vi.spyOn(db.query.desktopReleases, 'findMany').mockResolvedValue([] as any);
+
+    await model().listReleases({ limit: 500 });
+
+    const calls = [...findMany.mock.calls];
+    findMany.mockRestore();
+    expect(calls).toEqual([expect.arrayContaining([expect.objectContaining({ limit: 50 })])]);
   });
 
   it('preserves immutable prior payloads and freezes the current draft after multiple saves', async () => {

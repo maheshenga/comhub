@@ -34,6 +34,30 @@ const expectedCommands = {
     reasonPolicy: 'required',
     serverBoundary: trpcBoundary('admin.credits.adjust'),
   },
+  'desktop.buildAsset.complete': {
+    auditAction: 'desktop.buildAsset.complete',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.completeBuildAssetUpload'),
+    severity: 'high',
+  },
+  'desktop.buildProfile.archive': {
+    auditAction: 'desktop.buildProfile.archive',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.archiveBuildProfile'),
+    severity: 'high',
+  },
+  'desktop.buildProfile.saveDraft': {
+    auditAction: 'desktop.buildProfile.saveDraft',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.saveBuildProfileDraft'),
+    severity: 'high',
+  },
   'newapiProvider.deleteInstance': {
     auditAction: 'newapiInstance.delete',
     capability: ADMIN_CAPABILITIES.modelOpsWrite,
@@ -140,7 +164,10 @@ describe('ADMIN_COMMANDS', () => {
         actionId,
         ...expected,
         description: expect.any(String),
-        severity: expect.stringMatching(/^(medium|high|critical)$/),
+        severity:
+          'severity' in expected
+            ? expected.severity
+            : expect.stringMatching(/^(medium|high|critical)$/),
         title: expect.any(String),
       });
     }
