@@ -179,6 +179,48 @@ describe('DesktopBuildModel', () => {
     expect(calls).toEqual([expect.arrayContaining([expect.objectContaining({ limit: 50 })])]);
   });
 
+  it('bounds profile pages with offset cursors and returns a next cursor', async () => {
+    const findMany = vi
+      .spyOn(db.query.desktopBuildProfiles, 'findMany')
+      .mockResolvedValue([] as any);
+
+    await model().listProfiles();
+    await model().listProfiles({ cursor: 3, limit: 500 });
+
+    expect(findMany.mock.calls).toEqual([
+      [expect.objectContaining({ limit: 51, offset: 0 })],
+      [expect.objectContaining({ limit: 101, offset: 3 })],
+    ]);
+    findMany.mockRestore();
+
+    await saveDraft();
+    await saveDraft();
+    await saveDraft();
+
+    const firstPage = await model().listProfiles({ limit: 2 });
+    const secondPage = await model().listProfiles({ cursor: firstPage.nextCursor!, limit: 2 });
+
+    expect(firstPage.items).toHaveLength(2);
+    expect(firstPage.nextCursor).toBe(2);
+    expect(secondPage.items).toHaveLength(1);
+    expect(secondPage.nextCursor).toBeNull();
+  });
+
+  it('batch-loads the requested draft revisions', async () => {
+    const first = await saveDraft();
+    const second = await saveDraft();
+
+    const revisions = await model().getRevisionsByIds([
+      second.revisionId,
+      first.revisionId,
+      second.revisionId,
+    ]);
+
+    expect(revisions.map((revision) => revision.id).sort()).toEqual(
+      [first.revisionId, second.revisionId].sort(),
+    );
+  });
+
   it('preserves immutable prior payloads and freezes the current draft after multiple saves', async () => {
     const first = await saveDraft();
     const secondPayload = { ...payload, applicationName: 'ComHub Pro' };

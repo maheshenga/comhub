@@ -4,7 +4,7 @@ import type {
   DesktopReleaseChannel,
   DesktopReleaseStatus,
 } from '@lobechat/types';
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { desktopBuildProfileRevisions, desktopBuildProfiles, desktopReleases } from '../schemas';
 import type {
@@ -15,6 +15,8 @@ import type {
 import type { LobeChatDatabase, Transaction } from '../type';
 
 const ERROR_SUMMARY_LIMIT = 1024;
+const DEFAULT_PROFILE_PAGE_SIZE = 50;
+const MAX_PROFILE_PAGE_SIZE = 100;
 
 const isTerminalReleaseStatus = (status: DesktopReleaseStatus) =>
   status === 'failed' || status === 'succeeded';
@@ -151,10 +153,24 @@ export class DesktopBuildModel {
     return updated;
   };
 
-  listProfiles = () =>
-    this.db.query.desktopBuildProfiles.findMany({
+  listProfiles = async (params: { cursor?: number; limit?: number } = {}) => {
+    const limit = Math.min(
+      Math.max(params.limit ?? DEFAULT_PROFILE_PAGE_SIZE, 1),
+      MAX_PROFILE_PAGE_SIZE,
+    );
+    const cursor = Math.max(params.cursor ?? 0, 0);
+    const rows = await this.db.query.desktopBuildProfiles.findMany({
+      limit: limit + 1,
+      offset: cursor,
       orderBy: [desc(desktopBuildProfiles.updatedAt), desc(desktopBuildProfiles.id)],
     });
+    const items = rows.slice(0, limit);
+
+    return {
+      items,
+      nextCursor: rows.length > limit ? cursor + items.length : null,
+    };
+  };
 
   getProfile = (profileId: string) =>
     this.db.query.desktopBuildProfiles.findFirst({
@@ -165,6 +181,16 @@ export class DesktopBuildModel {
     this.db.query.desktopBuildProfileRevisions.findFirst({
       where: eq(desktopBuildProfileRevisions.id, revisionId),
     });
+
+  getRevisionsByIds = (revisionIds: string[]) => {
+    const ids = [...new Set(revisionIds)].slice(0, MAX_PROFILE_PAGE_SIZE);
+    if (ids.length === 0) return Promise.resolve([]);
+
+    return this.db.query.desktopBuildProfileRevisions.findMany({
+      limit: ids.length,
+      where: inArray(desktopBuildProfileRevisions.id, ids),
+    });
+  };
 
   saveDraft = async (
     input: {

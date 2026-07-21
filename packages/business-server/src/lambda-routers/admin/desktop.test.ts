@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
     archiveProfile: vi.fn(),
     getProfile: vi.fn(),
     getRevision: vi.fn(),
+    getRevisionsByIds: vi.fn(),
     listProfiles: vi.fn(),
     listReleases: vi.fn(),
     saveDraft: vi.fn(),
@@ -143,7 +144,8 @@ describe('adminDesktopRouter', () => {
     mocks.model.archiveProfile.mockResolvedValue({ id: PROFILE_ID, status: 'archived' });
     mocks.model.getProfile.mockResolvedValue(null);
     mocks.model.getRevision.mockResolvedValue(null);
-    mocks.model.listProfiles.mockResolvedValue([]);
+    mocks.model.getRevisionsByIds.mockResolvedValue([]);
+    mocks.model.listProfiles.mockResolvedValue({ items: [], nextCursor: null });
     mocks.model.listReleases.mockResolvedValue([]);
     mocks.model.saveDraft.mockResolvedValue({
       profileId: PROFILE_ID,
@@ -197,30 +199,50 @@ describe('adminDesktopRouter', () => {
   });
 
   it('returns draft profile DTOs without storage secrets or signed download URLs', async () => {
-    mocks.model.listProfiles.mockResolvedValue([
+    mocks.model.listProfiles.mockResolvedValue({
+      items: [
+        {
+          apiKey: 'must-not-leak',
+          currentDraftRevisionId: 'revision-1',
+          currentRevision: 1,
+          firstStableReleaseAt: new Date('2026-07-21T00:00:00.000Z'),
+          id: PROFILE_ID,
+          name: 'ComHub',
+          status: 'active',
+        },
+        {
+          currentDraftRevisionId: 'revision-2',
+          currentRevision: 2,
+          firstStableReleaseAt: null,
+          id: '33333333-3333-4333-8333-333333333333',
+          name: 'ComHub Preview',
+          status: 'active',
+        },
+      ],
+      nextCursor: 2,
+    });
+    mocks.model.getRevisionsByIds.mockResolvedValue([
       {
-        apiKey: 'must-not-leak',
-        currentDraftRevisionId: 'revision-1',
-        currentRevision: 1,
-        firstStableReleaseAt: new Date('2026-07-21T00:00:00.000Z'),
-        id: PROFILE_ID,
-        name: 'ComHub',
-        status: 'active',
+        assetManifest: manifest,
+        id: 'revision-1',
+        payload,
+        signedGetUrl: 'https://downloads.example.test/private',
+        state: 'draft',
+      },
+      {
+        assetManifest: manifest,
+        id: 'revision-2',
+        payload,
+        state: 'draft',
       },
     ]);
-    mocks.model.getRevision.mockResolvedValue({
-      assetManifest: manifest,
-      id: 'revision-1',
-      payload,
-      signedGetUrl: 'https://downloads.example.test/private',
-      state: 'draft',
-    });
 
     const result = await adminDesktopRouter
       .createCaller({ userId: 'system-admin-user' } as any)
-      .listBuildProfiles();
+      .listBuildProfiles({ cursor: 0, limit: 2 });
 
-    expect(result[0]).toMatchObject({
+    expect(result).toMatchObject({ nextCursor: 2 });
+    expect(result.items[0]).toMatchObject({
       currentDraft: { id: 'revision-1', state: 'draft' },
       currentRevision: 1,
       id: PROFILE_ID,
@@ -228,6 +250,9 @@ describe('adminDesktopRouter', () => {
     });
     expect(JSON.stringify(result)).not.toContain('must-not-leak');
     expect(JSON.stringify(result)).not.toContain('downloads.example.test');
+    expect(mocks.model.listProfiles).toHaveBeenCalledWith({ cursor: 0, limit: 2 });
+    expect(mocks.model.getRevisionsByIds).toHaveBeenCalledWith(['revision-1', 'revision-2']);
+    expect(mocks.model.getRevision).not.toHaveBeenCalled();
   });
 
   it('requires systemWrite before issuing a private asset upload target', async () => {
@@ -255,6 +280,40 @@ describe('adminDesktopRouter', () => {
       expect.anything(),
       expect.objectContaining({ audit: expect.any(Function), effect: expect.any(Function) }),
     );
+    const auditOptions = mocks.audit.runRequiredAdminAuditExternalEffect.mock.calls[0]?.[1] as {
+      audit: (
+        status: string,
+        asset?: typeof trustedAsset,
+      ) => Promise<{
+        payload: Record<string, unknown>;
+      }>;
+    };
+    const auditPayloads = await Promise.all([
+      auditOptions.audit('started'),
+      auditOptions.audit('succeeded', trustedAsset),
+    ]);
+
+    expect(auditPayloads.map((entry) => entry.payload)).toEqual([
+      { key: trustedAsset.key, kind: 'appPreview', profileId: PROFILE_ID },
+      {
+        key: trustedAsset.key,
+        kind: 'appPreview',
+        profileId: PROFILE_ID,
+        sha256: trustedAsset.sha256,
+        size: trustedAsset.size,
+      },
+    ]);
+    const serializedAuditPayloads = JSON.stringify(auditPayloads);
+    for (const forbidden of [
+      'uploadUrl',
+      'headers',
+      'accessKey',
+      'secret',
+      'token',
+      'credentials',
+    ]) {
+      expect(serializedAuditPayloads).not.toContain(forbidden);
+    }
     expect(JSON.stringify(result)).not.toContain('uploads.example.test');
   });
 

@@ -60,14 +60,10 @@ const serializeRevision = (revision: any) => {
   };
 };
 
-const serializeProfile = async (model: DesktopBuildModel, profile: any) => {
-  const currentDraft = profile.currentDraftRevisionId
-    ? serializeRevision(await model.getRevision(profile.currentDraftRevisionId))
-    : null;
-
+const serializeProfile = (profile: any, currentDraftRevision?: any) => {
   return {
     createdAt: profile.createdAt,
-    currentDraft,
+    currentDraft: serializeRevision(currentDraftRevision),
     currentDraftRevisionId: profile.currentDraftRevisionId,
     currentRevision: profile.currentRevision,
     firstStableReleaseAt: profile.firstStableReleaseAt,
@@ -140,7 +136,10 @@ export const adminDesktopRouter = router({
       const profile = await model.getProfile(input.profileId);
       if (!profile)
         throw new TRPCError({ code: 'NOT_FOUND', message: 'DESKTOP_BUILD_PROFILE_NOT_FOUND' });
-      return serializeProfile(model, profile);
+      const revision = profile.currentDraftRevisionId
+        ? await model.getRevision(profile.currentDraftRevisionId)
+        : null;
+      return serializeProfile(profile, revision);
     }),
   getOverview: systemReadProcedure.query(async ({ ctx }) => {
     const settings = buildDesktopSettings(
@@ -156,12 +155,37 @@ export const adminDesktopRouter = router({
       diagnostics,
     };
   }),
-  listBuildProfiles: systemReadProcedure.query(async ({ ctx }) => {
-    const model = new DesktopBuildModel(ctx.serverDB);
-    return Promise.all(
-      (await model.listProfiles()).map((profile) => serializeProfile(model, profile)),
-    );
-  }),
+  listBuildProfiles: systemReadProcedure
+    .input(
+      z
+        .object({
+          cursor: z.number().int().nonnegative().optional(),
+          limit: z.number().int().min(1).max(100).optional().default(50),
+        })
+        .strict()
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const model = new DesktopBuildModel(ctx.serverDB);
+      const page = await model.listProfiles(input);
+      const revisionIds = page.items.flatMap((profile) =>
+        profile.currentDraftRevisionId ? [profile.currentDraftRevisionId] : [],
+      );
+      const revisions = await model.getRevisionsByIds(revisionIds);
+      const revisionsById = new Map(revisions.map((revision) => [revision.id, revision]));
+
+      return {
+        items: page.items.map((profile) =>
+          serializeProfile(
+            profile,
+            profile.currentDraftRevisionId
+              ? revisionsById.get(profile.currentDraftRevisionId)
+              : null,
+          ),
+        ),
+        nextCursor: page.nextCursor,
+      };
+    }),
   listDesktopReleases: systemReadProcedure
     .input(
       z

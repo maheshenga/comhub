@@ -1,3 +1,5 @@
+import { deflateSync } from 'node:zlib';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -31,17 +33,76 @@ const writeUint32Le = (bytes: Uint8Array, offset: number, value: number) => {
   bytes[offset + 3] = (value >>> 24) & 255;
 };
 
-const png = (width: number, height: number) => {
-  const bytes = new Uint8Array(8 + 4 + 4 + 13 + 4 + 4 + 4 + 4);
-  bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
-  writeUint32Be(bytes, 8, 13);
-  bytes.set([73, 72, 68, 82], 12);
-  writeUint32Be(bytes, 16, width);
-  writeUint32Be(bytes, 20, height);
-  bytes[24] = 8;
-  bytes[25] = 6;
-  bytes.set([73, 69, 78, 68], 37);
+const concatBytes = (...parts: Uint8Array[]) => {
+  const bytes = new Uint8Array(parts.reduce((length, part) => length + part.byteLength, 0));
+  let offset = 0;
+  for (const part of parts) {
+    bytes.set(part, offset);
+    offset += part.byteLength;
+  }
   return bytes;
+};
+
+const crc32 = (bytes: Uint8Array) => {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+};
+
+const pngChunk = (type: string, data: Uint8Array) => {
+  const typeBytes = Uint8Array.from([...type].map((character) => character.charCodeAt(0)));
+  const bytes = new Uint8Array(12 + data.byteLength);
+  writeUint32Be(bytes, 0, data.byteLength);
+  bytes.set(typeBytes, 4);
+  bytes.set(data, 8);
+  writeUint32Be(bytes, 8 + data.byteLength, crc32(bytes.slice(4, 8 + data.byteLength)));
+  return bytes;
+};
+
+type PngOptions = {
+  bitDepth?: number;
+  colorType?: number;
+  compressionMethod?: number;
+  filterMethod?: number;
+  idat?: Uint8Array;
+  includeIdat?: boolean;
+  interlaceMethod?: number;
+};
+
+const pngIdatCache = new Map<string, Uint8Array>();
+
+const createValidPngIdat = (width: number, height: number) => {
+  const key = `${width}x${height}`;
+  const cached = pngIdatCache.get(key);
+  if (cached) return cached;
+
+  const idat = new Uint8Array(deflateSync(Buffer.alloc(height * (1 + width * 4))));
+  pngIdatCache.set(key, idat);
+  return idat;
+};
+
+const png = (width: number, height: number, options: PngOptions = {}) => {
+  const ihdr = new Uint8Array(13);
+  writeUint32Be(ihdr, 0, width);
+  writeUint32Be(ihdr, 4, height);
+  ihdr[8] = options.bitDepth ?? 8;
+  ihdr[9] = options.colorType ?? 6;
+  ihdr[10] = options.compressionMethod ?? 0;
+  ihdr[11] = options.filterMethod ?? 0;
+  ihdr[12] = options.interlaceMethod ?? 0;
+
+  const idat = options.idat ?? createValidPngIdat(width, height);
+  return concatBytes(
+    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', ihdr),
+    ...(options.includeIdat === false ? [] : [pngChunk('IDAT', idat)]),
+    pngChunk('IEND', new Uint8Array()),
+  );
 };
 
 const bmp = (width: number, height: number) => {
@@ -135,6 +196,51 @@ describe('inspectDesktopBuildAsset', () => {
 
   it('rejects a truncated PNG chunk', () => {
     expect(() => inspectDesktopBuildAsset('appPreview', png(1024, 1024).slice(0, 30))).toThrow(
+      'Invalid desktop build asset',
+    );
+  });
+
+  it.each([
+    ['without an IDAT chunk', png(1024, 1024, { includeIdat: false })],
+    ['with an empty IDAT chunk', png(1024, 1024, { idat: new Uint8Array() })],
+    [
+      'with an IDAT stream that cannot represent image scanlines',
+      png(1024, 1024, { idat: new Uint8Array(deflateSync(new Uint8Array())) }),
+    ],
+    ['with an invalid bit-depth/color-type combination', png(1024, 1024, { bitDepth: 4 })],
+    ['with a non-zero compression method', png(1024, 1024, { compressionMethod: 1 })],
+    ['with a non-zero filter method', png(1024, 1024, { filterMethod: 1 })],
+    ['with an invalid interlace method', png(1024, 1024, { interlaceMethod: 2 })],
+    [
+      'with an invalid IEND CRC',
+      (() => {
+        const body = png(1024, 1024);
+        body[body.byteLength - 1] ^= 1;
+        return body;
+      })(),
+    ],
+    [
+      'with a duplicate IHDR chunk',
+      (() => {
+        const body = png(1024, 1024);
+        return concatBytes(body.slice(0, 8), body.slice(8, 33), body.slice(8));
+      })(),
+    ],
+    [
+      'with non-contiguous IDAT chunks',
+      (() => {
+        const body = png(1024, 1024);
+        return concatBytes(
+          body.slice(0, 33),
+          pngChunk('IDAT', new Uint8Array()),
+          pngChunk('tEXt', new Uint8Array([0])),
+          body.slice(33),
+        );
+      })(),
+    ],
+    ['with trailing data after IEND', concatBytes(png(1024, 1024), new Uint8Array([0]))],
+  ])('rejects a PNG %s', (_reason, body) => {
+    expect(() => inspectDesktopBuildAsset('appPreview', body)).toThrow(
       'Invalid desktop build asset',
     );
   });

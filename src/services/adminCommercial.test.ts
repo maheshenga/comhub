@@ -89,14 +89,17 @@ describe('adminCommercialService NewAPI helpers', () => {
       kind: 'appPreview',
       profileId: '11111111-1111-4111-8111-111111111111',
     });
-    await adminCommercialService.listBuildProfiles();
+    await adminCommercialService.listBuildProfiles({ cursor: 5, limit: 25 });
     await adminCommercialService.listDesktopReleases({ limit: 10 });
 
     expect(lambdaClient.admin.desktop.createBuildAssetUpload.mutate).toHaveBeenCalledWith(input);
     expect(lambdaClient.admin.desktop.completeBuildAssetUpload.mutate).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'appPreview' }),
     );
-    expect(lambdaClient.admin.desktop.listBuildProfiles.query).toHaveBeenCalledWith();
+    expect(lambdaClient.admin.desktop.listBuildProfiles.query).toHaveBeenCalledWith({
+      cursor: 5,
+      limit: 25,
+    });
     expect(lambdaClient.admin.desktop.listDesktopReleases.query).toHaveBeenCalledWith({
       limit: 10,
     });
