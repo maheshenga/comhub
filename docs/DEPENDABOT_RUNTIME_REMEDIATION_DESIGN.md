@@ -12,9 +12,9 @@ Dependabot reports 15 open alerts in three dependency families:
 - `vite` 8.0.14 accounts for four development-time alerts across the root and
   desktop manifests, including a Windows filesystem-deny bypass.
 
-The GitHub governance PR is intentionally separate and remains unmerged. This
-branch starts from `origin/main` so the remediation can be reviewed and
-reverted independently.
+The GitHub governance PR is intentionally separate and has already merged. This
+branch has been rebased onto protected `origin/main` so the remediation can be
+reviewed and reverted independently.
 
 ## Goals
 
@@ -39,10 +39,11 @@ reverted independently.
 
 | Family | Current | Target | Reason |
 | --- | --- | --- | --- |
-| `better-auth` | 1.4.6 | 1.6.13 | Covers all 10 Better Auth alerts; 1.6.13 is the highest required patched release. |
+| `better-auth` declarations | 1.4.6 | 1.6.13 | Covers all 10 Better Auth alerts; update `overrides`, `dependencies`, and `pnpm.overrides` together. |
 | `@better-auth/expo` | 1.4.6 | 1.6.13 | Declares a peer dependency on `better-auth ^1.6.13`. |
 | `@better-auth/passkey` | 1.4.6 | 1.6.13 | Declares a peer dependency on `better-auth ^1.6.13`. |
-| `drizzle-orm` override | ^0.45.1 | ^0.45.2 | Better Auth 1.6.13 requires `drizzle-orm ^0.45.2`. |
+| Root `better-call` pins | 1.1.8 | removed | No source imports it. `.pnpmfile.cjs` makes Better Call 1.3.5 own Zod 4 while root and workspace Zod 3 consumers remain unchanged. |
+| `drizzle-orm` declarations | ^0.45.1 | ^0.45.2 | Better Auth 1.6.13 requires `drizzle-orm ^0.45.2`; update all three declaration locations together. |
 | `nodemailer` | ^8.0.4 | ^9.0.1 | First patched version for the high-severity advisory. |
 | `vite` root and desktop | 8.0.14 | 8.0.16 | First patched version for both Vite advisories. |
 
@@ -57,6 +58,13 @@ trusted origins, password-reset session revocation, database-backed sessions,
 and custom rate limits. The upgrade changes dependency code only unless a
 focused test identifies an API incompatibility. Those security settings must
 remain present.
+
+Better Call 1.3.5 declares Zod 4 as an optional peer, while the root project
+and several workspace packages intentionally use Zod 3. The tracked
+`.pnpmfile.cjs` changes only Better Call 1.3.5 during Pnpm resolution: it owns
+its Zod 4 dependency instead of inheriting root Zod 3. This keeps Better Auth,
+Passkey, Core, Expo, and Better Call on the same Zod 4 runtime without an
+application-wide Zod migration.
 
 ### Nodemailer
 
@@ -76,8 +84,10 @@ move together to prevent a vulnerable desktop development path.
 ## Implementation Sequence
 
 1. Update the three Better Auth package declarations and the Drizzle override.
-   Add or extend focused tests around the existing Better Auth configuration so
-   security-sensitive options and plugin registration remain intact.
+   Remove obsolete root Better Call pins and add the scoped Pnpm resolution
+   hook. Add or extend focused tests around the existing Better Auth
+   configuration so security-sensitive options and plugin registration remain
+   intact.
 2. Update Nodemailer and add a focused `NodemailerImpl` regression test that
    asserts the supported payload mapping does not introduce `raw`, URL, or file
    access options.
@@ -98,6 +108,8 @@ Do not add an unreviewed lockfile as part of this remediation.
 ## Acceptance Criteria
 
 - Package declarations exactly match the target versions above.
+- Better Auth, Core, Passkey, Expo, and Better Call resolve to the same Zod 4
+  installation; root and workspace Zod 3 declarations remain unchanged.
 - Better Auth configuration retains trusted origins, email verification,
   database-backed sessions, password-reset revocation, rate limits, OTP,
   passkey, OAuth, and existing custom plugins.

@@ -32,10 +32,12 @@ Nodemailer 9.0.1, Vite 8.0.16.
 
 **Files:**
 - Modify: `package.json`
+- Create: `.pnpmfile.cjs`
 - Modify: `src/libs/better-auth/define-config.test.ts`
 
 **Interfaces:**
 - Produces Better Auth 1.6.13-compatible dependency declarations.
+- Keeps Better Call's Zod 4 runtime scoped to the Better Auth dependency tree.
 - Preserves `defineConfig()` security settings consumed by all login, OAuth,
   OIDC, OTP, passkey, and organization flows.
 
@@ -90,24 +92,26 @@ In `package.json`, make these exact replacements:
 "drizzle-orm": "^0.45.2"
 ```
 
-Apply the `better-auth` value in both `overrides` and `dependencies`; apply
-the `drizzle-orm` value in both places too. Leave `better-call` unchanged
-unless package installation reports an explicit peer dependency conflict.
+Apply the `better-auth` and `drizzle-orm` values in top-level `overrides`,
+`dependencies`, and `pnpm.overrides`. Remove the root `better-call` entries
+from those three sections. Add `.pnpmfile.cjs` so Pnpm resolves
+`better-call@1.3.5` with its own Zod 4 dependency rather than the application's
+root Zod 3 dependency.
 
 - [ ] **Step 4: Install and re-run the configuration contract**
 
 ```powershell
-pnpm.cmd install --no-frozen-lockfile
+pnpm.cmd install --no-frozen-lockfile --ignore-scripts
 bunx vitest run --silent='passed-only' src/libs/better-auth/define-config.test.ts
 ```
 
-Expected: installation completes without a Better Auth or Drizzle peer conflict
-and both tests pass.
+Expected: installation completes without a Better Auth or Drizzle peer conflict,
+the Better Auth dependency tree resolves Zod 4 internally, and both tests pass.
 
 - [ ] **Step 5: Commit the authentication remediation**
 
 ```powershell
-git add package.json src/libs/better-auth/define-config.test.ts
+git add package.json .pnpmfile.cjs src/libs/better-auth/define-config.test.ts
 git commit -m "fix(auth): upgrade Better Auth security baseline" -m "Constraint: preserve existing authentication configuration" -m "Tested: define-config contract"
 ```
 
