@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
+import { getTestDB } from '../core/getTestDB';
 import {
   desktopBuildProfileRevisions,
   desktopBuildProfiles,
@@ -40,9 +42,9 @@ describe('desktop build schema', () => {
     expect(
       revisionConfig.columns.find((column) => column.name === 'asset_manifest')?.dataType,
     ).toBe('json');
-    expect(releaseConfig.columns.find((column) => column.name === 'artifacts')?.dataType).toBe(
-      'json',
-    );
+    const artifacts = releaseConfig.columns.find((column) => column.name === 'artifacts');
+    expect(artifacts?.dataType).toBe('json');
+    expect(artifacts?.default).toEqual([]);
     expect(releaseConfig.foreignKeys.map((foreignKey) => foreignKey.getName())).toContain(
       'desktop_releases_frozen_revision_id_desktop_build_profile_revisions_id_fk',
     );
@@ -57,9 +59,25 @@ describe('desktop build schema', () => {
       readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
     ) as { entries: Array<{ tag: string }> };
 
-    expect(migration).toContain('CREATE TABLE "desktop_build_profiles"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "desktop_build_profiles"');
     expect(migration).toContain('desktop_build_profile_revisions_profile_revision_unique');
     expect(migration).toContain('desktop_releases_channel_version_unique');
+    expect(migration).toContain('DO $$');
     expect(journal.entries.some(({ tag }) => tag === '0149_add_desktop_build_branding')).toBe(true);
+  });
+
+  it('can apply migration 0149 again on PGlite', async () => {
+    const db = await getTestDB();
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0149_add_desktop_build_branding.sql'),
+      'utf8',
+    );
+    const statements = migration
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.trim())
+      .filter(Boolean);
+
+    for (const statement of statements) await db.execute(sql.raw(statement));
+    for (const statement of statements) await db.execute(sql.raw(statement));
   });
 });

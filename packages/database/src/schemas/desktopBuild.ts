@@ -22,6 +22,18 @@ import {
 import { createdAt, timestamptz, updatedAt } from './_helpers';
 import { users } from './user';
 
+export interface DesktopReleaseArtifact {
+  arch?: 'arm64' | 'ia32' | 'x64';
+  contentType: string;
+  fileName: string;
+  kind: 'installer' | 'blockmap' | 'updateManifest';
+  sha256: string;
+  size: number;
+  storageKey?: string;
+}
+
+export type DesktopReleaseArtifactManifest = DesktopReleaseArtifact[];
+
 export const desktopBuildProfiles = pgTable(
   'desktop_build_profiles',
   {
@@ -98,7 +110,7 @@ export const desktopReleases = pgTable(
     version: varchar('version', { length: 64 }).notNull(),
     releaseNotes: text('release_notes').notNull(),
     status: text('status').$type<DesktopReleaseStatus>().default('queued').notNull(),
-    artifacts: jsonb('artifacts').$type<Record<string, unknown>>().default({}).notNull(),
+    artifacts: jsonb('artifacts').$type<DesktopReleaseArtifactManifest>().default([]).notNull(),
     errorSummary: varchar('error_summary', { length: 1024 }),
     dispatchedAt: timestamptz('dispatched_at'),
     dispatchedByUserId: text('dispatched_by_user_id').references(() => users.id, {

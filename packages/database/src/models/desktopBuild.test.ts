@@ -1,12 +1,19 @@
 import type { DesktopBuildAssetManifest, DesktopBuildProfilePayload } from '@lobechat/types';
-import { describe, expect, it, vi } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { getTestDB } from '../core/getTestDB';
 import {
   desktopBuildProfileRevisions,
   desktopBuildProfiles,
   desktopReleases,
-} from '../schemas/desktopBuild';
+  users,
+} from '../schemas';
+import type { DesktopReleaseArtifactManifest } from '../schemas/desktopBuild';
+import type { LobeChatDatabase } from '../type';
 import { DesktopBuildModel } from './desktopBuild';
+
+const ADMIN_IDS = ['desktop-build-admin-1', 'desktop-build-admin-2'];
 
 const payload: DesktopBuildProfilePayload = {
   applicationId: 'com.qingyou.comhub',
@@ -58,158 +65,225 @@ const assets: DesktopBuildAssetManifest = {
   },
 };
 
-const createModelDb = () => {
-  const profiles: any[] = [];
-  const revisions: any[] = [];
-  const releases: any[] = [];
-  let nextId = 1;
+const artifacts: DesktopReleaseArtifactManifest = [
+  {
+    arch: 'x64',
+    contentType: 'application/x-msdownload',
+    fileName: 'ComHub-2.4.0-x64.exe',
+    kind: 'installer',
+    sha256: 'e'.repeat(64),
+    size: 1024,
+    storageKey: 'desktop-build-releases/ComHub-2.4.0-x64.exe',
+  },
+];
 
-  const insert = vi.fn((table: unknown) => ({
-    values: vi.fn((values: Record<string, unknown>) => ({
-      returning: vi.fn(async () => {
-        const row = {
-          ...values,
-          ...(table === desktopBuildProfiles ? { currentRevision: 0, status: 'active' } : {}),
-          createdAt: new Date(),
-          id: `id-${nextId++}`,
-          updatedAt: new Date(),
-        };
-        if (table === desktopBuildProfiles) profiles.push(row);
-        if (table === desktopBuildProfileRevisions) revisions.push(row);
-        if (table === desktopReleases) releases.push(row);
-        return [row];
-      }),
-    })),
-  }));
-  const update = vi.fn((table: unknown) => ({
-    set: vi.fn((values: Record<string, unknown>) => ({
-      where: vi.fn(() => ({
-        returning: vi.fn(async () => {
-          const rows =
-            table === desktopBuildProfiles
-              ? profiles
-              : table === desktopReleases
-                ? releases
-                : revisions;
-          const row = rows.at(-1);
-          if (!row) return [];
-          Object.assign(row, values);
-          return [row];
-        }),
-      })),
-    })),
-  }));
-  const tx = {
-    insert,
-    query: {
-      desktopBuildProfileRevisions: { findFirst: vi.fn(async () => revisions[0]) },
-      desktopBuildProfiles: { findFirst: vi.fn(async () => profiles.at(-1)) },
-      desktopReleases: { findFirst: vi.fn(async () => releases.at(-1)) },
-    },
-    select: vi.fn(() => ({
-      from: vi.fn((table: unknown) => ({
-        where: vi.fn(() => ({
-          for: vi.fn(async () => [
-            table === desktopBuildProfiles
-              ? profiles.at(-1)
-              : table === desktopReleases
-                ? releases.at(-1)
-                : revisions.at(-1),
-          ]),
-        })),
-      })),
-    })),
-    update,
-  };
+let db: LobeChatDatabase;
 
-  return {
-    db: {
-      ...tx,
-      transaction: vi.fn((callback) => callback(tx)),
-    },
-    profiles,
-    releases,
-    revisions,
-  };
+const model = () => new DesktopBuildModel(db);
+
+const saveDraft = (input: Partial<Parameters<DesktopBuildModel['saveDraft']>[0]> = {}) =>
+  model().saveDraft({
+    actorUserId: ADMIN_IDS[0],
+    assets,
+    name: 'ComHub',
+    payload,
+    ...input,
+  });
+
+const freezeDraft = (
+  profileId: string,
+  input: Partial<Parameters<DesktopBuildModel['freezeDraftForRelease']>[0]> = {},
+) =>
+  model().freezeDraftForRelease({
+    actorUserId: ADMIN_IDS[0],
+    channel: 'canary',
+    profileId,
+    releaseNotes: 'Branded build',
+    version: '2.4.0-canary.1',
+    ...input,
+  });
+
+const dispatchAndSucceed = async (releaseId: string) => {
+  await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId });
+  await model().markReleaseResult({ releaseId, status: 'publishing' });
+  return model().markReleaseResult({ artifacts, releaseId, status: 'succeeded' });
 };
 
 describe('DesktopBuildModel', () => {
-  it('appends a revision without updating the prior payload', async () => {
-    const { db } = createModelDb();
-    const model = new DesktopBuildModel(db as any);
-
-    const first = await model.saveDraft({
-      actorUserId: 'admin-1',
-      assets,
-      name: 'ComHub',
-      payload,
-    });
-    const second = await model.saveDraft({
-      actorUserId: 'admin-1',
-      assets,
-      name: 'ComHub',
-      payload: { ...payload, applicationName: 'ComHub Pro' },
-      profileId: first.profileId,
-    });
-
-    expect(second.revision).toBe(first.revision + 1);
-    expect(await model.getRevision(first.revisionId)).toMatchObject({ payload });
+  beforeAll(async () => {
+    db = await getTestDB();
   });
 
-  it('freezes the current draft and creates a queued release atomically', async () => {
-    const { db, profiles } = createModelDb();
-    const model = new DesktopBuildModel(db as any);
-    const draft = await model.saveDraft({
-      actorUserId: 'admin-1',
-      assets,
-      name: 'ComHub',
-      payload,
-    });
+  beforeEach(async () => {
+    await db.delete(desktopReleases);
+    await db.delete(desktopBuildProfileRevisions);
+    await db.delete(desktopBuildProfiles);
+    await db.delete(users).where(inArray(users.id, ADMIN_IDS));
+    await db.insert(users).values(ADMIN_IDS.map((id) => ({ id })));
+  });
 
-    const result = await model.freezeDraftForRelease({
-      actorUserId: 'admin-1',
-      channel: 'stable',
-      profileId: draft.profileId,
-      releaseNotes: 'First branded build',
-      version: '2.4.0',
-    });
+  it('preserves immutable prior payloads and freezes the current draft after multiple saves', async () => {
+    const first = await saveDraft();
+    const secondPayload = { ...payload, applicationName: 'ComHub Pro' };
+    const second = await saveDraft({ payload: secondPayload, profileId: first.profileId });
+    const result = await freezeDraft(first.profileId);
+
+    expect(second.revision).toBe(first.revision + 1);
+    expect(await model().getRevision(first.revisionId)).toMatchObject({ payload });
+    expect(result.revision).toMatchObject({ payload: secondPayload, state: 'frozen' });
+    expect((await model().getProfile(first.profileId))?.currentDraftRevisionId).toBe(
+      second.revisionId,
+    );
+  });
+
+  it('creates a frozen revision and queued release atomically', async () => {
+    const draft = await saveDraft();
+    const result = await freezeDraft(draft.profileId);
 
     expect(result.revision).toMatchObject({
       assetManifest: assets,
       payload,
       state: 'frozen',
     });
-    expect(result.release).toMatchObject({ status: 'queued', version: '2.4.0' });
-    expect(profiles[0].currentDraftRevisionId).toBe(draft.revisionId);
+    expect(result.release).toMatchObject({ status: 'queued', version: '2.4.0-canary.1' });
   });
 
-  it('accepts idempotent release callbacks while rejecting terminal transitions', async () => {
-    const { db } = createModelDb();
-    const model = new DesktopBuildModel(db as any);
-    const draft = await model.saveDraft({
-      actorUserId: 'admin-1',
-      assets,
-      name: 'ComHub',
-      payload,
-    });
-    const { release } = await model.freezeDraftForRelease({
-      actorUserId: 'admin-1',
-      channel: 'canary',
-      profileId: draft.profileId,
-      releaseNotes: 'Canary build',
-      version: '2.4.1-canary.1',
-    });
+  it('rolls back a duplicate channel/version freeze without orphaning a frozen revision', async () => {
+    const draft = await saveDraft();
+    await freezeDraft(draft.profileId);
+    const before = await db
+      .select({ count: desktopBuildProfileRevisions.id })
+      .from(desktopBuildProfileRevisions)
+      .where(eq(desktopBuildProfileRevisions.profileId, draft.profileId));
 
-    await model.markReleaseDispatched({ actorUserId: 'admin-1', releaseId: release.id });
-    await model.markReleaseResult({ releaseId: release.id, status: 'publishing' });
-    const completed = await model.markReleaseResult({ releaseId: release.id, status: 'succeeded' });
+    await expect(freezeDraft(draft.profileId)).rejects.toThrow();
+
+    const after = await db
+      .select({ count: desktopBuildProfileRevisions.id })
+      .from(desktopBuildProfileRevisions)
+      .where(eq(desktopBuildProfileRevisions.profileId, draft.profileId));
+    expect(after).toHaveLength(before.length);
+    expect((await model().getProfile(draft.profileId))?.currentRevision).toBe(2);
+  });
+
+  it('rejects draft writes and freezes for archived profiles', async () => {
+    const draft = await saveDraft();
+    await db
+      .update(desktopBuildProfiles)
+      .set({ status: 'archived' })
+      .where(eq(desktopBuildProfiles.id, draft.profileId));
+
+    await expect(saveDraft({ profileId: draft.profileId })).rejects.toThrow(
+      'DESKTOP_BUILD_PROFILE_ARCHIVED',
+    );
+    await expect(freezeDraft(draft.profileId)).rejects.toThrow('DESKTOP_BUILD_PROFILE_ARCHIVED');
+  });
+
+  it('locks stable identity during later draft saves', async () => {
+    const draft = await saveDraft();
+    const stable = await freezeDraft(draft.profileId, { channel: 'stable', version: '2.4.0' });
+    await dispatchAndSucceed(stable.release.id);
 
     await expect(
-      model.markReleaseResult({ releaseId: release.id, status: 'succeeded' }),
+      saveDraft({
+        payload: { ...payload, applicationId: 'com.qingyou.changed', protocolScheme: 'changed' },
+        profileId: draft.profileId,
+      }),
+    ).rejects.toThrow('DESKTOP_BUILD_IDENTITY_LOCKED');
+  });
+
+  it('locks a pre-existing incompatible draft again when freezing after stable success', async () => {
+    const firstDraft = await saveDraft();
+    const stable = await freezeDraft(firstDraft.profileId, { channel: 'stable', version: '2.4.0' });
+    await saveDraft({
+      payload: { ...payload, applicationId: 'com.qingyou.changed', protocolScheme: 'changed' },
+      profileId: firstDraft.profileId,
+    });
+    await dispatchAndSucceed(stable.release.id);
+
+    await expect(freezeDraft(firstDraft.profileId, { version: '2.4.1-canary.1' })).rejects.toThrow(
+      'DESKTOP_BUILD_IDENTITY_LOCKED',
+    );
+  });
+
+  it('requires dispatch before release result callbacks can report building', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+
+    await expect(
+      model().markReleaseResult({ releaseId: release.id, status: 'building' }),
+    ).rejects.toThrow('DESKTOP_RELEASE_INVALID_TRANSITION');
+    const dispatched = await model().markReleaseDispatched({
+      actorUserId: ADMIN_IDS[1],
+      releaseId: release.id,
+    });
+    const callback = await model().markReleaseResult({ releaseId: release.id, status: 'building' });
+
+    expect(dispatched).toMatchObject({ dispatchedByUserId: ADMIN_IDS[1], status: 'building' });
+    expect(dispatched.dispatchedAt).toBeInstanceOf(Date);
+    expect(callback).toMatchObject({ id: release.id, status: 'building' });
+  });
+
+  it('allows the release lifecycle and rejects terminal transitions', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await model().markReleaseResult({ releaseId: release.id, status: 'publishing' });
+    const completed = await model().markReleaseResult({
+      artifacts,
+      releaseId: release.id,
+      status: 'succeeded',
+    });
+
+    await expect(
+      model().markReleaseResult({ releaseId: release.id, status: 'succeeded' }),
     ).resolves.toMatchObject({ status: 'succeeded' });
     await expect(
-      model.markReleaseResult({ releaseId: release.id, status: 'failed' }),
+      model().markReleaseResult({ releaseId: release.id, status: 'failed' }),
     ).rejects.toThrow('DESKTOP_RELEASE_TERMINAL');
-    expect(completed.status).toBe('succeeded');
+    expect(completed.artifacts).toEqual(artifacts);
+  });
+
+  it.each(['queued', 'building', 'publishing'] as const)(
+    'allows %s releases to fail',
+    async (state) => {
+      const draft = await saveDraft();
+      const { release } = await freezeDraft(draft.profileId);
+
+      if (state !== 'queued') {
+        await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+      }
+      if (state === 'publishing') {
+        await model().markReleaseResult({ releaseId: release.id, status: 'publishing' });
+      }
+
+      await expect(
+        model().markReleaseResult({ releaseId: release.id, status: 'failed' }),
+      ).resolves.toMatchObject({
+        status: 'failed',
+      });
+    },
+  );
+
+  it('sets firstStableReleaseAt once and bounds failure errors', async () => {
+    const draft = await saveDraft();
+    const first = await freezeDraft(draft.profileId, { channel: 'stable', version: '2.4.0' });
+    await dispatchAndSucceed(first.release.id);
+    const firstStableReleaseAt = (await model().getProfile(draft.profileId))?.firstStableReleaseAt;
+
+    const second = await freezeDraft(draft.profileId, { channel: 'stable', version: '2.4.1' });
+    await dispatchAndSucceed(second.release.id);
+    expect((await model().getProfile(draft.profileId))?.firstStableReleaseAt).toEqual(
+      firstStableReleaseAt,
+    );
+
+    const failed = await freezeDraft(draft.profileId, { version: '2.4.2-canary.1' });
+    const release = await model().markReleaseResult({
+      errorSummary: 'x'.repeat(2048),
+      releaseId: failed.release.id,
+      status: 'failed',
+    });
+    expect(release.errorSummary).toHaveLength(1024);
   });
 });

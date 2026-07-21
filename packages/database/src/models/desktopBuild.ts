@@ -7,7 +7,11 @@ import type {
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 
 import { desktopBuildProfileRevisions, desktopBuildProfiles, desktopReleases } from '../schemas';
-import type { DesktopBuildProfileItem, DesktopReleaseItem } from '../schemas/desktopBuild';
+import type {
+  DesktopBuildProfileItem,
+  DesktopReleaseArtifactManifest,
+  DesktopReleaseItem,
+} from '../schemas/desktopBuild';
 import type { LobeChatDatabase, Transaction } from '../type';
 
 const ERROR_SUMMARY_LIMIT = 1024;
@@ -21,7 +25,6 @@ const canTransitionRelease = (current: DesktopReleaseStatus, next: DesktopReleas
   if (next === 'failed') return true;
 
   return (
-    (current === 'queued' && next === 'building') ||
     (current === 'building' && next === 'publishing') ||
     (current === 'publishing' && next === 'succeeded')
   );
@@ -92,7 +95,7 @@ export class DesktopBuildModel {
     status,
     tx,
   }: {
-    artifacts?: Record<string, unknown>;
+    artifacts?: DesktopReleaseArtifactManifest;
     errorSummary?: string;
     release: DesktopReleaseItem;
     status: DesktopReleaseStatus;
@@ -226,6 +229,7 @@ export class DesktopBuildModel {
         ),
       });
       if (!draft) throw new Error('DESKTOP_BUILD_DRAFT_NOT_FOUND');
+      await this.assertLockedIdentity(profile, draft.payload, tx);
 
       const revisionNumber = profile.currentRevision + 1;
       const [revision] = await tx
@@ -300,7 +304,7 @@ export class DesktopBuildModel {
   };
 
   markReleaseResult = async (input: {
-    artifacts?: Record<string, unknown>;
+    artifacts?: DesktopReleaseArtifactManifest;
     errorSummary?: string;
     releaseId: string;
     status: DesktopReleaseStatus;

@@ -9750,7 +9750,7 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{}'::jsonb"
+          "default": "'[]'::jsonb"
         },
         "error_summary": {
           "name": "error_summary",
