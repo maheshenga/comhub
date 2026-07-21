@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto';
 import { deflateSync } from 'node:zlib';
 
 import { describe, expect, it } from 'vitest';
 
 import {
+  completeDesktopBuildAsset,
   createDesktopBuildAssetUpload,
   inspectDesktopBuildAsset,
   readTrustedDesktopBuildAsset,
@@ -44,14 +46,14 @@ const concatBytes = (...parts: Uint8Array[]) => {
 };
 
 const crc32 = (bytes: Uint8Array) => {
-  let crc = 0xffffffff;
+  let crc = 4_294_967_295;
   for (const byte of bytes) {
     crc ^= byte;
     for (let bit = 0; bit < 8; bit++) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+      crc = (crc >>> 1) ^ (3_988_292_384 & -(crc & 1));
     }
   }
-  return (crc ^ 0xffffffff) >>> 0;
+  return (crc ^ 4_294_967_295) >>> 0;
 };
 
 const pngChunk = (type: string, data: Uint8Array) => {
@@ -65,7 +67,9 @@ const pngChunk = (type: string, data: Uint8Array) => {
 };
 
 type PngOptions = {
+  afterIdatChunks?: Uint8Array[];
   bitDepth?: number;
+  beforeIdatChunks?: Uint8Array[];
   colorType?: number;
   compressionMethod?: number;
   filterMethod?: number;
@@ -76,14 +80,24 @@ type PngOptions = {
 
 const pngIdatCache = new Map<string, Uint8Array>();
 
-const createValidPngIdat = (width: number, height: number) => {
-  const key = `${width}x${height}`;
+const pngChannels = (colorType: number) => ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 })[colorType]!;
+
+const createValidPngIdat = (width: number, height: number, bitsPerPixel: number) => {
+  const key = `${width}x${height}:${bitsPerPixel}`;
   const cached = pngIdatCache.get(key);
   if (cached) return cached;
 
-  const idat = new Uint8Array(deflateSync(Buffer.alloc(height * (1 + width * 4))));
+  const idat = new Uint8Array(
+    deflateSync(Buffer.alloc(height * (1 + Math.ceil((width * bitsPerPixel) / 8)))),
+  );
   pngIdatCache.set(key, idat);
   return idat;
+};
+
+const createDifferentValidPngIdat = (width: number, height: number) => {
+  const bytes = Buffer.alloc(height * (1 + width * 4));
+  bytes[1] = 1;
+  return new Uint8Array(deflateSync(bytes));
 };
 
 const png = (width: number, height: number, options: PngOptions = {}) => {
@@ -96,11 +110,15 @@ const png = (width: number, height: number, options: PngOptions = {}) => {
   ihdr[11] = options.filterMethod ?? 0;
   ihdr[12] = options.interlaceMethod ?? 0;
 
-  const idat = options.idat ?? createValidPngIdat(width, height);
+  const bitDepth = options.bitDepth ?? 8;
+  const colorType = options.colorType ?? 6;
+  const idat = options.idat ?? createValidPngIdat(width, height, bitDepth * pngChannels(colorType));
   return concatBytes(
     new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
     pngChunk('IHDR', ihdr),
+    ...(options.beforeIdatChunks ?? []),
     ...(options.includeIdat === false ? [] : [pngChunk('IDAT', idat)]),
+    ...(options.afterIdatChunks ?? []),
     pngChunk('IEND', new Uint8Array()),
   );
 };
@@ -178,6 +196,56 @@ const manifest = () => ({
   },
 });
 
+const assetExtensions = {
+  appPreview: 'png',
+  nsisHeader: 'bmp',
+  nsisSidebar: 'bmp',
+  windowsIcon: 'ico',
+} as const;
+
+const finalAssetKey = (profileId: string, kind: keyof typeof assetExtensions, body: Uint8Array) => {
+  const hash = createHash('sha256').update(body).digest('hex');
+  const bytes = Buffer.from(hash.slice(0, 32), 'hex');
+  bytes[6] = (bytes[6]! & 15) | 80;
+  bytes[8] = (bytes[8]! & 63) | 128;
+  const value = bytes.toString('hex');
+  const assetId = `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+  return `desktop-build-assets/${profileId}/${assetId}.${assetExtensions[kind]}`;
+};
+
+type StoredAsset = { body: Uint8Array; contentType: string };
+
+const createAssetStorage = (objects: Map<string, StoredAsset>) => {
+  const deletedKeys: string[] = [];
+  const privateUploads: Array<{ body: Uint8Array; contentType: string; key: string }> = [];
+
+  return {
+    deletedKeys,
+    privateUploads,
+    storage: {
+      deleteFile: async (key: string) => {
+        deletedKeys.push(key);
+        objects.delete(key);
+      },
+      getFileByteArray: async (key: string) => {
+        const object = objects.get(key);
+        if (!object) throw new Error('OBJECT_NOT_FOUND');
+        return object.body;
+      },
+      getFileMetadata: async (key: string) => {
+        const object = objects.get(key);
+        if (!object) throw new Error('OBJECT_NOT_FOUND');
+        return { contentLength: object.body.byteLength, contentType: object.contentType };
+      },
+      uploadPrivateBuffer: async (key: string, body: Buffer, contentType: string) => {
+        const value = new Uint8Array(body);
+        privateUploads.push({ body: value, contentType, key });
+        objects.set(key, { body: value, contentType });
+      },
+    },
+  };
+};
+
 describe('inspectDesktopBuildAsset', () => {
   it('accepts an ico containing all required sizes', () => {
     expect(inspectDesktopBuildAsset('windowsIcon', ico())).toMatchObject({
@@ -245,6 +313,76 @@ describe('inspectDesktopBuildAsset', () => {
     );
   });
 
+  it.each([
+    [
+      'an indexed palette larger than its bit depth allows',
+      png(1024, 1024, {
+        beforeIdatChunks: [pngChunk('PLTE', new Uint8Array(9))],
+        bitDepth: 1,
+        colorType: 3,
+      }),
+    ],
+    ['a missing indexed palette', png(1024, 1024, { bitDepth: 1, colorType: 3 })],
+    [
+      'a palette after IDAT',
+      png(1024, 1024, { afterIdatChunks: [pngChunk('PLTE', new Uint8Array(3))] }),
+    ],
+    [
+      'indexed transparency before the palette',
+      png(1024, 1024, {
+        beforeIdatChunks: [
+          pngChunk('tRNS', new Uint8Array(1)),
+          pngChunk('PLTE', new Uint8Array(3)),
+        ],
+        bitDepth: 1,
+        colorType: 3,
+      }),
+    ],
+    [
+      'transparency after IDAT',
+      png(1024, 1024, { afterIdatChunks: [pngChunk('tRNS', new Uint8Array(2))], colorType: 0 }),
+    ],
+    [
+      'duplicate transparency chunks',
+      png(1024, 1024, {
+        beforeIdatChunks: [
+          pngChunk('tRNS', new Uint8Array(2)),
+          pngChunk('tRNS', new Uint8Array(2)),
+        ],
+        colorType: 0,
+      }),
+    ],
+    [
+      'an invalid grayscale transparency length',
+      png(1024, 1024, {
+        beforeIdatChunks: [pngChunk('tRNS', new Uint8Array(1))],
+        colorType: 0,
+      }),
+    ],
+    [
+      'an indexed transparency length larger than its palette',
+      png(1024, 1024, {
+        beforeIdatChunks: [
+          pngChunk('PLTE', new Uint8Array(3)),
+          pngChunk('tRNS', new Uint8Array(2)),
+        ],
+        bitDepth: 1,
+        colorType: 3,
+      }),
+    ],
+    [
+      'an invalid truecolor transparency length',
+      png(1024, 1024, {
+        beforeIdatChunks: [pngChunk('tRNS', new Uint8Array(2))],
+        colorType: 2,
+      }),
+    ],
+  ])('rejects a PNG with %s', (_reason, body) => {
+    expect(() => inspectDesktopBuildAsset('appPreview', body)).toThrow(
+      'Invalid desktop build asset',
+    );
+  });
+
   it('rejects an invalid desktop-build dimension', () => {
     expect(() => inspectDesktopBuildAsset('nsisHeader', bmp(149, 57))).toThrow(
       'Invalid desktop build asset',
@@ -291,11 +429,111 @@ describe('inspectDesktopBuildAsset', () => {
       profileId: PROFILE_ID,
       uploadUrl: 'https://uploads.example.test/opaque-signature',
     });
+    expect(result.key).toMatch(
+      new RegExp(
+        `^desktop-build-assets/${PROFILE_ID}/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.png$`,
+      ),
+    );
     expect(JSON.stringify(result)).not.toContain('GET');
+  });
+
+  it('finalizes a staging upload to the hash-derived private key', async () => {
+    const stagingKey = `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`;
+    const body = png(1024, 1024);
+    const { deletedKeys, privateUploads, storage } = createAssetStorage(
+      new Map([[stagingKey, { body, contentType: 'image/png' }]]),
+    );
+
+    const asset = await completeDesktopBuildAsset({
+      key: stagingKey,
+      kind: 'appPreview',
+      profileId: PROFILE_ID,
+      storage,
+    });
+
+    expect(asset).toMatchObject({
+      contentType: 'image/png',
+      key: finalAssetKey(PROFILE_ID, 'appPreview', body),
+      kind: 'appPreview',
+      sha256: createHash('sha256').update(body).digest('hex'),
+      size: body.byteLength,
+    });
+    expect(asset.key).toMatch(
+      new RegExp(
+        `^desktop-build-assets/${PROFILE_ID}/[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.png$`,
+      ),
+    );
+    expect(privateUploads).toEqual([
+      {
+        body,
+        contentType: 'image/png',
+        key: finalAssetKey(PROFILE_ID, 'appPreview', body),
+      },
+    ]);
+    expect(deletedKeys).toEqual([stagingKey]);
+  });
+
+  it('keeps the finalized object stable when a staging key is overwritten later', async () => {
+    const stagingKey = `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`;
+    const body = png(1024, 1024);
+    const changedBody = png(1024, 1024, { idat: createDifferentValidPngIdat(1024, 1024) });
+    const objects = new Map([[stagingKey, { body, contentType: 'image/png' }]]);
+    const { storage } = createAssetStorage(objects);
+
+    const finalized = await completeDesktopBuildAsset({
+      key: stagingKey,
+      kind: 'appPreview',
+      profileId: PROFILE_ID,
+      storage,
+    });
+    objects.set(stagingKey, { body: changedBody, contentType: 'image/png' });
+
+    await expect(
+      readTrustedDesktopBuildAsset({
+        key: finalized.key,
+        kind: 'appPreview',
+        profileId: PROFILE_ID,
+        storage,
+      }),
+    ).resolves.toMatchObject({
+      key: finalAssetKey(PROFILE_ID, 'appPreview', body),
+      sha256: createHash('sha256').update(body).digest('hex'),
+    });
+  });
+
+  it('content-addresses repeated completions of the same bytes to one final key', async () => {
+    const firstStagingKey = `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`;
+    const secondStagingKey = `desktop-build-assets/${PROFILE_ID}/${HEADER_ID}.png`;
+    const body = png(1024, 1024);
+    const objects = new Map([
+      [firstStagingKey, { body, contentType: 'image/png' }],
+      [secondStagingKey, { body, contentType: 'image/png' }],
+    ]);
+    const { privateUploads, storage } = createAssetStorage(objects);
+
+    const first = await completeDesktopBuildAsset({
+      key: firstStagingKey,
+      kind: 'appPreview',
+      profileId: PROFILE_ID,
+      storage,
+    });
+    const second = await completeDesktopBuildAsset({
+      key: secondStagingKey,
+      kind: 'appPreview',
+      profileId: PROFILE_ID,
+      storage,
+    });
+
+    const finalKey = finalAssetKey(PROFILE_ID, 'appPreview', body);
+    expect(first.key).toBe(finalKey);
+    expect(second.key).toBe(finalKey);
+    expect(privateUploads.map((upload) => upload.key)).toEqual([finalKey, finalKey]);
+    expect(objects).toEqual(new Map([[finalKey, { body, contentType: 'image/png' }]]));
   });
 
   it('reads trusted metadata and bytes instead of client-provided values', async () => {
     const body = png(1024, 1024);
+    const key = finalAssetKey(PROFILE_ID, 'appPreview', body);
     const storage = {
       getFileByteArray: async () => body,
       getFileMetadata: async () => ({ contentLength: body.byteLength, contentType: 'image/png' }),
@@ -303,7 +541,7 @@ describe('inspectDesktopBuildAsset', () => {
 
     await expect(
       readTrustedDesktopBuildAsset({
-        key: `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`,
+        key,
         kind: 'appPreview',
         profileId: PROFILE_ID,
         storage,
@@ -324,13 +562,14 @@ describe('inspectDesktopBuildAsset', () => {
     ],
     ['metadata/body size mismatch', { contentLength: 1, contentType: 'image/png' }],
   ])('rejects a %s before trusting an uploaded asset', async (_name, metadata) => {
+    const body = png(1024, 1024);
     await expect(
       readTrustedDesktopBuildAsset({
-        key: `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`,
+        key: finalAssetKey(PROFILE_ID, 'appPreview', body),
         kind: 'appPreview',
         profileId: PROFILE_ID,
         storage: {
-          getFileByteArray: async () => png(1024, 1024),
+          getFileByteArray: async () => body,
           getFileMetadata: async () => metadata,
         },
       }),
@@ -374,25 +613,32 @@ describe('inspectDesktopBuildAsset', () => {
       nsisSidebar: bmp(164, 314),
       windowsIcon: ico(),
     };
-    const storage = {
-      getFileByteArray: async (key: string) => {
-        if (key.endsWith('.png')) return bodies.appPreview;
-        if (key.endsWith('.ico')) return bodies.windowsIcon;
-        return key.includes(HEADER_ID) ? bodies.nsisHeader : bodies.nsisSidebar;
+    const input = {
+      appPreview: {
+        ...manifest().appPreview,
+        key: finalAssetKey(PROFILE_ID, 'appPreview', bodies.appPreview),
       },
-      getFileMetadata: async (key: string) => {
-        const body = await storage.getFileByteArray(key);
-        return {
-          contentLength: body.byteLength,
-          contentType: key.endsWith('.png')
-            ? 'image/png'
-            : key.endsWith('.ico')
-              ? 'image/x-icon'
-              : 'image/bmp',
-        };
+      nsisHeader: {
+        ...manifest().nsisHeader,
+        key: finalAssetKey(PROFILE_ID, 'nsisHeader', bodies.nsisHeader),
+      },
+      nsisSidebar: {
+        ...manifest().nsisSidebar,
+        key: finalAssetKey(PROFILE_ID, 'nsisSidebar', bodies.nsisSidebar),
+      },
+      windowsIcon: {
+        ...manifest().windowsIcon,
+        key: finalAssetKey(PROFILE_ID, 'windowsIcon', bodies.windowsIcon),
       },
     };
-    const input = manifest();
+    const { storage } = createAssetStorage(
+      new Map([
+        [input.appPreview.key, { body: bodies.appPreview, contentType: 'image/png' }],
+        [input.nsisHeader.key, { body: bodies.nsisHeader, contentType: 'image/bmp' }],
+        [input.nsisSidebar.key, { body: bodies.nsisSidebar, contentType: 'image/bmp' }],
+        [input.windowsIcon.key, { body: bodies.windowsIcon, contentType: 'image/x-icon' }],
+      ]),
+    );
     const trustedManifest = await validateDesktopBuildAssetManifest({
       manifest: input,
       profileId: PROFILE_ID,
@@ -407,5 +653,27 @@ describe('inspectDesktopBuildAsset', () => {
     });
     expect(trustedManifest.appPreview.sha256).not.toBe('untrusted');
     expect(trustedManifest.appPreview.size).toBe(bodies.appPreview.byteLength);
+  });
+
+  it('rejects a staging key in a draft manifest before reading storage', async () => {
+    let reads = 0;
+
+    await expect(
+      validateDesktopBuildAssetManifest({
+        manifest: manifest(),
+        profileId: PROFILE_ID,
+        storage: {
+          getFileByteArray: async () => {
+            reads += 1;
+            return png(1024, 1024);
+          },
+          getFileMetadata: async () => {
+            reads += 1;
+            return { contentLength: 1, contentType: 'image/png' };
+          },
+        },
+      }),
+    ).rejects.toThrow('Invalid desktop build asset');
+    expect(reads).toBe(0);
   });
 });

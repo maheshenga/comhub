@@ -641,6 +641,24 @@ describe('FileS3', () => {
     });
   });
 
+  describe('uploadPrivateBuffer', () => {
+    it('never sends a public ACL when global ACL uploads are enabled', async () => {
+      const s3 = new FileS3();
+      mockS3ClientSend.mockResolvedValue({});
+
+      const buffer = Buffer.from('private asset');
+      await s3.uploadPrivateBuffer('desktop-build-assets/private.png', buffer, 'image/png');
+
+      expect(PutObjectCommand).toHaveBeenCalledWith({
+        ACL: undefined,
+        Body: buffer,
+        Bucket: 'test-bucket',
+        ContentType: 'image/png',
+        Key: 'desktop-build-assets/private.png',
+      });
+    });
+  });
+
   describe('uploadContent', () => {
     it('should upload string content with correct parameters', async () => {
       const s3 = new FileS3();

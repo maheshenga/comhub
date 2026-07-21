@@ -6,8 +6,8 @@ import type { DesktopBuildProfileItem } from '@/database/schemas/desktopBuild';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { FileS3 } from '@/server/modules/S3';
 import {
+  completeDesktopBuildAsset,
   createDesktopBuildAssetUpload,
-  readTrustedDesktopBuildAsset,
   validateDesktopBuildAssetManifest,
 } from '@/server/services/desktopBuild/assets';
 import { getDesktopReleaseDiagnostics } from '@/server/services/desktopRelease';
@@ -115,15 +115,14 @@ export const adminDesktopRouter = router({
         audit: (_status, asset) => ({
           action: completeBuildAssetCommand.definition.auditAction,
           payload: {
-            key: input.key,
             kind: input.kind,
             profileId: input.profileId,
-            ...(asset ? { sha256: asset.sha256, size: asset.size } : {}),
+            ...(asset ? { key: asset.key, sha256: asset.sha256, size: asset.size } : {}),
           },
           resourceId: input.profileId,
           resourceType: 'desktopBuildProfile',
         }),
-        effect: () => readTrustedDesktopBuildAsset({ ...input, storage }),
+        effect: () => completeDesktopBuildAsset({ ...input, storage }),
       });
     }),
   createBuildAssetUpload: systemWriteProcedure

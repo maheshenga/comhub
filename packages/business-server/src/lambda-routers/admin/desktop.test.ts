@@ -11,8 +11,8 @@ import { adminDesktopRouter } from './desktop';
 
 const mocks = vi.hoisted(() => ({
   assets: {
+    completeDesktopBuildAsset: vi.fn(),
     createDesktopBuildAssetUpload: vi.fn(),
-    readTrustedDesktopBuildAsset: vi.fn(),
     validateDesktopBuildAssetManifest: vi.fn(),
   },
   audit: {
@@ -68,12 +68,13 @@ const payload = {
 const trustedAsset = {
   contentType: 'image/png',
   height: 1024,
-  key: `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`,
+  key: `desktop-build-assets/${PROFILE_ID}/aaaaaaaa-aaaa-5aaa-8aaa-aaaaaaaaaaaa.png`,
   kind: 'appPreview' as const,
   sha256: 'a'.repeat(64),
   size: 1024,
   width: 1024,
 };
+const stagingAssetKey = `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`;
 const manifest = {
   appPreview: trustedAsset,
   nsisHeader: {
@@ -159,7 +160,7 @@ describe('adminDesktopRouter', () => {
       profileId: PROFILE_ID,
       uploadUrl: 'https://uploads.example.test/opaque-signature',
     });
-    mocks.assets.readTrustedDesktopBuildAsset.mockResolvedValue(trustedAsset);
+    mocks.assets.completeDesktopBuildAsset.mockResolvedValue(trustedAsset);
     mocks.assets.validateDesktopBuildAssetManifest.mockResolvedValue(manifest);
   });
 
@@ -270,7 +271,7 @@ describe('adminDesktopRouter', () => {
     const result = await adminDesktopRouter
       .createCaller({ userId: 'system-admin-user' } as any)
       .completeBuildAssetUpload({
-        key: trustedAsset.key,
+        key: stagingAssetKey,
         kind: 'appPreview',
         profileId: PROFILE_ID,
       });
@@ -279,6 +280,9 @@ describe('adminDesktopRouter', () => {
     expect(mocks.audit.runRequiredAdminAuditExternalEffect).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ audit: expect.any(Function), effect: expect.any(Function) }),
+    );
+    expect(mocks.assets.completeDesktopBuildAsset).toHaveBeenCalledWith(
+      expect.objectContaining({ key: stagingAssetKey, kind: 'appPreview', profileId: PROFILE_ID }),
     );
     const auditOptions = mocks.audit.runRequiredAdminAuditExternalEffect.mock.calls[0]?.[1] as {
       audit: (
@@ -294,7 +298,7 @@ describe('adminDesktopRouter', () => {
     ]);
 
     expect(auditPayloads.map((entry) => entry.payload)).toEqual([
-      { key: trustedAsset.key, kind: 'appPreview', profileId: PROFILE_ID },
+      { kind: 'appPreview', profileId: PROFILE_ID },
       {
         key: trustedAsset.key,
         kind: 'appPreview',
@@ -304,6 +308,7 @@ describe('adminDesktopRouter', () => {
       },
     ]);
     const serializedAuditPayloads = JSON.stringify(auditPayloads);
+    expect(serializedAuditPayloads).not.toContain(stagingAssetKey);
     for (const forbidden of [
       'uploadUrl',
       'headers',

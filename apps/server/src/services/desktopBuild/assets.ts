@@ -58,12 +58,15 @@ const PNG_ADAM7_PASSES = [
   [0, 1, 1, 2],
 ] as const;
 
+const PNG_CRC_INITIAL = 4_294_967_295;
+const PNG_CRC_POLYNOMIAL = 3_988_292_384;
+
 const PNG_CRC_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let index = 0; index < table.length; index++) {
     let value = index;
     for (let bit = 0; bit < 8; bit++) {
-      value = (value >>> 1) ^ (0xedb88320 & -(value & 1));
+      value = (value >>> 1) ^ (PNG_CRC_POLYNOMIAL & -(value & 1));
     }
     table[index] = value >>> 0;
   }
@@ -74,6 +77,12 @@ const normalizedContentType = (value: string | undefined) =>
   value?.split(';')[0]?.trim().toLowerCase();
 
 const isUuid = (value: string) => new RegExp(`^${UUID_PATTERN}$`, 'i').test(value);
+
+const isUuidVersion = (value: string, version: 4 | 5) =>
+  new RegExp(
+    `^[0-9a-f]{8}-[0-9a-f]{4}-${version}[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`,
+    'i',
+  ).test(value);
 
 const readUint16Le = (bytes: Uint8Array, offset: number) =>
   bytes[offset]! | (bytes[offset + 1]! << 8);
@@ -99,11 +108,11 @@ const readInt32Le = (bytes: Uint8Array, offset: number) =>
   (bytes[offset + 3]! << 24);
 
 const readPngCrc32 = (bytes: Uint8Array, start: number, end: number) => {
-  let crc = 0xffffffff;
+  let crc = PNG_CRC_INITIAL;
   for (let index = start; index < end; index++) {
     crc = (crc >>> 8) ^ PNG_CRC_TABLE[(crc ^ bytes[index]!) & 255]!;
   }
-  return (crc ^ 0xffffffff) >>> 0;
+  return (crc ^ PNG_CRC_INITIAL) >>> 0;
 };
 
 const assertExpectedDimensions = (
@@ -175,7 +184,9 @@ const inspectPng = (kind: 'appPreview', bytes: Uint8Array) => {
   let dimensions: { height: number; width: number } | undefined;
   let foundIdat = false;
   let foundPlte = false;
+  let foundTrns = false;
   let idatEnded = false;
+  let paletteEntries = 0;
   const idatChunks: Uint8Array[] = [];
   let seenIdat = false;
 
@@ -236,11 +247,27 @@ const inspectPng = (kind: 'appPreview', bytes: Uint8Array) => {
           header!.colorType === 4 ||
           length === 0 ||
           length % 3 !== 0 ||
-          length > 768
+          length > 768 ||
+          (header!.colorType === 3 && length / 3 > 2 ** header!.bitDepth)
         ) {
           throw assetError();
         }
         foundPlte = true;
+        paletteEntries = length / 3;
+      } else if (type === 'tRNS') {
+        if (foundTrns || seenIdat || header!.colorType === 4 || header!.colorType === 6) {
+          throw assetError();
+        }
+
+        if (
+          (header!.colorType === 0 && length !== 2) ||
+          (header!.colorType === 2 && length !== 6) ||
+          (header!.colorType === 3 && (!foundPlte || length > paletteEntries))
+        ) {
+          throw assetError();
+        }
+
+        foundTrns = true;
       } else if (type === 'IEND') {
         if (
           length !== 0 ||
@@ -329,10 +356,13 @@ const inspectBmp = (kind: 'nsisHeader' | 'nsisSidebar', bytes: Uint8Array) => {
 
 export type DesktopBuildAssetInspection = Omit<DesktopBuildAsset, 'key'>;
 
-export type DesktopBuildAssetStorage = Pick<
-  FileS3,
-  'createPrivatePreSignedUpload' | 'getFileByteArray' | 'getFileMetadata'
->;
+export type DesktopBuildAssetStorage = {
+  createPrivatePreSignedUpload: FileS3['createPrivatePreSignedUpload'];
+  deleteFile: (key: string) => Promise<unknown>;
+  getFileByteArray: FileS3['getFileByteArray'];
+  getFileMetadata: FileS3['getFileMetadata'];
+  uploadPrivateBuffer: (key: string, buffer: Buffer, contentType: string) => Promise<unknown>;
+};
 
 export const getDesktopBuildAssetKey = (
   profileId: string,
@@ -352,6 +382,33 @@ export const isValidDesktopBuildAssetKey = (
   if (!key.startsWith(prefix) || !key.endsWith(extension)) return false;
 
   return isUuid(key.slice(prefix.length, -extension.length));
+};
+
+const isDesktopBuildAssetKeyVersion = (
+  profileId: string,
+  kind: DesktopBuildAssetKind,
+  key: string,
+  version: 4 | 5,
+) => {
+  if (!isValidDesktopBuildAssetKey(profileId, kind, key)) return false;
+
+  const prefix = `${DESKTOP_BUILD_ASSET_PREFIX}/${profileId}/`;
+  const extension = `.${ASSET_SPECS[kind].extension}`;
+  return isUuidVersion(key.slice(prefix.length, -extension.length), version);
+};
+
+const getFinalDesktopBuildAssetKey = (
+  profileId: string,
+  kind: DesktopBuildAssetKind,
+  sha256: string,
+) => {
+  const assetIdBytes = Buffer.from(sha256.slice(0, 32), 'hex');
+  assetIdBytes[6] = (assetIdBytes[6]! & 15) | 80;
+  assetIdBytes[8] = (assetIdBytes[8]! & 63) | 128;
+  const assetId = assetIdBytes.toString('hex');
+  const formattedAssetId = `${assetId.slice(0, 8)}-${assetId.slice(8, 12)}-${assetId.slice(12, 16)}-${assetId.slice(16, 20)}-${assetId.slice(20)}`;
+
+  return getDesktopBuildAssetKey(profileId, kind, formattedAssetId);
 };
 
 export const inspectDesktopBuildAsset = (
@@ -386,7 +443,7 @@ export const createDesktopBuildAssetUpload = async ({
 }) => {
   const profileId = input.profileId ?? randomId();
   const assetId = randomId();
-  if (!isUuid(profileId) || !isUuid(assetId)) throw assetError();
+  if (!isUuid(profileId) || !isUuidVersion(assetId, 4)) throw assetError();
 
   const key = getDesktopBuildAssetKey(profileId, input.kind, assetId);
   const upload = await storage.createPrivatePreSignedUpload(key);
@@ -400,18 +457,20 @@ export const createDesktopBuildAssetUpload = async ({
   };
 };
 
-export const readTrustedDesktopBuildAsset = async ({
+const readDesktopBuildAsset = async ({
+  expectedKeyVersion,
   key,
   kind,
   profileId,
   storage,
 }: {
+  expectedKeyVersion: 4 | 5;
   key: string;
   kind: DesktopBuildAssetKind;
   profileId: string;
   storage: Pick<DesktopBuildAssetStorage, 'getFileByteArray' | 'getFileMetadata'>;
-}): Promise<DesktopBuildAsset> => {
-  if (!isValidDesktopBuildAssetKey(profileId, kind, key)) throw assetError();
+}): Promise<{ asset: DesktopBuildAsset; bytes: Uint8Array }> => {
+  if (!isDesktopBuildAssetKeyVersion(profileId, kind, key, expectedKeyVersion)) throw assetError();
 
   const metadata = await storage.getFileMetadata(key);
   const spec = ASSET_SPECS[kind];
@@ -428,7 +487,79 @@ export const readTrustedDesktopBuildAsset = async ({
 
   const inspection = inspectDesktopBuildAsset(kind, bytes);
   if (inspection.contentType !== spec.contentType) throw assetError();
-  return { ...inspection, key };
+  if (
+    expectedKeyVersion === 5 &&
+    key !== getFinalDesktopBuildAssetKey(profileId, kind, inspection.sha256)
+  ) {
+    throw assetError();
+  }
+
+  return { asset: { ...inspection, key }, bytes };
+};
+
+export const readTrustedDesktopBuildAsset = async ({
+  key,
+  kind,
+  profileId,
+  storage,
+}: {
+  key: string;
+  kind: DesktopBuildAssetKind;
+  profileId: string;
+  storage: Pick<DesktopBuildAssetStorage, 'getFileByteArray' | 'getFileMetadata'>;
+}): Promise<DesktopBuildAsset> => {
+  const { asset } = await readDesktopBuildAsset({
+    expectedKeyVersion: 5,
+    key,
+    kind,
+    profileId,
+    storage,
+  });
+  return asset;
+};
+
+export const completeDesktopBuildAsset = async ({
+  key,
+  kind,
+  profileId,
+  storage,
+}: {
+  key: string;
+  kind: DesktopBuildAssetKind;
+  profileId: string;
+  storage: Pick<
+    DesktopBuildAssetStorage,
+    'deleteFile' | 'getFileByteArray' | 'getFileMetadata' | 'uploadPrivateBuffer'
+  >;
+}): Promise<DesktopBuildAsset> => {
+  const staging = await readDesktopBuildAsset({
+    expectedKeyVersion: 4,
+    key,
+    kind,
+    profileId,
+    storage,
+  });
+  const finalKey = getFinalDesktopBuildAssetKey(profileId, kind, staging.asset.sha256);
+
+  await storage.uploadPrivateBuffer(
+    finalKey,
+    Buffer.from(staging.bytes),
+    staging.asset.contentType,
+  );
+  const finalAsset = await readTrustedDesktopBuildAsset({
+    key: finalKey,
+    kind,
+    profileId,
+    storage,
+  });
+
+  try {
+    await storage.deleteFile(key);
+  } catch {
+    // Staging objects are untrusted and can be safely reclaimed later.
+  }
+
+  return finalAsset;
 };
 
 export const validateDesktopBuildAssetManifest = async ({
