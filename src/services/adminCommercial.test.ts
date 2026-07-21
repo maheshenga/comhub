@@ -1,7 +1,11 @@
 import { ADMIN_COMMANDS } from '@lobechat/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ADMIN_SETTINGS_SECTION_SWR_KEY, ADMIN_SETTINGS_SWR_KEY } from '@/const/adminCacheKeys';
+import {
+  ADMIN_DESKTOP_OVERVIEW_SWR_KEY,
+  ADMIN_SETTINGS_SECTION_SWR_KEY,
+  ADMIN_SETTINGS_SWR_KEY,
+} from '@/const/adminCacheKeys';
 import { DEFAULT_MOBILE_CONFIG, normalizeMobileConfig } from '@/const/mobileConfig';
 import { mutate } from '@/libs/swr';
 import { lambdaClient } from '@/libs/trpc/client';
@@ -13,6 +17,9 @@ vi.mock('@/libs/trpc/client', () => ({
     admin: {
       content: {
         deleteDocument: { mutate: vi.fn() },
+      },
+      desktop: {
+        getOverview: { query: vi.fn() },
       },
       settings: {
         getAll: { query: vi.fn() },
@@ -59,6 +66,12 @@ describe('adminCommercialService NewAPI helpers', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('delegates desktop overview reads to admin.desktop', async () => {
+    await adminCommercialService.getDesktopOverview();
+
+    expect(lambdaClient.admin.desktop.getOverview.query).toHaveBeenCalledTimes(1);
   });
 
   it('calls the AI provider connection test endpoint', async () => {
@@ -442,7 +455,11 @@ describe('adminCommercialService NewAPI helpers', () => {
     vi.mocked(lambdaClient.admin.settings.saveMobileConfigDraft.mutate).mockResolvedValue({
       draft: { config: normalized, revision: 1, updatedAt: '2026-07-20T00:00:00.000Z' },
       history: [],
-      published: { config: DEFAULT_MOBILE_CONFIG, revision: 0, updatedAt: '1970-01-01T00:00:00.000Z' },
+      published: {
+        config: DEFAULT_MOBILE_CONFIG,
+        revision: 0,
+        updatedAt: '1970-01-01T00:00:00.000Z',
+      },
     } as any);
 
     await expect(adminCommercialService.saveMobileSettings(rawConfig)).resolves.toEqual(normalized);
@@ -501,6 +518,23 @@ describe('adminCommercialService NewAPI helpers', () => {
       ADMIN_SETTINGS_SWR_KEY,
     ]);
     expect(mutate).not.toHaveBeenCalledWith(ADMIN_SETTINGS_SECTION_SWR_KEY('operations'));
+  });
+
+  it('invalidates desktop settings and release diagnostics after desktop writes', async () => {
+    vi.mocked(lambdaClient.admin.settings.setAppSettingsBatch.mutate).mockResolvedValue({
+      count: 1,
+      ok: true,
+    });
+
+    await adminCommercialService.setAppSettingsBatch({
+      updates: [{ key: 'desktop.update.serverUrl', value: 'https://updates.example.com' }],
+    });
+
+    expect(vi.mocked(mutate).mock.calls.map(([key]) => key)).toEqual([
+      ADMIN_SETTINGS_SECTION_SWR_KEY('desktop-update'),
+      ADMIN_DESKTOP_OVERVIEW_SWR_KEY,
+      ADMIN_SETTINGS_SWR_KEY,
+    ]);
   });
 
   it('forwards the shared command to the catalogued Better Auth effect boundary', async () => {

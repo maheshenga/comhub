@@ -9,7 +9,7 @@ const readRepoFile = (filePath: string) => readFileSync(path.resolve(repoRoot, f
 describe('admin commercial flow pages', () => {
   it('uses section-scoped reads on all settings-owning pages', () => {
     const sectionPages = {
-      'desktop-update': 'src/features/Admin/AdminDesktopUpdatePage.tsx',
+      'desktop-update': 'src/features/Admin/DesktopControlCenter/index.tsx',
       'expert-plaza': 'src/features/Admin/AdminExpertPlazaPage.tsx',
       'file-storage': 'src/features/Admin/AdminFileStoragePage.tsx',
       'growth': 'src/features/Admin/AdminGrowthPage.tsx',

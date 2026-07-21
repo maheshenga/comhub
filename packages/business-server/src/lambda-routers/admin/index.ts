@@ -3,8 +3,9 @@ import { router } from '@/libs/trpc/lambda';
 import { adminAuditRouter } from './audit-router';
 import { adminContentRouter } from './content';
 import { adminCreditsRouter } from './credits';
-import { adminNewapiProvidersRouter } from './newapiProviders';
+import { adminDesktopRouter } from './desktop';
 import { adminModuleAppsRouter } from './moduleApps';
+import { adminNewapiProvidersRouter } from './newapiProviders';
 import { adminOrdersRouter } from './orders';
 import { adminPlansRouter } from './plans';
 import { adminPptRouter } from './ppt';
@@ -20,6 +21,7 @@ export const adminRouter = router({
   audit: adminAuditRouter,
   content: adminContentRouter,
   credits: adminCreditsRouter,
+  desktop: adminDesktopRouter,
   moduleApps: adminModuleAppsRouter,
   newapiProviders: adminNewapiProvidersRouter,
   orders: adminOrdersRouter,

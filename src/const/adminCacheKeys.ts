@@ -3,11 +3,17 @@ import { type AppSettingsSection } from './appSettingsRegistry';
 export const ADMIN_SETTINGS_SWR_KEY = ['admin-settings'] as const;
 export const ADMIN_SETTINGS_SECTION_SWR_KEY = (section: AppSettingsSection) =>
   ['admin-settings', 'section', section] as const;
+export const ADMIN_DESKTOP_OVERVIEW_SWR_KEY = ['admin-desktop-overview'] as const;
 
-export const getAdminSettingsWriteSWRKeys = (sections: readonly AppSettingsSection[]) => [
-  ...Array.from(new Set(sections)).map(ADMIN_SETTINGS_SECTION_SWR_KEY),
-  ADMIN_SETTINGS_SWR_KEY,
-];
+export const getAdminSettingsWriteSWRKeys = (sections: readonly AppSettingsSection[]) => {
+  const uniqueSections = Array.from(new Set(sections));
+
+  return [
+    ...uniqueSections.map(ADMIN_SETTINGS_SECTION_SWR_KEY),
+    ...(uniqueSections.includes('desktop-update') ? [ADMIN_DESKTOP_OVERVIEW_SWR_KEY] : []),
+    ADMIN_SETTINGS_SWR_KEY,
+  ];
+};
 
 export const BRAND_CONFIG_SWR_KEY = 'brand-config';
 export const PROFILE_INTEREST_AREAS_SWR_KEY = 'profile-interest-areas';

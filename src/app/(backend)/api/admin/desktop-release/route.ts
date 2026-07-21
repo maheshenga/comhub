@@ -3,6 +3,10 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import {
+  normalizeDesktopDownloadUrl,
+  normalizeDesktopUpdateServerUrl,
+} from '@/const/desktopUpdate';
 import { appSettings } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
 import { APP_SETTING_KEYS, invalidateServerAppSettings } from '@/server/services/appSettings';
@@ -20,17 +24,6 @@ const bodySchema = z.object({
 const readStringSetting = async (db: Awaited<ReturnType<typeof getServerDB>>, key: string) => {
   const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
   return typeof row?.value === 'string' ? row.value : null;
-};
-
-const normalizeUrl = (value: string | undefined, field: string) => {
-  const text = value?.trim();
-  if (!text) return undefined;
-
-  try {
-    return new URL(text).toString().replace(/\/$/, '');
-  } catch {
-    throw new Error(`${field} must be a valid URL`);
-  }
 };
 
 const upsertSetting = async (db: any, key: string, value: unknown) =>
@@ -62,7 +55,7 @@ export const resolveDesktopReleaseToken = async (
     encryptedOrLegacySecret,
   );
 
-  return typeof decryptedSecret === 'string' ? decryptedSecret : process.env.CRON_SECRET ?? null;
+  return typeof decryptedSecret === 'string' ? decryptedSecret : (process.env.CRON_SECRET ?? null);
 };
 
 export const POST = async (req: NextRequest) => {
@@ -92,8 +85,16 @@ export const POST = async (req: NextRequest) => {
   let serverUrl: string | undefined;
   let downloadUrl: string | undefined;
   try {
-    serverUrl = normalizeUrl(input.serverUrl, 'serverUrl');
-    downloadUrl = normalizeUrl(input.downloadUrl, 'downloadUrl');
+    const normalizedServerUrl = normalizeDesktopUpdateServerUrl(input.serverUrl);
+    if ('reason' in normalizedServerUrl) {
+      throw new Error(`serverUrl is not allowed: ${normalizedServerUrl.reason}`);
+    }
+    const normalizedDownloadUrl = normalizeDesktopDownloadUrl(input.downloadUrl);
+    if ('reason' in normalizedDownloadUrl) {
+      throw new Error(`downloadUrl is not allowed: ${normalizedDownloadUrl.reason}`);
+    }
+    serverUrl = normalizedServerUrl.url || undefined;
+    downloadUrl = normalizedDownloadUrl.url || undefined;
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }

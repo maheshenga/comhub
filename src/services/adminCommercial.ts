@@ -154,6 +154,8 @@ class AdminCommercialService {
 
   getMobileSettings = async () => (await this.getSettingsSection('mobile')).mobileConfig;
 
+  getDesktopOverview = async () => lambdaClient.admin.desktop.getOverview.query();
+
   getMobileSettingsPublication = async () =>
     lambdaClient.admin.settings.getMobileConfigPublication.query();
 

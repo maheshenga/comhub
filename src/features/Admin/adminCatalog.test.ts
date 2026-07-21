@@ -86,6 +86,14 @@ describe('adminCatalog', () => {
     });
   });
 
+  it('publishes the desktop control center as an active client surface', () => {
+    expect(ADMIN_CATALOG.find(({ id }) => id === 'desktop-update')).toMatchObject({
+      description: '统一管理桌面安装、版本、客户端状态和更新设置',
+      label: '桌面端控制中心',
+      status: 'active',
+    });
+  });
+
   it('assigns read capabilities to high-risk domains', () => {
     const byId = Object.fromEntries(ADMIN_CATALOG.map((item) => [item.id, item]));
 
