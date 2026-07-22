@@ -185,6 +185,7 @@ export class DesktopBuildModel {
     release,
     status,
     tx,
+    revisionlessFailedPreStaging,
     workflowRunId,
     workflowRunUrl,
   }: {
@@ -195,6 +196,7 @@ export class DesktopBuildModel {
     tx: Transaction;
     workflowRunId?: string;
     workflowRunUrl?: string;
+    revisionlessFailedPreStaging?: boolean;
   }) => {
     if (
       (workflowRunId && release.workflowRunId && release.workflowRunId !== workflowRunId) ||
@@ -243,6 +245,7 @@ export class DesktopBuildModel {
         ...(artifacts === undefined ? {} : { artifacts }),
         ...(errorSummary === undefined ? {} : { errorSummary: boundedErrorSummary(errorSummary) }),
         ...workflowMetadata,
+        ...(revisionlessFailedPreStaging ? { revisionlessFailedPreStaging: true } : {}),
         ...(status === 'failed' || status === 'succeeded' ? { completedAt: now } : {}),
         status,
         updatedAt: now,
@@ -580,7 +583,16 @@ export class DesktopBuildModel {
         throw new Error('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
       }
 
-      const updated = await this.transitionRelease({ ...input, release, tx: transaction });
+      const updated = await this.transitionRelease({
+        ...input,
+        release,
+        revisionlessFailedPreStaging:
+          !input.profileRevisionId &&
+          release.status === 'building' &&
+          release.workflowRunId === null &&
+          release.workflowRunUrl === null,
+        tx: transaction,
+      });
       return {
         ...updated,
         transitionedToSucceeded: release.status === 'publishing' && input.status === 'succeeded',
@@ -592,14 +604,12 @@ export class DesktopBuildModel {
 
   private isRevisionlessFailedCallbackAllowed = (
     release: DesktopReleaseItem,
-    input: Pick<
-      Parameters<DesktopBuildModel['markReleaseCallback']>[0],
-      'status' | 'workflowRunId' | 'workflowRunUrl'
-    >,
+    input: { status: DesktopReleaseStatus; workflowRunId: string; workflowRunUrl: string },
   ) =>
     input.status === 'failed' &&
-    ((release.workflowRunId === null && release.workflowRunUrl === null) ||
+    ((release.status === 'building' && release.workflowRunId === null && release.workflowRunUrl === null) ||
       (release.status === 'failed' &&
+        release.revisionlessFailedPreStaging &&
         release.workflowRunId === input.workflowRunId &&
         release.workflowRunUrl === input.workflowRunUrl));
 }

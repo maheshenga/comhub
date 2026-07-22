@@ -54,6 +54,9 @@ describe('desktop build schema', () => {
     expect(
       releaseConfig.columns.find((column) => column.name === 'workflow_run_url')?.dataType,
     ).toBe('string');
+    expect(
+      releaseConfig.columns.find((column) => column.name === 'revisionless_failed_pre_staging')?.dataType,
+    ).toBe('boolean');
   });
 
   it('registers migration 0149', () => {
@@ -100,6 +103,7 @@ describe('desktop build schema', () => {
 
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS "workflow_run_id"');
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS "workflow_run_url"');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "revisionless_failed_pre_staging"');
     for (const statement of statements) await db.execute(sql.raw(statement));
     for (const statement of statements) await db.execute(sql.raw(statement));
   });

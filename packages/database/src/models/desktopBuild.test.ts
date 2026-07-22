@@ -552,6 +552,7 @@ describe('DesktopBuildModel', () => {
         workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567891',
       }),
     ).resolves.toMatchObject({
+      revisionlessFailedPreStaging: true,
       status: 'failed',
       workflowRunId: '1234567891',
       workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567891',
@@ -636,10 +637,39 @@ describe('DesktopBuildModel', () => {
       }),
     ).rejects.toThrow('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
     await expect(model().getRelease(release.id)).resolves.toMatchObject({
+      revisionlessFailedPreStaging: true,
       status: 'failed',
       workflowRunId,
       workflowRunUrl,
     });
+
+    const queued = await freezeDraft((await saveDraft()).profileId, { version: '2.4.0-canary.9' });
+    await expect(
+      model().markReleaseCallback({
+        releaseId: queued.release.id,
+        status: 'failed',
+        workflowRunId: '1234567895',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567895',
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
+
+    const bound = await freezeDraft((await saveDraft()).profileId, { version: '2.4.0-canary.10' });
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: bound.release.id });
+    await model().markReleaseCallback({
+      profileRevisionId: bound.release.frozenRevisionId,
+      releaseId: bound.release.id,
+      status: 'failed',
+      workflowRunId: '1234567896',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567896',
+    });
+    await expect(
+      model().markReleaseCallback({
+        releaseId: bound.release.id,
+        status: 'failed',
+        workflowRunId: '1234567896',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567896',
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
   });
 
   it('allows the release lifecycle and rejects terminal transitions', async () => {

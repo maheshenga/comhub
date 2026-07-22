@@ -8,6 +8,7 @@ import type {
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import {
+  boolean,
   check,
   index,
   integer,
@@ -114,6 +115,7 @@ export const desktopReleases = pgTable(
     errorSummary: varchar('error_summary', { length: 1024 }),
     workflowRunId: varchar('workflow_run_id', { length: 64 }),
     workflowRunUrl: varchar('workflow_run_url', { length: 2048 }),
+    revisionlessFailedPreStaging: boolean('revisionless_failed_pre_staging').default(false).notNull(),
     dispatchedAt: timestamptz('dispatched_at'),
     dispatchedByUserId: text('dispatched_by_user_id').references(() => users.id, {
       onDelete: 'set null',
