@@ -12,6 +12,14 @@ import { lambdaClient } from '@/libs/trpc/client';
 
 import { adminCommercialService } from './adminCommercial';
 
+const PROFILE_CURSOR = Buffer.from(
+  JSON.stringify({
+    createdAt: '2026-07-21T00:00:00.000000Z',
+    id: '11111111-1111-4111-8111-111111111111',
+    v: 2,
+  }),
+).toString('base64url');
+
 vi.mock('@/libs/trpc/client', () => ({
   lambdaClient: {
     admin: {
@@ -19,7 +27,18 @@ vi.mock('@/libs/trpc/client', () => ({
         deleteDocument: { mutate: vi.fn() },
       },
       desktop: {
+        activateDesktopRelease: { mutate: vi.fn() },
+        archiveBuildProfile: { mutate: vi.fn() },
+        completeBuildAssetUpload: { mutate: vi.fn() },
+        createDesktopRelease: { mutate: vi.fn() },
+        createBuildAssetUpload: { mutate: vi.fn() },
+        getBuildProfile: { query: vi.fn() },
         getOverview: { query: vi.fn() },
+        listBuildProfiles: { query: vi.fn() },
+        listDesktopReleases: { query: vi.fn() },
+        reconcileDesktopRelease: { mutate: vi.fn() },
+        retryDesktopRelease: { mutate: vi.fn() },
+        saveBuildProfileDraft: { mutate: vi.fn() },
       },
       settings: {
         getAll: { query: vi.fn() },
@@ -72,6 +91,54 @@ describe('adminCommercialService NewAPI helpers', () => {
     await adminCommercialService.getDesktopOverview();
 
     expect(lambdaClient.admin.desktop.getOverview.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates desktop build profile and protected asset operations to admin.desktop', async () => {
+    const input = { kind: 'appPreview' as const };
+    await adminCommercialService.activateDesktopRelease('44444444-4444-4444-8444-444444444444');
+    await adminCommercialService.createBuildAssetUpload(input);
+    await adminCommercialService.completeBuildAssetUpload({
+      key: 'desktop-build-assets/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.png',
+      kind: 'appPreview',
+      profileId: '11111111-1111-4111-8111-111111111111',
+    });
+    await adminCommercialService.listBuildProfiles({ cursor: PROFILE_CURSOR, limit: 25 });
+    await adminCommercialService.listDesktopReleases({ limit: 10 });
+    await adminCommercialService.createDesktopRelease({
+      channel: 'stable',
+      profileId: '11111111-1111-4111-8111-111111111111',
+      releaseNotes: 'notes',
+      version: '2.4.0',
+    });
+    await adminCommercialService.reconcileDesktopRelease('44444444-4444-4444-8444-444444444444');
+    await adminCommercialService.retryDesktopRelease('44444444-4444-4444-8444-444444444444');
+
+    expect(lambdaClient.admin.desktop.activateDesktopRelease.mutate).toHaveBeenCalledWith({
+      releaseId: '44444444-4444-4444-8444-444444444444',
+    });
+    expect(lambdaClient.admin.desktop.createBuildAssetUpload.mutate).toHaveBeenCalledWith(input);
+    expect(lambdaClient.admin.desktop.completeBuildAssetUpload.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'appPreview' }),
+    );
+    expect(lambdaClient.admin.desktop.listBuildProfiles.query).toHaveBeenCalledWith({
+      cursor: PROFILE_CURSOR,
+      limit: 25,
+    });
+    expect(lambdaClient.admin.desktop.listDesktopReleases.query).toHaveBeenCalledWith({
+      limit: 10,
+    });
+    expect(lambdaClient.admin.desktop.createDesktopRelease.mutate).toHaveBeenCalledWith({
+      channel: 'stable',
+      profileId: '11111111-1111-4111-8111-111111111111',
+      releaseNotes: 'notes',
+      version: '2.4.0',
+    });
+    expect(lambdaClient.admin.desktop.reconcileDesktopRelease.mutate).toHaveBeenCalledWith({
+      releaseId: '44444444-4444-4444-8444-444444444444',
+    });
+    expect(lambdaClient.admin.desktop.retryDesktopRelease.mutate).toHaveBeenCalledWith({
+      releaseId: '44444444-4444-4444-8444-444444444444',
+    });
   });
 
   it('calls the AI provider connection test endpoint', async () => {

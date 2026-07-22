@@ -7,6 +7,7 @@ export const DESKTOP_CONTROL_CENTER_TABS = [
   'distribution',
   'updates',
   'brand',
+  'build-profile',
 ] as const;
 
 export type DesktopControlCenterTab = (typeof DESKTOP_CONTROL_CENTER_TABS)[number];

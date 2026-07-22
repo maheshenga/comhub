@@ -1,4 +1,5 @@
 name: ComHub Desktop Release
+run-name: ComHub Desktop ${{ inputs.version }} (${{ inputs.channel }}) [${{ inputs.release_id }}]
 
 on:
   workflow_dispatch:
@@ -15,6 +16,10 @@ on:
         options:
           - stable
           - canary
+      release_id:
+        description: 'Optional immutable server release ID'
+        required: false
+        type: string
       release_notes:
         description: 'Release notes shown by the desktop updater'
         required: false
@@ -56,14 +61,102 @@ jobs:
   build-windows:
     name: Build Windows Desktop
     runs-on: windows-latest
+    outputs:
+      profile_revision_id: ${{ steps.stage_profile.outputs.profile_revision_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate desktop release version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
+          if ! [[ "$VERSION" =~ $SEMVER_PATTERN ]]; then
+            echo 'Desktop release version must be valid SemVer.'
+            exit 1
+          fi
 
       - name: Setup desktop build
         uses: ./.github/actions/desktop-build-setup
         with:
           node-version: ${{ env.NODEJS_VERSION }}
+
+      - name: Reject unpublished server release
+        id: reject_unpublished
+        if: ${{ inputs.release_id != '' && inputs.publish != 'true' }}
+        shell: bash
+        env:
+          APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc \
+            --arg errorSummary 'Desktop release publish was disabled.' \
+            --arg releaseId "$RELEASE_ID" \
+            --arg status failed \
+            --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
+            --arg workflowRunId "$WORKFLOW_RUN_ID" \
+            --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
+            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+          curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
+          printf 'reported=true\n' >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Stage immutable desktop build profile
+        id: stage_profile
+        if: ${{ inputs.release_id != '' }}
+        shell: bash
+        env:
+          APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          DESKTOP_RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
+          PROFILE_STAGE_DIR: ${{ runner.temp }}/desktop-build-profile
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DESKTOP_RELEASE_TOKEN}" ]; then
+            echo 'Set secret COMHUB_DESKTOP_RELEASE_TOKEN to the backend DESKTOP_RELEASE_TOKEN value.'
+            exit 1
+          fi
+
+          profile_path="$(pnpm exec tsx scripts/electronWorkflow/fetchDesktopBuildProfile.ts "$APP_URL" "$PROFILE_STAGE_DIR" "$RELEASE_ID")"
+          profile_revision_id="$(node -e "const profile=require(process.argv[1]); process.stdout.write(profile.profileRevisionId)" "$profile_path")"
+          printf 'DESKTOP_BUILD_PROFILE_PATH=%s\n' "$profile_path" >> "$GITHUB_ENV"
+          printf 'DESKTOP_BUILD_PROFILE_REVISION_ID=%s\n' "$profile_revision_id" >> "$GITHUB_ENV"
+          printf 'profile_revision_id=%s\n' "$profile_revision_id" >> "$GITHUB_OUTPUT"
+
+      - name: Report build started
+        if: ${{ inputs.release_id != '' }}
+        shell: bash
+        env:
+          APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          PROFILE_REVISION_ID: ${{ steps.stage_profile.outputs.profile_revision_id }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc \
+            --arg profileRevisionId "$PROFILE_REVISION_ID" \
+            --arg releaseId "$RELEASE_ID" \
+            --arg status building \
+            --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
+            --arg workflowRunId "$WORKFLOW_RUN_ID" \
+            --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
+            '{profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+          curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
       - name: Validate update server URL
         if: ${{ inputs.publish == 'true' }}
@@ -77,7 +170,10 @@ jobs:
 
       - name: Set desktop version
         shell: bash
-        run: npm run workflow:set-desktop-version -- "${{ inputs.version }}" "${{ inputs.channel }}"
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ inputs.version }}
+        run: npm run workflow:set-desktop-version -- "$VERSION" "$CHANNEL"
 
       - name: Build Windows installer
         shell: bash
@@ -133,6 +229,32 @@ jobs:
         with:
           artifact-name: merged-release
 
+      - name: Report build failure
+        if: ${{ failure() && inputs.release_id != '' && steps.reject_unpublished.outputs.reported != 'true' }}
+        shell: bash
+        env:
+          APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          PROFILE_REVISION_ID: ${{ steps.stage_profile.outputs.profile_revision_id }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc \
+            --arg errorSummary 'Desktop release build failed.' \
+            --arg profileRevisionId "$PROFILE_REVISION_ID" \
+            --arg releaseId "$RELEASE_ID" \
+            --arg status failed \
+            --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
+            --arg workflowRunId "$WORKFLOW_RUN_ID" \
+            --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
+            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl} + (if $profileRevisionId == "" then {} else {profileRevisionId:$profileRevisionId} end)')"
+          curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
+
   publish:
     name: Publish Desktop Release
     needs: build-windows
@@ -141,6 +263,43 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Require S3 publication configuration for server release
+        if: ${{ inputs.release_id != '' }}
+        shell: bash
+        env:
+          S3_BUCKET: ${{ secrets.DESKTOP_RELEASE_S3_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$S3_BUCKET" ]; then
+            echo 'Desktop release S3 bucket is not configured.'
+            exit 1
+          fi
+
+      - name: Report publishing
+        if: ${{ inputs.release_id != '' }}
+        shell: bash
+        env:
+          APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          PROFILE_REVISION_ID: ${{ needs.build-windows.outputs.profile_revision_id }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc \
+            --arg profileRevisionId "$PROFILE_REVISION_ID" \
+            --arg releaseId "$RELEASE_ID" \
+            --arg status publishing \
+            --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
+            --arg workflowRunId "$WORKFLOW_RUN_ID" \
+            --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
+            '{profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+          curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
       - name: Publish to S3-compatible storage
         uses: ./.github/actions/desktop-publish-s3
@@ -154,7 +313,7 @@ jobs:
           s3-endpoint: ${{ vars.DESKTOP_RELEASE_S3_ENDPOINT || '' }}
 
       - name: Update backend desktop settings
-        if: ${{ inputs.update_backend == 'true' }}
+        if: ${{ inputs.update_backend == 'true' && inputs.release_id == '' }}
         shell: bash
         env:
           APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
@@ -187,8 +346,67 @@ jobs:
             --arg version "$VERSION" \
             '{channel:$channel,downloadUrl:$downloadUrl,releaseNotes:$releaseNotes,serverUrl:$serverUrl,version:$version}')"
 
-          curl -fsS \
-            -H "authorization: Bearer ${RELEASE_TOKEN}" \
-            -H "content-type: application/json" \
-            -d "$payload" \
-            "${app_url}/api/admin/desktop-release"
+          curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${app_url}/api/admin/desktop-release"
+
+      - name: Report release succeeded
+        if: ${{ inputs.release_id != '' }}
+        shell: bash
+        env:
+          APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          CHANNEL: ${{ inputs.channel }}
+          PROFILE_REVISION_ID: ${{ needs.build-windows.outputs.profile_revision_id }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          server_url="${UPDATE_SERVER_URL%/}"
+          server_url="$(printf '%s' "$server_url" | sed -E 's#/(stable|canary|nightly|beta)$##')"
+          installer="$(find release -maxdepth 1 -type f -name '*.exe' | head -n 1)"
+          [ -n "${installer}" ] || { echo 'No Windows installer (*.exe) found in release artifacts.'; exit 1; }
+          installer_name="$(basename "$installer")"
+          download_url="${server_url}/${CHANNEL}/${VERSION}/${installer_name}"
+          payload="$(jq -nc \
+            --arg channel "$CHANNEL" \
+            --arg downloadUrl "$download_url" \
+            --arg profileRevisionId "$PROFILE_REVISION_ID" \
+            --arg releaseId "$RELEASE_ID" \
+            --arg releaseNotes "$RELEASE_NOTES" \
+            --arg serverUrl "$server_url" \
+            --arg status succeeded \
+            --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
+            --arg workflowRunId "$WORKFLOW_RUN_ID" \
+            --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
+            '{channel:$channel,downloadUrl:$downloadUrl,profileRevisionId:$profileRevisionId,releaseId:$releaseId,releaseNotes:$releaseNotes,serverUrl:$serverUrl,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+          curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
+
+      - name: Report publish failure
+        if: ${{ failure() && inputs.release_id != '' }}
+        shell: bash
+        env:
+          APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          PROFILE_REVISION_ID: ${{ needs.build-windows.outputs.profile_revision_id }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -nc \
+            --arg errorSummary 'Desktop release publish failed.' \
+            --arg profileRevisionId "$PROFILE_REVISION_ID" \
+            --arg releaseId "$RELEASE_ID" \
+            --arg status failed \
+            --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
+            --arg workflowRunId "$WORKFLOW_RUN_ID" \
+            --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
+            '{errorSummary:$errorSummary,profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+          curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"

@@ -19,6 +19,10 @@ export default defineConfig({
       '@/libs/trpc': resolve(__dirname, '../../packages/trpc/src'),
       '@/server/globalConfig': resolve(__dirname, '../../apps/server/src/globalConfig'),
       '@/server/modules': resolve(__dirname, '../../apps/server/src/modules'),
+      '@/server/services/desktopBuild/assets': resolve(
+        __dirname,
+        '../../apps/server/src/services/desktopBuild/assets.ts',
+      ),
       '@/server/routers': resolve(__dirname, '../../apps/server/src/routers'),
       '@/server': resolve(__dirname, '../../src/server'),
       '@/types': resolve(__dirname, '../../packages/types/src'),

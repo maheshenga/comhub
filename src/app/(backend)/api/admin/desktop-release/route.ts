@@ -1,65 +1,113 @@
-import { eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import {
-  normalizeDesktopDownloadUrl,
-  normalizeDesktopUpdateServerUrl,
-} from '@/const/desktopUpdate';
-import { appSettings } from '@/database/schemas';
+import { DesktopBuildModel } from '@/database/models/desktopBuild';
 import { getServerDB } from '@/database/server';
-import { APP_SETTING_KEYS, invalidateServerAppSettings } from '@/server/services/appSettings';
-import { decryptAppSettingSecret } from '@/server/services/appSettings/secrets';
+import { invalidateServerAppSettings } from '@/server/services/appSettings';
+import {
+  normalizeDesktopReleasePublication,
+  writeDesktopReleasePublicationSettings,
+} from '@/server/services/desktopRelease/publication';
 
-const bodySchema = z.object({
-  channel: z.enum(['stable', 'canary']).default('stable'),
-  downloadLabel: z.string().optional(),
-  downloadUrl: z.string().optional(),
-  releaseNotes: z.string().optional(),
-  serverUrl: z.string().optional(),
-  version: z.string().trim().min(1),
-});
+import { isDesktopReleaseAuthorized, resolveDesktopReleaseToken } from './auth';
 
-const readStringSetting = async (db: Awaited<ReturnType<typeof getServerDB>>, key: string) => {
-  const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
-  return typeof row?.value === 'string' ? row.value : null;
-};
+const DEFAULT_GITHUB_REPOSITORY = 'maheshenga/comhub';
+const GITHUB_REPOSITORY_PATTERN = /^[\w.-]+\/[\w.-]+$/;
 
-const upsertSetting = async (db: any, key: string, value: unknown) =>
-  db
-    .insert(appSettings)
-    .values({ key, value: value as any })
-    .onConflictDoUpdate({
-      set: { updatedAt: new Date(), value: value as any },
-      target: appSettings.key,
-    });
+const bodySchema = z
+  .object({
+    channel: z.enum(['stable', 'canary']).default('stable'),
+    downloadLabel: z.string().optional(),
+    downloadUrl: z.string().optional(),
+    errorSummary: z.string().max(1024).optional(),
+    profileRevisionId: z.string().uuid().optional(),
+    releaseId: z.string().uuid().optional(),
+    releaseNotes: z.string().optional(),
+    serverUrl: z.string().optional(),
+    status: z.enum(['building', 'failed', 'publishing', 'queued', 'succeeded']).optional(),
+    version: z.string().trim().min(1),
+    workflowRunAttempt: z.number().int().positive().optional(),
+    workflowRunId: z.string().trim().min(1).max(64).regex(/^\d+$/).optional(),
+    workflowRunUrl: z.string().trim().max(2048).optional(),
+  })
+  .superRefine((input, ctx) => {
+    const releaseCallback = input.releaseId !== undefined;
+    if (
+      releaseCallback &&
+      (!input.status || (input.status !== 'failed' && !input.profileRevisionId))
+    ) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'release callback is incomplete' });
+    }
+    if (
+      releaseCallback &&
+      (!input.workflowRunAttempt || !input.workflowRunId || !input.workflowRunUrl)
+    ) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'workflow run metadata is incomplete' });
+    }
+    if (
+      releaseCallback &&
+      input.status === 'succeeded' &&
+      (!input.downloadUrl?.trim() || !input.serverUrl?.trim())
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'release publication metadata is incomplete',
+      });
+    }
+    if (releaseCallback && input.workflowRunUrl && input.workflowRunId) {
+      const repository = process.env.DESKTOP_RELEASE_GITHUB_REPOSITORY ?? DEFAULT_GITHUB_REPOSITORY;
+      if (!GITHUB_REPOSITORY_PATTERN.test(repository)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GitHub repository is invalid' });
+        return;
+      }
+      try {
+        const url = new URL(input.workflowRunUrl);
+        if (
+          url.protocol !== 'https:' ||
+          url.hostname !== 'github.com' ||
+          url.username ||
+          url.password ||
+          url.search ||
+          url.hash ||
+          url.pathname !== `/${repository}/actions/runs/${input.workflowRunId}`
+        ) {
+          throw new Error('invalid');
+        }
+      } catch {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'workflowRunUrl is not allowed' });
+      }
+    }
+  });
 
-/**
- * Desktop release authentication precedence:
- * 1. DESKTOP_RELEASE_TOKEN, when configured.
- * 2. Only when the dedicated token is absent and
- *    ALLOW_LEGACY_CRON_SECRET_FOR_DESKTOP_RELEASE=1, decrypted database cron.secret.
- * 3. In that same opt-in legacy mode, CRON_SECRET only when cron.secret is not a string.
- * Invalid encrypted cron.secret values fail closed without using CRON_SECRET.
- */
-export const resolveDesktopReleaseToken = async (
-  db: Awaited<ReturnType<typeof getServerDB>>,
-): Promise<null | string> => {
-  if (process.env.DESKTOP_RELEASE_TOKEN) return process.env.DESKTOP_RELEASE_TOKEN;
-  if (process.env.ALLOW_LEGACY_CRON_SECRET_FOR_DESKTOP_RELEASE !== '1') return null;
+const getBearerToken = (request: NextRequest) =>
+  (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
 
-  const encryptedOrLegacySecret = await readStringSetting(db, APP_SETTING_KEYS.cronSecret);
-  const decryptedSecret = await decryptAppSettingSecret(
-    APP_SETTING_KEYS.cronSecret,
-    encryptedOrLegacySecret,
-  );
+const releaseTransitionError = (error: unknown) =>
+  error instanceof Error &&
+  [
+    'DESKTOP_RELEASE_INVALID_TRANSITION',
+    'DESKTOP_RELEASE_REVISION_MISMATCH',
+    'DESKTOP_RELEASE_TERMINAL',
+    'DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH',
+    'DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH',
+  ].includes(error.message);
 
-  return typeof decryptedSecret === 'string' ? decryptedSecret : (process.env.CRON_SECRET ?? null);
-};
+const releaseCallbackError = (error: unknown) =>
+  error instanceof Error &&
+  [
+    'DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED',
+    'DESKTOP_RELEASE_CALLBACK_WORKFLOW_REQUIRED',
+    'DESKTOP_RELEASE_PUBLICATION_METADATA_INVALID',
+  ].includes(error.message);
+
+const releasePublicationNormalizationError = (error: unknown) =>
+  error instanceof Error &&
+  (error.message.startsWith('downloadUrl is not allowed:') ||
+    error.message.startsWith('serverUrl is not allowed:'));
 
 export const POST = async (req: NextRequest) => {
-  const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+  const token = getBearerToken(req);
   const db = await getServerDB();
   let expected: null | string;
   try {
@@ -68,7 +116,7 @@ export const POST = async (req: NextRequest) => {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  if (!expected || token !== expected) {
+  if (!expected || !isDesktopReleaseAuthorized(token, expected)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
@@ -82,47 +130,85 @@ export const POST = async (req: NextRequest) => {
     );
   }
 
-  let serverUrl: string | undefined;
-  let downloadUrl: string | undefined;
+  if (!input.releaseId) {
+    try {
+      const publication = normalizeDesktopReleasePublication(input);
+      const count = await db.transaction((tx: any) =>
+        writeDesktopReleasePublicationSettings(tx, publication),
+      );
+      invalidateServerAppSettings();
+      return NextResponse.json({ count, ok: true });
+    } catch (error) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    }
+  }
+
+  const model = new DesktopBuildModel(db);
+
   try {
-    const normalizedServerUrl = normalizeDesktopUpdateServerUrl(input.serverUrl);
-    if ('reason' in normalizedServerUrl) {
-      throw new Error(`serverUrl is not allowed: ${normalizedServerUrl.reason}`);
+    if (input.status === 'succeeded') {
+      const result = await db.transaction(async (tx: any) => {
+        const publication = normalizeDesktopReleasePublication(input);
+        const release = await model.markReleaseCallback(
+          {
+            errorSummary: input.errorSummary,
+            profileRevisionId: input.profileRevisionId,
+            ...(publication.downloadUrl && publication.serverUrl
+              ? {
+                  publishedDownloadUrl: publication.downloadUrl,
+                  publishedServerUrl: publication.serverUrl,
+                }
+              : {}),
+            releaseId: input.releaseId!,
+            status: input.status!,
+            workflowRunAttempt: input.workflowRunAttempt!,
+            workflowRunId: input.workflowRunId!,
+            workflowRunUrl: input.workflowRunUrl!,
+          },
+          tx,
+        );
+        if (!release.transitionedToSucceeded) return { count: 0, updated: false };
+
+        return {
+          count: await writeDesktopReleasePublicationSettings(tx, {
+            ...input,
+            ...publication,
+            channel: release.channel,
+            releaseNotes: release.releaseNotes,
+            version: release.version,
+          }),
+          updated: true,
+        };
+      });
+      if (result.updated) invalidateServerAppSettings();
+      return NextResponse.json({ count: result.count, ok: true });
     }
-    const normalizedDownloadUrl = normalizeDesktopDownloadUrl(input.downloadUrl);
-    if ('reason' in normalizedDownloadUrl) {
-      throw new Error(`downloadUrl is not allowed: ${normalizedDownloadUrl.reason}`);
-    }
-    serverUrl = normalizedServerUrl.url || undefined;
-    downloadUrl = normalizedDownloadUrl.url || undefined;
+
+    await db.transaction((tx: any) =>
+      model.markReleaseCallback(
+        {
+          errorSummary: input.errorSummary,
+          profileRevisionId: input.profileRevisionId,
+          releaseId: input.releaseId!,
+          status: input.status!,
+          workflowRunAttempt: input.workflowRunAttempt!,
+          workflowRunId: input.workflowRunId!,
+          workflowRunUrl: input.workflowRunUrl!,
+        },
+        tx,
+      ),
+    );
+    return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
-  }
-
-  const updates: Array<{ key: string; value: unknown }> = [
-    { key: APP_SETTING_KEYS.desktopUpdateChannel, value: input.channel },
-    { key: APP_SETTING_KEYS.desktopUpdateCurrentVersion, value: input.version },
-  ];
-
-  if (serverUrl) updates.push({ key: APP_SETTING_KEYS.desktopUpdateServerUrl, value: serverUrl });
-  if (input.releaseNotes !== undefined) {
-    updates.push({
-      key: APP_SETTING_KEYS.desktopUpdateReleaseNotes,
-      value: input.releaseNotes.trim(),
-    });
-  }
-  if (downloadUrl) updates.push({ key: APP_SETTING_KEYS.desktopDownloadUrl, value: downloadUrl });
-  if (input.downloadLabel !== undefined) {
-    updates.push({ key: APP_SETTING_KEYS.desktopDownloadLabel, value: input.downloadLabel.trim() });
-  }
-
-  await db.transaction(async (tx) => {
-    for (const update of updates) {
-      await upsertSetting(tx, update.key, update.value);
+    if (releaseCallbackError(error) || releasePublicationNormalizationError(error)) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 400 });
     }
-  });
-
-  invalidateServerAppSettings();
-
-  return NextResponse.json({ count: updates.length, ok: true });
+    if (releaseTransitionError(error)) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 409 });
+    }
+    if (error instanceof Error && error.message === 'DESKTOP_RELEASE_NOT_FOUND') {
+      return NextResponse.json({ error: 'release_not_found' }, { status: 404 });
+    }
+    throw error;
+  }
 };

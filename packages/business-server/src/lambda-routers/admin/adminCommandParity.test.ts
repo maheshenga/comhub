@@ -21,7 +21,18 @@ const middlewareByCapability: Record<AdminCapability, string> = {
   'user.read': 'userReadProcedure',
 };
 
-const externalEffectCommands = new Set(['content.deleteDocument', 'content.deleteFile']);
+const externalEffectCommands = new Set([
+  'content.deleteDocument',
+  'content.deleteFile',
+  'desktop.buildAsset.complete',
+  'desktop.release.dispatch',
+  'desktop.release.reconcile',
+  'desktop.release.retry',
+]);
+const nestedTransactionAuditCommandNames: Record<string, string> = {
+  'desktop.release.activate': 'activateDesktopReleaseCommand',
+  'desktop.release.create': 'createDesktopReleaseCreationCommand',
+};
 const auditOnlyCommands = new Set(['user.impersonate.attempt']);
 
 const sensitiveMutationRouters = [
@@ -39,7 +50,15 @@ const escapeRegExp = (value: string) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, 
 
 const getProcedureSource = (procedurePath: string) => {
   const [, routerName, procedureName] = procedurePath.split('.');
-  const source = readFileSync(path.join(__dirname, `${routerName}.ts`), 'utf8');
+  const settingsProcedureSources: Record<string, string> = {
+    runMaintenance: '../../appSettings/writers/runtimeProcedures.ts',
+    setAppSetting: '../../appSettings/writers/adminProcedures.ts',
+  };
+  const sourcePath =
+    routerName === 'settings' && settingsProcedureSources[procedureName]
+      ? path.resolve(__dirname, settingsProcedureSources[procedureName])
+      : path.join(__dirname, `${routerName}.ts`);
+  const source = readFileSync(sourcePath, 'utf8');
   const marker = `  ${procedureName}:`;
   const start = source.indexOf(marker);
   expect(start, procedurePath).toBeGreaterThanOrEqual(0);
@@ -63,6 +82,20 @@ describe('admin command router parity', () => {
       );
 
       if (definition.confirmationMode === 'none') {
+        const nestedCommandName = nestedTransactionAuditCommandNames[definition.actionId];
+        if (nestedCommandName) {
+          expect(source, definition.actionId).toMatch(
+            new RegExp(
+              `const ${nestedCommandName} = createAdminCommand\\('${escapeRegExp(definition.actionId)}'\\)`,
+            ),
+          );
+          expect(block, definition.actionId).toContain(
+            `action: ${nestedCommandName}.definition.auditAction`,
+          );
+          expect(block, definition.actionId).toMatch(/runRequiredAdminAuditMutation(?:<[^>]+>)?\(/);
+          continue;
+        }
+
         const commandMatch = block.match(/action: ([A-Za-z]\w*)\.definition\.auditAction/);
         expect(commandMatch, definition.actionId).not.toBeNull();
 

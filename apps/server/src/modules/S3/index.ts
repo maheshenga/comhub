@@ -176,10 +176,7 @@ export class S3 {
   }
 
   public async createPreSignedUpload(key: string): Promise<PreSignedUpload> {
-    return this.createPreSignedUploadWithAcl(
-      key,
-      this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined,
-    );
+    return this.createPreSignedUploadWithAcl(key, this.setAcl ? PUBLIC_READ_ACL_HEADER : undefined);
   }
 
   public async createPrivatePreSignedUpload(key: string): Promise<PreSignedUpload> {
@@ -212,6 +209,31 @@ export class S3 {
       Bucket: this.bucket,
       CacheControl: cacheControl,
       ContentType: contentType,
+      Key: path,
+    });
+
+    return this.client.send(command);
+  }
+
+  public async uploadPrivateBuffer(path: string, buffer: Buffer, contentType?: string) {
+    const command = new PutObjectCommand({
+      ACL: undefined,
+      Body: buffer,
+      Bucket: this.bucket,
+      ContentType: contentType,
+      Key: path,
+    });
+
+    return this.client.send(command);
+  }
+
+  public async uploadPrivateBufferIfAbsent(path: string, buffer: Buffer, contentType?: string) {
+    const command = new PutObjectCommand({
+      ACL: undefined,
+      Body: buffer,
+      Bucket: this.bucket,
+      ContentType: contentType,
+      IfNoneMatch: '*',
       Key: path,
     });
 
@@ -395,6 +417,14 @@ export class FileS3 extends S3 {
     cacheControl?: string,
   ) {
     return (await this.getRuntimeS3()).uploadBuffer(path, buffer, contentType, cacheControl);
+  }
+
+  public async uploadPrivateBuffer(path: string, buffer: Buffer, contentType?: string) {
+    return (await this.getRuntimeS3()).uploadPrivateBuffer(path, buffer, contentType);
+  }
+
+  public async uploadPrivateBufferIfAbsent(path: string, buffer: Buffer, contentType?: string) {
+    return (await this.getRuntimeS3()).uploadPrivateBufferIfAbsent(path, buffer, contentType);
   }
 
   public async uploadContent(path: string, content: string) {

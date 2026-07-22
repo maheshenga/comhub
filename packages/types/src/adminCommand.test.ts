@@ -34,6 +34,70 @@ const expectedCommands = {
     reasonPolicy: 'required',
     serverBoundary: trpcBoundary('admin.credits.adjust'),
   },
+  'desktop.buildAsset.complete': {
+    auditAction: 'desktop.buildAsset.complete',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.completeBuildAssetUpload'),
+    severity: 'high',
+  },
+  'desktop.buildProfile.archive': {
+    auditAction: 'desktop.buildProfile.archive',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.archiveBuildProfile'),
+    severity: 'high',
+  },
+  'desktop.buildProfile.saveDraft': {
+    auditAction: 'desktop.buildProfile.saveDraft',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.saveBuildProfileDraft'),
+    severity: 'high',
+  },
+  'desktop.release.create': {
+    auditAction: 'desktop.release.create',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.createDesktopRelease'),
+    severity: 'high',
+  },
+  'desktop.release.activate': {
+    auditAction: 'desktop.release.activate',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.activateDesktopRelease'),
+    severity: 'high',
+  },
+  'desktop.release.dispatch': {
+    auditAction: 'desktop.release.dispatch',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.createDesktopRelease'),
+    severity: 'high',
+  },
+  'desktop.release.reconcile': {
+    auditAction: 'desktop.release.reconcile',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.reconcileDesktopRelease'),
+    severity: 'high',
+  },
+  'desktop.release.retry': {
+    auditAction: 'desktop.release.retry',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.retryDesktopRelease'),
+    severity: 'high',
+  },
   'newapiProvider.deleteInstance': {
     auditAction: 'newapiInstance.delete',
     capability: ADMIN_CAPABILITIES.modelOpsWrite,
@@ -140,7 +204,10 @@ describe('ADMIN_COMMANDS', () => {
         actionId,
         ...expected,
         description: expect.any(String),
-        severity: expect.stringMatching(/^(medium|high|critical)$/),
+        severity:
+          'severity' in expected
+            ? expected.severity
+            : expect.stringMatching(/^(medium|high|critical)$/),
         title: expect.any(String),
       });
     }
@@ -155,7 +222,10 @@ describe('ADMIN_COMMANDS', () => {
     );
 
     expect(new Set(definitions.map(({ actionId }) => actionId)).size).toBe(definitions.length);
-    expect(new Set(boundaryKeys).size).toBe(definitions.length);
+    const duplicateBoundaryKeys = [...new Set(boundaryKeys)].filter(
+      (key) => boundaryKeys.filter((candidate) => candidate === key).length > 1,
+    );
+    expect(duplicateBoundaryKeys).toEqual(['trpc:admin.desktop.createDesktopRelease']);
     expect(ADMIN_COMMANDS['user.impersonate.attempt'].serverBoundary).toEqual({
       kind: 'http',
       method: 'POST',

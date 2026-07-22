@@ -37,6 +37,9 @@ runs:
 
     - name: List artifacts to upload
       shell: bash
+      env:
+        CHANNEL: ${{ inputs.channel }}
+        VERSION: ${{ inputs.version }}
       run: |
         echo "📦 Artifacts to upload to S3:"
         ls -lah release/
@@ -44,7 +47,7 @@ runs:
         echo "📋 YML files in release/:"
         ls -la release/*.yml 2>/dev/null || echo "   ⚠️ No yml files found!"
         echo ""
-        echo "📋 Version: ${{ inputs.version }}, Channel: ${{ inputs.channel }}"
+        echo "📋 Version: $VERSION, Channel: $CHANNEL"
 
     - name: Upload to S3
       shell: bash
