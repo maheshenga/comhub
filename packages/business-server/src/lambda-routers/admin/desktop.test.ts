@@ -55,10 +55,9 @@ vi.mock('./audit', () => mocks.audit);
 const PROFILE_ID = '11111111-1111-4111-8111-111111111111';
 const PROFILE_CURSOR = Buffer.from(
   JSON.stringify({
+    createdAt: '2026-07-21T00:00:00.000000Z',
     id: PROFILE_ID,
-    snapshotAt: '2026-07-21T00:00:00.000Z',
-    updatedAt: '2026-07-21T00:00:00.000Z',
-    v: 1,
+    v: 2,
   }),
 ).toString('base64url');
 const ASSET_ID = '22222222-2222-4222-8222-222222222222';

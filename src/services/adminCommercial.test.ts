@@ -12,6 +12,14 @@ import { lambdaClient } from '@/libs/trpc/client';
 
 import { adminCommercialService } from './adminCommercial';
 
+const PROFILE_CURSOR = Buffer.from(
+  JSON.stringify({
+    createdAt: '2026-07-21T00:00:00.000000Z',
+    id: '11111111-1111-4111-8111-111111111111',
+    v: 2,
+  }),
+).toString('base64url');
+
 vi.mock('@/libs/trpc/client', () => ({
   lambdaClient: {
     admin: {
@@ -89,7 +97,7 @@ describe('adminCommercialService NewAPI helpers', () => {
       kind: 'appPreview',
       profileId: '11111111-1111-4111-8111-111111111111',
     });
-    await adminCommercialService.listBuildProfiles({ cursor: 'eyJ2IjoxfQ', limit: 25 });
+    await adminCommercialService.listBuildProfiles({ cursor: PROFILE_CURSOR, limit: 25 });
     await adminCommercialService.listDesktopReleases({ limit: 10 });
 
     expect(lambdaClient.admin.desktop.createBuildAssetUpload.mutate).toHaveBeenCalledWith(input);
@@ -97,7 +105,7 @@ describe('adminCommercialService NewAPI helpers', () => {
       expect.objectContaining({ kind: 'appPreview' }),
     );
     expect(lambdaClient.admin.desktop.listBuildProfiles.query).toHaveBeenCalledWith({
-      cursor: 'eyJ2IjoxfQ',
+      cursor: PROFILE_CURSOR,
       limit: 25,
     });
     expect(lambdaClient.admin.desktop.listDesktopReleases.query).toHaveBeenCalledWith({

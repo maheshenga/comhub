@@ -379,7 +379,9 @@ const inspectIco = (bytes: Uint8Array) => {
   const sizes = new Set<number>();
   for (const entry of entries) {
     const payload = bytes.subarray(entry.dataOffset, entry.dataEnd);
-    const decoded = hasPngSignature(payload) ? inspectPng(payload) : inspectIcoDib(payload);
+    const decoded = hasPngSignature(payload)
+      ? inspectPng(payload, { height: entry.height, width: entry.width })
+      : inspectIcoDib(payload);
     if (decoded.width !== entry.width || decoded.height !== entry.height) throw assetError();
     if (decoded.width === decoded.height) sizes.add(decoded.width);
   }

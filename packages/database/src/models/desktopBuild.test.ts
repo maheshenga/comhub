@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { DesktopBuildAssetManifest, DesktopBuildProfilePayload } from '@lobechat/types';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestDB } from '../core/getTestDB';
@@ -82,6 +82,12 @@ const artifacts: DesktopReleaseArtifactManifest = [
 let db: LobeChatDatabase;
 
 const model = () => new DesktopBuildModel(db);
+
+const setProfileCreatedAt = (profileId: string, createdAt: string) =>
+  db
+    .update(desktopBuildProfiles)
+    .set({ createdAt: sql`${createdAt}::timestamptz` })
+    .where(eq(desktopBuildProfiles.id, profileId));
 
 const saveDraft = ({
   createIfMissing,
@@ -179,7 +185,7 @@ describe('DesktopBuildModel', () => {
     expect(calls).toEqual([expect.arrayContaining([expect.objectContaining({ limit: 50 })])]);
   });
 
-  it('uses opaque keyset cursors without duplicate or omitted existing profiles', async () => {
+  it('uses immutable microsecond createdAt keysets without duplicate or omitted profiles', async () => {
     const findMany = vi
       .spyOn(db.query.desktopBuildProfiles, 'findMany')
       .mockResolvedValue([] as any);
@@ -199,58 +205,69 @@ describe('DesktopBuildModel', () => {
     const profiles = [
       {
         id: '10000000-0000-4000-8000-000000000001',
-        updatedAt: new Date('2026-01-05T00:00:00.000Z'),
+        createdAt: '2026-01-05T00:00:00.000002Z',
       },
       {
         id: '10000000-0000-4000-8000-000000000002',
-        updatedAt: new Date('2026-01-04T00:00:00.000Z'),
+        createdAt: '2026-01-05T00:00:00.000001Z',
       },
       {
         id: '10000000-0000-4000-8000-000000000003',
-        updatedAt: new Date('2026-01-03T00:00:00.000Z'),
+        createdAt: '2026-01-04T00:00:00.000000Z',
       },
       {
         id: '10000000-0000-4000-8000-000000000004',
-        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+        createdAt: '2026-01-03T00:00:00.000000Z',
       },
       {
         id: '10000000-0000-4000-8000-000000000005',
-        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        createdAt: '2026-01-02T00:00:00.000000Z',
       },
     ];
     for (const profile of profiles) {
       await saveDraft({ createIfMissing: true, profileId: profile.id });
-      await db
-        .update(desktopBuildProfiles)
-        .set({ updatedAt: profile.updatedAt })
-        .where(eq(desktopBuildProfiles.id, profile.id));
+      await setProfileCreatedAt(profile.id, profile.createdAt);
     }
 
-    const firstPage = await model().listProfiles({ limit: 2 });
-    expect(firstPage.items.map((profile) => profile.id)).toEqual(
-      profiles.slice(0, 2).map(({ id }) => id),
-    );
+    const firstPage = await model().listProfiles({ limit: 1 });
+    expect(firstPage.items.map((profile) => profile.id)).toEqual([profiles[0]!.id]);
     expect(firstPage.nextCursor).toMatch(/^[\w-]+$/);
     expect(firstPage.nextCursor).not.toBe('2');
+    expect(
+      JSON.parse(Buffer.from(firstPage.nextCursor!, 'base64url').toString('utf8')),
+    ).toMatchObject({
+      createdAt: profiles[0]!.createdAt,
+      id: profiles[0]!.id,
+      v: 2,
+    });
 
-    // Moving a row already seen on page one must not duplicate it or skip any unseen profile.
+    // Updating a seen and an unseen row must not affect immutable createdAt pagination.
     await db
       .update(desktopBuildProfiles)
       .set({ updatedAt: new Date('2030-01-01T00:00:00.000Z') })
       .where(eq(desktopBuildProfiles.id, profiles[0]!.id));
+    await db
+      .update(desktopBuildProfiles)
+      .set({ updatedAt: new Date('2030-01-01T00:00:00.000Z') })
+      .where(eq(desktopBuildProfiles.id, profiles[1]!.id));
 
-    const secondPage = await model().listProfiles({ cursor: firstPage.nextCursor!, limit: 2 });
-    const thirdPage = await model().listProfiles({ cursor: secondPage.nextCursor!, limit: 2 });
+    const secondPage = await model().listProfiles({ cursor: firstPage.nextCursor!, limit: 1 });
+    const thirdPage = await model().listProfiles({ cursor: secondPage.nextCursor!, limit: 1 });
+    const fourthPage = await model().listProfiles({ cursor: thirdPage.nextCursor!, limit: 1 });
+    const fifthPage = await model().listProfiles({ cursor: fourthPage.nextCursor!, limit: 1 });
 
-    expect(firstPage.items).toHaveLength(2);
-    expect(secondPage.items.map((profile) => profile.id)).toEqual(
-      profiles.slice(2, 4).map(({ id }) => id),
-    );
-    expect(thirdPage.items.map((profile) => profile.id)).toEqual([profiles[4]!.id]);
-    expect(thirdPage.nextCursor).toBeNull();
-    const pagedIds = [...firstPage.items, ...secondPage.items, ...thirdPage.items].map(
-      (profile) => profile.id,
-    );
+    expect(secondPage.items.map((profile) => profile.id)).toEqual([profiles[1]!.id]);
+    expect(thirdPage.items.map((profile) => profile.id)).toEqual([profiles[2]!.id]);
+    expect(fourthPage.items.map((profile) => profile.id)).toEqual([profiles[3]!.id]);
+    expect(fifthPage.items.map((profile) => profile.id)).toEqual([profiles[4]!.id]);
+    expect(fifthPage.nextCursor).toBeNull();
+    const pagedIds = [
+      ...firstPage.items,
+      ...secondPage.items,
+      ...thirdPage.items,
+      ...fourthPage.items,
+      ...fifthPage.items,
+    ].map((profile) => profile.id);
     expect(pagedIds).toEqual(profiles.map(({ id }) => id));
     expect(new Set(pagedIds).size).toBe(profiles.length);
 

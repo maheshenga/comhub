@@ -6,7 +6,7 @@ import type {
   DesktopReleaseChannel,
   DesktopReleaseStatus,
 } from '@lobechat/types';
-import { and, asc, desc, eq, inArray, isNull, lt, lte, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { desktopBuildProfileRevisions, desktopBuildProfiles, desktopReleases } from '../schemas';
 import type {
@@ -20,26 +20,33 @@ const ERROR_SUMMARY_LIMIT = 1024;
 const DEFAULT_PROFILE_PAGE_SIZE = 50;
 const MAX_PROFILE_PAGE_SIZE = 100;
 const PROFILE_CURSOR_MAX_LENGTH = 512;
-const PROFILE_CURSOR_VERSION = 1;
+const PROFILE_CURSOR_VERSION = 2;
 const PROFILE_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PROFILE_CURSOR_CREATED_AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
 
 interface DesktopBuildProfileCursor {
+  createdAt: string;
   id: string;
-  snapshotAt: Date;
-  updatedAt: Date;
 }
 
 const profileCursorError = (): never => {
   throw new Error('DESKTOP_BUILD_PROFILE_CURSOR_INVALID');
 };
 
-const parseProfileCursorDate = (value: unknown) => {
-  if (typeof value !== 'string') return profileCursorError();
+const parseProfileCursorCreatedAt = (value: unknown) => {
+  if (typeof value !== 'string' || !PROFILE_CURSOR_CREATED_AT_PATTERN.test(value)) {
+    return profileCursorError();
+  }
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime()) || date.toISOString() !== value) return profileCursorError();
-  return date;
+  // Validate the calendar portion without using a JavaScript Date as the cursor key.
+  const millisecondTimestamp = `${value.slice(0, 23)}Z`;
+  const date = new Date(millisecondTimestamp);
+  if (Number.isNaN(date.getTime()) || date.toISOString() !== millisecondTimestamp) {
+    return profileCursorError();
+  }
+
+  return value;
 };
 
 const decodeProfileCursor = (value: string): DesktopBuildProfileCursor => {
@@ -62,7 +69,7 @@ const decodeProfileCursor = (value: string): DesktopBuildProfileCursor => {
 
   const record = decoded as Record<string, unknown>;
   if (
-    Object.keys(record).sort().join(',') !== 'id,snapshotAt,updatedAt,v' ||
+    Object.keys(record).sort().join(',') !== 'createdAt,id,v' ||
     record.v !== PROFILE_CURSOR_VERSION ||
     typeof record.id !== 'string' ||
     !PROFILE_ID_PATTERN.test(record.id)
@@ -70,11 +77,7 @@ const decodeProfileCursor = (value: string): DesktopBuildProfileCursor => {
     return profileCursorError();
   }
 
-  const snapshotAt = parseProfileCursorDate(record.snapshotAt);
-  const updatedAt = parseProfileCursorDate(record.updatedAt);
-  if (updatedAt > snapshotAt) return profileCursorError();
-
-  return { id: record.id, snapshotAt, updatedAt };
+  return { createdAt: parseProfileCursorCreatedAt(record.createdAt), id: record.id };
 };
 
 export const isDesktopBuildProfileCursor = (value: string) => {
@@ -86,15 +89,19 @@ export const isDesktopBuildProfileCursor = (value: string) => {
   }
 };
 
-const encodeProfileCursor = ({ id, snapshotAt, updatedAt }: DesktopBuildProfileCursor) =>
+const encodeProfileCursor = ({ createdAt, id }: DesktopBuildProfileCursor) =>
   Buffer.from(
     JSON.stringify({
+      createdAt,
       id,
-      snapshotAt: snapshotAt.toISOString(),
-      updatedAt: updatedAt.toISOString(),
       v: PROFILE_CURSOR_VERSION,
     }),
   ).toString('base64url');
+
+const profileCreatedAtCursor = sql<string>`to_char(
+  ${desktopBuildProfiles.createdAt} AT TIME ZONE 'UTC',
+  'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+)`.as('profile_created_at_cursor');
 
 const isTerminalReleaseStatus = (status: DesktopReleaseStatus) =>
   status === 'failed' || status === 'succeeded';
@@ -237,22 +244,20 @@ export class DesktopBuildModel {
       MAX_PROFILE_PAGE_SIZE,
     );
     const cursor = params.cursor === undefined ? null : decodeProfileCursor(params.cursor);
-    const snapshotAt = cursor?.snapshotAt ?? new Date();
+    const cursorCreatedAt = cursor ? sql`${cursor.createdAt}::timestamptz` : undefined;
     const rows = await this.db.query.desktopBuildProfiles.findMany({
+      extras: { createdAtCursor: profileCreatedAtCursor },
       limit: limit + 1,
-      orderBy: [desc(desktopBuildProfiles.updatedAt), desc(desktopBuildProfiles.id)],
+      orderBy: [desc(desktopBuildProfiles.createdAt), desc(desktopBuildProfiles.id)],
       where: cursor
-        ? and(
-            lte(desktopBuildProfiles.updatedAt, snapshotAt),
-            or(
-              lt(desktopBuildProfiles.updatedAt, cursor.updatedAt),
-              and(
-                eq(desktopBuildProfiles.updatedAt, cursor.updatedAt),
-                lt(desktopBuildProfiles.id, cursor.id),
-              ),
+        ? or(
+            lt(desktopBuildProfiles.createdAt, cursorCreatedAt!),
+            and(
+              eq(desktopBuildProfiles.createdAt, cursorCreatedAt!),
+              lt(desktopBuildProfiles.id, cursor.id),
             ),
           )
-        : lte(desktopBuildProfiles.updatedAt, snapshotAt),
+        : undefined,
     });
     const items = rows.slice(0, limit);
     const lastItem = items.at(-1);
@@ -262,9 +267,8 @@ export class DesktopBuildModel {
       nextCursor:
         rows.length > limit && lastItem
           ? encodeProfileCursor({
+              createdAt: lastItem.createdAtCursor,
               id: lastItem.id,
-              snapshotAt,
-              updatedAt: lastItem.updatedAt,
             })
           : null,
     };

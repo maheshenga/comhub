@@ -286,6 +286,25 @@ describe('inspectDesktopBuildAsset', () => {
     });
   });
 
+  it('rejects an ICO PNG dimension mismatch before building scanlines or inflating', () => {
+    const compressedByte = new Uint8Array(deflateSync(Buffer.alloc(1)));
+
+    expect(() =>
+      inspectDesktopBuildAsset(
+        'windowsIcon',
+        ico([
+          { payload: icoDib(16, 16), width: 16 },
+          {
+            payload: png(2_000_000_000, 2_000_000_000, { idat: compressedByte }),
+            width: 32,
+          },
+          { payload: png(48, 48), width: 48 },
+          { payload: png(256, 256), width: 256 },
+        ]),
+      ),
+    ).toThrow('Invalid desktop build asset');
+  });
+
   it.each([
     [
       'a truncated embedded PNG',
