@@ -80,7 +80,11 @@ describe('POST /api/admin/desktop-release', () => {
     }));
     mockReleaseModel.markReleaseCallback.mockImplementation(async (input: any) => ({
       ...input,
+      channel: input.channel ?? 'stable',
       id: input.releaseId,
+      releaseNotes: input.releaseNotes ?? 'Stored release notes',
+      transitionedToSucceeded: input.status === 'succeeded',
+      version: '2.3.0',
     }));
   });
 
@@ -464,6 +468,80 @@ describe('POST /api/admin/desktop-release', () => {
     expect(values).toHaveBeenCalledWith({
       key: APP_SETTING_KEYS.desktopUpdateCurrentVersion,
       value: '2.3.0',
+    });
+  });
+
+  it('does not overwrite public settings when a succeeded callback is replayed', async () => {
+    const { db, values } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+    mockReleaseModel.markReleaseCallback.mockResolvedValueOnce({
+      channel: 'canary',
+      id: '11111111-1111-4111-8111-111111111111',
+      releaseNotes: 'Stored newer release',
+      status: 'succeeded',
+      transitionedToSucceeded: false,
+      version: '2.4.0',
+    });
+
+    const response = await POST(
+      createRequest({
+        channel: 'stable',
+        downloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.3.0/LobeHub-2.3.0-setup.exe',
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        releaseNotes: 'Stale callback notes',
+        serverUrl: 'https://cdn.qingyouai.com/desktop',
+        status: 'succeeded',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(values).not.toHaveBeenCalled();
+    expect(invalidateServerAppSettings).not.toHaveBeenCalled();
+  });
+
+  it('uses locked release values for the first succeeded callback settings update', async () => {
+    const { db, values } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+    mockReleaseModel.markReleaseCallback.mockResolvedValueOnce({
+      channel: 'canary',
+      id: '11111111-1111-4111-8111-111111111111',
+      releaseNotes: 'Stored release notes',
+      status: 'succeeded',
+      transitionedToSucceeded: true,
+      version: '2.4.0',
+    });
+
+    const response = await POST(
+      createRequest({
+        channel: 'stable',
+        downloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.3.0/LobeHub-2.3.0-setup.exe',
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        releaseNotes: 'Untrusted callback notes',
+        serverUrl: 'https://cdn.qingyouai.com/desktop',
+        status: 'succeeded',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.desktopUpdateChannel,
+      value: 'canary',
+    });
+    expect(values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.desktopUpdateCurrentVersion,
+      value: '2.4.0',
+    });
+    expect(values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.desktopUpdateReleaseNotes,
+      value: 'Stored release notes',
     });
   });
 });

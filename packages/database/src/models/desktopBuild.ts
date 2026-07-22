@@ -584,7 +584,11 @@ export class DesktopBuildModel {
         throw new Error('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
       }
 
-      return this.transitionRelease({ ...input, release, tx: transaction });
+      const updated = await this.transitionRelease({ ...input, release, tx: transaction });
+      return {
+        ...updated,
+        transitionedToSucceeded: release.status === 'publishing' && input.status === 'succeeded',
+      };
     };
 
     return tx ? transition(tx) : this.db.transaction(transition);

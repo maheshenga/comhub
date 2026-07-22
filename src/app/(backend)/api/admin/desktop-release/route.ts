@@ -169,8 +169,8 @@ export const POST = async (req: NextRequest) => {
 
   try {
     if (input.status === 'succeeded') {
-      const count = await db.transaction(async (tx: any) => {
-        await model.markReleaseCallback(
+      const result = await db.transaction(async (tx: any) => {
+        const release = await model.markReleaseCallback(
           {
             errorSummary: input.errorSummary,
             profileRevisionId: input.profileRevisionId,
@@ -181,10 +181,20 @@ export const POST = async (req: NextRequest) => {
           },
           tx,
         );
-        return writePublicSettings(tx, input);
+        if (!release.transitionedToSucceeded) return { count: 0, updated: false };
+
+        return {
+          count: await writePublicSettings(tx, {
+            ...input,
+            channel: release.channel,
+            releaseNotes: release.releaseNotes,
+            version: release.version,
+          }),
+          updated: true,
+        };
       });
-      invalidateServerAppSettings();
-      return NextResponse.json({ count, ok: true });
+      if (result.updated) invalidateServerAppSettings();
+      return NextResponse.json({ count: result.count, ok: true });
     }
 
     await db.transaction((tx: any) =>

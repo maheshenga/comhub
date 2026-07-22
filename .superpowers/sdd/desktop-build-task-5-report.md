@@ -208,3 +208,30 @@ GREEN:
    - 32 callback/auth/profile tests passed.
 
 - A server-managed publish now fails before publishing or success when `DESKTOP_RELEASE_S3_BUCKET` is unavailable. The existing `failure()` callback reports a bounded terminal failure; manual dispatches without `release_id` preserve the publish action's optional-bucket behavior.
+
+## Shell Safety And Success Replay Final Review
+
+RED:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - Failed because `.github/actions/desktop-publish-s3/action.yml` interpolated `${{ inputs.version }}` and `${{ inputs.channel }}` directly in its Bash run block.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - Failed because no desktop version validation step existed before build setup.
+3. `node ..\\..\\node_modules\\vitest\\vitest.mjs run --config vitest.config.mts --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism src/models/desktopBuild.test.ts` from `packages/database`
+   - Failed because the locked callback result had no first-success transition signal.
+4. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism "src/app/(backend)/api/admin/desktop-release/__tests__/route.test.ts"`
+   - Failed because succeeded replays rewrote five public settings and first success used callback channel/version/notes instead of durable release values.
+
+GREEN:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir scripts/electronWorkflow`
+   - 13 workflow/staging tests passed, including referenced composite-action shell binding, SemVer gate, and YAML parsing.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 34 callback/auth/profile tests passed, including replay-noop and durable release settings tests.
+3. `node ..\\..\\node_modules\\vitest\\vitest.mjs run --config vitest.config.mts --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism src/models/desktopBuild.test.ts` from `packages/database`
+   - 24 real PGlite model tests passed, including the locked first-success signal and succeeded replay.
+4. `bun run type-check`, targeted ESLint, targeted Prettier, and `git diff --check`
+   - Passed.
+
+- Composite action shell inputs are env-bound and quoted; the workflow validates SemVer before desktop setup. A succeeded callback updates public settings only for the locked `publishing -> succeeded` transition, using the durable release channel/version/notes. Terminal replay callbacks return success without changing settings.
+- Self-review: no direct GitHub input interpolation remains in the referenced publish action's shell blocks; manual no-release callbacks and optional publication behavior are unchanged; no Task 6 files changed.

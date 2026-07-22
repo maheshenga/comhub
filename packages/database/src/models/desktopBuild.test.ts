@@ -558,6 +558,42 @@ describe('DesktopBuildModel', () => {
     });
   });
 
+  it('reports whether a succeeded callback made the first terminal transition', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567892';
+    const workflowRunUrl = 'https://github.com/maheshenga/comhub/actions/runs/1234567892';
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await model().markReleaseCallback({
+      profileRevisionId: release.frozenRevisionId,
+      releaseId: release.id,
+      status: 'publishing',
+      workflowRunId,
+      workflowRunUrl,
+    });
+
+    await expect(
+      model().markReleaseCallback({
+        profileRevisionId: release.frozenRevisionId,
+        releaseId: release.id,
+        status: 'succeeded',
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).resolves.toMatchObject({ status: 'succeeded', transitionedToSucceeded: true });
+
+    await expect(
+      model().markReleaseCallback({
+        profileRevisionId: release.frozenRevisionId,
+        releaseId: release.id,
+        status: 'succeeded',
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).resolves.toMatchObject({ status: 'succeeded', transitionedToSucceeded: false });
+  });
+
   it('allows the release lifecycle and rejects terminal transitions', async () => {
     const draft = await saveDraft();
     const { release } = await freezeDraft(draft.profileId);

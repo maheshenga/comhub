@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
 
 const workflowPath = path.resolve(__dirname, '../../.github/workflows/comhub-desktop-release.yml');
+const publishActionPath = path.resolve(
+  __dirname,
+  '../../.github/actions/desktop-publish-s3/action.yml',
+);
 
 describe('desktop release workflow contract', () => {
   it('binds all shell data through env and keeps the immutable server-release lifecycle structural', async () => {
@@ -147,5 +151,38 @@ describe('desktop release workflow contract', () => {
     expect(failed.if).toContain('failure()');
     expect(failed.if).toContain("inputs.release_id != ''");
     expect(failed.run).toContain('Desktop release publish failed.');
+  });
+
+  it('binds every shell-facing S3 publish action input through step env', async () => {
+    const document = parseDocument(await readFile(publishActionPath, 'utf8'));
+    const action = document.toJS() as any;
+    const steps = action.runs.steps as Array<any>;
+    const listing = steps.find((step) => step.name === 'List artifacts to upload');
+
+    expect(document.errors).toEqual([]);
+    for (const step of steps) {
+      if (step.run) expect(step.run).not.toContain('${{ inputs.');
+    }
+    expect(listing.env).toEqual({
+      CHANNEL: '${{ inputs.channel }}',
+      VERSION: '${{ inputs.version }}',
+    });
+    expect(listing.run).toContain('Version: $VERSION, Channel: $CHANNEL');
+  });
+
+  it('validates every dispatched desktop version before build setup', async () => {
+    const workflow = parseDocument(await readFile(workflowPath, 'utf8')).toJS() as any;
+    const buildSteps = workflow.jobs['build-windows'].steps as Array<any>;
+    const findStep = (name: string) => buildSteps.find((step) => step.name === name);
+    const validation = findStep('Validate desktop release version');
+    const setup = findStep('Setup desktop build');
+
+    expect(validation.env).toEqual({ VERSION: '${{ inputs.version }}' });
+    expect(validation.run).toContain('SEMVER_PATTERN=');
+    expect(validation.run).toContain('if ! [[ "$VERSION" =~ $SEMVER_PATTERN ]]; then');
+    expect(buildSteps.indexOf(validation)).toBeGreaterThan(
+      buildSteps.findIndex((step) => step.name === 'Checkout'),
+    );
+    expect(buildSteps.indexOf(validation)).toBeLessThan(buildSteps.indexOf(setup));
   });
 });
