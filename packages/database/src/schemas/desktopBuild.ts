@@ -112,6 +112,8 @@ export const desktopReleases = pgTable(
     status: text('status').$type<DesktopReleaseStatus>().default('queued').notNull(),
     artifacts: jsonb('artifacts').$type<DesktopReleaseArtifactManifest>().default([]).notNull(),
     errorSummary: varchar('error_summary', { length: 1024 }),
+    workflowRunId: varchar('workflow_run_id', { length: 64 }),
+    workflowRunUrl: varchar('workflow_run_url', { length: 2048 }),
     dispatchedAt: timestamptz('dispatched_at'),
     dispatchedByUserId: text('dispatched_by_user_id').references(() => users.id, {
       onDelete: 'set null',

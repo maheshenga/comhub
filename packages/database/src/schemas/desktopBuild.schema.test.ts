@@ -48,6 +48,12 @@ describe('desktop build schema', () => {
     expect(releaseConfig.foreignKeys.map((foreignKey) => foreignKey.getName())).toContain(
       'desktop_releases_frozen_revision_id_desktop_build_profile_revisions_id_fk',
     );
+    expect(
+      releaseConfig.columns.find((column) => column.name === 'workflow_run_id')?.dataType,
+    ).toBe('string');
+    expect(
+      releaseConfig.columns.find((column) => column.name === 'workflow_run_url')?.dataType,
+    ).toBe('string');
   });
 
   it('registers migration 0149', () => {
@@ -77,6 +83,23 @@ describe('desktop build schema', () => {
       .map((statement) => statement.trim())
       .filter(Boolean);
 
+    for (const statement of statements) await db.execute(sql.raw(statement));
+    for (const statement of statements) await db.execute(sql.raw(statement));
+  });
+
+  it('registers an idempotent workflow-run migration', async () => {
+    const db = await getTestDB();
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0150_add_desktop_release_workflow_run.sql'),
+      'utf8',
+    );
+    const statements = migration
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.trim())
+      .filter(Boolean);
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "workflow_run_id"');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "workflow_run_url"');
     for (const statement of statements) await db.execute(sql.raw(statement));
     for (const statement of statements) await db.execute(sql.raw(statement));
   });

@@ -1,4 +1,3 @@
-import { eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -7,24 +6,66 @@ import {
   normalizeDesktopDownloadUrl,
   normalizeDesktopUpdateServerUrl,
 } from '@/const/desktopUpdate';
+import { DesktopBuildModel } from '@/database/models/desktopBuild';
 import { appSettings } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
 import { APP_SETTING_KEYS, invalidateServerAppSettings } from '@/server/services/appSettings';
-import { decryptAppSettingSecret } from '@/server/services/appSettings/secrets';
 
-const bodySchema = z.object({
-  channel: z.enum(['stable', 'canary']).default('stable'),
-  downloadLabel: z.string().optional(),
-  downloadUrl: z.string().optional(),
-  releaseNotes: z.string().optional(),
-  serverUrl: z.string().optional(),
-  version: z.string().trim().min(1),
-});
+import { isDesktopReleaseAuthorized, resolveDesktopReleaseToken } from './auth';
 
-const readStringSetting = async (db: Awaited<ReturnType<typeof getServerDB>>, key: string) => {
-  const row = await db.query.appSettings.findFirst({ where: eq(appSettings.key, key) });
-  return typeof row?.value === 'string' ? row.value : null;
-};
+const DEFAULT_GITHUB_REPOSITORY = 'maheshenga/comhub';
+const GITHUB_REPOSITORY_PATTERN = /^[\w.-]+\/[\w.-]+$/;
+
+const bodySchema = z
+  .object({
+    channel: z.enum(['stable', 'canary']).default('stable'),
+    downloadLabel: z.string().optional(),
+    downloadUrl: z.string().optional(),
+    errorSummary: z.string().max(1024).optional(),
+    profileRevisionId: z.string().uuid().optional(),
+    releaseId: z.string().uuid().optional(),
+    releaseNotes: z.string().optional(),
+    serverUrl: z.string().optional(),
+    status: z.enum(['building', 'failed', 'publishing', 'queued', 'succeeded']).optional(),
+    version: z.string().trim().min(1),
+    workflowRunId: z.string().trim().min(1).max(64).regex(/^\d+$/).optional(),
+    workflowRunUrl: z.string().trim().max(2048).optional(),
+  })
+  .superRefine((input, ctx) => {
+    const releaseCallback = input.releaseId !== undefined;
+    if (releaseCallback && (!input.profileRevisionId || !input.status)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'release callback is incomplete' });
+    }
+    if (
+      releaseCallback &&
+      (input.workflowRunId === undefined) !== (input.workflowRunUrl === undefined)
+    ) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'workflow run metadata is incomplete' });
+    }
+    if (releaseCallback && input.workflowRunUrl && input.workflowRunId) {
+      const repository = process.env.DESKTOP_RELEASE_GITHUB_REPOSITORY ?? DEFAULT_GITHUB_REPOSITORY;
+      if (!GITHUB_REPOSITORY_PATTERN.test(repository)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'GitHub repository is invalid' });
+        return;
+      }
+      try {
+        const url = new URL(input.workflowRunUrl);
+        if (
+          url.protocol !== 'https:' ||
+          url.hostname !== 'github.com' ||
+          url.username ||
+          url.password ||
+          url.search ||
+          url.hash ||
+          url.pathname !== `/${repository}/actions/runs/${input.workflowRunId}`
+        ) {
+          throw new Error('invalid');
+        }
+      } catch {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'workflowRunUrl is not allowed' });
+      }
+    }
+  });
 
 const upsertSetting = async (db: any, key: string, value: unknown) =>
   db
@@ -35,31 +76,55 @@ const upsertSetting = async (db: any, key: string, value: unknown) =>
       target: appSettings.key,
     });
 
-/**
- * Desktop release authentication precedence:
- * 1. DESKTOP_RELEASE_TOKEN, when configured.
- * 2. Only when the dedicated token is absent and
- *    ALLOW_LEGACY_CRON_SECRET_FOR_DESKTOP_RELEASE=1, decrypted database cron.secret.
- * 3. In that same opt-in legacy mode, CRON_SECRET only when cron.secret is not a string.
- * Invalid encrypted cron.secret values fail closed without using CRON_SECRET.
- */
-export const resolveDesktopReleaseToken = async (
-  db: Awaited<ReturnType<typeof getServerDB>>,
-): Promise<null | string> => {
-  if (process.env.DESKTOP_RELEASE_TOKEN) return process.env.DESKTOP_RELEASE_TOKEN;
-  if (process.env.ALLOW_LEGACY_CRON_SECRET_FOR_DESKTOP_RELEASE !== '1') return null;
+const getBearerToken = (request: NextRequest) =>
+  (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
 
-  const encryptedOrLegacySecret = await readStringSetting(db, APP_SETTING_KEYS.cronSecret);
-  const decryptedSecret = await decryptAppSettingSecret(
-    APP_SETTING_KEYS.cronSecret,
-    encryptedOrLegacySecret,
-  );
+const getPublicSettingUpdates = (input: z.infer<typeof bodySchema>) => {
+  const normalizedServerUrl = normalizeDesktopUpdateServerUrl(input.serverUrl);
+  if ('reason' in normalizedServerUrl) {
+    throw new Error(`serverUrl is not allowed: ${normalizedServerUrl.reason}`);
+  }
+  const normalizedDownloadUrl = normalizeDesktopDownloadUrl(input.downloadUrl);
+  if ('reason' in normalizedDownloadUrl) {
+    throw new Error(`downloadUrl is not allowed: ${normalizedDownloadUrl.reason}`);
+  }
+  const serverUrl = normalizedServerUrl.url || undefined;
+  const downloadUrl = normalizedDownloadUrl.url || undefined;
 
-  return typeof decryptedSecret === 'string' ? decryptedSecret : (process.env.CRON_SECRET ?? null);
+  const updates: Array<{ key: string; value: unknown }> = [
+    { key: APP_SETTING_KEYS.desktopUpdateChannel, value: input.channel },
+    { key: APP_SETTING_KEYS.desktopUpdateCurrentVersion, value: input.version },
+  ];
+  if (serverUrl) updates.push({ key: APP_SETTING_KEYS.desktopUpdateServerUrl, value: serverUrl });
+  if (input.releaseNotes !== undefined) {
+    updates.push({
+      key: APP_SETTING_KEYS.desktopUpdateReleaseNotes,
+      value: input.releaseNotes.trim(),
+    });
+  }
+  if (downloadUrl) updates.push({ key: APP_SETTING_KEYS.desktopDownloadUrl, value: downloadUrl });
+  if (input.downloadLabel !== undefined) {
+    updates.push({ key: APP_SETTING_KEYS.desktopDownloadLabel, value: input.downloadLabel.trim() });
+  }
+  return updates;
 };
 
+const writePublicSettings = async (db: any, input: z.infer<typeof bodySchema>): Promise<number> => {
+  const updates = getPublicSettingUpdates(input);
+  for (const update of updates) await upsertSetting(db, update.key, update.value);
+  return updates.length;
+};
+
+const releaseTransitionError = (error: unknown) =>
+  error instanceof Error &&
+  [
+    'DESKTOP_RELEASE_INVALID_TRANSITION',
+    'DESKTOP_RELEASE_TERMINAL',
+    'DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH',
+  ].includes(error.message);
+
 export const POST = async (req: NextRequest) => {
-  const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+  const token = getBearerToken(req);
   const db = await getServerDB();
   let expected: null | string;
   try {
@@ -68,7 +133,7 @@ export const POST = async (req: NextRequest) => {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  if (!expected || token !== expected) {
+  if (!expected || !isDesktopReleaseAuthorized(token, expected)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
@@ -82,47 +147,59 @@ export const POST = async (req: NextRequest) => {
     );
   }
 
-  let serverUrl: string | undefined;
-  let downloadUrl: string | undefined;
+  if (!input.releaseId) {
+    try {
+      const count = await db.transaction((tx: any) => writePublicSettings(tx, input));
+      invalidateServerAppSettings();
+      return NextResponse.json({ count, ok: true });
+    } catch (error) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    }
+  }
+
+  const model = new DesktopBuildModel(db);
+  const release = await model.getRelease(input.releaseId);
+  if (!release) return NextResponse.json({ error: 'release_not_found' }, { status: 404 });
+  if (release.frozenRevisionId !== input.profileRevisionId) {
+    return NextResponse.json({ error: 'release_revision_mismatch' }, { status: 409 });
+  }
+
   try {
-    const normalizedServerUrl = normalizeDesktopUpdateServerUrl(input.serverUrl);
-    if ('reason' in normalizedServerUrl) {
-      throw new Error(`serverUrl is not allowed: ${normalizedServerUrl.reason}`);
+    if (input.status === 'succeeded') {
+      const count = await db.transaction(async (tx: any) => {
+        await model.markReleaseResult(
+          {
+            errorSummary: input.errorSummary,
+            releaseId: input.releaseId!,
+            status: input.status!,
+            workflowRunId: input.workflowRunId,
+            workflowRunUrl: input.workflowRunUrl,
+          },
+          tx,
+        );
+        return writePublicSettings(tx, input);
+      });
+      invalidateServerAppSettings();
+      return NextResponse.json({ count, ok: true });
     }
-    const normalizedDownloadUrl = normalizeDesktopDownloadUrl(input.downloadUrl);
-    if ('reason' in normalizedDownloadUrl) {
-      throw new Error(`downloadUrl is not allowed: ${normalizedDownloadUrl.reason}`);
-    }
-    serverUrl = normalizedServerUrl.url || undefined;
-    downloadUrl = normalizedDownloadUrl.url || undefined;
+
+    await db.transaction((tx: any) =>
+      model.markReleaseResult(
+        {
+          errorSummary: input.errorSummary,
+          releaseId: input.releaseId!,
+          status: input.status!,
+          workflowRunId: input.workflowRunId,
+          workflowRunUrl: input.workflowRunUrl,
+        },
+        tx,
+      ),
+    );
+    return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
-  }
-
-  const updates: Array<{ key: string; value: unknown }> = [
-    { key: APP_SETTING_KEYS.desktopUpdateChannel, value: input.channel },
-    { key: APP_SETTING_KEYS.desktopUpdateCurrentVersion, value: input.version },
-  ];
-
-  if (serverUrl) updates.push({ key: APP_SETTING_KEYS.desktopUpdateServerUrl, value: serverUrl });
-  if (input.releaseNotes !== undefined) {
-    updates.push({
-      key: APP_SETTING_KEYS.desktopUpdateReleaseNotes,
-      value: input.releaseNotes.trim(),
-    });
-  }
-  if (downloadUrl) updates.push({ key: APP_SETTING_KEYS.desktopDownloadUrl, value: downloadUrl });
-  if (input.downloadLabel !== undefined) {
-    updates.push({ key: APP_SETTING_KEYS.desktopDownloadLabel, value: input.downloadLabel.trim() });
-  }
-
-  await db.transaction(async (tx) => {
-    for (const update of updates) {
-      await upsertSetting(tx, update.key, update.value);
+    if (releaseTransitionError(error)) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 409 });
     }
-  });
-
-  invalidateServerAppSettings();
-
-  return NextResponse.json({ count: updates.length, ok: true });
+    throw error;
+  }
 };

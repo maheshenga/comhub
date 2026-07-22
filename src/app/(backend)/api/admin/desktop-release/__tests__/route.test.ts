@@ -9,12 +9,19 @@ import {
 
 import { POST } from '../route';
 
-const { mockGetServerDB } = vi.hoisted(() => ({
+const { mockGetServerDB, mockReleaseModel } = vi.hoisted(() => ({
   mockGetServerDB: vi.fn(),
+  mockReleaseModel: {
+    getRelease: vi.fn(),
+    markReleaseResult: vi.fn(),
+  },
 }));
 
 vi.mock('@/database/server', () => ({
   getServerDB: mockGetServerDB,
+}));
+vi.mock('@/database/models/desktopBuild', () => ({
+  DesktopBuildModel: vi.fn(() => mockReleaseModel),
 }));
 
 vi.mock('@/server/services/appSettings', async (importOriginal) => {
@@ -61,6 +68,15 @@ describe('POST /api/admin/desktop-release', () => {
     vi.clearAllMocks();
     process.env.DESKTOP_RELEASE_TOKEN = 'dedicated-secret';
     process.env.KEY_VAULTS_SECRET = TEST_KEY_VAULTS_SECRET;
+    mockReleaseModel.getRelease.mockResolvedValue({
+      frozenRevisionId: '22222222-2222-4222-8222-222222222222',
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'building',
+    });
+    mockReleaseModel.markReleaseResult.mockImplementation(async (input: any) => ({
+      ...input,
+      id: input.releaseId,
+    }));
   });
 
   afterEach(() => {
@@ -172,5 +188,129 @@ describe('POST /api/admin/desktop-release', () => {
 
     expect(response.status).toBe(401);
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('preserves the manual callback path when releaseId is absent', async () => {
+    const { db, values } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(createRequest({ version: '2.3.0' }));
+
+    expect(response.status).toBe(200);
+    expect(mockReleaseModel.getRelease).not.toHaveBeenCalled();
+    expect(values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.desktopUpdateCurrentVersion,
+      value: '2.3.0',
+    });
+  });
+
+  it('preserves manual callback compatibility when unknown release fields are present without releaseId', async () => {
+    const { db } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        status: 'succeeded',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockReleaseModel.getRelease).not.toHaveBeenCalled();
+  });
+
+  it('binds release callbacks to their frozen revision and durable GitHub run metadata', async () => {
+    const { db, values } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'building',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockReleaseModel.markReleaseResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'building',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+      expect.anything(),
+    );
+    expect(values).not.toHaveBeenCalled();
+  });
+
+  it('rejects mismatched profile revisions, invalid GitHub run URLs, and terminal callbacks', async () => {
+    const { db, insert } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+    mockReleaseModel.getRelease.mockResolvedValueOnce({
+      frozenRevisionId: '33333333-3333-4333-8333-333333333333',
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'building',
+    });
+
+    const mismatch = await POST(
+      createRequest({
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'publishing',
+        version: '2.3.0',
+      }),
+    );
+    expect(mismatch.status).toBe(409);
+
+    const invalidUrl = await POST(
+      createRequest({
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'building',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/other/repository/actions/runs/1234567890',
+      }),
+    );
+    expect(invalidUrl.status).toBe(400);
+
+    mockReleaseModel.markReleaseResult.mockRejectedValueOnce(new Error('DESKTOP_RELEASE_TERMINAL'));
+    const terminal = await POST(
+      createRequest({
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'succeeded',
+        version: '2.3.0',
+      }),
+    );
+    expect(terminal.status).toBe(409);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('updates public settings only after a succeeded release within the release transaction', async () => {
+    const { db, values } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'succeeded',
+        version: '2.3.0',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(db.transaction).toHaveBeenCalled();
+    expect(values).toHaveBeenCalledWith({
+      key: APP_SETTING_KEYS.desktopUpdateCurrentVersion,
+      value: '2.3.0',
+    });
   });
 });

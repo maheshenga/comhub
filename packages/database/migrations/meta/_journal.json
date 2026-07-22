@@ -1071,6 +1071,13 @@
       "when": 1784664573621,
       "tag": "0149_add_desktop_build_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1785081600000,
+      "tag": "0150_add_desktop_release_workflow_run",
+      "breakpoints": true
     }
   ],
   "version": "6"

@@ -185,14 +185,41 @@ export class DesktopBuildModel {
     release,
     status,
     tx,
+    workflowRunId,
+    workflowRunUrl,
   }: {
     artifacts?: DesktopReleaseArtifactManifest;
     errorSummary?: string;
     release: DesktopReleaseItem;
     status: DesktopReleaseStatus;
     tx: Transaction;
+    workflowRunId?: string;
+    workflowRunUrl?: string;
   }) => {
-    if (release.status === status) return release;
+    if (
+      (workflowRunId && release.workflowRunId && release.workflowRunId !== workflowRunId) ||
+      (workflowRunUrl && release.workflowRunUrl && release.workflowRunUrl !== workflowRunUrl)
+    ) {
+      throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH');
+    }
+
+    const workflowMetadata = {
+      ...(workflowRunId && !release.workflowRunId ? { workflowRunId } : {}),
+      ...(workflowRunUrl && !release.workflowRunUrl ? { workflowRunUrl } : {}),
+    };
+
+    if (release.status === status) {
+      if (release.status !== 'building' || Object.keys(workflowMetadata).length === 0)
+        return release;
+
+      const [updated] = await tx
+        .update(desktopReleases)
+        .set({ ...workflowMetadata, updatedAt: new Date() })
+        .where(eq(desktopReleases.id, release.id))
+        .returning();
+      if (!updated) throw new Error('DESKTOP_RELEASE_NOT_FOUND');
+      return updated;
+    }
     if (isTerminalReleaseStatus(release.status)) throw new Error('DESKTOP_RELEASE_TERMINAL');
     if (!canTransitionRelease(release.status, status)) {
       throw new Error('DESKTOP_RELEASE_INVALID_TRANSITION');
@@ -215,6 +242,7 @@ export class DesktopBuildModel {
       .set({
         ...(artifacts === undefined ? {} : { artifacts }),
         ...(errorSummary === undefined ? {} : { errorSummary: boundedErrorSummary(errorSummary) }),
+        ...workflowMetadata,
         ...(status === 'failed' || status === 'succeeded' ? { completedAt: now } : {}),
         status,
         updatedAt: now,
@@ -282,6 +310,11 @@ export class DesktopBuildModel {
   getRevision = (revisionId: string) =>
     this.db.query.desktopBuildProfileRevisions.findFirst({
       where: eq(desktopBuildProfileRevisions.id, revisionId),
+    });
+
+  getRelease = (releaseId: string) =>
+    this.db.query.desktopReleases.findFirst({
+      where: eq(desktopReleases.id, releaseId),
     });
 
   getRevisionsByIds = (revisionIds: string[]) => {
@@ -500,17 +533,24 @@ export class DesktopBuildModel {
     });
   };
 
-  markReleaseResult = async (input: {
-    artifacts?: DesktopReleaseArtifactManifest;
-    errorSummary?: string;
-    releaseId: string;
-    status: DesktopReleaseStatus;
-  }) => {
+  markReleaseResult = async (
+    input: {
+      artifacts?: DesktopReleaseArtifactManifest;
+      errorSummary?: string;
+      releaseId: string;
+      status: DesktopReleaseStatus;
+      workflowRunId?: string;
+      workflowRunUrl?: string;
+    },
+    tx?: Transaction,
+  ) => {
     if (input.status === 'queued') throw new Error('DESKTOP_RELEASE_INVALID_TRANSITION');
 
-    return this.db.transaction(async (tx) => {
-      const release = await this.lockRelease(input.releaseId, tx);
-      return this.transitionRelease({ ...input, release, tx });
-    });
+    const transition = async (transaction: Transaction) => {
+      const release = await this.lockRelease(input.releaseId, transaction);
+      return this.transitionRelease({ ...input, release, tx: transaction });
+    };
+
+    return tx ? transition(tx) : this.db.transaction(transition);
   };
 }

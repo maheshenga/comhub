@@ -456,6 +456,33 @@ describe('DesktopBuildModel', () => {
     expect(callback).toMatchObject({ id: release.id, status: 'building' });
   });
 
+  it('persists workflow run metadata on idempotent building callbacks', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[1], releaseId: release.id });
+
+    const callback = await model().markReleaseResult({
+      releaseId: release.id,
+      status: 'building',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+
+    expect(callback).toMatchObject({
+      status: 'building',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+    await expect(
+      model().markReleaseResult({
+        releaseId: release.id,
+        status: 'building',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    ).resolves.toMatchObject({ workflowRunId: '1234567890' });
+  });
+
   it('allows the release lifecycle and rejects terminal transitions', async () => {
     const draft = await saveDraft();
     const { release } = await freezeDraft(draft.profileId);
