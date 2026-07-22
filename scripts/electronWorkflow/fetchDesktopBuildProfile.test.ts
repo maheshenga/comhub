@@ -127,10 +127,75 @@ describe('stageDesktopBuildProfile', () => {
     expect(cancellationCompleted).toBe(true);
   });
 
-  it('rejects a checksum mismatch and removes partial staged files', async () => {
+  it('cancels a redirect body before rejecting a missing location', async () => {
+    const outputDir = await createOutputDir();
+    let cancellationCompleted = false;
+    const redirectBody = new ReadableStream({
+      cancel: async () => {
+        await Promise.resolve();
+        cancellationCompleted = true;
+      },
+      start(controller) {
+        controller.enqueue(new Uint8Array(1024));
+      },
+    });
+    const responses = new Map<string, Response>([
+      ['https://assets.example.test/appPreview', new Response(redirectBody, { status: 302 })],
+    ]);
+
+    await expect(
+      stageDesktopBuildProfile({
+        appUrl: 'https://chat.qingyouai.com/',
+        fetcher: fetcherFor(profileResponse(), responses),
+        outputDir,
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        token: 'release-token',
+      }),
+    ).rejects.toThrow('DESKTOP_BUILD_PROFILE_ASSET_REDIRECT_INVALID');
+
+    expect(cancellationCompleted).toBe(true);
+  });
+
+  it('cancels every redirect body before rejecting exhausted redirects', async () => {
+    const outputDir = await createOutputDir();
+    let cancellations = 0;
+    const redirectResponse = (location: string) =>
+      new Response(
+        new ReadableStream({
+          cancel: async () => {
+            await Promise.resolve();
+            cancellations++;
+          },
+          start(controller) {
+            controller.enqueue(new Uint8Array(1024));
+          },
+        }),
+        { headers: { location }, status: 302 },
+      );
+    const responses = new Map<string, Response>([
+      ['https://assets.example.test/appPreview', redirectResponse('/redirect-1')],
+      ['https://assets.example.test/redirect-1', redirectResponse('/redirect-2')],
+      ['https://assets.example.test/redirect-2', redirectResponse('/redirect-3')],
+      ['https://assets.example.test/redirect-3', redirectResponse('/redirect-4')],
+    ]);
+
+    await expect(
+      stageDesktopBuildProfile({
+        appUrl: 'https://chat.qingyouai.com/',
+        fetcher: fetcherFor(profileResponse(), responses),
+        outputDir,
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        token: 'release-token',
+      }),
+    ).rejects.toThrow('DESKTOP_BUILD_PROFILE_ASSET_REDIRECT_INVALID');
+
+    expect(cancellations).toBe(4);
+  });
+
+  it('removes prior staged assets and profile output when a later asset checksum fails', async () => {
     const outputDir = await createOutputDir();
     const profile = profileResponse();
-    profile.assets.appPreview.sha256 = '0'.repeat(64);
+    profile.assets.nsisHeader.sha256 = '0'.repeat(64);
 
     await expect(
       stageDesktopBuildProfile({
@@ -142,6 +207,42 @@ describe('stageDesktopBuildProfile', () => {
       }),
     ).rejects.toThrow('DESKTOP_BUILD_PROFILE_ASSET_CHECKSUM_MISMATCH');
     await expect(readFile(path.join(outputDir, 'app-preview.png'))).rejects.toThrow();
+    await expect(readFile(path.join(outputDir, 'nsis-header.bmp'))).rejects.toThrow();
+    await expect(readFile(path.join(outputDir, 'desktop-build-profile.json'))).rejects.toThrow();
+  });
+
+  it('bounds oversized chunked asset streams and cleans prior staged output', async () => {
+    const outputDir = await createOutputDir();
+    const profile = profileResponse();
+    profile.assets.nsisHeader.size = 1;
+    let cancellationCompleted = false;
+    const oversizedBody = new ReadableStream({
+      cancel: async () => {
+        await Promise.resolve();
+        cancellationCompleted = true;
+      },
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2]));
+      },
+    });
+    const responses = new Map<string, Response>([
+      ['https://assets.example.test/nsisHeader', new Response(oversizedBody)],
+    ]);
+
+    await expect(
+      stageDesktopBuildProfile({
+        appUrl: 'https://chat.qingyouai.com',
+        fetcher: fetcherFor(profile, responses),
+        outputDir,
+        releaseId: profile.releaseId,
+        token: 'release-token',
+      }),
+    ).rejects.toThrow('DESKTOP_BUILD_PROFILE_ASSET_TOO_LARGE');
+
+    expect(cancellationCompleted).toBe(true);
+    await expect(readFile(path.join(outputDir, 'app-preview.png'))).rejects.toThrow();
+    await expect(readFile(path.join(outputDir, 'nsis-header.bmp'))).rejects.toThrow();
+    await expect(readFile(path.join(outputDir, 'desktop-build-profile.json'))).rejects.toThrow();
   });
 
   it('rejects oversized content-length values before streaming the response', async () => {

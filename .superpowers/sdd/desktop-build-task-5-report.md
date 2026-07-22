@@ -122,3 +122,29 @@ GREEN:
 ## Authentication Comparator Fix
 
 - Self-review: the test-only change proves an equal-length wrong token is rejected when the constant-time comparator returns false, preserves buffer call-shape and safe length-mismatch coverage, and introduces no secret output or production behavior change.
+
+## Provenance And Staging Re-Review
+
+RED:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism "src/app/(backend)/api/admin/desktop-release/__tests__/route.test.ts" scripts/electronWorkflow/fetchDesktopBuildProfile.test.ts`
+   - Failed with `expected 200 to be 400` for a server-managed failed callback missing both workflow run fields.
+   - Failed redirect cleanup regressions: missing-location cancellation was false and exhausted redirects cancelled 3 rather than 4 response bodies.
+   - Failed the no-content-length oversized chunk regression because cancellation did not occur before the byte-limit error.
+
+GREEN:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism "src/app/(backend)/api/admin/desktop-release/__tests__/route.test.ts" scripts/electronWorkflow/fetchDesktopBuildProfile.test.ts`
+   - 29 callback/staging tests passed.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 31 API/auth/profile tests passed.
+3. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir scripts/electronWorkflow`
+   - 9 staging/workflow tests passed.
+4. `bun run type-check`, targeted ESLint, targeted Prettier, and `git diff --check`
+   - Passed.
+
+## Provenance And Staging Fix
+
+- Every callback with `releaseId` now requires both bounded workflow run fields and the validated GitHub Actions URL before any release mutation. Manual callbacks remain untouched.
+- Redirect bodies are awaited-cancelled before all redirect outcomes, including missing location and redirect exhaustion; non-success profile/asset responses and discarded oversized streams are also cancelled.
+- Later-asset checksum and chunked-overflow tests prove previously written assets and the profile output are removed. Self-review found no changes to workflow shell binding, release revision rules, migration, or secret handling.

@@ -221,6 +221,30 @@ describe('POST /api/admin/desktop-release', () => {
     expect(mockReleaseModel.getRelease).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['missing workflow provenance', {}],
+    ['only workflow run ID', { workflowRunId: '1234567890' }],
+    [
+      'only workflow run URL',
+      { workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890' },
+    ],
+  ])('rejects server callbacks with %s', async (_description, workflowMetadata) => {
+    const { db } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'failed',
+        version: '2.3.0',
+        ...workflowMetadata,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockReleaseModel.markReleaseResult).not.toHaveBeenCalled();
+  });
+
   it('binds release callbacks to their frozen revision and durable GitHub run metadata', async () => {
     const { db, values } = createDb();
     mockGetServerDB.mockResolvedValue(db);
@@ -329,6 +353,8 @@ describe('POST /api/admin/desktop-release', () => {
         releaseId: '11111111-1111-4111-8111-111111111111',
         status: 'publishing',
         version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
       }),
     );
 
@@ -351,6 +377,8 @@ describe('POST /api/admin/desktop-release', () => {
         releaseId: '11111111-1111-4111-8111-111111111111',
         status: 'publishing',
         version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
       }),
     );
     expect(mismatch.status).toBe(409);
@@ -374,6 +402,8 @@ describe('POST /api/admin/desktop-release', () => {
         releaseId: '11111111-1111-4111-8111-111111111111',
         status: 'succeeded',
         version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
       }),
     );
     expect(terminal.status).toBe(409);
@@ -390,6 +420,8 @@ describe('POST /api/admin/desktop-release', () => {
         releaseId: '11111111-1111-4111-8111-111111111111',
         status: 'succeeded',
         version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
       }),
     );
 

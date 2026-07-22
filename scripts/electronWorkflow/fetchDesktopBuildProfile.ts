@@ -32,6 +32,14 @@ const stageError = (code: string): never => {
   throw new Error(code);
 };
 
+const cancelResponseBody = async (response: Response) => {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Preserve the staging error when response cleanup itself fails.
+  }
+};
+
 const parseContentLength = (response: Response) => {
   const value = response.headers.get('content-length');
   if (!value) return undefined;
@@ -40,8 +48,15 @@ const parseContentLength = (response: Response) => {
 };
 
 const readResponseBytes = async (response: Response, limit: number) => {
-  const contentLength = parseContentLength(response);
+  let contentLength: number | undefined;
+  try {
+    contentLength = parseContentLength(response);
+  } catch (error) {
+    await cancelResponseBody(response);
+    throw error;
+  }
   if (contentLength !== undefined && contentLength > limit) {
+    await cancelResponseBody(response);
     return stageError('DESKTOP_BUILD_PROFILE_ASSET_TOO_LARGE');
   }
   if (!response.body) return new Uint8Array();
@@ -54,7 +69,14 @@ const readResponseBytes = async (response: Response, limit: number) => {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > limit) return stageError('DESKTOP_BUILD_PROFILE_ASSET_TOO_LARGE');
+      if (size > limit) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Preserve the byte-limit error when stream cleanup itself fails.
+        }
+        return stageError('DESKTOP_BUILD_PROFILE_ASSET_TOO_LARGE');
+      }
       chunks.push(value);
     }
   } finally {
@@ -77,17 +99,20 @@ const fetchAsset = async (url: string, fetcher: typeof fetch) => {
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
     const response = await fetcher(current, { redirect: 'manual' });
     if (response.status >= 300 && response.status < 400) {
+      await cancelResponseBody(response);
       const location = response.headers.get('location');
       if (!location || redirectCount === MAX_REDIRECTS) {
         return stageError('DESKTOP_BUILD_PROFILE_ASSET_REDIRECT_INVALID');
       }
-      await response.body?.cancel();
       current = new URL(location, current);
       if (current.protocol !== 'https:')
         return stageError('DESKTOP_BUILD_PROFILE_ASSET_REDIRECT_INVALID');
       continue;
     }
-    if (!response.ok) return stageError('DESKTOP_BUILD_PROFILE_ASSET_DOWNLOAD_FAILED');
+    if (!response.ok) {
+      await cancelResponseBody(response);
+      return stageError('DESKTOP_BUILD_PROFILE_ASSET_DOWNLOAD_FAILED');
+    }
     return response;
   }
 
@@ -167,7 +192,10 @@ export const stageDesktopBuildProfile = async ({
     headers: { authorization: `Bearer ${token}` },
     redirect: 'error',
   });
-  if (!response.ok) return stageError('DESKTOP_BUILD_PROFILE_FETCH_FAILED');
+  if (!response.ok) {
+    await cancelResponseBody(response);
+    return stageError('DESKTOP_BUILD_PROFILE_FETCH_FAILED');
+  }
   const profile = parseProfile(
     JSON.parse(
       new TextDecoder().decode(await readResponseBytes(response, MAX_PROFILE_RESPONSE_BYTES)),
@@ -183,8 +211,15 @@ export const stageDesktopBuildProfile = async ({
     for (const kind of Object.keys(assetFiles) as AssetKind[]) {
       const asset = profile.assets[kind];
       const assetResponse = await fetchAsset(asset.url, fetcher);
-      const contentLength = parseContentLength(assetResponse);
+      let contentLength: number | undefined;
+      try {
+        contentLength = parseContentLength(assetResponse);
+      } catch (error) {
+        await cancelResponseBody(assetResponse);
+        throw error;
+      }
       if (contentLength !== undefined && contentLength !== asset.size) {
+        await cancelResponseBody(assetResponse);
         return stageError(
           contentLength > asset.size
             ? 'DESKTOP_BUILD_PROFILE_ASSET_TOO_LARGE'

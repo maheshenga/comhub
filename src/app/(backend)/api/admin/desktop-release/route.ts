@@ -39,10 +39,7 @@ const bodySchema = z
     ) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'release callback is incomplete' });
     }
-    if (
-      releaseCallback &&
-      (input.workflowRunId === undefined) !== (input.workflowRunUrl === undefined)
-    ) {
+    if (releaseCallback && (!input.workflowRunId || !input.workflowRunUrl)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'workflow run metadata is incomplete' });
     }
     if (releaseCallback && input.workflowRunUrl && input.workflowRunId) {
