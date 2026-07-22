@@ -659,6 +659,25 @@ describe('FileS3', () => {
     });
   });
 
+  describe('uploadPrivateBufferIfAbsent', () => {
+    it('uses create-only private PutObject parameters', async () => {
+      const s3 = new FileS3();
+      mockS3ClientSend.mockResolvedValue({});
+      const buffer = Buffer.from('private final asset');
+
+      await s3.uploadPrivateBufferIfAbsent('desktop-build-assets/final.png', buffer, 'image/png');
+
+      expect(PutObjectCommand).toHaveBeenCalledWith({
+        ACL: undefined,
+        Body: buffer,
+        Bucket: 'test-bucket',
+        ContentType: 'image/png',
+        IfNoneMatch: '*',
+        Key: 'desktop-build-assets/final.png',
+      });
+    });
+  });
+
   describe('uploadContent', () => {
     it('should upload string content with correct parameters', async () => {
       const s3 = new FileS3();

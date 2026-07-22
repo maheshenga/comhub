@@ -250,10 +250,12 @@ type StoredAsset = { body: Uint8Array; contentType: string };
 const createAssetStorage = (objects: Map<string, StoredAsset>) => {
   const deletedKeys: string[] = [];
   const privateUploads: Array<{ body: Uint8Array; contentType: string; key: string }> = [];
+  const privateUploadAttempts: Array<{ body: Uint8Array; contentType: string; key: string }> = [];
 
   return {
     deletedKeys,
     privateUploads,
+    privateUploadAttempts,
     storage: {
       deleteFile: async (key: string) => {
         deletedKeys.push(key);
@@ -269,8 +271,14 @@ const createAssetStorage = (objects: Map<string, StoredAsset>) => {
         if (!object) throw new Error('OBJECT_NOT_FOUND');
         return { contentLength: object.body.byteLength, contentType: object.contentType };
       },
-      uploadPrivateBuffer: async (key: string, body: Buffer, contentType: string) => {
+      uploadPrivateBufferIfAbsent: async (key: string, body: Buffer, contentType: string) => {
         const value = new Uint8Array(body);
+        privateUploadAttempts.push({ body: value, contentType, key });
+        if (objects.has(key)) {
+          const error = new Error('Final object already exists');
+          error.name = 'PreconditionFailed';
+          throw error;
+        }
         privateUploads.push({ body: value, contentType, key });
         objects.set(key, { body: value, contentType });
       },
@@ -663,7 +671,7 @@ describe('inspectDesktopBuildAsset', () => {
     });
   });
 
-  it('content-addresses repeated completions of the same bytes to one final key', async () => {
+  it('content-addresses repeated completions through the precondition-failure path', async () => {
     const firstStagingKey = `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`;
     const secondStagingKey = `desktop-build-assets/${PROFILE_ID}/${HEADER_ID}.png`;
     const body = png(1024, 1024);
@@ -671,7 +679,7 @@ describe('inspectDesktopBuildAsset', () => {
       [firstStagingKey, { body, contentType: 'image/png' }],
       [secondStagingKey, { body, contentType: 'image/png' }],
     ]);
-    const { privateUploads, storage } = createAssetStorage(objects);
+    const { privateUploadAttempts, privateUploads, storage } = createAssetStorage(objects);
 
     const first = await completeDesktopBuildAsset({
       key: firstStagingKey,
@@ -689,8 +697,61 @@ describe('inspectDesktopBuildAsset', () => {
     const finalKey = finalAssetKey(PROFILE_ID, 'appPreview', body);
     expect(first.key).toBe(finalKey);
     expect(second.key).toBe(finalKey);
-    expect(privateUploads.map((upload) => upload.key)).toEqual([finalKey, finalKey]);
+    expect(privateUploadAttempts.map((upload) => upload.key)).toEqual([finalKey, finalKey]);
+    expect(privateUploads.map((upload) => upload.key)).toEqual([finalKey]);
     expect(objects).toEqual(new Map([[finalKey, { body, contentType: 'image/png' }]]));
+  });
+
+  it('does not overwrite a conflicting final object after a precondition failure', async () => {
+    const stagingKey = `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`;
+    const body = png(1024, 1024);
+    const conflictingBody = png(1024, 1024, {
+      idat: createDifferentValidPngIdat(1024, 1024),
+    });
+    const finalKey = finalAssetKey(PROFILE_ID, 'appPreview', body);
+    const objects = new Map([
+      [stagingKey, { body, contentType: 'image/png' }],
+      [finalKey, { body: conflictingBody, contentType: 'image/png' }],
+    ]);
+    const { deletedKeys, privateUploads, storage } = createAssetStorage(objects);
+
+    await expect(
+      completeDesktopBuildAsset({
+        key: stagingKey,
+        kind: 'appPreview',
+        profileId: PROFILE_ID,
+        storage,
+      }),
+    ).rejects.toThrow('Invalid desktop build asset');
+
+    expect(privateUploads).toEqual([]);
+    expect(objects.get(finalKey)).toEqual({ body: conflictingBody, contentType: 'image/png' });
+    expect(deletedKeys).toEqual([]);
+  });
+
+  it('propagates non-precondition finalization failures', async () => {
+    const stagingKey = `desktop-build-assets/${PROFILE_ID}/${ASSET_ID}.png`;
+    const body = png(1024, 1024);
+    const { deletedKeys, storage } = createAssetStorage(
+      new Map([[stagingKey, { body, contentType: 'image/png' }]]),
+    );
+    const uploadFailure = new Error('S3 unavailable');
+
+    await expect(
+      completeDesktopBuildAsset({
+        key: stagingKey,
+        kind: 'appPreview',
+        profileId: PROFILE_ID,
+        storage: {
+          ...storage,
+          uploadPrivateBufferIfAbsent: async () => {
+            throw uploadFailure;
+          },
+        },
+      }),
+    ).rejects.toThrow(uploadFailure);
+
+    expect(deletedKeys).toEqual([]);
   });
 
   it('reads trusted metadata and bytes instead of client-provided values', async () => {

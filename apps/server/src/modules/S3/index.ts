@@ -227,6 +227,19 @@ export class S3 {
     return this.client.send(command);
   }
 
+  public async uploadPrivateBufferIfAbsent(path: string, buffer: Buffer, contentType?: string) {
+    const command = new PutObjectCommand({
+      ACL: undefined,
+      Body: buffer,
+      Bucket: this.bucket,
+      ContentType: contentType,
+      IfNoneMatch: '*',
+      Key: path,
+    });
+
+    return this.client.send(command);
+  }
+
   public async uploadContent(path: string, content: string) {
     const command = new PutObjectCommand({
       ACL: this.setAcl ? 'public-read' : undefined,
@@ -408,6 +421,10 @@ export class FileS3 extends S3 {
 
   public async uploadPrivateBuffer(path: string, buffer: Buffer, contentType?: string) {
     return (await this.getRuntimeS3()).uploadPrivateBuffer(path, buffer, contentType);
+  }
+
+  public async uploadPrivateBufferIfAbsent(path: string, buffer: Buffer, contentType?: string) {
+    return (await this.getRuntimeS3()).uploadPrivateBufferIfAbsent(path, buffer, contentType);
   }
 
   public async uploadContent(path: string, content: string) {

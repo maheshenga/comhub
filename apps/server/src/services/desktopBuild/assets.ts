@@ -431,7 +431,11 @@ export type DesktopBuildAssetStorage = {
   deleteFile: (key: string) => Promise<unknown>;
   getFileByteArray: FileS3['getFileByteArray'];
   getFileMetadata: FileS3['getFileMetadata'];
-  uploadPrivateBuffer: (key: string, buffer: Buffer, contentType: string) => Promise<unknown>;
+  uploadPrivateBufferIfAbsent: (
+    key: string,
+    buffer: Buffer,
+    contentType: string,
+  ) => Promise<unknown>;
 };
 
 export const getDesktopBuildAssetKey = (
@@ -588,6 +592,21 @@ export const readTrustedDesktopBuildAsset = async ({
   return asset;
 };
 
+const isPreconditionFailed = (error: unknown) => {
+  if (typeof error !== 'object' || error === null) return false;
+
+  const s3Error = error as {
+    $metadata?: { httpStatusCode?: number };
+    code?: string;
+    name?: string;
+  };
+  return (
+    s3Error.name === 'PreconditionFailed' ||
+    s3Error.code === 'PreconditionFailed' ||
+    s3Error.$metadata?.httpStatusCode === 412
+  );
+};
+
 export const completeDesktopBuildAsset = async ({
   key,
   kind,
@@ -599,7 +618,7 @@ export const completeDesktopBuildAsset = async ({
   profileId: string;
   storage: Pick<
     DesktopBuildAssetStorage,
-    'deleteFile' | 'getFileByteArray' | 'getFileMetadata' | 'uploadPrivateBuffer'
+    'deleteFile' | 'getFileByteArray' | 'getFileMetadata' | 'uploadPrivateBufferIfAbsent'
   >;
 }): Promise<DesktopBuildAsset> => {
   const staging = await readDesktopBuildAsset({
@@ -611,11 +630,15 @@ export const completeDesktopBuildAsset = async ({
   });
   const finalKey = getFinalDesktopBuildAssetKey(profileId, kind, staging.asset.sha256);
 
-  await storage.uploadPrivateBuffer(
-    finalKey,
-    Buffer.from(staging.bytes),
-    staging.asset.contentType,
-  );
+  try {
+    await storage.uploadPrivateBufferIfAbsent(
+      finalKey,
+      Buffer.from(staging.bytes),
+      staging.asset.contentType,
+    );
+  } catch (error) {
+    if (!isPreconditionFailed(error)) throw error;
+  }
   const finalAsset = await readTrustedDesktopBuildAsset({
     key: finalKey,
     kind,
