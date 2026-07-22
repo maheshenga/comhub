@@ -168,6 +168,13 @@ class AdminCommercialService {
   createBuildAssetUpload = async (input: { kind: DesktopBuildAssetKind; profileId?: string }) =>
     lambdaClient.admin.desktop.createBuildAssetUpload.mutate(input);
 
+  createDesktopRelease = async (input: {
+    channel: 'canary' | 'stable';
+    profileId: string;
+    releaseNotes: string;
+    version: string;
+  }) => lambdaClient.admin.desktop.createDesktopRelease.mutate(input);
+
   completeBuildAssetUpload = async (input: {
     key: string;
     kind: DesktopBuildAssetKind;

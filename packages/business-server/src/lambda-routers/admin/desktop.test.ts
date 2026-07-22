@@ -15,12 +15,32 @@ const mocks = vi.hoisted(() => ({
     createDesktopBuildAssetUpload: vi.fn(),
     validateDesktopBuildAssetManifest: vi.fn(),
   },
+  github: {
+    DesktopReleaseDispatchError: class DesktopReleaseDispatchError extends Error {
+      constructor(
+        public readonly code: string,
+        public readonly summary: string,
+      ) {
+        super(summary);
+      }
+    },
+    dispatchDesktopReleaseWorkflow: vi.fn(),
+  },
   audit: {
+    records: vi.fn(),
     runRequiredAdminAuditExternalEffect: vi.fn(async (_ctx, options) => {
       await options.audit('started');
-      const result = await options.effect();
-      await options.audit('succeeded', result);
-      return result;
+      mocks.audit.records('started');
+      try {
+        const result = await options.effect();
+        await options.audit('succeeded', result);
+        mocks.audit.records('succeeded');
+        return result;
+      } catch (error) {
+        await options.audit('failed');
+        mocks.audit.records('failed');
+        throw error;
+      }
     }),
     runRequiredAdminAuditMutation: vi.fn(async (_ctx, options) => {
       const result = await options.mutation({});
@@ -30,11 +50,14 @@ const mocks = vi.hoisted(() => ({
   },
   model: {
     archiveProfile: vi.fn(),
+    freezeDraftForRelease: vi.fn(),
     getProfile: vi.fn(),
     getRevision: vi.fn(),
     getRevisionsByIds: vi.fn(),
     listProfiles: vi.fn(),
     listReleases: vi.fn(),
+    markReleaseDispatched: vi.fn(),
+    markReleaseResult: vi.fn(),
     saveDraft: vi.fn(),
   },
 }));
@@ -45,6 +68,8 @@ vi.mock('@/database/models/desktopBuild', () => ({
 }));
 
 vi.mock('@/server/services/desktopBuild/assets', () => mocks.assets);
+
+vi.mock('@/server/services/desktopRelease/github', () => mocks.github);
 
 vi.mock('@/server/modules/S3', () => ({
   FileS3: vi.fn(() => ({})),
@@ -108,6 +133,23 @@ const manifest = {
     kind: 'windowsIcon' as const,
   },
 };
+const draftRevision = {
+  assetManifest: manifest,
+  id: 'draft-revision-1',
+  payload,
+  profileId: PROFILE_ID,
+  revision: 1,
+  state: 'draft',
+};
+const queuedRelease = {
+  channel: 'stable' as const,
+  id: 'release-1',
+  profileId: PROFILE_ID,
+  releaseNotes: 'notes',
+  status: 'queued' as const,
+  version: '2.4.0',
+};
+const buildingRelease = { ...queuedRelease, status: 'building' as const };
 
 const adminRouterSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 
@@ -151,11 +193,20 @@ describe('adminDesktopRouter', () => {
       configured: true,
     });
     mocks.model.archiveProfile.mockResolvedValue({ id: PROFILE_ID, status: 'archived' });
-    mocks.model.getProfile.mockResolvedValue(null);
-    mocks.model.getRevision.mockResolvedValue(null);
+    mocks.model.freezeDraftForRelease.mockResolvedValue({
+      release: queuedRelease,
+      revision: { ...draftRevision, id: 'frozen-revision-1', state: 'frozen' },
+    });
+    mocks.model.getProfile.mockResolvedValue({
+      currentDraftRevisionId: draftRevision.id,
+      id: PROFILE_ID,
+    });
+    mocks.model.getRevision.mockResolvedValue(draftRevision);
     mocks.model.getRevisionsByIds.mockResolvedValue([]);
     mocks.model.listProfiles.mockResolvedValue({ items: [], nextCursor: null });
     mocks.model.listReleases.mockResolvedValue([]);
+    mocks.model.markReleaseDispatched.mockResolvedValue(buildingRelease);
+    mocks.model.markReleaseResult.mockResolvedValue({ ...queuedRelease, status: 'failed' });
     mocks.model.saveDraft.mockResolvedValue({
       profileId: PROFILE_ID,
       revision: 1,
@@ -170,6 +221,7 @@ describe('adminDesktopRouter', () => {
     });
     mocks.assets.completeDesktopBuildAsset.mockResolvedValue(trustedAsset);
     mocks.assets.validateDesktopBuildAssetManifest.mockResolvedValue(manifest);
+    mocks.github.dispatchDesktopReleaseWorkflow.mockResolvedValue(undefined);
   });
 
   it('is registered under admin.desktop', () => {
@@ -379,5 +431,169 @@ describe('adminDesktopRouter', () => {
       expect.anything(),
     );
     expect(mocks.audit.runRequiredAdminAuditMutation).toHaveBeenCalled();
+  });
+
+  it('dispatches only an explicitly frozen, complete release through the required audit effect', async () => {
+    await expect(
+      adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseNotes: 'notes',
+        version: '2.4.0',
+      }),
+    ).resolves.toEqual(buildingRelease);
+
+    expect(mocks.assets.validateDesktopBuildAssetManifest).toHaveBeenCalledWith(
+      expect.objectContaining({ manifest, profileId: PROFILE_ID }),
+    );
+    expect(mocks.model.freezeDraftForRelease).toHaveBeenCalledWith({
+      actorUserId: 'system-admin-user',
+      channel: 'stable',
+      profileId: PROFILE_ID,
+      releaseNotes: 'notes',
+      version: '2.4.0',
+    });
+    expect(mocks.github.dispatchDesktopReleaseWorkflow).toHaveBeenCalledWith({
+      channel: 'stable',
+      releaseId: 'release-1',
+      releaseNotes: 'notes',
+      version: '2.4.0',
+    });
+    expect(mocks.model.markReleaseDispatched).toHaveBeenCalledWith({
+      actorUserId: 'system-admin-user',
+      releaseId: 'release-1',
+    });
+    expect(mocks.model.freezeDraftForRelease.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.github.dispatchDesktopReleaseWorkflow.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.github.dispatchDesktopReleaseWorkflow.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.model.markReleaseDispatched.mock.invocationCallOrder[0]!,
+    );
+
+    const auditOptions = mocks.audit.runRequiredAdminAuditExternalEffect.mock.calls.at(-1)?.[1] as {
+      audit: (status: string) => Promise<{ payload: Record<string, unknown> }>;
+    };
+    const auditPayloads = await Promise.all([
+      auditOptions.audit('started'),
+      auditOptions.audit('succeeded'),
+      auditOptions.audit('failed'),
+    ]);
+    expect(auditPayloads.map(({ payload }) => payload)).toEqual([
+      {
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseId: 'release-1',
+        revisionId: 'frozen-revision-1',
+        version: '2.4.0',
+      },
+      {
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseId: 'release-1',
+        revisionId: 'frozen-revision-1',
+        version: '2.4.0',
+      },
+      {
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseId: 'release-1',
+        revisionId: 'frozen-revision-1',
+        version: '2.4.0',
+      },
+    ]);
+    expect(JSON.stringify(auditPayloads)).not.toContain('notes');
+  });
+
+  it('rejects invalid release input before freezing or dispatching', async () => {
+    await expect(
+      adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseNotes: 'notes',
+        version: 'v2.4.0',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    expect(mocks.model.freezeDraftForRelease).not.toHaveBeenCalled();
+    expect(mocks.github.dispatchDesktopReleaseWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('requires systemWrite to create a release', async () => {
+    vi.mocked(getServerDB).mockResolvedValue(createDb('finance_admin'));
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'finance-admin-user' } as any)
+        .createDesktopRelease({
+          channel: 'stable',
+          profileId: PROFILE_ID,
+          releaseNotes: 'notes',
+          version: '2.4.0',
+        }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(mocks.model.freezeDraftForRelease).not.toHaveBeenCalled();
+  });
+
+  it('does not freeze or dispatch when final asset validation fails', async () => {
+    mocks.assets.validateDesktopBuildAssetManifest.mockRejectedValue(new Error('ASSET_INVALID'));
+
+    await expect(
+      adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseNotes: 'notes',
+        version: '2.4.0',
+      }),
+    ).rejects.toThrow('ASSET_INVALID');
+    expect(mocks.model.freezeDraftForRelease).not.toHaveBeenCalled();
+    expect(mocks.github.dispatchDesktopReleaseWorkflow).not.toHaveBeenCalled();
+  });
+
+  it.each(['DESKTOP_BUILD_IDENTITY_LOCKED', 'DESKTOP_RELEASE_VERSION_CONFLICT'])(
+    'does not dispatch when transactional freeze rejects %s',
+    async (message) => {
+      mocks.model.freezeDraftForRelease.mockRejectedValue(new Error(message));
+
+      await expect(
+        adminDesktopRouter
+          .createCaller({ userId: 'system-admin-user' } as any)
+          .createDesktopRelease({
+            channel: 'stable',
+            profileId: PROFILE_ID,
+            releaseNotes: 'notes',
+            version: '2.4.0',
+          }),
+      ).rejects.toThrow(message);
+      expect(mocks.github.dispatchDesktopReleaseWorkflow).not.toHaveBeenCalled();
+    },
+  );
+
+  it('persists a bounded dispatch failure before recording the failed audit outcome', async () => {
+    mocks.github.dispatchDesktopReleaseWorkflow.mockRejectedValue(
+      new mocks.github.DesktopReleaseDispatchError(
+        'github-dispatch-failed',
+        'GitHub dispatch failed (500).',
+      ),
+    );
+
+    await expect(
+      adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseNotes: 'notes',
+        version: '2.4.0',
+      }),
+    ).rejects.toThrow('GitHub dispatch failed (500).');
+
+    expect(mocks.model.markReleaseResult).toHaveBeenCalledWith({
+      errorSummary: 'GitHub dispatch failed (500).',
+      releaseId: 'release-1',
+      status: 'failed',
+    });
+    expect(mocks.model.markReleaseResult.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.audit.records.mock.invocationCallOrder.find(
+        (_call, index) => mocks.audit.records.mock.calls[index]?.[0] === 'failed',
+      )!,
+    );
   });
 });

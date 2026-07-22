@@ -25,6 +25,7 @@ const externalEffectCommands = new Set([
   'content.deleteDocument',
   'content.deleteFile',
   'desktop.buildAsset.complete',
+  'desktop.release.dispatch',
 ]);
 const auditOnlyCommands = new Set(['user.impersonate.attempt']);
 

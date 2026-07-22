@@ -11,10 +11,17 @@ import {
   validateDesktopBuildAssetManifest,
 } from '@/server/services/desktopBuild/assets';
 import { getDesktopReleaseDiagnostics } from '@/server/services/desktopRelease';
+import {
+  DesktopReleaseDispatchError,
+  dispatchDesktopReleaseWorkflow,
+} from '@/server/services/desktopRelease/github';
 
 import { buildDesktopSettings } from '../../appSettings/adminReadModel';
 import { loadAppSettingsSectionSnapshot } from '../../appSettings/loader';
-import { parseDesktopBuildProfilePayload } from '../../desktopBuild/contract';
+import {
+  desktopReleaseInputSchema,
+  parseDesktopBuildProfilePayload,
+} from '../../desktopBuild/contract';
 import { createAdminCommand } from './adminCommand';
 import { runRequiredAdminAuditExternalEffect, runRequiredAdminAuditMutation } from './audit';
 
@@ -45,6 +52,7 @@ const assetManifestSchema = z
 const completeBuildAssetCommand = createAdminCommand('desktop.buildAsset.complete');
 const archiveBuildProfileCommand = createAdminCommand('desktop.buildProfile.archive');
 const saveBuildProfileDraftCommand = createAdminCommand('desktop.buildProfile.saveDraft');
+const createDesktopReleaseCommand = createAdminCommand('desktop.release.dispatch');
 
 const serializeRevision = (revision: any) => {
   if (!revision) return null;
@@ -80,6 +88,9 @@ const assetAuditPayload = (
 ) => Object.values(assets).map(({ key, kind, sha256, size }) => ({ key, kind, sha256, size }));
 
 type SavedDraft = { profileId: string; revision: number; revisionId: string };
+
+const dispatchFailureSummary = (error: unknown) =>
+  error instanceof DesktopReleaseDispatchError ? error.summary : 'Desktop release dispatch failed.';
 
 export const adminDesktopRouter = router({
   archiveBuildProfile: systemWriteProcedure
@@ -128,6 +139,70 @@ export const adminDesktopRouter = router({
   createBuildAssetUpload: systemWriteProcedure
     .input(z.object({ kind: assetKindSchema, profileId: z.string().uuid().optional() }).strict())
     .mutation(({ input }) => createDesktopBuildAssetUpload({ input, storage: new FileS3() })),
+  createDesktopRelease: systemWriteProcedure
+    .input(desktopReleaseInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const model = new DesktopBuildModel(ctx.serverDB);
+      const profile = await model.getProfile(input.profileId);
+      if (!profile)
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'DESKTOP_BUILD_PROFILE_NOT_FOUND' });
+      if (!profile.currentDraftRevisionId)
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'DESKTOP_BUILD_DRAFT_NOT_FOUND' });
+
+      const draft = await model.getRevision(profile.currentDraftRevisionId);
+      if (!draft)
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'DESKTOP_BUILD_DRAFT_NOT_FOUND' });
+
+      await validateDesktopBuildAssetManifest({
+        manifest: draft.assetManifest,
+        profileId: input.profileId,
+        storage: new FileS3(),
+      });
+      parseDesktopBuildProfilePayload(draft.payload);
+
+      const frozen = await model.freezeDraftForRelease({
+        actorUserId: ctx.userId,
+        ...input,
+      });
+      const auditPayload = {
+        channel: input.channel,
+        profileId: input.profileId,
+        releaseId: frozen.release.id,
+        revisionId: frozen.revision.id,
+        version: input.version,
+      };
+
+      return runRequiredAdminAuditExternalEffect(ctx, {
+        audit: () => ({
+          action: createDesktopReleaseCommand.definition.auditAction,
+          payload: auditPayload,
+          resourceId: frozen.release.id,
+          resourceType: 'desktopRelease',
+        }),
+        effect: async () => {
+          try {
+            await dispatchDesktopReleaseWorkflow({
+              channel: input.channel,
+              releaseId: frozen.release.id,
+              releaseNotes: input.releaseNotes,
+              version: input.version,
+            });
+          } catch (error) {
+            await model.markReleaseResult({
+              errorSummary: dispatchFailureSummary(error),
+              releaseId: frozen.release.id,
+              status: 'failed',
+            });
+            throw error;
+          }
+
+          return model.markReleaseDispatched({
+            actorUserId: ctx.userId,
+            releaseId: frozen.release.id,
+          });
+        },
+      });
+    }),
   getBuildProfile: systemReadProcedure
     .input(z.object({ profileId: z.string().uuid() }).strict())
     .query(async ({ ctx, input }) => {

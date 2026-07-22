@@ -29,6 +29,7 @@ vi.mock('@/libs/trpc/client', () => ({
       desktop: {
         archiveBuildProfile: { mutate: vi.fn() },
         completeBuildAssetUpload: { mutate: vi.fn() },
+        createDesktopRelease: { mutate: vi.fn() },
         createBuildAssetUpload: { mutate: vi.fn() },
         getBuildProfile: { query: vi.fn() },
         getOverview: { query: vi.fn() },
@@ -99,6 +100,12 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
     await adminCommercialService.listBuildProfiles({ cursor: PROFILE_CURSOR, limit: 25 });
     await adminCommercialService.listDesktopReleases({ limit: 10 });
+    await adminCommercialService.createDesktopRelease({
+      channel: 'stable',
+      profileId: '11111111-1111-4111-8111-111111111111',
+      releaseNotes: 'notes',
+      version: '2.4.0',
+    });
 
     expect(lambdaClient.admin.desktop.createBuildAssetUpload.mutate).toHaveBeenCalledWith(input);
     expect(lambdaClient.admin.desktop.completeBuildAssetUpload.mutate).toHaveBeenCalledWith(
@@ -110,6 +117,12 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
     expect(lambdaClient.admin.desktop.listDesktopReleases.query).toHaveBeenCalledWith({
       limit: 10,
+    });
+    expect(lambdaClient.admin.desktop.createDesktopRelease.mutate).toHaveBeenCalledWith({
+      channel: 'stable',
+      profileId: '11111111-1111-4111-8111-111111111111',
+      releaseNotes: 'notes',
+      version: '2.4.0',
     });
   });
 

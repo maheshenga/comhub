@@ -58,6 +58,14 @@ const expectedCommands = {
     serverBoundary: trpcBoundary('admin.desktop.saveBuildProfileDraft'),
     severity: 'high',
   },
+  'desktop.release.dispatch': {
+    auditAction: 'desktop.release.dispatch',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.createDesktopRelease'),
+    severity: 'high',
+  },
   'newapiProvider.deleteInstance': {
     auditAction: 'newapiInstance.delete',
     capability: ADMIN_CAPABILITIES.modelOpsWrite,

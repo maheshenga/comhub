@@ -103,6 +103,17 @@ export const ADMIN_COMMANDS = {
     severity: 'high',
     title: 'Save desktop build profile draft',
   },
+  'desktop.release.dispatch': {
+    actionId: 'desktop.release.dispatch',
+    auditAction: 'desktop.release.dispatch',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    description: 'Freezes a desktop build profile revision and dispatches its release workflow.',
+    reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.desktop.createDesktopRelease' },
+    severity: 'high',
+    title: 'Dispatch desktop release',
+  },
   'newapiProvider.deleteInstance': {
     actionId: 'newapiProvider.deleteInstance',
     auditAction: 'newapiInstance.delete',
