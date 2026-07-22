@@ -1,0 +1,90 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  clearModuleDraft,
+  createModuleDraftScope,
+  loadModuleDraft,
+  saveModuleDraft,
+} from './draftStorage';
+
+const createStorage = () => {
+  const values = new Map<string, string>();
+
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    removeItem: (key: string) => values.delete(key),
+    setItem: (key: string, value: string) => values.set(key, value),
+    values,
+  };
+};
+
+describe('module app draft storage', () => {
+  it('isolates drafts by app id and view', () => {
+    const storage = createStorage();
+    const newConfiguration = createModuleDraftScope('new', 'configuration');
+    const appEntitlements = createModuleDraftScope('app-1', 'entitlements');
+
+    saveModuleDraft(newConfiguration, { displayName: 'Draft app' }, storage);
+    saveModuleDraft(appEntitlements, { plan: 'team' }, storage);
+
+    expect(loadModuleDraft(newConfiguration, storage)).toEqual({ displayName: 'Draft app' });
+    expect(loadModuleDraft(appEntitlements, storage)).toEqual({ plan: 'team' });
+
+    clearModuleDraft(newConfiguration, storage);
+    expect(loadModuleDraft(newConfiguration, storage)).toBeNull();
+    expect(loadModuleDraft(appEntitlements, storage)).toEqual({ plan: 'team' });
+  });
+
+  it('clears corrupt and version-mismatched envelopes', () => {
+    const storage = createStorage();
+    const scope = createModuleDraftScope('app-1', 'configuration');
+    const key = `admin-module-app-draft:v1:${scope}`;
+
+    storage.setItem(key, '{not-json');
+    expect(loadModuleDraft(scope, storage)).toBeNull();
+    expect(storage.getItem(key)).toBeNull();
+
+    storage.setItem(key, JSON.stringify({ data: { displayName: 'Old' }, version: 2 }));
+    expect(loadModuleDraft(scope, storage)).toBeNull();
+    expect(storage.getItem(key)).toBeNull();
+  });
+
+  it('clears stored envelopes containing sensitive finance fields', () => {
+    const storage = createStorage();
+    const scope = createModuleDraftScope('app-1', 'configuration');
+    const key = `admin-module-app-draft:v1:${scope}`;
+
+    storage.setItem(key, JSON.stringify({ data: { bankAccount: 'sensitive' }, version: 1 }));
+
+    expect(loadModuleDraft(scope, storage)).toBeNull();
+    expect(storage.getItem(key)).toBeNull();
+  });
+
+  it('refuses finance, payout recipient, and evidence fields', () => {
+    const storage = createStorage();
+    const scope = createModuleDraftScope('app-1', 'configuration');
+
+    expect(() =>
+      saveModuleDraft(scope, { nested: { alipayAccount: 'sensitive' } }, storage),
+    ).toThrow(/sensitive/i);
+    expect(() => saveModuleDraft(scope, { payoutRecipient: 'sensitive' }, storage)).toThrow(
+      /sensitive/i,
+    );
+    expect(() => saveModuleDraft(scope, { evidence: ['sensitive'] }, storage)).toThrow(
+      /sensitive/i,
+    );
+    expect(() => saveModuleDraft(scope, { bankAccount: 'sensitive' }, storage)).toThrow(
+      /sensitive/i,
+    );
+    expect(storage.values.size).toBe(0);
+  });
+
+  it('refuses draft scopes outside configuration and entitlements', () => {
+    const storage = createStorage();
+
+    expect(() => saveModuleDraft('app-1/payments', { note: 'do not persist' }, storage)).toThrow(
+      /scope/i,
+    );
+    expect(storage.values.size).toBe(0);
+  });
+});
