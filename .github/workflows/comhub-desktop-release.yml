@@ -245,6 +245,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Require S3 publication configuration for server release
+        if: ${{ inputs.release_id != '' }}
+        shell: bash
+        env:
+          S3_BUCKET: ${{ secrets.DESKTOP_RELEASE_S3_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$S3_BUCKET" ]; then
+            echo 'Desktop release S3 bucket is not configured.'
+            exit 1
+          fi
+
       - name: Report publishing
         if: ${{ inputs.release_id != '' }}
         shell: bash

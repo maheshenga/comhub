@@ -124,4 +124,28 @@ describe('desktop release workflow contract', () => {
       '\'{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl} + (if $profileRevisionId == "" then {} else {profileRevisionId:$profileRevisionId} end)\'',
     );
   });
+
+  it('fails a server release without S3 publication configuration before success', async () => {
+    const workflow = parseDocument(await readFile(workflowPath, 'utf8')).toJS() as any;
+    const publishSteps = workflow.jobs.publish.steps as Array<any>;
+    const findStep = (name: string) => publishSteps.find((step) => step.name === name);
+    const requirePublication = findStep('Require S3 publication configuration for server release');
+    const publishing = findStep('Report publishing');
+    const succeeded = findStep('Report release succeeded');
+    const failed = findStep('Report publish failure');
+
+    expect(requirePublication.if).toBe("${{ inputs.release_id != '' }}");
+    expect(requirePublication.env).toEqual({
+      S3_BUCKET: '${{ secrets.DESKTOP_RELEASE_S3_BUCKET }}',
+    });
+    expect(requirePublication.run).toContain('if [ -z "$S3_BUCKET" ]; then');
+    expect(requirePublication.run).toContain('exit 1');
+    expect(publishSteps.indexOf(requirePublication)).toBeLessThan(publishSteps.indexOf(publishing));
+    expect(publishSteps.indexOf(requirePublication)).toBeLessThan(publishSteps.indexOf(succeeded));
+    expect(publishSteps.indexOf(requirePublication)).toBeLessThan(publishSteps.indexOf(failed));
+    expect(succeeded.if).toBe("${{ inputs.release_id != '' }}");
+    expect(failed.if).toContain('failure()');
+    expect(failed.if).toContain("inputs.release_id != ''");
+    expect(failed.run).toContain('Desktop release publish failed.');
+  });
 });

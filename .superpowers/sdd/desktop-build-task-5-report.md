@@ -190,3 +190,21 @@ GREEN:
    - 32 callback/auth/profile tests passed.
 
 - Build-failure callbacks now add `profileRevisionId` only when staging produced a non-empty revision. An unbound pre-staging failure therefore reaches the existing revisionless failed-callback model path instead of failing UUID validation on `""` and leaving the release non-terminal.
+
+## Server Publication Configuration Re-Review
+
+RED:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - Failed at `desktopReleaseWorkflow.test.ts:137` because the publish job had no server-release S3 configuration preflight before its publishing and succeeded callbacks.
+
+GREEN:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - 3 workflow contract tests passed, including the missing-bucket server-release terminal path.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir scripts/electronWorkflow`
+   - 11 staging/workflow tests passed.
+3. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 32 callback/auth/profile tests passed.
+
+- A server-managed publish now fails before publishing or success when `DESKTOP_RELEASE_S3_BUCKET` is unavailable. The existing `failure()` callback reports a bounded terminal failure; manual dispatches without `release_id` preserve the publish action's optional-bucket behavior.
