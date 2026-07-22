@@ -28,8 +28,16 @@ vi.mock('@/libs/swr', () => ({
 
 vi.mock('@/services/adminCommercial', () => ({
   adminCommercialService: {
+    archiveBuildProfile: vi.fn(),
+    completeBuildAssetUpload: vi.fn(),
+    createBuildAssetUpload: vi.fn(),
+    createDesktopRelease: vi.fn(),
+    getBuildProfile: vi.fn(),
     getDesktopOverview: vi.fn(),
     getSettingsSection: vi.fn(),
+    listBuildProfiles: vi.fn(),
+    listDesktopReleases: vi.fn(),
+    saveBuildProfileDraft: vi.fn(),
     setAppSettingsBatch: vi.fn(),
   },
 }));
@@ -109,7 +117,82 @@ const defaultSettingsData = {
 const setSearchParams = vi.fn();
 const overviewMutate = vi.fn().mockResolvedValue(undefined);
 const settingsMutate = vi.fn().mockResolvedValue(undefined);
+const profilesMutate = vi.fn().mockResolvedValue(undefined);
+const releasesMutate = vi.fn().mockResolvedValue(undefined);
 let setSettingsData: (data: typeof defaultSettingsData) => void;
+
+const completeAssets = {
+  appPreview: {
+    contentType: 'image/png',
+    key: 'desktop-build-assets/profile/app-preview.png',
+    kind: 'appPreview',
+    sha256: 'a'.repeat(64),
+    size: 1024,
+  },
+  nsisHeader: {
+    contentType: 'image/bmp',
+    key: 'desktop-build-assets/profile/header.bmp',
+    kind: 'nsisHeader',
+    sha256: 'b'.repeat(64),
+    size: 1024,
+  },
+  nsisSidebar: {
+    contentType: 'image/bmp',
+    key: 'desktop-build-assets/profile/sidebar.bmp',
+    kind: 'nsisSidebar',
+    sha256: 'c'.repeat(64),
+    size: 1024,
+  },
+  windowsIcon: {
+    contentType: 'image/x-icon',
+    key: 'desktop-build-assets/profile/icon.ico',
+    kind: 'windowsIcon',
+    sha256: 'd'.repeat(64),
+    size: 1024,
+  },
+};
+
+const buildProfileData = {
+  currentDraft: {
+    assetManifest: completeAssets,
+    id: 'revision-1',
+    payload: {
+      applicationId: 'com.qingyou.comhub',
+      applicationName: 'ComHub',
+      description: 'ComHub desktop',
+      executableName: 'ComHub',
+      homepage: 'https://chat.qingyouai.com',
+      installerArtifactName: '${productName}-${version}-${arch}.${ext}',
+      protocolScheme: 'comhub',
+      publisher: 'Qingyou',
+      shortcutName: 'ComHub',
+      uninstallDisplayName: 'ComHub',
+    },
+    state: 'draft',
+  },
+  currentRevision: 1,
+  id: '00000000-0000-4000-8000-000000000001',
+  identityLocked: false,
+  name: 'ComHub',
+};
+
+const releaseData = [
+  {
+    actorUserId: 'admin-1',
+    artifacts: [
+      { fileName: 'ComHub-2.4.0-x64.exe', storageKey: 'desktop-build-releases/setup.exe' },
+    ],
+    channel: 'canary',
+    createdAt: '2026-07-21T00:00:00.000Z',
+    errorSummary: null,
+    frozenRevisionId: 'revision-1',
+    id: 'release-1',
+    profileId: buildProfileData.id,
+    status: 'queued',
+    version: '2.4.0-canary.1',
+    workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1',
+  },
+];
 
 const useSettingsTestResource = (initialData: typeof defaultSettingsData) => {
   const [data, setData] = useState(initialData);
@@ -124,6 +207,7 @@ const useSettingsTestResource = (initialData: typeof defaultSettingsData) => {
 };
 
 const renderControlCenter = (options?: {
+  buildProfileData?: typeof buildProfileData;
   overview?: Record<string, unknown>;
   overviewData?: typeof overviewData;
   search?: string;
@@ -146,6 +230,22 @@ const renderControlCenter = (options?: {
     if (JSON.stringify(key) === JSON.stringify(ADMIN_SETTINGS_SECTION_SWR_KEY('desktop-update'))) {
       return useSettingsTestResource(options?.settingsData ?? defaultSettingsData);
     }
+    if (JSON.stringify(key) === JSON.stringify(['admin-desktop-build-profiles'])) {
+      return {
+        data: { items: [options?.buildProfileData ?? buildProfileData], nextCursor: undefined },
+        error: undefined,
+        isLoading: false,
+        mutate: profilesMutate,
+      };
+    }
+    if (JSON.stringify(key) === JSON.stringify(['admin-desktop-releases', buildProfileData.id])) {
+      return {
+        data: releaseData,
+        error: undefined,
+        isLoading: false,
+        mutate: releasesMutate,
+      };
+    }
     throw new Error(`Unexpected SWR key: ${JSON.stringify(key)}`);
   }) as any);
 
@@ -165,6 +265,12 @@ describe('DesktopControlCenter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(adminCommercialService.setAppSettingsBatch).mockResolvedValue({ ok: true } as any);
+    vi.mocked(adminCommercialService.saveBuildProfileDraft).mockResolvedValue({
+      profileId: buildProfileData.id,
+      revision: 2,
+      revisionId: 'revision-2',
+    } as any);
+    vi.mocked(adminCommercialService.createDesktopRelease).mockResolvedValue(releaseData[0] as any);
   });
 
   it('lands on overview and renders stable channel health', () => {
@@ -326,5 +432,49 @@ describe('DesktopControlCenter', () => {
     });
     expect(settingsMutate).not.toHaveBeenCalled();
     expect(overviewMutate).not.toHaveBeenCalled();
+  });
+
+  it('saves a draft without creating a release', async () => {
+    renderControlCenter({ search: 'tab=build-profile' });
+
+    fireEvent.change(screen.getByLabelText('admin.desktopBuild.applicationName'), {
+      target: { value: 'ComHub Pro' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.saveDraft' }));
+
+    await waitFor(() => {
+      expect(adminCommercialService.saveBuildProfileDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'ComHub Pro',
+          profileId: buildProfileData.id,
+          payload: expect.objectContaining({ applicationName: 'ComHub Pro' }),
+        }),
+      );
+    });
+    expect(adminCommercialService.createDesktopRelease).not.toHaveBeenCalled();
+  });
+
+  it('requires confirmation before creating a build', () => {
+    renderControlCenter({ search: 'tab=build-profile' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.createBuild' }));
+
+    expect(screen.getByRole('dialog', { name: 'admin.desktopBuild.release.title' })).toBeVisible();
+  });
+
+  it('does not save or release a build profile until Windows assets are complete', () => {
+    renderControlCenter({
+      buildProfileData: {
+        ...buildProfileData,
+        currentDraft: {
+          ...buildProfileData.currentDraft,
+          assetManifest: { appPreview: completeAssets.appPreview } as any,
+        },
+      },
+      search: 'tab=build-profile',
+    });
+
+    expect(screen.getByRole('button', { name: 'admin.desktopBuild.saveDraft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'admin.desktopBuild.createBuild' })).toBeDisabled();
   });
 });

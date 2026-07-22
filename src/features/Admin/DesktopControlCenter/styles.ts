@@ -1,6 +1,30 @@
 import { createStaticStyles, cssVar } from 'antd-style';
 
 export const desktopControlCenterStyles = createStaticStyles(({ css }) => ({
+  assetGrid: css`
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    padding: 12px 0;
+  `,
+  buildProfileActions: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  `,
+  buildProfileHeader: css`
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+  `,
+  buildProfileLayout: css`
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  `,
   channelGrid: css`
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

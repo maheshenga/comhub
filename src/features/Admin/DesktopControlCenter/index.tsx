@@ -15,6 +15,7 @@ import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import BrandPage from './BrandPage';
+import BuildProfilePage from './BuildProfilePage';
 import DistributionPage from './DistributionPage';
 import OverviewPage from './OverviewPage';
 import { desktopControlCenterStyles } from './styles';
@@ -69,6 +70,11 @@ const DesktopControlCenter = memo(() => {
             children: <BrandPage settings={settings} />,
             key: 'brand',
             label: t('admin.desktopControl.tabs.brand'),
+          },
+          {
+            children: <BuildProfilePage />,
+            key: 'build-profile',
+            label: t('admin.desktopControl.tabs.buildProfile'),
           },
         ]}
         onChange={changeTab}
