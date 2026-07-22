@@ -102,3 +102,23 @@ GREEN:
 - Revisionless `failed` callbacks are accepted only when the loaded release has no durable workflow run ID or URL. Once binding exists, the server rejects a missing revision before transition processing; a supplied revision must still match the frozen revision exactly.
 - Post-staging build and publish failure callbacks now send `PROFILE_REVISION_ID` from their stage/job outputs through env-bound quoted shell variables. The deliberate unpublished server-release path remains revisionless and does not bind a profile variable.
 - Self-review: no direct GitHub-expression shell interpolation, raw failure output, secrets, or `electron-builder.mjs` changes; manual callbacks and terminal transition handling remain unchanged.
+
+## Authentication Comparator Re-Review
+
+RED:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism "src/app/(backend)/api/admin/desktop-release/auth.test.ts"`
+   - Failed with `expected true to be false` for distinct equal-length `incorrect-secret` and `dedicated-secret` values while the legacy mock returned `true` for every comparator call. This proves the new assertion fails for an unconditional-true or equal-length-only authorization implementation.
+
+GREEN:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 28 API/auth/profile tests passed. The auth regression retains equal-buffer call-shape checks and length-mismatch rejection, while an explicit false comparator result rejects a distinct equal-length bearer token.
+2. `bun run type-check`
+   - Passed (`tsgo --noEmit`) after typing the two-buffer comparator mock.
+3. `node .\\node_modules\\eslint\\bin\\eslint.js "src/app/(backend)/api/admin/desktop-release/auth.test.ts"`, `node .\\node_modules\\prettier\\bin\\prettier.cjs --check "src/app/(backend)/api/admin/desktop-release/auth.test.ts"`, and `git diff --check`
+   - Passed.
+
+## Authentication Comparator Fix
+
+- Self-review: the test-only change proves an equal-length wrong token is rejected when the constant-time comparator returns false, preserves buffer call-shape and safe length-mismatch coverage, and introduces no secret output or production behavior change.

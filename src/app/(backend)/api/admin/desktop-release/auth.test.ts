@@ -9,7 +9,9 @@ import {
 
 import { isDesktopReleaseAuthorized, resolveDesktopReleaseToken } from './auth';
 
-const timingSafeEqual = vi.hoisted(() => vi.fn(() => true));
+const timingSafeEqual = vi.hoisted(() =>
+  vi.fn<(actual: Buffer, expected: Buffer) => boolean>(() => true),
+);
 
 vi.mock('node:crypto', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -63,11 +65,19 @@ describe('desktop release authentication', () => {
     ).rejects.toThrow();
   });
 
-  it('uses timingSafeEqual for equal-length buffers and rejects length mismatches safely', () => {
+  it('uses timingSafeEqual for equal-length buffers and rejects wrong or mismatched tokens safely', () => {
     expect(isDesktopReleaseAuthorized('dedicated-secret', 'dedicated-secret')).toBe(true);
     expect(timingSafeEqual).toHaveBeenCalledTimes(1);
+    const [actual, expected] = timingSafeEqual.mock.calls[0];
+    expect(actual).toBeInstanceOf(Buffer);
+    expect(expected).toBeInstanceOf(Buffer);
+    expect(actual.byteLength).toBe(expected.byteLength);
+
+    timingSafeEqual.mockReturnValueOnce(false);
+    expect(isDesktopReleaseAuthorized('incorrect-secret', 'dedicated-secret')).toBe(false);
+    expect(timingSafeEqual).toHaveBeenCalledTimes(2);
 
     expect(isDesktopReleaseAuthorized('short', 'dedicated-secret')).toBe(false);
-    expect(timingSafeEqual).toHaveBeenCalledTimes(1);
+    expect(timingSafeEqual).toHaveBeenCalledTimes(2);
   });
 });
