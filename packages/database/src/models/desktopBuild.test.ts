@@ -179,31 +179,84 @@ describe('DesktopBuildModel', () => {
     expect(calls).toEqual([expect.arrayContaining([expect.objectContaining({ limit: 50 })])]);
   });
 
-  it('bounds profile pages with offset cursors and returns a next cursor', async () => {
+  it('uses opaque keyset cursors without duplicate or omitted existing profiles', async () => {
     const findMany = vi
       .spyOn(db.query.desktopBuildProfiles, 'findMany')
       .mockResolvedValue([] as any);
 
     await model().listProfiles();
-    await model().listProfiles({ cursor: 3, limit: 500 });
+    await model().listProfiles({ limit: 500 });
 
     expect(findMany.mock.calls).toEqual([
-      [expect.objectContaining({ limit: 51, offset: 0 })],
-      [expect.objectContaining({ limit: 101, offset: 3 })],
+      [expect.objectContaining({ limit: 51 })],
+      [expect.objectContaining({ limit: 101 })],
     ]);
+    expect(findMany.mock.calls.map(([options]) => options)).not.toContainEqual(
+      expect.objectContaining({ offset: expect.anything() }),
+    );
     findMany.mockRestore();
 
-    await saveDraft();
-    await saveDraft();
-    await saveDraft();
+    const profiles = [
+      {
+        id: '10000000-0000-4000-8000-000000000001',
+        updatedAt: new Date('2026-01-05T00:00:00.000Z'),
+      },
+      {
+        id: '10000000-0000-4000-8000-000000000002',
+        updatedAt: new Date('2026-01-04T00:00:00.000Z'),
+      },
+      {
+        id: '10000000-0000-4000-8000-000000000003',
+        updatedAt: new Date('2026-01-03T00:00:00.000Z'),
+      },
+      {
+        id: '10000000-0000-4000-8000-000000000004',
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      },
+      {
+        id: '10000000-0000-4000-8000-000000000005',
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ];
+    for (const profile of profiles) {
+      await saveDraft({ createIfMissing: true, profileId: profile.id });
+      await db
+        .update(desktopBuildProfiles)
+        .set({ updatedAt: profile.updatedAt })
+        .where(eq(desktopBuildProfiles.id, profile.id));
+    }
 
     const firstPage = await model().listProfiles({ limit: 2 });
+    expect(firstPage.items.map((profile) => profile.id)).toEqual(
+      profiles.slice(0, 2).map(({ id }) => id),
+    );
+    expect(firstPage.nextCursor).toMatch(/^[\w-]+$/);
+    expect(firstPage.nextCursor).not.toBe('2');
+
+    // Moving a row already seen on page one must not duplicate it or skip any unseen profile.
+    await db
+      .update(desktopBuildProfiles)
+      .set({ updatedAt: new Date('2030-01-01T00:00:00.000Z') })
+      .where(eq(desktopBuildProfiles.id, profiles[0]!.id));
+
     const secondPage = await model().listProfiles({ cursor: firstPage.nextCursor!, limit: 2 });
+    const thirdPage = await model().listProfiles({ cursor: secondPage.nextCursor!, limit: 2 });
 
     expect(firstPage.items).toHaveLength(2);
-    expect(firstPage.nextCursor).toBe(2);
-    expect(secondPage.items).toHaveLength(1);
-    expect(secondPage.nextCursor).toBeNull();
+    expect(secondPage.items.map((profile) => profile.id)).toEqual(
+      profiles.slice(2, 4).map(({ id }) => id),
+    );
+    expect(thirdPage.items.map((profile) => profile.id)).toEqual([profiles[4]!.id]);
+    expect(thirdPage.nextCursor).toBeNull();
+    const pagedIds = [...firstPage.items, ...secondPage.items, ...thirdPage.items].map(
+      (profile) => profile.id,
+    );
+    expect(pagedIds).toEqual(profiles.map(({ id }) => id));
+    expect(new Set(pagedIds).size).toBe(profiles.length);
+
+    await expect(
+      model().listProfiles({ cursor: 'not-a-desktop-build-profile-cursor', limit: 2 }),
+    ).rejects.toThrow('DESKTOP_BUILD_PROFILE_CURSOR_INVALID');
   });
 
   it('batch-loads the requested draft revisions', async () => {

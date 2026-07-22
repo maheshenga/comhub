@@ -1,10 +1,12 @@
+import { Buffer } from 'node:buffer';
+
 import type {
   DesktopBuildAssetManifest,
   DesktopBuildProfilePayload,
   DesktopReleaseChannel,
   DesktopReleaseStatus,
 } from '@lobechat/types';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 
 import { desktopBuildProfileRevisions, desktopBuildProfiles, desktopReleases } from '../schemas';
 import type {
@@ -17,6 +19,82 @@ import type { LobeChatDatabase, Transaction } from '../type';
 const ERROR_SUMMARY_LIMIT = 1024;
 const DEFAULT_PROFILE_PAGE_SIZE = 50;
 const MAX_PROFILE_PAGE_SIZE = 100;
+const PROFILE_CURSOR_MAX_LENGTH = 512;
+const PROFILE_CURSOR_VERSION = 1;
+const PROFILE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+interface DesktopBuildProfileCursor {
+  id: string;
+  snapshotAt: Date;
+  updatedAt: Date;
+}
+
+const profileCursorError = (): never => {
+  throw new Error('DESKTOP_BUILD_PROFILE_CURSOR_INVALID');
+};
+
+const parseProfileCursorDate = (value: unknown) => {
+  if (typeof value !== 'string') return profileCursorError();
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime()) || date.toISOString() !== value) return profileCursorError();
+  return date;
+};
+
+const decodeProfileCursor = (value: string): DesktopBuildProfileCursor => {
+  if (value.length === 0 || value.length > PROFILE_CURSOR_MAX_LENGTH || !/^[\w-]+$/.test(value)) {
+    return profileCursorError();
+  }
+
+  let decoded: unknown;
+  try {
+    const bytes = Buffer.from(value, 'base64url');
+    if (bytes.toString('base64url') !== value) return profileCursorError();
+    decoded = JSON.parse(bytes.toString('utf8'));
+  } catch {
+    return profileCursorError();
+  }
+
+  if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+    return profileCursorError();
+  }
+
+  const record = decoded as Record<string, unknown>;
+  if (
+    Object.keys(record).sort().join(',') !== 'id,snapshotAt,updatedAt,v' ||
+    record.v !== PROFILE_CURSOR_VERSION ||
+    typeof record.id !== 'string' ||
+    !PROFILE_ID_PATTERN.test(record.id)
+  ) {
+    return profileCursorError();
+  }
+
+  const snapshotAt = parseProfileCursorDate(record.snapshotAt);
+  const updatedAt = parseProfileCursorDate(record.updatedAt);
+  if (updatedAt > snapshotAt) return profileCursorError();
+
+  return { id: record.id, snapshotAt, updatedAt };
+};
+
+export const isDesktopBuildProfileCursor = (value: string) => {
+  try {
+    decodeProfileCursor(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const encodeProfileCursor = ({ id, snapshotAt, updatedAt }: DesktopBuildProfileCursor) =>
+  Buffer.from(
+    JSON.stringify({
+      id,
+      snapshotAt: snapshotAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+      v: PROFILE_CURSOR_VERSION,
+    }),
+  ).toString('base64url');
 
 const isTerminalReleaseStatus = (status: DesktopReleaseStatus) =>
   status === 'failed' || status === 'succeeded';
@@ -153,22 +231,42 @@ export class DesktopBuildModel {
     return updated;
   };
 
-  listProfiles = async (params: { cursor?: number; limit?: number } = {}) => {
+  listProfiles = async (params: { cursor?: string; limit?: number } = {}) => {
     const limit = Math.min(
       Math.max(params.limit ?? DEFAULT_PROFILE_PAGE_SIZE, 1),
       MAX_PROFILE_PAGE_SIZE,
     );
-    const cursor = Math.max(params.cursor ?? 0, 0);
+    const cursor = params.cursor === undefined ? null : decodeProfileCursor(params.cursor);
+    const snapshotAt = cursor?.snapshotAt ?? new Date();
     const rows = await this.db.query.desktopBuildProfiles.findMany({
       limit: limit + 1,
-      offset: cursor,
       orderBy: [desc(desktopBuildProfiles.updatedAt), desc(desktopBuildProfiles.id)],
+      where: cursor
+        ? and(
+            lte(desktopBuildProfiles.updatedAt, snapshotAt),
+            or(
+              lt(desktopBuildProfiles.updatedAt, cursor.updatedAt),
+              and(
+                eq(desktopBuildProfiles.updatedAt, cursor.updatedAt),
+                lt(desktopBuildProfiles.id, cursor.id),
+              ),
+            ),
+          )
+        : lte(desktopBuildProfiles.updatedAt, snapshotAt),
     });
     const items = rows.slice(0, limit);
+    const lastItem = items.at(-1);
 
     return {
       items,
-      nextCursor: rows.length > limit ? cursor + items.length : null,
+      nextCursor:
+        rows.length > limit && lastItem
+          ? encodeProfileCursor({
+              id: lastItem.id,
+              snapshotAt,
+              updatedAt: lastItem.updatedAt,
+            })
+          : null,
     };
   };
 

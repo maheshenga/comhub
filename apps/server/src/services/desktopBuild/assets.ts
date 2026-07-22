@@ -48,6 +48,8 @@ const PNG_COLOR_TYPE_CHANNELS: Record<number, number> = {
   6: 4,
 };
 
+const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
+
 const PNG_ADAM7_PASSES = [
   [0, 0, 8, 8],
   [4, 0, 8, 8],
@@ -170,16 +172,16 @@ const validatePngImageData = (header: PngHeader, chunks: Uint8Array[]) => {
   }
 };
 
-const inspectPng = (kind: 'appPreview', bytes: Uint8Array) => {
-  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
-  if (
-    bytes.byteLength < signature.length ||
-    !signature.every((value, index) => bytes[index] === value)
-  ) {
+const hasPngSignature = (bytes: Uint8Array) =>
+  bytes.byteLength >= PNG_SIGNATURE.length &&
+  PNG_SIGNATURE.every((value, index) => bytes[index] === value);
+
+const inspectPng = (bytes: Uint8Array, expectedDimensions?: { height: number; width: number }) => {
+  if (!hasPngSignature(bytes)) {
     throw assetError();
   }
 
-  let offset = signature.length;
+  let offset = PNG_SIGNATURE.length;
   let header: PngHeader | undefined;
   let dimensions: { height: number; width: number } | undefined;
   let foundIdat = false;
@@ -226,7 +228,12 @@ const inspectPng = (kind: 'appPreview', bytes: Uint8Array) => {
       ) {
         throw assetError();
       }
-      assertExpectedDimensions(kind, width, height);
+      if (
+        expectedDimensions &&
+        (width !== expectedDimensions.width || height !== expectedDimensions.height)
+      ) {
+        throw assetError();
+      }
       header = { bitDepth, colorType, height, interlaceMethod, width };
       dimensions = { height, width };
     } else if (type === 'IHDR') {
@@ -291,6 +298,56 @@ const inspectPng = (kind: 'appPreview', bytes: Uint8Array) => {
   throw assetError();
 };
 
+const inspectIcoDib = (bytes: Uint8Array) => {
+  const dibHeaderSize = 40;
+  if (bytes.byteLength < dibHeaderSize || readUint32Le(bytes, 0) !== dibHeaderSize) {
+    throw assetError();
+  }
+
+  const width = readInt32Le(bytes, 4);
+  const storedHeight = readInt32Le(bytes, 8);
+  const planes = readUint16Le(bytes, 12);
+  const bitsPerPixel = readUint16Le(bytes, 14);
+  const compression = readUint32Le(bytes, 16);
+  const imageSize = readUint32Le(bytes, 20);
+  const colorsUsed = readUint32Le(bytes, 32);
+  if (
+    width <= 0 ||
+    storedHeight <= 0 ||
+    storedHeight % 2 !== 0 ||
+    planes !== 1 ||
+    compression !== 0 ||
+    ![1, 4, 8, 24, 32].includes(bitsPerPixel)
+  ) {
+    throw assetError();
+  }
+
+  const height = storedHeight / 2;
+  const maxPaletteEntries = bitsPerPixel <= 8 ? 2 ** bitsPerPixel : 0;
+  if ((bitsPerPixel <= 8 && colorsUsed > maxPaletteEntries) || (bitsPerPixel > 8 && colorsUsed)) {
+    throw assetError();
+  }
+  const paletteEntries = bitsPerPixel <= 8 ? colorsUsed || maxPaletteEntries : 0;
+  const paletteEnd = dibHeaderSize + paletteEntries * 4;
+  const xorRowBytes = Math.ceil((width * bitsPerPixel) / 32) * 4;
+  const xorBytes = xorRowBytes * height;
+  const andRowBytes = Math.ceil(width / 32) * 4;
+  const andBytes = andRowBytes * height;
+  const pixelEnd = paletteEnd + xorBytes + andBytes;
+  if (
+    !Number.isSafeInteger(pixelEnd) ||
+    paletteEnd > bytes.byteLength ||
+    xorBytes === 0 ||
+    andBytes === 0 ||
+    (imageSize !== 0 && imageSize !== xorBytes) ||
+    pixelEnd !== bytes.byteLength
+  ) {
+    throw assetError();
+  }
+
+  return { height, width };
+};
+
 const inspectIco = (bytes: Uint8Array) => {
   if (bytes.byteLength < 6 || readUint16Le(bytes, 0) !== 0 || readUint16Le(bytes, 2) !== 1) {
     throw assetError();
@@ -300,21 +357,31 @@ const inspectIco = (bytes: Uint8Array) => {
   const directoryEnd = 6 + count * 16;
   if (count === 0 || directoryEnd > bytes.byteLength) throw assetError();
 
-  const sizes = new Set<number>();
+  const entries: Array<{ dataEnd: number; dataOffset: number; height: number; width: number }> = [];
   for (let index = 0; index < count; index++) {
     const offset = 6 + index * 16;
     const width = bytes[offset] === 0 ? 256 : bytes[offset]!;
     const height = bytes[offset + 1] === 0 ? 256 : bytes[offset + 1]!;
     const dataLength = readUint32Le(bytes, offset + 8);
     const dataOffset = readUint32Le(bytes, offset + 12);
-    if (
-      dataLength === 0 ||
-      dataOffset < directoryEnd ||
-      dataOffset + dataLength > bytes.byteLength
-    ) {
+    const dataEnd = dataOffset + dataLength;
+    if (dataLength === 0 || dataOffset < directoryEnd || dataEnd > bytes.byteLength) {
       throw assetError();
     }
-    if (width === height) sizes.add(width);
+    entries.push({ dataEnd, dataOffset, height, width });
+  }
+
+  entries.sort((left, right) => left.dataOffset - right.dataOffset);
+  for (let index = 1; index < entries.length; index++) {
+    if (entries[index - 1]!.dataEnd > entries[index]!.dataOffset) throw assetError();
+  }
+
+  const sizes = new Set<number>();
+  for (const entry of entries) {
+    const payload = bytes.subarray(entry.dataOffset, entry.dataEnd);
+    const decoded = hasPngSignature(payload) ? inspectPng(payload) : inspectIcoDib(payload);
+    if (decoded.width !== entry.width || decoded.height !== entry.height) throw assetError();
+    if (decoded.width === decoded.height) sizes.add(decoded.width);
   }
 
   if (![16, 32, 48, 256].every((size) => sizes.has(size))) throw assetError();
@@ -419,7 +486,7 @@ export const inspectDesktopBuildAsset = (
 
   const inspection =
     kind === 'appPreview'
-      ? inspectPng(kind, bytes)
+      ? inspectPng(bytes, { height: 1024, width: 1024 })
       : kind === 'windowsIcon'
         ? inspectIco(bytes)
         : inspectBmp(kind, bytes);

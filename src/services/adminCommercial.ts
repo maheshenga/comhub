@@ -159,7 +159,7 @@ class AdminCommercialService {
 
   getDesktopOverview = async () => lambdaClient.admin.desktop.getOverview.query();
 
-  listBuildProfiles = async (params?: { cursor?: number; limit?: number }) =>
+  listBuildProfiles = async (params?: { cursor?: string; limit?: number }) =>
     lambdaClient.admin.desktop.listBuildProfiles.query(params);
 
   getBuildProfile = async (profileId: string) =>

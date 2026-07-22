@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/database/models/desktopBuild', () => ({
   DesktopBuildModel: vi.fn(() => mocks.model),
+  isDesktopBuildProfileCursor: (value: string) => value !== 'malformed-cursor',
 }));
 
 vi.mock('@/server/services/desktopBuild/assets', () => mocks.assets);
@@ -52,6 +53,14 @@ vi.mock('@/server/modules/S3', () => ({
 vi.mock('./audit', () => mocks.audit);
 
 const PROFILE_ID = '11111111-1111-4111-8111-111111111111';
+const PROFILE_CURSOR = Buffer.from(
+  JSON.stringify({
+    id: PROFILE_ID,
+    snapshotAt: '2026-07-21T00:00:00.000Z',
+    updatedAt: '2026-07-21T00:00:00.000Z',
+    v: 1,
+  }),
+).toString('base64url');
 const ASSET_ID = '22222222-2222-4222-8222-222222222222';
 const payload = {
   applicationId: 'com.qingyou.comhub',
@@ -220,7 +229,7 @@ describe('adminDesktopRouter', () => {
           status: 'active',
         },
       ],
-      nextCursor: 2,
+      nextCursor: PROFILE_CURSOR,
     });
     mocks.model.getRevisionsByIds.mockResolvedValue([
       {
@@ -240,9 +249,9 @@ describe('adminDesktopRouter', () => {
 
     const result = await adminDesktopRouter
       .createCaller({ userId: 'system-admin-user' } as any)
-      .listBuildProfiles({ cursor: 0, limit: 2 });
+      .listBuildProfiles({ cursor: PROFILE_CURSOR, limit: 2 });
 
-    expect(result).toMatchObject({ nextCursor: 2 });
+    expect(result).toMatchObject({ nextCursor: PROFILE_CURSOR });
     expect(result.items[0]).toMatchObject({
       currentDraft: { id: 'revision-1', state: 'draft' },
       currentRevision: 1,
@@ -251,9 +260,21 @@ describe('adminDesktopRouter', () => {
     });
     expect(JSON.stringify(result)).not.toContain('must-not-leak');
     expect(JSON.stringify(result)).not.toContain('downloads.example.test');
-    expect(mocks.model.listProfiles).toHaveBeenCalledWith({ cursor: 0, limit: 2 });
+    expect(mocks.model.listProfiles).toHaveBeenCalledWith({ cursor: PROFILE_CURSOR, limit: 2 });
     expect(mocks.model.getRevisionsByIds).toHaveBeenCalledWith(['revision-1', 'revision-2']);
     expect(mocks.model.getRevision).not.toHaveBeenCalled();
+  });
+
+  it('maps malformed opaque profile cursors to a bad request', async () => {
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .listBuildProfiles({ cursor: 'malformed-cursor', limit: 2 }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    expect(mocks.model.listProfiles).not.toHaveBeenCalled();
+    expect(mocks.model.getRevisionsByIds).not.toHaveBeenCalled();
   });
 
   it('requires systemWrite before issuing a private asset upload target', async () => {

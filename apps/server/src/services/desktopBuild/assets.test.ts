@@ -139,21 +139,53 @@ const bmp = (width: number, height: number) => {
   return bytes;
 };
 
-const ico = () => {
-  const sizes = [16, 32, 48, 256];
-  const bytes = new Uint8Array(6 + sizes.length * 16 + sizes.length * 4);
+const icoDib = (width: number, height: number) => {
+  const xorRowBytes = Math.ceil((width * 32) / 32) * 4;
+  const andRowBytes = Math.ceil(width / 32) * 4;
+  const xorBytes = xorRowBytes * height;
+  const andBytes = andRowBytes * height;
+  const bytes = new Uint8Array(40 + xorBytes + andBytes);
+
+  writeUint32Le(bytes, 0, 40);
+  writeUint32Le(bytes, 4, width);
+  writeUint32Le(bytes, 8, height * 2);
+  writeUint16Le(bytes, 12, 1);
+  writeUint16Le(bytes, 14, 32);
+  writeUint32Le(bytes, 16, 0);
+  writeUint32Le(bytes, 20, xorBytes);
+  return bytes;
+};
+
+type IcoEntry = { height?: number; payload: Uint8Array; width: number };
+
+const ico = (
+  entries: IcoEntry[] = [
+    { payload: icoDib(16, 16), width: 16 },
+    { payload: png(32, 32), width: 32 },
+    { payload: png(48, 48), width: 48 },
+    { payload: png(256, 256), width: 256 },
+  ],
+) => {
+  const directoryEnd = 6 + entries.length * 16;
+  const bytes = new Uint8Array(
+    directoryEnd + entries.reduce((total, entry) => total + entry.payload.byteLength, 0),
+  );
   writeUint16Le(bytes, 0, 0);
   writeUint16Le(bytes, 2, 1);
-  writeUint16Le(bytes, 4, sizes.length);
+  writeUint16Le(bytes, 4, entries.length);
 
-  sizes.forEach((size, index) => {
-    const entry = 6 + index * 16;
-    bytes[entry] = size === 256 ? 0 : size;
-    bytes[entry + 1] = size === 256 ? 0 : size;
-    writeUint16Le(bytes, entry + 4, 1);
-    writeUint16Le(bytes, entry + 6, 32);
-    writeUint32Le(bytes, entry + 8, 4);
-    writeUint32Le(bytes, entry + 12, 6 + sizes.length * 16 + index * 4);
+  let dataOffset = directoryEnd;
+  entries.forEach((entry, index) => {
+    const directoryEntryOffset = 6 + index * 16;
+    const height = entry.height ?? entry.width;
+    bytes[directoryEntryOffset] = entry.width === 256 ? 0 : entry.width;
+    bytes[directoryEntryOffset + 1] = height === 256 ? 0 : height;
+    writeUint16Le(bytes, directoryEntryOffset + 4, 1);
+    writeUint16Le(bytes, directoryEntryOffset + 6, 32);
+    writeUint32Le(bytes, directoryEntryOffset + 8, entry.payload.byteLength);
+    writeUint32Le(bytes, directoryEntryOffset + 12, dataOffset);
+    bytes.set(entry.payload, dataOffset);
+    dataOffset += entry.payload.byteLength;
   });
 
   return bytes;
@@ -252,6 +284,108 @@ describe('inspectDesktopBuildAsset', () => {
       contentType: 'image/x-icon',
       kind: 'windowsIcon',
     });
+  });
+
+  it.each([
+    [
+      'a truncated embedded PNG',
+      ico([
+        { payload: png(16, 16).slice(0, -5), width: 16 },
+        { payload: png(32, 32), width: 32 },
+        { payload: png(48, 48), width: 48 },
+        { payload: png(256, 256), width: 256 },
+      ]),
+    ],
+    [
+      'a malformed embedded DIB',
+      ico([
+        { payload: new Uint8Array([40, 0, 0, 0]), width: 16 },
+        { payload: png(32, 32), width: 32 },
+        { payload: png(48, 48), width: 48 },
+        { payload: png(256, 256), width: 256 },
+      ]),
+    ],
+  ])('rejects an ico containing %s', (_reason, body) => {
+    expect(() => inspectDesktopBuildAsset('windowsIcon', body)).toThrow(
+      'Invalid desktop build asset',
+    );
+  });
+
+  it.each([
+    [
+      'an unsupported DIB header',
+      (() => {
+        const body = icoDib(16, 16);
+        writeUint32Le(body, 0, 124);
+        return body;
+      })(),
+    ],
+    [
+      'a compressed DIB payload',
+      (() => {
+        const body = icoDib(16, 16);
+        writeUint32Le(body, 16, 3);
+        return body;
+      })(),
+    ],
+    [
+      'an unsupported DIB bit depth',
+      (() => {
+        const body = icoDib(16, 16);
+        writeUint16Le(body, 14, 16);
+        return body;
+      })(),
+    ],
+    [
+      'a DIB palette span beyond the payload',
+      (() => {
+        const body = icoDib(16, 16);
+        writeUint16Le(body, 14, 8);
+        return body;
+      })(),
+    ],
+    ['a truncated DIB AND mask', icoDib(16, 16).slice(0, -1)],
+  ])('rejects an ico containing %s', (_reason, malformedDib) => {
+    expect(() =>
+      inspectDesktopBuildAsset(
+        'windowsIcon',
+        ico([
+          { payload: malformedDib, width: 16 },
+          { payload: png(32, 32), width: 32 },
+          { payload: png(48, 48), width: 48 },
+          { payload: png(256, 256), width: 256 },
+        ]),
+      ),
+    ).toThrow('Invalid desktop build asset');
+  });
+
+  it.each([
+    ['PNG', { payload: png(32, 32), width: 16 }],
+    ['DIB', { height: 32, payload: icoDib(16, 16), width: 16 }],
+  ] satisfies Array<[string, IcoEntry]>)(
+    'rejects ICO directory dimensions that disagree with an embedded %s payload',
+    (_format, mismatchedEntry) => {
+      expect(() =>
+        inspectDesktopBuildAsset(
+          'windowsIcon',
+          ico([
+            mismatchedEntry,
+            { payload: png(32, 32), width: 32 },
+            { payload: png(48, 48), width: 48 },
+            { payload: png(256, 256), width: 256 },
+          ]),
+        ),
+      ).toThrow('Invalid desktop build asset');
+    },
+  );
+
+  it('rejects overlapping ICO entry payloads', () => {
+    const body = ico();
+    writeUint32Le(body, 6 + 16 + 12, 6 + 4 * 16);
+
+    expect(() => inspectDesktopBuildAsset('windowsIcon', body)).toThrow(
+      'Invalid desktop build asset',
+    );
   });
 
   it.each([

@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { DesktopBuildModel } from '@/database/models/desktopBuild';
+import { DesktopBuildModel, isDesktopBuildProfileCursor } from '@/database/models/desktopBuild';
 import type { DesktopBuildProfileItem } from '@/database/schemas/desktopBuild';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { FileS3 } from '@/server/modules/S3';
@@ -158,7 +158,14 @@ export const adminDesktopRouter = router({
     .input(
       z
         .object({
-          cursor: z.number().int().nonnegative().optional(),
+          cursor: z
+            .string()
+            .min(1)
+            .max(512)
+            .refine(isDesktopBuildProfileCursor, {
+              message: 'DESKTOP_BUILD_PROFILE_CURSOR_INVALID',
+            })
+            .optional(),
           limit: z.number().int().min(1).max(100).optional().default(50),
         })
         .strict()
@@ -166,7 +173,15 @@ export const adminDesktopRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const model = new DesktopBuildModel(ctx.serverDB);
-      const page = await model.listProfiles(input);
+      let page: Awaited<ReturnType<DesktopBuildModel['listProfiles']>>;
+      try {
+        page = await model.listProfiles(input);
+      } catch (error) {
+        if (error instanceof Error && error.message === 'DESKTOP_BUILD_PROFILE_CURSOR_INVALID') {
+          throw new TRPCError({ cause: error, code: 'BAD_REQUEST', message: error.message });
+        }
+        throw error;
+      }
       const revisionIds = page.items.flatMap((profile) =>
         profile.currentDraftRevisionId ? [profile.currentDraftRevisionId] : [],
       );
