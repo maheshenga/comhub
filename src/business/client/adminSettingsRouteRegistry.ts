@@ -53,10 +53,12 @@ const ADMIN_LEGACY_PAGE_IMPORTS: Record<AdminLegacyRouteSegment, ImportPage> = {
 };
 
 export type AdminSettingsRouteRegistryItem = {
+  children?: readonly AdminSettingsRouteRegistryItem[];
   debugId: string;
   id: string;
-  importPage: ImportPage;
-  segment: string;
+  importPage?: ImportPage;
+  index?: boolean;
+  segment?: string;
   status: AdminFeatureStatus;
 };
 
@@ -64,7 +66,7 @@ const visibleRoutes: AdminSettingsRouteRegistryItem[] = ADMIN_CATALOG.map((item)
   debugId: item.debugId,
   id: item.id,
   importPage: ADMIN_PAGE_IMPORTS[item.id],
-  segment: item.segment,
+  ...(item.id === 'overview' ? { index: true } : { segment: item.segment }),
   status: item.status,
 }));
 
@@ -84,5 +86,5 @@ export const ADMIN_LEGACY_SETTINGS_ROUTE_SEGMENTS = ADMIN_LEGACY_ROUTES.map(
 
 export const ADMIN_SETTINGS_ROUTE_REGISTRY = [...visibleRoutes, ...compatibilityRoutes];
 export const ADMIN_SETTINGS_ROUTE_SEGMENTS = ADMIN_SETTINGS_ROUTE_REGISTRY.map(
-  (route) => route.segment,
+  (route) => route.segment ?? '',
 );
