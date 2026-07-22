@@ -58,6 +58,14 @@ const expectedCommands = {
     serverBoundary: trpcBoundary('admin.desktop.saveBuildProfileDraft'),
     severity: 'high',
   },
+  'desktop.release.create': {
+    auditAction: 'desktop.release.create',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    reasonPolicy: 'none',
+    serverBoundary: trpcBoundary('admin.desktop.createDesktopRelease'),
+    severity: 'high',
+  },
   'desktop.release.dispatch': {
     auditAction: 'desktop.release.dispatch',
     capability: ADMIN_CAPABILITIES.systemWrite,
@@ -190,7 +198,10 @@ describe('ADMIN_COMMANDS', () => {
     );
 
     expect(new Set(definitions.map(({ actionId }) => actionId)).size).toBe(definitions.length);
-    expect(new Set(boundaryKeys).size).toBe(definitions.length);
+    const duplicateBoundaryKeys = [...new Set(boundaryKeys)].filter(
+      (key) => boundaryKeys.filter((candidate) => candidate === key).length > 1,
+    );
+    expect(duplicateBoundaryKeys).toEqual(['trpc:admin.desktop.createDesktopRelease']);
     expect(ADMIN_COMMANDS['user.impersonate.attempt'].serverBoundary).toEqual({
       kind: 'http',
       method: 'POST',

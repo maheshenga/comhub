@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
@@ -52,6 +54,7 @@ const assetManifestSchema = z
 const completeBuildAssetCommand = createAdminCommand('desktop.buildAsset.complete');
 const archiveBuildProfileCommand = createAdminCommand('desktop.buildProfile.archive');
 const saveBuildProfileDraftCommand = createAdminCommand('desktop.buildProfile.saveDraft');
+const createDesktopReleaseCreationCommand = createAdminCommand('desktop.release.create');
 const createDesktopReleaseCommand = createAdminCommand('desktop.release.dispatch');
 
 const serializeRevision = (revision: any) => {
@@ -163,16 +166,13 @@ export const adminDesktopRouter = router({
       });
       parseDesktopBuildProfilePayload(draft.payload);
 
-      const frozen = await model.freezeDraftForRelease({
-        actorUserId: ctx.userId,
-        expectedDraftRevisionId: draft.id,
-        ...input,
-      });
+      const frozenRevisionId = randomUUID();
+      const releaseId = randomUUID();
       const auditPayload = {
         channel: input.channel,
         profileId: input.profileId,
-        releaseId: frozen.release.id,
-        revisionId: frozen.revision.id,
+        releaseId,
+        revisionId: frozenRevisionId,
         version: input.version,
       };
 
@@ -180,19 +180,38 @@ export const adminDesktopRouter = router({
         audit: () => ({
           action: createDesktopReleaseCommand.definition.auditAction,
           payload: auditPayload,
-          resourceId: frozen.release.id,
+          resourceId: releaseId,
           resourceType: 'desktopRelease',
         }),
         effect: async () => {
+          await runRequiredAdminAuditMutation(ctx, {
+            audit: () => ({
+              action: createDesktopReleaseCreationCommand.definition.auditAction,
+              payload: auditPayload,
+              resourceId: releaseId,
+              resourceType: 'desktopRelease',
+            }),
+            mutation: (tx) =>
+              model.freezeDraftForRelease(
+                {
+                  actorUserId: ctx.userId,
+                  expectedDraftRevisionId: draft.id,
+                  frozenRevisionId,
+                  releaseId,
+                  ...input,
+                },
+                tx,
+              ),
+          });
           const building = await model.markReleaseDispatched({
             actorUserId: ctx.userId,
-            releaseId: frozen.release.id,
+            releaseId,
           });
 
           try {
             await dispatchDesktopReleaseWorkflow({
               channel: input.channel,
-              releaseId: frozen.release.id,
+              releaseId,
               releaseNotes: input.releaseNotes,
               version: input.version,
             });
@@ -200,7 +219,7 @@ export const adminDesktopRouter = router({
             if (isDefinitiveDispatchFailure(error)) {
               await model.markReleaseResult({
                 errorSummary: dispatchFailureSummary(error),
-                releaseId: frozen.release.id,
+                releaseId,
                 status: 'failed',
               });
             }

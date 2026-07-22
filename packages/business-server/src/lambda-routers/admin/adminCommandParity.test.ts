@@ -27,6 +27,9 @@ const externalEffectCommands = new Set([
   'desktop.buildAsset.complete',
   'desktop.release.dispatch',
 ]);
+const nestedTransactionAuditCommandNames: Record<string, string> = {
+  'desktop.release.create': 'createDesktopReleaseCreationCommand',
+};
 const auditOnlyCommands = new Set(['user.impersonate.attempt']);
 
 const sensitiveMutationRouters = [
@@ -76,6 +79,20 @@ describe('admin command router parity', () => {
       );
 
       if (definition.confirmationMode === 'none') {
+        const nestedCommandName = nestedTransactionAuditCommandNames[definition.actionId];
+        if (nestedCommandName) {
+          expect(source, definition.actionId).toMatch(
+            new RegExp(
+              `const ${nestedCommandName} = createAdminCommand\\('${escapeRegExp(definition.actionId)}'\\)`,
+            ),
+          );
+          expect(block, definition.actionId).toContain(
+            `action: ${nestedCommandName}.definition.auditAction`,
+          );
+          expect(block, definition.actionId).toMatch(/runRequiredAdminAuditMutation(?:<[^>]+>)?\(/);
+          continue;
+        }
+
         const commandMatch = block.match(/action: ([A-Za-z]\w*)\.definition\.auditAction/);
         expect(commandMatch, definition.actionId).not.toBeNull();
 

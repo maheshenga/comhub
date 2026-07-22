@@ -325,6 +325,44 @@ describe('DesktopBuildModel', () => {
     expect(result.release).toMatchObject({ status: 'queued', version: '2.4.0-canary.1' });
   });
 
+  it('rolls back a frozen revision and queued release when the required creation audit transaction fails', async () => {
+    const draft = await saveDraft();
+    const beforeRevisions = await db
+      .select({ id: desktopBuildProfileRevisions.id })
+      .from(desktopBuildProfileRevisions)
+      .where(eq(desktopBuildProfileRevisions.profileId, draft.profileId));
+
+    await expect(
+      db.transaction(async (tx) => {
+        await model().freezeDraftForRelease(
+          {
+            actorUserId: ADMIN_IDS[0],
+            channel: 'canary',
+            expectedDraftRevisionId: draft.revisionId,
+            frozenRevisionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+            profileId: draft.profileId,
+            releaseId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+            releaseNotes: 'Branded build',
+            version: '2.4.0-canary.1',
+          },
+          tx,
+        );
+        throw new Error('ADMIN_AUDIT_CREATE_FAILED');
+      }),
+    ).rejects.toThrow('ADMIN_AUDIT_CREATE_FAILED');
+
+    await expect(
+      model().getRevision('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'),
+    ).resolves.toBeUndefined();
+    await expect(model().listReleases({ profileId: draft.profileId })).resolves.toEqual([]);
+    await expect(
+      db
+        .select({ id: desktopBuildProfileRevisions.id })
+        .from(desktopBuildProfileRevisions)
+        .where(eq(desktopBuildProfileRevisions.profileId, draft.profileId)),
+    ).resolves.toEqual(beforeRevisions);
+  });
+
   it('rejects an interleaved freeze when the locked current draft no longer matches the validated revision', async () => {
     const firstDraft = await saveDraft();
 

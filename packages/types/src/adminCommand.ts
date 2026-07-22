@@ -103,6 +103,17 @@ export const ADMIN_COMMANDS = {
     severity: 'high',
     title: 'Save desktop build profile draft',
   },
+  'desktop.release.create': {
+    actionId: 'desktop.release.create',
+    auditAction: 'desktop.release.create',
+    capability: ADMIN_CAPABILITIES.systemWrite,
+    confirmationMode: 'none',
+    description: 'Creates a frozen desktop release revision and queues its build.',
+    reasonPolicy: 'none',
+    serverBoundary: { kind: 'trpc', procedurePath: 'admin.desktop.createDesktopRelease' },
+    severity: 'high',
+    title: 'Create desktop release',
+  },
   'desktop.release.dispatch': {
     actionId: 'desktop.release.dispatch',
     auditAction: 'desktop.release.dispatch',

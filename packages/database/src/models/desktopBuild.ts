@@ -392,15 +392,20 @@ export class DesktopBuildModel {
     return tx ? archive(tx) : this.db.transaction(archive);
   };
 
-  freezeDraftForRelease = async (input: {
-    actorUserId: string;
-    channel: DesktopReleaseChannel;
-    expectedDraftRevisionId: string;
-    profileId: string;
-    releaseNotes: string;
-    version: string;
-  }) => {
-    return this.db.transaction(async (tx) => {
+  freezeDraftForRelease = async (
+    input: {
+      actorUserId: string;
+      channel: DesktopReleaseChannel;
+      expectedDraftRevisionId: string;
+      frozenRevisionId?: string;
+      profileId: string;
+      releaseId?: string;
+      releaseNotes: string;
+      version: string;
+    },
+    tx?: Transaction,
+  ) => {
+    const freeze = async (tx: Transaction) => {
       const profile = await this.lockProfile(input.profileId, tx);
       if (profile.status === 'archived') throw new Error('DESKTOP_BUILD_PROFILE_ARCHIVED');
       if (!profile.currentDraftRevisionId) throw new Error('DESKTOP_BUILD_DRAFT_NOT_FOUND');
@@ -424,6 +429,7 @@ export class DesktopBuildModel {
         .values({
           assetManifest: draft.assetManifest,
           createdByUserId: input.actorUserId,
+          ...(input.frozenRevisionId ? { id: input.frozenRevisionId } : {}),
           payload: draft.payload,
           profileId: profile.id,
           revision: revisionNumber,
@@ -438,6 +444,7 @@ export class DesktopBuildModel {
           channel: input.channel,
           createdByUserId: input.actorUserId,
           frozenRevisionId: revision.id,
+          ...(input.releaseId ? { id: input.releaseId } : {}),
           profileId: profile.id,
           releaseNotes: input.releaseNotes,
           status: 'queued',
@@ -454,7 +461,9 @@ export class DesktopBuildModel {
       if (!updatedProfile) throw new Error('DESKTOP_BUILD_PROFILE_UPDATE_FAILED');
 
       return { release, revision };
-    });
+    };
+
+    return tx ? freeze(tx) : this.db.transaction(freeze);
   };
 
   listReleases = (params: { limit?: number; profileId?: string } = {}) => {

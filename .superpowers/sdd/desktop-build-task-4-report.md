@@ -154,3 +154,56 @@ bunx prettier --check apps/server/src/services/desktopRelease/github.ts apps/ser
 git diff --check
 # Result: passed.
 ```
+
+## Final Review Remediation: Audit-Gated Release Creation
+
+`createDesktopRelease` now generates the frozen revision and release UUIDs on the server after validating the current draft and before any effect is entered. It starts the required `desktop.release.dispatch` external-effect audit before any durable release mutation. The effect then runs `DesktopBuildModel.freezeDraftForRelease` inside `runRequiredAdminAuditMutation` under the new high-severity `desktop.release.create` action. The creation audit and frozen-revision/queued-release inserts share one transaction, including the profile lock, exact expected draft revision check, identity lock, and unique version enforcement.
+
+The creation and dispatch audits use the same final IDs and contain only `profileId`, `revisionId`, `releaseId`, `channel`, and `version`. They contain no release notes, tokens, URLs, asset manifests, credentials, or error bodies. The durable ordering is now `dispatch audit started -> creation audit transaction/freeze+queue -> building -> GitHub`. Definitive GitHub failures still persist `failed`; ambiguous delivery remains durable `building` for callback reconciliation.
+
+### RED Evidence
+
+```powershell
+bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/lambda-routers/admin/desktop.test.ts
+# Result before implementation: 5 failed, 19 passed. The new regressions showed freeze occurring before external audit start, no creation audit transaction, and no server-generated IDs.
+
+bunx vitest run --config packages/database/vitest.config.mts --silent='passed-only' packages/database/src/models/desktopBuild.test.ts -t "rolls back a frozen revision and queued release when the required creation audit transaction fails"
+# Result with transaction-scoped freeze intentionally removed: 1 failed, 20 skipped. The PGlite test timed out at 5 seconds due to the nested independent transaction, proving the freeze must use the supplied transaction.
+```
+
+### GREEN Evidence
+
+```powershell
+bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/lambda-routers/admin/desktop.test.ts packages/business-server/src/lambda-routers/admin/adminCommandParity.test.ts packages/business-server/src/lambda-routers/admin/audit.test.ts
+# Result: 43 passed.
+
+bunx vitest run --silent='passed-only' apps/server/src/services/desktopRelease/github.test.ts src/services/adminCommercial.test.ts
+# Result: 31 passed.
+
+bunx vitest run --config packages/database/vitest.config.mts --silent='passed-only' packages/database/src/models/desktopBuild.test.ts
+# Result: 21 passed, including the real PGlite rollback assertion.
+
+bunx vitest run --config packages/types/vitest.config.mts --silent='passed-only' packages/types/src/adminCommand.test.ts
+# Result: 3 passed.
+
+bunx vitest run --config packages/database/vitest.config.mts --silent='passed-only' packages/database/src/models/desktopBuild.test.ts -t "rolls back a frozen revision and queued release when the required creation audit transaction fails"
+# Result: 1 passed, 20 skipped.
+```
+
+### Final Verification And Self-Review
+
+```powershell
+bunx tsgo --noEmit --pretty false
+# Result: passed.
+
+bunx eslint packages/business-server/src/lambda-routers/admin/desktop.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts packages/business-server/src/lambda-routers/admin/adminCommandParity.test.ts packages/database/src/models/desktopBuild.ts packages/database/src/models/desktopBuild.test.ts packages/types/src/adminCommand.ts packages/types/src/adminCommand.test.ts
+# Result: passed.
+
+bunx prettier --check packages/business-server/src/lambda-routers/admin/desktop.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts packages/business-server/src/lambda-routers/admin/adminCommandParity.test.ts packages/database/src/models/desktopBuild.ts packages/database/src/models/desktopBuild.test.ts packages/types/src/adminCommand.ts packages/types/src/adminCommand.test.ts
+# Result: passed.
+
+git diff --check
+# Result: passed.
+```
+
+Self-review against `.agents/skills/review-checklist/SKILL.md` found no debug logging, secrets, user-facing strings, migration work, router-pair changes, dependency changes, or cloud-facing boundary changes. The sole duplicated command boundary is explicitly asserted as the `desktop.release.create` nested audit companion to `desktop.release.dispatch`.
