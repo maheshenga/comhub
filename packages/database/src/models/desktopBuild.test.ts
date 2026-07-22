@@ -483,6 +483,81 @@ describe('DesktopBuildModel', () => {
     ).resolves.toMatchObject({ workflowRunId: '1234567890' });
   });
 
+  it('authorizes callback revisions under the locked release row', async () => {
+    const boundDraft = await saveDraft();
+    const { release: boundRelease } = await freezeDraft(boundDraft.profileId);
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: boundRelease.id });
+
+    const building = await model().markReleaseCallback({
+      profileRevisionId: boundRelease.frozenRevisionId,
+      releaseId: boundRelease.id,
+      status: 'building',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+    expect(building).toMatchObject({
+      status: 'building',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+
+    await expect(
+      model().markReleaseCallback({
+        releaseId: boundRelease.id,
+        status: 'failed',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
+    await expect(model().getRelease(boundRelease.id)).resolves.toMatchObject({
+      status: 'building',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+
+    await expect(
+      model().markReleaseCallback({
+        profileRevisionId: randomUUID(),
+        releaseId: boundRelease.id,
+        status: 'failed',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_REVISION_MISMATCH');
+
+    await expect(
+      model().markReleaseCallback({
+        profileRevisionId: boundRelease.frozenRevisionId,
+        releaseId: boundRelease.id,
+        status: 'failed',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    ).resolves.toMatchObject({ status: 'failed' });
+
+    const unboundDraft = await saveDraft();
+    const { release: unboundRelease } = await freezeDraft(unboundDraft.profileId, {
+      version: '2.4.0-canary.2',
+    });
+    await model().markReleaseDispatched({
+      actorUserId: ADMIN_IDS[0],
+      releaseId: unboundRelease.id,
+    });
+
+    await expect(
+      model().markReleaseCallback({
+        releaseId: unboundRelease.id,
+        status: 'failed',
+        workflowRunId: '1234567891',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567891',
+      }),
+    ).resolves.toMatchObject({
+      status: 'failed',
+      workflowRunId: '1234567891',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567891',
+    });
+  });
+
   it('allows the release lifecycle and rejects terminal transitions', async () => {
     const draft = await saveDraft();
     const { release } = await freezeDraft(draft.profileId);

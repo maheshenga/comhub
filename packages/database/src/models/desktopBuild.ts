@@ -553,4 +553,40 @@ export class DesktopBuildModel {
 
     return tx ? transition(tx) : this.db.transaction(transition);
   };
+
+  markReleaseCallback = async (
+    input: {
+      errorSummary?: string;
+      profileRevisionId?: string;
+      releaseId: string;
+      status: DesktopReleaseStatus;
+      workflowRunId: string;
+      workflowRunUrl: string;
+    },
+    tx?: Transaction,
+  ) => {
+    if (input.status === 'queued') throw new Error('DESKTOP_RELEASE_INVALID_TRANSITION');
+    if (!input.workflowRunId || !input.workflowRunUrl) {
+      throw new Error('DESKTOP_RELEASE_CALLBACK_WORKFLOW_REQUIRED');
+    }
+
+    const transition = async (transaction: Transaction) => {
+      const release = await this.lockRelease(input.releaseId, transaction);
+      if (input.profileRevisionId) {
+        if (release.frozenRevisionId !== input.profileRevisionId) {
+          throw new Error('DESKTOP_RELEASE_REVISION_MISMATCH');
+        }
+      } else if (
+        input.status !== 'failed' ||
+        release.workflowRunId !== null ||
+        release.workflowRunUrl !== null
+      ) {
+        throw new Error('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
+      }
+
+      return this.transitionRelease({ ...input, release, tx: transaction });
+    };
+
+    return tx ? transition(tx) : this.db.transaction(transition);
+  };
 }

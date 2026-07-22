@@ -13,6 +13,7 @@ const { mockGetServerDB, mockReleaseModel } = vi.hoisted(() => ({
   mockGetServerDB: vi.fn(),
   mockReleaseModel: {
     getRelease: vi.fn(),
+    markReleaseCallback: vi.fn(),
     markReleaseResult: vi.fn(),
   },
 }));
@@ -74,6 +75,10 @@ describe('POST /api/admin/desktop-release', () => {
       status: 'building',
     });
     mockReleaseModel.markReleaseResult.mockImplementation(async (input: any) => ({
+      ...input,
+      id: input.releaseId,
+    }));
+    mockReleaseModel.markReleaseCallback.mockImplementation(async (input: any) => ({
       ...input,
       id: input.releaseId,
     }));
@@ -261,7 +266,7 @@ describe('POST /api/admin/desktop-release', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mockReleaseModel.markReleaseResult).toHaveBeenCalledWith(
+    expect(mockReleaseModel.markReleaseCallback).toHaveBeenCalledWith(
       expect.objectContaining({
         releaseId: '11111111-1111-4111-8111-111111111111',
         status: 'building',
@@ -271,6 +276,32 @@ describe('POST /api/admin/desktop-release', () => {
       expect.anything(),
     );
     expect(values).not.toHaveBeenCalled();
+  });
+
+  it('delegates callback revision authorization to the locked model transition', async () => {
+    const { db } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        errorSummary: 'Desktop release profile staging failed.',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'failed',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockReleaseModel.getRelease).not.toHaveBeenCalled();
+    expect(mockReleaseModel.markReleaseCallback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'failed',
+      }),
+      expect.anything(),
+    );
   });
 
   it('infers the frozen revision for a bounded failed callback when profile staging cannot report one', async () => {
@@ -289,7 +320,7 @@ describe('POST /api/admin/desktop-release', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mockReleaseModel.markReleaseResult).toHaveBeenCalledWith(
+    expect(mockReleaseModel.markReleaseCallback).toHaveBeenCalledWith(
       expect.objectContaining({
         errorSummary: 'Desktop release profile staging failed.',
         releaseId: '11111111-1111-4111-8111-111111111111',
@@ -310,6 +341,9 @@ describe('POST /api/admin/desktop-release', () => {
       workflowRunId: '1234567890',
       workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
     });
+    mockReleaseModel.markReleaseCallback.mockRejectedValueOnce(
+      new Error('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED'),
+    );
 
     const revisionlessFailure = await POST(
       createRequest({
@@ -323,7 +357,7 @@ describe('POST /api/admin/desktop-release', () => {
     );
 
     expect(revisionlessFailure.status).toBe(400);
-    expect(mockReleaseModel.markReleaseResult).not.toHaveBeenCalled();
+    expect(mockReleaseModel.markReleaseCallback).toHaveBeenCalledTimes(1);
 
     const boundFailure = await POST(
       createRequest({
@@ -338,7 +372,7 @@ describe('POST /api/admin/desktop-release', () => {
     );
 
     expect(boundFailure.status).toBe(200);
-    expect(mockReleaseModel.markReleaseResult).toHaveBeenCalledWith(
+    expect(mockReleaseModel.markReleaseCallback).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'failed' }),
       expect.anything(),
     );
@@ -365,11 +399,9 @@ describe('POST /api/admin/desktop-release', () => {
   it('rejects mismatched profile revisions, invalid GitHub run URLs, and terminal callbacks', async () => {
     const { db, insert } = createDb();
     mockGetServerDB.mockResolvedValue(db);
-    mockReleaseModel.getRelease.mockResolvedValueOnce({
-      frozenRevisionId: '33333333-3333-4333-8333-333333333333',
-      id: '11111111-1111-4111-8111-111111111111',
-      status: 'building',
-    });
+    mockReleaseModel.markReleaseCallback.mockRejectedValueOnce(
+      new Error('DESKTOP_RELEASE_REVISION_MISMATCH'),
+    );
 
     const mismatch = await POST(
       createRequest({
@@ -395,7 +427,9 @@ describe('POST /api/admin/desktop-release', () => {
     );
     expect(invalidUrl.status).toBe(400);
 
-    mockReleaseModel.markReleaseResult.mockRejectedValueOnce(new Error('DESKTOP_RELEASE_TERMINAL'));
+    mockReleaseModel.markReleaseCallback.mockRejectedValueOnce(
+      new Error('DESKTOP_RELEASE_TERMINAL'),
+    );
     const terminal = await POST(
       createRequest({
         profileRevisionId: '22222222-2222-4222-8222-222222222222',

@@ -148,3 +148,27 @@ GREEN:
 - Every callback with `releaseId` now requires both bounded workflow run fields and the validated GitHub Actions URL before any release mutation. Manual callbacks remain untouched.
 - Redirect bodies are awaited-cancelled before all redirect outcomes, including missing location and redirect exhaustion; non-success profile/asset responses and discarded oversized streams are also cancelled.
 - Later-asset checksum and chunked-overflow tests prove previously written assets and the profile output are removed. Self-review found no changes to workflow shell binding, release revision rules, migration, or secret handling.
+
+## Locked Callback Authorization Re-Review
+
+RED:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism "src/app/(backend)/api/admin/desktop-release/__tests__/route.test.ts"`
+   - Failed because the route called unlocked `getRelease` before transition processing.
+2. `node ..\\..\\node_modules\\vitest\\vitest.mjs run --config vitest.config.mts --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism src/models/desktopBuild.test.ts` from `packages/database`
+   - Failed with `markReleaseCallback is not a function`; no locked callback-specific authorization existed.
+
+GREEN:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 32 API/auth/profile tests passed.
+2. `node ..\\..\\node_modules\\vitest\\vitest.mjs run --config vitest.config.mts --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism src/models/desktopBuild.test.ts` from `packages/database`
+   - 23 real PGlite model tests passed, including locked bound/unbound/exact/mismatched callback paths and atomic workflow metadata/status persistence.
+3. `bun run type-check`, targeted ESLint, targeted Prettier, and `git diff --check`
+   - Passed.
+
+## Locked Callback Authorization Fix
+
+- `markReleaseCallback` locks the release row before checking callback provenance and revision. Revisionless failure is allowed only for a locked, unbound release; any bound release requires the exact frozen revision.
+- The route validates request shape and delegates all release callback revision authorization to that model method in the same transaction as workflow metadata and status changes. Internal `markReleaseResult` lifecycle callers are unchanged.
+- Self-review: manual callbacks, terminal/idempotent transitions, bounded errors, workflow provenance, checksum/path safety, and secret handling remain preserved; no Task 6 work or `electron-builder.mjs` changes.

@@ -119,8 +119,16 @@ const releaseTransitionError = (error: unknown) =>
   error instanceof Error &&
   [
     'DESKTOP_RELEASE_INVALID_TRANSITION',
+    'DESKTOP_RELEASE_REVISION_MISMATCH',
     'DESKTOP_RELEASE_TERMINAL',
     'DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH',
+  ].includes(error.message);
+
+const releaseCallbackError = (error: unknown) =>
+  error instanceof Error &&
+  [
+    'DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED',
+    'DESKTOP_RELEASE_CALLBACK_WORKFLOW_REQUIRED',
   ].includes(error.message);
 
 export const POST = async (req: NextRequest) => {
@@ -158,29 +166,18 @@ export const POST = async (req: NextRequest) => {
   }
 
   const model = new DesktopBuildModel(db);
-  const release = await model.getRelease(input.releaseId);
-  if (!release) return NextResponse.json({ error: 'release_not_found' }, { status: 404 });
-  if (
-    input.status === 'failed' &&
-    !input.profileRevisionId &&
-    (release.workflowRunId || release.workflowRunUrl)
-  ) {
-    return NextResponse.json({ error: 'release callback is incomplete' }, { status: 400 });
-  }
-  if (input.profileRevisionId && release.frozenRevisionId !== input.profileRevisionId) {
-    return NextResponse.json({ error: 'release_revision_mismatch' }, { status: 409 });
-  }
 
   try {
     if (input.status === 'succeeded') {
       const count = await db.transaction(async (tx: any) => {
-        await model.markReleaseResult(
+        await model.markReleaseCallback(
           {
             errorSummary: input.errorSummary,
+            profileRevisionId: input.profileRevisionId,
             releaseId: input.releaseId!,
             status: input.status!,
-            workflowRunId: input.workflowRunId,
-            workflowRunUrl: input.workflowRunUrl,
+            workflowRunId: input.workflowRunId!,
+            workflowRunUrl: input.workflowRunUrl!,
           },
           tx,
         );
@@ -191,21 +188,28 @@ export const POST = async (req: NextRequest) => {
     }
 
     await db.transaction((tx: any) =>
-      model.markReleaseResult(
+      model.markReleaseCallback(
         {
           errorSummary: input.errorSummary,
+          profileRevisionId: input.profileRevisionId,
           releaseId: input.releaseId!,
           status: input.status!,
-          workflowRunId: input.workflowRunId,
-          workflowRunUrl: input.workflowRunUrl,
+          workflowRunId: input.workflowRunId!,
+          workflowRunUrl: input.workflowRunUrl!,
         },
         tx,
       ),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (releaseCallbackError(error)) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    }
     if (releaseTransitionError(error)) {
       return NextResponse.json({ error: (error as Error).message }, { status: 409 });
+    }
+    if (error instanceof Error && error.message === 'DESKTOP_RELEASE_NOT_FOUND') {
+      return NextResponse.json({ error: 'release_not_found' }, { status: 404 });
     }
     throw error;
   }
