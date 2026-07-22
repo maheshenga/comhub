@@ -81,6 +81,7 @@ const fetchAsset = async (url: string, fetcher: typeof fetch) => {
       if (!location || redirectCount === MAX_REDIRECTS) {
         return stageError('DESKTOP_BUILD_PROFILE_ASSET_REDIRECT_INVALID');
       }
+      await response.body?.cancel();
       current = new URL(location, current);
       if (current.protocol !== 'https:')
         return stageError('DESKTOP_BUILD_PROFILE_ASSET_REDIRECT_INVALID');

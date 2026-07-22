@@ -38,3 +38,40 @@ GREEN:
 
 - Reviewed against the repository review checklist: no secret logging, no credential or signed-URL persistence, no new user-facing strings, idempotent migration, and no desktop route changes.
 - No full suite, hosted GitHub Actions execution, push, merge, or deployment was performed.
+
+## Review Remediation Evidence
+
+RED:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - Failed the new pre-staging failure callback regression: `expected 400 to be 200` because failed release callbacks without `profileRevisionId` were rejected.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism --dir scripts/electronWorkflow`
+   - Failed the new redirect regression because cancellation had not completed before the redirected fetch.
+   - Failed the parsed workflow contract because a `run:` script contained `${{ inputs.version }}`.
+
+GREEN:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 27 tests passed: constant-time auth/legacy bridge, exact 300-second profile URLs, frozen binding, failed callback inference, terminal/idempotent behavior, and manual compatibility.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir scripts/electronWorkflow`
+   - 6 tests passed: awaited chunked redirect cancellation, staging limits/checksums/cleanup, and parsed workflow lifecycle structure.
+3. `node ..\\..\\node_modules\\vitest\\vitest.mjs run --config vitest.config.mts --silent=passed-only "src/schemas/desktopBuild.schema.test.ts" "src/models/desktopBuild.test.ts"` from `packages/database`
+   - 27 tests passed, including idempotent migration coverage and lifecycle/workflow metadata persistence.
+4. `bun run type-check`
+   - Passed (`tsgo --noEmit`).
+5. `node .\\node_modules\\eslint\\bin\\eslint.js ...` for the seven changed TypeScript/test files and workflow YAML
+   - Passed.
+6. `node .\\node_modules\\prettier\\bin\\prettier.cjs --check ...` for the changed TypeScript/test files and workflow YAML
+   - Passed.
+7. Parsed YAML structural contract: `scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - Passed; all `run:` blocks reject `${{` interpolation, callback/staging inputs are env-bound, the server-managed unpublished path has one terminal failure callback, manual `publish=false` remains unassociated, and succeeded remains after publication.
+8. `git diff --check`
+   - Passed.
+
+## Review Remediation
+
+- Failed server-release callbacks may omit `profileRevisionId` only for `status=failed`; the route loads the release and accepts no alternate revision. All other server lifecycle callbacks still require the exact frozen revision.
+- The workflow now reports bounded static failed summaries with run metadata for pre-staging, build, unpublished server-release, and publish failures. Failed callbacks omit the revision so profile-staging failure cannot strand a release in `building`.
+- Every shell `run:` value is passed through step environment variables; no GitHub expressions are interpolated in shell code. Redirect responses are awaited-cancelled before a permitted follow.
+- Review checklist re-run: no token/signed-URL logging, no credential persistence, no migration change, no desktop route change, and no new user-facing strings.
+- Remaining limitation: no hosted Actions execution or live S3/GitHub callback validation was performed.

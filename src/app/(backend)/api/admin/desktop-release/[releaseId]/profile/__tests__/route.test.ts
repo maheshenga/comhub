@@ -91,10 +91,7 @@ describe('GET /api/admin/desktop-release/:releaseId/profile', () => {
       url: expect.stringContaining('https://signed.example.test/'),
     });
     expect(mockS3.createPreSignedUrlForPreview).toHaveBeenCalledTimes(4);
-    expect(mockS3.createPreSignedUrlForPreview).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(Number),
-    );
+    expect(mockS3.createPreSignedUrlForPreview).toHaveBeenCalledWith(expect.any(String), 300);
     expect(JSON.stringify(body)).not.toMatch(/accessKey|secretAccessKey|bucket|token|upload/i);
   });
 

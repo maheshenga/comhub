@@ -91,6 +91,42 @@ describe('stageDesktopBuildProfile', () => {
     await expect(readFile(staged.assets.windowsIcon)).resolves.toEqual(assetBytes.windowsIcon);
   });
 
+  it('cancels a chunked redirect body before following its allowed location', async () => {
+    const outputDir = await createOutputDir();
+    let cancellationCompleted = false;
+    const redirectBody = new ReadableStream({
+      cancel: async () => {
+        await Promise.resolve();
+        cancellationCompleted = true;
+      },
+      start(controller) {
+        controller.enqueue(new Uint8Array(1024));
+      },
+    });
+    const responses = new Map<string, Response>([
+      [
+        'https://assets.example.test/appPreview',
+        new Response(redirectBody, { headers: { location: '/appPreview-final' }, status: 302 }),
+      ],
+      ['https://assets.example.test/appPreview-final', new Response(assetBytes.appPreview)],
+    ]);
+    const fetcher = fetcherFor(profileResponse(), responses);
+
+    await stageDesktopBuildProfile({
+      appUrl: 'https://chat.qingyouai.com/',
+      fetcher: (async (input, init) => {
+        if (input.toString().endsWith('/appPreview-final'))
+          expect(cancellationCompleted).toBe(true);
+        return fetcher(input, init);
+      }) as typeof fetch,
+      outputDir,
+      releaseId: '11111111-1111-4111-8111-111111111111',
+      token: 'release-token',
+    });
+
+    expect(cancellationCompleted).toBe(true);
+  });
+
   it('rejects a checksum mismatch and removes partial staged files', async () => {
     const outputDir = await createOutputDir();
     const profile = profileResponse();

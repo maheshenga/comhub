@@ -33,7 +33,10 @@ const bodySchema = z
   })
   .superRefine((input, ctx) => {
     const releaseCallback = input.releaseId !== undefined;
-    if (releaseCallback && (!input.profileRevisionId || !input.status)) {
+    if (
+      releaseCallback &&
+      (!input.status || (input.status !== 'failed' && !input.profileRevisionId))
+    ) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'release callback is incomplete' });
     }
     if (
@@ -160,7 +163,7 @@ export const POST = async (req: NextRequest) => {
   const model = new DesktopBuildModel(db);
   const release = await model.getRelease(input.releaseId);
   if (!release) return NextResponse.json({ error: 'release_not_found' }, { status: 404 });
-  if (release.frozenRevisionId !== input.profileRevisionId) {
+  if (input.profileRevisionId && release.frozenRevisionId !== input.profileRevisionId) {
     return NextResponse.json({ error: 'release_revision_mismatch' }, { status: 409 });
   }
 

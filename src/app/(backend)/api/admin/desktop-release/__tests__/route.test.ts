@@ -249,6 +249,49 @@ describe('POST /api/admin/desktop-release', () => {
     expect(values).not.toHaveBeenCalled();
   });
 
+  it('infers the frozen revision for a bounded failed callback when profile staging cannot report one', async () => {
+    const { db, values } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        errorSummary: 'Desktop release profile staging failed.',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'failed',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockReleaseModel.markReleaseResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorSummary: 'Desktop release profile staging failed.',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'failed',
+      }),
+      expect.anything(),
+    );
+    expect(values).not.toHaveBeenCalled();
+  });
+
+  it('still requires an exact profile revision for non-failed release callbacks', async () => {
+    const { db } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'publishing',
+        version: '2.3.0',
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockReleaseModel.markReleaseResult).not.toHaveBeenCalled();
+  });
+
   it('rejects mismatched profile revisions, invalid GitHub run URLs, and terminal callbacks', async () => {
     const { db, insert } = createDb();
     mockGetServerDB.mockResolvedValue(db);
