@@ -16,6 +16,7 @@ import {
   getAsarUnpackPatterns,
   getNativeModulesFilesConfig,
 } from './native-deps.config.mjs';
+import { applyDesktopBuildProfile, loadDesktopBuildProfile } from './desktop-build-profile.mjs';
 
 dotenv.config();
 
@@ -97,7 +98,7 @@ const getIconFileName = () => {
  * @type {import('electron-builder').Configuration}
  * @see https://www.electron.build/configuration
  */
-const config = {
+const defaultConfig = {
   /**
    * BeforePack hook to resolve pnpm symlinks for native modules.
    * This ensures native modules are properly included in the asar archive.
@@ -327,5 +328,10 @@ const config = {
     executableName: 'LobeHub',
   },
 };
+
+const config = applyDesktopBuildProfile(
+  defaultConfig,
+  await loadDesktopBuildProfile(process.env.DESKTOP_BUILD_PROFILE_PATH),
+);
 
 export default config;

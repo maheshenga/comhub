@@ -1,119 +1,107 @@
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import fs from 'fs-extra';
 
-type ReleaseType = 'stable' | 'beta' | 'nightly' | 'canary';
+export type ReleaseType = 'stable' | 'beta' | 'nightly' | 'canary';
 
-// Get command line arguments for the script
-const version = process.argv[2];
-const releaseType = process.argv[3] as ReleaseType;
+const releasePackageNames: Record<ReleaseType, string> = {
+  beta: 'lobehub-desktop-beta',
+  canary: 'lobehub-desktop-canary',
+  nightly: 'lobehub-desktop-nightly',
+  stable: 'lobehub-desktop',
+};
 
-// Validate parameters
-if (!version || !releaseType) {
-  console.error(
-    'Missing parameters. Usage: bun run setDesktopVersion.ts <version> <stable|beta|nightly|canary>',
-  );
-  process.exit(1);
-}
-
-if (!['stable', 'beta', 'nightly', 'canary'].includes(releaseType)) {
-  console.error(
-    `Invalid release type: ${releaseType}. Must be one of 'stable', 'beta', 'nightly', 'canary'.`,
-  );
-  process.exit(1);
-}
-
-// Get root directory
-const rootDir = path.resolve(__dirname, '../..');
-
-// Path to the desktop app package.json
-const desktopPackageJsonPath = path.join(rootDir, 'apps/desktop/package.json');
-const buildDir = path.join(rootDir, 'apps/desktop/build');
-
-// Update app icon
-function updateAppIcon(type: 'beta' | 'nightly') {
-  console.log(`📦 Updating app icon for ${type} version...`);
+function updateAppIcon(rootDir: string, type: 'beta' | 'nightly') {
+  const buildDir = path.join(rootDir, 'apps/desktop/build');
+  console.log(`Updating app icon for ${type} version...`);
   try {
     const iconSuffix = type === 'beta' ? 'beta' : 'nightly';
     const iconMappings = [
-      { ext: '.png', source: `icon-${iconSuffix}.png`, target: 'icon.png' },
-      { ext: '.icns', source: `Icon-${iconSuffix}.icns`, target: 'Icon.icns' },
-      { ext: '.ico', source: `icon-${iconSuffix}.ico`, target: 'icon.ico' },
+      { source: `icon-${iconSuffix}.png`, target: 'icon.png' },
+      { source: `Icon-${iconSuffix}.icns`, target: 'Icon.icns' },
+      { source: `icon-${iconSuffix}.ico`, target: 'icon.ico' },
     ];
 
     for (const mapping of iconMappings) {
       const sourceFile = path.join(buildDir, mapping.source);
       const targetFile = path.join(buildDir, mapping.target);
 
-      if (fs.existsSync(sourceFile)) {
-        if (sourceFile !== targetFile) {
-          fs.copyFileSync(sourceFile, targetFile);
-          console.log(`  ✅ Copied ${mapping.source} to ${mapping.target}`);
-        }
-      } else {
-        console.warn(`  ⚠️ Warning: Source icon not found: ${sourceFile}`);
+      if (fs.existsSync(sourceFile) && sourceFile !== targetFile) {
+        fs.copyFileSync(sourceFile, targetFile);
+        console.log(`  Copied ${mapping.source} to ${mapping.target}`);
+      } else if (!fs.existsSync(sourceFile)) {
+        console.warn(`  Warning: Source icon not found: ${sourceFile}`);
       }
     }
   } catch (error) {
-    console.error('  ❌ Error updating icons:', error);
-    // Don't terminate the program, continue processing package.json
+    console.error('  Error updating icons:', error);
   }
 }
 
-function updatePackageJson() {
-  console.log(`⚙️ Updating ${desktopPackageJsonPath} for ${releaseType} version ${version}...`);
-  try {
-    if (!fs.existsSync(desktopPackageJsonPath)) {
-      console.error(`❌ Error: File not found ${desktopPackageJsonPath}`);
-      process.exit(1);
-    }
-
-    const packageJson = fs.readJSONSync(desktopPackageJsonPath);
-
-    // Always update the version number
-    packageJson.version = version;
-
-    // Modify other fields based on releaseType
-    switch (releaseType) {
-      case 'stable': {
-        packageJson.productName = 'LobeHub';
-        packageJson.name = 'lobehub-desktop';
-        console.log('🌟 Setting as Stable version.');
-        break;
-      }
-      case 'beta': {
-        packageJson.productName = 'LobeHub-Beta'; // Or 'LobeHub-Beta' if preferred
-        packageJson.name = 'lobehub-desktop-beta'; // Or 'lobehub-desktop' if preferred
-        console.log('🧪 Setting as Beta version.');
-        updateAppIcon('beta');
-        break;
-      }
-      case 'nightly': {
-        packageJson.productName = 'LobeHub-Nightly'; // Or 'LobeHub-Nightly'
-        packageJson.name = 'lobehub-desktop-nightly'; // Or 'lobehub-desktop-nightly'
-        console.log('🌙 Setting as Nightly version.');
-        updateAppIcon('nightly');
-        break;
-      }
-      case 'canary': {
-        packageJson.productName = 'LobeHub';
-        packageJson.name = 'lobehub-desktop-canary';
-        console.log('🐤 Setting as Canary version (same app name and icon as stable).');
-        break;
-      }
-    }
-
-    // Write back to file
-    fs.writeJsonSync(desktopPackageJsonPath, packageJson, { spaces: 2 });
-
-    console.log(
-      `✅ Desktop app package.json updated successfully for ${releaseType} version ${version}.`,
+export function updateDesktopPackageJson({
+  copyRepositoryIcons = !process.env.DESKTOP_BUILD_PROFILE_PATH,
+  releaseType,
+  rootDir = path.resolve(__dirname, '../..'),
+  version,
+}: {
+  copyRepositoryIcons?: boolean;
+  releaseType: ReleaseType;
+  rootDir?: string;
+  version: string;
+}) {
+  if (!releasePackageNames[releaseType]) {
+    throw new Error(
+      `Invalid release type: ${releaseType}. Must be one of 'stable', 'beta', 'nightly', 'canary'.`,
     );
+  }
+
+  const desktopPackageJsonPath = path.join(rootDir, 'apps/desktop/package.json');
+  console.log(`Updating ${desktopPackageJsonPath} for ${releaseType} version ${version}...`);
+
+  if (!fs.existsSync(desktopPackageJsonPath)) {
+    throw new Error(`File not found ${desktopPackageJsonPath}`);
+  }
+
+  const packageJson = fs.readJSONSync(desktopPackageJsonPath);
+  packageJson.version = version;
+  packageJson.name = releasePackageNames[releaseType];
+
+  if (releaseType === 'beta') {
+    console.log('Setting as Beta version.');
+    if (copyRepositoryIcons) updateAppIcon(rootDir, 'beta');
+  } else if (releaseType === 'nightly') {
+    console.log('Setting as Nightly version.');
+    if (copyRepositoryIcons) updateAppIcon(rootDir, 'nightly');
+  } else if (releaseType === 'canary') {
+    console.log('Setting as Canary version.');
+  } else {
+    console.log('Setting as Stable version.');
+  }
+
+  fs.writeJsonSync(desktopPackageJsonPath, packageJson, { spaces: 2 });
+  console.log(`Desktop app package.json updated successfully for ${releaseType} ${version}.`);
+}
+
+function runCli() {
+  const version = process.argv[2];
+  const releaseType = process.argv[3] as ReleaseType;
+
+  if (!version || !releaseType) {
+    console.error(
+      'Missing parameters. Usage: bun run setDesktopVersion.ts <version> <stable|beta|nightly|canary>',
+    );
+    process.exit(1);
+  }
+
+  try {
+    updateDesktopPackageJson({ releaseType, version });
   } catch (error) {
-    console.error('❌ Error updating package.json:', error);
+    console.error(error);
     process.exit(1);
   }
 }
 
-// Execute update
-updatePackageJson();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runCli();
+}
