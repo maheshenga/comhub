@@ -26,6 +26,12 @@ const mocks = vi.hoisted(() => ({
       }
     },
     dispatchDesktopReleaseWorkflow: vi.fn(),
+    reconcileDesktopReleaseWorkflow: vi.fn(),
+    retryDesktopReleaseWorkflow: vi.fn(),
+  },
+  publication: {
+    normalizeDesktopReleasePublication: vi.fn(),
+    writeDesktopReleasePublicationSettings: vi.fn(),
   },
   ids: {
     randomUUID: vi.fn(),
@@ -55,14 +61,18 @@ const mocks = vi.hoisted(() => ({
   },
   model: {
     archiveProfile: vi.fn(),
+    bindReleaseWorkflowRun: vi.fn(),
+    expirePendingReleaseRetry: vi.fn(),
     freezeDraftForRelease: vi.fn(),
     getProfile: vi.fn(),
+    getRelease: vi.fn(),
     getRevision: vi.fn(),
     getRevisionsByIds: vi.fn(),
     listProfiles: vi.fn(),
     listReleases: vi.fn(),
     markReleaseDispatched: vi.fn(),
     markReleaseResult: vi.fn(),
+    prepareReleaseRetry: vi.fn(),
     saveDraft: vi.fn(),
   },
 }));
@@ -78,6 +88,8 @@ vi.mock('@/server/services/desktopBuild/assets', () => mocks.assets);
 
 vi.mock('@/server/services/desktopRelease/github', () => mocks.github);
 
+vi.mock('@/server/services/desktopRelease/publication', () => mocks.publication);
+
 vi.mock('@/server/modules/S3', () => ({
   FileS3: vi.fn(() => ({})),
 }));
@@ -85,6 +97,7 @@ vi.mock('@/server/modules/S3', () => ({
 vi.mock('./audit', () => mocks.audit);
 
 const PROFILE_ID = '11111111-1111-4111-8111-111111111111';
+const RELEASE_ID = '44444444-4444-4444-8444-444444444444';
 const PROFILE_CURSOR = Buffer.from(
   JSON.stringify({
     createdAt: '2026-07-21T00:00:00.000000Z',
@@ -211,6 +224,14 @@ describe('adminDesktopRouter', () => {
       currentDraftRevisionId: draftRevision.id,
       id: PROFILE_ID,
     });
+    mocks.model.getRelease.mockResolvedValue({
+      ...buildingRelease,
+      dispatchedAt: new Date('2026-07-22T10:00:00Z'),
+      id: RELEASE_ID,
+      workflowRunAttempt: null,
+      workflowRunId: null,
+      workflowRunUrl: null,
+    });
     mocks.model.getRevision.mockResolvedValue(draftRevision);
     mocks.model.getRevisionsByIds.mockResolvedValue([]);
     mocks.model.listProfiles.mockResolvedValue({ items: [], nextCursor: null });
@@ -220,6 +241,22 @@ describe('adminDesktopRouter', () => {
       id: input.releaseId,
     }));
     mocks.model.markReleaseResult.mockResolvedValue({ ...queuedRelease, status: 'failed' });
+    mocks.model.bindReleaseWorkflowRun.mockResolvedValue({
+      ...buildingRelease,
+      id: RELEASE_ID,
+      workflowRunAttempt: 1,
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+    mocks.model.expirePendingReleaseRetry.mockResolvedValue(null);
+    mocks.model.prepareReleaseRetry.mockResolvedValue({
+      ...buildingRelease,
+      id: RELEASE_ID,
+      workflowRunAttempt: 1,
+      workflowRunAttemptPending: true,
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
     mocks.model.saveDraft.mockResolvedValue({
       profileId: PROFILE_ID,
       revision: 1,
@@ -235,6 +272,19 @@ describe('adminDesktopRouter', () => {
     mocks.assets.completeDesktopBuildAsset.mockResolvedValue(trustedAsset);
     mocks.assets.validateDesktopBuildAssetManifest.mockResolvedValue(manifest);
     mocks.github.dispatchDesktopReleaseWorkflow.mockResolvedValue(undefined);
+    mocks.github.retryDesktopReleaseWorkflow.mockResolvedValue(undefined);
+    mocks.publication.normalizeDesktopReleasePublication.mockImplementation((input) => input);
+    mocks.publication.writeDesktopReleasePublicationSettings.mockResolvedValue(5);
+    mocks.github.reconcileDesktopReleaseWorkflow.mockResolvedValue({
+      conclusion: null,
+      createdAt: '2026-07-22T10:00:02Z',
+      state: 'matched',
+      status: 'in_progress',
+      updatedAt: '2026-07-22T10:01:00Z',
+      workflowRunAttempt: 1,
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
   });
 
   it('is registered under admin.desktop', () => {
@@ -270,6 +320,350 @@ describe('adminDesktopRouter', () => {
       adminDesktopRouter.createCaller({ userId: 'finance-admin-user' } as any).getOverview(),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(getDesktopReleaseDiagnostics).not.toHaveBeenCalled();
+  });
+
+  it('binds the only matched GitHub workflow run without changing release status', async () => {
+    const result = await adminDesktopRouter
+      .createCaller({ userId: 'system-admin-user' } as any)
+      .reconcileDesktopRelease({ releaseId: RELEASE_ID });
+
+    expect(mocks.github.reconcileDesktopReleaseWorkflow).toHaveBeenCalledWith({
+      channel: 'stable',
+      dispatchedAt: new Date('2026-07-22T10:00:00Z'),
+      releaseId: RELEASE_ID,
+      version: '2.4.0',
+      workflowRunId: null,
+    });
+    expect(mocks.model.bindReleaseWorkflowRun).toHaveBeenCalledWith({
+      releaseId: RELEASE_ID,
+      workflowRunAttempt: 1,
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+    expect(result).toMatchObject({ state: 'matched', status: 'in_progress' });
+    expect(mocks.audit.records).toHaveBeenCalledWith('started');
+    expect(mocks.audit.records).toHaveBeenCalledWith('succeeded');
+  });
+
+  it('reports a conflict when a release becomes terminal before reconciliation can bind it', async () => {
+    mocks.model.bindReleaseWorkflowRun.mockRejectedValueOnce(
+      new Error('DESKTOP_RELEASE_WORKFLOW_RUN_BIND_NOT_ALLOWED'),
+    );
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: 'DESKTOP_RELEASE_RECONCILE_CONFLICT',
+    });
+
+    expect(mocks.model.markReleaseResult).not.toHaveBeenCalled();
+    expect(mocks.audit.records).toHaveBeenCalledWith('failed');
+  });
+
+  it('keeps the release building when GitHub reconciliation has no unique match', async () => {
+    mocks.github.reconcileDesktopReleaseWorkflow.mockResolvedValueOnce({
+      candidateCount: 0,
+      reason: 'not-found',
+      state: 'unresolved',
+    });
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+    ).resolves.toEqual({ candidateCount: 0, reason: 'not-found', state: 'unresolved' });
+
+    expect(mocks.model.bindReleaseWorkflowRun).not.toHaveBeenCalled();
+    expect(mocks.model.markReleaseResult).not.toHaveBeenCalled();
+  });
+
+  it('keeps an ambiguous rerun pending while GitHub still reports the previous attempt', async () => {
+    mocks.model.getRelease.mockResolvedValueOnce({
+      ...buildingRelease,
+      dispatchedAt: new Date('2026-07-22T10:00:00Z'),
+      id: RELEASE_ID,
+      workflowRunAttempt: 1,
+      workflowRunAttemptPending: true,
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+    ).resolves.toEqual({ candidateCount: 1, reason: 'rerun-pending', state: 'unresolved' });
+
+    expect(mocks.model.expirePendingReleaseRetry).toHaveBeenCalledWith({
+      releaseId: RELEASE_ID,
+      requestedBefore: expect.any(Date),
+      workflowRunAttempt: 1,
+    });
+    expect(mocks.model.bindReleaseWorkflowRun).not.toHaveBeenCalled();
+  });
+
+  it('expires an ambiguous rerun when GitHub never advances beyond the previous attempt', async () => {
+    mocks.model.getRelease.mockResolvedValueOnce({
+      ...buildingRelease,
+      dispatchedAt: new Date('2026-07-22T10:00:00Z'),
+      id: RELEASE_ID,
+      workflowRunAttempt: 1,
+      workflowRunAttemptPending: true,
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+    mocks.model.expirePendingReleaseRetry.mockResolvedValueOnce({
+      ...buildingRelease,
+      id: RELEASE_ID,
+      status: 'failed',
+      workflowRunAttempt: 1,
+      workflowRunAttemptPending: false,
+    });
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+    ).resolves.toEqual({
+      candidateCount: 1,
+      reason: 'rerun-not-delivered',
+      state: 'unresolved',
+    });
+
+    expect(mocks.model.bindReleaseWorkflowRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects reconciliation for releases that are no longer building', async () => {
+    mocks.model.getRelease.mockResolvedValueOnce({ ...buildingRelease, status: 'failed' });
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .reconcileDesktopRelease({ releaseId: RELEASE_ID }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'DESKTOP_RELEASE_RECONCILE_NOT_ALLOWED',
+    });
+
+    expect(mocks.github.reconcileDesktopReleaseWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed release through the required external-effect audit', async () => {
+    const result = await adminDesktopRouter
+      .createCaller({ userId: 'system-admin-user' } as any)
+      .retryDesktopRelease({ releaseId: RELEASE_ID });
+
+    expect(mocks.model.prepareReleaseRetry).toHaveBeenCalledWith({
+      actorUserId: 'system-admin-user',
+      releaseId: RELEASE_ID,
+    });
+    expect(mocks.github.retryDesktopReleaseWorkflow).toHaveBeenCalledWith({
+      channel: 'stable',
+      releaseId: RELEASE_ID,
+      releaseNotes: 'notes',
+      version: '2.4.0',
+      workflowRunId: '1234567890',
+    });
+    expect(result).toMatchObject({ id: RELEASE_ID, status: 'building' });
+    expect(mocks.audit.records).toHaveBeenCalledWith('started');
+    expect(mocks.audit.records).toHaveBeenCalledWith('succeeded');
+  });
+
+  it('maps a retry request for a non-failed release to a state conflict', async () => {
+    mocks.model.prepareReleaseRetry.mockRejectedValueOnce(
+      new Error('DESKTOP_RELEASE_RETRY_NOT_ALLOWED'),
+    );
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .retryDesktopRelease({ releaseId: RELEASE_ID }),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: 'DESKTOP_RELEASE_RETRY_NOT_ALLOWED',
+    });
+
+    expect(mocks.github.retryDesktopReleaseWorkflow).not.toHaveBeenCalled();
+    expect(mocks.audit.records).toHaveBeenCalledWith('failed');
+  });
+
+  it('returns a retry to failed when GitHub definitively rejects the request', async () => {
+    mocks.github.retryDesktopReleaseWorkflow.mockRejectedValueOnce(
+      new mocks.github.DesktopReleaseDispatchError(
+        'github-dispatch-failed',
+        'GitHub rerun failed (409).',
+        'definitive',
+      ),
+    );
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .retryDesktopRelease({ releaseId: RELEASE_ID }),
+    ).rejects.toThrow('GitHub rerun failed (409).');
+
+    expect(mocks.model.markReleaseResult).toHaveBeenCalledWith({
+      errorSummary: 'GitHub rerun failed (409).',
+      releaseId: RELEASE_ID,
+      status: 'failed',
+    });
+    expect(mocks.audit.records).toHaveBeenCalledWith('failed');
+  });
+
+  it('keeps a retried release building when GitHub delivery is ambiguous', async () => {
+    mocks.github.retryDesktopReleaseWorkflow.mockRejectedValueOnce(
+      new mocks.github.DesktopReleaseDispatchError(
+        'github-dispatch-timeout',
+        'GitHub rerun timed out.',
+        'ambiguous',
+      ),
+    );
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .retryDesktopRelease({ releaseId: RELEASE_ID }),
+    ).rejects.toThrow('GitHub rerun timed out.');
+
+    expect(mocks.model.prepareReleaseRetry).toHaveBeenCalledTimes(1);
+    expect(mocks.model.markReleaseResult).not.toHaveBeenCalled();
+    expect(mocks.audit.records).toHaveBeenCalledWith('failed');
+  });
+
+  it('sets an immutable succeeded release as the current public desktop version', async () => {
+    const succeededRelease = {
+      ...queuedRelease,
+      id: RELEASE_ID,
+      publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.4.0/ComHub.exe',
+      publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+      status: 'succeeded' as const,
+    };
+    mocks.model.getRelease.mockResolvedValueOnce(succeededRelease);
+
+    const result = await adminDesktopRouter
+      .createCaller({ userId: 'system-admin-user' } as any)
+      .activateDesktopRelease({ releaseId: RELEASE_ID });
+
+    expect(mocks.publication.normalizeDesktopReleasePublication).toHaveBeenCalledWith({
+      channel: 'stable',
+      downloadUrl: succeededRelease.publishedDownloadUrl,
+      releaseNotes: 'notes',
+      serverUrl: succeededRelease.publishedServerUrl,
+      version: '2.4.0',
+    });
+    expect(mocks.publication.writeDesktopReleasePublicationSettings).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ version: '2.4.0' }),
+    );
+    expect(result).toMatchObject({ id: RELEASE_ID, status: 'succeeded' });
+    expect(mocks.audit.runRequiredAdminAuditMutation).toHaveBeenCalled();
+  });
+
+  it('rejects activation unless the release succeeded with complete publication URLs', async () => {
+    const releases = [
+      {
+        ...queuedRelease,
+        id: RELEASE_ID,
+        publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.4.0/ComHub.exe',
+        publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+        status: 'failed' as const,
+      },
+      {
+        ...queuedRelease,
+        id: RELEASE_ID,
+        publishedDownloadUrl: null,
+        publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+        status: 'succeeded' as const,
+      },
+      {
+        ...queuedRelease,
+        id: RELEASE_ID,
+        publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.4.0/ComHub.exe',
+        publishedServerUrl: null,
+        status: 'succeeded' as const,
+      },
+    ];
+
+    for (const release of releases) {
+      mocks.model.getRelease.mockResolvedValueOnce(release);
+      await expect(
+        adminDesktopRouter
+          .createCaller({ userId: 'system-admin-user' } as any)
+          .activateDesktopRelease({ releaseId: RELEASE_ID }),
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: 'DESKTOP_RELEASE_ACTIVATION_NOT_ALLOWED',
+      });
+    }
+
+    expect(mocks.publication.normalizeDesktopReleasePublication).not.toHaveBeenCalled();
+    expect(mocks.audit.runRequiredAdminAuditMutation).not.toHaveBeenCalled();
+  });
+
+  it('rejects activation when stored publication URLs no longer pass validation', async () => {
+    mocks.model.getRelease.mockResolvedValueOnce({
+      ...queuedRelease,
+      id: RELEASE_ID,
+      publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.4.0/ComHub.exe',
+      publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+      status: 'succeeded' as const,
+    });
+    mocks.publication.normalizeDesktopReleasePublication.mockImplementationOnce(() => {
+      throw new Error('downloadUrl is not allowed: unsafe-url');
+    });
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .activateDesktopRelease({ releaseId: RELEASE_ID }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'DESKTOP_RELEASE_PUBLICATION_INVALID',
+    });
+
+    expect(mocks.publication.writeDesktopReleasePublicationSettings).not.toHaveBeenCalled();
+    expect(mocks.audit.runRequiredAdminAuditMutation).not.toHaveBeenCalled();
+  });
+
+  it('rejects activation when normalization removes incomplete publication URLs', async () => {
+    mocks.model.getRelease.mockResolvedValueOnce({
+      ...queuedRelease,
+      id: RELEASE_ID,
+      publishedDownloadUrl: '   ',
+      publishedServerUrl: '   ',
+      status: 'succeeded' as const,
+    });
+    mocks.publication.normalizeDesktopReleasePublication.mockReturnValueOnce({
+      channel: 'stable',
+      version: '2.4.0',
+    });
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'system-admin-user' } as any)
+        .activateDesktopRelease({ releaseId: RELEASE_ID }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'DESKTOP_RELEASE_PUBLICATION_INVALID',
+    });
+
+    expect(mocks.publication.writeDesktopReleasePublicationSettings).not.toHaveBeenCalled();
+    expect(mocks.audit.runRequiredAdminAuditMutation).not.toHaveBeenCalled();
+  });
+
+  it('requires systemWrite before activating a desktop release', async () => {
+    vi.mocked(getServerDB).mockResolvedValue(createDb('finance_admin'));
+
+    await expect(
+      adminDesktopRouter
+        .createCaller({ userId: 'finance-admin-user' } as any)
+        .activateDesktopRelease({ releaseId: RELEASE_ID }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    expect(mocks.model.getRelease).not.toHaveBeenCalled();
   });
 
   it('returns draft profile DTOs without storage secrets or signed download URLs', async () => {
@@ -706,7 +1100,7 @@ describe('adminDesktopRouter', () => {
     mocks.github.dispatchDesktopReleaseWorkflow.mockRejectedValue(
       new mocks.github.DesktopReleaseDispatchError(
         'github-dispatch-failed',
-        'GitHub dispatch failed (500).',
+        'GitHub dispatch failed (422).',
         'definitive',
       ),
     );
@@ -718,10 +1112,10 @@ describe('adminDesktopRouter', () => {
         releaseNotes: 'notes',
         version: '2.4.0',
       }),
-    ).rejects.toThrow('GitHub dispatch failed (500).');
+    ).rejects.toThrow('GitHub dispatch failed (422).');
 
     expect(mocks.model.markReleaseResult).toHaveBeenCalledWith({
-      errorSummary: 'GitHub dispatch failed (500).',
+      errorSummary: 'GitHub dispatch failed (422).',
       releaseId: 'release-00000000-4000-8000-000000000002',
       status: 'failed',
     });
@@ -801,7 +1195,7 @@ describe('adminDesktopRouter', () => {
     mocks.github.dispatchDesktopReleaseWorkflow.mockRejectedValue(
       new mocks.github.DesktopReleaseDispatchError(
         'github-dispatch-failed',
-        'GitHub dispatch failed (500).',
+        'GitHub dispatch failed (422).',
         'definitive',
       ),
     );

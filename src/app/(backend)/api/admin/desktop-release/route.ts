@@ -2,14 +2,13 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import {
-  normalizeDesktopDownloadUrl,
-  normalizeDesktopUpdateServerUrl,
-} from '@/const/desktopUpdate';
 import { DesktopBuildModel } from '@/database/models/desktopBuild';
-import { appSettings } from '@/database/schemas';
 import { getServerDB } from '@/database/server';
-import { APP_SETTING_KEYS, invalidateServerAppSettings } from '@/server/services/appSettings';
+import { invalidateServerAppSettings } from '@/server/services/appSettings';
+import {
+  normalizeDesktopReleasePublication,
+  writeDesktopReleasePublicationSettings,
+} from '@/server/services/desktopRelease/publication';
 
 import { isDesktopReleaseAuthorized, resolveDesktopReleaseToken } from './auth';
 
@@ -28,6 +27,7 @@ const bodySchema = z
     serverUrl: z.string().optional(),
     status: z.enum(['building', 'failed', 'publishing', 'queued', 'succeeded']).optional(),
     version: z.string().trim().min(1),
+    workflowRunAttempt: z.number().int().positive().optional(),
     workflowRunId: z.string().trim().min(1).max(64).regex(/^\d+$/).optional(),
     workflowRunUrl: z.string().trim().max(2048).optional(),
   })
@@ -39,8 +39,21 @@ const bodySchema = z
     ) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'release callback is incomplete' });
     }
-    if (releaseCallback && (!input.workflowRunId || !input.workflowRunUrl)) {
+    if (
+      releaseCallback &&
+      (!input.workflowRunAttempt || !input.workflowRunId || !input.workflowRunUrl)
+    ) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'workflow run metadata is incomplete' });
+    }
+    if (
+      releaseCallback &&
+      input.status === 'succeeded' &&
+      (!input.downloadUrl?.trim() || !input.serverUrl?.trim())
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'release publication metadata is incomplete',
+      });
     }
     if (releaseCallback && input.workflowRunUrl && input.workflowRunId) {
       const repository = process.env.DESKTOP_RELEASE_GITHUB_REPOSITORY ?? DEFAULT_GITHUB_REPOSITORY;
@@ -67,53 +80,8 @@ const bodySchema = z
     }
   });
 
-const upsertSetting = async (db: any, key: string, value: unknown) =>
-  db
-    .insert(appSettings)
-    .values({ key, value: value as any })
-    .onConflictDoUpdate({
-      set: { updatedAt: new Date(), value: value as any },
-      target: appSettings.key,
-    });
-
 const getBearerToken = (request: NextRequest) =>
   (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
-
-const getPublicSettingUpdates = (input: z.infer<typeof bodySchema>) => {
-  const normalizedServerUrl = normalizeDesktopUpdateServerUrl(input.serverUrl);
-  if ('reason' in normalizedServerUrl) {
-    throw new Error(`serverUrl is not allowed: ${normalizedServerUrl.reason}`);
-  }
-  const normalizedDownloadUrl = normalizeDesktopDownloadUrl(input.downloadUrl);
-  if ('reason' in normalizedDownloadUrl) {
-    throw new Error(`downloadUrl is not allowed: ${normalizedDownloadUrl.reason}`);
-  }
-  const serverUrl = normalizedServerUrl.url || undefined;
-  const downloadUrl = normalizedDownloadUrl.url || undefined;
-
-  const updates: Array<{ key: string; value: unknown }> = [
-    { key: APP_SETTING_KEYS.desktopUpdateChannel, value: input.channel },
-    { key: APP_SETTING_KEYS.desktopUpdateCurrentVersion, value: input.version },
-  ];
-  if (serverUrl) updates.push({ key: APP_SETTING_KEYS.desktopUpdateServerUrl, value: serverUrl });
-  if (input.releaseNotes !== undefined) {
-    updates.push({
-      key: APP_SETTING_KEYS.desktopUpdateReleaseNotes,
-      value: input.releaseNotes.trim(),
-    });
-  }
-  if (downloadUrl) updates.push({ key: APP_SETTING_KEYS.desktopDownloadUrl, value: downloadUrl });
-  if (input.downloadLabel !== undefined) {
-    updates.push({ key: APP_SETTING_KEYS.desktopDownloadLabel, value: input.downloadLabel.trim() });
-  }
-  return updates;
-};
-
-const writePublicSettings = async (db: any, input: z.infer<typeof bodySchema>): Promise<number> => {
-  const updates = getPublicSettingUpdates(input);
-  for (const update of updates) await upsertSetting(db, update.key, update.value);
-  return updates.length;
-};
 
 const releaseTransitionError = (error: unknown) =>
   error instanceof Error &&
@@ -121,6 +89,7 @@ const releaseTransitionError = (error: unknown) =>
     'DESKTOP_RELEASE_INVALID_TRANSITION',
     'DESKTOP_RELEASE_REVISION_MISMATCH',
     'DESKTOP_RELEASE_TERMINAL',
+    'DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH',
     'DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH',
   ].includes(error.message);
 
@@ -129,7 +98,13 @@ const releaseCallbackError = (error: unknown) =>
   [
     'DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED',
     'DESKTOP_RELEASE_CALLBACK_WORKFLOW_REQUIRED',
+    'DESKTOP_RELEASE_PUBLICATION_METADATA_INVALID',
   ].includes(error.message);
+
+const releasePublicationNormalizationError = (error: unknown) =>
+  error instanceof Error &&
+  (error.message.startsWith('downloadUrl is not allowed:') ||
+    error.message.startsWith('serverUrl is not allowed:'));
 
 export const POST = async (req: NextRequest) => {
   const token = getBearerToken(req);
@@ -157,7 +132,10 @@ export const POST = async (req: NextRequest) => {
 
   if (!input.releaseId) {
     try {
-      const count = await db.transaction((tx: any) => writePublicSettings(tx, input));
+      const publication = normalizeDesktopReleasePublication(input);
+      const count = await db.transaction((tx: any) =>
+        writeDesktopReleasePublicationSettings(tx, publication),
+      );
       invalidateServerAppSettings();
       return NextResponse.json({ count, ok: true });
     } catch (error) {
@@ -170,12 +148,20 @@ export const POST = async (req: NextRequest) => {
   try {
     if (input.status === 'succeeded') {
       const result = await db.transaction(async (tx: any) => {
+        const publication = normalizeDesktopReleasePublication(input);
         const release = await model.markReleaseCallback(
           {
             errorSummary: input.errorSummary,
             profileRevisionId: input.profileRevisionId,
+            ...(publication.downloadUrl && publication.serverUrl
+              ? {
+                  publishedDownloadUrl: publication.downloadUrl,
+                  publishedServerUrl: publication.serverUrl,
+                }
+              : {}),
             releaseId: input.releaseId!,
             status: input.status!,
+            workflowRunAttempt: input.workflowRunAttempt!,
             workflowRunId: input.workflowRunId!,
             workflowRunUrl: input.workflowRunUrl!,
           },
@@ -184,8 +170,9 @@ export const POST = async (req: NextRequest) => {
         if (!release.transitionedToSucceeded) return { count: 0, updated: false };
 
         return {
-          count: await writePublicSettings(tx, {
+          count: await writeDesktopReleasePublicationSettings(tx, {
             ...input,
+            ...publication,
             channel: release.channel,
             releaseNotes: release.releaseNotes,
             version: release.version,
@@ -204,6 +191,7 @@ export const POST = async (req: NextRequest) => {
           profileRevisionId: input.profileRevisionId,
           releaseId: input.releaseId!,
           status: input.status!,
+          workflowRunAttempt: input.workflowRunAttempt!,
           workflowRunId: input.workflowRunId!,
           workflowRunUrl: input.workflowRunUrl!,
         },
@@ -212,7 +200,7 @@ export const POST = async (req: NextRequest) => {
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
-    if (releaseCallbackError(error)) {
+    if (releaseCallbackError(error) || releasePublicationNormalizationError(error)) {
       return NextResponse.json({ error: (error as Error).message }, { status: 400 });
     }
     if (releaseTransitionError(error)) {

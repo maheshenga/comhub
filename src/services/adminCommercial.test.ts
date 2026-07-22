@@ -27,6 +27,7 @@ vi.mock('@/libs/trpc/client', () => ({
         deleteDocument: { mutate: vi.fn() },
       },
       desktop: {
+        activateDesktopRelease: { mutate: vi.fn() },
         archiveBuildProfile: { mutate: vi.fn() },
         completeBuildAssetUpload: { mutate: vi.fn() },
         createDesktopRelease: { mutate: vi.fn() },
@@ -35,6 +36,8 @@ vi.mock('@/libs/trpc/client', () => ({
         getOverview: { query: vi.fn() },
         listBuildProfiles: { query: vi.fn() },
         listDesktopReleases: { query: vi.fn() },
+        reconcileDesktopRelease: { mutate: vi.fn() },
+        retryDesktopRelease: { mutate: vi.fn() },
         saveBuildProfileDraft: { mutate: vi.fn() },
       },
       settings: {
@@ -92,6 +95,7 @@ describe('adminCommercialService NewAPI helpers', () => {
 
   it('delegates desktop build profile and protected asset operations to admin.desktop', async () => {
     const input = { kind: 'appPreview' as const };
+    await adminCommercialService.activateDesktopRelease('44444444-4444-4444-8444-444444444444');
     await adminCommercialService.createBuildAssetUpload(input);
     await adminCommercialService.completeBuildAssetUpload({
       key: 'desktop-build-assets/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222.png',
@@ -106,7 +110,12 @@ describe('adminCommercialService NewAPI helpers', () => {
       releaseNotes: 'notes',
       version: '2.4.0',
     });
+    await adminCommercialService.reconcileDesktopRelease('44444444-4444-4444-8444-444444444444');
+    await adminCommercialService.retryDesktopRelease('44444444-4444-4444-8444-444444444444');
 
+    expect(lambdaClient.admin.desktop.activateDesktopRelease.mutate).toHaveBeenCalledWith({
+      releaseId: '44444444-4444-4444-8444-444444444444',
+    });
     expect(lambdaClient.admin.desktop.createBuildAssetUpload.mutate).toHaveBeenCalledWith(input);
     expect(lambdaClient.admin.desktop.completeBuildAssetUpload.mutate).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'appPreview' }),
@@ -123,6 +132,12 @@ describe('adminCommercialService NewAPI helpers', () => {
       profileId: '11111111-1111-4111-8111-111111111111',
       releaseNotes: 'notes',
       version: '2.4.0',
+    });
+    expect(lambdaClient.admin.desktop.reconcileDesktopRelease.mutate).toHaveBeenCalledWith({
+      releaseId: '44444444-4444-4444-8444-444444444444',
+    });
+    expect(lambdaClient.admin.desktop.retryDesktopRelease.mutate).toHaveBeenCalledWith({
+      releaseId: '44444444-4444-4444-8444-444444444444',
     });
   });
 

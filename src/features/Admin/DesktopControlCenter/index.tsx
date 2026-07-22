@@ -19,8 +19,8 @@ import BuildProfilePage from './BuildProfilePage';
 import DistributionPage from './DistributionPage';
 import OverviewPage from './OverviewPage';
 import { desktopControlCenterStyles } from './styles';
-import UpdateSettingsPage from './UpdateSettingsPage';
 import { resolveDesktopControlCenterTab } from './types';
+import UpdateSettingsPage from './UpdateSettingsPage';
 
 const DesktopControlCenter = memo(() => {
   const { t } = useTranslation('subscription');
@@ -48,11 +48,11 @@ const DesktopControlCenter = memo(() => {
         </Typography.Title>
       </div>
       <Tabs
-        className={desktopControlCenterStyles.tabs}
         activeKey={activeKey}
+        className={desktopControlCenterStyles.tabs}
         items={[
           {
-            children: <OverviewPage onConfigure={() => changeTab('updates')} resource={overview} />,
+            children: <OverviewPage resource={overview} onConfigure={() => changeTab('updates')} />,
             key: 'overview',
             label: t('admin.desktopControl.tabs.overview'),
           },
@@ -72,7 +72,22 @@ const DesktopControlCenter = memo(() => {
             label: t('admin.desktopControl.tabs.brand'),
           },
           {
-            children: <BuildProfilePage />,
+            children: (
+              <BuildProfilePage
+                currentRelease={
+                  settings.data?.desktopUpdateConfig.currentVersion
+                    ? {
+                        channel:
+                          settings.data.desktopUpdateConfig.channel === 'canary'
+                            ? 'canary'
+                            : 'stable',
+                        version: settings.data.desktopUpdateConfig.currentVersion,
+                      }
+                    : undefined
+                }
+                onReleaseActivated={() => Promise.all([settings.mutate(), overview.mutate()])}
+              />
+            ),
             key: 'build-profile',
             label: t('admin.desktopControl.tabs.buildProfile'),
           },

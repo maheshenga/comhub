@@ -1,9 +1,10 @@
 import { ConfigProvider } from '@lobehub/ui';
+import type * as LobeUIBaseModule from '@lobehub/ui/base-ui';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import { useState } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSearchParams } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ADMIN_DESKTOP_OVERVIEW_SWR_KEY,
@@ -12,7 +13,15 @@ import {
 import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
+import type { DesktopReleaseHistoryItem } from './DesktopBuildHistory';
 import DesktopControlCenter from './index';
+
+const confirmModalMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@lobehub/ui/base-ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof LobeUIBaseModule>()),
+  confirmModal: confirmModalMock,
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -28,6 +37,7 @@ vi.mock('@/libs/swr', () => ({
 
 vi.mock('@/services/adminCommercial', () => ({
   adminCommercialService: {
+    activateDesktopRelease: vi.fn(),
     archiveBuildProfile: vi.fn(),
     completeBuildAssetUpload: vi.fn(),
     createBuildAssetUpload: vi.fn(),
@@ -37,6 +47,8 @@ vi.mock('@/services/adminCommercial', () => ({
     getSettingsSection: vi.fn(),
     listBuildProfiles: vi.fn(),
     listDesktopReleases: vi.fn(),
+    reconcileDesktopRelease: vi.fn(),
+    retryDesktopRelease: vi.fn(),
     saveBuildProfileDraft: vi.fn(),
     setAppSettingsBatch: vi.fn(),
   },
@@ -119,6 +131,7 @@ const overviewMutate = vi.fn().mockResolvedValue(undefined);
 const settingsMutate = vi.fn().mockResolvedValue(undefined);
 const profilesMutate = vi.fn().mockResolvedValue(undefined);
 const releasesMutate = vi.fn().mockResolvedValue(undefined);
+let setProfilesData: (data: { items: Array<typeof buildProfileData>; nextCursor?: string }) => void;
 let setSettingsData: (data: typeof defaultSettingsData) => void;
 
 const completeAssets = {
@@ -176,7 +189,7 @@ const buildProfileData = {
   name: 'ComHub',
 };
 
-const releaseData = [
+const releaseData: DesktopReleaseHistoryItem[] = [
   {
     actorUserId: 'admin-1',
     artifacts: [
@@ -186,7 +199,7 @@ const releaseData = [
     createdAt: '2026-07-21T00:00:00.000Z',
     errorSummary: null,
     frozenRevisionId: 'revision-1',
-    id: 'release-1',
+    id: '44444444-4444-4444-8444-444444444444',
     profileId: buildProfileData.id,
     status: 'queued',
     version: '2.4.0-canary.1',
@@ -206,10 +219,27 @@ const useSettingsTestResource = (initialData: typeof defaultSettingsData) => {
   };
 };
 
+const useProfilesTestResource = (initialData: {
+  items: Array<typeof buildProfileData>;
+  nextCursor?: string;
+}) => {
+  const [data, setData] = useState(initialData);
+  setProfilesData = setData;
+
+  return {
+    data,
+    error: undefined,
+    isLoading: false,
+    mutate: profilesMutate,
+  };
+};
+
 const renderControlCenter = (options?: {
   buildProfileData?: typeof buildProfileData;
+  emptyProfiles?: boolean;
   overview?: Record<string, unknown>;
   overviewData?: typeof overviewData;
+  releaseData?: typeof releaseData;
   search?: string;
   settingsData?: typeof defaultSettingsData;
 }) => {
@@ -231,16 +261,14 @@ const renderControlCenter = (options?: {
       return useSettingsTestResource(options?.settingsData ?? defaultSettingsData);
     }
     if (JSON.stringify(key) === JSON.stringify(['admin-desktop-build-profiles'])) {
-      return {
-        data: { items: [options?.buildProfileData ?? buildProfileData], nextCursor: undefined },
-        error: undefined,
-        isLoading: false,
-        mutate: profilesMutate,
-      };
+      return useProfilesTestResource({
+        items: options?.emptyProfiles ? [] : [options?.buildProfileData ?? buildProfileData],
+        nextCursor: undefined,
+      });
     }
-    if (JSON.stringify(key) === JSON.stringify(['admin-desktop-releases', buildProfileData.id])) {
+    if (Array.isArray(key) && key[0] === 'admin-desktop-releases') {
       return {
-        data: releaseData,
+        data: key[1] ? (options?.releaseData ?? releaseData) : [],
         error: undefined,
         isLoading: false,
         mutate: releasesMutate,
@@ -257,6 +285,8 @@ const renderControlCenter = (options?: {
 
   return {
     ...view,
+    updateProfilesData: (items: Array<typeof buildProfileData>) =>
+      act(() => setProfilesData({ items, nextCursor: undefined })),
     updateSettingsData: (data: typeof defaultSettingsData) => act(() => setSettingsData(data)),
   };
 };
@@ -264,6 +294,10 @@ const renderControlCenter = (options?: {
 describe('DesktopControlCenter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    confirmModalMock.mockImplementation(({ onOk }) => onOk?.());
+    vi.mocked(adminCommercialService.activateDesktopRelease).mockResolvedValue(
+      releaseData[0] as any,
+    );
     vi.mocked(adminCommercialService.setAppSettingsBatch).mockResolvedValue({ ok: true } as any);
     vi.mocked(adminCommercialService.saveBuildProfileDraft).mockResolvedValue({
       profileId: buildProfileData.id,
@@ -271,6 +305,19 @@ describe('DesktopControlCenter', () => {
       revisionId: 'revision-2',
     } as any);
     vi.mocked(adminCommercialService.createDesktopRelease).mockResolvedValue(releaseData[0] as any);
+    vi.mocked(adminCommercialService.reconcileDesktopRelease).mockResolvedValue({
+      conclusion: null,
+      createdAt: '2026-07-22T10:00:02Z',
+      state: 'matched',
+      status: 'in_progress',
+      updatedAt: '2026-07-22T10:01:00Z',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    } as any);
+    vi.mocked(adminCommercialService.retryDesktopRelease).mockResolvedValue({
+      ...releaseData[0],
+      status: 'building',
+    } as any);
   });
 
   it('lands on overview and renders stable channel health', () => {
@@ -280,6 +327,40 @@ describe('DesktopControlCenter', () => {
     expect(screen.getAllByText('2.3.0').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ComHub-2.3.0-setup.exe').length).toBeGreaterThan(0);
     expect(screen.getAllByText('admin.desktopControl.channel.healthy').length).toBeGreaterThan(0);
+  });
+
+  it('offers first-use profile creation when no desktop build profile exists', () => {
+    renderControlCenter({ emptyProfiles: true, search: 'tab=build-profile' });
+
+    expect(screen.getByText('admin.desktopBuild.empty')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.profile.create' }));
+
+    expect(screen.getByLabelText('admin.desktopBuild.applicationName')).toHaveValue('ComHub');
+    expect(
+      screen.getByLabelText('admin.desktopBuild.profile.selector').closest('.ant-select'),
+    ).toHaveTextContent('ComHub');
+    expect(screen.getByRole('button', { name: 'admin.desktopBuild.saveDraft' })).toBeDisabled();
+  });
+
+  it('keeps an unsaved local profile selected when the server profile list arrives', () => {
+    const view = renderControlCenter({ emptyProfiles: true, search: 'tab=build-profile' });
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.profile.create' }));
+
+    view.updateProfilesData([
+      {
+        ...buildProfileData,
+        currentDraft: {
+          ...buildProfileData.currentDraft,
+          payload: {
+            ...buildProfileData.currentDraft.payload,
+            applicationName: 'Server managed profile',
+          },
+        },
+        name: 'Server managed profile',
+      },
+    ]);
+
+    expect(screen.getByLabelText('admin.desktopBuild.applicationName')).toHaveValue('ComHub');
   });
 
   it('renders a retry action when diagnostics fail', () => {
@@ -462,6 +543,20 @@ describe('DesktopControlCenter', () => {
     expect(screen.getByRole('dialog', { name: 'admin.desktopBuild.release.title' })).toBeVisible();
   });
 
+  it('refreshes release history when initial dispatch delivery is ambiguous', async () => {
+    vi.mocked(adminCommercialService.createDesktopRelease).mockRejectedValueOnce(
+      new Error('GitHub dispatch delivery is unknown.'),
+    );
+    renderControlCenter({ search: 'tab=build-profile' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.createBuild' }));
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.release.confirm' }));
+
+    await waitFor(() => expect(adminCommercialService.createDesktopRelease).toHaveBeenCalled());
+    expect(releasesMutate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog', { name: 'admin.desktopBuild.release.title' })).toBeVisible();
+  });
+
   it('does not save or release a build profile until Windows assets are complete', () => {
     renderControlCenter({
       buildProfileData: {
@@ -476,5 +571,151 @@ describe('DesktopControlCenter', () => {
 
     expect(screen.getByRole('button', { name: 'admin.desktopBuild.saveDraft' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'admin.desktopBuild.createBuild' })).toBeDisabled();
+  });
+
+  it('reconciles a building release and refreshes the history', async () => {
+    renderControlCenter({
+      releaseData: [{ ...releaseData[0], status: 'building', workflowRunUrl: null }],
+      search: 'tab=build-profile',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.reconcile' }));
+
+    await waitFor(() => {
+      expect(adminCommercialService.reconcileDesktopRelease).toHaveBeenCalledWith(
+        '44444444-4444-4444-8444-444444444444',
+      );
+    });
+    expect(releasesMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('confirms and retries a failed release before refreshing history', async () => {
+    renderControlCenter({
+      releaseData: [
+        {
+          ...releaseData[0],
+          errorSummary: 'Desktop release build failed.',
+          status: 'failed',
+        },
+      ],
+      search: 'tab=build-profile',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.retry' }));
+
+    expect(confirmModalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'admin.desktopBuild.history.retryConfirmTitle' }),
+    );
+    await waitFor(() => {
+      expect(adminCommercialService.retryDesktopRelease).toHaveBeenCalledWith(
+        '44444444-4444-4444-8444-444444444444',
+      );
+    });
+    expect(releasesMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes release history when a retry has ambiguous delivery', async () => {
+    vi.mocked(adminCommercialService.retryDesktopRelease).mockRejectedValueOnce(
+      new Error('GitHub rerun delivery is unknown.'),
+    );
+    confirmModalMock.mockImplementationOnce(({ onOk }) => {
+      void onOk?.().catch(() => undefined);
+    });
+    renderControlCenter({
+      releaseData: [{ ...releaseData[0], status: 'failed' }],
+      search: 'tab=build-profile',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.retry' }));
+
+    await waitFor(() => expect(releasesMutate).toHaveBeenCalledTimes(1));
+  });
+
+  it('disables every release mutation while one release action is pending', async () => {
+    let resolveRetry: (value: unknown) => void = () => undefined;
+    vi.mocked(adminCommercialService.retryDesktopRelease).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRetry = resolve;
+      }) as any,
+    );
+    renderControlCenter({
+      releaseData: [
+        { ...releaseData[0], status: 'failed' },
+        {
+          ...releaseData[0],
+          channel: 'stable',
+          id: '55555555-5555-4555-8555-555555555555',
+          publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.2.0/ComHub.exe',
+          publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+          status: 'succeeded',
+          version: '2.2.0',
+        },
+      ],
+      search: 'tab=build-profile',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.retry' }));
+
+    await waitFor(() => expect(adminCommercialService.retryDesktopRelease).toHaveBeenCalled());
+    expect(
+      screen.getByRole('button', { name: 'admin.desktopBuild.history.activate' }),
+    ).toBeDisabled();
+
+    await act(async () => resolveRetry(releaseData[0]));
+  });
+
+  it('confirms and sets a completed historical release as current', async () => {
+    renderControlCenter({
+      releaseData: [
+        {
+          ...releaseData[0],
+          channel: 'stable',
+          publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.2.0/ComHub.exe',
+          publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+          status: 'succeeded',
+          version: '2.2.0',
+        },
+      ],
+      search: 'tab=build-profile',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.activate' }));
+
+    expect(confirmModalMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'admin.desktopBuild.history.activateConfirmTitle' }),
+    );
+    await waitFor(() => {
+      expect(adminCommercialService.activateDesktopRelease).toHaveBeenCalledWith(
+        '44444444-4444-4444-8444-444444444444',
+      );
+    });
+    expect(releasesMutate).toHaveBeenCalledTimes(1);
+    expect(settingsMutate).toHaveBeenCalledTimes(1);
+    expect(overviewMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes current settings even when the post-activation history refresh fails', async () => {
+    releasesMutate.mockRejectedValueOnce(new Error('history refresh failed'));
+    renderControlCenter({
+      releaseData: [
+        {
+          ...releaseData[0],
+          channel: 'stable',
+          publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.2.0/ComHub.exe',
+          publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+          status: 'succeeded',
+          version: '2.2.0',
+        },
+      ],
+      search: 'tab=build-profile',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'admin.desktopBuild.history.activate' }));
+
+    await waitFor(() => {
+      expect(adminCommercialService.activateDesktopRelease).toHaveBeenCalled();
+      expect(settingsMutate).toHaveBeenCalledTimes(1);
+      expect(overviewMutate).toHaveBeenCalledTimes(1);
+    });
   });
 });

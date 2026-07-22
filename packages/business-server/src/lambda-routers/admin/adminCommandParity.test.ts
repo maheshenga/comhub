@@ -26,8 +26,11 @@ const externalEffectCommands = new Set([
   'content.deleteFile',
   'desktop.buildAsset.complete',
   'desktop.release.dispatch',
+  'desktop.release.reconcile',
+  'desktop.release.retry',
 ]);
 const nestedTransactionAuditCommandNames: Record<string, string> = {
+  'desktop.release.activate': 'activateDesktopReleaseCommand',
   'desktop.release.create': 'createDesktopReleaseCreationCommand',
 };
 const auditOnlyCommands = new Set(['user.impersonate.attempt']);

@@ -1,4 +1,5 @@
 name: ComHub Desktop Release
+run-name: ComHub Desktop ${{ inputs.version }} (${{ inputs.channel }}) [${{ inputs.release_id }}]
 
 on:
   workflow_dispatch:
@@ -92,6 +93,7 @@ jobs:
           RELEASE_ID: ${{ inputs.release_id }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -101,9 +103,10 @@ jobs:
             --arg releaseId "$RELEASE_ID" \
             --arg status failed \
             --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
           printf 'reported=true\n' >> "$GITHUB_OUTPUT"
           exit 1
@@ -139,6 +142,7 @@ jobs:
           RELEASE_ID: ${{ inputs.release_id }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -148,9 +152,10 @@ jobs:
             --arg releaseId "$RELEASE_ID" \
             --arg status building \
             --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+            '{profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
       - name: Validate update server URL
@@ -233,6 +238,7 @@ jobs:
           RELEASE_ID: ${{ inputs.release_id }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -243,9 +249,10 @@ jobs:
             --arg releaseId "$RELEASE_ID" \
             --arg status failed \
             --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl} + (if $profileRevisionId == "" then {} else {profileRevisionId:$profileRevisionId} end)')"
+            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl} + (if $profileRevisionId == "" then {} else {profileRevisionId:$profileRevisionId} end)')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
   publish:
@@ -278,6 +285,7 @@ jobs:
           RELEASE_ID: ${{ inputs.release_id }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -287,9 +295,10 @@ jobs:
             --arg releaseId "$RELEASE_ID" \
             --arg status publishing \
             --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+            '{profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
       - name: Publish to S3-compatible storage
@@ -350,6 +359,7 @@ jobs:
           RELEASE_NOTES: ${{ inputs.release_notes }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -369,9 +379,10 @@ jobs:
             --arg serverUrl "$server_url" \
             --arg status succeeded \
             --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{channel:$channel,downloadUrl:$downloadUrl,profileRevisionId:$profileRevisionId,releaseId:$releaseId,releaseNotes:$releaseNotes,serverUrl:$serverUrl,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+            '{channel:$channel,downloadUrl:$downloadUrl,profileRevisionId:$profileRevisionId,releaseId:$releaseId,releaseNotes:$releaseNotes,serverUrl:$serverUrl,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
       - name: Report publish failure
@@ -383,6 +394,7 @@ jobs:
           RELEASE_ID: ${{ inputs.release_id }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -393,7 +405,8 @@ jobs:
             --arg releaseId "$RELEASE_ID" \
             --arg status failed \
             --arg version "$VERSION" \
+            --argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{errorSummary:$errorSummary,profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+            '{errorSummary:$errorSummary,profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"

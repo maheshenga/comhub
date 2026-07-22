@@ -1,7 +1,7 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Alert, Button, Form, Select, Skeleton, Typography, message } from 'antd';
+import { Alert, Button, Form, message, Select, Skeleton, Typography } from 'antd';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -9,19 +9,38 @@ import { useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import BuildProfileEditor from './BuildProfileEditor';
-import CreateDesktopReleaseModal from './CreateDesktopReleaseModal';
-import DesktopBuildHistory from './DesktopBuildHistory';
 import {
-  type BuildProfileFormValues,
   buildProfileFormFromProfile,
+  type BuildProfileFormValues,
   buildProfilePayloadFromForm,
+  createDefaultBuildProfileForm,
   hasCompleteWindowsAssets,
 } from './buildProfileForm';
+import CreateDesktopReleaseModal from './CreateDesktopReleaseModal';
+import DesktopBuildHistory, { type DesktopReleaseHistoryItem } from './DesktopBuildHistory';
 import { desktopControlCenterStyles } from './styles';
 
-const getProfileItems = (data: unknown): any[] => ((data as any)?.items ?? []) as any[];
+interface BuildProfileView {
+  currentDraft?: {
+    assetManifest?: Partial<Record<DesktopBuildAssetKind, DesktopBuildAsset>>;
+    payload?: Partial<BuildProfileFormValues>;
+  };
+  currentRevision?: number;
+  id: string;
+  identityLocked?: boolean;
+  name: string;
+  status?: 'active' | 'archived';
+}
 
-const BuildProfilePage = memo(() => {
+interface BuildProfilePageProps {
+  currentRelease?: { channel: 'canary' | 'stable'; version: string };
+  onReleaseActivated?: () => Promise<unknown> | unknown;
+}
+
+const getProfileItems = (data: unknown): BuildProfileView[] =>
+  ((data as { items?: BuildProfileView[] } | undefined)?.items ?? []) as BuildProfileView[];
+
+const BuildProfilePage = memo<BuildProfilePageProps>(({ currentRelease, onReleaseActivated }) => {
   const { t } = useTranslation('subscription');
   const [form] = Form.useForm<BuildProfileFormValues>();
   const profiles = useClientDataSWR(['admin-desktop-build-profiles'], () =>
@@ -29,9 +48,19 @@ const BuildProfilePage = memo(() => {
   );
   const profileItems = getProfileItems(profiles.data);
   const [selectedProfileId, setSelectedProfileId] = useState<string>();
+  const [localProfile, setLocalProfile] = useState<BuildProfileView>();
   const selectedProfile = useMemo(
-    () => profileItems.find((profile) => profile.id === selectedProfileId) ?? profileItems[0],
-    [profileItems, selectedProfileId],
+    () =>
+      profileItems.find((profile) => profile.id === selectedProfileId) ??
+      (localProfile?.id === selectedProfileId ? localProfile : undefined) ??
+      profileItems[0] ??
+      localProfile,
+    [localProfile, profileItems, selectedProfileId],
+  );
+  const isLocalProfile = Boolean(
+    selectedProfile &&
+    localProfile?.id === selectedProfile.id &&
+    !profileItems.some((profile) => profile.id === selectedProfile.id),
   );
   const [assets, setAssets] = useState<Partial<Record<DesktopBuildAssetKind, DesktopBuildAsset>>>(
     {},
@@ -48,6 +77,19 @@ const BuildProfilePage = memo(() => {
       : Promise.resolve([]),
   );
 
+  const handleCreateProfile = () => {
+    const defaults = createDefaultBuildProfileForm();
+    const id = globalThis.crypto.randomUUID();
+    setLocalProfile({
+      currentRevision: 0,
+      id,
+      identityLocked: false,
+      name: defaults.applicationName,
+      status: 'active',
+    });
+    setSelectedProfileId(id);
+  };
+
   useEffect(() => {
     if (!selectedProfile) return;
     setSelectedProfileId((current) => current ?? selectedProfile.id);
@@ -61,33 +103,57 @@ const BuildProfilePage = memo(() => {
   if (profiles.error) {
     return (
       <Alert
+        title={t('admin.desktopBuild.loadFailed')}
+        type="error"
         action={
           <Button onClick={() => void profiles.mutate()}>{t('admin.desktopControl.retry')}</Button>
         }
-        message={t('admin.desktopBuild.loadFailed')}
-        type="error"
       />
     );
   }
 
   if (profiles.isLoading && !profiles.data) return <Skeleton active paragraph={{ rows: 8 }} />;
-  if (!selectedProfile) return <Alert message={t('admin.desktopBuild.empty')} type="info" />;
+  if (!selectedProfile)
+    return (
+      <Alert
+        description={t('admin.desktopBuild.emptyDescription')}
+        title={t('admin.desktopBuild.empty')}
+        type="info"
+        action={
+          <Button onClick={handleCreateProfile}>{t('admin.desktopBuild.profile.create')}</Button>
+        }
+      />
+    );
 
   const canCreateBuild = hasCompleteWindowsAssets(savedAssets);
   const canSaveDraft = hasCompleteWindowsAssets(assets);
 
   const handleSaveDraft = async () => {
     const payload = buildProfilePayloadFromForm(await form.validateFields());
+    if (!hasCompleteWindowsAssets(assets)) return;
     setSaving(true);
     try {
       await adminCommercialService.saveBuildProfileDraft({
-        assets: assets as any,
+        assets,
+        ...(isLocalProfile ? { createIfMissing: true } : {}),
         name: payload.applicationName,
         payload,
         profileId: selectedProfile.id,
       });
       setSavedAssets(assets);
       setSavedFormValues(payload);
+      if (isLocalProfile) {
+        setLocalProfile((current) =>
+          current
+            ? {
+                ...current,
+                currentDraft: { assetManifest: assets, payload },
+                currentRevision: (current.currentRevision ?? 0) + 1,
+                name: payload.applicationName,
+              }
+            : current,
+        );
+      }
       await profiles.mutate();
       message.success(t('admin.desktopBuild.saveSuccess'));
     } catch {
@@ -115,20 +181,25 @@ const BuildProfilePage = memo(() => {
           <Select
             aria-label={t('admin.desktopBuild.profile.selector')}
             id="desktop-build-profile-selector"
-            options={profileItems.map((profile) => ({ label: profile.name, value: profile.id }))}
             style={{ minWidth: 180 }}
             value={selectedProfile.id}
+            options={[
+              ...(isLocalProfile && localProfile ? [localProfile] : []),
+              ...profileItems,
+            ].map((profile) => ({ label: profile.name, value: profile.id }))}
             onChange={setSelectedProfileId}
           />
-          <Button onClick={() => void archiveProfile()}>
-            {t('admin.desktopBuild.profile.archive')}
-          </Button>
+          {!isLocalProfile ? (
+            <Button onClick={() => void archiveProfile()}>
+              {t('admin.desktopBuild.profile.archive')}
+            </Button>
+          ) : null}
         </div>
       </div>
       <Alert
-        description={t('admin.desktopBuild.publisher.description')}
-        message={t('admin.desktopBuild.publisher.notice')}
         showIcon
+        description={t('admin.desktopBuild.publisher.description')}
+        title={t('admin.desktopBuild.publisher.notice')}
         type="info"
       />
       <BuildProfileEditor
@@ -147,16 +218,21 @@ const BuildProfilePage = memo(() => {
         </Button>
       </div>
       {!canCreateBuild ? (
-        <Alert message={t('admin.desktopBuild.assets.incomplete')} type="warning" />
+        <Alert title={t('admin.desktopBuild.assets.incomplete')} type="warning" />
       ) : null}
-      <DesktopBuildHistory releases={(releases.data as any[]) ?? []} />
+      <DesktopBuildHistory
+        currentRelease={currentRelease}
+        releases={(releases.data as DesktopReleaseHistoryItem[] | undefined) ?? []}
+        onActivated={onReleaseActivated}
+        onReconciled={() => releases.mutate()}
+      />
       <CreateDesktopReleaseModal
         assets={savedAssets}
         formValues={savedFormValues ?? buildProfileFormFromProfile(selectedProfile)}
         open={releaseOpen}
         profile={selectedProfile}
         onClose={() => setReleaseOpen(false)}
-        onCreated={() => void releases.mutate()}
+        onReleaseChanged={() => void releases.mutate()}
       />
     </div>
   );

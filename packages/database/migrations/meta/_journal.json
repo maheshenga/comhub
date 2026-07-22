@@ -1078,6 +1078,20 @@
       "when": 1785081600000,
       "tag": "0150_add_desktop_release_workflow_run",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1785168000000,
+      "tag": "0151_add_desktop_release_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1785254400000,
+      "tag": "0152_add_desktop_release_run_attempt",
+      "breakpoints": true
     }
   ],
   "version": "6"

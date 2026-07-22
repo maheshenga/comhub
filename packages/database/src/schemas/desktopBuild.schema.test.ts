@@ -55,7 +55,21 @@ describe('desktop build schema', () => {
       releaseConfig.columns.find((column) => column.name === 'workflow_run_url')?.dataType,
     ).toBe('string');
     expect(
-      releaseConfig.columns.find((column) => column.name === 'revisionless_failed_pre_staging')?.dataType,
+      releaseConfig.columns.find((column) => column.name === 'revisionless_failed_pre_staging')
+        ?.dataType,
+    ).toBe('boolean');
+    expect(
+      releaseConfig.columns.find((column) => column.name === 'published_download_url')?.dataType,
+    ).toBe('string');
+    expect(
+      releaseConfig.columns.find((column) => column.name === 'published_server_url')?.dataType,
+    ).toBe('string');
+    expect(
+      releaseConfig.columns.find((column) => column.name === 'workflow_run_attempt')?.dataType,
+    ).toBe('number');
+    expect(
+      releaseConfig.columns.find((column) => column.name === 'workflow_run_attempt_pending')
+        ?.dataType,
     ).toBe('boolean');
   });
 
@@ -104,6 +118,58 @@ describe('desktop build schema', () => {
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS "workflow_run_id"');
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS "workflow_run_url"');
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS "revisionless_failed_pre_staging"');
+    for (const statement of statements) await db.execute(sql.raw(statement));
+    for (const statement of statements) await db.execute(sql.raw(statement));
+  });
+
+  it('registers idempotent desktop publication metadata columns', async () => {
+    const db = await getTestDB();
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0151_add_desktop_release_publication.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+    const statements = migration
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.trim())
+      .filter(Boolean);
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "published_download_url"');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "published_server_url"');
+    expect(journal.entries.some(({ tag }) => tag === '0151_add_desktop_release_publication')).toBe(
+      true,
+    );
+    for (const statement of statements) await db.execute(sql.raw(statement));
+    for (const statement of statements) await db.execute(sql.raw(statement));
+  });
+
+  it('registers idempotent GitHub workflow attempt metadata columns', async () => {
+    const db = await getTestDB();
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0152_add_desktop_release_run_attempt.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+    const statements = migration
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.trim())
+      .filter(Boolean);
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "workflow_run_attempt"');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "workflow_run_attempt_pending"');
+    expect(migration).toContain(
+      'Desktop release must be retried after workflow provenance upgrade.',
+    );
+    expect(migration).toMatch(
+      /UPDATE "desktop_releases"[\s\S]*WHERE[\s\S]*"status" IN \('building', 'publishing'\)[\s\S]*"workflow_run_attempt" IS NULL/,
+    );
+    expect(journal.entries.some(({ tag }) => tag === '0152_add_desktop_release_run_attempt')).toBe(
+      true,
+    );
     for (const statement of statements) await db.execute(sql.raw(statement));
     for (const statement of statements) await db.execute(sql.raw(statement));
   });

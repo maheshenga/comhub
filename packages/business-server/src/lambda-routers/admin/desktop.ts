@@ -4,9 +4,10 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { DesktopBuildModel, isDesktopBuildProfileCursor } from '@/database/models/desktopBuild';
-import type { DesktopBuildProfileItem } from '@/database/schemas/desktopBuild';
+import type { DesktopBuildProfileItem, DesktopReleaseItem } from '@/database/schemas/desktopBuild';
 import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trpc/lambda';
 import { FileS3 } from '@/server/modules/S3';
+import { invalidateServerAppSettings } from '@/server/services/appSettings';
 import {
   completeDesktopBuildAsset,
   createDesktopBuildAssetUpload,
@@ -16,7 +17,13 @@ import { getDesktopReleaseDiagnostics } from '@/server/services/desktopRelease';
 import {
   DesktopReleaseDispatchError,
   dispatchDesktopReleaseWorkflow,
+  reconcileDesktopReleaseWorkflow,
+  retryDesktopReleaseWorkflow,
 } from '@/server/services/desktopRelease/github';
+import {
+  normalizeDesktopReleasePublication,
+  writeDesktopReleasePublicationSettings,
+} from '@/server/services/desktopRelease/publication';
 
 import { buildDesktopSettings } from '../../appSettings/adminReadModel';
 import { loadAppSettingsSectionSnapshot } from '../../appSettings/loader';
@@ -29,6 +36,7 @@ import { runRequiredAdminAuditExternalEffect, runRequiredAdminAuditMutation } fr
 
 const systemReadProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemRead);
 const systemWriteProcedure = adminCapabilityProcedure(ADMIN_CAPABILITIES.systemWrite);
+const DESKTOP_RELEASE_RERUN_RECONCILE_GRACE_MS = 5 * 60_000;
 
 const assetKindSchema = z.enum(['appPreview', 'windowsIcon', 'nsisHeader', 'nsisSidebar']);
 const assetSchema = z
@@ -54,8 +62,11 @@ const assetManifestSchema = z
 const completeBuildAssetCommand = createAdminCommand('desktop.buildAsset.complete');
 const archiveBuildProfileCommand = createAdminCommand('desktop.buildProfile.archive');
 const saveBuildProfileDraftCommand = createAdminCommand('desktop.buildProfile.saveDraft');
+const activateDesktopReleaseCommand = createAdminCommand('desktop.release.activate');
 const createDesktopReleaseCreationCommand = createAdminCommand('desktop.release.create');
 const createDesktopReleaseCommand = createAdminCommand('desktop.release.dispatch');
+const reconcileDesktopReleaseCommand = createAdminCommand('desktop.release.reconcile');
+const retryDesktopReleaseCommand = createAdminCommand('desktop.release.retry');
 
 const serializeRevision = (revision: any) => {
   if (!revision) return null;
@@ -98,7 +109,102 @@ const dispatchFailureSummary = (error: unknown) =>
 const isDefinitiveDispatchFailure = (error: unknown) =>
   error instanceof DesktopReleaseDispatchError && error.delivery === 'definitive';
 
+const throwDesktopReleaseRetryError = (error: unknown): never => {
+  if (error instanceof Error && error.message === 'DESKTOP_RELEASE_NOT_FOUND') {
+    throw new TRPCError({ cause: error, code: 'NOT_FOUND', message: error.message });
+  }
+  if (
+    error instanceof Error &&
+    ['DESKTOP_RELEASE_RETRY_NOT_ALLOWED', 'DESKTOP_RELEASE_WORKFLOW_RUN_METADATA_INVALID'].includes(
+      error.message,
+    )
+  ) {
+    throw new TRPCError({ cause: error, code: 'CONFLICT', message: error.message });
+  }
+  throw error;
+};
+
+const throwDesktopReleaseReconcileError = (error: unknown): never => {
+  if (error instanceof Error && error.message === 'DESKTOP_RELEASE_NOT_FOUND') {
+    throw new TRPCError({ cause: error, code: 'NOT_FOUND', message: error.message });
+  }
+  if (
+    error instanceof Error &&
+    [
+      'DESKTOP_RELEASE_WORKFLOW_RUN_BIND_NOT_ALLOWED',
+      'DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH',
+      'DESKTOP_RELEASE_WORKFLOW_RUN_METADATA_INVALID',
+      'DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH',
+    ].includes(error.message)
+  ) {
+    throw new TRPCError({
+      cause: error,
+      code: 'CONFLICT',
+      message: 'DESKTOP_RELEASE_RECONCILE_CONFLICT',
+    });
+  }
+  throw error;
+};
+
 export const adminDesktopRouter = router({
+  activateDesktopRelease: systemWriteProcedure
+    .input(z.object({ releaseId: z.string().uuid() }).strict())
+    .mutation(async ({ ctx, input }) => {
+      const model = new DesktopBuildModel(ctx.serverDB);
+      const release = await model.getRelease(input.releaseId);
+      if (!release) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'DESKTOP_RELEASE_NOT_FOUND' });
+      }
+      if (
+        release.status !== 'succeeded' ||
+        !release.publishedDownloadUrl ||
+        !release.publishedServerUrl
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'DESKTOP_RELEASE_ACTIVATION_NOT_ALLOWED',
+        });
+      }
+
+      let publication;
+      try {
+        publication = normalizeDesktopReleasePublication({
+          channel: release.channel,
+          downloadUrl: release.publishedDownloadUrl,
+          releaseNotes: release.releaseNotes,
+          serverUrl: release.publishedServerUrl,
+          version: release.version,
+        });
+        if (!publication.downloadUrl || !publication.serverUrl) {
+          throw new Error('DESKTOP_RELEASE_PUBLICATION_INCOMPLETE');
+        }
+      } catch (error) {
+        throw new TRPCError({
+          cause: error,
+          code: 'BAD_REQUEST',
+          message: 'DESKTOP_RELEASE_PUBLICATION_INVALID',
+        });
+      }
+
+      const activated = await runRequiredAdminAuditMutation<DesktopReleaseItem>(ctx, {
+        audit: (result) => ({
+          action: activateDesktopReleaseCommand.definition.auditAction,
+          payload: {
+            channel: result.channel,
+            releaseId: result.id,
+            version: result.version,
+          },
+          resourceId: result.id,
+          resourceType: 'desktopRelease',
+        }),
+        mutation: async (tx) => {
+          await writeDesktopReleasePublicationSettings(tx, publication);
+          return release;
+        },
+      });
+      invalidateServerAppSettings();
+      return activated;
+    }),
   archiveBuildProfile: systemWriteProcedure
     .input(z.object({ profileId: z.string().uuid() }).strict())
     .mutation(async ({ ctx, input }) => {
@@ -313,6 +419,135 @@ export const adminDesktopRouter = router({
         .optional(),
     )
     .query(({ ctx, input }) => new DesktopBuildModel(ctx.serverDB).listReleases(input)),
+  reconcileDesktopRelease: systemWriteProcedure
+    .input(z.object({ releaseId: z.string().uuid() }).strict())
+    .mutation(async ({ ctx, input }) => {
+      const model = new DesktopBuildModel(ctx.serverDB);
+      const release = await model.getRelease(input.releaseId);
+      if (!release) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'DESKTOP_RELEASE_NOT_FOUND' });
+      }
+      if (release.status !== 'building' || !release.dispatchedAt) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'DESKTOP_RELEASE_RECONCILE_NOT_ALLOWED',
+        });
+      }
+
+      return runRequiredAdminAuditExternalEffect(ctx, {
+        audit: (status, result) => ({
+          action: reconcileDesktopReleaseCommand.definition.auditAction,
+          payload: {
+            lifecycleStatus: status,
+            releaseId: release.id,
+            ...(result
+              ? {
+                  reconciliationState: result.state,
+                  ...(result.state === 'matched'
+                    ? {
+                        githubConclusion: result.conclusion,
+                        githubStatus: result.status,
+                        workflowRunAttempt: result.workflowRunAttempt,
+                        workflowRunId: result.workflowRunId,
+                      }
+                    : { candidateCount: result.candidateCount, reason: result.reason }),
+                }
+              : {}),
+          },
+          resourceId: release.id,
+          resourceType: 'desktopRelease',
+        }),
+        effect: async () => {
+          const result = await reconcileDesktopReleaseWorkflow({
+            channel: release.channel,
+            dispatchedAt: release.dispatchedAt!,
+            releaseId: release.id,
+            version: release.version,
+            workflowRunId: release.workflowRunId,
+          });
+          if (result.state === 'matched') {
+            if (
+              release.workflowRunAttemptPending &&
+              release.workflowRunAttempt !== null &&
+              result.workflowRunAttempt === release.workflowRunAttempt
+            ) {
+              const expired = await model.expirePendingReleaseRetry({
+                releaseId: release.id,
+                requestedBefore: new Date(Date.now() - DESKTOP_RELEASE_RERUN_RECONCILE_GRACE_MS),
+                workflowRunAttempt: result.workflowRunAttempt,
+              });
+
+              return {
+                candidateCount: 1,
+                reason: expired ? ('rerun-not-delivered' as const) : ('rerun-pending' as const),
+                state: 'unresolved' as const,
+              };
+            }
+
+            try {
+              await model.bindReleaseWorkflowRun({
+                releaseId: release.id,
+                workflowRunAttempt: result.workflowRunAttempt,
+                workflowRunId: result.workflowRunId,
+                workflowRunUrl: result.workflowRunUrl,
+              });
+            } catch (error) {
+              throwDesktopReleaseReconcileError(error);
+            }
+          }
+          return result;
+        },
+      });
+    }),
+  retryDesktopRelease: systemWriteProcedure
+    .input(z.object({ releaseId: z.string().uuid() }).strict())
+    .mutation(async ({ ctx, input }) => {
+      const model = new DesktopBuildModel(ctx.serverDB);
+
+      return runRequiredAdminAuditExternalEffect(ctx, {
+        audit: (status, result) => ({
+          action: retryDesktopReleaseCommand.definition.auditAction,
+          payload: {
+            lifecycleStatus: status,
+            releaseId: input.releaseId,
+            ...(result
+              ? { retryMode: result.workflowRunId ? 'workflow-rerun' : 'workflow-dispatch' }
+              : {}),
+          },
+          resourceId: input.releaseId,
+          resourceType: 'desktopRelease',
+        }),
+        effect: async () => {
+          const building = await model
+            .prepareReleaseRetry({
+              actorUserId: ctx.userId,
+              releaseId: input.releaseId,
+            })
+            .catch(throwDesktopReleaseRetryError);
+
+          try {
+            await retryDesktopReleaseWorkflow({
+              channel: building.channel,
+              releaseId: building.id,
+              releaseNotes: building.releaseNotes,
+              version: building.version,
+              workflowRunId: building.workflowRunId,
+            });
+          } catch (error) {
+            if (isDefinitiveDispatchFailure(error)) {
+              await model.markReleaseResult({
+                errorSummary: dispatchFailureSummary(error),
+                releaseId: building.id,
+                status: 'failed',
+              });
+            }
+            throw error;
+          }
+
+          return building;
+        },
+      });
+    }),
   saveBuildProfileDraft: systemWriteProcedure
     .input(
       z

@@ -23,7 +23,24 @@ describe('desktop release workflow contract', () => {
 
     expect(document.errors).toEqual([]);
     expect(workflow.on.workflow_dispatch.inputs.release_id).toBeDefined();
+    expect(workflow['run-name']).toBe(
+      'ComHub Desktop ${{ inputs.version }} (${{ inputs.channel }}) [${{ inputs.release_id }}]',
+    );
     expect(workflow.concurrency.group).toBe('comhub-desktop-${{ inputs.channel }}');
+
+    const releaseCallbackSteps = [
+      findStep(buildSteps, 'Reject unpublished server release'),
+      findStep(buildSteps, 'Report build started'),
+      findStep(buildSteps, 'Report build failure'),
+      findStep(publishSteps, 'Report publishing'),
+      findStep(publishSteps, 'Report release succeeded'),
+      findStep(publishSteps, 'Report publish failure'),
+    ];
+    for (const step of releaseCallbackSteps) {
+      expect(step.env.WORKFLOW_RUN_ATTEMPT).toBe('${{ github.run_attempt }}');
+      expect(step.run).toContain('--argjson workflowRunAttempt "$WORKFLOW_RUN_ATTEMPT"');
+      expect(step.run).toContain('workflowRunAttempt:$workflowRunAttempt');
+    }
 
     for (const step of [...buildSteps, ...publishSteps]) {
       if (!step.run) continue;
@@ -125,7 +142,7 @@ describe('desktop release workflow contract', () => {
     );
 
     expect(buildFailure.run).toContain(
-      '\'{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl} + (if $profileRevisionId == "" then {} else {profileRevisionId:$profileRevisionId} end)\'',
+      '\'{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunAttempt:$workflowRunAttempt,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl} + (if $profileRevisionId == "" then {} else {profileRevisionId:$profileRevisionId} end)\'',
     );
   });
 

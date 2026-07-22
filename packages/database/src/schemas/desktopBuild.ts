@@ -113,9 +113,15 @@ export const desktopReleases = pgTable(
     status: text('status').$type<DesktopReleaseStatus>().default('queued').notNull(),
     artifacts: jsonb('artifacts').$type<DesktopReleaseArtifactManifest>().default([]).notNull(),
     errorSummary: varchar('error_summary', { length: 1024 }),
+    workflowRunAttempt: integer('workflow_run_attempt'),
+    workflowRunAttemptPending: boolean('workflow_run_attempt_pending').default(false).notNull(),
     workflowRunId: varchar('workflow_run_id', { length: 64 }),
     workflowRunUrl: varchar('workflow_run_url', { length: 2048 }),
-    revisionlessFailedPreStaging: boolean('revisionless_failed_pre_staging').default(false).notNull(),
+    publishedDownloadUrl: varchar('published_download_url', { length: 2048 }),
+    publishedServerUrl: varchar('published_server_url', { length: 2048 }),
+    revisionlessFailedPreStaging: boolean('revisionless_failed_pre_staging')
+      .default(false)
+      .notNull(),
     dispatchedAt: timestamptz('dispatched_at'),
     dispatchedByUserId: text('dispatched_by_user_id').references(() => users.id, {
       onDelete: 'set null',

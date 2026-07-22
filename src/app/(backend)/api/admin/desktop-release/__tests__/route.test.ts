@@ -36,15 +36,21 @@ vi.mock('@/server/services/appSettings', async (importOriginal) => {
 
 const TEST_KEY_VAULTS_SECRET = Buffer.alloc(32, 17).toString('base64');
 
-const createRequest = (body: unknown, token = 'dedicated-secret') =>
-  new Request('https://chat.qingyouai.com/api/admin/desktop-release', {
-    body: JSON.stringify(body),
+const createRequest = (body: unknown, token = 'dedicated-secret') => {
+  const requestBody =
+    body && typeof body === 'object' && !Array.isArray(body) && 'releaseId' in body
+      ? { workflowRunAttempt: 1, ...body }
+      : body;
+
+  return new Request('https://chat.qingyouai.com/api/admin/desktop-release', {
+    body: JSON.stringify(requestBody),
     headers: {
       'authorization': `Bearer ${token}`,
       'content-type': 'application/json',
     },
     method: 'POST',
   }) as any;
+};
 
 const createDb = (legacySecret: unknown = 'legacy-secret') => {
   const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
@@ -232,6 +238,7 @@ describe('POST /api/admin/desktop-release', () => {
 
   it.each([
     ['missing workflow provenance', {}],
+    ['missing workflow run attempt', { workflowRunAttempt: undefined }],
     ['only workflow run ID', { workflowRunId: '1234567890' }],
     [
       'only workflow run URL',
@@ -274,6 +281,7 @@ describe('POST /api/admin/desktop-release', () => {
       expect.objectContaining({
         releaseId: '11111111-1111-4111-8111-111111111111',
         status: 'building',
+        workflowRunAttempt: 1,
         workflowRunId: '1234567890',
         workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
       }),
@@ -443,6 +451,93 @@ describe('POST /api/admin/desktop-release', () => {
     expect(mockReleaseModel.markReleaseResult).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['both publication URLs', {}],
+    ['the download URL', { serverUrl: 'https://cdn.qingyouai.com/desktop' }],
+    [
+      'the update server URL',
+      {
+        downloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.3.0/LobeHub-2.3.0-setup.exe',
+      },
+    ],
+  ])('rejects succeeded release callbacks missing %s', async (_description, publication) => {
+    const { db } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'succeeded',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+        ...publication,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockReleaseModel.markReleaseCallback).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'download URL',
+      {
+        downloadUrl: 'javascript:alert(1)',
+        serverUrl: 'https://cdn.qingyouai.com/desktop',
+      },
+    ],
+    [
+      'update server URL',
+      {
+        downloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.3.0/LobeHub-2.3.0-setup.exe',
+        serverUrl: 'http://updates.example.com',
+      },
+    ],
+  ])('returns 400 for an invalid succeeded callback %s', async (_description, publication) => {
+    const { db } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+
+    const response = await POST(
+      createRequest({
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'succeeded',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+        ...publication,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockReleaseModel.markReleaseCallback).not.toHaveBeenCalled();
+  });
+
+  it('maps model publication metadata rejection to a bad request', async () => {
+    const { db } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+    mockReleaseModel.markReleaseCallback.mockRejectedValueOnce(
+      new Error('DESKTOP_RELEASE_PUBLICATION_METADATA_INVALID'),
+    );
+
+    const response = await POST(
+      createRequest({
+        downloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.3.0/LobeHub-2.3.0-setup.exe',
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        serverUrl: 'https://cdn.qingyouai.com/desktop',
+        status: 'succeeded',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   it('rejects mismatched profile revisions, invalid GitHub run URLs, and terminal callbacks', async () => {
     const { db, insert } = createDb();
     mockGetServerDB.mockResolvedValue(db);
@@ -479,8 +574,10 @@ describe('POST /api/admin/desktop-release', () => {
     );
     const terminal = await POST(
       createRequest({
+        downloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.3.0/LobeHub-2.3.0-setup.exe',
         profileRevisionId: '22222222-2222-4222-8222-222222222222',
         releaseId: '11111111-1111-4111-8111-111111111111',
+        serverUrl: 'https://cdn.qingyouai.com/desktop',
         status: 'succeeded',
         version: '2.3.0',
         workflowRunId: '1234567890',
@@ -497,8 +594,10 @@ describe('POST /api/admin/desktop-release', () => {
 
     const response = await POST(
       createRequest({
+        downloadUrl: 'https://cdn.qingyouai.com/desktop/stable/2.3.0/LobeHub-2.3.0-setup.exe',
         profileRevisionId: '22222222-2222-4222-8222-222222222222',
         releaseId: '11111111-1111-4111-8111-111111111111',
+        serverUrl: 'https://cdn.qingyouai.com/desktop',
         status: 'succeeded',
         version: '2.3.0',
         workflowRunId: '1234567890',
@@ -574,6 +673,14 @@ describe('POST /api/admin/desktop-release', () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mockReleaseModel.markReleaseCallback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        publishedDownloadUrl:
+          'https://cdn.qingyouai.com/desktop/stable/2.3.0/LobeHub-2.3.0-setup.exe',
+        publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+      }),
+      db,
+    );
     expect(values).toHaveBeenCalledWith({
       key: APP_SETTING_KEYS.desktopUpdateChannel,
       value: 'canary',

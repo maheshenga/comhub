@@ -159,6 +159,9 @@ class AdminCommercialService {
 
   getDesktopOverview = async () => lambdaClient.admin.desktop.getOverview.query();
 
+  activateDesktopRelease = async (releaseId: string) =>
+    lambdaClient.admin.desktop.activateDesktopRelease.mutate({ releaseId });
+
   listBuildProfiles = async (params?: { cursor?: string; limit?: number }) =>
     lambdaClient.admin.desktop.listBuildProfiles.query(params);
 
@@ -194,6 +197,12 @@ class AdminCommercialService {
 
   listDesktopReleases = async (params?: { limit?: number; profileId?: string }) =>
     lambdaClient.admin.desktop.listDesktopReleases.query(params);
+
+  reconcileDesktopRelease = async (releaseId: string) =>
+    lambdaClient.admin.desktop.reconcileDesktopRelease.mutate({ releaseId });
+
+  retryDesktopRelease = async (releaseId: string) =>
+    lambdaClient.admin.desktop.retryDesktopRelease.mutate({ releaseId });
 
   getMobileSettingsPublication = async () =>
     lambdaClient.admin.settings.getMobileConfigPublication.query();

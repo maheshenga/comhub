@@ -83,6 +83,14 @@ let db: LobeChatDatabase;
 
 const model = () => new DesktopBuildModel(db);
 
+type ReleaseCallbackInput = Omit<
+  Parameters<DesktopBuildModel['markReleaseCallback']>[0],
+  'workflowRunAttempt'
+> & { workflowRunAttempt?: number };
+
+const markReleaseCallback = ({ workflowRunAttempt = 1, ...input }: ReleaseCallbackInput) =>
+  model().markReleaseCallback({ ...input, workflowRunAttempt });
+
 const setProfileCreatedAt = (profileId: string, createdAt: string) =>
   db
     .update(desktopBuildProfiles)
@@ -483,12 +491,70 @@ describe('DesktopBuildModel', () => {
     ).resolves.toMatchObject({ workflowRunId: '1234567890' });
   });
 
+  it('binds a reconciled workflow run without changing the durable release status', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[1], releaseId: release.id });
+
+    await expect(
+      model().bindReleaseWorkflowRun({
+        releaseId: release.id,
+        workflowRunAttempt: 1,
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    ).resolves.toMatchObject({
+      status: 'building',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+
+    await expect(
+      model().bindReleaseWorkflowRun({
+        releaseId: release.id,
+        workflowRunAttempt: 1,
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    ).resolves.toMatchObject({ status: 'building', workflowRunId: '1234567890' });
+
+    await expect(
+      model().bindReleaseWorkflowRun({
+        releaseId: release.id,
+        workflowRunAttempt: 1,
+        workflowRunId: '1234567891',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567891',
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH');
+  });
+
+  it('does not add workflow provenance to a release that became terminal during reconciliation', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[1], releaseId: release.id });
+    await model().markReleaseResult({ releaseId: release.id, status: 'failed' });
+
+    await expect(
+      model().bindReleaseWorkflowRun({
+        releaseId: release.id,
+        workflowRunAttempt: 1,
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_WORKFLOW_RUN_BIND_NOT_ALLOWED');
+    await expect(model().getRelease(release.id)).resolves.toMatchObject({
+      status: 'failed',
+      workflowRunId: null,
+      workflowRunUrl: null,
+    });
+  });
+
   it('authorizes callback revisions under the locked release row', async () => {
     const boundDraft = await saveDraft();
     const { release: boundRelease } = await freezeDraft(boundDraft.profileId);
     await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: boundRelease.id });
 
-    const building = await model().markReleaseCallback({
+    const building = await markReleaseCallback({
       profileRevisionId: boundRelease.frozenRevisionId,
       releaseId: boundRelease.id,
       status: 'building',
@@ -502,7 +568,7 @@ describe('DesktopBuildModel', () => {
     });
 
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         releaseId: boundRelease.id,
         status: 'failed',
         workflowRunId: '1234567890',
@@ -516,7 +582,7 @@ describe('DesktopBuildModel', () => {
     });
 
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         profileRevisionId: randomUUID(),
         releaseId: boundRelease.id,
         status: 'failed',
@@ -526,7 +592,7 @@ describe('DesktopBuildModel', () => {
     ).rejects.toThrow('DESKTOP_RELEASE_REVISION_MISMATCH');
 
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         profileRevisionId: boundRelease.frozenRevisionId,
         releaseId: boundRelease.id,
         status: 'failed',
@@ -545,7 +611,7 @@ describe('DesktopBuildModel', () => {
     });
 
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         releaseId: unboundRelease.id,
         status: 'failed',
         workflowRunId: '1234567891',
@@ -564,9 +630,15 @@ describe('DesktopBuildModel', () => {
     const { release } = await freezeDraft(draft.profileId);
     const workflowRunId = '1234567892';
     const workflowRunUrl = 'https://github.com/maheshenga/comhub/actions/runs/1234567892';
+    const publishedDownloadUrl =
+      'https://cdn.qingyouai.com/desktop/canary/2.4.0-canary.1/ComHub.exe';
+    const publishedServerUrl = 'https://cdn.qingyouai.com/desktop';
 
-    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
-    await model().markReleaseCallback({
+    await model().markReleaseDispatched({
+      actorUserId: ADMIN_IDS[0],
+      releaseId: release.id,
+    });
+    await markReleaseCallback({
       profileRevisionId: release.frozenRevisionId,
       releaseId: release.id,
       status: 'publishing',
@@ -575,8 +647,10 @@ describe('DesktopBuildModel', () => {
     });
 
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         profileRevisionId: release.frozenRevisionId,
+        publishedDownloadUrl,
+        publishedServerUrl,
         releaseId: release.id,
         status: 'succeeded',
         workflowRunId,
@@ -585,14 +659,79 @@ describe('DesktopBuildModel', () => {
     ).resolves.toMatchObject({ status: 'succeeded', transitionedToSucceeded: true });
 
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         profileRevisionId: release.frozenRevisionId,
+        publishedDownloadUrl,
+        publishedServerUrl,
         releaseId: release.id,
         status: 'succeeded',
         workflowRunId,
         workflowRunUrl,
       }),
     ).resolves.toMatchObject({ status: 'succeeded', transitionedToSucceeded: false });
+  });
+
+  it('rejects a succeeded callback without complete publication metadata', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567904';
+    const workflowRunUrl = `https://github.com/maheshenga/comhub/actions/runs/${workflowRunId}`;
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await markReleaseCallback({
+      profileRevisionId: release.frozenRevisionId,
+      releaseId: release.id,
+      status: 'publishing',
+      workflowRunId,
+      workflowRunUrl,
+    });
+
+    await expect(
+      markReleaseCallback({
+        profileRevisionId: release.frozenRevisionId,
+        releaseId: release.id,
+        status: 'succeeded',
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_PUBLICATION_METADATA_INVALID');
+    await expect(model().getRelease(release.id)).resolves.toMatchObject({
+      publishedDownloadUrl: null,
+      publishedServerUrl: null,
+      status: 'publishing',
+    });
+  });
+
+  it('persists validated publication URLs on the first succeeded callback', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567898';
+    const workflowRunUrl = `https://github.com/maheshenga/comhub/actions/runs/${workflowRunId}`;
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await markReleaseCallback({
+      profileRevisionId: release.frozenRevisionId,
+      releaseId: release.id,
+      status: 'publishing',
+      workflowRunId,
+      workflowRunUrl,
+    });
+
+    await expect(
+      markReleaseCallback({
+        profileRevisionId: release.frozenRevisionId,
+        publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/canary/2.4.0-canary.1/ComHub.exe',
+        publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+        releaseId: release.id,
+        status: 'succeeded',
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).resolves.toMatchObject({
+      publishedDownloadUrl: 'https://cdn.qingyouai.com/desktop/canary/2.4.0-canary.1/ComHub.exe',
+      publishedServerUrl: 'https://cdn.qingyouai.com/desktop',
+      status: 'succeeded',
+    });
   });
 
   it('accepts only exact-provenance revisionless failed callback retries', async () => {
@@ -603,7 +742,7 @@ describe('DesktopBuildModel', () => {
 
     await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         releaseId: release.id,
         status: 'failed',
         workflowRunId,
@@ -616,7 +755,7 @@ describe('DesktopBuildModel', () => {
     });
 
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         releaseId: release.id,
         status: 'failed',
         workflowRunId,
@@ -629,7 +768,7 @@ describe('DesktopBuildModel', () => {
     });
 
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         releaseId: release.id,
         status: 'failed',
         workflowRunId: '1234567894',
@@ -639,13 +778,31 @@ describe('DesktopBuildModel', () => {
     await expect(model().getRelease(release.id)).resolves.toMatchObject({
       revisionlessFailedPreStaging: true,
       status: 'failed',
+      workflowRunAttempt: 1,
+      workflowRunId,
+      workflowRunUrl,
+    });
+
+    await model().prepareReleaseRetry({ actorUserId: ADMIN_IDS[1], releaseId: release.id });
+    await expect(
+      markReleaseCallback({
+        releaseId: release.id,
+        status: 'failed',
+        workflowRunAttempt: 2,
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).resolves.toMatchObject({
+      revisionlessFailedPreStaging: true,
+      status: 'failed',
+      workflowRunAttempt: 2,
       workflowRunId,
       workflowRunUrl,
     });
 
     const queued = await freezeDraft((await saveDraft()).profileId, { version: '2.4.0-canary.9' });
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         releaseId: queued.release.id,
         status: 'failed',
         workflowRunId: '1234567895',
@@ -655,7 +812,7 @@ describe('DesktopBuildModel', () => {
 
     const bound = await freezeDraft((await saveDraft()).profileId, { version: '2.4.0-canary.10' });
     await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: bound.release.id });
-    await model().markReleaseCallback({
+    await markReleaseCallback({
       profileRevisionId: bound.release.frozenRevisionId,
       releaseId: bound.release.id,
       status: 'failed',
@@ -663,7 +820,7 @@ describe('DesktopBuildModel', () => {
       workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567896',
     });
     await expect(
-      model().markReleaseCallback({
+      markReleaseCallback({
         releaseId: bound.release.id,
         status: 'failed',
         workflowRunId: '1234567896',
@@ -691,6 +848,219 @@ describe('DesktopBuildModel', () => {
       model().markReleaseResult({ releaseId: release.id, status: 'failed' }),
     ).rejects.toThrow('DESKTOP_RELEASE_TERMINAL');
     expect(completed.artifacts).toEqual(artifacts);
+  });
+
+  it('moves only failed releases back to building for a retry', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567899';
+    const workflowRunUrl = `https://github.com/maheshenga/comhub/actions/runs/${workflowRunId}`;
+
+    const dispatched = await model().markReleaseDispatched({
+      actorUserId: ADMIN_IDS[0],
+      releaseId: release.id,
+    });
+    await markReleaseCallback({
+      errorSummary: 'build failed',
+      profileRevisionId: release.frozenRevisionId,
+      releaseId: release.id,
+      status: 'failed',
+      workflowRunId,
+      workflowRunUrl,
+    });
+
+    const retried = await model().prepareReleaseRetry({
+      actorUserId: ADMIN_IDS[1],
+      releaseId: release.id,
+    });
+
+    expect(retried).toMatchObject({
+      dispatchedByUserId: ADMIN_IDS[1],
+      errorSummary: null,
+      status: 'building',
+      workflowRunId,
+      workflowRunUrl,
+    });
+    expect(retried.completedAt).toBeNull();
+    expect(retried.dispatchedAt).toEqual(dispatched.dispatchedAt);
+    await expect(
+      model().prepareReleaseRetry({ actorUserId: ADMIN_IDS[0], releaseId: release.id }),
+    ).rejects.toThrow('DESKTOP_RELEASE_RETRY_NOT_ALLOWED');
+  });
+
+  it('rejects stale GitHub run attempts after a failed release is retried', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567900';
+    const workflowRunUrl = `https://github.com/maheshenga/comhub/actions/runs/${workflowRunId}`;
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await expect(
+      markReleaseCallback({
+        errorSummary: 'attempt 1 failed',
+        profileRevisionId: release.frozenRevisionId,
+        releaseId: release.id,
+        status: 'failed',
+        workflowRunAttempt: 1,
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).resolves.toMatchObject({ status: 'failed', workflowRunAttempt: 1 });
+
+    await expect(
+      model().prepareReleaseRetry({ actorUserId: ADMIN_IDS[1], releaseId: release.id }),
+    ).resolves.toMatchObject({
+      status: 'building',
+      workflowRunAttempt: 1,
+      workflowRunAttemptPending: true,
+    });
+
+    await expect(
+      markReleaseCallback({
+        errorSummary: 'replayed attempt 1 failure',
+        profileRevisionId: release.frozenRevisionId,
+        releaseId: release.id,
+        status: 'failed',
+        workflowRunAttempt: 1,
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH');
+    await expect(model().getRelease(release.id)).resolves.toMatchObject({ status: 'building' });
+
+    await expect(
+      markReleaseCallback({
+        errorSummary: 'attempt 2 failed',
+        profileRevisionId: release.frozenRevisionId,
+        releaseId: release.id,
+        status: 'failed',
+        workflowRunAttempt: 2,
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).resolves.toMatchObject({
+      status: 'failed',
+      workflowRunAttempt: 2,
+      workflowRunAttemptPending: false,
+    });
+  });
+
+  it('keeps a fresh ambiguous rerun pending when GitHub still reports the previous attempt', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567902';
+    const workflowRunUrl = `https://github.com/maheshenga/comhub/actions/runs/${workflowRunId}`;
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await markReleaseCallback({
+      errorSummary: 'attempt 1 failed',
+      profileRevisionId: release.frozenRevisionId,
+      releaseId: release.id,
+      status: 'failed',
+      workflowRunAttempt: 1,
+      workflowRunId,
+      workflowRunUrl,
+    });
+    const retried = await model().prepareReleaseRetry({
+      actorUserId: ADMIN_IDS[1],
+      releaseId: release.id,
+    });
+
+    await expect(
+      model().expirePendingReleaseRetry({
+        releaseId: release.id,
+        requestedBefore: new Date(retried.updatedAt.getTime() - 1),
+        workflowRunAttempt: 1,
+      }),
+    ).resolves.toBeNull();
+    await expect(model().getRelease(release.id)).resolves.toMatchObject({
+      status: 'building',
+      workflowRunAttempt: 1,
+      workflowRunAttemptPending: true,
+    });
+  });
+
+  it('expires an ambiguous rerun after GitHub never advances beyond the previous attempt', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567903';
+    const workflowRunUrl = `https://github.com/maheshenga/comhub/actions/runs/${workflowRunId}`;
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await markReleaseCallback({
+      errorSummary: 'attempt 1 failed',
+      profileRevisionId: release.frozenRevisionId,
+      releaseId: release.id,
+      status: 'failed',
+      workflowRunAttempt: 1,
+      workflowRunId,
+      workflowRunUrl,
+    });
+    const retried = await model().prepareReleaseRetry({
+      actorUserId: ADMIN_IDS[1],
+      releaseId: release.id,
+    });
+
+    await expect(
+      model().expirePendingReleaseRetry({
+        releaseId: release.id,
+        requestedBefore: new Date(retried.updatedAt.getTime() + 1),
+        workflowRunAttempt: 1,
+      }),
+    ).resolves.toMatchObject({
+      errorSummary: 'GitHub rerun delivery could not be confirmed. Retry the release.',
+      status: 'failed',
+      workflowRunAttempt: 1,
+      workflowRunAttemptPending: false,
+      workflowRunId,
+      workflowRunUrl,
+    });
+  });
+
+  it('dispatches a new workflow when retrying a legacy release without run attempt metadata', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567901';
+    const workflowRunUrl = `https://github.com/maheshenga/comhub/actions/runs/${workflowRunId}`;
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await markReleaseCallback({
+      errorSummary: 'legacy workflow failed',
+      profileRevisionId: release.frozenRevisionId,
+      releaseId: release.id,
+      status: 'failed',
+      workflowRunId,
+      workflowRunUrl,
+    });
+    await db
+      .update(desktopReleases)
+      .set({ workflowRunAttempt: null })
+      .where(eq(desktopReleases.id, release.id));
+
+    await expect(
+      model().prepareReleaseRetry({ actorUserId: ADMIN_IDS[1], releaseId: release.id }),
+    ).resolves.toMatchObject({
+      status: 'building',
+      workflowRunAttempt: null,
+      workflowRunAttemptPending: false,
+      workflowRunId: null,
+      workflowRunUrl: null,
+    });
+  });
+
+  it('allows a failed dispatch without a run to be dispatched again', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+
+    await model().markReleaseResult({
+      errorSummary: 'dispatch unavailable',
+      releaseId: release.id,
+      status: 'failed',
+    });
+
+    await expect(
+      model().prepareReleaseRetry({ actorUserId: ADMIN_IDS[0], releaseId: release.id }),
+    ).resolves.toMatchObject({ status: 'building', workflowRunId: null, workflowRunUrl: null });
   });
 
   it.each(['queued', 'building', 'publishing'] as const)(

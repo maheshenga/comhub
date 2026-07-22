@@ -21,6 +21,8 @@ const DEFAULT_PROFILE_PAGE_SIZE = 50;
 const MAX_PROFILE_PAGE_SIZE = 100;
 const PROFILE_CURSOR_MAX_LENGTH = 512;
 const PROFILE_CURSOR_VERSION = 2;
+const RERUN_DELIVERY_UNKNOWN_SUMMARY =
+  'GitHub rerun delivery could not be confirmed. Retry the release.';
 const PROFILE_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROFILE_CURSOR_CREATED_AT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
@@ -179,36 +181,112 @@ export class DesktopBuildModel {
     }
   };
 
+  private resolveWorkflowCallbackMetadata = (
+    release: DesktopReleaseItem,
+    input: { workflowRunAttempt: number; workflowRunId: string; workflowRunUrl: string },
+  ) => {
+    const hasWorkflowRunId = release.workflowRunId !== null;
+    const hasWorkflowRunUrl = release.workflowRunUrl !== null;
+    if (
+      hasWorkflowRunId !== hasWorkflowRunUrl ||
+      (release.workflowRunAttempt !== null && !hasWorkflowRunId) ||
+      (release.workflowRunAttemptPending && release.workflowRunAttempt === null)
+    ) {
+      throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_METADATA_INVALID');
+    }
+    if (
+      (hasWorkflowRunId && release.workflowRunId !== input.workflowRunId) ||
+      (hasWorkflowRunUrl && release.workflowRunUrl !== input.workflowRunUrl)
+    ) {
+      throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH');
+    }
+
+    if (isTerminalReleaseStatus(release.status)) {
+      if (!hasWorkflowRunId || release.workflowRunAttempt === null) {
+        throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH');
+      }
+      if (
+        release.workflowRunAttemptPending ||
+        release.workflowRunAttempt !== input.workflowRunAttempt
+      ) {
+        throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH');
+      }
+      return {};
+    }
+
+    if (!hasWorkflowRunId) {
+      if (input.workflowRunAttempt !== 1) {
+        throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH');
+      }
+      return {
+        workflowRunAttempt: input.workflowRunAttempt,
+        workflowRunId: input.workflowRunId,
+        workflowRunUrl: input.workflowRunUrl,
+      };
+    }
+
+    if (release.workflowRunAttempt === null) {
+      return { workflowRunAttempt: input.workflowRunAttempt };
+    }
+
+    const expectedAttempt = release.workflowRunAttemptPending
+      ? release.workflowRunAttempt + 1
+      : release.workflowRunAttempt;
+    if (input.workflowRunAttempt !== expectedAttempt) {
+      throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH');
+    }
+
+    return release.workflowRunAttemptPending
+      ? { workflowRunAttempt: input.workflowRunAttempt, workflowRunAttemptPending: false }
+      : {};
+  };
+
   private transitionRelease = async ({
     artifacts,
     errorSummary,
+    publishedDownloadUrl,
+    publishedServerUrl,
     release,
     status,
     tx,
     revisionlessFailedPreStaging,
+    workflowRunAttempt,
     workflowRunId,
     workflowRunUrl,
   }: {
     artifacts?: DesktopReleaseArtifactManifest;
     errorSummary?: string;
+    publishedDownloadUrl?: string;
+    publishedServerUrl?: string;
     release: DesktopReleaseItem;
     status: DesktopReleaseStatus;
     tx: Transaction;
+    workflowRunAttempt?: number;
     workflowRunId?: string;
     workflowRunUrl?: string;
     revisionlessFailedPreStaging?: boolean;
   }) => {
-    if (
-      (workflowRunId && release.workflowRunId && release.workflowRunId !== workflowRunId) ||
-      (workflowRunUrl && release.workflowRunUrl && release.workflowRunUrl !== workflowRunUrl)
-    ) {
-      throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH');
-    }
-
-    const workflowMetadata = {
-      ...(workflowRunId && !release.workflowRunId ? { workflowRunId } : {}),
-      ...(workflowRunUrl && !release.workflowRunUrl ? { workflowRunUrl } : {}),
-    };
+    const workflowMetadata =
+      workflowRunAttempt === undefined
+        ? (() => {
+            if (
+              (workflowRunId && release.workflowRunId && release.workflowRunId !== workflowRunId) ||
+              (workflowRunUrl &&
+                release.workflowRunUrl &&
+                release.workflowRunUrl !== workflowRunUrl)
+            ) {
+              throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH');
+            }
+            return {
+              ...(workflowRunId && !release.workflowRunId ? { workflowRunId } : {}),
+              ...(workflowRunUrl && !release.workflowRunUrl ? { workflowRunUrl } : {}),
+            };
+          })()
+        : this.resolveWorkflowCallbackMetadata(release, {
+            workflowRunAttempt,
+            workflowRunId: workflowRunId!,
+            workflowRunUrl: workflowRunUrl!,
+          });
 
     if (release.status === status) {
       if (release.status !== 'building' || Object.keys(workflowMetadata).length === 0)
@@ -244,6 +322,12 @@ export class DesktopBuildModel {
       .set({
         ...(artifacts === undefined ? {} : { artifacts }),
         ...(errorSummary === undefined ? {} : { errorSummary: boundedErrorSummary(errorSummary) }),
+        ...(status === 'succeeded' && publishedDownloadUrl !== undefined
+          ? { publishedDownloadUrl }
+          : {}),
+        ...(status === 'succeeded' && publishedServerUrl !== undefined
+          ? { publishedServerUrl }
+          : {}),
         ...workflowMetadata,
         ...(revisionlessFailedPreStaging ? { revisionlessFailedPreStaging: true } : {}),
         ...(status === 'failed' || status === 'succeeded' ? { completedAt: now } : {}),
@@ -513,6 +597,55 @@ export class DesktopBuildModel {
     });
   };
 
+  bindReleaseWorkflowRun = async (
+    input: {
+      releaseId: string;
+      workflowRunAttempt: number;
+      workflowRunId: string;
+      workflowRunUrl: string;
+    },
+    tx?: Transaction,
+  ) => {
+    const bind = async (transaction: Transaction) => {
+      const release = await this.lockRelease(input.releaseId, transaction);
+      if (!Number.isInteger(input.workflowRunAttempt) || input.workflowRunAttempt <= 0) {
+        throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_ATTEMPT_MISMATCH');
+      }
+      if (
+        (release.workflowRunId && release.workflowRunId !== input.workflowRunId) ||
+        (release.workflowRunUrl && release.workflowRunUrl !== input.workflowRunUrl)
+      ) {
+        throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_MISMATCH');
+      }
+      if (
+        release.workflowRunId === input.workflowRunId &&
+        release.workflowRunUrl === input.workflowRunUrl &&
+        release.workflowRunAttempt === input.workflowRunAttempt &&
+        !release.workflowRunAttemptPending
+      ) {
+        return release;
+      }
+      if (release.status !== 'building') {
+        throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_BIND_NOT_ALLOWED');
+      }
+
+      const workflowMetadata = this.resolveWorkflowCallbackMetadata(release, input);
+
+      const [updated] = await transaction
+        .update(desktopReleases)
+        .set({
+          ...workflowMetadata,
+          updatedAt: new Date(),
+        })
+        .where(eq(desktopReleases.id, release.id))
+        .returning();
+      if (!updated) throw new Error('DESKTOP_RELEASE_NOT_FOUND');
+      return updated;
+    };
+
+    return tx ? bind(tx) : this.db.transaction(bind);
+  };
+
   markReleaseDispatched = async (input: { actorUserId?: string; releaseId: string }) => {
     return this.db.transaction(async (tx) => {
       const release = await this.lockRelease(input.releaseId, tx);
@@ -528,6 +661,81 @@ export class DesktopBuildModel {
           dispatchedByUserId: input.actorUserId,
           status: 'building',
           updatedAt: now,
+        })
+        .where(eq(desktopReleases.id, release.id))
+        .returning();
+      if (!updated) throw new Error('DESKTOP_RELEASE_NOT_FOUND');
+      return updated;
+    });
+  };
+
+  prepareReleaseRetry = async (input: { actorUserId?: string; releaseId: string }) => {
+    return this.db.transaction(async (tx) => {
+      const release = await this.lockRelease(input.releaseId, tx);
+      if (release.status !== 'failed') throw new Error('DESKTOP_RELEASE_RETRY_NOT_ALLOWED');
+
+      const hasWorkflowRunId = Boolean(release.workflowRunId);
+      const hasWorkflowRunUrl = Boolean(release.workflowRunUrl);
+      if (hasWorkflowRunId !== hasWorkflowRunUrl) {
+        throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_METADATA_INVALID');
+      }
+      if (
+        (release.workflowRunAttempt !== null && !hasWorkflowRunId) ||
+        (release.workflowRunAttemptPending && release.workflowRunAttempt === null)
+      ) {
+        throw new Error('DESKTOP_RELEASE_WORKFLOW_RUN_METADATA_INVALID');
+      }
+
+      const rerunExistingWorkflow = hasWorkflowRunId && release.workflowRunAttempt !== null;
+
+      const now = new Date();
+      const [updated] = await tx
+        .update(desktopReleases)
+        .set({
+          artifacts: [],
+          completedAt: null,
+          dispatchedAt: rerunExistingWorkflow ? release.dispatchedAt : now,
+          dispatchedByUserId: input.actorUserId,
+          errorSummary: null,
+          status: 'building',
+          updatedAt: now,
+          workflowRunAttemptPending: rerunExistingWorkflow,
+          ...(!rerunExistingWorkflow && hasWorkflowRunId
+            ? { workflowRunAttempt: null, workflowRunId: null, workflowRunUrl: null }
+            : {}),
+        })
+        .where(eq(desktopReleases.id, release.id))
+        .returning();
+      if (!updated) throw new Error('DESKTOP_RELEASE_NOT_FOUND');
+      return updated;
+    });
+  };
+
+  expirePendingReleaseRetry = async (input: {
+    releaseId: string;
+    requestedBefore: Date;
+    workflowRunAttempt: number;
+  }) => {
+    return this.db.transaction(async (tx) => {
+      const release = await this.lockRelease(input.releaseId, tx);
+      if (
+        release.status !== 'building' ||
+        !release.workflowRunAttemptPending ||
+        release.workflowRunAttempt !== input.workflowRunAttempt ||
+        release.updatedAt.getTime() > input.requestedBefore.getTime()
+      ) {
+        return null;
+      }
+
+      const now = new Date();
+      const [updated] = await tx
+        .update(desktopReleases)
+        .set({
+          completedAt: now,
+          errorSummary: boundedErrorSummary(RERUN_DELIVERY_UNKNOWN_SUMMARY),
+          status: 'failed',
+          updatedAt: now,
+          workflowRunAttemptPending: false,
         })
         .where(eq(desktopReleases.id, release.id))
         .returning();
@@ -561,8 +769,11 @@ export class DesktopBuildModel {
     input: {
       errorSummary?: string;
       profileRevisionId?: string;
+      publishedDownloadUrl?: string;
+      publishedServerUrl?: string;
       releaseId: string;
       status: DesktopReleaseStatus;
+      workflowRunAttempt: number;
       workflowRunId: string;
       workflowRunUrl: string;
     },
@@ -571,6 +782,20 @@ export class DesktopBuildModel {
     if (input.status === 'queued') throw new Error('DESKTOP_RELEASE_INVALID_TRANSITION');
     if (!input.workflowRunId || !input.workflowRunUrl) {
       throw new Error('DESKTOP_RELEASE_CALLBACK_WORKFLOW_REQUIRED');
+    }
+    if (!Number.isInteger(input.workflowRunAttempt) || input.workflowRunAttempt <= 0) {
+      throw new Error('DESKTOP_RELEASE_CALLBACK_WORKFLOW_REQUIRED');
+    }
+    const publishedDownloadUrlProvided = input.publishedDownloadUrl !== undefined;
+    const publishedServerUrlProvided = input.publishedServerUrl !== undefined;
+    const hasCompletePublication =
+      Boolean(input.publishedDownloadUrl?.trim()) && Boolean(input.publishedServerUrl?.trim());
+    if (
+      input.status === 'succeeded'
+        ? !hasCompletePublication
+        : publishedDownloadUrlProvided || publishedServerUrlProvided
+    ) {
+      throw new Error('DESKTOP_RELEASE_PUBLICATION_METADATA_INVALID');
     }
 
     const transition = async (transaction: Transaction) => {
@@ -607,7 +832,13 @@ export class DesktopBuildModel {
     input: { status: DesktopReleaseStatus; workflowRunId: string; workflowRunUrl: string },
   ) =>
     input.status === 'failed' &&
-    ((release.status === 'building' && release.workflowRunId === null && release.workflowRunUrl === null) ||
+    ((release.status === 'building' &&
+      release.workflowRunId === null &&
+      release.workflowRunUrl === null) ||
+      (release.status === 'building' &&
+        release.revisionlessFailedPreStaging &&
+        release.workflowRunId === input.workflowRunId &&
+        release.workflowRunUrl === input.workflowRunUrl) ||
       (release.status === 'failed' &&
         release.revisionlessFailedPreStaging &&
         release.workflowRunId === input.workflowRunId &&

@@ -1,7 +1,7 @@
 'use client';
 
 import type { DesktopBuildAsset, DesktopBuildAssetKind } from '@lobechat/types';
-import { Button, Descriptions, Form, Input, Modal, Radio, message } from 'antd';
+import { Descriptions, Form, Input, message,Modal, Radio } from 'antd';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -17,13 +17,13 @@ interface CreateDesktopReleaseModalProps {
   assets: Partial<Record<DesktopBuildAssetKind, DesktopBuildAsset>>;
   formValues: BuildProfileFormValues;
   onClose: () => void;
-  onCreated: () => void;
+  onReleaseChanged: () => void;
   open: boolean;
   profile: any;
 }
 
 const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
-  ({ formValues, onClose, onCreated, open, profile }) => {
+  ({ formValues, onClose, onReleaseChanged, open, profile }) => {
     const { t } = useTranslation('subscription');
     const [form] = Form.useForm<{
       channel: 'canary' | 'stable';
@@ -51,27 +51,27 @@ const CreateDesktopReleaseModal = memo<CreateDesktopReleaseModalProps>(
           version: values.version,
         });
         message.success(t('admin.desktopBuild.release.queued'));
-        onCreated();
         onClose();
       } catch {
         message.error(t('admin.desktopBuild.release.failed'));
       } finally {
         setSubmitting(false);
+        onReleaseChanged();
       }
     };
 
     return (
       <Modal
+        destroyOnHidden
         aria-label={t('admin.desktopBuild.release.title')}
         confirmLoading={submitting}
-        destroyOnHidden
+        maskTransitionName=""
         okText={t('admin.desktopBuild.release.confirm')}
         open={open}
-        maskTransitionName=""
+        transitionName=""
         title={
           <span id="desktop-build-release-title">{t('admin.desktopBuild.release.title')}</span>
         }
-        transitionName=""
         onCancel={submitting ? undefined : onClose}
         onOk={() => void handleCreate()}
       >
