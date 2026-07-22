@@ -113,4 +113,15 @@ describe('desktop release workflow contract', () => {
     expect(manualUpdate.if).toContain("inputs.release_id == ''");
     expect(manualUpdate.if).toContain("inputs.update_backend == 'true'");
   });
+
+  it('omits the profile revision field from an unbound build-failure payload', async () => {
+    const workflow = parseDocument(await readFile(workflowPath, 'utf8')).toJS() as any;
+    const buildFailure = workflow.jobs['build-windows'].steps.find(
+      (step: any) => step.name === 'Report build failure',
+    );
+
+    expect(buildFailure.run).toContain(
+      '\'{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl} + (if $profileRevisionId == "" then {} else {profileRevisionId:$profileRevisionId} end)\'',
+    );
+  });
 });

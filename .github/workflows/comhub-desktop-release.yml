@@ -233,7 +233,7 @@ jobs:
             --arg version "$VERSION" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{errorSummary:$errorSummary,profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl} + (if $profileRevisionId == "" then {} else {profileRevisionId:$profileRevisionId} end)')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
   publish:

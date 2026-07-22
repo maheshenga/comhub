@@ -172,3 +172,21 @@ GREEN:
 - `markReleaseCallback` locks the release row before checking callback provenance and revision. Revisionless failure is allowed only for a locked, unbound release; any bound release requires the exact frozen revision.
 - The route validates request shape and delegates all release callback revision authorization to that model method in the same transaction as workflow metadata and status changes. Internal `markReleaseResult` lifecycle callers are unchanged.
 - Self-review: manual callbacks, terminal/idempotent transitions, bounded errors, workflow provenance, checksum/path safety, and secret handling remain preserved; no Task 6 work or `electron-builder.mjs` changes.
+
+## Pre-Staging Failure Payload Final Review
+
+RED:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - Failed at `desktopReleaseWorkflow.test.ts:82`: the build-failure `jq` filter serialized `profileRevisionId` unconditionally instead of emitting the required conditional object shape.
+
+GREEN:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - 2 workflow contract tests passed, including the exact unbound build-failure JSON shape.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir scripts/electronWorkflow`
+   - 10 staging/workflow tests passed.
+3. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 32 callback/auth/profile tests passed.
+
+- Build-failure callbacks now add `profileRevisionId` only when staging produced a non-empty revision. An unbound pre-staging failure therefore reaches the existing revisionless failed-callback model path instead of failing UUID validation on `""` and leaving the release non-terminal.
