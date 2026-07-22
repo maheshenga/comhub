@@ -92,6 +92,9 @@ type SavedDraft = { profileId: string; revision: number; revisionId: string };
 const dispatchFailureSummary = (error: unknown) =>
   error instanceof DesktopReleaseDispatchError ? error.summary : 'Desktop release dispatch failed.';
 
+const isDefinitiveDispatchFailure = (error: unknown) =>
+  error instanceof DesktopReleaseDispatchError && error.delivery === 'definitive';
+
 export const adminDesktopRouter = router({
   archiveBuildProfile: systemWriteProcedure
     .input(z.object({ profileId: z.string().uuid() }).strict())
@@ -194,11 +197,13 @@ export const adminDesktopRouter = router({
               version: input.version,
             });
           } catch (error) {
-            await model.markReleaseResult({
-              errorSummary: dispatchFailureSummary(error),
-              releaseId: frozen.release.id,
-              status: 'failed',
-            });
+            if (isDefinitiveDispatchFailure(error)) {
+              await model.markReleaseResult({
+                errorSummary: dispatchFailureSummary(error),
+                releaseId: frozen.release.id,
+                status: 'failed',
+              });
+            }
             throw error;
           }
 

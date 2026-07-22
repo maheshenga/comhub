@@ -19,11 +19,14 @@ type DispatchOptions = {
   token?: string;
 };
 
+export type DesktopReleaseDispatchDelivery = 'ambiguous' | 'definitive';
+
 export class DesktopReleaseDispatchError extends Error {
   constructor(
     public readonly code:
       'github-dispatch-failed' | 'github-dispatch-timeout' | 'github-token-missing',
     public readonly summary: string,
+    public readonly delivery: DesktopReleaseDispatchDelivery,
   ) {
     super(summary);
     this.name = 'DesktopReleaseDispatchError';
@@ -42,6 +45,7 @@ export const dispatchDesktopReleaseWorkflow = async (
     throw new DesktopReleaseDispatchError(
       'github-token-missing',
       'Desktop release dispatch is unavailable.',
+      'definitive',
     );
   }
 
@@ -86,6 +90,7 @@ export const dispatchDesktopReleaseWorkflow = async (
       throw new DesktopReleaseDispatchError(
         'github-dispatch-failed',
         `GitHub dispatch failed (${response.status}).`,
+        'definitive',
       );
     }
   } catch (error) {
@@ -94,9 +99,14 @@ export const dispatchDesktopReleaseWorkflow = async (
       throw new DesktopReleaseDispatchError(
         'github-dispatch-timeout',
         'GitHub dispatch timed out.',
+        'ambiguous',
       );
     }
-    throw new DesktopReleaseDispatchError('github-dispatch-failed', 'GitHub dispatch failed.');
+    throw new DesktopReleaseDispatchError(
+      'github-dispatch-failed',
+      'GitHub dispatch delivery is unknown.',
+      'ambiguous',
+    );
   } finally {
     clearTimeout(timeout);
   }

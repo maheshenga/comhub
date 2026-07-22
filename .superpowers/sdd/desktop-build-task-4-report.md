@@ -113,3 +113,44 @@ bunx prettier --check packages/database/src/models/desktopBuild.ts packages/data
 git diff --check
 # Result: passed.
 ```
+
+## Re-Review Remediation: Ambiguous GitHub Delivery
+
+`DesktopReleaseDispatchError` now carries a typed `delivery` classification. Missing-token validation and received non-2xx GitHub responses are `definitive`; timeout/abort and transport/no-response failures are `ambiguous`. All error summaries remain static and bounded. The dispatcher never reads response bodies or propagates raw transport messages.
+
+The router preserves the durable `building` release for ambiguous errors and rethrows to the required audit wrapper, which records the failed/unknown outcome without terminalizing the release. It persists `failed` only for errors explicitly classified as definitive. Unknown error shapes are treated as ambiguous by default.
+
+### RED Evidence
+
+```powershell
+bunx vitest run --silent='passed-only' apps/server/src/services/desktopRelease/github.test.ts
+bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/lambda-routers/admin/desktop.test.ts
+```
+
+Result before implementation: GitHub dispatch had 4 expected failures because no error carried a delivery classification. Router coverage had 2 expected failures because timeout and transport errors incorrectly called `markReleaseResult({ status: 'failed' })` after the durable building transition.
+
+### GREEN Evidence
+
+The same focused tests passed after implementation: GitHub dispatch 6/6 and router 22/22. Coverage proves timeout abort cleanup and generic transport failure retain `building` and do not call `markReleaseResult`; received non-2xx and missing-token errors are definitive and persist a bounded `failed` result. Tests also retain the frozen-draft binding, `freeze -> building -> GitHub` ordering, required terminal audit records, and token/release-note exclusion from error and audit assertions.
+
+### Final Verification Commands And Results
+
+```powershell
+bunx vitest run --silent='passed-only' apps/server/src/services/desktopRelease/github.test.ts src/services/adminCommercial.test.ts
+# Result: 31 passed.
+
+bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/lambda-routers/admin/desktop.test.ts packages/business-server/src/lambda-routers/admin/adminCommandParity.test.ts
+# Result: 24 passed.
+
+bunx tsgo --noEmit --pretty false
+# Result: passed.
+
+bunx eslint apps/server/src/services/desktopRelease/github.ts apps/server/src/services/desktopRelease/github.test.ts packages/business-server/src/lambda-routers/admin/desktop.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts
+# Result: passed.
+
+bunx prettier --check apps/server/src/services/desktopRelease/github.ts apps/server/src/services/desktopRelease/github.test.ts packages/business-server/src/lambda-routers/admin/desktop.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts
+# Result: passed.
+
+git diff --check
+# Result: passed.
+```

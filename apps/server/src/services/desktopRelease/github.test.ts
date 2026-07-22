@@ -67,6 +67,7 @@ describe('dispatchDesktopReleaseWorkflow', () => {
       }),
     ).rejects.toMatchObject({
       code: 'github-token-missing',
+      delivery: 'definitive',
       message: 'Desktop release dispatch is unavailable.',
     });
   });
@@ -86,7 +87,10 @@ describe('dispatchDesktopReleaseWorkflow', () => {
       { channel: 'stable', releaseId: 'release-1', releaseNotes: 'notes', version: '2.4.0' },
       { fetcher: fetcher as typeof fetch, token: 'secret' },
     );
-    const rejection = expect(dispatch).rejects.toMatchObject({ code: 'github-dispatch-timeout' });
+    const rejection = expect(dispatch).rejects.toMatchObject({
+      code: 'github-dispatch-timeout',
+      delivery: 'ambiguous',
+    });
 
     await vi.advanceTimersByTimeAsync(10_000);
 
@@ -109,7 +113,31 @@ describe('dispatchDesktopReleaseWorkflow', () => {
     ).rejects.toSatisfy((error: unknown) => {
       expect(error).toBeInstanceOf(DesktopReleaseDispatchError);
       expect((error as DesktopReleaseDispatchError).code).toBe('github-dispatch-failed');
+      expect((error as DesktopReleaseDispatchError).delivery).toBe('definitive');
       expect((error as DesktopReleaseDispatchError).summary).toBe('GitHub dispatch failed (500).');
+      expect((error as DesktopReleaseDispatchError).summary).not.toContain(token);
+      expect((error as DesktopReleaseDispatchError).summary).not.toContain(releaseNotes);
+      return true;
+    });
+  });
+
+  it('classifies transport failures as ambiguous without exposing transport details', async () => {
+    const token = 'super-secret-token';
+    const releaseNotes = 'private release notes';
+    const fetcher = vi.fn().mockRejectedValue(new Error(`${token} ${releaseNotes} transport`));
+
+    await expect(
+      dispatchDesktopReleaseWorkflow(
+        { channel: 'stable', releaseId: 'release-1', releaseNotes, version: '2.4.0' },
+        { fetcher, token },
+      ),
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(DesktopReleaseDispatchError);
+      expect((error as DesktopReleaseDispatchError).code).toBe('github-dispatch-failed');
+      expect((error as DesktopReleaseDispatchError).delivery).toBe('ambiguous');
+      expect((error as DesktopReleaseDispatchError).summary).toBe(
+        'GitHub dispatch delivery is unknown.',
+      );
       expect((error as DesktopReleaseDispatchError).summary).not.toContain(token);
       expect((error as DesktopReleaseDispatchError).summary).not.toContain(releaseNotes);
       return true;

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
       constructor(
         public readonly code: string,
         public readonly summary: string,
+        public readonly delivery: 'ambiguous' | 'definitive' = 'ambiguous',
       ) {
         super(summary);
       }
@@ -613,6 +614,7 @@ describe('adminDesktopRouter', () => {
       new mocks.github.DesktopReleaseDispatchError(
         'github-dispatch-failed',
         'GitHub dispatch failed (500).',
+        'definitive',
       ),
     );
 
@@ -645,11 +647,69 @@ describe('adminDesktopRouter', () => {
     expect(mocks.audit.records).toHaveBeenNthCalledWith(2, 'failed');
   });
 
+  it.each([
+    ['timeout', 'github-dispatch-timeout', 'GitHub dispatch timed out.'],
+    ['transport failure', 'github-dispatch-failed', 'GitHub dispatch delivery is unknown.'],
+  ] as const)(
+    'keeps the durable building release when %s delivery is ambiguous',
+    async (_name, code, summary) => {
+      mocks.github.dispatchDesktopReleaseWorkflow.mockRejectedValue(
+        new mocks.github.DesktopReleaseDispatchError(code, summary, 'ambiguous'),
+      );
+
+      await expect(
+        adminDesktopRouter
+          .createCaller({ userId: 'system-admin-user' } as any)
+          .createDesktopRelease({
+            channel: 'stable',
+            profileId: PROFILE_ID,
+            releaseNotes: 'notes',
+            version: '2.4.0',
+          }),
+      ).rejects.toThrow(summary);
+
+      expect(mocks.model.markReleaseDispatched).toHaveBeenCalledTimes(1);
+      expect(mocks.model.markReleaseResult).not.toHaveBeenCalled();
+      expect(mocks.audit.records).toHaveBeenNthCalledWith(1, 'started');
+      expect(mocks.audit.records).toHaveBeenNthCalledWith(2, 'failed');
+    },
+  );
+
+  it('persists a missing-token rejection as a definitive failure without auditing secrets', async () => {
+    const token = 'super-secret-token';
+    const releaseNotes = 'private release notes';
+    mocks.github.dispatchDesktopReleaseWorkflow.mockRejectedValue(
+      new mocks.github.DesktopReleaseDispatchError(
+        'github-token-missing',
+        'Desktop release dispatch is unavailable.',
+        'definitive',
+      ),
+    );
+
+    await expect(
+      adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseNotes,
+        version: '2.4.0',
+      }),
+    ).rejects.toThrow('Desktop release dispatch is unavailable.');
+
+    expect(mocks.model.markReleaseResult).toHaveBeenCalledWith({
+      errorSummary: 'Desktop release dispatch is unavailable.',
+      releaseId: 'release-1',
+      status: 'failed',
+    });
+    expect(JSON.stringify(mocks.audit.records.mock.calls)).not.toContain(token);
+    expect(JSON.stringify(mocks.audit.records.mock.calls)).not.toContain(releaseNotes);
+  });
+
   it('propagates failure-state persistence errors without dispatching again or rewriting them', async () => {
     mocks.github.dispatchDesktopReleaseWorkflow.mockRejectedValue(
       new mocks.github.DesktopReleaseDispatchError(
         'github-dispatch-failed',
         'GitHub dispatch failed (500).',
+        'definitive',
       ),
     );
     const persistenceError = new Error('DESKTOP_RELEASE_FAILURE_PERSIST_FAILED');
