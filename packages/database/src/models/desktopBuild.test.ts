@@ -594,6 +594,54 @@ describe('DesktopBuildModel', () => {
     ).resolves.toMatchObject({ status: 'succeeded', transitionedToSucceeded: false });
   });
 
+  it('accepts only exact-provenance revisionless failed callback retries', async () => {
+    const draft = await saveDraft();
+    const { release } = await freezeDraft(draft.profileId);
+    const workflowRunId = '1234567893';
+    const workflowRunUrl = 'https://github.com/maheshenga/comhub/actions/runs/1234567893';
+
+    await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId: release.id });
+    await expect(
+      model().markReleaseCallback({
+        releaseId: release.id,
+        status: 'failed',
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).resolves.toMatchObject({
+      status: 'failed',
+      workflowRunId,
+      workflowRunUrl,
+    });
+
+    await expect(
+      model().markReleaseCallback({
+        releaseId: release.id,
+        status: 'failed',
+        workflowRunId,
+        workflowRunUrl,
+      }),
+    ).resolves.toMatchObject({
+      status: 'failed',
+      workflowRunId,
+      workflowRunUrl,
+    });
+
+    await expect(
+      model().markReleaseCallback({
+        releaseId: release.id,
+        status: 'failed',
+        workflowRunId: '1234567894',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567894',
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
+    await expect(model().getRelease(release.id)).resolves.toMatchObject({
+      status: 'failed',
+      workflowRunId,
+      workflowRunUrl,
+    });
+  });
+
   it('allows the release lifecycle and rejects terminal transitions', async () => {
     const draft = await saveDraft();
     const { release } = await freezeDraft(draft.profileId);

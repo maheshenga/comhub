@@ -335,6 +335,49 @@ describe('POST /api/admin/desktop-release', () => {
     expect(values).not.toHaveBeenCalled();
   });
 
+  it('keeps exact revisionless failed callback retries idempotent without settings writes', async () => {
+    const { db, values } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+    mockReleaseModel.markReleaseCallback.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'failed',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+    mockReleaseModel.markReleaseCallback.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'failed',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+    mockReleaseModel.markReleaseCallback.mockRejectedValueOnce(
+      new Error('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED'),
+    );
+
+    const failure = {
+      errorSummary: 'Desktop release profile staging failed.',
+      releaseId: '11111111-1111-4111-8111-111111111111',
+      status: 'failed',
+      version: '2.3.0',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    } as const;
+    expect((await POST(createRequest(failure))).status).toBe(200);
+    expect((await POST(createRequest(failure))).status).toBe(200);
+    expect(
+      (
+        await POST(
+          createRequest({
+            ...failure,
+            workflowRunId: '1234567891',
+            workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567891',
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(values).not.toHaveBeenCalled();
+  });
+
   it('requires the exact frozen revision after a building callback has persisted workflow binding', async () => {
     const { db } = createDb();
     mockGetServerDB.mockResolvedValue(db);

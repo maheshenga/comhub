@@ -576,11 +576,7 @@ export class DesktopBuildModel {
         if (release.frozenRevisionId !== input.profileRevisionId) {
           throw new Error('DESKTOP_RELEASE_REVISION_MISMATCH');
         }
-      } else if (
-        input.status !== 'failed' ||
-        release.workflowRunId !== null ||
-        release.workflowRunUrl !== null
-      ) {
+      } else if (!this.isRevisionlessFailedCallbackAllowed(release, input)) {
         throw new Error('DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED');
       }
 
@@ -593,4 +589,17 @@ export class DesktopBuildModel {
 
     return tx ? transition(tx) : this.db.transaction(transition);
   };
+
+  private isRevisionlessFailedCallbackAllowed = (
+    release: DesktopReleaseItem,
+    input: Pick<
+      Parameters<DesktopBuildModel['markReleaseCallback']>[0],
+      'status' | 'workflowRunId' | 'workflowRunUrl'
+    >,
+  ) =>
+    input.status === 'failed' &&
+    ((release.workflowRunId === null && release.workflowRunUrl === null) ||
+      (release.status === 'failed' &&
+        release.workflowRunId === input.workflowRunId &&
+        release.workflowRunUrl === input.workflowRunUrl));
 }

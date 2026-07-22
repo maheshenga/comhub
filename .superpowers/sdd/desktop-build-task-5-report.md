@@ -235,3 +235,21 @@ GREEN:
 
 - Composite action shell inputs are env-bound and quoted; the workflow validates SemVer before desktop setup. A succeeded callback updates public settings only for the locked `publishing -> succeeded` transition, using the durable release channel/version/notes. Terminal replay callbacks return success without changing settings.
 - Self-review: no direct GitHub input interpolation remains in the referenced publish action's shell blocks; manual no-release callbacks and optional publication behavior are unchanged; no Task 6 files changed.
+
+## Revisionless Failed Retry Final Review
+
+RED:
+
+1. `node ..\\..\\node_modules\\vitest\\vitest.mjs run --config vitest.config.mts --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism src/models/desktopBuild.test.ts` from `packages/database`
+   - Failed because an exact revisionless failed retry was rejected with `DESKTOP_RELEASE_CALLBACK_REVISION_REQUIRED` after the initial failure persisted workflow provenance.
+
+GREEN:
+
+1. `node ..\\..\\node_modules\\vitest\\vitest.mjs run --config vitest.config.mts --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism src/models/desktopBuild.test.ts` from `packages/database`
+   - 25 real PGlite model tests passed, including initial failure, exact retry, mismatch rejection, and unchanged failed state.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 35 API tests passed; exact failed retries return success without settings writes and mismatches return 400.
+3. `bun run type-check`, targeted ESLint, targeted Prettier, and `git diff --check`
+   - Passed.
+
+- Under the release row lock, revisionless failed callbacks allow either the initial fully-unbound failure or only an exact same-provenance failed replay. Other statuses, bound nonterminal rows, mismatched provenance, and other terminal rows remain rejected.
