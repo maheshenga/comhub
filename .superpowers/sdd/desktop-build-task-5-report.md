@@ -75,3 +75,30 @@ GREEN:
 - Every shell `run:` value is passed through step environment variables; no GitHub expressions are interpolated in shell code. Redirect responses are awaited-cancelled before a permitted follow.
 - Review checklist re-run: no token/signed-URL logging, no credential persistence, no migration change, no desktop route change, and no new user-facing strings.
 - Remaining limitation: no hosted Actions execution or live S3/GitHub callback validation was performed.
+
+## Callback Binding Re-Review
+
+RED:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --reporter=verbose --pool=threads --maxWorkers=1 --no-file-parallelism "src/app/(backend)/api/admin/desktop-release/__tests__/route.test.ts" scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - Failed the persisted-run negative callback case with `expected 200 to be 400`: a release carrying `workflowRunId` and `workflowRunUrl` still accepted `status=failed` without `profileRevisionId`.
+   - Failed the parsed workflow assertion because the post-staging build failure callback had no `PROFILE_REVISION_ID` binding.
+
+GREEN:
+
+1. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism "src/app/(backend)/api/admin/desktop-release/__tests__/route.test.ts" scripts/electronWorkflow/desktopReleaseWorkflow.test.ts`
+   - 19 tests passed: persisted workflow binding rejects revisionless failure; the exact frozen revision succeeds; parsed workflow verifies revisionless pre-staging and revision-bound post-staging failures.
+2. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir "src/app/(backend)/api/admin/desktop-release"`
+   - 28 API/auth/profile tests passed.
+3. `node .\\node_modules\\vitest\\vitest.mjs run --silent=passed-only --pool=threads --maxWorkers=1 --no-file-parallelism --dir scripts/electronWorkflow`
+   - 6 staging/workflow tests passed.
+4. `bun run type-check`
+   - Passed (`tsgo --noEmit`).
+5. `node .\\node_modules\\eslint\\bin\\eslint.js ...`, `node .\\node_modules\\prettier\\bin\\prettier.cjs --check ...`, and `git diff --check`
+   - Passed for the changed callback route, workflow, and focused tests.
+
+## Callback Binding Fix
+
+- Revisionless `failed` callbacks are accepted only when the loaded release has no durable workflow run ID or URL. Once binding exists, the server rejects a missing revision before transition processing; a supplied revision must still match the frozen revision exactly.
+- Post-staging build and publish failure callbacks now send `PROFILE_REVISION_ID` from their stage/job outputs through env-bound quoted shell variables. The deliberate unpublished server-release path remains revisionless and does not bind a profile variable.
+- Self-review: no direct GitHub-expression shell interpolation, raw failure output, secrets, or `electron-builder.mjs` changes; manual callbacks and terminal transition handling remain unchanged.

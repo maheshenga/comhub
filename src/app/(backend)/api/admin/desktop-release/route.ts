@@ -163,6 +163,13 @@ export const POST = async (req: NextRequest) => {
   const model = new DesktopBuildModel(db);
   const release = await model.getRelease(input.releaseId);
   if (!release) return NextResponse.json({ error: 'release_not_found' }, { status: 404 });
+  if (
+    input.status === 'failed' &&
+    !input.profileRevisionId &&
+    (release.workflowRunId || release.workflowRunUrl)
+  ) {
+    return NextResponse.json({ error: 'release callback is incomplete' }, { status: 400 });
+  }
   if (input.profileRevisionId && release.frozenRevisionId !== input.profileRevisionId) {
     return NextResponse.json({ error: 'release_revision_mismatch' }, { status: 409 });
   }

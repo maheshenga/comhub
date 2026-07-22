@@ -52,6 +52,8 @@ describe('desktop release workflow contract', () => {
     });
     expect(rejectUnpublished.run).toContain('Desktop release publish was disabled.');
     expect(rejectUnpublished.run).toContain('status failed');
+    expect(rejectUnpublished.run).not.toContain('profileRevisionId');
+    expect(rejectUnpublished.env).not.toHaveProperty('PROFILE_REVISION_ID');
 
     const started = findStep(buildSteps, 'Report build started');
     expect(started.env).toMatchObject({
@@ -70,12 +72,13 @@ describe('desktop release workflow contract', () => {
     expect(buildFailure.if).toContain("steps.reject_unpublished.outputs.reported != 'true'");
     expect(buildFailure.run).toContain('Desktop release build failed.');
     expect(buildFailure.run).toContain('status failed');
-    expect(buildFailure.run).not.toContain('profileRevisionId');
     expect(buildFailure.env).toMatchObject({
+      PROFILE_REVISION_ID: '${{ steps.stage_profile.outputs.profile_revision_id }}',
       WORKFLOW_RUN_ID: '${{ github.run_id }}',
       WORKFLOW_RUN_URL:
         'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}',
     });
+    expect(buildFailure.run).toContain('--arg profileRevisionId "$PROFILE_REVISION_ID"');
 
     expect(publish.if).toContain("inputs.publish == 'true'");
     const publishing = findStep(publishSteps, 'Report publishing');
@@ -86,19 +89,25 @@ describe('desktop release workflow contract', () => {
     const succeeded = findStep(publishSteps, 'Report release succeeded');
     expect(succeeded.if).toContain("inputs.release_id != ''");
     expect(succeeded.run).toContain('status succeeded');
-    expect(succeeded.env.VERSION).toBe('${{ inputs.version }}');
+    expect(succeeded.env).toMatchObject({
+      VERSION: '${{ inputs.version }}',
+      WORKFLOW_RUN_ID: '${{ github.run_id }}',
+      WORKFLOW_RUN_URL:
+        'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+    });
     expect(publishSteps.indexOf(succeeded)).toBeGreaterThan(
       publishSteps.findIndex((step) => step.name === 'Publish to S3-compatible storage'),
     );
     const publishFailure = findStep(publishSteps, 'Report publish failure');
     expect(publishFailure.if).toContain('failure()');
     expect(publishFailure.run).toContain('Desktop release publish failed.');
-    expect(publishFailure.run).not.toContain('profileRevisionId');
     expect(publishFailure.env).toMatchObject({
+      PROFILE_REVISION_ID: '${{ needs.build-windows.outputs.profile_revision_id }}',
       WORKFLOW_RUN_ID: '${{ github.run_id }}',
       WORKFLOW_RUN_URL:
         'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}',
     });
+    expect(publishFailure.run).toContain('--arg profileRevisionId "$PROFILE_REVISION_ID"');
 
     const manualUpdate = findStep(publishSteps, 'Update backend desktop settings');
     expect(manualUpdate.if).toContain("inputs.release_id == ''");

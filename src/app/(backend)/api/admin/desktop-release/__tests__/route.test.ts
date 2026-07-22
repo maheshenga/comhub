@@ -276,6 +276,50 @@ describe('POST /api/admin/desktop-release', () => {
     expect(values).not.toHaveBeenCalled();
   });
 
+  it('requires the exact frozen revision after a building callback has persisted workflow binding', async () => {
+    const { db } = createDb();
+    mockGetServerDB.mockResolvedValue(db);
+    mockReleaseModel.getRelease.mockResolvedValue({
+      frozenRevisionId: '22222222-2222-4222-8222-222222222222',
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'building',
+      workflowRunId: '1234567890',
+      workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+    });
+
+    const revisionlessFailure = await POST(
+      createRequest({
+        errorSummary: 'Desktop release build failed.',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'failed',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(revisionlessFailure.status).toBe(400);
+    expect(mockReleaseModel.markReleaseResult).not.toHaveBeenCalled();
+
+    const boundFailure = await POST(
+      createRequest({
+        errorSummary: 'Desktop release build failed.',
+        profileRevisionId: '22222222-2222-4222-8222-222222222222',
+        releaseId: '11111111-1111-4111-8111-111111111111',
+        status: 'failed',
+        version: '2.3.0',
+        workflowRunId: '1234567890',
+        workflowRunUrl: 'https://github.com/maheshenga/comhub/actions/runs/1234567890',
+      }),
+    );
+
+    expect(boundFailure.status).toBe(200);
+    expect(mockReleaseModel.markReleaseResult).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed' }),
+      expect.anything(),
+    );
+  });
+
   it('still requires an exact profile revision for non-failed release callbacks', async () => {
     const { db } = createDb();
     mockGetServerDB.mockResolvedValue(db);

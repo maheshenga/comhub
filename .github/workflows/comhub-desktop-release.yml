@@ -217,6 +217,7 @@ jobs:
         shell: bash
         env:
           APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          PROFILE_REVISION_ID: ${{ steps.stage_profile.outputs.profile_revision_id }}
           RELEASE_ID: ${{ inputs.release_id }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
@@ -226,12 +227,13 @@ jobs:
           set -euo pipefail
           payload="$(jq -nc \
             --arg errorSummary 'Desktop release build failed.' \
+            --arg profileRevisionId "$PROFILE_REVISION_ID" \
             --arg releaseId "$RELEASE_ID" \
             --arg status failed \
             --arg version "$VERSION" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+            '{errorSummary:$errorSummary,profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
   publish:
@@ -286,8 +288,6 @@ jobs:
           RELEASE_NOTES: ${{ inputs.release_notes }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
-          WORKFLOW_RUN_ID: ${{ github.run_id }}
-          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           if [ -z "${RELEASE_TOKEN}" ]; then
@@ -326,6 +326,8 @@ jobs:
           RELEASE_NOTES: ${{ inputs.release_notes }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           server_url="${UPDATE_SERVER_URL%/}"
@@ -343,8 +345,8 @@ jobs:
             --arg serverUrl "$server_url" \
             --arg status succeeded \
             --arg version "$VERSION" \
-            --arg workflowRunId "$GITHUB_RUN_ID" \
-            --arg workflowRunUrl "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg workflowRunId "$WORKFLOW_RUN_ID" \
+            --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
             '{channel:$channel,downloadUrl:$downloadUrl,profileRevisionId:$profileRevisionId,releaseId:$releaseId,releaseNotes:$releaseNotes,serverUrl:$serverUrl,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
 
@@ -353,6 +355,7 @@ jobs:
         shell: bash
         env:
           APP_URL: ${{ vars.COMHUB_APP_URL || 'https://chat.qingyouai.com' }}
+          PROFILE_REVISION_ID: ${{ needs.build-windows.outputs.profile_revision_id }}
           RELEASE_ID: ${{ inputs.release_id }}
           RELEASE_TOKEN: ${{ secrets.COMHUB_DESKTOP_RELEASE_TOKEN }}
           VERSION: ${{ inputs.version }}
@@ -362,10 +365,11 @@ jobs:
           set -euo pipefail
           payload="$(jq -nc \
             --arg errorSummary 'Desktop release publish failed.' \
+            --arg profileRevisionId "$PROFILE_REVISION_ID" \
             --arg releaseId "$RELEASE_ID" \
             --arg status failed \
             --arg version "$VERSION" \
             --arg workflowRunId "$WORKFLOW_RUN_ID" \
             --arg workflowRunUrl "$WORKFLOW_RUN_URL" \
-            '{errorSummary:$errorSummary,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
+            '{errorSummary:$errorSummary,profileRevisionId:$profileRevisionId,releaseId:$releaseId,status:$status,version:$version,workflowRunId:$workflowRunId,workflowRunUrl:$workflowRunUrl}')"
           curl -fsS -H "authorization: Bearer ${RELEASE_TOKEN}" -H 'content-type: application/json' -d "$payload" "${APP_URL%/}/api/admin/desktop-release"
