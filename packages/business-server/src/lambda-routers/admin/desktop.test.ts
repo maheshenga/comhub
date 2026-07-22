@@ -449,6 +449,7 @@ describe('adminDesktopRouter', () => {
     expect(mocks.model.freezeDraftForRelease).toHaveBeenCalledWith({
       actorUserId: 'system-admin-user',
       channel: 'stable',
+      expectedDraftRevisionId: 'draft-revision-1',
       profileId: PROFILE_ID,
       releaseNotes: 'notes',
       version: '2.4.0',
@@ -464,11 +465,13 @@ describe('adminDesktopRouter', () => {
       releaseId: 'release-1',
     });
     expect(mocks.model.freezeDraftForRelease.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.github.dispatchDesktopReleaseWorkflow.mock.invocationCallOrder[0]!,
-    );
-    expect(mocks.github.dispatchDesktopReleaseWorkflow.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.model.markReleaseDispatched.mock.invocationCallOrder[0]!,
     );
+    expect(mocks.model.markReleaseDispatched.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.github.dispatchDesktopReleaseWorkflow.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.audit.records).toHaveBeenNthCalledWith(1, 'started');
+    expect(mocks.audit.records).toHaveBeenNthCalledWith(2, 'succeeded');
 
     const auditOptions = mocks.audit.runRequiredAdminAuditExternalEffect.mock.calls.at(-1)?.[1] as {
       audit: (status: string) => Promise<{ payload: Record<string, unknown> }>;
@@ -568,6 +571,43 @@ describe('adminDesktopRouter', () => {
     },
   );
 
+  it('does not start the audit or dispatch when freeze rejects a changed draft', async () => {
+    mocks.model.freezeDraftForRelease.mockRejectedValue(new Error('DESKTOP_BUILD_DRAFT_CHANGED'));
+
+    await expect(
+      adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseNotes: 'notes',
+        version: '2.4.0',
+      }),
+    ).rejects.toThrow('DESKTOP_BUILD_DRAFT_CHANGED');
+
+    expect(mocks.audit.runRequiredAdminAuditExternalEffect).not.toHaveBeenCalled();
+    expect(mocks.model.markReleaseDispatched).not.toHaveBeenCalled();
+    expect(mocks.github.dispatchDesktopReleaseWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('does not dispatch when the durable building transition fails', async () => {
+    mocks.model.markReleaseDispatched.mockRejectedValue(
+      new Error('DESKTOP_RELEASE_PERSIST_FAILED'),
+    );
+
+    await expect(
+      adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseNotes: 'notes',
+        version: '2.4.0',
+      }),
+    ).rejects.toThrow('DESKTOP_RELEASE_PERSIST_FAILED');
+
+    expect(mocks.github.dispatchDesktopReleaseWorkflow).not.toHaveBeenCalled();
+    expect(mocks.model.markReleaseResult).not.toHaveBeenCalled();
+    expect(mocks.audit.records).toHaveBeenCalledWith('started');
+    expect(mocks.audit.records).toHaveBeenCalledWith('failed');
+  });
+
   it('persists a bounded dispatch failure before recording the failed audit outcome', async () => {
     mocks.github.dispatchDesktopReleaseWorkflow.mockRejectedValue(
       new mocks.github.DesktopReleaseDispatchError(
@@ -590,10 +630,45 @@ describe('adminDesktopRouter', () => {
       releaseId: 'release-1',
       status: 'failed',
     });
+    expect(mocks.model.markReleaseDispatched.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.github.dispatchDesktopReleaseWorkflow.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.github.dispatchDesktopReleaseWorkflow.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.model.markReleaseResult.mock.invocationCallOrder[0]!,
+    );
     expect(mocks.model.markReleaseResult.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.audit.records.mock.invocationCallOrder.find(
         (_call, index) => mocks.audit.records.mock.calls[index]?.[0] === 'failed',
       )!,
     );
+    expect(mocks.audit.records).toHaveBeenNthCalledWith(1, 'started');
+    expect(mocks.audit.records).toHaveBeenNthCalledWith(2, 'failed');
+  });
+
+  it('propagates failure-state persistence errors without dispatching again or rewriting them', async () => {
+    mocks.github.dispatchDesktopReleaseWorkflow.mockRejectedValue(
+      new mocks.github.DesktopReleaseDispatchError(
+        'github-dispatch-failed',
+        'GitHub dispatch failed (500).',
+      ),
+    );
+    const persistenceError = new Error('DESKTOP_RELEASE_FAILURE_PERSIST_FAILED');
+    mocks.model.markReleaseResult.mockRejectedValue(persistenceError);
+
+    await expect(
+      adminDesktopRouter.createCaller({ userId: 'system-admin-user' } as any).createDesktopRelease({
+        channel: 'stable',
+        profileId: PROFILE_ID,
+        releaseNotes: 'notes',
+        version: '2.4.0',
+      }),
+    ).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'DESKTOP_RELEASE_FAILURE_PERSIST_FAILED',
+    });
+
+    expect(mocks.github.dispatchDesktopReleaseWorkflow).toHaveBeenCalledTimes(1);
+    expect(mocks.model.markReleaseResult).toHaveBeenCalledTimes(1);
+    expect(mocks.audit.records).toHaveBeenCalledWith('failed');
   });
 });

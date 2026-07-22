@@ -162,6 +162,7 @@ export const adminDesktopRouter = router({
 
       const frozen = await model.freezeDraftForRelease({
         actorUserId: ctx.userId,
+        expectedDraftRevisionId: draft.id,
         ...input,
       });
       const auditPayload = {
@@ -180,6 +181,11 @@ export const adminDesktopRouter = router({
           resourceType: 'desktopRelease',
         }),
         effect: async () => {
+          const building = await model.markReleaseDispatched({
+            actorUserId: ctx.userId,
+            releaseId: frozen.release.id,
+          });
+
           try {
             await dispatchDesktopReleaseWorkflow({
               channel: input.channel,
@@ -196,10 +202,7 @@ export const adminDesktopRouter = router({
             throw error;
           }
 
-          return model.markReleaseDispatched({
-            actorUserId: ctx.userId,
-            releaseId: frozen.release.id,
-          });
+          return building;
         },
       });
     }),

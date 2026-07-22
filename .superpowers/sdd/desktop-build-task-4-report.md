@@ -65,3 +65,51 @@ Reviewed the final diff against `.agents/skills/review-checklist/SKILL.md`. No c
 
 - No workflow YAML changes, manual workflow behavior changes, build execution, deployment, push, merge, or Task 5 work.
 - No full test suite was run.
+
+## Review Remediation: Lifecycle And Frozen-Draft Binding
+
+### Lifecycle Correction
+
+The durable `queued -> building` transition now occurs inside the required external-effect audit callback before the GitHub dispatch call. A transition failure prevents GitHub from being called, leaving the release queued and retryable. Once GitHub accepts the request, there is no further release-state write: the pre-existing durable `building` record remains authoritative even if the process exits immediately afterward. GitHub failures after the transition are still persisted as `failed` with the bounded dispatch summary; a failure while persisting that terminal state is not caught or replaced inside the external effect.
+
+### Frozen-Draft Binding
+
+`DesktopBuildModel.freezeDraftForRelease` now requires `expectedDraftRevisionId`. Under its existing profile lock and database transaction, it rejects a current-draft mismatch with `DESKTOP_BUILD_DRAFT_CHANGED` before it creates a frozen revision or queued release. The router passes the exact revision ID whose payload and assets it revalidated, preventing a concurrent draft save from dispatching an unvalidated revision.
+
+### RED Evidence
+
+```powershell
+bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/lambda-routers/admin/desktop.test.ts
+bunx vitest run --config packages/database/vitest.config.mts --silent='passed-only' packages/database/src/models/desktopBuild.test.ts
+```
+
+Result before implementation: router test file had 4 expected failures (missing expected revision ID, GitHub called after a transition failure, incorrect lifecycle order, and missing pre-dispatch transition); the PGlite model test had 1 expected failure because a stale expected draft ID still froze the newer draft.
+
+### GREEN Evidence
+
+The same commands after implementation passed: router 19/19 and PGlite model 20/20. Coverage includes `freeze -> building -> GitHub`, transition-failure no-dispatch, GitHub-failure-after-building persisted as failed, terminal persistence failure propagation, audit `started`/`succeeded`/`failed` status checks without secret/release-note leakage, and a real PGlite stale-draft mismatch with no release created.
+
+### Final Verification Commands And Results
+
+```powershell
+bunx vitest run --silent='passed-only' apps/server/src/services/desktopRelease/github.test.ts src/services/adminCommercial.test.ts
+# Result: 30 passed.
+
+bunx vitest run --config packages/business-server/vitest.config.mts --silent='passed-only' packages/business-server/src/lambda-routers/admin/desktop.test.ts packages/business-server/src/lambda-routers/admin/adminCommandParity.test.ts
+# Result: 21 passed.
+
+bunx vitest run --config packages/database/vitest.config.mts --silent='passed-only' packages/database/src/models/desktopBuild.test.ts
+# Result: 20 passed (real PGlite model test).
+
+bunx tsgo --noEmit --pretty false
+# Result: passed.
+
+bunx eslint packages/database/src/models/desktopBuild.ts packages/database/src/models/desktopBuild.test.ts packages/business-server/src/lambda-routers/admin/desktop.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts
+# Result: passed.
+
+bunx prettier --check packages/database/src/models/desktopBuild.ts packages/database/src/models/desktopBuild.test.ts packages/business-server/src/lambda-routers/admin/desktop.ts packages/business-server/src/lambda-routers/admin/desktop.test.ts
+# Result: passed after mechanical formatting.
+
+git diff --check
+# Result: passed.
+```

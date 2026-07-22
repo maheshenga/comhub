@@ -104,18 +104,26 @@ const saveDraft = ({
     profileId: profileId ?? randomUUID(),
   });
 
-const freezeDraft = (
+const freezeDraft = async (
   profileId: string,
-  input: Partial<Parameters<DesktopBuildModel['freezeDraftForRelease']>[0]> = {},
-) =>
-  model().freezeDraftForRelease({
+  input: Partial<Parameters<DesktopBuildModel['freezeDraftForRelease']>[0]> & {
+    expectedDraftRevisionId?: string;
+  } = {},
+) => {
+  const expectedDraftRevisionId =
+    input.expectedDraftRevisionId ?? (await model().getProfile(profileId))?.currentDraftRevisionId;
+  if (!expectedDraftRevisionId) throw new Error('DESKTOP_BUILD_DRAFT_NOT_FOUND');
+
+  return model().freezeDraftForRelease({
     actorUserId: ADMIN_IDS[0],
     channel: 'canary',
+    expectedDraftRevisionId,
     profileId,
     releaseNotes: 'Branded build',
     version: '2.4.0-canary.1',
     ...input,
   });
+};
 
 const dispatchAndSucceed = async (releaseId: string) => {
   await model().markReleaseDispatched({ actorUserId: ADMIN_IDS[0], releaseId });
@@ -315,6 +323,23 @@ describe('DesktopBuildModel', () => {
       state: 'frozen',
     });
     expect(result.release).toMatchObject({ status: 'queued', version: '2.4.0-canary.1' });
+  });
+
+  it('rejects an interleaved freeze when the locked current draft no longer matches the validated revision', async () => {
+    const firstDraft = await saveDraft();
+
+    // Simulates a router validating the first draft while a later draft is saved before freeze.
+    await saveDraft({ profileId: firstDraft.profileId });
+
+    await expect(
+      freezeDraft(firstDraft.profileId, { expectedDraftRevisionId: firstDraft.revisionId }),
+    ).rejects.toThrow('DESKTOP_BUILD_DRAFT_CHANGED');
+
+    const releases = await model().listReleases({ profileId: firstDraft.profileId });
+    expect(releases).toEqual([]);
+    expect((await model().getProfile(firstDraft.profileId))?.currentDraftRevisionId).not.toBe(
+      firstDraft.revisionId,
+    );
   });
 
   it('rolls back a duplicate channel/version freeze without orphaning a frozen revision', async () => {

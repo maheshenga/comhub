@@ -395,6 +395,7 @@ export class DesktopBuildModel {
   freezeDraftForRelease = async (input: {
     actorUserId: string;
     channel: DesktopReleaseChannel;
+    expectedDraftRevisionId: string;
     profileId: string;
     releaseNotes: string;
     version: string;
@@ -403,6 +404,9 @@ export class DesktopBuildModel {
       const profile = await this.lockProfile(input.profileId, tx);
       if (profile.status === 'archived') throw new Error('DESKTOP_BUILD_PROFILE_ARCHIVED');
       if (!profile.currentDraftRevisionId) throw new Error('DESKTOP_BUILD_DRAFT_NOT_FOUND');
+      if (profile.currentDraftRevisionId !== input.expectedDraftRevisionId) {
+        throw new Error('DESKTOP_BUILD_DRAFT_CHANGED');
+      }
 
       const draft = await tx.query.desktopBuildProfileRevisions.findFirst({
         where: and(
