@@ -80,13 +80,23 @@ describe('desktop build schema', () => {
     );
     const journal = JSON.parse(
       readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
-    ) as { entries: Array<{ tag: string }> };
+    ) as { entries: Array<{ tag: string; when: number }> };
+    const entryIndex = journal.entries.findIndex(
+      ({ tag }) => tag === '0149_add_desktop_build_branding',
+    );
+    const entry = journal.entries[entryIndex]!;
 
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS "desktop_build_profiles"');
     expect(migration).toContain('desktop_build_profile_revisions_profile_revision_unique');
     expect(migration).toContain('desktop_releases_channel_version_unique');
     expect(migration).toContain('DO $$');
-    expect(journal.entries.some(({ tag }) => tag === '0149_add_desktop_build_branding')).toBe(true);
+    expect(entryIndex).toBeGreaterThan(0);
+    expect(entry.when).toBeGreaterThan(
+      Math.max(...journal.entries.slice(0, entryIndex).map(({ when }) => when)),
+    );
+    expect(entry.when).toBeLessThan(
+      Math.min(...journal.entries.slice(entryIndex + 1).map(({ when }) => when)),
+    );
   });
 
   it('can apply migration 0149 again on PGlite', async () => {
