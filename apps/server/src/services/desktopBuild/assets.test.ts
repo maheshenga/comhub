@@ -286,6 +286,15 @@ describe('inspectDesktopBuildAsset', () => {
     });
   });
 
+  it('rejects an ICO entry with a nonzero reserved byte', () => {
+    const body = ico();
+    body[6 + 3] = 1;
+
+    expect(() => inspectDesktopBuildAsset('windowsIcon', body)).toThrow(
+      'Invalid desktop build asset',
+    );
+  });
+
   it('rejects an ICO PNG dimension mismatch before building scanlines or inflating', () => {
     const compressedByte = new Uint8Array(deflateSync(Buffer.alloc(1)));
 

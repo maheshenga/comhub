@@ -360,6 +360,7 @@ const inspectIco = (bytes: Uint8Array) => {
   const entries: Array<{ dataEnd: number; dataOffset: number; height: number; width: number }> = [];
   for (let index = 0; index < count; index++) {
     const offset = 6 + index * 16;
+    if (bytes[offset + 3] !== 0) throw assetError();
     const width = bytes[offset] === 0 ? 256 : bytes[offset]!;
     const height = bytes[offset + 1] === 0 ? 256 : bytes[offset + 1]!;
     const dataLength = readUint32Le(bytes, offset + 8);
