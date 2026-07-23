@@ -1,6 +1,6 @@
 'use client';
 
-import { Modal } from '@lobehub/ui/base-ui';
+import { Input, Modal } from '@lobehub/ui/base-ui';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -49,14 +49,25 @@ const PublisherFormModal = memo<PublisherFormModalProps>(
         );
       }
     };
-    const recipientIsValid = !values.recipientMask || values.recipientMask.includes('*');
-    const valid = Boolean(values.displayName.trim() && values.userId.trim() && recipientIsValid);
+    const recipientMask = values.recipientMask?.trim() ?? '';
+    const displayName = values.displayName.trim();
+    const userId = values.userId.trim();
+    const recipientIsValid =
+      !recipientMask ||
+      (recipientMask.length >= 3 && recipientMask.length <= 200 && recipientMask.includes('*'));
+    const valid = Boolean(
+      displayName.length >= 1 &&
+      displayName.length <= 200 &&
+      userId.length >= 1 &&
+      userId.length <= 255 &&
+      recipientIsValid,
+    );
 
     return (
       <Modal
+        destroyOnHidden
         cancelText={t('cancel')}
         confirmLoading={submitting}
-        destroyOnHidden
         okButtonProps={{ disabled: submitting || !valid }}
         okText={t('moduleApps.admin.publishers.create')}
         open={open}
@@ -67,9 +78,10 @@ const PublisherFormModal = memo<PublisherFormModalProps>(
         <div style={{ display: 'grid', gap: 12 }}>
           <label>
             {t('moduleApps.admin.publishers.displayName')}
-            <input
+            <Input
               autoFocus
               required
+              maxLength={200}
               value={values.displayName}
               onChange={(event) =>
                 setValues((current) => ({ ...current, displayName: event.target.value }))
@@ -78,8 +90,9 @@ const PublisherFormModal = memo<PublisherFormModalProps>(
           </label>
           <label>
             {t('moduleApps.admin.publishers.ownerUserId')}
-            <input
+            <Input
               required
+              maxLength={255}
               value={values.userId}
               onChange={(event) =>
                 setValues((current) => ({ ...current, userId: event.target.value }))
@@ -88,7 +101,8 @@ const PublisherFormModal = memo<PublisherFormModalProps>(
           </label>
           <label>
             {t('moduleApps.admin.publishers.recipientMask')}
-            <input
+            <Input
+              maxLength={200}
               value={values.recipientMask}
               onChange={(event) =>
                 setValues((current) => ({ ...current, recipientMask: event.target.value }))

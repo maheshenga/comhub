@@ -1,4 +1,8 @@
-import type { ModuleAppPackageReviewStatus, ModuleAppPackageScanStatus } from '@lobechat/types';
+import type {
+  ModuleAppBuildStatus,
+  ModuleAppPackageReviewStatus,
+  ModuleAppPackageScanStatus,
+} from '@lobechat/types';
 import type { ReactNode } from 'react';
 
 import type { AdminModuleAppPackageRow } from '../types';
@@ -15,7 +19,7 @@ export type PackageColumn = {
   title: string;
 };
 
-export const packageColumns: PackageColumn[] = [
+export const getPackageColumns = (translate: (key: string) => ReactNode): PackageColumn[] => [
   {
     render: (row) => row.manifestSnapshot?.app?.displayName ?? '-',
     title: 'moduleApps.admin.reviews.columns.app',
@@ -25,15 +29,34 @@ export const packageColumns: PackageColumn[] = [
     title: 'moduleApps.admin.reviews.columns.version',
   },
   {
-    render: (row) => row.reviewStatus as ModuleAppPackageReviewStatus,
+    render: (row) =>
+      translate(
+        `moduleApps.admin.reviews.status.${
+          (
+            {
+              pending_review: 'pendingReview',
+              approved: 'approved',
+              rejected: 'rejected',
+            } as Record<ModuleAppPackageReviewStatus, string>
+          )[row.reviewStatus]
+        }`,
+      ),
     title: 'moduleApps.admin.reviews.columns.reviewStatus',
   },
   {
-    render: (row) => row.scanStatus as ModuleAppPackageScanStatus,
+    render: (row) =>
+      translate(
+        `moduleApps.admin.reviews.scanStatus.${row.scanStatus as ModuleAppPackageScanStatus}`,
+      ),
     title: 'moduleApps.admin.reviews.columns.scanStatus',
   },
   {
-    render: (row) => row.buildStatus ?? '-',
+    render: (row) =>
+      row.buildStatus
+        ? translate(
+            `moduleApps.admin.reviews.buildStatus.${row.buildStatus as ModuleAppBuildStatus}`,
+          )
+        : '-',
     title: 'moduleApps.admin.reviews.columns.buildStatus',
   },
   {

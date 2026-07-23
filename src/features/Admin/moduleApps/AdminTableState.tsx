@@ -16,6 +16,7 @@ export const AdminTableState = ({
   loading,
   loadingLabel,
   onRetry,
+  retryLabel,
 }: {
   children: ReactNode;
   emptyLabel: string;
@@ -23,6 +24,7 @@ export const AdminTableState = ({
   loading?: boolean;
   loadingLabel: string;
   onRetry?: () => void;
+  retryLabel?: string;
 }) => {
   return (
     <ModulePageState
@@ -31,7 +33,7 @@ export const AdminTableState = ({
       isEmpty={!children}
       loading={loading}
       loadingLabel={loadingLabel}
-      retryLabel="Retry"
+      retryLabel={retryLabel ?? 'Retry'}
       errorTitle={
         error ? (isPermissionError(error) ? 'Permission denied' : 'Could not load data') : undefined
       }

@@ -1,7 +1,7 @@
 'use client';
 
 import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
-import { Button, Modal } from '@lobehub/ui/base-ui';
+import { Button, Input, Modal, Select, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,10 +13,9 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import PublisherTable, { type ModuleAppPublisherRow } from '../PublisherTable';
-import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
-
+import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import PublisherFormModal, { type PublisherFormValues } from './PublisherFormModal';
 
 const styles = createStaticStyles(({ css }) => ({
@@ -34,6 +33,15 @@ const styles = createStaticStyles(({ css }) => ({
 
 type PublisherListResponse = { items: ModuleAppPublisherRow[]; nextCursor: null | string };
 type GovernanceAction = 'assign' | 'suspend' | 'verify';
+
+const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[1-8][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i;
+
+const appListFamilyPredicate = (key: unknown) =>
+  Array.isArray(key) && key[0] === 'admin-module-apps' && key[1] === 'apps';
+const publisherListFamilyPredicate = (key: unknown) =>
+  Array.isArray(key) && key[0] === 'admin-module-apps' && key[1] === 'publishers';
+const invalidatePublisherLists = () =>
+  mutate(publisherListFamilyPredicate, undefined, { revalidate: true });
 
 const ModulePublishersPage = memo(() => {
   const { t } = useTranslation('common');
@@ -84,8 +92,9 @@ const ModulePublishersPage = memo(() => {
     setSubmitting(true);
     try {
       await adminCommercialService.moduleApps.createPublisher(values);
+      await invalidatePublisherLists();
+      toast.success(t('moduleApps.admin.publishers.createSuccess'));
       setCreateOpen(false);
-      await mutate(listKey);
     } finally {
       setSubmitting(false);
     }
@@ -97,7 +106,9 @@ const ModulePublishersPage = memo(() => {
     setSelectedPublisher(publisher);
   };
   const submitAction = async () => {
-    if (!action || !selectedPublisher || (action === 'assign' && !appId.trim())) return;
+    const normalizedAppId = appId.trim();
+    const appIdIsValid = UUID_PATTERN.test(normalizedAppId);
+    if (!action || !selectedPublisher || (action === 'assign' && !appIdIsValid)) return;
     setSubmitting(true);
     setError(undefined);
     try {
@@ -112,19 +123,16 @@ const ModulePublishersPage = memo(() => {
         });
       } else {
         await adminCommercialService.moduleApps.assignPublisher({
-          appId: appId.trim(),
+          appId: normalizedAppId,
           publisherId: selectedPublisher.id,
         });
         await Promise.all([
-          mutate(moduleAppCacheKeys.detail(appId.trim())),
-          mutate(
-            (key) => Array.isArray(key) && key[0] === 'admin-module-apps' && key[1] === 'apps',
-            undefined,
-            { revalidate: true },
-          ),
+          mutate(moduleAppCacheKeys.detail(normalizedAppId)),
+          mutate(appListFamilyPredicate, undefined, { revalidate: true }),
         ]);
       }
-      await mutate(listKey);
+      await invalidatePublisherLists();
+      toast.success(t(`moduleApps.admin.publishers.${action}Success`));
       setAction(undefined);
       setSelectedPublisher(undefined);
     } catch (cause) {
@@ -135,6 +143,7 @@ const ModulePublishersPage = memo(() => {
       setSubmitting(false);
     }
   };
+  const appIdIsValid = UUID_PATTERN.test(appId.trim());
 
   return (
     <section className={styles.page} data-testid="module-publishers-page">
@@ -145,75 +154,107 @@ const ModulePublishersPage = memo(() => {
       <div className={styles.controls}>
         <label>
           {t('moduleApps.admin.publishers.filters.status')}
-          <select
+          <Select
             value={status ?? ''}
-            onChange={(event) => updateFilter('status', event.target.value)}
-          >
-            <option value="">{t('moduleApps.admin.publishers.filters.all')}</option>
-            <option value="pending">{t('moduleApps.admin.publishers.status.pending')}</option>
-            <option value="verified">{t('moduleApps.admin.publishers.status.verified')}</option>
-            <option value="suspended">{t('moduleApps.admin.publishers.status.suspended')}</option>
-          </select>
+            options={[
+              { label: t('moduleApps.admin.publishers.filters.all'), value: '' },
+              { label: t('moduleApps.admin.publishers.status.pending'), value: 'pending' },
+              { label: t('moduleApps.admin.publishers.status.verified'), value: 'verified' },
+              { label: t('moduleApps.admin.publishers.status.suspended'), value: 'suspended' },
+            ]}
+            onChange={(value) => updateFilter('status', String(value ?? ''))}
+          />
         </label>
         <label>
           {t('moduleApps.admin.publishers.filters.userId')}
-          <input
+          <Input
+            maxLength={255}
             value={userId ?? ''}
             onChange={(event) => updateFilter('userId', event.target.value)}
           />
         </label>
-        {canWrite ? (
+        {canWrite && (data?.items.length ?? 0) > 0 ? (
           <Button type="primary" onClick={() => setCreateOpen(true)}>
             {t('moduleApps.admin.publishers.create')}
           </Button>
         ) : null}
       </div>
       <ModulePageState
+        emptyKind={isFiltered ? 'filtered' : 'initial'}
         error={loadError}
         isEmpty={!isLoading && !loadError && (data?.items.length ?? 0) === 0}
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
         loading={isLoading}
-        onClearFilters={clearFilters}
-      >
-        <div>
-          <PublisherTable
-            actionsTitle={t('moduleApps.admin.publishers.actions')}
-            items={data?.items ?? []}
-            renderActions={
-              canWrite
-                ? (publisher) => (
-                    <div className={styles.controls}>
-                      <Button onClick={() => openAction('verify', publisher)}>
-                        {t('moduleApps.admin.publishers.verify')}
-                      </Button>
-                      <Button onClick={() => openAction('suspend', publisher)}>
-                        {t('moduleApps.admin.publishers.suspend')}
-                      </Button>
-                      <Button onClick={() => openAction('assign', publisher)}>
-                        {t('moduleApps.admin.publishers.assign')}
-                      </Button>
-                    </div>
-                  )
-                : undefined
-            }
-          />
-          <div className={styles.controls}>
-            <Button
-              disabled={!searchParams.getAll('previousCursor').length}
-              onClick={() => setSearchParams(retreatCursor(searchParams))}
-            >
-              {t('moduleApps.admin.publishers.previous')}
-            </Button>
-            <Button
-              disabled={!data?.nextCursor}
-              onClick={() =>
-                data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
+        loadingLabel={t('moduleApps.admin.publishers.loading')}
+        retryLabel={t('moduleApps.admin.publishers.retry')}
+        emptyDescription={t(
+          isFiltered
+            ? 'moduleApps.admin.publishers.filteredEmptyDescription'
+            : 'moduleApps.admin.publishers.emptyDescription',
+        )}
+        emptyTitle={t(
+          isFiltered
+            ? 'moduleApps.admin.publishers.filteredEmptyTitle'
+            : 'moduleApps.admin.publishers.emptyTitle',
+        )}
+        primaryAction={
+          !isFiltered && canWrite
+            ? {
+                label: t('moduleApps.admin.publishers.create'),
+                onClick: () => setCreateOpen(true),
               }
-            >
-              {t('moduleApps.admin.publishers.next')}
-            </Button>
-          </div>
-        </div>
+            : undefined
+        }
+        onClearFilters={clearFilters}
+        onRetry={() => mutate(listKey)}
+      >
+        <PublisherTable
+          showPager
+          actionsTitle={t('moduleApps.admin.publishers.actions')}
+          hasNext={Boolean(data?.nextCursor)}
+          hasPrevious={Boolean(searchParams.getAll('previousCursor').length)}
+          items={data?.items ?? []}
+          labels={{
+            columns: {
+              apps: t('moduleApps.admin.publishers.columns.apps'),
+              id: t('moduleApps.admin.publishers.columns.id'),
+              owner: t('moduleApps.admin.publishers.columns.owner'),
+              publisher: t('moduleApps.admin.publishers.columns.publisher'),
+              recipient: t('moduleApps.admin.publishers.columns.recipient'),
+              status: t('moduleApps.admin.publishers.columns.status'),
+            },
+            empty: t('moduleApps.admin.publishers.emptyTitle'),
+            loading: t('moduleApps.admin.publishers.loading'),
+            next: t('moduleApps.admin.publishers.next'),
+            previous: t('moduleApps.admin.publishers.previous'),
+            retry: t('moduleApps.admin.publishers.retry'),
+            status: {
+              pending: t('moduleApps.admin.publishers.status.pending'),
+              suspended: t('moduleApps.admin.publishers.status.suspended'),
+              verified: t('moduleApps.admin.publishers.status.verified'),
+            },
+          }}
+          renderActions={
+            canWrite
+              ? (publisher) => (
+                  <div className={styles.controls}>
+                    <Button onClick={() => openAction('verify', publisher)}>
+                      {t('moduleApps.admin.publishers.verify')}
+                    </Button>
+                    <Button onClick={() => openAction('suspend', publisher)}>
+                      {t('moduleApps.admin.publishers.suspend')}
+                    </Button>
+                    <Button onClick={() => openAction('assign', publisher)}>
+                      {t('moduleApps.admin.publishers.assign')}
+                    </Button>
+                  </div>
+                )
+              : undefined
+          }
+          onPrevious={() => setSearchParams(retreatCursor(searchParams))}
+          onNext={() =>
+            data?.nextCursor && setSearchParams(advanceCursor(searchParams, data.nextCursor))
+          }
+        />
       </ModulePageState>
       {canWrite ? (
         <PublisherFormModal
@@ -223,25 +264,34 @@ const ModulePublishersPage = memo(() => {
           onSubmit={createPublisher}
         />
       ) : null}
-      <Modal
-        cancelText={t('cancel')}
-        confirmLoading={submitting}
-        destroyOnHidden
-        okButtonProps={{ disabled: submitting || (action === 'assign' && !appId.trim()) }}
-        okText={action ? t(`moduleApps.admin.publishers.${action}`) : ''}
-        open={Boolean(action)}
-        title={action ? t(`moduleApps.admin.publishers.${action}`) : ''}
-        onCancel={() => !submitting && setAction(undefined)}
-        onOk={submitAction}
-      >
-        {action === 'assign' ? (
-          <label>
-            {t('moduleApps.admin.publishers.appId')}
-            <input value={appId} onChange={(event) => setAppId(event.target.value)} />
-          </label>
-        ) : null}
-        {error ? <p role="alert">{error}</p> : null}
-      </Modal>
+      {canWrite ? (
+        <Modal
+          destroyOnHidden
+          cancelText={t('cancel')}
+          confirmLoading={submitting}
+          okButtonProps={{ disabled: submitting || (action === 'assign' && !appIdIsValid) }}
+          okText={action ? t(`moduleApps.admin.publishers.${action}`) : ''}
+          open={Boolean(action)}
+          title={action ? t(`moduleApps.admin.publishers.${action}`) : ''}
+          onCancel={() => !submitting && setAction(undefined)}
+          onOk={submitAction}
+        >
+          {action === 'assign' ? (
+            <label>
+              {t('moduleApps.admin.publishers.appId')}
+              <Input
+                maxLength={36}
+                value={appId}
+                onChange={(event) => setAppId(event.target.value)}
+              />
+            </label>
+          ) : null}
+          {action === 'assign' && appId && !appIdIsValid ? (
+            <p role="alert">{t('moduleApps.admin.publishers.appIdError')}</p>
+          ) : null}
+          {error ? <p role="alert">{error}</p> : null}
+        </Modal>
+      ) : null}
     </section>
   );
 });
