@@ -25,9 +25,10 @@ const SENSITIVE_FIELD_PATTERN =
 const SENSITIVE_DESCRIPTOR_NAME_PATTERN =
   /alipay|api.?key|authorization|bank(?:account|name|number)?|card(?:number)?|credential|evidence|iban|private.?key|recipient|routing(?:number)?|secret|tax(?:id)?/i;
 const SENSITIVE_PAYMENT_DESCRIPTOR_PATTERN =
-  /(?:payment|payout)(?:account|id|ids|no|number|reference)$/;
-const SENSITIVE_TOKEN_FIELD_PATTERN =
-  /^(?:[a-z0-9]*(?:access|api|auth|bearer|id|oauth|refresh|session))?token(?:id|s|value)?$/;
+  /(?:payment|payout)(?:account|customer|intent|method|provider|recipient|transaction)?(?:id|ids|no|number|reference)$/;
+const NON_SENSITIVE_TOKEN_USAGE_PATTERN =
+  /^(?:cached|completion|context|estimated|input|max|min|output|prompt|reasoning|remaining|total|used)tokens?$/;
+const SENSITIVE_TOKEN_FIELD_PATTERN = /token(?:id|s|value)?$/;
 
 export type ModuleDraftView = 'configuration' | 'entitlements';
 export type ModuleDraftStorage = Pick<Storage, 'getItem' | 'removeItem' | 'setItem'>;
@@ -50,6 +51,10 @@ const getDraftKey = (scope: string) => {
 
 const normalizeFieldName = (key: string) => key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
 
+const isSensitiveTokenFieldName = (normalizedKey: string) =>
+  !NON_SENSITIVE_TOKEN_USAGE_PATTERN.test(normalizedKey) &&
+  SENSITIVE_TOKEN_FIELD_PATTERN.test(normalizedKey);
+
 const isSensitiveFieldName = (key: string) => {
   const normalizedKey = normalizeFieldName(key);
 
@@ -57,7 +62,7 @@ const isSensitiveFieldName = (key: string) => {
     SENSITIVE_FIELD_NAMES.has(normalizedKey) ||
     SENSITIVE_FINANCE_IDENTIFIER_PATTERN.test(normalizedKey) ||
     SENSITIVE_FIELD_PATTERN.test(key) ||
-    SENSITIVE_TOKEN_FIELD_PATTERN.test(normalizedKey)
+    isSensitiveTokenFieldName(normalizedKey)
   );
 };
 
@@ -69,7 +74,7 @@ const isSensitiveDescriptorName = (key: string) => {
     SENSITIVE_FINANCE_IDENTIFIER_PATTERN.test(normalizedKey) ||
     SENSITIVE_DESCRIPTOR_NAME_PATTERN.test(key) ||
     SENSITIVE_PAYMENT_DESCRIPTOR_PATTERN.test(normalizedKey) ||
-    SENSITIVE_TOKEN_FIELD_PATTERN.test(normalizedKey)
+    isSensitiveTokenFieldName(normalizedKey)
   );
 };
 
@@ -79,7 +84,7 @@ const hasSensitiveField = (value: unknown, descriptorContainer = false): boolean
   if (Array.isArray(value)) {
     if (
       descriptorContainer &&
-      value.length >= 2 &&
+      value.length === 2 &&
       typeof value[0] === 'string' &&
       isSensitiveDescriptorName(value[0])
     ) {
@@ -107,7 +112,7 @@ const hasSensitiveField = (value: unknown, descriptorContainer = false): boolean
 
     return hasSensitiveField(
       nestedValue,
-      descriptorContainer || SENSITIVE_DESCRIPTOR_CONTAINER_NAMES.has(normalizeFieldName(key)),
+      SENSITIVE_DESCRIPTOR_CONTAINER_NAMES.has(normalizeFieldName(key)),
     );
   });
 };
