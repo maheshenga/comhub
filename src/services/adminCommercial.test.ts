@@ -52,7 +52,18 @@ vi.mock('@/libs/trpc/client', () => ({
         validateDefaultAgentSettings: { mutate: vi.fn() },
       },
       moduleApps: {
+        acknowledgePaymentDiscrepancy: { mutate: vi.fn() },
+        createPayoutBatch: { mutate: vi.fn() },
+        exportPaymentReconciliation: { query: vi.fn() },
         list: { query: vi.fn() },
+        reconcilePendingPayments: { mutate: vi.fn() },
+        recordManualAlipayPayout: { mutate: vi.fn() },
+        refundOrder: { mutate: vi.fn() },
+        refundPaymentOrder: { mutate: vi.fn() },
+        retryPaymentQuery: { mutate: vi.fn() },
+        retryRefundStatus: { mutate: vi.fn() },
+        settleOrder: { mutate: vi.fn() },
+        transitionPayoutBatch: { mutate: vi.fn() },
       },
       newapiProviders: {
         getDeleteInstanceImpact: { query: vi.fn() },
@@ -332,6 +343,85 @@ describe('adminCommercialService NewAPI helpers', () => {
     );
     expect((lambdaClient.admin.moduleApps as any).assignPublisher.mutate).toHaveBeenCalledWith(
       assignPublisher,
+    );
+  });
+
+  it('delegates module app finance workflows with exact backend inputs', async () => {
+    const inputs = {
+      acknowledge: { discrepancyId: 'discrepancy-1' },
+      createPayout: {
+        publisherId: 'publisher-1',
+        requestedAmount: 80,
+        revenueEntryIds: ['revenue-1'],
+      },
+      exportReconciliation: { cursor: 10, limit: 100, status: 'open' as const },
+      manualPayout: {
+        batchId: 'payout-1',
+        evidenceReference: 'evidence-1',
+        recipientMask: 'ali***@example.com',
+        transactionNo: 'alipay-1',
+      },
+      offlineRefund: {
+        offlineRefundReference: 'offline-1',
+        orderId: 'order-1',
+        reason: 'duplicate',
+      },
+      paymentRefund: { orderId: 'order-1', reason: 'duplicate' },
+      reconcile: { limit: 100 },
+      retryPayment: { outTradeNo: 'trade-1' },
+      retryRefund: { orderId: 'order-1' },
+      settle: { orderId: 'order-1', paymentReference: 'payment-1' },
+      transitionPayout: {
+        batchId: 'payout-1',
+        failureReason: 'provider rejected transfer',
+        status: 'failed' as const,
+      },
+    };
+
+    await adminCommercialService.moduleApps.acknowledgePaymentDiscrepancy(inputs.acknowledge);
+    await adminCommercialService.moduleApps.exportPaymentReconciliation(
+      inputs.exportReconciliation,
+    );
+    await adminCommercialService.moduleApps.reconcilePendingPayments(inputs.reconcile);
+    await adminCommercialService.moduleApps.refundOrder(inputs.offlineRefund);
+    await adminCommercialService.moduleApps.refundPaymentOrder(inputs.paymentRefund);
+    await adminCommercialService.moduleApps.retryPaymentQuery(inputs.retryPayment);
+    await adminCommercialService.moduleApps.retryRefundStatus(inputs.retryRefund);
+    await adminCommercialService.moduleApps.settleOrder(inputs.settle);
+    await adminCommercialService.moduleApps.createPayoutBatch(inputs.createPayout);
+    await adminCommercialService.moduleApps.recordManualAlipayPayout(inputs.manualPayout);
+    await adminCommercialService.moduleApps.transitionPayoutBatch(inputs.transitionPayout);
+
+    expect(lambdaClient.admin.moduleApps.acknowledgePaymentDiscrepancy.mutate).toHaveBeenCalledWith(
+      inputs.acknowledge,
+    );
+    expect(lambdaClient.admin.moduleApps.exportPaymentReconciliation.query).toHaveBeenCalledWith(
+      inputs.exportReconciliation,
+    );
+    expect(lambdaClient.admin.moduleApps.reconcilePendingPayments.mutate).toHaveBeenCalledWith(
+      inputs.reconcile,
+    );
+    expect(lambdaClient.admin.moduleApps.refundOrder.mutate).toHaveBeenCalledWith(
+      inputs.offlineRefund,
+    );
+    expect(lambdaClient.admin.moduleApps.refundPaymentOrder.mutate).toHaveBeenCalledWith(
+      inputs.paymentRefund,
+    );
+    expect(lambdaClient.admin.moduleApps.retryPaymentQuery.mutate).toHaveBeenCalledWith(
+      inputs.retryPayment,
+    );
+    expect(lambdaClient.admin.moduleApps.retryRefundStatus.mutate).toHaveBeenCalledWith(
+      inputs.retryRefund,
+    );
+    expect(lambdaClient.admin.moduleApps.settleOrder.mutate).toHaveBeenCalledWith(inputs.settle);
+    expect(lambdaClient.admin.moduleApps.createPayoutBatch.mutate).toHaveBeenCalledWith(
+      inputs.createPayout,
+    );
+    expect(lambdaClient.admin.moduleApps.recordManualAlipayPayout.mutate).toHaveBeenCalledWith(
+      inputs.manualPayout,
+    );
+    expect(lambdaClient.admin.moduleApps.transitionPayoutBatch.mutate).toHaveBeenCalledWith(
+      inputs.transitionPayout,
     );
   });
 

@@ -3,6 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import PaymentReconciliationTable from './PaymentReconciliationTable';
 
+vi.mock('@lobehub/ui/base-ui', () => ({
+  Button: ({ children, ...props }: any) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+}));
+
 describe('PaymentReconciliationTable', () => {
   it('renders linked operational identifiers without raw payment metadata', () => {
     render(
@@ -41,15 +49,80 @@ describe('PaymentReconciliationTable', () => {
   it('renders permission denial and retries', () => {
     const onRetry = vi.fn();
     render(
-      <PaymentReconciliationTable
-        error={new Error('FORBIDDEN')}
-        items={[]}
-        onRetry={onRetry}
-      />,
+      <PaymentReconciliationTable error={new Error('FORBIDDEN')} items={[]} onRetry={onRetry} />,
     );
 
     expect(screen.getByText('Permission denied')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it('hides payment recovery actions for read-only users', () => {
+    render(
+      <PaymentReconciliationTable
+        canWrite={false}
+        items={[
+          {
+            appId: 'app-1',
+            appName: 'Commerce App',
+            auditEventIds: [],
+            currency: 'CNY',
+            discrepancyIds: ['discrepancy-1'],
+            id: 'attempt-1',
+            licenseIds: [],
+            orderId: 'order-1',
+            orderStatus: 'paid',
+            outTradeNo: 'out-1',
+            paymentEventIds: [],
+            paymentStatus: 'paid',
+            payoutBatchIds: [],
+            refundIds: [],
+            revenueEntryIds: [],
+            totalAmount: '88.00',
+          },
+        ]}
+        onAcknowledge={vi.fn()}
+        onRetryPayment={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /acknowledge|retry|refund|settle/i })).toBeNull();
+  });
+
+  it('renders only actions backed by row identifiers', () => {
+    render(
+      <PaymentReconciliationTable
+        canWrite
+        items={[
+          {
+            appId: 'app-1',
+            appName: 'Commerce App',
+            auditEventIds: [],
+            currency: 'CNY',
+            discrepancyIds: ['discrepancy-1'],
+            discrepancyStatus: 'open',
+            id: 'attempt-1',
+            licenseIds: [],
+            orderId: 'order-1',
+            orderStatus: 'paid',
+            outTradeNo: 'out-1',
+            paymentEventIds: [],
+            paymentStatus: 'paid',
+            payoutBatchIds: [],
+            refundIds: [],
+            revenueEntryIds: [],
+            totalAmount: '88.00',
+          },
+        ]}
+        onAcknowledge={vi.fn()}
+        onOpenRefund={vi.fn()}
+        onRetryPayment={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Acknowledge discrepancy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refund payment' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry payment query' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry refund status' })).toBeNull();
   });
 });
