@@ -62,3 +62,46 @@ export type AdminModuleAppPackageRow = {
   scanStatus: ModuleAppPackageScanStatus;
   submittedByUserId?: null | string;
 };
+
+export type ModuleAppRecordRow = {
+  collectionKey: string;
+  id: string;
+  scopeType: string;
+  status?: string;
+  title?: null | string;
+  updatedAt?: Date | string;
+};
+
+export type ModuleAppRunRow = {
+  actionId?: null | string;
+  createdAt?: Date | string;
+  durationMs?: null | number;
+  errorType?: null | string;
+  id: string;
+  status: string;
+};
+
+export type ModuleAppArtifactRow = {
+  fileName?: null | string;
+  id: string;
+  mimeType?: null | string;
+  scopeType?: null | string;
+  sizeBytes?: null | number;
+  storageKey?: null | string;
+};
+
+export type ModuleAppInstallRow = {
+  id: string;
+  installedAt?: Date | string;
+  scopeType?: string;
+  status?: string;
+  userId?: null | string;
+  workspaceId?: null | string;
+};
+
+export type ModuleAppAuditRow = {
+  actorUserId?: null | string;
+  createdAt?: Date | string;
+  eventType: string;
+  id: string;
+};

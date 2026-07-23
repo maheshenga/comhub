@@ -1,20 +1,33 @@
 import { memo } from 'react';
 
-interface ModuleAppArtifactRow {
-  artifactType?: null | string;
-  fileName?: null | string;
-  id: string;
-  mimeType?: null | string;
-  sizeBytes?: null | number;
-  storageUrl?: null | string;
-}
+import type { ModuleAppArtifactRow } from './types';
+
+export type ArtifactsTableLabels = {
+  artifact?: string;
+  file?: string;
+  mime?: string;
+  scope?: string;
+  size?: string;
+  storageKey?: string;
+};
 
 interface ArtifactsTableProps {
   items?: ModuleAppArtifactRow[];
+  labels?: ArtifactsTableLabels;
   loading?: boolean;
 }
 
-const ArtifactsTable = memo<ArtifactsTableProps>(({ items = [], loading }) => {
+const ArtifactsTable = memo<ArtifactsTableProps>(({ items = [], labels, loading }) => {
+  const resolvedLabels = {
+    artifact: 'Artifact',
+    file: 'File',
+    mime: 'MIME',
+    scope: 'Scope',
+    size: 'Size',
+    storageKey: 'Storage key',
+    ...labels,
+  };
+
   if (loading) {
     return <div data-testid="admin-module-app-artifacts">Loading artifacts</div>;
   }
@@ -27,23 +40,25 @@ const ArtifactsTable = memo<ArtifactsTableProps>(({ items = [], loading }) => {
     <table data-testid="admin-module-app-artifacts">
       <thead>
         <tr>
-          <th>Artifact</th>
-          <th>Type</th>
-          <th>File</th>
-          <th>MIME</th>
-          <th>Size</th>
-          <th>Storage</th>
+          <th>{resolvedLabels.artifact}</th>
+          <th>{resolvedLabels.scope}</th>
+          <th>{resolvedLabels.file}</th>
+          <th>{resolvedLabels.mime}</th>
+          <th>{resolvedLabels.size}</th>
+          <th>{resolvedLabels.storageKey}</th>
         </tr>
       </thead>
       <tbody>
         {items.map((item) => (
           <tr key={item.id}>
             <td>{item.id}</td>
-            <td>{item.artifactType ?? '-'}</td>
+            <td>{item.scopeType ?? '-'}</td>
             <td>{item.fileName ?? '-'}</td>
             <td>{item.mimeType ?? '-'}</td>
-            <td>{item.sizeBytes === undefined || item.sizeBytes === null ? '-' : item.sizeBytes}</td>
-            <td>{item.storageUrl ?? '-'}</td>
+            <td>
+              {item.sizeBytes === undefined || item.sizeBytes === null ? '-' : item.sizeBytes}
+            </td>
+            <td>{item.storageKey ?? '-'}</td>
           </tr>
         ))}
       </tbody>
