@@ -2,11 +2,19 @@ const DRAFT_VERSION = 1 as const;
 const DRAFT_KEY_PREFIX = `admin-module-app-draft:v${DRAFT_VERSION}:`;
 const DRAFT_SCOPE_PATTERN = /^[^/]+\/configuration$|^[^/]+\/entitlements$/;
 const SENSITIVE_FIELD_NAMES = new Set([
+  'batchid',
+  'discrepancyid',
+  'discrepancyids',
+  'licenseids',
   'offlinerefundreference',
   'orderid',
   'outtradeno',
+  'providerrefundid',
   'providertransactionid',
+  'refundids',
   'refundreference',
+  'requestedamount',
+  'revenueentryids',
   'transactionno',
 ]);
 const SENSITIVE_FIELD_PATTERN =
