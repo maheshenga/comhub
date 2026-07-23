@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Empty, Form, Input, InputNumber, message, Modal, Select, Tag } from 'antd';
+import { Button, Modal } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, message, Select, Tag } from 'antd';
 import { Pencil, Plus, Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+import { moduleAppCacheKeys } from './shared/cacheKeys';
 
 type ProductType = 'free' | 'one_time' | 'subscription';
 type LicenseScope = 'personal' | 'workspace' | 'workspace_seat';
@@ -71,7 +74,7 @@ const normalizeOptionalDecimal = (value?: number) =>
   typeof value === 'number' ? String(value) : undefined;
 
 const ProductManager = memo<{
-  appId?: string;
+  appId: string;
   service?: ProductService;
 }>(({ appId, service = adminCommercialService.moduleApps }) => {
   const { t } = useTranslation('common');
@@ -81,10 +84,10 @@ const ProductManager = memo<{
   const [editing, setEditing] = useState<ProductRow>();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const key = useMemo(() => (appId ? ['admin-module-app-products', appId] : null), [appId]);
+  const key = useMemo(() => moduleAppCacheKeys.products(appId), [appId]);
   const { data = [], isLoading } = useClientDataSWR(
     key,
-    () => service.listProducts({ appId: appId! }) as Promise<ProductRow[]>,
+    () => service.listProducts({ appId }) as Promise<ProductRow[]>,
   );
 
   const close = () => {
@@ -114,7 +117,6 @@ const ProductManager = memo<{
   };
 
   const save = async (values: ProductFormValues) => {
-    if (!appId) return;
     setSaving(true);
     const promotionTitle = normalizeOptionalText(values.promotionTitle);
     const price = {
@@ -216,8 +218,6 @@ const ProductManager = memo<{
       title: t('moduleApps.admin.products.actions'),
     },
   ];
-
-  if (!appId) return <Empty description={t('moduleApps.admin.products.selectApp')} />;
 
   return (
     <Flexbox gap={12}>
