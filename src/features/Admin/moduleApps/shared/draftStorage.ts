@@ -2,6 +2,14 @@ const DRAFT_VERSION = 1 as const;
 const DRAFT_KEY_PREFIX = `admin-module-app-draft:v${DRAFT_VERSION}:`;
 const DRAFT_SCOPE_PATTERN = /^[^/]+\/configuration$|^[^/]+\/entitlements$/;
 const SENSITIVE_FIELD_NAMES = new Set(['batchid', 'requestedamount']);
+const SENSITIVE_DESCRIPTOR_CONTAINER_NAMES = new Set([
+  'env',
+  'environment',
+  'environmentvariables',
+  'headers',
+  'metadata',
+  'variables',
+]);
 const SENSITIVE_DESCRIPTOR_FIELD_NAMES = new Set([
   'envname',
   'headername',
@@ -13,7 +21,13 @@ const SENSITIVE_DESCRIPTOR_FIELD_NAMES = new Set([
 const SENSITIVE_FINANCE_IDENTIFIER_PATTERN =
   /(?:discrepancy|license|order|refund|revenueentry|settlementbatch|trade|transaction)(?:id|ids|no|number|reference)$/;
 const SENSITIVE_FIELD_PATTERN =
-  /alipay|api.?key|authorization|bank(?:account|name|number)?|card(?:number)?|credential|evidence|iban|payment|payout|private.?key|recipient|routing(?:number)?|secret|tax(?:id)?|token/i;
+  /alipay|api.?key|authorization|bank(?:account|name|number)?|card(?:number)?|credential|evidence|iban|payment|payout|private.?key|recipient|routing(?:number)?|secret|tax(?:id)?/i;
+const SENSITIVE_DESCRIPTOR_NAME_PATTERN =
+  /alipay|api.?key|authorization|bank(?:account|name|number)?|card(?:number)?|credential|evidence|iban|private.?key|recipient|routing(?:number)?|secret|tax(?:id)?/i;
+const SENSITIVE_PAYMENT_DESCRIPTOR_PATTERN =
+  /(?:payment|payout)(?:account|id|ids|no|number|reference)$/;
+const SENSITIVE_TOKEN_FIELD_PATTERN =
+  /^(?:[a-z0-9]*(?:access|api|auth|bearer|id|oauth|refresh|session))?token(?:id|s|value)?$/;
 
 export type ModuleDraftView = 'configuration' | 'entitlements';
 export type ModuleDraftStorage = Pick<Storage, 'getItem' | 'removeItem' | 'setItem'>;
@@ -34,32 +48,67 @@ const getDraftKey = (scope: string) => {
   return `${DRAFT_KEY_PREFIX}${scope}`;
 };
 
+const normalizeFieldName = (key: string) => key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
+
 const isSensitiveFieldName = (key: string) => {
-  const normalizedKey = key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
+  const normalizedKey = normalizeFieldName(key);
 
   return (
     SENSITIVE_FIELD_NAMES.has(normalizedKey) ||
     SENSITIVE_FINANCE_IDENTIFIER_PATTERN.test(normalizedKey) ||
-    SENSITIVE_FIELD_PATTERN.test(key)
+    SENSITIVE_FIELD_PATTERN.test(key) ||
+    SENSITIVE_TOKEN_FIELD_PATTERN.test(normalizedKey)
   );
 };
 
-const hasSensitiveField = (value: unknown): boolean => {
+const isSensitiveDescriptorName = (key: string) => {
+  const normalizedKey = normalizeFieldName(key);
+
+  return (
+    SENSITIVE_FIELD_NAMES.has(normalizedKey) ||
+    SENSITIVE_FINANCE_IDENTIFIER_PATTERN.test(normalizedKey) ||
+    SENSITIVE_DESCRIPTOR_NAME_PATTERN.test(key) ||
+    SENSITIVE_PAYMENT_DESCRIPTOR_PATTERN.test(normalizedKey) ||
+    SENSITIVE_TOKEN_FIELD_PATTERN.test(normalizedKey)
+  );
+};
+
+const hasSensitiveField = (value: unknown, descriptorContainer = false): boolean => {
   if (!value || typeof value !== 'object') return false;
 
-  return Object.entries(value).some(([key, nestedValue]) => {
-    if (isSensitiveFieldName(key)) return true;
-
-    const normalizedKey = key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
+  if (Array.isArray(value)) {
     if (
-      SENSITIVE_DESCRIPTOR_FIELD_NAMES.has(normalizedKey) &&
-      typeof nestedValue === 'string' &&
-      isSensitiveFieldName(nestedValue)
+      descriptorContainer &&
+      value.length >= 2 &&
+      typeof value[0] === 'string' &&
+      isSensitiveDescriptorName(value[0])
     ) {
       return true;
     }
 
-    return hasSensitiveField(nestedValue);
+    return value.some((nestedValue) => hasSensitiveField(nestedValue, descriptorContainer));
+  }
+
+  if (
+    descriptorContainer &&
+    Object.hasOwn(value, 'value') &&
+    Object.entries(value).some(
+      ([key, nestedValue]) =>
+        SENSITIVE_DESCRIPTOR_FIELD_NAMES.has(normalizeFieldName(key)) &&
+        typeof nestedValue === 'string' &&
+        isSensitiveDescriptorName(nestedValue),
+    )
+  ) {
+    return true;
+  }
+
+  return Object.entries(value).some(([key, nestedValue]) => {
+    if (isSensitiveFieldName(key)) return true;
+
+    return hasSensitiveField(
+      nestedValue,
+      descriptorContainer || SENSITIVE_DESCRIPTOR_CONTAINER_NAMES.has(normalizeFieldName(key)),
+    );
   });
 };
 

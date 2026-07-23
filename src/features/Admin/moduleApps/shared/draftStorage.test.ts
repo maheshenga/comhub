@@ -117,6 +117,10 @@ describe('module app draft storage', () => {
     { headers: [{ name: 'Authorization', value: 'Bearer secret' }] },
     { env: [{ key: 'OPENAI_API_KEY', value: 'secret' }] },
     { variables: [{ variableName: 'payoutTransactionNo', value: 'trade-1' }] },
+    { headers: [['Authorization', 'Bearer secret']] },
+    { env: [['OPENAI_API_KEY', 'secret']] },
+    { metadata: [['paymentRecipientId', 'recipient-1']] },
+    { variables: [['payoutTransactionNo', 'trade-1']] },
   ])('refuses sensitive fields hidden behind generic descriptors', (draft) => {
     const storage = createStorage();
     const scope = createModuleDraftScope('app-1', 'configuration');
@@ -134,8 +138,12 @@ describe('module app draft storage', () => {
     const storage = createStorage();
     const scope = createModuleDraftScope('app-1', 'configuration');
     const draft = {
+      actions: [{ name: 'Token counter' }],
       headers: [{ name: 'Accept-Language', value: 'zh-CN' }],
-      metadata: { name: 'displayMode', value: 'compact' },
+      inputSchema: { fields: [{ name: 'maxTokens', type: 'number' }] },
+      metadata: { name: 'payment-history', value: 'compact' },
+      pages: [{ key: 'payment-history', title: 'Payment history' }],
+      usage: { tokenBudget: 8000, tokenCount: 1200 },
     };
 
     saveModuleDraft(scope, draft, storage);
