@@ -390,6 +390,8 @@ class AdminCommercialService {
       cursor?: number | string;
       limit?: number;
       publisherId?: string;
+      query?: string;
+      sort?: 'catalog' | 'name_asc' | 'updated_desc';
       status?: string;
     }) => lambdaClient.admin.moduleApps.list.query(input as any),
     listArtifacts: (input: { appId: string; cursor?: number | string; limit?: number }) =>

@@ -200,12 +200,17 @@ describe('adminCommercialService NewAPI helpers', () => {
       nextCursor: null,
     });
 
-    await expect(adminCommercialService.moduleApps.list({ status: 'published' })).resolves.toEqual({
-      items: [{ id: 'app1' }],
-      nextCursor: null,
-    });
+    await expect(
+      adminCommercialService.moduleApps.list({
+        query: 'work',
+        sort: 'updated_desc',
+        status: 'published',
+      }),
+    ).resolves.toEqual({ items: [{ id: 'app1' }], nextCursor: null });
 
     expect(lambdaClient.admin.moduleApps.list.query).toHaveBeenCalledWith({
+      query: 'work',
+      sort: 'updated_desc',
       status: 'published',
     });
   });
