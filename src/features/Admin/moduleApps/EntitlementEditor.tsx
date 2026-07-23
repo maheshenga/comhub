@@ -6,7 +6,7 @@ import { Form, Input, InputNumber } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const EntitlementEditor = memo(() => {
+const EntitlementEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
   const { t } = useTranslation('common');
 
   return (
@@ -47,38 +47,48 @@ const EntitlementEditor = memo(() => {
                     name={[field.name, 'visible']}
                     valuePropName="checked"
                   >
-                    <Switch />
+                    <Switch disabled={disabled} />
                   </Form.Item>
                   <Form.Item
                     label={t('moduleApps.admin.entitlements.installable')}
                     name={[field.name, 'installable']}
                     valuePropName="checked"
                   >
-                    <Switch />
+                    <Switch disabled={disabled} />
                   </Form.Item>
                   <Form.Item
                     label={t('moduleApps.admin.entitlements.runnable')}
                     name={[field.name, 'runnable']}
                     valuePropName="checked"
                   >
-                    <Switch />
+                    <Switch disabled={disabled} />
                   </Form.Item>
                 </Flexbox>
-                <Button danger onClick={() => remove(field.name)}>
+                <Button
+                  danger
+                  disabled={disabled}
+                  onClick={() => {
+                    if (disabled) return;
+                    remove(field.name);
+                  }}
+                >
                   {t('moduleApps.admin.entitlements.remove')}
                 </Button>
               </Flexbox>
             ))}
             <Button
+              disabled={disabled}
               onClick={() =>
-                add({
-                  discountPercent: 0,
-                  freeQuotaCredits: 0,
-                  installable: true,
-                  plan: 'pro',
-                  runnable: true,
-                  visible: true,
-                })
+                disabled
+                  ? undefined
+                  : add({
+                      discountPercent: 0,
+                      freeQuotaCredits: 0,
+                      installable: true,
+                      plan: 'pro',
+                      runnable: true,
+                      visible: true,
+                    })
               }
             >
               {t('moduleApps.admin.entitlements.add')}

@@ -28,7 +28,10 @@ type ConfigurationDraft = Pick<ModuleAppAdminFormValues, 'actions' | 'pages'>;
 const normalizeConfigurationDraft = (values: ConfigurationDraft): ConfigurationDraft => {
   const normalized = normalizeModuleAppFormValues(values);
 
-  return { actions: normalized.actions, pages: normalized.pages };
+  return {
+    actions: normalized.actions,
+    pages: values.pages.length === 0 ? [] : normalized.pages,
+  };
 };
 
 const ModuleAppConfigurationPage = memo(() => {
@@ -48,17 +51,23 @@ const ModuleAppConfigurationPage = memo(() => {
 
   useEffect(() => {
     const draft = loadModuleDraft<ConfigurationDraft>(draftScope);
+    const sourcePages = draft?.pages ?? app.pages;
     const values = normalizeModuleAppFormValues({
       ...app,
       actions: draft?.actions ?? app.actions,
-      pages: draft?.pages ?? app.pages,
+      pages: sourcePages,
     });
-    form.setFieldsValue({ actions: values.actions, pages: values.pages });
+    form.setFieldsValue({
+      actions: values.actions,
+      pages: sourcePages.length === 0 ? [] : values.pages,
+    });
     setDirty(Boolean(draft));
     setSaveStatus(draft ? t('moduleApps.admin.configuration.draftRestored') : undefined);
   }, [app.id, draftScope, form, t]);
 
   const persistDraft = () => {
+    if (!canWrite) return;
+
     const values = form.getFieldsValue(true);
     try {
       saveModuleDraft(draftScope, normalizeConfigurationDraft(values));
@@ -68,6 +77,8 @@ const ModuleAppConfigurationPage = memo(() => {
   };
 
   const save = async () => {
+    if (!canWrite) return;
+
     const values = await form.validateFields();
     let normalized: ConfigurationDraft;
     try {
@@ -80,6 +91,7 @@ const ModuleAppConfigurationPage = memo(() => {
       saveModuleDraft(draftScope, normalized);
     } catch {
       setSaveStatus(t('moduleApps.admin.configuration.draftRejected'));
+      return;
     }
     const actions = normalized.actions.map(
       ({ inputSchemaJson, outputSchemaJson, runtimeConfigJson, ...action }) => action,
@@ -139,12 +151,14 @@ const ModuleAppConfigurationPage = memo(() => {
         layout="vertical"
         onFinish={save}
         onValuesChange={() => {
+          if (!canWrite) return;
+
           setDirty(true);
           persistDraft();
         }}
       >
-        <PageEditor />
-        <ActionEditor />
+        <PageEditor disabled={!canWrite} />
+        <ActionEditor disabled={!canWrite} />
         {saveStatus ? <p role="status">{saveStatus}</p> : null}
         {canWrite ? (
           <Button htmlType="submit" loading={saving} type="primary">

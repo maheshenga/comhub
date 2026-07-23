@@ -33,11 +33,16 @@ const { billing, entitlements, moduleApps, refresh, roleState, translate } = vi.
   roleState: { canWrite: true },
   translate: (key: string, values?: Record<string, string>) =>
     ({
+      'moduleApps.admin.entitlements.add': 'Add entitlement',
       'moduleApps.admin.entitlements.billing': 'Billing',
+      'moduleApps.admin.entitlements.draftRejected': 'Draft could not be stored.',
+      'moduleApps.admin.entitlements.draftRestored':
+        'Your saved entitlement draft was restored. Saving again reapplies Entitlements and Billing.',
       'moduleApps.admin.entitlements.entitlements': 'Plan entitlements',
       'moduleApps.admin.entitlements.partialSave': `Saved: ${values?.accepted}. Not saved: ${values?.failed}. Your full draft is still available.`,
       'moduleApps.admin.entitlements.save': 'Save entitlements',
       'moduleApps.admin.entitlements.saved': 'Entitlements saved',
+      'moduleApps.admin.entitlements.remove': 'Remove entitlement',
       'moduleApps.admin.entitlements.title': 'Entitlements',
     })[key] ?? key,
 }));
@@ -129,6 +134,25 @@ describe('ModuleAppEntitlementsPage', () => {
     expect(moduleApps.upsertActions).not.toHaveBeenCalled();
   });
 
+  it('stops entitlement mutations when the complete draft cannot be stored', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+
+    try {
+      render(<ModuleAppEntitlementsPage />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save entitlements' }));
+
+      expect(await screen.findByText('Draft could not be stored.')).toBeInTheDocument();
+      expect(moduleApps.upsertEntitlements).not.toHaveBeenCalled();
+      expect(moduleApps.upsertBilling).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it('retains the complete draft and reports a partial save until a retry fully succeeds', async () => {
     moduleApps.upsertBilling.mockRejectedValueOnce(new Error('billing unavailable'));
     const originalUrl = window.location.href;
@@ -149,6 +173,11 @@ describe('ModuleAppEntitlementsPage', () => {
     unmount();
     render(<ModuleAppEntitlementsPage />);
     expect(screen.getByDisplayValue('pro')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Your saved entitlement draft was restored. Saving again reapplies Entitlements and Billing.',
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save entitlements' }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
@@ -178,12 +207,22 @@ describe('ModuleAppEntitlementsPage', () => {
     });
   });
 
-  it('renders entitlement values without Save when finance write is unavailable', () => {
+  it('disables entitlement controls and ignores read-only events without finance write', () => {
     roleState.canWrite = false;
+    const draftScope = createModuleDraftScope('app-1', 'entitlements');
 
     render(<ModuleAppEntitlementsPage />);
 
     expect(screen.getByDisplayValue('pro')).toBeDisabled();
+    screen.getAllByRole('checkbox').forEach((control) => expect(control).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Add entitlement' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Remove entitlement' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add entitlement' }));
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+
+    expect(screen.getAllByDisplayValue('pro')).toHaveLength(1);
+    expect(loadModuleDraft(draftScope)).toBeNull();
     expect(screen.getByText('Plan entitlements')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save entitlements' })).not.toBeInTheDocument();
     expect(moduleApps.upsertEntitlements).not.toHaveBeenCalled();
