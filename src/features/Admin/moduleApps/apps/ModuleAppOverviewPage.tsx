@@ -11,7 +11,7 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import { buildModuleAppPublishWarnings } from '../formSchema';
+import { buildModuleAppPublishWarningCodes } from '../formSchema';
 import type { ModuleAppDetailOutletContext } from '../layouts/ModuleAppDetailLayout';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
 
@@ -51,10 +51,12 @@ const ModuleAppOverviewPage = memo(() => {
     }
   };
   const changePublication = (nextStatus: 'published' | 'unpublished') => {
-    const warnings = nextStatus === 'published' ? buildModuleAppPublishWarnings(app) : [];
+    const warningCodes = nextStatus === 'published' ? buildModuleAppPublishWarningCodes(app) : [];
     confirmModal({
-      content: warnings.length
-        ? warnings.join('\n')
+      content: warningCodes.length
+        ? warningCodes
+            .map((code) => t(`moduleApps.admin.overview.publishWarnings.${code}`))
+            .join('\n')
         : t('moduleApps.admin.overview.publishConfirm'),
       okButtonProps: { danger: nextStatus === 'unpublished' },
       okText:
