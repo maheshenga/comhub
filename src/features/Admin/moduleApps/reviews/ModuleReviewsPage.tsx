@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Modal } from '@lobehub/ui/base-ui';
+import { ADMIN_CAPABILITIES, hasAdminCapability } from '@lobechat/types';
+import { Button, Input, Modal, Select, TextArea } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,13 +9,14 @@ import { useSearchParams } from 'react-router';
 
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+import { useUserStore } from '@/store/user';
+import { userProfileSelectors } from '@/store/user/selectors';
 
-import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
+import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import type { AdminModuleAppPackageRow } from '../types';
-
-import { packageColumns } from './packageColumns';
+import { getPackageColumns } from './packageColumns';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
   controls: css`
@@ -46,6 +48,11 @@ type ReviewAction = 'approve' | 'reject' | 'rescan';
 const ModuleReviewsPage = memo(() => {
   const { t } = useTranslation('common');
   const [searchParams, setSearchParams] = useSearchParams();
+  const role = useUserStore(
+    (state) => (userProfileSelectors.userProfile(state) as { role?: string } | undefined)?.role,
+  );
+  const canWrite = hasAdminCapability(role, ADMIN_CAPABILITIES.moduleAppWrite);
+  const packageColumns = getPackageColumns((key) => t(key));
   const [action, setAction] = useState<ReviewAction>();
   const [actionError, setActionError] = useState<string>();
   const [actionTarget, setActionTarget] = useState<AdminModuleAppPackageRow>();
@@ -114,9 +121,11 @@ const ModuleReviewsPage = memo(() => {
     setActionError(undefined);
     try {
       if (action === 'approve') {
-        await adminCommercialService.moduleApps.approvePackage({ packageId: actionTarget.id });
+        const result = await adminCommercialService.moduleApps.approvePackage({
+          packageId: actionTarget.id,
+        });
         await mutate(listKey);
-        if (actionTarget.appId) await mutate(moduleAppCacheKeys.detail(actionTarget.appId));
+        await mutate(moduleAppCacheKeys.detail(result.appId));
         await mutate(
           (key) => Array.isArray(key) && key[0] === 'admin-module-apps' && key[1] === 'apps',
           undefined,
@@ -151,59 +160,78 @@ const ModuleReviewsPage = memo(() => {
       <div className={styles.controls}>
         <label>
           {t('moduleApps.admin.reviews.filters.reviewStatus')}
-          <select
+          <Select
             value={reviewStatus ?? ''}
-            onChange={(event) => updateFilter('reviewStatus', event.target.value)}
-          >
-            <option value="">{t('moduleApps.admin.reviews.filters.all')}</option>
-            <option value="pending_review">
-              {t('moduleApps.admin.reviews.status.pendingReview')}
-            </option>
-            <option value="approved">{t('moduleApps.admin.reviews.status.approved')}</option>
-            <option value="rejected">{t('moduleApps.admin.reviews.status.rejected')}</option>
-          </select>
+            options={[
+              { label: t('moduleApps.admin.reviews.filters.all'), value: '' },
+              {
+                label: t('moduleApps.admin.reviews.status.pendingReview'),
+                value: 'pending_review',
+              },
+              { label: t('moduleApps.admin.reviews.status.approved'), value: 'approved' },
+              { label: t('moduleApps.admin.reviews.status.rejected'), value: 'rejected' },
+            ]}
+            onChange={(value) => updateFilter('reviewStatus', String(value ?? ''))}
+          />
         </label>
         <label>
           {t('moduleApps.admin.reviews.filters.buildStatus')}
-          <select
+          <Select
             value={buildStatus ?? ''}
-            onChange={(event) => updateFilter('buildStatus', event.target.value)}
-          >
-            <option value="">{t('moduleApps.admin.reviews.filters.all')}</option>
-            <option value="queued">{t('moduleApps.admin.reviews.buildStatus.queued')}</option>
-            <option value="building">{t('moduleApps.admin.reviews.buildStatus.building')}</option>
-            <option value="ready">{t('moduleApps.admin.reviews.buildStatus.ready')}</option>
-            <option value="failed">{t('moduleApps.admin.reviews.buildStatus.failed')}</option>
-          </select>
+            options={[
+              { label: t('moduleApps.admin.reviews.filters.all'), value: '' },
+              { label: t('moduleApps.admin.reviews.buildStatus.queued'), value: 'queued' },
+              { label: t('moduleApps.admin.reviews.buildStatus.building'), value: 'building' },
+              { label: t('moduleApps.admin.reviews.buildStatus.ready'), value: 'ready' },
+              { label: t('moduleApps.admin.reviews.buildStatus.failed'), value: 'failed' },
+            ]}
+            onChange={(value) => updateFilter('buildStatus', String(value ?? ''))}
+          />
         </label>
         <label>
           {t('moduleApps.admin.reviews.filters.appId')}
-          <input
+          <Input
+            maxLength={36}
             value={appId ?? ''}
             onChange={(event) => updateFilter('appId', event.target.value)}
           />
         </label>
         <label>
           {t('moduleApps.admin.reviews.filters.publisherId')}
-          <input
+          <Input
+            maxLength={36}
             value={publisherId ?? ''}
             onChange={(event) => updateFilter('publisherId', event.target.value)}
           />
         </label>
         <label>
           {t('moduleApps.admin.reviews.filters.submittedByUserId')}
-          <input
+          <Input
+            maxLength={255}
             value={submittedByUserId ?? ''}
             onChange={(event) => updateFilter('submittedByUserId', event.target.value)}
           />
         </label>
       </div>
       <ModulePageState
+        emptyKind={isFiltered ? 'filtered' : 'initial'}
         error={error}
         isEmpty={!isLoading && !error && (data?.items.length ?? 0) === 0}
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
         loading={isLoading}
+        loadingLabel={t('moduleApps.admin.reviews.loading')}
+        retryLabel={t('moduleApps.admin.reviews.retry')}
+        emptyDescription={t(
+          isFiltered
+            ? 'moduleApps.admin.reviews.filteredEmptyDescription'
+            : 'moduleApps.admin.reviews.emptyDescription',
+        )}
+        emptyTitle={t(
+          isFiltered
+            ? 'moduleApps.admin.reviews.filteredEmptyTitle'
+            : 'moduleApps.admin.reviews.emptyTitle',
+        )}
         onClearFilters={clearFilters}
+        onRetry={() => mutate(listKey)}
       >
         <div>
           <table className={styles.table}>
@@ -212,7 +240,7 @@ const ModuleReviewsPage = memo(() => {
                 {packageColumns.map((column) => (
                   <th key={column.title}>{t(column.title)}</th>
                 ))}
-                <th>{t('moduleApps.admin.reviews.columns.actions')}</th>
+                {canWrite ? <th>{t('moduleApps.admin.reviews.columns.actions')}</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -221,29 +249,31 @@ const ModuleReviewsPage = memo(() => {
                   {packageColumns.map((column) => (
                     <td key={column.title}>{column.render?.(item)}</td>
                   ))}
-                  <td>
-                    <div className={styles.controls}>
-                      <Button
-                        disabled={
-                          item.reviewStatus !== 'pending_review' || item.scanStatus !== 'clean'
-                        }
-                        onClick={() => openAction('approve', item)}
-                      >
-                        {t('moduleApps.admin.reviews.approve')}
-                      </Button>
-                      {item.reviewStatus === 'pending_review' && item.scanStatus !== 'clean' ? (
-                        <Button onClick={() => openAction('rescan', item)}>
-                          {t('moduleApps.admin.reviews.rescan')}
+                  {canWrite ? (
+                    <td>
+                      <div className={styles.controls}>
+                        <Button
+                          disabled={
+                            item.reviewStatus !== 'pending_review' || item.scanStatus !== 'clean'
+                          }
+                          onClick={() => openAction('approve', item)}
+                        >
+                          {t('moduleApps.admin.reviews.approve')}
                         </Button>
-                      ) : null}
-                      <Button
-                        disabled={item.reviewStatus !== 'pending_review'}
-                        onClick={() => openAction('reject', item)}
-                      >
-                        {t('moduleApps.admin.reviews.reject')}
-                      </Button>
-                    </div>
-                  </td>
+                        {item.reviewStatus === 'pending_review' && item.scanStatus !== 'clean' ? (
+                          <Button onClick={() => openAction('rescan', item)}>
+                            {t('moduleApps.admin.reviews.rescan')}
+                          </Button>
+                        ) : null}
+                        <Button
+                          disabled={item.reviewStatus !== 'pending_review'}
+                          onClick={() => openAction('reject', item)}
+                        >
+                          {t('moduleApps.admin.reviews.reject')}
+                        </Button>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -266,37 +296,40 @@ const ModuleReviewsPage = memo(() => {
           </div>
         </div>
       </ModulePageState>
-      <Modal
-        cancelText={t('cancel')}
-        confirmLoading={submitting}
-        destroyOnHidden
-        okButtonProps={{
-          danger: action === 'reject',
-          disabled: submitting || (action === 'reject' && !rejectReason.trim()),
-        }}
-        okText={
-          action === 'reject'
-            ? t('moduleApps.admin.reviews.confirmRejection')
-            : t(`moduleApps.admin.reviews.${action}`)
-        }
-        open={Boolean(action)}
-        title={action ? t(`moduleApps.admin.reviews.${action}`) : ''}
-        onCancel={closeAction}
-        onOk={actionComplete ? closeAction : submitAction}
-      >
-        {actionComplete ? <p>{t('moduleApps.admin.reviews.actionSuccess')}</p> : null}
-        {action === 'reject' && !actionComplete ? (
-          <label>
-            {t('moduleApps.admin.reviews.rejectReason')}
-            <textarea
-              required
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-            />
-          </label>
-        ) : null}
-        {actionError ? <p role="alert">{actionError}</p> : null}
-      </Modal>
+      {canWrite ? (
+        <Modal
+          destroyOnHidden
+          cancelText={t('cancel')}
+          confirmLoading={submitting}
+          open={Boolean(action)}
+          title={action ? t(`moduleApps.admin.reviews.${action}`) : ''}
+          okButtonProps={{
+            danger: action === 'reject',
+            disabled: submitting || (action === 'reject' && !rejectReason.trim()),
+          }}
+          okText={
+            action === 'reject'
+              ? t('moduleApps.admin.reviews.confirmRejection')
+              : t(`moduleApps.admin.reviews.${action}`)
+          }
+          onCancel={closeAction}
+          onOk={actionComplete ? closeAction : submitAction}
+        >
+          {actionComplete ? <p>{t('moduleApps.admin.reviews.actionSuccess')}</p> : null}
+          {action === 'reject' && !actionComplete ? (
+            <label>
+              {t('moduleApps.admin.reviews.rejectReason')}
+              <TextArea
+                required
+                maxLength={1000}
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+              />
+            </label>
+          ) : null}
+          {actionError ? <p role="alert">{actionError}</p> : null}
+        </Modal>
+      ) : null}
     </section>
   );
 });

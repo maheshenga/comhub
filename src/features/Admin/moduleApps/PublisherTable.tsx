@@ -3,7 +3,7 @@
 import type { ModuleAppPublisherStatus } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Tag, Typography } from 'antd';
-import { type ReactNode, memo } from 'react';
+import { memo, type ReactNode } from 'react';
 
 import InlineTable from '@/components/InlineTable';
 
@@ -22,32 +22,87 @@ export type ModuleAppPublisherRow = {
   userId: string;
 };
 
+export type PublisherTableLabels = {
+  columns: {
+    apps: string;
+    id: string;
+    owner: string;
+    publisher: string;
+    recipient: string;
+    status: string;
+  };
+  empty: string;
+  loading: string;
+  next: string;
+  previous: string;
+  retry: string;
+  status: Record<ModuleAppPublisherRow['status'], string>;
+};
+
+const defaultLabels: PublisherTableLabels = {
+  columns: {
+    apps: 'Apps',
+    id: 'ID',
+    owner: 'Owner',
+    publisher: 'Publisher',
+    recipient: 'Alipay recipient',
+    status: 'Status',
+  },
+  empty: 'No publishers',
+  loading: 'Loading publishers',
+  next: 'Next page',
+  previous: 'Previous page',
+  retry: 'Retry',
+  status: {
+    pending: 'Pending',
+    suspended: 'Suspended',
+    verified: 'Verified',
+  },
+};
+
 const PublisherTable = memo(
   ({
     error,
     hasNext,
     hasPrevious,
     items = [],
+    labels,
     loading,
     onNext,
     actionsTitle = 'Actions',
     renderActions,
     onPrevious,
     onRetry,
+    showPager,
   }: {
     error?: unknown;
     actionsTitle?: string;
     hasNext?: boolean;
     hasPrevious?: boolean;
     items?: ModuleAppPublisherRow[];
+    labels?: Partial<PublisherTableLabels> & {
+      columns?: Partial<PublisherTableLabels['columns']>;
+      status?: Partial<PublisherTableLabels['status']>;
+    };
     loading?: boolean;
     onNext?: () => void;
     onPrevious?: () => void;
     onRetry?: () => void;
     renderActions?: (publisher: ModuleAppPublisherRow) => ReactNode;
+    showPager?: boolean;
   }) => {
+    const resolvedLabels: PublisherTableLabels = {
+      ...defaultLabels,
+      ...labels,
+      columns: { ...defaultLabels.columns, ...labels?.columns },
+      status: { ...defaultLabels.status, ...labels?.status },
+    };
     const columns = [
-      { dataIndex: 'displayName', key: 'displayName', title: 'Publisher' },
+      {
+        dataIndex: 'displayName',
+        key: 'displayName',
+        title: resolvedLabels.columns.publisher,
+      },
       {
         dataIndex: 'id',
         key: 'id',
@@ -56,26 +111,30 @@ const PublisherTable = memo(
             {value}
           </Text>
         ),
-        title: 'ID',
+        title: resolvedLabels.columns.id,
       },
       {
         dataIndex: 'userId',
         key: 'userId',
         render: (value: string) => <Text code>{value}</Text>,
-        title: 'Owner',
+        title: resolvedLabels.columns.owner,
       },
       {
         dataIndex: 'status',
         key: 'status',
         render: (value: ModuleAppPublisherStatus) => (
           <Tag color={value === 'verified' ? 'green' : value === 'suspended' ? 'red' : 'gold'}>
-            {value}
+            {resolvedLabels.status[value]}
           </Tag>
         ),
-        title: 'Status',
+        title: resolvedLabels.columns.status,
       },
-      { dataIndex: 'recipientMask', key: 'recipientMask', title: 'Alipay recipient' },
-      { dataIndex: 'appCount', key: 'appCount', title: 'Apps' },
+      {
+        dataIndex: 'recipientMask',
+        key: 'recipientMask',
+        title: resolvedLabels.columns.recipient,
+      },
+      { dataIndex: 'appCount', key: 'appCount', title: resolvedLabels.columns.apps },
     ];
     if (renderActions) {
       columns.push({
@@ -87,22 +146,27 @@ const PublisherTable = memo(
     return (
       <Flexbox gap={10}>
         <AdminTableState
-          emptyLabel="No publishers"
+          emptyLabel={resolvedLabels.empty}
           error={error}
           loading={loading}
-          loadingLabel="Loading publishers"
+          loadingLabel={resolvedLabels.loading}
+          retryLabel={resolvedLabels.retry}
           onRetry={onRetry}
         >
           {items.length ? (
             <InlineTable columns={columns as any} dataSource={items} rowKey="id" />
           ) : null}
         </AdminTableState>
-        <CursorPager
-          hasNext={hasNext}
-          hasPrevious={hasPrevious}
-          onNext={onNext}
-          onPrevious={onPrevious}
-        />
+        {(showPager ?? Boolean(hasNext || hasPrevious || onNext || onPrevious)) ? (
+          <CursorPager
+            hasNext={hasNext}
+            hasPrevious={hasPrevious}
+            nextLabel={resolvedLabels.next}
+            previousLabel={resolvedLabels.previous}
+            onNext={onNext}
+            onPrevious={onPrevious}
+          />
+        ) : null}
       </Flexbox>
     );
   },

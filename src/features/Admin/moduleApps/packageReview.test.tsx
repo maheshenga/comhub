@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { adminCommercialService } from '@/services/adminCommercial';
 
 import AdminModuleAppsPage from './index';
+import { getPackageColumns } from './reviews/packageColumns';
 
 const PACKAGE_ID = '00000000-0000-4000-8000-000000000011';
 const packageState = vi.hoisted(() => ({ scanStatus: 'clean' }));
@@ -163,5 +164,19 @@ describe('AdminModuleAppsPage package review', () => {
         packageId: PACKAGE_ID,
       });
     });
+  });
+
+  it('uses localized labels for extracted package statuses', () => {
+    const columns = getPackageColumns((key) => key);
+    const row = {
+      buildStatus: 'ready' as const,
+      id: PACKAGE_ID,
+      reviewStatus: 'pending_review' as const,
+      scanStatus: 'clean' as const,
+    };
+
+    expect(columns[2].render?.(row)).toBe('moduleApps.admin.reviews.status.pendingReview');
+    expect(columns[3].render?.(row)).toBe('moduleApps.admin.reviews.scanStatus.clean');
+    expect(columns[4].render?.(row)).toBe('moduleApps.admin.reviews.buildStatus.ready');
   });
 });

@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import PublisherFormModal from './PublisherFormModal';
+
 vi.mock('@lobehub/ui/base-ui', () => ({
+  Input: (props: any) => <input {...props} />,
   Modal: ({ children, okButtonProps, okText, onOk, open }: any) =>
     open ? (
       <div>
@@ -13,8 +16,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
     ) : null,
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-
-import PublisherFormModal from './PublisherFormModal';
 
 describe('PublisherFormModal', () => {
   it('submits trimmed publisher identity with an optional masked recipient', async () => {
@@ -37,5 +38,46 @@ describe('PublisherFormModal', () => {
       recipientMask: 'ali***@example.com',
       userId: 'owner-1',
     });
+  });
+
+  it('rejects a recipient mask shorter than the backend minimum', () => {
+    render(<PublisherFormModal open onCancel={vi.fn()} onSubmit={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('moduleApps.admin.publishers.displayName'), {
+      target: { value: 'Studio' },
+    });
+    fireEvent.change(screen.getByLabelText('moduleApps.admin.publishers.ownerUserId'), {
+      target: { value: 'owner-1' },
+    });
+    fireEvent.change(screen.getByLabelText('moduleApps.admin.publishers.recipientMask'), {
+      target: { value: '*' },
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'moduleApps.admin.publishers.create' }),
+    ).toBeDisabled();
+  });
+
+  it('enforces the backend display name and owner ID limits', () => {
+    render(<PublisherFormModal open onCancel={vi.fn()} onSubmit={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('moduleApps.admin.publishers.displayName'), {
+      target: { value: 'a'.repeat(201) },
+    });
+    fireEvent.change(screen.getByLabelText('moduleApps.admin.publishers.ownerUserId'), {
+      target: { value: 'u'.repeat(256) },
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'moduleApps.admin.publishers.create' }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText('moduleApps.admin.publishers.displayName')).toHaveAttribute(
+      'maxLength',
+      '200',
+    );
+    expect(screen.getByLabelText('moduleApps.admin.publishers.ownerUserId')).toHaveAttribute(
+      'maxLength',
+      '255',
+    );
   });
 });

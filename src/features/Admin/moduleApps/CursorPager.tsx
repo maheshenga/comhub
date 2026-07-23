@@ -7,27 +7,31 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 const CursorPager = ({
   hasNext,
   hasPrevious,
+  nextLabel = 'Next page',
   onNext,
   onPrevious,
+  previousLabel = 'Previous page',
 }: {
   hasNext?: boolean;
   hasPrevious?: boolean;
+  nextLabel?: string;
   onNext?: () => void;
   onPrevious?: () => void;
+  previousLabel?: string;
 }) => (
   <Flexbox horizontal gap={6} justify="flex-end">
-    <Tooltip title="Previous page">
+    <Tooltip title={previousLabel}>
       <Button
-        aria-label="Previous page"
+        aria-label={previousLabel}
         disabled={!hasPrevious}
         icon={<Icon icon={ChevronLeft} size={16} />}
         style={{ height: 32, width: 32 }}
         onClick={onPrevious}
       />
     </Tooltip>
-    <Tooltip title="Next page">
+    <Tooltip title={nextLabel}>
       <Button
-        aria-label="Next page"
+        aria-label={nextLabel}
         disabled={!hasNext}
         icon={<Icon icon={ChevronRight} size={16} />}
         style={{ height: 32, width: 32 }}
