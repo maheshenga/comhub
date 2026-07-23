@@ -1,6 +1,14 @@
 const DRAFT_VERSION = 1 as const;
 const DRAFT_KEY_PREFIX = `admin-module-app-draft:v${DRAFT_VERSION}:`;
 const DRAFT_SCOPE_PATTERN = /^[^/]+\/configuration$|^[^/]+\/entitlements$/;
+const SENSITIVE_FIELD_NAMES = new Set([
+  'offlinerefundreference',
+  'orderid',
+  'outtradeno',
+  'providertransactionid',
+  'refundreference',
+  'transactionno',
+]);
 const SENSITIVE_FIELD_PATTERN =
   /alipay|api.?key|bank(?:account|name|number)?|card(?:number)?|credential|evidence|iban|payment|payout|private.?key|recipient|routing(?:number)?|secret|tax(?:id)?|token/i;
 
@@ -27,7 +35,10 @@ const hasSensitiveField = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false;
 
   return Object.entries(value).some(
-    ([key, nestedValue]) => SENSITIVE_FIELD_PATTERN.test(key) || hasSensitiveField(nestedValue),
+    ([key, nestedValue]) =>
+      SENSITIVE_FIELD_NAMES.has(key.toLowerCase()) ||
+      SENSITIVE_FIELD_PATTERN.test(key) ||
+      hasSensitiveField(nestedValue),
   );
 };
 
