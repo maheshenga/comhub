@@ -81,10 +81,7 @@ export type ModuleAppActionFormValues = ModuleAppActionConfig & {
   runtimeConfigJson: string;
 };
 
-export type ModuleAppAdminFormValues = Omit<
-  ModuleAppAdminUpsertInput,
-  'actions' | 'pages'
-> & {
+export type ModuleAppAdminFormValues = Omit<ModuleAppAdminUpsertInput, 'actions' | 'pages'> & {
   actions: ModuleAppActionFormValues[];
   entitlements: ModuleAppPlanEntitlement[];
   pages: ModuleAppPageFormValues[];
@@ -239,9 +236,7 @@ const toAppType = (value: ModuleAppAdminFormInput['appType']): ModuleAppType => 
 const toPageType = (value: ModuleAppPageFormInput['type']): ModuleAppPageType =>
   pageTypes.has(value as ModuleAppPageType) ? (value as ModuleAppPageType) : 'overview';
 
-const toRuntimeType = (
-  value: ModuleAppActionFormInput['runtimeType'],
-): ModuleAppRuntimeType =>
+const toRuntimeType = (value: ModuleAppActionFormInput['runtimeType']): ModuleAppRuntimeType =>
   runtimeTypes.has(value as ModuleAppRuntimeType) ? (value as ModuleAppRuntimeType) : 'none';
 
 const normalizePage = (page: ModuleAppPageFormInput, index: number): ModuleAppPageFormValues => {
@@ -329,9 +324,7 @@ const normalizeEntitlement = (
   visible: entitlement.visible === true,
 });
 
-const normalizeBilling = (
-  billing: ModuleAppAdminFormInput['billing'],
-): ModuleAppBillingConfig => ({
+const normalizeBilling = (billing: ModuleAppAdminFormInput['billing']): ModuleAppBillingConfig => ({
   chargeMode:
     billing?.chargeMode === 'fixed' ||
     billing?.chargeMode === 'ai_usage' ||
@@ -412,18 +405,31 @@ export const parseModuleAppAdminForm = (value: unknown) =>
     }),
   );
 
-export const buildModuleAppPublishWarnings = (app: {
+type ModuleAppPublishReadiness = {
   actions?: unknown[];
   entitlements?: Array<{ runnable?: boolean; visible?: boolean }>;
   pages?: unknown[];
-}) => {
-  const warnings: string[] = [];
+};
 
-  if (!app.pages || app.pages.length === 0) warnings.push('No pages configured');
-  if (!app.actions || app.actions.length === 0) warnings.push('No runnable actions configured');
+export type ModuleAppPublishWarningCode = 'noActions' | 'noPages' | 'noVisibleEntitlement';
+
+const moduleAppPublishWarningMessages = {
+  noActions: 'No runnable actions configured',
+  noPages: 'No pages configured',
+  noVisibleEntitlement: 'No visible plan entitlement configured',
+} as const satisfies Record<ModuleAppPublishWarningCode, string>;
+
+export const buildModuleAppPublishWarningCodes = (app: ModuleAppPublishReadiness) => {
+  const warnings: ModuleAppPublishWarningCode[] = [];
+
+  if (!app.pages || app.pages.length === 0) warnings.push('noPages');
+  if (!app.actions || app.actions.length === 0) warnings.push('noActions');
   if (!app.entitlements?.some((item) => item.visible)) {
-    warnings.push('No visible plan entitlement configured');
+    warnings.push('noVisibleEntitlement');
   }
 
   return warnings;
 };
+
+export const buildModuleAppPublishWarnings = (app: ModuleAppPublishReadiness) =>
+  buildModuleAppPublishWarningCodes(app).map((code) => moduleAppPublishWarningMessages[code]);

@@ -86,6 +86,26 @@ const seedApplications = async () => {
 };
 
 describe('ModuleAppAdminReadModel', () => {
+  it.each([
+    ['%', 'Percent % literal', 'Percent X literal'],
+    ['_', 'Under_score literal', 'UnderXscore literal'],
+    ['\\', String.raw`Back\slash literal`, 'BackXslash literal'],
+  ])('treats %s as a literal search character', async (query, literalName, wildcardName) => {
+    const { apps } = await seedApplications();
+    await db
+      .update(moduleApps)
+      .set({ displayName: literalName })
+      .where(eq(moduleApps.id, apps[0].id));
+    await db
+      .update(moduleApps)
+      .set({ displayName: wildcardName })
+      .where(eq(moduleApps.id, apps[1].id));
+
+    const result = await new ModuleAppAdminReadModel(db).listApplications({ query });
+
+    expect(result.items.map((item) => item.id)).toEqual([apps[0].id]);
+  });
+
   it('searches display names and slugs with an updated-at cursor', async () => {
     const { apps } = await seedApplications();
     await db

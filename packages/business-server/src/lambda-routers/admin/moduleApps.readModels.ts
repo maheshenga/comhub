@@ -30,8 +30,12 @@ type ApplicationSort = 'catalog' | 'name_asc' | 'updated_desc';
 type CatalogApplicationCursor = { displayName: string; id: string; sortOrder: number };
 type NameApplicationCursor = { displayName: string; id: string };
 type UpdatedApplicationCursor = { id: string; updatedAt: string };
+type ApplicationCursor =
+  CatalogApplicationCursor | NameApplicationCursor | UpdatedApplicationCursor;
 
 const normalizeLimit = (limit = 50) => Math.max(1, Math.min(200, Math.floor(limit)));
+
+const escapeLike = (value: string) => value.replaceAll(/[%_\\]/g, '\\$&');
 
 const encodeCursor = (kind: string, value: ApplicationCursor | CreatedCursor) =>
   Buffer.from(JSON.stringify({ kind, value, version: 1 })).toString('base64url');
@@ -114,13 +118,14 @@ export class ModuleAppAdminReadModel {
         ? decodeCursor<UpdatedApplicationCursor>(input.cursor, cursorKind)
         : null;
     const query = input.query?.trim();
+    const queryPattern = query ? `%${escapeLike(query)}%` : undefined;
     const conditions: Array<SQL | undefined> = [
       input.appId ? eq(moduleApps.id, input.appId) : undefined,
       input.category ? eq(moduleApps.category, input.category) : undefined,
       input.publisherId ? eq(moduleApps.publisherId, input.publisherId) : undefined,
       input.status ? eq(moduleApps.status, input.status) : undefined,
-      query
-        ? or(ilike(moduleApps.displayName, `%${query}%`), ilike(moduleApps.slug, `%${query}%`))
+      queryPattern
+        ? or(ilike(moduleApps.displayName, queryPattern), ilike(moduleApps.slug, queryPattern))
         : undefined,
       catalogCursor
         ? or(

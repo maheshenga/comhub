@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -68,7 +71,16 @@ describe('ModuleAppOverviewPage', () => {
     expect(screen.getByText('Workbench')).toBeInTheDocument();
     fireEvent.click(screen.getByText('moduleApps.admin.overview.publish'));
 
-    const [confirmation] = mocks.confirmModal.mock.calls[0] as [{ onOk: () => Promise<void> }];
+    const [confirmation] = mocks.confirmModal.mock.calls[0] as [
+      { content: string; onOk: () => Promise<void> },
+    ];
+    expect(confirmation.content).toBe(
+      [
+        'moduleApps.admin.overview.publishWarnings.noPages',
+        'moduleApps.admin.overview.publishWarnings.noActions',
+        'moduleApps.admin.overview.publishWarnings.noVisibleEntitlement',
+      ].join('\n'),
+    );
     await confirmation.onOk();
 
     expect(moduleApps.publish).toHaveBeenCalledWith({ appId: app.id });
@@ -79,5 +91,27 @@ describe('ModuleAppOverviewPage', () => {
     expect(mocks.mutate).toHaveBeenCalledWith(expect.any(Function), undefined, {
       revalidate: true,
     });
+  });
+
+  it('ships English and Chinese publish warning translations', () => {
+    const readLocale = (locale: 'en-US' | 'zh-CN') =>
+      JSON.parse(
+        readFileSync(path.resolve(process.cwd(), `locales/${locale}/common.json`), 'utf8'),
+      ) as Record<string, string>;
+    const enUS = readLocale('en-US');
+    const zhCN = readLocale('zh-CN');
+
+    expect(enUS['moduleApps.admin.overview.publishWarnings.noPages']).toBe('No pages configured');
+    expect(enUS['moduleApps.admin.overview.publishWarnings.noActions']).toBe(
+      'No runnable actions configured',
+    );
+    expect(enUS['moduleApps.admin.overview.publishWarnings.noVisibleEntitlement']).toBe(
+      'No visible plan entitlement configured',
+    );
+    expect(zhCN['moduleApps.admin.overview.publishWarnings.noPages']).toBe('尚未配置页面');
+    expect(zhCN['moduleApps.admin.overview.publishWarnings.noActions']).toBe('尚未配置可运行操作');
+    expect(zhCN['moduleApps.admin.overview.publishWarnings.noVisibleEntitlement']).toBe(
+      '尚未配置可见的套餐权益',
+    );
   });
 });
