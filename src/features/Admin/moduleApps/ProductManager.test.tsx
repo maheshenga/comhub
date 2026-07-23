@@ -1,10 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { moduleAppCacheKeys } from './shared/cacheKeys';
 
 import ProductManager from './ProductManager';
 
-vi.mock('@/libs/swr', () => ({
+const { mutate } = vi.hoisted(() => ({
   mutate: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/libs/swr', () => ({
+  mutate,
   useClientDataSWR: vi.fn(() => ({
     data: [
       {
@@ -21,6 +27,23 @@ vi.mock('@/libs/swr', () => ({
   })),
 }));
 
+vi.mock('@lobehub/ui/base-ui', () => ({
+  Button: ({
+    children,
+    block: _block,
+    htmlType,
+    icon: _icon,
+    loading: _loading,
+    type: _type,
+    ...props
+  }: any) => (
+    <button type={htmlType} {...props}>
+      {children}
+    </button>
+  ),
+  Modal: ({ children, open }: any) => (open ? <div>{children}</div> : null),
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -28,6 +51,7 @@ vi.mock('react-i18next', () => ({
         'moduleApps.admin.products.add': 'Add product',
         'moduleApps.admin.products.amount': 'Amount',
         'moduleApps.admin.products.currency': 'Currency',
+        'moduleApps.admin.products.edit': 'Edit product',
         'moduleApps.admin.products.moduleMultiplier': 'Module multiplier',
         'moduleApps.admin.products.productKey': 'Product key',
         'moduleApps.admin.products.promotionTitle': 'Promotion title',
@@ -41,6 +65,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('ProductManager', () => {
+  beforeEach(() => {
+    mutate.mockClear();
+  });
+
   it('lists products and creates a server-priced product', async () => {
     const createProduct = vi.fn().mockResolvedValue({ id: 'product-2' });
     render(
@@ -78,6 +106,42 @@ describe('ProductManager', () => {
         }),
       ),
     );
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith(moduleAppCacheKeys.products('app-1'));
+  });
+
+  it('updates a product and invalidates only its application products key', async () => {
+    const updateProduct = vi.fn().mockResolvedValue({ id: 'product-1' });
+    render(
+      <ProductManager
+        appId="app-1"
+        service={{
+          createProduct: vi.fn(),
+          listProducts: vi.fn(),
+          updateProduct,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit product' }));
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '99' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save product' }));
+
+    await waitFor(() =>
+      expect(updateProduct).toHaveBeenCalledWith({
+        licenseScope: 'personal',
+        moduleMultiplier: '1',
+        price: { amount: 99, currency: 'CNY', trialDays: 0 },
+        productId: 'product-1',
+        productType: 'one_time',
+        revenueShareRate: '0',
+        seatCount: undefined,
+        status: 'active',
+        termsVersion: '1',
+      }),
+    );
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith(moduleAppCacheKeys.products('app-1'));
   });
 
   it('matches the server product limits in the form controls', () => {
