@@ -80,13 +80,23 @@ describe('module app draft storage', () => {
   });
 
   it.each([
+    'batchId',
+    'discrepancyId',
+    'discrepancyIds',
+    'licenseIds',
     'offlineRefundReference',
     'orderId',
     'outTradeNo',
+    'paymentReference',
+    'payoutBatchIds',
+    'providerRefundId',
     'providerTransactionId',
+    'refundIds',
     'refundReference',
+    'requestedAmount',
+    'revenueEntryIds',
     'transactionNo',
-  ])('refuses payment reference field %s on save and load', (field) => {
+  ])('refuses sensitive finance field %s on save and load', (field) => {
     const storage = createStorage();
     const scope = createModuleDraftScope('app-1', 'entitlements');
     const key = `admin-module-app-draft:v1:${scope}`;
