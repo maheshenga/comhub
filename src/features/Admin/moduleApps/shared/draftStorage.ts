@@ -1,22 +1,9 @@
 const DRAFT_VERSION = 1 as const;
 const DRAFT_KEY_PREFIX = `admin-module-app-draft:v${DRAFT_VERSION}:`;
 const DRAFT_SCOPE_PATTERN = /^[^/]+\/configuration$|^[^/]+\/entitlements$/;
-const SENSITIVE_FIELD_NAMES = new Set([
-  'batchid',
-  'discrepancyid',
-  'discrepancyids',
-  'licenseids',
-  'offlinerefundreference',
-  'orderid',
-  'outtradeno',
-  'providerrefundid',
-  'providertransactionid',
-  'refundids',
-  'refundreference',
-  'requestedamount',
-  'revenueentryids',
-  'transactionno',
-]);
+const SENSITIVE_FIELD_NAMES = new Set(['batchid', 'requestedamount']);
+const SENSITIVE_FINANCE_IDENTIFIER_PATTERN =
+  /(?:discrepancy|license|order|refund|revenueentry|settlementbatch|trade|transaction)(?:id|ids|no|number|reference)$/;
 const SENSITIVE_FIELD_PATTERN =
   /alipay|api.?key|bank(?:account|name|number)?|card(?:number)?|credential|evidence|iban|payment|payout|private.?key|recipient|routing(?:number)?|secret|tax(?:id)?|token/i;
 
@@ -39,14 +26,21 @@ const getDraftKey = (scope: string) => {
   return `${DRAFT_KEY_PREFIX}${scope}`;
 };
 
+const isSensitiveFieldName = (key: string) => {
+  const normalizedKey = key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
+
+  return (
+    SENSITIVE_FIELD_NAMES.has(normalizedKey) ||
+    SENSITIVE_FINANCE_IDENTIFIER_PATTERN.test(normalizedKey) ||
+    SENSITIVE_FIELD_PATTERN.test(key)
+  );
+};
+
 const hasSensitiveField = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false;
 
   return Object.entries(value).some(
-    ([key, nestedValue]) =>
-      SENSITIVE_FIELD_NAMES.has(key.toLowerCase()) ||
-      SENSITIVE_FIELD_PATTERN.test(key) ||
-      hasSensitiveField(nestedValue),
+    ([key, nestedValue]) => isSensitiveFieldName(key) || hasSensitiveField(nestedValue),
   );
 };
 
