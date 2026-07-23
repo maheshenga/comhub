@@ -3,7 +3,7 @@
 import type { ModuleAppPublisherStatus } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
 import { Tag, Typography } from 'antd';
-import { memo } from 'react';
+import { type ReactNode, memo } from 'react';
 
 import InlineTable from '@/components/InlineTable';
 
@@ -30,10 +30,13 @@ const PublisherTable = memo(
     items = [],
     loading,
     onNext,
+    actionsTitle = 'Actions',
+    renderActions,
     onPrevious,
     onRetry,
   }: {
     error?: unknown;
+    actionsTitle?: string;
     hasNext?: boolean;
     hasPrevious?: boolean;
     items?: ModuleAppPublisherRow[];
@@ -41,13 +44,18 @@ const PublisherTable = memo(
     onNext?: () => void;
     onPrevious?: () => void;
     onRetry?: () => void;
+    renderActions?: (publisher: ModuleAppPublisherRow) => ReactNode;
   }) => {
     const columns = [
       { dataIndex: 'displayName', key: 'displayName', title: 'Publisher' },
       {
         dataIndex: 'id',
         key: 'id',
-        render: (value: string) => <Text code copyable>{value}</Text>,
+        render: (value: string) => (
+          <Text code copyable>
+            {value}
+          </Text>
+        ),
         title: 'ID',
       },
       {
@@ -69,6 +77,13 @@ const PublisherTable = memo(
       { dataIndex: 'recipientMask', key: 'recipientMask', title: 'Alipay recipient' },
       { dataIndex: 'appCount', key: 'appCount', title: 'Apps' },
     ];
+    if (renderActions) {
+      columns.push({
+        key: 'actions',
+        render: (_: unknown, publisher: ModuleAppPublisherRow) => renderActions(publisher),
+        title: actionsTitle,
+      });
+    }
     return (
       <Flexbox gap={10}>
         <AdminTableState

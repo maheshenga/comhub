@@ -362,6 +362,10 @@ class AdminCommercialService {
 
   // Module apps
   moduleApps = {
+    assignPublisher: (input: { appId: string; publisherId: string }) =>
+      lambdaClient.admin.moduleApps.assignPublisher.mutate(input),
+    createPublisher: (input: { displayName: string; recipientMask?: string; userId: string }) =>
+      lambdaClient.admin.moduleApps.createPublisher.mutate(input),
     createProduct: (input: {
       appId: string;
       licenseScope: 'personal' | 'workspace' | 'workspace_seat';
@@ -451,6 +455,8 @@ class AdminCommercialService {
       lambdaClient.admin.moduleApps.rescanPackage.mutate(input),
     settleRevenueBatch: (input: { entryIds: string[] }) =>
       lambdaClient.admin.moduleApps.settleRevenueBatch.mutate(input),
+    suspendPublisher: (input: { publisherId: string }) =>
+      lambdaClient.admin.moduleApps.suspendPublisher.mutate(input),
     unpublish: (input: { appId: string }) => lambdaClient.admin.moduleApps.unpublish.mutate(input),
     upsert: (input: unknown) => lambdaClient.admin.moduleApps.upsert.mutate(input as any),
     upsertActions: (input: { actions: unknown[]; appId: string }) =>
@@ -478,6 +484,10 @@ class AdminCommercialService {
       status: 'active' | 'inactive';
       termsVersion?: string;
     }) => lambdaClient.admin.moduleApps.updateProduct.mutate(input as any),
+    verifyPublisher: (input: {
+      publisherId: string;
+      verificationMetadata: Record<string, unknown>;
+    }) => lambdaClient.admin.moduleApps.verifyPublisher.mutate(input),
   };
 
   // Orders

@@ -301,6 +301,40 @@ describe('adminCommercialService NewAPI helpers', () => {
     });
   });
 
+  it('delegates publisher governance mutations to the module app client', async () => {
+    (lambdaClient.admin.moduleApps as any).createPublisher = { mutate: vi.fn() };
+    (lambdaClient.admin.moduleApps as any).verifyPublisher = { mutate: vi.fn() };
+    (lambdaClient.admin.moduleApps as any).suspendPublisher = { mutate: vi.fn() };
+    (lambdaClient.admin.moduleApps as any).assignPublisher = { mutate: vi.fn() };
+
+    const createPublisher = {
+      displayName: 'Verified Studio',
+      recipientMask: 'ali***@example.com',
+      userId: 'user-1',
+    };
+    const verifyPublisher = { publisherId: 'publisher-1', verificationMetadata: {} };
+    const suspendPublisher = { publisherId: 'publisher-1' };
+    const assignPublisher = { appId: 'app-1', publisherId: 'publisher-1' };
+
+    await adminCommercialService.moduleApps.createPublisher(createPublisher);
+    await adminCommercialService.moduleApps.verifyPublisher(verifyPublisher);
+    await adminCommercialService.moduleApps.suspendPublisher(suspendPublisher);
+    await adminCommercialService.moduleApps.assignPublisher(assignPublisher);
+
+    expect((lambdaClient.admin.moduleApps as any).createPublisher.mutate).toHaveBeenCalledWith(
+      createPublisher,
+    );
+    expect((lambdaClient.admin.moduleApps as any).verifyPublisher.mutate).toHaveBeenCalledWith(
+      verifyPublisher,
+    );
+    expect((lambdaClient.admin.moduleApps as any).suspendPublisher.mutate).toHaveBeenCalledWith(
+      suspendPublisher,
+    );
+    expect((lambdaClient.admin.moduleApps as any).assignPublisher.mutate).toHaveBeenCalledWith(
+      assignPublisher,
+    );
+  });
+
   it('calls the module app admin publish endpoint', async () => {
     (lambdaClient.admin.moduleApps as any).publish = {
       mutate: vi.fn().mockResolvedValue({ ok: true }),
