@@ -14,7 +14,6 @@ import { userProfileSelectors } from '@/store/user/selectors';
 import { buildModuleAppPublishWarningCodes } from '../formSchema';
 import type { ModuleAppDetailOutletContext } from '../layouts/ModuleAppDetailLayout';
 import { moduleAppCacheKeys } from '../shared/cacheKeys';
-
 import AppIdentityModal from './AppIdentityModal';
 import { buildIdentityUpsertInput, type ModuleAppIdentityFormValues } from './identityForm';
 

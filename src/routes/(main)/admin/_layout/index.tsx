@@ -5,7 +5,10 @@ import { Flexbox } from '@lobehub/ui';
 import { Navigate, Outlet, useLocation } from 'react-router';
 
 import { AdminSidebar } from '@/features/Admin';
-import { canAccessAdminPath, getAdminDefaultPath } from '@/features/Admin/adminNavigation';
+import {
+  canAccessAdminPath,
+  getAdminUnauthorizedFallbackPath,
+} from '@/features/Admin/adminNavigation';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
@@ -20,7 +23,7 @@ const AdminLayout = () => {
   if (!isUserStateInit) return null;
   if (!isAdminRole(role)) return <Navigate replace to="/" />;
   if (!canAccessAdminPath(role, location.pathname)) {
-    return <Navigate replace to={getAdminDefaultPath(role)} />;
+    return <Navigate replace to={getAdminUnauthorizedFallbackPath(role, location.pathname)} />;
   }
 
   return (

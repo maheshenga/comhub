@@ -165,16 +165,16 @@ describe('ModuleOverviewPage', () => {
       'href',
       '/settings/admin/modules/reviews',
     );
-    expect(screen.getByRole('link', { exact: true, name: 'App One' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'App One' })).toHaveAttribute(
       'href',
       '/settings/admin/modules/apps/app-1',
     );
-    expect(screen.getByRole('link', { exact: true, name: 'run-1' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'run-1' })).toHaveAttribute(
       'href',
       '/settings/admin/modules/operations/runs?appId=app-1',
     );
     expect(screen.getByText('moduleApps.admin.center.overview.status.denied')).toBeVisible();
-    expect(screen.getByRole('link', { exact: true, name: 'App One / order-1' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'App One / order-1' })).toHaveAttribute(
       'href',
       '/settings/admin/modules/finance/payments?discrepancyStatus=open',
     );

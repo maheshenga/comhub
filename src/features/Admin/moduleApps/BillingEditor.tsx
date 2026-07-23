@@ -5,14 +5,14 @@ import { Form, InputNumber, Select } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+const CHARGE_MODES = ['free', 'fixed', 'ai_usage', 'external_api', 'hybrid'] as const;
+
 const BillingEditor = memo(() => {
   const { t } = useTranslation('common');
-  const chargeModeOptions = ['free', 'fixed', 'ai_usage', 'external_api', 'hybrid'].map(
-    (value) => ({
-      label: t(`moduleApps.admin.entitlements.chargeModeOptions.${value}`),
-      value,
-    }),
-  );
+  const chargeModeOptions = CHARGE_MODES.map((value) => ({
+    label: t(`moduleApps.admin.entitlements.chargeModeOptions.${value}`),
+    value,
+  }));
 
   return (
     <Flexbox data-testid="admin-module-app-billing-editor" gap={12}>

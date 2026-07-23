@@ -7,8 +7,8 @@ import { useOutletContext } from 'react-router';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import ProductManager from '../../ProductManager';
 import type { ModuleAppDetailOutletContext } from '../../layouts/ModuleAppDetailLayout';
+import ProductManager from '../../ProductManager';
 
 const ModuleAppProductsPage = memo(() => {
   const { app } = useOutletContext<ModuleAppDetailOutletContext>();

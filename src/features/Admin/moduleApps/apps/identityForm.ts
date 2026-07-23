@@ -3,8 +3,8 @@ import type { ModuleAppAdminUpsertInput, ModuleAppPlanEntitlement } from '@lobec
 import {
   buildModuleAppUpsertInput,
   createDefaultModuleAppFormValues,
-  normalizeModuleAppFormValues,
   type ModuleAppAdminFormInput,
+  normalizeModuleAppFormValues,
 } from '../formSchema';
 import type { AdminModuleAppDetail } from '../types';
 

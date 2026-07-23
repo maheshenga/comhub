@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AdminModuleAppDetail } from '../types';
-
 import { buildIdentityUpsertInput, createDefaultModuleAppIdentity } from './identityForm';
 
 describe('module app identity input', () => {

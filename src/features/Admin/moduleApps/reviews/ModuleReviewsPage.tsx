@@ -45,6 +45,12 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 type PackageListResponse = { items: AdminModuleAppPackageRow[]; nextCursor: null | string };
 type ReviewAction = 'approve' | 'reject' | 'rescan';
 
+const REVIEW_ACTION_TRANSLATION_KEYS = {
+  approve: 'moduleApps.admin.reviews.approve',
+  reject: 'moduleApps.admin.reviews.reject',
+  rescan: 'moduleApps.admin.reviews.rescan',
+} as const satisfies Record<ReviewAction, string>;
+
 const ModuleReviewsPage = memo(() => {
   const { t } = useTranslation('common');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -59,6 +65,7 @@ const ModuleReviewsPage = memo(() => {
   const [actionComplete, setActionComplete] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const actionLabel = action ? t(REVIEW_ACTION_TRANSLATION_KEYS[action]) : '';
   const reviewStatus = searchParams.get('reviewStatus') ?? undefined;
   const buildStatus = searchParams.get('buildStatus') ?? undefined;
   const appId = searchParams.get('appId') ?? undefined;
@@ -302,15 +309,13 @@ const ModuleReviewsPage = memo(() => {
           cancelText={t('cancel')}
           confirmLoading={submitting}
           open={Boolean(action)}
-          title={action ? t(`moduleApps.admin.reviews.${action}`) : ''}
+          title={actionLabel}
           okButtonProps={{
             danger: action === 'reject',
             disabled: submitting || (action === 'reject' && !rejectReason.trim()),
           }}
           okText={
-            action === 'reject'
-              ? t('moduleApps.admin.reviews.confirmRejection')
-              : t(`moduleApps.admin.reviews.${action}`)
+            action === 'reject' ? t('moduleApps.admin.reviews.confirmRejection') : actionLabel
           }
           onCancel={closeAction}
           onOk={actionComplete ? closeAction : submitAction}

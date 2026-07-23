@@ -2,7 +2,7 @@
 
 import type { ModuleAppPublisherStatus } from '@lobechat/types';
 import { Flexbox } from '@lobehub/ui';
-import { Tag, Typography } from 'antd';
+import { type TableProps, Tag, Typography } from 'antd';
 import { memo, type ReactNode } from 'react';
 
 import InlineTable from '@/components/InlineTable';
@@ -37,6 +37,11 @@ export type PublisherTableLabels = {
   previous: string;
   retry: string;
   status: Record<ModuleAppPublisherRow['status'], string>;
+};
+
+type PublisherTableLabelOverrides = Omit<Partial<PublisherTableLabels>, 'columns' | 'status'> & {
+  columns?: Partial<PublisherTableLabels['columns']>;
+  status?: Partial<PublisherTableLabels['status']>;
 };
 
 const defaultLabels: PublisherTableLabels = {
@@ -80,10 +85,7 @@ const PublisherTable = memo(
     hasNext?: boolean;
     hasPrevious?: boolean;
     items?: ModuleAppPublisherRow[];
-    labels?: Partial<PublisherTableLabels> & {
-      columns?: Partial<PublisherTableLabels['columns']>;
-      status?: Partial<PublisherTableLabels['status']>;
-    };
+    labels?: PublisherTableLabelOverrides;
     loading?: boolean;
     onNext?: () => void;
     onPrevious?: () => void;
@@ -97,7 +99,7 @@ const PublisherTable = memo(
       columns: { ...defaultLabels.columns, ...labels?.columns },
       status: { ...defaultLabels.status, ...labels?.status },
     };
-    const columns = [
+    const columns: NonNullable<TableProps<ModuleAppPublisherRow>['columns']> = [
       {
         dataIndex: 'displayName',
         key: 'displayName',
@@ -154,7 +156,11 @@ const PublisherTable = memo(
           onRetry={onRetry}
         >
           {items.length ? (
-            <InlineTable columns={columns as any} dataSource={items} rowKey="id" />
+            <InlineTable
+              columns={columns as TableProps['columns']}
+              dataSource={items}
+              rowKey="id"
+            />
           ) : null}
         </AdminTableState>
         {(showPager ?? Boolean(hasNext || hasPrevious || onNext || onPrevious)) ? (

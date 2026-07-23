@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createModuleDraftScope, loadModuleDraft } from '../../shared/draftStorage';
-
 import ModuleAppEntitlementsPage from './ModuleAppEntitlementsPage';
 
 const { billing, entitlements, moduleApps, refresh, roleState, translate } = vi.hoisted(() => ({

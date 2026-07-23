@@ -1,9 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { moduleAppCacheKeys } from './shared/cacheKeys';
-
 import ProductManager from './ProductManager';
+import { moduleAppCacheKeys } from './shared/cacheKeys';
 
 const { mutate, retry, swrState } = vi.hoisted(() => ({
   mutate: vi.fn().mockResolvedValue(undefined),
@@ -91,8 +90,8 @@ describe('ProductManager', () => {
 
     render(
       <ProductManager
-        appId="app-1"
         canWrite
+        appId="app-1"
         service={{ createProduct: vi.fn(), listProducts: vi.fn(), updateProduct: vi.fn() }}
       />,
     );
@@ -108,8 +107,8 @@ describe('ProductManager', () => {
 
     render(
       <ProductManager
-        appId="app-1"
         canWrite
+        appId="app-1"
         service={{ createProduct: vi.fn(), listProducts: vi.fn(), updateProduct: vi.fn() }}
       />,
     );
@@ -125,8 +124,8 @@ describe('ProductManager', () => {
 
     render(
       <ProductManager
-        appId="app-1"
         canWrite
+        appId="app-1"
         service={{ createProduct: vi.fn(), listProducts: vi.fn(), updateProduct: vi.fn() }}
       />,
     );
@@ -162,8 +161,8 @@ describe('ProductManager', () => {
     const createProduct = vi.fn().mockResolvedValue({ id: 'product-2' });
     render(
       <ProductManager
-        appId="app-1"
         canWrite
+        appId="app-1"
         service={{
           createProduct,
           listProducts: vi.fn(),
@@ -204,8 +203,8 @@ describe('ProductManager', () => {
     const updateProduct = vi.fn().mockResolvedValue({ id: 'product-1' });
     render(
       <ProductManager
-        appId="app-1"
         canWrite
+        appId="app-1"
         service={{
           createProduct: vi.fn(),
           listProducts: vi.fn(),
@@ -238,8 +237,8 @@ describe('ProductManager', () => {
   it('matches the server product limits in the form controls', () => {
     render(
       <ProductManager
-        appId="app-1"
         canWrite
+        appId="app-1"
         service={{
           createProduct: vi.fn(),
           listProducts: vi.fn(),

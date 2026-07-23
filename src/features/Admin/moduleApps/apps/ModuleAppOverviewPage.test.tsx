@@ -5,6 +5,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
+import ModuleAppOverviewPage from './ModuleAppOverviewPage';
+
 const mocks = vi.hoisted(() => ({ confirmModal: vi.fn(), mutate: vi.fn(), refresh: vi.fn() }));
 const moduleApps = vi.hoisted(() => ({
   publish: vi.fn(),
@@ -33,8 +35,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
   confirmModal: mocks.confirmModal,
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-
-import ModuleAppOverviewPage from './ModuleAppOverviewPage';
 
 const app = {
   actions: [],
