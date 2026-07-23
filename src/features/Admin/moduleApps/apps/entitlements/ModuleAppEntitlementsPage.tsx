@@ -53,20 +53,26 @@ const ModuleAppEntitlementsPage = memo(() => {
   }, [app.id, draftScope, form, t]);
 
   const persistDraft = () => {
+    if (!canWrite) return;
+
     const values = form.getFieldsValue(true);
     try {
       saveModuleDraft(draftScope, values);
     } catch {
       setSaveStatus(t('moduleApps.admin.entitlements.draftRejected'));
+      return;
     }
   };
 
   const save = async () => {
+    if (!canWrite) return;
+
     const values = await form.validateFields();
     try {
       saveModuleDraft(draftScope, values);
     } catch {
       setSaveStatus(t('moduleApps.admin.entitlements.draftRejected'));
+      return;
     }
     const normalized = normalizeModuleAppFormValues(values);
     const accepted: string[] = [];
@@ -124,11 +130,13 @@ const ModuleAppEntitlementsPage = memo(() => {
         layout="vertical"
         onFinish={save}
         onValuesChange={() => {
+          if (!canWrite) return;
+
           setDirty(true);
           persistDraft();
         }}
       >
-        <EntitlementEditor />
+        <EntitlementEditor disabled={!canWrite} />
         <BillingEditor />
         {saveStatus ? <p role="status">{saveStatus}</p> : null}
         {canWrite ? (

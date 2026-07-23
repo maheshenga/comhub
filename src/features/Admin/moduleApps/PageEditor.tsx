@@ -6,7 +6,7 @@ import { Form, Input, InputNumber, Select } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const PageEditor = memo(() => {
+const PageEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
   const { t } = useTranslation('common');
   const pageTypeOptions = [
     'overview',
@@ -100,19 +100,29 @@ const PageEditor = memo(() => {
                     placeholder={'[{ "event": "submit", "actionKey": "create_record" }]'}
                   />
                 </Form.Item>
-                <Button danger onClick={() => remove(field.name)}>
+                <Button
+                  danger
+                  disabled={disabled}
+                  onClick={() => {
+                    if (disabled) return;
+                    remove(field.name);
+                  }}
+                >
                   {t('moduleApps.admin.configuration.removePage')}
                 </Button>
               </Flexbox>
             ))}
             <Button
+              disabled={disabled}
               onClick={() =>
-                add({
-                  key: 'overview',
-                  routePath: '/',
-                  title: t('moduleApps.admin.configuration.newPageTitle'),
-                  type: 'overview',
-                })
+                disabled
+                  ? undefined
+                  : add({
+                      key: 'overview',
+                      routePath: '/',
+                      title: t('moduleApps.admin.configuration.newPageTitle'),
+                      type: 'overview',
+                    })
               }
             >
               {t('moduleApps.admin.configuration.addPage')}

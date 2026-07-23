@@ -5,25 +5,21 @@ import { moduleAppCacheKeys } from './shared/cacheKeys';
 
 import ProductManager from './ProductManager';
 
-const { mutate } = vi.hoisted(() => ({
+const { mutate, retry, swrState } = vi.hoisted(() => ({
   mutate: vi.fn().mockResolvedValue(undefined),
+  retry: vi.fn().mockResolvedValue(undefined),
+  swrState: {
+    data: [] as any[],
+    error: undefined as unknown,
+    isLoading: false,
+  },
 }));
 
 vi.mock('@/libs/swr', () => ({
   mutate,
   useClientDataSWR: vi.fn(() => ({
-    data: [
-      {
-        amount: 88,
-        currency: 'CNY',
-        licenseScope: 'personal',
-        productId: 'product-1',
-        productKey: 'pro',
-        productType: 'one_time',
-        status: 'active',
-      },
-    ],
-    isLoading: false,
+    ...swrState,
+    mutate: retry,
   })),
 }));
 
@@ -52,10 +48,16 @@ vi.mock('react-i18next', () => ({
         'moduleApps.admin.products.amount': 'Amount',
         'moduleApps.admin.products.currency': 'Currency',
         'moduleApps.admin.products.edit': 'Edit product',
+        'moduleApps.admin.products.emptyDescription': 'Create a product to set its pricing.',
+        'moduleApps.admin.products.emptyTitle': 'No products',
+        'moduleApps.admin.products.loadErrorDescription': 'Try loading the products again.',
+        'moduleApps.admin.products.loadErrorTitle': 'Products could not be loaded',
+        'moduleApps.admin.products.loading': 'Loading products',
         'moduleApps.admin.products.moduleMultiplier': 'Module multiplier',
         'moduleApps.admin.products.productKey': 'Product key',
         'moduleApps.admin.products.promotionTitle': 'Promotion title',
         'moduleApps.admin.products.revenueShareRate': 'Revenue share rate',
+        'moduleApps.admin.products.retry': 'Retry',
         'moduleApps.admin.products.save': 'Save product',
         'moduleApps.admin.products.seatCount': 'Seat count',
         'moduleApps.admin.products.termsVersion': 'Terms version',
@@ -67,6 +69,93 @@ vi.mock('react-i18next', () => ({
 describe('ProductManager', () => {
   beforeEach(() => {
     mutate.mockClear();
+    retry.mockClear();
+    swrState.data = [
+      {
+        amount: 88,
+        currency: 'CNY',
+        licenseScope: 'personal',
+        productId: 'product-1',
+        productKey: 'pro',
+        productType: 'one_time',
+        status: 'active',
+      },
+    ];
+    swrState.error = undefined;
+    swrState.isLoading = false;
+  });
+
+  it('shows a product loading state without rendering a table spinner', () => {
+    swrState.data = [];
+    swrState.isLoading = true;
+
+    render(
+      <ProductManager
+        appId="app-1"
+        canWrite
+        service={{ createProduct: vi.fn(), listProducts: vi.fn(), updateProduct: vi.fn() }}
+      />,
+    );
+
+    expect(screen.getByTestId('module-list-skeleton')).toHaveAccessibleName('Loading products');
+    expect(document.querySelector('.ant-spin')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add product' })).not.toBeInTheDocument();
+  });
+
+  it('shows a product error state and retries the bound request', () => {
+    swrState.data = [];
+    swrState.error = new Error('network');
+
+    render(
+      <ProductManager
+        appId="app-1"
+        canWrite
+        service={{ createProduct: vi.fn(), listProducts: vi.fn(), updateProduct: vi.fn() }}
+      />,
+    );
+
+    expect(screen.getByText('Products could not be loaded')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows one writable product action in the initial empty state', () => {
+    swrState.data = [];
+
+    render(
+      <ProductManager
+        appId="app-1"
+        canWrite
+        service={{ createProduct: vi.fn(), listProducts: vi.fn(), updateProduct: vi.fn() }}
+      />,
+    );
+
+    expect(screen.getByTestId('module-empty-initial')).toHaveTextContent('No products');
+    expect(screen.getAllByRole('button', { name: 'Add product' })).toHaveLength(1);
+  });
+
+  it('keeps products readable while disabling mutations without module app write', () => {
+    const createProduct = vi.fn();
+    const updateProduct = vi.fn();
+    render(
+      <ProductManager
+        appId="app-1"
+        canWrite={false}
+        service={{ createProduct, listProducts: vi.fn(), updateProduct }}
+      />,
+    );
+
+    expect(screen.getByText('pro')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add product' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit product' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add product' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit product' }));
+
+    expect(screen.queryByLabelText('Product key')).not.toBeInTheDocument();
+    expect(createProduct).not.toHaveBeenCalled();
+    expect(updateProduct).not.toHaveBeenCalled();
   });
 
   it('lists products and creates a server-priced product', async () => {
@@ -74,6 +163,7 @@ describe('ProductManager', () => {
     render(
       <ProductManager
         appId="app-1"
+        canWrite
         service={{
           createProduct,
           listProducts: vi.fn(),
@@ -115,6 +205,7 @@ describe('ProductManager', () => {
     render(
       <ProductManager
         appId="app-1"
+        canWrite
         service={{
           createProduct: vi.fn(),
           listProducts: vi.fn(),
@@ -148,6 +239,7 @@ describe('ProductManager', () => {
     render(
       <ProductManager
         appId="app-1"
+        canWrite
         service={{
           createProduct: vi.fn(),
           listProducts: vi.fn(),

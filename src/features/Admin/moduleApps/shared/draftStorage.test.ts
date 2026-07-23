@@ -112,6 +112,37 @@ describe('module app draft storage', () => {
     expect(storage.getItem(key)).toBeNull();
   });
 
+  it.each([
+    { metadata: { name: 'paymentRecipientId', value: 'recipient-1' } },
+    { headers: [{ name: 'Authorization', value: 'Bearer secret' }] },
+    { env: [{ key: 'OPENAI_API_KEY', value: 'secret' }] },
+    { variables: [{ variableName: 'payoutTransactionNo', value: 'trade-1' }] },
+  ])('refuses sensitive fields hidden behind generic descriptors', (draft) => {
+    const storage = createStorage();
+    const scope = createModuleDraftScope('app-1', 'configuration');
+    const key = `admin-module-app-draft:v1:${scope}`;
+
+    expect(() => saveModuleDraft(scope, draft, storage)).toThrow(/sensitive/i);
+    expect(storage.values.size).toBe(0);
+
+    storage.setItem(key, JSON.stringify({ data: draft, version: 1 }));
+    expect(loadModuleDraft(scope, storage)).toBeNull();
+    expect(storage.getItem(key)).toBeNull();
+  });
+
+  it('allows non-sensitive generic configuration descriptors', () => {
+    const storage = createStorage();
+    const scope = createModuleDraftScope('app-1', 'configuration');
+    const draft = {
+      headers: [{ name: 'Accept-Language', value: 'zh-CN' }],
+      metadata: { name: 'displayMode', value: 'compact' },
+    };
+
+    saveModuleDraft(scope, draft, storage);
+
+    expect(loadModuleDraft(scope, storage)).toEqual(draft);
+  });
+
   it('refuses draft scopes outside configuration and entitlements', () => {
     const storage = createStorage();
 

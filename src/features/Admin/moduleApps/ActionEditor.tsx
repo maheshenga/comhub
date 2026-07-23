@@ -6,7 +6,7 @@ import { Form, Input, InputNumber, Select } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const ActionEditor = memo(() => {
+const ActionEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
   const { t } = useTranslation('common');
   const runtimeTypeOptions = [
     'none',
@@ -91,22 +91,32 @@ const ActionEditor = memo(() => {
                 >
                   <Input.TextArea autoSize={{ maxRows: 5, minRows: 2 }} placeholder="{}" />
                 </Form.Item>
-                <Button danger onClick={() => remove(field.name)}>
+                <Button
+                  danger
+                  disabled={disabled}
+                  onClick={() => {
+                    if (disabled) return;
+                    remove(field.name);
+                  }}
+                >
                   {t('moduleApps.admin.configuration.removeAction')}
                 </Button>
               </Flexbox>
             ))}
             <Button
+              disabled={disabled}
               onClick={() =>
-                add({
-                  id: 'create_record',
-                  inputSchemaJson: '{\n  "fields": []\n}',
-                  moduleMultiplier: 1,
-                  name: t('moduleApps.admin.configuration.newActionName'),
-                  outputSchemaJson: '{}',
-                  runtimeConfigJson: '{}',
-                  runtimeType: 'record_create',
-                })
+                disabled
+                  ? undefined
+                  : add({
+                      id: 'create_record',
+                      inputSchemaJson: '{\n  "fields": []\n}',
+                      moduleMultiplier: 1,
+                      name: t('moduleApps.admin.configuration.newActionName'),
+                      outputSchemaJson: '{}',
+                      runtimeConfigJson: '{}',
+                      runtimeType: 'record_create',
+                    })
               }
             >
               {t('moduleApps.admin.configuration.addAction')}

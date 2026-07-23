@@ -5,7 +5,7 @@ import { createModuleDraftScope, loadModuleDraft } from '../../shared/draftStora
 
 import ModuleAppConfigurationPage from './ModuleAppConfigurationPage';
 
-const { actions, moduleApps, pages, refresh, translate } = vi.hoisted(() => ({
+const { actions, appPages, moduleApps, pages, refresh, roleState, translate } = vi.hoisted(() => ({
   actions: [
     {
       id: 'archive_records',
@@ -17,6 +17,7 @@ const { actions, moduleApps, pages, refresh, translate } = vi.hoisted(() => ({
       runtimeType: 'executable_action',
     },
   ],
+  appPages: { current: undefined as unknown[] | undefined },
   moduleApps: {
     upsertActions: vi.fn().mockResolvedValue(undefined),
     upsertBilling: vi.fn(),
@@ -36,13 +37,21 @@ const { actions, moduleApps, pages, refresh, translate } = vi.hoisted(() => ({
     },
   ],
   refresh: vi.fn().mockResolvedValue(undefined),
+  roleState: { canWrite: true },
   translate: (key: string, values?: Record<string, string>) =>
     ({
       'moduleApps.admin.configuration.actions': 'Actions',
+      'moduleApps.admin.configuration.addAction': 'Add action',
+      'moduleApps.admin.configuration.addPage': 'Add page',
+      'moduleApps.admin.configuration.draftRejected': 'Draft could not be stored.',
+      'moduleApps.admin.configuration.draftRestored':
+        'Your saved configuration draft was restored. Saving again reapplies Pages and Actions.',
       'moduleApps.admin.configuration.pages': 'Pages',
       'moduleApps.admin.configuration.partialSave': `Saved: ${values?.accepted}. Not saved: ${values?.failed}. Your full draft is still available.`,
       'moduleApps.admin.configuration.save': 'Save configuration',
       'moduleApps.admin.configuration.saved': 'Configuration saved',
+      'moduleApps.admin.configuration.removeAction': 'Remove action',
+      'moduleApps.admin.configuration.removePage': 'Remove page',
       'moduleApps.admin.configuration.title': 'Configuration',
       'moduleApps.admin.configuration.validationError': 'Review the JSON fields and try again.',
     })[key] ?? key,
@@ -60,7 +69,7 @@ vi.mock('react-router', () => ({
       entitlements: [],
       icon: 'Blocks',
       id: 'app-1',
-      pages,
+      pages: appPages.current ?? pages,
       slug: 'records',
       status: 'draft',
     },
@@ -80,7 +89,7 @@ vi.mock('@/store/user/selectors', () => ({
 }));
 vi.mock('@lobechat/types', async (importOriginal) => ({
   ...(await importOriginal()),
-  hasAdminCapability: () => true,
+  hasAdminCapability: () => roleState.canWrite,
 }));
 vi.mock('../../shared/useUnsavedChangesGuard', () => ({ useUnsavedChangesGuard: vi.fn() }));
 vi.mock('@lobehub/ui/base-ui', () => ({
@@ -118,6 +127,57 @@ describe('ModuleAppConfigurationPage', () => {
     moduleApps.upsertEntitlements.mockReset();
     moduleApps.upsertPages.mockReset().mockResolvedValue(undefined);
     refresh.mockReset().mockResolvedValue(undefined);
+    appPages.current = undefined;
+    roleState.canWrite = true;
+  });
+
+  it('preserves an explicitly empty initial pages configuration', () => {
+    appPages.current = [];
+
+    render(<ModuleAppConfigurationPage />);
+
+    expect(
+      screen.queryByLabelText('moduleApps.admin.configuration.pageKey'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add page' })).toBeEnabled();
+  });
+
+  it('sends an empty pages array after removing the final page', async () => {
+    render(<ModuleAppConfigurationPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove page' }));
+    expect(
+      screen.queryByLabelText('moduleApps.admin.configuration.pageKey'),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
+
+    await waitFor(() =>
+      expect(moduleApps.upsertPages).toHaveBeenCalledWith({ appId: 'app-1', pages: [] }),
+    );
+  });
+
+  it('disables configuration list controls and ignores read-only events', async () => {
+    roleState.canWrite = false;
+    const draftScope = createModuleDraftScope('app-1', 'configuration');
+
+    render(<ModuleAppConfigurationPage />);
+
+    const listButtons = [
+      screen.getByRole('button', { name: 'Add page' }),
+      screen.getByRole('button', { name: 'Remove page' }),
+      screen.getByRole('button', { name: 'Add action' }),
+      screen.getByRole('button', { name: 'Remove action' }),
+    ];
+    listButtons.forEach((button) => expect(button).toBeDisabled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add page' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove action' }));
+
+    expect(screen.getAllByLabelText('moduleApps.admin.configuration.pageKey')).toHaveLength(1);
+    expect(screen.getAllByLabelText('moduleApps.admin.configuration.actionId')).toHaveLength(1);
+    expect(loadModuleDraft(draftScope)).toBeNull();
+    expect(moduleApps.upsertPages).not.toHaveBeenCalled();
+    expect(moduleApps.upsertActions).not.toHaveBeenCalled();
   });
 
   it('saves only pages and actions for the outlet application', async () => {
@@ -131,6 +191,25 @@ describe('ModuleAppConfigurationPage', () => {
     expect(moduleApps.upsertActions).toHaveBeenCalledWith({ actions, appId: 'app-1' });
     expect(moduleApps.upsertEntitlements).not.toHaveBeenCalled();
     expect(moduleApps.upsertBilling).not.toHaveBeenCalled();
+  });
+
+  it('stops configuration mutations when the complete draft cannot be stored', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+
+    try {
+      render(<ModuleAppConfigurationPage />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
+
+      expect(await screen.findByText('Draft could not be stored.')).toBeInTheDocument();
+      expect(moduleApps.upsertPages).not.toHaveBeenCalled();
+      expect(moduleApps.upsertActions).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   it('retains the complete draft and reports a partial save until a retry fully succeeds', async () => {
@@ -176,6 +255,11 @@ describe('ModuleAppConfigurationPage', () => {
     unmount();
     render(<ModuleAppConfigurationPage />);
     expect(screen.getByDisplayValue('archive_records')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Your saved configuration draft was restored. Saving again reapplies Pages and Actions.',
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));

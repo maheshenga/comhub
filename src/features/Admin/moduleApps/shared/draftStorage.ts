@@ -2,10 +2,18 @@ const DRAFT_VERSION = 1 as const;
 const DRAFT_KEY_PREFIX = `admin-module-app-draft:v${DRAFT_VERSION}:`;
 const DRAFT_SCOPE_PATTERN = /^[^/]+\/configuration$|^[^/]+\/entitlements$/;
 const SENSITIVE_FIELD_NAMES = new Set(['batchid', 'requestedamount']);
+const SENSITIVE_DESCRIPTOR_FIELD_NAMES = new Set([
+  'envname',
+  'headername',
+  'key',
+  'name',
+  'parametername',
+  'variablename',
+]);
 const SENSITIVE_FINANCE_IDENTIFIER_PATTERN =
   /(?:discrepancy|license|order|refund|revenueentry|settlementbatch|trade|transaction)(?:id|ids|no|number|reference)$/;
 const SENSITIVE_FIELD_PATTERN =
-  /alipay|api.?key|bank(?:account|name|number)?|card(?:number)?|credential|evidence|iban|payment|payout|private.?key|recipient|routing(?:number)?|secret|tax(?:id)?|token/i;
+  /alipay|api.?key|authorization|bank(?:account|name|number)?|card(?:number)?|credential|evidence|iban|payment|payout|private.?key|recipient|routing(?:number)?|secret|tax(?:id)?|token/i;
 
 export type ModuleDraftView = 'configuration' | 'entitlements';
 export type ModuleDraftStorage = Pick<Storage, 'getItem' | 'removeItem' | 'setItem'>;
@@ -39,9 +47,20 @@ const isSensitiveFieldName = (key: string) => {
 const hasSensitiveField = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false;
 
-  return Object.entries(value).some(
-    ([key, nestedValue]) => isSensitiveFieldName(key) || hasSensitiveField(nestedValue),
-  );
+  return Object.entries(value).some(([key, nestedValue]) => {
+    if (isSensitiveFieldName(key)) return true;
+
+    const normalizedKey = key.replaceAll(/[^a-z0-9]/gi, '').toLowerCase();
+    if (
+      SENSITIVE_DESCRIPTOR_FIELD_NAMES.has(normalizedKey) &&
+      typeof nestedValue === 'string' &&
+      isSensitiveFieldName(nestedValue)
+    ) {
+      return true;
+    }
+
+    return hasSensitiveField(nestedValue);
+  });
 };
 
 const assertNoSensitiveFields = (draft: unknown) => {
