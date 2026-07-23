@@ -5,6 +5,7 @@ import {
   type DesktopBuildAssetKind,
   type DesktopBuildAssetManifest,
   type DesktopBuildProfilePayload,
+  type ModuleAppPayoutStatus,
   type Plans,
 } from '@lobechat/types';
 
@@ -362,6 +363,17 @@ class AdminCommercialService {
 
   // Module apps
   moduleApps = {
+    acknowledgePaymentDiscrepancy: (input: { discrepancyId: string }) =>
+      lambdaClient.admin.moduleApps.acknowledgePaymentDiscrepancy.mutate(input),
+    assignPublisher: (input: { appId: string; publisherId: string }) =>
+      lambdaClient.admin.moduleApps.assignPublisher.mutate(input),
+    createPayoutBatch: (input: {
+      publisherId: string;
+      requestedAmount: number;
+      revenueEntryIds: string[];
+    }) => lambdaClient.admin.moduleApps.createPayoutBatch.mutate(input),
+    createPublisher: (input: { displayName: string; recipientMask?: string; userId: string }) =>
+      lambdaClient.admin.moduleApps.createPublisher.mutate(input),
     createProduct: (input: {
       appId: string;
       licenseScope: 'personal' | 'workspace' | 'workspace_seat';
@@ -390,6 +402,8 @@ class AdminCommercialService {
       cursor?: number | string;
       limit?: number;
       publisherId?: string;
+      query?: string;
+      sort?: 'catalog' | 'name_asc' | 'updated_desc';
       status?: string;
     }) => lambdaClient.admin.moduleApps.list.query(input as any),
     listArtifacts: (input: { appId: string; cursor?: number | string; limit?: number }) =>
@@ -440,15 +454,45 @@ class AdminCommercialService {
       paymentStatus?: 'created' | 'failed' | 'paid' | 'pending' | 'refunded';
       refundStatus?: 'failed' | 'requested' | 'succeeded';
     }) => lambdaClient.admin.moduleApps.listPaymentDiagnostics.query(input as any),
+    exportPaymentReconciliation: (input?: {
+      cursor?: number;
+      limit?: number;
+      status?: 'open' | 'resolved';
+    }) => lambdaClient.admin.moduleApps.exportPaymentReconciliation.query(input as any),
     listProducts: (input: { appId: string }) =>
       lambdaClient.admin.moduleApps.listProducts.query(input),
     publish: (input: { appId: string }) => lambdaClient.admin.moduleApps.publish.mutate(input),
+    reconcilePendingPayments: (input: { limit: number }) =>
+      lambdaClient.admin.moduleApps.reconcilePendingPayments.mutate(input),
+    recordManualAlipayPayout: (input: {
+      batchId: string;
+      evidenceReference: string;
+      recipientMask: string;
+      transactionNo: string;
+    }) => lambdaClient.admin.moduleApps.recordManualAlipayPayout.mutate(input),
     rejectPackage: (input: { packageId: string; reason?: string }) =>
       lambdaClient.admin.moduleApps.rejectPackage.mutate(input),
     rescanPackage: (input: { packageId: string }) =>
       lambdaClient.admin.moduleApps.rescanPackage.mutate(input),
+    refundOrder: (input: { offlineRefundReference: string; orderId: string; reason: string }) =>
+      lambdaClient.admin.moduleApps.refundOrder.mutate(input),
+    refundPaymentOrder: (input: { orderId: string; reason: string }) =>
+      lambdaClient.admin.moduleApps.refundPaymentOrder.mutate(input),
+    retryPaymentQuery: (input: { outTradeNo: string }) =>
+      lambdaClient.admin.moduleApps.retryPaymentQuery.mutate(input),
+    retryRefundStatus: (input: { orderId: string }) =>
+      lambdaClient.admin.moduleApps.retryRefundStatus.mutate(input),
+    settleOrder: (input: { orderId: string; paymentReference: string }) =>
+      lambdaClient.admin.moduleApps.settleOrder.mutate(input),
     settleRevenueBatch: (input: { entryIds: string[] }) =>
       lambdaClient.admin.moduleApps.settleRevenueBatch.mutate(input),
+    suspendPublisher: (input: { publisherId: string }) =>
+      lambdaClient.admin.moduleApps.suspendPublisher.mutate(input),
+    transitionPayoutBatch: (input: {
+      batchId: string;
+      failureReason?: string;
+      status: Exclude<ModuleAppPayoutStatus, 'paid'>;
+    }) => lambdaClient.admin.moduleApps.transitionPayoutBatch.mutate(input),
     unpublish: (input: { appId: string }) => lambdaClient.admin.moduleApps.unpublish.mutate(input),
     upsert: (input: unknown) => lambdaClient.admin.moduleApps.upsert.mutate(input as any),
     upsertActions: (input: { actions: unknown[]; appId: string }) =>
@@ -476,6 +520,10 @@ class AdminCommercialService {
       status: 'active' | 'inactive';
       termsVersion?: string;
     }) => lambdaClient.admin.moduleApps.updateProduct.mutate(input as any),
+    verifyPublisher: (input: {
+      publisherId: string;
+      verificationMetadata: Record<string, unknown>;
+    }) => lambdaClient.admin.moduleApps.verifyPublisher.mutate(input),
   };
 
   // Orders

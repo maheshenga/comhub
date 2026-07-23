@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Empty, Form, Input, InputNumber, message, Modal, Select, Tag } from 'antd';
+import { Button, Modal } from '@lobehub/ui/base-ui';
+import { Form, Input, InputNumber, message, Select, Tag } from 'antd';
 import { Pencil, Plus, Save } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +10,9 @@ import { useTranslation } from 'react-i18next';
 import InlineTable from '@/components/InlineTable';
 import { mutate, useClientDataSWR } from '@/libs/swr';
 import { adminCommercialService } from '@/services/adminCommercial';
+
+import { moduleAppCacheKeys } from './shared/cacheKeys';
+import ModulePageState from './shared/ModulePageState';
 
 type ProductType = 'free' | 'one_time' | 'subscription';
 type LicenseScope = 'personal' | 'workspace' | 'workspace_seat';
@@ -71,9 +75,10 @@ const normalizeOptionalDecimal = (value?: number) =>
   typeof value === 'number' ? String(value) : undefined;
 
 const ProductManager = memo<{
-  appId?: string;
+  appId: string;
+  canWrite?: boolean;
   service?: ProductService;
-}>(({ appId, service = adminCommercialService.moduleApps }) => {
+}>(({ appId, canWrite = true, service = adminCommercialService.moduleApps }) => {
   const { t } = useTranslation('common');
   const [form] = Form.useForm<ProductFormValues>();
   const licenseScope = Form.useWatch('licenseScope', form);
@@ -81,11 +86,13 @@ const ProductManager = memo<{
   const [editing, setEditing] = useState<ProductRow>();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const key = useMemo(() => (appId ? ['admin-module-app-products', appId] : null), [appId]);
-  const { data = [], isLoading } = useClientDataSWR(
-    key,
-    () => service.listProducts({ appId: appId! }) as Promise<ProductRow[]>,
-  );
+  const key = useMemo(() => moduleAppCacheKeys.products(appId), [appId]);
+  const {
+    data = [],
+    error,
+    isLoading,
+    mutate: retry,
+  } = useClientDataSWR(key, () => service.listProducts({ appId }) as Promise<ProductRow[]>);
 
   const close = () => {
     setOpen(false);
@@ -93,7 +100,17 @@ const ProductManager = memo<{
     form.resetFields();
   };
 
+  const add = () => {
+    if (!canWrite) return;
+
+    setEditing(undefined);
+    form.setFieldsValue(initialValues);
+    setOpen(true);
+  };
+
   const edit = (row: ProductRow) => {
+    if (!canWrite) return;
+
     setEditing(row);
     form.setFieldsValue({
       amount: row.amount,
@@ -114,7 +131,8 @@ const ProductManager = memo<{
   };
 
   const save = async (values: ProductFormValues) => {
-    if (!appId) return;
+    if (!canWrite) return;
+
     setSaving(true);
     const promotionTitle = normalizeOptionalText(values.promotionTitle);
     const price = {
@@ -209,7 +227,12 @@ const ProductManager = memo<{
     },
     {
       render: (_: unknown, row: ProductRow) => (
-        <Button icon={<Pencil size={14} />} size="small" onClick={() => edit(row)}>
+        <Button
+          disabled={!canWrite}
+          icon={<Pencil size={14} />}
+          size="small"
+          onClick={() => edit(row)}
+        >
           {t('moduleApps.admin.products.edit')}
         </Button>
       ),
@@ -217,29 +240,38 @@ const ProductManager = memo<{
     },
   ];
 
-  if (!appId) return <Empty description={t('moduleApps.admin.products.selectApp')} />;
-
   return (
     <Flexbox gap={12}>
-      <Flexbox horizontal justify="flex-end">
-        <Button
-          icon={<Plus size={16} />}
-          type="primary"
-          onClick={() => {
-            setEditing(undefined);
-            form.setFieldsValue(initialValues);
-            setOpen(true);
-          }}
-        >
-          {t('moduleApps.admin.products.add')}
-        </Button>
-      </Flexbox>
-      <InlineTable
-        columns={columns as any}
-        dataSource={data}
+      <ModulePageState
+        error={error}
+        errorDescription={t('moduleApps.admin.products.loadErrorDescription')}
+        errorTitle={t('moduleApps.admin.products.loadErrorTitle')}
+        isEmpty={!isLoading && !error && data.length === 0}
         loading={isLoading}
-        rowKey="productId"
-      />
+        loadingLabel={t('moduleApps.admin.products.loading')}
+        onRetry={() => void retry()}
+        primaryAction={
+          canWrite
+            ? {
+                icon: <Plus size={16} />,
+                label: t('moduleApps.admin.products.add'),
+                onClick: add,
+              }
+            : undefined
+        }
+        retryLabel={t('moduleApps.admin.products.retry')}
+        emptyDescription={t('moduleApps.admin.products.emptyDescription')}
+        emptyTitle={t('moduleApps.admin.products.emptyTitle')}
+      >
+        <Flexbox gap={12}>
+          <Flexbox horizontal justify="flex-end">
+            <Button disabled={!canWrite} icon={<Plus size={16} />} type="primary" onClick={add}>
+              {t('moduleApps.admin.products.add')}
+            </Button>
+          </Flexbox>
+          <InlineTable columns={columns as any} dataSource={data} rowKey="productId" />
+        </Flexbox>
+      </ModulePageState>
       <Modal
         destroyOnHidden
         footer={null}
@@ -248,6 +280,7 @@ const ProductManager = memo<{
         onCancel={close}
       >
         <Form<ProductFormValues>
+          disabled={!canWrite}
           form={form}
           initialValues={initialValues}
           layout="vertical"
@@ -404,7 +437,14 @@ const ProductManager = memo<{
               />
             </Form.Item>
           )}
-          <Button block htmlType="submit" icon={<Save size={16} />} loading={saving} type="primary">
+          <Button
+            block
+            disabled={!canWrite}
+            htmlType="submit"
+            icon={<Save size={16} />}
+            loading={saving}
+            type="primary"
+          >
             {t('moduleApps.admin.products.save')}
           </Button>
         </Form>

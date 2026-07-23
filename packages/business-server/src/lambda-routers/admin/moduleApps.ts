@@ -76,6 +76,11 @@ const ListInputSchema = z
     cursor: AdminCursorSchema,
     limit: z.number().int().min(1).max(200).default(50),
     publisherId: z.string().uuid().optional(),
+    query: z
+      .string()
+      .transform((value) => value.trim().slice(0, 80))
+      .optional(),
+    sort: z.enum(['catalog', 'name_asc', 'updated_desc']).optional(),
     status: moduleAppStatusSchema.optional(),
   })
   .optional()

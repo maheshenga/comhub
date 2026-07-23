@@ -1,9 +1,4 @@
-import {
-  type AdminRole,
-  hasAdminCapability,
-  isAdminRole,
-  isFullAdminRole,
-} from '@lobechat/types';
+import { type AdminRole, hasAdminCapability, isAdminRole, isFullAdminRole } from '@lobechat/types';
 
 import {
   ADMIN_BASE_PATH,
@@ -16,6 +11,15 @@ import {
   type AdminNavIcon,
   getAdminCatalogAccessCapabilities,
 } from './adminCatalog';
+import {
+  findModuleAdminSectionByPath,
+  MODULE_ADMIN_ROOT_PATH,
+} from './moduleApps/navigation/catalog';
+import {
+  canAccessAdminPolicy,
+  getModuleCenterSectionsForRole,
+  MODULE_ADMIN_ROUTE_POLICIES,
+} from './moduleApps/navigation/policy';
 
 export { ADMIN_BASE_PATH, type AdminNavGroupKey, type AdminNavIcon } from './adminCatalog';
 
@@ -85,6 +89,12 @@ export const canAccessAdminPath = (role: string | null | undefined, pathname: st
   if (!isAdminRole(role)) return false;
   if (isFullAdminRole(role)) return true;
 
+  const cleanPath = normalizeAdminPath(pathname);
+  const moduleSection = findModuleAdminSectionByPath(cleanPath);
+  if (moduleSection) {
+    return canAccessAdminPolicy(role, MODULE_ADMIN_ROUTE_POLICIES[moduleSection.id].access);
+  }
+
   const selectedPath = getAdminSelectedKey(pathname);
   const capabilities = ADMIN_PATH_CAPABILITIES.get(selectedPath);
 
@@ -95,6 +105,18 @@ export const getAdminDefaultPath = (role: string | null | undefined) => {
   if (!isAdminRole(role)) return '/';
 
   return ADMIN_ROLE_DEFAULT_PATHS[role];
+};
+
+export const getAdminUnauthorizedFallbackPath = (
+  role: string | null | undefined,
+  pathname: string,
+) => {
+  const cleanPath = normalizeAdminPath(pathname);
+  if (cleanPath === MODULE_ADMIN_ROOT_PATH || cleanPath.startsWith(`${MODULE_ADMIN_ROOT_PATH}/`)) {
+    return getModuleCenterSectionsForRole(role)[0]?.path ?? getAdminDefaultPath(role);
+  }
+
+  return getAdminDefaultPath(role);
 };
 
 export const getAdminNavGroupsForRole = (role: string | null | undefined): AdminNavGroup[] =>

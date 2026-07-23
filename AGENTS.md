@@ -2,6 +2,16 @@
 
 Guidelines for using AI coding agents in this LobeHub repository.
 
+## Agent Skill Policy
+
+- Superpowers is disabled in this repository. Do not invoke `using-superpowers` or any
+  Superpowers workflow skills for planning, implementation, review, or completion.
+- Do not create or update `.superpowers/` artifacts. Existing files in that directory are
+  user-owned and must remain untouched unless the user explicitly requests otherwise.
+- The `grill-me` workflow is allowed through the `grilling` skill, but only when the user
+  explicitly asks to grill or stress-test a plan, decision, or idea.
+- Other directly applicable non-Superpowers skills remain available.
+
 ## Tech Stack
 
 - Next.js 16 + React 19 + TypeScript

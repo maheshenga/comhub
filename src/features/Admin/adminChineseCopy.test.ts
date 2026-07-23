@@ -13,6 +13,7 @@ const zhCNSubscription = JSON.parse(readRepoFile('locales/zh-CN/subscription.jso
   string,
   string
 >;
+const zhCNCommon = JSON.parse(readRepoFile('locales/zh-CN/common.json')) as Record<string, string>;
 
 const filesWithAdminCopy = [
   'src/features/Admin/adminCatalog.ts',
@@ -47,6 +48,14 @@ const corruptedFragments = [
 ];
 
 describe('admin Chinese copy', () => {
+  it('keeps Module Center navigation labels in Simplified Chinese', () => {
+    expect(zhCNCommon['moduleApps.admin.center.navigation.label']).toBe('模块中心分区');
+    expect(zhCNCommon['moduleApps.admin.center.navigation.apps']).toBe('应用');
+    expect(zhCNCommon['moduleApps.admin.center.navigation.finance']).toBe('财务');
+    expect(zhCNCommon['moduleApps.admin.center.navigation.operations']).toBe('运维');
+    expect(zhCNCommon['moduleApps.admin.center.navigation.audit']).toBe('审计');
+  });
+
   it('does not ship corrupted fallback text in admin pages', () => {
     for (const file of filesWithAdminCopy) {
       const content = readRepoFile(file);

@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { eq } from 'drizzle-orm';
+
 import { getTestDB } from '@/database/core/getTestDB';
 import {
   moduleAppAuditLogs,
@@ -84,6 +86,55 @@ const seedApplications = async () => {
 };
 
 describe('ModuleAppAdminReadModel', () => {
+  it.each([
+    ['%', 'Percent % literal', 'Percent X literal'],
+    ['_', 'Under_score literal', 'UnderXscore literal'],
+    ['\\', String.raw`Back\slash literal`, 'BackXslash literal'],
+  ])('treats %s as a literal search character', async (query, literalName, wildcardName) => {
+    const { apps } = await seedApplications();
+    await db
+      .update(moduleApps)
+      .set({ displayName: literalName })
+      .where(eq(moduleApps.id, apps[0].id));
+    await db
+      .update(moduleApps)
+      .set({ displayName: wildcardName })
+      .where(eq(moduleApps.id, apps[1].id));
+
+    const result = await new ModuleAppAdminReadModel(db).listApplications({ query });
+
+    expect(result.items.map((item) => item.id)).toEqual([apps[0].id]);
+  });
+
+  it('searches display names and slugs with an updated-at cursor', async () => {
+    const { apps } = await seedApplications();
+    await db
+      .update(moduleApps)
+      .set({ displayName: 'Workbench', slug: 'workbench' })
+      .where(eq(moduleApps.id, apps[1].id));
+    await db
+      .update(moduleApps)
+      .set({ updatedAt: new Date('2026-07-22T00:00:00.000Z') })
+      .where(eq(moduleApps.id, apps[1].id));
+    await db
+      .update(moduleApps)
+      .set({ slug: 'workflow-builder', updatedAt: new Date('2026-07-21T00:00:00.000Z') })
+      .where(eq(moduleApps.id, apps[2].id));
+
+    const model = new ModuleAppAdminReadModel(db);
+    const first = await model.listApplications({
+      limit: 1,
+      query: 'work',
+      sort: 'updated_desc',
+    });
+
+    expect(first.items.map((item) => item.slug)).toEqual(['workbench']);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    await expect(
+      model.listApplications({ cursor: first.nextCursor!, query: 'work', sort: 'name_asc' }),
+    ).rejects.toThrow('MODULE_APP_ADMIN_CURSOR_INVALID');
+  });
+
   it('uses stable keyset cursors across a dataset larger than one page', async () => {
     const { apps, publisher } = await seedApplications();
     const model = new ModuleAppAdminReadModel(db);
@@ -128,9 +179,7 @@ describe('ModuleAppAdminReadModel', () => {
     });
     expect(runPage.items).toHaveLength(2);
     expect(remainingRuns.items).toHaveLength(1);
-    expect(
-      new Set([...runPage.items, ...remainingRuns.items].map((item) => item.id)).size,
-    ).toBe(3);
+    expect(new Set([...runPage.items, ...remainingRuns.items].map((item) => item.id)).size).toBe(3);
   });
 
   it('filters packages by publisher and build status', async () => {

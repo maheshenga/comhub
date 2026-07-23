@@ -109,8 +109,9 @@ describe('adminCatalog', () => {
       ADMIN_CAPABILITIES.financeRead,
       ADMIN_CAPABILITIES.systemRead,
     ]);
-    const moduleApps = ADMIN_CATALOG.find((item) => item.id === 'module-apps');
+    const moduleApps = ADMIN_CATALOG.find((item) => item.id === 'modules');
     expect(moduleApps?.readCapability).toBe(ADMIN_CAPABILITIES.moduleAppRead);
+    expect(moduleApps?.segment).toBe('modules');
     expect(moduleApps?.accessCapabilities).toEqual([
       ADMIN_CAPABILITIES.moduleAppRead,
       ADMIN_CAPABILITIES.financeRead,

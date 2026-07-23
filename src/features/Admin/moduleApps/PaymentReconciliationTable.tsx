@@ -1,6 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { Tag, Typography } from 'antd';
 import { memo } from 'react';
 
@@ -35,6 +36,74 @@ export type ModuleAppPaymentDiagnosticRow = {
   totalAmount: string;
 };
 
+export type PaymentTableLabels = Partial<{
+  acknowledge: string;
+  action: string;
+  alipayTrade: string;
+  amount: string;
+  app: string;
+  audit: string;
+  commerce: string;
+  empty: string;
+  events: string;
+  latestRun: string;
+  loading: string;
+  next: string;
+  offlineRefund: string;
+  order: string;
+  previous: string;
+  refund: string;
+  retry: string;
+  retryPayment: string;
+  retryRefund: string;
+  settle: string;
+  status: string;
+}>;
+
+type PaymentTableProps = {
+  canWrite?: boolean;
+  error?: unknown;
+  hasNext?: boolean;
+  hasPrevious?: boolean;
+  items?: ModuleAppPaymentDiagnosticRow[];
+  labels?: PaymentTableLabels;
+  loading?: boolean;
+  onAcknowledge?: (discrepancyId: string) => void;
+  onNext?: () => void;
+  onOpenOfflineRefund?: (row: ModuleAppPaymentDiagnosticRow) => void;
+  onOpenRefund?: (row: ModuleAppPaymentDiagnosticRow) => void;
+  onOpenSettle?: (row: ModuleAppPaymentDiagnosticRow) => void;
+  onPrevious?: () => void;
+  onRetry?: () => void;
+  onRetryPayment?: (outTradeNo: string) => void;
+  onRetryRefund?: (orderId: string) => void;
+  statusLabels?: Record<string, string>;
+};
+
+const defaultLabels = {
+  acknowledge: 'Acknowledge discrepancy',
+  action: 'Actions',
+  alipayTrade: 'Alipay trade',
+  amount: 'Amount',
+  app: 'App',
+  audit: 'Audit',
+  commerce: 'License / revenue / payout',
+  empty: 'No payment records',
+  events: 'Events',
+  latestRun: 'Latest app run',
+  loading: 'Loading payment records',
+  next: 'Next page',
+  offlineRefund: 'Record offline refund',
+  order: 'Order',
+  previous: 'Previous page',
+  refund: 'Refund payment',
+  retry: 'Retry',
+  retryPayment: 'Retry payment query',
+  retryRefund: 'Retry refund status',
+  settle: 'Settle order',
+  status: 'Status',
+};
+
 const IdList = ({ ids }: { ids: Array<null | string | undefined> }) => {
   const values = ids.filter((id): id is string => Boolean(id));
   return values.length ? (
@@ -50,106 +119,156 @@ const IdList = ({ ids }: { ids: Array<null | string | undefined> }) => {
   );
 };
 
-const PaymentReconciliationTable = memo(
+const PaymentReconciliationTable = memo<PaymentTableProps>(
   ({
+    canWrite = false,
     error,
     hasNext,
     hasPrevious,
     items = [],
+    labels,
     loading,
+    onAcknowledge,
     onNext,
+    onOpenOfflineRefund,
+    onOpenRefund,
+    onOpenSettle,
     onPrevious,
     onRetry,
-  }: {
-    error?: unknown;
-    hasNext?: boolean;
-    hasPrevious?: boolean;
-    items?: ModuleAppPaymentDiagnosticRow[];
-    loading?: boolean;
-    onNext?: () => void;
-    onPrevious?: () => void;
-    onRetry?: () => void;
+    onRetryPayment,
+    onRetryRefund,
+    statusLabels,
   }) => {
+    const copy = { ...defaultLabels, ...labels };
+    const hasPager =
+      hasNext !== undefined || hasPrevious !== undefined || Boolean(onNext) || Boolean(onPrevious);
     const columns = [
-      { dataIndex: 'appName', key: 'appName', title: 'App' },
+      { dataIndex: 'appName', key: 'appName', title: copy.app },
       {
         dataIndex: 'orderId',
         key: 'orderId',
         render: (value: string) => <IdList ids={[value]} />,
-        title: 'Order',
+        title: copy.order,
       },
       {
         dataIndex: 'outTradeNo',
         key: 'outTradeNo',
         render: (value: string) => <IdList ids={[value]} />,
-        title: 'Alipay trade',
+        title: copy.alipayTrade,
       },
       {
         key: 'status',
         render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
           <Flexbox gap={4}>
-            <Tag color={row.paymentStatus === 'paid' ? 'green' : 'gold'}>{row.paymentStatus}</Tag>
-            {row.refundStatus && <Tag>{row.refundStatus}</Tag>}
-            {row.discrepancyStatus && <Tag color="red">{row.discrepancyStatus}</Tag>}
+            <Tag color={row.paymentStatus === 'paid' ? 'green' : 'gold'}>
+              {statusLabels?.[row.paymentStatus] ?? row.paymentStatus}
+            </Tag>
+            {row.refundStatus ? (
+              <Tag>{statusLabels?.[row.refundStatus] ?? row.refundStatus}</Tag>
+            ) : null}
+            {row.discrepancyStatus ? (
+              <Tag color="red">
+                {statusLabels?.[row.discrepancyStatus] ?? row.discrepancyStatus}
+              </Tag>
+            ) : null}
           </Flexbox>
         ),
-        title: 'Status',
+        title: copy.status,
       },
       {
         key: 'amount',
         render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) =>
           `${row.currency} ${row.totalAmount}`,
-        title: 'Amount',
+        title: copy.amount,
       },
       {
         key: 'paymentEventIds',
         render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
           <IdList ids={row.paymentEventIds} />
         ),
-        title: 'Events',
+        title: copy.events,
       },
       {
         key: 'commerceIds',
         render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
           <IdList ids={[...row.licenseIds, ...row.revenueEntryIds, ...row.payoutBatchIds]} />
         ),
-        title: 'License / revenue / payout',
+        title: copy.commerce,
       },
       {
         key: 'latestAppRuntimeInvocationId',
         render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
           <IdList ids={[row.latestAppRuntimeInvocationId]} />
         ),
-        title: 'Latest app run',
+        title: copy.latestRun,
       },
       {
         key: 'auditEventIds',
         render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
           <IdList ids={row.auditEventIds} />
         ),
-        title: 'Audit',
+        title: copy.audit,
       },
+      ...(canWrite
+        ? [
+            {
+              key: 'actions',
+              render: (_: unknown, row: ModuleAppPaymentDiagnosticRow) => (
+                <Flexbox horizontal gap={6} wrap="wrap">
+                  {row.discrepancyStatus === 'open' && row.discrepancyIds[0] && onAcknowledge ? (
+                    <Button onClick={() => onAcknowledge(row.discrepancyIds[0])}>
+                      {copy.acknowledge}
+                    </Button>
+                  ) : null}
+                  {row.outTradeNo && onRetryPayment ? (
+                    <Button onClick={() => onRetryPayment(row.outTradeNo)}>
+                      {copy.retryPayment}
+                    </Button>
+                  ) : null}
+                  {row.orderId && row.paymentStatus === 'paid' && onOpenRefund ? (
+                    <Button onClick={() => onOpenRefund(row)}>{copy.refund}</Button>
+                  ) : null}
+                  {row.orderId && row.paymentStatus === 'paid' && onOpenOfflineRefund ? (
+                    <Button onClick={() => onOpenOfflineRefund(row)}>{copy.offlineRefund}</Button>
+                  ) : null}
+                  {row.orderId && row.refundStatus && onRetryRefund ? (
+                    <Button onClick={() => onRetryRefund(row.orderId)}>{copy.retryRefund}</Button>
+                  ) : null}
+                  {row.orderId && row.orderStatus !== 'paid' && onOpenSettle ? (
+                    <Button onClick={() => onOpenSettle(row)}>{copy.settle}</Button>
+                  ) : null}
+                </Flexbox>
+              ),
+              title: copy.action,
+            },
+          ]
+        : []),
     ];
 
     return (
       <Flexbox gap={10}>
         <AdminTableState
-          emptyLabel="No payment records"
+          emptyLabel={copy.empty}
           error={error}
           loading={loading}
-          loadingLabel="Loading payment records"
+          loadingLabel={copy.loading}
+          retryLabel={copy.retry}
           onRetry={onRetry}
         >
           {items.length ? (
             <InlineTable columns={columns as any} dataSource={items} rowKey="id" />
           ) : null}
         </AdminTableState>
-        <CursorPager
-          hasNext={hasNext}
-          hasPrevious={hasPrevious}
-          onNext={onNext}
-          onPrevious={onPrevious}
-        />
+        {hasPager ? (
+          <CursorPager
+            hasNext={hasNext}
+            hasPrevious={hasPrevious}
+            nextLabel={copy.next}
+            previousLabel={copy.previous}
+            onNext={onNext}
+            onPrevious={onPrevious}
+          />
+        ) : null}
       </Flexbox>
     );
   },

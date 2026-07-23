@@ -1,9 +1,8 @@
 'use client';
 
-import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Empty, Spin, Tooltip } from 'antd';
-import { RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
+
+import { ModulePageState } from './shared/ModulePageState';
 
 const isPermissionError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? '');
@@ -17,6 +16,7 @@ export const AdminTableState = ({
   loading,
   loadingLabel,
   onRetry,
+  retryLabel,
 }: {
   children: ReactNode;
   emptyLabel: string;
@@ -24,35 +24,22 @@ export const AdminTableState = ({
   loading?: boolean;
   loadingLabel: string;
   onRetry?: () => void;
+  retryLabel?: string;
 }) => {
-  if (loading) {
-    return (
-      <Flexbox align="center" aria-label={loadingLabel} padding={32}>
-        <Spin />
-      </Flexbox>
-    );
-  }
-  if (error) {
-    return (
-      <Alert
-        showIcon
-        message={isPermissionError(error) ? 'Permission denied' : 'Could not load data'}
-        type="error"
-        action={
-          onRetry ? (
-            <Tooltip title="Retry">
-              <Button
-                aria-label="Retry"
-                icon={<Icon icon={RefreshCw} size={14} />}
-                size="small"
-                onClick={onRetry}
-              />
-            </Tooltip>
-          ) : undefined
-        }
-      />
-    );
-  }
-  if (!children) return <Empty description={emptyLabel} />;
-  return children;
+  return (
+    <ModulePageState
+      emptyDescription={emptyLabel}
+      error={error}
+      isEmpty={!children}
+      loading={loading}
+      loadingLabel={loadingLabel}
+      retryLabel={retryLabel ?? 'Retry'}
+      errorTitle={
+        error ? (isPermissionError(error) ? 'Permission denied' : 'Could not load data') : undefined
+      }
+      onRetry={onRetry}
+    >
+      {children}
+    </ModulePageState>
+  );
 };

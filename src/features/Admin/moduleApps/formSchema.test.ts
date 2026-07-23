@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildModuleAppPublishWarningCodes,
   buildModuleAppPublishWarnings,
   buildModuleAppUpsertInput,
   createDefaultModuleAppFormValues,
@@ -188,6 +189,9 @@ describe('module app admin form schema', () => {
   });
 
   it('builds publish warnings for incomplete app manifests', () => {
+    expect(buildModuleAppPublishWarningCodes({ actions: [], entitlements: [], pages: [] })).toEqual(
+      ['noPages', 'noActions', 'noVisibleEntitlement'],
+    );
     expect(buildModuleAppPublishWarnings({ actions: [], entitlements: [], pages: [] })).toEqual([
       'No pages configured',
       'No runnable actions configured',
