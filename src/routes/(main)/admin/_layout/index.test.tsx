@@ -24,13 +24,18 @@ const userStoreMock = vi.hoisted(() => {
 
 const locationMock = vi.hoisted(() => ({ pathname: '/settings/admin' }));
 
-vi.mock('react-router', () => ({
-  Navigate: ({ replace, to }: { replace?: boolean; to: string }) => (
-    <div data-replace={String(Boolean(replace))} data-testid="navigate" data-to={to} />
-  ),
-  Outlet: () => <div data-testid="admin-outlet" />,
-  useLocation: () => locationMock,
-}));
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('react-router');
+
+  return {
+    ...actual,
+    Navigate: ({ replace, to }: { replace?: boolean; to: string }) => (
+      <div data-replace={String(Boolean(replace))} data-testid="navigate" data-to={to} />
+    ),
+    Outlet: () => <div data-testid="admin-outlet" />,
+    useLocation: () => locationMock,
+  };
+});
 
 vi.mock('@/features/Admin', () => ({
   AdminSidebar: () => <div data-testid="admin-sidebar" />,
@@ -136,5 +141,19 @@ describe('AdminLayout', () => {
       '/settings/admin/subscriptions',
     );
     expect(screen.queryByTestId('admin-outlet')).not.toBeInTheDocument();
+  });
+
+  it('redirects scoped roles to the first permitted Module Center section', () => {
+    act(() => {
+      locationMock.pathname = '/settings/admin/modules/apps/app-1/products';
+      userStoreMock.useUserStore.setState({
+        isUserStateInit: true,
+        user: { id: 'finance-1', role: 'finance_admin', username: 'finance' },
+      });
+    });
+
+    render(<AdminLayout />);
+
+    expect(screen.getByTestId('navigate')).toHaveAttribute('data-to', '/settings/admin/modules');
   });
 });

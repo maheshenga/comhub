@@ -6,17 +6,11 @@ import { Form, Input, InputNumber, Select } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+const PAGE_TYPES = ['overview', 'form', 'list', 'detail', 'result', 'artifact', 'custom'] as const;
+
 const PageEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
   const { t } = useTranslation('common');
-  const pageTypeOptions = [
-    'overview',
-    'form',
-    'list',
-    'detail',
-    'result',
-    'artifact',
-    'custom',
-  ].map((value) => ({
+  const pageTypeOptions = PAGE_TYPES.map((value) => ({
     label: t(`moduleApps.admin.configuration.pageTypeOptions.${value}`),
     value,
   }));

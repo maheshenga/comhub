@@ -13,7 +13,7 @@ import { userProfileSelectors } from '@/store/user/selectors';
 
 import BillingEditor from '../../BillingEditor';
 import EntitlementEditor from '../../EntitlementEditor';
-import { normalizeModuleAppFormValues, type ModuleAppAdminFormValues } from '../../formSchema';
+import { type ModuleAppAdminFormValues, normalizeModuleAppFormValues } from '../../formSchema';
 import type { ModuleAppDetailOutletContext } from '../../layouts/ModuleAppDetailLayout';
 import {
   clearModuleDraft,

@@ -12,9 +12,9 @@ import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
 import ActionEditor from '../../ActionEditor';
-import PageEditor from '../../PageEditor';
-import { normalizeModuleAppFormValues, type ModuleAppAdminFormValues } from '../../formSchema';
+import { type ModuleAppAdminFormValues, normalizeModuleAppFormValues } from '../../formSchema';
 import type { ModuleAppDetailOutletContext } from '../../layouts/ModuleAppDetailLayout';
+import PageEditor from '../../PageEditor';
 import {
   clearModuleDraft,
   createModuleDraftScope,

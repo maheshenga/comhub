@@ -6,19 +6,21 @@ import { Form, Input, InputNumber, Select } from 'antd';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+const RUNTIME_TYPES = [
+  'none',
+  'record_create',
+  'record_update',
+  'record_archive',
+  'api_action',
+  'server_action',
+  'content_generation',
+  'workflow_step',
+  'executable_action',
+] as const;
+
 const ActionEditor = memo<{ disabled?: boolean }>(({ disabled }) => {
   const { t } = useTranslation('common');
-  const runtimeTypeOptions = [
-    'none',
-    'record_create',
-    'record_update',
-    'record_archive',
-    'api_action',
-    'server_action',
-    'content_generation',
-    'workflow_step',
-    'executable_action',
-  ].map((value) => ({
+  const runtimeTypeOptions = RUNTIME_TYPES.map((value) => ({
     label: t(`moduleApps.admin.configuration.runtimeTypeOptions.${value}`),
     value,
   }));

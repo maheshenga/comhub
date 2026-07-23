@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
+import ModuleAppsPage from './ModuleAppsPage';
+
 const moduleApps = vi.hoisted(() => ({
   get: vi.fn(),
   list: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
@@ -40,8 +42,6 @@ vi.mock('@lobehub/ui/base-ui', () => ({
   Modal: ({ children, open }: any) => (open ? <div>{children}</div> : null),
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-
-import ModuleAppsPage from './ModuleAppsPage';
 
 describe('ModuleAppsPage', () => {
   it('uses only the application list service for the directory request', async () => {

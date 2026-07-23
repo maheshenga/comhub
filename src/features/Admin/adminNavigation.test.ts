@@ -8,6 +8,7 @@ import {
   getAdminNavGroupsForRole,
   getAdminOpenKeys,
   getAdminSelectedKey,
+  getAdminUnauthorizedFallbackPath,
 } from './adminNavigation';
 
 const collectPaths = () =>
@@ -27,7 +28,7 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/credits`,
         `${ADMIN_BASE_PATH}/stats`,
         `${ADMIN_BASE_PATH}/audit`,
-        `${ADMIN_BASE_PATH}/module-apps`,
+        `${ADMIN_BASE_PATH}/modules`,
       ]),
     );
     expect(financePaths).not.toContain(`${ADMIN_BASE_PATH}/users`);
@@ -58,9 +59,25 @@ describe('adminNavigation', () => {
     expect(canAccessAdminPath(role, deniedPath)).toBe(false);
   });
 
-  it('keeps Module App finance visibility read-only at the navigation boundary', () => {
-    expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/module-apps`)).toBe(true);
-    expect(canAccessAdminPath('content_admin', `${ADMIN_BASE_PATH}/module-apps`)).toBe(false);
+  it('applies the most-specific Module Center policy to direct navigation', () => {
+    expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/modules`)).toBe(true);
+    expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/modules/finance/payments`)).toBe(
+      true,
+    );
+    expect(canAccessAdminPath('finance_admin', `${ADMIN_BASE_PATH}/modules/apps`)).toBe(false);
+    expect(canAccessAdminPath('content_admin', `${ADMIN_BASE_PATH}/modules`)).toBe(false);
+  });
+
+  it('returns a safe Module Center fallback for denied deep links', () => {
+    expect(
+      getAdminUnauthorizedFallbackPath(
+        'finance_admin',
+        `${ADMIN_BASE_PATH}/modules/apps/app-1/products`,
+      ),
+    ).toBe(`${ADMIN_BASE_PATH}/modules`);
+    expect(
+      getAdminUnauthorizedFallbackPath('content_admin', `${ADMIN_BASE_PATH}/modules/apps`),
+    ).toBe(`${ADMIN_BASE_PATH}/content-resources`);
   });
 
   it('organizes admin pages into the planned management modules', () => {
@@ -93,7 +110,7 @@ describe('adminNavigation', () => {
         `${ADMIN_BASE_PATH}/providers`,
         `${ADMIN_BASE_PATH}/model-billing-matrix`,
         `${ADMIN_BASE_PATH}/ppt`,
-        `${ADMIN_BASE_PATH}/module-apps`,
+        `${ADMIN_BASE_PATH}/modules`,
         `${ADMIN_BASE_PATH}/subscriptions`,
         `${ADMIN_BASE_PATH}/redemption`,
         `${ADMIN_BASE_PATH}/settings`,
@@ -150,7 +167,7 @@ describe('adminNavigation', () => {
     expect(pluginGroup?.items).toContainEqual(
       expect.objectContaining({
         icon: 'plugins',
-        path: `${ADMIN_BASE_PATH}/module-apps`,
+        path: `${ADMIN_BASE_PATH}/modules`,
       }),
     );
     expect(pluginGroup?.items.map((item) => item.path)).not.toContain(
@@ -158,10 +175,13 @@ describe('adminNavigation', () => {
     );
     expect(getAdminSelectedKey('/settings/admin/platform-plugins')).toBe(ADMIN_BASE_PATH);
     expect(getAdminOpenKeys('/settings/admin/platform-plugins')).toEqual(['overview']);
-    expect(getAdminSelectedKey('/settings/admin/module-apps')).toBe(
-      `${ADMIN_BASE_PATH}/module-apps`,
+    expect(getAdminSelectedKey('/settings/admin/modules')).toBe(`${ADMIN_BASE_PATH}/modules`);
+    expect(getAdminSelectedKey('/settings/admin/modules/apps/app-1/products')).toBe(
+      `${ADMIN_BASE_PATH}/modules`,
     );
-    expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['module-apps']);
+    expect(getAdminSelectedKey('/settings/admin/module-apps')).toBe(ADMIN_BASE_PATH);
+    expect(getAdminOpenKeys('/settings/admin/modules')).toEqual(['module-apps']);
+    expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['overview']);
   });
 
   it('keeps storage and maintenance settings in their approved modules', () => {
@@ -245,9 +265,7 @@ describe('adminNavigation', () => {
       `${ADMIN_BASE_PATH}/model-billing-matrix`,
     );
     expect(getAdminSelectedKey('/settings/admin/ppt')).toBe(`${ADMIN_BASE_PATH}/ppt`);
-    expect(getAdminSelectedKey('/settings/admin/module-apps')).toBe(
-      `${ADMIN_BASE_PATH}/module-apps`,
-    );
+    expect(getAdminSelectedKey('/settings/admin/modules')).toBe(`${ADMIN_BASE_PATH}/modules`);
     expect(getAdminSelectedKey('/settings/admin/notifications')).toBe(
       `${ADMIN_BASE_PATH}/content-operations`,
     );
@@ -279,7 +297,7 @@ describe('adminNavigation', () => {
     expect(getAdminOpenKeys('/settings/admin/providers/edit')).toEqual(['ai-platform']);
     expect(getAdminOpenKeys('/settings/admin/model-billing-matrix')).toEqual(['ai-platform']);
     expect(getAdminOpenKeys('/settings/admin/ppt')).toEqual(['ai-platform']);
-    expect(getAdminOpenKeys('/settings/admin/module-apps')).toEqual(['module-apps']);
+    expect(getAdminOpenKeys('/settings/admin/modules')).toEqual(['module-apps']);
     expect(getAdminOpenKeys('/settings/admin/notifications')).toEqual(['content-operations']);
     expect(getAdminOpenKeys('/settings/admin/expert-plaza')).toEqual(['content-operations']);
     expect(getAdminOpenKeys('/settings/admin/topics')).toEqual(['content-operations']);

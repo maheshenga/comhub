@@ -13,18 +13,17 @@ import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userProfileSelectors } from '@/store/user/selectors';
 
-import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
+import { MODULE_ADMIN_ROUTE_PATHS } from '../navigation/catalog';
+import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import {
   clearModuleDraft,
   createModuleDraftScope,
   loadModuleDraft,
   saveModuleDraft,
 } from '../shared/draftStorage';
-import { moduleAppCacheKeys } from '../shared/cacheKeys';
 import ModulePageState from '../shared/ModulePageState';
+import { advanceCursor, retreatCursor, setFilter } from '../shared/queryState';
 import type { AdminModuleAppItem } from '../types';
-import { MODULE_ADMIN_ROUTE_PATHS } from '../navigation/catalog';
-
 import AppIdentityModal from './AppIdentityModal';
 import { buildIdentityUpsertInput, type ModuleAppIdentityFormValues } from './identityForm';
 
@@ -211,9 +210,9 @@ const ModuleAppsPage = memo(() => {
         ) : null}
       </div>
       <ModulePageState
+        emptyKind={isFiltered ? 'filtered' : 'initial'}
         error={error}
         isEmpty={!isLoading && !error && (data?.items.length ?? 0) === 0}
-        emptyKind={isFiltered ? 'filtered' : 'initial'}
         loading={isLoading}
         onClearFilters={clearFilters}
       >
@@ -265,11 +264,11 @@ const ModuleAppsPage = memo(() => {
         open={identityOpen}
         submitting={submitting}
         onCancel={() => setIdentityOpen(false)}
+        onSubmit={createApp}
         onDraftChange={(draft) => {
           setNewIdentityDraft(draft);
           saveModuleDraft(NEW_APP_IDENTITY_SCOPE, draft);
         }}
-        onSubmit={createApp}
       />
     </section>
   );

@@ -9,7 +9,12 @@ import { desktopRoutes } from './desktopRouter.config';
 vi.mock('@/business/client/BusinessDesktopRoutes', () => ({
   BusinessDesktopRoutesWithMainLayout: [],
   BusinessDesktopRoutesWithoutMainLayout: [],
-  BusinessDesktopRoutesWithSettingsLayout: [],
+  BusinessDesktopRoutesWithSettingsLayout: [
+    {
+      children: [{ path: 'modules' }],
+      path: 'admin',
+    },
+  ],
 }));
 
 vi.mock('@/utils/router', () => ({
@@ -76,6 +81,14 @@ async function readDesktopRouterSources() {
 }
 
 describe('desktopRouter config sync', () => {
+  it('mounts the shared Module Center route without the removed monolith URL', () => {
+    expect(matchRoutes(desktopRoutes, '/settings/admin/modules')).not.toBeNull();
+
+    const legacyMatches = matchRoutes(desktopRoutes, '/settings/admin/module-apps');
+    expect(legacyMatches?.at(-1)?.route.path).toBe(':tab/:sub');
+    expect(legacyMatches?.some((match) => match.route.path === 'modules')).toBe(false);
+  });
+
   it('personal memory settings route is not shadowed by workspace memory route', () => {
     const matches = matchRoutes(desktopRoutes, '/settings/memory');
     const paths = matches?.map((match) => match.route.path);

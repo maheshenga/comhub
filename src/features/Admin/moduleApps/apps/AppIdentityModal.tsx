@@ -6,7 +6,6 @@ import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { AdminModuleAppDetail } from '../types';
-
 import { createDefaultModuleAppIdentity, type ModuleAppIdentityFormValues } from './identityForm';
 
 const isModuleAppStatus = (value: string): value is ModuleAppStatus =>
@@ -37,7 +36,7 @@ const AppIdentityModal = memo<AppIdentityModalProps>(
       if (!open) return;
       setIdentity({
         ...createDefaultModuleAppIdentity(),
-        ...(currentApp ?? draft ?? {}),
+        ...(currentApp ?? draft),
       });
       setSubmitError(undefined);
     }, [currentApp, draft, open]);
@@ -76,9 +75,9 @@ const AppIdentityModal = memo<AppIdentityModalProps>(
 
     return (
       <Modal
+        destroyOnHidden
         cancelText={t('cancel')}
         confirmLoading={submitting}
-        destroyOnHidden
         okButtonProps={{ disabled: submitting || !valid }}
         okText={t('ok')}
         open={open}
@@ -155,7 +154,9 @@ const AppIdentityModal = memo<AppIdentityModalProps>(
           <label>
             {t('moduleApps.admin.apps.identity.tags')}
             <input
-              value={(identity.tags ?? []).join(', ')}
+              value={
+                Array.isArray(identity.tags) ? identity.tags.join(', ') : (identity.tags ?? '')
+              }
               onChange={(event) =>
                 update(
                   'tags',
