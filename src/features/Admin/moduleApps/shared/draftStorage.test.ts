@@ -79,6 +79,26 @@ describe('module app draft storage', () => {
     expect(storage.values.size).toBe(0);
   });
 
+  it.each([
+    'offlineRefundReference',
+    'orderId',
+    'outTradeNo',
+    'providerTransactionId',
+    'refundReference',
+    'transactionNo',
+  ])('refuses payment reference field %s on save and load', (field) => {
+    const storage = createStorage();
+    const scope = createModuleDraftScope('app-1', 'entitlements');
+    const key = `admin-module-app-draft:v1:${scope}`;
+
+    expect(() => saveModuleDraft(scope, { [field]: 'sensitive' }, storage)).toThrow(/sensitive/i);
+    expect(storage.values.size).toBe(0);
+
+    storage.setItem(key, JSON.stringify({ data: { [field]: 'sensitive' }, version: 1 }));
+    expect(loadModuleDraft(scope, storage)).toBeNull();
+    expect(storage.getItem(key)).toBeNull();
+  });
+
   it('refuses draft scopes outside configuration and entitlements', () => {
     const storage = createStorage();
 
