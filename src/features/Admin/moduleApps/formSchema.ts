@@ -115,6 +115,7 @@ const runtimeTypes = new Set<ModuleAppRuntimeType>([
   'server_action',
   'content_generation',
   'workflow_step',
+  'executable_action',
 ]);
 
 const pageTypes = new Set<ModuleAppPageType>([
