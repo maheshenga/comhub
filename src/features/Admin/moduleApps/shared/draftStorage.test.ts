@@ -121,6 +121,10 @@ describe('module app draft storage', () => {
     { env: [['OPENAI_API_KEY', 'secret']] },
     { metadata: [['paymentRecipientId', 'recipient-1']] },
     { variables: [['payoutTransactionNo', 'trade-1']] },
+    { botToken: 'secret' },
+    { env: [['GITHUB_TOKEN', 'secret']] },
+    { jwtToken: 'secret' },
+    { metadata: { name: 'paymentMethodId', value: 'pm_123' } },
   ])('refuses sensitive fields hidden behind generic descriptors', (draft) => {
     const storage = createStorage();
     const scope = createModuleDraftScope('app-1', 'configuration');
@@ -141,8 +145,14 @@ describe('module app draft storage', () => {
       actions: [{ name: 'Token counter' }],
       headers: [{ name: 'Accept-Language', value: 'zh-CN' }],
       inputSchema: { fields: [{ name: 'maxTokens', type: 'number' }] },
-      metadata: { name: 'payment-history', value: 'compact' },
+      metadata: {
+        columns: ['paymentId', 'status', 'createdAt'],
+        name: 'payment-history',
+        pairLabels: ['paymentId', 'status'],
+        value: 'compact',
+      },
       pages: [{ key: 'payment-history', title: 'Payment history' }],
+      requestSchema: { headers: { labels: ['Authorization', 'Content-Type'] } },
       usage: { tokenBudget: 8000, tokenCount: 1200 },
     };
 
