@@ -1,14 +1,4 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gt,
-  inArray,
-  lt,
-  or,
-  type SQL,
-} from 'drizzle-orm';
+import { and, asc, desc, eq, gt, ilike, inArray, lt, or, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 import {
@@ -36,7 +26,10 @@ import type { LobeChatDatabase } from '@/database/type';
 
 type CursorInput = number | string | undefined;
 type CreatedCursor = { createdAt: string; id: string };
-type ApplicationCursor = { displayName: string; id: string; sortOrder: number };
+type ApplicationSort = 'catalog' | 'name_asc' | 'updated_desc';
+type CatalogApplicationCursor = { displayName: string; id: string; sortOrder: number };
+type NameApplicationCursor = { displayName: string; id: string };
+type UpdatedApplicationCursor = { id: string; updatedAt: string };
 
 const normalizeLimit = (limit = 50) => Math.max(1, Math.min(200, Math.floor(limit)));
 
@@ -76,10 +69,13 @@ const createdCursorCondition = (
   return or(lt(createdAt, date), and(eq(createdAt, date), lt(id, cursor.id)));
 };
 
-const nextCreatedCursor = (
-  kind: string,
-  item: { createdAt: Date; id: string } | undefined,
-) => (item ? encodeCursor(kind, { createdAt: item.createdAt.toISOString(), id: item.id }) : null);
+const nextCreatedCursor = (kind: string, item: { createdAt: Date; id: string } | undefined) =>
+  item ? encodeCursor(kind, { createdAt: item.createdAt.toISOString(), id: item.id }) : null;
+
+const applicationCursorKind = (sort: ApplicationSort) =>
+  sort === 'catalog' ? 'applications' : `applications:${sort}`;
+
+const getApplicationSort = (sort?: ApplicationSort): ApplicationSort => sort ?? 'catalog';
 
 const groupIds = <T>(items: T[], key: (item: T) => null | string | undefined) => {
   const grouped = new Map<string, string[]>();
@@ -94,34 +90,72 @@ const groupIds = <T>(items: T[], key: (item: T) => null | string | undefined) =>
 export class ModuleAppAdminReadModel {
   constructor(private readonly db: LobeChatDatabase) {}
 
-  listApplications = async (input: {
-    appId?: string;
-    category?: string;
-    cursor?: CursorInput;
-    limit?: number;
-    publisherId?: string;
-    status?: 'draft' | 'published' | 'unpublished';
-  } = {}) => {
+  listApplications = async (
+    input: {
+      appId?: string;
+      category?: string;
+      cursor?: CursorInput;
+      limit?: number;
+      publisherId?: string;
+      query?: string;
+      sort?: ApplicationSort;
+      status?: 'draft' | 'published' | 'unpublished';
+    } = {},
+  ) => {
     const limit = normalizeLimit(input.limit);
-    const cursor = decodeCursor<ApplicationCursor>(input.cursor, 'applications');
+    const sort = getApplicationSort(input.sort);
+    const cursorKind = applicationCursorKind(sort);
+    const catalogCursor =
+      sort === 'catalog' ? decodeCursor<CatalogApplicationCursor>(input.cursor, cursorKind) : null;
+    const nameCursor =
+      sort === 'name_asc' ? decodeCursor<NameApplicationCursor>(input.cursor, cursorKind) : null;
+    const updatedCursor =
+      sort === 'updated_desc'
+        ? decodeCursor<UpdatedApplicationCursor>(input.cursor, cursorKind)
+        : null;
+    const query = input.query?.trim();
     const conditions: Array<SQL | undefined> = [
       input.appId ? eq(moduleApps.id, input.appId) : undefined,
       input.category ? eq(moduleApps.category, input.category) : undefined,
       input.publisherId ? eq(moduleApps.publisherId, input.publisherId) : undefined,
       input.status ? eq(moduleApps.status, input.status) : undefined,
-      cursor
+      query
+        ? or(ilike(moduleApps.displayName, `%${query}%`), ilike(moduleApps.slug, `%${query}%`))
+        : undefined,
+      catalogCursor
         ? or(
-            gt(moduleApps.sortOrder, cursor.sortOrder),
+            gt(moduleApps.sortOrder, catalogCursor.sortOrder),
             and(
-              eq(moduleApps.sortOrder, cursor.sortOrder),
-              gt(moduleApps.displayName, cursor.displayName),
+              eq(moduleApps.sortOrder, catalogCursor.sortOrder),
+              gt(moduleApps.displayName, catalogCursor.displayName),
             ),
             and(
-              eq(moduleApps.sortOrder, cursor.sortOrder),
-              eq(moduleApps.displayName, cursor.displayName),
-              gt(moduleApps.id, cursor.id),
+              eq(moduleApps.sortOrder, catalogCursor.sortOrder),
+              eq(moduleApps.displayName, catalogCursor.displayName),
+              gt(moduleApps.id, catalogCursor.id),
             ),
           )
+        : undefined,
+      nameCursor
+        ? or(
+            gt(moduleApps.displayName, nameCursor.displayName),
+            and(
+              eq(moduleApps.displayName, nameCursor.displayName),
+              gt(moduleApps.id, nameCursor.id),
+            ),
+          )
+        : undefined,
+      updatedCursor
+        ? (() => {
+            const updatedAt = new Date(updatedCursor.updatedAt);
+            if (Number.isNaN(updatedAt.valueOf()) || !updatedCursor.id) {
+              throw new Error('MODULE_APP_ADMIN_CURSOR_INVALID');
+            }
+            return or(
+              lt(moduleApps.updatedAt, updatedAt),
+              and(eq(moduleApps.updatedAt, updatedAt), lt(moduleApps.id, updatedCursor.id)),
+            );
+          })()
         : undefined,
     ];
     const rows = await this.db
@@ -133,7 +167,13 @@ export class ModuleAppAdminReadModel {
       .from(moduleApps)
       .leftJoin(moduleAppPublishers, eq(moduleAppPublishers.id, moduleApps.publisherId))
       .where(and(...conditions.filter((value): value is SQL => Boolean(value))))
-      .orderBy(asc(moduleApps.sortOrder), asc(moduleApps.displayName), asc(moduleApps.id))
+      .orderBy(
+        ...(sort === 'catalog'
+          ? [asc(moduleApps.sortOrder), asc(moduleApps.displayName), asc(moduleApps.id)]
+          : sort === 'name_asc'
+            ? [asc(moduleApps.displayName), asc(moduleApps.id)]
+            : [desc(moduleApps.updatedAt), desc(moduleApps.id)]),
+      )
       .limit(limit + 1)
       .offset(legacyOffset(input.cursor));
     const hasMore = rows.length > limit;
@@ -143,15 +183,23 @@ export class ModuleAppAdminReadModel {
       publisherStatus,
     }));
     const last = hasMore ? items.at(-1) : undefined;
-    return {
-      items,
-      nextCursor: last
-        ? encodeCursor('applications', {
+    const nextCursor = !last
+      ? null
+      : sort === 'catalog'
+        ? encodeCursor(cursorKind, {
             displayName: last.displayName,
             id: last.id,
             sortOrder: last.sortOrder,
           })
-        : null,
+        : sort === 'name_asc'
+          ? encodeCursor(cursorKind, { displayName: last.displayName, id: last.id })
+          : encodeCursor(cursorKind, {
+              id: last.id,
+              updatedAt: last.updatedAt.toISOString(),
+            });
+    return {
+      items,
+      nextCursor,
     };
   };
 
@@ -190,8 +238,7 @@ export class ModuleAppAdminReadModel {
     const items = rows.slice(0, limit);
     return {
       items,
-      nextCursor:
-        rows.length > limit ? nextCreatedCursor('audit-events', items.at(-1)) : null,
+      nextCursor: rows.length > limit ? nextCreatedCursor('audit-events', items.at(-1)) : null,
     };
   };
 
@@ -237,14 +284,16 @@ export class ModuleAppAdminReadModel {
     };
   };
 
-  listRevenue = async (input: {
-    appId?: string;
-    cursor?: CursorInput;
-    limit?: number;
-    publisherId?: string;
-    publisherUserId?: string;
-    status?: 'pending' | 'reversed' | 'settled';
-  } = {}) => {
+  listRevenue = async (
+    input: {
+      appId?: string;
+      cursor?: CursorInput;
+      limit?: number;
+      publisherId?: string;
+      publisherUserId?: string;
+      status?: 'pending' | 'reversed' | 'settled';
+    } = {},
+  ) => {
     const limit = normalizeLimit(input.limit);
     const cursor = decodeCursor<CreatedCursor>(input.cursor, 'revenue');
     const rows = await this.db.query.moduleAppRevenueEntries.findMany({
@@ -253,14 +302,16 @@ export class ModuleAppAdminReadModel {
       orderBy: [desc(moduleAppRevenueEntries.createdAt), desc(moduleAppRevenueEntries.id)],
       where: and(
         input.appId ? eq(moduleAppRevenueEntries.appId, input.appId) : undefined,
-        input.publisherId
-          ? eq(moduleAppRevenueEntries.publisherId, input.publisherId)
-          : undefined,
+        input.publisherId ? eq(moduleAppRevenueEntries.publisherId, input.publisherId) : undefined,
         input.publisherUserId
           ? eq(moduleAppRevenueEntries.publisherUserId, input.publisherUserId)
           : undefined,
         input.status ? eq(moduleAppRevenueEntries.status, input.status) : undefined,
-        createdCursorCondition(cursor, moduleAppRevenueEntries.createdAt, moduleAppRevenueEntries.id),
+        createdCursorCondition(
+          cursor,
+          moduleAppRevenueEntries.createdAt,
+          moduleAppRevenueEntries.id,
+        ),
       ),
     });
     const items = rows.slice(0, limit);
@@ -289,15 +340,17 @@ export class ModuleAppAdminReadModel {
     };
   };
 
-  listPackages = async (input: {
-    appId?: string;
-    buildStatus?: 'building' | 'failed' | 'queued' | 'ready';
-    cursor?: CursorInput;
-    limit?: number;
-    publisherId?: string;
-    reviewStatus?: 'approved' | 'pending_review' | 'rejected';
-    submittedByUserId?: string;
-  } = {}) => {
+  listPackages = async (
+    input: {
+      appId?: string;
+      buildStatus?: 'building' | 'failed' | 'queued' | 'ready';
+      cursor?: CursorInput;
+      limit?: number;
+      publisherId?: string;
+      reviewStatus?: 'approved' | 'pending_review' | 'rejected';
+      submittedByUserId?: string;
+    } = {},
+  ) => {
     const limit = normalizeLimit(input.limit);
     const cursor = decodeCursor<CreatedCursor>(input.cursor, 'packages');
     const conditions: Array<SQL | undefined> = [
@@ -340,12 +393,14 @@ export class ModuleAppAdminReadModel {
     };
   };
 
-  listPublishers = async (input: {
-    cursor?: CursorInput;
-    limit?: number;
-    status?: 'pending' | 'suspended' | 'verified';
-    userId?: string;
-  } = {}) => {
+  listPublishers = async (
+    input: {
+      cursor?: CursorInput;
+      limit?: number;
+      status?: 'pending' | 'suspended' | 'verified';
+      userId?: string;
+    } = {},
+  ) => {
     const limit = normalizeLimit(input.limit);
     const cursor = decodeCursor<CreatedCursor>(input.cursor, 'publishers');
     const conditions: Array<SQL | undefined> = [
@@ -364,25 +419,32 @@ export class ModuleAppAdminReadModel {
       ? await this.db
           .select({ id: moduleApps.id, publisherId: moduleApps.publisherId })
           .from(moduleApps)
-          .where(inArray(moduleApps.publisherId, items.map((item) => item.id)))
+          .where(
+            inArray(
+              moduleApps.publisherId,
+              items.map((item) => item.id),
+            ),
+          )
       : [];
     const appCounts = new Map<string, number>();
     for (const app of appRows) {
-      if (app.publisherId) appCounts.set(app.publisherId, (appCounts.get(app.publisherId) ?? 0) + 1);
+      if (app.publisherId)
+        appCounts.set(app.publisherId, (appCounts.get(app.publisherId) ?? 0) + 1);
     }
     return {
       items: items.map((item) => ({ ...item, appCount: appCounts.get(item.id) ?? 0 })),
-      nextCursor:
-        rows.length > limit ? nextCreatedCursor('publishers', items.at(-1)) : null,
+      nextCursor: rows.length > limit ? nextCreatedCursor('publishers', items.at(-1)) : null,
     };
   };
 
-  listPayouts = async (input: {
-    cursor?: CursorInput;
-    limit?: number;
-    publisherId?: string;
-    status?: 'eligible' | 'failed' | 'paid' | 'pending' | 'processing' | 'reversed';
-  } = {}) => {
+  listPayouts = async (
+    input: {
+      cursor?: CursorInput;
+      limit?: number;
+      publisherId?: string;
+      status?: 'eligible' | 'failed' | 'paid' | 'pending' | 'processing' | 'reversed';
+    } = {},
+  ) => {
     const limit = normalizeLimit(input.limit);
     const cursor = decodeCursor<CreatedCursor>(input.cursor, 'payouts');
     const conditions: Array<SQL | undefined> = [
@@ -419,7 +481,10 @@ export class ModuleAppAdminReadModel {
       : [[], []];
     const revenueIds = new Map<string, string[]>();
     for (const entry of entries) {
-      revenueIds.set(entry.batchId, [...(revenueIds.get(entry.batchId) ?? []), entry.revenueEntryId]);
+      revenueIds.set(entry.batchId, [
+        ...(revenueIds.get(entry.batchId) ?? []),
+        entry.revenueEntryId,
+      ]);
     }
     const auditIds = groupIds(audits, (item) => item.resourceId);
     const items = page.map(({ batch, publisherName }) => ({
@@ -434,15 +499,17 @@ export class ModuleAppAdminReadModel {
     };
   };
 
-  listPaymentDiagnostics = async (input: {
-    appId?: string;
-    cursor?: CursorInput;
-    discrepancyStatus?: 'open' | 'resolved';
-    limit?: number;
-    orderId?: string;
-    paymentStatus?: 'created' | 'failed' | 'paid' | 'pending' | 'refunded';
-    refundStatus?: 'failed' | 'requested' | 'succeeded';
-  } = {}) => {
+  listPaymentDiagnostics = async (
+    input: {
+      appId?: string;
+      cursor?: CursorInput;
+      discrepancyStatus?: 'open' | 'resolved';
+      limit?: number;
+      orderId?: string;
+      paymentStatus?: 'created' | 'failed' | 'paid' | 'pending' | 'refunded';
+      refundStatus?: 'failed' | 'requested' | 'succeeded';
+    } = {},
+  ) => {
     const limit = normalizeLimit(input.limit);
     const cursor = decodeCursor<CreatedCursor>(input.cursor, 'payments');
     const conditions: Array<SQL | undefined> = [
@@ -467,7 +534,11 @@ export class ModuleAppAdminReadModel {
               .where(eq(moduleAppPaymentDiscrepancies.status, input.discrepancyStatus)),
           )
         : undefined,
-      createdCursorCondition(cursor, moduleAppPaymentAttempts.createdAt, moduleAppPaymentAttempts.id),
+      createdCursorCondition(
+        cursor,
+        moduleAppPaymentAttempts.createdAt,
+        moduleAppPaymentAttempts.id,
+      ),
     ];
     const rows = await this.db
       .select({
@@ -497,7 +568,10 @@ export class ModuleAppAdminReadModel {
         where: inArray(moduleAppPaymentRefunds.orderId, orderIds),
       }),
       this.db.query.moduleAppPaymentDiscrepancies.findMany({
-        orderBy: [asc(moduleAppPaymentDiscrepancies.createdAt), asc(moduleAppPaymentDiscrepancies.id)],
+        orderBy: [
+          asc(moduleAppPaymentDiscrepancies.createdAt),
+          asc(moduleAppPaymentDiscrepancies.id),
+        ],
         where: inArray(moduleAppPaymentDiscrepancies.orderId, orderIds),
       }),
       this.db.query.moduleAppLicenses.findMany({
@@ -546,7 +620,8 @@ export class ModuleAppAdminReadModel {
       ]);
     }
     const latestRunByApp = new Map<string, string>();
-    for (const run of runs) if (!latestRunByApp.has(run.appId)) latestRunByApp.set(run.appId, run.id);
+    for (const run of runs)
+      if (!latestRunByApp.has(run.appId)) latestRunByApp.set(run.appId, run.id);
     const auditIdsByResource = groupIds(audits, (item) => item.resourceId);
 
     const items = page.map(({ appId, appName, attempt, orderStatus }) => {
@@ -568,9 +643,8 @@ export class ModuleAppAdminReadModel {
         createdAt: attempt.createdAt,
         currency: attempt.currency,
         discrepancyIds: discrepancyIds.get(attempt.orderId) ?? [],
-        discrepancyStatus: discrepancies.findLast(
-          (item) => item.orderId === attempt.orderId,
-        )?.status,
+        discrepancyStatus: discrepancies.findLast((item) => item.orderId === attempt.orderId)
+          ?.status,
         id: attempt.id,
         licenseIds: licenseIds.get(attempt.orderId) ?? [],
         orderId: attempt.orderId,
@@ -591,8 +665,7 @@ export class ModuleAppAdminReadModel {
     });
     return {
       items,
-      nextCursor:
-        rows.length > limit ? nextCreatedCursor('payments', items.at(-1)) : null,
+      nextCursor: rows.length > limit ? nextCreatedCursor('payments', items.at(-1)) : null,
     };
   };
 }

@@ -1078,7 +1078,13 @@ describe('admin module apps router', () => {
     const caller = createCaller();
     const cursor = Buffer.from('cursor').toString('base64url');
 
-    await caller.moduleApps.list({ cursor, publisherId: PUBLISHER_ID, status: 'published' });
+    await caller.moduleApps.list({
+      cursor,
+      publisherId: PUBLISHER_ID,
+      query: `${' workspace '.repeat(20)}`,
+      sort: 'updated_desc',
+      status: 'published',
+    });
     await caller.moduleApps.listPaymentDiagnostics({
       appId: APP_ID,
       discrepancyStatus: 'open',
@@ -1090,6 +1096,8 @@ describe('admin module apps router', () => {
       cursor,
       limit: 50,
       publisherId: PUBLISHER_ID,
+      query: 'workspace '.repeat(8).trim(),
+      sort: 'updated_desc',
       status: 'published',
     });
     expect(moduleAppReadModelMocks.listPaymentDiagnostics).toHaveBeenCalledWith({
