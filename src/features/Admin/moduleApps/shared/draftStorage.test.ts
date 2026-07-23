@@ -83,6 +83,7 @@ describe('module app draft storage', () => {
     'batchId',
     'discrepancyId',
     'discrepancyIds',
+    'licenseId',
     'licenseIds',
     'offlineRefundReference',
     'orderId',
@@ -94,7 +95,9 @@ describe('module app draft storage', () => {
     'refundIds',
     'refundReference',
     'requestedAmount',
+    'revenueEntryId',
     'revenueEntryIds',
+    'settlementBatchId',
     'transactionNo',
   ])('refuses sensitive finance field %s on save and load', (field) => {
     const storage = createStorage();
