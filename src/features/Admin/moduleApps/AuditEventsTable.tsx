@@ -1,31 +1,43 @@
 import { memo } from 'react';
 
-interface ModuleAppAuditRow {
-  actorUserId?: null | string;
-  createdAt?: Date | string;
-  eventType: string;
-  id: string;
-}
+import type { ModuleAppAuditRow } from './types';
+
+export type AuditEventsTableLabels = {
+  actor?: string;
+  audit?: string;
+  created?: string;
+  event?: string;
+};
 
 interface AuditEventsTableProps {
   items?: ModuleAppAuditRow[];
+  labels?: AuditEventsTableLabels;
   loading?: boolean;
 }
 
 const formatDate = (value?: Date | string) => (value ? String(value) : '-');
 
-const AuditEventsTable = memo<AuditEventsTableProps>(({ items = [], loading }) => {
+const AuditEventsTable = memo<AuditEventsTableProps>(({ items = [], labels, loading }) => {
+  const resolvedLabels = {
+    actor: 'Actor',
+    audit: 'Audit',
+    created: 'Created',
+    event: 'Event',
+    ...labels,
+  };
+
   if (loading) return <div data-testid="admin-module-app-audit-events">Loading audit events</div>;
-  if (items.length === 0) return <div data-testid="admin-module-app-audit-events">No audit events</div>;
+  if (items.length === 0)
+    return <div data-testid="admin-module-app-audit-events">No audit events</div>;
 
   return (
     <table data-testid="admin-module-app-audit-events">
       <thead>
         <tr>
-          <th>Audit</th>
-          <th>Event</th>
-          <th>Actor</th>
-          <th>Created</th>
+          <th>{resolvedLabels.audit}</th>
+          <th>{resolvedLabels.event}</th>
+          <th>{resolvedLabels.actor}</th>
+          <th>{resolvedLabels.created}</th>
         </tr>
       </thead>
       <tbody>

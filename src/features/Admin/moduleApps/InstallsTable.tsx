@@ -1,22 +1,35 @@
 import { memo } from 'react';
 
-interface ModuleAppInstallRow {
-  id: string;
-  installedAt?: Date | string;
-  scopeType?: string;
+import type { ModuleAppInstallRow } from './types';
+
+export type InstallsTableLabels = {
+  install?: string;
+  installed?: string;
+  scope?: string;
   status?: string;
-  userId?: null | string;
-  workspaceId?: null | string;
-}
+  user?: string;
+  workspace?: string;
+};
 
 interface InstallsTableProps {
   items?: ModuleAppInstallRow[];
+  labels?: InstallsTableLabels;
   loading?: boolean;
 }
 
 const formatDate = (value?: Date | string) => (value ? String(value) : '-');
 
-const InstallsTable = memo<InstallsTableProps>(({ items = [], loading }) => {
+const InstallsTable = memo<InstallsTableProps>(({ items = [], labels, loading }) => {
+  const resolvedLabels = {
+    install: 'Install',
+    installed: 'Installed',
+    scope: 'Scope',
+    status: 'Status',
+    user: 'User',
+    workspace: 'Workspace',
+    ...labels,
+  };
+
   if (loading) return <div data-testid="admin-module-app-installs">Loading installs</div>;
   if (items.length === 0) return <div data-testid="admin-module-app-installs">No installs</div>;
 
@@ -24,12 +37,12 @@ const InstallsTable = memo<InstallsTableProps>(({ items = [], loading }) => {
     <table data-testid="admin-module-app-installs">
       <thead>
         <tr>
-          <th>Install</th>
-          <th>Scope</th>
-          <th>Status</th>
-          <th>User</th>
-          <th>Workspace</th>
-          <th>Installed</th>
+          <th>{resolvedLabels.install}</th>
+          <th>{resolvedLabels.scope}</th>
+          <th>{resolvedLabels.status}</th>
+          <th>{resolvedLabels.user}</th>
+          <th>{resolvedLabels.workspace}</th>
+          <th>{resolvedLabels.installed}</th>
         </tr>
       </thead>
       <tbody>

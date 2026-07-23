@@ -66,5 +66,15 @@ describe('moduleAppCacheKeys', () => {
       '',
     ]);
     expect(moduleAppCacheKeys.runs('app-1')).toEqual(['admin-module-apps', 'runs', 'app-1', '']);
+    expect(moduleAppCacheKeys.runtime('runs', 'app-1', 10)).toEqual([
+      'admin-module-apps',
+      'runtime',
+      'runs',
+      'app-1',
+      10,
+    ]);
+    expect(moduleAppCacheKeys.runtime('runs', 'app-1', 10)).not.toEqual(
+      moduleAppCacheKeys.runs('app-1'),
+    );
   });
 });

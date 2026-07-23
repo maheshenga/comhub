@@ -19,6 +19,18 @@ describe('module app admin operational tables', () => {
     expect(screen.getByText('personal')).toBeInTheDocument();
   });
 
+  it('accepts localized operational column labels', () => {
+    render(
+      <InstallsTable
+        items={[{ id: 'install-1', scopeType: 'personal', status: 'installed' }]}
+        labels={{ install: '安装', status: '状态' }}
+      />,
+    );
+
+    expect(screen.getByRole('columnheader', { name: '安装' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '状态' })).toBeInTheDocument();
+  });
+
   it('renders audit events', () => {
     render(
       <AuditEventsTable
@@ -51,9 +63,21 @@ describe('module app admin operational tables', () => {
 
   it('renders artifact rows', () => {
     render(
-      <ArtifactsTable items={[{ fileName: 'result.md', id: 'artifact-1', mimeType: 'text/markdown' }]} />,
+      <ArtifactsTable
+        items={[
+          {
+            fileName: 'result.md',
+            id: 'artifact-1',
+            mimeType: 'text/markdown',
+            scopeType: 'personal',
+            storageKey: 'module-apps/app-1/result.md',
+          },
+        ]}
+      />,
     );
 
     expect(screen.getByText('result.md')).toBeInTheDocument();
+    expect(screen.getByText('personal')).toBeInTheDocument();
+    expect(screen.getByText('module-apps/app-1/result.md')).toBeInTheDocument();
   });
 });

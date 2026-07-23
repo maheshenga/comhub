@@ -1,20 +1,31 @@
 import { memo } from 'react';
 
-interface ModuleAppRecordRow {
-  collectionKey: string;
-  id: string;
-  scopeType: string;
+import type { ModuleAppRecordRow } from './types';
+
+export type RecordsTableLabels = {
+  collection?: string;
+  record?: string;
+  scope?: string;
   status?: string;
-  title?: null | string;
-  updatedAt?: Date | string;
-}
+  updated?: string;
+};
 
 interface RecordsTableProps {
   items?: ModuleAppRecordRow[];
+  labels?: RecordsTableLabels;
   loading?: boolean;
 }
 
-const RecordsTable = memo<RecordsTableProps>(({ items = [], loading }) => {
+const RecordsTable = memo<RecordsTableProps>(({ items = [], labels, loading }) => {
+  const resolvedLabels = {
+    collection: 'Collection',
+    record: 'Record',
+    scope: 'Scope',
+    status: 'Status',
+    updated: 'Updated',
+    ...labels,
+  };
+
   if (loading) {
     return <div data-testid="admin-module-app-records">Loading records</div>;
   }
@@ -27,11 +38,11 @@ const RecordsTable = memo<RecordsTableProps>(({ items = [], loading }) => {
     <table data-testid="admin-module-app-records">
       <thead>
         <tr>
-          <th>Record</th>
-          <th>Collection</th>
-          <th>Scope</th>
-          <th>Status</th>
-          <th>Updated</th>
+          <th>{resolvedLabels.record}</th>
+          <th>{resolvedLabels.collection}</th>
+          <th>{resolvedLabels.scope}</th>
+          <th>{resolvedLabels.status}</th>
+          <th>{resolvedLabels.updated}</th>
         </tr>
       </thead>
       <tbody>
