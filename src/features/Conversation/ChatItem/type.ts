@@ -6,8 +6,10 @@ export type ChatItemAvatar = Partial<MetaData> & { title?: string };
 
 export interface ChatItemProps extends Omit<FlexboxProps, 'children' | 'onChange'> {
   aboveMessage?: ReactNode;
+  actionAddon?: ReactNode;
   actions?: ReactNode;
   actionsWrapWidth?: number;
+  afterActions?: ReactNode;
   avatar: ChatItemAvatar;
   avatarProps?: AvatarProps;
   belowMessage?: ReactNode;

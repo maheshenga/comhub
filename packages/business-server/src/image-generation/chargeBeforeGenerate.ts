@@ -31,6 +31,14 @@ type ChargeResult =
         generations: NewGeneration[];
       };
       success: true;
+    }
+  | {
+      /**
+       * Opaque per-generation billing handles, threaded back to
+       * `chargeAfterGenerate` via `asyncTask.metadata.precharge` (one entry per
+       * generation). Stored verbatim; the router never reads their fields.
+       */
+      prechargeItems?: unknown[];
     };
 
 export async function chargeBeforeGenerate(params: ChargeParams): Promise<ChargeResult> {

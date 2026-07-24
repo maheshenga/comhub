@@ -1,13 +1,15 @@
 'use client';
 
-import { Button } from '@lobehub/ui';
+import { AGENT_CHAT_URL } from '@lobechat/const';
+import { Flexbox } from '@lobehub/ui';
+import { Button, Select } from '@lobehub/ui/base-ui';
 import { App } from 'antd';
 import { createStaticStyles } from 'antd-style';
 import { customAlphabet } from 'nanoid/non-secure';
 import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { SESSION_CHAT_URL } from '@/const/url';
+import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import { useBrand } from '@/features/Brand';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
 import { usePermission } from '@/hooks/usePermission';
@@ -18,9 +20,46 @@ import { useHomeStore } from '@/store/home';
 
 import { useDetailContext } from '../../DetailProvider';
 
-const styles = createStaticStyles(({ css }) => ({
+const styles = createStaticStyles(({ css, cssVar }) => ({
   buttonGroup: css`
     width: 100%;
+  `,
+  forkButton: css`
+    flex: 1;
+    width: unset;
+    border-start-start-radius: 0 !important;
+    border-end-start-radius: 0 !important;
+  `,
+  // Match Button type="primary" on the right so the two halves read as one
+  // pill. (colorPrimary bg + colorBgLayout text) auto-flips with the theme:
+  // dark bg + near-white text in light theme, white bg + near-black text
+  // in dark theme. We use colorBgLayout directly instead of the
+  // semantically-named colorTextLightSolid because the cssVar proxy doesn't
+  // pick up LobeHub's JS-level override of that token.
+  visibilitySelect: css`
+    width: 130px;
+    border-color: ${cssVar.colorPrimary} !important;
+    border-inline-end-width: 0 !important;
+    border-start-end-radius: 0 !important;
+    border-end-end-radius: 0 !important;
+
+    color: ${cssVar.colorBgLayout} !important;
+
+    background: ${cssVar.colorPrimary} !important;
+
+    & svg {
+      color: ${cssVar.colorBgLayout};
+    }
+
+    &:hover:not([data-disabled]) {
+      border-color: ${cssVar.colorPrimaryHover} !important;
+      background: ${cssVar.colorPrimaryHover} !important;
+    }
+
+    &:active:not([data-disabled]) {
+      border-color: ${cssVar.colorPrimaryActive} !important;
+      background: ${cssVar.colorPrimaryActive} !important;
+    }
   `,
 }));
 
@@ -33,6 +72,8 @@ const generateMarketIdentifier = () => {
   return generate();
 };
 
+type ForkTarget = 'private' | 'public';
+
 const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { identifier, title, config, avatar, backgroundColor, description, tags, editorData } =
     useDetailContext();
@@ -44,6 +85,8 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
   const { t } = useTranslation('discover');
   const brand = useBrand();
   const { allowed: canCreate } = usePermission('create_content');
+  const activeWorkspaceId = useActiveWorkspaceId();
+  const [visibility, setVisibility] = useState<ForkTarget>('private');
 
   const meta = {
     avatar,
@@ -54,8 +97,12 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
     title,
   };
 
-  const handleForkAndChat = async () => {
-    if (!canCreate) return;
+  // `target` only matters in workspace mode. Personal-mode forks ignore it
+  // (every row there is implicitly owner-private). Default = Private so
+  // newly-grabbed agents don't surface to teammates before the user has
+  // had a chance to vet them.
+  const handleForkAndChat = async (target: ForkTarget = 'private') => {
+    if (!canCreate || isLoading) return;
 
     try {
       setIsLoading(true);
@@ -66,7 +113,7 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
       if (existingAgentId) {
         // User has already forked this agent, navigate to existing fork
         message.info(t('fork.alreadyForked'));
-        navigate(SESSION_CHAT_URL(existingAgentId, mobile));
+        navigate(AGENT_CHAT_URL(existingAgentId, mobile));
         return;
       }
 
@@ -91,8 +138,14 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
         },
       };
 
-      // Step 3: Add to local agent list
-      const result = await createAgent(agentData);
+      // Step 3: Add to local agent list. `target` decides where it lands —
+      // Private bucket (only the creator sees it) or workspace-shared
+      // (visible to every member). In personal mode `visibility` is left
+      // unset and the column defaults to `public` (no-op).
+      const result = await createAgent({
+        ...agentData,
+        ...(activeWorkspaceId ? { visibility: target } : {}),
+      });
       await refreshAgentList();
 
       // Step 4: Report fork event (using 'add' event type)
@@ -105,7 +158,7 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
       message.success(t('fork.success'));
 
       // Step 5: Navigate to chat
-      navigate(SESSION_CHAT_URL(result!.agentId, mobile));
+      navigate(AGENT_CHAT_URL(result!.agentId, mobile));
     } catch (error: any) {
       console.error('Fork failed:', error);
       message.error(t('fork.failed'));
@@ -114,18 +167,54 @@ const ForkAndChat = memo<{ mobile?: boolean }>(({ mobile }) => {
     }
   };
 
+  // Personal mode has no Private/Public split — render the plain primary
+  // button so users don't see a meaningless dropdown.
+  if (!activeWorkspaceId) {
+    return (
+      <Button
+        block
+        className={styles.buttonGroup}
+        disabled={!canCreate}
+        loading={isLoading}
+        size={'large'}
+        type={'primary'}
+        onClick={() => handleForkAndChat('private')}
+      >
+        {brand.communityForkAndChatLabel || t('fork.forkAndChat')}
+      </Button>
+    );
+  }
+
+  // Workspace mode: Select on the left chooses Private (default) vs Public,
+  // primary button on the right runs the fork. Keeping the choice next to
+  // the action makes the target visibility explicit at click time.
+  const visibilityOptions = [
+    { label: t('fork.visibilityPrivate'), value: 'private' },
+    { label: t('fork.visibilityPublic'), value: 'public' },
+  ];
+
   return (
-    <Button
-      block
-      className={styles.buttonGroup}
-      disabled={!canCreate}
-      loading={isLoading}
-      size={'large'}
-      type={'primary'}
-      onClick={handleForkAndChat}
-    >
-      {brand.communityForkAndChatLabel || t('fork.forkAndChat')}
-    </Button>
+    <Flexbox horizontal className={styles.buttonGroup} gap={0}>
+      <Select
+        className={styles.visibilitySelect}
+        disabled={!canCreate || isLoading}
+        options={visibilityOptions}
+        size={'large'}
+        value={visibility}
+        onChange={(v) => setVisibility(v as ForkTarget)}
+      />
+      <Button
+        block
+        className={styles.forkButton}
+        disabled={!canCreate}
+        loading={isLoading}
+        size={'large'}
+        type={'primary'}
+        onClick={() => handleForkAndChat(visibility)}
+      >
+        {brand.communityForkAndChatLabel || t('fork.forkAndChat')}
+      </Button>
+    </Flexbox>
   );
 });
 

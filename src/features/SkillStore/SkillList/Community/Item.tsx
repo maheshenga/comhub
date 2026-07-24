@@ -1,21 +1,13 @@
 'use client';
 
-import {
-  ActionIcon,
-  Block,
-  DropdownMenu,
-  Flexbox,
-  Icon,
-  Modal,
-  stopPropagation,
-} from '@lobehub/ui';
-import { confirmModal } from '@lobehub/ui/base-ui';
-import { Button } from 'antd';
+import { ActionIcon, Block, DropdownMenu, Flexbox, Icon, stopPropagation } from '@lobehub/ui';
+import { Button, confirmModal } from '@lobehub/ui/base-ui';
 import isEqual from 'fast-deep-equal';
 import { MoreVerticalIcon, Plus, Trash2 } from 'lucide-react';
 import React, { memo, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import ImperativeModal from '@/components/ImperativeModal';
 import MCPTag from '@/components/Plugins/MCPTag';
 import PluginAvatar from '@/components/Plugins/PluginAvatar';
 import McpDetail from '@/features/MCP/MCPDetail';
@@ -119,7 +111,7 @@ const Item = memo<DiscoverMcpItem>(({ name, description, icon, identifier }) => 
 
     if (installing) {
       return (
-        <Button size="small" variant={'filled'} onClick={handleCancel}>
+        <Button size="small" type="fill" onClick={handleCancel}>
           {t('store.actions.cancel')}
         </Button>
       );
@@ -166,7 +158,7 @@ const Item = memo<DiscoverMcpItem>(({ name, description, icon, identifier }) => 
           </Flexbox>
         )}
       </Flexbox>
-      <Modal
+      <ImperativeModal
         destroyOnHidden
         footer={null}
         open={detailOpen}
@@ -177,7 +169,7 @@ const Item = memo<DiscoverMcpItem>(({ name, description, icon, identifier }) => 
         <Suspense fallback={<McpDetailLoading />}>
           <McpDetail noSettings identifier={identifier} />
         </Suspense>
-      </Modal>
+      </ImperativeModal>
     </>
   );
 });

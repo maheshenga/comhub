@@ -66,6 +66,7 @@ export const AddIdentityActionSchema = z
         sourceIds: z
           .array(z.string())
           .nullable()
+          .default(() => [])
           .describe('Stable source message ids that support this identity'),
         sourceEvidence: z.union([z.string(), z.null()]),
         type: IdentityTypeEnum,

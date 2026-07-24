@@ -2,6 +2,7 @@ import type { WechatRawMessage } from '@lobechat/chat-adapter-wechat';
 import {
   createWechatAdapter,
   downloadMediaFromRawMessage,
+  MessageItemType,
   MessageState,
   MessageType,
   WechatApiClient,
@@ -20,6 +21,7 @@ import {
   type BotPlatformRuntimeContext,
   type BotProviderConfig,
   ClientFactory,
+  type ExtractFilesResult,
   type MessengerContent,
   messengerContentText,
   type PlatformClient,
@@ -82,7 +84,7 @@ class WechatGatewayClient implements PlatformClient {
     const botToken = getWechatBotToken(config.credentials);
 
     this.applicationId = resolveWechatApplicationId(config, botToken);
-    this.api = new WechatApiClient(botToken, config.credentials.botId);
+    this.api = new WechatApiClient(botToken, config.credentials.botId, config.credentials.baseUrl);
   }
 
   // --- Lifecycle ---
@@ -278,9 +280,13 @@ class WechatGatewayClient implements PlatformClient {
   private async forwardToWebhook(webhookUrl: string, msg: WechatRawMessage): Promise<void> {
     try {
       log('WechatBot appId=%s forwarding msg from %s', this.applicationId, msg.from_user_id);
+      const webhookToken = this.config.credentials.webhookToken?.trim();
       const response = await fetch(webhookUrl, {
         body: JSON.stringify(msg),
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          ...(webhookToken ? { Authorization: `Bearer ${webhookToken}` } : {}),
+          'Content-Type': 'application/json',
+        },
         method: 'POST',
       });
 
@@ -322,6 +328,7 @@ class WechatGatewayClient implements PlatformClient {
   createAdapter(): Record<string, any> {
     return {
       wechat: createWechatAdapter({
+        baseUrl: this.config.credentials.baseUrl,
         botId: this.config.credentials.botId,
         botToken: this.config.credentials.botToken,
       }),
@@ -347,30 +354,63 @@ class WechatGatewayClient implements PlatformClient {
    * `parseRawEvent` runs at adapter parse time — including the cascading
    * image fallback (CDN main → thumb → direct URL).
    */
-  async extractFiles(message: Message): Promise<AttachmentSource[] | undefined> {
+  async extractFiles(message: Message): Promise<ExtractFilesResult | undefined> {
     const raw = (message as any).raw as WechatRawMessage | undefined;
     if (!raw?.item_list?.length) return undefined;
 
     log('extractFiles: msgId=%s, items=%d', (message as any).id, raw.item_list.length);
 
     const attachments = await downloadMediaFromRawMessage(this.api, raw);
-    if (attachments.length === 0) {
+
+    // Detect FILE items that arrived as metadata only. WeChat does not relay a
+    // downloadable CDN media descriptor for oversized files, so
+    // downloadMediaFromRawMessage silently drops them. Without a warning the
+    // agent only sees the bare `[file: name]` text placeholder (from the
+    // adapter's extractText) and hallucinates that it received the file — e.g.
+    // claiming it can't "hear" an audio it never actually got. Surface a
+    // warning so the model can tell the user the file couldn't be retrieved.
+    const downloadedNames = new Set(
+      attachments.map((att: any) => att.name).filter(Boolean) as string[],
+    );
+    const warnings: string[] = [];
+    for (const item of raw.item_list) {
+      if (item.type !== MessageItemType.FILE || !item.file_item) continue;
+      const fileName = item.file_item.file_name;
+      if (fileName && downloadedNames.has(fileName)) continue;
+      const sizeBytes = Number(item.file_item.len);
+      const sizeHint =
+        Number.isFinite(sizeBytes) && sizeBytes > 0
+          ? ` (${(sizeBytes / (1024 * 1024)).toFixed(1)} MB)`
+          : '';
+      warnings.push(
+        `File "${fileName || 'unknown'}"${sizeHint} could not be retrieved from WeChat ` +
+          `(it may be too large) and was not processed.`,
+      );
+    }
+
+    if (attachments.length === 0 && warnings.length === 0) {
       log('extractFiles: no media items resolved for msgId=%s', (message as any).id);
       return undefined;
     }
 
     log(
-      'extractFiles: resolved %d media item(s) for msgId=%s',
+      'extractFiles: resolved %d media item(s), %d warning(s) for msgId=%s',
       attachments.length,
+      warnings.length,
       (message as any).id,
     );
 
-    return attachments.map((att: any) => ({
+    const files: AttachmentSource[] = attachments.map((att: any) => ({
       buffer: att.buffer,
       mimeType: att.mimeType,
       name: att.name,
       size: att.size,
     }));
+
+    return {
+      files: files.length > 0 ? files : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
   }
 
   getMessenger(platformThreadId: string): PlatformMessenger {

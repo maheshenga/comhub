@@ -1,13 +1,14 @@
+import { AGENT_CHAT_TOPIC_URL } from '@lobechat/const';
 import type { ChatTopicStatus } from '@lobechat/types';
 import { type MenuProps } from '@lobehub/ui';
 import { Icon } from '@lobehub/ui';
-import { confirmModal } from '@lobehub/ui/base-ui';
 import { App } from 'antd';
 import {
-  CheckCircle2,
-  Circle,
+  Archive,
+  ArchiveRestore,
   ExternalLink,
   FolderInput,
+  Forward,
   Hash,
   Link2,
   LucideCopy,
@@ -15,24 +16,30 @@ import {
   PencilLine,
   Share2,
   Star,
+  Stethoscope,
   Trash,
   Wand2,
 } from 'lucide-react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspaceSlug';
 import { openRenameModal } from '@/components/RenameModal';
-import { SESSION_CHAT_TOPIC_URL } from '@/const/url';
 import { isDesktop } from '@/const/version';
 import { createMoveTopicsModal } from '@/features/AgentTopicManager/MoveTopicsModal';
+import { createTopicForwardModal } from '@/features/Conversation/MessageForward/TopicForwardModal';
+import { confirmRemoveTopic } from '@/features/DeleteTopicConfirm';
 import { openShareModal } from '@/features/ShareModal';
+import { openTopicDoctorModal } from '@/features/TopicDoctorModal';
 import { useWorkspaceAwareNavigate } from '@/features/Workspace/useWorkspaceAwareNavigate';
+import { buildWorkspaceAwarePath } from '@/features/Workspace/workspaceAwarePath';
 import { useAppOrigin } from '@/hooks/useAppOrigin';
 import { usePermission } from '@/hooks/usePermission';
 import { useAgentStore } from '@/store/agent';
 import { useChatStore } from '@/store/chat';
 import { useElectronStore } from '@/store/electron';
 import { useGlobalStore } from '@/store/global';
+import { isForbiddenError } from '@/utils/forbiddenError';
 
 interface TopicItemDropdownMenuProps {
   fav?: boolean;
@@ -50,6 +57,7 @@ export const useTopicItemDropdownMenu = ({
   const { t } = useTranslation(['topic', 'common']);
   const { message } = App.useApp();
   const navigate = useWorkspaceAwareNavigate();
+  const activeWorkspaceSlug = useActiveWorkspaceSlug();
   const { allowed: canCreateTopic } = usePermission('create_content');
   const { allowed: canEditTopic } = usePermission('edit_own_content');
 
@@ -89,7 +97,7 @@ export const useTopicItemDropdownMenu = ({
     return [
       {
         disabled: !canEditTopic,
-        icon: <Icon icon={isCompleted ? Circle : CheckCircle2} />,
+        icon: <Icon icon={isCompleted ? ArchiveRestore : Archive} />,
         key: 'markCompleted',
         label: isCompleted ? t('actions.unmarkCompleted') : t('actions.markCompleted'),
         onClick: () => {
@@ -134,10 +142,27 @@ export const useTopicItemDropdownMenu = ({
             defaultValue: title,
             description: t('renameModal.description', { ns: 'topic' }),
             onSave: async (newTitle) => {
-              await updateTopicTitle(id, newTitle);
+              try {
+                await updateTopicTitle(id, newTitle);
+              } catch (error) {
+                message.error(
+                  isForbiddenError(error)
+                    ? t('manageOnlyCreator', { ns: 'common' })
+                    : t('operationFailed', { ns: 'common' }),
+                );
+              }
             },
             title: t('renameModal.title', { ns: 'topic' }),
           });
+        },
+      },
+      {
+        disabled: !canEditTopic,
+        icon: <Icon icon={Stethoscope} />,
+        key: 'diagnose',
+        label: t('actions.diagnose'),
+        onClick: () => {
+          openTopicDoctorModal({ agentId: activeAgentId, topicId: id });
         },
       },
       {
@@ -151,9 +176,12 @@ export const useTopicItemDropdownMenu = ({
               label: t('actions.openInNewTab'),
               onClick: () => {
                 if (!activeAgentId) return;
-                const url = SESSION_CHAT_TOPIC_URL(activeAgentId, id);
+                const url = buildWorkspaceAwarePath(
+                  AGENT_CHAT_TOPIC_URL(activeAgentId, id),
+                  activeWorkspaceSlug,
+                );
                 addTab(url);
-                navigate(url);
+                navigate(url, { escape: true });
               },
             },
             {
@@ -184,7 +212,7 @@ export const useTopicItemDropdownMenu = ({
         label: t('actions.copyLink'),
         onClick: () => {
           if (!activeAgentId) return;
-          const url = `${appOrigin}${SESSION_CHAT_TOPIC_URL(activeAgentId, id)}`;
+          const url = `${appOrigin}${AGENT_CHAT_TOPIC_URL(activeAgentId, id)}`;
           navigator.clipboard.writeText(url);
           message.success(t('actions.copyLinkSuccess'));
         },
@@ -196,6 +224,16 @@ export const useTopicItemDropdownMenu = ({
         label: t('actions.duplicate'),
         onClick: () => {
           duplicateTopic(id);
+        },
+      },
+      {
+        disabled: !canCreateTopic || !activeAgentId,
+        icon: <Icon icon={Forward} />,
+        key: 'forwardToAgent',
+        label: t('actions.forwardToAgent'),
+        onClick: () => {
+          if (!activeAgentId) return;
+          createTopicForwardModal({ sourceAgentId: activeAgentId, topicId: id, topicTitle: title });
         },
       },
       {
@@ -227,15 +265,19 @@ export const useTopicItemDropdownMenu = ({
         key: 'delete',
         label: t('delete', { ns: 'common' }),
         onClick: () => {
-          confirmModal({
-            cancelText: t('cancel', { ns: 'common' }),
-            content: t('actions.confirmRemoveTopic'),
-            okButtonProps: { danger: true },
-            okText: t('delete', { ns: 'common' }),
-            onOk: async () => {
-              await removeTopic(id);
+          void confirmRemoveTopic({
+            onConfirm: async (removeFiles) => {
+              try {
+                await removeTopic(id, removeFiles);
+              } catch (error) {
+                message.error(
+                  isForbiddenError(error)
+                    ? t('manageOnlyCreator', { ns: 'common' })
+                    : t('operationFailed', { ns: 'common' }),
+                );
+              }
             },
-            title: t('delete', { ns: 'common' }),
+            topicIds: [id],
           });
         },
       },
@@ -248,6 +290,7 @@ export const useTopicItemDropdownMenu = ({
     canCreateTopic,
     canEditTopic,
     activeAgentId,
+    activeWorkspaceSlug,
     appOrigin,
     autoRenameTopicTitle,
     duplicateTopic,

@@ -84,7 +84,7 @@ const ListInputSchema = z
     status: moduleAppStatusSchema.optional(),
   })
   .optional()
-  .default({});
+  .default({ cursor: 0, limit: 50 });
 const ListByAppInputSchema = AppIdInputSchema.extend({
   cursor: AdminCursorSchema,
   limit: z.number().int().min(1).max(200).default(50),
@@ -100,7 +100,7 @@ const ListPackagesInputSchema = z
     submittedByUserId: z.string().min(1).max(255).optional(),
   })
   .optional()
-  .default({});
+  .default({ cursor: 0, limit: 50 });
 const RejectPackageInputSchema = PackageIdInputSchema.extend({
   reason: z.string().min(1).max(1000).optional(),
 });
@@ -125,7 +125,7 @@ const PaymentDiscrepancyListInputSchema = z
     status: z.enum(['open', 'resolved']).optional(),
   })
   .optional()
-  .default({});
+  .default({ cursor: 0, limit: 50 });
 const PaymentDiscrepancyIdInputSchema = z.object({ discrepancyId: z.string().uuid() });
 const ListRevenueInputSchema = z
   .object({
@@ -137,7 +137,7 @@ const ListRevenueInputSchema = z
     status: z.enum(['pending', 'reversed', 'settled']).optional(),
   })
   .optional()
-  .default({});
+  .default({ cursor: 0, limit: 50 });
 const SettleRevenueBatchInputSchema = z.object({
   entryIds: z.array(z.string().uuid()).min(1).max(500),
 });
@@ -170,7 +170,7 @@ const ListPublishersInputSchema = z
     userId: z.string().trim().min(1).max(255).optional(),
   })
   .optional()
-  .default({});
+  .default({ cursor: 0, limit: 50 });
 const CreatePayoutBatchInputSchema = PublisherIdInputSchema.extend({
   requestedAmount: z.number().finite().positive().max(1_000_000_000_000),
   revenueEntryIds: z.array(z.string().uuid()).min(1).max(500),
@@ -198,7 +198,7 @@ const ListPayoutsInputSchema = z
     status: moduleAppPayoutStatusSchema.optional(),
   })
   .optional()
-  .default({});
+  .default({ cursor: 0, limit: 50 });
 const ListPaymentDiagnosticsInputSchema = z
   .object({
     appId: z.string().uuid().optional(),
@@ -210,7 +210,7 @@ const ListPaymentDiagnosticsInputSchema = z
     refundStatus: z.enum(['failed', 'requested', 'succeeded']).optional(),
   })
   .optional()
-  .default({});
+  .default({ cursor: 0, limit: 50 });
 
 const PagesInputSchema = z.object({
   appId: z.string().uuid(),

@@ -98,8 +98,11 @@ const injectSearchSettings = (providerId: string, item: any) => {
     if (item?.settings?.searchImpl || item?.settings?.searchProvider) {
       const next = { ...item } as any;
       if (next.settings) {
-        // eslint-disable-next-line unused-imports/no-unused-vars
-        const { searchImpl, searchProvider, ...restSettings } = next.settings;
+        const {
+          searchImpl: _searchImpl,
+          searchProvider: _searchProvider,
+          ...restSettings
+        } = next.settings;
         next.settings = Object.keys(restSettings).length > 0 ? restSettings : undefined;
       }
       return next;
@@ -140,11 +143,12 @@ export class AiInfraRepos {
     db: LobeChatDatabase,
     userId: string,
     providerConfigs: Record<string, ServerProviderConfig>,
+    workspaceId?: string,
   ) {
     this.userId = userId;
     this.db = db;
-    this.aiProviderModel = new AiProviderModel(db, userId);
-    this.aiModelModel = new AiModelModel(db, userId);
+    this.aiProviderModel = new AiProviderModel(db, userId, workspaceId);
+    this.aiModelModel = new AiModelModel(db, userId, workspaceId);
     this.providerConfigs = providerConfigs;
   }
 
@@ -221,14 +225,12 @@ export class AiInfraRepos {
     return list
       .filter((item) => item.enabled && item.id !== BRANDING_PROVIDER)
       .sort((a, b) => a.sort! - b.sort!)
-      .map(
-        (item): EnabledProvider => ({
-          id: item.id,
-          logo: item.logo,
-          name: item.name,
-          source: item.source,
-        }),
-      );
+      .map((item): EnabledProvider => ({
+        id: item.id,
+        logo: item.logo,
+        name: item.name,
+        source: item.source,
+      }));
   };
 
   /**

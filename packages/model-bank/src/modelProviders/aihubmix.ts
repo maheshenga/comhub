@@ -1,4 +1,4 @@
-import type { ModelProviderCard } from '@/types/llm';
+import type { ModelProviderCard } from '../types';
 
 const AiHubMix: ModelProviderCard = {
   apiKeyUrl: 'https://lobe.li/9mZhb4T',
@@ -9,6 +9,9 @@ const AiHubMix: ModelProviderCard = {
   modelsUrl: 'https://docs.aihubmix.com/cn/api/Model-List',
   name: 'AiHubMix',
   settings: {
+    proxyUrl: {
+      placeholder: 'https://aihubmix.com',
+    },
     sdkType: 'router',
     showModelFetcher: true,
     supportResponsesApi: true,

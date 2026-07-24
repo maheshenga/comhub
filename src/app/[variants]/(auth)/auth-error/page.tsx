@@ -2,7 +2,8 @@
 
 import { SiDiscord } from '@icons-pack/react-simple-icons';
 import { SOCIAL_URL } from '@lobechat/business-const';
-import { Button, Flexbox, Icon, Text } from '@lobehub/ui';
+import { Flexbox, Icon, Text } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
 import Link from 'next/link';
 import { parseAsString, useQueryState } from 'nuqs';

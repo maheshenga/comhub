@@ -251,6 +251,7 @@ export const videoRouter = router({
               usage: pollResult.usage,
               db: ctx.serverDB,
               userId: ctx.userId,
+              workspaceId,
             });
             log('Charge completed successfully for asyncTask: %s', asyncTaskId);
           } catch (chargeError) {
@@ -328,6 +329,7 @@ export const videoRouter = router({
             provider,
             db: ctx.serverDB,
             userId: ctx.userId,
+            workspaceId,
           });
           log('Precharge refunded successfully for asyncTask: %s', asyncTaskId);
         } catch (refundError) {

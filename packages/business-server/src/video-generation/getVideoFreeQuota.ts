@@ -3,7 +3,7 @@ import { type LobeChatDatabase } from '@/database/type';
 
 export async function getVideoFreeQuota(
   userId: string,
-  model: string,
+  _model: string,
   db?: LobeChatDatabase,
 ): Promise<{ limit: number; used: number } | null> {
   const shouldCharge = await shouldChargeCommercialUsage({

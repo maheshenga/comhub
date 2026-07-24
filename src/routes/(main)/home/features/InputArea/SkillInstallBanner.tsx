@@ -12,8 +12,6 @@ import { useGlobalStore } from '@/store/global';
 import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
 import { useToolStore } from '@/store/tool';
 
-// Bump this id when the banner content changes so dismissing the old
-// variant does not hide the new one.
 export const SKILL_INSTALL_BANNER_ID = 'skill-install-v2';
 
 const ICON_SIZE = 16;
@@ -81,17 +79,14 @@ const BANNER_SKILL_IDS = [
 
 const SkillInstallBanner = memo(() => {
   const { t } = useTranslation('plugin');
-
   const isLobehubSkillEnabled = useServerConfigStore(serverConfigSelectors.enableLobehubSkill);
   const isComposioEnabled = useServerConfigStore(serverConfigSelectors.enableComposio);
-
   const updateSystemStatus = useGlobalStore((s) => s.updateSystemStatus);
-
-  // Prefetch skill connections data so SkillStore opens faster
   const [useFetchLobehubSkillConnections, useFetchUserComposioConnections] = useToolStore((s) => [
     s.useFetchLobehubSkillConnections,
     s.useFetchUserComposioConnections,
   ]);
+
   useFetchLobehubSkillConnections(isLobehubSkillEnabled);
   useFetchUserComposioConnections(isComposioEnabled);
 
@@ -99,40 +94,32 @@ const SkillInstallBanner = memo(() => {
     const icons: Array<{ icon: string | React.ComponentType<{ size?: number }>; key: string }> = [];
 
     for (const skill of BANNER_SKILL_IDS) {
-      if (skill.type === 'lobehub') {
-        const provider = getLobehubSkillProviderById(skill.id);
-        if (provider) {
-          icons.push({ icon: provider.icon, key: provider.id });
-        }
-      } else {
-        const server = getComposioAppByIdentifier(skill.id);
-        if (server) {
-          icons.push({ icon: server.icon, key: server.identifier });
-        }
-      }
+      const item =
+        skill.type === 'lobehub'
+          ? getLobehubSkillProviderById(skill.id)
+          : getComposioAppByIdentifier(skill.id);
+      if (item) icons.push({ icon: item.icon, key: 'id' in item ? item.id : item.identifier });
     }
 
     return icons;
   }, []);
 
-  const handleOpenStore = useCallback(() => {
-    createSkillStoreModal();
-  }, []);
-
   const handleDismiss = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
       const current = useGlobalStore.getState().status.dismissedBannerIds || [];
       if (current.includes(SKILL_INSTALL_BANNER_ID)) return;
-      updateSystemStatus({
-        dismissedBannerIds: [...current, SKILL_INSTALL_BANNER_ID],
-      });
+      updateSystemStatus({ dismissedBannerIds: [...current, SKILL_INSTALL_BANNER_ID] });
     },
     [updateSystemStatus],
   );
 
   return (
-    <div className={styles.banner} data-testid="skill-install-banner" onClick={handleOpenStore}>
+    <div
+      className={styles.banner}
+      data-testid="skill-install-banner"
+      onClick={() => createSkillStoreModal()}
+    >
       <Flexbox horizontal align="center" gap={4}>
         <Icon className={styles.icon} icon={Blocks} size={18} />
         <span className={styles.text}>{t('skillInstallBanner.title')}</span>

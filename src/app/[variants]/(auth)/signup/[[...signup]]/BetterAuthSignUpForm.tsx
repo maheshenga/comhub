@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 import { AuthCard } from '../../../../../features/AuthCard';
 import { trackLoginOrSignupClicked } from '../../../../../features/User/UserLoginOrSignup/trackLoginOrSignupClicked';
+import { AuthAgreement, useAuthAgreement } from '../../_layout/AuthAgreement';
 import { type SignUpFormValues } from './useSignUp';
 import { useSignUp } from './useSignUp';
 
@@ -18,6 +19,7 @@ const BetterAuthSignUpForm = () => {
 
   const { t } = useTranslation('auth');
   const searchParams = useSearchParams();
+  const { agreementChecked, continueWithAgreement, setAgreementChecked } = useAuthAgreement();
 
   const emailInputRef = useRef<InputRef>(null);
   const passwordInputRef = useRef<InputRef>(null);
@@ -55,7 +57,15 @@ const BetterAuthSignUpForm = () => {
       subtitle={t('betterAuth.signup.subtitle')}
       title={t('betterAuth.signup.title')}
     >
-      <Form form={form} layout="vertical" onFinish={onSubmit}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(values) =>
+          continueWithAgreement(() => {
+            void onSubmit(values);
+          })
+        }
+      >
         <Form.Item
           name="email"
           rules={[
@@ -64,9 +74,12 @@ const BetterAuthSignUpForm = () => {
           ]}
         >
           <Input
+            autoComplete="email"
+            inputMode="email"
             placeholder={t('betterAuth.signup.emailPlaceholder')}
             ref={emailInputRef}
             size="large"
+            type="email"
             prefix={
               <Icon
                 icon={Mail}
@@ -95,6 +108,7 @@ const BetterAuthSignUpForm = () => {
           ]}
         >
           <Input.Password
+            autoComplete="new-password"
             placeholder={t('betterAuth.signup.passwordPlaceholder')}
             ref={passwordInputRef}
             size="large"
@@ -124,6 +138,7 @@ const BetterAuthSignUpForm = () => {
           ]}
         >
           <Input.Password
+            autoComplete="new-password"
             placeholder={t('betterAuth.signup.confirmPasswordPlaceholder')}
             size="large"
             prefix={
@@ -139,6 +154,7 @@ const BetterAuthSignUpForm = () => {
 
         {businessElement}
 
+        <AuthAgreement checked={agreementChecked} onChange={setAgreementChecked} />
         <Form.Item>
           <Button block htmlType="submit" loading={loading} size="large" type="primary">
             {t('betterAuth.signup.submit')}

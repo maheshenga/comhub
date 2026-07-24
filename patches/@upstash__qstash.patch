@@ -1,5 +1,4 @@
 diff --git a/chunk-T3Z5YUS4.mjs b/chunk-T3Z5YUS4.mjs
-index 2eaa3472b7efde0d043ce6f8a064c0fe83697cd4..b0b65c3e5b2c776074ca37edc85429f24fbd35d1 100644
 --- a/chunk-T3Z5YUS4.mjs
 +++ b/chunk-T3Z5YUS4.mjs
 @@ -1488,6 +1488,20 @@ var HttpClient = class {
@@ -23,7 +22,7 @@ index 2eaa3472b7efde0d043ce6f8a064c0fe83697cd4..b0b65c3e5b2c776074ca37edc85429f2
        throw new QstashError(
          body.length > 0 ? body : `Error: status=${response.status}`,
          response.status
-@@ -2746,8 +2760,10 @@ var AutoExecutor = class _AutoExecutor {
+@@ -2745,8 +2759,10 @@ var AutoExecutor = class _AutoExecutor {
            if (error instanceof QStashWorkflowAbort) {
              throw error;
            }

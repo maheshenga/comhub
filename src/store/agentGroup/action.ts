@@ -64,9 +64,45 @@ class ChatGroupInternalAction implements ResetableStore {
     );
   };
 
+  private removeStaleGroup = (groupId: string) => {
+    this.internal_dispatchChatGroup({ payload: groupId, type: 'deleteGroup' });
+  };
+
+  // A successful fetch that resolves to nothing means the group doesn't exist
+  // or the caller lost access (e.g. switched back to private) — a settled
+  // state the UI renders as a 404 card, not an error to retry.
+  #markGroupNotFound = (groupId: string) => {
+    if (this.#get().groupNotFoundMap[groupId]) return;
+
+    this.#set(
+      (state) => ({ groupNotFoundMap: { ...state.groupNotFoundMap, [groupId]: true } }),
+      false,
+      'markGroupNotFound',
+    );
+  };
+
+  #clearGroupNotFound = (groupId: string) => {
+    if (!this.#get().groupNotFoundMap[groupId]) return;
+
+    this.#set(
+      (state) => {
+        const next = { ...state.groupNotFoundMap };
+        delete next[groupId];
+        return { groupNotFoundMap: next };
+      },
+      false,
+      'clearGroupNotFound',
+    );
+  };
+
   internal_fetchGroupDetail = async (groupId: string) => {
     const groupDetail = await chatGroupService.getGroupDetail(groupId);
-    if (!groupDetail) return;
+    if (!groupDetail) {
+      this.removeStaleGroup(groupId);
+      this.#markGroupNotFound(groupId);
+      return;
+    }
+    this.#clearGroupNotFound(groupId);
 
     // Update groupMap with full group detail including supervisorAgentId and agents
     this.internal_dispatchChatGroup({
@@ -159,12 +195,21 @@ class ChatGroupInternalAction implements ResetableStore {
       enabled && groupId ? groupKeys.detail(groupId) : null,
       async () => {
         const groupDetail = await chatGroupService.getGroupDetail(groupId);
-        if (!groupDetail) throw new Error(`Group ${groupId} not found`);
+        // Resolve to null instead of throwing: "gone / no access" is a settled
+        // terminal state (rendered as a 404 card), not a retryable error.
+        if (!groupDetail) {
+          this.removeStaleGroup(groupId);
+          return null;
+        }
         return groupDetail;
       },
       {
         onData: (groupDetail) => {
-          if (!groupDetail) return;
+          if (!groupDetail) {
+            this.#markGroupNotFound(groupId);
+            return;
+          }
+          this.#clearGroupNotFound(groupId);
 
           // Update groupMap with detailed group info including agents
           const currentGroup = this.#get().groupMap[groupDetail.id];

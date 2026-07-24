@@ -129,6 +129,7 @@ export class WindowsContentSearchImpl extends BaseContentSearch {
       const { stdout, stderr, exitCode } = await execa('rg', args, {
         cwd: searchPath,
         reject: false,
+        stdin: 'ignore',
       });
 
       if (exitCode !== 0 && exitCode !== 1 && stderr) {
@@ -200,6 +201,7 @@ export class WindowsContentSearchImpl extends BaseContentSearch {
       const { stdout } = await execa('rg', args, {
         cwd: this.resolveSearchPath(params),
         reject: false,
+        stdin: 'ignore',
       });
 
       let total = 0;
@@ -232,16 +234,17 @@ export class WindowsContentSearchImpl extends BaseContentSearch {
       }
 
       args.push('/R');
-      args.push(`"${pattern}"`);
+      args.push(pattern);
 
       const filePattern = params.glob || params.type ? `*.${params.type || '*'}` : '*.*';
       args.push(filePattern);
 
       logger.debug(`${logPrefix} Executing: findstr ${args.join(' ')}`);
 
-      const { stdout, exitCode } = await execa('cmd', ['/c', `findstr ${args.join(' ')}`], {
+      const { stdout, exitCode } = await execa('findstr', args, {
         cwd: searchPath,
         reject: false,
+        stdin: 'ignore',
       });
 
       if (exitCode !== 0 && exitCode !== 1) {

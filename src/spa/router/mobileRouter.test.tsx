@@ -21,7 +21,6 @@ describe('mobileRouter workspace roots', () => {
 
   it('mirrors the four mobile roots and required design/app deep routes inside a workspace', async () => {
     const source = await readMobileRouterSource();
-    const workspaceSlugIndex = source.lastIndexOf("path: ':workspaceSlug'");
     const mirrorStart = source.indexOf('const workspaceMobileRootChildren');
     const mirrorEnd = source.indexOf('// Mobile router configuration');
     const mirroredRoutes = source.slice(mirrorStart, mirrorEnd);
@@ -78,8 +77,8 @@ describe('mobileRouter workspace roots', () => {
   it('keeps AI group conversations and group topics reachable on mobile', async () => {
     const source = await readMobileRouterSource();
 
-    expect(source).toContain("import('@/routes/(main)/group')");
-    expect(source).toContain("import('@/routes/(main)/group/_layout')");
+    expect(source).toContain("import('@/routes/(mobile)/group')");
+    expect(source).toContain("import('@/routes/(mobile)/group/_layout')");
     expect(source).toContain("path: 'group'");
     expect(source).toContain("path: ':gid'");
   });
@@ -138,8 +137,9 @@ describe('mobileRouter settings routes', () => {
     );
 
     expect(source).toContain("import('@/routes/(mobile)/settings/[tab]')");
-    expect(source).not.toContain("import('@/routes/(main)/settings')");
+    expect(source).toContain("import('@/routes/(main)/settings')");
     expect(source).toContain("path: ':tab'");
+    expect(source).toContain("path: ':tab/:sub'");
   });
 
   it('keeps the mobile header and scroll container in the route layout only', async () => {

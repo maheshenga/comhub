@@ -1,3 +1,4 @@
+lockfile: false
 packages:
   - packages/**
   - .
@@ -6,6 +7,9 @@ packages:
   - apps/server
   - apps/module-runtime
   - apps/module-worker
+
+minimumReleaseAgeExclude:
+  - '@lobehub/ui@5.20.2'
 
 onlyBuiltDependencies:
   - '@google/genai'

@@ -28,9 +28,17 @@ interface ErrorBatch {
   success: true;
 }
 
+interface VideoPrechargeResult extends Record<string, unknown> {
+  costDetail?: {
+    totalCost: number;
+    totalCredits: number;
+  };
+  estimatedCredits?: number;
+}
+
 interface ChargeBeforeResult {
   errorBatch?: ErrorBatch;
-  prechargeResult?: { costDetail?: any; estimatedCredits: number };
+  prechargeResult?: VideoPrechargeResult;
 }
 
 export async function chargeBeforeGenerate(params: ChargeParams): Promise<ChargeBeforeResult> {

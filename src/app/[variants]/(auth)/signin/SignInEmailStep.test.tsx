@@ -37,7 +37,7 @@ vi.mock('@/components/AuthIcons', () => ({
 }));
 
 vi.mock('antd', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('antd')>();
+  const actual = (await importOriginal()) as Record<string, unknown>;
   const Form = ({ children }: { children: React.ReactNode }) => <form>{children}</form>;
   Form.Item = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
 
@@ -63,6 +63,8 @@ describe('SignInEmailStep', () => {
         serverConfigInit
         socialLoading={null}
         onCheckUser={vi.fn()}
+        onGoToSignup={vi.fn()}
+        onResetEmail={vi.fn()}
         onSetPassword={vi.fn()}
         onSocialSignIn={vi.fn()}
       />,

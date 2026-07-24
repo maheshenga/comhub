@@ -50,6 +50,7 @@ class CalculatorExecutor
     } catch (error) {
       throw new Error(
         `Failed to evaluate expression: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error },
       );
     }
   }
@@ -373,6 +374,17 @@ class CalculatorExecutor
         }
 
         const result = nerdamer.solveEquations(equation, solveVariables);
+        if (result === null) {
+          const message = 'System does not have a distinct solution';
+          return {
+            content: `Equation solver error: ${message}`,
+            error: {
+              message,
+              type: 'SolveError',
+            },
+            success: false,
+          };
+        }
         const rawResult = result.toString();
 
         const pairs = rawResult.split(',');

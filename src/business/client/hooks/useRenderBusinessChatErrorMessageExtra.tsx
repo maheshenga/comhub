@@ -48,7 +48,6 @@ interface CommercialBudgetErrorBody {
   requiredCredits?: number;
   shortfallCredits?: number;
 }
-
 const toFiniteNumber = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 

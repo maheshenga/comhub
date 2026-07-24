@@ -54,7 +54,10 @@ export const moduleAppDataIndexSchema = z
   .strict()
   .superRefine((index, ctx) => {
     if (new Set(index.fields).size !== index.fields.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'module_app_data_index_duplicate_field' });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'module_app_data_index_duplicate_field',
+      });
     }
   });
 export type ModuleAppDataIndex = z.infer<typeof moduleAppDataIndexSchema>;
@@ -105,14 +108,7 @@ export const moduleAppTableSchema = z
 export type ModuleAppTableSchema = z.infer<typeof moduleAppTableSchema>;
 export type ModuleAppTableInput = z.input<typeof moduleAppTableSchema>;
 
-export const moduleAppDataFilterOperatorSchema = z.enum([
-  'eq',
-  'gt',
-  'gte',
-  'lt',
-  'lte',
-  'prefix',
-]);
+export const moduleAppDataFilterOperatorSchema = z.enum(['eq', 'gt', 'gte', 'lt', 'lte', 'prefix']);
 
 export const moduleAppDataFilterSchema = z
   .object({
@@ -148,7 +144,7 @@ export const moduleAppDataQuerySchema = z
 export type ModuleAppDataQuery = z.infer<typeof moduleAppDataQuerySchema>;
 export type ModuleAppDataQueryInput = z.input<typeof moduleAppDataQuerySchema>;
 
-const moduleAppDataValuesSchema = z.record(z.unknown());
+const moduleAppDataValuesSchema = z.record(z.string(), z.unknown());
 const moduleAppDataRowIdentitySchema = z
   .object({
     rowKey: z.string().min(1).max(160),
@@ -234,7 +230,7 @@ export const moduleAppDataRowSchema = z
     status: z.enum(['active', 'archived']),
     tableKey: moduleAppDataKeySchema,
     updatedAt: z.coerce.date(),
-    values: z.record(z.unknown()),
+    values: z.record(z.string(), z.unknown()),
   })
   .strict();
 export type ModuleAppDataRow = z.infer<typeof moduleAppDataRowSchema>;

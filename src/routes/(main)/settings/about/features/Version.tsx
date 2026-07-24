@@ -3,7 +3,8 @@ import {
   type UpdaterState,
   useWatchBroadcast,
 } from '@lobechat/electron-client-ipc';
-import { Block, Button, Flexbox, Tag } from '@lobehub/ui';
+import { Block, Flexbox, Tag } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +19,7 @@ import { useNewVersion } from '@/features/User/UserPanel/useNewVersion';
 import { autoUpdateService } from '@/services/electron/autoUpdate';
 import { adminCommercialService } from '@/services/adminCommercial';
 import { useGlobalStore } from '@/store/global';
+import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
 
 import { APP_VERSION } from './appVersion';
 
@@ -30,17 +32,29 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 const Version = memo<{ logoUrl?: string | null; mobile?: boolean }>(({ logoUrl, mobile }) => {
   const hasNewVersion = useNewVersion();
   const brandName = useBrandName();
-  const [latestVersion, serverVersion, useCheckServerVersion] = useGlobalStore((s) => [
-    s.latestVersion,
-    s.serverVersion,
-    s.useCheckServerVersion,
-  ]);
+  const [latestVersion, serverVersion, useCheckServerVersion, useCheckLatestVersion] =
+    useGlobalStore((s) => [
+      s.latestVersion,
+      s.serverVersion,
+      s.useCheckServerVersion,
+      s.useCheckLatestVersion,
+    ]);
   const { t } = useTranslation(['common', 'setting']);
 
   const { data: aboutPage } = useSWR(PUBLIC_ABOUT_PAGE_SWR_KEY, () =>
     adminCommercialService.getPublicAboutPage(),
   );
   useCheckServerVersion();
+
+  // Read the shared latest-version check state (deduped by key, no extra fetch)
+  // so a failed update check can surface a retry instead of silently rendering
+  // nothing — which is indistinguishable from "up to date".
+  const { enableCheckUpdates } = useServerConfigStore(featureFlagsSelectors);
+  const {
+    error: updateCheckError,
+    isValidating: isCheckingUpdate,
+    mutate: recheckUpdate,
+  } = useCheckLatestVersion(enableCheckUpdates);
 
   const showServerVersion = serverVersion && serverVersion !== CURRENT_VERSION;
   const isDesktop = useMemo(() => !!getElectronIpc(), []);
@@ -71,6 +85,14 @@ const Version = memo<{ logoUrl?: string | null; mobile?: boolean }>(({ logoUrl, 
               {t('upgradeVersion.action')}
             </Button>
           </a>
+        );
+      }
+      // A failed update check must not read as "up to date" — offer a retry.
+      if (updateCheckError) {
+        return (
+          <Button block={mobile} loading={isCheckingUpdate} onClick={() => recheckUpdate()}>
+            {t('checkForUpdates')}
+          </Button>
         );
       }
       return null;

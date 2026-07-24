@@ -86,7 +86,7 @@ export abstract class BaseMemoryExtractor<
   protected getPromptName(): string {
     return this.agent;
   }
-  protected abstract getResultSchema(): z.ZodType<TOutput> | undefined;
+  protected abstract getResultSchema(): z.ZodType<TOutput, unknown> | undefined;
 
   protected getSchema(_options: TExtractorTemplateProps): GenerateObjectSchema | undefined {
     const schema = this.getResultSchema();

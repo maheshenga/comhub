@@ -1,5 +1,7 @@
-import { Client, Receiver } from '@upstash/qstash';
-import { Client as WorkflowClient } from '@upstash/workflow';
+import { recordUpstashWorkflowEvent } from '@lobechat/observability-otel/modules/upstash-workflow';
+import { errorNameFrom } from '@lobechat/utils';
+import { Client, type PublishRequest, type PublishResponse, Receiver } from '@upstash/qstash';
+import { Client as WorkflowClient, type TriggerOptions } from '@upstash/workflow';
 import debug from 'debug';
 
 const log = debug('lobe-server:qstash');
@@ -10,8 +12,100 @@ const headers = {
   }),
 };
 
-type QStashClient = InstanceType<typeof Client>;
-type UpstashWorkflowClient = InstanceType<typeof WorkflowClient>;
+const normalizeLabel = (label?: string | string[]): string | undefined =>
+  Array.isArray(label) ? label.join(',') : label;
+
+type WorkflowTriggerResponse = { workflowRunId: string };
+
+export class OtelQstashClient extends Client {
+  override async publishJSON<
+    TBody = unknown,
+    TRequest extends PublishRequest<TBody> = PublishRequest<TBody>,
+  >(request: TRequest): Promise<PublishResponse<TRequest>> {
+    try {
+      const response = await super.publishJSON(request);
+      recordUpstashWorkflowEvent({
+        interface: 'qstash',
+        label: normalizeLabel(request.label),
+        operation: 'trigger',
+        retries: request.retries,
+        retryDelay: request.retryDelay,
+        status: 'success',
+        url: request.url,
+      });
+
+      return response;
+    } catch (error) {
+      recordUpstashWorkflowEvent({
+        errorType: errorNameFrom(error) ?? typeof error,
+        interface: 'qstash',
+        label: normalizeLabel(request.label),
+        operation: 'trigger',
+        retries: request.retries,
+        retryDelay: request.retryDelay,
+        status: 'error',
+        url: request.url,
+      });
+
+      throw error;
+    }
+  }
+}
+
+export class OtelWorkflowClient extends WorkflowClient {
+  override trigger(params: TriggerOptions): Promise<WorkflowTriggerResponse>;
+  override trigger(params: TriggerOptions[]): Promise<WorkflowTriggerResponse[]>;
+  override async trigger(
+    params: TriggerOptions | TriggerOptions[],
+  ): Promise<WorkflowTriggerResponse | WorkflowTriggerResponse[]> {
+    const first = Array.isArray(params) ? params[0] : params;
+    const count = Array.isArray(params) ? params.length : 1;
+
+    try {
+      const response = Array.isArray(params)
+        ? await super.trigger(params)
+        : await super.trigger(params);
+
+      recordUpstashWorkflowEvent(
+        {
+          interface: 'workflow',
+          label: first?.label,
+          operation: 'trigger',
+          retries: first?.retries,
+          retryDelay: first?.retryDelay,
+          status: 'success',
+          url: first?.url,
+          workflowRunId: Array.isArray(response)
+            ? response[0]?.workflowRunId
+            : response.workflowRunId,
+        },
+        count,
+      );
+
+      return response;
+    } catch (error) {
+      recordUpstashWorkflowEvent(
+        {
+          errorType: errorNameFrom(error) ?? typeof error,
+          interface: 'workflow',
+          label: first?.label,
+          operation: 'trigger',
+          retries: first?.retries,
+          retryDelay: first?.retryDelay,
+          status: 'error',
+          url: first?.url,
+          workflowRunId: first?.workflowRunId,
+        },
+        count,
+      );
+
+      throw error;
+    }
+  }
+}
+
+type QStashClient = InstanceType<typeof OtelQstashClient>;
+type UpstashWorkflowClient = InstanceType<typeof OtelWorkflowClient>;
 
 let cachedQstashClient: QStashClient | undefined;
 let cachedQstashClientToken: string | undefined;
@@ -34,10 +128,7 @@ const getQstashClient = () => {
   const token = getQstashToken();
 
   if (!cachedQstashClient || cachedQstashClientToken !== token) {
-    cachedQstashClient = new Client({
-      headers,
-      token,
-    });
+    cachedQstashClient = new OtelQstashClient({ headers, token });
     cachedQstashClientToken = token;
   }
 
@@ -48,10 +139,7 @@ const getWorkflowClient = () => {
   const token = getQstashToken();
 
   if (!cachedWorkflowClient || cachedWorkflowClientToken !== token) {
-    cachedWorkflowClient = new WorkflowClient({
-      headers,
-      token,
-    });
+    cachedWorkflowClient = new OtelWorkflowClient({ headers, token });
     cachedWorkflowClientToken = token;
   }
 
@@ -79,8 +167,6 @@ const createLazyClient = <TClient extends object>(getClient: () => TClient): TCl
 /**
  * QStash client with Vercel Deployment Protection bypass headers.
  * Use as `qstashClient` option in Upstash Workflow `serve()`.
- *
- * @see https://upstash.com/docs/workflow/troubleshooting/vercel
  */
 export const qstashClient = createLazyClient<QStashClient>(getQstashClient);
 
@@ -92,7 +178,7 @@ export const workflowClient = createLazyClient<UpstashWorkflowClient>(getWorkflo
 
 /**
  * Verify QStash signature using Receiver.
- * Returns true if signing keys are not configured (verification skipped) or signature is valid.
+ * Returns false if signing keys or signature are missing, or verification fails.
  */
 export async function verifyQStashSignature(request: Request, rawBody: string): Promise<boolean> {
   const currentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;

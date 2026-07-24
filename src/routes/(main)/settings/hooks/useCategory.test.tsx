@@ -1,15 +1,21 @@
 import { act, renderHook } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsTabs } from '@/store/global/initialState';
 import { useUserStore } from '@/store/user';
 
-import { useCategory } from './useCategory';
+import { SettingsGroupKey, useCategory } from './useCategory';
 
 const userStoreMock = vi.hoisted(() => {
   const initialState = {
     enableExecutionDeviceSwitcher: false,
     isSignedIn: false,
+    preference: {
+      lab: {
+        enableOAuthApps: false,
+      },
+    },
     settings: {
       general: {
         isDevMode: false,
@@ -91,6 +97,8 @@ vi.mock('@/store/user/selectors', () => ({
   labPreferSelectors: {
     enableExecutionDeviceSwitcher: (s: typeof userStoreMock.initialState) =>
       Boolean(s.enableExecutionDeviceSwitcher),
+    enableOAuthApps: (s: typeof userStoreMock.initialState) =>
+      Boolean(s.preference?.lab?.enableOAuthApps),
   },
 }));
 
@@ -152,6 +160,7 @@ const getItemKeys = (showProvider = true) => {
 const initialUserStoreState = useUserStore.getState();
 
 afterEach(() => {
+  cleanup();
   localStorageMock.clear();
   serverConfigMock.reset();
   act(() => {
@@ -192,5 +201,25 @@ describe('settings useCategory', () => {
     const { result } = renderHook(() => useCategory());
 
     expect(hasAdminItem(result.current)).toBe(true);
+  });
+
+  it('hides OAuth Apps by default', () => {
+    expect(getItemKeys()).not.toContain(SettingsTabs.OAuthApps);
+  });
+
+  it('shows OAuth Apps when the Labs preference is enabled', () => {
+    useUserStore.setState({
+      preference: {
+        ...initialUserStoreState.preference,
+        lab: { ...initialUserStoreState.preference.lab, enableOAuthApps: true },
+      },
+    });
+
+    const { result } = renderHook(() => useCategory());
+    const developerGroup = result.current.find((group) => group.key === SettingsGroupKey.Developer);
+    const systemGroup = result.current.find((group) => group.key === SettingsGroupKey.System);
+
+    expect(developerGroup?.items.map((item) => item.key)).toContain(SettingsTabs.OAuthApps);
+    expect(systemGroup?.items.map((item) => item.key)).not.toContain(SettingsTabs.OAuthApps);
   });
 });

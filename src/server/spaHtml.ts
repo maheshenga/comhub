@@ -6,7 +6,7 @@ export const VITE_DEV_ORIGIN = 'http://localhost:9876';
 
 const SERVER_CONFIG_PLACEHOLDER =
   /window\.__SERVER_CONFIG__\s*=\s*undefined;\s*\/\*\s*SERVER_CONFIG\s*\*\//;
-const LOADING_BRAND_PLACEHOLDER = /<div\b(?=[^>]*\bid=["']loading-brand["'])[^>]*>[\s\S]*?<\/div>/;
+const LOADING_BRAND_PLACEHOLDER = /<div\b(?=[^>]+\bid=["']loading-brand["'])[^>]+>[\s\S]*?<\/div>/;
 
 async function rewriteViteAssetUrls(html: string, origin = VITE_DEV_ORIGIN): Promise<string> {
   const { parseHTML } = await import('linkedom');
