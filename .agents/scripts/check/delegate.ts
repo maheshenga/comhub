@@ -9,9 +9,14 @@ import path from 'node:path';
  * `.git/worktrees`).
  */
 export const hostRootFromGitdir = (gitdir: string): string | null => {
-  const marker = `${path.sep}.git${path.sep}modules${path.sep}`;
-  const index = gitdir.lastIndexOf(marker);
-  return index === -1 ? null : gitdir.slice(0, index);
+  const separator = gitdir.includes('\\') ? '\\' : '/';
+  const normalized = gitdir.replaceAll('\\', '/');
+  const marker = '/.git/modules/';
+  const index = normalized.lastIndexOf(marker);
+  if (index === -1) return null;
+
+  const root = normalized.slice(0, index);
+  return separator === '\\' ? root.replaceAll('/', '\\') : root;
 };
 
 /**

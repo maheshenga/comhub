@@ -29,7 +29,10 @@ export const toolCommand = async (dir: string, tool: string): Promise<string> =>
   const root = rootDir();
   for (let current = dir; ; current = path.dirname(current)) {
     const bin = path.join(current, 'node_modules/.bin', tool);
-    if (await exists(bin)) return bin;
+    const candidates = process.platform === 'win32' ? [`${bin}.cmd`, bin] : [bin];
+    for (const candidate of candidates) {
+      if (await exists(candidate)) return candidate;
+    }
     if (current === root || current === path.dirname(current)) break;
   }
   console.error(
