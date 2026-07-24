@@ -1,4 +1,6 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,8 +8,20 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
 
 describe('Docker workspace manifests', () => {
+  it('loads the module worker fixture through runtime package exports', () => {
+    const tsxCli = require.resolve('tsx/cli');
+    const fixture = path.join(root, 'scripts', 'fixtures', 'moduleAppWorkerFixture.mts');
+    const result = spawnSync(process.execPath, [tsxCli, fixture], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+
+    expect(result.status, result.stderr || result.error?.message).toBe(0);
+  });
+
   it('copies the server manifest before installing workspace dependencies', () => {
     const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
     const installIndex = dockerfile.indexOf('pnpm i');
