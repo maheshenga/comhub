@@ -282,6 +282,18 @@ jobs:
             exit 1
           fi
 
+          app_service=""
+          for candidate in comhub lobe; do
+            if docker compose config --services | grep -qx "$candidate"; then
+              app_service="$candidate"
+              break
+            fi
+          done
+          if [ -z "$app_service" ]; then
+            echo "Deployment requires a configured ComHub application service (comhub or lobe)"
+            exit 1
+          fi
+
           if [ "$module_runtime_configured" = "true" ]; then
             docker pull "$RUNTIME_IMAGE_REF"
             docker compose up -d --no-deps --wait module-runtime
@@ -293,6 +305,11 @@ jobs:
           fi
 
           COMHUB_IMAGE="$IMAGE_REF" COMHUB_IMAGE_TAG="$IMAGE_TAG" ./deploy.sh "$IMAGE_REF"
+
+          app_id="$(docker compose ps -q "$app_service")"
+          test -n "$app_id"
+          test "$(docker inspect -f '{{.Config.Image}}' "$app_id")" = "$IMAGE_REF"
+          test "$(docker compose exec -T "$app_service" printenv COMHUB_IMAGE_TAG)" = "$IMAGE_TAG"
 
           echo "Running post-deploy runtime smoke checks..."
           for path in / /api/auth/get-session /api/version; do
@@ -317,17 +334,17 @@ jobs:
             MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED \
             MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED \
             MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED; do
-            value="$(docker compose exec -T lobe printenv "$flag" 2>/dev/null || true)"
+            value="$(docker compose exec -T "$app_service" printenv "$flag" 2>/dev/null || true)"
             if [ "${value}" = "true" ]; then
               echo "Production control ${flag} must remain disabled until full gate evidence exists"
               exit 1
             fi
           done
 
-          public_execution="$(docker compose exec -T lobe printenv MODULE_APP_PUBLIC_EXECUTION_ENABLED 2>/dev/null || true)"
+          public_execution="$(docker compose exec -T "$app_service" printenv MODULE_APP_PUBLIC_EXECUTION_ENABLED 2>/dev/null || true)"
           if [ "$public_execution" = "true" ]; then
-            runtime_origin="$(docker compose exec -T lobe printenv MODULE_APP_RUNTIME_PUBLIC_ORIGIN 2>/dev/null || true)"
-            runtime_allowlist="$(docker compose exec -T lobe printenv MODULE_APP_RUNTIME_APP_ALLOWLIST 2>/dev/null || true)"
+            runtime_origin="$(docker compose exec -T "$app_service" printenv MODULE_APP_RUNTIME_PUBLIC_ORIGIN 2>/dev/null || true)"
+            runtime_allowlist="$(docker compose exec -T "$app_service" printenv MODULE_APP_RUNTIME_APP_ALLOWLIST 2>/dev/null || true)"
             if [ "$module_runtime_configured" != "true" ]; then
               echo "Public Module App launch requires the module-runtime service"
               exit 1
