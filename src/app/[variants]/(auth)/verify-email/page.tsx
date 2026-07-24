@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { ChevronLeftIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';

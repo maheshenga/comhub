@@ -1,3 +1,5 @@
+import { type ModelPricingContext } from '@lobechat/model-runtime';
+
 import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
 import {
   resolveGenerationPricingMultiplier,
@@ -20,6 +22,9 @@ interface ChargeParams {
   };
   metrics?: ModelPerformance;
   modelUsage?: ModelUsage;
+  /** Opaque billing handle passed through from `asyncTask.metadata.precharge`. */
+  prechargeResult?: unknown;
+  pricingContext?: ModelPricingContext;
   provider: string;
   userId: string;
   workspaceId?: string;

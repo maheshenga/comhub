@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 
 import { DEFAULT_RUNTIME_BRAND } from '@/const/brand';
 import { DEFAULT_INBOX_AVATAR } from '@/const/meta';
-import { SESSION_CHAT_URL } from '@/const/url';
+import { AGENT_CHAT_URL } from '@/const/url';
 import { useMobileConfig } from '@/features/MobileWorkspace/useMobileConfig';
 import { useNavigateToAgent } from '@/hooks/useNavigateToAgent';
 import { useAgentStore } from '@/store/agent';
@@ -25,7 +25,7 @@ const Inbox = memo(() => {
   return (
     <Link
       aria-label={title}
-      to={SESSION_CHAT_URL(inboxAgentId, mobile)}
+      to={AGENT_CHAT_URL(inboxAgentId, mobile)}
       onClick={(e) => {
         e.preventDefault();
         navigateToAgent(inboxAgentId);

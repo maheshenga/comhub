@@ -155,6 +155,9 @@ docs/superpowers/
 # Kagura agent runtime
 .kagura/
 
+# Amp agent runtime
+.amp/
+
 # Local deploy/runtime artifacts
 .codex-run/
 .omc/

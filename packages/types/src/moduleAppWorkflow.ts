@@ -39,7 +39,7 @@ export type ModuleAppWorkflowNodeStatus = z.infer<typeof moduleAppWorkflowNodeSt
 export const moduleAppWorkflowNodeSchema = z
   .object({
     compensationNodeKey: moduleAppWorkflowKeySchema.optional(),
-    config: z.record(z.unknown()).default({}),
+    config: z.record(z.string(), z.unknown()).default({}),
     key: moduleAppWorkflowKeySchema,
     retry: z
       .object({
@@ -48,7 +48,7 @@ export const moduleAppWorkflowNodeSchema = z
         multiplier: z.number().min(1).max(10).default(2),
       })
       .strict()
-      .default({}),
+      .default({ initialDelayMs: 1000, maxAttempts: 1, multiplier: 2 }),
     timeoutMs: z.number().int().min(100).max(60_000).default(30_000),
     type: moduleAppWorkflowNodeTypeSchema,
   })
@@ -60,7 +60,7 @@ export const moduleAppWorkflowEdgeSchema = z
     from: moduleAppWorkflowKeySchema,
     maxTraversals: z.number().int().min(1).max(100).optional(),
     to: moduleAppWorkflowKeySchema,
-    when: z.record(z.unknown()).optional(),
+    when: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 export type ModuleAppWorkflowEdge = z.infer<typeof moduleAppWorkflowEdgeSchema>;

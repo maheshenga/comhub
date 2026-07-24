@@ -93,7 +93,13 @@ export const moduleAppPageSchema = z.object({
 export type ModuleAppPage = z.infer<typeof moduleAppPageSchema>;
 
 export const moduleAppFailureFixedFeePolicySchema = z.enum(['do_not_charge']);
-export const moduleAppChargeModeSchema = z.enum(['free', 'fixed', 'ai_usage', 'external_api', 'hybrid']);
+export const moduleAppChargeModeSchema = z.enum([
+  'free',
+  'fixed',
+  'ai_usage',
+  'external_api',
+  'hybrid',
+]);
 
 export const moduleAppBillingConfigSchema = z
   .object({
@@ -103,7 +109,13 @@ export const moduleAppBillingConfigSchema = z
     failureFixedFeePolicy: moduleAppFailureFixedFeePolicySchema.default('do_not_charge'),
     fixedServiceFeeCredits: z.coerce.number().finite().min(0).default(0),
   })
-  .default({});
+  .default({
+    chargeMode: 'free',
+    defaultMultiplier: 1,
+    externalApiCostCredits: 0,
+    failureFixedFeePolicy: 'do_not_charge',
+    fixedServiceFeeCredits: 0,
+  });
 export type ModuleAppBillingConfig = z.infer<typeof moduleAppBillingConfigSchema>;
 
 export const moduleAppActionConfigSchema = z
@@ -180,7 +192,13 @@ export const moduleAppRecordInputSchema = z.object({
 });
 export type ModuleAppRecordInput = z.infer<typeof moduleAppRecordInputSchema>;
 
-export const moduleAppRunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'denied']);
+export const moduleAppRunStatusSchema = z.enum([
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+  'denied',
+]);
 export type ModuleAppRunStatus = z.infer<typeof moduleAppRunStatusSchema>;
 
 export const moduleAppRunInputSchema = z.object({
@@ -198,18 +216,14 @@ export const moduleAppPackageReviewStatusSchema = z.enum([
   'approved',
   'rejected',
 ]);
-export type ModuleAppPackageReviewStatus = z.infer<
-  typeof moduleAppPackageReviewStatusSchema
->;
+export type ModuleAppPackageReviewStatus = z.infer<typeof moduleAppPackageReviewStatusSchema>;
 
 export const moduleAppPackageRuntimeKindSchema = z.enum([
   'manifest_only',
   'frontend_static',
   'external_api',
 ]);
-export type ModuleAppPackageRuntimeKind = z.infer<
-  typeof moduleAppPackageRuntimeKindSchema
->;
+export type ModuleAppPackageRuntimeKind = z.infer<typeof moduleAppPackageRuntimeKindSchema>;
 
 export const moduleAppPackageRuntimeSchema = z.object({
   entry: optionalTrimmedString(240),
@@ -238,9 +252,7 @@ export const moduleAppPackageUploadStatusSchema = z.enum([
   'cleaning',
   'expired',
 ]);
-export type ModuleAppPackageUploadStatus = z.infer<
-  typeof moduleAppPackageUploadStatusSchema
->;
+export type ModuleAppPackageUploadStatus = z.infer<typeof moduleAppPackageUploadStatusSchema>;
 
 export const moduleAppPackageScanStatusSchema = z.enum(['pending', 'clean', 'blocked', 'error']);
 export type ModuleAppPackageScanStatus = z.infer<typeof moduleAppPackageScanStatusSchema>;
@@ -268,13 +280,14 @@ export const moduleAppPackageArchiveMetadataSchema = z.object({
   sizeBytes: z.coerce.number().int().min(1),
   storageKey: z.string().min(1).max(600),
 });
-export type ModuleAppPackageArchiveMetadata = z.infer<
-  typeof moduleAppPackageArchiveMetadataSchema
->;
+export type ModuleAppPackageArchiveMetadata = z.infer<typeof moduleAppPackageArchiveMetadataSchema>;
 
 export const moduleAppPackageFileManifestItemSchema = z.object({
   path: z.string().min(1).max(500),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+  sha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/i)
+    .optional(),
   sizeBytes: z.coerce.number().int().min(0),
 });
 export type ModuleAppPackageFileManifestItem = z.infer<
@@ -287,9 +300,7 @@ export const moduleAppPackageValidationIssueSchema = z.object({
   path: z.string().max(500).optional(),
   severity: z.enum(['error', 'warning']),
 });
-export type ModuleAppPackageValidationIssue = z.infer<
-  typeof moduleAppPackageValidationIssueSchema
->;
+export type ModuleAppPackageValidationIssue = z.infer<typeof moduleAppPackageValidationIssueSchema>;
 
 export const moduleAppPackageManifestV1Schema = z.object({
   app: moduleAppAdminUpsertSchema.omit({ id: true }).extend({
@@ -298,7 +309,7 @@ export const moduleAppPackageManifestV1Schema = z.object({
   entitlements: z.array(moduleAppPlanEntitlementSchema).max(100).default([]),
   manifestVersion: z.literal(1),
   packageVersion: z.string().min(1).max(80),
-  runtime: moduleAppPackageRuntimeSchema.default({ kind: 'manifest_only' }),
+  runtime: moduleAppPackageRuntimeSchema.default({ kind: 'manifest_only', permissions: [] }),
 });
 
 export const moduleAppPackageManifestV2Schema = z

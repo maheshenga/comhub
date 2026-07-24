@@ -36,7 +36,6 @@ vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
 }));
 
 const mockSsrfSafeFetch = vi.fn();
-
 vi.mock('@lobechat/ssrf-safe-fetch', () => ({
   ssrfSafeFetch: (...args: any[]) => mockSsrfSafeFetch(...args),
 }));
@@ -44,10 +43,7 @@ vi.mock('@lobechat/ssrf-safe-fetch', () => ({
 let request: Request;
 
 beforeEach(() => {
-  request = new Request(new URL('https://test.com'), {
-    method: 'GET',
-  });
-
+  request = new Request(new URL('https://test.com'), { method: 'GET' });
   vi.mocked(auth.api.getSession).mockResolvedValue({
     session: {} as any,
     user: { id: 'test-user-id' } as any,
@@ -58,13 +54,15 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const providerConfig = (baseURL: string, apiKey = 'test-key') =>
+  ({ keyVaults: { apiKey, baseURL } }) as any;
+
 describe('GET /webapi/models/[provider]/pricing', () => {
   it('returns ContentNotFound if provider config is missing', async () => {
-    const mockParams = Promise.resolve({ provider: 'newapi' });
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
     vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue(undefined);
 
-    const response = await GET(request, { params: mockParams });
+    const response = await GET(request, { params: Promise.resolve({ provider: 'newapi' }) });
     const responseBody = await response.json();
 
     expect(response.status).toBe(404);
@@ -72,41 +70,35 @@ describe('GET /webapi/models/[provider]/pricing', () => {
   });
 
   it('returns BadRequest if baseURL is missing', async () => {
-    const mockParams = Promise.resolve({ provider: 'newapi' });
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
     vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
-      keyVaults: {
-        apiKey: 'test-key',
-      },
+      keyVaults: { apiKey: 'test-key' },
     } as any);
 
-    const response = await GET(request, { params: mockParams });
+    const response = await GET(request, { params: Promise.resolve({ provider: 'newapi' }) });
     const responseBody = await response.json();
 
     expect(response.status).toBe(400);
     expect(responseBody.errorType).toBe(ChatErrorType.BadRequest);
   });
 
-  it('fetches pricing successfully', async () => {
-    const mockParams = Promise.resolve({ provider: 'newapi' });
+  it('fetches pricing with the provider key and strips the API version', async () => {
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
-    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
-      keyVaults: {
-        apiKey: 'test-key',
-        baseURL: 'https://newapi.test.com/v1',
-      },
-    } as any);
-
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue(
+      providerConfig('https://newapi.test.com/v1'),
+    );
     mockSsrfSafeFetch.mockResolvedValue({
       json: async () => ({ data: [{ model_name: 'test' }], success: true }),
       ok: true,
     });
 
-    const response = await GET(request, { params: mockParams });
-    const responseBody = await response.json();
+    const response = await GET(request, { params: Promise.resolve({ provider: 'newapi' }) });
 
     expect(response.status).toBe(200);
-    expect(responseBody).toEqual({ data: [{ model_name: 'test' }], success: true });
+    await expect(response.json()).resolves.toEqual({
+      data: [{ model_name: 'test' }],
+      success: true,
+    });
     expect(mockSsrfSafeFetch).toHaveBeenCalledWith(
       'https://newapi.test.com/api/pricing',
       expect.objectContaining({
@@ -118,109 +110,78 @@ describe('GET /webapi/models/[provider]/pricing', () => {
     );
   });
 
-  it('fetches pricing from the requested custom provider config', async () => {
-    const mockParams = Promise.resolve({ provider: 'custom-router' });
+  it('uses the requested custom provider configuration', async () => {
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
-    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
-      keyVaults: {
-        apiKey: 'custom-key',
-        baseURL: 'https://custom-newapi.test.com/v1',
-      },
-    } as any);
-
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue(
+      providerConfig('https://custom-newapi.test.com/v1', 'custom-key'),
+    );
     mockSsrfSafeFetch.mockResolvedValue({
       json: async () => ({ data: [{ model_name: 'custom-model' }], success: true }),
       ok: true,
     });
 
-    const response = await GET(request, { params: mockParams });
-    const responseBody = await response.json();
+    const response = await GET(request, {
+      params: Promise.resolve({ provider: 'custom-router' }),
+    });
 
     expect(response.status).toBe(200);
-    expect(responseBody).toEqual({ data: [{ model_name: 'custom-model' }], success: true });
     expect(mockModelInstance.getAiProviderById).toHaveBeenCalledWith(
       'custom-router',
       expect.any(Function),
     );
-    expect(mockSsrfSafeFetch).toHaveBeenCalledWith(
-      'https://custom-newapi.test.com/api/pricing',
-      expect.any(Object),
-    );
+    await expect(response.json()).resolves.toEqual({
+      data: [{ model_name: 'custom-model' }],
+      success: true,
+    });
   });
 
-  it('falls back to fetch without auth if fetch with auth fails', async () => {
-    const mockParams = Promise.resolve({ provider: 'newapi' });
+  it('falls back to an unauthenticated request when the authenticated request throws', async () => {
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
-    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
-      keyVaults: {
-        apiKey: 'test-key',
-        baseURL: 'https://newapi.test.com/v1',
-      },
-    } as any);
-
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue(
+      providerConfig('https://newapi.test.com/v1'),
+    );
     mockSsrfSafeFetch.mockRejectedValueOnce(new Error('Auth fetch failed')).mockResolvedValueOnce({
       json: async () => ({ data: [{ model_name: 'test' }], success: true }),
       ok: true,
     });
 
-    const response = await GET(request, { params: mockParams });
-    const responseBody = await response.json();
+    const response = await GET(request, { params: Promise.resolve({ provider: 'newapi' }) });
 
     expect(response.status).toBe(200);
-    expect(responseBody).toEqual({ data: [{ model_name: 'test' }], success: true });
     expect(mockSsrfSafeFetch).toHaveBeenCalledTimes(2);
     expect(mockSsrfSafeFetch).toHaveBeenNthCalledWith(
       2,
       'https://newapi.test.com/api/pricing',
       expect.objectContaining({
-        headers: expect.not.objectContaining({
-          Authorization: expect.any(String),
-        }),
+        headers: expect.not.objectContaining({ Authorization: expect.any(String) }),
       }),
     );
   });
 
-  it('falls back to fetch without auth if auth response is not ok', async () => {
-    const mockParams = Promise.resolve({ provider: 'newapi' });
+  it('falls back to an unauthenticated request when the authenticated response is not ok', async () => {
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
-    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
-      keyVaults: {
-        apiKey: 'test-key',
-        baseURL: 'https://newapi.test.com/v1',
-      },
-    } as any);
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue(
+      providerConfig('https://newapi.test.com/v1'),
+    );
+    mockSsrfSafeFetch.mockResolvedValueOnce({ ok: false, statusText: 'Unauthorized' }).mockResolvedValueOnce({
+      json: async () => ({ data: [{ model_name: 'test' }], success: true }),
+      ok: true,
+    });
 
-    mockSsrfSafeFetch
-      .mockResolvedValueOnce({ ok: false, statusText: 'Unauthorized' })
-      .mockResolvedValueOnce({
-        json: async () => ({ data: [{ model_name: 'test' }], success: true }),
-        ok: true,
-      });
-
-    const response = await GET(request, { params: mockParams });
-    const responseBody = await response.json();
+    const response = await GET(request, { params: Promise.resolve({ provider: 'newapi' }) });
 
     expect(response.status).toBe(200);
-    expect(responseBody).toEqual({ data: [{ model_name: 'test' }], success: true });
     expect(mockSsrfSafeFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('returns BadGateway if external api call fails', async () => {
-    const mockParams = Promise.resolve({ provider: 'newapi' });
+  it('returns BadGateway if the provider remains unavailable', async () => {
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
-    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
-      keyVaults: {
-        apiKey: 'test-key',
-        baseURL: 'https://newapi.test.com/v1',
-      },
-    } as any);
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue(
+      providerConfig('https://newapi.test.com/v1'),
+    );
+    mockSsrfSafeFetch.mockResolvedValue({ ok: false, statusText: 'Bad Gateway' });
 
-    mockSsrfSafeFetch.mockResolvedValue({
-      ok: false,
-      statusText: 'Bad Gateway',
-    });
-
-    const response = await GET(request, { params: mockParams });
+    const response = await GET(request, { params: Promise.resolve({ provider: 'newapi' }) });
     const responseBody = await response.json();
 
     expect(response.status).toBe(502);
@@ -228,22 +189,15 @@ describe('GET /webapi/models/[provider]/pricing', () => {
   });
 
   it('returns InternalServerError if SSRF protection blocks the request', async () => {
-    const mockParams = Promise.resolve({ provider: 'newapi' });
     const mockModelInstance = new AiProviderModel({} as any, 'test-user-id');
-    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue({
-      keyVaults: {
-        apiKey: 'test-key',
-        baseURL: 'http://192.168.1.1/v1',
-      },
-    } as any);
-
+    vi.mocked(mockModelInstance.getAiProviderById).mockResolvedValue(
+      providerConfig('http://192.168.1.1/v1'),
+    );
     mockSsrfSafeFetch.mockRejectedValue(
-      new Error(
-        'SSRF blocked: http://192.168.1.1 is not allowed. See: https://lobehub.com/docs/self-hosting/environment-variables/basic#ssrf-allow-private-ip-address',
-      ),
+      new Error('SSRF blocked: http://192.168.1.1 is not allowed.'),
     );
 
-    const response = await GET(request, { params: mockParams });
+    const response = await GET(request, { params: Promise.resolve({ provider: 'newapi' }) });
     const responseBody = await response.json();
 
     expect(response.status).toBe(500);

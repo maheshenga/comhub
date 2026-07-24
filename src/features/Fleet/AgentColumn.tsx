@@ -2,7 +2,8 @@
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ActionIcon, Avatar, Button, DropdownMenu, Flexbox, Icon, Text } from '@lobehub/ui';
+import { ActionIcon, Avatar, DropdownMenu, Flexbox, Icon, Text } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar, cx } from 'antd-style';
 import {
   ChevronDownIcon,
@@ -32,7 +33,7 @@ import OpStatusTray from '@/features/Conversation/ChatInput/OpStatusTray';
 import { useOperationState } from '@/hooks/useOperationState';
 import { useChatStore } from '@/store/chat';
 import { messageMapKey } from '@/store/chat/utils/messageMapKey';
-import { useFetchGitInfo } from '@/store/device/gitHooks';
+import { useFetchGitBranch } from '@/store/device/gitHooks';
 import { useElectronStore } from '@/store/electron';
 import { type ChatTopicStatus } from '@/types/topic';
 
@@ -177,7 +178,7 @@ const buildChatPath = (column: FleetColumn) =>
 
 /** Working directory + git branch subtitle (branch resolved live for local cwd). */
 const WorkingDirRow = memo<{ workingDirectory: string }>(({ workingDirectory }) => {
-  const { data } = useFetchGitInfo(undefined, workingDirectory);
+  const { data } = useFetchGitBranch(undefined, workingDirectory);
   const dirName = workingDirectory.split('/').findLast(Boolean) ?? workingDirectory;
 
   return (
@@ -275,12 +276,7 @@ const ReplyArea = memo(() => {
         <ReplyPanel onCollapse={isEmptyConversation ? undefined : () => setReplyOpen(false)} />
       ) : (
         <Flexbox className={styles.replyBar}>
-          <Button
-            block
-            icon={MessageCirclePlus}
-            variant={'filled'}
-            onClick={() => setReplyOpen(true)}
-          >
+          <Button block icon={MessageCirclePlus} type={'fill'} onClick={() => setReplyOpen(true)}>
             {t('fleet.reply')}
           </Button>
         </Flexbox>

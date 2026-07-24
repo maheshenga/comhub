@@ -30,7 +30,7 @@ const PlanModelRuleSchema = z.object({
   mode: z.enum(['allowlist', 'blocklist']),
 });
 
-const PlanModelRulesSchema = z.record(ModelTypeEnum, PlanModelRuleSchema).optional();
+const PlanModelRulesSchema = z.partialRecord(ModelTypeEnum, PlanModelRuleSchema).optional();
 
 const normalizePurchaseUrl = (value: unknown) => {
   const raw = typeof value === 'string' ? value.trim() : '';
@@ -103,7 +103,9 @@ const assertFreePlanKeepsDefaultModels = async (
     {
       model:
         normalizeSettingString(settings.get(APP_SETTING_KEYS.defaultAgentModel)) ||
-        normalizeSettingString('model' in defaultAgentConfig ? defaultAgentConfig.model : undefined),
+        normalizeSettingString(
+          'model' in defaultAgentConfig ? defaultAgentConfig.model : undefined,
+        ),
       modelType: 'chat' as const,
       provider:
         normalizeSettingString(settings.get(APP_SETTING_KEYS.defaultAgentProvider)) ||

@@ -1,7 +1,7 @@
 import { Flexbox } from '@lobehub/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import DragUploadZone, { useUploadFiles } from '@/components/DragUploadZone';
+import { useUploadFiles } from '@/components/DragUploadZone';
 import { useBrand } from '@/features/Brand';
 import { type ActionKeys, ChatInputProvider, DesktopChatInput } from '@/features/ChatInput';
 import { useHomeDailyBrief } from '@/hooks/useHomeDailyBrief';
@@ -17,6 +17,7 @@ import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfi
 import { type BannerKind, getHomeInputBannerCandidates } from './bannerCandidates';
 import BotIntegrationBanner, { BOT_INTEGRATION_BANNER_ID } from './BotIntegrationBanner';
 import { stripMarkdownLinks } from './hintFormat';
+import InputDragUpload from './InputDragUpload';
 import MessengerBanner, { MESSENGER_BANNER_ID } from './MessengerBanner';
 import SkillInstallBanner, { SKILL_INSTALL_BANNER_ID } from './SkillInstallBanner';
 import StarterList from './StarterList';
@@ -52,6 +53,9 @@ const InputArea = () => {
   const isMessengerBannerDismissed = useGlobalStore(
     systemStatusSelectors.isBannerDismissed(MESSENGER_BANNER_ID),
   );
+  // Wait for the persisted status to hydrate so users who already dismissed
+  // the banner never see it flash on mount.
+  const isStatusInit = useGlobalStore(systemStatusSelectors.isStatusInit);
   const chatInputRef = useRef<HTMLDivElement>(null);
 
   // Wait for both stores to finish hydrating before drawing — server config
@@ -64,7 +68,7 @@ const InputArea = () => {
 
   useEffect(() => {
     if (hasPickedRef.current) return;
-    if (!serverConfigInit || !inboxAgentId) return;
+    if (!isStatusInit || !serverConfigInit || !inboxAgentId) return;
 
     const candidates = getHomeInputBannerCandidates({
       isBotIntegrationBannerDismissed,
@@ -86,6 +90,7 @@ const InputArea = () => {
     isMessengerBannerDismissed,
     isMessengerEnabled,
     isSkillBannerDismissed,
+    isStatusInit,
     serverConfigInit,
   ]);
 
@@ -134,7 +139,8 @@ const InputArea = () => {
         {visibleBanner === 'skill' && <SkillInstallBanner />}
         {visibleBanner === 'botIntegration' && <BotIntegrationBanner />}
         {visibleBanner === 'messenger' && <MessengerBanner />}
-        <DragUploadZone
+        <InputDragUpload
+          radius={20}
           style={{ position: 'relative', zIndex: 1 }}
           onUploadFiles={handleUploadFiles}
         >
@@ -167,7 +173,7 @@ const InputArea = () => {
               showControlBar={false}
             />
           </ChatInputProvider>
-        </DragUploadZone>
+        </InputDragUpload>
       </Flexbox>
 
       <StarterList />

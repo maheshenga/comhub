@@ -20,7 +20,10 @@ describe('copySpaBuild', () => {
     root = await mkdtemp(path.join(tmpdir(), 'copy-spa-build-'));
 
     await writeFixture('dist/desktop/assets/desktop-entry.js', 'desktop');
+    await writeFixture('dist/desktop/favicon.ico', 'favicon');
     await writeFixture('dist/mobile/assets/mobile-entry.js', 'mobile');
+    await writeFixture('dist/mobile/apple-touch-icon.png', 'touch-icon');
+    await writeFixture('dist/mobile/index.html', 'ignored');
     await writeFixture('public/_spa/assets/stale.js', 'stale');
 
     copySpaBuild(root, [
@@ -32,6 +35,13 @@ describe('copySpaBuild', () => {
       .resolves.toBe('desktop');
     await expect(readFile(path.join(root, 'public/_spa/assets/mobile-entry.js'), 'utf8'))
       .resolves.toBe('mobile');
+    await expect(readFile(path.join(root, 'public/_spa/favicon.ico'), 'utf8')).resolves.toBe(
+      'favicon',
+    );
+    await expect(readFile(path.join(root, 'public/_spa/apple-touch-icon.png'), 'utf8')).resolves.toBe(
+      'touch-icon',
+    );
+    await expect(readFile(path.join(root, 'public/_spa/index.html'), 'utf8')).rejects.toThrow();
     await expect(readFile(path.join(root, 'public/_spa/assets/stale.js'), 'utf8')).rejects.toThrow();
     await expect(readFile(path.join(root, 'public/_spa/sw.js'), 'utf8')).resolves.toContain(
       'self.registration.unregister()',

@@ -12,6 +12,6 @@ interface NotifyImageCompletedParams {
  * Currently a no-op placeholder. Can be extended to send push notifications,
  * in-app messages, or email notifications in future iterations.
  */
-export async function notifyImageCompleted(params: NotifyImageCompletedParams): Promise<void> {
+export async function notifyImageCompleted(_params: NotifyImageCompletedParams): Promise<void> {
   // TODO: Implement notification logic in future iteration
 }

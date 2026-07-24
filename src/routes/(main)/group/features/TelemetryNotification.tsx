@@ -1,6 +1,7 @@
 'use client';
 
-import { Avatar, Button, Flexbox, Icon } from '@lobehub/ui';
+import { Avatar, Flexbox, Icon } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import { LucideArrowUpRightFromSquare, TelescopeIcon } from 'lucide-react';
 import { memo } from 'react';

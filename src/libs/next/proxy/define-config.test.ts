@@ -150,4 +150,13 @@ describe('defineConfig locale path-traversal hardening', () => {
 
     expect(rewrite.pathname).toBe('/en-US__0/signin');
   });
+
+  it('does not treat workspace slugs beginning with an auth route as auth SPA pages', async () => {
+    const rewrite = await getAuthenticatedRewriteUrl(
+      '/oauth-preview-e2e-20260716/settings/oauth-apps?hl=en-US',
+    );
+    expect(rewrite.pathname).toMatch(
+      /^\/spa\/[^/]+\/oauth-preview-e2e-20260716\/settings\/oauth-apps$/,
+    );
+  });
 });

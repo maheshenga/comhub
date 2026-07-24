@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import type { PropsWithChildren, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatSettingsTabs } from '@/store/global/initialState';
@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   agentState: {
     activeAgentId: 'inbox-agent',
     config: {},
+    isCurrentAgentHeterogeneous: false,
     isInbox: true,
     meta: {},
     optimisticUpdateAgentConfig: vi.fn(),
@@ -22,52 +23,48 @@ const mocks = vi.hoisted(() => ({
   },
   userState: {
     defaultAgentMeta: {
-      avatar: '/images/brand/logo.svg',
-      title: '小果',
-    },
+      avatar: '/images/configured-agent.svg',
+      title: 'Configured Agent',
+    } as { avatar?: string; title?: string },
+    enableAgentGraphConfig: false,
   },
-}));
-
-vi.mock('@lobehub/ui', () => ({
-  Avatar: () => <div data-testid="avatar" />,
-  Block: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  Flexbox: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  Icon: () => <span />,
-  Text: ({ children }: PropsWithChildren) => <span>{children}</span>,
-}));
-
-vi.mock('@/components/Menu', () => ({
-  default: ({
-    items = [],
-    onClick,
-    selectedKeys = [],
-  }: {
-    items?: { key?: string; label?: ReactNode }[];
-    onClick?: ({ key }: { key: string }) => void;
-    selectedKeys?: string[];
-  }) => (
-    <div data-selected={selectedKeys.join(',')} data-testid="agent-settings-menu">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          onClick={() => item.key && onClick?.({ key: item.key })}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  ),
 }));
 
 vi.mock('@/features/AgentSetting', () => ({
   AgentSettings: ({ tab }: { tab: ChatSettingsTabs }) => (
     <div data-tab={tab} data-testid="agent-settings-content" />
   ),
+  SettingsModalLayout: ({
+    activeTab,
+    avatar,
+    tabs = [],
+    children,
+    title,
+  }: {
+    activeTab?: string;
+    avatar?: string;
+    children?: ReactNode;
+    tabs?: { key: string }[];
+    title?: string;
+  }) => (
+    <div
+      data-active={activeTab}
+      data-avatar={avatar}
+      data-tabs={tabs.map((tab) => tab.key).join(',')}
+      data-testid="layout"
+      data-title={title}
+    >
+      {children}
+    </div>
+  ),
+}));
+
+vi.mock('@/hooks/usePermission', () => ({
+  usePermission: () => ({ allowed: true }),
 }));
 
 vi.mock('@/features/Brand/BrandProvider', () => ({
-  useBrand: () => ({ logoUrl: '/brand.svg', name: '玄果' }),
+  useBrand: () => ({ logoUrl: '/brand.svg', name: 'ComHub Brand' }),
 }));
 
 vi.mock('@/store/agent', () => {
@@ -82,6 +79,8 @@ vi.mock('@/store/agent/selectors', () => ({
   agentSelectors: {
     currentAgentConfig: (state: typeof mocks.agentState) => state.config,
     currentAgentMeta: (state: typeof mocks.agentState) => state.meta,
+    isCurrentAgentHeterogeneous: (state: typeof mocks.agentState) =>
+      state.isCurrentAgentHeterogeneous,
   },
   builtinAgentSelectors: {
     isInboxAgent: (state: typeof mocks.agentState) => state.isInbox,
@@ -99,18 +98,13 @@ vi.mock('@/store/user', () => ({
 }));
 
 vi.mock('@/store/user/selectors', () => ({
+  labPreferSelectors: {
+    enableAgentGraphConfig: (state: typeof mocks.userState) => state.enableAgentGraphConfig,
+  },
   settingsSelectors: {
     defaultAgentMeta: (state: typeof mocks.userState) => state.defaultAgentMeta,
   },
 }));
-
-vi.mock('antd-style', () => ({
-  useTheme: () => ({
-    colorBgLayout: '#fff',
-    colorBorderSecondary: '#eee',
-  }),
-}));
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -119,37 +113,97 @@ vi.mock('react-i18next', () => ({
 
 describe('AgentSettings Content', () => {
   beforeEach(() => {
+    mocks.agentState.isCurrentAgentHeterogeneous = false;
     mocks.agentState.isInbox = true;
     mocks.serverState.featureFlags.enableAgentSelfIteration = true;
+    mocks.userState.enableAgentGraphConfig = false;
     mocks.userState.defaultAgentMeta = {
-      avatar: '/images/brand/logo.svg',
-      title: '小果',
+      avatar: '/images/configured-agent.svg',
+      title: 'Configured Agent',
     };
   });
 
-  it('should select self iteration when inbox hides opening settings', () => {
+  it('exposes both tabs for inbox when feature is on', () => {
     render(<Content />);
 
-    expect(screen.queryByRole('button', { name: 'agentTab.opening' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'agentTab.selfIteration' })).toBeInTheDocument();
-    expect(screen.getByTestId('agent-settings-menu')).toHaveAttribute(
-      'data-selected',
-      ChatSettingsTabs.SelfIteration,
+    const layout = screen.getByTestId('layout');
+    expect(layout).toHaveAttribute('data-active', ChatSettingsTabs.Opening);
+    expect(layout).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration}`,
     );
     expect(screen.getByTestId('agent-settings-content')).toHaveAttribute(
       'data-tab',
-      ChatSettingsTabs.SelfIteration,
+      ChatSettingsTabs.Opening,
     );
   });
 
-  it('should show default agent identity and fallback content when inbox has no advanced tabs', () => {
+  it('exposes both tabs when not inbox and feature is on', () => {
+    mocks.agentState.isInbox = false;
+
+    render(<Content />);
+
+    const layout = screen.getByTestId('layout');
+    expect(layout).toHaveAttribute('data-active', ChatSettingsTabs.Opening);
+    expect(layout).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration}`,
+    );
+  });
+
+  it('falls back to opening when feature flag is off (inbox)', () => {
     mocks.serverState.featureFlags.enableAgentSelfIteration = false;
 
     render(<Content />);
 
-    expect(screen.getByText('小果')).toBeInTheDocument();
-    expect(screen.queryByTestId('agent-settings-content')).not.toBeInTheDocument();
-    expect(screen.getByText('agentTab.empty.title')).toBeInTheDocument();
-    expect(screen.getByText('agentTab.empty.desc')).toBeInTheDocument();
+    const layout = screen.getByTestId('layout');
+    expect(layout).toHaveAttribute('data-active', ChatSettingsTabs.Opening);
+    expect(layout).toHaveAttribute('data-tabs', ChatSettingsTabs.Opening);
+  });
+
+  it('exposes only opening when feature flag is off', () => {
+    mocks.agentState.isInbox = false;
+    mocks.serverState.featureFlags.enableAgentSelfIteration = false;
+
+    render(<Content />);
+
+    const layout = screen.getByTestId('layout');
+    expect(layout).toHaveAttribute('data-tabs', ChatSettingsTabs.Opening);
+  });
+
+  it('shows graph only for eligible agents when the lab preference is enabled', () => {
+    mocks.agentState.isInbox = false;
+    mocks.userState.enableAgentGraphConfig = true;
+
+    const { rerender } = render(<Content />);
+
+    expect(screen.getByTestId('layout')).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration},${ChatSettingsTabs.Graph}`,
+    );
+
+    mocks.agentState.isCurrentAgentHeterogeneous = true;
+    rerender(<Content key="heterogeneous-agent" />);
+
+    expect(screen.getByTestId('layout')).toHaveAttribute(
+      'data-tabs',
+      `${ChatSettingsTabs.Opening},${ChatSettingsTabs.SelfIteration}`,
+    );
+  });
+
+  it('uses configured inbox identity and falls back to the ComHub brand', () => {
+    const { rerender } = render(<Content />);
+
+    expect(screen.getByTestId('layout')).toHaveAttribute('data-title', 'Configured Agent');
+    expect(screen.getByTestId('layout')).toHaveAttribute(
+      'data-avatar',
+      '/images/configured-agent.svg',
+    );
+
+    mocks.userState.defaultAgentMeta = {};
+    rerender(<Content key="brand-fallback" />);
+
+    expect(screen.getByTestId('layout')).toHaveAttribute('data-title', 'ComHub Brand');
+    expect(screen.getByTestId('layout')).toHaveAttribute('data-avatar', '/brand.svg');
   });
 });

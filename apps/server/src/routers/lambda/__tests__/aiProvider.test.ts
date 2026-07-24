@@ -1,12 +1,14 @@
 // @vitest-environment node
 import type * as BusinessConst from '@lobechat/business-const';
 import { OFFICIAL_PROVIDER_DISABLE_ERROR } from '@lobechat/business-const';
+import { RequestTrigger } from '@lobechat/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AiProviderModel } from '@/database/models/aiProvider';
 import { AiInfraRepos } from '@/database/repositories/aiInfra';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
+import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { type AiProviderDetailItem, type AiProviderRuntimeState } from '@/types/aiProvider';
 
 import { aiProviderRouter } from '../aiProvider';
@@ -96,7 +98,7 @@ describe('aiProviderRouter', () => {
   });
 
   describe('checkProviderConnectivity', () => {
-    it('should initialize NewAPI runtime with the selected check model for model-aware routing', async () => {
+    it('initializes the selected check model and passes the API trigger metadata', async () => {
       const mockChat = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
       const mockGetDetail = vi.fn().mockResolvedValue({
         ...mockProviderDetail,
@@ -118,7 +120,17 @@ describe('aiProviderRouter', () => {
         {
           model: 'gpt-4o-mini',
           modelType: 'chat',
+          workspaceId: undefined,
         },
+      );
+      expect(mockChat).toHaveBeenCalledWith(
+        {
+          messages: [{ content: 'Hi', role: 'user' }],
+          model: 'gpt-4o-mini',
+          stream: false,
+          temperature: 0,
+        },
+        { metadata: { trigger: RequestTrigger.Api } },
       );
     });
   });

@@ -433,6 +433,13 @@ export class ChatPortalActionImpl {
     }
   };
 
+  closeTaskDetail = (): void => {
+    const { portalStack } = this.#get();
+    if (getCurrentViewType(portalStack) === PortalViewType.TaskDetail) {
+      this.#get().popPortalView();
+    }
+  };
+
   closeToolUI = (): void => {
     const { portalStack } = this.#get();
     if (getCurrentViewType(portalStack) === PortalViewType.ToolUI) {
@@ -457,6 +464,10 @@ export class ChatPortalActionImpl {
 
   openArtifact = (artifact: PortalArtifact): void => {
     this.#get().pushPortalView({ artifact, type: PortalViewType.Artifact });
+  };
+
+  openAgentDetail = (agentId: string): void => {
+    this.#get().pushPortalView({ agentId, type: PortalViewType.AgentDetail });
   };
 
   openDocument = (documentId: string, agentDocumentId?: string): void => {
@@ -567,6 +578,10 @@ export class ChatPortalActionImpl {
     return buffer;
   };
 
+  openAcceptance = (acceptanceId: string): void => {
+    this.#get().pushPortalView({ acceptanceId, type: PortalViewType.Acceptance });
+  };
+
   openMessageDetail = (messageId: string): void => {
     this.#get().pushPortalView({ messageId, type: PortalViewType.MessageDetail });
   };
@@ -575,12 +590,20 @@ export class ChatPortalActionImpl {
     this.#get().pushPortalView({ type: PortalViewType.Notebook });
   };
 
+  openTaskDetail = (taskId: string): void => {
+    this.#get().pushPortalView({ taskId, type: PortalViewType.TaskDetail });
+  };
+
   openToolUI = (messageId: string, identifier: string, params?: Record<string, any>): void => {
     this.#get().pushPortalView({ identifier, messageId, params, type: PortalViewType.ToolUI });
   };
 
   openVerifyResult = (operationId: string, checkItemId: string): void => {
     this.#get().pushPortalView({ checkItemId, operationId, type: PortalViewType.VerifyResult });
+  };
+
+  openVerifyReport = (runId: string): void => {
+    this.#get().pushPortalView({ runId, type: PortalViewType.VerifyReport });
   };
 
   popPortalView = (): void => {

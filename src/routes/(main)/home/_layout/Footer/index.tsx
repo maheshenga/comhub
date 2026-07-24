@@ -11,24 +11,27 @@ import {
   Book,
   CircleHelp,
   Crown,
+  Download,
   Feather,
   FileClockIcon,
   FlaskConical,
   MessageCircle,
   Rocket,
+  Send,
   Settings2,
   SettingsIcon,
 } from 'lucide-react';
-import useSWR from 'swr';
 import type { ReactNode } from 'react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
+import useSWR from 'swr';
 
+import { useHasActiveWorkspace } from '@/business/client/hooks/useHasActiveWorkspace';
 import { openChangelogModal } from '@/components/ChangelogModal';
 import { openFeedbackModal } from '@/components/FeedbackModal';
-import { PUBLIC_HELP_MENU_SWR_KEY } from '@/const/adminCacheKeys';
 import HighlightNotification from '@/components/HighlightNotification';
+import { PUBLIC_HELP_MENU_SWR_KEY } from '@/const/adminCacheKeys';
 import { DOCUMENTS_REFER_URL, GITHUB } from '@/const/url';
 import Billboard from '@/features/Billboard';
 import { useBillboardMenuItems } from '@/features/Billboard/MenuItems';
@@ -38,10 +41,10 @@ import { buildCustomHelpMenuItems } from '@/features/User/helpMenuItems';
 import ThemeButton from '@/features/User/UserPanel/ThemeButton';
 import WorkspaceLink from '@/features/Workspace/WorkspaceLink';
 import { useNavLayout } from '@/hooks/useNavLayout';
+import { adminCommercialService } from '@/services/adminCommercial';
 import { useGlobalStore } from '@/store/global';
 import { systemStatusSelectors } from '@/store/global/selectors/systemStatus';
 import { serverConfigSelectors, useServerConfigStore } from '@/store/serverConfig';
-import { adminCommercialService } from '@/services/adminCommercial';
 import { useUserStore } from '@/store/user';
 import { userGeneralSettingsSelectors } from '@/store/user/slices/settings/selectors';
 
@@ -70,12 +73,53 @@ interface PromotionCard {
   title: string;
 }
 
+type FooterMenuItems = NonNullable<MenuProps['items']>;
+
+/**
+ * Wrap each clickable menu item with a unified click tracker, preserving any
+ * existing onClick. Skips dividers and items without a key. Used to measure
+ * which footer menu entries get clicked (breakdown by `key`).
+ */
+const injectMenuTracking = (
+  items: FooterMenuItems,
+  track: (key: string) => void,
+): FooterMenuItems =>
+  items.map((item) => {
+    if (!item || (item as { type?: string }).type === 'divider') return item;
+    const key = (item as { key?: string | number }).key;
+    if (!key) return item;
+    const originalOnClick = (item as { onClick?: (info: unknown) => void }).onClick;
+    return {
+      ...item,
+      onClick: (info: unknown) => {
+        track(String(key));
+        originalOnClick?.(info);
+      },
+    };
+  });
+
+/**
+ * Collect the keys of click-trackable items — the exact same set wrapped by
+ * `injectMenuTracking` (non-divider items with a key). Used so the menu-open
+ * exposure event reports only keys that can later emit `home_footer_menu_clicked`,
+ * keeping per-key CTR denominators and numerators aligned. Billboard items are
+ * excluded here (they emit their own `billboard_*` events).
+ */
+const collectMenuKeys = (items: FooterMenuItems): string[] =>
+  items
+    .filter((item) => item && (item as { type?: string }).type !== 'divider')
+    .map((item) => (item as { key?: string | number }).key)
+    .filter((key): key is string | number => Boolean(key))
+    .map(String);
+
 const Footer = memo(() => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
   const { analytics } = useAnalytics();
   const { footer } = useNavLayout();
   const brand = useBrand();
+  const hasActiveWorkspace = useHasActiveWorkspace();
+  const settingLabelKey = hasActiveWorkspace ? 'userPanel.workspaceSetting' : 'userPanel.setting';
   const activeNavKey = useActiveNavKey();
   const isHomeSidebar = activeNavKey === 'home';
   const billboardMenuItems = useBillboardMenuItems();
@@ -144,6 +188,20 @@ const Footer = memo(() => {
     (eventName: string, properties: Record<string, string>) => {
       try {
         analytics?.track({ name: eventName, properties });
+      } catch {
+        // silently ignore tracking errors to avoid affecting business logic
+      }
+    },
+    [analytics],
+  );
+
+  const trackMenuClick = useCallback(
+    (key: string) => {
+      try {
+        analytics?.track({
+          name: 'home_footer_menu_clicked',
+          properties: { key, spm: `homepage.footer.${key}.clicked` },
+        });
       } catch {
         // silently ignore tracking errors to avoid affecting business logic
       }
@@ -270,17 +328,28 @@ const Footer = memo(() => {
   );
   const hasCustomHelpItems = customHelpItems.length > 0;
 
-  const defaultHelpMenuItems: MenuProps['items'] = useMemo(
+  const defaultHelpMenuItems = useMemo<FooterMenuItems>(
     () => [
       ...(footer.showSettingsEntry && !isDevMode
         ? [
             {
               icon: <Icon icon={Settings2} />,
               key: 'setting',
-              label: <WorkspaceLink to="/settings">{t('userPanel.setting')}</WorkspaceLink>,
+              label: <WorkspaceLink to="/settings">{t(settingLabelKey)}</WorkspaceLink>,
             },
             {
               type: 'divider' as const,
+            },
+          ]
+        : []),
+      ...(enableBusinessFeatures
+        ? [
+            {
+              icon: <Icon icon={Send} />,
+              key: 'inviteFriend',
+              label: (
+                <WorkspaceLink to="/settings/referral">{t('userPanel.inviteFriend')}</WorkspaceLink>
+              ),
             },
           ]
         : []),
@@ -320,6 +389,19 @@ const Footer = memo(() => {
               label: t('changelog'),
               onClick: handleOpenChangelogModal,
             },
+            ...(!isDesktop && footer.layout === 'compact'
+              ? [
+                  {
+                    icon: <Icon icon={Download} />,
+                    key: 'get-app',
+                    label: (
+                      <WorkspaceLink escape to="/downloads">
+                        {t('getApp')}
+                      </WorkspaceLink>
+                    ),
+                  },
+                ]
+              : []),
             ...(footer.layout === 'compact' && !footer.hideGitHub
               ? [
                   {
@@ -356,21 +438,23 @@ const Footer = memo(() => {
     ],
     [
       customHelpItems,
-      footer.showSettingsEntry,
-      footer.layout,
+      enableBusinessFeatures,
       footer.hideGitHub,
+      footer.layout,
       footer.showEvalEntry,
+      footer.showSettingsEntry,
       handleOpenChangelogModal,
       handleOpenFeedbackModal,
       handleOpenProductHuntCard,
       hasCustomHelpItems,
       isDevMode,
+      settingLabelKey,
       shouldShowProductHuntMenuEntry,
       t,
     ],
   );
 
-  const configuredMenuItems: MenuProps['items'] = useMemo(
+  const configuredMenuItems = useMemo(
     () =>
       Array.isArray(configuredHelpMenuItems)
         ? createConfiguredHelpMenuItems(configuredHelpMenuItems, {
@@ -379,26 +463,55 @@ const Footer = memo(() => {
             onProductHunt: handleOpenProductHuntCard,
           })
         : [],
-    [configuredHelpMenuItems, handleOpenChangelogModal, handleOpenFeedbackModal, handleOpenProductHuntCard],
+    [
+      configuredHelpMenuItems,
+      handleOpenChangelogModal,
+      handleOpenFeedbackModal,
+      handleOpenProductHuntCard,
+    ],
   );
 
-  const helpMenuItems: MenuProps['items'] = useMemo(
-    () => [
-      ...(Array.isArray(configuredHelpMenuItems)
-        ? configuredMenuItems || []
-        : defaultHelpMenuItems),
-      ...(isHomeSidebar && billboardMenuItems && billboardMenuItems.length > 0
-        ? [{ type: 'divider' as const }, ...billboardMenuItems]
-        : []),
-    ],
-    [
-      billboardMenuItems,
-      configuredHelpMenuItems,
-      configuredMenuItems,
-      defaultHelpMenuItems,
-      isHomeSidebar,
-    ],
+  const { helpMenuItems, trackedMenuKeys } = useMemo<{
+    helpMenuItems: MenuProps['items'];
+    trackedMenuKeys: string[];
+  }>(() => {
+    const ownItems = (
+      Array.isArray(configuredHelpMenuItems) ? configuredMenuItems : defaultHelpMenuItems
+    ) as FooterMenuItems;
+
+    return {
+      helpMenuItems: [
+        ...injectMenuTracking(ownItems, trackMenuClick),
+        ...(isHomeSidebar && billboardMenuItems && billboardMenuItems.length > 0
+          ? [{ type: 'divider' as const }, ...billboardMenuItems]
+          : []),
+      ],
+      trackedMenuKeys: collectMenuKeys(ownItems),
+    };
+  }, [
+    billboardMenuItems,
+    configuredHelpMenuItems,
+    configuredMenuItems,
+    defaultHelpMenuItems,
+    isHomeSidebar,
+    trackMenuClick,
+  ]);
+
+  const handleMenuOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) return;
+      try {
+        analytics?.track({
+          name: 'home_footer_menu_opened',
+          properties: { keys: trackedMenuKeys.join(','), spm: 'homepage.footer.opened' },
+        });
+      } catch {
+        // silently ignore tracking errors to avoid affecting business logic
+      }
+    },
+    [analytics, trackedMenuKeys],
   );
+
   return (
     <>
       {isHomeSidebar && enableBusinessFeatures && (
@@ -426,7 +539,11 @@ const Footer = memo(() => {
       {footer.layout === 'expanded' ? (
         <Flexbox horizontal align={'center'} gap={2} justify={'space-between'} padding={8}>
           <Flexbox horizontal align={'center'} flex={1} gap={2}>
-            <DropdownMenu items={helpMenuItems} placement="topLeft">
+            <DropdownMenu
+              items={helpMenuItems}
+              placement="topLeft"
+              onOpenChange={handleMenuOpenChange}
+            >
               <ActionIcon
                 aria-label={t('userPanel.help')}
                 data-billboard-anchor=""
@@ -447,16 +564,20 @@ const Footer = memo(() => {
         </Flexbox>
       ) : (
         <Flexbox horizontal align={'center'} gap={2} padding={8}>
-          <DropdownMenu items={helpMenuItems} placement="topLeft">
+          <DropdownMenu
+            items={helpMenuItems}
+            placement="topLeft"
+            onOpenChange={handleMenuOpenChange}
+          >
             <ActionIcon aria-label={t('userPanel.help')} icon={CircleHelp} size={16} />
           </DropdownMenu>
           {isDevMode && (
             <WorkspaceLink to="/settings">
               <ActionIcon
-                aria-label={t('userPanel.setting')}
+                aria-label={t(settingLabelKey)}
                 icon={SettingsIcon}
                 size={16}
-                title={t('userPanel.setting')}
+                title={t(settingLabelKey)}
               />
             </WorkspaceLink>
           )}

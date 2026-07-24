@@ -23,7 +23,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('antd', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('antd')>();
+  const actual = (await importOriginal()) as Record<string, unknown>;
   const Form = ({ children }: { children: React.ReactNode }) => <form>{children}</form>;
   Form.Item = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
 
@@ -38,6 +38,7 @@ describe('SignInPasswordStep', () => {
     render(
       <SignInPasswordStep
         email="user@example.com"
+        forgotLoading={false}
         form={mocks.form as any}
         loading={false}
         onBackToEmail={vi.fn()}

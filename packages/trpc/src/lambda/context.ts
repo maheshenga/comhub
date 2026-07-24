@@ -5,8 +5,10 @@ import debug from 'debug';
 import { type NextRequest } from 'next/server';
 
 import { auth } from '@/auth';
+import { canUseWorkspaceApiKeys } from '@/business/server/workspaceApiKey';
 import { getServerDB } from '@/database/core/db-adaptor';
 import { ApiKeyModel } from '@/database/models/apiKey';
+import { hasWorkspaceOwnerAccess } from '@/database/models/workspace';
 import { authEnv, LOBE_CHAT_OIDC_AUTH_HEADER } from '@/envs/auth';
 import { extractTraceContext } from '@/libs/observability/traceparent';
 import { assertOIDCUserActive, isOIDCUserInactiveError } from '@/libs/oidc-provider/access-control';
@@ -19,7 +21,12 @@ import { extractClientIp } from '../utils/clientIp';
 const log = debug('lobe-trpc:lambda:context');
 const LOBE_CHAT_API_KEY_HEADER = 'X-API-Key';
 
-const validateApiKeyUserId = async (apiKey: string): Promise<string | null> => {
+interface ValidatedApiKey {
+  userId: string;
+  workspaceId: string | null;
+}
+
+const validateApiKey = async (apiKey: string): Promise<ValidatedApiKey | null> => {
   if (!validateApiKeyFormat(apiKey)) return null;
 
   try {
@@ -40,7 +47,7 @@ const validateApiKeyUserId = async (apiKey: string): Promise<string | null> => {
       console.error('Failed to update API key last used timestamp:', error);
     });
 
-    return apiKeyRecord.userId;
+    return { userId: apiKeyRecord.userId, workspaceId: apiKeyRecord.workspaceId ?? null };
   } catch (error) {
     log('API key authentication failed: %O', error);
     console.error('API key authentication failed, trying other methods:', error);
@@ -63,6 +70,7 @@ export interface AuthContext {
   marketAccessToken?: string;
   // Add OIDC authentication information
   oidcAuth?: OIDCAuth | null;
+  oidcClientId?: string;
   resHeaders?: Headers;
   traceContext?: OtContext;
   userAgent?: string;
@@ -78,6 +86,7 @@ export const createContextInner = async (params?: {
   clientIp?: string | null;
   marketAccessToken?: string;
   oidcAuth?: OIDCAuth | null;
+  oidcClientId?: string;
   traceContext?: OtContext;
   userAgent?: string;
   userId?: string | null;
@@ -90,6 +99,7 @@ export const createContextInner = async (params?: {
     clientIp: params?.clientIp,
     marketAccessToken: params?.marketAccessToken,
     oidcAuth: params?.oidcAuth,
+    oidcClientId: params?.oidcClientId,
     resHeaders: responseHeaders,
     traceContext: params?.traceContext,
     userAgent: params?.userAgent,
@@ -143,9 +153,9 @@ export const createLambdaContext = async (request: NextRequest): Promise<LambdaC
   log('X-API-Key header: %s', apiKeyToken ? 'exists' : 'not found');
 
   if (apiKeyToken) {
-    const apiKeyUserId = await validateApiKeyUserId(apiKeyToken);
+    const apiKeyAuth = await validateApiKey(apiKeyToken);
 
-    if (!apiKeyUserId) {
+    if (!apiKeyAuth) {
       log('API key authentication failed; rejecting request without fallback auth');
 
       return createContextInner({
@@ -155,12 +165,73 @@ export const createLambdaContext = async (request: NextRequest): Promise<LambdaC
       });
     }
 
-    log('API key authentication successful, userId: %s', apiKeyUserId);
+    // Bind the key to its workspace, mirroring the OpenAPI surface
+    // (`resolveWorkspaceId` in packages/openapi): a personal key must not reach
+    // workspace data, and a workspace key must not be replayed against another
+    // workspace via the caller-supplied X-Workspace-Id header.
+    if (!apiKeyAuth.workspaceId && workspaceId) {
+      log('Personal API key cannot access workspace data; rejecting request');
+
+      return createContextInner({
+        ...commonContext,
+        traceContext,
+        userId: null,
+        workspaceId: undefined,
+      });
+    }
+
+    if (apiKeyAuth.workspaceId && workspaceId && workspaceId !== apiKeyAuth.workspaceId) {
+      log('Workspace API key cannot access a different workspace; rejecting request');
+
+      return createContextInner({
+        ...commonContext,
+        traceContext,
+        userId: null,
+        workspaceId: undefined,
+      });
+    }
+
+    // Same gates as the OpenAPI workspace middleware: workspace API keys are
+    // owner-only, so the issuer must still hold owner status (a demoted or
+    // removed owner's key stops working), and a workspace that loses the
+    // workspace-API-key entitlement must not keep serving already-issued keys.
+    if (apiKeyAuth.workspaceId) {
+      const db = await getServerDB();
+      const isOwner = await hasWorkspaceOwnerAccess(db, {
+        userId: apiKeyAuth.userId,
+        workspaceId: apiKeyAuth.workspaceId,
+      });
+
+      if (!isOwner) {
+        log('Workspace API key issuer is no longer a workspace owner; rejecting request');
+
+        return createContextInner({
+          ...commonContext,
+          traceContext,
+          userId: null,
+          workspaceId: undefined,
+        });
+      }
+
+      if (!(await canUseWorkspaceApiKeys(apiKeyAuth.workspaceId))) {
+        log('Workspace API key access is not available for this workspace; rejecting request');
+
+        return createContextInner({
+          ...commonContext,
+          traceContext,
+          userId: null,
+          workspaceId: undefined,
+        });
+      }
+    }
+
+    log('API key authentication successful, userId: %s', apiKeyAuth.userId);
 
     return createContextInner({
       ...commonContext,
       traceContext,
-      userId: apiKeyUserId,
+      userId: apiKeyAuth.userId,
+      workspaceId: apiKeyAuth.workspaceId ?? undefined,
     });
   }
 
@@ -189,10 +260,14 @@ export const createLambdaContext = async (request: NextRequest): Promise<LambdaC
         await assertOIDCUserActive(db, userId);
         log('OIDC authentication successful, userId: %s', userId);
 
+        const oidcClientId =
+          typeof tokenInfo.clientId === 'string' ? tokenInfo.clientId : undefined;
+
         // If OIDC authentication is successful, return context immediately
         log('OIDC authentication successful, creating context and returning');
         return createContextInner({
           oidcAuth,
+          oidcClientId,
           ...commonContext,
           traceContext,
           userId,

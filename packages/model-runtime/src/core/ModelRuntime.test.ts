@@ -3,11 +3,16 @@ import type { ClientSecretPayload } from '@lobechat/types';
 import { ModelProvider } from 'model-bank';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ChatStreamCallbacks, ChatStreamPayload, ModelRuntimeHooks } from '../index';
-import { LobeOpenAI, ModelRuntime } from '../index';
+import { LobeOpenAI } from '../providers/openai';
 import { providerRuntimeMap } from '../runtimeMap';
+import type { ChatStreamCallbacks, ChatStreamPayload } from '../types';
 import type { CreateImagePayload } from '../types/image';
 import type { CreateVideoPayload } from '../types/video';
+import { ModelRuntime, type ModelRuntimeHooks } from './ModelRuntime';
+
+vi.mock('../providers/lobehub', () => ({
+  LobeHubAI: class LobeHubAI {},
+}));
 
 /**
  * Mock createTraceOptions for testing purposes.
@@ -589,6 +594,19 @@ describe('ModelRuntime', () => {
         expect(mockRuntimeAI.chat.mock.calls[0][1]).toMatchObject({
           metadata: { plan: 'premium', scope: 'personal' },
         });
+      });
+
+      it('forwards beforeChat pricing context mutations to runtime.chat', async () => {
+        const pricingContext = { plan: 'premium', scope: 'personal' } as const;
+        const beforeChat: ModelRuntimeHooks['beforeChat'] = async (_payload, options) => {
+          if (options) options.pricingContext = pricingContext;
+        };
+        const { runtime, mockRuntimeAI } = createMockRuntime({ beforeChat });
+        mockRuntimeAI.chat.mockResolvedValue(new Response(''));
+
+        await runtime.chat(chatPayload);
+
+        expect(mockRuntimeAI.chat).toHaveBeenCalledWith(chatPayload, { pricingContext });
       });
 
       it('forwards beforeChat metadata to onChatFinal when the caller omitted options', async () => {

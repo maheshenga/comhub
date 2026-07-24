@@ -1,10 +1,9 @@
 'use client';
 
-import { LoadingOutlined } from '@ant-design/icons';
 import { Avatar, Flexbox, Icon } from '@lobehub/ui';
-import { Button, message, Modal, Spin, Upload } from 'antd';
+import { Button, message, Modal, Upload } from 'antd';
 import { createStaticStyles, cssVar } from 'antd-style';
-import { PencilIcon } from 'lucide-react';
+import { Loader2Icon, PencilIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -131,14 +130,20 @@ const AvatarRow = () => {
   const avatarContent = canUpload ? (
     <Flexbox horizontal align="center" gap={8}>
       <Upload beforeUpload={handleUploadAvatar} itemRender={() => void 0} maxCount={1}>
-        <Spin indicator={<LoadingOutlined spin />} spinning={uploading}>
-          <div className={styles.wrapper}>
-            <UserAvatar size={40} />
-            <div className={`${styles.overlay} avatar-edit-overlay`}>
-              <Icon color={cssVar.colorTextLightSolid} icon={PencilIcon} size={16} />
-            </div>
+        <div className={styles.wrapper}>
+          <UserAvatar size={40} />
+          <div
+            className={`${styles.overlay} avatar-edit-overlay`}
+            style={uploading ? { opacity: 1 } : undefined}
+          >
+            <Icon
+              color={cssVar.colorTextLightSolid}
+              icon={uploading ? Loader2Icon : PencilIcon}
+              size={16}
+              spin={uploading}
+            />
           </div>
-        </Spin>
+        </div>
       </Upload>
       <Button onClick={() => setPresetOpen(true)}>
         {t('profile.avatarPreset', '选择预设头像')}
@@ -171,7 +176,9 @@ const AvatarRow = () => {
     <UserAvatar size={40} />
   );
 
-  return <ProfileRow action={avatarContent} label={t('profile.avatar')} />;
+  return (
+    <ProfileRow action={avatarContent} anchor={'profile-avatar'} label={t('profile.avatar')} />
+  );
 };
 
 export default AvatarRow;

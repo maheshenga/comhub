@@ -25,6 +25,7 @@ export const GET = checkAuth(async (_req, { params, userId, serverDB }) => {
   }
 
   try {
+    // Get the requested provider configuration, including its decrypted key vault.
     const aiProviderModel = new AiProviderModel(serverDB, userId);
     const providerConfig = await aiProviderModel.getAiProviderById(
       provider,
@@ -47,6 +48,7 @@ export const GET = checkAuth(async (_req, { params, userId, serverDB }) => {
       });
     }
 
+    // Remove trailing API version paths like /v1 or /v1beta.
     const cleanBaseURL = baseURL.replace(/\/v\d+[a-z]*\/?$/, '');
     const pricingUrl = `${cleanBaseURL}/api/pricing`;
     const baseHeaders: Record<string, string> = {
@@ -85,7 +87,6 @@ export const GET = checkAuth(async (_req, { params, userId, serverDB }) => {
   } catch (e) {
     log(`Route: [${provider}] pricing error: %O`, e);
     const error = e instanceof Error ? { message: e.message, name: e.name } : e;
-
     return createErrorResponse(ChatErrorType.InternalServerError, { error });
   }
 });

@@ -1,25 +1,27 @@
+import { AGENT_CHAT_URL } from '@lobechat/const';
 import { AccordionItem, ActionIcon, Center, Flexbox, Icon, Text, Tooltip } from '@lobehub/ui';
-import { createStaticStyles, cssVar, cx, keyframes } from 'antd-style';
-import {
-  FolderClosedIcon,
-  FolderOpenIcon,
-  HandIcon,
-  type LucideIcon,
-  PlusIcon,
-  TriangleAlertIcon,
-} from 'lucide-react';
+import { createStaticStyles, cssVar, cx } from 'antd-style';
+import { FolderClosedIcon, FolderOpenIcon, type LucideIcon, PlusIcon } from 'lucide-react';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router';
 
+import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspaceSlug';
+import { TOPIC_STATUS_VISUALS } from '@/components/ExecutionStatus';
 import RingLoadingIcon from '@/components/RingLoading';
+import UnreadDot from '@/components/UnreadDot';
 import { isDesktop } from '@/const/version';
 import { useCommitWorkingDirectory } from '@/features/ChatInput/ControlBar/useCommitWorkingDirectory';
 import { resolveExecutionTarget } from '@/helpers/executionTarget';
+import { useIsGatewayModeEnabled } from '@/helpers/gatewayMode';
+import { useQueryRoute } from '@/hooks/useQueryRoute';
+import { usePathname } from '@/libs/router/navigation';
 import { useAgentStore } from '@/store/agent';
 import { agentByIdSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
 import { operationSelectors } from '@/store/chat/selectors';
 
+import { buildPrefixedAgentRoutePath, parseAgentPathname } from '../../../utils/agentPathname';
 import TopicItem from '../../List/Item';
 import { type GroupItemComponentProps } from '../GroupedAccordion';
 import {
@@ -29,17 +31,6 @@ import {
 } from './statusCounts';
 
 const PROJECT_GROUP_PREFIX = 'project:';
-
-const rippleAnim = keyframes`
-  0% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-  100% {
-    transform: scale(3);
-    opacity: 0;
-  }
-`;
 
 const styles = createStaticStyles(({ css }) => ({
   statusBadge: css`
@@ -68,40 +59,6 @@ const styles = createStaticStyles(({ css }) => ({
   statusBadgeWaiting: css`
     color: ${cssVar.colorInfo};
     background: color-mix(in srgb, ${cssVar.colorInfo} 14%, transparent);
-  `,
-  unreadDot: css`
-    position: relative;
-    z-index: 1;
-
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-
-    background: ${cssVar.colorInfo};
-  `,
-  unreadRipple: css`
-    position: absolute;
-    inset: 0;
-
-    width: 6px;
-    height: 6px;
-    margin: auto;
-    border: 1px solid ${cssVar.colorInfo};
-    border-radius: 50%;
-
-    background: transparent;
-
-    animation: ${rippleAnim} 1.8s ease-out infinite;
-  `,
-  unreadWrapper: css`
-    position: relative;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 14px;
-    height: 18px;
   `,
   addTopicAction: css`
     pointer-events: none;
@@ -147,13 +104,13 @@ const CollapsedStatusBadges = memo<{ counts: ProjectTopicStatusCounts }>(({ coun
     {
       className: styles.statusBadgeWaiting,
       count: counts.waitingForHuman,
-      icon: HandIcon,
+      icon: TOPIC_STATUS_VISUALS.waitingForHuman.icon,
       label: t('projectStatus.waitingForHuman', { count: counts.waitingForHuman }),
     },
     {
       className: styles.statusBadgeError,
       count: counts.failed,
-      icon: TriangleAlertIcon,
+      icon: TOPIC_STATUS_VISUALS.failed.icon,
       label: t('projectStatus.failed', { count: counts.failed }),
     },
   ].filter((item) => item.count > 0);
@@ -190,10 +147,7 @@ const CollapsedUnreadDot = memo<{ count: number }>(({ count }) => {
 
   return (
     <Tooltip title={label}>
-      <span aria-label={label} className={styles.unreadWrapper} role="status">
-        <span className={styles.unreadRipple} />
-        <span className={styles.unreadDot} />
-      </span>
+      <UnreadDot label={label} />
     </Tooltip>
   );
 });
@@ -212,26 +166,52 @@ const GroupItem = memo<GroupItemComponentProps>(
     );
 
     const agentId = useAgentStore((s) => s.activeAgentId);
-    const agencyConfig = useAgentStore(agentByIdSelectors.getAgencyConfigById(agentId ?? ''));
-    const isHeterogeneous = useAgentStore((s) =>
-      agentId ? agentByIdSelectors.isAgentHeterogeneousById(agentId)(s) : false,
+    const { aid: routeAgentId } = useParams<{ aid?: string }>();
+    const pathname = usePathname();
+    const agentRoute = useMemo(() => parseAgentPathname(pathname), [pathname]);
+    const targetAgentId = routeAgentId ?? agentRoute?.agentId ?? agentId;
+    const currentAgentId = targetAgentId ?? agentId;
+    const router = useQueryRoute();
+    const activeWorkspaceSlug = useActiveWorkspaceSlug();
+    const agencyConfig = useAgentStore(
+      agentByIdSelectors.getAgencyConfigById(currentAgentId ?? ''),
     );
-    const { commitAgentDefault } = useCommitWorkingDirectory(agentId ?? '');
+    const isHeterogeneous = useAgentStore((s) =>
+      currentAgentId ? agentByIdSelectors.isAgentHeterogeneousById(currentAgentId)(s) : false,
+    );
+    const isWorkspaceAgent = useAgentStore((s) =>
+      currentAgentId ? agentByIdSelectors.isWorkspaceAgentById(currentAgentId)(s) : false,
+    );
+    const { commitAgentDefault } = useCommitWorkingDirectory(currentAgentId ?? '');
 
     const handleAddTopic = useCallback(async () => {
-      if (!workingDirectory || !agentId) return;
+      if (!workingDirectory || !currentAgentId || !targetAgentId) return;
       // Write the agent's per-device default so the new topic inherits this
       // directory at creation time — the same high-precedence slot the picker
       // uses, not the legacy per-agent fallback that gets shadowed by it.
       await commitAgentDefault(workingDirectory);
       useChatStore.getState().switchTopic(null, { skipRefreshMessage: true });
-    }, [workingDirectory, agentId, commitAgentDefault]);
+      router.push(
+        buildPrefixedAgentRoutePath(AGENT_CHAT_URL(targetAgentId), agentRoute, activeWorkspaceSlug),
+      );
+    }, [
+      workingDirectory,
+      currentAgentId,
+      targetAgentId,
+      commitAgentDefault,
+      router,
+      agentRoute,
+      activeWorkspaceSlug,
+    ]);
 
     // Web can add a topic in a directory too when the agent targets a bound
     // device — the write goes to `workingDirByDevice`, no Electron dependency.
+    const deviceRoutingAvailable = useIsGatewayModeEnabled(currentAgentId);
     const effectiveTarget = resolveExecutionTarget(agencyConfig, {
-      isHetero: isHeterogeneous,
       clientExecutionAvailable: isDesktop,
+      deviceRoutingAvailable,
+      isHetero: isHeterogeneous,
+      workspaceScoped: isWorkspaceAgent,
     });
     const isDeviceMode = effectiveTarget === 'device' && !!agencyConfig?.boundDeviceId;
     const canAddTopic = (isDesktop || isDeviceMode) && !!workingDirectory;
@@ -304,6 +284,7 @@ const GroupItem = memo<GroupItemComponentProps>(
               status={topic.status}
               threadId={activeThreadId}
               title={topic.title}
+              userId={topic.userId}
             />
           ))}
         </Flexbox>

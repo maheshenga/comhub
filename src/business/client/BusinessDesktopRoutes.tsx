@@ -46,3 +46,4 @@ export const BusinessDesktopRoutesWithMainLayout: RouteObject[] = [
 ];
 export const BusinessDesktopRoutesWithSettingsLayout: RouteObject[] = [settingsAdminRoute];
 export const BusinessDesktopRoutesWithoutMainLayout: RouteObject[] = [];
+export const BusinessResourceRoutes: RouteObject[] = [];
