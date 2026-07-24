@@ -62,6 +62,10 @@ describe('Docker workspace manifests', () => {
 
     expect(build.on.push).toBeDefined();
     expect(build.concurrency['cancel-in-progress']).toBe(true);
+    expect(buildWorkflow).toContain(
+      "USE_CN_MIRROR=${{ github.event_name == 'workflow_dispatch' && inputs.use_cn_mirror == 'true' }}",
+    );
+    expect(buildWorkflow).not.toContain("inputs.use_cn_mirror || 'true'");
     expect(Object.keys(main.on)).toEqual(['workflow_dispatch']);
     expect(Object.keys(worker.on)).toEqual(['workflow_dispatch']);
     expect(buildWorkflow.match(/docker\/build-push-action@v6/g)).toHaveLength(3);
