@@ -137,6 +137,13 @@ export const moduleAppRuntimeProcedures = {
   callSdk: moduleAppProcedure
     .input(ModuleAppGatewayCallInputSchema)
     .mutation(async ({ ctx, input }) => {
+      if (!appEnv.MODULE_APP_EXECUTION_ENABLED) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_runtime_unavailable',
+        });
+      }
+
       let capability;
       try {
         capability = await verifyModuleAppCapability(input.capability, { userId: ctx.userId });
@@ -250,7 +257,9 @@ export const moduleAppRuntimeProcedures = {
         {
           appId: input.appId,
           installationId: installation.installationId,
-          permissions: manifest.data.runtime.permissions,
+          permissions: appEnv.MODULE_APP_EXECUTION_ENABLED
+            ? manifest.data.runtime.permissions
+            : [],
           surface: 'browser',
           userId: ctx.userId,
           versionId: installation.versionId,

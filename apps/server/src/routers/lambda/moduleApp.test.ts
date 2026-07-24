@@ -568,7 +568,7 @@ describe('moduleApp router registration', () => {
     expect(mockSignModuleAppCapability).toHaveBeenCalledWith(
       expect.objectContaining({
         appId: APP_ID,
-        permissions: ['context.read'],
+        permissions: [],
         surface: 'browser',
         userId: 'user-1',
       }),
@@ -849,6 +849,24 @@ describe('moduleApp router registration', () => {
     expect(mockModuleAppGateway.call).toHaveBeenCalledWith(
       expect.objectContaining({ method: 'context.get', requestId: 'request-1' }),
     );
+  });
+
+  it('rejects browser capability gateway calls while general execution is disabled', async () => {
+    mockAppEnv.MODULE_APP_EXECUTION_ENABLED = false;
+
+    await expect(
+      createCaller().callSdk({
+        capability: 'signed-capability',
+        input: {},
+        method: 'context.get',
+      }),
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_runtime_unavailable',
+    });
+
+    expect(mockVerifyModuleAppCapability).not.toHaveBeenCalled();
+    expect(mockModuleAppGateway.call).not.toHaveBeenCalled();
   });
 
   it('accepts managed data gateway methods', async () => {
