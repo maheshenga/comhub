@@ -6,12 +6,12 @@ describe('apiKey', () => {
   describe('generateApiKey', () => {
     it('should generate API key with correct format', () => {
       const apiKey = generateApiKey();
-      expect(apiKey).toMatch(/^sk-lh-[\da-z]{16}$/);
+      expect(apiKey).toMatch(/^sk-lh-[\da-f]{64}$/);
     });
 
     it('should generate API key with correct length', () => {
       const apiKey = generateApiKey();
-      expect(apiKey).toHaveLength(22); // 'sk-lh-' (6) + 16 characters
+      expect(apiKey).toHaveLength(70); // 'sk-lh-' (6) + 32 random bytes as hex
     });
 
     it('should generate unique API keys', () => {
@@ -68,6 +68,11 @@ describe('apiKey', () => {
   describe('validateApiKeyFormat', () => {
     it('should validate correct API key format', () => {
       const validKey = 'sk-lh-1234567890abcdef';
+      expect(validateApiKeyFormat(validKey)).toBe(true);
+    });
+
+    it('should validate secure 256-bit API key format', () => {
+      const validKey = `sk-lh-${'a1'.repeat(32)}`;
       expect(validateApiKeyFormat(validKey)).toBe(true);
     });
 

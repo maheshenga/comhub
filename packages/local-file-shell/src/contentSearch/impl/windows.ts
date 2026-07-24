@@ -234,14 +234,14 @@ export class WindowsContentSearchImpl extends BaseContentSearch {
       }
 
       args.push('/R');
-      args.push(`"${pattern}"`);
+      args.push(pattern);
 
       const filePattern = params.glob || params.type ? `*.${params.type || '*'}` : '*.*';
       args.push(filePattern);
 
       logger.debug(`${logPrefix} Executing: findstr ${args.join(' ')}`);
 
-      const { stdout, exitCode } = await execa('cmd', ['/c', `findstr ${args.join(' ')}`], {
+      const { stdout, exitCode } = await execa('findstr', args, {
         cwd: searchPath,
         reject: false,
         stdin: 'ignore',

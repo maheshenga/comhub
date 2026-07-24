@@ -233,9 +233,10 @@ export class LobeBuiltinMcpServer {
           }
           await transport.handleRequest(req, res, body);
         } catch (err) {
+          console.error('Lobe built-in MCP request failed', err);
           if (!res.headersSent) {
             res.writeHead(500, { 'content-type': 'text/plain' });
-            res.end(String((err as Error)?.message ?? err));
+            res.end('Internal Server Error');
           }
         }
       });

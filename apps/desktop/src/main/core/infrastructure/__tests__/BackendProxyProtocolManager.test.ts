@@ -230,14 +230,16 @@ describe('BackendProxyProtocolManager', () => {
     expect(response!.headers.get('Access-Control-Allow-Origin')).toBe('app://renderer');
     expect(response!.headers.get('Access-Control-Allow-Credentials')).toBe('true');
     expect(response!.headers.get('X-Src-Url')).toBe('https://remote.example.com/trpc/hello');
-    // The Chromium error (net::ERR_*) is the diagnosis — it must survive into the
-    // body and a header, or a packaged build gives us nothing to go on.
-    expect(response!.headers.get('X-Proxy-Error')).toBe('network down');
+    // Expose only the stable category; the raw Chromium error stays in local logs.
+    expect(response!.headers.get('X-Proxy-Error')).toBe('RemoteServerUnreachable');
     // The body must be the JSON ErrorResponse envelope the renderer error chain
     // parses — a plain-text 502 is indistinguishable from a real server 502.
     expect(response!.headers.get('Content-Type')).toBe('application/json');
     expect(await response!.json()).toEqual({
-      body: { detail: 'network down', url: 'https://remote.example.com/trpc/hello' },
+      body: {
+        detail: 'The remote server is unreachable.',
+        url: 'https://remote.example.com/trpc/hello',
+      },
       errorType: 'RemoteServerUnreachable',
     });
     // The failing request must not count itself: a lone failure with nothing else
@@ -459,7 +461,7 @@ describe('BackendProxyProtocolManager', () => {
       expect(res).not.toBeNull();
       expect(res!.status).toBe(502);
       expect(await res!.json()).toEqual({
-        body: { detail: 'token lookup failed' },
+        body: { detail: 'The remote server is unreachable.' },
         errorType: 'RemoteServerUnreachable',
       });
     });
@@ -485,7 +487,10 @@ describe('BackendProxyProtocolManager', () => {
 
       expect(response!.status).toBe(502);
       expect(await response!.json()).toEqual({
-        body: { detail: 'net::ERR_TIMED_OUT', url: 'https://remote.example.com/trpc/hello' },
+        body: {
+          detail: 'The remote server request timed out.',
+          url: 'https://remote.example.com/trpc/hello',
+        },
         errorType: 'RemoteServerTimeout',
       });
     });

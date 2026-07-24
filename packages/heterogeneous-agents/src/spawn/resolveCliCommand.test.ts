@@ -5,20 +5,21 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mocks must be set up before importing the module under test, because it
-// captures `promisify(execFile)` / `promisify(exec)` at import time.
+// captures `promisify(execFile)` at import time.
 vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof os>('node:os');
   return { ...actual, platform: vi.fn(() => actual.platform()) };
 });
 
 vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
   execFile: vi.fn(),
 }));
 
+const execaMock = vi.hoisted(() => vi.fn());
+vi.mock('execa', () => ({ execa: execaMock }));
+
 const platformMock = vi.mocked(os.platform);
 const execFileMock = vi.mocked(childProcess.execFile);
-const execMock = vi.mocked(childProcess.exec);
 
 const noErr = null;
 const callExecFile = (stdout: string, stderr = '') => {
@@ -36,12 +37,8 @@ const callExecFileError = (err: Error) => {
     return {} as any;
   }) as any);
 };
-const callExec = (stdout: string, stderr = '') => {
-  execMock.mockImplementationOnce(((cmd: string, opts: any, cb: any) => {
-    const callback = typeof opts === 'function' ? opts : cb;
-    callback(noErr, { stdout, stderr });
-    return {} as any;
-  }) as any);
+const callExeca = (stdout: string, stderr = '') => {
+  execaMock.mockResolvedValueOnce({ stderr, stdout });
 };
 
 const importModule = () => import('./resolveCliCommand');
@@ -49,7 +46,7 @@ const importModule = () => import('./resolveCliCommand');
 describe('resolveCliCommand', () => {
   beforeEach(() => {
     execFileMock.mockReset();
-    execMock.mockReset();
+    execaMock.mockReset();
   });
 
   afterEach(() => {
@@ -87,7 +84,7 @@ describe('resolveCliCommand', () => {
       expect(status.path).toBe('/usr/local/bin/codex');
       expect(status.version).toBe('codex-cli 0.142.5');
       expect(status.resolvedPathEnv).toBeUndefined();
-      expect(execMock).not.toHaveBeenCalled();
+      expect(execaMock).not.toHaveBeenCalled();
     });
 
     it('resolves and validates OpenCode using its bare semver output', async () => {
@@ -241,17 +238,19 @@ describe('resolveCliCommand', () => {
       platformMock.mockReturnValue('win32');
     });
 
-    it('resolves `codex` to the .cmd shim via `where`, then runs it through the shell', async () => {
+    it('resolves `codex` to the .cmd shim via `where`, then runs it with argument isolation', async () => {
       callExecFile('C:\\Users\\x\\AppData\\Roaming\\npm\\codex.cmd\r\n');
-      callExec('codex 0.142.5');
+      callExeca('codex 0.142.5');
 
       const { detectValidatedCommand } = await importModule();
       const status = await detectValidatedCommand('codex', { validateKeywords: ['codex'] });
 
       expect(status.available).toBe(true);
       expect(status.path).toBe('C:\\Users\\x\\AppData\\Roaming\\npm\\codex.cmd');
-      expect(execMock.mock.calls[0]![0]).toBe(
-        '"C:\\Users\\x\\AppData\\Roaming\\npm\\codex.cmd" --version',
+      expect(execaMock).toHaveBeenCalledWith(
+        'C:\\Users\\x\\AppData\\Roaming\\npm\\codex.cmd',
+        ['--version'],
+        expect.objectContaining({ windowsHide: true }),
       );
     });
 
@@ -263,7 +262,7 @@ describe('resolveCliCommand', () => {
           'C:\\Users\\x\\AppData\\Roaming\\npm\\codex.ps1',
         ].join('\r\n'),
       );
-      callExec('codex 0.142.5');
+      callExeca('codex 0.142.5');
 
       const { detectValidatedCommand } = await importModule();
       const status = await detectValidatedCommand('codex', { validateKeywords: ['codex'] });
@@ -280,7 +279,7 @@ describe('resolveCliCommand', () => {
 
       expect(status.available).toBe(false);
       expect(execFileMock).not.toHaveBeenCalled();
-      expect(execMock).not.toHaveBeenCalled();
+      expect(execaMock).not.toHaveBeenCalled();
     });
   });
 
@@ -376,7 +375,7 @@ describe('resolveCliCommand', () => {
       expect(resolved.pathEnv).toBeUndefined();
       // Custom command = no probing at all.
       expect(execFileMock).not.toHaveBeenCalled();
-      expect(execMock).not.toHaveBeenCalled();
+      expect(execaMock).not.toHaveBeenCalled();
     });
 
     it('never throws — a resolver failure degrades to the bare command', async () => {

@@ -130,6 +130,21 @@ describe('createErrorResponse', () => {
     });
   });
 
+  it('does not serialize internal error details or stack traces', async () => {
+    const error = new Error('database path C:\\secret');
+    const response = createErrorResponse(ChatErrorType.InternalServerError, {
+      error,
+      stack: 'sensitive stack trace',
+    });
+
+    await expect(response.json()).resolves.toEqual({
+      body: {
+        error: { message: 'An internal error occurred', name: 'Error' },
+      },
+      errorType: ChatErrorType.InternalServerError,
+    });
+  });
+
   // 测试没有提供body时，返回的Response对象的body是否为undefined
   it('returns a Response object with an undefined body when no body is provided', () => {
     const errorType = ChatErrorType.NoOpenAIAPIKey;

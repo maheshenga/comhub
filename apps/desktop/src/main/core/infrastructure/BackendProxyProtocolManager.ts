@@ -7,6 +7,7 @@ import { getDesktopEnv } from '@/env';
 import { appendVercelCookie } from '@/utils/http-headers';
 import { createLogger } from '@/utils/logger';
 import { netFetch } from '@/utils/net-fetch';
+import type { ProxyNetworkErrorType } from '@/utils/proxy-network-error';
 import { classifyProxyNetworkError } from '@/utils/proxy-network-error';
 import { setDesktopUserAgentHeader } from '@/utils/user-agent';
 
@@ -41,10 +42,19 @@ const describeError = (error: unknown) => {
  * 502 is indistinguishable from a real server-side 502, and users read that as
  * an app bug when it is almost always their own network/proxy/VPN.
  */
-const proxyNetworkErrorBody = (reason: string, url?: string) =>
+const PROXY_ERROR_DETAILS: Record<ProxyNetworkErrorType, string> = {
+  RemoteServerCertInvalid: 'The remote server certificate is invalid.',
+  RemoteServerConnectionRefused: 'The remote server refused the connection.',
+  RemoteServerDNSFailed: 'The remote server hostname could not be resolved.',
+  RemoteServerOffline: 'The device is offline.',
+  RemoteServerTimeout: 'The remote server request timed out.',
+  RemoteServerUnreachable: 'The remote server is unreachable.',
+};
+
+const proxyNetworkErrorBody = (errorType: ProxyNetworkErrorType, url?: string) =>
   JSON.stringify({
-    body: { detail: reason, ...(url ? { url } : {}) },
-    errorType: classifyProxyNetworkError(reason),
+    body: { detail: PROXY_ERROR_DETAILS[errorType], ...(url ? { url } : {}) },
+    errorType,
   });
 
 export class BackendProxyProtocolManager {
@@ -226,14 +236,18 @@ export class BackendProxyProtocolManager {
           })
         );
       } catch (error) {
-        const reason = describeError(error);
-        this.logger.error(`BackendProxy interceptor failed (${reason}): ${request.url}`, error);
+        const internalReason = describeError(error);
+        const errorType = classifyProxyNetworkError(internalReason);
+        this.logger.error(
+          `BackendProxy interceptor failed (${internalReason}): ${request.url}`,
+          error,
+        );
         this.surfaceUncaughtProxyError(error);
 
-        return new Response(proxyNetworkErrorBody(reason), {
+        return new Response(proxyNetworkErrorBody(errorType), {
           headers: new Headers({
             'Content-Type': 'application/json',
-            'X-Proxy-Error': reason,
+            'X-Proxy-Error': errorType,
           }),
           status: 502,
         });
@@ -291,12 +305,12 @@ export class BackendProxyProtocolManager {
       this.pendingUpstream -= 1;
 
       // The Chromium error (net::ERR_*) is the whole diagnosis — carry it into
-      // the log, the body, and a header so it is readable from DevTools without
-      // a debug build.
-      const reason = describeError(error);
+      // the local log; expose only the stable error category to the renderer.
+      const internalReason = describeError(error);
+      const errorType = classifyProxyNetworkError(internalReason);
       const gauges = `pendingUpstream=${this.pendingUpstream}, openUpstreamBodies=${this.openUpstreamBodies}`;
       this.logger.error(
-        `${logPrefix} upstream fetch failed (${reason}) [${gauges}]: ${rewrittenUrl}`,
+        `${logPrefix} upstream fetch failed (${internalReason}) [${gauges}]: ${rewrittenUrl}`,
         error,
       );
       this.surfaceUncaughtProxyError(error);
@@ -306,7 +320,7 @@ export class BackendProxyProtocolManager {
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Expose-Headers': '*',
         'Content-Type': 'application/json',
-        'X-Proxy-Error': reason,
+        'X-Proxy-Error': errorType,
         'X-Proxy-Open-Upstream-Bodies': String(this.openUpstreamBodies),
         'X-Proxy-Pending-Upstream': String(this.pendingUpstream),
         'X-Src-Url': rewrittenUrl,
@@ -316,7 +330,7 @@ export class BackendProxyProtocolManager {
         responseHeaders.set('Access-Control-Allow-Origin', allowOrigin);
         responseHeaders.set('Access-Control-Allow-Credentials', 'true');
       }
-      return new Response(proxyNetworkErrorBody(reason, rewrittenUrl), {
+      return new Response(proxyNetworkErrorBody(errorType, rewrittenUrl), {
         headers: responseHeaders,
         status: 502,
         statusText: 'Bad Gateway',

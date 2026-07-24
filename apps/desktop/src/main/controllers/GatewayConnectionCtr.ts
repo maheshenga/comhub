@@ -735,16 +735,25 @@ export default class GatewayConnectionCtr extends ControllerModule {
   private readHermesSoulDescription(soulPath: string): string | undefined {
     try {
       const content = fs.readFileSync(soulPath, 'utf8');
-      // Loop until stable to handle any malformed/nested comment sequences.
-      let stripped = content;
-      let previous: string;
-      do {
-        previous = stripped;
-        stripped = stripped
-          .replaceAll(/<!--[\s\S]*?-->/g, '') // strip complete HTML comments
-          .replaceAll(/[<>]/g, '') // strip any remaining HTML delimiter chars
-          .replaceAll(/^#+\s.*$/gm, ''); // strip Markdown headings
-      } while (stripped !== previous);
+      let commentDepth = 0;
+      let stripped = '';
+
+      for (let index = 0; index < content.length;) {
+        if (content.startsWith('<!--', index)) {
+          commentDepth += 1;
+          index += 4;
+          continue;
+        }
+        if (commentDepth > 0 && content.startsWith('-->', index)) {
+          commentDepth -= 1;
+          index += 3;
+          continue;
+        }
+        if (commentDepth === 0) stripped += content[index];
+        index += 1;
+      }
+
+      stripped = stripped.replaceAll(/[<>]/g, '').replaceAll(/^#+\s.*$/gm, '');
       return (
         stripped
           .split('\n')

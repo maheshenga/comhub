@@ -1,7 +1,9 @@
-import { exec, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { homedir, platform } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+
+import { execa } from 'execa';
 
 /**
  * Shared resolver for external CLI-agent binaries (Amp / Claude Code / Codex / OpenCode).
@@ -11,14 +13,12 @@ import { promisify } from 'node:util';
  *   - desktop main (`cliAgentBinaries` → `HeterogeneousAgentCtr`)
  *   - the `lh hetero exec` CLI (sandbox + terminal), via `resolveHeteroSpawnCommand`
  *
- * Kept dependency-free (node built-ins only) so it runs unchanged in Electron
- * main, the CLI, the server, and cloud sandboxes. Every external call is
- * wrapped with a timeout + try/catch so a hostile or missing environment
- * degrades to "unavailable" instead of hanging or throwing.
+ * Kept portable across Electron main, the CLI, the server, and cloud sandboxes.
+ * Every external call is wrapped with a timeout + try/catch so a hostile or
+ * missing environment degrades to "unavailable" instead of hanging or throwing.
  */
 
 const execFilePromise = promisify(execFile);
-const execPromise = promisify(exec);
 
 export type HeterogeneousCliAgentType = 'amp' | 'claude-code' | 'codex' | 'opencode';
 
@@ -55,13 +55,12 @@ interface ResolvedCommand {
 const isWindows = () => platform() === 'win32';
 let shellPathPromise: Promise<string | undefined> | undefined;
 
-// Reject anything that could break out of the `cmd /c "<path>" --version`
-// shell line we build for Windows .cmd shims (see `detectValidatedCommand`).
+// Reject shell metacharacters before resolving custom Windows command names.
 // User-supplied custom commands flow through here via `detectHeterogeneousCliCommand`.
 const WINDOWS_SHELL_METAS = /[&|;<>^`!"]/;
 
 // Extensions we can actually execute on Windows, in preference order:
-// `.exe` runs directly via `execFile`, `.cmd` / `.bat` runs via `cmd.exe`.
+// `.exe` runs directly via `execFile`; execa safely handles `.cmd` / `.bat` shims.
 // `.ps1` and extensionless wrappers (npm sometimes drops a Unix shell script
 // next to the `.cmd` shim) are deliberately excluded — we can't run them.
 const WINDOWS_RUNNABLE_EXTS = ['.exe', '.cmd', '.bat'] as const;
@@ -203,7 +202,7 @@ export const detectValidatedCommand = async (
   try {
     const needsShell = isWindows() && /\.(?:cmd|bat)$/i.test(resolvedPath);
     const { stderr, stdout } = needsShell
-      ? await execPromise(`"${resolvedPath}" ${validateFlag}`, {
+      ? await execa(resolvedPath, [validateFlag], {
           env,
           timeout: 5000,
           windowsHide: true,

@@ -102,5 +102,14 @@ export const createErrorResponse = (
     headers[AUTH_REQUIRED_HEADER] = 'true';
   }
 
-  return new Response(JSON.stringify(data), { headers, status: statusCode });
+  return new Response(
+    JSON.stringify(data, (key, value) => {
+      if (key === 'cause' || key === 'stack') return undefined;
+      if (value instanceof Error) {
+        return { message: 'An internal error occurred', name: value.name };
+      }
+      return value;
+    }),
+    { headers, status: statusCode },
+  );
 };

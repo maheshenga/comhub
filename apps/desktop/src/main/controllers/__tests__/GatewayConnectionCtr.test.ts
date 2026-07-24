@@ -1,4 +1,5 @@
 import type { execSync as ExecSyncType } from 'node:child_process';
+import fs from 'node:fs';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -310,6 +311,19 @@ describe('GatewayConnectionCtr', () => {
   afterEach(() => {
     ctr.disconnect();
     vi.useRealTimers();
+  });
+
+  it('removes nested HTML comments and delimiter characters from Hermes descriptions', () => {
+    const readFileSpy = vi
+      .spyOn(fs, 'readFileSync')
+      .mockReturnValue('<!-- outer <!-- nested --> hidden --><script>Visible</script>');
+
+    const description = (ctr as any).readHermesSoulDescription('/tmp/SOUL.md');
+
+    expect(description).toBe('scriptVisible/script');
+    expect(description).not.toMatch(/[<>]/);
+    expect(description).not.toContain('hidden');
+    readFileSpy.mockRestore();
   });
 
   // ─── Connection ───

@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { afterEach, describe, expect, it } from 'vitest';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AskUserBridge } from '../askUser/AskUserBridge';
 import {
@@ -14,6 +15,7 @@ let server: LobeBuiltinMcpServer;
 
 afterEach(async () => {
   await server?.stop();
+  vi.restoreAllMocks();
 });
 
 describe('LobeBuiltinMcpServer', () => {
@@ -34,6 +36,33 @@ describe('LobeBuiltinMcpServer', () => {
       const a = await server.start();
       const b = await server.start();
       expect(a.port).toBe(b.port);
+    });
+
+    it('does not expose internal request errors in HTTP 500 responses', async () => {
+      vi.spyOn(StreamableHTTPServerTransport.prototype, 'handleRequest').mockRejectedValueOnce(
+        new Error('secret stack path'),
+      );
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      server = new LobeBuiltinMcpServer();
+      const { url } = await server.start();
+
+      const response = await fetch(url, {
+        body: JSON.stringify({
+          id: 1,
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            capabilities: {},
+            clientInfo: { name: 'security-test', version: '1.0.0' },
+            protocolVersion: '2025-03-26',
+          },
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      });
+
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe('Internal Server Error');
     });
   });
 
