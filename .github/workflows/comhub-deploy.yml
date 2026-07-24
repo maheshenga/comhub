@@ -316,14 +316,34 @@ jobs:
             MODULE_APP_SCHEDULE_DISPATCH_ENABLED \
             MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED \
             MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED \
-            MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED \
-            MODULE_APP_PUBLIC_EXECUTION_ENABLED; do
+            MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED; do
             value="$(docker compose exec -T lobe printenv "$flag" 2>/dev/null || true)"
             if [ "${value}" = "true" ]; then
               echo "Production control ${flag} must remain disabled until full gate evidence exists"
               exit 1
             fi
           done
+
+          public_execution="$(docker compose exec -T lobe printenv MODULE_APP_PUBLIC_EXECUTION_ENABLED 2>/dev/null || true)"
+          if [ "$public_execution" = "true" ]; then
+            runtime_origin="$(docker compose exec -T lobe printenv MODULE_APP_RUNTIME_PUBLIC_ORIGIN 2>/dev/null || true)"
+            runtime_allowlist="$(docker compose exec -T lobe printenv MODULE_APP_RUNTIME_APP_ALLOWLIST 2>/dev/null || true)"
+            if [ "$module_runtime_configured" != "true" ]; then
+              echo "Public Module App launch requires the module-runtime service"
+              exit 1
+            fi
+            case "$runtime_origin" in
+              https://*) ;;
+              *)
+                echo "Public Module App launch requires an HTTPS runtime origin"
+                exit 1
+                ;;
+            esac
+            if [ -z "$(printf '%s' "$runtime_allowlist" | tr -d '[:space:],')" ]; then
+              echo "Public Module App launch requires a non-empty app allowlist"
+              exit 1
+            fi
+          fi
 
           if [ "$module_runtime_configured" = "true" ]; then
             verify_module_runtime

@@ -89,7 +89,7 @@ const s3Environment = {
   S3_ENDPOINT: `http://127.0.0.1:${s3Port}`,
   S3_SECRET_ACCESS_KEY: 'module_app_worker_test_secret',
 };
-const mutationFlags = [
+const actionExecutionFlags = [
   'MODULE_APP_EXECUTION_ENABLED',
   'MODULE_APP_RUNTIME_INVOCATION_ENABLED',
   'MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED',
@@ -97,7 +97,6 @@ const mutationFlags = [
   'MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED',
   'MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED',
   'MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED',
-  'MODULE_APP_PUBLIC_EXECUTION_ENABLED',
 ];
 const execute = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
@@ -317,9 +316,9 @@ const environmentMap = (inspect) =>
     }),
   );
 
-const assertMutationFlagsDisabled = (service, inspect) => {
+const assertActionExecutionFlagsDisabled = (service, inspect) => {
   const environment = environmentMap(inspect);
-  for (const flag of mutationFlags) {
+  for (const flag of actionExecutionFlags) {
     assert.notEqual(environment.get(flag), 'true', `${service} must not enable ${flag}`);
   }
 };
@@ -365,7 +364,7 @@ const assertWorkerContainer = () => {
       false,
     );
   }
-  assertMutationFlagsDisabled('module-app-worker', inspect);
+  assertActionExecutionFlagsDisabled('module-app-worker', inspect);
   compose([
     '--profile',
     'worker',
@@ -389,7 +388,7 @@ const assertRuntimeContainer = () => {
   assert.equal(inspect.Config.Image, runtimeImage);
   const artifactMount = inspect.Mounts.find((mount) => mount.Destination === '/runtime/artifacts');
   assert.equal(artifactMount?.RW, false);
-  assertMutationFlagsDisabled('module-runtime', inspect);
+  assertActionExecutionFlagsDisabled('module-runtime', inspect);
 };
 
 const runWorkerIntegrationPhase = (phase) =>

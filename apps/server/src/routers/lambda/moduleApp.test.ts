@@ -551,7 +551,8 @@ describe('moduleApp router registration', () => {
     });
   });
 
-  it('returns a scoped launch context for an installed entitled ready application', async () => {
+  it('returns an allowlisted static launch context while general execution is disabled', async () => {
+    mockAppEnv.MODULE_APP_EXECUTION_ENABLED = false;
     mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
       actions: [],
       id: APP_ID,
@@ -575,8 +576,8 @@ describe('moduleApp router registration', () => {
     );
   });
 
-  it('rejects launch while runtime execution is disabled', async () => {
-    mockAppEnv.MODULE_APP_EXECUTION_ENABLED = false;
+  it('rejects public launch without an HTTPS runtime origin', async () => {
+    mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = 'http://module-runtime.example.com';
 
     await expect(createCaller().getLaunchContext({ appId: APP_ID })).rejects.toMatchObject({
       code: 'PRECONDITION_FAILED',
@@ -1004,6 +1005,34 @@ describe('moduleApp router registration', () => {
       }),
     ).rejects.toThrow('plan_run_denied');
     expect(mockModuleAppModel.createRun).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'none',
+    'record_create',
+    'record_update',
+    'record_archive',
+    'api_action',
+    'server_action',
+    'content_generation',
+    'workflow_step',
+    'executable_action',
+  ] as const)('rejects %s actions while general execution is disabled', async (runtimeType) => {
+    mockAppEnv.MODULE_APP_EXECUTION_ENABLED = false;
+
+    await expect(
+      createCaller().runAction({
+        actionId: `${runtimeType}_action`,
+        appId: APP_ID,
+        input: {},
+        scopeType: 'personal',
+      }),
+    ).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'module_app_runtime_unavailable',
+    });
+    expect(mockModuleAppModel.getAppDetail).not.toHaveBeenCalled();
+    expect(mockRunModuleAppAction).not.toHaveBeenCalled();
   });
 
   it('delegates allowed action runs to the module app runtime', async () => {
