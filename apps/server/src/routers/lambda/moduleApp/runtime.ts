@@ -173,7 +173,7 @@ export const moduleAppRuntimeProcedures = {
   getLaunchContext: moduleAppProcedure
     .input(ModuleAppLaunchInputSchema)
     .query(async ({ ctx, input }) => {
-      if (!appEnv.MODULE_APP_EXECUTION_ENABLED || !appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN) {
+      if (!appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_runtime_unavailable',
@@ -183,6 +183,18 @@ export const moduleAppRuntimeProcedures = {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'module_app_public_execution_disabled',
+        });
+      }
+      let runtimeOrigin: string;
+      try {
+        const publicOrigin = new URL(appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN);
+        if (publicOrigin.protocol !== 'https:') throw new Error('HTTPS origin required');
+        runtimeOrigin = publicOrigin.origin;
+      } catch (error) {
+        throw new TRPCError({
+          cause: error,
+          code: 'PRECONDITION_FAILED',
+          message: 'module_app_runtime_unavailable',
         });
       }
 
@@ -227,7 +239,6 @@ export const moduleAppRuntimeProcedures = {
 
       const now = new Date();
       const nonce = randomUUID();
-      const runtimeOrigin = new URL(appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN).origin;
       const output = manifest.data.build.frontend.output.replace(/\/+$/, '');
       const entry = output.endsWith('.html') ? output : `${output}/index.html`;
       const iframeUrl = new URL(
@@ -260,6 +271,13 @@ export const moduleAppRuntimeProcedures = {
     }),
 
   runAction: moduleAppProcedure.input(moduleAppRunInputSchema).mutation(async ({ ctx, input }) => {
+    if (!appEnv.MODULE_APP_EXECUTION_ENABLED) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'module_app_runtime_unavailable',
+      });
+    }
+
     await assertRunnableApp({
       appId: input.appId,
       currentPlan: ctx.currentPlan,
@@ -280,15 +298,6 @@ export const moduleAppRuntimeProcedures = {
 
     const action = installation.actions.find((item) => item.id === input.actionId);
     if (!action) throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_action_not_found' });
-
-    if (
-      ['api_action', 'content_generation', 'executable_action', 'server_action', 'workflow_step'].includes(
-        action.runtimeType,
-      ) &&
-      !appEnv.MODULE_APP_EXECUTION_ENABLED
-    ) {
-      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'module_app_runtime_unavailable' });
-    }
 
     if (action.runtimeType === 'record_update' || action.runtimeType === 'record_archive') {
       if (!input.recordId) {

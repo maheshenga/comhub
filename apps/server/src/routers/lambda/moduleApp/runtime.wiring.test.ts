@@ -34,8 +34,16 @@ describe('module app runtime dependency wiring', () => {
     expect(source).toContain('resolveModuleAppWorkflowAction({ action, runtimeManifest: installation.runtimeManifest })');
   });
 
-  it('keeps privileged action execution behind the execution rollout flag', () => {
-    expect(source).toContain("['api_action', 'content_generation', 'executable_action', 'server_action', 'workflow_step']");
-    expect(source).toContain('!appEnv.MODULE_APP_EXECUTION_ENABLED');
+  it('checks the execution rollout flag before resolving any action dependencies', () => {
+    const runActionStart = source.indexOf('runAction: moduleAppProcedure');
+    const executionGuard = source.indexOf(
+      'if (!appEnv.MODULE_APP_EXECUTION_ENABLED)',
+      runActionStart,
+    );
+    const runnableAppCheck = source.indexOf('await assertRunnableApp({', runActionStart);
+
+    expect(runActionStart).toBeGreaterThanOrEqual(0);
+    expect(executionGuard).toBeGreaterThan(runActionStart);
+    expect(runnableAppCheck).toBeGreaterThan(executionGuard);
   });
 });
