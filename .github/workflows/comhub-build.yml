@@ -205,7 +205,7 @@ jobs:
           tags: ${{ steps.image.outputs.tags }}
           build-args: |
             NODEJS_VERSION=${{ env.NODEJS_VERSION }}
-            USE_CN_MIRROR=${{ inputs.use_cn_mirror || 'true' }}
+            USE_CN_MIRROR=${{ github.event_name == 'workflow_dispatch' && inputs.use_cn_mirror == 'true' }}
             COMHUB_COMMIT_SHA=${{ github.sha }}
             COMHUB_BUILD_BRANCH=${{ github.ref_name }}
             COMHUB_BUILD_AT=${{ steps.build_meta.outputs.build_at }}
