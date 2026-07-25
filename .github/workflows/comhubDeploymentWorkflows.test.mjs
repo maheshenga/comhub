@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +8,16 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = path.resolve(directory, '../..');
+
+const readRepositoryFile = (filename) => readFileSync(path.join(repositoryRoot, filename), 'utf8');
+
+const collectYamlFiles = (directoryPath) =>
+  readdirSync(directoryPath, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directoryPath, entry.name);
+    if (entry.isDirectory()) return collectYamlFiles(entryPath);
+    return /\.ya?ml$/u.test(entry.name) ? [entryPath] : [];
+  });
 
 const loadWorkflow = (filename) => {
   const source = readFileSync(path.join(directory, filename), 'utf8');
@@ -187,6 +197,85 @@ test('deployment workflows never trigger from push', () => {
     const { workflow } = loadWorkflow(filename);
     assert.equal(workflow.on.push, undefined, `${filename} must not deploy from push`);
   }
+});
+
+test('GitHub automation is valid YAML and does not use deprecated Node 20 actions', () => {
+  for (const filename of collectYamlFiles(path.join(repositoryRoot, '.github'))) {
+    const source = readFileSync(filename, 'utf8');
+    assert.doesNotThrow(
+      () => parse(source),
+      `${path.relative(repositoryRoot, filename)} is invalid YAML`,
+    );
+    assert.doesNotMatch(
+      source,
+      /actions\/checkout@v4|actions\/setup-node@v4|pnpm\/action-setup@v4/u,
+      `${path.relative(repositoryRoot, filename)} still references a Node 20 action`,
+    );
+  }
+});
+
+test('ComHub build tooling uses Node 24 LTS while preserving the node22 module contract', () => {
+  const nodeVersion = '24.18.0';
+
+  assert.match(
+    readRepositoryFile('Dockerfile'),
+    new RegExp(`NODEJS_VERSION="${nodeVersion}"`, 'u'),
+  );
+  assert.match(
+    readRepositoryFile('scripts/deploy/comhub-build-package.ps1'),
+    new RegExp(`NodeVersion = '${nodeVersion}'`, 'u'),
+  );
+
+  for (const filename of [
+    '.agents/resume',
+    '.agents/setup',
+    '.github/actions/setup-env/action.yml',
+  ]) {
+    assert.match(readRepositoryFile(filename), new RegExp(nodeVersion.replaceAll('.', '\\.'), 'u'));
+  }
+
+  for (const filename of [
+    '.github/workflows/comhub-build.yml',
+    '.github/workflows/comhub-deploy-worker.yml',
+    '.github/workflows/comhub-deploy.yml',
+    '.github/workflows/comhub-desktop-release.yml',
+    '.github/workflows/comhub-pr-check.yml',
+    '.github/workflows/comhub-upstream-sync.yml',
+  ]) {
+    const source = readRepositoryFile(filename);
+    assert.match(source, new RegExp(nodeVersion.replaceAll('.', '\\.'), 'u'));
+    const setupNodeCount = (source.match(/actions\/setup-node@v6/gu) ?? []).length;
+    const disabledCacheCount = (source.match(/package-manager-cache: false/gu) ?? []).length;
+    assert.equal(disabledCacheCount, setupNodeCount);
+  }
+
+  for (const filename of ['apps/module-runtime/Dockerfile', 'apps/module-worker/Dockerfile']) {
+    const source = readRepositoryFile(filename);
+    assert.match(
+      source,
+      new RegExp(`node:${nodeVersion.replaceAll('.', '\\.')}-alpine3\\.23`, 'u'),
+    );
+    assert.match(source, /--target=node24/u);
+  }
+
+  const composeSource = readRepositoryFile('docker-compose/deploy/module-runtime.yml');
+  assert.equal(
+    (
+      composeSource.match(
+        new RegExp(`node:${nodeVersion.replaceAll('.', '\\.')}-alpine3\\.23`, 'gu'),
+      ) ?? []
+    ).length,
+    2,
+  );
+
+  assert.match(
+    readRepositoryFile('apps/module-runtime/docker/Dockerfile.node22'),
+    /FROM node:22\.22\.0-alpine3\.23/u,
+  );
+  assert.match(
+    readRepositoryFile('packages/types/src/moduleAppRuntime.ts'),
+    /z\.enum\(\['node22', 'python312'\]\)/u,
+  );
 });
 
 test('all workflow Bash run blocks pass syntax validation', () => {

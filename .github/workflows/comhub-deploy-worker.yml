@@ -15,7 +15,7 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
-  NODEJS_VERSION: '22'
+  NODEJS_VERSION: '24.18.0'
 
 jobs:
   resolve-source:
@@ -26,7 +26,7 @@ jobs:
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
       - name: Checkout main history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -67,19 +67,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout deployment source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-source.outputs.source_sha }}
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           run_install: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODEJS_VERSION }}
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -101,7 +102,7 @@ jobs:
       worker_image_ref: ${{ steps.image.outputs.worker_image_ref }}
     steps:
       - name: Checkout deployment tooling
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
 
@@ -137,7 +138,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout deployment tooling
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
 

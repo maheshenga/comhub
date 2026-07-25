@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node:22.22.0-alpine3.23 AS build
+FROM node:24.18.0-alpine3.23 AS build
 
 WORKDIR /workspace
 COPY apps/module-runtime/docker/orchestrator-package.json ./package.json
@@ -17,9 +17,9 @@ RUN ./node_modules/.bin/esbuild apps/module-runtime/src/server.ts \
   --format=esm \
   --outfile=dist/server.mjs \
   --platform=node \
-  --target=node22
+  --target=node24
 
-FROM node:22.22.0-alpine3.23
+FROM node:24.18.0-alpine3.23
 
 RUN apk add --no-cache docker-cli \
   && addgroup -S -g 10001 moduleapp \
