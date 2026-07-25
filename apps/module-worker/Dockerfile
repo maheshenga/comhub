@@ -1,4 +1,4 @@
-FROM node:22.22.0-alpine3.23 AS build
+FROM node:24.18.0-alpine3.23 AS build
 
 WORKDIR /workspace
 
@@ -15,9 +15,9 @@ RUN --mount=type=cache,id=comhub-module-worker-pnpm,target=/pnpm/store \
     --banner:js="import { createRequire as __moduleCreateRequire } from 'node:module'; const require = __moduleCreateRequire(import.meta.url);" \
     --outfile=/workspace/worker.mjs \
     --platform=node \
-    --target=node22
+    --target=node24
 
-FROM node:22.22.0-alpine3.23
+FROM node:24.18.0-alpine3.23
 
 RUN apk add --no-cache tini \
   && rm -f /sbin/apk /usr/bin/apk /usr/sbin/apk \

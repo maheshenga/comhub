@@ -1,7 +1,7 @@
 param(
   [string]$Tag = (Get-Date -Format 'yyyyMMdd-HHmmss'),
   [string]$Image = 'comhub-app-export',
-  [string]$NodeVersion = '22',
+  [string]$NodeVersion = '24.18.0',
   [switch]$NoCnMirror
 )
 

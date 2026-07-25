@@ -40,7 +40,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: '24.18.0'
   PNPM_VERSION: '10.33.0'
   COMHUB_UPSTREAM_BASE_BRANCH: ${{ github.event.inputs.base_branch || 'upgrade/upstream-v2.2.6-comhub-merge' }}
   COMHUB_UPSTREAM_CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
@@ -56,18 +56,19 @@ jobs:
       upstream_ref: ${{ steps.sync.outputs.upstream_ref }}
     steps:
       - name: Checkout ComHub
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ env.COMHUB_UPSTREAM_BASE_BRANCH }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false

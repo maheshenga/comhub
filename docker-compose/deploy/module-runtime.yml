@@ -73,7 +73,7 @@ services:
       - module-app-worker-internal
 
   module-app-artifact-init:
-    image: node:22.22.0-alpine3.23
+    image: node:24.18.0-alpine3.23
     command:
       - sh
       - -ec
@@ -182,7 +182,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   module-app-main-probe:
-    image: node:22.22.0-alpine3.23
+    image: node:24.18.0-alpine3.23
     command:
       - node
       - -e
@@ -215,6 +215,6 @@ volumes:
     name: '${MODULE_APP_TEST_ARTIFACT_VOLUME:-comhub-module-app-verification-artifacts}'
 
 networks:
-  module-app-seed:
+  module-app-seed: {}
   module-app-worker-internal:
     internal: true

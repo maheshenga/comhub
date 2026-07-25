@@ -5,7 +5,7 @@ inputs:
   node-version:
     description: Node.js version
     required: false
-    default: '24.11.1'
+    default: '24.18.0'
   package-manager-cache:
     description: Pass-through to actions/setup-node package-manager-cache
     required: false
@@ -19,7 +19,7 @@ runs:
   using: composite
   steps:
     - name: Install pnpm
-      uses: pnpm/action-setup@v4
+      uses: pnpm/action-setup@v5
       with:
         run_install: false
 
