@@ -68,7 +68,7 @@ describe('Docker workspace manifests', () => {
     expect(buildWorkflow).not.toContain("inputs.use_cn_mirror || 'true'");
     expect(Object.keys(main.on)).toEqual(['workflow_dispatch']);
     expect(Object.keys(worker.on)).toEqual(['workflow_dispatch']);
-    expect(buildWorkflow.match(/docker\/build-push-action@v6/g)).toHaveLength(3);
+    expect(buildWorkflow.match(/docker\/build-push-action@v7/g)).toHaveLength(3);
     expect(mainWorkflow).not.toContain('docker/build-push-action');
     expect(workerWorkflow).not.toContain('docker/build-push-action');
     expect(main.jobs.deploy.needs).toEqual([
