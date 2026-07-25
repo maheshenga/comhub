@@ -25,14 +25,7 @@ export const buildBillingBasisUpdates = (
     : [{ key: 'pricing.creditMultiplier', value: current.pricingMultiplier }];
 
 export type MatrixModelType =
-  | 'chat'
-  | 'embedding'
-  | 'tts'
-  | 'stt'
-  | 'image'
-  | 'video'
-  | 'text2music'
-  | 'realtime';
+  'chat' | 'embedding' | 'tts' | 'stt' | 'image' | 'video' | 'text2music' | 'realtime';
 
 export type MatrixPlan = {
   displayName: string;
@@ -108,11 +101,7 @@ export type MatrixDefaultModelConflict = {
 export type MatrixDefaultModelType = Extract<MatrixModelType, 'chat' | 'image' | 'video'>;
 
 export type MatrixDefaultModelHealthStatus =
-  | 'ok'
-  | 'not_configured'
-  | 'not_enabled'
-  | 'type_mismatch'
-  | 'denied_by_free_plan';
+  'ok' | 'not_configured' | 'not_enabled' | 'type_mismatch' | 'denied_by_free_plan';
 
 export type MatrixDefaultModelHealth = {
   actualModelType?: MatrixModelType;
@@ -178,9 +167,9 @@ const normalizeTextKey = (value?: string | null) => value?.trim().toLowerCase();
 
 const PRICING_SOURCE_PRIORITY: Record<MatrixPricingSource, number> = {
   'manual-override': 0,
-  database: 1,
+  'database': 1,
   'model-bank': 2,
-  missing: 3,
+  'missing': 3,
 };
 
 const hasPricingOverrideValues = ({
@@ -191,9 +180,8 @@ const hasPricingOverrideValues = ({
   pricingMultiplier?: number;
 }) => Number.isFinite(pricingMultiplier) || Number.isFinite(creditsPerDollar);
 
-const resolveSourceModelPricingSource = (
-  model: MatrixSourceModel,
-): MatrixProviderPricingSource => model.pricingSource ?? (model.hasModelPricing ? 'database' : 'missing');
+const resolveSourceModelPricingSource = (model: MatrixSourceModel): MatrixProviderPricingSource =>
+  model.pricingSource ?? (model.hasModelPricing ? 'database' : 'missing');
 
 const resolveEffectivePricingSource = ({
   creditsPerDollar,
@@ -685,8 +673,8 @@ export const getMatrixConfigHealth = ({
     checks.push({
       count: missingPricingRows.length,
       key: 'missing-model-pricing',
-      severity: 'warning',
-      title: 'Some models are missing pricing metadata',
+      severity: 'error',
+      title: 'Models without reliable pricing are blocked from platform billing',
     });
   }
 
@@ -781,18 +769,14 @@ export const getMatrixConfigHealthFocus = ({
   if (checkKey === 'missing-model-pricing') {
     return {
       planKeys: [],
-      rowKeys: rows
-        .filter((row) => row.effectivePricingSource === 'missing')
-        .map((row) => row.key),
+      rowKeys: rows.filter((row) => row.effectivePricingSource === 'missing').map((row) => row.key),
     };
   }
 
   if (checkKey === 'missing-model-abilities') {
     return {
       planKeys: [],
-      rowKeys: rows
-        .filter((row) => row.hasModelAbilities !== true)
-        .map((row) => row.key),
+      rowKeys: rows.filter((row) => row.hasModelAbilities !== true).map((row) => row.key),
     };
   }
 

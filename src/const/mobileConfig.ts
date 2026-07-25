@@ -85,10 +85,18 @@ export const MOBILE_BUILTIN_APP_REGISTRY = [
   },
   {
     enabled: true,
+    icon: 'library',
+    id: 'skills',
+    label: 'Skills',
+    order: 2,
+    path: '/discover/skill',
+  },
+  {
+    enabled: true,
     icon: 'users',
     id: 'community',
     label: '社区',
-    order: 2,
+    order: 3,
     path: '/community',
   },
   {
@@ -96,7 +104,7 @@ export const MOBILE_BUILTIN_APP_REGISTRY = [
     icon: 'sparkles',
     id: 'membership',
     label: '会员',
-    order: 3,
+    order: 4,
     path: '/settings/plans',
   },
   {
@@ -104,7 +112,7 @@ export const MOBILE_BUILTIN_APP_REGISTRY = [
     icon: 'coins',
     id: 'credits',
     label: '积分',
-    order: 4,
+    order: 5,
     path: '/settings/credits',
   },
   {
@@ -112,7 +120,7 @@ export const MOBILE_BUILTIN_APP_REGISTRY = [
     icon: 'chart-no-axes-column-increasing',
     id: 'usage',
     label: '用量',
-    order: 5,
+    order: 6,
     path: '/settings/usage',
   },
   {
@@ -120,7 +128,7 @@ export const MOBILE_BUILTIN_APP_REGISTRY = [
     icon: 'settings',
     id: 'settings',
     label: '设置',
-    order: 6,
+    order: 7,
     path: '/settings',
   },
 ] as const satisfies MobileBuiltinAppV1[];

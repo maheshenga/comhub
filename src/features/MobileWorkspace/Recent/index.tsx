@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox, SearchBar } from '@lobehub/ui';
-import { Button, toast } from '@lobehub/ui/base-ui';
+import { Button, Segmented, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { RefreshCw } from 'lucide-react';
 import {
@@ -27,6 +27,7 @@ import { authSelectors } from '@/store/user/selectors';
 import { MobileListSkeleton, MobileSection, MobileStateView } from '../components';
 import { useMobileSlotState } from '../mobileSlotState';
 import { useCreateAssistant } from '../useCreateAssistant';
+import MobilePendingInbox from './MobilePendingInbox';
 import RecentConversationRow from './RecentConversationRow';
 import { filterMobileRecentItems, type MobileRecentConversation } from './recentItems';
 
@@ -49,6 +50,10 @@ const styles = createStaticStyles(({ css }) => ({
     padding-block: 4px 8px;
     padding-inline: 12px;
   `,
+  switcher: css`
+    padding-block: 4px;
+    padding-inline: 12px;
+  `,
 }));
 
 const MobileRecentPage = memo(() => {
@@ -64,6 +69,7 @@ const MobileRecentPage = memo(() => {
     setQuery: setSearchQuery,
   } = useMobileSlotState({ scopeId: activeWorkspaceId ?? 'personal', slotId: 'slot-1' });
   const [searchInput, setSearchInput] = useState(searchQuery);
+  const [mode, setMode] = useState<'pending' | 'recent'>('recent');
   const pinningKeysRef = useRef(new Set<string>());
   const [pinningKeys, setPinningKeys] = useState<Set<string>>(() => new Set());
   const togglePinRef = useRef<(item: MobileRecentConversation) => void>(() => undefined);
@@ -166,18 +172,33 @@ const MobileRecentPage = memo(() => {
 
   return (
     <main className={styles.page}>
-      <div className={styles.search}>
-        <SearchBar
-          allowClear
-          aria-label={t('mobile.recent.search')}
-          placeholder={t('mobile.recent.search')}
-          value={searchInput}
-          variant="filled"
-          onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchInput(event.target.value)}
+      <div className={styles.switcher}>
+        <Segmented
+          block
+          value={mode}
+          options={[
+            { label: t('mobile.recent.modeRecent'), value: 'recent' },
+            { label: t('mobile.recent.modePending'), value: 'pending' },
+          ]}
+          onChange={(value) => setMode(value as 'pending' | 'recent')}
         />
       </div>
+      {mode === 'recent' ? (
+        <div className={styles.search}>
+          <SearchBar
+            allowClear
+            aria-label={t('mobile.recent.search')}
+            placeholder={t('mobile.recent.search')}
+            value={searchInput}
+            variant="filled"
+            onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchInput(event.target.value)}
+          />
+        </div>
+      ) : null}
       <div className={styles.sections}>
-        {isLoading && isLogin !== false ? (
+        {mode === 'pending' ? (
+          <MobilePendingInbox />
+        ) : isLoading && isLogin !== false ? (
           <MobileSection action={refreshAction} title={t('mobile.recent.latest')}>
             <Flexbox aria-busy="true" data-testid="mobile-recent-loading" role="status">
               <MobileListSkeleton label={t('mobile.recent.latest')} rows={4} />

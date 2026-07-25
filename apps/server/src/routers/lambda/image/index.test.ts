@@ -15,7 +15,6 @@ const {
   mockCreateAsyncCaller,
   mockAssertModelPolicyAllowed,
   mockAssertPlanModelAllowed,
-  mockLoadModels,
   mockGenerationTopicFindById,
   mockFindUserById,
   mockInsertValues,
@@ -33,7 +32,6 @@ const {
   mockCreateAsyncCaller: vi.fn(),
   mockAssertModelPolicyAllowed: vi.fn(),
   mockAssertPlanModelAllowed: vi.fn(),
-  mockLoadModels: vi.fn(),
   mockGenerationTopicFindById: vi.fn(),
   mockFindUserById: vi.fn(),
   mockInsertValues: [] as unknown[],
@@ -174,6 +172,7 @@ describe('imageRouter', () => {
       }),
     );
     mockChargeBeforeGenerate.mockResolvedValue(undefined);
+    mockAsyncCallerCreateImage.mockResolvedValue({ success: true });
     mockGetKeyFromFullUrl.mockResolvedValue(null);
     mockGetFullFileUrl.mockResolvedValue(null);
     mockFindUserById.mockResolvedValue({ email: 'user@example.com' });

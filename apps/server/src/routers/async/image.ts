@@ -303,6 +303,7 @@ export const imageRouter = router({
                 metadata: {
                   asyncTaskId: taskId,
                   generationBatchId,
+                  ...(routeMetadata ? { routeMetadata } : {}),
                   topicId: generationTopicId,
                   ...buildMappedBusinessModelFields({
                     provider,

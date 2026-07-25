@@ -3,18 +3,12 @@ import {
   AppWindowIcon,
   Blocks,
   Brain,
-  Building2,
   ChartColumnBigIcon,
-  Coins,
-  CreditCard,
   Database,
   KeyIcon,
   KeyRound,
-  Map,
   MonitorSmartphoneIcon,
-  ScrollText,
   Sparkles,
-  Users,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -47,7 +41,6 @@ export interface WorkspaceSettingCategoryGroup {
 export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] => {
   const { t } = useTranslation('setting');
   const { t: tAuth } = useTranslation('auth');
-  const { t: tSubscription } = useTranslation('subscription');
   const isOwner = useIsWorkspaceOwner();
   const enableOAuthApps = useUserStore(labPreferSelectors.enableOAuthApps);
 
@@ -56,16 +49,6 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
       [
         {
           items: [
-            {
-              icon: Building2,
-              key: WorkspaceSettingsTabs.General,
-              label: t('workspaceSetting.tab.general'),
-            },
-            {
-              icon: Users,
-              key: WorkspaceSettingsTabs.Members,
-              label: t('workspaceSetting.tab.members'),
-            },
             {
               icon: MonitorSmartphoneIcon,
               key: WorkspaceSettingsTabs.Devices,
@@ -79,32 +62,6 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
           ],
           key: WorkspaceSettingsGroupKey.General,
           title: t('workspaceSetting.group.general'),
-        },
-        {
-          items: [
-            {
-              icon: Map,
-              key: WorkspaceSettingsTabs.Plans,
-              label: tSubscription('tab.plans'),
-            },
-            {
-              icon: ChartColumnBigIcon,
-              key: WorkspaceSettingsTabs.Usage,
-              label: t('tab.usage'),
-            },
-            {
-              icon: Coins,
-              key: WorkspaceSettingsTabs.Credits,
-              label: tSubscription('tab.credits'),
-            },
-            {
-              icon: CreditCard,
-              key: WorkspaceSettingsTabs.Billing,
-              label: tSubscription('tab.billing'),
-            },
-          ],
-          key: WorkspaceSettingsGroupKey.Subscription,
-          title: t('group.subscription'),
         },
         {
           items: [
@@ -169,16 +126,11 @@ export const useWorkspaceSettingCategory = (): WorkspaceSettingCategoryGroup[] =
               key: WorkspaceSettingsTabs.APIKey,
               label: tAuth('tab.apikey'),
             },
-            {
-              icon: ScrollText,
-              key: WorkspaceSettingsTabs.AuditLog,
-              label: t('workspaceSetting.tab.auditLog'),
-            },
           ].filter(Boolean) as WorkspaceSettingCategoryItem[],
           key: WorkspaceSettingsGroupKey.Admin,
           title: t('workspaceSetting.group.admin'),
         },
       ].filter(Boolean) as WorkspaceSettingCategoryGroup[],
-    [t, tAuth, tSubscription, enableOAuthApps, isOwner],
+    [t, tAuth, enableOAuthApps, isOwner],
   );
 };

@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  isMobileConfigurableDestination,
-  resolveMobileDestination,
-} from './destinationRegistry';
+import { isMobileConfigurableDestination, resolveMobileDestination } from './destinationRegistry';
 
 describe('mobile destination registry', () => {
   it('classifies workspace, global, and personal mobile destinations', () => {
     expect(resolveMobileDestination('/design')).toMatchObject({ scope: 'workspace' });
     expect(resolveMobileDestination('/apps/market')).toMatchObject({ scope: 'workspace' });
-    expect(resolveMobileDestination('/settings/usage')).toMatchObject({ scope: 'workspace' });
+    expect(resolveMobileDestination('/settings/usage')).toMatchObject({ scope: 'personal' });
     expect(resolveMobileDestination('/discover')).toMatchObject({ scope: 'global' });
+    expect(resolveMobileDestination('/discover/skill')).toMatchObject({ scope: 'global' });
     expect(resolveMobileDestination('/community/agent/demo')).toMatchObject({ scope: 'global' });
     expect(resolveMobileDestination('/me/profile')).toMatchObject({ scope: 'personal' });
   });
@@ -26,6 +24,7 @@ describe('mobile destination registry', () => {
       '/',
       '/design',
       '/discover',
+      '/discover/skill',
       '/community',
       '/apps',
       '/tasks',

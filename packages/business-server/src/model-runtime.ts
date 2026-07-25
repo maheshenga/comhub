@@ -65,6 +65,9 @@ export function getBusinessModelRuntimeHooks(
 ): ModelRuntimeHooks | undefined {
   const routeMetadata =
     typeof routeMetadataOrWorkspaceId === 'string' ? undefined : routeMetadataOrWorkspaceId;
+  const workspaceId = (
+    typeof routeMetadataOrWorkspaceId === 'string' ? routeMetadataOrWorkspaceId : _workspaceId
+  )?.trim();
   const reservationByPayload = new WeakMap<object, CommercialReservationContext>();
   const policyProviderAliases = Array.from(
     new Set([routeMetadata?.providerType, routeMetadata ? 'newapi' : undefined].filter(Boolean)),
@@ -135,9 +138,10 @@ export function getBusinessModelRuntimeHooks(
       model,
       operationId,
       provider,
-      routeMetadata,
+      ...(routeMetadata ? { routeMetadata } : {}),
       usageType,
       userId,
+      ...(workspaceId ? { workspaceId } : {}),
     });
     storeReservationContext(payload, options, {
       estimatedCredits: normalizedEstimate,

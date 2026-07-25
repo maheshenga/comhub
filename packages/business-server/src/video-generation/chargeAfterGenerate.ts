@@ -1,4 +1,9 @@
-import { shouldChargeCommercialUsage } from '@/business/server/commercialBilling';
+import {
+  isCommercialUsageReservationHandle,
+  releaseCommercialAiUsageReservation,
+  settleCommercialAiUsageReservation,
+  shouldChargeCommercialUsage,
+} from '@/business/server/commercialBilling';
 import {
   resolveGenerationPricingMultiplier,
   resolveVideoChargeCreditResult,
@@ -29,18 +34,41 @@ interface ChargeParams {
 }
 
 export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
-  const { computePriceParams, isError, metadata, model, prechargeResult, provider, usage, userId } =
-    params;
+  const {
+    computePriceParams,
+    isError,
+    metadata,
+    model,
+    prechargeResult,
+    provider,
+    usage,
+    userId,
+    workspaceId,
+  } = params;
 
   if (!prechargeResult || Object.keys(prechargeResult).length === 0) return;
 
+  const db = params.db ?? (await getServerDB());
+  const reservation = isCommercialUsageReservationHandle(prechargeResult, 'video')
+    ? prechargeResult
+    : undefined;
+
   if (isError) {
+    if (reservation) {
+      await releaseCommercialAiUsageReservation({
+        db,
+        reason: 'video_generation_failed',
+        reservationId: reservation.reservationId,
+      });
+    }
     return;
   }
 
-  const db = params.db ?? (await getServerDB());
-  const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
-  if (!shouldCharge) return;
+  if (!reservation) {
+    if (workspaceId) return;
+    const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
+    if (!shouldCharge) return;
+  }
 
   const resolvedModel = model ?? metadata.modelId;
   const pricing = await getServerModelPricing({
@@ -66,6 +94,23 @@ export async function chargeAfterGenerate(params: ChargeParams): Promise<void> {
     chargeResult.source === 'precharge'
       ? chargeResult.credits
       : Math.ceil(chargeResult.credits * multiplier);
+
+  if (reservation) {
+    await settleCommercialAiUsageReservation({
+      actualCredits: effectiveCredits,
+      db,
+      estimatedCredits: reservation.estimatedCredits,
+      model: resolvedModel,
+      operationId: reservation.operationId,
+      provider,
+      reservationId: reservation.reservationId,
+      routeMetadata: metadata.routeMetadata,
+      title: 'Video Generation',
+      usageType: 'video',
+      userId,
+    });
+    return;
+  }
 
   if (effectiveCredits <= 0) return;
 

@@ -25,4 +25,4 @@ export enum WorkspaceSettingsTabs {
   Usage = 'usage',
 }
 
-export const DEFAULT_WORKSPACE_SETTINGS_TAB = WorkspaceSettingsTabs.General;
+export const DEFAULT_WORKSPACE_SETTINGS_TAB = WorkspaceSettingsTabs.Devices;

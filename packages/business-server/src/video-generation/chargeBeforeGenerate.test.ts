@@ -1,27 +1,19 @@
-import type * as ModelRuntimeModule from '@lobechat/model-runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type * as CommercialModelModule from '@/database/models/commercial';
 
 import { chargeBeforeGenerate } from './chargeBeforeGenerate';
 
 const mocks = vi.hoisted(() => ({
-  preCharge: vi.fn(),
-  shouldChargeCommercialUsage: vi.fn(),
-  getModelPricing: vi.fn(),
+  reserveCommercialAiUsage: vi.fn(),
   getAppSettingValue: vi.fn(),
+  getServerModelPricing: vi.fn(),
 }));
 
-vi.mock('@lobechat/model-runtime', async (importOriginal) => {
-  const actual = await importOriginal<typeof ModelRuntimeModule>();
-  return {
-    ...actual,
-    getModelPricing: mocks.getModelPricing,
-  };
-});
-
 vi.mock('@/business/server/commercialBilling', () => ({
-  shouldChargeCommercialUsage: mocks.shouldChargeCommercialUsage,
+  reserveCommercialAiUsage: mocks.reserveCommercialAiUsage,
+}));
+
+vi.mock('@/business/server/serverModelPricing', () => ({
+  getServerModelPricing: mocks.getServerModelPricing,
 }));
 
 vi.mock('@/server/services/appSettings', () => ({
@@ -32,27 +24,16 @@ vi.mock('@/server/services/appSettings', () => ({
   getAppSettingValue: mocks.getAppSettingValue,
 }));
 
-vi.mock('@/database/models/commercial', async (importOriginal) => {
-  const actual = await importOriginal<typeof CommercialModelModule>();
-  return {
-    ...actual,
-    CommercialModel: vi.fn().mockImplementation(() => ({
-      preCharge: mocks.preCharge,
-    })),
-  };
-});
-
 describe('video chargeBeforeGenerate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
-    mocks.preCharge.mockResolvedValue({ creditAccountId: 'user-1' });
+    mocks.reserveCommercialAiUsage.mockResolvedValue({ id: 'reservation-1' });
     mocks.getAppSettingValue.mockImplementation(async (key: string) =>
       key === 'pricing.creditMultiplier'
         ? 1.65
         : [{ model: 'veo3.1-fast', multiplier: 1.4, provider: 'newapi' }],
     );
-    mocks.getModelPricing.mockResolvedValue({
+    mocks.getServerModelPricing.mockResolvedValue({
       approximatePricePerVideo: 0.25,
       units: [],
     });
@@ -68,10 +49,20 @@ describe('video chargeBeforeGenerate', () => {
       userId: 'user-1',
     });
 
-    expect(mocks.getModelPricing).toHaveBeenCalledWith('veo3.1-fast', 'newapi');
-    expect(mocks.preCharge).toHaveBeenCalledWith(577_500, {});
+    expect(mocks.getServerModelPricing).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'veo3.1-fast', provider: 'newapi', type: 'video' }),
+    );
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        estimatedCredits: 577_500,
+        operationId: expect.stringMatching(/^video:/),
+        reservationTtlMs: 2 * 60 * 60 * 1000,
+        usageType: 'video',
+      }),
+    );
     expect(result.prechargeResult?.estimatedCredits).toBe(577_500);
     expect(result.prechargeResult?.costDetail?.totalCost).toBe(0.25);
+    expect(result.prechargeResult?.reservationId).toBe('reservation-1');
   });
 
   it('checks video budget with NewAPI route metadata pricing', async () => {
@@ -92,9 +83,19 @@ describe('video chargeBeforeGenerate', () => {
         groupMultiplier: 1.5,
       },
       userId: 'user-1',
+      workspaceId: 'workspace-1',
     });
 
-    expect(mocks.preCharge).toHaveBeenCalledWith(750_000, {});
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        estimatedCredits: 750_000,
+        routeMetadata: {
+          groupKey: 'pro',
+          groupMultiplier: 1.5,
+        },
+        workspaceId: 'workspace-1',
+      }),
+    );
     expect(result.prechargeResult?.estimatedCredits).toBe(750_000);
   });
 });

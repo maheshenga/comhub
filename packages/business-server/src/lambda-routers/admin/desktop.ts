@@ -17,6 +17,7 @@ import { getDesktopReleaseDiagnostics } from '@/server/services/desktopRelease';
 import {
   DesktopReleaseDispatchError,
   dispatchDesktopReleaseWorkflow,
+  getDesktopReleaseAutomationHealth,
   reconcileDesktopReleaseWorkflow,
   retryDesktopReleaseWorkflow,
 } from '@/server/services/desktopRelease/github';
@@ -357,9 +358,15 @@ export const adminDesktopRouter = router({
     });
 
     return {
+      automation: getDesktopReleaseAutomationHealth(),
       configuredChannel: settings.desktopUpdateConfig.channel,
       configuredVersion: settings.desktopUpdateConfig.currentVersion || null,
       diagnostics,
+      runtimePolicy: {
+        autoCheck: settings.desktopUpdateConfig.autoCheck,
+        channel: settings.desktopUpdateConfig.channel,
+        checkInterval: settings.desktopUpdateConfig.checkInterval,
+      },
     };
   }),
   listBuildProfiles: systemReadProcedure

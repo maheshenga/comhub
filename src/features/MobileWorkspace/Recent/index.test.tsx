@@ -81,6 +81,9 @@ vi.mock('@/business/client/hooks/useActiveWorkspaceId', () => ({
 vi.mock('@/features/Workspace/useWorkspaceAwareNavigate', () => ({
   useWorkspaceAwareNavigate: () => navigate,
 }));
+vi.mock('./MobilePendingInbox', () => ({
+  default: () => <div>Pending inbox content</div>,
+}));
 vi.mock('@/features/AgentGroupAvatar', () => ({
   default: () => <span data-testid="group-avatar" />,
 }));
@@ -128,6 +131,20 @@ vi.mock('@lobehub/ui/base-ui', () => ({
           onClick={() => item.onClick?.({ domEvent: new Event('click') })}
         >
           {item.label}
+        </button>
+      ))}
+    </div>
+  ),
+  Segmented: ({ onChange, options, value }: any) => (
+    <div>
+      {options.map((option: any) => (
+        <button
+          aria-pressed={value === option.value}
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
         </button>
       ))}
     </div>
@@ -206,6 +223,15 @@ describe('MobileRecentPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Free Agent' }));
     expect(navigate).toHaveBeenCalledWith('/agent/agent-free/topic-new');
+  });
+
+  it('switches between recent conversations and the pending inbox', () => {
+    render(<MobileRecentPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'mobile.recent.modePending' }));
+
+    expect(screen.getByText('Pending inbox content')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Search conversations' })).not.toBeInTheDocument();
   });
 
   it('uses a server-owned mobile query with focus and reconnect revalidation but no polling', () => {

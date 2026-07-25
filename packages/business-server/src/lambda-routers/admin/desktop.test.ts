@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
       }
     },
     dispatchDesktopReleaseWorkflow: vi.fn(),
+    getDesktopReleaseAutomationHealth: vi.fn(),
     reconcileDesktopReleaseWorkflow: vi.fn(),
     retryDesktopReleaseWorkflow: vi.fn(),
   },
@@ -272,6 +273,13 @@ describe('adminDesktopRouter', () => {
     mocks.assets.completeDesktopBuildAsset.mockResolvedValue(trustedAsset);
     mocks.assets.validateDesktopBuildAssetManifest.mockResolvedValue(manifest);
     mocks.github.dispatchDesktopReleaseWorkflow.mockResolvedValue(undefined);
+    mocks.github.getDesktopReleaseAutomationHealth.mockReturnValue({
+      configured: true,
+      ref: 'main',
+      repository: 'maheshenga/comhub',
+      tokenConfigured: true,
+      workflowFile: 'comhub-desktop-release.yml',
+    });
     mocks.github.retryDesktopReleaseWorkflow.mockResolvedValue(undefined);
     mocks.publication.normalizeDesktopReleasePublication.mockImplementation((input) => input);
     mocks.publication.writeDesktopReleasePublicationSettings.mockResolvedValue(5);
@@ -305,11 +313,14 @@ describe('adminDesktopRouter', () => {
       baseUrl: 'https://releases.example.com',
     });
     expect(result).toMatchObject({
+      automation: { configured: true, tokenConfigured: true },
       configuredChannel: 'stable',
       configuredVersion: '2.2.7',
       diagnostics: { configured: true },
+      runtimePolicy: { autoCheck: true, channel: 'stable', checkInterval: 60 },
     });
     expect(result).not.toHaveProperty('desktopOssConfig');
+    expect(result.automation).not.toHaveProperty('token');
     expect(JSON.stringify(result)).not.toContain('must-not-leak');
   });
 

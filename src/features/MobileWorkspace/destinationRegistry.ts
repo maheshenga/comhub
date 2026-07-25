@@ -18,9 +18,10 @@ const MOBILE_DESTINATIONS: ReadonlyArray<{
   {
     configurable: true,
     pattern: /^\/settings(?:\/(?:general|members|plans|billing|credits|usage))?\/?$/,
-    scope: 'workspace',
+    scope: 'personal',
   },
   { configurable: true, pattern: /^\/discover\/?$/, scope: 'global' },
+  { configurable: true, pattern: /^\/discover\/skill\/?$/, scope: 'global' },
   { configurable: true, pattern: /^\/community\/?$/, scope: 'global' },
   { configurable: false, pattern: /^\/design\/.*$/, scope: 'workspace' },
   { configurable: false, pattern: /^\/apps\/.*$/, scope: 'workspace' },
@@ -32,7 +33,11 @@ const MOBILE_DESTINATIONS: ReadonlyArray<{
   { configurable: false, pattern: /^\/group(?:\/.*)?$/, scope: 'workspace' },
   { configurable: false, pattern: /^\/task(?:\/.*)?$/, scope: 'workspace' },
   { configurable: false, pattern: /^\/me(?:\/.*)?$/, scope: 'personal' },
-  { configurable: false, pattern: /^\/settings\/(?:profile|llm|memory)(?:\/.*)?$/, scope: 'personal' },
+  {
+    configurable: false,
+    pattern: /^\/settings\/(?:profile|llm|memory)(?:\/.*)?$/,
+    scope: 'personal',
+  },
 ];
 
 const normalizeDestinationPath = (value: string) => {

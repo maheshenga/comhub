@@ -70,6 +70,13 @@ const availableArtifact = (type: 'linux' | 'mac-arm' | 'mac-intel' | 'windows') 
 });
 
 const overviewData = {
+  automation: {
+    configured: true,
+    ref: 'main',
+    repository: 'maheshenga/comhub',
+    tokenConfigured: true,
+    workflowFile: 'comhub-desktop-release.yml',
+  },
   configuredChannel: 'stable',
   configuredVersion: '2.3.0',
   diagnostics: {
@@ -102,6 +109,11 @@ const overviewData = {
     ],
     checkedAt: '2026-07-21T00:00:00.000Z',
     configured: true,
+  },
+  runtimePolicy: {
+    autoCheck: true,
+    channel: 'stable' as const,
+    checkInterval: 60,
   },
 };
 
@@ -327,6 +339,9 @@ describe('DesktopControlCenter', () => {
     expect(screen.getAllByText('2.3.0').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ComHub-2.3.0-setup.exe').length).toBeGreaterThan(0);
     expect(screen.getAllByText('admin.desktopControl.channel.healthy').length).toBeGreaterThan(0);
+    expect(screen.getByText('maheshenga/comhub')).toBeInTheDocument();
+    expect(screen.getByText('comhub-desktop-release.yml')).toBeInTheDocument();
+    expect(screen.getByText('admin.desktopControl.policy.enabled')).toBeInTheDocument();
   });
 
   it('offers first-use profile creation when no desktop build profile exists', () => {
@@ -381,6 +396,7 @@ describe('DesktopControlCenter', () => {
     });
 
     expect(screen.getByText('admin.desktopControl.unconfigured.title')).toBeInTheDocument();
+    expect(screen.getByText('admin.desktopControl.policy.title')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'admin.desktopControl.configure' }));
     const nextSearchParams = setSearchParams.mock.calls[0][0] as URLSearchParams;
     expect(nextSearchParams.get('tab')).toBe('updates');

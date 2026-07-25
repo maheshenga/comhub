@@ -4,7 +4,9 @@ import debug from 'debug';
 
 import { getProviderContentPolicyErrorMessage } from '@/business/server/getProviderContentPolicyErrorMessage';
 import { trackProviderContentPolicyViolation } from '@/business/server/trackProviderContentPolicyViolation';
+import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
+import type { AiUsageRouteMetadata } from '@/database/models/commercial';
 import { GenerationModel } from '@/database/models/generation';
 import type { LobeChatDatabase } from '@/database/type';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
@@ -26,6 +28,7 @@ interface BackgroundPollingParams {
   model: string;
   prechargeResult?: any;
   provider: string;
+  routeMetadata?: AiUsageRouteMetadata;
   userId: string;
   workspaceId?: string;
 }
@@ -39,12 +42,15 @@ export async function processBackgroundVideoPolling(
     asyncTaskId,
     generationBatchId,
     generationId,
+    generationTopicId,
     inferenceId,
     model,
     provider,
+    routeMetadata,
     userId,
     workspaceId,
   } = params;
+  const prechargeResult = params.prechargeResult;
 
   log(
     'Starting background video polling for task: %s (provider: %s, inferenceId: %s)',
@@ -109,6 +115,34 @@ export async function processBackgroundVideoPolling(
       status: AsyncTaskStatus.Success,
     });
 
+    if (prechargeResult) {
+      try {
+        await chargeAfterGenerate({
+          computePriceParams: {
+            generateAudio: (batch?.config as any)?.generateAudio,
+            resolution: (batch?.config as any)?.resolution,
+          },
+          db,
+          latency: duration,
+          metadata: {
+            asyncTaskId,
+            generationBatchId,
+            modelId: resolvedModelId,
+            ...(routeMetadata ? { routeMetadata } : {}),
+            topicId: generationTopicId,
+          },
+          model: resolvedModelId,
+          prechargeResult,
+          provider,
+          usage: pollResult.usage,
+          userId,
+          workspaceId,
+        });
+      } catch (chargeError) {
+        log('Failed to settle generation billing: %O', chargeError);
+      }
+    }
+
     log('Video processing completed successfully for task: %s', asyncTaskId);
   } catch (error) {
     log('Background video polling error for task: %s', asyncTaskId, error);
@@ -144,13 +178,40 @@ export async function processBackgroundVideoPolling(
       ),
       status: AsyncTaskStatus.Error,
     });
+
+    if (prechargeResult) {
+      try {
+        await chargeAfterGenerate({
+          db,
+          isError: true,
+          metadata: {
+            asyncTaskId,
+            generationBatchId,
+            modelId: model,
+            ...(routeMetadata ? { routeMetadata } : {}),
+            topicId: generationTopicId,
+          },
+          model,
+          prechargeResult,
+          provider,
+          userId,
+          workspaceId,
+        });
+      } catch (chargeError) {
+        log('Failed to release generation billing: %O', chargeError);
+      }
+    }
   }
 }
 
 async function pollUntilCompletion(
   modelRuntime: any,
   inferenceId: string,
-): Promise<{ headers?: Record<string, string>; videoUrl: string } | null> {
+): Promise<{
+  headers?: Record<string, string>;
+  usage?: { completionTokens: number; totalTokens: number };
+  videoUrl: string;
+} | null> {
   const maxRetries = 120;
   const pollingInterval = 5000;
 
@@ -162,7 +223,7 @@ async function pollUntilCompletion(
 
       if (result.status === 'success') {
         log('Video generation succeeded for task: %s', inferenceId);
-        return { headers: result.headers, videoUrl: result.videoUrl };
+        return { headers: result.headers, usage: result.usage, videoUrl: result.videoUrl };
       }
 
       if (result.status === 'failed') {

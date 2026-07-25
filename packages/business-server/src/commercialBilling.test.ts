@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   assertCommercialChatBudget,
   assertCommercialMinimumBudget,
+  assertCommercialModelSellable,
   estimateCommercialChatCredits,
   estimateCommercialEmbeddingsCredits,
   quoteCommercialAiUsage,
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   getAiProviderById: vi.fn(),
   getCreditAccountSummary: vi.fn(),
   getServerGlobalConfig: vi.fn(),
+  getServerModelPricingSnapshot: vi.fn(),
   quoteCreditsForAiUsage: vi.fn(),
   releaseCredits: vi.fn(),
   reserveCredits: vi.fn(),
@@ -62,6 +64,10 @@ vi.mock('@/database/repositories/aiInfra', () => ({
 
 vi.mock('@/server/globalConfig', () => ({
   getServerGlobalConfig: mocks.getServerGlobalConfig,
+}));
+
+vi.mock('./serverModelPricing', () => ({
+  getServerModelPricingSnapshot: mocks.getServerModelPricingSnapshot,
 }));
 
 describe('estimateCommercialChatCredits', () => {
@@ -534,6 +540,15 @@ describe('commercial AI reservations', () => {
       aiProvider: { openai: { enabled: true } },
     });
     mocks.getAiProviderById.mockResolvedValue({ keyVaults: {} });
+    mocks.getServerModelPricingSnapshot.mockResolvedValue({
+      pricing: {
+        units: [
+          { name: 'textInput', rate: 0.5, strategy: 'fixed' },
+          { name: 'textOutput', rate: 1, strategy: 'fixed' },
+        ],
+      },
+      source: 'database',
+    });
     mocks.reserveCredits.mockResolvedValue({ id: 'reservation-1', status: 'active' });
     mocks.settleCredits.mockResolvedValue({ id: 'reservation-1', status: 'settled' });
     mocks.releaseCredits.mockResolvedValue({ id: 'reservation-1', status: 'released' });
@@ -580,7 +595,7 @@ describe('commercial AI reservations', () => {
 
     expect(mocks.reserveCredits).toHaveBeenCalledWith({
       amount: 25,
-      idempotencyKey: 'commercial-ai:user-1:chat:operation-1',
+      idempotencyKey: 'commercial-ai:personal:user-1:chat:operation-1',
       metadata: {
         model: 'gpt-test',
         operationId: 'operation-1',
@@ -590,6 +605,123 @@ describe('commercial AI reservations', () => {
       payer: { scopeType: 'personal', userId: 'user-1' },
       requireNew: true,
     });
+  });
+
+  it('rejects platform-billed models without reliable pricing', async () => {
+    mocks.getServerModelPricingSnapshot.mockResolvedValue({
+      pricing: undefined,
+      source: 'missing',
+    });
+
+    await expect(
+      assertCommercialModelSellable({
+        db: {} as any,
+        model: 'unpriced-model',
+        provider: 'openai',
+        usageType: 'chat',
+        userId: 'user-1',
+      }),
+    ).rejects.toMatchObject({
+      error: {
+        message: 'COMMERCIAL_MODEL_PRICING_MISSING',
+        reason: 'COMMERCIAL_MODEL_NOT_SELLABLE',
+      },
+      errorType: ChatErrorType.Forbidden,
+    });
+  });
+
+  it.each([
+    { name: 'fixed', rate: 0.2, strategy: 'fixed', unit: 'second' },
+    {
+      name: 'tiered',
+      strategy: 'tiered',
+      tiers: [{ rate: 0.15, upTo: 'infinity' }],
+      unit: 'second',
+    },
+    {
+      lookup: { prices: { standard: 0.3 }, pricingParams: ['quality'] },
+      name: 'lookup',
+      strategy: 'lookup',
+      unit: 'video',
+    },
+  ])('accepts reliable $name video generation pricing', async (pricingUnit) => {
+    mocks.getServerModelPricingSnapshot.mockResolvedValue({
+      pricing: {
+        units: [{ ...pricingUnit, name: 'videoGeneration' }],
+      },
+      source: 'database',
+    });
+
+    await expect(
+      assertCommercialModelSellable({
+        db: {} as any,
+        model: 'video-model',
+        provider: 'openai',
+        usageType: 'video',
+        userId: 'user-1',
+      }),
+    ).resolves.toBe(true);
+  });
+
+  it('treats SuperGrok as external-subscription usage', async () => {
+    await expect(
+      assertCommercialModelSellable({
+        db: {} as any,
+        model: 'grok-4.5',
+        provider: 'supergrok',
+        usageType: 'chat',
+        userId: 'user-1',
+      }),
+    ).resolves.toBe(false);
+
+    expect(mocks.getServerModelPricingSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('creates a workspace reservation when usage belongs to a workspace', async () => {
+    await reserveCommercialAiUsage({
+      db: {} as any,
+      estimatedCredits: 25,
+      model: 'gpt-test',
+      operationId: 'operation-1',
+      provider: 'openai',
+      usageType: 'chat',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
+
+    expect(mocks.reserveCredits).toHaveBeenCalledWith({
+      amount: 25,
+      idempotencyKey: 'commercial-ai:workspace:workspace-1:chat:operation-1',
+      metadata: {
+        model: 'gpt-test',
+        operationId: 'operation-1',
+        provider: 'openai',
+        usageType: 'chat',
+        workspaceId: 'workspace-1',
+      },
+      payer: { scopeType: 'workspace', workspaceId: 'workspace-1' },
+      requireNew: true,
+    });
+  });
+
+  it('separates personal and workspace reservation idempotency', async () => {
+    const base = {
+      db: {} as any,
+      estimatedCredits: 25,
+      model: 'gpt-test',
+      operationId: 'shared-operation',
+      provider: 'openai',
+      usageType: 'chat' as const,
+      userId: 'user-1',
+    };
+
+    await reserveCommercialAiUsage(base);
+    await reserveCommercialAiUsage({ ...base, workspaceId: 'workspace-1' });
+
+    expect(mocks.reserveCredits.mock.calls.map(([input]) => input.idempotencyKey)).toEqual([
+      'commercial-ai:personal:user-1:chat:shared-operation',
+      'commercial-ai:workspace:workspace-1:chat:shared-operation',
+    ]);
   });
 
   it('bounds the reservation idempotency key without losing operation metadata', async () => {
@@ -644,6 +776,38 @@ describe('commercial AI reservations', () => {
         operationId: 'operation-1',
         provider: 'openai',
         usageType: 'chat',
+      }),
+      reservationId: 'reservation-1',
+    });
+  });
+
+  it('settles generated media with the measured credit amount', async () => {
+    await settleCommercialAiUsageReservation({
+      actualCredits: 42,
+      db: {} as any,
+      estimatedCredits: 50,
+      model: 'image-test',
+      operationId: 'image-operation-1',
+      provider: 'openai',
+      reservationId: 'reservation-1',
+      title: 'Image Generation',
+      usageType: 'image',
+      userId: 'user-1',
+    });
+
+    expect(mocks.settleCredits).toHaveBeenCalledWith({
+      actualAmount: 42,
+      ledger: {
+        description: 'Consumed on openai/image-test',
+        referenceType: 'ai_usage_reservation',
+        title: 'Image Generation',
+      },
+      metadata: expect.objectContaining({
+        chargedCredits: 42,
+        costSource: 'generation-pricing',
+        estimatedCredits: 50,
+        operationId: 'image-operation-1',
+        usageType: 'image',
       }),
       reservationId: 'reservation-1',
     });

@@ -8,6 +8,8 @@ import { chargeAfterGenerate } from './chargeAfterGenerate';
 
 const mocks = vi.hoisted(() => ({
   postCharge: vi.fn(),
+  releaseCommercialAiUsageReservation: vi.fn(),
+  settleCommercialAiUsageReservation: vi.fn(),
   shouldChargeCommercialUsage: vi.fn(),
   getModelPricing: vi.fn(),
   getAppSettingValue: vi.fn(),
@@ -22,6 +24,10 @@ vi.mock('@lobechat/model-runtime', async (importOriginal) => {
 });
 
 vi.mock('@/business/server/commercialBilling', () => ({
+  isCommercialUsageReservationHandle: (value: any, usageType: string) =>
+    value?.reservationId && value?.operationId && value?.usageType === usageType,
+  releaseCommercialAiUsageReservation: mocks.releaseCommercialAiUsageReservation,
+  settleCommercialAiUsageReservation: mocks.settleCommercialAiUsageReservation,
   shouldChargeCommercialUsage: mocks.shouldChargeCommercialUsage,
 }));
 
@@ -48,6 +54,8 @@ describe('video chargeAfterGenerate', () => {
     vi.clearAllMocks();
     mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
     mocks.postCharge.mockResolvedValue({ id: 'ledger-1' });
+    mocks.releaseCommercialAiUsageReservation.mockResolvedValue({ status: 'released' });
+    mocks.settleCommercialAiUsageReservation.mockResolvedValue({ status: 'settled' });
     mocks.getAppSettingValue.mockImplementation(async (key: string) =>
       key === 'pricing.creditMultiplier' ? 1.65 : [],
     );
@@ -160,5 +168,67 @@ describe('video chargeAfterGenerate', () => {
     });
 
     expect(mocks.postCharge).not.toHaveBeenCalled();
+  });
+
+  it('settles a workspace video reservation instead of charging the member', async () => {
+    await chargeAfterGenerate({
+      computePriceParams: { generateAudio: true, resolution: '720p' },
+      db: {} as any,
+      metadata: {
+        asyncTaskId: 'task-1',
+        generationBatchId: 'batch-1',
+        modelId: 'veo3.1-fast',
+      },
+      model: 'veo3.1-fast',
+      prechargeResult: {
+        estimatedCredits: 200_000,
+        operationId: 'video:request-1',
+        reservationId: 'reservation-1',
+        usageType: 'video',
+      },
+      provider: 'newapi',
+      usage: { completionTokens: 500_000, totalTokens: 500_000 },
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
+
+    expect(mocks.settleCommercialAiUsageReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actualCredits: 173_250,
+        estimatedCredits: 200_000,
+        operationId: 'video:request-1',
+        reservationId: 'reservation-1',
+        usageType: 'video',
+      }),
+    );
+    expect(mocks.postCharge).not.toHaveBeenCalled();
+  });
+
+  it('releases a video reservation after generation failure', async () => {
+    await chargeAfterGenerate({
+      db: {} as any,
+      isError: true,
+      metadata: {
+        asyncTaskId: 'task-1',
+        generationBatchId: 'batch-1',
+        modelId: 'veo3.1-fast',
+      },
+      model: 'veo3.1-fast',
+      prechargeResult: {
+        estimatedCredits: 200_000,
+        operationId: 'video:request-1',
+        reservationId: 'reservation-1',
+        usageType: 'video',
+      },
+      provider: 'newapi',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
+
+    expect(mocks.releaseCommercialAiUsageReservation).toHaveBeenCalledWith({
+      db: {},
+      reason: 'video_generation_failed',
+      reservationId: 'reservation-1',
+    });
   });
 });
