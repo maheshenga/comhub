@@ -77,6 +77,25 @@ test('main deployment is manual and reuses existing digest images', () => {
   assertProductionLock(workflow.jobs.deploy);
 });
 
+test('main deployment isolates remote Compose exec commands from the SSH script input', () => {
+  const { workflow } = loadWorkflow('comhub-deploy.yml');
+  const remoteDeploy = workflow.jobs.deploy.steps.find(
+    (step) => step.name === 'Run remote blue-green deploy',
+  );
+  const composeExecLines = (remoteDeploy?.run ?? '')
+    .split('\n')
+    .filter((line) => line.includes('docker compose exec -T'));
+
+  assert.ok(composeExecLines.length > 0, 'expected remote Compose exec commands');
+  for (const line of composeExecLines) {
+    assert.match(
+      line,
+      /<\s*\/dev\/null/u,
+      `remote Compose exec must not consume the remaining SSH here-doc: ${line.trim()}`,
+    );
+  }
+});
+
 test('Worker deployment is manual, targeted, and build-free', () => {
   const { source, workflow } = loadWorkflow('comhub-deploy-worker.yml');
 
