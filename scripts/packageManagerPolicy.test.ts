@@ -9,6 +9,7 @@ const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'
   devDependencies: Record<string, string>;
   pnpm?: { patchedDependencies?: Record<string, string> };
 };
+const vitestConfig = readFileSync(path.join(root, 'vitest.config.mts'), 'utf8');
 
 describe('package manager policy', () => {
   it('pins jest-dom to the supported 6.x release', () => {
@@ -18,5 +19,12 @@ describe('package manager policy', () => {
   it('does not restore the retired QStash debug patch', () => {
     expect(manifest.pnpm?.patchedDependencies ?? {}).not.toHaveProperty('@upstash/qstash');
     expect(existsSync(path.join(root, 'patches', '@upstash__qstash.patch'))).toBe(false);
+  });
+
+  it('routes app and server tests through Vitest projects', () => {
+    expect(vitestConfig).not.toContain('environmentMatchGlobs');
+    expect(vitestConfig).toContain("name: 'app'");
+    expect(vitestConfig).toContain("name: 'server'");
+    expect(vitestConfig).toContain("include: ['apps/server/**/*.{test,spec}.?(c|m)[jt]s?(x)']");
   });
 });
