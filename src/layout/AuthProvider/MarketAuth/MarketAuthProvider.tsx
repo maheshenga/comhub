@@ -11,7 +11,6 @@ import { MARKET_OIDC_ENDPOINTS } from '@/services/_url';
 import { useServerConfigStore } from '@/store/serverConfig';
 import { serverConfigSelectors } from '@/store/serverConfig/selectors';
 import { useUserStore } from '@/store/user';
-import { settingsSelectors } from '@/store/user/slices/settings/selectors/settings';
 
 import ClaimResourcesModal from './ClaimResourcesModal';
 import { MarketAuthError } from './errors';
@@ -20,6 +19,12 @@ import MarketAuthConfirmModal from './MarketAuthConfirmModal';
 import { MarketOIDC } from './oidc';
 import ProfileSetupModal from './ProfileSetupModal';
 import type { MarketAuthScene } from './scenes';
+import {
+  clearMarketTokensFromDB,
+  getMarketTokensFromDB,
+  getRefreshToken,
+  saveMarketTokensToDB,
+} from './tokenStorage';
 import {
   type MarketAuthContextType,
   type MarketAuthSession,
@@ -53,67 +58,6 @@ const fetchUserInfo = async (accessToken?: string): Promise<MarketUserInfo | nul
     console.error('[MarketAuth] Error fetching user info:', error);
     return null;
   }
-};
-
-/**
- * Get market tokens from DB
- */
-const getMarketTokensFromDB = () => {
-  const settings = settingsSelectors.currentSettings(useUserStore.getState());
-  return settings.market;
-};
-
-/**
- * Store market tokens to DB
- */
-const saveMarketTokensToDB = async (
-  accessToken: string,
-  refreshToken?: string,
-  expiresAt?: number,
-) => {
-  try {
-    await useUserStore.getState().setSettings({
-      market: {
-        accessToken,
-        expiresAt,
-        refreshToken,
-      },
-    });
-  } catch (error) {
-    console.error('[MarketAuth] Failed to save tokens to DB:', error);
-  }
-};
-
-/**
- * Clear market tokens from DB
- */
-const clearMarketTokensFromDB = async () => {
-  // If there are no tokens, no need to call setSettings
-  const currentTokens = getMarketTokensFromDB();
-  if (!currentTokens?.accessToken && !currentTokens?.refreshToken && !currentTokens?.expiresAt) {
-    return;
-  }
-
-  try {
-    await useUserStore.getState().setSettings({
-      market: undefined,
-    });
-  } catch (error) {
-    console.error('[MarketAuth] Failed to clear tokens from DB:', error);
-  }
-};
-
-/**
- * Get refresh token (prioritize DB)
- */
-const getRefreshToken = (): string | null => {
-  // Prioritize fetching from DB
-  const dbTokens = getMarketTokensFromDB();
-  if (dbTokens?.refreshToken) {
-    return dbTokens.refreshToken;
-  }
-
-  return null;
 };
 
 /**
@@ -401,22 +345,25 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   /**
    * Sign-in method (shows confirmation dialog first)
    */
-  const signIn = useCallback(async (
-    sceneOrOptions: MarketAuthScene | MarketSignInOptions = 'default',
-  ): Promise<number | null> => {
-    if (!useUserStore.getState().isSignedIn) {
-      throw new Error('LobeChat session required');
-    }
-    const scene = typeof sceneOrOptions === 'string' ? sceneOrOptions : 'default';
-    const options = typeof sceneOrOptions === 'string' ? {} : sceneOrOptions;
-    setAuthScene(scene);
-    return new Promise<number | null>((resolve, reject) => {
-      setPendingSignInResolve(() => resolve);
-      setPendingSignInReject(() => reject);
-      setPendingSignInOptions(options);
-      setShowConfirmModal(true);
-    });
-  }, []);
+  const signIn = useCallback(
+    async (
+      sceneOrOptions: MarketAuthScene | MarketSignInOptions = 'default',
+    ): Promise<number | null> => {
+      if (!useUserStore.getState().isSignedIn) {
+        throw new Error('LobeChat session required');
+      }
+      const scene = typeof sceneOrOptions === 'string' ? sceneOrOptions : 'default';
+      const options = typeof sceneOrOptions === 'string' ? {} : sceneOrOptions;
+      setAuthScene(scene);
+      return new Promise<number | null>((resolve, reject) => {
+        setPendingSignInResolve(() => resolve);
+        setPendingSignInReject(() => reject);
+        setPendingSignInOptions(options);
+        setShowConfirmModal(true);
+      });
+    },
+    [],
+  );
 
   /**
    * Handle authorization confirmation
