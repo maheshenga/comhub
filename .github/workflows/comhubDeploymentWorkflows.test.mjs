@@ -50,7 +50,7 @@ test('build workflow publishes images without production access', () => {
   assert.ok(workflow.on.workflow_dispatch);
   assert.equal(workflow.concurrency['cancel-in-progress'], true);
   assert.ok(Object.values(workflow.jobs).every((job) => job.environment !== 'production'));
-  assert.equal((source.match(/docker\/build-push-action@v6/gu) ?? []).length, 3);
+  assert.equal((source.match(/docker\/build-push-action@v7/gu) ?? []).length, 3);
   assert.match(source, /git show -s --format=%cI/);
   assert.doesNotMatch(source, /COMHUB_SSH_PRIVATE_KEY/);
   assert.doesNotMatch(source, /comhub-production-deploy/);
@@ -85,6 +85,29 @@ test('main deployment is manual and reuses existing digest images', () => {
   assert.doesNotMatch(source, /ssh-keyscan/);
   assertPinnedMainTooling(source, workflow, 'resolve-images');
   assertProductionLock(workflow.jobs.deploy);
+});
+
+test('main deployment relays immutable OCI images before the remote traffic switch', () => {
+  const { workflow } = loadWorkflow('comhub-deploy.yml');
+  const steps = workflow.jobs.deploy.steps;
+  const relayIndex = steps.findIndex(
+    (step) => step.name === 'Relay immutable images to production',
+  );
+  const deployIndex = steps.findIndex((step) => step.name === 'Run remote blue-green deploy');
+  const relay = steps[relayIndex];
+  const remoteDeploy = steps[deployIndex];
+
+  assert.ok(relayIndex >= 0, 'expected an OCI image relay step');
+  assert.ok(deployIndex > relayIndex, 'image relay must finish before the remote traffic switch');
+  assert.match(relay?.run ?? '', /skopeo copy[\s\S]*--all[\s\S]*--preserve-digests/u);
+  assert.match(relay?.run ?? '', /oci-archive:/u);
+  assert.match(relay?.run ?? '', /ctr -n moby images import --all-platforms/u);
+  assert.match(relay?.run ?? '', /docker image prune -af/u);
+  assert.match(relay?.run ?? '', /ctr -n moby images pull --platform linux\/amd64/u);
+  assert.doesNotMatch(
+    remoteDeploy?.run ?? '',
+    /COMHUB_CTR_PULL_TIMEOUT|Pre-pulling image through containerd/u,
+  );
 });
 
 test('main deployment isolates remote Compose exec commands from the SSH script input', () => {
@@ -208,7 +231,7 @@ test('GitHub automation is valid YAML and does not use deprecated Node 20 action
     );
     assert.doesNotMatch(
       source,
-      /actions\/checkout@v4|actions\/setup-node@v4|pnpm\/action-setup@v4/u,
+      /actions\/checkout@v4|actions\/setup-node@v4|pnpm\/action-setup@v4|docker\/(?:login-action|setup-buildx-action)@v3|docker\/build-push-action@v6/u,
       `${path.relative(repositoryRoot, filename)} still references a Node 20 action`,
     );
   }
