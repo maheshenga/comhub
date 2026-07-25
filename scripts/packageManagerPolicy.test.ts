@@ -3,11 +3,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
   devDependencies: Record<string, string>;
   pnpm?: { patchedDependencies?: Record<string, string> };
+};
+const workspace = parse(readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8')) as {
+  patchedDependencies?: Record<string, string>;
 };
 const vitestConfig = readFileSync(path.join(root, 'vitest.config.mts'), 'utf8');
 
@@ -18,6 +22,7 @@ describe('package manager policy', () => {
 
   it('does not restore the retired QStash debug patch', () => {
     expect(manifest.pnpm?.patchedDependencies ?? {}).not.toHaveProperty('@upstash/qstash');
+    expect(workspace.patchedDependencies ?? {}).not.toHaveProperty('@upstash/qstash');
     expect(existsSync(path.join(root, 'patches', '@upstash__qstash.patch'))).toBe(false);
   });
 
