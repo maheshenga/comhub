@@ -483,7 +483,7 @@
     "@playwright/test": "^1.61.1",
     "@prettier/sync": "^0.6.1",
     "@semantic-release/exec": "^6.0.3",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/async-retry": "^1.4.9",
@@ -594,9 +594,6 @@
       "stylelint-config-clean-order": "7.0.0",
       "typescript": "6.0.3",
       "vitest": "3.2.6"
-    },
-    "patchedDependencies": {
-      "@upstash/qstash": "patches/@upstash__qstash.patch"
     }
   }
 }

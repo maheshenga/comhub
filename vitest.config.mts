@@ -65,6 +65,23 @@ const alias = {
   'lru_map': resolve(__dirname, './tests/mocks/lru_map'),
 };
 
+const testExclude = [
+  '**/node_modules/**',
+  '**/.*/**',
+  '**/dist/**',
+  '**/build/**',
+  '**/tmp/**',
+  '**/temp/**',
+  '**/docs/**',
+  '**/locales/**',
+  '**/public/**',
+  '**/apps/desktop/**',
+  '**/apps/mobile/**',
+  '**/apps/cli/**',
+  '**/packages/**',
+  '**/e2e/**',
+];
+
 const resolveFile = (base: string) => {
   const candidates = [
     base,
@@ -194,29 +211,26 @@ export default defineConfig({
       reportsDirectory: './coverage/app',
     },
     environment: 'happy-dom',
-    // Frontend (src/**) needs a DOM, but apps/server is backend code that runs
-    // under Node in production. Forcing Node here makes `typeof window` undefined
-    // so the t3-env server/client guard reads server config instead of throwing
-    // "server-side environment variable on the client" — the failure the full
-    // `Test Server` run hit non-deterministically (it depended on which
-    // ModelRuntime-importing suite a happy-dom worker evaluated first). Per-file
-    // `// @vitest-environment` directives still win over this.
-    environmentMatchGlobs: [['**/apps/server/**', 'node']],
-    exclude: [
-      '**/node_modules/**',
-      '**/.*/**',
-      '**/dist/**',
-      '**/build/**',
-      '**/tmp/**',
-      '**/temp/**',
-      '**/docs/**',
-      '**/locales/**',
-      '**/public/**',
-      '**/apps/desktop/**',
-      '**/apps/mobile/**',
-      '**/apps/cli/**',
-      '**/packages/**',
-      '**/e2e/**',
+    exclude: testExclude,
+    projects: [
+      {
+        extends: true,
+        test: {
+          environment: 'happy-dom',
+          exclude: [...testExclude, '**/apps/server/**'],
+          name: 'app',
+        },
+      },
+      {
+        extends: true,
+        test: {
+          // Server tests must not expose `window`; t3-env uses it to select its
+          // client guard and would otherwise reject server-only environment variables.
+          environment: 'node',
+          include: ['apps/server/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+          name: 'server',
+        },
+      },
     ],
     globals: true,
     server: {

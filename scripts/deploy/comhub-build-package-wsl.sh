@@ -52,7 +52,7 @@ export AUTH_SECRET=use-for-build-auth-secret-32-chars
 export DOCKER=true
 pnpm exec tsx scripts/dockerPrebuild.mts
 rm -rf src/app/desktop 'src/app/(backend)/trpc/desktop'
-npm run build:docker
+pnpm run build:docker
 
 echo "== assemble package ${PKGDIR} =="
 rm -rf "${PKGDIR}" "${TAR}"

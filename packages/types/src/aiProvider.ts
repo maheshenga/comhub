@@ -2,10 +2,10 @@ import * as ModelBankTypesNamespace from 'model-bank/types';
 
 type ModelBankTypesModule = typeof ModelBankTypesNamespace;
 
-// tsx exposes this CommonJS-classified workspace package under `default` to ESM entrypoints.
-const modelBankTypes = (
-  'default' in ModelBankTypesNamespace ? ModelBankTypesNamespace.default : ModelBankTypesNamespace
-) as ModelBankTypesModule;
+// tsx can expose this CommonJS-classified workspace package under `default` to ESM entrypoints.
+// Keep the runtime interop lookup opaque to static ESM analyzers, where no default export exists.
+const modelBankTypes = (Reflect.get(ModelBankTypesNamespace, 'default') ??
+  ModelBankTypesNamespace) as ModelBankTypesModule;
 
 /**
  * The AI-provider settings / CRUD types are owned by `model-bank` (its

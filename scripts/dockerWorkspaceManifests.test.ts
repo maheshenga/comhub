@@ -9,6 +9,7 @@ import { parse } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
+const moduleWorkerRequire = createRequire(path.join(root, 'apps', 'module-worker', 'package.json'));
 
 describe('Docker workspace manifests', () => {
   it('loads the module worker fixture through runtime package exports', () => {
@@ -20,6 +21,21 @@ describe('Docker workspace manifests', () => {
     });
 
     expect(result.status, result.stderr || result.error?.message).toBe(0);
+  }, 30_000);
+
+  it('bundles model-bank compatibility exports without static import warnings', () => {
+    const { buildSync } = moduleWorkerRequire('esbuild');
+    const result = buildSync({
+      bundle: true,
+      entryPoints: [path.join(root, 'packages', 'types', 'src', 'aiProvider.ts')],
+      format: 'esm',
+      logLevel: 'silent',
+      platform: 'node',
+      target: 'node24',
+      write: false,
+    });
+
+    expect(result.warnings).toEqual([]);
   });
 
   it('copies the server manifest before installing workspace dependencies', () => {
@@ -30,6 +46,55 @@ describe('Docker workspace manifests', () => {
     expect(dockerfile.slice(0, installIndex)).toMatch(
       /^COPY apps\/server\/package\.json \.\/apps\/server\/package\.json$/m,
     );
+  });
+
+  it('uses pnpm for container build scripts', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const wslBuildScript = readFileSync(
+      path.join(root, 'scripts', 'deploy', 'comhub-build-package-wsl.sh'),
+      'utf8',
+    );
+
+    expect(dockerfile).toMatch(/^\s+pnpm run build:docker$/m);
+    expect(dockerfile).not.toContain('RUN npm run build:docker');
+    expect(wslBuildScript).toMatch(/^pnpm run build:docker$/m);
+    expect(wslBuildScript).not.toMatch(/^npm run build:docker$/m);
+  });
+
+  it('keeps sensitive values out of Docker ARG and ENV instructions', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const instructions = dockerfile.replaceAll(/\\\r?\n\s*/g, ' ').split(/\r?\n/);
+    const sensitiveName =
+      /^(?:AUTH_|API_KEY_SELECT_MODE$)|_API_KEY$|_TOKEN$|_ACCESS_KEY_ID$|_SECRET(?:_|$)|_PASSWORD$|_CREDENTIALS$|_AUTH_TYPE$|_SIGNING_KEY$/;
+    const sensitiveDeclarations = instructions.flatMap((instruction) => {
+      const normalized = instruction.trimStart();
+      const separator = normalized.indexOf(' ');
+      if (separator < 0) return [];
+
+      const instructionName = normalized.slice(0, separator);
+      if (instructionName !== 'ARG' && instructionName !== 'ENV') return [];
+
+      const instructionValue = normalized.slice(separator + 1).trimStart();
+
+      const names =
+        instructionName === 'ARG'
+          ? [instructionValue.split(/[=\s]/, 1)[0]]
+          : [...instructionValue.matchAll(/(?:^|\s)([A-Z][A-Z0-9_]*)=/g)].map(
+              (variable) => variable[1],
+            );
+
+      return names.filter((name) => sensitiveName.test(name));
+    });
+    const ephemeralBuildSecrets = instructions.filter(
+      (instruction) =>
+        instruction.startsWith('RUN ') &&
+        instruction.includes('KEY_VAULTS_SECRET=') &&
+        instruction.includes('AUTH_SECRET='),
+    );
+
+    expect(sensitiveDeclarations).toEqual([]);
+    expect(ephemeralBuildSecrets).toHaveLength(2);
+    expect(ephemeralBuildSecrets.every((instruction) => instruction.includes('pnpm'))).toBe(true);
   });
 
   it('separates image publication from manual production deployments', () => {
