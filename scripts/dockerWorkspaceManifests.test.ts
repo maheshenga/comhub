@@ -9,6 +9,7 @@ import { parse } from 'yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
+const moduleWorkerRequire = createRequire(path.join(root, 'apps', 'module-worker', 'package.json'));
 
 describe('Docker workspace manifests', () => {
   it('loads the module worker fixture through runtime package exports', () => {
@@ -20,6 +21,21 @@ describe('Docker workspace manifests', () => {
     });
 
     expect(result.status, result.stderr || result.error?.message).toBe(0);
+  }, 15_000);
+
+  it('bundles model-bank compatibility exports without static import warnings', () => {
+    const { buildSync } = moduleWorkerRequire('esbuild');
+    const result = buildSync({
+      bundle: true,
+      entryPoints: [path.join(root, 'packages', 'types', 'src', 'aiProvider.ts')],
+      format: 'esm',
+      logLevel: 'silent',
+      platform: 'node',
+      target: 'node24',
+      write: false,
+    });
+
+    expect(result.warnings).toEqual([]);
   });
 
   it('copies the server manifest before installing workspace dependencies', () => {
