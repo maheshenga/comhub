@@ -54,12 +54,12 @@ describe('adminModelBillingMatrix', () => {
         pricingCreditMultiplier: 1.5,
       }),
     ).toEqual({ pricingMultiplier: 1.5 });
-    expect(
-      buildBillingBasisUpdates({ pricingMultiplier: 2 }, { pricingMultiplier: 1 }),
-    ).toEqual([{ key: 'pricing.creditMultiplier', value: 2 }]);
-    expect(
-      buildBillingBasisUpdates({ pricingMultiplier: 1 }, { pricingMultiplier: 1 }),
-    ).toEqual([]);
+    expect(buildBillingBasisUpdates({ pricingMultiplier: 2 }, { pricingMultiplier: 1 })).toEqual([
+      { key: 'pricing.creditMultiplier', value: 2 },
+    ]);
+    expect(buildBillingBasisUpdates({ pricingMultiplier: 1 }, { pricingMultiplier: 1 })).toEqual(
+      [],
+    );
   });
 
   it('accepts optional model metadata flags on source models', () => {
@@ -737,15 +737,12 @@ describe('adminModelBillingMatrix', () => {
         ['missing-video', 'missing'],
       ]),
     );
-    expect(
-      health.checks.find((check) => check.key === 'missing-model-pricing'),
-    ).toMatchObject({
+    expect(health.checks.find((check) => check.key === 'missing-model-pricing')).toMatchObject({
       count: 1,
-      severity: 'warning',
+      severity: 'error',
+      title: 'Models without reliable pricing are blocked from platform billing',
     });
-    expect(
-      health.checks.find((check) => check.key === 'missing-model-abilities'),
-    ).toMatchObject({
+    expect(health.checks.find((check) => check.key === 'missing-model-abilities')).toMatchObject({
       count: 2,
       severity: 'info',
     });

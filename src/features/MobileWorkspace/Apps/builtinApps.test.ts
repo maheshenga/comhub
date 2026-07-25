@@ -53,6 +53,9 @@ describe('buildMobileBuiltinApps', () => {
       label: 'Work',
       path: '/tasks',
     });
+    expect(result.find((item) => item.id === 'skills')).toMatchObject({
+      path: '/discover/skill',
+    });
     expect(result.some((item) => item.id === 'community')).toBe(false);
     expect(result.some((item) => item.id === 'unknown')).toBe(false);
   });

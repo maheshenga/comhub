@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   consumeCreditsForAiUsage: vi.fn(),
   getModelPricing: vi.fn(),
   postCharge: vi.fn(),
+  releaseCommercialAiUsageReservation: vi.fn(),
+  settleCommercialAiUsageReservation: vi.fn(),
   shouldChargeCommercialUsage: vi.fn(),
   getAppSettingValue: vi.fn(),
 }));
@@ -22,6 +24,10 @@ vi.mock('@lobechat/model-runtime', async (importOriginal) => {
 });
 
 vi.mock('@/business/server/commercialBilling', () => ({
+  isCommercialUsageReservationHandle: (value: any, usageType: string) =>
+    value?.reservationId && value?.operationId && value?.usageType === usageType,
+  releaseCommercialAiUsageReservation: mocks.releaseCommercialAiUsageReservation,
+  settleCommercialAiUsageReservation: mocks.settleCommercialAiUsageReservation,
   shouldChargeCommercialUsage: mocks.shouldChargeCommercialUsage,
 }));
 
@@ -49,6 +55,8 @@ describe('image chargeAfterGenerate', () => {
     vi.clearAllMocks();
     mocks.shouldChargeCommercialUsage.mockResolvedValue(true);
     mocks.postCharge.mockResolvedValue({ id: 'ledger-1' });
+    mocks.releaseCommercialAiUsageReservation.mockResolvedValue({ status: 'released' });
+    mocks.settleCommercialAiUsageReservation.mockResolvedValue({ status: 'settled' });
     mocks.consumeCreditsForAiUsage.mockResolvedValue({ id: 'ledger-1' });
     mocks.getAppSettingValue.mockImplementation(async (key: string) =>
       key === 'pricing.creditMultiplier' ? 1.65 : [],
@@ -131,5 +139,64 @@ describe('image chargeAfterGenerate', () => {
 
     expect(mocks.postCharge).not.toHaveBeenCalled();
     expect(mocks.consumeCreditsForAiUsage).not.toHaveBeenCalled();
+  });
+
+  it('settles a workspace image reservation instead of charging the member', async () => {
+    await chargeAfterGenerate({
+      db: {} as any,
+      metadata: {
+        asyncTaskId: 'task-1',
+        generationBatchId: 'batch-1',
+        modelId: 'gpt-image-2',
+      },
+      modelUsage: { cost: 0.034 },
+      prechargeResult: {
+        estimatedCredits: 60_000,
+        operationId: 'image:request-1:0',
+        reservationId: 'reservation-1',
+        usageType: 'image',
+      },
+      provider: 'newapi',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
+
+    expect(mocks.settleCommercialAiUsageReservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actualCredits: 56_100,
+        estimatedCredits: 60_000,
+        operationId: 'image:request-1:0',
+        reservationId: 'reservation-1',
+        usageType: 'image',
+      }),
+    );
+    expect(mocks.postCharge).not.toHaveBeenCalled();
+  });
+
+  it('releases an image reservation after generation failure', async () => {
+    await chargeAfterGenerate({
+      db: {} as any,
+      isError: true,
+      metadata: {
+        asyncTaskId: 'task-1',
+        generationBatchId: 'batch-1',
+        modelId: 'gpt-image-2',
+      },
+      prechargeResult: {
+        estimatedCredits: 60_000,
+        operationId: 'image:request-1:0',
+        reservationId: 'reservation-1',
+        usageType: 'image',
+      },
+      provider: 'newapi',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
+
+    expect(mocks.releaseCommercialAiUsageReservation).toHaveBeenCalledWith({
+      db: {},
+      reason: 'image_generation_failed',
+      reservationId: 'reservation-1',
+    });
   });
 });

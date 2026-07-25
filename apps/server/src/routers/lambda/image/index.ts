@@ -22,6 +22,7 @@ import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { createAsyncCaller } from '@/server/routers/async/caller';
 import { FileService } from '@/server/services/file';
+import { resolveNewapiRouteMetadataForModel } from '@/server/services/newapiInstance';
 import {
   AsyncTaskError,
   AsyncTaskErrorType,
@@ -189,6 +190,14 @@ export const imageRouter = router({
       if (!generationTopic) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Invalid generation topic' });
       }
+      const routeMetadata =
+        provider === 'newapi'
+          ? await resolveNewapiRouteMetadataForModel(serverDB, {
+              modelId: resolvedModelId,
+              modelType: 'image',
+              userId,
+            })
+          : undefined;
 
       const chargeResult = await chargeBeforeGenerate({
         clientIp: ctx.clientIp,
@@ -199,6 +208,7 @@ export const imageRouter = router({
         imageNum,
         model: resolvedModelId,
         provider,
+        routeMetadata,
         userId,
         workspaceId: wsId,
       });
@@ -213,8 +223,8 @@ export const imageRouter = router({
         chargeResult && 'prechargeItems' in chargeResult ? chargeResult.prechargeItems : undefined;
 
       // Step 1: Atomically create all database records in a transaction
-      const { batch: createdBatch, generationsWithTasks } = await serverDB.transaction(
-        async (tx) => {
+      const { batch: createdBatch, generationsWithTasks } = await serverDB
+        .transaction(async (tx) => {
           log('Starting database transaction for image generation');
 
           // 1. Create generationBatch
@@ -295,8 +305,40 @@ export const imageRouter = router({
             batch,
             generationsWithTasks,
           };
-        },
-      );
+        })
+        .catch(async (error) => {
+          if (prechargeItems?.length) {
+            const releaseResults = await Promise.allSettled(
+              prechargeItems.map((prechargeItem, index) =>
+                chargeAfterGenerate({
+                  db: serverDB,
+                  isError: true,
+                  metadata: {
+                    asyncTaskId: `image-reservation:${index}`,
+                    generationBatchId: generationTopicId,
+                    modelId: resolvedModelId,
+                    ...(routeMetadata ? { routeMetadata } : {}),
+                    topicId: generationTopicId,
+                  },
+                  prechargeResult: prechargeItem,
+                  provider,
+                  userId,
+                  workspaceId: wsId,
+                }),
+              ),
+            );
+            releaseResults.forEach((result, index) => {
+              if (result.status === 'rejected') {
+                log(
+                  'Failed to release image reservation %d after transaction error: %O',
+                  index,
+                  result.reason,
+                );
+              }
+            });
+          }
+          throw error;
+        });
 
       log('Database transaction completed successfully. Starting async task triggers directly.');
 
@@ -317,19 +359,60 @@ export const imageRouter = router({
         // Fire-and-forget: trigger async tasks without awaiting
         // These calls go to the async router which handles them independently
         // Do not schedule here; the async router handles these tasks independently.
-        generationsWithTasks.forEach(({ generation, asyncTaskId }) => {
+        generationsWithTasks.forEach(({ generation, asyncTaskId }, index) => {
           log('Starting background async task %s for generation %s', asyncTaskId, generation.id);
+          const prechargeItem = prechargeItems?.[index];
 
-          asyncCaller.image.createImage({
-            generationBatchId: createdBatch.id,
-            generationId: generation.id,
-            generationTopicId,
-            model,
-            params: generationParams,
-            provider,
-            taskId: asyncTaskId,
-            workspaceId: wsId,
-          });
+          void asyncCaller.image
+            .createImage({
+              generationBatchId: createdBatch.id,
+              generationId: generation.id,
+              generationTopicId,
+              model,
+              params: generationParams,
+              provider,
+              taskId: asyncTaskId,
+              workspaceId: wsId,
+            })
+            .catch(async (error) => {
+              const compensationResults = await Promise.allSettled([
+                asyncTaskModel.update(asyncTaskId, {
+                  error: new AsyncTaskError(
+                    AsyncTaskErrorType.ServerError,
+                    'start async task error: ' +
+                      (error instanceof Error ? error.message : 'Unknown error'),
+                  ),
+                  status: AsyncTaskStatus.Error,
+                }),
+                prechargeItem === undefined
+                  ? Promise.resolve()
+                  : chargeAfterGenerate({
+                      db: serverDB,
+                      isError: true,
+                      metadata: {
+                        asyncTaskId,
+                        generationBatchId: createdBatch.id,
+                        modelId: resolvedModelId,
+                        ...(routeMetadata ? { routeMetadata } : {}),
+                        topicId: generationTopicId,
+                      },
+                      prechargeResult: prechargeItem,
+                      provider,
+                      userId,
+                      workspaceId: wsId,
+                    }),
+              ]);
+              compensationResults.forEach((result, compensationIndex) => {
+                if (result.status === 'rejected') {
+                  log(
+                    'Failed image task %s compensation step %d: %O',
+                    asyncTaskId,
+                    compensationIndex,
+                    result.reason,
+                  );
+                }
+              });
+            });
         });
 
         log('All %d background async image generation tasks started', generationsWithTasks.length);
@@ -369,10 +452,12 @@ export const imageRouter = router({
                     asyncTaskId,
                     generationBatchId: createdBatch.id,
                     modelId: model,
+                    ...(routeMetadata ? { routeMetadata } : {}),
                     topicId: generationTopicId,
                   },
                   prechargeResult: prechargeItem,
                   provider,
+                  db: serverDB,
                   userId,
                   workspaceId: wsId,
                 });

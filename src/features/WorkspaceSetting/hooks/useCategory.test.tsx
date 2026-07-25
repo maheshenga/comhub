@@ -2,7 +2,7 @@ import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useUserStore } from '@/store/user';
-import { WorkspaceSettingsTabs } from '@/types/workspaceSettings';
+import { DEFAULT_WORKSPACE_SETTINGS_TAB, WorkspaceSettingsTabs } from '@/types/workspaceSettings';
 
 import { useWorkspaceSettingCategory, WorkspaceSettingsGroupKey } from './useCategory';
 
@@ -49,6 +49,26 @@ afterEach(() => {
 });
 
 describe('workspace settings useCategory', () => {
+  it('defaults to an implemented workspace settings page', () => {
+    expect(DEFAULT_WORKSPACE_SETTINGS_TAB).toBe(WorkspaceSettingsTabs.Devices);
+  });
+
+  it('hides workspace settings whose business pages are not implemented', () => {
+    const itemKeys = getItemKeys();
+
+    expect(itemKeys).not.toEqual(
+      expect.arrayContaining([
+        WorkspaceSettingsTabs.AuditLog,
+        WorkspaceSettingsTabs.Billing,
+        WorkspaceSettingsTabs.Credits,
+        WorkspaceSettingsTabs.General,
+        WorkspaceSettingsTabs.Members,
+        WorkspaceSettingsTabs.Plans,
+        WorkspaceSettingsTabs.Usage,
+      ]),
+    );
+  });
+
   it('hides OAuth Apps by default', () => {
     expect(getItemKeys()).not.toContain(WorkspaceSettingsTabs.OAuthApps);
   });

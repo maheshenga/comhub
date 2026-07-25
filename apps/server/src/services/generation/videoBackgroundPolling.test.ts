@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { chargeAfterGenerate } from '@/business/server/video-generation/chargeAfterGenerate';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationModel } from '@/database/models/generation';
 import type { LobeChatDatabase } from '@/database/type';
@@ -11,6 +12,9 @@ import { FileSource } from '@/types/files';
 
 vi.mock('@/database/models/asyncTask');
 vi.mock('@/database/models/generation');
+vi.mock('@/business/server/video-generation/chargeAfterGenerate', () => ({
+  chargeAfterGenerate: vi.fn(),
+}));
 vi.mock('@/server/services/generation/video');
 vi.mock('@/utils/sanitizeFileName', () => ({
   sanitizeFileName: vi.fn((...args) => args.join('-')),
@@ -147,6 +151,15 @@ describe('videoBackgroundPolling', () => {
         duration: expect.any(Number),
         status: AsyncTaskStatus.Success,
       });
+      expect(chargeAfterGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          db: mockDb,
+          model: 'test-model',
+          prechargeResult: mockParams.prechargeResult,
+          provider: 'test-provider',
+          userId: 'user-xyz',
+        }),
+      );
     });
   });
 
@@ -199,6 +212,12 @@ describe('videoBackgroundPolling', () => {
       const errorCall = mockAsyncTaskModel.update.mock.calls[0][1];
       expect(errorCall.error).toBeInstanceOf(AsyncTaskError);
       expect(errorCall.error?.name).toBe('ServerError');
+      expect(chargeAfterGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isError: true,
+          prechargeResult: mockParams.prechargeResult,
+        }),
+      );
     });
 
     it('should handle model runtime initialization error', async () => {

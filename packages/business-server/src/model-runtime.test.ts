@@ -89,6 +89,45 @@ describe('getBusinessModelRuntimeHooks', () => {
     });
   });
 
+  it('should charge the workspace passed after route metadata', async () => {
+    const hooks = getBusinessModelRuntimeHooks(
+      'user-1',
+      'newapi',
+      { groupKey: 'pro', instanceId: 'instance-pro' },
+      'workspace-1',
+    );
+
+    await hooks?.beforeChat?.({
+      messages: [{ content: 'hello', role: 'user' }],
+      model: 'gpt-test',
+    } as any);
+
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routeMetadata: { groupKey: 'pro', instanceId: 'instance-pro' },
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      }),
+    );
+  });
+
+  it('should charge the workspace passed in the OpenAPI compatibility position', async () => {
+    const hooks = getBusinessModelRuntimeHooks('user-1', 'newapi', 'workspace-1');
+
+    await hooks?.beforeChat?.({
+      messages: [{ content: 'hello', role: 'user' }],
+      model: 'gpt-test',
+    } as any);
+
+    expect(mocks.reserveCommercialAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      }),
+    );
+    expect(mocks.reserveCommercialAiUsage.mock.calls[0][0]).not.toHaveProperty('routeMetadata');
+  });
+
   it('should pass root policy aliases for admin-managed virtual provider groups', async () => {
     const hooks = getBusinessModelRuntimeHooks('user-1', 'siliconflow-id', {
       groupKey: 'pro',

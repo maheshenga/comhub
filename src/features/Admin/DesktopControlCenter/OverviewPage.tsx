@@ -1,7 +1,8 @@
 'use client';
 
 import { Flexbox, Icon } from '@lobehub/ui';
-import { Alert, Button, Empty, Result, Skeleton, Tag, Typography } from 'antd';
+import { Button } from '@lobehub/ui/base-ui';
+import { Alert, Result, Skeleton, Tag, Typography } from 'antd';
 import { RefreshCw, Settings2 } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +12,7 @@ import {
   DESKTOP_CHANNEL_LABEL_KEYS,
   DESKTOP_PLATFORM_LABEL_KEYS,
   DESKTOP_REASON_LABEL_KEYS,
+  type DesktopChannel,
   type DesktopOverviewResource,
 } from './types';
 
@@ -33,30 +35,19 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
   if (resource.error) {
     return (
       <Result
+        status="error"
+        title={t('admin.desktopControl.error.title')}
         extra={
           <Button icon={<Icon icon={RefreshCw} size={16} />} onClick={() => void resource.mutate()}>
             {t('admin.desktopControl.retry')}
           </Button>
         }
-        status="error"
-        title={t('admin.desktopControl.error.title')}
       />
     );
   }
 
   const data = resource.data;
-  if (!data?.diagnostics.configured) {
-    return (
-      <Empty
-        description={t('admin.desktopControl.unconfigured.title')}
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-      >
-        <Button icon={<Icon icon={Settings2} size={16} />} type="primary" onClick={onConfigure}>
-          {t('admin.desktopControl.configure')}
-        </Button>
-      </Empty>
-    );
-  }
+  if (!data) return null;
 
   const statusItems = [
     {
@@ -79,22 +70,127 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
 
   return (
     <Flexbox gap={24}>
+      {!data.diagnostics.configured ? (
+        <Alert
+          showIcon
+          description={t('admin.desktopControl.unconfigured.description')}
+          message={t('admin.desktopControl.unconfigured.title')}
+          type="warning"
+          action={
+            <Button icon={<Icon icon={Settings2} size={16} />} onClick={onConfigure}>
+              {t('admin.desktopControl.configure')}
+            </Button>
+          }
+        />
+      ) : null}
+
       <div className={desktopControlCenterStyles.statusBand}>
         {statusItems.map((item) => (
           <div className={desktopControlCenterStyles.statusItem} key={item.label}>
             <Typography.Text className={desktopControlCenterStyles.statusLabel}>
               {item.label}
             </Typography.Text>
-            <Typography.Text strong ellipsis>
+            <Typography.Text ellipsis strong>
               {item.value}
             </Typography.Text>
           </div>
         ))}
       </div>
 
+      <section className={desktopControlCenterStyles.channelSection}>
+        <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+          {t('admin.desktopControl.policy.title')}
+        </Typography.Title>
+        <div className={desktopControlCenterStyles.statusBand}>
+          <div className={desktopControlCenterStyles.statusItem}>
+            <Typography.Text className={desktopControlCenterStyles.statusLabel}>
+              {t('admin.desktopControl.policy.autoCheck')}
+            </Typography.Text>
+            <Tag color={data.runtimePolicy.autoCheck ? 'success' : 'default'}>
+              {t(
+                data.runtimePolicy.autoCheck
+                  ? 'admin.desktopControl.policy.enabled'
+                  : 'admin.desktopControl.policy.disabled',
+              )}
+            </Tag>
+          </div>
+          <div className={desktopControlCenterStyles.statusItem}>
+            <Typography.Text className={desktopControlCenterStyles.statusLabel}>
+              {t('admin.desktopControl.policy.defaultChannel')}
+            </Typography.Text>
+            <Typography.Text strong>
+              {t(DESKTOP_CHANNEL_LABEL_KEYS[data.runtimePolicy.channel as DesktopChannel])}
+            </Typography.Text>
+          </div>
+          <div className={desktopControlCenterStyles.statusItem}>
+            <Typography.Text className={desktopControlCenterStyles.statusLabel}>
+              {t('admin.desktopControl.policy.checkInterval')}
+            </Typography.Text>
+            <Typography.Text strong>
+              {data.runtimePolicy.checkInterval} {t('admin.desktopControl.policy.minutes')}
+            </Typography.Text>
+          </div>
+        </div>
+      </section>
+
+      <section className={desktopControlCenterStyles.channelSection}>
+        <Flexbox horizontal align="center" justify="space-between">
+          <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
+            {t('admin.desktopControl.automation.title')}
+          </Typography.Title>
+          <Tag color={data.automation.configured ? 'success' : 'warning'}>
+            {t(
+              data.automation.configured
+                ? 'admin.desktopControl.automation.configured'
+                : 'admin.desktopControl.automation.unconfigured',
+            )}
+          </Tag>
+        </Flexbox>
+        {!data.automation.configured ? (
+          <Alert
+            showIcon
+            message={t('admin.desktopControl.automation.unconfiguredDescription')}
+            type="warning"
+          />
+        ) : null}
+        <div className={desktopControlCenterStyles.statusBand}>
+          {[
+            {
+              label: t('admin.desktopControl.automation.repository'),
+              value: data.automation.repository || '-',
+            },
+            {
+              label: t('admin.desktopControl.automation.ref'),
+              value: data.automation.ref || '-',
+            },
+            {
+              label: t('admin.desktopControl.automation.workflow'),
+              value: data.automation.workflowFile,
+            },
+            {
+              label: t('admin.desktopControl.automation.token'),
+              value: t(
+                data.automation.tokenConfigured
+                  ? 'admin.desktopControl.automation.tokenConfigured'
+                  : 'admin.desktopControl.automation.tokenMissing',
+              ),
+            },
+          ].map((item) => (
+            <div className={desktopControlCenterStyles.statusItem} key={item.label}>
+              <Typography.Text className={desktopControlCenterStyles.statusLabel}>
+                {item.label}
+              </Typography.Text>
+              <Typography.Text ellipsis strong>
+                {item.value}
+              </Typography.Text>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {data.diagnostics.channels.map((channel) => (
         <section className={desktopControlCenterStyles.channelSection} key={channel.channel}>
-          <Flexbox align="center" horizontal justify="space-between">
+          <Flexbox horizontal align="center" justify="space-between">
             <Typography.Title className={desktopControlCenterStyles.sectionTitle} level={4}>
               {t(DESKTOP_CHANNEL_LABEL_KEYS[channel.channel])}
             </Typography.Title>
@@ -106,13 +202,13 @@ const OverviewPage = memo<OverviewPageProps>(({ onConfigure, resource }) => {
           Object.values(channel.platforms).some(({ reason }) => reason) ? (
             <Alert
               showIcon
+              type="warning"
               message={t(
                 DESKTOP_REASON_LABEL_KEYS[
                   Object.values(channel.platforms).find(({ reason }) => reason)?.reason ||
                     'manifest-request-failed'
                 ],
               )}
-              type="warning"
             />
           ) : null}
           <div className={desktopControlCenterStyles.channelGrid}>

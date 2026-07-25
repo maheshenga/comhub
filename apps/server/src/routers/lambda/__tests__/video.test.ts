@@ -10,7 +10,6 @@ const {
   mockCreateVideo,
   mockAssertModelPolicyAllowed,
   mockAssertPlanModelAllowed,
-  mockLoadModels,
   mockFindUserById,
   mockGenerationTopicFindById,
   mockIsLobeHubModelAvailable,
@@ -26,7 +25,6 @@ const {
   const mockAfter = vi.fn((cb: () => void) => cb());
   const mockAssertModelPolicyAllowed = vi.fn();
   const mockAssertPlanModelAllowed = vi.fn();
-  const mockLoadModels = vi.fn();
   const mockFindUserById = vi.fn();
   const mockGenerationTopicFindById = vi.fn();
   const mockIsLobeHubModelAvailable = vi.fn();
@@ -39,7 +37,6 @@ const {
     mockFindUserById,
     mockGenerationTopicFindById,
     mockIsLobeHubModelAvailable,
-    mockLoadModels,
     mockProcessBackgroundVideoPolling,
     mockResolveBusinessModelMapping,
     mockAfter,
@@ -373,8 +370,15 @@ describe('videoRouter', () => {
   });
 
   describe('createVideo - error handling', () => {
-    it('should set error status when createVideo throws', async () => {
+    it('should set error status and release the reservation when createVideo throws', async () => {
       const { mockUpdate } = setupMocks();
+      const { chargeAfterGenerate } =
+        await import('@/business/server/video-generation/chargeAfterGenerate');
+      const { chargeBeforeGenerate } =
+        await import('@/business/server/video-generation/chargeBeforeGenerate');
+      vi.mocked(chargeBeforeGenerate).mockResolvedValueOnce({
+        prechargeResult: { reservationId: 'reservation-1' },
+      });
       mockCreateVideo.mockRejectedValue(new Error('API timeout'));
 
       const caller = videoRouter.createCaller(mockCtx);
@@ -385,6 +389,12 @@ describe('videoRouter', () => {
       expect(mockUpdate).toHaveBeenCalledWith(
         'async-1',
         expect.objectContaining({ status: AsyncTaskStatus.Error }),
+      );
+      expect(chargeAfterGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isError: true,
+          prechargeResult: { reservationId: 'reservation-1' },
+        }),
       );
     });
   });
@@ -404,6 +414,29 @@ describe('videoRouter', () => {
 
       expect(result).toEqual({ error: 'insufficient_balance' });
       // Should not proceed to createVideo
+      expect(mockCreateVideo).not.toHaveBeenCalled();
+    });
+
+    it('preserves the transaction error when reservation release also fails', async () => {
+      const { chargeAfterGenerate } =
+        await import('@/business/server/video-generation/chargeAfterGenerate');
+      const { chargeBeforeGenerate } =
+        await import('@/business/server/video-generation/chargeBeforeGenerate');
+      vi.mocked(chargeBeforeGenerate).mockResolvedValueOnce({
+        prechargeResult: { reservationId: 'reservation-1' },
+      });
+      mockTransaction.mockRejectedValueOnce(new Error('transaction failed'));
+      vi.mocked(chargeAfterGenerate).mockRejectedValueOnce(new Error('release failed'));
+
+      const caller = videoRouter.createCaller(mockCtx);
+      await expect(caller.createVideo(defaultInput)).rejects.toThrow('transaction failed');
+
+      expect(chargeAfterGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isError: true,
+          prechargeResult: { reservationId: 'reservation-1' },
+        }),
+      );
       expect(mockCreateVideo).not.toHaveBeenCalled();
     });
 

@@ -4,9 +4,39 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DesktopReleaseDispatchError,
   dispatchDesktopReleaseWorkflow,
+  getDesktopReleaseAutomationHealth,
   reconcileDesktopReleaseWorkflow,
   retryDesktopReleaseWorkflow,
 } from './github';
+
+describe('getDesktopReleaseAutomationHealth', () => {
+  it('reports readiness without exposing the GitHub token', () => {
+    const result = getDesktopReleaseAutomationHealth({
+      DESKTOP_RELEASE_GITHUB_REF: 'release',
+      DESKTOP_RELEASE_GITHUB_REPOSITORY: 'owner/repo',
+      DESKTOP_RELEASE_GITHUB_TOKEN: 'secret-token',
+    });
+
+    expect(result).toEqual({
+      configured: true,
+      ref: 'release',
+      repository: 'owner/repo',
+      tokenConfigured: true,
+      workflowFile: 'comhub-desktop-release.yml',
+    });
+    expect(JSON.stringify(result)).not.toContain('secret-token');
+  });
+
+  it('reports invalid targets and a missing token as unavailable', () => {
+    expect(
+      getDesktopReleaseAutomationHealth({
+        DESKTOP_RELEASE_GITHUB_REF: '',
+        DESKTOP_RELEASE_GITHUB_REPOSITORY: 'invalid',
+        DESKTOP_RELEASE_GITHUB_TOKEN: '',
+      }),
+    ).toMatchObject({ configured: false, repository: null, tokenConfigured: false });
+  });
+});
 
 describe('dispatchDesktopReleaseWorkflow', () => {
   afterEach(() => {

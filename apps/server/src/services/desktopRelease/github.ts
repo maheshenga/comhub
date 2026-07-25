@@ -8,6 +8,32 @@ const DEFAULT_GITHUB_REF = 'main';
 const DEFAULT_GITHUB_REPOSITORY = 'maheshenga/comhub';
 const GITHUB_REPOSITORY_PATTERN = /^[\w.-]+\/[\w.-]+$/;
 
+export interface DesktopReleaseAutomationHealth {
+  configured: boolean;
+  ref: null | string;
+  repository: null | string;
+  tokenConfigured: boolean;
+  workflowFile: string;
+}
+
+export const getDesktopReleaseAutomationHealth = (
+  env: Record<string, string | undefined> = process.env,
+): DesktopReleaseAutomationHealth => {
+  const repository = env.DESKTOP_RELEASE_GITHUB_REPOSITORY || DEFAULT_GITHUB_REPOSITORY;
+  const ref = env.DESKTOP_RELEASE_GITHUB_REF || DEFAULT_GITHUB_REF;
+  const repositoryValid = GITHUB_REPOSITORY_PATTERN.test(repository);
+  const refValid = ref.trim().length > 0;
+  const tokenConfigured = Boolean(env.DESKTOP_RELEASE_GITHUB_TOKEN?.trim());
+
+  return {
+    configured: repositoryValid && refValid && tokenConfigured,
+    ref: refValid ? ref : null,
+    repository: repositoryValid ? repository : null,
+    tokenConfigured,
+    workflowFile: DESKTOP_RELEASE_WORKFLOW_FILE,
+  };
+};
+
 type DispatchInput = {
   channel: DesktopReleaseChannel;
   releaseId: string;

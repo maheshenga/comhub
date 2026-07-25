@@ -11,6 +11,7 @@ describe('mobile configuration', () => {
     expect(normalizeMobileConfig(undefined)).toEqual(DEFAULT_MOBILE_CONFIG);
     expect(DEFAULT_MOBILE_CONFIG.applications.builtins.map((item) => item.id)).toEqual([
       'tasks',
+      'skills',
       'community',
       'membership',
       'credits',
@@ -130,12 +131,16 @@ describe('mobile configuration', () => {
       },
       discover: { title: '探索' },
     });
-    expect(config.applications.builtins).toHaveLength(6);
+    expect(config.applications.builtins).toHaveLength(7);
+    expect(config.applications.builtins.find((item) => item.id === 'skills')).toMatchObject({
+      enabled: true,
+      path: '/discover/skill',
+    });
     expect(config.applications.builtins.find((item) => item.id === 'tasks')).toMatchObject({
       enabled: false,
       icon: 'list-todo',
       label: '任务',
-      order: 6,
+      order: 7,
       path: '/tasks',
     });
     expect(config.discover.assistants).toHaveLength(4);

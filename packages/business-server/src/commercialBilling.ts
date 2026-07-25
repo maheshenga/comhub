@@ -1,8 +1,13 @@
 import { createHash } from 'node:crypto';
 
 import { BRANDING_PROVIDER } from '@lobechat/business-const';
-import { AgentRuntimeError, type ChatStreamPayload } from '@lobechat/model-runtime';
-import { ChatErrorType } from '@lobechat/types';
+import {
+  AgentRuntimeError,
+  type ChatStreamPayload,
+  resolveImageSinglePrice,
+  resolveVideoSinglePrice,
+} from '@lobechat/model-runtime';
+import { ChatErrorType, type ModuleAppBillingPayer } from '@lobechat/types';
 import { getTextInputUnitRate, getTextOutputUnitRate } from '@lobechat/utils';
 import { type AiProviderModelListItem } from 'model-bank';
 
@@ -14,6 +19,8 @@ import { type LobeChatDatabase } from '@/database/type';
 import { getServerGlobalConfig } from '@/server/globalConfig';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { type ProviderConfig } from '@/types/user/settings';
+
+import { getServerModelPricingSnapshot } from './serverModelPricing';
 
 const USER_MANAGED_CREDENTIAL_FIELDS = [
   'accessKeyId',
@@ -33,17 +40,29 @@ const DEFAULT_ESTIMATED_OUTPUT_TOKENS = 1024;
 const MIN_ESTIMATED_OUTPUT_TOKENS = 256;
 const MAX_ESTIMATED_OUTPUT_TOKENS = 8192;
 const MAX_RESERVATION_IDEMPOTENCY_KEY_LENGTH = 240;
+const EXTERNAL_SUBSCRIPTION_PROVIDERS = new Set(['supergrok']);
 
 const buildCommercialReservationIdempotencyKey = (
-  userId: string,
-  usageType: CommercialAiUsageType,
+  payer: ModuleAppBillingPayer,
+  usageType: CommercialBillableUsageType,
   operationId: string,
 ) => {
-  const key = `commercial-ai:${userId}:${usageType}:${operationId}`;
+  const payerKey =
+    payer.scopeType === 'personal' ? `personal:${payer.userId}` : `workspace:${payer.workspaceId}`;
+  const key = `commercial-ai:${payerKey}:${usageType}:${operationId}`;
   if (key.length <= MAX_RESERVATION_IDEMPOTENCY_KEY_LENGTH) return key;
 
   return `commercial-ai:${createHash('sha256').update(key).digest('hex')}`;
 };
+
+const resolveCommercialBillingPayer = ({
+  userId,
+  workspaceId,
+}: {
+  userId: string;
+  workspaceId?: string;
+}): ModuleAppBillingPayer =>
+  workspaceId ? { scopeType: 'workspace', workspaceId } : { scopeType: 'personal', userId };
 
 const hasUserManagedCredential = (keyVaults?: Record<string, unknown>) =>
   USER_MANAGED_CREDENTIAL_FIELDS.some((field) => {
@@ -211,7 +230,9 @@ export const shouldChargeCommercialUsage = async ({
   provider: string;
   userId: string;
 }) => {
-  if (provider.toLowerCase() === BRANDING_PROVIDER) return true;
+  const normalizedProvider = provider.toLowerCase();
+  if (EXTERNAL_SUBSCRIPTION_PROVIDERS.has(normalizedProvider)) return false;
+  if (normalizedProvider === BRANDING_PROVIDER) return true;
 
   const providerModel = new AiProviderModel(db, userId);
   const providerConfig = await providerModel.getAiProviderById(
@@ -222,6 +243,113 @@ export const shouldChargeCommercialUsage = async ({
   return !hasUserManagedCredential(
     providerConfig?.keyVaults as Record<string, unknown> | undefined,
   );
+};
+
+export type CommercialBillableUsageType = CommercialAiUsageType | 'image' | 'video';
+
+export interface CommercialUsageReservationHandle {
+  estimatedCredits: number;
+  operationId: string;
+  reservationId: string;
+  usageType: CommercialBillableUsageType;
+}
+
+export const isCommercialUsageReservationHandle = (
+  value: unknown,
+  usageType?: CommercialBillableUsageType,
+): value is CommercialUsageReservationHandle => {
+  if (!value || typeof value !== 'object') return false;
+
+  const handle = value as Partial<CommercialUsageReservationHandle>;
+  return (
+    typeof handle.reservationId === 'string' &&
+    handle.reservationId.length > 0 &&
+    typeof handle.operationId === 'string' &&
+    handle.operationId.length > 0 &&
+    typeof handle.estimatedCredits === 'number' &&
+    Number.isFinite(handle.estimatedCredits) &&
+    handle.estimatedCredits > 0 &&
+    typeof handle.usageType === 'string' &&
+    (!usageType || handle.usageType === usageType)
+  );
+};
+
+const isPositiveFinite = (value: number | undefined) =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const hasReliablePricing = (
+  pricing: AiProviderModelListItem['pricing'],
+  usageType: CommercialBillableUsageType,
+) => {
+  if (!pricing) return false;
+
+  if (usageType === 'chat' || usageType === 'generate_object') {
+    return (
+      isPositiveFinite(getTextInputUnitRate(pricing)) ||
+      isPositiveFinite(getTextOutputUnitRate(pricing))
+    );
+  }
+  if (usageType === 'embeddings') {
+    return isPositiveFinite(getTextInputUnitRate(pricing));
+  }
+  if (usageType === 'image') {
+    const singlePrice = resolveImageSinglePrice(pricing);
+    return isPositiveFinite(singlePrice.price) || isPositiveFinite(singlePrice.approximatePrice);
+  }
+
+  const singlePrice = resolveVideoSinglePrice(pricing);
+  return (
+    isPositiveFinite(singlePrice.approximatePrice) ||
+    pricing.units.some((unit) => {
+      if (unit.name !== 'videoGeneration') return false;
+      if (unit.strategy === 'fixed') return isPositiveFinite(unit.rate);
+      if (unit.strategy === 'tiered') {
+        return unit.tiers.some((tier) => isPositiveFinite(tier.rate));
+      }
+
+      return Object.values(unit.lookup.prices).some(isPositiveFinite);
+    })
+  );
+};
+
+export const assertCommercialModelSellable = async ({
+  db,
+  model,
+  provider,
+  usageType,
+  userId,
+}: {
+  db: LobeChatDatabase;
+  model: string;
+  provider: string;
+  usageType: CommercialBillableUsageType;
+  userId: string;
+}): Promise<boolean> => {
+  const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
+  if (!shouldCharge) return false;
+
+  const snapshot = await getServerModelPricingSnapshot({
+    db,
+    model,
+    provider,
+    type:
+      usageType === 'generate_object'
+        ? 'chat'
+        : usageType === 'embeddings'
+          ? 'embedding'
+          : usageType,
+    userId,
+  });
+  if (hasReliablePricing(snapshot.pricing, usageType)) return true;
+
+  throw AgentRuntimeError.createError(ChatErrorType.Forbidden, {
+    message: 'COMMERCIAL_MODEL_PRICING_MISSING',
+    model,
+    pricingSource: snapshot.source,
+    provider,
+    reason: 'COMMERCIAL_MODEL_NOT_SELLABLE',
+    usageType,
+  });
 };
 
 export const assertCommercialChatBudget = async ({
@@ -437,20 +565,30 @@ export const reserveCommercialAiUsage = async ({
   model,
   operationId,
   provider,
+  reservationTtlMs,
   routeMetadata,
   usageType,
   userId,
+  workspaceId,
 }: {
   db: LobeChatDatabase;
   estimatedCredits?: number;
   model: string;
   operationId: string;
   provider: string;
+  reservationTtlMs?: number;
   routeMetadata?: AiUsageRouteMetadata;
-  usageType: CommercialAiUsageType;
+  usageType: CommercialBillableUsageType;
   userId: string;
+  workspaceId?: string;
 }) => {
-  const shouldCharge = await shouldChargeCommercialUsage({ db, provider, userId });
+  const shouldCharge = await assertCommercialModelSellable({
+    db,
+    model,
+    provider,
+    usageType,
+    userId,
+  });
   if (!shouldCharge) return null;
 
   const amount = Math.max(
@@ -461,24 +599,29 @@ export const reserveCommercialAiUsage = async ({
         : 1,
     ),
   );
-  const creditModel = new ModuleAppCreditModel(db);
+  const creditModel = reservationTtlMs
+    ? new ModuleAppCreditModel(db, { reservationTtlMs })
+    : new ModuleAppCreditModel(db);
+  const payer = resolveCommercialBillingPayer({ userId, workspaceId });
 
   return creditModel.reserve({
     amount,
-    idempotencyKey: buildCommercialReservationIdempotencyKey(userId, usageType, operationId),
+    idempotencyKey: buildCommercialReservationIdempotencyKey(payer, usageType, operationId),
     metadata: {
       model,
       operationId,
       provider,
       ...(routeMetadata ? { routeMetadata } : {}),
       usageType,
+      ...(workspaceId ? { workspaceId } : {}),
     },
-    payer: { scopeType: 'personal', userId },
+    payer,
     requireNew: true,
   });
 };
 
 export const settleCommercialAiUsageReservation = async ({
+  actualCredits,
   db,
   estimatedCredits,
   model,
@@ -491,6 +634,7 @@ export const settleCommercialAiUsageReservation = async ({
   usageType,
   userId,
 }: {
+  actualCredits?: number;
   db: LobeChatDatabase;
   estimatedCredits?: number;
   model: string;
@@ -500,15 +644,24 @@ export const settleCommercialAiUsageReservation = async ({
   routeMetadata?: AiUsageRouteMetadata;
   title?: string;
   usage?: CommercialUsagePayload;
-  usageType: CommercialAiUsageType;
+  usageType: CommercialBillableUsageType;
   userId: string;
 }) => {
-  let actualAmount = Math.max(1, Math.ceil(estimatedCredits ?? 1));
+  let actualAmount = Math.max(
+    0,
+    Math.ceil(
+      typeof actualCredits === 'number' && Number.isFinite(actualCredits)
+        ? actualCredits
+        : (estimatedCredits ?? 1),
+    ),
+  );
   let billingMetadata: Record<string, unknown> = {
-    costSource: 'estimated-reservation',
+    ...(actualCredits === undefined
+      ? { costSource: 'estimated-reservation' }
+      : { chargedCredits: actualAmount, costSource: 'generation-pricing' }),
   };
 
-  if (usage) {
+  if (usage && usageType !== 'image' && usageType !== 'video') {
     const modelCard = await getProviderModelCard({
       db,
       model,

@@ -37,6 +37,7 @@ import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { FileService } from '@/server/services/file';
 import { processBackgroundVideoPolling } from '@/server/services/generation/videoBackgroundPolling';
+import { resolveNewapiRouteMetadataForModel } from '@/server/services/newapiInstance';
 import { after } from '@/server/utils/scheduleAfterResponse';
 import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
 
@@ -184,6 +185,14 @@ export const videoRouter = router({
       if (!generationTopic) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Invalid generation topic' });
       }
+      const routeMetadata =
+        provider === 'newapi'
+          ? await resolveNewapiRouteMetadataForModel(serverDB, {
+              modelId: resolvedModelId,
+              modelType: 'video',
+              userId,
+            })
+          : undefined;
 
       const { errorBatch, prechargeResult } = await chargeBeforeGenerate({
         db: serverDB,
@@ -191,6 +200,7 @@ export const videoRouter = router({
         model: resolvedModelId,
         params,
         provider,
+        routeMetadata,
         userId,
         workspaceId: wsId,
       });
@@ -205,62 +215,89 @@ export const videoRouter = router({
         asyncTaskId,
         batch: createdBatch,
         generation: createdGeneration,
-      } = await serverDB.transaction(async (tx) => {
-        log('Starting database transaction for video generation');
+      } = await serverDB
+        .transaction(async (tx) => {
+          log('Starting database transaction for video generation');
 
-        // 1. Create generationBatch
-        const newBatch: NewGenerationBatch = {
-          config: configForDatabase,
-          generationTopicId,
-          model,
-          prompt: params.prompt,
-          provider,
-          userId,
-          workspaceId: wsId,
-        };
-        log('Creating generation batch: %O', newBatch);
-        const [batch] = await tx.insert(generationBatches).values(newBatch).returning();
-        log('Generation batch created: %s', batch.id);
-
-        // 2. Create single generation (video is always 1)
-        const newGeneration: NewGeneration = {
-          generationBatchId: batch.id,
-          seed: params.seed ?? null,
-          userId,
-          workspaceId: wsId,
-        };
-        const [generation] = await tx.insert(generations).values(newGeneration).returning();
-        log('Generation created: %s', generation.id);
-
-        // 3. Create asyncTask with precharge metadata
-        const [asyncTask] = await tx
-          .insert(asyncTasks)
-          .values({
-            metadata: {
-              ...(prechargeResult ? { precharge: prechargeResult } : {}),
-              webhookToken,
-            },
-            status: AsyncTaskStatus.Pending,
-            type: AsyncTaskType.VideoGeneration,
+          // 1. Create generationBatch
+          const newBatch: NewGenerationBatch = {
+            config: configForDatabase,
+            generationTopicId,
+            model,
+            prompt: params.prompt,
+            provider,
             userId,
             workspaceId: wsId,
-          })
-          .returning();
-        log('Async task created: %s', asyncTask.id);
+          };
+          log('Creating generation batch: %O', newBatch);
+          const [batch] = await tx.insert(generationBatches).values(newBatch).returning();
+          log('Generation batch created: %s', batch.id);
 
-        // 4. Link asyncTask to generation
-        await tx
-          .update(generations)
-          .set({ asyncTaskId: asyncTask.id })
-          .where(and(eq(generations.id, generation.id), eq(generations.userId, userId)));
+          // 2. Create single generation (video is always 1)
+          const newGeneration: NewGeneration = {
+            generationBatchId: batch.id,
+            seed: params.seed ?? null,
+            userId,
+            workspaceId: wsId,
+          };
+          const [generation] = await tx.insert(generations).values(newGeneration).returning();
+          log('Generation created: %s', generation.id);
 
-        return {
-          asyncTaskCreatedAt: asyncTask.createdAt,
-          asyncTaskId: asyncTask.id,
-          batch,
-          generation,
-        };
-      });
+          // 3. Create asyncTask with precharge metadata
+          const [asyncTask] = await tx
+            .insert(asyncTasks)
+            .values({
+              metadata: {
+                ...(prechargeResult ? { precharge: prechargeResult } : {}),
+                ...(routeMetadata ? { routeMetadata } : {}),
+                webhookToken,
+              },
+              status: AsyncTaskStatus.Pending,
+              type: AsyncTaskType.VideoGeneration,
+              userId,
+              workspaceId: wsId,
+            })
+            .returning();
+          log('Async task created: %s', asyncTask.id);
+
+          // 4. Link asyncTask to generation
+          await tx
+            .update(generations)
+            .set({ asyncTaskId: asyncTask.id })
+            .where(and(eq(generations.id, generation.id), eq(generations.userId, userId)));
+
+          return {
+            asyncTaskCreatedAt: asyncTask.createdAt,
+            asyncTaskId: asyncTask.id,
+            batch,
+            generation,
+          };
+        })
+        .catch(async (error) => {
+          if (prechargeResult) {
+            try {
+              await chargeAfterGenerate({
+                db: serverDB,
+                isError: true,
+                metadata: {
+                  asyncTaskId: 'video-reservation',
+                  generationBatchId: generationTopicId,
+                  modelId: resolvedModelId,
+                  ...(routeMetadata ? { routeMetadata } : {}),
+                  topicId: generationTopicId,
+                },
+                model: resolvedModelId,
+                prechargeResult,
+                provider,
+                userId,
+                workspaceId: wsId,
+              });
+            } catch (chargeError) {
+              log('Failed to release billing reservation after transaction error: %O', chargeError);
+            }
+          }
+          throw error;
+        });
 
       log('Database transaction completed. Calling model runtime for video generation.');
 
@@ -284,6 +321,7 @@ export const videoRouter = router({
           },
           { metadata: { trigger: RequestTrigger.Video } },
         );
+        if (!response) throw new Error('Video provider did not return a task');
 
         log('Video task submitted successfully, inferenceId: %s', response?.inferenceId);
 
@@ -325,6 +363,7 @@ export const videoRouter = router({
                 model,
                 prechargeResult,
                 provider,
+                routeMetadata,
                 userId,
                 workspaceId: wsId,
               });
@@ -358,6 +397,7 @@ export const videoRouter = router({
               metadata: {
                 asyncTaskId,
                 generationBatchId: createdBatch.id,
+                ...(routeMetadata ? { routeMetadata } : {}),
                 topicId: generationTopicId,
                 ...buildMappedBusinessModelFields({
                   provider,
@@ -368,6 +408,7 @@ export const videoRouter = router({
               model: resolvedModelId,
               prechargeResult,
               provider,
+              db: serverDB,
               userId,
               workspaceId: wsId,
             });
