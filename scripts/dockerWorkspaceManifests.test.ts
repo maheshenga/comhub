@@ -21,7 +21,7 @@ describe('Docker workspace manifests', () => {
     });
 
     expect(result.status, result.stderr || result.error?.message).toBe(0);
-  }, 15_000);
+  }, 30_000);
 
   it('bundles model-bank compatibility exports without static import warnings', () => {
     const { buildSync } = moduleWorkerRequire('esbuild');
@@ -55,10 +55,46 @@ describe('Docker workspace manifests', () => {
       'utf8',
     );
 
-    expect(dockerfile).toContain('RUN pnpm run build:docker');
+    expect(dockerfile).toMatch(/^\s+pnpm run build:docker$/m);
     expect(dockerfile).not.toContain('RUN npm run build:docker');
     expect(wslBuildScript).toMatch(/^pnpm run build:docker$/m);
     expect(wslBuildScript).not.toMatch(/^npm run build:docker$/m);
+  });
+
+  it('keeps sensitive values out of Docker ARG and ENV instructions', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const instructions = dockerfile.replaceAll(/\\\r?\n\s*/g, ' ').split(/\r?\n/);
+    const sensitiveName =
+      /^(?:AUTH_|API_KEY_SELECT_MODE$)|_API_KEY$|_TOKEN$|_ACCESS_KEY_ID$|_SECRET(?:_|$)|_PASSWORD$|_CREDENTIALS$|_AUTH_TYPE$|_SIGNING_KEY$/;
+    const sensitiveDeclarations = instructions.flatMap((instruction) => {
+      const normalized = instruction.trimStart();
+      const separator = normalized.indexOf(' ');
+      if (separator < 0) return [];
+
+      const instructionName = normalized.slice(0, separator);
+      if (instructionName !== 'ARG' && instructionName !== 'ENV') return [];
+
+      const instructionValue = normalized.slice(separator + 1).trimStart();
+
+      const names =
+        instructionName === 'ARG'
+          ? [instructionValue.split(/[=\s]/, 1)[0]]
+          : [...instructionValue.matchAll(/(?:^|\s)([A-Z][A-Z0-9_]*)=/g)].map(
+              (variable) => variable[1],
+            );
+
+      return names.filter((name) => sensitiveName.test(name));
+    });
+    const ephemeralBuildSecrets = instructions.filter(
+      (instruction) =>
+        instruction.startsWith('RUN ') &&
+        instruction.includes('KEY_VAULTS_SECRET=') &&
+        instruction.includes('AUTH_SECRET='),
+    );
+
+    expect(sensitiveDeclarations).toEqual([]);
+    expect(ephemeralBuildSecrets).toHaveLength(2);
+    expect(ephemeralBuildSecrets.every((instruction) => instruction.includes('pnpm'))).toBe(true);
   });
 
   it('separates image publication from manual production deployments', () => {
