@@ -32,6 +32,19 @@ describe('Docker workspace manifests', () => {
     );
   });
 
+  it('uses pnpm for container build scripts', () => {
+    const dockerfile = readFileSync(path.join(root, 'Dockerfile'), 'utf8');
+    const wslBuildScript = readFileSync(
+      path.join(root, 'scripts', 'deploy', 'comhub-build-package-wsl.sh'),
+      'utf8',
+    );
+
+    expect(dockerfile).toContain('RUN pnpm run build:docker');
+    expect(dockerfile).not.toContain('RUN npm run build:docker');
+    expect(wslBuildScript).toMatch(/^pnpm run build:docker$/m);
+    expect(wslBuildScript).not.toMatch(/^npm run build:docker$/m);
+  });
+
   it('separates image publication from manual production deployments', () => {
     const buildWorkflow = readFileSync(
       path.join(root, '.github', 'workflows', 'comhub-build.yml'),
