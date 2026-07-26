@@ -5,6 +5,7 @@ export type ModuleAppGatewayContext = {
   displayName: string;
   installationId: string;
   outboundHosts: string[];
+  secretKeys: string[];
   scopeType: 'personal' | 'workspace';
   userId?: null | string;
   versionId: string;

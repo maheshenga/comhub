@@ -1,5 +1,5 @@
 import { ConfigProvider } from '@lobehub/ui';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import { type ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,15 +13,30 @@ const swrState = vi.hoisted(() => ({
   mutate: vi.fn(),
 }));
 const swrMock = vi.hoisted(() => vi.fn(() => swrState));
+const installedAppsState = vi.hoisted(() => ({
+  error: undefined as unknown,
+  hasMore: false,
+  isLoading: false,
+  isLoadingMore: false,
+  items: [] as any[],
+  loadMore: vi.fn(),
+  retry: vi.fn(),
+}));
+const installedAppsMock = vi.hoisted(() => vi.fn(() => installedAppsState));
 
 vi.mock('swr', () => ({ default: swrMock }));
+vi.mock('./useInstalledApps', () => ({ useInstalledApps: installedAppsMock }));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: { name?: string }) =>
-      key === 'moduleApps.market.viewDetailsFor'
-        ? `View details for ${values?.name ?? ''}`
-        : key,
+    t: (key: string, values?: { name?: string }) => {
+      if (key === 'moduleApps.market.openFor') return `Open ${values?.name ?? ''}`;
+      if (key === 'moduleApps.market.viewDetailsFor') {
+        return `View details for ${values?.name ?? ''}`;
+      }
+
+      return key;
+    },
   }),
 }));
 
@@ -33,10 +48,16 @@ const renderMarket = (ui: ReactElement) => render(<ConfigProvider motion={m}>{ui
 
 describe('ModuleAppMarket', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     swrState.data = [];
     swrState.error = undefined;
     swrState.isLoading = false;
+    installedAppsState.error = undefined;
+    installedAppsState.hasMore = false;
+    installedAppsState.isLoading = false;
+    installedAppsState.isLoadingMore = false;
+    installedAppsState.items = [];
   });
 
   it.each([
@@ -50,23 +71,54 @@ describe('ModuleAppMarket', () => {
   });
 
   it('loads team apps in an explicit workspace context', () => {
-    swrState.data = [
+    installedAppsState.items = [
       {
         category: 'business',
         displayName: 'Team Desk',
         id: 'app-team',
         installed: true,
+        installedVersion: { id: 'version-1', version: '1.0.0' },
+        installationReadiness: {
+          configuration: 'ready',
+          missingSecretCount: 0,
+          runtime: 'unavailable',
+        },
+        publishedVersion: { id: 'version-2', version: '2.0.0' },
+        updateAvailable: true,
       },
     ];
+    installedAppsState.hasMore = true;
     renderMarket(<ModuleAppMarket mode="team" workspaceId="workspace-1" />);
 
-    expect(swrMock).toHaveBeenCalledWith(
-      ['moduleApp.listTeamApps', 'workspace-1'],
-      expect.any(Function),
-    );
+    expect(installedAppsMock).toHaveBeenCalledWith({
+      enabled: true,
+      query: '',
+      scope: 'workspace',
+      workspaceId: 'workspace-1',
+    });
     expect(screen.getByRole('link', { name: 'View details for Team Desk' })).toHaveAttribute(
       'href',
       '/apps/app-team?workspaceId=workspace-1',
+    );
+    expect(screen.getByRole('button', { name: 'Open Team Desk' })).toBeDisabled();
+    expect(screen.queryByRole('link', { name: 'Open Team Desk' })).not.toBeInTheDocument();
+    expect(screen.getByText('moduleApps.readiness.runtimeUnavailable')).toBeInTheDocument();
+    expect(screen.getByText('moduleApps.market.updateAvailable')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.installed.loadMore' }));
+    expect(installedAppsState.loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('debounces team app searches before changing the server query', () => {
+    vi.useFakeTimers();
+    renderMarket(<ModuleAppMarket mode="team" workspaceId="workspace-1" />);
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'moduleApps.installed.search' }), {
+      target: { value: 'shared desk' },
+    });
+    expect(installedAppsMock).toHaveBeenLastCalledWith(expect.objectContaining({ query: '' }));
+    act(() => vi.advanceTimersByTime(250));
+    expect(installedAppsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ query: 'shared desk' }),
     );
   });
 

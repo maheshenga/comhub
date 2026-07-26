@@ -1,4 +1,5 @@
 import {
+  getModuleAppDeclaredSecretKeys,
   type ModuleAppActionConfig,
   type ModuleAppWorkflowDefinition,
   moduleAppWorkflowDefinitionSchema,
@@ -61,19 +62,14 @@ export const resolveModuleAppActionSecrets = async (input: {
   getEncryptedValue: (input: { installationId: string; key: string }) => Promise<null | string>;
   installationId: string;
 }) => {
-  const configuredKeys = input.action.runtimeConfig.secretKeys;
-  if (configuredKeys === undefined) return {};
-  if (
-    !Array.isArray(configuredKeys) ||
-    configuredKeys.length > 20 ||
-    configuredKeys.some((key) => typeof key !== 'string' || !/^[A-Z][A-Z0-9_]{1,79}$/.test(key))
-  ) {
-    throw new Error('MODULE_APP_SECRET_KEYS_INVALID');
-  }
+  const configuredKeys = getModuleAppDeclaredSecretKeys([input.action]);
 
   const resolved: Record<string, string> = {};
-  for (const key of new Set(configuredKeys as string[])) {
-    const encryptedValue = await input.getEncryptedValue({ installationId: input.installationId, key });
+  for (const key of configuredKeys) {
+    const encryptedValue = await input.getEncryptedValue({
+      installationId: input.installationId,
+      key,
+    });
     if (!encryptedValue) throw new Error(`MODULE_APP_SECRET_REQUIRED:${key}`);
     const decrypted = await input.decrypt(encryptedValue);
     if (!decrypted.wasAuthentic) throw new Error('MODULE_APP_SECRET_DECRYPT_FAILED');

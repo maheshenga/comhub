@@ -20,15 +20,35 @@ const moduleAppPackagePathSchema = z
 export const moduleAppRuntimeLanguageSchema = z.enum(['node22', 'python312']);
 export type ModuleAppRuntimeLanguage = z.infer<typeof moduleAppRuntimeLanguageSchema>;
 
+export const moduleAppRuntimeReadinessCodeSchema = z.enum([
+  'MODULE_APP_RUNTIME_ARTIFACT_ROOT_UNAVAILABLE',
+  'MODULE_APP_RUNTIME_CONFIG_MISSING',
+  'MODULE_APP_RUNTIME_DOCKER_HOST_INVALID',
+  'MODULE_APP_RUNTIME_DOCKER_ROOTLESS_REQUIRED',
+  'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
+  'MODULE_APP_RUNTIME_PROBE_INVALID',
+  'MODULE_APP_RUNTIME_PROBE_TIMEOUT',
+  'MODULE_APP_RUNTIME_UNAVAILABLE',
+  'MODULE_APP_RUNTIME_UNREACHABLE',
+]);
+export type ModuleAppRuntimeReadinessCode = z.infer<typeof moduleAppRuntimeReadinessCodeSchema>;
+
+export const moduleAppRuntimeReadinessSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('disabled') }).strict(),
+  z.object({ status: z.literal('ready') }).strict(),
+  z
+    .object({
+      code: moduleAppRuntimeReadinessCodeSchema,
+      status: z.literal('unavailable'),
+    })
+    .strict(),
+]);
+export type ModuleAppRuntimeReadiness = z.infer<typeof moduleAppRuntimeReadinessSchema>;
+
 export const moduleAppBuildProfileSchema = z.enum(['node22-static', 'python312-assets']);
 export type ModuleAppBuildProfile = z.infer<typeof moduleAppBuildProfileSchema>;
 
-export const moduleAppBuildStatusSchema = z.enum([
-  'queued',
-  'building',
-  'ready',
-  'failed',
-]);
+export const moduleAppBuildStatusSchema = z.enum(['queued', 'building', 'ready', 'failed']);
 export type ModuleAppBuildStatus = z.infer<typeof moduleAppBuildStatusSchema>;
 
 export const moduleAppBuildConfigSchema = z
@@ -72,7 +92,10 @@ export type ModuleAppExecutableRuntime = z.infer<typeof moduleAppExecutableRunti
 export const moduleAppCapabilityClaimsSchema = z
   .object({
     appId: z.string().uuid(),
-    artifactSha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+    artifactSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/i)
+      .optional(),
     aud: z.literal('module-runtime'),
     exp: z.number().int().positive(),
     iat: z.number().int().positive(),

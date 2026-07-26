@@ -392,6 +392,7 @@ class AdminCommercialService {
       termsVersion?: string;
     }) => lambdaClient.admin.moduleApps.createProduct.mutate(input as any),
     get: (input: { appId: string }) => lambdaClient.admin.moduleApps.get.query(input),
+    getRuntimeDiagnostics: () => lambdaClient.admin.moduleApps.getRuntimeDiagnostics.query(),
     approvePackage: (input: { packageId: string }) =>
       lambdaClient.admin.moduleApps.approvePackage.mutate(input),
     getPackage: (input: { packageId: string }) =>
@@ -495,14 +496,16 @@ class AdminCommercialService {
     }) => lambdaClient.admin.moduleApps.transitionPayoutBatch.mutate(input),
     unpublish: (input: { appId: string }) => lambdaClient.admin.moduleApps.unpublish.mutate(input),
     upsert: (input: unknown) => lambdaClient.admin.moduleApps.upsert.mutate(input as any),
-    upsertActions: (input: { actions: unknown[]; appId: string }) =>
-      lambdaClient.admin.moduleApps.upsertActions.mutate(input as any),
     upsertBilling: (input: { appId: string; billing: unknown }) =>
       lambdaClient.admin.moduleApps.upsertBilling.mutate(input as any),
+    upsertConfiguration: (input: {
+      actions: unknown[];
+      appId: string;
+      expectedVersionId: string;
+      pages: unknown[];
+    }) => lambdaClient.admin.moduleApps.upsertConfiguration.mutate(input as any),
     upsertEntitlements: (input: { appId: string; entitlements: unknown[] }) =>
       lambdaClient.admin.moduleApps.upsertEntitlements.mutate(input as any),
-    upsertPages: (input: { appId: string; pages: unknown[] }) =>
-      lambdaClient.admin.moduleApps.upsertPages.mutate(input as any),
     updateProduct: (input: {
       licenseScope: 'personal' | 'workspace' | 'workspace_seat';
       moduleMultiplier?: string;

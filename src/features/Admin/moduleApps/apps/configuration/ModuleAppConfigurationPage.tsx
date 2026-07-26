@@ -63,7 +63,7 @@ const ModuleAppConfigurationPage = memo(() => {
     });
     setDirty(Boolean(draft));
     setSaveStatus(draft ? t('moduleApps.admin.configuration.draftRestored') : undefined);
-  }, [app.id, draftScope, form, t]);
+  }, [app.actions, app.pages, draftScope, form, t]);
 
   const persistDraft = () => {
     if (!canWrite) return;
@@ -94,43 +94,47 @@ const ModuleAppConfigurationPage = memo(() => {
       return;
     }
     const actions = normalized.actions.map(
-      ({ inputSchemaJson, outputSchemaJson, runtimeConfigJson, ...action }) => action,
+      ({
+        inputSchemaJson: _inputSchemaJson,
+        outputSchemaJson: _outputSchemaJson,
+        runtimeConfigJson: _runtimeConfigJson,
+        ...action
+      }) => action,
     );
     const pages = normalized.pages.map(
-      ({ actionBindingsJson, dataSourceJson, layoutSchemaJson, ...page }) => page,
+      ({
+        actionBindingsJson: _actionBindingsJson,
+        dataSourceJson: _dataSourceJson,
+        layoutSchemaJson: _layoutSchemaJson,
+        ...page
+      }) => page,
     );
-    const accepted: string[] = [];
-    const failed: string[] = [];
     setSaving(true);
     setSaveStatus(undefined);
 
     try {
-      await adminCommercialService.moduleApps.upsertPages({ appId: app.id, pages });
-      accepted.push(t('moduleApps.admin.configuration.pages'));
-    } catch {
-      failed.push(t('moduleApps.admin.configuration.pages'));
-    }
-
-    try {
-      await adminCommercialService.moduleApps.upsertActions({
+      if (!app.versionId) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+      await adminCommercialService.moduleApps.upsertConfiguration({
         actions,
         appId: app.id,
+        expectedVersionId: app.versionId,
+        pages,
       });
-      accepted.push(t('moduleApps.admin.configuration.actions'));
-    } catch {
-      failed.push(t('moduleApps.admin.configuration.actions'));
-    } finally {
-      setSaving(false);
-    }
-
-    if (failed.length) {
+    } catch (error) {
+      const candidate = error as { data?: { code?: string }; message?: string } | undefined;
+      const conflict =
+        candidate?.data?.code === 'CONFLICT' ||
+        candidate?.message?.includes('MODULE_APP_CONFIGURATION_CONFLICT');
       setSaveStatus(
-        t('moduleApps.admin.configuration.partialSave', {
-          accepted: accepted.join(', ') || t('moduleApps.admin.configuration.none'),
-          failed: failed.join(', '),
-        }),
+        t(
+          conflict
+            ? 'moduleApps.admin.configuration.conflict'
+            : 'moduleApps.admin.configuration.saveFailed',
+        ),
       );
       return;
+    } finally {
+      setSaving(false);
     }
 
     clearModuleDraft(draftScope);

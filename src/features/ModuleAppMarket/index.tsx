@@ -1,23 +1,20 @@
+import { Button, Input } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router';
 import useSWR from 'swr';
 
 import { MobileListSkeleton, MobileStateView } from '@/features/MobileWorkspace/components';
-import { moduleAppService } from '@/services/moduleApp';
+import { type InstalledModuleApp, moduleAppService } from '@/services/moduleApp';
 
 import AppCard from './AppCard';
 import MyAppsOverview from './MyAppsOverview';
+import { useInstalledApps } from './useInstalledApps';
 
-type MarketplaceItem = {
-  category?: string;
-  description?: string;
-  displayName: string;
-  id: string;
-  installed?: boolean;
-  version?: string;
-};
+const SEARCH_DEBOUNCE_MS = 250;
+
+type MarketplaceItem = InstalledModuleApp;
 
 type ModuleAppMarketProps = {
   mode?: 'all' | 'my' | 'team';
@@ -30,7 +27,11 @@ const labelKeys = {
   team: 'moduleApps.team.title',
 } as const;
 
-const styles = createStaticStyles(({ css }) => ({
+const styles = createStaticStyles(({ css, cssVar }) => ({
+  error: css`
+    font-size: 13px;
+    color: ${cssVar.colorError};
+  `,
   frame: css`
     display: flex;
     flex-direction: column;
@@ -52,36 +53,72 @@ const styles = createStaticStyles(({ css }) => ({
     gap: 12px 16px;
   `,
   header: css`
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 320px);
+    gap: 12px;
     align-items: center;
-    justify-content: space-between;
+
     min-height: 44px;
+
+    @media (width < 600px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
   `,
   heading: css`
     margin: 0;
     font-size: 20px;
     line-height: 28px;
   `,
+  pagination: css`
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+  `,
 }));
 
 const ModuleAppMarket = memo<ModuleAppMarketProps>(({ mode = 'all', workspaceId }) => {
   const { t } = useTranslation('common');
-  const apps = useSWR<MarketplaceItem[]>(
-    mode === 'all'
-      ? ['moduleApp.listMarketplace']
-      : mode === 'team' && workspaceId
-        ? ['moduleApp.listTeamApps', workspaceId]
-        : null,
-    () =>
-      (mode === 'team'
-        ? moduleAppService.listTeamApps({ workspaceId: workspaceId! })
-        : moduleAppService.listMarketplace()) as Promise<MarketplaceItem[]>,
+  const [teamSearchInput, setTeamSearchInput] = useState('');
+  const [teamSearchQuery, setTeamSearchQuery] = useState('');
+  const marketplace = useSWR<MarketplaceItem[]>(
+    mode === 'all' ? ['moduleApp.listMarketplace'] : null,
+    () => moduleAppService.listMarketplace() as Promise<MarketplaceItem[]>,
   );
+  const teamApps = useInstalledApps({
+    enabled: mode === 'team' && Boolean(workspaceId),
+    query: teamSearchQuery,
+    scope: 'workspace',
+    workspaceId,
+  });
+
+  useEffect(() => {
+    const timeout = window.setTimeout(
+      () => setTeamSearchQuery(teamSearchInput.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [teamSearchInput]);
+
+  const apps = mode === 'team' ? teamApps.items : (marketplace.data ?? []);
+  const listError = mode === 'team' ? teamApps.error : marketplace.error;
+  const listLoading = mode === 'team' ? teamApps.isLoading : marketplace.isLoading;
+  const retry = mode === 'team' ? teamApps.retry : marketplace.mutate;
 
   return (
     <section className={styles.frame} data-testid={`module-app-market-${mode}`}>
       <header className={styles.header}>
         <h2 className={styles.heading}>{t(labelKeys[mode])}</h2>
+        {mode === 'team' && workspaceId ? (
+          <Input
+            aria-label={t('moduleApps.installed.search')}
+            maxLength={80}
+            placeholder={t('moduleApps.installed.search')}
+            type={'search'}
+            value={teamSearchInput}
+            onChange={(event) => setTeamSearchInput(event.target.value)}
+          />
+        ) : null}
       </header>
       {mode === 'my' ? (
         <MyAppsOverview />
@@ -90,42 +127,77 @@ const ModuleAppMarket = memo<ModuleAppMarketProps>(({ mode = 'all', workspaceId 
           description={t('moduleApps.market.emptyDescription')}
           title={t('moduleApps.market.empty')}
         />
-      ) : apps.error ? (
+      ) : listError && apps.length === 0 ? (
         <MobileStateView
-          title={t('moduleApps.market.loadError')}
           variant="error"
           action={{
-            label: t('moduleApps.market.retry'),
-            onClick: () => void apps.mutate(),
+            label: t(mode === 'team' ? 'moduleApps.installed.retry' : 'moduleApps.market.retry'),
+            onClick: () => void retry(),
           }}
+          title={t(
+            mode === 'team' ? 'moduleApps.installed.loadError' : 'moduleApps.market.loadError',
+          )}
         />
-      ) : apps.isLoading ? (
+      ) : listLoading && apps.length === 0 ? (
         <MobileListSkeleton
           avatarSize={48}
-          label={t('moduleApps.market.loading')}
+          label={t(mode === 'team' ? 'moduleApps.installed.loading' : 'moduleApps.market.loading')}
           minRowHeight={88}
           rows={4}
           trailingWidth={72}
         />
-      ) : apps.data?.length ? (
-        <div className={styles.grid} data-testid="module-app-market-grid">
-          {apps.data.map((app) => (
-            <AppCard
-              category={app.category}
-              description={app.description}
-              id={app.id}
-              installed={app.installed}
-              key={app.id}
-              name={app.displayName}
-              version={app.version}
-              workspaceId={mode === 'team' ? workspaceId : undefined}
-            />
-          ))}
-        </div>
+      ) : apps.length ? (
+        <>
+          <div className={styles.grid} data-testid="module-app-market-grid">
+            {apps.map((app) => (
+              <AppCard
+                category={app.category}
+                description={app.description}
+                id={app.id}
+                installationReadiness={app.installationReadiness}
+                installed={app.installed}
+                key={app.id}
+                name={app.displayName}
+                publishedVersion={app.publishedVersion?.version}
+                updateAvailable={app.updateAvailable}
+                version={app.installedVersion?.version ?? app.version ?? undefined}
+                workspaceId={mode === 'team' ? workspaceId : undefined}
+              />
+            ))}
+          </div>
+          {mode === 'team' && listError ? (
+            <div className={styles.pagination}>
+              <span className={styles.error} role={'alert'}>
+                {t('moduleApps.installed.loadMoreError')}
+              </span>
+              <Button onClick={() => void teamApps.retry()}>
+                {t('moduleApps.installed.retry')}
+              </Button>
+            </div>
+          ) : mode === 'team' && teamApps.hasMore ? (
+            <div className={styles.pagination}>
+              <Button loading={teamApps.isLoadingMore} onClick={teamApps.loadMore}>
+                {t('moduleApps.installed.loadMore')}
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : (
         <MobileStateView
-          description={t('moduleApps.market.emptyDescription')}
-          title={t('moduleApps.market.empty')}
+          description={t(
+            mode === 'team'
+              ? teamSearchInput.trim()
+                ? 'moduleApps.installed.emptySearchDescription'
+                : 'moduleApps.installed.emptyDescription'
+              : 'moduleApps.market.emptyDescription',
+          )}
+          title={t(
+            mode === 'team'
+              ? teamSearchInput.trim()
+                ? 'moduleApps.installed.emptySearch'
+                : 'moduleApps.installed.empty'
+              : 'moduleApps.market.empty',
+          )}
         />
       )}
     </section>
@@ -139,12 +211,7 @@ ModuleAppMyApps.displayName = 'ModuleAppMyApps';
 
 export const ModuleAppTeamApps = memo(() => {
   const [searchParams] = useSearchParams();
-  return (
-    <ModuleAppMarket
-      mode="team"
-      workspaceId={searchParams.get('workspaceId') || undefined}
-    />
-  );
+  return <ModuleAppMarket mode="team" workspaceId={searchParams.get('workspaceId') || undefined} />;
 });
 ModuleAppTeamApps.displayName = 'ModuleAppTeamApps';
 

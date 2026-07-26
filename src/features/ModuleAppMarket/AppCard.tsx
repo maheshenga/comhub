@@ -1,5 +1,7 @@
-import { Button } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import type { ModuleAppInstallationReadiness } from '@lobechat/types';
+import { A } from '@lobehub/ui';
+import { Button, buttonStyles } from '@lobehub/ui/base-ui';
+import { createStaticStyles, cx } from 'antd-style';
 import { memo, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -32,8 +34,13 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     overflow-wrap: anywhere;
   `,
   footer: css`
+    display: grid;
+    gap: 8px;
     margin-block-start: auto;
     padding-block-start: 2px;
+  `,
+  footerInstalled: css`
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr));
   `,
   header: css`
     display: flex;
@@ -53,6 +60,21 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorSuccess};
 
     background: ${cssVar.colorSuccessBg};
+  `,
+  readinessError: css`
+    color: ${cssVar.colorError};
+    background: ${cssVar.colorErrorBg};
+  `,
+  readinessWarning: css`
+    color: ${cssVar.colorWarning};
+    background: ${cssVar.colorWarningBg};
+  `,
+  statuses: css`
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-end;
   `,
   metadata: css`
     display: flex;
@@ -76,6 +98,19 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorText};
     overflow-wrap: anywhere;
   `,
+  updateAvailable: css`
+    flex: none;
+
+    padding-block: 2px;
+    padding-inline: 6px;
+    border-radius: ${cssVar.borderRadiusSM};
+
+    font-size: 12px;
+    line-height: 18px;
+    color: ${cssVar.colorWarning};
+
+    background: ${cssVar.colorWarningBg};
+  `,
 }));
 
 type ModuleAppCardProps = {
@@ -83,16 +118,32 @@ type ModuleAppCardProps = {
   description?: string;
   id: string;
   installed?: boolean;
+  installationReadiness?: ModuleAppInstallationReadiness;
   name: string;
+  publishedVersion?: string;
+  updateAvailable?: boolean;
   version?: string;
   workspaceId?: string;
 };
 
 const ModuleAppCard = memo<ModuleAppCardProps>(
-  ({ category, description, id, installed, name, version, workspaceId }) => {
+  ({
+    category,
+    description,
+    id,
+    installed,
+    installationReadiness,
+    name,
+    publishedVersion,
+    updateAvailable,
+    version,
+    workspaceId,
+  }) => {
     const { t } = useTranslation('common');
     const titleId = useId();
     const detailUrl = `/apps/${id}${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`;
+    const openUrl = `/apps/${id}/app${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`;
+    const runtimeUnavailable = installationReadiness?.runtime === 'unavailable';
 
     return (
       <article aria-labelledby={titleId} className={styles.card}>
@@ -100,9 +151,33 @@ const ModuleAppCard = memo<ModuleAppCardProps>(
           <h3 className={styles.title} id={titleId}>
             {name}
           </h3>
-          {installed ? <span className={styles.installed}>{t('moduleApps.market.installed')}</span> : null}
+          {installed ? (
+            <div className={styles.statuses}>
+              <span className={styles.installed}>{t('moduleApps.market.installed')}</span>
+              {updateAvailable ? (
+                <span className={styles.updateAvailable}>
+                  {t('moduleApps.market.updateAvailable')}
+                </span>
+              ) : null}
+              {installationReadiness?.configuration === 'required' ? (
+                <span className={cx(styles.installed, styles.readinessWarning)}>
+                  {t('moduleApps.readiness.configurationRequired')}
+                </span>
+              ) : null}
+              {installationReadiness?.configuration === 'invalid' ? (
+                <span className={cx(styles.installed, styles.readinessError)}>
+                  {t('moduleApps.readiness.configurationInvalid')}
+                </span>
+              ) : null}
+              {runtimeUnavailable ? (
+                <span className={cx(styles.installed, styles.readinessError)}>
+                  {t('moduleApps.readiness.runtimeUnavailable')}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </header>
-        {category || version ? (
+        {category || version || (updateAvailable && publishedVersion) ? (
           <div className={styles.metadata}>
             {category ? <span>{category}</span> : null}
             {version ? (
@@ -110,18 +185,52 @@ const ModuleAppCard = memo<ModuleAppCardProps>(
                 {t('moduleApps.market.version')} {version}
               </span>
             ) : null}
+            {updateAvailable && publishedVersion ? (
+              <span>
+                {t('moduleApps.market.latestVersion')} {publishedVersion}
+              </span>
+            ) : null}
           </div>
         ) : null}
         {description ? <p className={styles.description}>{description}</p> : null}
-        <div className={styles.footer}>
-          <Button
-            block
+        <div className={cx(styles.footer, installed && styles.footerInstalled)}>
+          {installed ? (
+            runtimeUnavailable ? (
+              <Button
+                block
+                disabled
+                aria-label={t('moduleApps.market.openFor', { name })}
+                type="primary"
+              >
+                {t('moduleApps.market.open')}
+              </Button>
+            ) : (
+              <A
+                aria-label={t('moduleApps.market.openFor', { name })}
+                href={openUrl}
+                className={cx(
+                  buttonStyles.base,
+                  buttonStyles.sizeMiddle,
+                  buttonStyles.variantPrimary,
+                  buttonStyles.block,
+                )}
+              >
+                {t('moduleApps.market.open')}
+              </A>
+            )
+          ) : null}
+          <A
             aria-label={t('moduleApps.market.viewDetailsFor', { name })}
             href={detailUrl}
-            type="default"
+            className={cx(
+              buttonStyles.base,
+              buttonStyles.sizeMiddle,
+              buttonStyles.variantDefault,
+              buttonStyles.block,
+            )}
           >
             {t('moduleApps.market.viewDetails')}
-          </Button>
+          </A>
         </div>
       </article>
     );

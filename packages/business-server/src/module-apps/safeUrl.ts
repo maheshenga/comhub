@@ -1,5 +1,7 @@
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { isIP, type LookupFunction } from 'node:net';
+
+import { Agent, buildConnector, type Dispatcher } from 'undici';
 
 export type ModuleAppUrlResolver = (
   hostname: string,
@@ -9,13 +11,23 @@ export interface ModuleAppUrlSafetyOptions {
   resolveHostname?: ModuleAppUrlResolver;
 }
 
+export interface ResolvedModuleAppApiUrl {
+  addresses: readonly string[];
+  hostname: string;
+  url: string;
+}
+
+export type ModuleAppDispatcherFactory = (
+  resolved: Pick<ResolvedModuleAppApiUrl, 'addresses' | 'hostname'>,
+) => Dispatcher;
+
 const unsafeUrlError = () => new Error('MODULE_APP_UNSAFE_API_URL');
 
 const privateIpv4Patterns = [
   /^10\./,
   /^127\./,
   /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[0-1])\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
   /^169\.254\./,
 ];
 
@@ -89,10 +101,9 @@ const parseIpv6Address = (address: string) => {
     if (!octets) return null;
 
     const [a, b, c, d] = octets;
-    expandedAddress = `${normalizedAddress.slice(0, ipv4TailMatch.index)}${(
-      (a << 8) |
-      b
-    ).toString(16)}:${((c << 8) | d).toString(16)}`;
+    expandedAddress = `${normalizedAddress.slice(0, ipv4TailMatch.index)}${((a << 8) | b).toString(
+      16,
+    )}:${((c << 8) | d).toString(16)}`;
   }
 
   const parts = expandedAddress.split('::');
@@ -170,10 +181,10 @@ const assertSafeHostname = (hostname: string) => {
   }
 };
 
-export const assertSafeModuleAppApiUrl = async (
+export const resolveSafeModuleAppApiUrl = async (
   value: string,
   options: ModuleAppUrlSafetyOptions = {},
-): Promise<string> => {
+): Promise<ResolvedModuleAppApiUrl> => {
   let parsedUrl: URL;
 
   try {
@@ -209,5 +220,56 @@ export const assertSafeModuleAppApiUrl = async (
     }
   }
 
-  return parsedUrl.toString();
+  return {
+    addresses: [...new Set(resolvedAddresses.map(stripIpv6Brackets))],
+    hostname: hostWithoutBrackets.toLowerCase(),
+    url: parsedUrl.toString(),
+  };
 };
+
+export const assertSafeModuleAppApiUrl = async (
+  value: string,
+  options: ModuleAppUrlSafetyOptions = {},
+): Promise<string> => (await resolveSafeModuleAppApiUrl(value, options)).url;
+
+export const createModuleAppPinnedLookup = (
+  resolved: Pick<ResolvedModuleAppApiUrl, 'addresses' | 'hostname'>,
+): LookupFunction => {
+  const expectedHostname = resolved.hostname.toLowerCase().replace(/\.$/, '');
+  const records = resolved.addresses.map((address) => ({
+    address,
+    family: isIP(address) as 4 | 6,
+  }));
+
+  return (hostname, options, callback) => {
+    const requestedHostname = hostname.toLowerCase().replace(/\.$/, '');
+    const requestedFamily =
+      options.family === 4 || options.family === 'IPv4'
+        ? 4
+        : options.family === 6 || options.family === 'IPv6'
+          ? 6
+          : 0;
+    const candidates = requestedFamily
+      ? records.filter((record) => record.family === requestedFamily)
+      : records;
+
+    if (requestedHostname !== expectedHostname || candidates.length === 0) {
+      const error = new Error('MODULE_APP_UNSAFE_API_URL') as NodeJS.ErrnoException;
+      error.code = 'ENOTFOUND';
+      callback(error, []);
+      return;
+    }
+
+    if (options.all) {
+      callback(null, candidates);
+      return;
+    }
+
+    callback(null, candidates[0].address, candidates[0].family);
+  };
+};
+
+export const createModuleAppPinnedDispatcher: ModuleAppDispatcherFactory = (resolved) =>
+  new Agent({
+    connect: buildConnector({ lookup: createModuleAppPinnedLookup(resolved) }),
+  });

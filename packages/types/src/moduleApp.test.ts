@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getModuleAppDeclaredSecretKeys,
   MODULE_APP_PACKAGE_CLEANUP_BATCH_SIZE,
   MODULE_APP_PACKAGE_MAX_DAILY_UPLOADS,
   MODULE_APP_PACKAGE_MAX_OPEN_UPLOADS,
@@ -11,6 +12,8 @@ import {
   moduleAppAdminUpsertSchema,
   moduleAppBillingConfigSchema,
   moduleAppInputSchema,
+  moduleAppInstallationListInputSchema,
+  moduleAppInstallationReadinessSchema,
   moduleAppMarketplaceListInputSchema,
   moduleAppPackageArchiveMetadataSchema,
   moduleAppPackageManifestSchema,
@@ -24,6 +27,7 @@ import {
   moduleAppPageSchema,
   moduleAppRecordInputSchema,
   moduleAppRuntimeTypeSchema,
+  moduleAppSecretKeySchema,
   moduleAppSourceSchema,
 } from './moduleApp';
 
@@ -111,6 +115,39 @@ describe('module app type contracts', () => {
         runtimeType: 'executable_action',
       }),
     ).toThrow();
+  });
+
+  it('normalizes bounded installation secret declarations', () => {
+    expect(
+      getModuleAppDeclaredSecretKeys([
+        { runtimeConfig: { secretKeys: ['CRM_TOKEN', 'API_KEY', 'CRM_TOKEN'] } },
+        { runtimeConfig: { secretKeys: ['API_KEY', 'SEARCH_TOKEN'] } },
+      ]),
+    ).toEqual(['API_KEY', 'CRM_TOKEN', 'SEARCH_TOKEN']);
+    expect(moduleAppSecretKeySchema.safeParse('crm_token').success).toBe(false);
+    expect(
+      moduleAppActionConfigSchema.safeParse({
+        id: 'sync_crm',
+        name: 'Sync CRM',
+        runtimeConfig: { secretKeys: ['invalid-key'] },
+        runtimeType: 'api_action',
+      }).success,
+    ).toBe(false);
+    expect(() =>
+      getModuleAppDeclaredSecretKeys([{ runtimeConfig: { secretKeys: ['invalid-key'] } }]),
+    ).toThrow('MODULE_APP_SECRET_KEYS_INVALID');
+    expect(() =>
+      getModuleAppDeclaredSecretKeys(
+        Array.from({ length: 5 }, (_, actionIndex) => ({
+          runtimeConfig: {
+            secretKeys: Array.from(
+              { length: 20 },
+              (_, keyIndex) => `SECRET_${actionIndex}_${keyIndex}`,
+            ),
+          },
+        })),
+      ),
+    ).toThrow('MODULE_APP_SECRET_KEYS_INVALID');
   });
 
   it('defaults billing to free CRUD semantics', () => {
@@ -219,6 +256,38 @@ describe('module app type contracts', () => {
         scopeType: 'personal',
       }),
     ).toMatchObject({ collectionKey: 'records', scopeType: 'personal' });
+  });
+
+  it('bounds and normalizes installed app list pagination', () => {
+    expect(moduleAppInstallationListInputSchema.parse({ query: '  record desk  ' })).toEqual({
+      cursor: 0,
+      limit: 20,
+      query: 'record desk',
+    });
+    expect(moduleAppInstallationListInputSchema.parse({ cursor: 20, limit: 10 })).toEqual({
+      cursor: 20,
+      limit: 10,
+    });
+    expect(() => moduleAppInstallationListInputSchema.parse({ cursor: -1 })).toThrow();
+    expect(() => moduleAppInstallationListInputSchema.parse({ limit: 51 })).toThrow();
+    expect(() => moduleAppInstallationListInputSchema.parse({ query: 'x'.repeat(81) })).toThrow();
+  });
+
+  it('validates installation configuration and runtime readiness states', () => {
+    expect(
+      moduleAppInstallationReadinessSchema.parse({
+        configuration: 'required',
+        missingSecretCount: 2,
+        runtime: 'ready',
+      }),
+    ).toEqual({ configuration: 'required', missingSecretCount: 2, runtime: 'ready' });
+    expect(() =>
+      moduleAppInstallationReadinessSchema.parse({
+        configuration: 'ready',
+        missingSecretCount: -1,
+        runtime: 'unavailable',
+      }),
+    ).toThrow();
   });
 
   it('parses package manifests with app metadata, billing, pages, actions, and entitlements', () => {

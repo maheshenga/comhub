@@ -69,13 +69,19 @@ const s3Port = await selectPort('MODULE_APP_TEST_S3_PORT', 59000);
 const artifactRoot = mkdtempSync(path.join(os.tmpdir(), 'module-app-runtime-artifacts-'));
 const artifactVolume = `comhub-module-app-artifacts-${process.pid}-${Date.now()}`;
 const fixtureState = path.join(artifactRoot, '.module-app-worker-fixture.json');
+const runtimeDockerSocket =
+  process.env.MODULE_APP_RUNTIME_ROOTLESS_DOCKER_SOCKET ?? '/var/run/docker.sock';
 const dockerGid =
-  process.env.MODULE_APP_DOCKER_GID ??
-  (process.platform === 'linux' ? String(statSync('/var/run/docker.sock').gid) : '0');
+  process.env.MODULE_APP_RUNTIME_ROOTLESS_DOCKER_GID ??
+  (process.platform === 'linux' ? String(statSync(runtimeDockerSocket).gid) : '0');
 const composeEnv = {
   COMHUB_MODULE_RUNTIME_IMAGE: runtimeImage,
   COMHUB_MODULE_WORKER_IMAGE: workerImage,
-  MODULE_APP_DOCKER_GID: dockerGid,
+  MODULE_APP_EXECUTION_ENABLED: 'false',
+  MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT: '/runtime/artifacts',
+  MODULE_APP_RUNTIME_ROOTLESS_DOCKER_GID: dockerGid,
+  MODULE_APP_RUNTIME_ROOTLESS_DOCKER_SOCKET: runtimeDockerSocket,
+  MODULE_APP_RUNTIME_INVOCATION_ENABLED: 'false',
   MODULE_APP_TEST_ARTIFACT_VOLUME: artifactVolume,
   MODULE_APP_TEST_POSTGRES_PORT: String(postgresPort),
   MODULE_APP_TEST_REDIS_PORT: String(redisPort),
@@ -388,6 +394,22 @@ const assertRuntimeContainer = () => {
   assert.equal(inspect.Config.Image, runtimeImage);
   const artifactMount = inspect.Mounts.find((mount) => mount.Destination === '/runtime/artifacts');
   assert.equal(artifactMount?.RW, false);
+  const dockerArtifactRoot = environmentMap(inspect).get('MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT');
+  assert.equal(dockerArtifactRoot, artifactMount?.Source);
+  assert.equal(path.posix.isAbsolute(dockerArtifactRoot ?? ''), true);
+  assert.equal(path.posix.resolve(dockerArtifactRoot ?? ''), dockerArtifactRoot);
+  const dockerMount = inspect.Mounts.find(
+    (mount) => mount.Destination === '/run/module-app-docker/docker.sock',
+  );
+  assert.equal(dockerMount?.RW, false);
+  assert.equal(
+    inspect.Mounts.some((mount) => mount.Destination === '/var/run/docker.sock'),
+    false,
+  );
+  assert.equal(
+    environmentMap(inspect).get('DOCKER_HOST'),
+    'unix:///run/module-app-docker/docker.sock',
+  );
   assertActionExecutionFlagsDisabled('module-runtime', inspect);
 };
 
@@ -401,6 +423,7 @@ const runWorkerIntegrationPhase = (phase) =>
       MODULE_APP_WORKER_FIXTURE_STATE: fixtureState,
       MODULE_APP_WORKER_INTEGRATION_PHASE: phase,
       MODULE_APP_WORKER_INTEGRATION_REQUIRED: 'true',
+      ...composeEnv,
       ...s3Environment,
     },
   });
@@ -460,6 +483,16 @@ try {
   ]);
   compose(['run', '--rm', '--no-deps', 'module-app-s3-init']);
   compose(['run', '--rm', '--no-deps', 'module-app-artifact-init']);
+  const artifactDockerRoot = capture('docker', [
+    'volume',
+    'inspect',
+    '--format',
+    '{{.Mountpoint}}',
+    artifactVolume,
+  ]);
+  assert.equal(path.posix.isAbsolute(artifactDockerRoot), true);
+  assert.equal(path.posix.resolve(artifactDockerRoot), artifactDockerRoot);
+  composeEnv.MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT = artifactDockerRoot;
   await Promise.all([
     waitForPort(postgresPort),
     waitForPort(s3Port),
@@ -472,6 +505,11 @@ try {
   if (!workerOnly) {
     runVitest(['apps/module-runtime/src/securityProbes.test.ts'], {
       env: {
+        DOCKER_HOST:
+          process.env.DOCKER_HOST ??
+          (process.platform === 'win32'
+            ? 'npipe:////./pipe/docker_engine'
+            : 'unix:///var/run/docker.sock'),
         MODULE_APP_PRODUCTION_GATES_REQUIRED: 'true',
         MODULE_APP_REAL_CONTAINER_TESTS: 'true',
       },
@@ -507,6 +545,8 @@ try {
         'test "$(id -u)" = "10001"',
         'test -r /runtime/artifacts/.verification-marker',
         '! touch /runtime/artifacts/.write-probe',
+        'test ! -e /var/run/docker.sock',
+        'test -S /run/module-app-docker/docker.sock',
         'docker version >/dev/null',
         `node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>{let body='';response.on('data',chunk=>body+=chunk);response.on('end',()=>process.exit(response.statusCode===503&&body.includes('MODULE_APP_RUNTIME_INVOCATION_DISABLED')?0:1))});request.end('{}')"`,
       ].join(' && '),

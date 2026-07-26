@@ -9,6 +9,7 @@ import {
 const MAX_LOG_BYTES = 64 * 1024;
 const CONTAINER_CREATE_TIMEOUT_MS = 15_000;
 const CLEANUP_TIMEOUT_MS = 3000;
+const HEALTH_CHECK_TIMEOUT_MS = 2500;
 const CLEANUP_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 800] as const;
 
 export type ModuleAppContainerRunInput = {
@@ -44,6 +45,7 @@ type DockerRunner = {
     containerName: string,
     timeoutMs: number,
   ) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
+  info?: (timeoutMs: number) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
   list?: (timeoutMs: number) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
   remove: (
     containerName: string,
@@ -66,16 +68,35 @@ type ModuleAppContainerMetrics = {
 };
 
 const boundedAppend = (current: string, chunk: string) =>
-  current.length >= MAX_LOG_BYTES
-    ? current
-    : `${current}${chunk}`.slice(0, MAX_LOG_BYTES);
+  current.length >= MAX_LOG_BYTES ? current : `${current}${chunk}`.slice(0, MAX_LOG_BYTES);
+
+export const validateModuleAppDockerHost = (
+  value?: string,
+  options: { allowTestHost?: boolean } = {},
+) => {
+  if (!value || (!options.allowTestHost && value !== 'unix:///run/module-app-docker/docker.sock')) {
+    throw new Error('MODULE_APP_RUNTIME_DOCKER_HOST_INVALID');
+  }
+
+  return value;
+};
+
+export const isModuleAppContainerImageDigest = (value?: string) =>
+  Boolean(value && /^(?:sha256:|.+@sha256:)[a-f0-9]{64}$/.test(value));
 
 const runDocker = (
   args: string[],
   options: { input?: string; timeoutMs: number },
 ): Promise<{ exitCode: number; stderr: string; stdout: string }> =>
   new Promise((resolve, reject) => {
-    const child = spawn('docker', args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    const dockerHost = validateModuleAppDockerHost(process.env.DOCKER_HOST, {
+      allowTestHost:
+        process.env.NODE_ENV === 'test' && process.env.MODULE_APP_REAL_CONTAINER_TESTS === 'true',
+    });
+    const child = spawn('docker', args, {
+      env: { ...process.env, DOCKER_HOST: dockerHost },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
     let stderr = '';
     let stdout = '';
     let settled = false;
@@ -110,6 +131,7 @@ const runDocker = (
 const defaultRunner: DockerRunner = {
   create: ({ args, timeoutMs }) => runDocker(args, { timeoutMs }),
   inspect: (containerName, timeoutMs) => runDocker(['inspect', containerName], { timeoutMs }),
+  info: (timeoutMs) => runDocker(['info', '--format', '{{json .SecurityOptions}}'], { timeoutMs }),
   list: (timeoutMs) =>
     runDocker(
       [
@@ -122,8 +144,7 @@ const defaultRunner: DockerRunner = {
       ],
       { timeoutMs },
     ),
-  remove: (containerName, timeoutMs) =>
-    runDocker(['rm', '--force', containerName], { timeoutMs }),
+  remove: (containerName, timeoutMs) => runDocker(['rm', '--force', containerName], { timeoutMs }),
   start: ({ args, input, timeoutMs }) => runDocker(args, { input, timeoutMs }),
 };
 
@@ -139,20 +160,14 @@ const classifyDockerRemoval = (result: {
   return 'removed';
 };
 
-const dockerInspectShowsContainer = (result: {
-  exitCode: number;
-  stderr: string;
-}): boolean => {
+const dockerInspectShowsContainer = (result: { exitCode: number; stderr: string }): boolean => {
   if (/no such (?:object|container)/i.test(result.stderr)) return false;
   if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_CLEANUP_FAILED');
   return true;
 };
 
-export const buildDockerCreateArgs = (
-  input: ModuleAppContainerRunInput,
-  expiresAtMs: number,
-) => {
-  if (!/^(?:sha256:|.+@sha256:)[a-f0-9]{64}$/.test(input.imageDigest)) {
+export const buildDockerCreateArgs = (input: ModuleAppContainerRunInput, expiresAtMs: number) => {
+  if (!isModuleAppContainerImageDigest(input.imageDigest)) {
     throw new Error('MODULE_APP_RUNTIME_IMAGE_INVALID');
   }
 
@@ -219,6 +234,38 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
     this.runner = options.runner ?? defaultRunner;
   }
 
+  healthCheck = async () => {
+    if (!this.runner.info) throw new Error('MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE');
+
+    try {
+      const result = await this.runner.info(HEALTH_CHECK_TIMEOUT_MS);
+      if (result.exitCode !== 0) throw new Error('MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE');
+
+      const securityOptions = JSON.parse(result.stdout) as unknown;
+      if (!Array.isArray(securityOptions)) {
+        throw new Error('MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE');
+      }
+      if (
+        !securityOptions.some(
+          (option) => typeof option === 'string' && option.split(',').includes('name=rootless'),
+        )
+      ) {
+        throw new Error('MODULE_APP_RUNTIME_DOCKER_ROOTLESS_REQUIRED');
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        [
+          'MODULE_APP_RUNTIME_DOCKER_HOST_INVALID',
+          'MODULE_APP_RUNTIME_DOCKER_ROOTLESS_REQUIRED',
+        ].includes(error.message)
+      ) {
+        throw error;
+      }
+      throw new Error('MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE', { cause: error });
+    }
+  };
+
   private cleanupContainer = async (containerName: string, retryAbsent: boolean) => {
     const deadline = Date.now() + CLEANUP_TIMEOUT_MS;
     const retryDelays = retryAbsent ? [0, ...CLEANUP_RETRY_DELAYS_MS] : [0];
@@ -235,9 +282,7 @@ export class DockerCliModuleAppContainerEngine implements ModuleAppContainerEngi
       const remainingMs = deadline - Date.now();
       if (remainingMs <= 0) break;
       try {
-        const outcome = classifyDockerRemoval(
-          await this.runner.remove(containerName, remainingMs),
-        );
+        const outcome = classifyDockerRemoval(await this.runner.remove(containerName, remainingMs));
         removed ||= outcome === 'removed';
 
         const remainingAfterRemoveMs = deadline - Date.now();

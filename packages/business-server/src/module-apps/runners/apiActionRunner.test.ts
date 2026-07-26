@@ -165,6 +165,61 @@ describe('runModuleAppApiAction', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it('requires HTTPS whenever resolved installation secrets are present', async () => {
+    const fetchImpl = vi.fn();
+
+    await expect(
+      runModuleAppApiAction({
+        action: {
+          ...action,
+          runtimeConfig: { ...action.runtimeConfig, url: 'http://api.example.com/search' },
+        },
+        fetchImpl,
+        input: {},
+        resolvedSecrets: { apiKey: 'secret-token' },
+        resolveHostname: () => ['93.184.216.34'],
+      }),
+    ).rejects.toThrow('MODULE_APP_API_SECRET_REQUIRES_HTTPS');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('binds dispatch to the vetted DNS result without resolving the hostname again', async () => {
+    const close = vi.fn().mockResolvedValue(undefined);
+    const dispatcher = { close } as never;
+    const createDispatcher = vi.fn(() => dispatcher);
+    const resolveHostname = vi
+      .fn()
+      .mockResolvedValueOnce(['93.184.216.34'])
+      .mockResolvedValueOnce(['127.0.0.1']);
+    const fetchImpl = vi.fn().mockResolvedValue({
+      headers: { get: () => 'application/json' },
+      ok: true,
+      status: 200,
+      text: async () => '{}',
+    });
+
+    await runModuleAppApiAction({
+      action,
+      createDispatcher,
+      fetchImpl,
+      input: {},
+      outboundHosts: ['api.example.com'],
+      resolveHostname,
+    });
+
+    expect(resolveHostname).toHaveBeenCalledTimes(1);
+    expect(createDispatcher).toHaveBeenCalledWith({
+      addresses: ['93.184.216.34'],
+      hostname: 'api.example.com',
+      url: 'https://api.example.com/search',
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.example.com/search',
+      expect.objectContaining({ dispatcher }),
+    );
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it('stops reading responses larger than one MiB', async () => {
     const response = new Response('x'.repeat(1024 * 1024 + 1), {
       headers: { 'content-type': 'text/plain' },

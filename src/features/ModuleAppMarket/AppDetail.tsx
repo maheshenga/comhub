@@ -1,5 +1,8 @@
-import { Button } from '@lobehub/ui/base-ui';
-import { createStaticStyles } from 'antd-style';
+import type { ModuleAppInstallationReadiness } from '@lobechat/types';
+import { A } from '@lobehub/ui';
+import { Button, buttonStyles, confirmModal, DropdownMenu, toast } from '@lobehub/ui/base-ui';
+import { createStaticStyles, cx } from 'antd-style';
+import { RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router';
@@ -9,16 +12,25 @@ import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
 import { MobileStateView } from '@/features/MobileWorkspace/components';
 import { moduleAppService } from '@/services/moduleApp';
 
+import InstallationSecrets from './InstallationSecrets';
 import PurchaseModal, { type ModuleAppCatalogItem } from './PurchaseModal';
 
 type ModuleAppDetailData = {
   actions: unknown[];
+  canManageInstallation?: boolean;
+  canManageInstallationSecrets?: boolean;
   category: string;
   description?: string;
   displayName: string;
   id: string;
+  installationId?: string;
   installed?: boolean;
+  installedVersion?: { id: string; version: string };
+  installationReadiness?: ModuleAppInstallationReadiness;
+  publishedVersion?: null | { id: string; version: string };
+  rollbackVersions?: Array<{ id: string; version: string }>;
   source?: string;
+  updateAvailable?: boolean;
   version?: string;
 };
 
@@ -67,6 +79,19 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     line-height: 22px;
     color: ${cssVar.colorTextSecondary};
     overflow-wrap: anywhere;
+  `,
+  error: css`
+    margin: 0;
+    padding-block: 8px;
+    padding-inline: 12px;
+    border: 1px solid ${cssVar.colorErrorBorder};
+    border-radius: ${cssVar.borderRadiusSM};
+
+    font-size: 13px;
+    line-height: 20px;
+    color: ${cssVar.colorError};
+
+    background: ${cssVar.colorErrorBg};
   `,
   frame: css`
     display: flex;
@@ -141,6 +166,19 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
       overflow-wrap: anywhere;
     }
   `,
+  notice: css`
+    margin: 0;
+    padding-block: 8px;
+    padding-inline: 12px;
+    border: 1px solid ${cssVar.colorWarningBorder};
+    border-radius: ${cssVar.borderRadiusSM};
+
+    font-size: 13px;
+    line-height: 20px;
+    color: ${cssVar.colorWarning};
+
+    background: ${cssVar.colorWarningBg};
+  `,
   source: css`
     display: inline-flex;
 
@@ -206,6 +244,8 @@ const ModuleAppDetail = memo(() => {
   const { t } = useTranslation('common');
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [installationLoading, setInstallationLoading] = useState(false);
+  const [uninstallError, setUninstallError] = useState(false);
+  const [versionChangeError, setVersionChangeError] = useState(false);
   const detail = useSWR<ModuleAppDetailData>(
     appId ? ['moduleApp.getDetail', appId, workspaceId] : null,
     () =>
@@ -317,16 +357,51 @@ const ModuleAppDetail = memo(() => {
       setInstallationLoading(false);
     }
   };
-  const uninstall = async () => {
+  const performUninstall = async () => {
     setInstallationLoading(true);
+    setUninstallError(false);
     try {
       if (workspaceId) {
         await moduleAppService.uninstallWorkspace({ appId: detailData.id, workspaceId });
       } else {
         await moduleAppService.uninstallPersonal({ appId: detailData.id });
       }
+      toast.success(t('moduleApps.market.uninstallSuccess'));
+      await Promise.allSettled([detail.mutate(), refreshLicense()]);
+    } catch {
+      setUninstallError(true);
+    } finally {
+      setInstallationLoading(false);
+    }
+  };
+  const uninstall = () => {
+    setUninstallError(false);
+    setVersionChangeError(false);
+    confirmModal({
+      content: t('moduleApps.market.uninstallConfirmContent'),
+      okButtonProps: { danger: true },
+      okText: t('moduleApps.market.uninstall'),
+      onOk: performUninstall,
+      title: t('moduleApps.market.uninstallConfirmTitle', { name: detailData.displayName }),
+    });
+  };
+  const changeVersion = async (operation: 'rollback' | 'upgrade', targetVersionId?: string) => {
+    if (!detailData.installedVersion) return;
+
+    setInstallationLoading(true);
+    setUninstallError(false);
+    setVersionChangeError(false);
+    try {
+      await moduleAppService.changeInstallationVersion({
+        appId: detailData.id,
+        expectedVersionId: detailData.installedVersion.id,
+        operation,
+        targetVersionId,
+        workspaceId,
+      });
       await detail.mutate();
-      await refreshLicense();
+    } catch {
+      setVersionChangeError(true);
     } finally {
       setInstallationLoading(false);
     }
@@ -335,6 +410,10 @@ const ModuleAppDetail = memo(() => {
     await moduleAppService.cancelOrder({ orderId });
     await orders.mutate();
   };
+  const canManageInstallation = detailData.canManageInstallation !== false;
+  const rollbackVersions = detailData.rollbackVersions ?? [];
+  const runtimeUnavailable = detailData.installationReadiness?.runtime === 'unavailable';
+  const configurationState = detailData.installationReadiness?.configuration;
 
   return (
     <main className={styles.frame} data-testid="module-app-detail">
@@ -348,18 +427,60 @@ const ModuleAppDetail = memo(() => {
         <div className={styles.actions} data-testid="module-app-detail-actions">
           {detailData.installed ? (
             <>
-              <Button
-                data-button-type="primary"
-                href={`/apps/${detailData.id}/app${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`}
-                type="primary"
-              >
-                {t('moduleApps.market.open')}
-              </Button>
-              <Button danger loading={installationLoading} onClick={uninstall}>
-                {t('moduleApps.market.uninstall')}
-              </Button>
+              {runtimeUnavailable ? (
+                <Button disabled data-button-type="primary" type="primary">
+                  {t('moduleApps.market.open')}
+                </Button>
+              ) : (
+                <A
+                  data-button-type="primary"
+                  href={`/apps/${detailData.id}/app${workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''}`}
+                  className={cx(
+                    buttonStyles.base,
+                    buttonStyles.sizeMiddle,
+                    buttonStyles.variantPrimary,
+                  )}
+                >
+                  {t('moduleApps.market.open')}
+                </A>
+              )}
+              {canManageInstallation && detailData.updateAvailable ? (
+                <Button
+                  icon={<RefreshCw aria-hidden size={16} />}
+                  loading={installationLoading}
+                  onClick={() => void changeVersion('upgrade')}
+                >
+                  {t('moduleApps.market.update')}
+                </Button>
+              ) : null}
+              {canManageInstallation && rollbackVersions.length > 0 ? (
+                <DropdownMenu
+                  nativeButton={false}
+                  placement="bottomRight"
+                  items={rollbackVersions.map((version) => ({
+                    icon: <RotateCcw aria-hidden size={16} />,
+                    key: version.id,
+                    label: t('moduleApps.market.rollbackTo', { version: version.version }),
+                    onClick: () => void changeVersion('rollback', version.id),
+                  }))}
+                >
+                  <Button disabled={installationLoading} icon={<RotateCcw aria-hidden size={16} />}>
+                    {t('moduleApps.market.rollback')}
+                  </Button>
+                </DropdownMenu>
+              ) : null}
+              {canManageInstallation ? (
+                <Button
+                  danger
+                  icon={<Trash2 aria-hidden size={16} />}
+                  loading={installationLoading}
+                  onClick={uninstall}
+                >
+                  {t('moduleApps.market.uninstall')}
+                </Button>
+              ) : null}
             </>
-          ) : licenseData ? (
+          ) : canManageInstallation && licenseData ? (
             <Button
               data-button-type="primary"
               loading={installationLoading}
@@ -368,7 +489,7 @@ const ModuleAppDetail = memo(() => {
             >
               {t('moduleApps.purchase.install')}
             </Button>
-          ) : (
+          ) : canManageInstallation ? (
             <Button
               data-button-type="primary"
               disabled={commerceLoading}
@@ -380,9 +501,35 @@ const ModuleAppDetail = memo(() => {
                 ? t('moduleApps.purchase.pending')
                 : t('moduleApps.purchase.title')}
             </Button>
-          )}
+          ) : null}
         </div>
       </header>
+      {versionChangeError || uninstallError ? (
+        <p className={styles.error} role="alert">
+          {t(
+            uninstallError
+              ? 'moduleApps.market.uninstallError'
+              : 'moduleApps.market.versionChangeError',
+          )}
+        </p>
+      ) : null}
+      {detailData.installed && runtimeUnavailable ? (
+        <p className={styles.error} role="alert">
+          {t('moduleApps.readiness.runtimeUnavailableDescription')}
+        </p>
+      ) : detailData.installed && configurationState === 'invalid' ? (
+        <p className={styles.error} role="alert">
+          {t('moduleApps.readiness.configurationInvalid')}
+        </p>
+      ) : detailData.installed && configurationState === 'required' ? (
+        <p className={styles.notice} role="status">
+          {t(
+            detailData.canManageInstallationSecrets === true
+              ? 'moduleApps.readiness.configurationRequiredManager'
+              : 'moduleApps.readiness.configurationRequiredMember',
+          )}
+        </p>
+      ) : null}
       <dl className={styles.metadata} data-testid="module-app-detail-metadata">
         <div className={styles.metadataItem} data-testid="module-app-detail-metadata-item">
           <dt>{t('moduleApps.market.category')}</dt>
@@ -390,7 +537,7 @@ const ModuleAppDetail = memo(() => {
         </div>
         <div className={styles.metadataItem} data-testid="module-app-detail-metadata-item">
           <dt>{t('moduleApps.market.version')}</dt>
-          <dd>{detailData.version}</dd>
+          <dd>{detailData.installedVersion?.version ?? detailData.version}</dd>
         </div>
         <div className={styles.metadataItem} data-testid="module-app-detail-metadata-item">
           <dt>{t('moduleApps.market.source')}</dt>
@@ -403,6 +550,16 @@ const ModuleAppDetail = memo(() => {
           <dd>{detailData.actions.length}</dd>
         </div>
       </dl>
+      {detailData.installed &&
+      detailData.canManageInstallationSecrets === true &&
+      detailData.installationId ? (
+        <InstallationSecrets
+          installationId={detailData.installationId}
+          key={detailData.installationId}
+          workspaceId={workspaceId}
+          onChange={() => detail.mutate()}
+        />
+      ) : null}
       <PurchaseModal
         catalog={scopedCatalog}
         license={licenseData}

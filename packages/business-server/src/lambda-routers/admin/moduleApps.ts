@@ -29,6 +29,7 @@ import { ADMIN_CAPABILITIES, adminCapabilityProcedure, router } from '@/libs/trp
 import { ModuleAppBuildService } from '@/server/services/moduleAppBuild/service';
 import { ModuleAppPackageLifecycleService } from '@/server/services/moduleAppPackage/lifecycle';
 import { createConfiguredModuleAppAlipayClient } from '@/server/services/moduleAppPayments/alipay/client';
+import { ModuleAppRuntimeClient } from '@/server/services/moduleAppRuntime/client';
 
 import { writeModuleAppAuditLog } from '../../module-apps/audit';
 import { ModuleAppPaymentService } from '../../module-apps/payments/service';
@@ -69,6 +70,14 @@ const requirePayoutBatchForMutation = async (db: LobeChatDatabase, batchId: stri
 const AppIdInputSchema = z.object({ appId: z.string().uuid() });
 const PackageIdInputSchema = z.object({ packageId: z.string().uuid() });
 const AdminCursorSchema = z.union([z.number().int().min(0), z.string().min(1).max(512)]).default(0);
+const normalizeAdminSearchQuery = (value: string) => {
+  const normalized = value.trim().replaceAll(/\s+/g, ' ');
+  if (normalized.length <= 80) return normalized;
+
+  const truncated = normalized.slice(0, 80);
+  const lastWordBoundary = truncated.lastIndexOf(' ');
+  return lastWordBoundary > 0 ? truncated.slice(0, lastWordBoundary) : truncated;
+};
 const ListInputSchema = z
   .object({
     appId: z.string().uuid().optional(),
@@ -76,10 +85,7 @@ const ListInputSchema = z
     cursor: AdminCursorSchema,
     limit: z.number().int().min(1).max(200).default(50),
     publisherId: z.string().uuid().optional(),
-    query: z
-      .string()
-      .transform((value) => value.trim().slice(0, 80))
-      .optional(),
+    query: z.string().transform(normalizeAdminSearchQuery).optional(),
     sort: z.enum(['catalog', 'name_asc', 'updated_desc']).optional(),
     status: moduleAppStatusSchema.optional(),
   })
@@ -212,14 +218,14 @@ const ListPaymentDiagnosticsInputSchema = z
   .optional()
   .default({ cursor: 0, limit: 50 });
 
-const PagesInputSchema = z.object({
-  appId: z.string().uuid(),
-  pages: moduleAppAdminUpsertSchema.shape.pages,
-});
-
 const ActionsInputSchema = z.object({
   actions: moduleAppAdminUpsertSchema.shape.actions,
   appId: z.string().uuid(),
+});
+
+const ConfigurationInputSchema = ActionsInputSchema.extend({
+  expectedVersionId: z.string().uuid(),
+  pages: moduleAppAdminUpsertSchema.shape.pages,
 });
 
 const BillingInputSchema = z.object({
@@ -484,6 +490,23 @@ export const adminModuleAppsRouter = router({
 
   get: moduleAppReadProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
     return requireAdminApp(ctx.serverDB, input.appId);
+  }),
+
+  getRuntimeDiagnostics: moduleAppReadProcedure.query(async () => {
+    const runtimeClient = new ModuleAppRuntimeClient();
+
+    return {
+      configuration: {
+        ...runtimeClient.getConfigurationStatus(),
+        publicOriginConfigured: Boolean(appEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN),
+      },
+      probe: await runtimeClient.healthCheck(),
+      switches: {
+        executionEnabled: Boolean(appEnv.MODULE_APP_EXECUTION_ENABLED),
+        invocationEnabled: appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED,
+        publicExecutionEnabled: appEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED,
+      },
+    };
   }),
 
   list: moduleAppReadProcedure.input(ListInputSchema).query(async ({ ctx, input }) => {
@@ -887,21 +910,6 @@ export const adminModuleAppsRouter = router({
       return result;
     }),
 
-  upsertActions: moduleAppWriteProcedure
-    .input(ActionsInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      await requireAdminApp(ctx.serverDB, input.appId);
-
-      const result = await new ModuleAppModel(ctx.serverDB).upsertActionsForAdmin(input);
-      await writeAudit(ctx, {
-        eventType: 'module_app.actions_upserted',
-        metadata: { count: input.actions.length },
-        resourceId: input.appId,
-      });
-
-      return result;
-    }),
-
   upsertBilling: financeWriteProcedure
     .input(BillingInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -933,18 +941,28 @@ export const adminModuleAppsRouter = router({
       });
     }),
 
-  upsertPages: moduleAppWriteProcedure.input(PagesInputSchema).mutation(async ({ ctx, input }) => {
-    await requireAdminApp(ctx.serverDB, input.appId);
+  upsertConfiguration: moduleAppWriteProcedure
+    .input(ConfigurationInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await requireAdminApp(ctx.serverDB, input.appId);
 
-    const result = await new ModuleAppModel(ctx.serverDB).upsertPagesForAdmin(input);
-    await writeAudit(ctx, {
-      eventType: 'module_app.pages_upserted',
-      metadata: { count: input.pages.length },
-      resourceId: input.appId,
-    });
-
-    return result;
-  }),
+      try {
+        return await runRequiredModuleAppAuditMutation(ctx, {
+          audit: () => ({
+            eventType: 'module_app.configuration_upserted',
+            metadata: { actions: input.actions.length, pages: input.pages.length },
+            resourceId: input.appId,
+          }),
+          mutation: (tx) =>
+            new ModuleAppModel(tx as LobeChatDatabase).upsertConfigurationForAdmin(input, tx),
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === 'MODULE_APP_CONFIGURATION_CONFLICT') {
+          throw new TRPCError({ cause: error, code: 'CONFLICT', message: error.message });
+        }
+        throw error;
+      }
+    }),
 
   verifyPublisher: moduleAppWriteProcedure
     .input(VerifyPublisherInputSchema)

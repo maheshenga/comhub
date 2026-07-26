@@ -1,5 +1,12 @@
-import type { ModuleAppActionConfig, ModuleAppScopeType } from '@lobechat/types';
-import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import {
+  getModuleAppDeclaredSecretKeys,
+  type ModuleAppActionConfig,
+  type ModuleAppInstallationReadiness,
+  type ModuleAppPage,
+  type ModuleAppScopeType,
+} from '@lobechat/types';
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 import {
   moduleAppActions,
@@ -7,16 +14,113 @@ import {
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppInstallationSecrets,
+  moduleAppInstallationVersionRefs,
+  moduleAppPages,
   moduleApps,
   moduleAppVersions,
 } from '../schemas';
+import type { LobeChatDatabase } from '../type';
 import { ModuleAppCatalogModel } from './moduleAppCatalog';
 
 const INSTALL_STATUS_ACTIVE = 'installed';
 const INSTALL_STATUS_INACTIVE = 'uninstalled';
+const installedModuleAppVersions = alias(moduleAppVersions, 'installed_module_app_versions');
+const publishedModuleAppVersions = alias(moduleAppVersions, 'published_module_app_versions');
 
 type ModuleAppActionRow = typeof moduleAppActions.$inferSelect;
 type ModuleAppEntitlementRow = typeof moduleAppEntitlements.$inferSelect;
+type ModuleAppPageRow = typeof moduleAppPages.$inferSelect;
+type ModuleAppRow = typeof moduleApps.$inferSelect;
+type TransactionDatabase = Parameters<Parameters<LobeChatDatabase['transaction']>[0]>[0];
+
+type InstalledModuleAppListRow = {
+  app: ModuleAppRow;
+  installationId: string;
+  installedBuildArtifactKey: null | string;
+  installedBuildArtifactSha256: null | string;
+  installedBuildStatus: null | string;
+  installedRuntimeArtifactKey: null | string;
+  installedRuntimeArtifactSha256: null | string;
+  installedRuntimeManifest: null | Record<string, unknown>;
+  installedVersionId: null | string;
+  installedVersionNumber: null | string;
+  publishedVersionId: null | string;
+  publishedVersionNumber: null | string;
+};
+
+type InstallationReadinessSource = Pick<
+  InstalledModuleAppListRow,
+  | 'installationId'
+  | 'installedBuildArtifactKey'
+  | 'installedBuildArtifactSha256'
+  | 'installedBuildStatus'
+  | 'installedRuntimeArtifactKey'
+  | 'installedRuntimeArtifactSha256'
+  | 'installedRuntimeManifest'
+  | 'installedVersionId'
+>;
+
+type InstallationScope = {
+  appId: string;
+  scopeType: ModuleAppScopeType;
+  userId: string;
+  workspaceId?: string;
+};
+
+const getInstallationScopeCondition = (params: InstallationScope) =>
+  params.scopeType === 'personal'
+    ? and(
+        eq(moduleAppInstallations.appId, params.appId),
+        eq(moduleAppInstallations.scopeType, 'personal'),
+        eq(moduleAppInstallations.userId, params.userId),
+      )
+    : and(
+        eq(moduleAppInstallations.appId, params.appId),
+        eq(moduleAppInstallations.scopeType, 'workspace'),
+        eq(moduleAppInstallations.workspaceId, params.workspaceId ?? ''),
+      );
+
+const getInstallationListScopeCondition = (params: {
+  scopeType: ModuleAppScopeType;
+  userId: string;
+  workspaceId?: string;
+}) =>
+  params.scopeType === 'personal'
+    ? and(
+        eq(moduleAppInstallations.scopeType, 'personal'),
+        eq(moduleAppInstallations.userId, params.userId),
+        eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+        isNull(moduleAppInstallations.uninstalledAt),
+      )
+    : and(
+        eq(moduleAppInstallations.scopeType, 'workspace'),
+        eq(moduleAppInstallations.workspaceId, params.workspaceId ?? ''),
+        eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+        isNull(moduleAppInstallations.uninstalledAt),
+      );
+
+const escapeLikePattern = (value: string) =>
+  value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
+
+const getRuntimeReadiness = (
+  row: InstallationReadinessSource,
+): ModuleAppInstallationReadiness['runtime'] => {
+  if (row.installedRuntimeManifest?.manifestVersion !== 2) return 'ready';
+
+  const artifactMatches =
+    Boolean(row.installedBuildArtifactKey) &&
+    Boolean(row.installedBuildArtifactSha256) &&
+    row.installedBuildArtifactKey === row.installedRuntimeArtifactKey &&
+    row.installedBuildArtifactSha256 === row.installedRuntimeArtifactSha256;
+
+  return row.installedBuildStatus === 'ready' && artifactMatches ? 'ready' : 'unavailable';
+};
+
+const INVALID_INSTALLATION_READINESS: ModuleAppInstallationReadiness = {
+  configuration: 'invalid',
+  missingSecretCount: 0,
+  runtime: 'unavailable',
+};
 
 const toActionConfig = (action: ModuleAppActionRow): ModuleAppActionConfig => ({
   id: action.actionKey,
@@ -28,7 +132,133 @@ const toActionConfig = (action: ModuleAppActionRow): ModuleAppActionConfig => ({
   runtimeType: action.runtimeType,
 });
 
+const toPageConfig = (page: ModuleAppPageRow): ModuleAppPage => ({
+  actionBindings: page.actionBindings,
+  dataSource: page.dataSource,
+  key: page.pageKey,
+  layoutSchema: page.layoutSchema,
+  routePath: page.routePath,
+  sortOrder: page.sortOrder,
+  title: page.title,
+  type: page.pageType as ModuleAppPage['type'],
+});
+
 export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
+  private resolveInstallationReadiness = async (rows: InstallationReadinessSource[]) => {
+    if (rows.length === 0) return new Map<string, ModuleAppInstallationReadiness>();
+
+    const installationIds = rows.map(({ installationId }) => installationId);
+    const versionIds = rows
+      .map(({ installedVersionId }) => installedVersionId)
+      .filter((versionId): versionId is string => Boolean(versionId));
+    const [actions, secrets] = await Promise.all([
+      versionIds.length > 0
+        ? this.db.query.moduleAppActions.findMany({
+            columns: { runtimeConfig: true, versionId: true },
+            where: inArray(moduleAppActions.versionId, versionIds),
+          })
+        : Promise.resolve([]),
+      this.db.query.moduleAppInstallationSecrets.findMany({
+        columns: { installationId: true, secretKey: true },
+        where: inArray(moduleAppInstallationSecrets.installationId, installationIds),
+      }),
+    ]);
+    const actionsByVersion = new Map<string, Array<Pick<ModuleAppActionConfig, 'runtimeConfig'>>>();
+    const configuredKeysByInstallation = new Map<string, Set<string>>();
+
+    for (const action of actions) {
+      const versionActions = actionsByVersion.get(action.versionId) ?? [];
+      versionActions.push({ runtimeConfig: action.runtimeConfig });
+      actionsByVersion.set(action.versionId, versionActions);
+    }
+    for (const secret of secrets) {
+      const configuredKeys = configuredKeysByInstallation.get(secret.installationId) ?? new Set();
+      configuredKeys.add(secret.secretKey);
+      configuredKeysByInstallation.set(secret.installationId, configuredKeys);
+    }
+
+    return new Map(
+      rows.map((row) => {
+        let configuration: ModuleAppInstallationReadiness['configuration'];
+        let missingSecretCount: number;
+
+        try {
+          const requiredKeys = row.installedVersionId
+            ? getModuleAppDeclaredSecretKeys(actionsByVersion.get(row.installedVersionId) ?? [])
+            : [];
+          const configuredKeys = configuredKeysByInstallation.get(row.installationId) ?? new Set();
+          missingSecretCount = requiredKeys.filter((key) => !configuredKeys.has(key)).length;
+          configuration = missingSecretCount > 0 ? 'required' : 'ready';
+        } catch {
+          configuration = 'invalid';
+          missingSecretCount = 0;
+        }
+
+        return [
+          row.installationId,
+          {
+            configuration,
+            missingSecretCount,
+            runtime: getRuntimeReadiness(row),
+          } satisfies ModuleAppInstallationReadiness,
+        ] as const;
+      }),
+    );
+  };
+
+  private serializeInstalledApps = async (rows: InstalledModuleAppListRow[]) => {
+    if (rows.length === 0) return [];
+
+    const appIds = rows.map((row) => row.app.id);
+    const [entitlements, readinessByInstallation] = await Promise.all([
+      this.db.query.moduleAppEntitlements.findMany({
+        where: inArray(moduleAppEntitlements.appId, appIds),
+      }),
+      this.resolveInstallationReadiness(rows),
+    ]);
+    const entitlementsByAppId = new Map<string, ModuleAppEntitlementRow[]>();
+
+    for (const entitlement of entitlements) {
+      const items = entitlementsByAppId.get(entitlement.appId) ?? [];
+      items.push(entitlement);
+      entitlementsByAppId.set(entitlement.appId, items);
+    }
+
+    return rows.map(
+      ({
+        app,
+        installationId,
+        installedVersionId,
+        installedVersionNumber,
+        publishedVersionId,
+        publishedVersionNumber,
+      }) => {
+        const installedVersion =
+          installedVersionId && installedVersionNumber
+            ? { id: installedVersionId, version: installedVersionNumber }
+            : null;
+        const publishedVersion =
+          publishedVersionId && publishedVersionNumber
+            ? { id: publishedVersionId, version: publishedVersionNumber }
+            : null;
+
+        return {
+          ...this.toListItem(app, null, true),
+          description: app.description,
+          installationReadiness:
+            readinessByInstallation.get(installationId) ?? INVALID_INSTALLATION_READINESS,
+          installedVersion,
+          planState: this.aggregatePlanState(entitlementsByAppId.get(app.id) ?? []),
+          publishedVersion,
+          updateAvailable: Boolean(
+            installedVersion && publishedVersion && installedVersion.id !== publishedVersion.id,
+          ),
+          version: installedVersion?.version ?? null,
+        };
+      },
+    );
+  };
+
   protected requireActiveInstallation = async (params: {
     appId: string;
     scopeType: ModuleAppScopeType;
@@ -38,17 +268,13 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     const installation = await this.db.query.moduleAppInstallations.findFirst({
       columns: { id: true, versionId: true },
       where: and(
-        eq(moduleAppInstallations.appId, params.appId),
-        eq(moduleAppInstallations.scopeType, params.scopeType),
+        getInstallationScopeCondition(params),
         eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
         isNull(moduleAppInstallations.uninstalledAt),
-        params.scopeType === 'personal'
-          ? eq(moduleAppInstallations.userId, params.userId)
-          : eq(moduleAppInstallations.workspaceId, params.workspaceId ?? ''),
       ),
     });
-    if (!installation) throw new Error('MODULE_APP_INSTALLATION_REQUIRED');
-    return installation;
+    if (!installation?.versionId) throw new Error('MODULE_APP_INSTALLATION_REQUIRED');
+    return { id: installation.id, versionId: installation.versionId };
   };
 
   protected assertInstallationActive = async (installationId?: null | string) => {
@@ -82,117 +308,357 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     appId: string;
     scopeType: ModuleAppScopeType;
     userId: string;
-    versionId: string;
+    versionId?: string;
     workspaceId?: string;
   }) => {
-    const version = await this.db.query.moduleAppVersions.findFirst({
-      where: and(
-        eq(moduleAppVersions.id, params.versionId),
-        eq(moduleAppVersions.appId, params.appId),
-      ),
-    });
-
-    if (!version) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
-
-    const now = new Date();
-    const existing = await this.db.query.moduleAppInstallations.findFirst({
-      where:
-        params.scopeType === 'personal'
-          ? and(
-              eq(moduleAppInstallations.appId, params.appId),
-              eq(moduleAppInstallations.scopeType, 'personal'),
-              eq(moduleAppInstallations.userId, params.userId),
-            )
-          : and(
-              eq(moduleAppInstallations.appId, params.appId),
-              eq(moduleAppInstallations.scopeType, 'workspace'),
-              eq(moduleAppInstallations.workspaceId, params.workspaceId ?? ''),
-            ),
-    });
-
-    if (existing) {
-      await this.db
-        .update(moduleAppInstallations)
-        .set({
-          installedAt: now,
-          status: INSTALL_STATUS_ACTIVE,
-          uninstalledAt: null,
-          updatedAt: now,
-          versionId: params.versionId,
+    return this.db.transaction(async (tx) => {
+      const [app] = await tx
+        .select({
+          currentPublishedVersionId: moduleApps.currentPublishedVersionId,
+          id: moduleApps.id,
+          status: moduleApps.status,
         })
-        .where(eq(moduleAppInstallations.id, existing.id));
-      return;
-    }
+        .from(moduleApps)
+        .where(eq(moduleApps.id, params.appId))
+        .for('update');
+      if (!app) throw new Error('MODULE_APP_NOT_FOUND');
+      if (app.status !== 'published' || !app.currentPublishedVersionId) {
+        throw new Error('MODULE_APP_NOT_INSTALLABLE');
+      }
 
-    await this.db.insert(moduleAppInstallations).values({
-      appId: params.appId,
-      installedAt: now,
-      scopeType: params.scopeType,
-      status: INSTALL_STATUS_ACTIVE,
-      uninstalledAt: null,
-      userId: params.scopeType === 'personal' ? params.userId : params.userId,
-      versionId: params.versionId,
-      workspaceId: params.scopeType === 'workspace' ? params.workspaceId : undefined,
+      const versionId = params.versionId ?? app.currentPublishedVersionId;
+      if (versionId !== app.currentPublishedVersionId) {
+        throw new Error('MODULE_APP_VERSION_NOT_CURRENT');
+      }
+
+      const version = await tx.query.moduleAppVersions.findFirst({
+        where: and(
+          eq(moduleAppVersions.id, versionId),
+          eq(moduleAppVersions.appId, params.appId),
+          isNotNull(moduleAppVersions.publishedAt),
+        ),
+      });
+      if (!version) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+
+      const [existing] = await tx
+        .select({
+          id: moduleAppInstallations.id,
+          status: moduleAppInstallations.status,
+          versionId: moduleAppInstallations.versionId,
+        })
+        .from(moduleAppInstallations)
+        .where(getInstallationScopeCondition(params))
+        .for('update');
+      const now = new Date();
+
+      if (existing?.status === INSTALL_STATUS_ACTIVE && existing.versionId) {
+        if (existing.versionId !== versionId) {
+          throw new Error('MODULE_APP_INSTALLATION_VERSION_CONFLICT');
+        }
+
+        return { changed: false as const, installationId: existing.id, versionId };
+      }
+
+      let installationId: string | undefined;
+      if (existing) {
+        const [restored] = await tx
+          .update(moduleAppInstallations)
+          .set({
+            installedAt: now,
+            status: INSTALL_STATUS_ACTIVE,
+            uninstalledAt: null,
+            updatedAt: now,
+            versionId,
+          })
+          .where(eq(moduleAppInstallations.id, existing.id))
+          .returning({ id: moduleAppInstallations.id });
+        installationId = restored?.id;
+      } else {
+        const [created] = await tx
+          .insert(moduleAppInstallations)
+          .values({
+            appId: params.appId,
+            installedAt: now,
+            scopeType: params.scopeType,
+            status: INSTALL_STATUS_ACTIVE,
+            uninstalledAt: null,
+            userId: params.userId,
+            versionId,
+            workspaceId: params.scopeType === 'workspace' ? params.workspaceId : undefined,
+          })
+          .returning({ id: moduleAppInstallations.id });
+        installationId = created?.id;
+      }
+      if (!installationId) throw new Error('MODULE_APP_INSTALLATION_CREATE_FAILED');
+
+      return { changed: true as const, installationId, versionId };
     });
   };
 
-  installPersonalApp = async (params: { appId: string; userId: string }) => {
-    const versionId = await this.getCurrentPublishedVersionId(params.appId);
-
-    await this.installApp({
+  installPersonalApp = async (params: { appId: string; userId: string }) =>
+    this.installApp({
       appId: params.appId,
       scopeType: 'personal',
       userId: params.userId,
-      versionId,
     });
-  };
 
-  installWorkspaceApp = async (params: { appId: string; userId: string; workspaceId: string }) => {
-    const versionId = await this.getCurrentPublishedVersionId(params.appId);
-
-    await this.installApp({
+  installWorkspaceApp = async (params: { appId: string; userId: string; workspaceId: string }) =>
+    this.installApp({
       ...params,
       scopeType: 'workspace',
-      versionId,
+    });
+
+  private uninstallApp = async (params: InstallationScope) => {
+    return this.db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({
+          id: moduleAppInstallations.id,
+          status: moduleAppInstallations.status,
+          versionId: moduleAppInstallations.versionId,
+        })
+        .from(moduleAppInstallations)
+        .where(getInstallationScopeCondition(params))
+        .for('update');
+      if (!existing) return { changed: false as const, ok: true as const };
+
+      const now = new Date();
+      const wasActive = existing.status === INSTALL_STATUS_ACTIVE && Boolean(existing.versionId);
+      if (wasActive) {
+        await tx
+          .update(moduleAppInstallations)
+          .set({
+            status: INSTALL_STATUS_INACTIVE,
+            uninstalledAt: now,
+            updatedAt: now,
+            versionId: null,
+          })
+          .where(eq(moduleAppInstallations.id, existing.id));
+      }
+
+      await tx
+        .delete(moduleAppInstallationVersionRefs)
+        .where(eq(moduleAppInstallationVersionRefs.installationId, existing.id));
+      await tx
+        .delete(moduleAppInstallationSecrets)
+        .where(eq(moduleAppInstallationSecrets.installationId, existing.id));
+
+      return { changed: wasActive, ok: true as const };
     });
   };
 
-  uninstallPersonalApp = async (params: { appId: string; userId: string }) => {
-    await this.db
-      .update(moduleAppInstallations)
-      .set({
-        status: INSTALL_STATUS_INACTIVE,
-        uninstalledAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(moduleAppInstallations.appId, params.appId),
-          eq(moduleAppInstallations.scopeType, 'personal'),
-          eq(moduleAppInstallations.userId, params.userId),
-        ),
-      );
+  uninstallPersonalApp = (params: { appId: string; userId: string }) =>
+    this.uninstallApp({ ...params, scopeType: 'personal' });
 
-    return { ok: true as const };
+  uninstallWorkspaceApp = (params: { appId: string; workspaceId: string }) =>
+    this.uninstallApp({
+      appId: params.appId,
+      scopeType: 'workspace',
+      userId: '',
+      workspaceId: params.workspaceId,
+    });
+
+  private assertVersionTransitionReady = async (
+    tx: TransactionDatabase,
+    params: { appId: string; versionId: string },
+  ) => {
+    const version = await tx.query.moduleAppVersions.findFirst({
+      where: and(
+        eq(moduleAppVersions.id, params.versionId),
+        eq(moduleAppVersions.appId, params.appId),
+        isNotNull(moduleAppVersions.publishedAt),
+      ),
+    });
+    if (!version) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+
+    const runtimeManifest = version.runtimeManifest as { manifestVersion?: unknown };
+    if (runtimeManifest.manifestVersion === 2) {
+      const build = await tx.query.moduleAppBuilds.findFirst({
+        where: eq(moduleAppBuilds.versionId, version.id),
+      });
+      const ready =
+        build?.status === 'ready' &&
+        Boolean(build.artifactKey) &&
+        Boolean(build.artifactSha256) &&
+        build.artifactKey === version.runtimeArtifactKey &&
+        build.artifactSha256 === version.runtimeArtifactSha256;
+      if (!ready) throw new Error('MODULE_APP_VERSION_ARTIFACT_NOT_READY');
+    }
+
+    return version;
   };
 
-  uninstallWorkspaceApp = async (params: { appId: string; workspaceId: string }) => {
-    await this.db
-      .update(moduleAppInstallations)
-      .set({
-        status: INSTALL_STATUS_INACTIVE,
-        uninstalledAt: new Date(),
-        updatedAt: new Date(),
+  changeInstallationVersion = async (params: {
+    appId: string;
+    expectedVersionId: string;
+    operation: 'rollback' | 'upgrade';
+    scopeType: ModuleAppScopeType;
+    targetVersionId?: string;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    return this.db.transaction(async (tx) => {
+      const [app] = await tx
+        .select({
+          currentPublishedVersionId: moduleApps.currentPublishedVersionId,
+          status: moduleApps.status,
+        })
+        .from(moduleApps)
+        .where(eq(moduleApps.id, params.appId))
+        .for('update');
+      if (!app) throw new Error('MODULE_APP_NOT_FOUND');
+      if (app.status !== 'published' || !app.currentPublishedVersionId) {
+        throw new Error('MODULE_APP_NOT_INSTALLABLE');
+      }
+
+      const [installation] = await tx
+        .select({
+          id: moduleAppInstallations.id,
+          versionId: moduleAppInstallations.versionId,
+        })
+        .from(moduleAppInstallations)
+        .where(
+          and(
+            getInstallationScopeCondition(params),
+            eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+            isNull(moduleAppInstallations.uninstalledAt),
+          ),
+        )
+        .for('update');
+      if (!installation?.versionId) throw new Error('MODULE_APP_INSTALLATION_REQUIRED');
+      if (installation.versionId !== params.expectedVersionId) {
+        throw new Error('MODULE_APP_INSTALLATION_VERSION_CONFLICT');
+      }
+
+      const targetVersionId =
+        params.operation === 'upgrade' ? app.currentPublishedVersionId : params.targetVersionId;
+      if (!targetVersionId) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+
+      if (params.operation === 'rollback') {
+        const retained = await tx.query.moduleAppInstallationVersionRefs.findFirst({
+          where: and(
+            eq(moduleAppInstallationVersionRefs.installationId, installation.id),
+            eq(moduleAppInstallationVersionRefs.versionId, targetVersionId),
+          ),
+        });
+        if (!retained) throw new Error('MODULE_APP_ROLLBACK_VERSION_NOT_RETAINED');
+      }
+
+      if (targetVersionId === installation.versionId) {
+        return {
+          changed: false as const,
+          installationId: installation.id,
+          operation: params.operation,
+          previousVersionId: installation.versionId,
+          versionId: installation.versionId,
+        };
+      }
+
+      await this.assertVersionTransitionReady(tx, {
+        appId: params.appId,
+        versionId: targetVersionId,
+      });
+
+      const [updated] = await tx
+        .update(moduleAppInstallations)
+        .set({ versionId: targetVersionId, updatedAt: new Date() })
+        .where(
+          and(
+            eq(moduleAppInstallations.id, installation.id),
+            eq(moduleAppInstallations.versionId, params.expectedVersionId),
+            eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+          ),
+        )
+        .returning({ id: moduleAppInstallations.id, versionId: moduleAppInstallations.versionId });
+      if (!updated?.versionId) throw new Error('MODULE_APP_INSTALLATION_VERSION_CONFLICT');
+
+      return {
+        changed: true as const,
+        installationId: updated.id,
+        operation: params.operation,
+        previousVersionId: installation.versionId,
+        versionId: updated.versionId,
+      };
+    });
+  };
+
+  getInstallationVersionState = async (params: {
+    appId: string;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    const scopeType: ModuleAppScopeType = params.workspaceId ? 'workspace' : 'personal';
+    const [installation] = await this.db
+      .select({
+        installedBuildArtifactKey: moduleAppBuilds.artifactKey,
+        installedBuildArtifactSha256: moduleAppBuilds.artifactSha256,
+        installedBuildStatus: moduleAppBuilds.status,
+        installedRuntimeArtifactKey: moduleAppVersions.runtimeArtifactKey,
+        installedRuntimeArtifactSha256: moduleAppVersions.runtimeArtifactSha256,
+        installedRuntimeManifest: moduleAppVersions.runtimeManifest,
+        installedVersionNumber: moduleAppVersions.version,
+        id: moduleAppInstallations.id,
+        versionId: moduleAppVersions.id,
       })
+      .from(moduleAppInstallations)
+      .innerJoin(moduleAppVersions, eq(moduleAppVersions.id, moduleAppInstallations.versionId))
+      .leftJoin(moduleAppBuilds, eq(moduleAppBuilds.versionId, moduleAppVersions.id))
       .where(
         and(
-          eq(moduleAppInstallations.appId, params.appId),
-          eq(moduleAppInstallations.scopeType, 'workspace'),
-          eq(moduleAppInstallations.workspaceId, params.workspaceId),
+          getInstallationScopeCondition({ ...params, scopeType }),
+          eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+          isNull(moduleAppInstallations.uninstalledAt),
         ),
-      );
+      )
+      .limit(1);
+    if (!installation) return null;
 
-    return { ok: true as const };
+    const [publishedVersion, rollbackRows, readinessByInstallation] = await Promise.all([
+      this.getCurrentPublishedVersion(params.appId),
+      this.db
+        .select({
+          id: moduleAppVersions.id,
+          version: moduleAppVersions.version,
+        })
+        .from(moduleAppInstallationVersionRefs)
+        .innerJoin(
+          moduleAppVersions,
+          eq(moduleAppVersions.id, moduleAppInstallationVersionRefs.versionId),
+        )
+        .where(
+          and(
+            eq(moduleAppInstallationVersionRefs.installationId, installation.id),
+            isNotNull(moduleAppVersions.publishedAt),
+          ),
+        )
+        .orderBy(desc(moduleAppInstallationVersionRefs.lastActivatedAt)),
+      this.resolveInstallationReadiness([
+        {
+          installationId: installation.id,
+          installedBuildArtifactKey: installation.installedBuildArtifactKey,
+          installedBuildArtifactSha256: installation.installedBuildArtifactSha256,
+          installedBuildStatus: installation.installedBuildStatus,
+          installedRuntimeArtifactKey: installation.installedRuntimeArtifactKey,
+          installedRuntimeArtifactSha256: installation.installedRuntimeArtifactSha256,
+          installedRuntimeManifest: installation.installedRuntimeManifest,
+          installedVersionId: installation.versionId,
+        },
+      ]),
+    ]);
+
+    return {
+      installationReadiness:
+        readinessByInstallation.get(installation.id) ?? INVALID_INSTALLATION_READINESS,
+      installedVersion: {
+        id: installation.versionId,
+        version: installation.installedVersionNumber,
+      },
+      installationId: installation.id,
+      rollbackVersions: rollbackRows.filter(({ id }) => id !== installation.versionId),
+      updateAvailable: Boolean(publishedVersion && publishedVersion.id !== installation.versionId),
+      publishedVersion: publishedVersion
+        ? { id: publishedVersion.id, version: publishedVersion.version }
+        : null,
+    };
   };
 
   listInstalledApps = async (params: {
@@ -201,64 +667,119 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     workspaceId?: string;
   }) => {
     const rows = await this.db
-      .select({ app: moduleApps })
+      .select({
+        app: moduleApps,
+        installationId: moduleAppInstallations.id,
+        installedBuildArtifactKey: moduleAppBuilds.artifactKey,
+        installedBuildArtifactSha256: moduleAppBuilds.artifactSha256,
+        installedBuildStatus: moduleAppBuilds.status,
+        installedRuntimeArtifactKey: installedModuleAppVersions.runtimeArtifactKey,
+        installedRuntimeArtifactSha256: installedModuleAppVersions.runtimeArtifactSha256,
+        installedRuntimeManifest: installedModuleAppVersions.runtimeManifest,
+        installedVersionId: installedModuleAppVersions.id,
+        installedVersionNumber: installedModuleAppVersions.version,
+        publishedVersionId: publishedModuleAppVersions.id,
+        publishedVersionNumber: publishedModuleAppVersions.version,
+      })
       .from(moduleAppInstallations)
       .innerJoin(moduleApps, eq(moduleAppInstallations.appId, moduleApps.id))
-      .where(
-        params.scopeType === 'personal'
-          ? and(
-              eq(moduleAppInstallations.scopeType, 'personal'),
-              eq(moduleAppInstallations.userId, params.userId),
-              eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
-              isNull(moduleAppInstallations.uninstalledAt),
-            )
-          : and(
-              eq(moduleAppInstallations.scopeType, 'workspace'),
-              eq(moduleAppInstallations.workspaceId, params.workspaceId ?? ''),
-              eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
-              isNull(moduleAppInstallations.uninstalledAt),
-            ),
+      .leftJoin(
+        installedModuleAppVersions,
+        eq(moduleAppInstallations.versionId, installedModuleAppVersions.id),
       )
-      .orderBy(asc(moduleApps.sortOrder), asc(moduleApps.displayName));
+      .leftJoin(moduleAppBuilds, eq(moduleAppBuilds.versionId, installedModuleAppVersions.id))
+      .leftJoin(
+        publishedModuleAppVersions,
+        and(
+          eq(moduleApps.currentPublishedVersionId, publishedModuleAppVersions.id),
+          eq(moduleApps.status, 'published'),
+          isNotNull(publishedModuleAppVersions.publishedAt),
+        ),
+      )
+      .where(getInstallationListScopeCondition(params))
+      .orderBy(asc(moduleApps.sortOrder), asc(moduleApps.displayName), asc(moduleApps.id));
 
-    if (rows.length === 0) return [];
-
-    const appIds = rows.map((row) => row.app.id);
-    const entitlements = await this.db.query.moduleAppEntitlements.findMany({
-      where: inArray(moduleAppEntitlements.appId, appIds),
-    });
-    const entitlementsByAppId = new Map<string, ModuleAppEntitlementRow[]>();
-
-    for (const entitlement of entitlements) {
-      const items = entitlementsByAppId.get(entitlement.appId) ?? [];
-      items.push(entitlement);
-      entitlementsByAppId.set(entitlement.appId, items);
-    }
-
-    return rows.map(({ app }) => ({
-      ...this.toListItem(app, null, true),
-      planState: this.aggregatePlanState(entitlementsByAppId.get(app.id) ?? []),
-    }));
+    return this.serializeInstalledApps(rows);
   };
 
-  getRuntimeManifest = async (params: { appId: string; plan: string; userId: string }) => {
-    const detail = await this.getAppDetail({
-      appIdOrSlug: params.appId,
-      plan: params.plan,
-      userId: params.userId,
-    });
+  listInstalledAppsPage = async (params: {
+    cursor: number;
+    limit: number;
+    query?: string;
+    scopeType: ModuleAppScopeType;
+    userId: string;
+    workspaceId?: string;
+  }) => {
+    const normalizedQuery = params.query?.trim();
+    const searchPattern = normalizedQuery ? `%${escapeLikePattern(normalizedQuery)}%` : undefined;
+    const rows = await this.db
+      .select({
+        app: moduleApps,
+        installationId: moduleAppInstallations.id,
+        installedBuildArtifactKey: moduleAppBuilds.artifactKey,
+        installedBuildArtifactSha256: moduleAppBuilds.artifactSha256,
+        installedBuildStatus: moduleAppBuilds.status,
+        installedRuntimeArtifactKey: installedModuleAppVersions.runtimeArtifactKey,
+        installedRuntimeArtifactSha256: installedModuleAppVersions.runtimeArtifactSha256,
+        installedRuntimeManifest: installedModuleAppVersions.runtimeManifest,
+        installedVersionId: installedModuleAppVersions.id,
+        installedVersionNumber: installedModuleAppVersions.version,
+        publishedVersionId: publishedModuleAppVersions.id,
+        publishedVersionNumber: publishedModuleAppVersions.version,
+      })
+      .from(moduleAppInstallations)
+      .innerJoin(moduleApps, eq(moduleAppInstallations.appId, moduleApps.id))
+      .leftJoin(
+        installedModuleAppVersions,
+        eq(moduleAppInstallations.versionId, installedModuleAppVersions.id),
+      )
+      .leftJoin(moduleAppBuilds, eq(moduleAppBuilds.versionId, installedModuleAppVersions.id))
+      .leftJoin(
+        publishedModuleAppVersions,
+        and(
+          eq(moduleApps.currentPublishedVersionId, publishedModuleAppVersions.id),
+          eq(moduleApps.status, 'published'),
+          isNotNull(publishedModuleAppVersions.publishedAt),
+        ),
+      )
+      .where(
+        and(
+          getInstallationListScopeCondition(params),
+          searchPattern
+            ? or(
+                ilike(moduleApps.displayName, searchPattern),
+                ilike(moduleApps.slug, searchPattern),
+                ilike(moduleApps.description, searchPattern),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(asc(moduleApps.sortOrder), asc(moduleApps.displayName), asc(moduleApps.id))
+      .limit(params.limit + 1)
+      .offset(params.cursor);
 
-    if (!detail) return null;
+    const hasNextPage = rows.length > params.limit;
+    const items = await this.serializeInstalledApps(rows.slice(0, params.limit));
 
     return {
-      actions: detail.actions,
-      appId: detail.id,
-      appType: detail.appType,
-      billing: detail.billing,
-      displayName: detail.displayName,
-      pages: detail.pages,
-      slug: detail.slug,
-      version: detail.version,
+      items,
+      nextCursor: hasNextPage ? params.cursor + params.limit : null,
+    };
+  };
+
+  getRuntimeManifest = async (params: { appId: string; userId: string; workspaceId?: string }) => {
+    const installation = await this.getLaunchInstallationContext(params);
+    if (!installation) return null;
+
+    return {
+      actions: installation.actions,
+      appId: installation.appId,
+      appType: installation.appType,
+      billing: installation.billing,
+      displayName: installation.displayName,
+      pages: installation.pages,
+      slug: installation.slug,
+      version: installation.version,
     };
   };
 
@@ -269,6 +790,8 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
   }) => {
     const [row] = await this.db
       .select({
+        appId: moduleApps.id,
+        appType: moduleApps.appType,
         artifactKey: moduleAppVersions.runtimeArtifactKey,
         artifactSha256: moduleAppVersions.runtimeArtifactSha256,
         billing: moduleApps.billing,
@@ -279,6 +802,8 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
         installationId: moduleAppInstallations.id,
         publisherId: moduleApps.publisherId,
         runtimeManifest: moduleAppVersions.runtimeManifest,
+        slug: moduleApps.slug,
+        version: moduleAppVersions.version,
         versionId: moduleAppVersions.id,
         workspaceId: moduleAppInstallations.workspaceId,
       })
@@ -307,17 +832,27 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
 
     if (!row) return null;
 
-    const actions = await this.db.query.moduleAppActions.findMany({
-      orderBy: [asc(moduleAppActions.createdAt)],
-      where: and(
-        eq(moduleAppActions.appId, params.appId),
-        eq(moduleAppActions.versionId, row.versionId),
-      ),
-    });
+    const [actions, pages] = await Promise.all([
+      this.db.query.moduleAppActions.findMany({
+        orderBy: [asc(moduleAppActions.createdAt)],
+        where: and(
+          eq(moduleAppActions.appId, params.appId),
+          eq(moduleAppActions.versionId, row.versionId),
+        ),
+      }),
+      this.db.query.moduleAppPages.findMany({
+        orderBy: [asc(moduleAppPages.sortOrder), asc(moduleAppPages.createdAt)],
+        where: and(
+          eq(moduleAppPages.appId, params.appId),
+          eq(moduleAppPages.versionId, row.versionId),
+        ),
+      }),
+    ]);
 
     return {
       ...row,
       actions: actions.map(toActionConfig),
+      pages: pages.map(toPageConfig),
     };
   };
 
@@ -383,7 +918,20 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
       )
       .limit(1);
 
-    return row ?? null;
+    if (!row) return null;
+
+    const actions = await this.db.query.moduleAppActions.findMany({
+      columns: { runtimeConfig: true },
+      where: and(
+        eq(moduleAppActions.appId, row.appId),
+        eq(moduleAppActions.versionId, row.versionId),
+      ),
+    });
+
+    return {
+      ...row,
+      secretKeys: getModuleAppDeclaredSecretKeys(actions),
+    };
   };
 
   getInstallationSecret = async (params: { installationId: string; key: string }) => {
@@ -396,6 +944,118 @@ export class ModuleAppInstallationModel extends ModuleAppCatalogModel {
     });
 
     return secret?.encryptedValue ?? null;
+  };
+
+  listInstallationSecrets = async (params: { installationId: string }) => {
+    return (await this.getInstallationSecretState(params)).items;
+  };
+
+  getInstallationSecretState = async (params: { installationId: string }) => {
+    const installation = await this.db.query.moduleAppInstallations.findFirst({
+      columns: { appId: true, versionId: true },
+      where: and(
+        eq(moduleAppInstallations.id, params.installationId),
+        eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+        isNull(moduleAppInstallations.uninstalledAt),
+      ),
+    });
+    if (!installation?.versionId) throw new Error('MODULE_APP_INSTALLATION_REQUIRED');
+
+    const [actions, items] = await Promise.all([
+      this.db.query.moduleAppActions.findMany({
+        columns: { runtimeConfig: true },
+        where: and(
+          eq(moduleAppActions.appId, installation.appId),
+          eq(moduleAppActions.versionId, installation.versionId),
+        ),
+      }),
+      this.db.query.moduleAppInstallationSecrets.findMany({
+        columns: {
+          createdAt: true,
+          secretKey: true,
+          updatedAt: true,
+        },
+        orderBy: [asc(moduleAppInstallationSecrets.secretKey)],
+        where: eq(moduleAppInstallationSecrets.installationId, params.installationId),
+      }),
+    ]);
+    const requiredKeys = getModuleAppDeclaredSecretKeys(actions);
+    const configuredKeys = new Set(items.map(({ secretKey }) => secretKey));
+    const missingKeys = requiredKeys.filter((key) => !configuredKeys.has(key));
+
+    return {
+      items,
+      missingKeys,
+      ready: missingKeys.length === 0,
+      requiredKeys,
+    };
+  };
+
+  upsertInstallationSecret = async (params: {
+    createdBy: string;
+    encryptedValue: string;
+    installationId: string;
+    secretKey: string;
+  }) => {
+    return this.db.transaction(async (tx) => {
+      const [installation] = await tx
+        .select({
+          appId: moduleAppInstallations.appId,
+          id: moduleAppInstallations.id,
+          versionId: moduleAppInstallations.versionId,
+        })
+        .from(moduleAppInstallations)
+        .where(
+          and(
+            eq(moduleAppInstallations.id, params.installationId),
+            eq(moduleAppInstallations.status, INSTALL_STATUS_ACTIVE),
+            isNull(moduleAppInstallations.uninstalledAt),
+          ),
+        )
+        .for('update');
+      if (!installation?.versionId) throw new Error('MODULE_APP_INSTALLATION_REQUIRED');
+
+      const actions = await tx.query.moduleAppActions.findMany({
+        columns: { runtimeConfig: true },
+        where: and(
+          eq(moduleAppActions.appId, installation.appId),
+          eq(moduleAppActions.versionId, installation.versionId),
+        ),
+      });
+      if (!getModuleAppDeclaredSecretKeys(actions).includes(params.secretKey)) {
+        throw new Error('MODULE_APP_SECRET_NOT_DECLARED');
+      }
+
+      await tx
+        .insert(moduleAppInstallationSecrets)
+        .values(params)
+        .onConflictDoUpdate({
+          set: {
+            encryptedValue: params.encryptedValue,
+            updatedAt: new Date(),
+          },
+          target: [
+            moduleAppInstallationSecrets.installationId,
+            moduleAppInstallationSecrets.secretKey,
+          ],
+        });
+
+      return { ok: true as const };
+    });
+  };
+
+  deleteInstallationSecret = async (params: { installationId: string; secretKey: string }) => {
+    await this.assertInstallationActive(params.installationId);
+    await this.db
+      .delete(moduleAppInstallationSecrets)
+      .where(
+        and(
+          eq(moduleAppInstallationSecrets.installationId, params.installationId),
+          eq(moduleAppInstallationSecrets.secretKey, params.secretKey),
+        ),
+      );
+
+    return { ok: true as const };
   };
 
   assertInstallationAccess = async (params: {

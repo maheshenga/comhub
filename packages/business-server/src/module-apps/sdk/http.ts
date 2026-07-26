@@ -1,12 +1,21 @@
 import type { ModuleAppCapabilityClaims } from '@lobechat/types';
+import type { Dispatcher } from 'undici';
 
-import { assertSafeModuleAppApiUrl, type ModuleAppUrlResolver } from '../safeUrl';
+import {
+  createModuleAppPinnedDispatcher,
+  type ModuleAppDispatcherFactory,
+  type ModuleAppUrlResolver,
+  resolveSafeModuleAppApiUrl,
+} from '../safeUrl';
 import type { ModuleAppGatewayContext } from './context';
 
 const MODULE_APP_HTTP_MAX_RESPONSE_BYTES = 1024 * 1024;
 const MODULE_APP_HTTP_TIMEOUT_MS = 15_000;
 
-type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+type FetchLike = (
+  input: string,
+  init?: RequestInit & { dispatcher?: Dispatcher },
+) => Promise<Response>;
 
 type ModuleAppHttpInput = {
   body?: string;
@@ -84,10 +93,18 @@ const readBoundedResponse = async (response: Response) => {
 };
 
 export class ModuleAppHttpGateway {
+  private readonly createDispatcher: ModuleAppDispatcherFactory;
   private readonly fetch: FetchLike;
   private readonly resolveHostname?: ModuleAppUrlResolver;
 
-  constructor(options: { fetch?: FetchLike; resolveHostname?: ModuleAppUrlResolver } = {}) {
+  constructor(
+    options: {
+      createDispatcher?: ModuleAppDispatcherFactory;
+      fetch?: FetchLike;
+      resolveHostname?: ModuleAppUrlResolver;
+    } = {},
+  ) {
+    this.createDispatcher = options.createDispatcher ?? createModuleAppPinnedDispatcher;
     this.fetch = options.fetch ?? fetch;
     this.resolveHostname = options.resolveHostname;
   }
@@ -104,21 +121,25 @@ export class ModuleAppHttpGateway {
     } catch {
       throw new Error('MODULE_APP_UNSAFE_API_URL');
     }
+    if (parsed.protocol !== 'https:') throw new Error('MODULE_APP_HTTP_HTTPS_REQUIRED');
     const reviewedHosts = new Set(context.outboundHosts.map((host) => host.toLowerCase()));
     if (!reviewedHosts.has(parsed.hostname.toLowerCase())) {
       throw new Error('MODULE_APP_HTTP_HOST_DENIED');
     }
 
-    const url = await assertSafeModuleAppApiUrl(value.url, {
+    const resolvedUrl = await resolveSafeModuleAppApiUrl(value.url, {
       resolveHostname: this.resolveHostname,
     });
+    const headers = sanitizeHeaders(value.headers);
+    const dispatcher = this.createDispatcher(resolvedUrl);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), MODULE_APP_HTTP_TIMEOUT_MS);
 
     try {
-      const response = await this.fetch(url, {
+      const response = await this.fetch(resolvedUrl.url, {
         body: value.method === 'POST' ? value.body : undefined,
-        headers: sanitizeHeaders(value.headers),
+        dispatcher,
+        headers,
         method: value.method ?? 'GET',
         redirect: 'error',
         signal: controller.signal,
@@ -132,6 +153,7 @@ export class ModuleAppHttpGateway {
       };
     } finally {
       clearTimeout(timeout);
+      await dispatcher.close();
     }
   };
 }

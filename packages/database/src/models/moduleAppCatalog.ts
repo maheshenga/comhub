@@ -348,7 +348,7 @@ export class ModuleAppCatalogModel {
   private replacePagesAndActions = async (
     appId: string,
     versionId: string,
-    input: ModuleAppAdminUpsertInput,
+    input: Pick<ModuleAppAdminUpsertInput, 'actions' | 'pages'>,
     db: DbExecutor,
   ) => {
     await db
@@ -779,6 +779,7 @@ export class ModuleAppCatalogModel {
       entitlements: entitlements.map(toEntitlementConfig),
       pages: pages.map(toPageConfig),
       version: version?.version ?? DEFAULT_VERSION,
+      versionId: version?.id,
     };
   };
 
@@ -824,63 +825,46 @@ export class ModuleAppCatalogModel {
     });
   };
 
-  upsertPagesForAdmin = async (params: { appId: string; pages: ModuleAppPage[] }) => {
-    return this.db.transaction(async (tx) => {
-      const version = await this.ensureMutableDraftVersion(params.appId, tx);
-      await tx
-        .delete(moduleAppPages)
-        .where(
-          and(eq(moduleAppPages.appId, params.appId), eq(moduleAppPages.versionId, version.id)),
-        );
+  private upsertConfigurationForAdminWithExecutor = async (
+    params: {
+      actions: ModuleAppActionConfig[];
+      appId: string;
+      expectedVersionId: string;
+      pages: ModuleAppPage[];
+    },
+    db: DbExecutor,
+  ) => {
+    const [app] = await db
+      .select({ id: moduleApps.id })
+      .from(moduleApps)
+      .where(eq(moduleApps.id, params.appId))
+      .for('update');
+    if (!app) throw new Error('MODULE_APP_NOT_FOUND');
 
-      if (params.pages.length > 0) {
-        await tx.insert(moduleAppPages).values(
-          params.pages.map((page) => ({
-            actionBindings: page.actionBindings,
-            appId: params.appId,
-            dataSource: page.dataSource,
-            layoutSchema: page.layoutSchema,
-            pageKey: page.key,
-            pageType: page.type,
-            routePath: page.routePath,
-            sortOrder: page.sortOrder,
-            title: page.title,
-            versionId: version.id,
-          })),
-        );
-      }
+    const currentVersion = await this.getLatestVersion(params.appId, db);
+    if (!currentVersion) throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+    if (currentVersion.id !== params.expectedVersionId) {
+      throw new Error('MODULE_APP_CONFIGURATION_CONFLICT');
+    }
 
-      return { ok: true as const };
-    });
+    const draftVersion = await this.ensureMutableDraftVersion(params.appId, db);
+    await this.replacePagesAndActions(params.appId, draftVersion.id, params, db);
+
+    return { ok: true as const, versionId: draftVersion.id };
   };
 
-  upsertActionsForAdmin = async (params: { actions: ModuleAppActionConfig[]; appId: string }) => {
-    return this.db.transaction(async (tx) => {
-      const version = await this.ensureMutableDraftVersion(params.appId, tx);
-      await tx
-        .delete(moduleAppActions)
-        .where(
-          and(eq(moduleAppActions.appId, params.appId), eq(moduleAppActions.versionId, version.id)),
-        );
+  upsertConfigurationForAdmin = async (
+    params: {
+      actions: ModuleAppActionConfig[];
+      appId: string;
+      expectedVersionId: string;
+      pages: ModuleAppPage[];
+    },
+    db?: DbExecutor,
+  ) => {
+    if (db) return this.upsertConfigurationForAdminWithExecutor(params, db);
 
-      if (params.actions.length > 0) {
-        await tx.insert(moduleAppActions).values(
-          params.actions.map((action) => ({
-            actionKey: action.id,
-            appId: params.appId,
-            inputSchema: action.inputSchema,
-            moduleMultiplier: action.moduleMultiplier,
-            name: action.name,
-            outputSchema: action.outputSchema,
-            runtimeConfig: action.runtimeConfig,
-            runtimeType: action.runtimeType,
-            versionId: version.id,
-          })),
-        );
-      }
-
-      return { ok: true as const };
-    });
+    return this.db.transaction((tx) => this.upsertConfigurationForAdminWithExecutor(params, tx));
   };
 
   upsertBillingForAdmin = async (params: {
@@ -1007,6 +991,7 @@ export class ModuleAppCatalogModel {
       actions: actions.map(toActionConfig),
       description: app.description,
       entitlements: entitlements.map(toEntitlementConfig),
+      installationId: installation?.id,
       pages: pages.map(toPageConfig),
       version: version.version,
     };

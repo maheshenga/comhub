@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { getTestDB } from '../../core/getTestDB';
 import {
   moduleAppBuilds,
+  moduleAppInstallations,
+  moduleAppInstallationVersionRefs,
   moduleAppPackages,
   moduleApps,
   moduleAppVersions,
@@ -76,10 +78,11 @@ const createPackageVersion = async () => {
     })
     .returning();
 
-  return { packageId: packageRow.id, versionId: version.id };
+  return { appId: app.id, packageId: packageRow.id, versionId: version.id };
 };
 
 beforeEach(async () => {
+  await serverDB.delete(moduleAppInstallations);
   await serverDB.delete(moduleAppBuilds);
   await serverDB.delete(moduleAppPackages);
   await serverDB.delete(moduleAppVersions);
@@ -89,6 +92,81 @@ beforeEach(async () => {
 });
 
 describe('ModuleAppBuildModel', () => {
+  it('retains a build while an active installation references its version', async () => {
+    const ids = await createPackageVersion();
+    const model = new ModuleAppBuildModel(serverDB);
+    const build = await model.create({
+      buildProfile: 'node22-static',
+      packageId: ids.packageId,
+      sourceSha256: 'b'.repeat(64),
+      versionId: ids.versionId,
+    });
+    const [installation] = await serverDB
+      .insert(moduleAppInstallations)
+      .values({
+        appId: ids.appId,
+        scopeType: 'personal',
+        userId: USER_ID,
+        versionId: ids.versionId,
+      })
+      .returning();
+    await expect(
+      serverDB.query.moduleAppInstallationVersionRefs.findFirst({
+        where: eq(moduleAppInstallationVersionRefs.installationId, installation.id),
+      }),
+    ).resolves.toMatchObject({
+      buildId: build.id,
+      packageId: ids.packageId,
+      versionId: ids.versionId,
+    });
+
+    await expect(
+      serverDB.delete(moduleAppBuilds).where(eq(moduleAppBuilds.id, build.id)),
+    ).rejects.toThrow();
+
+    await serverDB
+      .update(moduleAppInstallations)
+      .set({ status: 'uninstalled', uninstalledAt: new Date(), versionId: null })
+      .where(eq(moduleAppInstallations.id, installation.id));
+    await expect(
+      serverDB.query.moduleAppInstallationVersionRefs.findFirst({
+        where: eq(moduleAppInstallationVersionRefs.installationId, installation.id),
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      serverDB.delete(moduleAppBuilds).where(eq(moduleAppBuilds.id, build.id)),
+    ).resolves.toBeDefined();
+  });
+
+  it('cascades retained version references when deleting an app', async () => {
+    const ids = await createPackageVersion();
+    const model = new ModuleAppBuildModel(serverDB);
+    await model.create({
+      buildProfile: 'node22-static',
+      packageId: ids.packageId,
+      sourceSha256: 'b'.repeat(64),
+      versionId: ids.versionId,
+    });
+    const [installation] = await serverDB
+      .insert(moduleAppInstallations)
+      .values({
+        appId: ids.appId,
+        scopeType: 'personal',
+        userId: USER_ID,
+        versionId: ids.versionId,
+      })
+      .returning();
+
+    await expect(
+      serverDB.delete(moduleApps).where(eq(moduleApps.id, ids.appId)),
+    ).resolves.toBeDefined();
+    await expect(
+      serverDB.query.moduleAppInstallationVersionRefs.findFirst({
+        where: eq(moduleAppInstallationVersionRefs.installationId, installation.id),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it('claims a queued build with a lease and completes it immutably', async () => {
     const ids = await createPackageVersion();
     const model = new ModuleAppBuildModel(serverDB);
@@ -113,7 +191,9 @@ describe('ModuleAppBuildModel', () => {
     expect(claim!.claimExpiresAt.getTime()).toBeLessThanOrEqual(afterClaim + 65_000);
     expect(claim?.claimToken).toEqual(expect.any(String));
     await expect(model.getById(build.id)).resolves.toMatchObject({ id: build.id });
-    await expect(model.claimNext({ leaseDurationMs: 60_000, workerId: 'builder-2' })).resolves.toBeNull();
+    await expect(
+      model.claimNext({ leaseDurationMs: 60_000, workerId: 'builder-2' }),
+    ).resolves.toBeNull();
 
     const completed = await model.complete({
       artifactKey: 'module-app-builds/app/hash.tgz',
@@ -324,7 +404,10 @@ describe('ModuleAppBuildModel', () => {
       .update(moduleAppBuilds)
       .set({ nextAttemptAt: sql`NOW() - INTERVAL '1 second'` })
       .where(eq(moduleAppBuilds.id, firstBuild.id));
-    const earlierDueClaim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-c' });
+    const earlierDueClaim = await model.claimNext({
+      leaseDurationMs: 60_000,
+      workerId: 'worker-c',
+    });
     expect(earlierDueClaim).toMatchObject({ attemptCount: 2, id: secondBuild.id });
     const retryClaim = await model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-d' });
     expect(retryClaim).toMatchObject({ attemptCount: 2, id: firstBuild.id });
@@ -372,7 +455,9 @@ describe('ModuleAppBuildModel', () => {
       status: 'failed',
       workerId: null,
     });
-    await expect(model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-5' })).resolves.toBeNull();
+    await expect(
+      model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-5' }),
+    ).resolves.toBeNull();
   });
 
   it('terminalizes an active fourth attempt instead of returning it to queued', async () => {
@@ -414,7 +499,9 @@ describe('ModuleAppBuildModel', () => {
       status: 'failed',
       workerId: null,
     });
-    await expect(model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-5' })).resolves.toBeNull();
+    await expect(
+      model.claimNext({ leaseDurationMs: 60_000, workerId: 'worker-5' }),
+    ).resolves.toBeNull();
   });
 
   it('reclaims a legacy building row with null claim token and expiry', async () => {
@@ -428,7 +515,12 @@ describe('ModuleAppBuildModel', () => {
     });
     await serverDB
       .update(moduleAppBuilds)
-      .set({ claimExpiresAt: null, claimToken: null, status: 'building', workerId: 'legacy-worker' })
+      .set({
+        claimExpiresAt: null,
+        claimToken: null,
+        status: 'building',
+        workerId: 'legacy-worker',
+      })
       .where(eq(moduleAppBuilds.id, build.id));
 
     await expect(

@@ -6,6 +6,19 @@ import { moduleAppCacheKeys } from '../../shared/cacheKeys';
 import ModuleAppRuntimePage from './ModuleAppRuntimePage';
 
 const moduleApps = vi.hoisted(() => ({
+  getRuntimeDiagnostics: vi.fn().mockResolvedValue({
+    configuration: {
+      internalTokenConfigured: true,
+      internalUrlConfigured: true,
+      publicOriginConfigured: true,
+    },
+    probe: { status: 'ready' },
+    switches: {
+      executionEnabled: true,
+      invocationEnabled: true,
+      publicExecutionEnabled: true,
+    },
+  }),
   listArtifacts: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
   listInstalls: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
   listRecords: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
@@ -22,6 +35,30 @@ vi.mock('@/libs/swr', () => ({
     const parts = Array.isArray(key) ? key : [];
     const domain = parts[1] === 'runtime' ? parts[2] : parts[1];
     const error = runtimeState.errorDomain === domain ? new Error(`${domain} failed`) : undefined;
+    if (domain === 'diagnostics') {
+      return {
+        data: error
+          ? undefined
+          : {
+              configuration: {
+                internalTokenConfigured: true,
+                internalUrlConfigured: true,
+                publicOriginConfigured: false,
+              },
+              probe: {
+                code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
+                status: 'unavailable',
+              },
+              switches: {
+                executionEnabled: false,
+                invocationEnabled: false,
+                publicExecutionEnabled: false,
+              },
+            },
+        error,
+        isLoading: false,
+      };
+    }
     return {
       data: {
         items: error
@@ -45,13 +82,19 @@ vi.mock('@/libs/swr', () => ({
   },
 }));
 vi.mock('@lobehub/ui/base-ui', () => ({
-  Button: ({ children, htmlType = 'button', ...props }: any) => (
+  Button: ({ children, htmlType = 'button', icon: Icon, ...props }: any) => (
     <button type={htmlType} {...props}>
+      {Icon ? <Icon /> : null}
       {children}
     </button>
   ),
 }));
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { code?: string }) =>
+      options?.code ? `${key}: ${options.code}` : key,
+  }),
+}));
 
 describe('ModuleAppRuntimePage', () => {
   beforeEach(() => {
@@ -71,7 +114,7 @@ describe('ModuleAppRuntimePage', () => {
       </MemoryRouter>,
     );
 
-  it('loads four independent app-scoped runtime sections', async () => {
+  it('loads diagnostics and four independent app-scoped runtime sections', async () => {
     renderPage();
 
     await waitFor(() => {
@@ -95,9 +138,19 @@ describe('ModuleAppRuntimePage', () => {
         cursor: undefined,
         limit: 10,
       });
+      expect(moduleApps.getRuntimeDiagnostics).toHaveBeenCalledOnce();
     });
 
     expect(screen.getByTestId('module-app-runtime')).toBeInTheDocument();
+    const diagnostics = within(screen.getByTestId('module-runtime-diagnostics'));
+    expect(diagnostics.getByText('moduleApps.admin.runtime.diagnostics.probe')).toBeInTheDocument();
+    expect(diagnostics.getByText(/MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE/)).toBeInTheDocument();
+    fireEvent.click(
+      diagnostics.getByRole('button', {
+        name: 'moduleApps.admin.runtime.diagnostics.refresh',
+      }),
+    );
+    expect(mutate).toHaveBeenCalledWith(moduleAppCacheKeys.runtimeDiagnostics());
     expect(screen.getByTestId('module-runtime-installs')).toBeInTheDocument();
     expect(screen.getByTestId('module-runtime-records')).toBeInTheDocument();
     expect(screen.getByTestId('module-runtime-runs')).toBeInTheDocument();

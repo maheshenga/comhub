@@ -118,6 +118,9 @@ export const moduleAppBillingConfigSchema = z
   });
 export type ModuleAppBillingConfig = z.infer<typeof moduleAppBillingConfigSchema>;
 
+export const MODULE_APP_MAX_DECLARED_SECRET_KEYS = 80;
+export const moduleAppSecretKeySchema = z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/);
+
 export const moduleAppActionConfigSchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
@@ -129,6 +132,17 @@ export const moduleAppActionConfigSchema = z
     runtimeType: moduleAppRuntimeTypeSchema,
   })
   .superRefine((action, ctx) => {
+    const secretKeys = action.runtimeConfig.secretKeys;
+    if (
+      secretKeys !== undefined &&
+      !z.array(moduleAppSecretKeySchema).max(20).safeParse(secretKeys).success
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'module_app_secret_keys_invalid',
+        path: ['runtimeConfig', 'secretKeys'],
+      });
+    }
     if (
       action.runtimeType === 'executable_action' &&
       (typeof action.runtimeConfig.functionKey !== 'string' ||
@@ -143,6 +157,41 @@ export const moduleAppActionConfigSchema = z
   });
 export type ModuleAppActionConfig = z.infer<typeof moduleAppActionConfigSchema>;
 
+export const getModuleAppDeclaredSecretKeys = (
+  actions: Array<Pick<ModuleAppActionConfig, 'runtimeConfig'>>,
+) => {
+  const keys = new Set<string>();
+
+  for (const action of actions) {
+    const configuredKeys = action.runtimeConfig.secretKeys;
+    if (configuredKeys === undefined) continue;
+
+    const parsed = z.array(moduleAppSecretKeySchema).max(20).safeParse(configuredKeys);
+    if (!parsed.success) throw new Error('MODULE_APP_SECRET_KEYS_INVALID');
+    for (const key of parsed.data) keys.add(key);
+  }
+
+  if (keys.size > MODULE_APP_MAX_DECLARED_SECRET_KEYS) {
+    throw new Error('MODULE_APP_SECRET_KEYS_INVALID');
+  }
+
+  return [...keys].sort();
+};
+
+export const moduleAppActionListSchema = z
+  .array(moduleAppActionConfigSchema)
+  .max(80)
+  .superRefine((actions, ctx) => {
+    try {
+      getModuleAppDeclaredSecretKeys(actions);
+    } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'module_app_secret_keys_invalid',
+      });
+    }
+  });
+
 export const moduleAppPlanEntitlementSchema = z.object({
   discountPercent: z.coerce.number().finite().min(0).max(100).default(0),
   freeQuotaCredits: z.coerce.number().finite().min(0).default(0),
@@ -154,7 +203,7 @@ export const moduleAppPlanEntitlementSchema = z.object({
 export type ModuleAppPlanEntitlement = z.infer<typeof moduleAppPlanEntitlementSchema>;
 
 export const moduleAppAdminUpsertSchema = z.object({
-  actions: z.array(moduleAppActionConfigSchema).max(80).default([]),
+  actions: moduleAppActionListSchema.default([]),
   appType: moduleAppTypeSchema,
   billing: moduleAppBillingConfigSchema,
   category: z.string().min(1).max(80),
@@ -180,6 +229,37 @@ export const moduleAppMarketplaceListInputSchema = z
   .default({})
   .transform((value) => stripUndefinedValues(value));
 export type ModuleAppMarketplaceListInput = z.infer<typeof moduleAppMarketplaceListInputSchema>;
+
+export const moduleAppInstallationReadinessSchema = z
+  .object({
+    configuration: z.enum(['invalid', 'ready', 'required']),
+    missingSecretCount: z.number().int().min(0).max(MODULE_APP_MAX_DECLARED_SECRET_KEYS),
+    runtime: z.enum(['ready', 'unavailable']),
+  })
+  .superRefine((value, ctx) => {
+    if (value.configuration === 'ready' && value.missingSecretCount !== 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'module_app_ready_configuration_has_missing_secrets',
+        path: ['missingSecretCount'],
+      });
+    }
+    if (value.configuration === 'required' && value.missingSecretCount === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'module_app_required_configuration_has_no_missing_secrets',
+        path: ['missingSecretCount'],
+      });
+    }
+  });
+export type ModuleAppInstallationReadiness = z.infer<typeof moduleAppInstallationReadinessSchema>;
+
+export const moduleAppInstallationListInputSchema = z.object({
+  cursor: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  query: optionalTrimmedString(80),
+});
+export type ModuleAppInstallationListInput = z.input<typeof moduleAppInstallationListInputSchema>;
 
 export const moduleAppRecordInputSchema = z.object({
   appId: z.string().uuid(),

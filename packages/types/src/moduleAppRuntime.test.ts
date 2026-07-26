@@ -5,6 +5,7 @@ import {
   moduleAppCapabilityClaimsSchema,
   moduleAppExecutableRuntimeSchema,
   moduleAppLaunchContextSchema,
+  moduleAppRuntimeReadinessSchema,
 } from './moduleAppRuntime';
 
 describe('module app executable runtime contracts', () => {
@@ -69,6 +70,33 @@ describe('module app executable runtime contracts', () => {
         runtimeOrigin: 'https://module-runtime.example.com',
       }),
     ).toMatchObject({ displayName: 'Jobs Board' });
+  });
+
+  it('accepts only bounded, secret-free runtime readiness results', () => {
+    expect(moduleAppRuntimeReadinessSchema.parse({ status: 'ready' })).toEqual({
+      status: 'ready',
+    });
+    expect(
+      moduleAppRuntimeReadinessSchema.parse({
+        code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
+        status: 'unavailable',
+      }),
+    ).toEqual({
+      code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
+      status: 'unavailable',
+    });
+    expect(() =>
+      moduleAppRuntimeReadinessSchema.parse({
+        code: '/run/private/docker.sock',
+        status: 'unavailable',
+      }),
+    ).toThrow();
+    expect(() =>
+      moduleAppRuntimeReadinessSchema.parse({
+        internalToken: 'secret-token',
+        status: 'ready',
+      }),
+    ).toThrow();
   });
 
   it('accepts bounded data table and workflow declarations for executable apps', () => {

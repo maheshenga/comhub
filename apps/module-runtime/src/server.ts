@@ -1,17 +1,32 @@
-import { createReadStream } from 'node:fs';
-import { realpath, stat } from 'node:fs/promises';
+import { constants, createReadStream } from 'node:fs';
+import { access, realpath, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import type { ModuleAppRuntimeReadinessCode } from '@lobechat/types';
+import { importJWK } from 'jose';
+
 import { verifyRuntimeCapability } from './capability';
-import { DockerCliModuleAppContainerEngine } from './containerEngine';
+import {
+  DockerCliModuleAppContainerEngine,
+  isModuleAppContainerImageDigest,
+} from './containerEngine';
 import { FixedProcessModuleAppLauncher, ModuleAppRuntimeInvoker } from './invocation';
 import { assertModuleAppRuntimePolicy } from './policy';
 
 const MAX_REQUEST_BYTES = 1024 * 1024 + 16 * 1024;
 const MODULE_APP_RUNTIME_ARTIFACT_ROOT = '/runtime/artifacts';
 const MODULE_APP_RUNTIME_RECONCILE_INTERVAL_MS = 10_000;
+const privateJwkParameters = ['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth'];
+
+const readinessFailureCodes = new Set<ModuleAppRuntimeReadinessCode>([
+  'MODULE_APP_RUNTIME_ARTIFACT_ROOT_UNAVAILABLE',
+  'MODULE_APP_RUNTIME_CONFIG_MISSING',
+  'MODULE_APP_RUNTIME_DOCKER_HOST_INVALID',
+  'MODULE_APP_RUNTIME_DOCKER_ROOTLESS_REQUIRED',
+  'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
+]);
 
 const contentTypes: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -49,6 +64,100 @@ const sendJson = (response: ServerResponse, status: number, body: unknown) => {
 
 const sendNotFound = (response: ServerResponse) => sendJson(response, 404, { error: 'not_found' });
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const hasValidRuntimeJwks = async (value: string) => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value) as unknown;
+  } catch {
+    return false;
+  }
+
+  if (!isRecord(parsed) || !Array.isArray(parsed.keys)) return false;
+
+  for (const key of parsed.keys) {
+    if (
+      !isRecord(key) ||
+      key.alg !== 'RS256' ||
+      key.kty !== 'RSA' ||
+      privateJwkParameters.some((parameter) => parameter in key)
+    ) {
+      continue;
+    }
+
+    try {
+      await importJWK(key, 'RS256');
+      return true;
+    } catch {
+      continue;
+    }
+  }
+
+  return false;
+};
+
+const isNormalizedAbsolutePosixPath = (value?: string): value is string =>
+  Boolean(
+    value &&
+    value === value.trim() &&
+    value !== '/' &&
+    path.posix.isAbsolute(value) &&
+    path.posix.resolve(value) === value,
+  );
+
+const getReadinessFailureCode = (error: unknown): ModuleAppRuntimeReadinessCode => {
+  if (
+    error instanceof Error &&
+    readinessFailureCodes.has(error.message as ModuleAppRuntimeReadinessCode)
+  ) {
+    return error.message as ModuleAppRuntimeReadinessCode;
+  }
+
+  return 'MODULE_APP_RUNTIME_UNAVAILABLE';
+};
+
+export const checkModuleAppRuntimeReadiness = async (options: {
+  artifactRoot: string;
+  dockerArtifactRoot?: string;
+  engine: Pick<DockerCliModuleAppContainerEngine, 'healthCheck'>;
+  internalToken: string;
+  node22Image?: string;
+  python312Image?: string;
+  runtimeJwks: string;
+}) => {
+  if (
+    !options.internalToken.trim() ||
+    !isNormalizedAbsolutePosixPath(options.dockerArtifactRoot) ||
+    !isModuleAppContainerImageDigest(options.node22Image) ||
+    !isModuleAppContainerImageDigest(options.python312Image)
+  ) {
+    throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
+  }
+  if (!(await hasValidRuntimeJwks(options.runtimeJwks))) {
+    throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
+  }
+
+  try {
+    const artifactRoot = await stat(options.artifactRoot);
+    if (!artifactRoot.isDirectory()) {
+      throw new Error('MODULE_APP_RUNTIME_ARTIFACT_ROOT_UNAVAILABLE');
+    }
+    await access(options.artifactRoot, constants.R_OK);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === 'MODULE_APP_RUNTIME_ARTIFACT_ROOT_UNAVAILABLE'
+    ) {
+      throw error;
+    }
+    throw new Error('MODULE_APP_RUNTIME_ARTIFACT_ROOT_UNAVAILABLE', { cause: error });
+  }
+
+  await options.engine.healthCheck();
+};
+
 const serveRuntimeAsset = async (
   request: IncomingMessage,
   response: ServerResponse,
@@ -84,7 +193,8 @@ const serveRuntimeAsset = async (
         `default-src 'none'; base-uri 'none'; connect-src 'none'; font-src ${assetOrigins} data:; ` +
         `frame-ancestors *; img-src ${assetOrigins} data: blob:; object-src 'none'; ` +
         `script-src ${assetOrigins} 'unsafe-inline'; style-src ${assetOrigins} 'unsafe-inline'`,
-      'content-type': contentTypes[path.extname(assetPath).toLowerCase()] ?? 'application/octet-stream',
+      'content-type':
+        contentTypes[path.extname(assetPath).toLowerCase()] ?? 'application/octet-stream',
       'cross-origin-resource-policy': 'cross-origin',
       'x-content-type-options': 'nosniff',
     });
@@ -107,20 +217,42 @@ export const createModuleAppRuntimeServer = (options: {
   internalToken: string;
   invocationEnabled?: boolean;
   invoker?: ModuleAppRuntimeInvoker;
+  readinessCheck?: () => Promise<void>;
   runtimeJwks: string;
   verifyCapability?: typeof verifyRuntimeCapability;
 }) => {
   const invocationEnabled = options.invocationEnabled ?? true;
-  if (
-    invocationEnabled &&
-    (!options.internalToken.trim() || !options.runtimeJwks.trim() || !options.invoker)
-  ) {
-    throw new Error('MODULE_APP_RUNTIME_CONFIG_MISSING');
-  }
+  const invocationConfigured = Boolean(options.internalToken.trim() && options.invoker);
+  const runtimeJwksValidation = hasValidRuntimeJwks(options.runtimeJwks);
+  const isInvocationConfigured = async () => invocationConfigured && (await runtimeJwksValidation);
 
   return createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/health') {
       sendJson(response, 200, { status: 'ok' });
+      return;
+    }
+    if (request.method === 'GET' && request.url === '/ready') {
+      if (!invocationEnabled) {
+        sendJson(response, 200, { status: 'disabled' });
+        return;
+      }
+      if (!(await isInvocationConfigured())) {
+        sendJson(response, 503, {
+          code: 'MODULE_APP_RUNTIME_CONFIG_MISSING',
+          status: 'unavailable',
+        });
+        return;
+      }
+
+      try {
+        await options.readinessCheck?.();
+        sendJson(response, 200, { status: 'ready' });
+      } catch (error) {
+        sendJson(response, 503, {
+          code: getReadinessFailureCode(error),
+          status: 'unavailable',
+        });
+      }
       return;
     }
     if (
@@ -138,6 +270,10 @@ export const createModuleAppRuntimeServer = (options: {
     }
     if (!invocationEnabled) {
       sendJson(response, 503, { error: 'MODULE_APP_RUNTIME_INVOCATION_DISABLED' });
+      return;
+    }
+    if (!(await isInvocationConfigured())) {
+      sendJson(response, 503, { error: 'MODULE_APP_RUNTIME_CONFIG_MISSING' });
       return;
     }
     if (request.headers.authorization !== `Bearer ${options.internalToken}`) {
@@ -171,20 +307,45 @@ export const startModuleAppRuntimeServerFromEnv = (
     process.env.MODULE_APP_RUNTIME_INVOCATION_ENABLED === 'true';
 
   const engine = options.engine ?? new DockerCliModuleAppContainerEngine();
+  const artifactRoot = MODULE_APP_RUNTIME_ARTIFACT_ROOT;
+  const dockerArtifactRoot = process.env.MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT;
+  const internalToken = process.env.MODULE_APP_RUNTIME_INTERNAL_TOKEN ?? '';
+  const node22Image = process.env.MODULE_APP_RUNTIME_NODE22_IMAGE;
+  const python312Image = process.env.MODULE_APP_RUNTIME_PYTHON312_IMAGE;
+  const runtimeJwks = process.env.MODULE_APP_RUNTIME_JWKS ?? '';
+  const runtimeImages =
+    node22Image &&
+    python312Image &&
+    isModuleAppContainerImageDigest(node22Image) &&
+    isModuleAppContainerImageDigest(python312Image)
+      ? { node22: node22Image, python312: python312Image }
+      : undefined;
   const server = createModuleAppRuntimeServer({
-    internalToken: process.env.MODULE_APP_RUNTIME_INTERNAL_TOKEN ?? '',
+    artifactRoot,
+    internalToken,
     invocationEnabled,
-    invoker: invocationEnabled
-      ? new ModuleAppRuntimeInvoker({
-          launcher: new FixedProcessModuleAppLauncher({
-            dockerArtifactRoot:
-              process.env.MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT ??
-              MODULE_APP_RUNTIME_ARTIFACT_ROOT,
-            engine,
-          }),
-        })
-      : undefined,
-    runtimeJwks: process.env.MODULE_APP_RUNTIME_JWKS ?? '',
+    invoker:
+      invocationEnabled && isNormalizedAbsolutePosixPath(dockerArtifactRoot) && runtimeImages
+        ? new ModuleAppRuntimeInvoker({
+            launcher: new FixedProcessModuleAppLauncher({
+              artifactRoot,
+              dockerArtifactRoot,
+              engine,
+              images: runtimeImages,
+            }),
+          })
+        : undefined,
+    readinessCheck: () =>
+      checkModuleAppRuntimeReadiness({
+        artifactRoot,
+        dockerArtifactRoot,
+        engine,
+        internalToken,
+        node22Image,
+        python312Image,
+        runtimeJwks,
+      }),
+    runtimeJwks,
   });
   const reconcile = () => void engine.reconcileStaleContainers().catch(() => undefined);
   reconcile();

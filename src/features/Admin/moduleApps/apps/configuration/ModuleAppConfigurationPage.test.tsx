@@ -18,10 +18,9 @@ const { actions, appPages, moduleApps, pages, refresh, roleState, translate } = 
   ],
   appPages: { current: undefined as unknown[] | undefined },
   moduleApps: {
-    upsertActions: vi.fn().mockResolvedValue(undefined),
     upsertBilling: vi.fn(),
+    upsertConfiguration: vi.fn().mockResolvedValue(undefined),
     upsertEntitlements: vi.fn(),
-    upsertPages: vi.fn().mockResolvedValue(undefined),
   },
   pages: [
     {
@@ -37,7 +36,7 @@ const { actions, appPages, moduleApps, pages, refresh, roleState, translate } = 
   ],
   refresh: vi.fn().mockResolvedValue(undefined),
   roleState: { canWrite: true },
-  translate: (key: string, values?: Record<string, string>) =>
+  translate: (key: string, _values?: Record<string, string>) =>
     ({
       'moduleApps.admin.configuration.actions': 'Actions',
       'moduleApps.admin.configuration.addAction': 'Add action',
@@ -45,9 +44,12 @@ const { actions, appPages, moduleApps, pages, refresh, roleState, translate } = 
       'moduleApps.admin.configuration.draftRejected': 'Draft could not be stored.',
       'moduleApps.admin.configuration.draftRestored':
         'Your saved configuration draft was restored. Saving again reapplies Pages and Actions.',
+      'moduleApps.admin.configuration.conflict':
+        'This configuration changed elsewhere. Refresh before retrying; your draft is still available.',
       'moduleApps.admin.configuration.pages': 'Pages',
-      'moduleApps.admin.configuration.partialSave': `Saved: ${values?.accepted}. Not saved: ${values?.failed}. Your full draft is still available.`,
       'moduleApps.admin.configuration.save': 'Save configuration',
+      'moduleApps.admin.configuration.saveFailed':
+        'Configuration was not saved. Your full draft is still available.',
       'moduleApps.admin.configuration.saved': 'Configuration saved',
       'moduleApps.admin.configuration.removeAction': 'Remove action',
       'moduleApps.admin.configuration.removePage': 'Remove page',
@@ -71,6 +73,7 @@ vi.mock('react-router', () => ({
       pages: appPages.current ?? pages,
       slug: 'records',
       status: 'draft',
+      versionId: 'version-1',
     },
     refresh,
   }),
@@ -121,10 +124,9 @@ describe('ModuleAppConfigurationPage', () => {
       '',
       '/settings/admin/modules/apps/app-1/configuration?tab=advanced',
     );
-    moduleApps.upsertActions.mockReset().mockResolvedValue(undefined);
     moduleApps.upsertBilling.mockReset();
+    moduleApps.upsertConfiguration.mockReset().mockResolvedValue(undefined);
     moduleApps.upsertEntitlements.mockReset();
-    moduleApps.upsertPages.mockReset().mockResolvedValue(undefined);
     refresh.mockReset().mockResolvedValue(undefined);
     appPages.current = undefined;
     roleState.canWrite = true;
@@ -151,7 +153,12 @@ describe('ModuleAppConfigurationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
 
     await waitFor(() =>
-      expect(moduleApps.upsertPages).toHaveBeenCalledWith({ appId: 'app-1', pages: [] }),
+      expect(moduleApps.upsertConfiguration).toHaveBeenCalledWith({
+        actions,
+        appId: 'app-1',
+        expectedVersionId: 'version-1',
+        pages: [],
+      }),
     );
   });
 
@@ -175,8 +182,7 @@ describe('ModuleAppConfigurationPage', () => {
     expect(screen.getAllByLabelText('moduleApps.admin.configuration.pageKey')).toHaveLength(1);
     expect(screen.getAllByLabelText('moduleApps.admin.configuration.actionId')).toHaveLength(1);
     expect(loadModuleDraft(draftScope)).toBeNull();
-    expect(moduleApps.upsertPages).not.toHaveBeenCalled();
-    expect(moduleApps.upsertActions).not.toHaveBeenCalled();
+    expect(moduleApps.upsertConfiguration).not.toHaveBeenCalled();
   });
 
   it('saves only pages and actions for the outlet application', async () => {
@@ -185,9 +191,14 @@ describe('ModuleAppConfigurationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
 
     await waitFor(() =>
-      expect(moduleApps.upsertPages).toHaveBeenCalledWith({ appId: 'app-1', pages }),
+      expect(moduleApps.upsertConfiguration).toHaveBeenCalledWith({
+        actions,
+        appId: 'app-1',
+        expectedVersionId: 'version-1',
+        pages,
+      }),
     );
-    expect(moduleApps.upsertActions).toHaveBeenCalledWith({ actions, appId: 'app-1' });
+    expect(moduleApps.upsertConfiguration).toHaveBeenCalledTimes(1);
     expect(moduleApps.upsertEntitlements).not.toHaveBeenCalled();
     expect(moduleApps.upsertBilling).not.toHaveBeenCalled();
   });
@@ -203,16 +214,15 @@ describe('ModuleAppConfigurationPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
 
       expect(await screen.findByText('Draft could not be stored.')).toBeInTheDocument();
-      expect(moduleApps.upsertPages).not.toHaveBeenCalled();
-      expect(moduleApps.upsertActions).not.toHaveBeenCalled();
+      expect(moduleApps.upsertConfiguration).not.toHaveBeenCalled();
       expect(refresh).not.toHaveBeenCalled();
     } finally {
       setItem.mockRestore();
     }
   });
 
-  it('retains the complete draft and reports a partial save until a retry fully succeeds', async () => {
-    moduleApps.upsertActions.mockRejectedValueOnce(new Error('actions unavailable'));
+  it('retains the complete draft when the atomic save fails until a retry succeeds', async () => {
+    moduleApps.upsertConfiguration.mockRejectedValueOnce(new Error('configuration unavailable'));
     const originalUrl = window.location.href;
     const draftScope = createModuleDraftScope('app-1', 'configuration');
     const { unmount } = render(<ModuleAppConfigurationPage />);
@@ -220,9 +230,7 @@ describe('ModuleAppConfigurationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
 
     expect(
-      await screen.findByText(
-        'Saved: Pages. Not saved: Actions. Your full draft is still available.',
-      ),
+      await screen.findByText('Configuration was not saved. Your full draft is still available.'),
     ).toBeInTheDocument();
     expect(loadModuleDraft(draftScope)).toEqual({
       actions: [
@@ -262,10 +270,13 @@ describe('ModuleAppConfigurationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
-    expect(moduleApps.upsertPages).toHaveBeenCalledTimes(2);
-    expect(moduleApps.upsertActions).toHaveBeenCalledTimes(2);
-    expect(moduleApps.upsertPages).toHaveBeenLastCalledWith({ appId: 'app-1', pages });
-    expect(moduleApps.upsertActions).toHaveBeenLastCalledWith({ actions, appId: 'app-1' });
+    expect(moduleApps.upsertConfiguration).toHaveBeenCalledTimes(2);
+    expect(moduleApps.upsertConfiguration).toHaveBeenLastCalledWith({
+      actions,
+      appId: 'app-1',
+      expectedVersionId: 'version-1',
+      pages,
+    });
     expect(loadModuleDraft(draftScope)).toBeNull();
     expect(screen.getByText('Configuration saved')).toBeInTheDocument();
     expect(window.location.href).toBe(originalUrl);
@@ -291,7 +302,6 @@ describe('ModuleAppConfigurationPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
 
     expect(await screen.findByText('Review the JSON fields and try again.')).toBeInTheDocument();
-    expect(moduleApps.upsertPages).not.toHaveBeenCalled();
-    expect(moduleApps.upsertActions).not.toHaveBeenCalled();
+    expect(moduleApps.upsertConfiguration).not.toHaveBeenCalled();
   });
 });

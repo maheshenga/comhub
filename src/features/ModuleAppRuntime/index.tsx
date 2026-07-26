@@ -1,5 +1,6 @@
 import type { ModuleAppLaunchContext, ModuleAppScopeType } from '@lobechat/types';
-import { Button, Flexbox, Icon, Text } from '@lobehub/ui';
+import { Flexbox, Icon, Text } from '@lobehub/ui';
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { Clock3, RefreshCw, ServerOff, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { memo } from 'react';
@@ -18,9 +19,11 @@ import WorkflowProgress from './WorkflowProgress';
 const styles = createStaticStyles(({ css, cssVar }) => ({
   root: css`
     position: relative;
+
     width: 100%;
     height: 100%;
     min-height: 480px;
+
     background: ${cssVar.colorBgLayout};
   `,
   state: css`
@@ -74,7 +77,19 @@ interface ModuleAppRuntimeViewProps {
 }
 
 export const ModuleAppRuntimeView = memo<ModuleAppRuntimeViewProps>(
-  ({ appId, context, error, initialScopeType, loading, manifest, onRetry, pageKey, recordId, runId, workspaceId }) => {
+  ({
+    appId,
+    context,
+    error,
+    initialScopeType,
+    loading,
+    manifest,
+    onRetry,
+    pageKey,
+    recordId,
+    runId,
+    workspaceId,
+  }) => {
     const { t } = useTranslation('common');
 
     if (loading) {
@@ -154,8 +169,12 @@ const ModuleAppRuntime = memo(() => {
     { refreshInterval: 240_000, revalidateOnFocus: true },
   );
   const manifest = useSWR<ModuleAppRuntimeManifest | null>(
-    appId ? ['moduleApp.getRuntimeManifest', appId] : null,
-    () => moduleAppService.getRuntimeManifest({ appId: appId! }) as Promise<ModuleAppRuntimeManifest | null>,
+    appId ? ['moduleApp.getRuntimeManifest', appId, workspaceId] : null,
+    () =>
+      moduleAppService.getRuntimeManifest({
+        appId: appId!,
+        workspaceId,
+      }) as Promise<ModuleAppRuntimeManifest | null>,
   );
 
   return (
@@ -171,7 +190,7 @@ const ModuleAppRuntime = memo(() => {
       workspaceId={workspaceId}
       error={
         appId
-          ? launch.error ?? (pageKey ? manifest.error : undefined)
+          ? (launch.error ?? (pageKey ? manifest.error : undefined))
           : new Error('module_app_installation_required')
       }
       onRetry={() => void Promise.all([launch.mutate(), manifest.mutate()])}

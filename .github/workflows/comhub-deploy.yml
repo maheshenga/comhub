@@ -304,7 +304,7 @@ jobs:
           export COMHUB_MODULE_RUNTIME_IMAGE="$RUNTIME_IMAGE_REF"
 
           verify_module_runtime() {
-            local runtime_id
+            local artifact_source docker_artifact_root docker_host docker_socket_mount runtime_id
             runtime_id="$(docker compose ps -q module-runtime)"
             test -n "${runtime_id}"
             test "$(docker inspect -f '{{.Config.Image}}' "${runtime_id}")" = "$RUNTIME_IMAGE_REF"
@@ -312,7 +312,18 @@ jobs:
             test "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' "${runtime_id}")" = "true"
             docker inspect -f '{{json .HostConfig.SecurityOpt}}' "${runtime_id}" | grep -q no-new-privileges
             docker inspect -f '{{range .Mounts}}{{if eq .Destination "/runtime/artifacts"}}{{.RW}}{{end}}{{end}}' "${runtime_id}" | grep -qx false
-            docker compose exec -T module-runtime node -e "const http=require('http');http.get('http://127.0.0.1:3210/health',response=>process.exit(response.statusCode===200?0:1)).on('error',()=>process.exit(1))" < /dev/null
+            artifact_source="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/runtime/artifacts"}}{{.Source}}{{end}}{{end}}' "${runtime_id}")"
+            docker_artifact_root="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${runtime_id}" | sed -n 's/^MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT=//p')"
+            test -n "$artifact_source"
+            test "$docker_artifact_root" = "$artifact_source"
+            docker_host="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${runtime_id}" | sed -n 's/^DOCKER_HOST=//p')"
+            test "$docker_host" = 'unix:///run/module-app-docker/docker.sock'
+            docker_socket_mount="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/run/module-app-docker/docker.sock"}}{{.Type}}|{{.RW}}{{end}}{{end}}' "${runtime_id}")"
+            test "$docker_socket_mount" = 'bind|false'
+            test -z "$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "${runtime_id}")"
+            docker compose exec -T module-runtime test -S /run/module-app-docker/docker.sock < /dev/null
+            docker compose exec -T module-runtime docker info --format '{{json .SecurityOptions}}' < /dev/null | grep -q 'name=rootless'
+            docker compose exec -T module-runtime node -e "const http=require('http');http.get('http://127.0.0.1:3210/ready',response=>process.exit(response.statusCode===200?0:1)).on('error',()=>process.exit(1))" < /dev/null
             docker compose exec -T module-runtime node -e "const http=require('http');const request=http.request({host:'127.0.0.1',port:3210,path:'/v1/invocations',method:'POST'},response=>process.exit(response.statusCode===503?0:1));request.end('{}')" < /dev/null
           }
 
@@ -320,10 +331,13 @@ jobs:
             local probe_name="module-runtime-auth-probe-${IMAGE_TAG}"
             docker rm -f "$probe_name" >/dev/null 2>&1 || true
             docker run -d --name "$probe_name" --read-only --tmpfs /tmp:size=16m \
+              --health-cmd "node -e \"require('http').get('http://127.0.0.1:3210/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\"" \
+              --health-interval 1s --health-timeout 3s --health-retries 30 \
               -e MODULE_APP_EXECUTION_ENABLED=true \
               -e MODULE_APP_RUNTIME_INVOCATION_ENABLED=true \
+              -e MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT=/runtime/artifacts \
               -e MODULE_APP_RUNTIME_INTERNAL_TOKEN=deployment-auth-probe \
-              -e 'MODULE_APP_RUNTIME_JWKS={"keys":[]}' \
+              -e 'MODULE_APP_RUNTIME_JWKS={"keys":[{"kty":"RSA","n":"t0juSBx7vW85s4fkqPzJaPHOK5OI2qlJLfjSCo3FlYogbBP67V4VN5L_TRFxtaccpEI0B6dGjFFjmJaHmCU2kKPbi3-c76k0sxCwrL6yuGV0uUc4ZOij2fviiQKdxAMlCA3Ke3XkG-p1JNQCz08Ge0xV0CDicKRh_njO0e0J1cE0X_7GOFwmZtLsU9541C4b4Jj2IsUauOSQkFCARvPTexC4V6hMir7sIbb0f9GqQk2MA0CIdMD2fcl6Q6bVgBCxuU0Q2D0D91JYSZWN-AAuXjT7A8bXErjBEK0_MNEWP3HxJZYjRHMDO_zW_tR1FmRKbP65ZtKKh2HQqkP4CrSn3Q","e":"AQAB","alg":"RS256","use":"sig","kid":"module-runtime-public-test"}]}' \
               -e MODULE_APP_RUNTIME_NODE22_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
               -e MODULE_APP_RUNTIME_PYTHON312_IMAGE=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
               "$RUNTIME_IMAGE_REF" >/dev/null

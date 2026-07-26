@@ -33,7 +33,9 @@ describe('createModuleAppService', () => {
   it('uses the same single endpoint for personal mobile apps', async () => {
     const listMobileApps = vi
       .fn()
-      .mockResolvedValue([{ displayName: 'Personal', id: 'personal', installationScope: 'personal' }]);
+      .mockResolvedValue([
+        { displayName: 'Personal', id: 'personal', installationScope: 'personal' },
+      ]);
     const service = createModuleAppService({
       moduleApp: { listMobileApps: { query: listMobileApps } },
     } as never);
@@ -55,6 +57,31 @@ describe('createModuleAppService', () => {
 
     await expect(service.listMarketplace({ query: 'desk' })).resolves.toEqual([{ id: 'app1' }]);
     expect(query).toHaveBeenCalledWith({ query: 'desk' });
+  });
+
+  it('forwards installed app pagination and search inputs', async () => {
+    const listMyApps = vi.fn().mockResolvedValue({ items: [], nextCursor: 20 });
+    const listTeamApps = vi.fn().mockResolvedValue({ items: [], nextCursor: null });
+    const service = createModuleAppService({
+      moduleApp: {
+        listMyApps: { query: listMyApps },
+        listTeamApps: { query: listTeamApps },
+      },
+    } as never);
+
+    await expect(service.listMyApps({ cursor: 0, limit: 20, query: 'desk' })).resolves.toEqual({
+      items: [],
+      nextCursor: 20,
+    });
+    await expect(
+      service.listTeamApps({ cursor: 20, limit: 10, workspaceId: 'workspace-1' }),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+    expect(listMyApps).toHaveBeenCalledWith({ cursor: 0, limit: 20, query: 'desk' });
+    expect(listTeamApps).toHaveBeenCalledWith({
+      cursor: 20,
+      limit: 10,
+      workspaceId: 'workspace-1',
+    });
   });
 
   it('calls the current user package submission list query', async () => {
@@ -109,6 +136,69 @@ describe('createModuleAppService', () => {
     });
     expect(installWorkspace).toHaveBeenCalledWith(input);
     expect(uninstallWorkspace).toHaveBeenCalledWith(input);
+  });
+
+  it('changes an installation version with the expected immutable version id', async () => {
+    const changeInstallationVersion = vi.fn().mockResolvedValue({ changed: true });
+    const service = createModuleAppService({
+      moduleApp: { changeInstallationVersion: { mutate: changeInstallationVersion } },
+    } as never);
+    const input = {
+      appId: 'app-1',
+      expectedVersionId: 'version-1',
+      operation: 'rollback' as const,
+      targetVersionId: 'version-0',
+      workspaceId: 'workspace-1',
+    };
+
+    await expect(service.changeInstallationVersion(input)).resolves.toEqual({ changed: true });
+    expect(changeInstallationVersion).toHaveBeenCalledWith(input);
+  });
+
+  it('manages installation secret metadata through installation-scoped procedures', async () => {
+    const secretState = {
+      items: [{ secretKey: 'CRM_TOKEN' }],
+      missingKeys: [],
+      ready: true,
+      requiredKeys: ['CRM_TOKEN'],
+    };
+    const listInstallationSecrets = vi.fn().mockResolvedValue(secretState);
+    const upsertInstallationSecret = vi.fn().mockResolvedValue({ ok: true });
+    const deleteInstallationSecret = vi.fn().mockResolvedValue({ ok: true });
+    const service = createModuleAppService({
+      moduleApp: {
+        deleteInstallationSecret: { mutate: deleteInstallationSecret },
+        listInstallationSecrets: { query: listInstallationSecrets },
+        upsertInstallationSecret: { mutate: upsertInstallationSecret },
+      },
+    } as never);
+    const scope = {
+      installationId: '00000000-0000-4000-8000-000000000010',
+      workspaceId: 'workspace-1',
+    };
+
+    await expect(service.listInstallationSecrets(scope)).resolves.toEqual(secretState);
+    await service.upsertInstallationSecret({ ...scope, secretKey: 'CRM_TOKEN', value: 'secret' });
+    await service.deleteInstallationSecret({ ...scope, secretKey: 'CRM_TOKEN' });
+    expect(listInstallationSecrets).toHaveBeenCalledWith(scope);
+    expect(upsertInstallationSecret).toHaveBeenCalledWith({
+      ...scope,
+      secretKey: 'CRM_TOKEN',
+      value: 'secret',
+    });
+    expect(deleteInstallationSecret).toHaveBeenCalledWith({ ...scope, secretKey: 'CRM_TOKEN' });
+  });
+
+  it('requests the runtime manifest in the active workspace scope', async () => {
+    const getRuntimeManifest = vi.fn().mockResolvedValue({ actions: [], pages: [] });
+    const service = createModuleAppService({
+      moduleApp: { getRuntimeManifest: { query: getRuntimeManifest } },
+    } as never);
+    const input = { appId: 'app-1', workspaceId: 'workspace-1' };
+
+    await service.getRuntimeManifest(input);
+
+    expect(getRuntimeManifest).toHaveBeenCalledWith(input);
   });
 
   it('lists installation-scoped runs with an opaque cursor', async () => {

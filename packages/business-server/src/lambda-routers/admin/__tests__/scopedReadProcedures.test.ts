@@ -158,6 +158,7 @@ describe('scoped admin read procedures', () => {
     const source = readRouter('moduleApps');
     const moduleAppReads = [
       'get',
+      'getRuntimeDiagnostics',
       'list',
       'getPackage',
       'listArtifacts',
@@ -187,8 +188,7 @@ describe('scoped admin read procedures', () => {
       'unpublish',
       'updateProduct',
       'upsert',
-      'upsertActions',
-      'upsertPages',
+      'upsertConfiguration',
       'verifyPublisher',
     ];
     const financeWrites = [

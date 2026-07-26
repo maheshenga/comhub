@@ -1197,6 +1197,13 @@
       "when": 1786550400000,
       "tag": "0167_agent_quota_workspace_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1786636800000,
+      "tag": "0168_module_app_installation_lifecycle",
+      "breakpoints": true
     }
   ],
   "version": "6"

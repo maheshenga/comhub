@@ -17,5 +17,6 @@ export const moduleAppCacheKeys = {
   revenue: (filters: string, cursor?: string) => [ROOT, 'revenue', filters, cursor ?? ''] as const,
   runtime: (domain: 'artifacts' | 'installs' | 'records' | 'runs', appId: string, limit: number) =>
     [ROOT, 'runtime', domain, appId, limit] as const,
+  runtimeDiagnostics: () => [ROOT, 'runtime', 'diagnostics'] as const,
   runs: (appId: string, cursor?: string) => [ROOT, 'runs', appId, cursor ?? ''] as const,
 };

@@ -4,6 +4,7 @@ import {
   buildDockerCreateArgs,
   buildDockerStartArgs,
   DockerCliModuleAppContainerEngine,
+  validateModuleAppDockerHost,
 } from './containerEngine';
 
 const input = {
@@ -48,6 +49,21 @@ const createdContainer = {
 };
 
 describe('Docker lifecycle commands', () => {
+  it('accepts only the dedicated rootless daemon socket inside the runtime container', () => {
+    expect(validateModuleAppDockerHost('unix:///run/module-app-docker/docker.sock')).toBe(
+      'unix:///run/module-app-docker/docker.sock',
+    );
+    expect(() => validateModuleAppDockerHost(undefined)).toThrow(
+      'MODULE_APP_RUNTIME_DOCKER_HOST_INVALID',
+    );
+    expect(() => validateModuleAppDockerHost('unix:///var/run/docker.sock')).toThrow(
+      'MODULE_APP_RUNTIME_DOCKER_HOST_INVALID',
+    );
+    expect(() => validateModuleAppDockerHost('tcp://docker-proxy:2375')).toThrow(
+      'MODULE_APP_RUNTIME_DOCKER_HOST_INVALID',
+    );
+  });
+
   it('builds a fixed isolated create command before timed execution', () => {
     expect(buildDockerCreateArgs(input, 123_456)).toEqual([
       'create',
@@ -101,10 +117,13 @@ describe('Docker lifecycle commands', () => {
 
   it('rejects an image that is not pinned by sha256 digest', () => {
     expect(() =>
-      buildDockerCreateArgs({
-        ...input,
-        imageDigest: 'ghcr.io/comhub/module-app-node22:latest',
-      }, 123_456),
+      buildDockerCreateArgs(
+        {
+          ...input,
+          imageDigest: 'ghcr.io/comhub/module-app-node22:latest',
+        },
+        123_456,
+      ),
     ).toThrow('MODULE_APP_RUNTIME_IMAGE_INVALID');
   });
 
@@ -116,6 +135,54 @@ describe('Docker lifecycle commands', () => {
 });
 
 describe('DockerCliModuleAppContainerEngine', () => {
+  it('accepts only a reachable rootless Docker engine as healthy', async () => {
+    const rootlessRunner = {
+      create: vi.fn(),
+      info: vi.fn().mockResolvedValue({
+        exitCode: 0,
+        stderr: '',
+        stdout: '["name=seccomp,profile=builtin","name=rootless"]',
+      }),
+      inspect: vi.fn(),
+      remove: vi.fn(),
+      start: vi.fn(),
+    };
+    const rootfulRunner = {
+      ...rootlessRunner,
+      info: vi.fn().mockResolvedValue({
+        exitCode: 0,
+        stderr: '',
+        stdout: '["name=seccomp,profile=builtin"]',
+      }),
+    };
+
+    await expect(
+      new DockerCliModuleAppContainerEngine({ runner: rootlessRunner }).healthCheck(),
+    ).resolves.toBeUndefined();
+    expect(rootlessRunner.info).toHaveBeenCalledWith(2500);
+    await expect(
+      new DockerCliModuleAppContainerEngine({ runner: rootfulRunner }).healthCheck(),
+    ).rejects.toThrow('MODULE_APP_RUNTIME_DOCKER_ROOTLESS_REQUIRED');
+  });
+
+  it('normalizes Docker probe failures without exposing daemon output', async () => {
+    const runner = {
+      create: vi.fn(),
+      info: vi.fn().mockResolvedValue({
+        exitCode: 1,
+        stderr: 'dial unix /private/docker.sock: permission denied',
+        stdout: '',
+      }),
+      inspect: vi.fn(),
+      remove: vi.fn(),
+      start: vi.fn(),
+    };
+
+    await expect(new DockerCliModuleAppContainerEngine({ runner }).healthCheck()).rejects.toThrow(
+      'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
+    );
+  });
+
   it('creates before timed execution and always removes the named container', async () => {
     const runner = {
       create: vi.fn().mockResolvedValue(createdContainer),
@@ -130,13 +197,13 @@ describe('DockerCliModuleAppContainerEngine', () => {
       stderr: '',
       stdout: '{"ok":true}',
     });
-    expect(runner.create).toHaveBeenCalledWith(
-      expect.objectContaining({ timeoutMs: 15_000 }),
-    );
+    expect(runner.create).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 15_000 }));
     const createArgs = runner.create.mock.calls[0][0].args as string[];
     expect(createArgs).toContain('--rm');
     expect(createArgs).toContain('comhub.module-app.runtime=true');
-    expect(createArgs).toContainEqual(expect.stringMatching(/^comhub\.module-app\.expires-at=\d+$/));
+    expect(createArgs).toContainEqual(
+      expect.stringMatching(/^comhub\.module-app\.expires-at=\d+$/),
+    );
     expect(runner.start).toHaveBeenCalledWith({
       args: buildDockerStartArgs(input.containerName),
       input: JSON.stringify(input.input),
@@ -170,10 +237,7 @@ describe('DockerCliModuleAppContainerEngine', () => {
         .fn()
         .mockResolvedValueOnce(presentContainerInspect)
         .mockResolvedValue(absentContainerInspect),
-      remove: vi
-        .fn()
-        .mockResolvedValueOnce(absentContainer)
-        .mockResolvedValue(removedContainer),
+      remove: vi.fn().mockResolvedValueOnce(absentContainer).mockResolvedValue(removedContainer),
       start: vi.fn(),
     };
     const engine = new DockerCliModuleAppContainerEngine({ runner });
@@ -182,11 +246,7 @@ describe('DockerCliModuleAppContainerEngine', () => {
     expect(runner.remove).toHaveBeenCalledTimes(2);
     expect(runner.inspect).toHaveBeenCalledTimes(2);
     expect(runner.start).not.toHaveBeenCalled();
-    expect(runner.remove).toHaveBeenNthCalledWith(
-      2,
-      'module-app-invocation-1',
-      expect.any(Number),
-    );
+    expect(runner.remove).toHaveBeenNthCalledWith(2, 'module-app-invocation-1', expect.any(Number));
   });
 
   it('does not retry an absent container after a completed process failure', async () => {

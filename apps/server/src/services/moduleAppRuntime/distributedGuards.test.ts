@@ -53,10 +53,13 @@ describe('module app distributed guards', () => {
     );
   });
 
-  it('retains process-local protection when Redis is intentionally unavailable', async () => {
+  it('retains process-local protection only in explicitly allowed environments', async () => {
     getRedisClient.mockReturnValue(null);
-    const replay = createModuleAppReplayGuardBackend();
-    const rateLimit = createModuleAppNotificationRateLimitBackend({ randomId: () => 'event' });
+    const replay = createModuleAppReplayGuardBackend({ mode: 'memory-allowed' });
+    const rateLimit = createModuleAppNotificationRateLimitBackend({
+      mode: 'memory-allowed',
+      randomId: () => 'event',
+    });
 
     await expect(replay.consume('same-request', 300)).resolves.toBe(true);
     await expect(replay.consume('same-request', 300)).resolves.toBe(false);
@@ -64,5 +67,28 @@ describe('module app distributed guards', () => {
       await expect(rateLimit.consume('installation-1', 10, 60_000)).resolves.toBe(true);
     }
     await expect(rateLimit.consume('installation-1', 10, 60_000)).resolves.toBe(false);
+  });
+
+  it('fails closed when Redis is unavailable in distributed-required mode', async () => {
+    getRedisClient.mockReturnValue(null);
+    const replay = createModuleAppReplayGuardBackend({ mode: 'distributed-required' });
+    const rateLimit = createModuleAppNotificationRateLimitBackend({
+      mode: 'distributed-required',
+    });
+
+    await expect(replay.consume('same-request', 300)).rejects.toThrow(
+      'MODULE_APP_DISTRIBUTED_GUARD_UNAVAILABLE',
+    );
+    await expect(rateLimit.consume('installation-1', 10, 60_000)).rejects.toThrow(
+      'MODULE_APP_DISTRIBUTED_GUARD_UNAVAILABLE',
+    );
+  });
+
+  it('propagates Redis command failures instead of using process-local state', async () => {
+    const redisError = new Error('redis unavailable');
+    getRedisClient.mockReturnValue({ set: vi.fn().mockRejectedValue(redisError) });
+    const replay = createModuleAppReplayGuardBackend({ mode: 'distributed-required' });
+
+    await expect(replay.consume('same-request', 300)).rejects.toBe(redisError);
   });
 });

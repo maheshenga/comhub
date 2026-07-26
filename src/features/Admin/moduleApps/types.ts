@@ -7,6 +7,7 @@ import type {
   ModuleAppPackageScanStatus,
   ModuleAppPage,
   ModuleAppPlanEntitlement,
+  ModuleAppRuntimeReadiness,
   ModuleAppSource,
   ModuleAppStatus,
   ModuleAppType,
@@ -32,6 +33,7 @@ export type AdminModuleAppDetail = AdminModuleAppItem & {
   entitlements: ModuleAppPlanEntitlement[];
   pages: ModuleAppPage[];
   version?: string;
+  versionId?: string;
 };
 
 export type AdminModuleAppUpsertResult = Pick<ModuleAppAdminUpsertInput, 'slug'> & {
@@ -97,6 +99,20 @@ export type ModuleAppInstallRow = {
   status?: string;
   userId?: null | string;
   workspaceId?: null | string;
+};
+
+export type ModuleAppRuntimeDiagnostics = {
+  configuration: {
+    internalTokenConfigured: boolean;
+    internalUrlConfigured: boolean;
+    publicOriginConfigured: boolean;
+  };
+  probe: ModuleAppRuntimeReadiness;
+  switches: {
+    executionEnabled: boolean;
+    invocationEnabled: boolean;
+    publicExecutionEnabled: boolean;
+  };
 };
 
 export type ModuleAppAuditRow = {

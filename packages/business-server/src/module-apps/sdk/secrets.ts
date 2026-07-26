@@ -17,7 +17,7 @@ export class ModuleAppSecretsGateway {
     this.getEncryptedValue = options.getEncryptedValue;
   }
 
-  get = async (capability: ModuleAppCapabilityClaims, input: unknown) => {
+  get = async (capability: ModuleAppCapabilityClaims, input: unknown, declaredKeys: string[]) => {
     if (
       !input ||
       typeof input !== 'object' ||
@@ -27,6 +27,7 @@ export class ModuleAppSecretsGateway {
     ) {
       throw new Error('MODULE_APP_SECRET_KEY_INVALID');
     }
+    if (!declaredKeys.includes(input.key)) throw new Error('MODULE_APP_SECRET_NOT_DECLARED');
 
     const encryptedValue = await this.getEncryptedValue({
       installationId: capability.installationId,

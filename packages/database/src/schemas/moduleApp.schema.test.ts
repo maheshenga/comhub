@@ -16,6 +16,7 @@ import {
   moduleAppEntitlements,
   moduleAppInstallations,
   moduleAppInstallationSecrets,
+  moduleAppInstallationVersionRefs,
   moduleAppOrders,
   moduleAppPackages,
   moduleAppPackageUploads,
@@ -51,6 +52,7 @@ describe('module app schema exports', () => {
     expect(moduleAppPackageUploads).toBeDefined();
     expect(moduleAppBuilds).toBeDefined();
     expect(moduleAppInstallationSecrets).toBeDefined();
+    expect(moduleAppInstallationVersionRefs).toBeDefined();
     expect(moduleAppDataSchemas).toBeDefined();
     expect(moduleAppDataRows).toBeDefined();
     expect(moduleAppWorkflowRuns).toBeDefined();
@@ -279,5 +281,28 @@ describe('module app schema exports', () => {
     );
     expect(migration).toContain('DROP INDEX IF EXISTS "module_app_payout_entries_revenue_unique"');
     expect(migration).toContain(`WHERE "status" <> 'reversed'`);
+  });
+
+  it('registers installation version retention and artifact deletion protection', () => {
+    const migration = readFileSync(
+      path.resolve(__dirname, '../../migrations/0168_module_app_installation_lifecycle.sql'),
+      'utf8',
+    );
+    const journal = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries: Array<{ tag: string }> };
+
+    expect(migration).toContain(
+      'CREATE TABLE IF NOT EXISTS "module_app_installation_version_refs"',
+    );
+    expect(migration).toContain('module_app_installation_version_refs_unique');
+    expect(migration).toContain('sync_module_app_installation_version_refs');
+    expect(migration).toContain('"build_id" uuid');
+    expect(migration).toContain('"package_id" uuid');
+    expect(migration.match(/DEFERRABLE INITIALLY DEFERRED/g)).toHaveLength(4);
+    expect(migration).toContain('module_app_installations_lifecycle_check');
+    expect(
+      journal.entries.some(({ tag }) => tag === '0168_module_app_installation_lifecycle'),
+    ).toBe(true);
   });
 });

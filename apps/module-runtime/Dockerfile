@@ -36,6 +36,6 @@ EXPOSE 3210
 USER 10001:10001
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD ["node", "-e", "require('http').get('http://127.0.0.1:3210/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+  CMD ["node", "-e", "require('http').get('http://127.0.0.1:3210/ready',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
 
 CMD ["node", "server.mjs"]

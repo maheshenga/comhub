@@ -15,6 +15,7 @@ vi.mock('react-i18next', () => ({
         'mobile.apps.loading': 'Loading apps',
         'mobile.apps.module': 'Module apps',
         'mobile.apps.open': `Open ${values?.name ?? ''}`,
+        'mobile.apps.unavailable': `${values?.name ?? ''} unavailable`,
         'mobile.apps.retry': 'Retry module apps',
         'mobile.apps.title': 'Apps',
         'mobile.refresh': 'Refresh',
@@ -31,7 +32,10 @@ const moduleState = vi.hoisted(() => ({
   mutate: vi.fn(),
 }));
 const workspaceState = vi.hoisted(() => ({ activeWorkspaceId: 'workspace-1' as string | null }));
-const swrCapture = vi.hoisted(() => ({ fetcher: undefined as undefined | (() => Promise<unknown>), key: undefined as unknown }));
+const swrCapture = vi.hoisted(() => ({
+  fetcher: undefined as undefined | (() => Promise<unknown>),
+  key: undefined as unknown,
+}));
 const listAvailableApps = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const mobileState = vi.hoisted(() => ({
   config: {
@@ -155,6 +159,12 @@ const installedApp = (overrides: Record<string, unknown> = {}) => ({
   displayName: 'General app',
   id: 'general-app',
   installed: true,
+  installationReadiness: {
+    configuration: 'ready',
+    missingSecretCount: 0,
+    runtime: 'ready',
+  },
+  installationScope: 'personal',
   planState: { runnable: true },
   status: 'published',
   ...overrides,
@@ -301,6 +311,29 @@ describe('MobileAppsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Personal app' }));
     expect(navigate).toHaveBeenCalledWith('/apps/personal-app/app', { escape: true });
+  });
+
+  it('shows but does not open an installation whose runtime snapshot is unavailable', () => {
+    moduleState.data = [
+      installedApp({
+        displayName: 'Unavailable app',
+        id: 'unavailable-app',
+        installationReadiness: {
+          configuration: 'ready',
+          missingSecretCount: 0,
+          runtime: 'unavailable',
+        },
+      }),
+    ];
+
+    render(<MobileAppsPage />);
+
+    const unavailableApp = screen.getByRole('button', { name: 'Unavailable app unavailable' });
+    expect(unavailableApp).toBeDisabled();
+    expect(unavailableApp).toHaveAttribute('data-readiness', 'unavailable');
+    expect(screen.getByTitle('moduleApps.readiness.runtimeUnavailable')).toBeInTheDocument();
+    fireEvent.click(unavailableApp);
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('keeps a visible app icon when a module image fails to load', () => {

@@ -3,7 +3,7 @@
 import { Icon, Skeleton } from '@lobehub/ui';
 import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { Boxes, RefreshCw, Store } from 'lucide-react';
+import { Boxes, CircleAlert, KeyRound, RefreshCw, Store } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
@@ -62,10 +62,20 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
       outline-offset: -2px;
     }
   `,
+  appCellDisabled: css`
+    cursor: not-allowed;
+    color: ${cssVar.colorTextDisabled};
+
+    &:active {
+      background: transparent;
+    }
+  `,
   appGrid: css`
     grid-auto-rows: 104px;
   `,
   appIcon: css`
+    position: relative;
+
     display: grid;
     flex: 0 0 44px;
     place-items: center;
@@ -77,6 +87,27 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     color: ${cssVar.colorPrimary};
 
     background: ${cssVar.colorFillSecondary};
+  `,
+  readinessError: css`
+    color: ${cssVar.colorError};
+    background: ${cssVar.colorErrorBg};
+  `,
+  readinessIndicator: css`
+    position: absolute;
+    inset-block-start: -5px;
+    inset-inline-end: -5px;
+
+    display: grid;
+    place-items: center;
+
+    width: 18px;
+    height: 18px;
+    border: 2px solid ${cssVar.colorBgContainer};
+    border-radius: 50%;
+
+    color: ${cssVar.colorWarning};
+
+    background: ${cssVar.colorWarningBg};
   `,
   appLabel: css`
     overflow: hidden;
@@ -176,12 +207,7 @@ const MobileModuleAppIcon = ({ icon, name }: { icon?: null | string; name: strin
   }
 
   return (
-    <img
-      alt={name}
-      className={styles.appLogo}
-      src={icon}
-      onError={() => setImageFailed(true)}
-    />
+    <img alt={name} className={styles.appLogo} src={icon} onError={() => setImageFailed(true)} />
   );
 };
 
@@ -285,27 +311,60 @@ const MobileAppsPage = memo(() => {
             />
           ) : moduleApps.length ? (
             <MobileIconGrid className={styles.appGrid} minCellSize={APP_GRID_MIN_CELL_SIZE}>
-              {moduleApps.map((app) => (
-                <button
-                  aria-label={t('mobile.apps.open', { name: app.displayName })}
-                  className={styles.appCell}
-                  data-mobile-focus-key={`module:${app.id}`}
-                  data-testid="mobile-module-app"
-                  key={app.id}
-                  type="button"
-                  onClick={() => {
-                    rememberFocus(`module:${app.id}`);
-                    return app.installationScope === 'personal'
-                      ? navigate(app.routePath, { escape: true })
-                      : navigate(app.routePath);
-                  }}
-                >
-                  <span className={styles.appIcon}>
-                    <MobileModuleAppIcon icon={app.icon} name={app.displayName} />
-                  </span>
-                  <span className={styles.appLabel}>{app.displayName}</span>
-                </button>
-              ))}
+              {moduleApps.map((app) => {
+                const runtimeUnavailable = app.installationReadiness?.runtime === 'unavailable';
+                const configurationNeedsAttention =
+                  app.installationReadiness?.configuration === 'invalid' ||
+                  app.installationReadiness?.configuration === 'required';
+                const readinessLabel = runtimeUnavailable
+                  ? t('moduleApps.readiness.runtimeUnavailable')
+                  : app.installationReadiness?.configuration === 'invalid'
+                    ? t('moduleApps.readiness.configurationInvalid')
+                    : t('moduleApps.readiness.configurationRequired');
+                const ReadinessIcon = runtimeUnavailable ? CircleAlert : KeyRound;
+
+                return (
+                  <button
+                    data-mobile-focus-key={`module:${app.id}`}
+                    data-readiness={runtimeUnavailable ? 'unavailable' : 'ready'}
+                    data-testid="mobile-module-app"
+                    disabled={runtimeUnavailable}
+                    key={app.id}
+                    type="button"
+                    aria-label={t(
+                      runtimeUnavailable ? 'mobile.apps.unavailable' : 'mobile.apps.open',
+                      { name: app.displayName },
+                    )}
+                    className={`${styles.appCell} ${
+                      runtimeUnavailable ? styles.appCellDisabled : ''
+                    }`}
+                    onClick={() => {
+                      rememberFocus(`module:${app.id}`);
+                      return app.installationScope === 'personal'
+                        ? navigate(app.routePath, { escape: true })
+                        : navigate(app.routePath);
+                    }}
+                  >
+                    <span className={styles.appIcon}>
+                      <MobileModuleAppIcon icon={app.icon} name={app.displayName} />
+                      {runtimeUnavailable || configurationNeedsAttention ? (
+                        <span
+                          title={readinessLabel}
+                          className={`${styles.readinessIndicator} ${
+                            runtimeUnavailable ||
+                            app.installationReadiness?.configuration === 'invalid'
+                              ? styles.readinessError
+                              : ''
+                          }`}
+                        >
+                          <Icon aria-hidden icon={ReadinessIcon} size={10} />
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className={styles.appLabel}>{app.displayName}</span>
+                  </button>
+                );
+              })}
             </MobileIconGrid>
           ) : (
             <div className={styles.compactState}>

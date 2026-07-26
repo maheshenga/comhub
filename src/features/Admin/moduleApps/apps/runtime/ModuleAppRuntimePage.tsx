@@ -1,6 +1,8 @@
 'use client';
 
+import { Button } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
+import { RefreshCw } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router';
@@ -20,9 +22,69 @@ import type {
   ModuleAppInstallRow,
   ModuleAppRecordRow,
   ModuleAppRunRow,
+  ModuleAppRuntimeDiagnostics,
 } from '../../types';
 
 const styles = createStaticStyles(({ css, cssVar }) => ({
+  diagnosticCode: css`
+    font-size: 12px;
+    color: ${cssVar.colorTextSecondary};
+    overflow-wrap: anywhere;
+  `,
+  diagnosticGrid: css`
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0 20px;
+    margin: 0;
+  `,
+  diagnosticItem: css`
+    display: grid;
+    gap: 6px;
+
+    min-width: 0;
+    margin: 0;
+    padding-block: 10px;
+    border-block-end: 1px solid ${cssVar.colorBorderSecondary};
+
+    dd {
+      margin: 0;
+    }
+  `,
+  diagnosticLabel: css`
+    font-size: 13px;
+    color: ${cssVar.colorTextSecondary};
+  `,
+  diagnosticStatus: css`
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+
+    width: fit-content;
+    max-width: 100%;
+
+    color: ${cssVar.colorText};
+
+    &[data-tone='positive'] {
+      color: ${cssVar.colorSuccess};
+    }
+
+    &[data-tone='warning'] {
+      color: ${cssVar.colorWarning};
+    }
+
+    &[data-tone='negative'] {
+      color: ${cssVar.colorError};
+    }
+  `,
+  diagnosticStatusDot: css`
+    flex: none;
+
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+
+    background: currentcolor;
+  `,
   header: css`
     display: flex;
     gap: 12px;
@@ -87,10 +149,21 @@ const RuntimeSection = <T,>({
   </section>
 );
 
+type DiagnosticTone = 'negative' | 'neutral' | 'positive' | 'warning';
+
+const DiagnosticStatus = ({ label, tone }: { label: string; tone: DiagnosticTone }) => (
+  <span className={styles.diagnosticStatus} data-tone={tone}>
+    <span aria-hidden className={styles.diagnosticStatusDot} />
+    {label}
+  </span>
+);
+
 const ModuleAppRuntimePage = memo(() => {
   const { t: translate } = useTranslation('common');
-  const t = (key: string) => translate(key as any);
+  const t = (key: string, options?: Record<string, unknown>) =>
+    translate(key as any, options as any);
   const { appId } = useParams<{ appId: string }>();
+  const diagnosticsKey = appId ? moduleAppCacheKeys.runtimeDiagnostics() : null;
   const installsKey = appId ? moduleAppCacheKeys.runtime('installs', appId, 10) : null;
   const recordsKey = appId ? moduleAppCacheKeys.runtime('records', appId, 10) : null;
   const runsKey = appId ? moduleAppCacheKeys.runtime('runs', appId, 10) : null;
@@ -131,12 +204,73 @@ const ModuleAppRuntimePage = memo(() => {
         limit: 10,
       }) as Promise<ListResponse<ModuleAppArtifactRow>>,
   );
+  const diagnostics = useClientDataSWR<ModuleAppRuntimeDiagnostics>(diagnosticsKey, () =>
+    adminCommercialService.moduleApps.getRuntimeDiagnostics(),
+  );
 
   if (!appId) return <p>{t('moduleApps.admin.operations.selectAppDescription')}</p>;
 
   const globalPath = (
     routeId: 'module-artifacts' | 'module-installs' | 'module-records' | 'module-runs',
   ) => `${MODULE_ADMIN_ROUTE_PATHS[routeId]}?appId=${encodeURIComponent(appId)}`;
+  const enabledStatus = (enabled: boolean) => ({
+    label: t(
+      enabled
+        ? 'moduleApps.admin.runtime.diagnostics.status.enabled'
+        : 'moduleApps.admin.runtime.diagnostics.status.disabled',
+    ),
+    tone: (enabled ? 'positive' : 'neutral') as DiagnosticTone,
+  });
+  const configuredStatus = (configured: boolean) => ({
+    label: t(
+      configured
+        ? 'moduleApps.admin.runtime.diagnostics.status.configured'
+        : 'moduleApps.admin.runtime.diagnostics.status.missing',
+    ),
+    tone: (configured ? 'positive' : 'warning') as DiagnosticTone,
+  });
+  const probeStatus = diagnostics.data
+    ? {
+        label: t(`moduleApps.admin.runtime.diagnostics.status.${diagnostics.data.probe.status}`),
+        tone: (diagnostics.data.probe.status === 'ready'
+          ? 'positive'
+          : diagnostics.data.probe.status === 'unavailable'
+            ? 'negative'
+            : 'neutral') as DiagnosticTone,
+      }
+    : undefined;
+  const diagnosticRows = diagnostics.data
+    ? [
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.probe'),
+          status: probeStatus!,
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.execution'),
+          status: enabledStatus(diagnostics.data.switches.executionEnabled),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.publicExecution'),
+          status: enabledStatus(diagnostics.data.switches.publicExecutionEnabled),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.invocation'),
+          status: enabledStatus(diagnostics.data.switches.invocationEnabled),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.internalUrl'),
+          status: configuredStatus(diagnostics.data.configuration.internalUrlConfigured),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.internalToken'),
+          status: configuredStatus(diagnostics.data.configuration.internalTokenConfigured),
+        },
+        {
+          label: t('moduleApps.admin.runtime.diagnostics.publicOrigin'),
+          status: configuredStatus(diagnostics.data.configuration.publicOriginConfigured),
+        },
+      ]
+    : [];
 
   return (
     <section className={styles.page} data-testid="module-app-runtime">
@@ -144,6 +278,49 @@ const ModuleAppRuntimePage = memo(() => {
         <h1>{t('moduleApps.admin.runtime.title')}</h1>
         <p>{t('moduleApps.admin.runtime.description')}</p>
       </header>
+      <section className={styles.section} data-testid="module-runtime-diagnostics">
+        <header className={styles.header}>
+          <div>
+            <h2>{t('moduleApps.admin.runtime.diagnostics.title')}</h2>
+            <p>{t('moduleApps.admin.runtime.diagnostics.description')}</p>
+          </div>
+          <Button
+            icon={RefreshCw}
+            title={t('moduleApps.admin.runtime.diagnostics.refresh')}
+            onClick={() => diagnosticsKey && void mutate(diagnosticsKey)}
+          />
+        </header>
+        <ModulePageState
+          emptyDescription={t('moduleApps.admin.runtime.diagnostics.emptyDescription')}
+          emptyTitle={t('moduleApps.admin.runtime.diagnostics.emptyTitle')}
+          error={diagnostics.error}
+          isEmpty={!diagnostics.isLoading && !diagnostics.error && !diagnostics.data}
+          loading={diagnostics.isLoading}
+          onRetry={() => diagnosticsKey && void mutate(diagnosticsKey)}
+        >
+          {diagnostics.data ? (
+            <>
+              <dl className={styles.diagnosticGrid}>
+                {diagnosticRows.map((item) => (
+                  <div className={styles.diagnosticItem} key={item.label}>
+                    <dt className={styles.diagnosticLabel}>{item.label}</dt>
+                    <dd>
+                      <DiagnosticStatus {...item.status} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {diagnostics.data.probe.status === 'unavailable' ? (
+                <p className={styles.diagnosticCode} role="status">
+                  {t('moduleApps.admin.runtime.diagnostics.failureCode', {
+                    code: diagnostics.data.probe.code,
+                  })}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </ModulePageState>
+      </section>
       <RuntimeSection
         data={installs.data}
         emptyDescription={t('moduleApps.admin.runtime.emptyDescription')}

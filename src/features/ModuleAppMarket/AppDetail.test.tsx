@@ -7,16 +7,50 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AppDetail, { submitModuleAppPaymentForm } from './AppDetail';
 
 const commerceState = vi.hoisted(() => ({
+  canManageInstallation: true,
+  canManageSecrets: true,
   detailError: undefined as unknown,
   detailLoading: false,
   detailMissing: false,
   detailMutate: vi.fn(),
   installed: false,
+  installedVersionId: 'version-1',
+  installationReadiness: {
+    configuration: 'ready' as 'invalid' | 'ready' | 'required',
+    missingSecretCount: 0,
+    runtime: 'ready' as 'ready' | 'unavailable',
+  },
   licenseData: null as null | { status: string },
   licenseLoading: false,
   licenseMutate: vi.fn(),
   orderStatus: 'pending',
+  rollbackVersions: [] as Array<{ id: string; version: string }>,
+  secretKeys: [] as string[],
+  updateAvailable: false,
 }));
+
+const moduleAppServiceMocks = vi.hoisted(() => ({
+  changeInstallationVersion: vi.fn(),
+  uninstallPersonal: vi.fn(),
+  uninstallWorkspace: vi.fn(),
+}));
+
+const baseUiMocks = vi.hoisted(() => ({
+  confirmModal: vi.fn(),
+  toast: {
+    success: vi.fn(),
+  },
+}));
+
+vi.mock('@lobehub/ui/base-ui', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+
+  return {
+    ...actual,
+    confirmModal: baseUiMocks.confirmModal,
+    toast: baseUiMocks.toast,
+  };
+});
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -24,6 +58,10 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/components/NeuralNetworkLoading', () => ({
   default: () => <div data-testid="neural-network-loading" />,
+}));
+
+vi.mock('@/services/moduleApp', () => ({
+  moduleAppService: moduleAppServiceMocks,
 }));
 
 vi.mock('swr', () => ({
@@ -34,13 +72,27 @@ vi.mock('swr', () => ({
         data: commerceState.detailMissing
           ? undefined
           : {
-              actions: [],
+              actions:
+                commerceState.secretKeys.length > 0
+                  ? [{ runtimeConfig: { secretKeys: commerceState.secretKeys } }]
+                  : [],
+              canManageInstallation: commerceState.canManageInstallation,
+              canManageInstallationSecrets: commerceState.canManageSecrets,
               category: 'business',
               description: 'Recruitment workflow',
               displayName: 'Recruiting Desk',
               id: 'app-1',
               installed: commerceState.installed,
+              installationId: commerceState.installed ? 'installation-1' : undefined,
+              installedVersion: commerceState.installed
+                ? { id: commerceState.installedVersionId, version: '1.0.0' }
+                : undefined,
+              installationReadiness: commerceState.installed
+                ? commerceState.installationReadiness
+                : undefined,
+              rollbackVersions: commerceState.rollbackVersions,
               source: 'developer',
+              updateAvailable: commerceState.updateAvailable,
               version: '1.0.0',
             },
         error: commerceState.detailError,
@@ -130,8 +182,19 @@ vi.mock('./PurchaseModal', () => ({
     ) : null,
 }));
 
+vi.mock('./InstallationSecrets', () => ({
+  default: ({ installationId, onChange, workspaceId }: Record<string, any>) => (
+    <div data-testid="installation-secrets">
+      {installationId}:{workspaceId}
+      <button onClick={onChange}>refresh-readiness</button>
+    </div>
+  ),
+}));
+
 describe('ModuleAppDetail', () => {
   beforeEach(() => {
+    commerceState.canManageInstallation = true;
+    commerceState.canManageSecrets = true;
     commerceState.detailError = undefined;
     commerceState.detailLoading = false;
     commerceState.detailMissing = false;
@@ -139,8 +202,24 @@ describe('ModuleAppDetail', () => {
     commerceState.licenseLoading = false;
     commerceState.licenseData = null;
     commerceState.installed = false;
+    commerceState.installedVersionId = 'version-1';
+    commerceState.installationReadiness = {
+      configuration: 'ready',
+      missingSecretCount: 0,
+      runtime: 'ready',
+    };
     commerceState.licenseMutate.mockReset();
     commerceState.orderStatus = 'pending';
+    commerceState.rollbackVersions = [];
+    commerceState.secretKeys = [];
+    commerceState.updateAvailable = false;
+    moduleAppServiceMocks.changeInstallationVersion
+      .mockReset()
+      .mockResolvedValue({ changed: true });
+    moduleAppServiceMocks.uninstallPersonal.mockReset().mockResolvedValue({ ok: true });
+    moduleAppServiceMocks.uninstallWorkspace.mockReset().mockResolvedValue({ ok: true });
+    baseUiMocks.confirmModal.mockReset();
+    baseUiMocks.toast.success.mockReset();
   });
 
   it('shows pending payment without presenting the app as licensed', () => {
@@ -175,6 +254,117 @@ describe('ModuleAppDetail', () => {
     expect(screen.getByTestId('module-app-detail-actions').children).toHaveLength(2);
   });
 
+  it('keeps the app openable while guiding managers to configure missing credentials', () => {
+    commerceState.installed = true;
+    commerceState.installationReadiness = {
+      configuration: 'required',
+      missingSecretCount: 2,
+      runtime: 'ready',
+    };
+    renderDetail('/apps/app-1?workspaceId=workspace-1');
+
+    expect(screen.getByRole('link', { name: 'moduleApps.market.open' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'moduleApps.readiness.configurationRequiredManager',
+    );
+  });
+
+  it('disables opening an installation whose verified runtime is unavailable', () => {
+    commerceState.installed = true;
+    commerceState.installationReadiness = {
+      configuration: 'ready',
+      missingSecretCount: 0,
+      runtime: 'unavailable',
+    };
+    renderDetail();
+
+    expect(screen.getByRole('button', { name: 'moduleApps.market.open' })).toBeDisabled();
+    expect(screen.queryByRole('link', { name: 'moduleApps.market.open' })).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'moduleApps.readiness.runtimeUnavailableDescription',
+    );
+  });
+
+  it('requires confirmation before uninstalling the current workspace installation', async () => {
+    commerceState.installed = true;
+    renderDetail('/apps/app-1?workspaceId=workspace-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.uninstall' }));
+
+    expect(moduleAppServiceMocks.uninstallWorkspace).not.toHaveBeenCalled();
+    expect(baseUiMocks.confirmModal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'moduleApps.market.uninstallConfirmContent',
+        okButtonProps: { danger: true },
+        okText: 'moduleApps.market.uninstall',
+        title: 'moduleApps.market.uninstallConfirmTitle',
+      }),
+    );
+
+    await baseUiMocks.confirmModal.mock.calls[0][0].onOk();
+
+    expect(moduleAppServiceMocks.uninstallWorkspace).toHaveBeenCalledWith({
+      appId: 'app-1',
+      workspaceId: 'workspace-1',
+    });
+    expect(commerceState.detailMutate).toHaveBeenCalled();
+    expect(commerceState.licenseMutate).toHaveBeenCalled();
+    expect(baseUiMocks.toast.success).toHaveBeenCalledWith('moduleApps.market.uninstallSuccess');
+  });
+
+  it('shows a retryable error when an uninstall request fails', async () => {
+    commerceState.installed = true;
+    moduleAppServiceMocks.uninstallPersonal.mockRejectedValueOnce(new Error('offline'));
+    renderDetail();
+
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.uninstall' }));
+    await baseUiMocks.confirmModal.mock.calls[0][0].onOk();
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('moduleApps.market.uninstallError'),
+    );
+    expect(baseUiMocks.toast.success).not.toHaveBeenCalled();
+  });
+
+  it('updates an installed app with the expected version and workspace scope', async () => {
+    commerceState.installed = true;
+    commerceState.updateAvailable = true;
+    commerceState.rollbackVersions = [{ id: 'version-0', version: '0.9.0' }];
+    renderDetail('/apps/app-1?workspaceId=workspace-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'moduleApps.market.update' }));
+
+    await waitFor(() =>
+      expect(moduleAppServiceMocks.changeInstallationVersion).toHaveBeenCalledWith({
+        appId: 'app-1',
+        expectedVersionId: 'version-1',
+        operation: 'upgrade',
+        targetVersionId: undefined,
+        workspaceId: 'workspace-1',
+      }),
+    );
+    expect(screen.getByRole('button', { name: 'moduleApps.market.rollback' })).toBeInTheDocument();
+  });
+
+  it('keeps workspace installation management read-only for regular members', () => {
+    commerceState.canManageInstallation = false;
+    commerceState.installed = true;
+    commerceState.updateAvailable = true;
+    commerceState.rollbackVersions = [{ id: 'version-0', version: '0.9.0' }];
+    renderDetail('/apps/app-1?workspaceId=workspace-1');
+
+    expect(screen.getByRole('link', { name: 'moduleApps.market.open' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'moduleApps.market.update' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'moduleApps.market.rollback' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'moduleApps.market.uninstall' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('shows install as the only primary action for licensed apps that are not installed', () => {
     commerceState.licenseData = { status: 'active' };
 
@@ -183,6 +373,29 @@ describe('ModuleAppDetail', () => {
     const install = screen.getByRole('button', { name: 'moduleApps.purchase.install' });
     expect(install).toHaveAttribute('data-button-type', 'primary');
     expect(screen.getByTestId('module-app-detail-actions').children).toHaveLength(1);
+  });
+
+  it('loads authoritative installation credentials for the active installation scope', () => {
+    commerceState.installed = true;
+    commerceState.secretKeys = ['CRM_TOKEN', 'CRM_TOKEN', 'API_KEY'];
+
+    renderDetail('/apps/app-1?workspaceId=workspace-1');
+
+    expect(screen.getByTestId('installation-secrets')).toHaveTextContent(
+      'installation-1:workspace-1',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'refresh-readiness' }));
+    expect(commerceState.detailMutate).toHaveBeenCalled();
+  });
+
+  it('does not expose shared installation credentials to workspace members without permission', () => {
+    commerceState.canManageSecrets = false;
+    commerceState.installed = true;
+    commerceState.secretKeys = ['CRM_TOKEN'];
+
+    renderDetail('/apps/app-1?workspaceId=workspace-1');
+
+    expect(screen.queryByTestId('installation-secrets')).not.toBeInTheDocument();
   });
 
   it('renders a semantic responsive metadata list', () => {

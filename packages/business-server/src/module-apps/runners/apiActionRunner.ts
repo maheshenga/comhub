@@ -1,8 +1,14 @@
 import type { ModuleAppActionConfig } from '@lobechat/types';
+import type { Dispatcher } from 'undici';
 
 import { redactResolvedModuleAppSecretValues } from '../logRedaction';
 import { renderModuleAppTemplateString, renderModuleAppTemplateValue } from '../runtimeTemplate';
-import { assertSafeModuleAppApiUrl, type ModuleAppUrlResolver } from '../safeUrl';
+import {
+  createModuleAppPinnedDispatcher,
+  type ModuleAppDispatcherFactory,
+  type ModuleAppUrlResolver,
+  resolveSafeModuleAppApiUrl,
+} from '../safeUrl';
 
 type FetchResponse = {
   body?: null | ReadableStream<Uint8Array>;
@@ -13,7 +19,9 @@ type FetchResponse = {
   text: () => Promise<string>;
 };
 
-export type ModuleAppFetch = (input: string, init: RequestInit) => Promise<FetchResponse>;
+type ModuleAppFetchInit = RequestInit & { dispatcher?: Dispatcher };
+
+export type ModuleAppFetch = (input: string, init: ModuleAppFetchInit) => Promise<FetchResponse>;
 
 export type ModuleAppRunnerArtifactRequest = {
   content: Buffer | string;
@@ -31,6 +39,7 @@ export type ModuleAppRunnerResult = {
 
 export interface RunModuleAppApiActionInput {
   action: ModuleAppActionConfig;
+  createDispatcher?: ModuleAppDispatcherFactory;
   fetchImpl?: ModuleAppFetch;
   input: Record<string, unknown>;
   outboundHosts?: string[];
@@ -234,6 +243,7 @@ const parseResponseBody = async (response: FetchResponse) => {
 
 export const runModuleAppApiAction = async ({
   action,
+  createDispatcher = createModuleAppPinnedDispatcher,
   fetchImpl = fetch as unknown as ModuleAppFetch,
   input,
   outboundHosts,
@@ -255,14 +265,18 @@ export const runModuleAppApiAction = async ({
   } catch {
     throw new Error('MODULE_APP_UNSAFE_API_URL');
   }
+  if (Object.keys(resolvedSecrets).length > 0 && parsedUrl.protocol !== 'https:') {
+    throw new Error('MODULE_APP_API_SECRET_REQUIRES_HTTPS');
+  }
   const reviewedHosts = getReviewedHosts(configuredUrl, outboundHosts);
   if (!reviewedHosts.has(parsedUrl.hostname.toLowerCase().replace(/\.$/, ''))) {
     throw new Error('MODULE_APP_API_HOST_DENIED');
   }
-  const url = await assertSafeModuleAppApiUrl(renderedUrl, { resolveHostname });
+  const resolvedUrl = await resolveSafeModuleAppApiUrl(renderedUrl, { resolveHostname });
+  const url = resolvedUrl.url;
   const method = getMethodConfig(config);
   const headers = buildHeaders(getHeadersConfig(config), values);
-  const init: RequestInit = { headers, method };
+  const init: ModuleAppFetchInit = { headers, method };
 
   if (method === 'POST') {
     const bodyTemplate = config.bodyTemplate ?? input;
@@ -274,6 +288,8 @@ export const runModuleAppApiAction = async ({
     ensureJsonContentType(headers);
   }
 
+  const dispatcher = createDispatcher(resolvedUrl);
+  init.dispatcher = dispatcher;
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
@@ -317,5 +333,6 @@ export const runModuleAppApiAction = async ({
     };
   } finally {
     clearTimeout(timeout);
+    await dispatcher.close();
   }
 };

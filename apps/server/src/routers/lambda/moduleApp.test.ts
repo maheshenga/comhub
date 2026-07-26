@@ -12,6 +12,7 @@ import { lambdaRouter } from './index';
 import { moduleAppRouter } from './moduleApp';
 import { moduleAppCommerceProcedures } from './moduleApp/commerce';
 import { moduleAppDataProcedures, moduleAppProcedure } from './moduleApp/data';
+import { moduleAppInstallationSecretProcedures } from './moduleApp/installationSecrets';
 import { moduleAppMarketProcedures } from './moduleApp/market';
 import { moduleAppRuntimeProcedures } from './moduleApp/runtime';
 import { moduleAppWorkflowProcedures } from './moduleApp/workflow';
@@ -28,6 +29,7 @@ const {
   mockRunModuleAppAction,
   mockModuleAppCommerceModel,
   mockModuleAppPaymentService,
+  mockEncryptInstallationSecret,
   mockCreateConfiguredModuleAppAlipayClient,
   mockModuleAppModel,
   mockModuleAppWorkflowModel,
@@ -70,20 +72,29 @@ const {
   mockModuleAppPaymentService: {
     createPayment: vi.fn(),
   },
+  mockEncryptInstallationSecret: vi.fn(),
   mockCreateConfiguredModuleAppAlipayClient: vi.fn(() => ({ provider: 'alipay' })),
   mockModuleAppModel: {
     assertInstallationAccess: vi.fn(),
+    changeInstallationVersion: vi.fn(),
     createRecord: vi.fn(),
     createRun: vi.fn(),
+    deleteInstallationSecret: vi.fn(),
     getAppDetail: vi.fn(),
+    getInstallationVersionState: vi.fn(),
+    getInstallationSecretState: vi.fn(),
     getLaunchInstallationContext: vi.fn(),
+    getRuntimeManifest: vi.fn(),
     installPersonalApp: vi.fn(),
     installWorkspaceApp: vi.fn(),
     listAdminPackageSubmissions: vi.fn(),
     listArtifacts: vi.fn(),
     listInstalledApps: vi.fn(),
+    listInstalledAppsPage: vi.fn(),
+    listInstallationSecrets: vi.fn(),
     listMarketplaceApps: vi.fn(),
     uninstallWorkspaceApp: vi.fn(),
+    upsertInstallationSecret: vi.fn(),
   },
   mockModuleAppWorkflowModel: {
     cancelRun: vi.fn(),
@@ -150,6 +161,12 @@ vi.mock('@/business/server/module-apps/payments/service', () => ({
 
 vi.mock('@/server/services/moduleAppPayments/alipay/client', () => ({
   createConfiguredModuleAppAlipayClient: mockCreateConfiguredModuleAppAlipayClient,
+}));
+
+vi.mock('@/server/modules/KeyVaultsEncrypt', () => ({
+  KeyVaultsGateKeeper: {
+    initWithEnvKey: vi.fn(async () => ({ encrypt: mockEncryptInstallationSecret })),
+  },
 }));
 
 vi.mock('@/database/models/moduleAppWorkflow', () => ({
@@ -241,11 +258,31 @@ describe('moduleApp router registration', () => {
       id: APP_ID,
       planState: { installable: true, runnable: false, visible: true },
     });
+    mockModuleAppModel.getInstallationVersionState.mockResolvedValue(null);
+    mockModuleAppModel.changeInstallationVersion.mockResolvedValue({
+      changed: true,
+      installationId: 'installation-1',
+      operation: 'upgrade',
+      previousVersionId: '00000000-0000-4000-8000-000000000002',
+      versionId: '00000000-0000-4000-8000-000000000003',
+    });
     mockModuleAppModel.installPersonalApp.mockResolvedValue(undefined);
     mockModuleAppModel.installWorkspaceApp.mockResolvedValue(undefined);
     mockModuleAppModel.uninstallWorkspaceApp.mockResolvedValue({ ok: true });
     mockModuleAppModel.listMarketplaceApps.mockResolvedValue([]);
     mockModuleAppModel.listInstalledApps.mockResolvedValue([]);
+    mockModuleAppModel.listInstalledAppsPage.mockResolvedValue({ items: [], nextCursor: null });
+    mockModuleAppModel.listInstallationSecrets.mockResolvedValue([]);
+    mockModuleAppModel.getInstallationSecretState.mockResolvedValue({
+      items: [],
+      missingKeys: [],
+      ready: true,
+      requiredKeys: [],
+    });
+    mockModuleAppModel.getRuntimeManifest.mockResolvedValue({ actions: [], pages: [] });
+    mockModuleAppModel.upsertInstallationSecret.mockResolvedValue({ ok: true });
+    mockModuleAppModel.deleteInstallationSecret.mockResolvedValue({ ok: true });
+    mockEncryptInstallationSecret.mockReset().mockResolvedValue('encrypted-secret');
     mockModuleAppCommerceModel.listOrders.mockResolvedValue([]);
     mockModuleAppCommerceModel.listCatalog.mockResolvedValue([]);
     mockModuleAppCommerceModel.quoteProduct.mockResolvedValue({ price: 88 });
@@ -340,6 +377,7 @@ describe('moduleApp router registration', () => {
       moduleAppMarketProcedures,
       moduleAppRuntimeProcedures,
       moduleAppDataProcedures,
+      moduleAppInstallationSecretProcedures,
       moduleAppWorkflowProcedures,
       moduleAppCommerceProcedures,
     ];
@@ -357,12 +395,14 @@ describe('moduleApp router registration', () => {
     const contract: Record<string, { inputs: number; type: 'mutation' | 'query' }> = {
       archiveRecord: { inputs: 1, type: 'mutation' },
       callSdk: { inputs: 1, type: 'mutation' },
+      changeInstallationVersion: { inputs: 1, type: 'mutation' },
       cancelOrder: { inputs: 1, type: 'mutation' },
       cancelWorkflowRun: { inputs: 1, type: 'mutation' },
       createOrder: { inputs: 1, type: 'mutation' },
       createPackageUpload: { inputs: 1, type: 'mutation' },
       createPayment: { inputs: 1, type: 'mutation' },
       createRecord: { inputs: 1, type: 'mutation' },
+      deleteInstallationSecret: { inputs: 1, type: 'mutation' },
       getDetail: { inputs: 1, type: 'query' },
       getLaunchContext: { inputs: 1, type: 'query' },
       getLicense: { inputs: 1, type: 'query' },
@@ -373,9 +413,10 @@ describe('moduleApp router registration', () => {
       installWorkspace: { inputs: 1, type: 'mutation' },
       listArtifacts: { inputs: 1, type: 'query' },
       listCatalog: { inputs: 1, type: 'query' },
+      listInstallationSecrets: { inputs: 1, type: 'query' },
       listMarketplace: { inputs: 1, type: 'query' },
       listMobileApps: { inputs: 1, type: 'query' },
-      listMyApps: { inputs: 0, type: 'query' },
+      listMyApps: { inputs: 1, type: 'query' },
       listMyPackageSubmissions: { inputs: 1, type: 'query' },
       listOrders: { inputs: 1, type: 'query' },
       listRecords: { inputs: 1, type: 'query' },
@@ -388,41 +429,46 @@ describe('moduleApp router registration', () => {
       uninstallPersonal: { inputs: 1, type: 'mutation' },
       uninstallWorkspace: { inputs: 1, type: 'mutation' },
       updateRecord: { inputs: 1, type: 'mutation' },
+      upsertInstallationSecret: { inputs: 1, type: 'mutation' },
     };
     const inputSchemaContract: Record<string, null | string> = {
-      archiveRecord: '854df8f9f82f8626a7382dce00b8145f17645b5d5e0363dcfd066b64fc7c2c49',
-      callSdk: 'bc51dc2b9504f9c2ed731dd8f98671de81c2eb91af74762ac0ae46390570c671',
-      cancelOrder: '3130fc6ed9a08d9fc1d6295ff15adb99797d435765068b31a02cf3f4b580bc7b',
-      cancelWorkflowRun: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
-      createOrder: 'cf24b73b30375897e4a9fa81e9a54c7de4a7247ef4c4dba6a9d4f9e35913c210',
-      createPackageUpload: '93f1a0509a31e23a1e66b6a220165f5bd931503fc148bf8a0e2b7f213ca5a969',
-      createPayment: 'ebe3b1afa36f2514174957f1ba37d6baadf21e2c82a244f0e117b484160c132e',
-      createRecord: '6e9a074dc84ace871f6347bdc0833bc657d4ad409e99a71ae06de10f91deb29a',
-      getDetail: '181ce63c50f354d33e38e7a1aacad923df4ee451bb755cd3d664f4f6890047b0',
-      getLaunchContext: '73c92b6fc5923def54e2595f57fc567802693d056634a75bd7031c1cf78971c8',
-      getLicense: '73c92b6fc5923def54e2595f57fc567802693d056634a75bd7031c1cf78971c8',
-      getRecord: '854df8f9f82f8626a7382dce00b8145f17645b5d5e0363dcfd066b64fc7c2c49',
-      getRuntimeManifest: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
-      getWorkflowRun: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
-      installPersonal: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
-      installWorkspace: 'dad62ad0a3953ccbb0f9da06a741fbfc319be708e14d4da4e35c668b56564f97',
-      listArtifacts: '43e4cea8d4d8a7d47b62b6d42cea3420a57d4f67d0def09fd90f4f48e51a41f7',
-      listCatalog: 'fbed6b4881d01ef729f244ed5b4795c427f4dfdba7a910b909ba8c0f364714f1',
-      listMarketplace: '7699c86549809458043fa74a895e3ac49562495b1bdac9c2e3514c3ea5f227af',
-      listMobileApps: '08e0dbac399b66eb82aeddd0b5a211271ea2d4294dcc0fd40f9459d2b289a630',
-      listMyApps: null,
-      listMyPackageSubmissions: '92ca0a7abe13012bc74d99c1ec6a61f85d12e583360292a35d15f05281bebec5',
-      listOrders: 'f1cd8d8ac045d434ef05ccbd4a304bcd7ab3a4e5eceae386b412e1f533fa3cf2',
-      listRecords: '143ebe78721eeeb03dfc77f8a247647a5ef8ec4f890020bb3266fb522c398a71',
-      listRuns: '43e4cea8d4d8a7d47b62b6d42cea3420a57d4f67d0def09fd90f4f48e51a41f7',
-      listTeamApps: 'dba8eab472ae20562fef13dcf47022b1da58000b4be5fbbf3737cfab2168c125',
-      listWorkflowNodes: '7718a352059ff192410c0012426887ce0323f1db865047e26f26f8c5773f0959',
-      quoteProduct: 'a9cb754e0714fabb188d6dd9d2af27b1ee6f8bdafeceb7700ba08bd7299d7adc',
-      runAction: 'd68bc0413b5fcedfd583eb96330011dfb30aadddb4add64d30d12ebc4f297984',
-      submitUploadedPackage: '74eff14aff88a2463579fec57327dd724b23d3decda13a51d038eb7c6e4da43f',
-      uninstallPersonal: '60a3787f96995f4ebb7ea3aa513c97a971dcfa68a604864fe740106bdf68c515',
-      uninstallWorkspace: 'dad62ad0a3953ccbb0f9da06a741fbfc319be708e14d4da4e35c668b56564f97',
-      updateRecord: '6b12c59563a0e4a4ce7df592bf5d65c0b2df02ffaba10e8dbeaa0ed7e06e1bb1',
+      archiveRecord: '260d0eee596956378467e0edd0635e2d0dd2dd8cee898e80b24fb13f11b93200',
+      callSdk: '842cf7a18c485cc6032081ec322bfda3918a747b24e7406e46667bbea4b36e88',
+      changeInstallationVersion: '144667b8e8ef32748fbaefed557fd62866746d58040748a183ae221242cfe085',
+      cancelOrder: 'f354fb7b76ad0f6770518e7e144e89a63f82fa803356ed1315bcf88402d058df',
+      cancelWorkflowRun: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
+      createOrder: '6d395f5827879b996e464493db3e38aafd7bb0d684358e16b1d92571d8211851',
+      createPackageUpload: '6215d3a377a32c7184babaeb9ead827e776a6df3a83ad77e8f41904b636e8dfa',
+      createPayment: '260a265da2cc12ae853603109e7118f10f898918308faee3567422c5d9f9d086',
+      createRecord: '2f321b2820b2252ffcb9c9c134c652fc540cbd348579402dafd5d0a3a6d9bcf7',
+      deleteInstallationSecret: '69951d4f3ebbaf044287c02aa021b3f222c70206fa728c133bf5889acd424639',
+      getDetail: '071a01e07fe8fc3449788d0f354c6ff6f3ea0001462e1012814d0f676102917a',
+      getLaunchContext: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
+      getLicense: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
+      getRecord: '260d0eee596956378467e0edd0635e2d0dd2dd8cee898e80b24fb13f11b93200',
+      getRuntimeManifest: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
+      getWorkflowRun: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
+      installPersonal: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
+      installWorkspace: '456b6ddb3c315ab99db2e0ddd37e020b94c9914c99c42e742ad1d5416fc1baee',
+      listArtifacts: '31ca6256590d548cf1378bb4c8dbc6edac446b302021647b9ade6134d2ef6bd7',
+      listCatalog: '789a28a4bd88dbbb0a4fe89c2a6538c190ebf8427135cb961433cd1d341f7079',
+      listInstallationSecrets: '21d355edace3fd4479dc17131bfe8844a9ba90f88cfe630d4afc9df8c8070d23',
+      listMarketplace: '5b4111c42b1b67721865e703b17f57207ab663914acbbd1885433bbe9a624d27',
+      listMobileApps: 'fd9e67ce22cbc8dd53d16c3f71e527a0bbd628afeb46949e355bd2442c29de7c',
+      listMyApps: '1d2e18a1f9afecde06441e409c12cdb15bb4f0ea494545effe6824f39dd8355e',
+      listMyPackageSubmissions: '73f4357a6b7d4d088b0eadd243ce4201c94295e9e8f83dc60b642f7b2979133c',
+      listOrders: '64b1f64794012be91a399e0c1754f3a9cd71cc689f6c35534d8dcf045566ff95',
+      listRecords: '9f3afddbdb9d58174d22c658b9b89cc57f8d16a2d29fa451f992617cd0a6f0f2',
+      listRuns: '31ca6256590d548cf1378bb4c8dbc6edac446b302021647b9ade6134d2ef6bd7',
+      listTeamApps: '9bbd98dad19781d69ccc360646979c139118dce38697b889175b6efcb2f5a7a5',
+      listWorkflowNodes: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
+      quoteProduct: 'f0bb4ee4fa6e509c8621f0c0c49b8ea2952c1c07b8c219354a5c85684ec2d858',
+      runAction: 'b02a2c4f1fe29489a7b4c9315e0bd3f461024e41dfb4b875cdea64b78e020c0f',
+      submitUploadedPackage: '1257dbc5e374e9500f59cc034f282ba76faafaea9bf7b38fee9124b599bdf571',
+      uninstallPersonal: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
+      uninstallWorkspace: '456b6ddb3c315ab99db2e0ddd37e020b94c9914c99c42e742ad1d5416fc1baee',
+      updateRecord: '33347b3388f8c6500c014bb99506e2df954697674a2b8dce44264e05c20c0f5d',
+      upsertInstallationSecret: 'ca13d38564530b36a90fce7005154de37f59124a9ea82265552848174ddf45d1',
     };
     const baseMiddlewares = moduleAppProcedure._def.middlewares;
     const authMiddlewares = authedProcedure._def.middlewares;
@@ -442,6 +488,7 @@ describe('moduleApp router registration', () => {
     expect(fingerprintParser(z.string())).not.toBe(
       fingerprintParser(z.string().transform((value) => value.trim())),
     );
+    const actualInputSchemaContract: Record<string, null | string> = {};
     for (const [key, expected] of Object.entries(contract)) {
       const procedure = moduleAppProcedureRecord[key];
       const middlewares = (procedure._def as typeof procedure._def & { middlewares: unknown[] })
@@ -451,10 +498,11 @@ describe('moduleApp router registration', () => {
 
       expect(procedure._def.type, key).toBe(expected.type);
       expect(procedure._def.inputs, key).toHaveLength(expected.inputs);
-      expect(inputSchemaSha256, key).toBe(inputSchemaContract[key]);
+      actualInputSchemaContract[key] = inputSchemaSha256;
       expect(middlewares.slice(0, baseMiddlewares.length), key).toEqual(baseMiddlewares);
       expect(middlewares, key).toHaveLength(baseMiddlewares.length + expected.inputs + 1);
     }
+    expect(actualInputSchemaContract).toEqual(inputSchemaContract);
   });
 
   describe('listMobileApps', () => {
@@ -529,6 +577,39 @@ describe('moduleApp router registration', () => {
     });
   });
 
+  it('forwards paginated personal and team installation filters', async () => {
+    mockModuleAppModel.listInstalledAppsPage
+      .mockResolvedValueOnce({ items: [{ id: 'personal-app' }], nextCursor: 30 })
+      .mockResolvedValueOnce({ items: [{ id: 'team-app' }], nextCursor: null });
+
+    await expect(
+      createCaller().listMyApps({ cursor: 20, limit: 10, query: 'desk' }),
+    ).resolves.toEqual({ items: [{ id: 'personal-app' }], nextCursor: 30 });
+    await expect(
+      createCaller().listTeamApps({
+        cursor: 0,
+        limit: 20,
+        query: 'shared',
+        workspaceId: 'workspace-1',
+      }),
+    ).resolves.toEqual({ items: [{ id: 'team-app' }], nextCursor: null });
+    expect(mockModuleAppModel.listInstalledAppsPage).toHaveBeenNthCalledWith(1, {
+      cursor: 20,
+      limit: 10,
+      query: 'desk',
+      scopeType: 'personal',
+      userId: 'user-1',
+    });
+    expect(mockModuleAppModel.listInstalledAppsPage).toHaveBeenNthCalledWith(2, {
+      cursor: 0,
+      limit: 20,
+      query: 'shared',
+      scopeType: 'workspace',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
+  });
+
   it('preserves the database, plan, model, and workflow-model context middleware', async () => {
     const database = {};
     mockGetServerDB.mockResolvedValueOnce(database);
@@ -548,6 +629,31 @@ describe('moduleApp router registration', () => {
     expect(mockModuleAppWorkflowModel.getRun).toHaveBeenCalledWith({
       installationId: '00000000-0000-4000-8000-000000000010',
       runId: '00000000-0000-4000-8000-000000000012',
+    });
+  });
+
+  it('loads the runtime manifest from the scoped installation version', async () => {
+    mockModuleAppModel.getAppDetail.mockResolvedValueOnce({
+      actions: [],
+      id: APP_ID,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+    mockModuleAppModel.getRuntimeManifest.mockResolvedValueOnce({
+      actions: [],
+      pages: [{ key: 'installed_page' }],
+      version: '1.0.0',
+    });
+
+    await expect(
+      createCaller().getRuntimeManifest({ appId: APP_ID, workspaceId: 'workspace-1' }),
+    ).resolves.toMatchObject({
+      pages: [{ key: 'installed_page' }],
+      version: '1.0.0',
+    });
+    expect(mockModuleAppModel.getRuntimeManifest).toHaveBeenCalledWith({
+      appId: APP_ID,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
     });
   });
 
@@ -698,6 +804,7 @@ describe('moduleApp router registration', () => {
     mockModuleAppModel.listMarketplaceApps.mockResolvedValueOnce([
       {
         id: APP_ID,
+        installed: true,
         planState: { installable: true, runnable: true, visible: true },
         status: 'published',
       },
@@ -707,13 +814,40 @@ describe('moduleApp router registration', () => {
         status: 'published',
       },
     ]);
+    mockModuleAppModel.listInstalledApps.mockResolvedValueOnce([
+      {
+        id: APP_ID,
+        installedVersion: { id: 'version-1', version: '1.0.0' },
+        installationReadiness: {
+          configuration: 'required',
+          missingSecretCount: 1,
+          runtime: 'ready',
+        },
+        publishedVersion: { id: 'version-2', version: '2.0.0' },
+        updateAvailable: true,
+      },
+    ]);
 
     await expect(createCaller().listMarketplace({})).resolves.toEqual([
-      expect.objectContaining({ id: APP_ID }),
+      expect.objectContaining({
+        id: APP_ID,
+        installed: true,
+        installedVersion: { id: 'version-1', version: '1.0.0' },
+        installationReadiness: {
+          configuration: 'required',
+          missingSecretCount: 1,
+          runtime: 'ready',
+        },
+        updateAvailable: true,
+      }),
     ]);
     expect(mockModuleAppModel.listMarketplaceApps).toHaveBeenCalledWith(
       expect.objectContaining({ includeHidden: true, plan: 'free', userId: 'user-1' }),
     );
+    expect(mockModuleAppModel.listInstalledApps).toHaveBeenCalledWith({
+      scopeType: 'personal',
+      userId: 'user-1',
+    });
   });
 
   it('uses the central install decision before creating an installation', async () => {
@@ -736,6 +870,7 @@ describe('moduleApp router registration', () => {
     await expect(
       createCaller().getDetail({ appIdOrSlug: APP_ID, workspaceId }),
     ).resolves.toMatchObject({
+      canManageInstallationSecrets: true,
       id: APP_ID,
     });
     expect(mockModuleAppModel.getAppDetail).toHaveBeenCalledWith(
@@ -767,6 +902,101 @@ describe('moduleApp router registration', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
   });
 
+  it('returns scoped version state and performs an optimistic workspace upgrade', async () => {
+    const workspaceId = 'workspace-1';
+    const expectedVersionId = '00000000-0000-4000-8000-000000000002';
+    const versionId = '00000000-0000-4000-8000-000000000003';
+    mockModuleAppModel.getAppDetail.mockResolvedValue({
+      id: APP_ID,
+      installed: true,
+      planState: { installable: true, runnable: true, visible: true },
+    });
+    mockModuleAppModel.getInstallationVersionState.mockResolvedValue({
+      installationReadiness: {
+        configuration: 'required',
+        missingSecretCount: 1,
+        runtime: 'ready',
+      },
+      installedVersion: { id: expectedVersionId, version: '1.0.0' },
+      rollbackVersions: [],
+      updateAvailable: true,
+    });
+    mockModuleAppModel.changeInstallationVersion.mockResolvedValue({
+      changed: true,
+      installationId: 'installation-1',
+      operation: 'upgrade',
+      previousVersionId: expectedVersionId,
+      versionId,
+    });
+
+    await expect(
+      createCaller().getDetail({ appIdOrSlug: APP_ID, workspaceId }),
+    ).resolves.toMatchObject({
+      canManageInstallation: true,
+      installationReadiness: {
+        configuration: 'required',
+        missingSecretCount: 1,
+        runtime: 'ready',
+      },
+      installedVersion: { id: expectedVersionId, version: '1.0.0' },
+      updateAvailable: true,
+    });
+    expect(mockModuleAppModel.getInstallationVersionState).toHaveBeenCalledWith({
+      appId: APP_ID,
+      userId: 'user-1',
+      workspaceId,
+    });
+
+    await expect(
+      createCaller().changeInstallationVersion({
+        appId: APP_ID,
+        expectedVersionId,
+        operation: 'upgrade',
+        workspaceId,
+      }),
+    ).resolves.toMatchObject({ changed: true, versionId });
+    expect(mockModuleAppModel.changeInstallationVersion).toHaveBeenCalledWith({
+      appId: APP_ID,
+      expectedVersionId,
+      operation: 'upgrade',
+      scopeType: 'workspace',
+      userId: 'user-1',
+      workspaceId,
+    });
+  });
+
+  it('maps stale installation version changes to a conflict', async () => {
+    mockModuleAppModel.changeInstallationVersion.mockRejectedValueOnce(
+      new Error('MODULE_APP_INSTALLATION_VERSION_CONFLICT'),
+    );
+
+    await expect(
+      createCaller().changeInstallationVersion({
+        appId: APP_ID,
+        expectedVersionId: '00000000-0000-4000-8000-000000000002',
+        operation: 'upgrade',
+      }),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: 'MODULE_APP_INSTALLATION_VERSION_CONFLICT',
+    });
+  });
+
+  it.each([
+    ['MODULE_APP_NOT_FOUND', 'NOT_FOUND'],
+    ['MODULE_APP_NOT_INSTALLABLE', 'PRECONDITION_FAILED'],
+  ] as const)('maps installation version error %s to %s', async (message, code) => {
+    mockModuleAppModel.changeInstallationVersion.mockRejectedValueOnce(new Error(message));
+
+    await expect(
+      createCaller().changeInstallationVersion({
+        appId: APP_ID,
+        expectedVersionId: '00000000-0000-4000-8000-000000000002',
+        operation: 'upgrade',
+      }),
+    ).rejects.toMatchObject({ code, message });
+  });
+
   it('rejects workspace purchase, install, and uninstall mutations from regular members', async () => {
     const workspaceId = 'workspace-1';
     const productId = '00000000-0000-4000-8000-000000000031';
@@ -782,9 +1012,116 @@ describe('moduleApp router registration', () => {
     await expect(
       createCaller().uninstallWorkspace({ appId: APP_ID, workspaceId }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'workspace_admin_required' });
+    await expect(
+      createCaller().changeInstallationVersion({
+        appId: APP_ID,
+        expectedVersionId: '00000000-0000-4000-8000-000000000002',
+        operation: 'upgrade',
+        workspaceId,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'workspace_admin_required' });
     expect(mockModuleAppCommerceModel.createOrder).not.toHaveBeenCalled();
+    expect(mockModuleAppModel.changeInstallationVersion).not.toHaveBeenCalled();
     expect(mockModuleAppModel.installWorkspaceApp).not.toHaveBeenCalled();
     expect(mockModuleAppModel.uninstallWorkspaceApp).not.toHaveBeenCalled();
+  });
+
+  it('keeps shared installation credentials read-only for regular workspace members', async () => {
+    mockGetWorkspaceMember.mockResolvedValue({ role: 'member', workspaceId: 'workspace-1' });
+
+    await expect(
+      createCaller().getDetail({ appIdOrSlug: APP_ID, workspaceId: 'workspace-1' }),
+    ).resolves.toMatchObject({
+      canManageInstallation: false,
+      canManageInstallationSecrets: false,
+      id: APP_ID,
+    });
+  });
+
+  it('encrypts and manages personal installation secrets without returning secret values', async () => {
+    const installationId = '00000000-0000-4000-8000-000000000010';
+    const caller = createCaller() as any;
+    mockModuleAppModel.getInstallationSecretState.mockResolvedValue({
+      items: [
+        {
+          createdAt: new Date('2026-07-26T00:00:00.000Z'),
+          secretKey: 'CRM_TOKEN',
+          updatedAt: new Date('2026-07-26T00:00:00.000Z'),
+        },
+      ],
+      missingKeys: ['API_KEY'],
+      ready: false,
+      requiredKeys: ['API_KEY', 'CRM_TOKEN'],
+    });
+
+    await expect(caller.listInstallationSecrets({ installationId })).resolves.toMatchObject({
+      items: [expect.objectContaining({ secretKey: 'CRM_TOKEN' })],
+      missingKeys: ['API_KEY'],
+      ready: false,
+      requiredKeys: ['API_KEY', 'CRM_TOKEN'],
+    });
+    await expect(
+      caller.upsertInstallationSecret({
+        installationId,
+        secretKey: 'CRM_TOKEN',
+        value: 'plain-secret',
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(mockEncryptInstallationSecret).toHaveBeenCalledWith('plain-secret');
+    expect(mockModuleAppModel.upsertInstallationSecret).toHaveBeenCalledWith({
+      createdBy: 'user-1',
+      encryptedValue: 'encrypted-secret',
+      installationId,
+      secretKey: 'CRM_TOKEN',
+    });
+    await expect(
+      caller.deleteInstallationSecret({ installationId, secretKey: 'CRM_TOKEN' }),
+    ).resolves.toEqual({ ok: true });
+    expect(mockModuleAppModel.assertInstallationAccess).toHaveBeenCalledWith({
+      installationId,
+      userId: 'user-1',
+      workspaceId: undefined,
+    });
+  });
+
+  it('maps undeclared installation secret writes to a client error', async () => {
+    const installationId = '00000000-0000-4000-8000-000000000010';
+    mockModuleAppModel.upsertInstallationSecret.mockRejectedValueOnce(
+      new Error('MODULE_APP_SECRET_NOT_DECLARED'),
+    );
+
+    await expect(
+      createCaller().upsertInstallationSecret({
+        installationId,
+        secretKey: 'UNDECLARED_TOKEN',
+        value: 'plain-secret',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'MODULE_APP_SECRET_NOT_DECLARED' });
+  });
+
+  it('allows only workspace owners and admins to manage shared installation secrets', async () => {
+    const input = {
+      installationId: '00000000-0000-4000-8000-000000000010',
+      secretKey: 'CRM_TOKEN',
+      value: 'plain-secret',
+      workspaceId: 'workspace-1',
+    };
+    const caller = createCaller() as any;
+    mockGetWorkspaceMember.mockResolvedValueOnce({ role: 'member', workspaceId: 'workspace-1' });
+
+    await expect(caller.upsertInstallationSecret(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'workspace_admin_required',
+    });
+    expect(mockEncryptInstallationSecret).not.toHaveBeenCalled();
+
+    mockGetWorkspaceMember.mockResolvedValueOnce({ role: 'admin', workspaceId: 'workspace-1' });
+    await expect(caller.upsertInstallationSecret(input)).resolves.toEqual({ ok: true });
+    expect(mockModuleAppModel.assertInstallationAccess).toHaveBeenCalledWith({
+      installationId: input.installationId,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
   });
 
   it('rechecks runnable plan entitlement before launch', async () => {

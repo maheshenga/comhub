@@ -1,4 +1,5 @@
 import {
+  moduleAppInstallationListInputSchema,
   moduleAppMarketplaceListInputSchema,
   moduleAppPackageArchiveMetadataSchema,
   moduleAppPackageManifestV1Schema,
@@ -17,6 +18,7 @@ import { ModuleAppPackageIngestionService } from '@/server/services/moduleAppPac
 
 import {
   assertDetailEntitlement,
+  assertRunnableApp,
   assertScopePermission,
   assertWorkspaceManagementPermission,
   getWorkspaceMembership,
@@ -25,6 +27,10 @@ import {
 
 const AppIdInputSchema = z.object({
   appId: z.string().uuid(),
+});
+
+const RuntimeManifestInputSchema = AppIdInputSchema.extend({
+  workspaceId: z.string().min(1).optional(),
 });
 
 const AppIdOrSlugInputSchema = z.object({
@@ -36,6 +42,24 @@ const WorkspaceAppInputSchema = AppIdInputSchema.extend({
   workspaceId: z.string().min(1),
 });
 
+const TeamInstallationListInputSchema = moduleAppInstallationListInputSchema.extend({
+  workspaceId: z.string().min(1),
+});
+
+const InstallationVersionChangeInputSchema = z.discriminatedUnion('operation', [
+  AppIdInputSchema.extend({
+    expectedVersionId: z.string().uuid(),
+    operation: z.literal('upgrade'),
+    workspaceId: z.string().min(1).optional(),
+  }),
+  AppIdInputSchema.extend({
+    expectedVersionId: z.string().uuid(),
+    operation: z.literal('rollback'),
+    targetVersionId: z.string().uuid(),
+    workspaceId: z.string().min(1).optional(),
+  }),
+]);
+
 const assertWorkspaceMembership = async (params: {
   db: Parameters<typeof getWorkspaceMembership>[0];
   userId: string;
@@ -45,6 +69,8 @@ const assertWorkspaceMembership = async (params: {
   if (!membership) {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'module_app_workspace_denied' });
   }
+
+  return membership;
 };
 
 const publicPackageArchiveSchema = moduleAppPackageArchiveMetadataSchema.pick({
@@ -137,6 +163,38 @@ const mapPackageError = (error: unknown) => {
   });
 };
 
+const mapInstallationVersionError = (error: unknown) => {
+  if (error instanceof TRPCError) return error;
+
+  const identifier = error instanceof Error ? error.message : 'module_app_version_change_failed';
+  if (identifier === 'MODULE_APP_INSTALLATION_VERSION_CONFLICT') {
+    return new TRPCError({ cause: error, code: 'CONFLICT', message: identifier });
+  }
+  if (identifier === 'MODULE_APP_INSTALLATION_REQUIRED') {
+    return new TRPCError({ cause: error, code: 'PRECONDITION_FAILED', message: identifier });
+  }
+  if (identifier === 'MODULE_APP_NOT_FOUND') {
+    return new TRPCError({ cause: error, code: 'NOT_FOUND', message: identifier });
+  }
+  if (identifier === 'MODULE_APP_NOT_INSTALLABLE') {
+    return new TRPCError({ cause: error, code: 'PRECONDITION_FAILED', message: identifier });
+  }
+  if (
+    identifier === 'MODULE_APP_ROLLBACK_VERSION_NOT_RETAINED' ||
+    identifier === 'MODULE_APP_VERSION_ARTIFACT_NOT_READY' ||
+    identifier === 'MODULE_APP_VERSION_NOT_CURRENT' ||
+    identifier === 'MODULE_APP_VERSION_NOT_FOUND'
+  ) {
+    return new TRPCError({ cause: error, code: 'BAD_REQUEST', message: identifier });
+  }
+
+  return new TRPCError({
+    cause: error,
+    code: 'INTERNAL_SERVER_ERROR',
+    message: 'module_app_version_change_failed',
+  });
+};
+
 export const moduleAppMarketProcedures = {
   createPackageUpload: moduleAppProcedure
     .input(moduleAppPackageUploadRequestSchema)
@@ -152,29 +210,108 @@ export const moduleAppMarketProcedures = {
     }),
 
   getDetail: moduleAppProcedure.input(AppIdOrSlugInputSchema).query(async ({ ctx, input }) => {
-    if (input.workspaceId) {
-      await assertWorkspaceMembership({
-        db: ctx.serverDB,
-        userId: ctx.userId,
-        workspaceId: input.workspaceId,
-      });
-    }
+    const membership = input.workspaceId
+      ? await assertWorkspaceMembership({
+          db: ctx.serverDB,
+          userId: ctx.userId,
+          workspaceId: input.workspaceId,
+        })
+      : undefined;
 
-    return ctx.moduleAppModel.getAppDetail({
+    const detail = await ctx.moduleAppModel.getAppDetail({
       appIdOrSlug: input.appIdOrSlug,
       plan: ctx.currentPlan,
       userId: ctx.userId,
       workspaceId: input.workspaceId,
     });
+
+    if (!detail) return null;
+
+    const installationVersionState = detail.installed
+      ? await ctx.moduleAppModel.getInstallationVersionState({
+          appId: detail.id,
+          userId: ctx.userId,
+          workspaceId: input.workspaceId,
+        })
+      : null;
+
+    return {
+      ...detail,
+      ...installationVersionState,
+      canManageInstallation:
+        !membership || membership.role === 'owner' || membership.role === 'admin',
+      canManageInstallationSecrets:
+        !membership || membership.role === 'owner' || membership.role === 'admin',
+    };
   }),
 
-  getRuntimeManifest: moduleAppProcedure.input(AppIdInputSchema).query(async ({ ctx, input }) => {
-    return ctx.moduleAppModel.getRuntimeManifest({
-      ...input,
-      plan: ctx.currentPlan,
-      userId: ctx.userId,
-    });
-  }),
+  changeInstallationVersion: moduleAppProcedure
+    .input(InstallationVersionChangeInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (input.workspaceId) {
+        await assertWorkspaceManagementPermission({
+          db: ctx.serverDB,
+          userId: ctx.userId,
+          workspaceId: input.workspaceId,
+        });
+      }
+
+      const detail = await ctx.moduleAppModel.getAppDetail({
+        appIdOrSlug: input.appId,
+        includeHidden: true,
+        plan: ctx.currentPlan,
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+      if (!detail) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'module_app_not_found' });
+      }
+
+      await assertDetailEntitlement({
+        db: ctx.serverDB,
+        detail,
+        operation: 'install',
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+
+      try {
+        return await ctx.moduleAppModel.changeInstallationVersion({
+          ...input,
+          appId: detail.id,
+          scopeType: input.workspaceId ? 'workspace' : 'personal',
+          userId: ctx.userId,
+        });
+      } catch (error) {
+        throw mapInstallationVersionError(error);
+      }
+    }),
+
+  getRuntimeManifest: moduleAppProcedure
+    .input(RuntimeManifestInputSchema)
+    .query(async ({ ctx, input }) => {
+      if (input.workspaceId) {
+        await assertWorkspaceMembership({
+          db: ctx.serverDB,
+          userId: ctx.userId,
+          workspaceId: input.workspaceId,
+        });
+      }
+      await assertRunnableApp({
+        appId: input.appId,
+        currentPlan: ctx.currentPlan,
+        db: ctx.serverDB,
+        model: ctx.moduleAppModel,
+        operation: 'launch',
+        userId: ctx.userId,
+        workspaceId: input.workspaceId,
+      });
+
+      return ctx.moduleAppModel.getRuntimeManifest({
+        ...input,
+        userId: ctx.userId,
+      });
+    }),
 
   installPersonal: moduleAppProcedure.input(AppIdInputSchema).mutation(async ({ ctx, input }) => {
     const detail = await ctx.moduleAppModel.getAppDetail({
@@ -239,11 +376,31 @@ export const moduleAppMarketProcedures = {
   listMarketplace: moduleAppProcedure
     .input(moduleAppMarketplaceListInputSchema)
     .query(async ({ ctx, input }) => {
-      const items = await ctx.moduleAppModel.listMarketplaceApps({
-        filters: input,
-        includeHidden: true,
-        plan: ctx.currentPlan,
-        userId: ctx.userId,
+      const [marketplaceItems, installedApps] = await Promise.all([
+        ctx.moduleAppModel.listMarketplaceApps({
+          filters: input,
+          includeHidden: true,
+          plan: ctx.currentPlan,
+          userId: ctx.userId,
+        }),
+        ctx.moduleAppModel.listInstalledApps({
+          scopeType: 'personal',
+          userId: ctx.userId,
+        }),
+      ]);
+      const installedByAppId = new Map(installedApps.map((app) => [app.id, app]));
+      const items = marketplaceItems.map((item) => {
+        const installation = installedByAppId.get(item.id);
+        if (!installation) return { ...item, installed: false };
+
+        return {
+          ...item,
+          installed: true,
+          installedVersion: installation.installedVersion,
+          installationReadiness: installation.installationReadiness,
+          publishedVersion: installation.publishedVersion,
+          updateAvailable: installation.updateAvailable,
+        };
       });
 
       return items.filter((item) => {
@@ -306,12 +463,17 @@ export const moduleAppMarketProcedures = {
       ];
     }),
 
-  listMyApps: moduleAppProcedure.query(async ({ ctx }) => {
-    return ctx.moduleAppModel.listInstalledApps({
-      scopeType: 'personal',
-      userId: ctx.userId,
-    });
-  }),
+  listMyApps: moduleAppProcedure
+    .input(moduleAppInstallationListInputSchema)
+    .query(async ({ ctx, input }) => {
+      return ctx.moduleAppModel.listInstalledAppsPage({
+        cursor: input.cursor,
+        limit: input.limit,
+        query: input.query,
+        scopeType: 'personal',
+        userId: ctx.userId,
+      });
+    }),
 
   listMyPackageSubmissions: moduleAppProcedure
     .input(moduleAppPackageSubmissionListInputSchema)
@@ -330,7 +492,7 @@ export const moduleAppMarketProcedures = {
     }),
 
   listTeamApps: moduleAppProcedure
-    .input(z.object({ workspaceId: z.string().min(1) }))
+    .input(TeamInstallationListInputSchema)
     .query(async ({ ctx, input }) => {
       await assertScopePermission({
         db: ctx.serverDB,
@@ -340,7 +502,10 @@ export const moduleAppMarketProcedures = {
         workspaceId: input.workspaceId,
       });
 
-      return ctx.moduleAppModel.listInstalledApps({
+      return ctx.moduleAppModel.listInstalledAppsPage({
+        cursor: input.cursor,
+        limit: input.limit,
+        query: input.query,
         scopeType: 'workspace',
         userId: ctx.userId,
         workspaceId: input.workspaceId,

@@ -262,9 +262,7 @@ export const moduleAppInstallations = pgTable(
     appId: uuid('app_id')
       .references(() => moduleApps.id, { onDelete: 'cascade' })
       .notNull(),
-    versionId: uuid('version_id')
-      .references(() => moduleAppVersions.id, { onDelete: 'cascade' })
-      .notNull(),
+    versionId: uuid('version_id').references(() => moduleAppVersions.id, { onDelete: 'no action' }),
     scopeType: text('scope_type').$type<ModuleAppScopeType>().notNull(),
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspaces.id, {
@@ -284,6 +282,13 @@ export const moduleAppInstallations = pgTable(
         OR (${table.scopeType} = 'workspace' AND ${table.workspaceId} IS NOT NULL)
       )`,
     ),
+    check(
+      'module_app_installations_lifecycle_check',
+      sql`(
+        (${table.status} = 'installed' AND ${table.versionId} IS NOT NULL AND ${table.uninstalledAt} IS NULL)
+        OR (${table.status} = 'uninstalled' AND ${table.versionId} IS NULL AND ${table.uninstalledAt} IS NOT NULL)
+      )`,
+    ),
     uniqueIndex('module_app_install_personal_unique')
       .on(table.appId, table.userId)
       .where(sql`${table.scopeType} = 'personal' AND ${table.userId} IS NOT NULL`),
@@ -295,6 +300,45 @@ export const moduleAppInstallations = pgTable(
 
 export type NewModuleAppInstallation = typeof moduleAppInstallations.$inferInsert;
 export type ModuleAppInstallationItem = typeof moduleAppInstallations.$inferSelect;
+
+/** Active installations retain these immutable versions for explicit rollback. */
+export const moduleAppInstallationVersionRefs = pgTable(
+  'module_app_installation_version_refs',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    installationId: uuid('installation_id')
+      .references(() => moduleAppInstallations.id, { onDelete: 'cascade' })
+      .notNull(),
+    versionId: uuid('version_id')
+      .references(() => moduleAppVersions.id, { onDelete: 'no action' })
+      .notNull(),
+    packageId: uuid('package_id').references((): AnyPgColumn => moduleAppPackages.id, {
+      onDelete: 'no action',
+    }),
+    buildId: uuid('build_id').references((): AnyPgColumn => moduleAppBuilds.id, {
+      onDelete: 'no action',
+    }),
+    activationCount: integer('activation_count').default(1).notNull(),
+    lastActivatedAt: timestamptz('last_activated_at').defaultNow().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('module_app_installation_version_refs_unique').on(
+      table.installationId,
+      table.versionId,
+    ),
+    index('module_app_installation_version_refs_version_idx').on(table.versionId),
+    index('module_app_installation_version_refs_package_idx').on(table.packageId),
+    index('module_app_installation_version_refs_build_idx').on(table.buildId),
+    check('module_app_installation_version_refs_count_check', sql`${table.activationCount} >= 1`),
+  ],
+);
+
+export type NewModuleAppInstallationVersionRef =
+  typeof moduleAppInstallationVersionRefs.$inferInsert;
+export type ModuleAppInstallationVersionRefItem =
+  typeof moduleAppInstallationVersionRefs.$inferSelect;
 
 export const moduleAppInstallationSecrets = pgTable(
   'module_app_installation_secrets',

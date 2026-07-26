@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { moduleAppPackageManifestSchema } from '@lobechat/types';
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
@@ -9,6 +10,7 @@ import {
   moduleAppInstallations,
   moduleAppInstallationSecrets,
   moduleAppPackages,
+  moduleAppPages,
   moduleApps,
   moduleAppVersions,
   users,
@@ -25,6 +27,7 @@ beforeEach(async () => {
   await serverDB.delete(moduleAppInstallations);
   await serverDB.delete(moduleAppBuilds);
   await serverDB.delete(moduleAppPackages);
+  await serverDB.delete(moduleAppPages);
   await serverDB.delete(moduleAppActions);
   await serverDB.delete(moduleAppVersions);
   await serverDB.delete(moduleApps);
@@ -33,6 +36,134 @@ beforeEach(async () => {
 });
 
 describe('ModuleAppModel capability gateway isolation', () => {
+  it('manages installation secrets without exposing encrypted values', async () => {
+    const [app] = await serverDB
+      .insert(moduleApps)
+      .values({
+        appType: 'hybrid_app',
+        billing: {
+          chargeMode: 'free',
+          defaultMultiplier: 1,
+          externalApiCostCredits: 0,
+          failureFixedFeePolicy: 'do_not_charge',
+          fixedServiceFeeCredits: 0,
+        },
+        category: 'business',
+        description: 'Secret lifecycle test app.',
+        displayName: 'Secret App',
+        icon: 'KeyRound',
+        slug: `secret-${crypto.randomUUID()}`,
+        status: 'published',
+      })
+      .returning();
+    const [version] = await serverDB
+      .insert(moduleAppVersions)
+      .values({ appId: app.id, version: '1.0.0' })
+      .returning();
+    await serverDB.insert(moduleAppActions).values({
+      actionKey: 'sync_crm',
+      appId: app.id,
+      inputSchema: { fields: [] },
+      moduleMultiplier: 1,
+      name: 'Sync CRM',
+      outputSchema: {},
+      runtimeConfig: { secretKeys: ['CRM_TOKEN'] },
+      runtimeType: 'api_action',
+      versionId: version.id,
+    });
+    const [installation] = await serverDB
+      .insert(moduleAppInstallations)
+      .values({
+        appId: app.id,
+        scopeType: 'personal',
+        status: 'installed',
+        userId: USER_ID,
+        versionId: version.id,
+      })
+      .returning();
+    const model = new ModuleAppModel(serverDB);
+
+    await model.upsertInstallationSecret({
+      createdBy: USER_ID,
+      encryptedValue: 'encrypted-value-v1',
+      installationId: installation.id,
+      secretKey: 'CRM_TOKEN',
+    });
+    await model.upsertInstallationSecret({
+      createdBy: USER_ID,
+      encryptedValue: 'encrypted-value-v2',
+      installationId: installation.id,
+      secretKey: 'CRM_TOKEN',
+    });
+
+    await expect(
+      model.listInstallationSecrets({ installationId: installation.id }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        createdAt: expect.any(Date),
+        secretKey: 'CRM_TOKEN',
+        updatedAt: expect.any(Date),
+      }),
+    ]);
+    const listedSecrets = await model.listInstallationSecrets({ installationId: installation.id });
+    expect(listedSecrets[0]).not.toHaveProperty('encryptedValue');
+    await expect(
+      model.getInstallationSecretState({ installationId: installation.id }),
+    ).resolves.toMatchObject({
+      missingKeys: [],
+      ready: true,
+      requiredKeys: ['CRM_TOKEN'],
+    });
+    await expect(
+      model.getInstallationSecret({ installationId: installation.id, key: 'CRM_TOKEN' }),
+    ).resolves.toBe('encrypted-value-v2');
+    await expect(
+      model.upsertInstallationSecret({
+        createdBy: USER_ID,
+        encryptedValue: 'encrypted-undeclared',
+        installationId: installation.id,
+        secretKey: 'UNDECLARED_TOKEN',
+      }),
+    ).rejects.toThrow('MODULE_APP_SECRET_NOT_DECLARED');
+
+    await expect(
+      model.deleteInstallationSecret({
+        installationId: installation.id,
+        secretKey: 'CRM_TOKEN',
+      }),
+    ).resolves.toEqual({ ok: true });
+    await expect(
+      model.deleteInstallationSecret({
+        installationId: installation.id,
+        secretKey: 'CRM_TOKEN',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    const [, uninstallResult] = await Promise.allSettled([
+      model.upsertInstallationSecret({
+        createdBy: USER_ID,
+        encryptedValue: 'encrypted-value-during-uninstall',
+        installationId: installation.id,
+        secretKey: 'CRM_TOKEN',
+      }),
+      model.uninstallPersonalApp({ appId: app.id, userId: USER_ID }),
+    ]);
+    expect(uninstallResult.status).toBe('fulfilled');
+    await expect(
+      serverDB.query.moduleAppInstallationSecrets.findFirst({
+        where: eq(moduleAppInstallationSecrets.installationId, installation.id),
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      model.upsertInstallationSecret({
+        createdBy: USER_ID,
+        encryptedValue: 'encrypted-value-v3',
+        installationId: installation.id,
+        secretKey: 'CRM_TOKEN',
+      }),
+    ).rejects.toThrow('MODULE_APP_INSTALLATION_REQUIRED');
+  });
+
   it('resolves only the matching active installation and encrypted installation secret', async () => {
     const [app] = await serverDB
       .insert(moduleApps)
@@ -92,6 +223,7 @@ describe('ModuleAppModel capability gateway isolation', () => {
       displayName: 'Gateway App',
       installationId: installation.id,
       runtimeManifest: expect.objectContaining({ manifestVersion: 2 }),
+      secretKeys: [],
       scopeType: 'personal',
     });
     await expect(
@@ -148,6 +280,18 @@ describe('ModuleAppModel capability gateway isolation', () => {
         version: '1.0.0',
       })
       .returning();
+    await serverDB.insert(moduleAppPages).values({
+      actionBindings: [],
+      appId: app.id,
+      dataSource: {},
+      layoutSchema: {},
+      pageKey: 'installed_page',
+      pageType: 'overview',
+      routePath: '/',
+      sortOrder: 0,
+      title: 'Installed page',
+      versionId: version.id,
+    });
     const manifestSnapshot = moduleAppPackageManifestSchema.parse({
       app: {
         actions: [],
@@ -217,6 +361,26 @@ describe('ModuleAppModel capability gateway isolation', () => {
         versionId: version.id,
       })
       .returning();
+    const [newerVersion] = await serverDB
+      .insert(moduleAppVersions)
+      .values({ appId: app.id, publishedAt: new Date(), version: '2.0.0' })
+      .returning();
+    await serverDB.insert(moduleAppPages).values({
+      actionBindings: [],
+      appId: app.id,
+      dataSource: {},
+      layoutSchema: {},
+      pageKey: 'latest_page',
+      pageType: 'overview',
+      routePath: '/',
+      sortOrder: 0,
+      title: 'Latest page',
+      versionId: newerVersion.id,
+    });
+    await serverDB
+      .update(moduleApps)
+      .set({ currentPublishedVersionId: newerVersion.id })
+      .where(eq(moduleApps.id, app.id));
     const model = new ModuleAppModel(serverDB);
 
     await expect(
@@ -240,6 +404,7 @@ describe('ModuleAppModel capability gateway isolation', () => {
       installationId: installation.id,
       publisherId: null,
       runtimeManifest,
+      pages: [expect.objectContaining({ key: 'installed_page' })],
       versionId: version.id,
     });
     await expect(
@@ -252,5 +417,11 @@ describe('ModuleAppModel capability gateway isolation', () => {
         workspaceId: 'wrong-workspace',
       }),
     ).resolves.toBeNull();
+    await expect(
+      model.getRuntimeManifest({ appId: app.id, userId: USER_ID }),
+    ).resolves.toMatchObject({
+      pages: [expect.objectContaining({ key: 'installed_page' })],
+      version: '1.0.0',
+    });
   });
 });

@@ -8,6 +8,8 @@ import {
   moduleAppArtifacts,
   moduleAppEntitlements,
   moduleAppInstallations,
+  moduleAppInstallationSecrets,
+  moduleAppInstallationVersionRefs,
   moduleAppRecordEvents,
   moduleAppRecords,
   moduleApps,
@@ -45,7 +47,13 @@ beforeEach(async () => {
   });
 });
 
-const createRecordDesk = async () => {
+const createRecordDesk = async (
+  overrides: {
+    description?: string;
+    displayName?: string;
+    slug?: string;
+  } = {},
+) => {
   const app = await model.upsertAppForAdmin({
     actions: [
       {
@@ -61,8 +69,8 @@ const createRecordDesk = async () => {
     appType: 'standard_app',
     billing: baseBilling,
     category: 'productivity',
-    description: 'A saved records app',
-    displayName: 'Record Desk',
+    description: overrides.description ?? 'A saved records app',
+    displayName: overrides.displayName ?? 'Record Desk',
     icon: 'Notebook',
     pages: [
       {
@@ -86,7 +94,7 @@ const createRecordDesk = async () => {
         type: 'list',
       },
     ],
-    slug: 'record-desk',
+    slug: overrides.slug ?? 'record-desk',
     source: 'admin',
     status: 'published',
     tags: ['records'],
@@ -175,6 +183,7 @@ describe('ModuleAppModel marketplace behavior', () => {
       .values({ appId: app.id, version: '2.0.0' })
       .returning();
     await model.installPersonalApp({ appId: app.id, userId });
+
     await expect(
       serverDB.query.moduleAppInstallations.findFirst({
         where: eq(moduleAppInstallations.appId, app.id),
@@ -229,6 +238,134 @@ describe('ModuleAppModel marketplace behavior', () => {
     expect(adminApp?.pages).toEqual([
       expect.objectContaining({ key: 'overview', title: 'Updated Overview' }),
     ]);
+  });
+
+  it('upgrades and rolls back an installation with optimistic version checks', async () => {
+    const app = await createRecordDesk();
+    await model.installPersonalApp({ appId: app.id, userId });
+    const installed = await serverDB.query.moduleAppInstallations.findFirst({
+      where: eq(moduleAppInstallations.appId, app.id),
+    });
+    if (!installed?.versionId) throw new Error('module_app_test_installation_missing');
+    const initialVersionId = installed.versionId;
+
+    const [nextVersion] = await serverDB
+      .insert(moduleAppVersions)
+      .values({ appId: app.id, version: '2.0.0' })
+      .returning();
+    await model.upsertAppForAdmin({
+      actions: [],
+      appType: 'standard_app',
+      billing: baseBilling,
+      category: 'productivity',
+      description: 'Record desk version 2',
+      displayName: 'Record Desk',
+      icon: 'Notebook',
+      pages: [
+        {
+          actionBindings: [],
+          dataSource: {},
+          key: 'overview',
+          layoutSchema: {},
+          routePath: '/',
+          sortOrder: 0,
+          title: 'Version 2 Overview',
+          type: 'overview',
+        },
+      ],
+      slug: 'record-desk',
+      source: 'admin',
+      status: 'published',
+      tags: ['records'],
+    });
+
+    await expect(
+      model.getInstallationVersionState({ appId: app.id, userId }),
+    ).resolves.toMatchObject({
+      installedVersion: { id: initialVersionId, version: '1.0.0' },
+      publishedVersion: { id: nextVersion.id, version: '2.0.0' },
+      rollbackVersions: [],
+      updateAvailable: true,
+    });
+    await expect(
+      model.listInstalledAppsPage({ cursor: 0, limit: 20, scopeType: 'personal', userId }),
+    ).resolves.toMatchObject({
+      items: [
+        expect.objectContaining({
+          installedVersion: { id: initialVersionId, version: '1.0.0' },
+          publishedVersion: { id: nextVersion.id, version: '2.0.0' },
+          updateAvailable: true,
+          version: '1.0.0',
+        }),
+      ],
+    });
+    await expect(model.installPersonalApp({ appId: app.id, userId })).rejects.toThrow(
+      'MODULE_APP_INSTALLATION_VERSION_CONFLICT',
+    );
+
+    await expect(
+      model.changeInstallationVersion({
+        appId: app.id,
+        expectedVersionId: initialVersionId,
+        operation: 'upgrade',
+        scopeType: 'personal',
+        userId,
+      }),
+    ).resolves.toMatchObject({
+      changed: true,
+      previousVersionId: initialVersionId,
+      versionId: nextVersion.id,
+    });
+    await expect(
+      model.changeInstallationVersion({
+        appId: app.id,
+        expectedVersionId: initialVersionId,
+        operation: 'upgrade',
+        scopeType: 'personal',
+        userId,
+      }),
+    ).rejects.toThrow('MODULE_APP_INSTALLATION_VERSION_CONFLICT');
+    await expect(
+      model.getInstallationVersionState({ appId: app.id, userId }),
+    ).resolves.toMatchObject({
+      installedVersion: { id: nextVersion.id, version: '2.0.0' },
+      rollbackVersions: [{ id: initialVersionId, version: '1.0.0' }],
+      updateAvailable: false,
+    });
+    await expect(
+      model.listInstalledAppsPage({ cursor: 0, limit: 20, scopeType: 'personal', userId }),
+    ).resolves.toMatchObject({
+      items: [
+        expect.objectContaining({
+          installedVersion: { id: nextVersion.id, version: '2.0.0' },
+          publishedVersion: { id: nextVersion.id, version: '2.0.0' },
+          updateAvailable: false,
+          version: '2.0.0',
+        }),
+      ],
+    });
+
+    await expect(
+      model.changeInstallationVersion({
+        appId: app.id,
+        expectedVersionId: nextVersion.id,
+        operation: 'rollback',
+        scopeType: 'personal',
+        targetVersionId: initialVersionId,
+        userId,
+      }),
+    ).resolves.toMatchObject({
+      changed: true,
+      previousVersionId: nextVersion.id,
+      versionId: initialVersionId,
+    });
+    await expect(
+      model.getInstallationVersionState({ appId: app.id, userId }),
+    ).resolves.toMatchObject({
+      installedVersion: { id: initialVersionId, version: '1.0.0' },
+      rollbackVersions: [{ id: nextVersion.id, version: '2.0.0' }],
+      updateAvailable: true,
+    });
   });
 
   it('resolves an execution action from the installed version only', async () => {
@@ -360,12 +497,16 @@ describe('ModuleAppModel marketplace behavior', () => {
 
   it('lists and uninstalls personal module apps', async () => {
     const app = await createRecordDesk();
-    const [version] = await serverDB
-      .select({ id: moduleAppVersions.id })
-      .from(moduleAppVersions)
-      .where(eq(moduleAppVersions.appId, app.id));
 
     await model.installPersonalApp({ appId: app.id, userId });
+    const installation = await serverDB.query.moduleAppInstallations.findFirst({
+      where: eq(moduleAppInstallations.appId, app.id),
+    });
+    await serverDB.insert(moduleAppInstallationSecrets).values({
+      encryptedValue: 'encrypted-value',
+      installationId: installation!.id,
+      secretKey: 'CRM_TOKEN',
+    });
 
     await expect(model.listInstalledApps({ scopeType: 'personal', userId })).resolves.toEqual([
       expect.objectContaining({ id: app.id, installed: true, slug: 'record-desk' }),
@@ -375,10 +516,131 @@ describe('ModuleAppModel marketplace behavior', () => {
 
     await expect(model.listInstalledApps({ scopeType: 'personal', userId })).resolves.toEqual([]);
     await expect(
-      serverDB.query.moduleAppInstallations.findFirst({
-        where: eq(moduleAppInstallations.versionId, version!.id),
+      serverDB.query.moduleAppInstallationSecrets.findFirst({
+        where: eq(moduleAppInstallationSecrets.installationId, installation!.id),
       }),
-    ).resolves.toMatchObject({ status: 'uninstalled' });
+    ).resolves.toBeUndefined();
+    await expect(
+      serverDB.query.moduleAppInstallations.findFirst({
+        where: eq(moduleAppInstallations.appId, app.id),
+      }),
+    ).resolves.toMatchObject({ status: 'uninstalled', versionId: null });
+    await expect(
+      serverDB.query.moduleAppInstallationVersionRefs.findFirst({
+        where: eq(moduleAppInstallationVersionRefs.installationId, installation!.id),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('reports configuration and runtime readiness from the installed version snapshot', async () => {
+    const app = await createRecordDesk();
+    await model.installPersonalApp({ appId: app.id, userId });
+    const installation = await serverDB.query.moduleAppInstallations.findFirst({
+      where: eq(moduleAppInstallations.appId, app.id),
+    });
+    if (!installation?.versionId) throw new Error('module_app_test_installation_missing');
+
+    await serverDB
+      .update(moduleAppActions)
+      .set({ runtimeConfig: { secretKeys: ['CRM_TOKEN'] } })
+      .where(eq(moduleAppActions.appId, app.id));
+
+    await expect(
+      model.listInstalledAppsPage({ cursor: 0, limit: 20, scopeType: 'personal', userId }),
+    ).resolves.toMatchObject({
+      items: [
+        expect.objectContaining({
+          installationReadiness: {
+            configuration: 'required',
+            missingSecretCount: 1,
+            runtime: 'ready',
+          },
+        }),
+      ],
+    });
+
+    await serverDB.insert(moduleAppInstallationSecrets).values({
+      encryptedValue: 'encrypted-value',
+      installationId: installation.id,
+      secretKey: 'CRM_TOKEN',
+    });
+    await expect(
+      model.getInstallationVersionState({ appId: app.id, userId }),
+    ).resolves.toMatchObject({
+      installationReadiness: {
+        configuration: 'ready',
+        missingSecretCount: 0,
+        runtime: 'ready',
+      },
+    });
+
+    await serverDB
+      .update(moduleAppVersions)
+      .set({ runtimeManifest: { manifestVersion: 2 } })
+      .where(eq(moduleAppVersions.id, installation.versionId));
+    await expect(
+      model.listInstalledAppsPage({ cursor: 0, limit: 20, scopeType: 'personal', userId }),
+    ).resolves.toMatchObject({
+      items: [
+        expect.objectContaining({
+          installationReadiness: {
+            configuration: 'ready',
+            missingSecretCount: 0,
+            runtime: 'unavailable',
+          },
+        }),
+      ],
+    });
+  });
+
+  it('paginates and searches installed apps with stable ordering', async () => {
+    const gamma = await createRecordDesk({ displayName: 'Gamma Desk', slug: 'gamma-desk' });
+    const alpha = await createRecordDesk({ displayName: 'Alpha Desk', slug: 'alpha-desk' });
+    const beta = await createRecordDesk({
+      description: 'Handles private customer records',
+      displayName: 'Beta Desk',
+      slug: 'beta-desk',
+    });
+    await model.installPersonalApp({ appId: gamma.id, userId });
+    await model.installPersonalApp({ appId: alpha.id, userId });
+    await model.installPersonalApp({ appId: beta.id, userId });
+
+    await expect(
+      model.listInstalledAppsPage({ cursor: 0, limit: 2, scopeType: 'personal', userId }),
+    ).resolves.toMatchObject({
+      items: [
+        expect.objectContaining({ displayName: 'Alpha Desk', id: alpha.id }),
+        expect.objectContaining({ displayName: 'Beta Desk', id: beta.id }),
+      ],
+      nextCursor: 2,
+    });
+    await expect(
+      model.listInstalledAppsPage({ cursor: 2, limit: 2, scopeType: 'personal', userId }),
+    ).resolves.toMatchObject({
+      items: [expect.objectContaining({ displayName: 'Gamma Desk', id: gamma.id })],
+      nextCursor: null,
+    });
+    await expect(
+      model.listInstalledAppsPage({
+        cursor: 0,
+        limit: 20,
+        query: 'PRIVATE CUSTOMER',
+        scopeType: 'personal',
+        userId,
+      }),
+    ).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: beta.id })],
+      nextCursor: null,
+    });
+    await expect(
+      model.listInstalledAppsPage({
+        cursor: 0,
+        limit: 20,
+        query: 'alpha-desk',
+        scopeType: 'personal',
+        userId,
+      }),
+    ).resolves.toMatchObject({ items: [expect.objectContaining({ id: alpha.id })] });
   });
 
   it('installs, resolves, lists, and uninstalls workspace module apps', async () => {
@@ -448,6 +710,52 @@ describe('ModuleAppModel marketplace behavior', () => {
       entitlements: expect.arrayContaining([
         expect.objectContaining({ discountPercent: 20, plan: 'premium' }),
       ]),
+    });
+  });
+
+  it('atomically replaces pages and actions with optimistic version protection', async () => {
+    const app = await createRecordDesk();
+    const before = await model.getAdminApp({ appId: app.id });
+    if (!before?.versionId) throw new Error('module_app_test_version_missing');
+
+    await expect(
+      model.upsertConfigurationForAdmin({
+        actions: [],
+        appId: app.id,
+        expectedVersionId: before.versionId,
+        pages: [
+          {
+            actionBindings: [],
+            dataSource: {},
+            key: 'dashboard',
+            layoutSchema: {},
+            routePath: '/',
+            sortOrder: 0,
+            title: 'Dashboard',
+            type: 'overview',
+          },
+        ],
+      }),
+    ).resolves.toEqual(expect.objectContaining({ ok: true }));
+
+    const after = await model.getAdminApp({ appId: app.id });
+    expect(after).toMatchObject({
+      actions: [],
+      pages: [expect.objectContaining({ key: 'dashboard' })],
+    });
+    expect(after?.versionId).not.toBe(before.versionId);
+
+    await expect(
+      model.upsertConfigurationForAdmin({
+        actions: before.actions,
+        appId: app.id,
+        expectedVersionId: before.versionId,
+        pages: before.pages,
+      }),
+    ).rejects.toThrow('MODULE_APP_CONFIGURATION_CONFLICT');
+    await expect(model.getAdminApp({ appId: app.id })).resolves.toMatchObject({
+      actions: [],
+      pages: [expect.objectContaining({ key: 'dashboard' })],
     });
   });
 

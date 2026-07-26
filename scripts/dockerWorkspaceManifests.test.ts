@@ -194,5 +194,15 @@ describe('Docker workspace manifests', () => {
     expect(verification).toContain("'src/models/__tests__/commercial.test.ts'");
     expect(verification).toContain("'src/models/__tests__/moduleAppCommerce.test.ts'");
     expect(verification).toContain("TEST_SERVER_DB: '1'");
+    expect(verification).toContain("MODULE_APP_EXECUTION_ENABLED: 'false'");
+    expect(verification).toContain("MODULE_APP_RUNTIME_INVOCATION_ENABLED: 'false'");
+    expect(verification).toContain("'volume',\n    'inspect'");
+    expect(verification).toContain(
+      'composeEnv.MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT = artifactDockerRoot',
+    );
+    expect(verification).toContain('assert.equal(dockerArtifactRoot, artifactMount?.Source)');
+    expect(verification).toContain(
+      "MODULE_APP_WORKER_INTEGRATION_REQUIRED: 'true',\n      ...composeEnv,\n      ...s3Environment",
+    );
   });
 });

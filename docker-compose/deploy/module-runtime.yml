@@ -143,12 +143,13 @@ services:
     cap_drop:
       - ALL
     environment:
+      DOCKER_HOST: 'unix:///run/module-app-docker/docker.sock'
       MODULE_APP_ALIPAY_AUTO_SETTLEMENT_ENABLED: 'false'
       MODULE_APP_ALIPAY_PAYMENT_CREATION_ENABLED: 'false'
       MODULE_APP_EXECUTION_ENABLED: '${MODULE_APP_EXECUTION_ENABLED:-false}'
       MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED: 'false'
       MODULE_APP_PUBLIC_EXECUTION_ENABLED: 'false'
-      MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT: /runtime/artifacts
+      MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT: '${MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT:?daemon-visible artifact root required}'
       MODULE_APP_RUNTIME_INTERNAL_TOKEN: '${MODULE_APP_RUNTIME_INTERNAL_TOKEN:-}'
       MODULE_APP_RUNTIME_INVOCATION_ENABLED: '${MODULE_APP_RUNTIME_INVOCATION_ENABLED:-false}'
       MODULE_APP_RUNTIME_JWKS: '${MODULE_APP_RUNTIME_JWKS:-}'
@@ -157,12 +158,12 @@ services:
       MODULE_APP_SCHEDULE_DISPATCH_ENABLED: 'false'
       MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED: 'false'
     group_add:
-      - '${MODULE_APP_DOCKER_GID:-0}'
+      - '${MODULE_APP_RUNTIME_ROOTLESS_DOCKER_GID:?dedicated rootless Docker socket GID required}'
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'node -e "require(''http'').get(''http://127.0.0.1:3210/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
+          'node -e "require(''http'').get(''http://127.0.0.1:3210/ready'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
         ]
       interval: 5s
       timeout: 3s
@@ -179,7 +180,10 @@ services:
     user: '10001:10001'
     volumes:
       - module-app-artifacts:/runtime/artifacts:ro
-      - /var/run/docker.sock:/var/run/docker.sock
+      - type: bind
+        source: '${MODULE_APP_RUNTIME_ROOTLESS_DOCKER_SOCKET:?dedicated rootless Docker socket required}'
+        target: /run/module-app-docker/docker.sock
+        read_only: true
 
   module-app-main-probe:
     image: node:24.18.0-alpine3.23

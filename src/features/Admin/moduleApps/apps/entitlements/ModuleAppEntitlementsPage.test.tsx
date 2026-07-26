@@ -23,10 +23,8 @@ const { billing, entitlements, moduleApps, refresh, roleState, translate } = vi.
     },
   ],
   moduleApps: {
-    upsertActions: vi.fn(),
     upsertBilling: vi.fn().mockResolvedValue(undefined),
     upsertEntitlements: vi.fn().mockResolvedValue(undefined),
-    upsertPages: vi.fn(),
   },
   refresh: vi.fn().mockResolvedValue(undefined),
   roleState: { canWrite: true },
@@ -113,10 +111,8 @@ describe('ModuleAppEntitlementsPage', () => {
       '/settings/admin/modules/apps/app-1/entitlements?view=plans',
     );
     roleState.canWrite = true;
-    moduleApps.upsertActions.mockReset();
     moduleApps.upsertBilling.mockReset().mockResolvedValue(undefined);
     moduleApps.upsertEntitlements.mockReset().mockResolvedValue(undefined);
-    moduleApps.upsertPages.mockReset();
     refresh.mockReset().mockResolvedValue(undefined);
   });
 
@@ -129,8 +125,6 @@ describe('ModuleAppEntitlementsPage', () => {
       expect(moduleApps.upsertEntitlements).toHaveBeenCalledWith({ appId: 'app-1', entitlements }),
     );
     expect(moduleApps.upsertBilling).toHaveBeenCalledWith({ appId: 'app-1', billing });
-    expect(moduleApps.upsertPages).not.toHaveBeenCalled();
-    expect(moduleApps.upsertActions).not.toHaveBeenCalled();
   });
 
   it('stops entitlement mutations when the complete draft cannot be stored', async () => {

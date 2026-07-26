@@ -16,6 +16,7 @@ const moduleAppModelMocks = vi.hoisted(() => ({
   setStatus: vi.fn(),
   upsertAppForAdmin: vi.fn(),
   upsertBillingForAdmin: vi.fn(),
+  upsertConfigurationForAdmin: vi.fn(),
   upsertEntitlementsForAdmin: vi.fn(),
 }));
 
@@ -85,8 +86,16 @@ const moduleAppReadModelMocks = vi.hoisted(() => ({
 
 const mockAppEnv = vi.hoisted(() => ({
   MODULE_APP_ALIPAY_ENABLED: true,
+  MODULE_APP_EXECUTION_ENABLED: false,
+  MODULE_APP_PUBLIC_EXECUTION_ENABLED: false,
   MODULE_APP_PUBLISHER_ALLOWLIST: [] as string[],
   MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED: true,
+  MODULE_APP_RUNTIME_INVOCATION_ENABLED: false,
+  MODULE_APP_RUNTIME_PUBLIC_ORIGIN: undefined as string | undefined,
+}));
+const moduleAppRuntimeClientMocks = vi.hoisted(() => ({
+  getConfigurationStatus: vi.fn(),
+  healthCheck: vi.fn(),
 }));
 const recordModuleAppPayoutState = vi.hoisted(() => vi.fn());
 const mockCreateConfiguredModuleAppAlipayClient = vi.hoisted(() => vi.fn(() => ({})));
@@ -154,6 +163,10 @@ vi.mock('@/server/services/moduleAppPackage/lifecycle', () => ({
 
 vi.mock('@/server/services/moduleAppBuild/service', () => ({
   ModuleAppBuildService: vi.fn(() => buildServiceMocks),
+}));
+
+vi.mock('@/server/services/moduleAppRuntime/client', () => ({
+  ModuleAppRuntimeClient: vi.fn(() => moduleAppRuntimeClientMocks),
 }));
 
 vi.mock('../../module-apps/audit', () => ({
@@ -282,6 +295,10 @@ describe('admin module apps router', () => {
     externalAuditMock.mockImplementation(async (_ctx, options) => options.effect());
     moduleAppModelMocks.getAdminApp.mockResolvedValue({ id: APP_ID, slug: 'workbench' });
     moduleAppModelMocks.upsertBillingForAdmin.mockResolvedValue({ ok: true });
+    moduleAppModelMocks.upsertConfigurationForAdmin.mockResolvedValue({
+      ok: true,
+      versionId: '00000000-0000-4000-8000-000000000012',
+    });
     moduleAppModelMocks.upsertEntitlementsForAdmin.mockResolvedValue({ ok: true });
     moduleAppModelMocks.getAdminPackageSubmission.mockResolvedValue({
       id: PACKAGE_ID,
@@ -315,8 +332,17 @@ describe('admin module apps router', () => {
     moduleAppOrderRevenueMocks.settleOrder.mockResolvedValue({ id: ORDER_ID, status: 'paid' });
     moduleAppOrderRevenueMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
     mockAppEnv.MODULE_APP_ALIPAY_ENABLED = true;
+    mockAppEnv.MODULE_APP_EXECUTION_ENABLED = false;
+    mockAppEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED = false;
     mockAppEnv.MODULE_APP_PUBLISHER_ALLOWLIST = [PUBLISHER_ID];
     mockAppEnv.MODULE_APP_PUBLISHER_PAYOUT_RECORDING_ENABLED = true;
+    mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED = false;
+    mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = undefined;
+    moduleAppRuntimeClientMocks.getConfigurationStatus.mockReturnValue({
+      internalTokenConfigured: false,
+      internalUrlConfigured: true,
+    });
+    moduleAppRuntimeClientMocks.healthCheck.mockResolvedValue({ status: 'disabled' });
     moduleAppPaymentMocks.refundOrder.mockResolvedValue({ id: ORDER_ID, status: 'refunded' });
     moduleAppPaymentMocks.reconcilePayment.mockResolvedValue({ status: 'paid' });
     moduleAppPaymentMocks.reconcilePendingPayments.mockResolvedValue({ count: 0, results: [] });
@@ -398,11 +424,50 @@ describe('admin module apps router', () => {
     expect(adminRouter._def.record.moduleApps).toBeDefined();
   });
 
+  it('returns bounded, secret-free runtime diagnostics without changing rollout state', async () => {
+    mockAppEnv.MODULE_APP_EXECUTION_ENABLED = true;
+    mockAppEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED = true;
+    mockAppEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED = true;
+    mockAppEnv.MODULE_APP_RUNTIME_PUBLIC_ORIGIN = 'https://runtime.example.com';
+    moduleAppRuntimeClientMocks.getConfigurationStatus.mockReturnValue({
+      internalTokenConfigured: true,
+      internalUrlConfigured: true,
+    });
+    moduleAppRuntimeClientMocks.healthCheck.mockResolvedValue({
+      code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
+      status: 'unavailable',
+    });
+
+    const result = await createCaller().moduleApps.getRuntimeDiagnostics();
+
+    expect(result).toEqual({
+      configuration: {
+        internalTokenConfigured: true,
+        internalUrlConfigured: true,
+        publicOriginConfigured: true,
+      },
+      probe: {
+        code: 'MODULE_APP_RUNTIME_DOCKER_UNAVAILABLE',
+        status: 'unavailable',
+      },
+      switches: {
+        executionEnabled: true,
+        invocationEnabled: true,
+        publicExecutionEnabled: true,
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('runtime.example.com');
+    expect(moduleAppRuntimeClientMocks.healthCheck).toHaveBeenCalledOnce();
+  });
+
   it('rejects content admins from Module App governance procedures', async () => {
     authState.role = 'content_admin';
     const caller = createCaller();
 
     await expect(caller.moduleApps.list({ limit: 20 })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.moduleApps.getRuntimeDiagnostics()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
     await expect(caller.moduleApps.publish({ appId: APP_ID })).rejects.toMatchObject({
@@ -918,6 +983,51 @@ describe('admin module apps router', () => {
         resourceId: APP_ID,
       }),
     );
+  });
+
+  it('commits pages and actions together with one configuration audit', async () => {
+    const caller = createCaller();
+    const input = {
+      actions: [],
+      appId: APP_ID,
+      expectedVersionId: '00000000-0000-4000-8000-000000000011',
+      pages: [],
+    };
+
+    await expect(caller.moduleApps.upsertConfiguration(input)).resolves.toEqual({
+      ok: true,
+      versionId: '00000000-0000-4000-8000-000000000012',
+    });
+
+    expect(dbMocks.transaction).toHaveBeenCalledTimes(1);
+    expect(moduleAppModelMocks.upsertConfigurationForAdmin).toHaveBeenCalledWith(
+      input,
+      transactionDb,
+    );
+    expect(writeModuleAppAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: transactionDb,
+        eventType: 'module_app.configuration_upserted',
+        metadata: { actions: 0, pages: 0 },
+        resourceId: APP_ID,
+      }),
+    );
+  });
+
+  it('reports stale configuration revisions without writing a success audit', async () => {
+    const conflict = new Error('MODULE_APP_CONFIGURATION_CONFLICT');
+    moduleAppModelMocks.upsertConfigurationForAdmin.mockRejectedValueOnce(conflict);
+    const caller = createCaller();
+
+    await expect(
+      caller.moduleApps.upsertConfiguration({
+        actions: [],
+        appId: APP_ID,
+        expectedVersionId: '00000000-0000-4000-8000-000000000011',
+        pages: [],
+      }),
+    ).rejects.toMatchObject({ code: 'CONFLICT', message: 'MODULE_APP_CONFIGURATION_CONFLICT' });
+    expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
   });
 
   it('lists bounded module app revenue entries', async () => {

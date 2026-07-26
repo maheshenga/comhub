@@ -78,6 +78,7 @@ const executeModuleAppWorkflow = async (payload: { installationId: string; runId
                 displayName: current.installation.displayName,
                 installationId: current.installation.installationId,
                 outboundHosts: current.runtime.outboundHosts,
+                secretKeys: [],
                 scopeType: current.subject.scopeType,
                 userId: current.subject.userId,
                 versionId: current.installation.versionId,

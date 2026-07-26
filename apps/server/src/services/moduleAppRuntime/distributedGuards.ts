@@ -7,6 +7,7 @@ import type { ModuleAppNotificationRateLimitBackend } from '@/business/server/mo
 import { getAgentRuntimeRedisClient } from '@/server/modules/AgentRuntime/redis';
 
 type GuardRedisClient = Pick<Redis, 'eval' | 'set'>;
+type GuardBackendMode = 'distributed-required' | 'memory-allowed';
 
 const hashKey = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -26,7 +27,10 @@ return 1
 `;
 
 export const createModuleAppReplayGuardBackend = (
-  options: { getRedisClient?: () => GuardRedisClient | null } = {},
+  options: {
+    getRedisClient?: () => GuardRedisClient | null;
+    mode?: GuardBackendMode;
+  } = {},
 ): ModuleAppReplayGuardBackend => {
   const consumed = new Map<string, number>();
   const getRedisClient = options.getRedisClient ?? getAgentRuntimeRedisClient;
@@ -37,6 +41,9 @@ export const createModuleAppReplayGuardBackend = (
       const redis = getRedisClient();
       if (redis) {
         return (await redis.set(key, '1', 'EX', ttlSeconds, 'NX')) === 'OK';
+      }
+      if (options.mode !== 'memory-allowed') {
+        throw new Error('MODULE_APP_DISTRIBUTED_GUARD_UNAVAILABLE');
       }
 
       const now = Date.now();
@@ -53,6 +60,7 @@ export const createModuleAppReplayGuardBackend = (
 export const createModuleAppNotificationRateLimitBackend = (
   options: {
     getRedisClient?: () => GuardRedisClient | null;
+    mode?: GuardBackendMode;
     now?: () => number;
     randomId?: () => string;
   } = {},
@@ -78,6 +86,9 @@ export const createModuleAppNotificationRateLimitBackend = (
           randomId(),
         );
         return Number(result) === 1;
+      }
+      if (options.mode !== 'memory-allowed') {
+        throw new Error('MODULE_APP_DISTRIBUTED_GUARD_UNAVAILABLE');
       }
 
       const entries = (recent.get(key) ?? []).filter(

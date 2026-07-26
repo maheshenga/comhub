@@ -178,7 +178,7 @@ export class ModuleAppCapabilityGateway {
         );
       }
       case 'secrets.get': {
-        return this.secrets.get(params.capability, params.input);
+        return this.secrets.get(params.capability, params.input, context.secretKeys);
       }
       case 'tasks.cancel': {
         return this.tasks.cancel({ capability: params.capability, input: params.input });

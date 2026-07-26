@@ -19,6 +19,7 @@ import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { NotificationModel } from '@/database/models/notification';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { LobeChatDatabase } from '@/database/type';
+import { appEnv } from '@/envs/app';
 import { KeyVaultsGateKeeper } from '@/server/modules/KeyVaultsEncrypt';
 import { FileS3 } from '@/server/modules/S3';
 
@@ -27,11 +28,20 @@ import {
   createModuleAppReplayGuardBackend,
 } from './distributedGuards';
 
+const distributedGuardMode =
+  appEnv.MODULE_APP_EXECUTION_ENABLED ||
+  appEnv.MODULE_APP_PUBLIC_EXECUTION_ENABLED ||
+  appEnv.MODULE_APP_RUNTIME_INVOCATION_ENABLED ||
+  appEnv.MODULE_APP_SCHEDULE_DISPATCH_ENABLED ||
+  appEnv.MODULE_APP_WORKFLOW_PRIVILEGED_EXECUTORS_ENABLED
+    ? ('distributed-required' as const)
+    : ('memory-allowed' as const);
+
 const replayGuard = new ModuleAppReplayGuard({
-  backend: createModuleAppReplayGuardBackend(),
+  backend: createModuleAppReplayGuardBackend({ mode: distributedGuardMode }),
 });
 const notificationRateLimiter = new ModuleAppNotificationRateLimiter({
-  backend: createModuleAppNotificationRateLimitBackend(),
+  backend: createModuleAppNotificationRateLimitBackend({ mode: distributedGuardMode }),
 });
 
 const resolveOutboundHosts = (runtimeManifest: unknown) => {
@@ -67,10 +77,10 @@ export const createModuleAppCapabilityGateway = (params: {
 
         if (installation.scopeType === 'workspace') {
           if (!installation.workspaceId) throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
-          const member = await new WorkspaceMemberModel(
-            params.db,
+          const member = await new WorkspaceMemberModel(params.db, capability.userId).getMember(
+            installation.workspaceId,
             capability.userId,
-          ).getMember(installation.workspaceId, capability.userId);
+          );
           if (!member) throw new Error('MODULE_APP_CAPABILITY_SCOPE_MISMATCH');
         }
 
@@ -79,6 +89,7 @@ export const createModuleAppCapabilityGateway = (params: {
           displayName: installation.displayName,
           installationId: installation.installationId,
           outboundHosts: resolveOutboundHosts(installation.runtimeManifest),
+          secretKeys: installation.secretKeys,
           scopeType: installation.scopeType,
           userId: installation.userId,
           versionId: installation.versionId,

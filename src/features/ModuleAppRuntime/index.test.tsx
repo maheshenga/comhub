@@ -43,13 +43,7 @@ describe('ModuleAppRuntimeView', () => {
     ['unexpected_failure', 'moduleApps.runtime.failure.title'],
   ])('renders a retryable state for %s', (message, titleKey) => {
     const onRetry = vi.fn();
-    render(
-      <ModuleAppRuntimeView
-        error={new Error(message)}
-        loading={false}
-        onRetry={onRetry}
-      />,
-    );
+    render(<ModuleAppRuntimeView error={new Error(message)} loading={false} onRetry={onRetry} />);
 
     expect(screen.getByText(titleKey)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'moduleApps.runtime.retry' }));

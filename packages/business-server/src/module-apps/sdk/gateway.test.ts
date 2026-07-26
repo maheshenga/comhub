@@ -73,6 +73,7 @@ const createGateway = (
         displayName: 'Example App',
         installationId: INSTALLATION_ID,
         outboundHosts: ['api.example.com'],
+        secretKeys: ['CRM_TOKEN'],
         scopeType: 'personal',
         userId: 'user-1',
         versionId: VERSION_ID,
@@ -123,6 +124,29 @@ describe('ModuleAppCapabilityGateway', () => {
     ).resolves.toEqual({ configured: true, value: 'secret-value' });
   });
 
+  it('rejects secret keys not declared by the installed version', async () => {
+    const { gateway } = createGateway();
+
+    await expect(
+      gateway.call({
+        capability: claims(['secrets.read'], 'runtime'),
+        input: { key: 'UNDECLARED_TOKEN' },
+        method: 'secrets.get',
+      }),
+    ).rejects.toThrow('MODULE_APP_SECRET_NOT_DECLARED');
+  });
+
+  it('keeps internal secret declarations out of the serialized module context', async () => {
+    const { gateway } = createGateway();
+
+    const context = await gateway.call({
+      capability: claims([]),
+      method: 'context.get',
+    });
+
+    expect(context).not.toHaveProperty('secretKeys');
+  });
+
   it('binds file keys to one installation and rejects cross-installation downloads', async () => {
     const { gateway, storage } = createGateway();
 
@@ -165,6 +189,58 @@ describe('ModuleAppCapabilityGateway', () => {
         requestId: 'request-2',
       }),
     ).rejects.toThrow('MODULE_APP_UNSAFE_API_URL');
+  });
+
+  it('requires HTTPS for capability HTTP requests', async () => {
+    const fetch = vi.fn();
+    const http = new ModuleAppHttpGateway({
+      fetch,
+      resolveHostname: () => ['93.184.216.34'],
+    });
+    const { gateway } = createGateway(http);
+
+    await expect(
+      gateway.call({
+        capability: claims(['http.fetch']),
+        input: { url: 'http://api.example.com/plaintext' },
+        method: 'http.fetch',
+        requestId: 'request-http',
+      }),
+    ).rejects.toThrow('MODULE_APP_HTTP_HTTPS_REQUIRED');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('binds capability HTTP dispatch to the vetted DNS result', async () => {
+    const close = vi.fn().mockResolvedValue(undefined);
+    const dispatcher = { close } as never;
+    const createDispatcher = vi.fn(() => dispatcher);
+    const fetch = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
+    const resolveHostname = vi
+      .fn()
+      .mockResolvedValueOnce(['93.184.216.34'])
+      .mockResolvedValueOnce(['127.0.0.1']);
+    const http = new ModuleAppHttpGateway({ createDispatcher, fetch, resolveHostname });
+    const { gateway } = createGateway(http);
+
+    await expect(
+      gateway.call({
+        capability: claims(['http.fetch']),
+        input: { url: 'https://api.example.com/public' },
+        method: 'http.fetch',
+        requestId: 'request-pinned-http',
+      }),
+    ).resolves.toMatchObject({ body: 'ok', status: 200 });
+    expect(resolveHostname).toHaveBeenCalledTimes(1);
+    expect(createDispatcher).toHaveBeenCalledWith({
+      addresses: ['93.184.216.34'],
+      hostname: 'api.example.com',
+      url: 'https://api.example.com/public',
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.example.com/public',
+      expect.objectContaining({ dispatcher }),
+    );
+    expect(close).toHaveBeenCalledTimes(1);
   });
 
   it('rejects replayed mutation request ids for the same launch nonce', async () => {
@@ -336,7 +412,9 @@ describe('ModuleAppCapabilityGateway', () => {
     await expect(cancel()).resolves.toMatchObject({ status: 'cancelled' });
     await expect(cancel()).rejects.toThrow('MODULE_APP_CAPABILITY_REPLAYED');
     expect(tasks.getRun).toHaveBeenCalledWith(
-      expect.objectContaining({ capability: expect.objectContaining({ installationId: INSTALLATION_ID }) }),
+      expect.objectContaining({
+        capability: expect.objectContaining({ installationId: INSTALLATION_ID }),
+      }),
     );
   });
 });

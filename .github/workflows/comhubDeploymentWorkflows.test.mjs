@@ -282,6 +282,26 @@ test('ComHub build tooling uses Node 24 LTS while preserving the node22 module c
   }
 
   const composeSource = readRepositoryFile('docker-compose/deploy/module-runtime.yml');
+  assert.doesNotMatch(composeSource, /\/var\/run\/docker\.sock/u);
+  assert.match(
+    composeSource,
+    /MODULE_APP_RUNTIME_ROOTLESS_DOCKER_SOCKET:\?dedicated rootless Docker socket required/u,
+  );
+  assert.match(
+    composeSource,
+    /MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT:\?daemon-visible artifact root required/u,
+  );
+  assert.match(composeSource, /DOCKER_HOST: 'unix:\/\/\/run\/module-app-docker\/docker\.sock'/u);
+  assert.match(composeSource, /127\.0\.0\.1:3210\/ready/u);
+  assert.match(readRepositoryFile('apps/module-runtime/Dockerfile'), /127\.0\.0\.1:3210\/ready/u);
+  const deploymentSource = readRepositoryFile('.github/workflows/comhub-deploy.yml');
+  assert.match(deploymentSource, /test "\$docker_artifact_root" = "\$artifact_source"/u);
+  assert.match(deploymentSource, /test "\$docker_socket_mount" = 'bind\|false'/u);
+  assert.match(deploymentSource, /docker info --format.*name=rootless/u);
+  assert.match(deploymentSource, /--health-cmd .*127\.0\.0\.1:3210\/health/u);
+  assert.match(deploymentSource, /MODULE_APP_RUNTIME_DOCKER_ARTIFACT_ROOT=\/runtime\/artifacts/u);
+  assert.doesNotMatch(deploymentSource, /MODULE_APP_RUNTIME_JWKS=\{"keys":\[\]\}/u);
+  assert.match(deploymentSource, /MODULE_APP_RUNTIME_JWKS=.*"kty":"RSA".*"alg":"RS256"/u);
   assert.equal(
     (
       composeSource.match(

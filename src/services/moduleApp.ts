@@ -1,4 +1,6 @@
 import type {
+  ModuleAppInstallationListInput,
+  ModuleAppInstallationReadiness,
   ModuleAppLaunchContext,
   ModuleAppMarketplaceListInput,
   ModuleAppPackageSubmissionListInput,
@@ -41,17 +43,52 @@ type ModuleAppWorkflowRunInput = Pick<ModuleAppHistoryInput, 'installationId' | 
   runId: string;
 };
 
+type ModuleAppInstallationSecretScope = Pick<
+  ModuleAppHistoryInput,
+  'installationId' | 'workspaceId'
+>;
+
+export type ModuleAppInstallationVersionChangeInput = {
+  appId: string;
+  expectedVersionId: string;
+  operation: 'rollback' | 'upgrade';
+  targetVersionId?: string;
+  workspaceId?: string;
+};
+
 export interface AvailableModuleApp {
   category?: string;
   displayName: string;
   icon?: null | string;
   id: string;
+  installationReadiness?: ModuleAppInstallationReadiness;
   installationScope: 'personal' | 'workspace';
   installed: boolean;
   planState: { runnable: boolean };
   status: string;
   workspaceId?: string;
 }
+
+export interface InstalledModuleApp {
+  category?: string;
+  description?: string;
+  displayName: string;
+  icon?: null | string;
+  id: string;
+  installationReadiness?: ModuleAppInstallationReadiness;
+  installed?: boolean;
+  installedVersion?: null | { id: string; version: string };
+  planState?: { installable: boolean; runnable: boolean; visible: boolean };
+  publishedVersion?: null | { id: string; version: string };
+  slug?: string;
+  updateAvailable?: boolean;
+  version?: null | string;
+}
+
+export type ModuleAppInstallationListResult = {
+  items: InstalledModuleApp[];
+  nextCursor: null | number;
+};
 
 export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof fetch = fetch) => {
   const createPackageUpload = async (input: ModuleAppPackageUploadRequest) =>
@@ -72,12 +109,16 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.cancelWorkflowRun.mutate!(input),
     callSdk: (input: { capability: string; input?: unknown; method: string; requestId?: string }) =>
       client.moduleApp.callSdk.mutate!(input),
+    changeInstallationVersion: (input: ModuleAppInstallationVersionChangeInput) =>
+      client.moduleApp.changeInstallationVersion.mutate!(input),
     createPackageUpload,
     createOrder: (input: { idempotencyKey: string; productId: string; workspaceId?: string }) =>
       client.moduleApp.createOrder.mutate!(input),
     createPayment: (input: { orderId: string; subject: string }) =>
       client.moduleApp.createPayment.mutate!(input),
     createRecord: (input: ModuleAppRecordInput) => client.moduleApp.createRecord.mutate!(input),
+    deleteInstallationSecret: (input: ModuleAppInstallationSecretScope & { secretKey: string }) =>
+      client.moduleApp.deleteInstallationSecret.mutate!(input),
     getDetail: (input: { appIdOrSlug: string; workspaceId?: string }) =>
       client.moduleApp.getDetail.query!(input),
     getLaunchContext: (input: { appId: string; workspaceId?: string }) =>
@@ -86,7 +127,7 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.getLicense.query!(input),
     getRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
       client.moduleApp.getRecord.query!(input),
-    getRuntimeManifest: (input: { appId: string }) =>
+    getRuntimeManifest: (input: { appId: string; workspaceId?: string }) =>
       client.moduleApp.getRuntimeManifest.query!(input),
     getWorkflowRun: (input: ModuleAppWorkflowRunInput) =>
       client.moduleApp.getWorkflowRun.query!(input),
@@ -95,10 +136,13 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.installWorkspace.mutate!(input),
     listArtifacts: (input: ModuleAppHistoryInput) => client.moduleApp.listArtifacts.query!(input),
     listAvailableApps,
+    listInstallationSecrets: (input: ModuleAppInstallationSecretScope) =>
+      client.moduleApp.listInstallationSecrets.query!(input),
     listCatalog: (input: { appId?: string } = {}) => client.moduleApp.listCatalog.query!(input),
     listMarketplace: (input?: ModuleAppMarketplaceListInput) =>
       client.moduleApp.listMarketplace.query!(input),
-    listMyApps: () => client.moduleApp.listMyApps.query!(),
+    listMyApps: (input: ModuleAppInstallationListInput = {}) =>
+      client.moduleApp.listMyApps.query!(input) as Promise<ModuleAppInstallationListResult>,
     listOrders: (input: { limit?: number } = {}) => client.moduleApp.listOrders.query!(input),
     quoteProduct: (input: { productId: string }) => client.moduleApp.quoteProduct.query!(input),
     listMyPackageSubmissions: (input: ModuleAppPackageSubmissionListInput = {}) =>
@@ -109,13 +153,17 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     listRuns: (input: ModuleAppHistoryInput) => client.moduleApp.listRuns.query!(input),
     listWorkflowNodes: (input: ModuleAppWorkflowRunInput) =>
       client.moduleApp.listWorkflowNodes.query!(input),
-    listTeamApps: (input: { workspaceId: string }) => client.moduleApp.listTeamApps.query!(input),
+    listTeamApps: (input: ModuleAppInstallationListInput & { workspaceId: string }) =>
+      client.moduleApp.listTeamApps.query!(input) as Promise<ModuleAppInstallationListResult>,
     runAction: (input: ModuleAppRunInput) => client.moduleApp.runAction.mutate!(input),
     submitUploadedPackage,
     uninstallPersonal: (input: { appId: string }) =>
       client.moduleApp.uninstallPersonal.mutate!(input),
     uninstallWorkspace: (input: { appId: string; workspaceId: string }) =>
       client.moduleApp.uninstallWorkspace.mutate!(input),
+    upsertInstallationSecret: (
+      input: ModuleAppInstallationSecretScope & { secretKey: string; value: string },
+    ) => client.moduleApp.upsertInstallationSecret.mutate!(input),
     updateRecord: (input: ModuleAppRecordInput & { recordId: string }) =>
       client.moduleApp.updateRecord.mutate!(input),
     uploadPackage: async (file: File) => {
