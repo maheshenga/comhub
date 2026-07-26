@@ -1,4 +1,10 @@
 import type {
+  ModuleAppDeveloperAppListResult,
+  ModuleAppDeveloperFinance,
+  ModuleAppDeveloperListInput,
+  ModuleAppDeveloperPublisherProfile,
+  ModuleAppDeveloperSubmissionListResult,
+  ModuleAppDeveloperVersionSummary,
   ModuleAppInstallationListInput,
   ModuleAppInstallationReadiness,
   ModuleAppLaunchContext,
@@ -8,6 +14,7 @@ import type {
   ModuleAppPackageUploadedSubmitInput,
   ModuleAppPackageUploadRequest,
   ModuleAppPackageUploadTarget,
+  ModuleAppPublisherProfileInput,
   ModuleAppRecordInput,
   ModuleAppRunInput,
 } from '@lobechat/types';
@@ -125,6 +132,11 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
       client.moduleApp.getLaunchContext.query!(input) as Promise<ModuleAppLaunchContext>,
     getLicense: (input: { appId: string; workspaceId?: string }) =>
       client.moduleApp.getLicense.query!(input),
+    getMyDeveloperFinance: () =>
+      client.moduleApp.getMyDeveloperFinance.query!() as Promise<ModuleAppDeveloperFinance>,
+    getMyPublisherProfile: () =>
+      client.moduleApp.getMyPublisherProfile
+        .query!() as Promise<ModuleAppDeveloperPublisherProfile | null>,
     getRecord: (input: { appId: string; recordId: string; workspaceId?: string }) =>
       client.moduleApp.getRecord.query!(input),
     getRuntimeManifest: (input: { appId: string; workspaceId?: string }) =>
@@ -141,10 +153,24 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     listCatalog: (input: { appId?: string } = {}) => client.moduleApp.listCatalog.query!(input),
     listMarketplace: (input?: ModuleAppMarketplaceListInput) =>
       client.moduleApp.listMarketplace.query!(input),
+    listMyDeveloperApps: (input: ModuleAppDeveloperListInput = {}) =>
+      client.moduleApp.listMyDeveloperApps.query!(
+        input,
+      ) as Promise<ModuleAppDeveloperAppListResult>,
+    listMyDeveloperSubmissions: (input: ModuleAppDeveloperListInput = {}) =>
+      client.moduleApp.listMyDeveloperSubmissions.query!(
+        input,
+      ) as Promise<ModuleAppDeveloperSubmissionListResult>,
+    listMyDeveloperVersions: (input: { appId: string }) =>
+      client.moduleApp.listMyDeveloperVersions.query!(input) as Promise<
+        ModuleAppDeveloperVersionSummary[]
+      >,
     listMyApps: (input: ModuleAppInstallationListInput = {}) =>
       client.moduleApp.listMyApps.query!(input) as Promise<ModuleAppInstallationListResult>,
     listOrders: (input: { limit?: number } = {}) => client.moduleApp.listOrders.query!(input),
     quoteProduct: (input: { productId: string }) => client.moduleApp.quoteProduct.query!(input),
+    publishMyDeveloperApp: (input: { appId: string }) =>
+      client.moduleApp.publishMyDeveloperApp.mutate!(input),
     listMyPackageSubmissions: (input: ModuleAppPackageSubmissionListInput = {}) =>
       client.moduleApp.listMyPackageSubmissions.query!(
         input,
@@ -156,16 +182,24 @@ export const createModuleAppService = (client: ModuleAppClient, fetcher: typeof 
     listTeamApps: (input: ModuleAppInstallationListInput & { workspaceId: string }) =>
       client.moduleApp.listTeamApps.query!(input) as Promise<ModuleAppInstallationListResult>,
     runAction: (input: ModuleAppRunInput) => client.moduleApp.runAction.mutate!(input),
+    rollbackMyDeveloperApp: (input: { appId: string; versionId: string }) =>
+      client.moduleApp.rollbackMyDeveloperApp.mutate!(input),
     submitUploadedPackage,
     uninstallPersonal: (input: { appId: string }) =>
       client.moduleApp.uninstallPersonal.mutate!(input),
     uninstallWorkspace: (input: { appId: string; workspaceId: string }) =>
       client.moduleApp.uninstallWorkspace.mutate!(input),
+    unpublishMyDeveloperApp: (input: { appId: string }) =>
+      client.moduleApp.unpublishMyDeveloperApp.mutate!(input),
     upsertInstallationSecret: (
       input: ModuleAppInstallationSecretScope & { secretKey: string; value: string },
     ) => client.moduleApp.upsertInstallationSecret.mutate!(input),
     updateRecord: (input: ModuleAppRecordInput & { recordId: string }) =>
       client.moduleApp.updateRecord.mutate!(input),
+    upsertMyPublisherProfile: (input: ModuleAppPublisherProfileInput) =>
+      client.moduleApp.upsertMyPublisherProfile.mutate!(
+        input,
+      ) as Promise<ModuleAppDeveloperPublisherProfile>,
     uploadPackage: async (file: File) => {
       const mimeType: ModuleAppPackageUploadRequest['mimeType'] =
         file.type === 'application/x-zip-compressed' || file.type === 'application/octet-stream'

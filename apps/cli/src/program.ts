@@ -21,6 +21,7 @@ import { registerMemoryCommand } from './commands/memory';
 import { registerMessageCommand } from './commands/message';
 import { registerMigrateCommand } from './commands/migrate';
 import { registerModelCommand } from './commands/model';
+import { registerModuleAppCommand } from './commands/module-app';
 import { registerNotifyCommand } from './commands/notify';
 import { registerPluginCommand } from './commands/plugin';
 import { registerProviderCommand } from './commands/provider';
@@ -92,6 +93,7 @@ export function createProgram() {
   registerTopicCommand(program);
   registerMessageCommand(program);
   registerModelCommand(program);
+  registerModuleAppCommand(program);
   registerNotifyCommand(program);
   registerProviderCommand(program);
   registerPluginCommand(program);

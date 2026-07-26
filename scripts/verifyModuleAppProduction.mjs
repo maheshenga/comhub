@@ -455,6 +455,9 @@ const databaseTests = [
   'src/models/__tests__/moduleAppCredit.test.ts',
   'src/models/__tests__/moduleAppGateway.test.ts',
   'src/models/__tests__/moduleApp.marketplace.test.ts',
+  'src/models/__tests__/moduleAppApproval.test.ts',
+  'src/models/__tests__/moduleAppCatalog.ownership.test.ts',
+  'src/models/__tests__/moduleAppDeveloper.test.ts',
   'src/models/__tests__/moduleAppPayment.test.ts',
   'src/models/__tests__/moduleAppPublisher.test.ts',
   'src/models/__tests__/moduleAppPayout.test.ts',
@@ -469,6 +472,18 @@ let primaryError;
 try {
   if (full) requireFullEnvironment();
   runVitest(['scripts/dockerWorkspaceManifests.test.ts']);
+  runVitest(['src/moduleApp/project.test.ts'], {
+    cwd: path.join(root, 'apps', 'cli'),
+  });
+  run('bun', ['run', 'build'], {
+    cwd: path.join(root, 'apps', 'cli'),
+  });
+  runVitest(['src/bridge.test.ts', 'src/client.test.ts'], {
+    cwd: path.join(root, 'packages', 'module-app-sdk'),
+  });
+  run('bun', ['run', 'build'], {
+    cwd: path.join(root, 'packages', 'module-app-sdk'),
+  });
   runVitest(generalCommercialTests, {
     cwd: path.join(root, 'packages', 'business-server'),
   });

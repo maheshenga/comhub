@@ -1,8 +1,10 @@
+import { Flexbox, Icon } from '@lobehub/ui';
 import { Button, Input } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
+import { Boxes, Code2 } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import useSWR from 'swr';
 
 import { MobileListSkeleton, MobileStateView } from '@/features/MobileWorkspace/components';
@@ -79,6 +81,7 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
 
 const ModuleAppMarket = memo<ModuleAppMarketProps>(({ mode = 'all', workspaceId }) => {
   const { t } = useTranslation('common');
+  const navigate = useNavigate();
   const [teamSearchInput, setTeamSearchInput] = useState('');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
   const marketplace = useSWR<MarketplaceItem[]>(
@@ -118,6 +121,20 @@ const ModuleAppMarket = memo<ModuleAppMarketProps>(({ mode = 'all', workspaceId 
             value={teamSearchInput}
             onChange={(event) => setTeamSearchInput(event.target.value)}
           />
+        ) : mode !== 'team' ? (
+          <Flexbox horizontal gap={8} wrap={'wrap'}>
+            {mode === 'all' ? (
+              <Button icon={<Icon icon={Boxes} size={16} />} onClick={() => navigate('/apps/my')}>
+                {t('moduleApps.my.title')}
+              </Button>
+            ) : null}
+            <Button
+              icon={<Icon icon={Code2} size={16} />}
+              onClick={() => navigate('/apps/developer')}
+            >
+              {t('moduleApps.developer.title')}
+            </Button>
+          </Flexbox>
         ) : null}
       </header>
       {mode === 'my' ? (

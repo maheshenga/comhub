@@ -2,6 +2,7 @@ import { ConfigProvider } from '@lobehub/ui';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import * as m from 'motion/react-m';
 import { type ReactElement } from 'react';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ModuleAppMarket from './index';
@@ -44,7 +45,12 @@ vi.mock('./MyAppsOverview', () => ({
   default: () => <div>my-apps-overview</div>,
 }));
 
-const renderMarket = (ui: ReactElement) => render(<ConfigProvider motion={m}>{ui}</ConfigProvider>);
+const renderMarket = (ui: ReactElement) =>
+  render(
+    <ConfigProvider motion={m}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </ConfigProvider>,
+  );
 
 describe('ModuleAppMarket', () => {
   beforeEach(() => {

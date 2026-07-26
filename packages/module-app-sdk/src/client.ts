@@ -1,3 +1,11 @@
+import {
+  isModuleAppBridgeEvent,
+  isModuleAppBridgeLaunch,
+  isModuleAppBridgeResponse,
+  MODULE_APP_BRIDGE_CHANNEL,
+  type ModuleAppBridgeLaunch,
+  type ModuleAppBridgeRequest,
+} from './bridge.js';
 import type {
   ModuleAppDataArchiveInput,
   ModuleAppDataGetInput,
@@ -8,16 +16,7 @@ import type {
   ModuleAppDataUpdateInput,
   ModuleAppTaskRun,
   ModuleAppTaskRunInput,
-} from '@lobechat/types';
-
-import {
-  isModuleAppBridgeEvent,
-  isModuleAppBridgeLaunch,
-  isModuleAppBridgeResponse,
-  MODULE_APP_BRIDGE_CHANNEL,
-  type ModuleAppBridgeLaunch,
-  type ModuleAppBridgeRequest,
-} from './bridge';
+} from './types.js';
 
 type ModuleAppSdkEvent = 'navigation' | 'progress';
 type ModuleAppSdkListener = (payload: unknown) => void;
@@ -54,7 +53,10 @@ type PendingRequest = {
 };
 
 export class ModuleAppSdkError extends Error {
-  constructor(public readonly code: string, message = code) {
+  constructor(
+    public readonly code: string,
+    message = code,
+  ) {
     super(message);
     this.name = 'ModuleAppSdkError';
   }
@@ -147,11 +149,7 @@ export const createModuleAppSdk = (options: ModuleAppSdkOptions): ModuleAppSdk =
   let disposed = false;
 
   const onMessage = (event: MessageEvent) => {
-    if (
-      disposed ||
-      event.origin !== runtimeOrigin ||
-      event.source !== parentWindow
-    ) {
+    if (disposed || event.origin !== runtimeOrigin || event.source !== parentWindow) {
       return;
     }
 

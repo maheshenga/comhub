@@ -20,6 +20,7 @@ import { ModuleAppModel } from '../moduleApp';
 import { ModuleAppBuildModel } from '../moduleAppBuild';
 
 const DEVELOPER_ID = 'module-app-approval-developer';
+const OTHER_DEVELOPER_ID = 'module-app-approval-other-developer';
 const ADMIN_ID = 'module-app-approval-admin';
 const serverDB: LobeChatDatabase = await getTestDB();
 
@@ -56,10 +57,141 @@ beforeEach(async () => {
   await serverDB.delete(moduleApps);
   await serverDB.delete(moduleAppPublishers);
   await serverDB.delete(users);
-  await serverDB.insert(users).values([{ id: DEVELOPER_ID }, { id: ADMIN_ID }]);
+  await serverDB
+    .insert(users)
+    .values([{ id: DEVELOPER_ID }, { id: OTHER_DEVELOPER_ID }, { id: ADMIN_ID }]);
 });
 
 describe('ModuleAppModel executable package approval', () => {
+  it('binds a new developer app to the verified publisher that submitted it', async () => {
+    const [publisher] = await serverDB
+      .insert(moduleAppPublishers)
+      .values({
+        displayName: 'Approval Developer',
+        status: 'verified',
+        userId: DEVELOPER_ID,
+      })
+      .returning();
+    const [packageRow] = await serverDB
+      .insert(moduleAppPackages)
+      .values({
+        archive: {
+          fileName: 'new-app.zip',
+          mimeType: 'application/zip',
+          sha256: 'c'.repeat(64),
+          sizeBytes: 1024,
+          storageKey: 'module-app-packages/new-app.zip',
+        },
+        fileManifest: [{ path: 'module-app.yaml', sizeBytes: 512 }],
+        manifestSnapshot: {
+          ...executableManifest,
+          app: { ...executableManifest.app, slug: 'new-developer-app' },
+        },
+        reviewStatus: 'pending_review',
+        submittedByUserId: DEVELOPER_ID,
+        validationReport: [],
+      })
+      .returning();
+    await serverDB.insert(moduleAppPackageUploads).values({
+      actualSizeBytes: 1024,
+      completedAt: new Date(),
+      declaredSizeBytes: 1024,
+      expiresAt: new Date(Date.now() + 60_000),
+      fileName: 'new-app.zip',
+      mimeType: 'application/zip',
+      packageId: packageRow.id,
+      scanStatus: 'clean',
+      status: 'submitted',
+      storageKey: 'module-app-packages/new-app.zip',
+      userId: DEVELOPER_ID,
+    });
+
+    const result = await new ModuleAppModel(serverDB).approvePackageSubmissionForAdmin({
+      packageId: packageRow.id,
+      reviewedByUserId: ADMIN_ID,
+    });
+
+    expect(await serverDB.query.moduleApps.findFirst()).toMatchObject({
+      id: result.appId,
+      publisherId: publisher.id,
+      slug: 'new-developer-app',
+    });
+    expect(result.package).toMatchObject({ publisherId: publisher.id });
+  });
+
+  it('rejects a package that attempts to replace another publisher app by slug', async () => {
+    const [owner, attacker] = await serverDB
+      .insert(moduleAppPublishers)
+      .values([
+        { displayName: 'Owner', status: 'verified', userId: DEVELOPER_ID },
+        { displayName: 'Attacker', status: 'verified', userId: OTHER_DEVELOPER_ID },
+      ])
+      .returning();
+    const [ownedApp] = await serverDB
+      .insert(moduleApps)
+      .values({
+        appType: 'hybrid_app',
+        category: 'business',
+        description: 'Original description.',
+        displayName: 'Owned App',
+        icon: 'Package',
+        publisherId: owner.id,
+        slug: 'protected-developer-app',
+        status: 'draft',
+      })
+      .returning();
+    const [packageRow] = await serverDB
+      .insert(moduleAppPackages)
+      .values({
+        archive: {
+          fileName: 'takeover.zip',
+          mimeType: 'application/zip',
+          sha256: 'd'.repeat(64),
+          sizeBytes: 1024,
+          storageKey: 'module-app-packages/takeover.zip',
+        },
+        fileManifest: [{ path: 'module-app.yaml', sizeBytes: 512 }],
+        manifestSnapshot: {
+          ...executableManifest,
+          app: {
+            ...executableManifest.app,
+            description: 'Replaced description.',
+            slug: 'protected-developer-app',
+          },
+        },
+        reviewStatus: 'pending_review',
+        submittedByUserId: OTHER_DEVELOPER_ID,
+        validationReport: [],
+      })
+      .returning();
+    await serverDB.insert(moduleAppPackageUploads).values({
+      actualSizeBytes: 1024,
+      completedAt: new Date(),
+      declaredSizeBytes: 1024,
+      expiresAt: new Date(Date.now() + 60_000),
+      fileName: 'takeover.zip',
+      mimeType: 'application/zip',
+      packageId: packageRow.id,
+      scanStatus: 'clean',
+      status: 'submitted',
+      storageKey: 'module-app-packages/takeover.zip',
+      userId: OTHER_DEVELOPER_ID,
+    });
+
+    await expect(
+      new ModuleAppModel(serverDB).approvePackageSubmissionForAdmin({
+        packageId: packageRow.id,
+        reviewedByUserId: ADMIN_ID,
+      }),
+    ).rejects.toThrow('MODULE_APP_PACKAGE_APP_OWNERSHIP_MISMATCH');
+    expect(await serverDB.query.moduleApps.findFirst()).toMatchObject({
+      description: 'Original description.',
+      id: ownedApp.id,
+      publisherId: owner.id,
+    });
+    expect(attacker.id).not.toBe(owner.id);
+  });
+
   it('queues a build and keeps a reviewed executable app unpublished', async () => {
     const [publisher] = await serverDB
       .insert(moduleAppPublishers)

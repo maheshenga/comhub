@@ -1,8 +1,10 @@
 lockfile: false
 packages:
   - packages/**
+  - '!packages/module-app-sdk/dist'
   - .
   - e2e
+  - apps/cli
   - apps/desktop/src/main
   - apps/server
   - apps/module-runtime

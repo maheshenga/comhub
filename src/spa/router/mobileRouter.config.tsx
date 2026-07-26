@@ -328,7 +328,10 @@ const workspaceMobileRootChildren: RouteObject[] = [
     index: true,
   },
   {
-    element: dynamicElement(() => import('@/routes/(mobile)/design'), 'Mobile > Workspace > Design'),
+    element: dynamicElement(
+      () => import('@/routes/(mobile)/design'),
+      'Mobile > Workspace > Design',
+    ),
     path: 'design',
   },
   {
@@ -336,7 +339,10 @@ const workspaceMobileRootChildren: RouteObject[] = [
       {
         children: [
           {
-            element: dynamicElement(() => import('@/routes/(main)/page'), 'Mobile > Workspace > Pages'),
+            element: dynamicElement(
+              () => import('@/routes/(main)/page'),
+              'Mobile > Workspace > Pages',
+            ),
             index: true,
           },
           {
@@ -409,7 +415,10 @@ const workspaceMobileRootChildren: RouteObject[] = [
   {
     children: [
       {
-        element: dynamicElement(() => import('@/routes/(mobile)/apps'), 'Mobile > Workspace > Apps'),
+        element: dynamicElement(
+          () => import('@/routes/(mobile)/apps'),
+          'Mobile > Workspace > Apps',
+        ),
         index: true,
       },
       {
@@ -567,6 +576,22 @@ export const mobileRoutes: RouteObject[] = [
               'Mobile > Apps > Deep Page Guard',
             ),
             path: 'market',
+          },
+          {
+            children: [
+              {
+                element: dynamicElement(
+                  () => import('@/routes/(main)/apps/developer'),
+                  'Mobile > Apps > Developer',
+                ),
+                index: true,
+              },
+            ],
+            element: dynamicLayout(
+              () => import('@/features/MobileWorkspace/MobileDeepPageGuard'),
+              'Mobile > Apps > Developer Guard',
+            ),
+            path: 'developer',
           },
           {
             children: [

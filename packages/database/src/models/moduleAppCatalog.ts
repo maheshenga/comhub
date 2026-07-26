@@ -26,6 +26,7 @@ import {
   moduleAppPackages,
   moduleAppPackageUploads,
   moduleAppPages,
+  moduleAppPublishers,
   moduleApps,
   moduleAppVersions,
 } from '../schemas';
@@ -137,6 +138,15 @@ const normalizePackageManifestForApproval = (manifest: ModuleAppPackageRow['mani
     packageVersion: parsed.packageVersion,
     runtime: parsed.runtime,
   };
+};
+
+export const assertModuleAppPackageAppOwnership = (
+  existingApp: null | Pick<ModuleAppRow, 'publisherId'> | undefined,
+  publisherId: string,
+) => {
+  if (existingApp && existingApp.publisherId !== publisherId) {
+    throw new Error('MODULE_APP_PACKAGE_APP_OWNERSHIP_MISMATCH');
+  }
 };
 
 const matchesMarketplaceFilters = (
@@ -395,6 +405,7 @@ export class ModuleAppCatalogModel {
   private upsertAppForAdminWithExecutor = async (
     input: ModuleAppAdminUpsertInput,
     db: DbExecutor,
+    publisherId?: string,
   ): Promise<{ id: string; slug: string }> => {
     const existing = await this.findAppForUpsert(input, db);
     const preserveCurrentPublication =
@@ -409,6 +420,7 @@ export class ModuleAppCatalogModel {
       displayName: input.displayName,
       icon: input.icon,
       metadata: {},
+      ...(publisherId ? { publisherId } : {}),
       slug: input.slug,
       source: input.source,
       status: preserveCurrentPublication ? ('published' as const) : input.status,
@@ -421,8 +433,15 @@ export class ModuleAppCatalogModel {
       const [updated] = await db
         .update(moduleApps)
         .set({ ...appValues, updatedAt: new Date() })
-        .where(eq(moduleApps.id, existing.id))
+        .where(
+          publisherId
+            ? and(eq(moduleApps.id, existing.id), eq(moduleApps.publisherId, publisherId))
+            : eq(moduleApps.id, existing.id),
+        )
         .returning();
+      if (!updated && publisherId) {
+        throw new Error('MODULE_APP_PACKAGE_APP_OWNERSHIP_MISMATCH');
+      }
       app = updated;
     } else {
       const [inserted] = await db
@@ -591,9 +610,11 @@ export class ModuleAppCatalogModel {
     reviewedByUserId: string;
   }) => {
     return this.db.transaction(async (tx) => {
-      const submission = await tx.query.moduleAppPackages.findFirst({
-        where: eq(moduleAppPackages.id, params.packageId),
-      });
+      const [submission] = await tx
+        .select()
+        .from(moduleAppPackages)
+        .where(eq(moduleAppPackages.id, params.packageId))
+        .for('update');
 
       if (!submission) throw new Error('MODULE_APP_PACKAGE_NOT_FOUND');
       if (submission.reviewStatus !== 'pending_review') {
@@ -613,10 +634,25 @@ export class ModuleAppCatalogModel {
         source: 'developer' as const,
         status: normalized.manifestVersion === 2 ? ('draft' as const) : normalized.app.status,
       };
-      const app = await this.upsertAppForAdminWithExecutor(appInput, tx);
-      const ownedApp = await tx.query.moduleApps.findFirst({
-        where: eq(moduleApps.id, app.id),
-      });
+      if (!submission.submittedByUserId) {
+        throw new Error('MODULE_APP_PACKAGE_SUBMITTER_REQUIRED');
+      }
+      const [publisher] = await tx
+        .select()
+        .from(moduleAppPublishers)
+        .where(
+          and(
+            eq(moduleAppPublishers.userId, submission.submittedByUserId),
+            eq(moduleAppPublishers.status, 'verified'),
+          ),
+        )
+        .for('update');
+      if (!publisher) throw new Error('MODULE_APP_PACKAGE_PUBLISHER_NOT_VERIFIED');
+
+      const existingApp = await this.findAppForUpsert(appInput, tx);
+      assertModuleAppPackageAppOwnership(existingApp, publisher.id);
+
+      const app = await this.upsertAppForAdminWithExecutor(appInput, tx, publisher.id);
       await this.replaceEntitlementsForAdmin(
         { appId: app.id, entitlements: normalized.entitlements },
         tx,
@@ -658,7 +694,7 @@ export class ModuleAppCatalogModel {
         .update(moduleAppPackages)
         .set({
           appId: app.id,
-          publisherId: ownedApp?.publisherId,
+          publisherId: publisher.id,
           publishedAt: appInput.status === 'published' ? (version.publishedAt ?? now) : null,
           rejectionReason: null,
           reviewStatus: 'approved',
@@ -783,46 +819,51 @@ export class ModuleAppCatalogModel {
     };
   };
 
+  protected setStatusWithExecutor = async (
+    params: { appId: string; status: ModuleAppStatus },
+    db: DbExecutor,
+  ) => {
+    const version = await this.getLatestVersion(params.appId, db);
+    if (params.status === 'published' && !version) {
+      throw new Error('MODULE_APP_VERSION_NOT_FOUND');
+    }
+    const runtimeManifest = version?.runtimeManifest as { manifestVersion?: unknown } | undefined;
+
+    if (version && params.status === 'published' && runtimeManifest?.manifestVersion === 2) {
+      const build = await db.query.moduleAppBuilds.findFirst({
+        where: eq(moduleAppBuilds.versionId, version.id),
+      });
+      const hasReadyArtifact =
+        build?.status === 'ready' &&
+        Boolean(build.artifactKey) &&
+        Boolean(build.artifactSha256) &&
+        build.artifactKey === version.runtimeArtifactKey &&
+        build.artifactSha256 === version.runtimeArtifactSha256;
+
+      if (!hasReadyArtifact) throw new Error('MODULE_APP_BUILD_NOT_READY');
+    }
+
+    await db
+      .update(moduleApps)
+      .set({
+        currentPublishedVersionId: params.status === 'published' ? version!.id : null,
+        status: params.status,
+        updatedAt: new Date(),
+      })
+      .where(eq(moduleApps.id, params.appId));
+
+    if (version && params.status === 'published' && !version.publishedAt) {
+      await db
+        .update(moduleAppVersions)
+        .set({ publishedAt: new Date() })
+        .where(eq(moduleAppVersions.id, version.id));
+    }
+
+    return { ok: true as const };
+  };
+
   setStatus = async (params: { appId: string; status: ModuleAppStatus }) => {
-    return this.db.transaction(async (tx) => {
-      const version = await this.getLatestVersion(params.appId, tx);
-      if (params.status === 'published' && !version) {
-        throw new Error('MODULE_APP_VERSION_NOT_FOUND');
-      }
-      const runtimeManifest = version?.runtimeManifest as { manifestVersion?: unknown } | undefined;
-
-      if (version && params.status === 'published' && runtimeManifest?.manifestVersion === 2) {
-        const build = await tx.query.moduleAppBuilds.findFirst({
-          where: eq(moduleAppBuilds.versionId, version.id),
-        });
-        const hasReadyArtifact =
-          build?.status === 'ready' &&
-          Boolean(build.artifactKey) &&
-          Boolean(build.artifactSha256) &&
-          build.artifactKey === version.runtimeArtifactKey &&
-          build.artifactSha256 === version.runtimeArtifactSha256;
-
-        if (!hasReadyArtifact) throw new Error('MODULE_APP_BUILD_NOT_READY');
-      }
-
-      await tx
-        .update(moduleApps)
-        .set({
-          currentPublishedVersionId: params.status === 'published' ? version!.id : null,
-          status: params.status,
-          updatedAt: new Date(),
-        })
-        .where(eq(moduleApps.id, params.appId));
-
-      if (version && params.status === 'published' && !version.publishedAt) {
-        await tx
-          .update(moduleAppVersions)
-          .set({ publishedAt: new Date() })
-          .where(eq(moduleAppVersions.id, version.id));
-      }
-
-      return { ok: true as const };
-    });
+    return this.db.transaction((tx) => this.setStatusWithExecutor(params, tx));
   };
 
   private upsertConfigurationForAdminWithExecutor = async (

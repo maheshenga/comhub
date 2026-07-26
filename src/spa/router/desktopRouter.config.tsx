@@ -165,18 +165,18 @@ export const sharedMainAreaChildren: RouteObject[] = [
         path: ':aid',
       },
     ],
-      path: 'agent',
-    },
+    path: 'agent',
+  },
 
-    // Fleet view (side-by-side agent dashboard)
-    {
-      element: dynamicElement(() => import('@/routes/(main)/fleet'), 'Desktop > Fleet'),
-      errorElement: <ErrorBoundary />,
-      handle: { meta: fleetRouteMeta },
-      path: 'fleet',
-    },
+  // Fleet view (side-by-side agent dashboard)
+  {
+    element: dynamicElement(() => import('@/routes/(main)/fleet'), 'Desktop > Fleet'),
+    errorElement: <ErrorBoundary />,
+    handle: { meta: fleetRouteMeta },
+    path: 'fleet',
+  },
 
-    // Group chat routes
+  // Group chat routes
   {
     children: [
       {
@@ -426,6 +426,13 @@ export const sharedMainAreaChildren: RouteObject[] = [
       {
         element: dynamicElement(() => import('@/routes/(main)/apps/my'), 'Desktop > Apps > My'),
         path: 'my',
+      },
+      {
+        element: dynamicElement(
+          () => import('@/routes/(main)/apps/developer'),
+          'Desktop > Apps > Developer',
+        ),
+        path: 'developer',
       },
       {
         element: dynamicElement(() => import('@/routes/(main)/apps/team'), 'Desktop > Apps > Team'),

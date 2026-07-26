@@ -9,6 +9,11 @@ Feature: Module App production acceptance
     When I open the configured Module App runtime page
     Then the Module App runtime should render without a launch error
 
+  Scenario: Open the authenticated developer console
+    Given the Module App production gate environment is configured
+    When I open the Module App developer console
+    Then the Module App developer console should render
+
   Scenario: Observe durable executable action and workflow progress
     Given the Module App production gate environment is configured
     When I open the configured Module App runtime page with its workflow run

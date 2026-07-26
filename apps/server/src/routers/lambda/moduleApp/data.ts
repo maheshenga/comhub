@@ -15,6 +15,7 @@ import {
 import { getSubscriptionPlan } from '@/business/server/user';
 import { ModuleAppModel } from '@/database/models/moduleApp';
 import { ModuleAppCommerceModel } from '@/database/models/moduleAppCommerce';
+import { ModuleAppDeveloperModel } from '@/database/models/moduleAppDeveloper';
 import { ModuleAppWorkflowModel } from '@/database/models/moduleAppWorkflow';
 import { WorkspaceMemberModel } from '@/database/models/workspaceMember';
 import type { ModuleAppRecordItem } from '@/database/schemas';
@@ -34,6 +35,7 @@ export const moduleAppProcedure = authedProcedure.use(serverDatabase).use(async 
   return opts.next({
     ctx: {
       currentPlan,
+      moduleAppDeveloperModel: new ModuleAppDeveloperModel(opts.ctx.serverDB),
       moduleAppModel: new ModuleAppModel(opts.ctx.serverDB),
       moduleAppWorkflowModel: new ModuleAppWorkflowModel(opts.ctx.serverDB),
     },

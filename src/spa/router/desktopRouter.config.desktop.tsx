@@ -79,6 +79,7 @@ import ModuleAppMarketPage from '@/routes/(main)/apps';
 import ModuleAppDetailPage from '@/routes/(main)/apps/[appId]';
 import ModuleAppRuntimePage from '@/routes/(main)/apps/[appId]/app';
 import ModuleAppRuntimePageRoute from '@/routes/(main)/apps/[appId]/app/[pageKey]';
+import ModuleAppDeveloperPage from '@/routes/(main)/apps/developer';
 import ModuleAppMyAppsPage from '@/routes/(main)/apps/my';
 import ModuleAppTeamAppsPage from '@/routes/(main)/apps/team';
 import CommunityLayout from '@/routes/(main)/community/_layout';
@@ -426,6 +427,10 @@ export const sharedMainAreaChildren: RouteObject[] = [
       {
         element: <ModuleAppMyAppsPage />,
         path: 'my',
+      },
+      {
+        element: <ModuleAppDeveloperPage />,
+        path: 'developer',
       },
       {
         element: <ModuleAppTeamAppsPage />,

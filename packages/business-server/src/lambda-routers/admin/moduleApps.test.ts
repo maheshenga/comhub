@@ -723,6 +723,20 @@ describe('admin module apps router', () => {
     );
   });
 
+  it.each([
+    ['MODULE_APP_PACKAGE_SUBMITTER_REQUIRED', 'PRECONDITION_FAILED'],
+    ['MODULE_APP_PACKAGE_PUBLISHER_NOT_VERIFIED', 'PRECONDITION_FAILED'],
+    ['MODULE_APP_PACKAGE_APP_OWNERSHIP_MISMATCH', 'CONFLICT'],
+  ] as const)('maps package ownership error %s to %s', async (message, code) => {
+    buildServiceMocks.approvePackage.mockRejectedValueOnce(new Error(message));
+    const caller = createCaller();
+
+    await expect(caller.moduleApps.approvePackage({ packageId: PACKAGE_ID })).rejects.toMatchObject(
+      { code, message },
+    );
+    expect(writeModuleAppAuditLog).not.toHaveBeenCalled();
+  });
+
   it('rescans a legacy package and writes an audit log', async () => {
     const caller = createCaller();
 

@@ -12,6 +12,7 @@ import { lambdaRouter } from './index';
 import { moduleAppRouter } from './moduleApp';
 import { moduleAppCommerceProcedures } from './moduleApp/commerce';
 import { moduleAppDataProcedures, moduleAppProcedure } from './moduleApp/data';
+import { moduleAppDeveloperProcedures } from './moduleApp/developer';
 import { moduleAppInstallationSecretProcedures } from './moduleApp/installationSecrets';
 import { moduleAppMarketProcedures } from './moduleApp/market';
 import { moduleAppRuntimeProcedures } from './moduleApp/runtime';
@@ -32,6 +33,7 @@ const {
   mockEncryptInstallationSecret,
   mockCreateConfiguredModuleAppAlipayClient,
   mockModuleAppModel,
+  mockModuleAppDeveloperModel,
   mockModuleAppWorkflowModel,
   mockSignModuleAppCapability,
   mockVerifyModuleAppCapability,
@@ -96,6 +98,16 @@ const {
     uninstallWorkspaceApp: vi.fn(),
     upsertInstallationSecret: vi.fn(),
   },
+  mockModuleAppDeveloperModel: {
+    getFinance: vi.fn(),
+    getPublisherProfile: vi.fn(),
+    listApplications: vi.fn(),
+    listSubmissions: vi.fn(),
+    listVersions: vi.fn(),
+    rollbackVersion: vi.fn(),
+    setPublication: vi.fn(),
+    upsertPublisherProfile: vi.fn(),
+  },
   mockModuleAppWorkflowModel: {
     cancelRun: vi.fn(),
     getRun: vi.fn(),
@@ -149,6 +161,10 @@ vi.mock('@/server/services/moduleAppRuntime/client', () => ({
 
 vi.mock('@/database/models/moduleApp', () => ({
   ModuleAppModel: vi.fn(() => mockModuleAppModel),
+}));
+
+vi.mock('@/database/models/moduleAppDeveloper', () => ({
+  ModuleAppDeveloperModel: vi.fn(() => mockModuleAppDeveloperModel),
 }));
 
 vi.mock('@/database/models/moduleAppCommerce', () => ({
@@ -282,6 +298,22 @@ describe('moduleApp router registration', () => {
     mockModuleAppModel.getRuntimeManifest.mockResolvedValue({ actions: [], pages: [] });
     mockModuleAppModel.upsertInstallationSecret.mockResolvedValue({ ok: true });
     mockModuleAppModel.deleteInstallationSecret.mockResolvedValue({ ok: true });
+    mockModuleAppDeveloperModel.getFinance.mockResolvedValue({
+      payouts: [],
+      revenue: [],
+      summary: [],
+    });
+    mockModuleAppDeveloperModel.getPublisherProfile.mockResolvedValue(null);
+    mockModuleAppDeveloperModel.listApplications.mockResolvedValue({ items: [], nextCursor: null });
+    mockModuleAppDeveloperModel.listSubmissions.mockResolvedValue({ items: [], nextCursor: null });
+    mockModuleAppDeveloperModel.listVersions.mockResolvedValue([]);
+    mockModuleAppDeveloperModel.rollbackVersion.mockResolvedValue({ ok: true });
+    mockModuleAppDeveloperModel.setPublication.mockResolvedValue({ ok: true });
+    mockModuleAppDeveloperModel.upsertPublisherProfile.mockResolvedValue({
+      displayName: 'Developer',
+      id: '00000000-0000-4000-8000-000000000050',
+      status: 'pending',
+    });
     mockEncryptInstallationSecret.mockReset().mockResolvedValue('encrypted-secret');
     mockModuleAppCommerceModel.listOrders.mockResolvedValue([]);
     mockModuleAppCommerceModel.listCatalog.mockResolvedValue([]);
@@ -372,11 +404,40 @@ describe('moduleApp router registration', () => {
     expect(lambdaRouter._def.record.moduleApp).toBeDefined();
   });
 
+  it('derives every developer operation from the authenticated user', async () => {
+    const caller = createCaller();
+
+    await caller.listMyDeveloperApps({});
+    await caller.listMyDeveloperSubmissions({});
+    await caller.publishMyDeveloperApp({ appId: APP_ID });
+    await caller.upsertMyPublisherProfile({ displayName: 'Developer Studio' });
+
+    expect(mockModuleAppDeveloperModel.listApplications).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 20,
+      userId: 'user-1',
+    });
+    expect(mockModuleAppDeveloperModel.listSubmissions).toHaveBeenCalledWith({
+      cursor: 0,
+      limit: 20,
+      userId: 'user-1',
+    });
+    expect(mockModuleAppDeveloperModel.setPublication).toHaveBeenCalledWith({
+      appId: APP_ID,
+      published: true,
+      userId: 'user-1',
+    });
+    expect(mockModuleAppDeveloperModel.upsertPublisherProfile).toHaveBeenCalledWith('user-1', {
+      displayName: 'Developer Studio',
+    });
+  });
+
   it('composes the root router exclusively from domain procedure records', () => {
     const domainRecords = [
       moduleAppMarketProcedures,
       moduleAppRuntimeProcedures,
       moduleAppDataProcedures,
+      moduleAppDeveloperProcedures,
       moduleAppInstallationSecretProcedures,
       moduleAppWorkflowProcedures,
       moduleAppCommerceProcedures,
@@ -406,6 +467,8 @@ describe('moduleApp router registration', () => {
       getDetail: { inputs: 1, type: 'query' },
       getLaunchContext: { inputs: 1, type: 'query' },
       getLicense: { inputs: 1, type: 'query' },
+      getMyDeveloperFinance: { inputs: 0, type: 'query' },
+      getMyPublisherProfile: { inputs: 0, type: 'query' },
       getRecord: { inputs: 1, type: 'query' },
       getRuntimeManifest: { inputs: 1, type: 'query' },
       getWorkflowRun: { inputs: 1, type: 'query' },
@@ -415,6 +478,9 @@ describe('moduleApp router registration', () => {
       listCatalog: { inputs: 1, type: 'query' },
       listInstallationSecrets: { inputs: 1, type: 'query' },
       listMarketplace: { inputs: 1, type: 'query' },
+      listMyDeveloperApps: { inputs: 1, type: 'query' },
+      listMyDeveloperSubmissions: { inputs: 1, type: 'query' },
+      listMyDeveloperVersions: { inputs: 1, type: 'query' },
       listMobileApps: { inputs: 1, type: 'query' },
       listMyApps: { inputs: 1, type: 'query' },
       listMyPackageSubmissions: { inputs: 1, type: 'query' },
@@ -424,12 +490,16 @@ describe('moduleApp router registration', () => {
       listTeamApps: { inputs: 1, type: 'query' },
       listWorkflowNodes: { inputs: 1, type: 'query' },
       quoteProduct: { inputs: 1, type: 'query' },
+      publishMyDeveloperApp: { inputs: 1, type: 'mutation' },
+      rollbackMyDeveloperApp: { inputs: 1, type: 'mutation' },
       runAction: { inputs: 1, type: 'mutation' },
       submitUploadedPackage: { inputs: 1, type: 'mutation' },
       uninstallPersonal: { inputs: 1, type: 'mutation' },
       uninstallWorkspace: { inputs: 1, type: 'mutation' },
+      unpublishMyDeveloperApp: { inputs: 1, type: 'mutation' },
       updateRecord: { inputs: 1, type: 'mutation' },
       upsertInstallationSecret: { inputs: 1, type: 'mutation' },
+      upsertMyPublisherProfile: { inputs: 1, type: 'mutation' },
     };
     const inputSchemaContract: Record<string, null | string> = {
       archiveRecord: '260d0eee596956378467e0edd0635e2d0dd2dd8cee898e80b24fb13f11b93200',
@@ -445,6 +515,8 @@ describe('moduleApp router registration', () => {
       getDetail: '071a01e07fe8fc3449788d0f354c6ff6f3ea0001462e1012814d0f676102917a',
       getLaunchContext: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
       getLicense: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
+      getMyDeveloperFinance: null,
+      getMyPublisherProfile: null,
       getRecord: '260d0eee596956378467e0edd0635e2d0dd2dd8cee898e80b24fb13f11b93200',
       getRuntimeManifest: 'f1dd9874cad4c8e94f698576b5d8c7a0724769fb7002548707926739acfd3cae',
       getWorkflowRun: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
@@ -454,6 +526,10 @@ describe('moduleApp router registration', () => {
       listCatalog: '789a28a4bd88dbbb0a4fe89c2a6538c190ebf8427135cb961433cd1d341f7079',
       listInstallationSecrets: '21d355edace3fd4479dc17131bfe8844a9ba90f88cfe630d4afc9df8c8070d23',
       listMarketplace: '5b4111c42b1b67721865e703b17f57207ab663914acbbd1885433bbe9a624d27',
+      listMyDeveloperApps: '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
+      listMyDeveloperSubmissions:
+        '2333546e2b689f23d06b934d500c8e7e33f2aee2701aae5234decad51ce72e01',
+      listMyDeveloperVersions: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
       listMobileApps: 'fd9e67ce22cbc8dd53d16c3f71e527a0bbd628afeb46949e355bd2442c29de7c',
       listMyApps: '1d2e18a1f9afecde06441e409c12cdb15bb4f0ea494545effe6824f39dd8355e',
       listMyPackageSubmissions: '73f4357a6b7d4d088b0eadd243ce4201c94295e9e8f83dc60b642f7b2979133c',
@@ -463,12 +539,16 @@ describe('moduleApp router registration', () => {
       listTeamApps: '9bbd98dad19781d69ccc360646979c139118dce38697b889175b6efcb2f5a7a5',
       listWorkflowNodes: '4e1c00aa49ab30b9d1bc7a24a487fa61b9e0f222d2e0819aceb4be8b3930c064',
       quoteProduct: 'f0bb4ee4fa6e509c8621f0c0c49b8ea2952c1c07b8c219354a5c85684ec2d858',
+      publishMyDeveloperApp: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
+      rollbackMyDeveloperApp: 'f34a5de1f0e2e8e20b6c8430c43949b8f2b1b5011b300adaac0add188b7db9ca',
       runAction: 'b02a2c4f1fe29489a7b4c9315e0bd3f461024e41dfb4b875cdea64b78e020c0f',
       submitUploadedPackage: '1257dbc5e374e9500f59cc034f282ba76faafaea9bf7b38fee9124b599bdf571',
       uninstallPersonal: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
       uninstallWorkspace: '456b6ddb3c315ab99db2e0ddd37e020b94c9914c99c42e742ad1d5416fc1baee',
+      unpublishMyDeveloperApp: '64bc8a74c4bbd56156e23e6bbc08d10052de86fe28b757fc93bf515136a27cee',
       updateRecord: '33347b3388f8c6500c014bb99506e2df954697674a2b8dce44264e05c20c0f5d',
       upsertInstallationSecret: 'ca13d38564530b36a90fce7005154de37f59124a9ea82265552848174ddf45d1',
+      upsertMyPublisherProfile: 'a50b9d5b9d6829e10e9ce10c5a9ab2836ba4df4cc89f8761c7fad584273b31d3',
     };
     const baseMiddlewares = moduleAppProcedure._def.middlewares;
     const authMiddlewares = authedProcedure._def.middlewares;

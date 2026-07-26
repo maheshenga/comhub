@@ -356,6 +356,15 @@ const mapPackageReviewError = (error: unknown) => {
   if (identifier === 'MODULE_APP_PACKAGE_SCAN_NOT_CLEAN') {
     return new TRPCError({ cause: error, code: 'PRECONDITION_FAILED', message: identifier });
   }
+  if (
+    identifier === 'MODULE_APP_PACKAGE_SUBMITTER_REQUIRED' ||
+    identifier === 'MODULE_APP_PACKAGE_PUBLISHER_NOT_VERIFIED'
+  ) {
+    return new TRPCError({ cause: error, code: 'PRECONDITION_FAILED', message: identifier });
+  }
+  if (identifier === 'MODULE_APP_PACKAGE_APP_OWNERSHIP_MISMATCH') {
+    return new TRPCError({ cause: error, code: 'CONFLICT', message: identifier });
+  }
   if (identifier === 'MODULE_APP_PACKAGE_NOT_FOUND') {
     return new TRPCError({ cause: error, code: 'NOT_FOUND', message: identifier });
   }

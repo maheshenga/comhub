@@ -25,17 +25,27 @@ const open = async (world: CustomWorld, path: string) => {
   expect(response?.status()).toBeLessThan(500);
 };
 
-Given('the Module App production gate environment is configured', async function (this: CustomWorld) {
-  const missing = requiredEnvironment.filter((key) => !process.env[key]?.trim());
-  expect(missing, `Missing staging fixtures: ${missing.join(', ')}`).toEqual([]);
-  const session = await this.page.request.get('/api/auth/get-session');
-  expect(session.ok(), 'Authenticated staging session request failed').toBe(true);
-  const body = await session.json();
-  expect(body?.user?.id, 'Module App production probes require an authenticated user').toBeTruthy();
-});
+Given(
+  'the Module App production gate environment is configured',
+  async function (this: CustomWorld) {
+    const missing = requiredEnvironment.filter((key) => !process.env[key]?.trim());
+    expect(missing, `Missing staging fixtures: ${missing.join(', ')}`).toEqual([]);
+    const session = await this.page.request.get('/api/auth/get-session');
+    expect(session.ok(), 'Authenticated staging session request failed').toBe(true);
+    const body = await session.json();
+    expect(
+      body?.user?.id,
+      'Module App production probes require an authenticated user',
+    ).toBeTruthy();
+  },
+);
 
 When('I open the configured Module App detail page', async function (this: CustomWorld) {
   await open(this, `/apps/${env('MODULE_APP_E2E_APP_ID')}`);
+});
+
+When('I open the Module App developer console', async function (this: CustomWorld) {
+  await open(this, '/apps/developer');
 });
 
 When('I open the configured Module App runtime page', async function (this: CustomWorld) {
@@ -84,6 +94,10 @@ When('I open the configured refunded-order detail page', async function (this: C
 
 Then('the Module App detail should render', async function (this: CustomWorld) {
   await expect(this.page.getByTestId('module-app-detail')).toBeVisible();
+});
+
+Then('the Module App developer console should render', async function (this: CustomWorld) {
+  await expect(this.page.getByTestId('module-app-developer-console')).toBeVisible();
 });
 
 Then(
